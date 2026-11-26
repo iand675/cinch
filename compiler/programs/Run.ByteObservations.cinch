@@ -49,7 +49,7 @@ module Main where
         Some evidence ->
           let rhs = if change then different else local in
           let body = CIf sp positive test (CLet sp positive alias "alias" (mono bytes) rhs (CRefine sp positive evidence aliased)) (CRefine sp positive fallback one) in
-          core-definition-closed (MkCoreDefinition sp "alias-rhs-rechecked" (mono (UFun bytes (UFun bytes positive))) Nil Nil Nil [MkCoreClause sp [CPVar sp bytes id "buffer", CPVar sp bytes other "other"] body])
+          core-definition-closed (CoreDefinition sp "alias-rhs-rechecked" (mono (UFun bytes (UFun bytes positive))) Nil Nil Nil [CoreClause sp [CPVar sp bytes id "buffer", CPVar sp bytes other "other"] body])
         None -> False
       other -> False
   checks :: Nat -> List Bool
@@ -87,7 +87,7 @@ module Main where
     , provable [(id, bytes)] (UCompare "==" length length)
     , not (provable [(id, nat)] (UCompare "==" length length))
     , not (provable [(other, bytes)] (UCompare "==" length length))
-    , not (core-data-closed (MkCoreData sp "unscoped" KType Nil [MkCoreConstructor sp "Mk" (mono (family observed))]))
+    , not (core-data-closed (MkCoreData sp "unscoped" KType Nil [CoreConstructor sp "Mk" (mono (family observed))]))
     , condition [(id, bytes)] "cinch.runtime.bytesLen" "intrinsic" function bytes id
     , not (condition [(id, nat)] "cinch.runtime.bytesLen" "intrinsic" function bytes id)
     , not (condition [(id, bytes)] "Main.bytes-len" "external" function bytes id)

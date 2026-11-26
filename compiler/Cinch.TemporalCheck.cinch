@@ -29,11 +29,9 @@ module Cinch.TemporalCheck where
   import Cinch.Type (UType, UApp, borrow-type-parts, without-index-levels, empty-store, store-errors, unify, index-of-type, type-text)
   import Cinch.Index (IndexTerm, IRigid, index-equal)
   import Cinch.Proof (Arithmetic, AInteger, AVariable, APlus, AMinus, ATimes, ACall, AArgument, AArgumentsEnd, Proposition, PTruth, PFalsehood, PCompare, PBoth, PEither, PNegate, Comparison, Less, AtMost, Equal, Unequal, AtLeast, Greater, prove, disproved, proposition-equal)
-  import Cinch.Core (CPolyIntro, CPolyElim, mutable-borrow, CoreClause, MkCoreClause, core-clauses, term-children, core-type, borrow-read-variable, proof-variable
-    , CoreTerm, CUse,CLocal,CProofRef,CProofRefl,CProofSearch,CQualifiedUse,CMethod,CInt,CString,CChar,CUnit,CApply,CApplyEff,CErasedApply,CDecision,CScope,CMemoScope,CSpawn,CJoin,CWith,CHandler,CHandle,CHandlerOperation,CHandlerEnd,CLambda,CLet,CRecursiveFunctions,CRecursiveValues,CRecursiveBinding,CRecursiveBindingsEnd,CIf,CCase,CTuple,CPrimitive,CProved,CRefine,CRefineProof,CForget,CCast,CRequire,CDischarge,CGuard,CArgument,CArgumentsEnd,CAlternative,CAlternativesEnd,CError
-    , CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone)
+  import Cinch.Core (CPolyIntro, CPolyElim, mutable-borrow, CoreClause, term-children, core-type, borrow-read-variable, proof-variable, CoreTerm, CUse, CLocal, CProofRef, CProofRefl, CProofSearch, CQualifiedUse, CMethod, CInt, CString, CChar, CUnit, CApply, CApplyEff, CErasedApply, CDecision, CScope, CMemoScope, CSpawn, CJoin, CWith, CHandler, CHandle, CHandlerOperation, CHandlerEnd, CLambda, CLet, CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd, CIf, CCase, CTuple, CPrimitive, CProved, CRefine, CRefineProof, CForget, CCast, CRequire, CDischarge, CGuard, CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError, CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone)
 
-  export Parameter, MkParameter, parameter-name, parameter-id, parameter-type
+  export Parameter
   export TemporalStep, TemporalWrite, TemporalOpaque, TemporalDischarge, TemporalCall
   export temporal-steps, temporal-parameters, temporal-reads, temporal-definition-steps, temporal-scope-sites
   export temporal-definition-parameters, temporal-recursive, temporal-descent
@@ -43,17 +41,10 @@ module Cinch.TemporalCheck where
 
   -- One parameter of the definition a contract names: its source name, the
   -- identity the checked Core gave it, and its type.
-  data Parameter where
-    MkParameter :: String -> Nat -> UType -> Parameter
-
-  parameter-name :: Parameter -> String
-  parameter-name p = case p of MkParameter name id ty -> name
-
-  parameter-id :: Parameter -> Nat
-  parameter-id p = case p of MkParameter name id ty -> id
-
-  parameter-type :: Parameter -> UType
-  parameter-type p = case p of MkParameter name id ty -> ty
+  record Parameter where
+    name :: String
+    id :: Nat
+    ty :: UType
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -78,9 +69,9 @@ module Cinch.TemporalCheck where
 
   pattern-parameters :: CorePattern -> List Parameter
   pattern-parameters pattern = case pattern of
-    CPVar s ty id name -> Cons (MkParameter name id ty) Nil
-    CPErasedValue s ty id name -> Cons (MkParameter name id ty) Nil
-    CPAs s ty id name inner -> Cons (MkParameter name id ty) (pattern-parameters inner)
+    CPVar s ty id name -> Cons (Parameter name id ty) Nil
+    CPErasedValue s ty id name -> Cons (Parameter name id ty) Nil
+    CPAs s ty id name inner -> Cons (Parameter name id ty) (pattern-parameters inner)
     CPTuple s ty fields -> pattern-parameters fields
     CPField s field rest -> pattern-parameters field <> pattern-parameters rest
     other -> Nil
@@ -111,19 +102,19 @@ module Cinch.TemporalCheck where
   temporal-definition-steps :: String -> List CoreClause -> List TemporalStep
   temporal-definition-steps owner clauses = case clauses of
     Nil -> Nil
-    Cons (MkCoreClause sp patterns body) rest -> step-term owner body <> temporal-definition-steps owner rest
+    Cons (CoreClause sp patterns body) rest -> step-term owner body <> temporal-definition-steps owner rest
 
   -- A definition's first clause's parameters (the scope its formulas read).
   temporal-definition-parameters :: List CoreClause -> List Parameter
   temporal-definition-parameters clauses = case clauses of
     Nil -> Nil
-    Cons (MkCoreClause sp patterns body) rest -> temporal-parameters patterns
+    Cons (CoreClause sp patterns body) rest -> temporal-parameters patterns
 
   -- Whether the definition calls itself: a recurrence claim needs a cycle.
   temporal-recursive :: String -> List CoreClause -> Bool
   temporal-recursive owner clauses = case clauses of
     Nil -> False
-    Cons (MkCoreClause sp patterns body) rest -> calls-name owner body || temporal-recursive owner rest
+    Cons (CoreClause sp patterns body) rest -> calls-name owner body || temporal-recursive owner rest
 
   calls-name :: String -> CoreTerm -> Bool
   calls-name owner term = case callee-name term of
@@ -146,7 +137,7 @@ module Cinch.TemporalCheck where
   temporal-descent :: String -> List CoreClause -> Bool
   temporal-descent owner clauses = case clauses of
     Nil -> False
-    Cons (MkCoreClause sp patterns body) rest ->
+    Cons (CoreClause sp patterns body) rest ->
       descends-in owner patterns body || temporal-descent owner rest
 
   descends-in :: String -> List CorePattern -> CoreTerm -> Bool
@@ -502,7 +493,7 @@ module Cinch.TemporalCheck where
   named-by :: List Parameter -> String -> String -> String
   named-by params digits fallback = case params of
     Nil -> fallback
-    Cons first rest -> if same (nat-to-string (parameter-id first)) digits then parameter-name first else named-by rest digits fallback
+    Cons first rest -> if same (nat-to-string (first.id)) digits then first.name else named-by rest digits fallback
 
   -- The written value substituted for a parameter's borrow read: the step's
   -- post-state, which the formula must still satisfy.
@@ -625,7 +616,7 @@ module Cinch.TemporalCheck where
   step-region :: UType -> List Parameter -> Option Parameter
   step-region region params = case params of
     Nil -> None
-    Cons first rest -> case mutable-borrow (parameter-type first) of
+    Cons first rest -> case mutable-borrow (first.ty) of
       Some (borrowed, carrier) -> if same-type borrowed region then Some first else step-region region rest
       None -> step-region region rest
 
@@ -634,7 +625,7 @@ module Cinch.TemporalCheck where
   -- formula compare without unifying their carriers.
   step-region-id :: Option Nat -> List Parameter -> Option Parameter
   step-region-id written params = case (written, params) of
-    (Some id, Cons first rest) -> if parameter-id first == id then Some first else step-region-id written rest
+    (Some id, Cons first rest) -> if first.id == id then Some first else step-region-id written rest
     (Some id, Nil) -> None
     (None, other) -> None
 
@@ -647,7 +638,7 @@ module Cinch.TemporalCheck where
   -- it; anything else is refused.
   decide-step :: String -> String -> String -> Span -> Parameter -> Arithmetic -> Proposition -> List Parameter -> TemporalVerdict
   decide-step claim-name display formula sp subject written prop params =
-    let post = temporal-substitute (parameter-id subject) written prop in
+    let post = temporal-substitute (subject.id) written prop in
     if proposition-equal post prop then TemporalVerified "restored"
     else if proved post then TemporalVerified "decided"
     else if disproved post then TemporalRefused (cat
@@ -714,7 +705,7 @@ module Cinch.TemporalCheck where
     Nil -> False
     Cons first rest -> case first of
       TemporalWrite sp written value -> case (value, step-region-id written params) of
-        (Some amount, Some subject) -> proved (temporal-substitute (parameter-id subject) amount prop) || establishes params prop rest
+        (Some amount, Some subject) -> proved (temporal-substitute (subject.id) amount prop) || establishes params prop rest
         other -> establishes params prop rest
       other -> establishes params prop rest
 

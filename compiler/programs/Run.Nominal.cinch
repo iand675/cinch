@@ -6,10 +6,10 @@ module Main where
   import Cinch.Contracts (interface-headers)
   import Cinch.Parse (parse-program-with)
   import Cinch.Resolve (resolve-program-with)
-  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core)
+  import Cinch.Infer (elaborate-program, elaboration-core)
   import Cinch.Core
   import Cinch.Type (scheme-requirements)
-  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Report (Diagnostic, render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-write)
@@ -18,7 +18,7 @@ module Main where
   errors-for interfaces source = case parse-program-with "nominals" (string-to-bytes source) (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "bootstrap.check" resolved in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if contains "forward ::" source then
             (if dictionary-core (elaboration-core result) then "" else "qualified call lost dictionary evidence") else ""
           errors -> render-diagnostics errors
@@ -34,11 +34,11 @@ module Main where
   dictionary-core :: List CoreDefinition -> Bool
   dictionary-core definitions = case definitions of
     Nil -> False
-    Cons d rest -> (list-length (scheme-requirements (core-scheme d)) == 1 && list-length (core-givens d) == 1
-      && core-definition-closed d && dictionary-clauses (core-givens d) (core-clauses d)) || dictionary-core rest
+    Cons d rest -> (list-length (scheme-requirements (d.scheme)) == 1 && list-length (d.givens) == 1
+      && core-definition-closed d && dictionary-clauses (d.givens) (d.clauses)) || dictionary-core rest
   dictionary-clauses :: List CoreGiven -> List CoreClause -> Bool
   dictionary-clauses givens clauses = case clauses of
-    Cons (MkCoreClause s ps body) rest -> dictionary-term givens body || dictionary-clauses givens rest
+    Cons (CoreClause s ps body) rest -> dictionary-term givens body || dictionary-clauses givens rest
     Nil -> False
   dictionary-term :: List CoreGiven -> CoreTerm -> Bool
   dictionary-term givens term = case term of
@@ -49,7 +49,7 @@ module Main where
     other -> False
   dictionary-evidence :: List CoreGiven -> List CoreEvidence -> Bool
   dictionary-evidence givens evidence = case (givens, evidence) of
-    (Cons given Nil, Cons (CEGiven s ty symbol) Nil) -> string-compare (given-symbol given) symbol == 0
+    (Cons given Nil, Cons (CEGiven s ty symbol) Nil) -> string-compare (given.symbol) symbol == 0
     other -> False
   cases :: List (String, String)
   cases =

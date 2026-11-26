@@ -7,7 +7,7 @@ module Main where
   import Cinch.Check (check-program)
   import Cinch.Ir (emit-diagnostics)
   import Cinch.Parse (parse-program)
-  import Cinch.Report (Diagnostic, diagnostic-message)
+  import Cinch.Report (Diagnostic)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   independent :: String
@@ -22,7 +22,7 @@ module Main where
   contains :: String -> List Diagnostic -> Bool
   contains text ds = case ds of
     Nil -> False
-    Cons d rest -> string-compare text (diagnostic-message d) == 0 || contains text rest
+    Cons d rest -> string-compare text (d.message) == 0 || contains text rest
 
   clean-modules :: Bool
   clean-modules = case parse-program "independent" (string-to-bytes independent) of

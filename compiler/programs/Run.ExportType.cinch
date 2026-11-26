@@ -33,26 +33,26 @@ module Main where
   report =
     row "nat" (export-scheme (mono (UFun nat nat))) <>
     row "literal-proof" (export-scheme (mono (UProofFun (UPropLit False) empty (UApp (UCon "b.Dec" (KFun KProp KType)) (UPropLit False))))) <>
-    row "generic-proof" (export-scheme (MkScheme [MkQuant 7 "p" KProp False] (UProofFun (UBound 7 "p" KProp) empty (UApp (UCon "b.Dec" (KFun KProp KType)) (UBound 7 "p" KProp))))) <>
-    row "proof-effects" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UProofFun (UPropLit False) (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
+    row "generic-proof" (export-scheme (MkScheme [Quant 7 "p" KProp False] (UProofFun (UBound 7 "p" KProp) empty (UApp (UCon "b.Dec" (KFun KProp KType)) (UBound 7 "p" KProp))))) <>
+    row "proof-effects" (export-scheme (MkQualifiedScheme [Quant 8 "r" KRegion True] [Requirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UProofFun (UPropLit False) (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
     row "proof-domain-not-proposition" (export-scheme (mono (UProofFun nat empty nat))) <>
     row "proof-row-not-effects" (export-scheme (mono (UProofFun (UPropLit False) nat nat))) <>
     row "early-proof-precondition" (export-scheme (mono (URequire (UArg (UPropLit True) UEnd) (UProofFun (UPropLit False) empty nat)))) <>
-    row "polymorphic" (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
-    row "source-quantifier" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
-    row "source-application" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun indexed indexed))) <>
-    row "nested-source-application" (export-value-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun nested-indexed nested-indexed))) <>
+    row "polymorphic" (export-scheme (MkScheme [Quant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
+    row "source-quantifier" (export-value-scheme (MkScheme [Quant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType)))) <>
+    row "source-application" (export-value-scheme (MkScheme [Quant 7 "a" KType False] (UFun indexed indexed))) <>
+    row "nested-source-application" (export-value-scheme (MkScheme [Quant 7 "a" KType False] (UFun nested-indexed nested-indexed))) <>
     row "argument-positions" (export-display-scheme (mono (let scalar = UCon "I64" KType in UPi 4 "x" scalar empty (UPi 5 "y" scalar empty (URequire (UArg (UCompare "<=" (UIndex scalar (IInteger 0)) (UIndex scalar (IBound 4 "x"))) (UArg (UCompare "<" (UIndex scalar (IBound 4 "x")) (UIndex scalar (IBound 5 "y"))) UEnd)) scalar))))) <>
-    row "display-binder-collision" (export-display-scheme (MkScheme [MkQuant 7 "arg0" (value-kind nat) False] (UPi 4 "x" nat empty (URequire (UArg (UCompare "<=" (variable 4 "x") (variable 7 "arg0")) UEnd) nat)))) <>
-    row "region" (export-scheme (MkQualifiedScheme [MkQuant 8 "r" KRegion True] [MkRequirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UFunEff unit (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
-    row "scope" (export-scheme (MkScheme [MkQuant 8 "r" KRegion True, MkQuant 9 "s" KRegion True] (let token = UApp (UApp (UCon "b.Scope" (KFun KRegion (KFun KRegion KType))) (UBound 8 "r" KRegion)) (UBound 9 "s" KRegion) in UFun token token))) <>
-    row "task" (export-scheme (MkScheme [MkQuant 8 "s" KRegion True, MkQuant 9 "e" KType False, MkQuant 10 "a" KType False] (UFun unit (UApp (UApp (UApp (UCon "b.Task" (KFun KRegion (KFun KType (KFun KType KType)))) (UBound 8 "s" KRegion)) (UBound 9 "e" KType)) (UBound 10 "a" KType))))) <>
+    row "display-binder-collision" (export-display-scheme (MkScheme [Quant 7 "arg0" (value-kind nat) False] (UPi 4 "x" nat empty (URequire (UArg (UCompare "<=" (variable 4 "x") (variable 7 "arg0")) UEnd) nat)))) <>
+    row "region" (export-scheme (MkQualifiedScheme [Quant 8 "r" KRegion True] [Requirement "io" (UApp (UCon "b.Io" (KFun KRegion KType)) (UBound 8 "r" KRegion))] (UFunEff unit (URow (UArg (UApp (UCon "IO" (KFun KRegion KEffect)) (UBound 8 "r" KRegion)) UEnd)) (UCon "Int" KType)))) <>
+    row "scope" (export-scheme (MkScheme [Quant 8 "r" KRegion True, Quant 9 "s" KRegion True] (let token = UApp (UApp (UCon "b.Scope" (KFun KRegion (KFun KRegion KType))) (UBound 8 "r" KRegion)) (UBound 9 "s" KRegion) in UFun token token))) <>
+    row "task" (export-scheme (MkScheme [Quant 8 "s" KRegion True, Quant 9 "e" KType False, Quant 10 "a" KType False] (UFun unit (UApp (UApp (UApp (UCon "b.Task" (KFun KRegion (KFun KType (KFun KType KType)))) (UBound 8 "s" KRegion)) (UBound 9 "e" KType)) (UBound 10 "a" KType))))) <>
     row "dependent" (export-scheme (mono (UPi 4 "n" nat empty (URequire (UArg (UCompare "<=" (variable 4 "n") (UIndex nat (IInteger 5))) UEnd) nat)))) <>
     row "refinement" (export-scheme (mono (UPi 4 "n" nat empty (URefine 9 "out" nat (UCompare ">=" (variable 9 "out") (variable 4 "n")))))) <>
     row "result-collision" (export-scheme (mono (UPi 4 "cinch-result" nat empty (URefine 9 "out" nat (UCompare "==" (variable 9 "out") (variable 4 "cinch-result")))))) <>
     row "argument-name" (export-scheme (mono (UPi 4 "limit" nat empty (URefine 9 "out" nat (UCompare "<=" (variable 9 "out") (variable 4 "limit")))))) <>
     row "nominal" (export-scheme (mono (UFun (UCon (interface-global "A.Token") KType) (UCon (interface-global "A.Token") KType)))) <>
-    row "alpha-stable" (case (export-scheme (MkScheme [MkQuant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType))), export-scheme (MkScheme [MkQuant 997 "renamed" KType False] (UFun (UBound 997 "renamed" KType) (UBound 997 "renamed" KType)))) of
+    row "alpha-stable" (case (export-scheme (MkScheme [Quant 7 "a" KType False] (UFun (UBound 7 "a" KType) (UBound 7 "a" KType))), export-scheme (MkScheme [Quant 997 "renamed" KType False] (UFun (UBound 997 "renamed" KType) (UBound 997 "renamed" KType)))) of
       (Ok first, Ok second) -> if string-compare first second == 0 then Ok "yes" else Err "inference identities changed the exported contract"
       other -> Err "valid alpha-renamed scheme was refused") <>
     row "source-identity" (export-global "m.A.Token") <>
@@ -67,6 +67,6 @@ module Main where
     row "unsolved" (export-scheme (mono (UMeta 7 KType))) <>
     row "escaped" (export-scheme (mono (URigid 3 "escaped" 1 KType))) <>
     row "malformed-identity" (export-global "m.A-Token") <>
-    row "independent-row-tails" (export-scheme (MkScheme [MkQuant 1 "e" KRow False, MkQuant 2 "f" KRow False] (UFunEff unit (URowJoin (UBound 1 "e" KRow) (UBound 2 "f" KRow)) unit)))
+    row "independent-row-tails" (export-scheme (MkScheme [Quant 1 "e" KRow False, Quant 2 "f" KRow False] (UFunEff unit (URowJoin (UBound 1 "e" KRow) (UBound 2 "f" KRow)) unit)))
   main :: Unit ->{IO r} Int
   main u = with (io = newIO ()) in case fs-write (path-from-string "export-types.txt") (string-to-bytes report) of Ok done -> 0; Err error -> 1

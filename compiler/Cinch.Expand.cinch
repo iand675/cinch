@@ -13,7 +13,7 @@
 module Cinch.Expand where
   import Cinch.Ast
   import Cinch.Parse (Ps, POk, PBad, Fix, parse-tree-term, parse-tree-value-fields)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Text.Lex (Span, span-start, LToken, Token, lt-span, lt-token, TPunct, TVar, TCon, TOp, TInt, TFloat, TWord, TTickName, TTickType)
   import Text.Show (nat-to-string)
   import Data.String (empty-string, string-to-bytes)
@@ -29,7 +29,7 @@ module Cinch.Expand where
   same a b = string-compare a b == 0
 
   expand-error :: forall a. Span -> String -> Result (List Diagnostic) a
-  expand-error site message = Err [MkDiagnostic "bootstrap.expand" site message]
+  expand-error site message = Err [Diagnostic "bootstrap.expand" site message]
 
   cat :: List String -> String
   cat parts = string-concat-all parts

@@ -43,10 +43,10 @@ module Main where
     case scoped-prove-refinement gamma Nil desired projected of
       None -> False
       Some evidence ->
-        let definition = MkCoreDefinition sp "consumer" scheme Nil Nil Nil [MkCoreClause sp [CPVar sp nat id "input"] (CRefine sp desired evidence projected)] in
+        let definition = CoreDefinition sp "consumer" scheme Nil Nil Nil [CoreClause sp [CPVar sp nat id "input"] (CRefine sp desired evidence projected)] in
         let globals = [GlobalValue "consumer" "value" scheme, GlobalBody (GlobalValue "width" "external" (binding-scheme binding)) binding] in
         let changed-call = CForget sp nat (actual-call id changed) in
-        let replaced = MkCoreDefinition sp "consumer" scheme Nil Nil Nil [MkCoreClause sp [CPVar sp nat id "input"] (CRefine sp desired evidence changed-call)] in
+        let replaced = CoreDefinition sp "consumer" scheme Nil Nil Nil [CoreClause sp [CPVar sp nat id "input"] (CRefine sp desired evidence changed-call)] in
         checked-definition globals definition
           && checked-definition globals (seal-definition-with-bodies [binding] (empty-store "body sealing") definition)
           && not (checked-definition globals (seal-definition (empty-store "no body authority") definition))
@@ -82,18 +82,18 @@ module Main where
     None -> False
     Some context ->
       let observed = UIndexCall (binding-function binding) (UArg (UIndex nat (IRigid id "input" 0)) UEnd) in
-      let plain = MkCoreDefinition sp "plain" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CInt sp nat "0")] in
+      let plain = CoreDefinition sp "plain" (mono nat) Nil Nil Nil [CoreClause sp Nil (CInt sp nat "0")] in
       core-definition-checked-contracts-closed context Nil plain
-        && body-type-authorized (body-bindings-members context) observed
-        && (case extend-body-bindings binding context of Some same -> list-length (body-bindings-members same) == 1; None -> False)
+        && body-type-authorized (context.bindings-members) observed
+        && (case extend-body-bindings binding context of Some same -> list-length (same.bindings-members) == 1; None -> False)
         && (case check-body-binding "alias" (binding-native binding) "external" (binding-scheme binding) (binding-function binding) of
-          Some alias -> (case extend-body-bindings alias context of Some more -> list-length (body-bindings-members more) == 2; None -> False)
+          Some alias -> (case extend-body-bindings alias context of Some more -> list-length (more.bindings-members) == 2; None -> False)
           None -> False)
         && (case check-body-binding "changed-alias" (binding-native changed) "external" (binding-scheme changed) (binding-function changed) of
           Some conflict -> (case check-body-bindings [binding, conflict] of None -> True; Some invalid -> False)
             && (case extend-body-bindings conflict context of None -> True; Some invalid -> False)
             && not (core-definition-contracts-closed [binding, conflict] Nil plain)
-            && body-type-authorized (body-bindings-members context) observed
+            && body-type-authorized (context.bindings-members) observed
           None -> False)
   compatible-index :: List TotalFunction -> TotalCompatibility -> Bool
   compatible-index functions context = case functions of
@@ -159,8 +159,8 @@ module Main where
         , body-type-authorized [binding] claimed
         , not (body-type-authorized [binding] altered)
         , not (body-type-authorized Nil claimed)
-        , not (body-scheme-authorized Nil (qualified [MkQuant (id + 50) "carrier" (value-kind (URefine (id + 60) "value" nat (UCompare "==" (UIndex nat (IBound (id + 60) "value")) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd))))) False] Nil nat))
-        , not (body-scheme-authorized Nil (qualified Nil [MkRequirement "dictionary" (UApp (UCon "Witness" (KFun (value-kind nat) KType)) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd)))] nat))
+        , not (body-scheme-authorized Nil (qualified [Quant (id + 50) "carrier" (value-kind (URefine (id + 60) "value" nat (UCompare "==" (UIndex nat (IBound (id + 60) "value")) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd))))) False] Nil nat))
+        , not (body-scheme-authorized Nil (qualified Nil [Requirement "dictionary" (UApp (UCon "Witness" (KFun (value-kind nat) KType)) (UIndexCall function (UArg (UIndex nat (IInteger 7)) UEnd)))] nat))
         , not (body-bindings-closed [binding, next])
         , (case close-globals [GlobalBody (GlobalValue "other" "external" original) binding] of None -> True; other -> False)
         , (case close-globals [GlobalBody (GlobalValue "width" "external" original) binding, GlobalValue "width" "external" original] of None -> True; other -> False)

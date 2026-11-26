@@ -19,7 +19,7 @@ module Cinch.BodyContract where
 
   export BodyBinding, check-body-binding, binding-name, binding-native, binding-role
   export binding-scheme, binding-function, binding-equal, binding-matches
-  export BodyBindings, empty-body-bindings, body-bindings-members, check-body-bindings, extend-body-bindings
+  export BodyBindings, empty-body-bindings, check-body-bindings, extend-body-bindings
   export body-bindings-closed, body-binding, body-function, body-type-authorized, body-kind-authorized, body-scheme-authorized
   export check-source-body-binding, check-imported-method-binding, selected-method-body, method-selection-matches, ordering-method-matches
   export prepare-imported-method-binding, check-imported-method-binding-by-id
@@ -200,13 +200,13 @@ module Cinch.BodyContract where
   keyed-ordering-scheme :: Scheme -> Bool
   keyed-ordering-scheme sc = case (scheme-params sc, scheme-requirements sc) of
     ([input, key], [dictionary]) ->
-      let a = UBound (quant-id input) (quant-name input) KType in
-      let b = UBound (quant-id key) (quant-name key) KType in
+      let a = UBound (input.id) (input.name) KType in
+      let b = UBound (key.id) (key.name) KType in
       let order = UCon (global-relation-ord-ord) (KFun KType KType) in
       let result = UCon (global-data-ordering-ordering) KType in
-      kind-equal (quant-kind input) KType && kind-equal (quant-kind key) KType && quant-id input /= quant-id key
-      && not (quant-implicit input || quant-implicit key)
-      && equal-type (requirement-type dictionary) (UApp order b)
+      kind-equal (input.kind) KType && kind-equal (key.kind) KType && input.id /= key.id
+      && not (input.only || key.only)
+      && equal-type (dictionary.ty) (UApp order b)
       && equal-type (scheme-body sc) (UFun (UFun a b) (UFun a (UFun a result)))
     other -> False
   -- Source associations require an actual matching Core definition when the
@@ -230,40 +230,41 @@ module Cinch.BodyContract where
   body-function function bindings = case bindings of Nil -> None; Cons first rest -> if total-function-equal function (binding-function first) then Some first else body-function function rest
   -- The member order feeds proof lookup and export. The indexes check
   -- names and graph rows during construction without changing that order.
-  data BodyBindings where
-    CheckedBodyBindings :: List BodyBinding -> HashMap String BodyBinding -> HashMap String TotalFunction -> TotalCompatibility -> BodyBindings
+  record BodyBindings where
+    bindings-members :: List BodyBinding
+    names :: HashMap String BodyBinding
+    natives :: HashMap String TotalFunction
+    total :: TotalCompatibility
   empty-body-bindings :: BodyBindings
-  empty-body-bindings = CheckedBodyBindings Nil hash-map-empty hash-map-empty empty-total-compatibility
-  body-bindings-members :: BodyBindings -> List BodyBinding
-  body-bindings-members context = case context of CheckedBodyBindings members names natives total -> members
+  empty-body-bindings = BodyBindings Nil hash-map-empty hash-map-empty empty-total-compatibility
   check-body-bindings :: List BodyBinding -> Option BodyBindings
   check-body-bindings members =
     case check-body-bindings-into members empty-body-bindings of
-      Some (CheckedBodyBindings reversed names natives total) -> Some (CheckedBodyBindings members names natives total)
+      Some (BodyBindings reversed names natives total) -> Some (BodyBindings members names natives total)
       None -> None
   check-body-bindings-into :: List BodyBinding -> BodyBindings -> Option BodyBindings
   check-body-bindings-into remaining context = case remaining of
     Nil -> Some context
     Cons first rest -> case context of
-      CheckedBodyBindings members names natives total -> (case hash-map-lookup (binding-name first) names of
+      BodyBindings members names natives total -> (case hash-map-lookup (binding-name first) names of
         Some prior -> None
         None -> (case insert-body-binding first context of
           Some checked -> check-body-bindings-into rest checked
           None -> None))
   extend-body-bindings :: BodyBinding -> BodyBindings -> Option BodyBindings
   extend-body-bindings binding context = case context of
-    CheckedBodyBindings members names natives total -> case hash-map-lookup (binding-name binding) names of
+    BodyBindings members names natives total -> case hash-map-lookup (binding-name binding) names of
       Some prior -> if binding-equal prior binding then Some context else None
       None -> insert-body-binding binding context
   insert-body-binding :: BodyBinding -> BodyBindings -> Option BodyBindings
   insert-body-binding binding context = case context of
-    CheckedBodyBindings members names natives total ->
+    BodyBindings members names natives total ->
       let native = binding-native binding in
       let function = binding-function binding in
       let matches = case hash-map-lookup native natives of None -> True; Some prior -> total-function-equal prior function in
       if not matches then None else (case extend-total-compatibility function total of
         None -> None
-        Some checked -> Some (CheckedBodyBindings (Cons binding members) (hash-map-insert (binding-name binding) binding names)
+        Some checked -> Some (BodyBindings (Cons binding members) (hash-map-insert (binding-name binding) binding names)
           (hash-map-insert native function natives) checked))
   body-bindings-closed :: List BodyBinding -> Bool
   body-bindings-closed bindings = case check-body-bindings bindings of Some checked -> True; None -> False
@@ -320,11 +321,11 @@ module Cinch.BodyContract where
   body-parameters-authorized :: List BodyBinding -> List Quant -> Bool
   body-parameters-authorized bindings parameters = case parameters of
     Nil -> True
-    Cons parameter rest -> body-kind-authorized bindings (quant-kind parameter) && body-parameters-authorized bindings rest
+    Cons parameter rest -> body-kind-authorized bindings (parameter.kind) && body-parameters-authorized bindings rest
   body-requirements-authorized :: List BodyBinding -> List Requirement -> Bool
   body-requirements-authorized bindings requirements = case requirements of
     Nil -> True
-    Cons requirement rest -> body-type-authorized bindings (requirement-type requirement) && body-requirements-authorized bindings rest
+    Cons requirement rest -> body-type-authorized bindings (requirement.ty) && body-requirements-authorized bindings rest
   body-scheme-authorized :: List BodyBinding -> Scheme -> Bool
   body-scheme-authorized bindings scheme = body-parameters-authorized bindings (scheme-params scheme)
     && body-requirements-authorized bindings (scheme-requirements scheme) && body-type-authorized bindings (scheme-body scheme)

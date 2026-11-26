@@ -5,11 +5,9 @@ module Main where
   import Cinch.Parse (parse-program)
   import Cinch.Check (check-program)
   import Cinch.Infer
-  import Cinch.Type (scheme-params, quant-implicit, scheme-arity, empty-store, fresh-meta,
-    Kind, KType, KFun, UType, UCon, UBound, Scheme, MkScheme, Quant, MkQuant,
-    enter-level, open-scheme, unify, store-errors, value-kind, quant-kind, quant-id, kind-equal, UFun)
+  import Cinch.Type (scheme-params, scheme-arity, empty-store, fresh-meta, Kind, KType, KFun, UType, UCon, UBound, Scheme, MkScheme, Quant, enter-level, open-scheme, unify, store-errors, value-kind, kind-equal, UFun)
   import Cinch.Resolve (resolve-program)
-  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-write)
@@ -93,12 +91,12 @@ module Main where
   contains-chars :: List Char -> List Char -> Bool
   contains-chars needle haystack = if starts needle haystack then True else case haystack of Nil -> False; Cons h hs -> contains-chars needle hs
   has-diagnostic :: String -> List Diagnostic -> Bool
-  has-diagnostic wanted errors = case errors of Nil -> False; Cons d rest -> contains wanted (diagnostic-message d) || has-diagnostic wanted rest
+  has-diagnostic wanted errors = case errors of Nil -> False; Cons d rest -> contains wanted (d.message) || has-diagnostic wanted rest
   -- Share each frontend result between assertions and reporting. A failed
   -- negative case must show its actual diagnostics, not just an index.
   evaluate-one :: String -> Option String -> (Bool, String)
   evaluate-one source expected = case parse-program "inference" (string-to-bytes source) of
-    Parsed program Nil -> if program-unmodeled-count program == 0 && list-length (program-modules program) > 0 then
+    Parsed program Nil -> if program-unmodeled-count program == 0 && list-length (program.modules) > 0 then
       let errors = check-program program in
       let accepted = case expected of None -> list-length errors == 0; Some message -> has-diagnostic message errors in
       (accepted, render-diagnostics errors)
@@ -125,12 +123,12 @@ module Main where
   scopes-ok = case parse-program "scopes" (string-to-bytes scope-source) of
     Parsed program Nil -> case resolve-program program of
       (resolved, Nil) -> let result = elaborate-program "bootstrap.check" resolved in
-        if list-length (elaboration-errors result) == 0 then
-          case find-context "A" (elaboration-contexts result) of
+        if list-length (result.errors) == 0 then
+          case find-context "A" (result.contexts) of
             Some ctx -> case field "exports" ctx of
               JArr row JArrEnd -> case (field "name" row, field "symbol" row) of
                 (JStr name, JStr symbol) -> string-compare name "identity" == 0 && (case find-binding symbol (elaboration-bindings result) of
-                  Some binding -> scheme-arity (checked-scheme binding) == 1 && (case scheme-params (checked-scheme binding) of Cons q Nil -> quant-implicit q; other -> False)
+                  Some binding -> scheme-arity (checked-scheme binding) == 1 && (case scheme-params (checked-scheme binding) of Cons q Nil -> q.only; other -> False)
                   None -> False)
                 other -> False
               other -> False
@@ -146,11 +144,11 @@ module Main where
   parameter-carriers-ok = case parse-program "parameter-carriers" (string-to-bytes
     "module Main where\n  constant :: forall a (f :: a -> a) (x :: a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n") of
     Parsed program Nil -> let result = elaborate-program "parameter-carriers" program in
-      case (elaboration-errors result, find-binding "constant" (elaboration-bindings result)) of
+      case (result.errors, find-binding "constant" (elaboration-bindings result)) of
         (Nil, Some binding) -> case scheme-params (checked-scheme binding) of
-          Cons a (Cons f (Cons x Nil)) -> let carrier = UBound (quant-id a) "a" KType in
-            kind-equal (quant-kind a) KType && kind-equal (quant-kind f) (value-kind (UFun carrier carrier))
-              && kind-equal (quant-kind x) (value-kind carrier)
+          Cons a (Cons f (Cons x Nil)) -> let carrier = UBound (a.id) "a" KType in
+            kind-equal (a.kind) KType && kind-equal (f.kind) (value-kind (UFun carrier carrier))
+              && kind-equal (x.kind) (value-kind carrier)
           other -> False
         other -> False
     other -> False
@@ -159,7 +157,7 @@ module Main where
   kernel-invariants =
     let sp = Span 0 0 1 1 in
     let (outer, s0) = fresh-meta KType (empty-store "kernel-test") in
-    let sc = MkScheme [MkQuant 0 "a" KType False] (UBound 0 "a" KType) in
+    let sc = MkScheme [Quant 0 "a" KType False] (UBound 0 "a" KType) in
     let (rigid, pairs, s1) = open-scheme True sc (enter-level s0) in
     let escaping = unify sp outer rigid s1 in
     let (constructor, s2) = fresh-meta (KFun KType KType) (empty-store "kernel-test") in
@@ -172,7 +170,7 @@ module Main where
     let int = TName sp "Int" in
     let ty = TForall sp (TName sp "lost-binders") (TFun sp int int) in
     let body = DFun sp "identity" [( [PVar sp "x"], EVar sp "x" )] in
-    let program = MkProgram sp [MkModule sp "Main" (decl-spine sp [DSig sp "identity" ty, body])] in
+    let program = Program sp [Module sp "Main" (decl-spine sp [DSig sp "identity" ty, body])] in
     has-diagnostic "malformed quantified parameter spine" (check-program program)
 
   describe :: List (Bool, String) -> Int -> String

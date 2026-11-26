@@ -176,7 +176,7 @@ module Main where
 
   check-artifact :: forall r. using (io :: Io r) => String -> Bytes -> Int ->{IO r} Int
   check-artifact name src acc = case manifest-survey src of
-    MkManifestSurvey parsed driver-code canonical-code reorder-same added-differs reorder-visible hash-stable ->
+    ManifestSurvey parsed driver-code canonical-code reorder-same added-differs reorder-visible hash-stable ->
       case say (artifact-line name parsed driver-code canonical-code reorder-same added-differs reorder-visible hash-stable) of
         written ->
           if parsed then
@@ -185,7 +185,7 @@ module Main where
 
   check-package :: forall r. using (io :: Io r) => String -> Bytes -> Int ->{IO r} Int
   check-package name src acc = case manifest-package-facts src of
-    MkPackageFacts parsed count facade index permutation ->
+    PackageFacts parsed count facade index permutation ->
       case say (package-line name parsed (nat-text count) (string-text facade) (nat-text index) (bool-text permutation)) of
         written -> first-failure acc (if parsed then package-facts-code count facade index permutation else 5)
 

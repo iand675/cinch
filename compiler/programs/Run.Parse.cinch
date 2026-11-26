@@ -105,7 +105,7 @@ module Main where
   -- ----------------------------------------------------------------
 
   dump-program :: String -> Program -> List String -> List String
-  dump-program tag p acc = dump-modules tag (program-modules p) acc
+  dump-program tag p acc = dump-modules tag (p.modules) acc
 
   dump-modules :: String -> List Module -> List String -> List String
   dump-modules tag ms acc = case ms of

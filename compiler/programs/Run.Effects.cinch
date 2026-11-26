@@ -3,7 +3,7 @@ module Main where
 
   import Cinch.Parse (parse-program)
   import Cinch.Resolve (resolve-program)
-  import Cinch.Infer (elaborate-program, elaboration-errors)
+  import Cinch.Infer (elaborate-program)
   import Cinch.Report (render-diagnostics)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
@@ -21,7 +21,7 @@ module Main where
   check-source :: Bytes -> (Int, String)
   check-source source = case parse-program "source.cinch" source of
     Parsed program Nil -> case resolve-program program of
-      (resolved, Nil) -> let errors = elaboration-errors (elaborate-program "source.cinch" resolved) in
+      (resolved, Nil) -> let errors = (elaborate-program "source.cinch" resolved).errors in
         (if list-length errors == 0 then 0 else 4, render-diagnostics errors)
       (resolved, errors) -> (3, render-diagnostics errors)
     other -> (2, "parse failure")

@@ -25,8 +25,8 @@ module Main where
   retained :: UType -> CoreTerm -> Bool
   retained ty body = case prove-refinement Nil Nil ty body of
     None -> False
-    Some evidence -> core-definition-closed (MkCoreDefinition sp "checked" (mono ty) Nil Nil Nil [MkCoreClause sp Nil (CRefine sp ty evidence body)])
-      && not (core-definition-closed (MkCoreDefinition sp "forged" (mono ty) Nil Nil Nil [MkCoreClause sp Nil (CRefine sp ty evidence (CInt sp nat "0"))]))
+    Some evidence -> core-definition-closed (CoreDefinition sp "checked" (mono ty) Nil Nil Nil [CoreClause sp Nil (CRefine sp ty evidence body)])
+      && not (core-definition-closed (CoreDefinition sp "forged" (mono ty) Nil Nil Nil [CoreClause sp Nil (CRefine sp ty evidence (CInt sp nat "0"))]))
   checks :: Nat -> List Bool
   checks nonce =
     let id = nonce + 1 in

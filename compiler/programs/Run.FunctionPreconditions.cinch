@@ -14,7 +14,7 @@ module Main where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
   definition :: UType -> List CorePattern -> CoreTerm -> CoreDefinition
-  definition ty parameters body = MkCoreDefinition (Span 0 0 1 1) "signature-type-invariant" (mono ty) Nil Nil Nil [MkCoreClause (Span 0 0 1 1) parameters body]
+  definition ty parameters body = CoreDefinition (Span 0 0 1 1) "signature-type-invariant" (mono ty) Nil Nil Nil [CoreClause (Span 0 0 1 1) parameters body]
   invariants :: Nat -> Bool
   invariants nonce =
     let s = Span 0 0 1 1 in
@@ -75,15 +75,15 @@ module Main where
     case prove-predicates [(value-id, a)] Nil requirement of
       None -> False
       Some evidence ->
-        let sc = MkScheme [MkQuant q "a" KType False] (UFun (UBound q "a" KType) (UBound q "a" KType)) in
-        core-definition-closed (MkCoreDefinition s "generic-contract-caller" sc [(q, a)] Nil Nil [MkCoreClause s [CPVar s a value-id "value"] (CDischarge s a evidence False call)])
+        let sc = MkScheme [Quant q "a" KType False] (UFun (UBound q "a" KType) (UBound q "a" KType)) in
+        core-definition-closed (CoreDefinition s "generic-contract-caller" sc [(q, a)] Nil Nil [CoreClause s [CPVar s a value-id "value"] (CDischarge s a evidence False call)])
   closed :: List CoreDefinition -> Bool
   closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
   run :: Bytes -> (Int, String)
   run source = if not (invariants (bytes-len source)) then (95, "signature-type certificate escaped its actual goal or declaration") else case parse-program "signature-type-source" source of
     Parsed parsed Nil -> case resolve-program parsed of
       (program, Nil) -> let result = elaborate-program "signature-type-source" program in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if closed (elaboration-core result) then (0, "") else (94, "precondition Core is not closed")
           errors -> (4, render-diagnostics errors)
       (program, errors) -> (4, render-diagnostics errors)

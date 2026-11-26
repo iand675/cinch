@@ -16,7 +16,7 @@ module Main where
   bool :: UType
   bool = UCon "Bool" KType
   definition :: UType -> CoreTerm -> Bool
-  definition ty body = core-definition-closed (MkCoreDefinition sp "machine-literal" (mono ty) Nil Nil Nil [MkCoreClause sp Nil body])
+  definition ty body = core-definition-closed (CoreDefinition sp "machine-literal" (mono ty) Nil Nil Nil [CoreClause sp Nil body])
   good :: UType -> UType -> Bool
   good a b = case store-errors (unify sp a b (empty-store "machine-values")) of Nil -> True; other -> False
   carriers :: List (String, Int, Int)
@@ -30,7 +30,7 @@ module Main where
     let goal = UCompare ">=" reading (UIndex integer (IInteger low)) in
     let declared = URefine binder "out" carrier (UCompare ">=" (UIndexPromote (UIndex carrier (IBound binder "out"))) (UIndex integer (IInteger low))) in
     let bounded = case prove-refinement [(id, carrier)] Nil declared local of
-          Some evidence -> core-definition-closed (MkCoreDefinition sp "carrier-bounds" (mono (UFun carrier declared)) Nil Nil Nil [MkCoreClause sp [CPVar sp carrier id "value"] (CRefine sp declared evidence local)])
+          Some evidence -> core-definition-closed (CoreDefinition sp "carrier-bounds" (mono (UFun carrier declared)) Nil Nil Nil [CoreClause sp [CPVar sp carrier id "value"] (CRefine sp declared evidence local)])
           None -> False in
     let sum = CPrimitive sp carrier "+" (CArgument sp local (CArgument sp (CInt sp carrier "1") (CArgumentsEnd sp))) in
     let comparison = CPrimitive sp bool ">" (CArgument sp sum (CArgument sp local (CArgumentsEnd sp))) in

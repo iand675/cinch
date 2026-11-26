@@ -176,16 +176,16 @@ module Cinch.CoreBody where
   dense-quants qs = case qs of
     Nil -> JArrEnd
     Cons q rest ->
-      let entry = JArr (JNum (nat-to-int (quant-id q))) (JArr (JStr (quant-name q)) (JArr (kind-tree (quant-kind q)) (JArr (JBool (quant-implicit q)) JArrEnd)))
+      let entry = JArr (JNum (nat-to-int (q.id))) (JArr (JStr (q.name)) (JArr (kind-tree (q.kind)) (JArr (JBool (q.only)) JArrEnd)))
       in JArr entry (dense-quants rest)
 
   dense-requirements :: Bool -> List Requirement -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-requirements dense requirements table = case requirements of
     Nil -> (JArrEnd, table)
     Cons requirement rest ->
-      let (doc, t1) = dense-type-doc dense (requirement-type requirement) table in
+      let (doc, t1) = dense-type-doc dense (requirement.ty) table in
       let (more, t2) = dense-requirements dense rest t1 in
-      (JArr (JArr (JStr (requirement-name requirement)) (JArr doc JArrEnd)) more, t2)
+      (JArr (JArr (JStr (requirement.name)) (JArr doc JArrEnd)) more, t2)
 
   dense-scheme :: Bool -> Scheme -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-scheme dense scheme table = let (requirements, t1) = dense-requirements dense (scheme-requirements scheme) table in
@@ -203,7 +203,7 @@ module Cinch.CoreBody where
   dense-givens :: Bool -> List CoreGiven -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-givens dense givens table = case givens of
     Nil -> (JArrEnd, table)
-    Cons (CGiven s name ty) rest ->
+    Cons (CoreGiven s name ty) rest ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (more, t2) = dense-givens dense rest t1 in
       (JArr (JArr (JStr name) (JArr doc JArrEnd)) more, t2)
@@ -237,7 +237,7 @@ module Cinch.CoreBody where
 
   dense-given :: Bool -> CoreGiven -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-given dense given table = case given of
-    CGiven s name ty ->
+    CoreGiven s name ty ->
       let (doc, t1) = dense-type-doc dense ty table in
       (dense-node "given" [JStr name, doc], t1)
 
@@ -529,7 +529,7 @@ module Cinch.CoreBody where
   dense-clauses :: Bool -> List CoreClause -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-clauses dense clauses table = case clauses of
     Nil -> (JArrEnd, table)
-    Cons (MkCoreClause s patterns body) rest ->
+    Cons (CoreClause s patterns body) rest ->
       let (patternDocs, t1) = dense-patterns dense patterns table in
       let (bodyDoc, t2) = dense-term dense body t1 in
       let (more, t3) = dense-clauses dense rest t2 in
@@ -546,7 +546,7 @@ module Cinch.CoreBody where
 
   dense-definition-doc :: Bool -> CoreDefinition -> Json
   dense-definition-doc dense definition = case definition of
-    MkCoreDefinition s name scheme openings givens private clauses ->
+    CoreDefinition s name scheme openings givens private clauses ->
       let (schemeDoc, t1) = dense-scheme dense scheme Nil in
       let (openingsDoc, t2) = dense-openings dense openings t1 in
       let (givensDoc, t3) = dense-givens dense givens t2 in
@@ -634,7 +634,7 @@ module Cinch.CoreBody where
   dense-quant-of doc = case doc of
     JArr idDoc (JArr nameDoc (JArr kindDoc (JArr implicitDoc JArrEnd))) ->
       (case (dense-natural idDoc, dense-text nameDoc, read-kind-tree kindDoc, dense-bool implicitDoc) of
-        (Some id, Some name, Some kind, Some only) -> Some (MkQuant id name kind only)
+        (Some id, Some name, Some kind, Some only) -> Some (Quant id name kind only)
         other -> None)
     other -> None
 
@@ -649,7 +649,7 @@ module Cinch.CoreBody where
     Cons first rest -> case first of
       JArr nameDoc (JArr typeDoc JArrEnd) ->
         (case (dense-text nameDoc, dense-type-of types typeDoc, dense-requirements-from types rest) of
-          (Some name, Some ty, Some more) -> Some (Cons (MkRequirement name ty) more)
+          (Some name, Some ty, Some more) -> Some (Cons (Requirement name ty) more)
           other -> None)
       other -> None
     other -> None
@@ -687,7 +687,7 @@ module Cinch.CoreBody where
     Cons first rest -> case first of
       JArr nameDoc (JArr typeDoc JArrEnd) ->
         (case (dense-text nameDoc, dense-type-of types typeDoc, dense-givens-from types rest) of
-          (Some name, Some ty, Some more) -> Some (Cons (CGiven dense-zero name ty) more)
+          (Some name, Some ty, Some more) -> Some (Cons (CoreGiven dense-zero name ty) more)
           other -> None)
       other -> None
     other -> None
@@ -781,7 +781,7 @@ module Cinch.CoreBody where
     JArr (JStr tag) (JArr nameDoc (JArr typeDoc JArrEnd)) ->
       if dense-same tag "given" then
         (case (dense-text nameDoc, dense-type-of types typeDoc) of
-          (Some name, Some ty) -> Some (CGiven dense-zero name ty)
+          (Some name, Some ty) -> Some (CoreGiven dense-zero name ty)
           other -> None)
       else None
     other -> None
@@ -1219,7 +1219,7 @@ module Cinch.CoreBody where
     JArrEnd -> Some Nil
     JArr first rest ->
       (case (dense-patterns-of types (dense-field "patterns" first), dense-term-of types (dense-field "body" first), dense-clauses-of types rest) of
-        (Some patterns, Some body, Some more) -> Some (Cons (MkCoreClause dense-zero patterns body) more)
+        (Some patterns, Some body, Some more) -> Some (Cons (CoreClause dense-zero patterns body) more)
         other -> None)
     other -> None
 
@@ -1227,7 +1227,7 @@ module Cinch.CoreBody where
   dense-definition-of types body =
     (case (dense-text (dense-field "name" body), dense-scheme-of types (dense-field "scheme" body), dense-openings-of types (dense-field "openings" body), dense-givens-of types (dense-field "givens" body), dense-private-of (dense-field "private" body), dense-clauses-of types (dense-field "clauses" body)) of
       (Some name, Some scheme, Some openings, Some givens, Some private, Some clauses) ->
-        Some (MkCoreDefinition dense-zero name scheme openings givens private clauses)
+        Some (CoreDefinition dense-zero name scheme openings givens private clauses)
       other -> None)
 
   dense-carriers-of :: List Json -> Option (List UType)

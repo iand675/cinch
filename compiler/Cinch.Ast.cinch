@@ -57,8 +57,10 @@ module Cinch.Ast where
     MTickType :: String -> MacroTok
     MEOF :: MacroTok
 
-  data MacroToken where
-    MkMacroToken :: Span -> Bool -> MacroTok -> MacroToken
+  record MacroToken where
+    field0 :: Span
+    field1 :: Bool
+    field2 :: MacroTok
 
   freeze-macro-tok :: Token -> MacroTok
   freeze-macro-tok t = case t of
@@ -97,12 +99,12 @@ module Cinch.Ast where
   freeze-macro-tokens :: List LToken -> List MacroToken
   freeze-macro-tokens toks = case toks of
     Nil -> Nil
-    Cons t rest -> Cons (MkMacroToken (lt-span t) (lt-virtual t) (freeze-macro-tok (lt-token t))) (freeze-macro-tokens rest)
+    Cons t rest -> Cons (MacroToken (lt-span t) (lt-virtual t) (freeze-macro-tok (lt-token t))) (freeze-macro-tokens rest)
 
   thaw-macro-tokens :: List MacroToken -> List LToken
   thaw-macro-tokens toks = case toks of
     Nil -> Nil
-    Cons (MkMacroToken sp v t) rest -> Cons (mk-ltoken sp v (thaw-macro-tok t)) (thaw-macro-tokens rest)
+    Cons (MacroToken sp v t) rest -> Cons (mk-ltoken sp v (thaw-macro-tok t)) (thaw-macro-tokens rest)
 
   -- ------------------------------------------------------------------ spans
 
@@ -244,38 +246,25 @@ module Cinch.Ast where
 
   -- Declaration binders retain their kinds and implicitness. Throwing
   -- these away would make indexed and generic declarations indistinguishable.
-  data TypeParam where
-    MkTypeParam :: Span -> String -> Option TypeExpr -> Bool -> TypeParam
-
-  param-name :: TypeParam -> String
-  param-name p = case p of
-    MkTypeParam s name kind is-implicit -> name
-
-  param-span :: TypeParam -> Span
-  param-span p = case p of
-    MkTypeParam s name kind is-implicit -> s
-
-  param-kind :: TypeParam -> Option TypeExpr
-  param-kind p = case p of
-    MkTypeParam s name kind is-implicit -> kind
-
-  param-implicit :: TypeParam -> Bool
-  param-implicit p = case p of
-    MkTypeParam s name kind is-implicit -> is-implicit
+  record TypeParam where
+    span :: Span
+    name :: String
+    kind :: Option TypeExpr
+    is-implicit :: Bool
 
   -- A direct recursive spine satisfies the seed's positivity discipline.
   -- The temporary parameter list must not appear nested in TypeExpr.
   forall-param-spine :: Span -> List TypeParam -> TypeExpr
   forall-param-spine sp params = case params of
     Nil -> TQuantifiersEnd sp
-    Cons (MkTypeParam s name kind is-implicit) rest -> TQuantifier s name is-implicit (case kind of
+    Cons (TypeParam s name kind is-implicit) rest -> TQuantifier s name is-implicit (case kind of
       None -> TNoKind s
       Some annotation -> annotation) (forall-param-spine sp rest)
 
   forall-params-of :: TypeExpr -> List TypeParam
   forall-params-of binders = case binders of
     TQuantifiersEnd s -> Nil
-    TQuantifier s name is-implicit kind rest -> Cons (MkTypeParam s name (case kind of
+    TQuantifier s name is-implicit kind rest -> Cons (TypeParam s name (case kind of
       TNoKind k -> None
       annotation -> Some annotation) is-implicit) (forall-params-of rest)
     other -> Nil
@@ -283,7 +272,7 @@ module Cinch.Ast where
   params-unmodeled :: List TypeParam -> Nat
   params-unmodeled ps = case ps of
     Nil -> 0
-    Cons p rest -> case param-kind p of
+    Cons p rest -> case p.kind of
       None -> params-unmodeled rest
       Some ty -> type-unmodeled-count ty + params-unmodeled rest
 
@@ -561,8 +550,16 @@ module Cinch.Ast where
     ApplicablePrimitive :: PrimTarget
     InapplicablePrimitive :: String -> PrimTarget
 
-  data PrimBody where
-    MkPrimBody :: Span -> String -> String -> Bool -> List Expr -> PrimTarget -> Option RewriteJustification -> List (String, TypeExpr) -> List Nat -> PrimBody
+  record PrimBody where
+    field0 :: Span
+    field1 :: String
+    field2 :: String
+    field3 :: Bool
+    field4 :: List Expr
+    field5 :: PrimTarget
+    field6 :: Option RewriteJustification
+    field7 :: List (String, TypeExpr)
+    field8 :: List Nat
 
   -- A method keeps its ordinary declaration and slot. Its equality
   -- operands can be checked by the same term elaborator as an explicit law.
@@ -608,8 +605,14 @@ module Cinch.Ast where
       None -> None
     other -> None
 
-  data RewriteSyntax where
-    MkRewriteSyntax :: Bool -> List TypeParam -> TypeExpr -> Expr -> Expr -> Option Expr -> RewriteJustification -> RewriteSyntax
+  record RewriteSyntax where
+    field0 :: Bool
+    field1 :: List TypeParam
+    field2 :: TypeExpr
+    field3 :: Expr
+    field4 :: Expr
+    field5 :: Option Expr
+    field6 :: RewriteJustification
 
   -- One clause of a `contract` declaration's block (core specification
   -- section 10): the temporal formula, whose operator matches the
@@ -631,8 +634,11 @@ module Cinch.Ast where
     ContractAssume s body -> s
     ContractAssumed s text -> s
 
-  data TypeFamilyEq where
-    MkTypeFamilyEq :: Span -> String -> TypeExpr -> TypeExpr -> TypeFamilyEq
+  record TypeFamilyEq where
+    field0 :: Span
+    field1 :: String
+    field2 :: TypeExpr
+    field3 :: TypeExpr
 
   data Decl where
     DSource :: Span -> String -> Json -> Decl
@@ -825,16 +831,10 @@ module Cinch.Ast where
 
   -- -------------------------------------------------------- modules, programs
 
-  data Module where
-    MkModule :: Span -> String -> Decl -> Module
-
-  module-span :: Module -> Span
-  module-span m = case m of
-    MkModule s name decls -> s
-
-  module-name :: Module -> String
-  module-name m = case m of
-    MkModule s name decls -> name
+  record Module where
+    span :: Span
+    name :: String
+    decls :: Decl
 
   -- The module's declarations, flattened out of its spine.
   declaration-inline-hints :: List Decl -> List (String, String)
@@ -845,7 +845,7 @@ module Cinch.Ast where
 
   module-decls :: Module -> List Decl
   module-decls m = case m of
-    MkModule s name decls -> decls-of decls
+    Module s name decls -> decls-of decls
 
   -- Source headers precede interfaces, and the first occurrence of a
   -- repeated source name remains visible until the resolver diagnoses it.
@@ -854,18 +854,11 @@ module Cinch.Ast where
   index-module-names :: List Module -> HashMap String Module -> HashMap String Module
   index-module-names modules indexed = case modules of
     Nil -> indexed
-    Cons m rest -> index-module-names rest (hash-map-insert (module-name m) m indexed)
+    Cons m rest -> index-module-names rest (hash-map-insert (m.name) m indexed)
 
-  data Program where
-    MkProgram :: Span -> List Module -> Program
-
-  program-modules :: Program -> List Module
-  program-modules p = case p of
-    MkProgram s ms -> ms
-
-  program-span :: Program -> Span
-  program-span p = case p of
-    MkProgram s ms -> s
+  record Program where
+    span :: Span
+    modules :: List Module
 
   -- --------------------------------------- coverage: the boundary, counted
 
@@ -1054,7 +1047,7 @@ module Cinch.Ast where
     DSig s n t -> type-unmodeled-count t
     DMethod s label name t -> type-unmodeled-count t
     DLaw s name syntax -> law-unmodeled-count syntax
-    DRewrite s name (MkRewriteSyntax targeted params bounds pattern replacement guard evidence) ->
+    DRewrite s name (RewriteSyntax targeted params bounds pattern replacement guard evidence) ->
       params-unmodeled params + type-unmodeled-count bounds + expr-unmodeled-count pattern + expr-unmodeled-count replacement
       + (case guard of Some condition -> expr-unmodeled-count condition; None -> 0)
       + (case evidence of RewriteTerm expression -> expr-unmodeled-count expression; RewriteLaw sp owner member args -> exprs-unmodeled args)
@@ -1104,7 +1097,7 @@ module Cinch.Ast where
   type-family-eqs-unmodeled :: List TypeFamilyEq -> Nat
   type-family-eqs-unmodeled eqs = case eqs of
     Nil -> 0
-    Cons (MkTypeFamilyEq s head args rhs) rest -> type-unmodeled-count args + type-unmodeled-count rhs + type-family-eqs-unmodeled rest
+    Cons (TypeFamilyEq s head args rhs) rest -> type-unmodeled-count args + type-unmodeled-count rhs + type-family-eqs-unmodeled rest
 
   contract-clauses-unmodeled :: List ContractClause -> Nat
   contract-clauses-unmodeled clauses = case clauses of
@@ -1120,7 +1113,7 @@ module Cinch.Ast where
   prim-bodies-unmodeled :: List PrimBody -> Nat
   prim-bodies-unmodeled bodies = case bodies of
     Nil -> 0
-    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       exprs-unmodeled condition
         + (case justification of Some (RewriteTerm value) -> expr-unmodeled-count value; Some (RewriteLaw site owner member args) -> exprs-unmodeled args; None -> 0)
         + ctors-unmodeled uses + prim-bodies-unmodeled rest
@@ -1139,11 +1132,11 @@ module Cinch.Ast where
 
   module-unmodeled-count :: Module -> Nat
   module-unmodeled-count m = case m of
-    MkModule s name decls -> decl-unmodeled-count decls
+    Module s name decls -> decl-unmodeled-count decls
 
   program-unmodeled-count :: Program -> Nat
   program-unmodeled-count p = case p of
-    MkProgram s ms -> modules-unmodeled ms
+    Program s ms -> modules-unmodeled ms
 
   modules-unmodeled :: List Module -> Nat
   modules-unmodeled ms = case ms of
@@ -1279,7 +1272,7 @@ module Cinch.Ast where
   source-identity-tokens :: List MacroToken -> Json
   source-identity-tokens values = case values of
     Nil -> JArrEnd
-    Cons (MkMacroToken sp virt tok) rest -> if virt then source-identity-tokens rest
+    Cons (MacroToken sp virt tok) rest -> if virt then source-identity-tokens rest
       else JArr (JStr (macro-token-identity-spelling tok)) (source-identity-tokens rest)
 
   macro-token-identity-spelling :: MacroTok -> String
@@ -1323,8 +1316,8 @@ module Cinch.Ast where
   source-law-parameters :: List TypeParam -> Json
   source-law-parameters parameters = case parameters of
     Nil -> JArrEnd
-    Cons p rest -> JArr (JArr (JStr (param-name p)) (JArr (JBool (param-implicit p))
-      (JArr (case param-kind p of Some kind -> source-identity-type kind; None -> JNull) JArrEnd)))
+    Cons p rest -> JArr (JArr (JStr (p.name)) (JArr (JBool (p.is-implicit))
+      (JArr (case p.kind of Some kind -> source-identity-type kind; None -> JNull) JArrEnd)))
       (source-law-parameters rest)
 
   qualify-default-clauses :: (String -> Option String) -> Json -> Json
@@ -1555,7 +1548,7 @@ module Cinch.Ast where
       if not (default-local name) then None else
         (case (decode-law-kind sp globals kind, decode-law-parameters sp globals rest) of
           (Some ann, Some (params, names)) ->
-            if default-bound name names then None else Some (Cons (MkTypeParam sp name ann flag) params, Cons name names)
+            if default-bound name names then None else Some (Cons (TypeParam sp name ann flag) params, Cons name names)
           other -> None)
     JArrEnd -> Some (Nil, Nil)
     other -> None

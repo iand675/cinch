@@ -79,7 +79,7 @@ module Main where
     (abstract-metas [(nonce + 1, UBound (nonce + 2) "n" (value-kind nat))] (UIndex nat (IAdd (IMeta (nonce + 1)) (IInteger 1))))
     (IAdd (IBound (nonce + 2) "n") (IInteger 1))
   definition :: UType -> CoreDefinition
-  definition actual = MkCoreDefinition sp "f" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
+  definition actual = CoreDefinition sp "f" (mono nat) Nil Nil Nil [CoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
   witness :: Nat -> Bool -> Bool
   witness nonce solved = case fresh-meta (value-kind nat) (start nonce) of
     (value, before) -> let after = if solved then unify sp value (UIndex nat (IInteger 3)) before else before in

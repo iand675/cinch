@@ -9,7 +9,7 @@ module Main where
   check :: Bool -> Int -> Int
   check yes bit = if yes then 0 else bit
   rendered :: String -> Nat -> String
-  rendered source line = render-source-diagnostics (string-to-bytes source) [MkDiagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]
+  rendered source line = render-source-diagnostics (string-to-bytes source) [Diagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]
   original-cases :: Int
   original-cases =
     let a = check (same (rendered "module Main where\n  main = 0\n" 2) "bootstrap.check:2:9: broken\n") 1 in
@@ -23,7 +23,7 @@ module Main where
   render-file :: forall r. using (io :: Io r) => String -> Nat -> String ->{IO r} Int
   render-file name line expected = case fs-read (path-from-string name) of
     Err error -> 1
-    Ok source -> check (same (render-source-diagnostics source [MkDiagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]) expected) 1
+    Ok source -> check (same (render-source-diagnostics source [Diagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]) expected) 1
   main :: Unit ->{IO r, Diverge} Int
   main unit = with (io = newIO ()) in
     let large = render-file "large-bundle" 20005 "bootstrap.check:20005:9: broken (in Étape.cinch:2:9)\n" in

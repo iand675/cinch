@@ -13,8 +13,8 @@ module Cinch.Promote where
   export PPat, PPWild, PPVar, PPNat, PPBool, PPStr, PPCon, PPTuple, PPatList, PPArg, PPEnd
   export PExpr, PEVar, PENat, PEBool, PEStr, PECon, PETuple, PEApp, PELam, PELet, PEIf, PECase, PEBin, PENot, PENeg, PEFnRef
   export PExprList, PEArg, PEEnd, PAltList, PAltCons, PAltEnd
-  export PClause, MkPClause, clause-pats, clause-body
-  export PromotedFn, MkPromotedFn, promoted-fn-identity, promoted-fn-arity, promoted-fn-returns-idx, promoted-fn-clauses
+  export PClause
+  export PromotedFn
   export PVal, PVNat, PVBool, PVStr, PVCon, PVTuple, PVClosure, PVPartial, PVSymAdd, PVSymSub, PVSymMul, PVOpaque
   export PValList, PVArg, PVEnd, PEnv, PEnvCons, PEnvEnd
   export promoted-fn-prefix, is-promoted-fn-name, strip-promoted-fn-name, promoted-builtin-arity, lookup-promoted-fn
@@ -93,29 +93,15 @@ module Cinch.Promote where
     PAltCons :: PPat -> PExpr -> PAltList -> PAltList
     PAltEnd :: PAltList
 
-  data PClause where
-    MkPClause :: PPatList -> PExpr -> PClause
+  record PClause where
+    pats :: PPatList
+    body :: PExpr
 
-  clause-pats :: PClause -> PPatList
-  clause-pats c = case c of MkPClause ps body -> ps
-
-  clause-body :: PClause -> PExpr
-  clause-body c = case c of MkPClause ps body -> body
-
-  data PromotedFn where
-    MkPromotedFn :: String -> Nat -> Bool -> List PClause -> PromotedFn
-
-  promoted-fn-identity :: PromotedFn -> String
-  promoted-fn-identity f = case f of MkPromotedFn id arity ret-idx clauses -> id
-
-  promoted-fn-arity :: PromotedFn -> Nat
-  promoted-fn-arity f = case f of MkPromotedFn id arity ret-idx clauses -> arity
-
-  promoted-fn-returns-idx :: PromotedFn -> Bool
-  promoted-fn-returns-idx f = case f of MkPromotedFn id arity ret-idx clauses -> ret-idx
-
-  promoted-fn-clauses :: PromotedFn -> List PClause
-  promoted-fn-clauses f = case f of MkPromotedFn id arity ret-idx clauses -> clauses
+  record PromotedFn where
+    fn-identity :: String
+    fn-arity :: Nat
+    fn-returns-idx :: Bool
+    fn-clauses :: List PClause
 
   data PVal a where
     PVNat :: Int -> PVal a
@@ -171,7 +157,7 @@ module Cinch.Promote where
   lookup-promoted-fn :: String -> List PromotedFn -> Option PromotedFn
   lookup-promoted-fn wanted fns = case fns of
     Nil -> None
-    Cons f rest -> if same wanted (promoted-fn-identity f) then Some f else lookup-promoted-fn wanted rest
+    Cons f rest -> if same wanted (f.fn-identity) then Some f else lookup-promoted-fn wanted rest
 
   -- Built-in promoted prelude fast paths (keyed by canonical identity).
   promoted-builtin-arity :: String -> Option Nat
@@ -195,7 +181,7 @@ module Cinch.Promote where
 
   fn-arity-in :: List PromotedFn -> String -> Option Nat
   fn-arity-in fns id = case lookup-promoted-fn id fns of
-    Some f -> Some (promoted-fn-arity f)
+    Some f -> Some (f.fn-arity)
     None -> promoted-builtin-arity id
 
   cons-ctor-name :: String
@@ -342,14 +328,14 @@ module Cinch.Promote where
     if fuel == 0 || depth == 0 then (None, 0)
     else case lookup-promoted-fn fn-id fns of
       Some f ->
-        let arity = promoted-fn-arity f in
+        let arity = f.fn-arity in
         let n = pval-list-len args in
         if n < arity then (Some (PVPartial fn-id arity args), fuel - 1)
-        else if n == arity then eval-clauses fns (promoted-fn-clauses f) args (fuel - 1) (depth - 1)
+        else if n == arity then eval-clauses fns (f.fn-clauses) args (fuel - 1) (depth - 1)
         else
           case split-pvals arity args of
             (first-args, extra) ->
-              case eval-clauses fns (promoted-fn-clauses f) first-args (fuel - 1) (depth - 1) of
+              case eval-clauses fns (f.fn-clauses) first-args (fuel - 1) (depth - 1) of
                 (Some res, f1) -> apply-val-list fns res extra f1 (depth - 1)
                 (None, f1) -> (None, f1)
       None -> eval-builtin-call fns fn-id args (fuel - 1) (depth - 1)
@@ -365,7 +351,7 @@ module Cinch.Promote where
   eval-clauses :: forall a. List PromotedFn -> List PClause -> PValList a -> Nat -> Nat -> (Option (PVal a), Nat)
   eval-clauses fns clauses args fuel depth = case clauses of
     Nil -> (None, fuel)
-    Cons (MkPClause pats body) rest -> case match-pat-list pats args PEnvEnd of
+    Cons (PClause pats body) rest -> case match-pat-list pats args PEnvEnd of
       PMatch env -> eval-expr fns env body fuel depth
       PMismatch -> eval-clauses fns rest args fuel depth
       PStuck -> (None, fuel)
@@ -710,12 +696,12 @@ module Cinch.Promote where
   pclauses-json :: List PClause -> Json
   pclauses-json cs = case cs of
     Nil -> JArrEnd
-    Cons (MkPClause ps body) rest ->
+    Cons (PClause ps body) rest ->
       JArr (JObj "ps" (ppat-list-json ps) (JObj "b" (pexpr-json body) JObjEnd)) (pclauses-json rest)
 
   promoted-fn-json :: PromotedFn -> Json
   promoted-fn-json f = case f of
-    MkPromotedFn id arity ret-idx clauses ->
+    PromotedFn id arity ret-idx clauses ->
       JObj "identity" (JStr id)
         (JObj "arity" (JNum (nat-to-int arity))
           (JObj "returns_idx" (JBool ret-idx)
@@ -808,13 +794,13 @@ module Cinch.Promote where
   read-pclauses-json doc = case doc of
     JArrEnd -> Some Nil
     JArr row rest -> case (read-ppat-list-json (jfield "ps" row), read-pexpr-json (jfield "b" row), read-pclauses-json rest) of
-      (Some ps, Some b, Some more) -> Some (Cons (MkPClause ps b) more)
+      (Some ps, Some b, Some more) -> Some (Cons (PClause ps b) more)
       other -> None
     other -> None
 
   read-promoted-fn-json :: Json -> Option PromotedFn
   read-promoted-fn-json doc = case (jfield "identity" doc, jfield "arity" doc, jfield "returns_idx" doc, read-pclauses-json (jfield "clauses" doc)) of
-    (JStr id, JNum arity, JBool ret-idx, Some clauses) -> Some (MkPromotedFn id (int-to-nat-or-zero arity) ret-idx clauses)
+    (JStr id, JNum arity, JBool ret-idx, Some clauses) -> Some (PromotedFn id (int-to-nat-or-zero arity) ret-idx clauses)
     other -> None
 
   read-promoted-fns-json :: Json -> List PromotedFn

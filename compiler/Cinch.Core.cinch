@@ -49,24 +49,24 @@ module Cinch.Core where
   export string-length-function
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, forgotten-tuple-fields, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
-  export scope-guarded-bodies, with-guarded-bindings, guarded-call-spine, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
+  export with-guarded-bindings, guarded-call-spine, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export scoped-numeric-method-operation, numeric-method-for-types, selected-method-function
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, let-type-may-prove, scoped-prove-subtraction, scoped-prove-division
   export scoped-refinement-predicate
   export core-arithmetic, proof-variable, borrow-read-variable, number-sort, bool-type, same-number-sort
   export scoped-core-equation-facts, extend-equation-prefix, pattern-value
   export nullary-constructor-index, constructor-index-parts, scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
-  export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
+  export CoreClause, CoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
   export with-checked-body-bindings, core-definition-checked-contracts-closed, core-definition-checked-contracts-closed-with-families, core-definition-checked-contracts-closed-with, seal-definition-with-checked-contracts
   export TotalCoreSources, total-core-sources, indexed-source-function
   export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
-  export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
-  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEKernel, CEInstance
+  export core-type
+  export CoreGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEKernel, CEInstance
   export CEArgument, CEArgumentsEnd
-  export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
+  export CQualifiedUse, CMethod, evidence-type
   export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
   export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
   export core-definition-refusal, core-definition-refusal-with-families, core-definition-refusal-with
@@ -79,45 +79,37 @@ module Cinch.Core where
   -- is only partly exported is abstract to an importing module: it could
   -- neither build nor match the constructors that are. Use
   -- `with-data-layout` and `core-data-layout` rather than the constructor.
-  export CoreData, MkCoreData, WithLayout, CoreConstructor, MkCoreConstructor
+  export CoreData, MkCoreData, WithLayout, CoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
-  export core-constructor-name, core-constructor-scheme, core-constructor-fields
+  export core-constructor-fields
   export core-data-closed
 
-  export CoreEffect, MkCoreEffect, CoreOperation, MkCoreOperation
-  export core-effect-name, core-effect-kind, core-effect-params, core-effect-operations
-  export core-operation-name, core-operation-scheme, core-operation-slot, core-effect-closed
+  export CoreEffect, CoreOperation
+  export core-effect-closed
 
   -- A source effect is a typed declaration, not an unchecked foreign value.
   -- Operation order is the handler dispatch order, including private slots.
-  data CoreOperation where
-    MkCoreOperation :: Span -> String -> Nat -> Scheme -> CoreOperation
-  data CoreEffect where
-    MkCoreEffect :: Span -> String -> Kind -> List Quant -> List CoreOperation -> CoreEffect
-  core-effect-name :: CoreEffect -> String
-  core-effect-name d = case d of MkCoreEffect s name kind qs ops -> name
-  core-effect-kind :: CoreEffect -> Kind
-  core-effect-kind d = case d of MkCoreEffect s name kind qs ops -> kind
-  core-effect-params :: CoreEffect -> List Quant
-  core-effect-params d = case d of MkCoreEffect s name kind qs ops -> qs
-  core-effect-operations :: CoreEffect -> List CoreOperation
-  core-effect-operations d = case d of MkCoreEffect s name kind qs ops -> ops
-  core-operation-name :: CoreOperation -> String
-  core-operation-name op = case op of MkCoreOperation s name slot sc -> name
-  core-operation-slot :: CoreOperation -> Nat
-  core-operation-slot op = case op of MkCoreOperation s name slot sc -> slot
-  core-operation-scheme :: CoreOperation -> Scheme
-  core-operation-scheme op = case op of MkCoreOperation s name slot sc -> sc
+  record CoreOperation where
+    s :: Span
+    operation-name :: String
+    operation-slot :: Nat
+    operation-scheme :: Scheme
+  record CoreEffect where
+    s :: Span
+    effect-name :: String
+    effect-kind :: Kind
+    effect-params :: List Quant
+    effect-operations :: List CoreOperation
   effect-kind :: List Quant -> Kind
-  effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (quant-kind q) (effect-kind rest)
+  effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (q.kind) (effect-kind rest)
   effect-label :: String -> Kind -> List Quant -> UType
   effect-label name kind qs = effect-arguments (UCon name kind) qs
   effect-arguments :: UType -> List Quant -> UType
-  effect-arguments head qs = case qs of Nil -> head; Cons q rest -> effect-arguments (UApp head (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  effect-arguments head qs = case qs of Nil -> head; Cons q rest -> effect-arguments (UApp head (UBound (q.id) (q.name) (q.kind))) rest
   effect-quant :: Nat -> List Quant -> Option Quant
-  effect-quant id qs = case qs of Nil -> None; Cons q rest -> if id == quant-id q then Some q else effect-quant id rest
+  effect-quant id qs = case qs of Nil -> None; Cons q rest -> if id == q.id then Some q else effect-quant id rest
   effect-quant-name :: String -> List Quant -> Bool
-  effect-quant-name name qs = case qs of Nil -> False; Cons q rest -> string-compare name (quant-name q) == 0 || effect-quant-name name rest
+  effect-quant-name name qs = case qs of Nil -> False; Cons q rest -> string-compare name (q.name) == 0 || effect-quant-name name rest
   effect-kind-scope :: List Quant -> Kind -> Bool
   effect-kind-scope qs kind = valid-kind kind && (case kind of
     KValue carrier -> effect-type-scope qs carrier
@@ -126,18 +118,18 @@ module Cinch.Core where
   effect-quants-scoped :: List Quant -> List Quant -> Bool
   effect-quants-scoped qs bound = case qs of
     Nil -> True
-    Cons q rest -> (case effect-quant (quant-id q) bound of Some old -> False; None -> True)
-      && not (effect-quant-name (quant-name q) bound) && effect-kind-scope bound (quant-kind q)
+    Cons q rest -> (case effect-quant (q.id) bound of Some old -> False; None -> True)
+      && not (effect-quant-name (q.name) bound) && effect-kind-scope bound (q.kind)
       && effect-quants-scoped rest (Cons q bound)
   effect-binder :: List Quant -> Nat -> String -> UType -> UType -> Bool
   effect-binder qs id name carrier body = (case effect-quant id qs of Some q -> False; None -> True)
-    && effect-proper-value carrier && effect-type-scope qs carrier && effect-type-scope (Cons (MkQuant id name (value-kind carrier) False) qs) body
+    && effect-proper-value carrier && effect-type-scope qs carrier && effect-type-scope (Cons (Quant id name (value-kind carrier) False) qs) body
   effect-index-scope :: List Quant -> UType -> IndexTerm -> Bool
   effect-index-scope qs carrier value = case value of
     ICharacter c -> contract-equal carrier (UCon "Char" KType)
     IInteger n -> integer-literal-valid carrier n
     IBound id name -> case effect-quant id qs of
-      Some q -> (case value-carrier (quant-kind q) of Some declared -> contract-equal carrier declared; None -> False)
+      Some q -> (case value-carrier (q.kind) of Some declared -> contract-equal carrier declared; None -> False)
       None -> False
     IAdd a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
     ISubtract a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
@@ -147,7 +139,7 @@ module Cinch.Core where
   effect-proper-value ty = kind-equal (type-kind ty) KType && valid-kind (value-kind ty)
   effect-type-scope :: List Quant -> UType -> Bool
   effect-type-scope qs ty = case ty of
-    UBound id name kind -> case effect-quant id qs of Some q -> kind-equal kind (quant-kind q) && effect-kind-scope qs kind; None -> False
+    UBound id name kind -> case effect-quant id qs of Some q -> kind-equal kind (q.kind) && effect-kind-scope qs kind; None -> False
     UCon name kind -> effect-kind-scope Nil kind
     URigid id name level kind -> False
     UMeta id kind -> False
@@ -190,13 +182,13 @@ module Cinch.Core where
     UPropLit value -> True
     UEnd -> True
   effect-requirements :: List Quant -> List Requirement -> Bool
-  effect-requirements qs rs = case rs of Nil -> True; Cons r rest -> effect-type-scope qs (requirement-type r) && effect-requirements qs rest
+  effect-requirements qs rs = case rs of Nil -> True; Cons r rest -> effect-type-scope qs (r.ty) && effect-requirements qs rest
   effect-parameter-prefix :: List Quant -> List Quant -> Bool
   effect-parameter-prefix owner actual = case owner of
     Nil -> True
     Cons q rest -> case actual of
-      Cons a more -> quant-id q == quant-id a && kind-equal (quant-kind q) (quant-kind a)
-        && quant-implicit q == quant-implicit a && string-compare (quant-name q) (quant-name a) == 0
+      Cons a more -> q.id == a.id && kind-equal (q.kind) (a.kind)
+        && q.only == a.only && string-compare (q.name) (a.name) == 0
         && effect-parameter-prefix rest more
       Nil -> False
   operation-function :: UType -> Bool
@@ -215,19 +207,19 @@ module Cinch.Core where
   effect-operations-closed :: String -> Kind -> List Quant -> Nat -> List String -> List CoreOperation -> Bool
   effect-operations-closed name kind qs next names ops = case ops of
     Nil -> True
-    Cons op rest -> let sc = core-operation-scheme op in let all = scheme-params sc in
-      core-operation-slot op == next
-      && not (effect-operation-seen (core-operation-name op) names)
+    Cons op rest -> let sc = op.operation-scheme in let all = scheme-params sc in
+      op.operation-slot == next
+      && not (effect-operation-seen (op.operation-name) names)
       && scheme-closed sc && valid-type (scheme-body sc) && scheme-index-scope Nil sc && effect-quants-scoped all Nil
       && effect-parameter-prefix qs all && effect-type-scope all (scheme-body sc)
       && effect-requirements all (scheme-requirements sc)
       && operation-effects (effect-label name kind qs) (scheme-body sc)
-      && effect-operations-closed name kind qs (next + 1) (Cons (core-operation-name op) names) rest
+      && effect-operations-closed name kind qs (next + 1) (Cons (op.operation-name) names) rest
   effect-operation-seen :: String -> List String -> Bool
   effect-operation-seen name names = case names of Nil -> False; Cons n rest -> string-compare name n == 0 || effect-operation-seen name rest
   core-effect-closed :: CoreEffect -> Bool
   core-effect-closed declaration = case declaration of
-    MkCoreEffect s name kind qs ops -> string-length name > 0 && effect-quants-scoped qs Nil
+    CoreEffect s name kind qs ops -> string-length name > 0 && effect-quants-scoped qs Nil
       && closed-quants qs && kind-equal kind (effect-kind qs)
       && (case ops of Nil -> False; Cons op rest -> True)
       && effect-operations-closed name kind qs 1 Nil ops
@@ -235,8 +227,10 @@ module Cinch.Core where
   -- Source declarations retain every constructor, including private ones.
   -- Export visibility stays in the module contexts. Imported declarations
   -- remain checked interface contracts, not reconstructed source data.
-  data CoreConstructor where
-    MkCoreConstructor :: Span -> String -> Scheme -> CoreConstructor
+  record CoreConstructor where
+    s :: Span
+    constructor-name :: String
+    constructor-scheme :: Scheme
   data RecordSlot where
     OrdinarySlot :: String -> UType -> RecordSlot
     ProductSlot :: String -> UType -> CoreConstructor -> List UType -> List UType -> RecordSlot
@@ -267,18 +261,14 @@ module Cinch.Core where
   core-data-params d = case d of MkCoreData s name k qs constructors -> qs; WithLayout layout bare -> core-data-params bare
   core-data-constructors :: CoreData -> List CoreConstructor
   core-data-constructors d = case d of MkCoreData s name k qs constructors -> constructors; WithLayout layout bare -> core-data-constructors bare
-  core-constructor-name :: CoreConstructor -> String
-  core-constructor-name c = case c of MkCoreConstructor s name sc -> name
-  core-constructor-scheme :: CoreConstructor -> Scheme
-  core-constructor-scheme c = case c of MkCoreConstructor s name sc -> sc
   constructor-fields :: UType -> List UType
   constructor-fields ty = case ty of UPi id name a row b -> Cons a (constructor-fields b); UFun a b -> Cons a (constructor-fields b); UProofFun predicate row result -> constructor-fields result; other -> Nil
   core-constructor-fields :: CoreConstructor -> List UType
-  core-constructor-fields c = constructor-fields (scheme-body (core-constructor-scheme c))
+  core-constructor-fields c = constructor-fields (scheme-body (c.constructor-scheme))
   constructors-closed :: List CoreConstructor -> Bool
   constructors-closed cs = case cs of
     Nil -> True
-    Cons c rest -> scheme-closed (core-constructor-scheme c) && scheme-index-scope Nil (core-constructor-scheme c) && constructors-closed rest
+    Cons c rest -> scheme-closed (c.constructor-scheme) && scheme-index-scope Nil (c.constructor-scheme) && constructors-closed rest
   core-data-closed :: CoreData -> Bool
   core-data-closed d = constructors-closed (core-data-constructors d)
 
@@ -300,12 +290,10 @@ module Cinch.Core where
 
   -- Dictionary binders have stable internal symbols, independent of the
   -- source spelling that a nested local declaration may shadow.
-  data CoreGiven where
-    CGiven :: Span -> String -> UType -> CoreGiven
-  given-symbol :: CoreGiven -> String
-  given-symbol given = case given of CGiven s name ty -> name
-  given-type :: CoreGiven -> UType
-  given-type given = case given of CGiven s name ty -> ty
+  record CoreGiven where
+    s :: Span
+    symbol :: String
+    ty :: UType
   data CoreEvidence where
     CENeeded :: Span -> UType -> List CoreGiven -> CoreEvidence
     CEGiven :: Span -> UType -> String -> CoreEvidence
@@ -317,7 +305,7 @@ module Cinch.Core where
   evidence-type :: CoreEvidence -> UType
   evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEKernel s carrier -> UApp (UCon "Kernel" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
   map-givens :: (UType -> UType) -> List CoreGiven -> List CoreGiven
-  map-givens f givens = case givens of Nil -> Nil; Cons (CGiven s name ty) rest -> Cons (CGiven s name (f ty)) (map-givens f rest)
+  map-givens f givens = case givens of Nil -> Nil; Cons (CoreGiven s name ty) rest -> Cons (CoreGiven s name (f ty)) (map-givens f rest)
   map-evidence :: (UType -> UType) -> CoreEvidence -> CoreEvidence
   map-evidence f evidence = case evidence of
     CENeeded s ty scope -> CENeeded s (f ty) (map-givens f scope)
@@ -484,21 +472,21 @@ module Cinch.Core where
   handler-label-arguments :: CoreEffect -> UType -> List UType -> Option (List UType)
   handler-label-arguments declaration label args = case label of
     UApp f x -> handler-label-arguments declaration f (Cons x args)
-    UCon name kind -> if string-compare name (core-effect-name declaration) == 0 && kind-equal kind (core-effect-kind declaration) then Some args else None
+    UCon name kind -> if string-compare name (declaration.effect-name) == 0 && kind-equal kind (declaration.effect-kind) then Some args else None
     other -> None
   handler-parameter-pairs :: List Quant -> List UType -> List (Nat, UType) -> Option (List (Nat, UType))
   handler-parameter-pairs qs args pairs = case (qs, args) of
     (Nil, Nil) -> Some pairs
-    (Cons q rest, Cons arg more) -> if valid-type arg && kind-equal (type-kind arg) (map-kind-types (substitute-bound pairs) (quant-kind q)) then handler-parameter-pairs rest more (Cons (quant-id q, arg) pairs) else None
+    (Cons q rest, Cons arg more) -> if valid-type arg && kind-equal (type-kind arg) (map-kind-types (substitute-bound pairs) (q.kind)) then handler-parameter-pairs rest more (Cons (q.id, arg) pairs) else None
     other -> None
   handler-remaining-params :: List Quant -> List Quant -> List Quant
   handler-remaining-params owner all = case owner of Nil -> all; Cons q rest -> case all of Cons first more -> handler-remaining-params rest more; Nil -> Nil
   handler-operation-scheme :: CoreEffect -> UType -> CoreOperation -> Option Scheme
   handler-operation-scheme declaration label operation = case handler-label-arguments declaration label Nil of
-    Some args -> case handler-parameter-pairs (core-effect-params declaration) args Nil of
-      Some pairs -> let sc = core-operation-scheme operation in
+    Some args -> case handler-parameter-pairs (declaration.effect-params) args Nil of
+      Some pairs -> let sc = operation.operation-scheme in
         case scheme-requirements sc of
-          Nil -> Some (map-scheme-types (substitute-bound pairs) (MkScheme (handler-remaining-params (core-effect-params declaration) (scheme-params sc)) (scheme-body sc)))
+          Nil -> Some (map-scheme-types (substitute-bound pairs) (MkScheme (handler-remaining-params (declaration.effect-params) (scheme-params sc)) (scheme-body sc)))
           other -> None
       None -> None
     None -> None
@@ -664,10 +652,18 @@ module Cinch.Core where
     CLambda sp ty (CPWild at domain) body -> not exact
     other -> False
 
-  data CoreClause where
-    MkCoreClause :: Span -> List CorePattern -> CoreTerm -> CoreClause
-  data CoreDefinition where
-    MkCoreDefinition :: Span -> String -> Scheme -> List (Nat, UType) -> List CoreGiven -> List (Nat, Kind) -> List CoreClause -> CoreDefinition
+  record CoreClause where
+    field0 :: Span
+    field1 :: List CorePattern
+    field2 :: CoreTerm
+  record CoreDefinition where
+    s :: Span
+    name :: String
+    scheme :: Scheme
+    openings :: List (Nat, UType)
+    givens :: List CoreGiven
+    private-types :: List (Nat, Kind)
+    clauses :: List CoreClause
 
   index-local-terms :: Span -> UType -> IndexTerm -> List CoreTerm
   index-local-terms sp carrier value = case value of
@@ -737,19 +733,6 @@ module Cinch.Core where
     CErasedApply sp ty row f witness -> [f]
     CRefineProof sp ty witness body -> [body]
     other -> term-children term
-  core-name :: CoreDefinition -> String
-  core-name d = case d of MkCoreDefinition s name sc openings givens private clauses -> name
-  core-scheme :: CoreDefinition -> Scheme
-  core-scheme d = case d of MkCoreDefinition s name sc openings givens private clauses -> sc
-  core-clauses :: CoreDefinition -> List CoreClause
-  core-clauses d = case d of MkCoreDefinition s name sc openings givens private clauses -> clauses
-  core-openings :: CoreDefinition -> List (Nat, UType)
-  core-openings d = case d of MkCoreDefinition s name sc openings givens private clauses -> openings
-  core-private-types :: CoreDefinition -> List (Nat, Kind)
-  core-private-types d = case d of MkCoreDefinition s name sc openings givens private clauses -> private
-
-  core-givens :: CoreDefinition -> List CoreGiven
-  core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
 
   ownership-type-kinds :: List (String, Kind)
   ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", thunk-kind), ("Lazy", lazy-kind), ("Later", later-kind)]
@@ -1247,7 +1230,7 @@ module Cinch.Core where
     CMemoScope s ty region body -> CMemoScope s (f ty) (f region) (map-term-types f body)
     CSpawn s ty token body -> CSpawn s (f ty) (map-term-types f token) (map-term-types f body)
     CJoin s ty token body -> CJoin s (f ty) (map-term-types f token) (map-term-types f body)
-    CWith s ty given value body -> CWith s (f ty) (CGiven s (given-symbol given) (f (given-type given))) (map-term-types f value) (map-term-types f body)
+    CWith s ty given value body -> CWith s (f ty) (CoreGiven s (given.symbol) (f (given.ty))) (map-term-types f value) (map-term-types f body)
     CHandler s ty returned operations -> CHandler s (f ty) (map-term-types f returned) (map-term-types f operations)
     CHandle s ty label residual body handled-by -> CHandle s (f ty) (f label) (f residual) (map-term-types f body) (map-term-types f handled-by)
     CHandlerOperation s slot openings row closure rest -> CHandlerOperation s slot (map-handler-openings f openings) (f row) (map-term-types f closure) (map-term-types f rest)
@@ -1395,7 +1378,7 @@ module Cinch.Core where
   types-metas :: Store -> List UType -> List (Nat, Kind)
   types-metas st types = case types of Nil -> Nil; Cons ty rest -> type-metas st ty <> types-metas st rest
   given-metas :: Store -> List CoreGiven -> List (Nat, Kind)
-  given-metas st givens = case givens of Nil -> Nil; Cons given rest -> type-metas st (given-type given) <> given-metas st rest
+  given-metas st givens = case givens of Nil -> Nil; Cons given rest -> type-metas st (given.ty) <> given-metas st rest
   evidence-metas :: Store -> CoreEvidence -> List (Nat, Kind)
   evidence-metas st evidence = case evidence of
     CENeeded s ty scope -> type-metas st ty <> given-metas st scope
@@ -1408,7 +1391,7 @@ module Cinch.Core where
   evidences-metas :: Store -> List CoreEvidence -> List (Nat, Kind)
   evidences-metas st evidences = case evidences of Nil -> Nil; Cons evidence rest -> evidence-metas st evidence <> evidences-metas st rest
   requirements-metas :: Store -> List Requirement -> List (Nat, Kind)
-  requirements-metas st rs = case rs of Nil -> Nil; Cons r rest -> type-metas st (requirement-type r) <> requirements-metas st rest
+  requirements-metas st rs = case rs of Nil -> Nil; Cons r rest -> type-metas st (r.ty) <> requirements-metas st rest
   pattern-metas :: Store -> CorePattern -> List (Nat, Kind)
   pattern-metas st p = case p of
     CPWild s ty -> type-metas st ty
@@ -1446,7 +1429,7 @@ module Cinch.Core where
     CMemoScope s ty region body -> type-metas st ty <> type-metas st region <> term-metas st body
     CSpawn s ty token body -> type-metas st ty <> term-metas st token <> term-metas st body
     CJoin s ty token body -> type-metas st ty <> term-metas st token <> term-metas st body
-    CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
+    CWith s ty given value body -> type-metas st ty <> type-metas st (given.ty) <> term-metas st value <> term-metas st body
     CHandler s ty returned operations -> type-metas st ty <> term-metas st returned <> term-metas st operations
     CHandle s ty label residual body handled-by -> type-metas st ty <> type-metas st label <> type-metas st residual <> term-metas st body <> term-metas st handled-by
     CHandlerOperation s slot openings row closure rest -> handler-opening-metas st openings <> type-metas st row <> term-metas st closure <> term-metas st rest
@@ -1474,7 +1457,7 @@ module Cinch.Core where
   patterns-metas :: Store -> List CorePattern -> List (Nat, Kind)
   patterns-metas st patterns = case patterns of Nil -> Nil; Cons p rest -> pattern-metas st p <> patterns-metas st rest
   clauses-metas :: Store -> List CoreClause -> List (Nat, Kind)
-  clauses-metas st clauses = case clauses of Nil -> Nil; Cons (MkCoreClause s ps body) rest -> patterns-metas st ps <> term-metas st body <> clauses-metas st rest
+  clauses-metas st clauses = case clauses of Nil -> Nil; Cons (CoreClause s ps body) rest -> patterns-metas st ps <> term-metas st body <> clauses-metas st rest
   has-id :: Nat -> List (Nat, Kind) -> Bool
   has-id id entries = case entries of Nil -> False; Cons (n, k) rest -> id == n || has-id id rest
   unique :: List (Nat, Kind) -> List (Nat, Kind) -> List (Nat, Kind)
@@ -1484,12 +1467,12 @@ module Cinch.Core where
   seal-clauses :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
   seal-clauses bodies guards values st earlier clauses = case clauses of
     Nil -> Nil
-    Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
+    Cons (CoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
       let scope = with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil)) in
       let gamma = proof-patterns patterns scope in
       let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
-      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards values st (extend-equation-prefix patterns checked earlier) rest)
+      Cons (CoreClause s patterns checked) (seal-clauses bodies guards values st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -1502,8 +1485,8 @@ module Cinch.Core where
     None -> seal-definition-with-checked-contracts empty-body-bindings guards st definition
   seal-definition-with-checked-contracts :: BodyBindings -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
   seal-definition-with-checked-contracts bodies guards st definition = case definition of
-    MkCoreDefinition s name sc openings givens private clauses ->
-      MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
+    CoreDefinition s name sc openings givens private clauses ->
+      CoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
         (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards (opening-value-types openings) st Nil clauses)
 
   closed-type :: UType -> Bool
@@ -1553,11 +1536,11 @@ module Cinch.Core where
   closed-kind :: Kind -> Bool
   closed-kind kind = case kind of KValue carrier -> closed-type carrier; KFun a b -> closed-kind a && closed-kind b; other -> True
   closed-quants :: List Quant -> Bool
-  closed-quants qs = case qs of Nil -> True; Cons q rest -> valid-kind (quant-kind q) && closed-kind (quant-kind q) && closed-quants rest
+  closed-quants qs = case qs of Nil -> True; Cons q rest -> valid-kind (q.kind) && closed-kind (q.kind) && closed-quants rest
   closed-types :: List UType -> Bool
   closed-types types = case types of Nil -> True; Cons ty rest -> closed-type ty && closed-types rest
   requirements-closed :: List Requirement -> Bool
-  requirements-closed rs = case rs of Nil -> True; Cons r rest -> closed-type (requirement-type r) && requirements-closed rest
+  requirements-closed rs = case rs of Nil -> True; Cons r rest -> closed-type (r.ty) && requirements-closed rest
   -- A value contract: the body is a value type. Operations and constructors
   -- genuinely need this (`effect-operations-closed`, `constructors-closed`,
   -- `constructor-pattern-supported`), because a constructor cannot return a
@@ -1575,7 +1558,7 @@ module Cinch.Core where
   declared-scheme-body :: UType -> Bool
   declared-scheme-body ty = valid-type ty && (if kind-equal (type-kind ty) KType then valid-kind (value-kind ty) else kind-equal (type-kind ty) KProp)
   givens-closed :: List CoreGiven -> Bool
-  givens-closed givens = case givens of Nil -> True; Cons given rest -> closed-type (given-type given) && givens-closed rest
+  givens-closed givens = case givens of Nil -> True; Cons given rest -> closed-type (given.ty) && givens-closed rest
   evidence-closed :: CoreEvidence -> Bool
   evidence-closed evidence = case evidence of
     CENeeded s ty scope -> False
@@ -1654,7 +1637,7 @@ module Cinch.Core where
     CMemoScope s ty region body -> closed-runtime-type ty && closed-type region && scope-region-closed region ty && scope-region-closed region (core-effects term) && valid-term body
     CSpawn s ty token body -> closed-runtime-type ty && valid-term token && valid-term body
     CJoin s ty token body -> closed-runtime-type ty && valid-term token && valid-term body
-    CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
+    CWith s ty given value body -> closed-runtime-type ty && closed-type (given.ty) && valid-term value && valid-term body
     CHandler s ty returned operations -> closed-runtime-type ty && valid-term returned && valid-term operations
     CHandle s ty label residual body handled-by -> closed-runtime-type ty && closed-type label && closed-type residual && valid-term body && valid-term handled-by
     CHandlerOperation s slot openings row closure rest -> closed-type row && handler-openings-closed openings && valid-term closure && valid-term rest
@@ -1705,7 +1688,7 @@ module Cinch.Core where
   valid-patterns :: List CorePattern -> Bool
   valid-patterns ps = case ps of Nil -> True; Cons p rest -> valid-pattern p && valid-patterns rest
   valid-clauses :: List CoreClause -> Bool
-  valid-clauses clauses = case clauses of Nil -> True; Cons (MkCoreClause s ps body) rest -> valid-patterns ps && valid-term body && valid-clauses rest
+  valid-clauses clauses = case clauses of Nil -> True; Cons (CoreClause s ps body) rest -> valid-patterns ps && valid-term body && valid-clauses rest
   -- Local references use stable identities. Display names may shadow or
   -- change without changing binding. A let does not bind inside its RHS;
   -- lambda and case patterns extend only their own body scopes.
@@ -1775,13 +1758,13 @@ module Cinch.Core where
   quant-index-bounds :: List Quant -> List Nat -> List Nat
   quant-index-bounds qs bound = case qs of
     Nil -> bound
-    Cons q rest -> quant-index-bounds rest (case value-carrier (quant-kind q) of Some carrier -> Cons (quant-id q) bound; None -> bound)
+    Cons q rest -> quant-index-bounds rest (case value-carrier (q.kind) of Some carrier -> Cons (q.id) bound; None -> bound)
   quant-index-scope :: List Quant -> List Nat -> List Nat -> Bool
   quant-index-scope qs bound rigid = case qs of
     Nil -> True
-    Cons q rest -> kind-index-scope bound rigid (quant-kind q) && quant-index-scope rest (case value-carrier (quant-kind q) of Some carrier -> Cons (quant-id q) bound; None -> bound) rigid
+    Cons q rest -> kind-index-scope bound rigid (q.kind) && quant-index-scope rest (case value-carrier (q.kind) of Some carrier -> Cons (q.id) bound; None -> bound) rigid
   requirements-index-scope :: List Nat -> List Nat -> List Requirement -> Bool
-  requirements-index-scope bound rigid rs = case rs of Nil -> True; Cons r rest -> type-index-scope bound rigid (requirement-type r) && requirements-index-scope bound rigid rest
+  requirements-index-scope bound rigid rs = case rs of Nil -> True; Cons r rest -> type-index-scope bound rigid (r.ty) && requirements-index-scope bound rigid rest
   scheme-index-scope :: List Nat -> Scheme -> Bool
   scheme-index-scope rigid sc = scheme-index-scope-with Nil rigid sc
   scheme-index-scope-with :: List Nat -> List Nat -> Scheme -> Bool
@@ -1802,13 +1785,13 @@ module Cinch.Core where
   opening-value-ids :: List Quant -> List (Nat, UType) -> List Nat
   opening-value-ids qs pairs = case qs of
     Nil -> Nil
-    Cons q rest -> let more = opening-value-ids rest pairs in case value-carrier (quant-kind q) of
+    Cons q rest -> let more = opening-value-ids rest pairs in case value-carrier (q.kind) of
       None -> more
-      Some carrier -> case opening-type (quant-id q) pairs of
+      Some carrier -> case opening-type (q.id) pairs of
         Some ty -> (case index-of-type ty of Some (IRigid id name level) -> Cons id more; other -> more)
         None -> more
   givens-index-scope :: List Nat -> List CoreGiven -> Bool
-  givens-index-scope rigid givens = case givens of Nil -> True; Cons given rest -> type-index-scope Nil rigid (given-type given) && givens-index-scope rigid rest
+  givens-index-scope rigid givens = case givens of Nil -> True; Cons given rest -> type-index-scope Nil rigid (given.ty) && givens-index-scope rigid rest
   evidence-index-scope :: List Nat -> CoreEvidence -> Bool
   evidence-index-scope rigid evidence = evidence-index-scope-with Nil rigid evidence
   evidences-index-scope :: List Nat -> List CoreEvidence -> Bool
@@ -1878,7 +1861,7 @@ module Cinch.Core where
       CMemoScope s ty region body -> type-index-scope universals rigid region && scoped-term-with universals values scope body
       CSpawn s ty token body -> scoped-term-with universals values scope token && scoped-term-with universals values scope body
       CJoin s ty token body -> scoped-term-with universals values scope token && scoped-term-with universals values scope body
-      CWith s ty given value body -> type-index-scope universals rigid (given-type given) && scoped-term-with universals values scope value && scoped-term-with universals values scope body
+      CWith s ty given value body -> type-index-scope universals rigid (given.ty) && scoped-term-with universals values scope value && scoped-term-with universals values scope body
       CHandler s ty returned operations -> scoped-term-with universals values scope returned && scoped-term-with universals values scope operations
       CHandle s ty label residual body handled-by -> type-index-scope universals rigid label && type-index-scope universals rigid residual && scoped-term-with universals values scope body && scoped-term-with universals values scope handled-by
       CHandlerOperation s slot openings row closure rest -> let opened = handler-opening-values openings <> values in
@@ -1903,7 +1886,7 @@ module Cinch.Core where
   scoped-clauses :: List Nat -> List CoreClause -> Bool
   scoped-clauses values clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-scope values patterns values of Some bound -> scoped-term values bound body; None -> False) && scoped-clauses values rest
+    Cons (CoreClause s patterns body) rest -> (case patterns-scope values patterns values of Some bound -> scoped-term values bound body; None -> False) && scoped-clauses values rest
   -- These checks cover lexical identities, index references and operation
   -- certificates. An independent full typing/kind kernel remains separate.
   core-definition-closed :: CoreDefinition -> Bool
@@ -1923,11 +1906,11 @@ module Cinch.Core where
     core-definition-checked-contracts-closed-with fams Nil checked guards definition
 
   core-definition-checked-contracts-closed-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
-  core-definition-checked-contracts-closed-with fams proms checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
+  core-definition-checked-contracts-closed-with fams proms checked guards definition = let bodies = checked.bindings-members in guarded-bindings-closed guards && (case definition of
     -- A definition's scheme is a DECLARATION contract, so its body may be a
     -- proposition: `same v = refl` defines a proof former. `scheme-closed`
     -- would demand a value kind and refuse every proof former here.
-    MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
+    CoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
       declaration-scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
   -- The definition conjunction above folds nine tests into one `Bool`. This
@@ -1942,10 +1925,10 @@ module Cinch.Core where
     core-definition-refusal-with fams Nil checked guards definition
 
   core-definition-refusal-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
-  core-definition-refusal-with fams proms checked guards definition = let bodies = body-bindings-members checked in
+  core-definition-refusal-with fams proms checked guards definition = let bodies = checked.bindings-members in
     if not (guarded-bindings-closed guards) then Some "a guarded binding is not closed"
     else case definition of
-      MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
+      CoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
         if not (declaration-scheme-closed sc) then Some "the scheme body is neither a value type nor a proposition"
         else if not (scheme-index-scope Nil sc) then Some "a scheme index is out of scope"
         else if not (givens-closed givens) then Some "a given is not closed"
@@ -1972,28 +1955,30 @@ module Cinch.Core where
   -- Types and checked local definitions occupy separate context fields.
   -- Elaboration may supply checked witness hints; closed Core reconstructs
   -- every definition from the actual strict let RHS before checking its body.
-  data ProofScope where
-    MkProofScope :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType) -> BodyBindings -> List GuardedBinding -> ProofScope
+  record ProofScope where
+    types :: List (Nat, UType)
+    values :: List (Nat, UType)
+    proofs :: List (Nat, UType)
+    bodies :: BodyBindings
+    guarded-bodies :: List GuardedBinding
   empty-proof-scope :: ProofScope
-  empty-proof-scope = MkProofScope Nil Nil Nil empty-body-bindings Nil
+  empty-proof-scope = ProofScope Nil Nil Nil empty-body-bindings Nil
   scope-bodies :: ProofScope -> List BodyBinding
-  scope-bodies scope = case scope of MkProofScope types values proofs bodies guards -> body-bindings-members bodies
+  scope-bodies scope = case scope of ProofScope types values proofs bodies guards -> bodies.bindings-members
   with-body-bindings :: List BodyBinding -> ProofScope -> ProofScope
   with-body-bindings bindings scope = case check-body-bindings bindings of Some checked -> with-checked-body-bindings checked scope; None -> scope
   with-checked-body-bindings :: BodyBindings -> ProofScope -> ProofScope
-  with-checked-body-bindings bindings scope = case scope of MkProofScope types values proofs old guards -> MkProofScope types values proofs bindings guards
-  scope-types :: ProofScope -> List (Nat, UType)
-  scope-types scope = case scope of MkProofScope types values proofs bodies guards -> types
+  with-checked-body-bindings bindings scope = case scope of ProofScope types values proofs old guards -> ProofScope types values proofs bindings guards
   scope-entry :: Nat -> List (Nat, UType) -> Option UType
   scope-entry id entries = case entries of Nil -> None; Cons (key, value) rest -> if id == key then Some value else scope-entry id rest
   scope-value :: Nat -> ProofScope -> Option UType
-  scope-value id scope = case scope of MkProofScope types values proofs bodies guards -> scope-entry id values
+  scope-value id scope = case scope of ProofScope types values proofs bodies guards -> scope-entry id values
   scope-remove :: Nat -> List (Nat, UType) -> List (Nat, UType)
   scope-remove id entries = case entries of Nil -> Nil; Cons (key, value) rest -> if id == key then scope-remove id rest else Cons (key, value) (scope-remove id rest)
   scope-without-value :: Nat -> ProofScope -> ProofScope
-  scope-without-value id scope = case scope of MkProofScope types values proofs bodies guards -> MkProofScope types (scope-remove id values) proofs bodies guards
+  scope-without-value id scope = case scope of ProofScope types values proofs bodies guards -> ProofScope types (scope-remove id values) proofs bodies guards
   scope-local :: Nat -> UType -> ProofScope -> ProofScope
-  scope-local id ty scope = case scope of MkProofScope types values proofs bodies guards -> MkProofScope (Cons (id, ty) types) (scope-remove id values) (scope-remove id proofs) bodies guards
+  scope-local id ty scope = case scope of ProofScope types values proofs bodies guards -> ProofScope (Cons (id, ty) types) (scope-remove id values) (scope-remove id proofs) bodies guards
   scope-index-valid :: UType -> UType -> Bool
   scope-index-valid carrier value = valid-type value && typed-index-admissible value && kind-equal (type-kind value) (value-kind carrier)
   scope-definitions :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
@@ -2003,7 +1988,7 @@ module Cinch.Core where
       Some carrier -> if scope-index-valid carrier value then Cons (id, value) (scope-definitions types rest) else scope-definitions types rest
       None -> scope-definitions types rest
   make-proof-scope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
-  make-proof-scope types values = MkProofScope types (scope-definitions types values) Nil empty-body-bindings Nil
+  make-proof-scope types values = ProofScope types (scope-definitions types values) Nil empty-body-bindings Nil
   scope-index :: ProofScope -> Nat -> String -> UType -> Option UType
   scope-index scope id name ty = case proof-local id scope of
     Some declared -> if not (contract-equal ty declared) then None else case scope-value id scope of
@@ -2050,13 +2035,13 @@ module Cinch.Core where
     case (scheme-params scheme, scheme-requirements scheme) of
       (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
         Some value -> if not (volatile-borrow-index value) && scope-index-valid (scheme-body scheme) value then
-          (case bound of MkProofScope types values proofs bodies guards -> MkProofScope types (Cons (id, value) values) proofs bodies guards) else bound
+          (case bound of ProofScope types values proofs bodies guards -> ProofScope types (Cons (id, value) values) proofs bodies guards) else bound
         None -> bound
       other -> bound
 
   scope-erased :: Nat -> UType -> ProofScope -> ProofScope
   scope-erased id predicate gamma = case gamma of
-    MkProofScope types values proofs bodies guards -> MkProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs)) bodies guards
+    ProofScope types values proofs bodies guards -> ProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs)) bodies guards
 
   write-matches :: Option UType -> UType -> Bool
   write-matches region actual = case region of Some wanted -> contract-equal wanted actual; None -> True
@@ -2085,7 +2070,7 @@ module Cinch.Core where
   mutable-fact-write :: ProofScope -> List (Span, Option UType) -> Proposition -> Option Span
   mutable-fact-write gamma writes fact = case writes of
     Nil -> None
-    Cons (sp, region) rest -> if fact-written (scope-types gamma) region fact then Some sp else mutable-fact-write gamma rest fact
+    Cons (sp, region) rest -> if fact-written (gamma.types) region fact then Some sp else mutable-fact-write gamma rest fact
   borrow-index-regions :: UType -> List UType
   borrow-index-regions ty = case ty of
     UIndexBorrowRead (UIndex borrow (IRigid id name level)) -> (case mutable-borrow borrow of Some (region, carrier) -> [region]; None -> Nil)
@@ -2146,11 +2131,11 @@ module Cinch.Core where
   proof-after-writes :: ProofScope -> List (Span, Option UType) -> ProofScope
   proof-after-writes gamma writes = case (gamma, writes) of
     (scope, Nil) -> scope
-    (MkProofScope types values proofs bodies guards, other) ->
-      MkProofScope types values (erased-after-writes proofs writes) bodies guards
+    (ProofScope types values proofs bodies guards, other) ->
+      ProofScope types values (erased-after-writes proofs writes) bodies guards
   scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
   scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
-    (MkProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
+    (ProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
       && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
     (scope, CProofRefl s predicate) -> reflexive-equality predicate && contract-equal expected predicate
     other -> False)
@@ -2162,8 +2147,8 @@ module Cinch.Core where
   decision-constructor-scheme name =
     let predicate = UBound 0 "p" KProp in
     let result = decision-type predicate in
-    if string-compare name "b.Yes" == 0 then Some (MkScheme [MkQuant 0 "p" KProp False] (UProofFun predicate (URow UEnd) result))
-    else if string-compare name "b.No" == 0 then Some (MkScheme [MkQuant 0 "p" KProp False] (UProofFun (UPropNot predicate) (URow UEnd) result))
+    if string-compare name "b.Yes" == 0 then Some (MkScheme [Quant 0 "p" KProp False] (UProofFun predicate (URow UEnd) result))
+    else if string-compare name "b.No" == 0 then Some (MkScheme [Quant 0 "p" KProp False] (UProofFun (UPropNot predicate) (URow UEnd) result))
     else None
   decision-constant :: Bool -> CoreTerm -> Bool
   decision-constant expected term = bool-type (core-type term) && (case term of
@@ -2259,7 +2244,7 @@ module Cinch.Core where
     && decision-predicate-test gamma facts predicate condition
 
   proof-local :: Nat -> ProofScope -> Option UType
-  proof-local id gamma = scope-entry id (scope-types gamma)
+  proof-local id gamma = scope-entry id (gamma.types)
   decimal-digits :: List Char -> Int -> Bool -> Option Int
   decimal-digits chars n seen = case chars of
     Nil -> if seen then Some n else None
@@ -2289,9 +2274,9 @@ module Cinch.Core where
   natural-facts :: List Nat -> List Proposition
   natural-facts ids = case ids of Nil -> Nil; Cons id rest -> Cons (PCompare AtLeast (proof-variable id) (AInteger 0)) (natural-facts rest)
   proof-assumptions :: ProofScope -> List Proposition -> List Proposition
-  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> machine-facts (machine-ids (scope-types gamma)) (scope-types gamma) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> erased-facts gamma <> facts
+  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (gamma.types))) <> machine-facts (machine-ids (gamma.types)) (gamma.types) <> byte-length-facts (byte-buffer-ids (gamma.types)) <> refinement-facts gamma (gamma.types) <> erased-facts gamma <> facts
   erased-facts :: ProofScope -> List Proposition
-  erased-facts gamma = case gamma of MkProofScope types values proofs bodies guards -> erased-predicates gamma proofs
+  erased-facts gamma = case gamma of ProofScope types values proofs bodies guards -> erased-predicates gamma proofs
   erased-predicates :: ProofScope -> List (Nat, UType) -> List Proposition
   erased-predicates gamma proofs = case proofs of
     Nil -> Nil
@@ -3113,7 +3098,7 @@ module Cinch.Core where
     other -> False
 
   proof-clauses :: List CoreClause -> Bool
-  proof-clauses clauses = case clauses of Nil -> True; Cons (MkCoreClause s patterns body) rest -> proof-term (proof-patterns patterns empty-proof-scope) Nil body && proof-clauses rest
+  proof-clauses clauses = case clauses of Nil -> True; Cons (CoreClause s patterns body) rest -> proof-term (proof-patterns patterns empty-proof-scope) Nil body && proof-clauses rest
 
   -- Inference may discover another local is Nat after an earlier branch
   -- has been checked. That adds a domain fact and can change citation
@@ -3205,7 +3190,7 @@ module Cinch.Core where
   -- by their own definitions.
   writes-move-nothing :: ProofScope -> List Proposition -> Bool
   writes-move-nothing gamma facts = case (gamma, facts) of
-    (MkProofScope types values proofs bodies guards, Nil) -> case proofs of Nil -> True; other -> False
+    (ProofScope types values proofs bodies guards, Nil) -> case proofs of Nil -> True; other -> False
     (other, rest) -> False
   -- The scope a refreshed term's writes leave behind. Asking whether writes
   -- can matter before computing them avoids a walk over the whole prefix at
@@ -3379,7 +3364,7 @@ module Cinch.Core where
   arithmetic-index :: ProofScope -> Arithmetic -> Option IndexTerm
   arithmetic-index gamma term = case term of
     AInteger n -> Some (IInteger n)
-    AVariable name -> variable-index (scope-types gamma) name
+    AVariable name -> variable-index (gamma.types) name
     APlus a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (IAdd x y); other -> None
     AMinus a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (ISubtract x y); other -> None
     ATimes a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (IMultiply x y); other -> None
@@ -3586,22 +3571,22 @@ module Cinch.Core where
   definition-clause-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> List CoreClause -> Bool
   definition-clause-types-in fams proms ty clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams proms ty patterns of Some expected -> contract-equal-in fams proms expected (core-type body); None -> False) && definition-clause-types-in fams proms ty rest
+    Cons (CoreClause s patterns body) rest -> (case patterns-result-in fams proms ty patterns of Some expected -> contract-equal-in fams proms expected (core-type body); None -> False) && definition-clause-types-in fams proms ty rest
   definition-given-types :: List Requirement -> List CoreGiven -> Bool
   definition-given-types requirements givens = definition-given-types-in Nil Nil requirements givens
   definition-given-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> List Requirement -> List CoreGiven -> Bool
   definition-given-types-in fams proms requirements givens = case (requirements, givens) of
     (Nil, Nil) -> True
-    (Cons r rest, Cons g more) -> contract-equal-in fams proms (requirement-type r) (given-type g) && definition-given-types-in fams proms rest more
+    (Cons r rest, Cons g more) -> contract-equal-in fams proms (r.ty) (g.ty) && definition-given-types-in fams proms rest more
     other -> False
   core-definition-result-types :: CoreDefinition -> Bool
   core-definition-result-types definition = core-definition-result-types-with Nil Nil definition
   core-definition-result-types-with-families :: List TypeFamilyRuleSet -> CoreDefinition -> Bool
   core-definition-result-types-with-families fams definition = core-definition-result-types-with fams Nil definition
   core-definition-result-types-with :: List TypeFamilyRuleSet -> List PromotedFn -> CoreDefinition -> Bool
-  core-definition-result-types-with fams proms definition = let sc = core-scheme definition in let pairs = core-openings definition in
-    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types-in fams proms (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
-      && definition-clause-types-in fams proms (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
+  core-definition-result-types-with fams proms definition = let sc = definition.scheme in let pairs = definition.openings in
+    (case definition.clauses of Nil -> False; Cons first rest -> True) && definition-given-types-in fams proms (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (definition.givens)
+      && definition-clause-types-in fams proms (substitute-bound pairs (scheme-body sc)) (definition.clauses)
 
   proof-expected :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   proof-expected gamma facts expected term = proof-expected-in Nil Nil gamma facts expected term
@@ -3627,7 +3612,7 @@ module Cinch.Core where
   proof-equations-in :: List TypeFamilyRuleSet -> List PromotedFn -> ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
   proof-equations-in fams proms scope expected earlier clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams proms expected patterns of
+    Cons (CoreClause s patterns body) rest -> (case patterns-result-in fams proms expected patterns of
       Some result -> let gamma = proof-patterns patterns scope in
         proof-expected-in fams proms gamma (scoped-core-equation-facts gamma earlier patterns) result body
       None -> False) && proof-equations-in fams proms scope expected (extend-equation-prefix patterns body earlier) rest
@@ -3781,17 +3766,14 @@ module Cinch.Core where
     Some (UIndexCall function arguments) -> Some (UIndexCall function arguments)
     other -> None
 
-
-  scope-guarded-bodies :: ProofScope -> List GuardedBinding
-  scope-guarded-bodies scope = case scope of MkProofScope types values proofs bodies guards -> guards
   with-guarded-bindings :: List GuardedBinding -> ProofScope -> ProofScope
-  with-guarded-bindings bindings scope = if guarded-bindings-closed bindings then (case scope of MkProofScope types values proofs bodies old -> MkProofScope types values proofs bodies bindings) else scope
+  with-guarded-bindings bindings scope = if guarded-bindings-closed bindings then (case scope of ProofScope types values proofs bodies old -> ProofScope types values proofs bodies bindings) else scope
   guarded-call-spine :: ProofScope -> CoreTerm -> List CoreTerm -> Option (GuardedBinding, List CoreTerm)
   guarded-call-spine gamma term arguments = case term of
     CApply sp ty function argument -> guarded-call-spine gamma function (Cons argument arguments)
     CApplyEff sp ty (URow UEnd) function argument -> guarded-call-spine gamma function (Cons argument arguments)
-    CUse sp ty name role Nil -> if string-compare role "external" /= 0 then None else (case guarded-binding name (scope-guarded-bodies gamma) of
-      Some binding -> if guarded-matches name role (mono ty) binding && list-length arguments == guarded-arity binding then Some (binding, arguments) else None
+    CUse sp ty name role Nil -> if string-compare role "external" /= 0 then None else (case guarded-binding name (gamma.guarded-bodies) of
+      Some binding -> if guarded-matches name role (mono ty) binding && list-length arguments == binding.arity then Some (binding, arguments) else None
       None -> None)
     other -> None
   guarded-actuals :: ProofScope -> List Proposition -> List CoreTerm -> Option (List UType)
@@ -3819,7 +3801,6 @@ module Cinch.Core where
       Some (binding, arguments) -> (case guarded-actual-readings gamma facts arguments of Some values -> guarded-reading binding values; None -> None)
       None -> None)
     other -> None
-
 
   -- Reconstruct a closed executable graph from actual retained definitions.
   -- This supplies no authority by itself: the caller must still associate
@@ -3905,11 +3886,11 @@ module Cinch.Core where
   total-core-definition :: String -> List CoreDefinition -> Option CoreDefinition
   total-core-definition name definitions = case definitions of
     Nil -> None
-    Cons first rest -> if string-compare name (core-name first) == 0 then Some first else total-core-definition name rest
+    Cons first rest -> if string-compare name (first.name) == 0 then Some first else total-core-definition name rest
   total-core-native-definition :: String -> List CoreDefinition -> Option CoreDefinition
   total-core-native-definition name definitions = case definitions of
     Nil -> None
-    Cons first rest -> case export-global (core-name first) of
+    Cons first rest -> case export-global (first.name) of
       Ok native -> if string-compare name native == 0 then Some first else total-core-native-definition name rest
       Err error -> total-core-native-definition name rest
   total-core-head :: CoreTerm -> CoreTerm
@@ -3954,7 +3935,7 @@ module Cinch.Core where
       Some (arguments, references) -> if byte-length-function (core-type term) ty name role then
         (case arguments of [argument] -> Some (total-core-primitive "BytesLen" [argument], references); other -> None)
         else case total-core-indexed-definition name index of
-          Some definition -> if string-compare role "value" /= 0 || not (contract-equal ty (scheme-body (core-scheme definition))) then None else
+          Some definition -> if string-compare role "value" /= 0 || not (contract-equal ty (scheme-body (definition.scheme))) then None else
             (case export-global name of
               Ok native -> Some (JObj "node" (JStr "call") (JObj "target" (JStr native) (JObj "arguments" (total-core-json-list arguments) JObjEnd)), Cons name references)
               Err error -> None)
@@ -4017,8 +3998,8 @@ module Cinch.Core where
     other -> None
   total-core-row :: List BodyBinding -> TotalCoreIndex -> CoreDefinition -> Option (Json, List String)
   total-core-row bindings index definition = if not (core-definition-closed definition && core-definition-result-types definition) then None else
-    case (scheme-params (core-scheme definition), scheme-requirements (core-scheme definition), core-givens definition, core-clauses definition) of
-      (Nil, Nil, Nil, [MkCoreClause sp patterns body]) -> (case (total-core-signature (scheme-body (core-scheme definition)), export-global (core-name definition), total-core-flatten patterns body) of
+    case (scheme-params (definition.scheme), scheme-requirements (definition.scheme), definition.givens, definition.clauses) of
+      (Nil, Nil, Nil, [CoreClause sp patterns body]) -> (case (total-core-signature (scheme-body (definition.scheme)), export-global (definition.name), total-core-flatten patterns body) of
         (Some (parameters, result), Ok native, (arguments, inner)) -> (case total-core-parameters parameters arguments of
           Some scope -> (case total-core-expression bindings index scope inner of
             Some (value, references) -> Some (JObj "identity" (JStr native) (JObj "parameters" (total-core-text-list parameters) (JObj "result" (JStr result) (JObj "body" value JObjEnd))), references)
@@ -4035,16 +4016,16 @@ module Cinch.Core where
   -- the sort-once change. One table per gather turns each of those walks into
   -- a probe. The table's value is the definition, so nothing about what a
   -- lookup answers moved; a name the list does not hold is still `None`.
-  data TotalCoreIndex where
-    MkTotalCoreIndex :: HashMap String CoreDefinition -> TotalCoreIndex
+  record TotalCoreIndex where
+    table :: HashMap String CoreDefinition
   total-core-index :: List CoreDefinition -> TotalCoreIndex
-  total-core-index definitions = MkTotalCoreIndex (total-core-index-into definitions hash-map-empty)
+  total-core-index definitions = TotalCoreIndex (total-core-index-into definitions hash-map-empty)
   total-core-index-into :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
   total-core-index-into definitions table = case definitions of
     Nil -> table
-    Cons definition rest -> total-core-index-into rest (hash-map-insert (core-name definition) definition table)
+    Cons definition rest -> total-core-index-into rest (hash-map-insert (definition.name) definition table)
   total-core-indexed-definition :: String -> TotalCoreIndex -> Option CoreDefinition
-  total-core-indexed-definition name index = case index of MkTotalCoreIndex table -> hash-map-lookup name table
+  total-core-indexed-definition name index = case index of TotalCoreIndex table -> hash-map-lookup name table
 
   -- The table's ordering, applied once instead of per row.
   --
@@ -4129,7 +4110,7 @@ module Cinch.Core where
     Some definition -> indexed-total-function bindings (total-core-index definitions) definition native
     None -> None
   indexed-total-function :: List BodyBinding -> TotalCoreIndex -> CoreDefinition -> String -> Option TotalFunction
-  indexed-total-function bindings index definition native = case total-core-gather bindings index (core-name definition) of
+  indexed-total-function bindings index definition native = case total-core-gather bindings index (definition.name) of
     Some rows -> (case total-core-table rows of
       Some ordered -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (total-core-json-list ordered) JObjEnd)) of Some graph -> total-function graph native; None -> None)
       None -> None)
@@ -4171,8 +4152,8 @@ module Cinch.Core where
         let input = UCon carrier KType in
         if not (contract-equal matched input && contract-equal result (core-type body)) then None else
           (case (projection-local id input scope, projection-constructor datas carrier) of
-            (Some path, Some definition) -> let sc = core-constructor-scheme definition in
-              if not (string-compare constructor (core-constructor-name definition) == 0 && contract-equal ctor-type (scheme-body sc)) then None else
+            (Some path, Some definition) -> let sc = definition.constructor-scheme in
+              if not (string-compare constructor (definition.constructor-name) == 0 && contract-equal ctor-type (scheme-body sc)) then None else
                 (case (scheme-params sc, scheme-requirements sc, projection-fields input ctor-type) of
                   (Nil, Nil, Some field-types) -> (case projection-bindings constructor path 0 field-types fields scope of
                     Some inner -> projection-expression sort datas inner body
@@ -4182,9 +4163,9 @@ module Cinch.Core where
     other -> None
   core-field-projection :: List CoreData -> CoreDefinition -> String -> Option TotalFunction
   core-field-projection datas definition native = if not (core-definition-closed definition && core-definition-result-types definition) then None else
-    let sc = core-scheme definition in
-    case (scheme-params sc, scheme-requirements sc, core-givens definition, scheme-body sc, core-clauses definition) of
-      (Nil, Nil, Nil, UFun (UCon domain KType) (UCon result KType), [MkCoreClause sp [CPVar at input id label] body]) ->
+    let sc = definition.scheme in
+    case (scheme-params sc, scheme-requirements sc, definition.givens, scheme-body sc, definition.clauses) of
+      (Nil, Nil, Nil, UFun (UCon domain KType) (UCon result KType), [CoreClause sp [CPVar at input id label] body]) ->
         if not (projection-result-sort result && contract-equal input (UCon domain KType) && contract-equal (core-effects body) (URow UEnd)) then None else
           (case projection-expression result datas [(id, input, Nil)] body of Some steps -> source-field-projection native domain result steps; None -> None)
       other -> None
@@ -4195,15 +4176,17 @@ module Cinch.Core where
   -- Source checks use the first definition under either spelling. Graph
   -- gathering uses the last resolved definition. Track duplicate resolved
   -- names so replacing the first row leaves the graph winner intact.
-  data TotalCoreSources where
-    MkTotalCoreSources :: HashMap String (CoreDefinition, Bool) -> HashMap String CoreDefinition -> TotalCoreIndex -> TotalCoreSources
+  record TotalCoreSources where
+    resolved :: HashMap String (CoreDefinition, Bool)
+    exported :: HashMap String CoreDefinition
+    index :: TotalCoreIndex
   total-core-sources :: List CoreDefinition -> TotalCoreSources
   total-core-sources definitions =
     index-source-definitions (reverse definitions) hash-map-empty hash-map-empty hash-map-empty
   index-source-definitions :: List CoreDefinition -> HashMap String (CoreDefinition, Bool) -> HashMap String CoreDefinition -> HashMap String CoreDefinition -> TotalCoreSources
   index-source-definitions definitions resolved native index = case definitions of
-    Nil -> MkTotalCoreSources resolved native (MkTotalCoreIndex index)
-    Cons definition rest -> let name = core-name definition in
+    Nil -> TotalCoreSources resolved native (TotalCoreIndex index)
+    Cons definition rest -> let name = definition.name in
       let duplicate = case hash-map-lookup name resolved of Some entry -> True; None -> False in
       let exported = (case export-global name of
         Ok spelling -> hash-map-insert spelling definition native
@@ -4211,22 +4194,22 @@ module Cinch.Core where
       index-source-definitions rest (hash-map-insert name (definition, duplicate) resolved) exported
         (if duplicate then index else hash-map-insert name definition index)
   indexed-source-definition :: TotalCoreSources -> String -> Option CoreDefinition
-  indexed-source-definition (MkTotalCoreSources resolved native index) name = case hash-map-lookup name resolved of
+  indexed-source-definition (TotalCoreSources resolved native index) name = case hash-map-lookup name resolved of
     Some (definition, duplicate) -> Some definition
     None -> None
   replace-source-definition :: TotalCoreSources -> CoreDefinition -> String -> TotalCoreSources
-  replace-source-definition (MkTotalCoreSources resolved native (MkTotalCoreIndex index)) definition spelling =
-    let name = core-name definition in
+  replace-source-definition (TotalCoreSources resolved native (TotalCoreIndex index)) definition spelling =
+    let name = definition.name in
     let duplicate = case hash-map-lookup name resolved of Some (prior, repeated) -> repeated; None -> False in
     let replace-native = (case hash-map-lookup spelling native of
-      Some prior -> string-compare name (core-name prior) == 0
+      Some prior -> string-compare name (prior.name) == 0
       None -> True) in
-    MkTotalCoreSources (hash-map-insert name (definition, duplicate) resolved)
+    TotalCoreSources (hash-map-insert name (definition, duplicate) resolved)
       (if replace-native then hash-map-insert spelling definition native else native)
-      (MkTotalCoreIndex (if duplicate then index else hash-map-insert name definition index))
+      (TotalCoreIndex (if duplicate then index else hash-map-insert name definition index))
   indexed-source-function :: List BodyBinding -> TotalCoreSources -> List CoreData -> String -> Option TotalFunction
   indexed-source-function bindings source datas native = case source of
-    MkTotalCoreSources resolved exported index -> (case hash-map-lookup native exported of
+    TotalCoreSources resolved exported index -> (case hash-map-lookup native exported of
       Some definition -> source-function-for-definition bindings index datas definition native
       None -> None)
   source-function-for-definition :: List BodyBinding -> TotalCoreIndex -> List CoreData -> CoreDefinition -> String -> Option TotalFunction
@@ -4236,7 +4219,7 @@ module Cinch.Core where
   core-source-body :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option BodyBinding
   core-source-body bindings definitions datas native = case total-core-native-definition native definitions of
     Some definition -> (case source-function-for-definition bindings (total-core-index definitions) datas definition native of
-      Some function -> check-source-body-binding (core-name definition) native (core-scheme definition) function
+      Some function -> check-source-body-binding (definition.name) native (definition.scheme) function
       None -> None)
     None -> None
   -- Elaborators already have the resolved symbol and an immutable table
@@ -4245,7 +4228,7 @@ module Cinch.Core where
   indexed-source-body bindings index datas name = case total-core-indexed-definition name index of
     Some definition -> (case export-global name of
       Ok native -> (case source-function-for-definition bindings index datas definition native of
-          Some function -> check-source-body-binding name native (core-scheme definition) function
+          Some function -> check-source-body-binding name native (definition.scheme) function
           None -> None)
       Err problem -> None)
     None -> None
@@ -4283,7 +4266,7 @@ module Cinch.Core where
         (case (total-method-member slot members, total-method-spine factory Nil, export-global name) of
           (Some (selector, native, definition), (UCon subject kind, arguments), Ok selected) ->
             if string-compare owner declaring == 0 && string-compare owner subject == 0 && string-compare selected selector == 0
-              && total-method-types actuals arguments && contract-equal ty (scheme-body (core-scheme definition)) then
+              && total-method-types actuals arguments && contract-equal ty (scheme-body (definition.scheme)) then
                 Some (CUse sp ty (interface-global native) "value" Nil)
             else None
           other -> None)
@@ -4313,19 +4296,19 @@ module Cinch.Core where
   total-method-clauses :: String -> String -> String -> UType -> List (Nat, String, String, CoreDefinition) -> List CoreClause -> Option (List CoreClause)
   total-method-clauses given dictionary owner factory members clauses = case clauses of
     Nil -> Some Nil
-    Cons (MkCoreClause sp patterns body) rest -> (case (total-method-term given dictionary owner factory members body, total-method-clauses given dictionary owner factory members rest) of
-      (Some out, Some more) -> Some (Cons (MkCoreClause sp patterns out) more)
+    Cons (CoreClause sp patterns body) rest -> (case (total-method-term given dictionary owner factory members body, total-method-clauses given dictionary owner factory members rest) of
+      (Some out, Some more) -> Some (Cons (CoreClause sp patterns out) more)
       other -> None)
   total-method-definition :: List BodyBinding -> String -> String -> Scheme -> List (Nat, String, String, CoreDefinition) -> String -> CoreDefinition -> Option CoreDefinition
   total-method-definition bindings dictionary owner factory members native definition =
     if not (scheme-closed factory && core-definition-bodies-closed bindings definition && core-definition-result-types definition) then None else
       case (scheme-params factory, scheme-requirements factory, definition) of
-        (Nil, Nil, MkCoreDefinition sp name sc Nil [given] private clauses) ->
+        (Nil, Nil, CoreDefinition sp name sc Nil [given] private clauses) ->
           (case (scheme-params sc, scheme-requirements sc) of
-            (Nil, [self]) -> if string-compare (requirement-name self) "#instance-self" /= 0
-              || not (contract-equal (requirement-type self) (scheme-body factory) && contract-equal (given-type given) (scheme-body factory)) then None else
-                (case total-method-clauses (given-symbol given) dictionary owner (scheme-body factory) members clauses of
-                  Some out -> Some (MkCoreDefinition sp (interface-global native) (mono (scheme-body sc)) Nil Nil private out)
+            (Nil, [self]) -> if string-compare (self.name) "#instance-self" /= 0
+              || not (contract-equal (self.ty) (scheme-body factory) && contract-equal (given.ty) (scheme-body factory)) then None else
+                (case total-method-clauses (given.symbol) dictionary owner (scheme-body factory) members clauses of
+                  Some out -> Some (CoreDefinition sp (interface-global native) (mono (scheme-body sc)) Nil Nil private out)
                   None -> None)
             other -> None)
         other -> None

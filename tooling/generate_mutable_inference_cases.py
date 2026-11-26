@@ -15,8 +15,8 @@ module Main where
   import Cinch.Resolve (resolve-program)
   import Cinch.Infer
   import Cinch.Core (CoreData, core-data-name, core-data-params)
-  import Cinch.Type (Quant, quant-kind, kind-text)
-  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Type (Quant, kind-text)
+  import Cinch.Report (Diagnostic, render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Json
   import Data.List
@@ -41,7 +41,7 @@ module Main where
   diagnosed :: String -> List Diagnostic -> Bool
   diagnosed expected errors = case errors of
     Nil -> False
-    Cons first rest -> contains-chars (unpack expected) (unpack (diagnostic-message first)) || diagnosed expected rest
+    Cons first rest -> contains-chars (unpack expected) (unpack first.message) || diagnosed expected rest
 
   -- | Find the exact definition-site nominal identity in checked Core data declarations.
   find-data :: String -> List CoreData -> Option CoreData
@@ -59,7 +59,7 @@ module Main where
     Nil -> empty-list expected
     Cons first rest -> case expected of
       Nil -> False
-      Cons wanted more -> kind-text (quant-kind first) == wanted && parameter-kinds rest more
+      Cons wanted more -> kind-text first.kind == wanted && parameter-kinds rest more
 
   -- | Verify producer kinds rather than inferring success from consumer acceptance alone.
   checked-kinds :: List CoreData -> List (String, List String) -> Bool
@@ -73,7 +73,7 @@ module Main where
   -- | Distinguish a valid producer, a required type refusal and unrelated diagnostics.
   result-ok :: Bool -> String -> List (String, List String) -> Elaboration -> Bool
   result-ok accepted expected kinds result =
-    let errors = elaboration-errors result in
+    let errors = result.errors in
     if accepted then empty-list errors && checked-kinds (elaboration-data result) kinds
     else diagnosed expected errors
 
@@ -84,7 +84,7 @@ module Main where
       case resolve-program program of
         (resolved, Nil) ->
           let result = elaborate-program "mutable-inference" resolved in
-          let errors = elaboration-errors result in
+          let errors = result.errors in
           let ok = result-ok accepted expected kinds result in
           (ok, render-diagnostics errors)
         other -> (False, "name resolution failed")

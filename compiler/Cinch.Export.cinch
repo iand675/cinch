@@ -3,23 +3,23 @@
 module Cinch.Export where
   import Cinch.Builtin (array-plan, mvar-plan, total-primitive, scalar-intrinsic)
   import Algebra.Semigroup
-  import Cinch.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Cinch.Ast (Program, Module, Decl, TypeExpr, TypeParam, param-kind, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
-  import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, promoted-ctor-symbol, promoted-ctor-parent, promoted-ctor-fields, DataFamilyInfo, data-family-name, data-family-params, data-family-patterns, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Cinch.Check (CheckedProgram)
+  import Cinch.Ast (Program, Module, Decl, TypeExpr, TypeParam, module-decls, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
+  import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Cinch.Unpack (unpacked-abi)
-  import Cinch.Core (CoreEffect, core-effect-name, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
+  import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
   import Cinch.Typing (task-source-forwarder, task-forwarder-type)
-  import Cinch.Core (CoreTerm, CLocal, CUse, CApply, CApplyEff, CRequire, CDischarge, CorePattern, CPVar, CPWild, MkCoreClause, core-clauses)
+  import Cinch.Core (CoreTerm, CLocal, CUse, CApply, CApplyEff, CRequire, CDischarge, CorePattern, CPVar, CPWild, CoreClause)
   import Cinch.Guarded (check-guarded-binding)
   import Cinch.Instance
   import Cinch.Type
-  import Cinch.Promote (PromotedFn, promoted-fn-identity, promoted-fn-json)
+  import Cinch.Promote (PromotedFn, promoted-fn-json)
   import Cinch.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Cinch.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Cinch.ExportType
-  import Cinch.Foreign (ForeignPlan, foreign-symbol, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op)
+  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op)
   import Cinch.ExportNominal
-  import Cinch.Load (contract-intrinsic, LoadedInterface, loaded-module, loaded-hash, loaded-entry, loaded-contract, nominal-owner)
+  import Cinch.Load (contract-intrinsic, LoadedInterface, loaded-entry, nominal-owner)
   import Cinch.Interface (fnv-source-hash, iface-schema-version)
   import Cinch.RuntimeAbi (runtime-abi-int)
   import Cinch.Document
@@ -115,9 +115,9 @@ module Cinch.Export where
     KFun a b -> kind-measures a <> kind-measures b
     other -> Nil
   parameter-measures :: List Quant -> List TotalFunction
-  parameter-measures parameters = case parameters of Nil -> Nil; Cons parameter rest -> kind-measures (quant-kind parameter) <> parameter-measures rest
+  parameter-measures parameters = case parameters of Nil -> Nil; Cons parameter rest -> kind-measures (parameter.kind) <> parameter-measures rest
   requirement-measures :: List Requirement -> List TotalFunction
-  requirement-measures requirements = case requirements of Nil -> Nil; Cons requirement rest -> type-measures (requirement-type requirement) <> requirement-measures rest
+  requirement-measures requirements = case requirements of Nil -> Nil; Cons requirement rest -> type-measures (requirement.ty) <> requirement-measures rest
   scheme-measures :: Scheme -> List TotalFunction
   scheme-measures scheme = parameter-measures (scheme-params scheme) <> requirement-measures (scheme-requirements scheme) <> type-measures (scheme-body scheme)
   measure-binding :: TotalFunction -> List CheckedBinding -> Option BodyBinding
@@ -258,7 +258,7 @@ module Cinch.Export where
   interface-alias-identity :: List LoadedInterface -> String -> Option String
   interface-alias-identity interfaces name = case interfaces of
     Nil -> None
-    Cons first rest -> (case refinement-type-row (field "types" (field "exports" (loaded-contract first))) name of
+    Cons first rest -> (case refinement-type-row (field "types" (field "exports" (first.doc))) name of
       Some identity -> Some identity
       None -> interface-alias-identity rest name)
   refinement-type-row :: Json -> String -> Option String
@@ -300,7 +300,7 @@ module Cinch.Export where
   quantified-value-arity :: List Quant -> Nat
   quantified-value-arity parameters = case parameters of
     Nil -> 0
-    Cons first rest -> (case value-carrier (quant-kind first) of Some carrier -> 1; None -> 0) + quantified-value-arity rest
+    Cons first rest -> (case value-carrier (first.kind) of Some carrier -> 1; None -> 0) + quantified-value-arity rest
   interface-value-arity :: Scheme -> Nat
   interface-value-arity scheme = scheme-arity scheme + list-length (scheme-requirements scheme) + quantified-value-arity (scheme-params scheme)
   scheme-has-prefix :: List Char -> List Char -> Bool
@@ -396,7 +396,7 @@ module Cinch.Export where
   row-kind :: Kind -> Bool
   row-kind kind = case kind of KRow -> True; KFun first rest -> row-kind first || row-kind rest; other -> False
   row-quantified :: List Quant -> Bool
-  row-quantified parameters = case parameters of Nil -> False; Cons first rest -> row-kind (quant-kind first) || row-quantified rest
+  row-quantified parameters = case parameters of Nil -> False; Cons first rest -> row-kind (first.kind) || row-quantified rest
   opaque-value-row :: String -> String -> CheckedBinding -> Result String Json
   opaque-value-row name symbol binding = let scheme = checked-scheme binding in
     let arity = interface-value-arity scheme in
@@ -414,7 +414,7 @@ module Cinch.Export where
   constructor-hidden-parameters :: List Quant -> List Nat -> Bool
   constructor-hidden-parameters parameters visible = case parameters of
     Nil -> False
-    Cons first rest -> not (constructor-id-member (quant-id first) visible) || constructor-hidden-parameters rest visible
+    Cons first rest -> not (constructor-id-member (first.id) visible) || constructor-hidden-parameters rest visible
   constructor-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> Nat -> String -> Scheme -> Result String Json
   constructor-row typed interfaces references name tag symbol scheme =
     let hidden = constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme))) in
@@ -432,9 +432,9 @@ module Cinch.Export where
   constructor-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> Nat -> List CoreConstructor -> Result String Json
   constructor-rows typed interfaces references surface tag constructors = case constructors of
     Nil -> Ok JArrEnd
-    Cons first rest -> case public-name (core-constructor-name first) surface of
+    Cons first rest -> case public-name (first.constructor-name) surface of
       None -> constructor-rows typed interfaces references surface (tag + 1) rest
-      Some name -> case (constructor-row typed interfaces references name tag (core-constructor-name first) (core-constructor-scheme first), constructor-rows typed interfaces references surface (tag + 1) rest) of
+      Some name -> case (constructor-row typed interfaces references name tag (first.constructor-name) (first.constructor-scheme), constructor-rows typed interfaces references surface (tag + 1) rest) of
         (Ok row, Ok more) -> Ok (JArr row more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
@@ -472,7 +472,7 @@ module Cinch.Export where
   codata-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> String -> Json -> List CoreConstructor -> Result String Json
   codata-rows typed interfaces references name owner labels constructors = case constructors of
     Cons constructor Nil ->
-      let storage = core-constructor-scheme constructor in
+      let storage = constructor.constructor-scheme in
       case observation-scheme-body labels (scheme-body storage) of
         Err error -> Err error
         Ok body -> case constructor-row typed interfaces references name 0 owner (qualified (scheme-params storage) (scheme-requirements storage) body) of
@@ -514,11 +514,11 @@ module Cinch.Export where
     Nil -> False
     Cons declaration rest -> constructors-have symbol (core-data-constructors declaration) || constructor-present symbol rest
   constructors-have :: String -> List CoreConstructor -> Bool
-  constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (core-constructor-name constructor) || constructors-have symbol rest
+  constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (constructor.constructor-name) || constructors-have symbol rest
   equation-method-present :: String -> List CoreClass -> Bool
   equation-method-present symbol classes = case classes of
     Nil -> False
-    Cons description rest -> equation-methods-have symbol (class-methods description) || equation-method-present symbol rest
+    Cons description rest -> equation-methods-have symbol (description.methods) || equation-method-present symbol rest
   equation-methods-have :: String -> List CoreClassMethod -> Bool
   equation-methods-have symbol methods = case methods of
     Nil -> False
@@ -537,7 +537,7 @@ module Cinch.Export where
   runtime-method-names index description member surface = case surface of
     JArr row rest -> let symbol = text (field "symbol" row) in
       (case indexed-binding symbol index of
-        Some binding -> if checked-method-matches binding symbol (class-name description) (class-method-slot member) then
+        Some binding -> if checked-method-matches binding symbol (description.name) (class-method-slot member) then
           insert-string (text (field "name" row)) (runtime-method-names index description member rest)
           else runtime-method-names index description member rest
         None -> runtime-method-names index description member rest)
@@ -547,14 +547,14 @@ module Cinch.Export where
     Nil -> None
     Cons first rest -> if checked-method-matches first (checked-name first) owner slot then Some (checked-name first) else defining-method-symbol rest owner slot
   resolved-method-scheme :: Elaboration -> List LoadedInterface -> DeclarationReferences -> CoreClass -> CoreClassMethod -> Result String Json
-  resolved-method-scheme typed interfaces references description member = case defining-method-symbol (elaboration-bindings typed) (class-name description) (class-method-slot member) of
+  resolved-method-scheme typed interfaces references description member = case defining-method-symbol (elaboration-bindings typed) (description.name) (class-method-slot member) of
     Some symbol -> resolved-value-scheme typed interfaces references symbol (class-method-scheme member)
     None -> case (resolved-scheme typed interfaces (class-method-scheme member), export-value-scheme (class-method-scheme member)) of
       (Ok resolved, Ok spelling) -> Ok (set-field "scheme" (JStr spelling) resolved)
       (Err error, other) -> Err error
       (other, Err error) -> Err error
   admitted-method :: CoreClass -> CoreClassMethod -> List LoadedInterface -> Option Json
-  admitted-method description member interfaces = case export-global (class-name description) of
+  admitted-method description member interfaces = case export-global (description.name) of
     Err error -> None
     Ok owner -> case defining-signature owner interfaces of
       None -> None
@@ -573,7 +573,7 @@ module Cinch.Export where
             Some (symbol, equation) -> case export-equation-display (class-method-scheme member) equation of
               Ok display -> Ok (JArr (method-row index description member surface display JNull) more)
               Err error -> Err error
-            None -> case resolved-method-scheme typed interfaces (indexed-references index) description member of
+            None -> case resolved-method-scheme typed interfaces (index.references) description member of
               Err error -> Err error
               Ok resolved -> case method-default typed description member interfaces
                   (method-row index description member surface (text (field "scheme" resolved)) resolved) of
@@ -598,16 +598,16 @@ module Cinch.Export where
   default-definition :: String -> List CoreDefinition -> Option CoreDefinition
   default-definition name definitions = case definitions of
     Nil -> None
-    Cons first rest -> if same name (core-name first) then Some first else default-definition name rest
+    Cons first rest -> if same name (first.name) then Some first else default-definition name rest
   method-default :: Elaboration -> CoreClass -> CoreClassMethod -> List LoadedInterface -> Json -> Result String Json
   method-default typed description member interfaces row = case source-class-default-clauses description member (elaboration-declarations typed) of
     Some clauses -> (case default-definition (source-class-default-symbol description member) (elaboration-core typed) of
-      Some definition -> if core-definition-closed definition && scheme-equivalent (core-scheme definition) (class-method-scheme member) then
+      Some definition -> if core-definition-closed definition && scheme-equivalent (definition.scheme) (class-method-scheme member) then
         let globals = portable-default-export-global (elaboration-bindings typed) (elaboration-classes typed) in
         Ok (set-field "default" (qualify-default-clauses globals (source-clauses-document clauses)) row)
         else Err "source class default lacks its closed defining method contract"
       None -> Err "source class default has no checked definition")
-    None -> (case export-global (class-name description) of
+    None -> (case export-global (description.name) of
       Err error -> Err error
       Ok identity -> case defining-signature identity interfaces of
         None -> Ok row
@@ -635,8 +635,8 @@ module Cinch.Export where
   signature-needed :: ExportIndex -> CoreClass -> String -> Json -> HashMap String () -> Bool
   signature-needed index description identity surface needed =
     has-signature-identity identity needed
-    || (case public-names (class-name description) surface of JArr name more -> True; other -> False)
-    || has-public-method index description surface (class-methods description)
+    || (case public-names (description.name) surface of JArr name more -> True; other -> False)
+    || has-public-method index description surface (description.methods)
   source-class-laws :: (String -> Option String) -> String -> List Decl -> Json
   source-class-laws globals owner declarations = case declarations of
     Nil -> JArrEnd
@@ -657,21 +657,23 @@ module Cinch.Export where
   admitted-signature-header identity names interfaces row = case defining-signature identity interfaces of
     None -> row
     Some original -> set-field "exports" names (set-field "methods" (field "methods" row) original)
-  data SignatureRows where
-    MkSignatureRows :: Json -> HashMap String () -> HashMap String () -> SignatureRows
+  record SignatureRows where
+    contracts :: Json
+    needed :: HashMap String ()
+    retained :: HashMap String ()
   signature-rows :: Elaboration -> List LoadedInterface -> ExportIndex -> Json -> Json -> Json -> List CoreClass -> Result String Json
   signature-rows typed interfaces index surface values types classes =
     let needed = nominal-signatures values (nominal-signatures types hash-map-empty) in
-    signature-closure typed interfaces index surface classes classes (MkSignatureRows JArrEnd needed hash-map-empty)
+    signature-closure typed interfaces index surface classes classes (SignatureRows JArrEnd needed hash-map-empty)
   -- A retained private class can itself require another private class in a
   -- method contract. Keep the pass order that selects the first diagnostic.
   signature-closure :: Elaboration -> List LoadedInterface -> ExportIndex -> Json -> List CoreClass -> List CoreClass -> SignatureRows -> Result String Json
   signature-closure typed interfaces index surface fuel classes rows = case fuel of
-    Nil -> case rows of MkSignatureRows contracts needed retained -> Ok contracts
+    Nil -> case rows of SignatureRows contracts needed retained -> Ok contracts
     Cons first rest -> case signature-pass typed interfaces index surface classes rows of
       Err error -> Err error
       Ok (more, grew) -> if grew then signature-closure typed interfaces index surface rest classes more
-        else (case more of MkSignatureRows contracts needed retained -> Ok contracts)
+        else (case more of SignatureRows contracts needed retained -> Ok contracts)
   -- Native's canonical signature order compares the display name first,
   -- then the defining identity. Dependency closure is keyed by identity,
   -- independently of this serialization order.
@@ -685,20 +687,20 @@ module Cinch.Export where
   signature-pass typed interfaces index surface classes rows = case classes of
     Nil -> Ok (rows, False)
     Cons description rest -> case rows of
-      MkSignatureRows contracts needed retained -> case export-global (class-name description) of
+      SignatureRows contracts needed retained -> case export-global (description.name) of
           Err error -> Err error
           Ok identity -> if has-signature-identity identity retained || not (signature-needed index description identity surface needed) then
               signature-pass typed interfaces index surface rest rows
-            else case (method-rows typed interfaces index description surface (class-methods description), export-parameters (class-params description)) of
+            else case (method-rows typed interfaces index description surface (description.methods), export-parameters (description.params)) of
               (Err error, other) -> Err error
               (other, Err error) -> Err error
-              (Ok methods, Ok parameters) -> let names = public-names (class-name description) surface in
+              (Ok methods, Ok parameters) -> let names = public-names (description.name) surface in
                 let globals = portable-default-export-global (elaboration-bindings typed) (elaboration-classes typed) in
-                let laws = source-class-laws globals (class-name description) (elaboration-declarations typed) in
+                let laws = source-class-laws globals (description.name) (elaboration-declarations typed) in
                 let row = admitted-signature-header identity names interfaces (JObj "name" (JStr (last-name (unpack identity) Nil))
                   (JObj "identity" (JStr identity) (JObj "exports" names (JObj "params" (parameter-names parameters)
                     (JObj "parameters" (parameter-json parameters) (JObj "methods" methods (JObj "laws" laws JObjEnd))))))) in
-                let more-rows = MkSignatureRows (insert-signature row contracts) (nominal-signatures row needed) (hash-map-insert identity () retained) in
+                let more-rows = SignatureRows (insert-signature row contracts) (nominal-signatures row needed) (hash-map-insert identity () retained) in
                 case signature-pass typed interfaces index surface rest more-rows of
                   Err error -> Err error
                   Ok (more, grew) -> Ok (more, True)
@@ -718,8 +720,8 @@ module Cinch.Export where
   instance-method-names identity methods fields = case (methods, fields) of
     (Nil, Nil) -> Ok JArrEnd
     (Cons member rest, Cons implementation more) ->
-      if class-method-slot member /= dictionary-field-slot implementation then Err "checked instance method slot differs from defining signature"
-      else if not (plain-method (scheme-body (core-scheme (dictionary-field-definition implementation)))) then Err "preconditioned instance method export requires its checked callable contract"
+      if class-method-slot member /= implementation.field-slot then Err "checked instance method slot differs from defining signature"
+      else if not (plain-method (scheme-body (implementation.field-definition.scheme))) then Err "preconditioned instance method export requires its checked callable contract"
       else (case instance-method-names identity rest more of
         Err error -> Err error
         Ok names -> Ok (JArr (JStr (string-concat-all [identity, ".", class-method-name member])) names))
@@ -745,19 +747,19 @@ module Cinch.Export where
       else actual-method-selector owner slot fallback rest
   instance-method-table :: Elaboration -> String -> String -> String -> List CoreClassMethod -> List CoreDictionaryField -> List (Nat, String, String, CoreDefinition)
   instance-method-table typed owner identity declaring methods fields = case (methods, fields) of
-    (Cons member rest, Cons implementation more) -> if class-method-slot member /= dictionary-field-slot implementation then Nil else
+    (Cons member rest, Cons implementation more) -> if class-method-slot member /= implementation.field-slot then Nil else
       Cons (class-method-slot member,
         actual-method-selector owner (class-method-slot member) (string-concat-all [declaring, ".", class-method-name member]) (elaboration-bindings typed),
-        string-concat-all [identity, ".", class-method-name member], dictionary-field-definition implementation)
+        string-concat-all [identity, ".", class-method-name member], implementation.field-definition)
         (instance-method-table typed owner identity declaring rest more)
     other -> Nil
   instance-method-bodies :: Elaboration -> CoreInstance -> String -> List (Nat, String, String, CoreDefinition) -> List (Nat, String, String, CoreDefinition) -> Json
   instance-method-bodies typed declaration owner all remaining = case remaining of
     Cons (slot, selector, native, definition) rest ->
       let more = instance-method-bodies typed declaration owner all rest in
-      if not (plain-total-method-type (scheme-body (core-scheme definition))) then more else
+      if not (plain-total-method-type (scheme-body (definition.scheme))) then more else
         (case core-method-total-function (retained-body-bindings (elaboration-bindings typed)) (elaboration-core typed)
-          (instance-name declaration) owner (instance-scheme declaration) all slot of
+          (declaration.name) owner (declaration.scheme) all slot of
           Some function -> JArr (JObj "slot" (JNum (nat-to-int slot))
             (JObj "implementation" (JStr native)
               (JObj "resolved" (JObj "scheme" (JStr (total-method-declaration (total-parameters function) (total-result function)))
@@ -768,20 +770,20 @@ module Cinch.Export where
   with-instance-method-bodies :: Json -> Json -> Json
   with-instance-method-bodies bodies row = case bodies of JArrEnd -> row; other -> set-field "method_bodies" bodies row
   instance-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> CoreInstance -> Result String Json
-  instance-row typed interfaces references declaration = let scheme = instance-scheme declaration in
+  instance-row typed interfaces references declaration = let scheme = declaration.scheme in
     case class-head (scheme-body scheme) of
       None -> Err "checked instance has no defining signature head"
       Some owner -> case find-class owner (elaboration-classes typed) of
         None -> Err "checked instance has no defining signature contract"
-        Some description -> case (export-global (instance-name declaration), export-global owner, resolved-source-scheme typed interfaces references (instance-name declaration) scheme, export-instance-scheme scheme) of
-          (Ok identity, Ok declaring, Ok resolved, Ok (head, context, spelling)) -> case instance-method-names identity (class-methods description) (instance-fields declaration) of
+        Some description -> case (export-global (declaration.name), export-global owner, resolved-source-scheme typed interfaces references (declaration.name) scheme, export-instance-scheme scheme) of
+          (Ok identity, Ok declaring, Ok resolved, Ok (head, context, spelling)) -> case instance-method-names identity (description.methods) (declaration.fields) of
             Err error -> Err error
-            Ok methods -> let table = instance-method-table typed owner identity declaring (class-methods description) (instance-fields declaration) in
+            Ok methods -> let table = instance-method-table typed owner identity declaring (description.methods) (declaration.fields) in
               let bodies = case context of Nil -> instance-method-bodies typed declaration owner table table; other -> JArrEnd in
               Ok (with-instance-method-bodies bodies
               (JObj "id" (JStr identity) (JObj "class" (JStr declaring)
                 (JObj "target" (JStr head) (JObj "resolved" (set-field "scheme" (JStr spelling) resolved) (JObj "ctx" (strings context)
-                  (JObj "methods" methods (JObj "method_contracts" JArrEnd (JObj "implicit" (JBool (instance-implicit declaration)) JObjEnd)))))))))
+                  (JObj "methods" methods (JObj "method_contracts" JArrEnd (JObj "implicit" (JBool (declaration.flag)) JObjEnd)))))))))
           (Err error, other, more, forms) -> Err error
           (other, Err error, more, forms) -> Err error
           (other, more, Err error, forms) -> Err error
@@ -798,7 +800,7 @@ module Cinch.Export where
   imported-nat-subtract :: String -> List LoadedInterface -> Bool
   imported-nat-subtract identity interfaces = case interfaces of
     Nil -> False
-    Cons iface rest -> (case contract-intrinsic identity (loaded-module iface) (loaded-contract iface) of
+    Cons iface rest -> (case contract-intrinsic identity (iface.name) (iface.doc) of
       Some symbol -> same symbol "cinch.runtime.natSub"
       None -> imported-nat-subtract identity rest)
   guarded-expression :: List LoadedInterface -> List CorePattern -> Nat -> CoreTerm -> Option Json
@@ -835,10 +837,10 @@ module Cinch.Export where
     UCon name KType | same name "Nat" -> (case guarded-parameters rest of Some n -> Some (n + 1); None -> None)
     other -> None
   with-guarded-body :: List LoadedInterface -> String -> CoreDefinition -> Json -> Json
-  with-guarded-body interfaces identity definition implementation = case core-clauses definition of
-    Cons (MkCoreClause sp patterns body) Nil -> (case (guarded-parameters patterns, guarded-expression interfaces patterns 0 body) of
+  with-guarded-body interfaces identity definition implementation = case definition.clauses of
+    Cons (CoreClause sp patterns body) Nil -> (case (guarded-parameters patterns, guarded-expression interfaces patterns 0 body) of
       (Some count, Some root) -> let doc = JObj "schema" (JNum 1) (JObj "parameters" (JNum (nat-to-int count)) (JObj "root" root JObjEnd)) in
-        (case check-guarded-binding (core-name definition) identity (core-scheme definition) doc of
+        (case check-guarded-binding (definition.name) identity (definition.scheme) doc of
           Some verified -> set-field "body" doc implementation
           None -> implementation)
       other -> implementation)
@@ -849,7 +851,7 @@ module Cinch.Export where
     Cons member rest -> let name = class-method-name member in let symbol = source-method-symbol identity name in
       let native = string-concat-all [identity, ".", name] in
       (case (default-definition symbol (elaboration-core typed), source-method-contracts typed interfaces references head identity rest) of
-        (Some definition, Ok (names, contracts)) -> let actual = core-scheme definition in
+        (Some definition, Ok (names, contracts)) -> let actual = definition.scheme in
           if plain-method (scheme-body actual) then Ok (JArr (JStr native) names, contracts)
           else (case (resolved-value-scheme typed interfaces references symbol actual, export-display-scheme actual) of
             (Ok resolved, Ok spelling) -> let implementation = with-guarded-body interfaces native definition (JObj "identity" (JStr native) (JObj "resolved" resolved JObjEnd)) in
@@ -865,7 +867,7 @@ module Cinch.Export where
     None -> Err "conditional instance has no defining class"
     Some owner -> (case (find-class owner (elaboration-classes typed), export-global owner, resolved-source-scheme typed interfaces references symbol (mono head), export-instance-scheme (mono head)) of
       (Some description, Ok declaring, Ok resolved, Ok (display, context, spelling)) ->
-        (case source-method-contracts typed interfaces references (set-field "scheme" (JStr spelling) resolved) identity (class-methods description) of
+        (case source-method-contracts typed interfaces references (set-field "scheme" (JStr spelling) resolved) identity (description.methods) of
           Ok (names, contracts) -> Ok (JObj "id" (JStr identity) (JObj "class" (JStr declaring) (JObj "target" (JStr display) (JObj "resolved" JNull
             (JObj "ctx" JArrEnd (JObj "methods" names (JObj "method_contracts" contracts (JObj "implicit" (JBool flag) JObjEnd))))))))
           Err error -> Err error)
@@ -885,7 +887,7 @@ module Cinch.Export where
   instance-rows :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> List Decl -> List CoreInstance -> Result String Json
   instance-rows typed interfaces references context guarded declarations = case declarations of
     Nil -> source-conditional-rows typed interfaces references context guarded JArrEnd
-    Cons declaration rest -> if has-symbol (instance-name declaration) (field "declarations" context) then
+    Cons declaration rest -> if has-symbol (declaration.name) (field "declarations" context) then
       (case (instance-row typed interfaces references declaration, instance-rows typed interfaces references context guarded rest) of
         (Ok row, Ok more) -> Ok (insert-row "id" row more)
         (Err error, other) -> Err error
@@ -894,8 +896,14 @@ module Cinch.Export where
   -- The checked bindings and data declarations by name, built once for all
   -- modules: every public row looks its symbol up in both. Each map keeps
   -- the first entry of a name, as find-binding and find-data do.
-  data ExportIndex where
-    ExportIndex :: Bool -> Bool -> HashMap String CheckedBinding -> HashMap String CoreData -> DeclarationReferences -> HashMap String DataLayout -> List Decl -> ExportIndex
+  record ExportIndex where
+    requires-worker :: Bool
+    alias-display :: Bool
+    bindings :: HashMap String CheckedBinding
+    datas :: HashMap String CoreData
+    references :: DeclarationReferences
+    layouts :: HashMap String DataLayout
+    guarded :: List Decl
   export-index :: Bool -> Bool -> Elaboration -> ExportIndex
   export-index require-worker alias-display typed = ExportIndex require-worker alias-display (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
     (declaration-reference-index (elaboration-declarations typed)) (unboxed-layouts (elaboration-data typed)) (guarded-instances (elaboration-declarations typed))
@@ -905,12 +913,6 @@ module Cinch.Export where
     Cons d rest -> case d of
       DInstance sp flag symbol params head members | guarded-members (decls-of members) -> Cons d (guarded-instances rest)
       other -> guarded-instances rest
-  indexed-requires-worker :: ExportIndex -> Bool
-  indexed-requires-worker index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> require-worker
-  indexed-alias-display :: ExportIndex -> Bool
-  indexed-alias-display index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> alias-display
-  indexed-guarded :: ExportIndex -> List Decl
-  indexed-guarded index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> guarded
   guarded-instance-name :: String -> List Decl -> Bool
   guarded-instance-name name ds = case ds of
     Cons (DInstance sp flag symbol params head members) rest -> same symbol name || guarded-instance-name name rest
@@ -919,24 +921,20 @@ module Cinch.Export where
   binding-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (checked-name row) row (binding-index rest)
   data-index :: List CoreData -> HashMap String CoreData
   data-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (core-data-name row) row (data-index rest)
-  indexed-layouts :: ExportIndex -> HashMap String DataLayout
-  indexed-layouts index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> physical
   indexed-binding :: String -> ExportIndex -> Option CheckedBinding
   indexed-binding name index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> hash-map-lookup name bindings
   indexed-data :: String -> ExportIndex -> Option CoreData
   indexed-data name index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> hash-map-lookup name datas
-  indexed-references :: ExportIndex -> DeclarationReferences
-  indexed-references index = case index of ExportIndex require-worker alias-display bindings datas references physical guarded -> references
   -- Source effect labels belong to the handler table. The public interface
   -- exposes their operations as values with display-only schemes.
   declared-effect :: String -> List CoreEffect -> Bool
   declared-effect symbol effects = case effects of
     Nil -> False
-    Cons declaration rest -> same symbol (core-effect-name declaration) || declared-effect symbol rest
+    Cons declaration rest -> same symbol (declaration.effect-name) || declared-effect symbol rest
   -- Constructors and erased equation methods have their own checked
   -- tables. Neither needs an ordinary value row.
   exports :: Elaboration -> ExportIndex -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
-  exports typed index interfaces surface rows = let references = indexed-references index in case rows of
+  exports typed index interfaces surface rows = let references = index.references in case rows of
     JArr row rest -> let name = text (field "name" row) in let symbol = text (field "symbol" row) in
       case exports typed index interfaces surface rest of
         Err error -> Err error
@@ -955,12 +953,12 @@ module Cinch.Export where
                 Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
                 None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
                   else case indexed-binding symbol index of
-                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || guarded-instance-name symbol (indexed-guarded index) || promoted-ctor-present symbol (elaboration-promoted-ctors typed) then Ok (values, types)
+                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || guarded-instance-name symbol (index.guarded) || promoted-ctor-present symbol (elaboration-promoted-ctors typed) then Ok (values, types)
                       else Err (string-concat "export has no retained checked declaration: " name)
                     -- Methods and instance factories have their own contract tables.
                     Some binding -> let role = checked-role binding in
                       if same role "method" || same role "instance" || same role "implicit-instance" then Ok (values, types)
-                      else case value-row (indexed-requires-worker index) (indexed-alias-display index) typed interfaces references name symbol binding of
+                      else case value-row (index.requires-worker) (index.alias-display) typed interfaces references name symbol binding of
                         Err error -> Err error
                         Ok actual -> Ok (insert-row "name" actual values, types)
     JArrEnd -> Ok (JArrEnd, JArrEnd)
@@ -1008,7 +1006,7 @@ module Cinch.Export where
     Cons (owner, hash) rest -> if same name owner then Ok hash else lookup-hash name rest interfaces
     Nil -> case interfaces of
       Nil -> Err (string-concat "no checked dependency interface identity: " name)
-      Cons first rest -> if same name (loaded-module first) then Ok (loaded-hash first) else lookup-hash name Nil rest
+      Cons first rest -> if same name (first.name) then Ok (first.hash) else lookup-hash name Nil rest
   imports :: Json -> List (String, String) -> List LoadedInterface -> Result String Json
   imports names produced interfaces = case names of
     JArr (JStr name) rest -> case (lookup-hash name produced interfaces, imports rest produced interfaces) of
@@ -1142,7 +1140,7 @@ module Cinch.Export where
   assumptions primitives rows trust = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" trust JObjEnd))
   interface-assumptions :: Json -> Elaboration -> Json -> Json
   interface-assumptions context typed rows = case source-primitive-assumptions context (elaboration-bindings typed)
-    (source-primitives context (elaboration-contexts typed))
+    (source-primitives context (typed.contexts))
     (rewrite-assumptions context (elaboration-rewrite-assumptions typed)) of
       (primitives, trust) -> assumptions primitives rows trust
   law-order :: Json -> String
@@ -1170,7 +1168,7 @@ module Cinch.Export where
   promoted-ctor-has :: String -> List PromotedCtorInfo -> Bool
   promoted-ctor-has wanted infos = case infos of
     Nil -> False
-    Cons info rest -> same wanted (promoted-ctor-symbol info) || promoted-ctor-has wanted rest
+    Cons info rest -> same wanted (info.ctor-symbol) || promoted-ctor-has wanted rest
   export-pdk-kind :: Option TypeExpr -> Kind
   export-pdk-kind mk = case mk of
     Some (TName _ name) ->
@@ -1185,7 +1183,7 @@ module Cinch.Export where
   export-params-kind :: List TypeParam -> Kind -> Kind
   export-params-kind ps ret = case ps of
     Nil -> ret
-    Cons p rest -> KFun (export-pdk-kind (param-kind p)) (export-params-kind rest ret)
+    Cons p rest -> KFun (export-pdk-kind (p.kind)) (export-params-kind rest ret)
   decl-type-family-kind :: String -> Nat -> List Decl -> Kind
   decl-type-family-kind wanted arity ds = case ds of
     Nil -> fallback-arity-kind arity
@@ -1203,25 +1201,25 @@ module Cinch.Export where
   type-family-rules-json rules = case rules of
     Nil -> JArrEnd
     Cons r rest ->
-      JArr (JObj "pvars" (nat-list-json (rule-vars r))
-        (JObj "lhs" (carrier-tree (rule-lhs r))
-          (JObj "rhs" (carrier-tree (rule-rhs r)) JObjEnd)))
+      JArr (JObj "pvars" (nat-list-json (r.vars))
+        (JObj "lhs" (carrier-tree (r.lhs))
+          (JObj "rhs" (carrier-tree (r.rhs)) JObjEnd)))
         (type-family-rules-json rest)
   export-type-families-json :: Json -> List Decl -> List TypeFamilyRuleSet -> Json
   export-type-families-json context decls fams = case fams of
     Nil -> JArrEnd
     Cons fs rest ->
       let more = export-type-families-json context decls rest in
-      let raw-name = family-identity fs in
+      let raw-name = fs.identity in
       if has-symbol raw-name (field "declarations" context) || not (is-imported-symbol raw-name) then
         (case export-global raw-name of
           Ok identity ->
-            let k = decl-type-family-kind raw-name (family-arity fs) decls in
+            let k = decl-type-family-kind raw-name (fs.arity) decls in
             JArr (JObj "identity" (JStr identity)
-              (JObj "arity" (JNum (nat-to-int (family-arity fs)))
-                (JObj "closed" (JBool (family-closed fs))
+              (JObj "arity" (JNum (nat-to-int (fs.arity)))
+                (JObj "closed" (JBool (fs.closed))
                   (JObj "kind" (kind-tree k)
-                    (JObj "rules" (type-family-rules-json (family-rules fs)) JObjEnd))))) more
+                    (JObj "rules" (type-family-rules-json (fs.rules)) JObjEnd))))) more
           Err _ -> more)
       else more
   is-imported-symbol :: String -> Bool
@@ -1235,13 +1233,13 @@ module Cinch.Export where
     Nil -> JArrEnd
     Cons df rest ->
       let more = export-data-families-json context rest in
-      let raw-name = data-family-name df in
+      let raw-name = df.family-name in
       if has-symbol raw-name (field "declarations" context) || not (is-imported-symbol raw-name) then
         (case export-global raw-name of
           Ok identity ->
             JArr (JObj "identity" (JStr identity)
-              (JObj "arity" (JNum (nat-to-int (list-length (data-family-params df))))
-                (JObj "patterns" (data-patterns-json (data-family-patterns df)) JObjEnd))) more
+              (JObj "arity" (JNum (nat-to-int (list-length (df.family-params))))
+                (JObj "patterns" (data-patterns-json (df.family-patterns)) JObjEnd))) more
           Err _ -> more)
       else more
   pdk-spine-json :: PromotedDataKind -> Json
@@ -1268,10 +1266,10 @@ module Cinch.Export where
     Nil -> JArrEnd
     Cons info rest ->
       let more = export-promoted-ctors-json mod-name rest in
-      if same (nominal-owner (promoted-ctor-parent info)) mod-name then
-        JArr (JObj "symbol" (JStr (promoted-ctor-symbol info))
-          (JObj "parent" (JStr (promoted-ctor-parent info))
-            (JObj "fields" (pdk-spine-json (promoted-ctor-fields info)) JObjEnd))) more
+      if same (nominal-owner (info.ctor-parent)) mod-name then
+        JArr (JObj "symbol" (JStr (info.ctor-symbol))
+          (JObj "parent" (JStr (info.ctor-parent))
+            (JObj "fields" (pdk-spine-json (info.ctor-fields)) JObjEnd))) more
       else more
   export-data-param-kinds-json :: Json -> List (String, List (Option PromotedDataKind)) -> Json
   export-data-param-kinds-json context entries = case entries of
@@ -1290,7 +1288,7 @@ module Cinch.Export where
     Nil -> JArrEnd
     Cons f rest ->
       let more = export-promoted-fns-json mod-name rest in
-      if same (nominal-owner (promoted-fn-identity f)) mod-name then
+      if same (nominal-owner (f.fn-identity)) mod-name then
         JArr (promoted-fn-json f) more
       else more
   attach-optional-field :: String -> Json -> Json -> Json
@@ -1340,7 +1338,7 @@ module Cinch.Export where
   build-profile-manifest :: String -> Json -> List LoadedInterface -> List (String, Json) -> Json
   build-profile-manifest entry target-facts interfaces rows = build-generated-manifest Nil JArrEnd entry target-facts interfaces rows
   checked-primitive-rows :: CheckedProgram -> Json
-  checked-primitive-rows checked = primitive-rows (elaboration-bindings (checked-elaboration checked)) JArrEnd
+  checked-primitive-rows checked = primitive-rows (elaboration-bindings (checked.elaboration)) JArrEnd
   primitive-rows :: List CheckedBinding -> Json -> Json
   primitive-rows bindings rows = case bindings of
     Nil -> rows
@@ -1375,7 +1373,7 @@ module Cinch.Export where
   admitted-build-contracts :: List LoadedInterface -> List (String, String, Json)
   admitted-build-contracts interfaces = case interfaces of
     Nil -> Nil
-    Cons first rest -> Cons (loaded-module first, loaded-hash first, loaded-contract first) (admitted-build-contracts rest)
+    Cons first rest -> Cons (first.name, first.hash, first.doc) (admitted-build-contracts rest)
   build-module-rows :: List (String, String, Json) -> Json
   build-module-rows contracts = case contracts of
     Nil -> JArrEnd
@@ -1391,8 +1389,12 @@ module Cinch.Export where
     Nil -> JArrEnd
     Cons (name, hash, doc) rest -> append (field "laws" doc) (build-law-rows rest)
 
-  data ExportTask where
-    ExportTask :: Nat -> String -> Json -> String -> List String -> ExportTask
+  record ExportTask where
+    position :: Nat
+    name :: String
+    context :: Json
+    hash :: String
+    deps :: List String
 
   context-import-names :: Json -> List String
   context-import-names rows = case rows of
@@ -1441,18 +1443,18 @@ module Cinch.Export where
     ExportTask position name context hash deps ->
       case exports typed index interfaces (field "exports" context) (field "exports" context) of
         Err error -> Err (string-concat-all [name, ": ", error])
-        Ok (values, types) -> case instance-rows typed interfaces (indexed-references index) context (indexed-guarded index) (elaboration-instances typed) of
+        Ok (values, types) -> case instance-rows typed interfaces (index.references) context (index.guarded) (elaboration-instances typed) of
           Err error -> Err error
           Ok instances -> case signature-rows typed interfaces index (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
             Err error -> Err error
             Ok signatures -> case (imports (checked-imports name (field "imports" context) values types signatures instances) produced interfaces,
-              source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
+              source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (typed.contexts)),
               law-observations context (elaboration-law-observations typed)) of
               (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
               (other, Err error, more) -> Err error
               (other, more, Err error) -> Err error
               (Ok dependencies, Ok foreign-rows, Ok laws) ->
-                let doc = document typed (indexed-layouts index) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
+                let doc = document typed (index.layouts) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
                 Ok (position, name, doc, interface-hash doc)
 
   collect-wave-outputs :: List (Result String (Nat, String, Json, String)) -> List (String, String) -> HashMap String Nat -> HashMap String Json -> Result String (List (String, String), HashMap String Nat, HashMap String Json)
@@ -1501,8 +1503,8 @@ module Cinch.Export where
   source-only-task-forwarders definitions = case definitions of
     Nil -> Nil
     Cons definition rest ->
-      if task-forwarder-type (scheme-body (core-scheme definition)) && task-source-forwarder definition then
-        Cons (core-name definition) (source-only-task-forwarders rest)
+      if task-forwarder-type (scheme-body (definition.scheme)) && task-source-forwarder definition then
+        Cons (definition.name) (source-only-task-forwarders rest)
       else source-only-task-forwarders rest
   source-only-symbol :: String -> List String -> Bool
   source-only-symbol symbol names = case names of
@@ -1531,10 +1533,10 @@ module Cinch.Export where
   export-object-interfaces = export-interfaces-for True False
 
   export-interfaces-for :: Bool -> Bool -> CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
-  export-interfaces-for require-worker alias-display checked interfaces source = let typed = checked-elaboration checked in
-    case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) (elaboration-bindings typed) of
+  export-interfaces-for require-worker alias-display checked interfaces source = let typed = checked.elaboration in
+    case unsupported-modules (checked.surface.modules) (typed.contexts) (elaboration-bindings typed) of
       Some message -> Err message
-      None -> export-loop typed (export-index require-worker alias-display typed) interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (elaboration-contexts typed))
+      None -> export-loop typed (export-index require-worker alias-display typed) interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (typed.contexts))
   retained-intrinsic :: String -> String -> List Json -> Bool
   retained-intrinsic name identity rows = case rows of
     Nil -> False
@@ -1548,7 +1550,7 @@ module Cinch.Export where
   retained-c-export name symbol bindings = case bindings of
     Nil -> False
     Cons binding rest -> (case checked-c-export binding of
-      Some (function, plan) | same name function && same symbol (foreign-symbol plan) -> True
+      Some (function, plan) | same name function && same symbol (plan.symbol) -> True
       other -> retained-c-export name symbol rest)
   unsupported-declarations :: List Decl -> List Json -> List CheckedBinding -> Option String
   unsupported-declarations declarations contexts bindings = case declarations of

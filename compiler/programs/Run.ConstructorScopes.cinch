@@ -20,14 +20,14 @@ module Main where
   box :: UType -> UType
   box ty = UApp (UCon "Box" (KFun KType KType)) ty
   definition :: String -> UType -> CorePattern -> CoreTerm -> CoreDefinition
-  definition name ty pattern body = MkCoreDefinition sp name (mono ty) Nil Nil Nil [MkCoreClause sp [pattern] body]
+  definition name ty pattern body = CoreDefinition sp name (mono ty) Nil Nil Nil [CoreClause sp [pattern] body]
   unpack-pattern :: Nat -> UType -> CorePattern
   unpack-pattern id payload = CPConstructor sp exists "pack" [payload] (UFun payload exists)
     (CPField sp (CPVar sp payload id "hidden") (CPDone sp))
   checks :: Nat -> List Bool
   checks id =
     let a = UBound id "a" KType in
-    let q = MkQuant id "a" KType False in
+    let q = Quant id "a" KType False in
     let pack = MkScheme [q] (UFun a exists) in
     let boxed = MkScheme [q] (UFun a (box a)) in
     let globals = [GlobalValue "pack" "constructor" pack, GlobalValue "box" "constructor" boxed,

@@ -162,12 +162,15 @@ module Cinch.Proof where
 
   -- Affine expressions and rows are private. Certificate data contains
   -- citations and positive multipliers only; the checker reconstructs rows.
-  data Affine where
-    MkAffine :: List (Arithmetic, Int) -> Int -> Affine
-  data Row where
-    MkRow :: List (Arithmetic, Int) -> Int -> Row
-  data SearchRow where
-    MkSearchRow :: Row -> List (Int, Citation) -> SearchRow
+  record Affine where
+    terms :: List (Arithmetic, Int)
+    constant :: Int
+  record Row where
+    terms :: List (Arithmetic, Int)
+    constant :: Int
+  record SearchRow where
+    field0 :: Row
+    field1 :: List (Int, Citation)
   add-term :: Arithmetic -> Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
   add-term key amount terms = if amount == 0 then terms else case terms of
     Nil -> [(key, amount)]
@@ -179,41 +182,41 @@ module Cinch.Proof where
   scale-terms :: Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
   scale-terms by terms = if by == 0 then Nil else case terms of Nil -> Nil; Cons (key, coefficient) rest -> Cons (key, by * coefficient) (scale-terms by rest)
   plus-affine :: Affine -> Affine -> Affine
-  plus-affine a b = case (a, b) of (MkAffine xs x, MkAffine ys y) -> MkAffine (add-terms xs ys) (x + y)
+  plus-affine a b = case (a, b) of (Affine xs x, Affine ys y) -> Affine (add-terms xs ys) (x + y)
   scale-affine :: Int -> Affine -> Affine
-  scale-affine by a = case a of MkAffine terms constant -> MkAffine (scale-terms by terms) (by * constant)
+  scale-affine by a = case a of Affine terms constant -> Affine (scale-terms by terms) (by * constant)
   affine :: Arithmetic -> Affine
   affine expr = case expr of
-    AInteger n -> MkAffine Nil n
+    AInteger n -> Affine Nil n
     APlus a b -> plus-affine (affine a) (affine b)
     AMinus a b -> plus-affine (affine a) (scale-affine (-1) (affine b))
     ATimes a b -> case (affine a, affine b) of
-      (MkAffine Nil x, rhs) -> scale-affine x rhs
-      (lhs, MkAffine Nil y) -> scale-affine y lhs
-      other -> MkAffine [(expr, 1)] 0
-    other -> MkAffine [(expr, 1)] 0
+      (Affine Nil x, rhs) -> scale-affine x rhs
+      (lhs, Affine Nil y) -> scale-affine y lhs
+      other -> Affine [(expr, 1)] 0
+    other -> Affine [(expr, 1)] 0
   atom-row :: Proposition -> Option Row
   atom-row p = case p of
-    PFalsehood -> Some (MkRow Nil (-1))
-    PTruth -> Some (MkRow Nil 0)
+    PFalsehood -> Some (Row Nil (-1))
+    PTruth -> Some (Row Nil 0)
     PCompare op a b -> case plus-affine (affine a) (scale-affine (-1) (affine b)) of
-      MkAffine terms constant -> case op of
-        AtMost -> Some (MkRow terms (0 - constant))
-        Less -> Some (MkRow terms (0 - constant - 1))
+      Affine terms constant -> case op of
+        AtMost -> Some (Row terms (0 - constant))
+        Less -> Some (Row terms (0 - constant - 1))
         other -> None
     other -> None
   row-plus :: Row -> Row -> Row
-  row-plus a b = case (a, b) of (MkRow xs x, MkRow ys y) -> MkRow (add-terms xs ys) (x + y)
+  row-plus a b = case (a, b) of (Row xs x, Row ys y) -> Row (add-terms xs ys) (x + y)
   row-scale :: Int -> Row -> Row
-  row-scale by row = case row of MkRow terms constant -> MkRow (scale-terms by terms) (by * constant)
+  row-scale by row = case row of Row terms constant -> Row (scale-terms by terms) (by * constant)
   contradiction :: Row -> Bool
-  contradiction row = case row of MkRow Nil constant -> constant < 0; other -> False
+  contradiction row = case row of Row Nil constant -> constant < 0; other -> False
 
   -- Trusted certificate check. In particular, no search-produced row,
   -- branch premise or stored result is accepted as a source assumption.
   sum-citations :: List Proposition -> Proposition -> List Proposition -> List (Int, Citation) -> Option Row
   sum-citations hypotheses goal alternatives weights = case weights of
-    Nil -> Some (MkRow Nil 0)
+    Nil -> Some (Row Nil 0)
     Cons (by, reference) rest -> if by <= 0 then None else case cited hypotheses goal alternatives reference of
       Some p -> case atom-row p of
         Some row -> case sum-citations hypotheses goal alternatives rest of
@@ -252,10 +255,10 @@ module Cinch.Proof where
   coefficient :: Arithmetic -> List (Arithmetic, Int) -> Int
   coefficient key terms = case terms of Nil -> 0; Cons (other, amount) rest -> if arithmetic-equal key other then amount else coefficient key rest
   row-coefficient :: Arithmetic -> SearchRow -> Int
-  row-coefficient key row = case row of MkSearchRow (MkRow terms constant) weights -> coefficient key terms
+  row-coefficient key row = case row of SearchRow (Row terms constant) weights -> coefficient key terms
   combine :: Int -> SearchRow -> Int -> SearchRow -> SearchRow
   combine x a y b = case (a, b) of
-    (MkSearchRow first refs, MkSearchRow second others) -> MkSearchRow (row-plus (row-scale x first) (row-scale y second)) (weighted-plus (weighted-scale x refs) (weighted-scale y others))
+    (SearchRow first refs, SearchRow second others) -> SearchRow (row-plus (row-scale x first) (row-scale y second)) (weighted-plus (weighted-scale x refs) (weighted-scale y others))
   partition :: Arithmetic -> List SearchRow -> (List SearchRow, List SearchRow, List SearchRow)
   partition key rows = case rows of
     Nil -> (Nil, Nil, Nil)
@@ -283,7 +286,7 @@ module Cinch.Proof where
   search-variables :: List SearchRow -> List Arithmetic -> List Arithmetic
   search-variables rows seen = case rows of
     Nil -> reverse seen
-    Cons (MkSearchRow (MkRow terms constant) weights) rest -> search-variables rest (remember-variables terms seen)
+    Cons (SearchRow (Row terms constant) weights) rest -> search-variables rest (remember-variables terms seen)
   elimination-cost :: Arithmetic -> List SearchRow -> Nat -> Nat -> Nat -> Nat
   elimination-cost key rows positive negative zero = case rows of
     Nil -> positive * negative + zero
@@ -303,7 +306,7 @@ module Cinch.Proof where
   find-contradiction :: List SearchRow -> Option Certificate
   find-contradiction rows = case rows of
     Nil -> None
-    Cons (MkSearchRow row weights) rest -> if contradiction row then Some (Farkas weights) else find-contradiction rest
+    Cons (SearchRow row weights) rest -> if contradiction row then Some (Farkas weights) else find-contradiction rest
   fourier :: Nat -> Nat -> List SearchRow -> Option Certificate
   fourier fuel limit rows = if list-length rows > limit then None else case find-contradiction rows of
     Some certificate -> Some certificate
@@ -340,7 +343,7 @@ module Cinch.Proof where
   rows-from references = case references of
     Nil -> Nil
     Cons (reference, p) rest -> case atom-row p of
-      Some row -> Cons (MkSearchRow row [(1, reference)]) (rows-from rest)
+      Some row -> Cons (SearchRow row [(1, reference)]) (rows-from rest)
       None -> rows-from rest
   -- Use a matching lexical fact before unrelated rows consume the bounded
   -- elimination budget. The small refutation retains the original citation;

@@ -20,9 +20,9 @@ module Main where
   nonnegative :: Nat -> UType
   nonnegative id = URefine id "result" nat (UCompare ">=" (UIndex nat (IBound id "result")) (UIndex nat (IInteger 0)))
   definition :: UType -> CoreTerm -> Bool
-  definition ty body = core-definition-closed (MkCoreDefinition sp "test" (mono ty) Nil Nil Nil [MkCoreClause sp Nil body])
+  definition ty body = core-definition-closed (CoreDefinition sp "test" (mono ty) Nil Nil Nil [CoreClause sp Nil body])
   function :: UType -> UType -> Nat -> CoreTerm -> Bool
-  function domain result id body = core-definition-closed (MkCoreDefinition sp "function" (mono (UFun domain result)) Nil Nil Nil [MkCoreClause sp [CPVar sp domain id "x"] body])
+  function domain result id body = core-definition-closed (CoreDefinition sp "function" (mono (UFun domain result)) Nil Nil Nil [CoreClause sp [CPVar sp domain id "x"] body])
   packet :: List (Nat, UType) -> List Proposition -> UType -> CoreTerm -> Option CoreTerm
   packet gamma facts ty body = case prove-refinement gamma facts ty body of Some evidence -> Some (CRefine sp ty evidence body); None -> None
   good :: UType -> UType -> Bool
@@ -58,7 +58,7 @@ module Main where
     let alien-given = case packet [(id, pos)] Nil weak projection of Some term -> not (function nat weak id term); None -> False in
     let reintroduced = case packet [(id, pos)] Nil pos projection of Some term -> function pos pos id term; None -> False in
     let copied-context = case packet [(id, pos)] Nil pos projection of Some (CRefine at ty evidence body) -> not (function nat pos id (CRefine at ty evidence local)); other -> False in
-    let param-forgery = not (core-definition-closed (MkCoreDefinition sp "forged-param" (mono (UFun nat nat)) Nil Nil Nil [MkCoreClause sp [CPVar sp pos id "x"] projection])) in
+    let param-forgery = not (core-definition-closed (CoreDefinition sp "forged-param" (mono (UFun nat nat)) Nil Nil Nil [CoreClause sp [CPVar sp pos id "x"] projection])) in
     let forged-let = CLet sp pos id "x" (mono pos) one refined-local in
     let forged-branch = case literal of Some term -> not (definition pos (CIf sp pos (CUse sp boolean "True" "constructor" Nil) term one)); None -> False in
     let wrong-call = CApply sp pos (CUse sp (UFun nat nat) "identity" "value" Nil) one in
@@ -68,7 +68,7 @@ module Main where
     let effectful = CApplyEff sp nat effect-row (CUse sp (UFunEff (UCon "Unit" KType) effect-row nat) "effectful" "value" Nil) (CUnit sp (UCon "Unit" KType)) in
     let unconditional = URefine binder "unused" nat (UPropLit True) in
     let effects-retained = case packet Nil Nil unconditional effectful of Some term -> definition unconditional term && good effect-row (core-effects term); None -> False in
-    let leaked = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono (URefine binder "x" nat (UCompare ">" (UIndex nat (IBound id "free")) (UIndex nat (IInteger 0)))))] in
+    let leaked = MkCoreData sp "metadata" KType Nil [CoreConstructor sp "contract" (mono (URefine binder "x" nat (UCompare ">" (UIndex nat (IBound id "free")) (UIndex nat (IInteger 0)))))] in
     [ literal-ok
     , literal-negative
     , copied-value

@@ -8,7 +8,7 @@ module Main where
   import Cinch.Contracts (interface-headers)
   import Cinch.Parse (parse-program-with)
   import Cinch.Resolve (resolve-program-with)
-  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Cinch.Infer (elaborate-program, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
   import Cinch.Core
   import Cinch.Type (UType, UApp, UCon, Kind, KType)
   import Cinch.Nominal (interface-global)
@@ -27,7 +27,7 @@ module Main where
   run interfaces source element = case parse-program-with "imported-preconditions" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "imported-preconditions" resolved in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if closed (bindings-bodies (elaboration-bindings result)) (elaboration-core result) && (string-length element == 0 || selected-definition element (elaboration-core result)) then (0, "") else (94, "imported condition lost its Core evidence")
           errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)
@@ -49,9 +49,9 @@ module Main where
     CLambda sp ty pattern body -> selected-term element body
     other -> False
   selected-clauses :: String -> List CoreClause -> Bool
-  selected-clauses element clauses = case clauses of Nil -> False; Cons (MkCoreClause sp patterns body) rest -> selected-term element body || selected-clauses element rest
+  selected-clauses element clauses = case clauses of Nil -> False; Cons (CoreClause sp patterns body) rest -> selected-term element body || selected-clauses element rest
   selected-definition :: String -> List CoreDefinition -> Bool
-  selected-definition element definitions = case definitions of Nil -> False; Cons definition rest -> selected-clauses element (core-clauses definition) || selected-definition element rest
+  selected-definition element definitions = case definitions of Nil -> False; Cons definition rest -> selected-clauses element (definition.clauses) || selected-definition element rest
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
   cases :: List LoadedInterface -> Json -> (Int, String)

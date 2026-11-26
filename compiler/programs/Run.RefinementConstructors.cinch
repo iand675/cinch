@@ -8,7 +8,7 @@ module Main where
   import Cinch.Contracts (interface-headers)
   import Cinch.Parse (parse-program-with)
   import Cinch.Resolve (resolve-program-with)
-  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Cinch.Infer (elaborate-program, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
   import Cinch.Core
   import Cinch.Type
   import Cinch.Index
@@ -31,7 +31,7 @@ module Main where
   run interfaces source element = case parse-program-with "refinement-constructors" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "refinement-constructors" resolved in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if closed (bindings-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
           errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)
@@ -49,10 +49,10 @@ module Main where
   core-definition id body =
     let required = UPropNonZero (UIndex int (IBound id "first")) in
     let ty = UPi id "first" int (URow UEnd) (UPi (id + 1) "second" int (URow UEnd) (UProofFun required (URow UEnd) (exact (id + 10)))) in
-    MkCoreDefinition sp "explicit" (mono ty) Nil Nil Nil [MkCoreClause sp
+    CoreDefinition sp "explicit" (mono ty) Nil Nil Nil [CoreClause sp
       [CPVar sp int id "first", CPVar sp int (id + 1) "second", CPProof sp (nz id) (id + 2) "witness"] body]
   typed :: CoreDefinition -> Bool
-  typed definition = case close-typing-context [("Int", KType)] [GlobalValue "explicit" "value" (core-scheme definition)] of
+  typed definition = case close-typing-context [("Int", KType)] [GlobalValue "explicit" "value" (definition.scheme)] of
     Some context -> typing-definition-closed context definition
     None -> False
   core-checks :: Nat -> Bool

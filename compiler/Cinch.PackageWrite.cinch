@@ -13,22 +13,24 @@ module Cinch.PackageWrite where
 
   export encode-interface-package, encode-object-package
 
-  data Tape where
-    Tape :: Nat -> List Nat -> Tape
+  record Tape where
+    count :: Nat
+    words :: List Nat
 
   empty-tape :: Tape
   empty-tape = Tape 0 Nil
-
-  words-count :: Tape -> Nat
-  words-count (Tape count words) = count
 
   append-words :: List Nat -> Tape -> Tape
   append-words words (Tape count backwards) = case words of
     Nil -> Tape count backwards
     Cons word more -> append-words more (Tape (count + 1) (Cons word backwards))
 
-  data Strings where
-    Strings :: HashMap String (Nat, Nat, Nat) -> Nat -> Nat -> Tape -> List Bytes -> Strings
+  record Strings where
+    index :: HashMap String (Nat, Nat, Nat)
+    count :: Nat
+    size :: Nat
+    spans :: Tape
+    chunks :: List Bytes
 
   empty-strings :: Strings
   empty-strings = Strings hash-map-empty 0 0 empty-tape Nil
@@ -69,8 +71,9 @@ module Cinch.PackageWrite where
     other -> Nil
 
   -- Definitions repeated in several exported closures are represented once.
-  data Definitions where
-    Definitions :: HashMap String Json -> List (String, Json) -> Definitions
+  record Definitions where
+    field0 :: HashMap String Json
+    field1 :: List (String, Json)
 
   collect-definitions :: Json -> Definitions -> Result String Definitions
   collect-definitions rows state = case rows of
@@ -106,12 +109,15 @@ module Cinch.PackageWrite where
     Nil -> index
     Cons (name, value) rest -> index-bodies rest (position + 1) (hash-map-insert name position index)
 
-  data Nodes where
-    Nodes :: Strings -> Tape -> Tape -> List Nat -> Nodes
+  record Nodes where
+    pool :: Strings
+    nodes :: Tape
+    operands :: Tape
+    targets :: List Nat
 
   add-node :: Nat -> Nat -> Nat -> Nat -> Nodes -> (Nat, Nodes)
   add-node tag first second third (Nodes pool nodes operands targets) =
-    (words-count nodes / 4, Nodes pool (append-words [tag, first, second, third] nodes) operands targets)
+    (nodes.count / 4, Nodes pool (append-words [tag, first, second, third] nodes) operands targets)
 
   data Expression where
     LocalNode :: Nat -> Expression
@@ -158,7 +164,7 @@ module Cinch.PackageWrite where
   emit-arguments index depth args backwards count state = case argument-head args of
     None -> (case state of
       Nodes pool nodes operands targets ->
-        Ok (words-count operands, count, Nodes pool nodes (append-words (reverse backwards) operands) targets))
+        Ok (operands.count, count, Nodes pool nodes (append-words (reverse backwards) operands) targets))
     Some (item, rest) -> (case emit-expression index depth item state of
       Err error -> Err error
       Ok (id, next) -> emit-arguments index depth rest (Cons id backwards) (count + 1) next)
@@ -217,19 +223,19 @@ module Cinch.PackageWrite where
     Nil -> Ok (bodies, edges, state)
     Cons (name, definition) rest -> (case (state, field "result" definition) of
       (Nodes pool nodes operands ignored, JStr result) ->
-        let start = words-count operands in
+        let start = operands.count in
         (case emit-parameters (field "parameters" definition) operands pool of
           Err error -> Err error
           Ok (params, strings) ->
-            let count = saturating-sub (words-count params) start in
+            let count = saturating-sub (params.count) start in
             (case emit-expression index 256 (field "body" definition) (Nodes strings nodes params Nil) of
               Err error -> Err error
               Ok (root, Nodes term-strings term-nodes term-operands targets) ->
-                let edge-start = words-count edges in
+                let edge-start = edges.count in
                 let next-edges = write-targets (sort targets) None edges in
                 let (name-id, first) = intern-id name term-strings in
                 let (result-id, final) = intern-id result first in
-                let next-bodies = append-words [name-id, result-id, start, count, root, edge-start, saturating-sub (words-count next-edges) edge-start, 0] bodies in
+                let next-bodies = append-words [name-id, result-id, start, count, root, edge-start, saturating-sub (next-edges.count) edge-start, 0] bodies in
                 emit-bodies rest index next-bodies next-edges (Nodes final term-nodes term-operands Nil)))
       other -> Err "invalid packed body result sort")
 
@@ -333,8 +339,11 @@ module Cinch.PackageWrite where
       Some old -> Err "duplicate packed module"
       None -> module-indices rest (position + 1) (hash-map-insert name position index))
 
-  data Directories where
-    Directories :: Tape -> Tape -> Tape -> Strings -> Directories
+  record Directories where
+    field0 :: Tape
+    field1 :: Tape
+    field2 :: Tape
+    field3 :: Strings
 
   emit-modules :: HashMap String Nat -> HashMap String Nat -> List (String, String, Json) -> List (String, String, Json) -> Directories -> Result String Directories
   emit-modules index bodies sorted original state = case (sorted, original, state) of
@@ -351,9 +360,9 @@ module Cinch.PackageWrite where
             (case emit-value-rows bodies exports values second of
               Err error -> Err error
               Ok (rows, final) ->
-                let start = 4 * words-count contracts in
-                let width = saturating-sub (4 * words-count document-tape) start in
-                let directory = append-words [name-at, name-size, hash-at, hash-size, words-count values / 8, list-length exports, start, width, position] modules in
+                let start = 4 * contracts.count in
+                let width = saturating-sub (4 * document-tape.count) start in
+                let directory = append-words [name-at, name-size, hash-at, hash-size, values.count / 8, list-length exports, start, width, position] modules in
                 emit-modules index bodies rest inputs (Directories directory rows document-tape final))))
     other -> Err "inconsistent packed module count"
 
@@ -384,7 +393,7 @@ module Cinch.PackageWrite where
   describe-sections start sections header = case sections of
     Nil -> (start, header)
     Cons tape rest ->
-      let width = 4 * words-count tape in
+      let width = 4 * tape.count in
       describe-sections (start + width) rest (append-words [start, width] header)
 
   write-sections :: Bytes -> Nat -> List Tape -> Result String Unit
@@ -392,11 +401,11 @@ module Cinch.PackageWrite where
     Nil -> Ok ()
     Cons tape rest -> (case write-tape out start tape of
       Err error -> Err error
-      Ok done -> write-sections out (start + 4 * words-count tape) rest)
+      Ok done -> write-sections out (start + 4 * tape.count) rest)
 
   assemble :: Strings -> List Tape -> Result String Bytes
   assemble (Strings index count size spans chunks) sections =
-    let strings-width = 4 + 4 * words-count spans + size in
+    let strings-width = 4 + 4 * spans.count + size in
     let strings-end = 88 + strings-width in
     let (length, region-pairs) = describe-sections strings-end sections (append-words [88, strings-width] empty-tape) in
     if length > 4294967295 then Err "packed package exceeds the 32-bit format" else

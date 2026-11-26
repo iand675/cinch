@@ -34,18 +34,18 @@ module Main where
   references-in :: String -> List CoreDefinition -> Nat
   references-in identity definitions = case definitions of
     Nil -> 0
-    Cons d rest -> references-clauses identity (core-clauses d) + references-in identity rest
+    Cons d rest -> references-clauses identity (d.clauses) + references-in identity rest
   references-clauses :: String -> List CoreClause -> Nat
-  references-clauses identity clauses = case clauses of Nil -> 0; Cons (MkCoreClause s ps body) rest -> references identity body + references-clauses identity rest
+  references-clauses identity clauses = case clauses of Nil -> 0; Cons (CoreClause s ps body) rest -> references identity body + references-clauses identity rest
   all-closed :: List CoreDefinition -> Bool
   all-closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && all-closed rest
   run :: Bytes -> String -> String -> (Int, String)
   run source identity external = case parse-program "intrinsic-source" source of
     Parsed program Nil -> let errors = check-program program in
       let result = elaborate-program "intrinsic-source" program in
-      let found = elaboration-errors result in
+      let found = result.errors in
       if list-length errors > 0 || list-length found > 0 then (4, render-diagnostics (errors <> found))
-      else if all-closed (elaboration-core result) && references-in identity (elaboration-core result) > 0 && contract-retained identity external (elaboration-contexts result) then (0, "")
+      else if all-closed (elaboration-core result) && references-in identity (elaboration-core result) > 0 && contract-retained identity external (result.contexts) then (0, "")
       else (94, "intrinsic lost its canonical identity, ABI contract or closed Core")
     other -> (2, "source parse failed")
   main :: Unit ->{IO r} Int

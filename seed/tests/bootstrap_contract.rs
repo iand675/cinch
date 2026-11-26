@@ -20,7 +20,7 @@ const MAIN: &str = r#"module Main where
   wide = span-join sp (Span 9 10 3 4)
 
   report-text :: String
-  report-text = render-diagnostic (MkDiagnostic "bootstrap.contract" (span-here sp) "example")
+  report-text = render-diagnostic (Diagnostic "bootstrap.contract" (span-here sp) "example")
 
   -- if 1 == 2 then 0 else 1, as a clause whose body is an if.
   clause :: (List Pat, Expr)
@@ -31,7 +31,7 @@ const MAIN: &str = r#"module Main where
   decls = decl-spine sp (Cons (DFun sp "main" (Cons clause Nil)) Nil)
 
   ast :: Program
-  ast = MkProgram sp (Cons (MkModule sp "Main" decls) Nil)
+  ast = Program sp (Cons (Module sp "Main" decls) Nil)
 
   -- a constructor application whose argument spine holds two literals.
   ctor-args :: Expr
@@ -46,13 +46,12 @@ const MAIN: &str = r#"module Main where
     other -> Nil
 
   program-name :: Program -> String
-  program-name p = case p of
-    MkProgram s ms -> modules-name ms
+  program-name p = modules-name p.modules
 
   modules-name :: List Module -> String
   modules-name ms = case ms of
     Nil -> "none"
-    Cons m rest -> module-name m
+    Cons m rest -> m.name
 
   main :: Int
   main = if program-unmodeled-count ast == 0 then step1 else 1
@@ -61,7 +60,7 @@ const MAIN: &str = r#"module Main where
   step1 = if string-compare (program-name ast) "Main" == 0 then step2 else 2
 
   step2 :: Int
-  step2 = if list-length (module-decls (case ast of MkProgram s ms -> case ms of Cons m rest -> m; Nil -> MkModule sp "x" (DDeclsEnd sp))) == 1 then step3 else 3
+  step2 = if list-length (module-decls (case ast.modules of Cons m rest -> m; Nil -> Module sp "x" (DDeclsEnd sp))) == 1 then step3 else 3
 
   step3 :: Int
   step3 = if list-length (ctor-arg-exprs ctor-args) == 2 then step4 else 4

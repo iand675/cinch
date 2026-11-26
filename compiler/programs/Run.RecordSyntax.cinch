@@ -46,7 +46,7 @@ module Main where
   main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of
     Err error -> 90
     Ok source -> (case parse-program "record-syntax" source of
-      Parsed program Nil -> (case fs-write (path-from-string "record-syntax-report.txt") (string-to-bytes (modules (program-modules program))) of
+      Parsed program Nil -> (case fs-write (path-from-string "record-syntax-report.txt") (string-to-bytes (modules (program.modules))) of
         Ok done -> if program-unmodeled-count program == 0 then 0 else 4
         Err error -> 91)
       other -> 4)

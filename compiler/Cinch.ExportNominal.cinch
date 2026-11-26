@@ -3,14 +3,14 @@
 module Cinch.ExportNominal where
   import Algebra.Semigroup
   import Cinch.Type
-  import Cinch.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
+  import Cinch.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors)
   import Cinch.ExportType (export-global, export-parameters)
   import Cinch.Usage (usage-fields-json)
-  import Cinch.Load (LoadedInterface, loaded-contract, contract-nominals)
+  import Cinch.Load (LoadedInterface, contract-nominals)
   import Cinch.Nominal (kernel-type-name, interface-global, global-data-core-list)
-  import Cinch.Instance (CoreClass, class-name, class-params)
+  import Cinch.Instance (CoreClass)
   import Cinch.Document
-  import Cinch.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DTypeFamily, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
+  import Cinch.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DTypeFamily, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, decl-name, type-expr-span)
   import Cinch.Contracts (declaration-references)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
@@ -33,7 +33,7 @@ module Cinch.ExportNominal where
   constructor-names :: String -> List CoreConstructor -> Result String Json
   constructor-names owner rows = case rows of
     Nil -> Ok JArrEnd
-    Cons first rest -> let name = core-constructor-name first in
+    Cons first rest -> let name = first.constructor-name in
       let identity = if same name ("#codata:" <> owner) then owner else name in
       case (export-global identity, constructor-names owner rest) of
         (Ok name, Ok more) -> Ok (JArr (JStr name) more)
@@ -42,8 +42,8 @@ module Cinch.ExportNominal where
   declared-region-roles :: List TypeParam -> List Quant -> List Quant
   declared-region-roles params quants = case (params, quants) of
     (Cons parameter rest, Cons quant more) ->
-      let declared = case (param-kind parameter, quant-kind quant) of
-            (None, KRegion) -> MkQuant (quant-id quant) (quant-name quant) KType (quant-implicit quant)
+      let declared = case (parameter.kind, quant.kind) of
+            (None, KRegion) -> Quant (quant.id) (quant.name) KType (quant.only)
             other -> quant in
       Cons declared (declared-region-roles rest more)
     other -> quants
@@ -55,7 +55,7 @@ module Cinch.ExportNominal where
   has-region-quant :: List Quant -> Bool
   has-region-quant quants = case quants of
     Nil -> False
-    Cons first rest -> kind-equal (quant-kind first) KRegion || has-region-quant rest
+    Cons first rest -> kind-equal (first.kind) KRegion || has-region-quant rest
   data-nominal :: List Decl -> CoreData -> Result String Json
   data-nominal declarations declaration =
     let owner = core-data-name declaration in
@@ -70,7 +70,7 @@ module Cinch.ExportNominal where
       (other, Err error, more) -> Err error
       (other, more, Err error) -> Err error
   class-nominal :: CoreClass -> Result String Json
-  class-nominal description = case (export-global (class-name description), export-parameters (class-params description)) of
+  class-nominal description = case (export-global (description.name), export-parameters (description.params)) of
     (Ok name, Ok parameters) -> Ok (JObj "identity" (JStr name)
       (JObj "kind" (JStr "signature") (JObj "parameters" (parameter-json parameters)
         (JObj "params" (parameter-names parameters) (JObj "constructors" JNull (JObj "refinement" JNull JObjEnd))))))
@@ -89,9 +89,9 @@ module Cinch.ExportNominal where
     KValue carrier -> type-references carrier
     other -> Ok Nil
   quant-references :: List Quant -> Result String (List String)
-  quant-references quants = case quants of Nil -> Ok Nil; Cons q rest -> combine (kind-references (quant-kind q)) (quant-references rest)
+  quant-references quants = case quants of Nil -> Ok Nil; Cons q rest -> combine (kind-references (q.kind)) (quant-references rest)
   requirement-references :: List Requirement -> Result String (List String)
-  requirement-references requirements = case requirements of Nil -> Ok Nil; Cons r rest -> combine (type-references (requirement-type r)) (requirement-references rest)
+  requirement-references requirements = case requirements of Nil -> Ok Nil; Cons r rest -> combine (type-references (r.ty)) (requirement-references rest)
   kernel-effect :: String -> Kind -> Bool
   kernel-effect name kind =
     ((same name "Diverge" || same name "Blocking" || same name "Global" || same name "Fail" || same name "Reentrant" || same name "ThreadAffine") && kind-equal kind KEffect)
@@ -170,11 +170,11 @@ module Cinch.ExportNominal where
   imported-nominal :: String -> List LoadedInterface -> Option Json
   imported-nominal name interfaces = case interfaces of
     Nil -> None
-    Cons first rest -> case find-nominal-row name (contract-nominals (loaded-contract first)) of Some row -> Some row; None -> imported-nominal name rest
+    Cons first rest -> case find-nominal-row name (contract-nominals (first.doc)) of Some row -> Some row; None -> imported-nominal name rest
   source-class-nominal :: String -> List CoreClass -> Result String Json
   source-class-nominal name classes = case classes of
     Nil -> Err (string-concat "missing defining nominal contract: " name)
-    Cons description rest -> case export-global (class-name description) of
+    Cons description rest -> case export-global (description.name) of
       Ok identity -> if same name identity then class-nominal description else source-class-nominal name rest
       Err error -> Err error
   source-nominal :: String -> List Decl -> List CoreData -> List CoreClass -> Result String Json
@@ -209,7 +209,7 @@ module Cinch.ExportNominal where
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons first rest -> same name first || has-name name rest
   source-parameter-names :: List TypeParam -> List String
-  source-parameter-names params = case params of Nil -> Nil; Cons p rest -> Cons (param-name p) (source-parameter-names rest)
+  source-parameter-names params = case params of Nil -> Nil; Cons p rest -> Cons (p.name) (source-parameter-names rest)
   primitive-observer :: String -> List Decl -> Bool
   primitive-observer name declarations = case declarations of
     Nil -> False
@@ -262,23 +262,23 @@ module Cinch.ExportNominal where
   template-parameters :: List Decl -> List String -> List TypeParam -> Result String (List (String, String, Bool))
   template-parameters declarations locals params = case params of
     Nil -> Ok Nil
-    Cons p rest -> let name = param-name p in
-      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-kind declarations locals False syntax),
+    Cons p rest -> let name = p.name in
+      case ((case p.kind of None -> Ok "Type"; Some syntax -> template-kind declarations locals False syntax),
         template-parameters declarations (Cons name locals) rest) of
-        (Ok kind, Ok more) -> Ok (Cons (name, kind, param-implicit p) more)
+        (Ok kind, Ok more) -> Ok (Cons (name, kind, p.is-implicit) more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
   refinement-nominal :: List Decl -> Decl -> Result String Json
   refinement-nominal declarations declaration = case declaration of
-    DRefine sp name params binder predicate -> case param-kind binder of
+    DRefine sp name params binder predicate -> case binder.kind of
       None -> Err "checked refinement lost its declared carrier"
       Some carrier -> let locals = source-parameter-names params in
         case (export-global name, template-parameters declarations Nil params,
-          template-text declarations locals carrier, template-predicate declarations (Cons (param-name binder) locals) predicate) of
+          template-text declarations locals carrier, template-predicate declarations (Cons (binder.name) locals) predicate) of
           (Ok identity, Ok parameters, Ok base, Ok condition) -> Ok (JObj "identity" (JStr identity)
             (JObj "kind" (JStr "refinement") (JObj "params" (parameter-names parameters)
               (JObj "parameters" (parameter-json parameters) (JObj "constructors" JNull
-                (JObj "refinement" (JObj "binder" (JStr (param-name binder))
+                (JObj "refinement" (JObj "binder" (JStr (binder.name))
                   (JObj "carrier" (JStr base) (JObj "predicate" (JStr condition) JObjEnd))) JObjEnd))))))
           (Err error, other, more, last) -> Err error
           (other, Err error, more, last) -> Err error
@@ -313,7 +313,7 @@ module Cinch.ExportNominal where
   type-family-parameters :: List TypeParam -> List (String, String, Bool)
   type-family-parameters params = case params of
     Nil -> Nil
-    Cons p rest -> Cons (param-name p, type-family-param-kind (param-kind p), param-implicit p) (type-family-parameters rest)
+    Cons p rest -> Cons (p.name, type-family-param-kind (p.kind), p.is-implicit) (type-family-parameters rest)
   type-family-nominal :: Decl -> Result String Json
   type-family-nominal declaration = case declaration of
     DTypeFamily sp name params rkind closed eqs -> case export-global name of
@@ -360,7 +360,7 @@ module Cinch.ExportNominal where
         None -> referenced-refinements declarations refinements rest (Cons name seen)
         Some declaration -> case declaration of
           DRefine sp actual params binder predicate -> let refs = (declaration-references [DData sp actual params Nil, DSig sp actual predicate] <>
-            (case param-kind binder of Some carrier -> declaration-references [DSig sp actual carrier]; None -> Nil)) in
+            (case binder.kind of Some carrier -> declaration-references [DSig sp actual carrier]; None -> Nil)) in
             case (refinement-nominal declarations declaration, referenced-refinements declarations refinements (refs <> rest) (Cons name seen)) of
               (Ok row, Ok more) -> insert-nominal row more
               (Err error, other) -> Err error
@@ -400,8 +400,10 @@ module Cinch.ExportNominal where
   -- The reference names of every binding, built once per export instead of
   -- walked once per exported row. A later entry for a name appends, so each
   -- name's list keeps declaration order exactly as the walk produced it.
-  data DeclarationReferences where
-    DeclarationReferences :: HashMap String (List String) -> HashMap String Decl -> HashMap String (Nat, TypeExpr) -> DeclarationReferences
+  record DeclarationReferences where
+    references :: HashMap String (List String)
+    refinements :: HashMap String Decl
+    signatures :: HashMap String (Nat, TypeExpr)
 
   declaration-reference-index :: List Decl -> DeclarationReferences
   declaration-reference-index declarations = reference-index-of declarations 0 (DeclarationReferences hash-map-empty hash-map-empty hash-map-empty)

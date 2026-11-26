@@ -15,7 +15,7 @@ module Main where
   import Algebra.Semigroup
 
   definition :: UType -> List CorePattern -> CoreTerm -> CoreDefinition
-  definition ty patterns body = MkCoreDefinition (Span 0 0 1 1) "certificate-scope" (mono ty) Nil Nil Nil [MkCoreClause (Span 0 0 1 1) patterns body]
+  definition ty patterns body = CoreDefinition (Span 0 0 1 1) "certificate-scope" (mono ty) Nil Nil Nil [CoreClause (Span 0 0 1 1) patterns body]
   invariants :: Nat -> Bool
   invariants nonce =
     let s = Span 0 0 1 1 in
@@ -74,16 +74,16 @@ module Main where
     CGuard s ty condition body -> certificates condition + certificates body
     other -> 0
   clause-certificates :: List CoreClause -> Nat
-  clause-certificates clauses = case clauses of Nil -> 0; Cons (MkCoreClause s ps body) rest -> certificates body + clause-certificates rest
+  clause-certificates clauses = case clauses of Nil -> 0; Cons (CoreClause s ps body) rest -> certificates body + clause-certificates rest
   retained :: List CoreDefinition -> Nat
-  retained definitions = case definitions of Nil -> 0; Cons d rest -> clause-certificates (core-clauses d) + retained rest
+  retained definitions = case definitions of Nil -> 0; Cons d rest -> clause-certificates (d.clauses) + retained rest
   closed :: List CoreDefinition -> Bool
   closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
   run :: Bytes -> (Int, String)
   run source = if not (invariants (bytes-len source)) then (95, "operation certificate escaped its actual goal or scope") else case parse-program "guarded-source" source of
     Parsed program Nil -> let errors = check-program program in
       let result = elaborate-program "guarded-source" program in
-      let found = elaboration-errors result in
+      let found = result.errors in
       if list-length errors > 0 || list-length found > 0 then (4, render-diagnostics (errors <> found))
       else if closed (elaboration-core result) && retained (elaboration-core result) > 0 then (0, "")
       else (94, "guarded operation lost its checked certificate")

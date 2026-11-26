@@ -11,13 +11,17 @@ module Cinch.Guarded where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export GuardedBinding, check-guarded-binding, guarded-name, guarded-native, guarded-scheme
-  export guarded-arity, guarded-index, guarded-reading, guarded-binding, guarded-matches, guarded-equal, guarded-bindings-closed
+  export GuardedBinding, check-guarded-binding
+  export guarded-index, guarded-reading, guarded-binding, guarded-matches, guarded-equal, guarded-bindings-closed
   data GuardedExpr where
     GuardedArgument :: Nat -> GuardedExpr
     GuardedSubtract :: GuardedExpr -> GuardedExpr -> GuardedExpr
-  data GuardedBinding where
-    VerifiedGuarded :: String -> String -> Scheme -> Nat -> GuardedExpr -> GuardedBinding
+  record GuardedBinding where
+    name :: String
+    native :: String
+    scheme :: Scheme
+    arity :: Nat
+    body :: GuardedExpr
   same :: String -> String -> Bool
   same first second = string-compare first second == 0
   nat :: UType
@@ -90,30 +94,22 @@ module Cinch.Guarded where
     case (scheme-params sc, scheme-requirements sc, field "schema" doc, field "parameters" doc) of
       (Nil, Nil, JNum 1, JNum arity) -> if arity < 0 then None else (case shape (scheme-body sc) 0 Nil of
         Some (count, facts) -> if count /= nat-from-int arity then None else (case read-expression count 0 (field "root" doc) of
-          Some body -> if expression-total (natural-facts 0 count <> facts) body then Some (VerifiedGuarded name native sc count body) else None
+          Some body -> if expression-total (natural-facts 0 count <> facts) body then Some (GuardedBinding name native sc count body) else None
           None -> None)
         None -> None)
       other -> None
-  guarded-name :: GuardedBinding -> String
-  guarded-name binding = case binding of VerifiedGuarded name native sc count body -> name
-  guarded-native :: GuardedBinding -> String
-  guarded-native binding = case binding of VerifiedGuarded name native sc count body -> native
-  guarded-scheme :: GuardedBinding -> Scheme
-  guarded-scheme binding = case binding of VerifiedGuarded name native sc count body -> sc
-  guarded-arity :: GuardedBinding -> Nat
-  guarded-arity binding = case binding of VerifiedGuarded name native sc count body -> count
   guarded-matches :: String -> String -> Scheme -> GuardedBinding -> Bool
-  guarded-matches name role sc binding = same role "external" && same name (guarded-name binding)
-    && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (guarded-scheme binding)); other -> False)
+  guarded-matches name role sc binding = same role "external" && same name (binding.name)
+    && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (binding.scheme)); other -> False)
   expression-equal :: GuardedExpr -> GuardedExpr -> Bool
   expression-equal a b = case (a, b) of (GuardedArgument x, GuardedArgument y) -> x == y; (GuardedSubtract x y, GuardedSubtract p q) -> expression-equal x p && expression-equal y q; other -> False
   guarded-equal :: GuardedBinding -> GuardedBinding -> Bool
-  guarded-equal a b = guarded-matches (guarded-name a) "external" (guarded-scheme a) b && same (guarded-native a) (guarded-native b)
-    && (case (a, b) of (VerifiedGuarded n native sc count body, VerifiedGuarded m other ty size term) -> count == size && expression-equal body term)
+  guarded-equal a b = guarded-matches (a.name) "external" (a.scheme) b && same (a.native) (b.native)
+    && (case (a, b) of (GuardedBinding n native sc count body, GuardedBinding m other ty size term) -> count == size && expression-equal body term)
   guarded-binding :: String -> List GuardedBinding -> Option GuardedBinding
-  guarded-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (guarded-name first) then Some first else guarded-binding name rest
+  guarded-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (first.name) then Some first else guarded-binding name rest
   distinct :: GuardedBinding -> List GuardedBinding -> Bool
-  distinct binding rest = case rest of Nil -> True; Cons first more -> not (same (guarded-name binding) (guarded-name first)) && not (same (guarded-native binding) (guarded-native first)) && distinct binding more
+  distinct binding rest = case rest of Nil -> True; Cons first more -> not (same (binding.name) (first.name)) && not (same (binding.native) (first.native)) && distinct binding more
   guarded-bindings-closed :: List GuardedBinding -> Bool
   guarded-bindings-closed bindings = case bindings of Nil -> True; Cons first rest -> distinct first rest && guarded-bindings-closed rest
   argument :: Nat -> List UType -> Option UType
@@ -127,7 +123,7 @@ module Cinch.Guarded where
   arguments-valid :: List UType -> Bool
   arguments-valid values = case values of Nil -> True; Cons first rest -> typed-index-admissible first && (case value-carrier (type-kind first) of Some carrier -> nat-type carrier; None -> False) && arguments-valid rest
   guarded-index :: GuardedBinding -> List UType -> Option UType
-  guarded-index binding values = if list-length values /= guarded-arity binding || not (arguments-valid values) then None else case binding of VerifiedGuarded name native sc count body -> expression-index body values
+  guarded-index binding values = if list-length values /= binding.arity || not (arguments-valid values) then None else case binding of GuardedBinding name native sc count body -> expression-index body values
 
   -- Mathematical readings are proof data, not Nat type-level expressions.
   -- Core supplies only checked Nat arguments after validating the call.
@@ -140,4 +136,4 @@ module Cinch.Guarded where
       (Some a, Some b) -> Some (AMinus a b)
       other -> None)
   guarded-reading :: GuardedBinding -> List Arithmetic -> Option Arithmetic
-  guarded-reading binding values = if list-length values /= guarded-arity binding then None else case binding of VerifiedGuarded name native sc count body -> expression-reading body values
+  guarded-reading binding values = if list-length values /= binding.arity then None else case binding of GuardedBinding name native sc count body -> expression-reading body values

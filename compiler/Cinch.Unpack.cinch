@@ -79,8 +79,8 @@ module Cinch.Unpack where
   parameters :: List Quant -> List UType -> Option (List (Nat, UType))
   parameters qs args = case (qs, args) of
     (Nil, Nil) -> Some Nil
-    (Cons q more, Cons arg rest) | kind-equal (quant-kind q) KType -> (case parameters more rest of
-      Some pairs -> Some (Cons (quant-id q, arg) pairs)
+    (Cons q more, Cons arg rest) | kind-equal (q.kind) KType -> (case parameters more rest of
+      Some pairs -> Some (Cons (q.id, arg) pairs)
       None -> None)
     other -> None
   storage-requested :: String -> List RecordRequest -> Bool
@@ -89,7 +89,7 @@ module Cinch.Unpack where
   product-slot label ty ds rs = case product-type ty Nil of
     Some (name, args) -> (case find-data name ds of
       Some d -> (case (core-data-layout d, core-data-constructors d) of
-        (UniformData, [c]) | not (storage-requested name rs) -> (case (parameters (scheme-params (core-constructor-scheme c)) args, core-constructor-fields c) of
+        (UniformData, [c]) | not (storage-requested name rs) -> (case (parameters (scheme-params (c.constructor-scheme)) args, core-constructor-fields c) of
           (Some pairs, Cons first more) -> Some (ProductSlot label ty c args (map (substitute-bound pairs) (Cons first more)))
           other -> None)
         other -> None)
@@ -140,7 +140,7 @@ module Cinch.Unpack where
     Fields sp owner names wanted abi -> (case core-data-layout d of
       UniformData -> if not (needs-storage wanted) then Ok d else
         (case (core-data-params d, core-data-constructors d) of
-          (Nil, [ctor]) -> (case record-slots names wanted (scheme-body (core-constructor-scheme ctor)) ds rs of
+          (Nil, [ctor]) -> (case record-slots names wanted (scheme-body (ctor.constructor-scheme)) ds rs of
             Err msg -> Err msg
             Ok slots -> (case abi of Some row | not (abi-agrees row (unpacked-abi slots)) -> Err "unpack ABI layout disagrees with its represented fields"; other -> Ok (with-data-layout (UnpackedRecord slots) d)))
           other -> Err "unpack requires a monomorphic record with native layout")

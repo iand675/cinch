@@ -3,7 +3,7 @@
 module Cinch.Foreign where
   import Cinch.Type
   import Cinch.Target (condition-render, primitive-target, when-vocabulary, host-profile)
-  import Cinch.Ast (PrimBody, MkPrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, Expr)
+  import Cinch.Ast (PrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, Expr)
   import Cinch.Core (contract-scheme-closed)
   import Cinch.ExportType (export-type, export-global, export-display-scheme)
   import Cinch.Interface (fnv-source-hash)
@@ -15,49 +15,54 @@ module Cinch.Foreign where
   import Text.Scan (string-contains, string-split-on, string-starts-with, string-ends-with, string-strip, string-words, string-unwords)
   import Algebra.Semigroup
 
-  export ForeignPlan, ForeignParameter, foreign-plan, foreign-export-plan, foreign-parameters, foreign-result
-  export foreign-symbol, foreign-scheme, foreign-parameter-type, foreign-class
-  export foreign-blocking, foreign-width, foreign-signed, foreign-nullable, foreign-role
+  export ForeignPlan, ForeignParameter, foreign-plan, foreign-export-plan
+  export foreign-blocking
   export foreign-pointer, foreign-document, foreign-display-scheme
-  export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
+  export InlinePrimitive, primitive-plan, foreign-inline, foreign-primitive-assumptions
   export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op
-  export PrimitiveFragment, CheckedFragment
-  export PrimUseContract, MkPrimUseContract, prim-use-symbol, prim-use-params, prim-use-result
+  export PrimitiveFragment
+  export PrimUseContract
   export foreign-llvm-type, primitive-layout
 
-  data ForeignParameter where
-    Parameter :: UType -> String -> String -> Nat -> Nat -> Bool -> Bool -> ForeignParameter
-  data PrimUseContract where
-    MkPrimUseContract :: String -> List ForeignParameter -> ForeignParameter -> PrimUseContract
-  prim-use-symbol :: PrimUseContract -> String
-  prim-use-symbol c = case c of MkPrimUseContract symbol params result -> symbol
-  prim-use-params :: PrimUseContract -> List ForeignParameter
-  prim-use-params c = case c of MkPrimUseContract symbol params result -> params
-  prim-use-result :: PrimUseContract -> ForeignParameter
-  prim-use-result c = case c of MkPrimUseContract symbol params result -> result
-  data PrimitiveFragment where
-    CheckedFragment :: String -> List String -> List Nat -> List PrimUseContract -> PrimitiveFragment
-  data FamilyCandidates where
-    Candidates :: Option PrimitiveFragment -> Option (String, PrimitiveFragment) -> FamilyCandidates
-  data InlinePrimitive where
-    InlinePrimitiveBody :: String -> String -> List Nat -> Option PrimitiveFragment -> Option PrimitiveFragment -> InlinePrimitive
-  data ForeignPlan where
-    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, Option String, List String, Json) -> ForeignPlan
-  foreign-symbol :: ForeignPlan -> String
-  foreign-symbol plan = case plan of Plan symbol scheme params result inline -> symbol
-  foreign-scheme :: ForeignPlan -> Scheme
-  foreign-scheme plan = case plan of Plan symbol scheme params result inline -> scheme
-  foreign-parameters :: ForeignPlan -> List ForeignParameter
-  foreign-parameters plan = case plan of Plan symbol scheme params result inline -> params
-  foreign-result :: ForeignPlan -> ForeignParameter
-  foreign-result plan = case plan of Plan symbol scheme params result inline -> result
+  record ForeignParameter where
+    parameter-type :: UType
+    class :: String
+    role :: String
+    width :: Nat
+    align :: Nat
+    signed :: Bool
+    nullable :: Bool
+  record PrimUseContract where
+    use-symbol :: String
+    use-params :: List ForeignParameter
+    use-result :: ForeignParameter
+  record PrimitiveFragment where
+    text :: String
+    symbols :: List String
+    immediates :: List Nat
+    contracts :: List PrimUseContract
+  record FamilyCandidates where
+    fallback :: Option PrimitiveFragment
+    matched :: Option (String, PrimitiveFragment)
+  record InlinePrimitive where
+    owner :: String
+    chosen :: String
+    immediates :: List Nat
+    llvm :: Option PrimitiveFragment
+    assembly :: Option PrimitiveFragment
+  record ForeignPlan where
+    symbol :: String
+    scheme :: Scheme
+    parameters :: List ForeignParameter
+    result :: ForeignParameter
+    inline :: Option (InlinePrimitive, Option String, List String, Json)
   foreign-inline :: ForeignPlan -> Option InlinePrimitive
-  foreign-inline plan = case plan of Plan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection) -> Some body; None -> None)
+  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection) -> Some body; None -> None)
   -- A public worker receives ordinary arguments. Immediate-only operands
   -- must still be checked at a direct call with their actual literal values.
   primitive-object-callable :: ForeignPlan -> Bool
   primitive-object-callable plan = case foreign-inline plan of
-    Some (InlinePrimitiveBody owner family Nil llvm assembly) -> pure-primitive-arrows (scheme-body (foreign-scheme plan))
+    Some (InlinePrimitive owner family Nil llvm assembly) -> pure-primitive-arrows (scheme-body (plan.scheme))
     other -> False
   pure-primitive-arrows :: UType -> Bool
   pure-primitive-arrows ty = case refinement-view ty of
@@ -68,11 +73,11 @@ module Cinch.Foreign where
     other -> False
   foreign-primitive-assumptions :: ForeignPlan -> Option (Option String, List String)
   foreign-primitive-assumptions plan = case plan of
-    Plan symbol scheme params result inline ->
+    ForeignPlan symbol scheme params result inline ->
       (case inline of Some (body, identity, trust, selection) -> Some (identity, trust); None -> None)
   foreign-primitive-selection :: ForeignPlan -> Option Json
   foreign-primitive-selection plan = case plan of
-    Plan symbol scheme params result (Some (body, identity, trust, selection)) -> Some selection
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection)) -> Some selection
     other -> None
   nonempty-ir-lines :: List String -> List (List String)
   nonempty-ir-lines lines = case lines of
@@ -92,7 +97,7 @@ module Cinch.Foreign where
     else None
   foreign-primitive-total-op :: ForeignPlan -> Option (String, List String, String)
   foreign-primitive-total-op plan = case foreign-inline plan of
-    Some (InlinePrimitiveBody owner family Nil (Some (CheckedFragment fragment symbols immarg uses)) assembly) ->
+    Some (InlinePrimitive owner family Nil (Some (PrimitiveFragment fragment symbols immarg uses)) assembly) ->
       (case nonempty-ir-lines (string-split-on "\n" fragment) of
         [[c, op1, pred, ty1, a0, a1], [r, op2, ty2, c2, kw, ty3], [op3, ty4, r2]] ->
           if same op1 "icmp" && same ty1 "i64" && same a0 "%0" && same a1 "%1"
@@ -104,26 +109,14 @@ module Cinch.Foreign where
           else None
         other -> None)
     other -> None
-  foreign-parameter-type :: ForeignParameter -> UType
-  foreign-parameter-type parameter = case parameter of Parameter ty category role width align signed nullable -> ty
-  foreign-class :: ForeignParameter -> String
-  foreign-class parameter = case parameter of Parameter ty category role width align signed nullable -> category
-  foreign-width :: ForeignParameter -> Nat
-  foreign-width parameter = case parameter of Parameter ty category role width align signed nullable -> width
-  foreign-signed :: ForeignParameter -> Bool
-  foreign-signed parameter = case parameter of Parameter ty category role width align signed nullable -> signed
-  foreign-nullable :: ForeignParameter -> Bool
-  foreign-nullable parameter = case parameter of Parameter ty category role width align signed nullable -> nullable
-  foreign-role :: ForeignParameter -> String
-  foreign-role parameter = case parameter of Parameter ty category role width align signed nullable -> role
   foreign-llvm-type :: ForeignParameter -> String
   foreign-llvm-type parameter =
-    if same (foreign-class parameter) "unit" then "void"
-    else if same (foreign-class parameter) "ptr" then "ptr"
-    else case foreign-parameter-type parameter of
+    if same (parameter.class) "unit" then "void"
+    else if same (parameter.class) "ptr" then "ptr"
+    else case parameter.parameter-type of
       UCon name KType -> if same name "F32" then "float" else if same name "F64" then "double"
-        else string-concat "i" (nat-to-string (foreign-width parameter * 8))
-      other -> string-concat "i" (nat-to-string (foreign-width parameter * 8))
+        else string-concat "i" (nat-to-string (parameter.width * 8))
+      other -> string-concat "i" (nat-to-string (parameter.width * 8))
   same :: String -> String -> Bool
   same first second = string-compare first second == 0
   has :: String -> List String -> Bool
@@ -142,17 +135,17 @@ module Cinch.Foreign where
   head-name ty = case ty of UCon name kind -> Some name; UApp head argument -> head-name head; other -> None
   parameter :: List String -> UType -> Result String ForeignParameter
   parameter abstracts ty = if not (valid-type ty && kind-equal (type-kind ty) KType) then Err "foreign boundary needs a closed proper carrier" else case ty of
-    UCon name KType -> if same name "Unit" then Ok (Parameter ty "unit" "value" 0 1 False False)
+    UCon name KType -> if same name "Unit" then Ok (ForeignParameter ty "unit" "value" 0 1 False False)
       else (case scalar name of
-        Some (width, signed) -> Ok (Parameter ty "scalar" "value" width width signed False)
-        None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (Parameter ty "ptr" "opaque-handle" 8 8 False False) else Err (string-concat name " has no C representation at the foreign boundary"))
+        Some (width, signed) -> Ok (ForeignParameter ty "scalar" "value" width width signed False)
+        None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (ForeignParameter ty "ptr" "opaque-handle" 8 8 False False) else Err (string-concat name " has no C representation at the foreign boundary"))
     UApp (UCon name kind) pointee -> if foreign-pointer ty then
-        Ok (Parameter ty "ptr" (if same name "RawPtr" then "raw" else if same name "Borrowed" then "borrowed" else "maybe-null") 8 8 False (same name "MaybeNull"))
+        Ok (ForeignParameter ty "ptr" (if same name "RawPtr" then "raw" else if same name "Borrowed" then "borrowed" else "maybe-null") 8 8 False (same name "MaybeNull"))
       else if has name ["Owned", "Retained", "Out"] then Err "foreign ownership, retention and out-cell protocols require their checked resource plans"
-      else (case head-name ty of Some owner -> if has owner abstracts then Ok (Parameter ty "ptr" "opaque-handle" 8 8 False False) else Err "aggregate or higher-order type has no supported C representation"; None -> Err "foreign carrier is not a recorded C representation")
+      else (case head-name ty of Some owner -> if has owner abstracts then Ok (ForeignParameter ty "ptr" "opaque-handle" 8 8 False False) else Err "aggregate or higher-order type has no supported C representation"; None -> Err "foreign carrier is not a recorded C representation")
     other -> Err "refined, polymorphic, proof and function values cannot be assumed to have a C representation"
   region-quantifiers :: List Quant -> Bool
-  region-quantifiers qs = case qs of Nil -> True; Cons q rest -> kind-equal (quant-kind q) KRegion && region-quantifiers rest
+  region-quantifiers qs = case qs of Nil -> True; Cons q rest -> kind-equal (q.kind) KRegion && region-quantifiers rest
   closed-labels :: UType -> Bool
   closed-labels labels = case labels of UEnd -> True; UArg label rest -> kind-equal (type-kind label) KEffect && valid-type label && closed-labels rest; other -> False
   closed-row :: UType -> Bool
@@ -174,7 +167,7 @@ module Cinch.Foreign where
     UPi id name domain (URow labels) result -> blocking-labels labels || blocking-arrow result
     other -> False
   foreign-blocking :: ForeignPlan -> Bool
-  foreign-blocking plan = blocking-arrow (scheme-body (foreign-scheme plan))
+  foreign-blocking plan = blocking-arrow (scheme-body (plan.scheme))
   envelope-error :: Bool -> UType -> Option String
   envelope-error importing ty = case ty of
     UFun domain result -> arrow-envelope-error importing (URow UEnd) result
@@ -221,19 +214,19 @@ module Cinch.Foreign where
         else if not (region-quantifiers (scheme-params scheme)) || list-length (scheme-requirements scheme) /= 0 then Err "foreign binding cannot be polymorphic or constrained"
         else case parameters abstracts (scheme-body scheme) Nil of
           Err error -> Err error
-          Ok (arguments, result) -> Ok (Plan symbol scheme arguments result None)
+          Ok (arguments, result) -> Ok (ForeignPlan symbol scheme arguments result None)
   primitive-carrier :: UType -> Result String ForeignParameter
   primitive-carrier ty = case refinement-view ty of
     URefine id name base pred -> primitive-carrier base
-    UCon name KType -> if same name "Bool" then Ok (Parameter ty "scalar" "value" 1 1 False False)
-      else if same name "Char" then Ok (Parameter ty "scalar" "value" 4 4 False False)
+    UCon name KType -> if same name "Bool" then Ok (ForeignParameter ty "scalar" "value" 1 1 False False)
+      else if same name "Char" then Ok (ForeignParameter ty "scalar" "value" 4 4 False False)
       else (case scalar name of
-        Some (width, signed) -> Ok (Parameter ty "scalar" "value" width width signed False)
+        Some (width, signed) -> Ok (ForeignParameter ty "scalar" "value" width width signed False)
         None -> Err "a prim needs a first-order machine scalar carrier")
     other -> Err "a prim needs a first-order machine scalar carrier"
   primitive-use-result :: UType -> Result String ForeignParameter
   primitive-use-result ty = case ty of
-    UCon name KType | same name "Unit" -> Ok (Parameter ty "unit" "value" 0 1 False False)
+    UCon name KType | same name "Unit" -> Ok (ForeignParameter ty "unit" "value" 0 1 False False)
     other -> primitive-carrier ty
   primitive-use-parameters :: UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
   primitive-use-parameters ty backwards = case ty of
@@ -260,7 +253,7 @@ module Cinch.Foreign where
         Err "a uses entry needs a monomorphic unconstrained machine ABI"
       else case primitive-use-parameters (scheme-body scheme) Nil of
         Err error -> Err error
-        Ok (params, result) -> Ok (MkPrimUseContract sym params result)
+        Ok (params, result) -> Ok (PrimUseContract sym params result)
   check-prim-uses :: List (String, Scheme) -> Result String (List PrimUseContract)
   check-prim-uses entries = case entries of
     Nil -> Ok Nil
@@ -272,7 +265,7 @@ module Cinch.Foreign where
   prim-use-symbols :: List PrimUseContract -> List String
   prim-use-symbols contracts = case contracts of
     Nil -> Nil
-    Cons c rest -> Cons (string-concat "@" (prim-use-symbol c)) (prim-use-symbols rest)
+    Cons c rest -> Cons (string-concat "@" (c.use-symbol)) (prim-use-symbols rest)
   primitive-parameters :: UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
   primitive-parameters ty backwards = case ty of
     UFun domain rest -> primitive-domain domain rest backwards
@@ -493,12 +486,12 @@ module Cinch.Foreign where
   primitive-body-text :: List PrimBody -> String
   primitive-body-text bodies = case bodies of
     Nil -> ""
-    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       string-concat-all [family, "\n", condition-text when, "\n", fragment, "[]", immediate-list immediates, primitive-body-text rest]
   primitive-trust :: String -> List PrimBody -> List String
   primitive-trust symbol bodies = case bodies of
     Nil -> Nil
-    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       let more = primitive-trust symbol rest in
       if unverified then Cons (primitive-identity symbol (string-concat-all
         [family, "\n", condition-text when, "\n", fragment, "\n[]\n", immediate-list immediates])) more else more
@@ -508,36 +501,36 @@ module Cinch.Foreign where
       "call", "callq", "bl", "blr", "ret", "jmp", "br"] words)
   record-candidate :: String -> List Expr -> Bool -> PrimitiveFragment -> FamilyCandidates -> Result String FamilyCandidates
   record-candidate family clauses holds fragment candidates = case candidates of
-    Candidates fallback matched -> case clauses of
+    FamilyCandidates fallback matched -> case clauses of
       Nil -> (case fallback of
         Some prior -> Err (string-concat-all ["two baseline `", family, "` bodies overlap"])
-        None -> Ok (Candidates (Some fragment) matched))
+        None -> Ok (FamilyCandidates (Some fragment) matched))
       other -> if not holds then Ok candidates else (case matched of
         Some prior -> Err (string-concat-all ["overlapping `when` conditions in family `", family, "`"])
-        None -> Ok (Candidates fallback (Some (condition-text clauses, fragment))))
+        None -> Ok (FamilyCandidates fallback (Some (condition-text clauses, fragment))))
 
   family-body :: FamilyCandidates -> Option PrimitiveFragment
   family-body candidates = case candidates of
-    Candidates fallback (Some (condition, fragment)) -> Some fragment
-    Candidates fallback None -> fallback
+    FamilyCandidates fallback (Some (condition, fragment)) -> Some fragment
+    FamilyCandidates fallback None -> fallback
 
   -- Keep a worker for each applicable family. Calls prefer a guarded body
   -- from either family before falling back to an unconditional body.
   choose-primitive :: String -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
   choose-primitive owner llvm assembly missing =
     let finish = \family condition fragment -> case fragment of
-          CheckedFragment text symbols immediates contracts -> Ok (InlinePrimitiveBody owner family immediates (family-body llvm) (family-body assembly), condition) in
+          PrimitiveFragment text symbols immediates contracts -> Ok (InlinePrimitive owner family immediates (family-body llvm) (family-body assembly), condition) in
     case (llvm, assembly) of
-      (Candidates base (Some (clause, fragment)), other) -> finish "llvm" (Some clause) fragment
-      (other, Candidates base (Some (clause, fragment))) -> finish "asm" (Some clause) fragment
-      (Candidates (Some fragment) None, other) -> finish "llvm" None fragment
-      (other, Candidates (Some fragment) None) -> finish "asm" None fragment
+      (FamilyCandidates base (Some (clause, fragment)), other) -> finish "llvm" (Some clause) fragment
+      (other, FamilyCandidates base (Some (clause, fragment))) -> finish "asm" (Some clause) fragment
+      (FamilyCandidates (Some fragment) None, other) -> finish "llvm" None fragment
+      (other, FamilyCandidates (Some fragment) None) -> finish "asm" None fragment
       other -> Err (string-concat-all ["no body applies to the current target profile: ", strings "; " (reverse missing), ". ", when-vocabulary])
 
   checked-prim-bodies :: String -> Bool -> List PrimBody -> List (List (String, Scheme)) -> Nat -> String -> Bool -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
   checked-prim-bodies owner pure bodies body-uses arity result ptr-sized llvm assembly missing = case bodies of
     Nil -> choose-primitive owner llvm assembly missing
-    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       let (this-uses, rest-uses) = case body-uses of Nil -> (Nil, Nil); Cons u us -> (u, us) in
       if not (immediate-indices-valid arity immediates Nil) then Err "duplicate or out-of-range immarg parameter"
       else if has family ["clr", "jvm"] then Err (string-concat family " target-IR family is reserved")
@@ -553,10 +546,10 @@ module Cinch.Foreign where
             let body-result = if ptr-sized && string-contains "word-size 32" (condition-text when) then "i32" else result in
             if same family "llvm" then (case contained-ir body-result pure unverified (prim-use-symbols contracts) (string-split-on "\n" fragment) False Nil of
               Err message -> Err message
-              Ok symbols -> (case record-candidate family when holds (CheckedFragment fragment symbols immediates contracts) llvm of
+              Ok symbols -> (case record-candidate family when holds (PrimitiveFragment fragment symbols immediates contracts) llvm of
                 Err message -> Err message
                 Ok next -> checked-prim-bodies owner pure rest rest-uses arity result ptr-sized next assembly reason))
-            else if same family "asm" then (case record-candidate family when holds (CheckedFragment fragment Nil immediates contracts) assembly of
+            else if same family "asm" then (case record-candidate family when holds (PrimitiveFragment fragment Nil immediates contracts) assembly of
               Err message -> Err message
               Ok next -> checked-prim-bodies owner pure rest rest-uses arity result ptr-sized llvm next reason)
             else Err (string-concat "unsupported inline primitive family " family)))
@@ -571,17 +564,17 @@ module Cinch.Foreign where
     case (export-global name, primitive-layout scheme) of
       (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
         let pure = pure-primitive-arrows (scheme-body scheme) in
-        let ptr-sized = case foreign-parameter-type result of UCon rname KType -> has rname ["Usize", "Isize"]; other -> False in
-        (case (checked-prim-bodies symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (Candidates None None) (Candidates None None) Nil,
+        let ptr-sized = case result.parameter-type of UCon rname KType -> has rname ["Usize", "Isize"]; other -> False in
+        (case (checked-prim-bodies symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) Nil,
                primitive-laws (check-law arity) bodies True Nil) of
           (Ok (body, condition), Ok (justified, laws)) ->
             let trust = primitive-trust symbol bodies in
-            let family = case body of InlinePrimitiveBody owner chosen immediates llvm assembly -> chosen in
+            let family = case body of InlinePrimitive owner chosen immediates llvm assembly -> chosen in
             (case primitive-contract symbol scheme bodies justified laws of
               Err message -> Err message
               Ok identity -> let assumed = if justified then None else Some identity in
                 let declared = if justified then laws <> trust else trust in
-                Ok (Plan (string-concat-all [symbol, ".", family]) scheme arguments result
+                Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
                   (Some (body, assumed, declared, selection-document body condition identity justified trust bodies))))
           (Err message, other) -> Err message
           (other, Err message) -> Err message)
@@ -591,7 +584,7 @@ module Cinch.Foreign where
   primitive-laws :: (RewriteJustification -> Result String String) -> List PrimBody -> Bool -> List String -> Result String (Bool, List String)
   primitive-laws check-law bodies justified laws = case bodies of
     Nil -> Ok (justified, reverse laws)
-    Cons (MkPrimBody sp family fragment unverified clauses projected evidence uses immediates) rest -> case evidence of
+    Cons (PrimBody sp family fragment unverified clauses projected evidence uses immediates) rest -> case evidence of
       None -> primitive-laws check-law rest False laws
       Some citation -> (case check-law citation of
         Err message -> Err message
@@ -606,7 +599,7 @@ module Cinch.Foreign where
   -- continue to use the target-independent identities of all checked bodies.
   selection-document :: InlinePrimitive -> Option String -> String -> Bool -> List String -> List PrimBody -> Json
   selection-document body condition identity justified trust bodies = case body of
-    InlinePrimitiveBody owner family immediates llvm assembly ->
+    InlinePrimitive owner family immediates llvm assembly ->
       let why = case condition of
             None -> string-concat-all ["the baseline `", family, "` body (the fallback when no `when` condition matches)"]
             Some clause -> string-concat-all ["the `", family, "` body's `when ", clause, "` condition holds in the target profile"] in
@@ -617,7 +610,7 @@ module Cinch.Foreign where
   trust-document :: List PrimBody -> List String -> Json
   trust-document bodies identities = case bodies of
     Nil -> JArrEnd
-    Cons (MkPrimBody site family fragment unverified clauses projected justification uses immediates) rest ->
+    Cons (PrimBody site family fragment unverified clauses projected justification uses immediates) rest ->
       if unverified then (case identities of
         Cons identity more -> JArr (JStr (string-concat-all [family, ": declared under `unsafe`, trusted not verified (", identity, ")"])) (trust-document rest more)
         Nil -> JArrEnd)
@@ -627,14 +620,14 @@ module Cinch.Foreign where
   validation-document :: List PrimBody -> Json
   validation-document bodies = case bodies of
     Nil -> JArrEnd
-    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       let detail = if same family "llvm" then "llvm: containment validated: checked return, permitted instructions and calls"
             else "asm: containment validated structurally for escaping instructions" in
       JArr (JStr detail) (validation-document rest)
   strings :: String -> List String -> String
   strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
   visible-regions :: List Quant -> List (Nat, UType)
-  visible-regions qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-id q, UCon (quant-name q) KRegion) (visible-regions rest)
+  visible-regions qs = case qs of Nil -> Nil; Cons q rest -> Cons (q.id, UCon (q.name) KRegion) (visible-regions rest)
   append :: Result String String -> String -> Result String String -> Result String String
   append first delimiter second = case (first, second) of
     (Ok a, Ok b) -> Ok (string-concat-all [a, delimiter, b])
@@ -653,16 +646,16 @@ module Cinch.Foreign where
         surround (append (boundary-type-text domain) (string-concat-all [" ->", effects, " "]) (boundary-type-text result))
     other -> export-type ty
   display-body :: ForeignPlan -> Result String String
-  display-body plan = let scheme = foreign-scheme plan in boundary-type-text (substitute-bound (visible-regions (scheme-params scheme)) (scheme-body scheme))
+  display-body plan = let scheme = plan.scheme in boundary-type-text (substitute-bound (visible-regions (scheme-params scheme)) (scheme-body scheme))
   region-names :: List Quant -> List String
-  region-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q) (region-names rest)
+  region-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (q.name) (region-names rest)
   foreign-display-scheme :: ForeignPlan -> Result String String
   foreign-display-scheme plan = case display-body plan of
     Err error -> Err error
-    Ok body -> let qs = scheme-params (foreign-scheme plan) in Ok (string-concat (case qs of Nil -> ""; other -> string-concat-all ["forall ", strings " " (region-names qs), " . "]) body)
+    Ok body -> let qs = scheme-params (plan.scheme) in Ok (string-concat (case qs of Nil -> ""; other -> string-concat-all ["forall ", strings " " (region-names qs), " . "]) body)
   parameter-document :: ForeignParameter -> Result String Json
   parameter-document item = case item of
-    Parameter ty category role width align signed nullable -> case boundary-type-text ty of
+    ForeignParameter ty category role width align signed nullable -> case boundary-type-text ty of
       Err error -> Err error
       Ok spelling -> Ok (JObj "type" (JStr spelling) (JObj "class" (JStr category) (JObj "role" (JStr role)
         (JObj "allocator" (JStr "") (JObj "nullable" (JBool nullable) (JObj "width" (JNum (nat-to-int width))
@@ -701,10 +694,10 @@ module Cinch.Foreign where
       (other, Err error) -> Err error
     other -> Err "foreign effect row must be closed"
   foreign-document :: String -> ForeignPlan -> Result String Json
-  foreign-document local plan = let scheme = foreign-scheme plan in
-    case (display-body plan, parameter-documents (foreign-parameters plan), parameter-document (foreign-result plan), effect-text (substitute-bound (visible-regions (scheme-params scheme)) (scheme-body scheme))) of
+  foreign-document local plan = let scheme = plan.scheme in
+    case (display-body plan, parameter-documents (plan.parameters), parameter-document (plan.result), effect-text (substitute-bound (visible-regions (scheme-params scheme)) (scheme-body scheme))) of
       (Ok spelling, Ok params, Ok result, Ok effects) -> Ok (JObj "symbol" (JStr local) (JObj "abi" (JStr "ccall")
-        (JObj "external" (JStr (foreign-symbol plan)) (JObj "type" (JStr spelling) (JObj "effects" (JStr (strings ", " effects))
+        (JObj "external" (JStr (plan.symbol)) (JObj "type" (JStr spelling) (JObj "effects" (JStr (strings ", " effects))
           (JObj "notes" (JStr "foreign import") (JObj "kind" (JStr "import") (JObj "params" params (JObj "result" result (JObj "deallocator" (JStr "") JObjEnd))))))))))
       (Err error, other, more, end) -> Err error
       (other, Err error, more, end) -> Err error

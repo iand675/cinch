@@ -8,7 +8,7 @@ module Cinch.Instance where
   import Data.Bytes (bytes-compare)
   import Cinch.Core
   import Cinch.Guarded (GuardedBinding)
-  import Cinch.BodyContract (BodyBindings, empty-body-bindings, body-binding, body-bindings-members, binding-function, binding-matches, binding-name, selected-method-body, method-selection-matches)
+  import Cinch.BodyContract (BodyBindings, empty-body-bindings, body-binding, binding-function, binding-matches, binding-name, selected-method-body, method-selection-matches)
   import Cinch.Builtin (u32-wrapping-operation)
   import Cinch.Total (TotalFunction, total-decimal-value, total-result)
   import Cinch.TotalSemantics (total-boolean-reading, total-numeric-reading, arithmetic-constant)
@@ -20,17 +20,15 @@ module Cinch.Instance where
   import Data.Nat (nat-to-int)
   import Algebra.Semigroup
 
-  export CoreClass, MkCoreClass, CoreClassMethod, MkCoreClassMethod, MkCoreEquationMethod
-  export CoreClassContext, MkCoreClassContext, context-class-kinds, context-classes, class-context-closed, merge-class-contexts
-  export class-name, class-kind, class-params, class-methods
+  export CoreClass, CoreClassMethod, MkCoreClassMethod, MkCoreEquationMethod
+  export CoreClassContext, class-context-closed, merge-class-contexts
   export class-method-name, class-method-slot, class-method-scheme, class-method-equation, class-closed
-  export CoreInstance, MkCoreInstance, CoreDictionaryField, MkCoreDictionaryField
-  export instance-name, instance-implicit, instance-scheme, instance-fields
-  export dictionary-field-slot, dictionary-field-definition, field-at, find-instance, instance-closed, instance-contracts-closed
+  export CoreInstance, CoreDictionaryField
+  export field-at, find-instance, instance-closed, instance-contracts-closed
   export find-class, class-target, specialize-method, implementation-scheme, default-annotation-bindings
   export dictionary-method-symbol, scheme-equivalent
   export FiniteLawResult, FiniteLawSamples, FiniteLawCounterexample, FiniteLawUnavailable, sample-finite-law
-  export LawEnvironment, MkLawEnvironment
+  export LawEnvironment
   export LawValue, LawNumber, LawOpaque, LawFunction, LawConstructor, LawField, LawFieldsEnd
 
   data CoreClassMethod where
@@ -38,18 +36,25 @@ module Cinch.Instance where
     -- This scheme is the checked input telescope. The static conclusion
     -- is a separately checked equation and has no runtime value ABI.
     MkCoreEquationMethod :: Span -> String -> Nat -> Scheme -> String -> LawSyntax -> CoreClassMethod
-  data CoreClass where
-    MkCoreClass :: Span -> String -> Kind -> List Quant -> List CoreClassMethod -> CoreClass
-  data CoreClassContext where
-    MkCoreClassContext :: List (String, Kind) -> List CoreClass -> CoreClassContext
-  data CoreDictionaryField where
-    MkCoreDictionaryField :: Span -> Nat -> CoreDefinition -> CoreDictionaryField
-  data CoreInstance where
-    MkCoreInstance :: Span -> String -> Bool -> Scheme -> List CoreDictionaryField -> CoreInstance
-  context-class-kinds :: CoreClassContext -> List (String, Kind)
-  context-class-kinds context = case context of MkCoreClassContext kinds descriptions -> kinds
-  context-classes :: CoreClassContext -> List CoreClass
-  context-classes context = case context of MkCoreClassContext kinds descriptions -> descriptions
+  record CoreClass where
+    s :: Span
+    name :: String
+    kind :: Kind
+    params :: List Quant
+    methods :: List CoreClassMethod
+  record CoreClassContext where
+    class-kinds :: List (String, Kind)
+    classes :: List CoreClass
+  record CoreDictionaryField where
+    s :: Span
+    field-slot :: Nat
+    field-definition :: CoreDefinition
+  record CoreInstance where
+    s :: Span
+    name :: String
+    flag :: Bool
+    scheme :: Scheme
+    fields :: List CoreDictionaryField
   signature-kind :: String -> List (String, Kind) -> Option Kind
   signature-kind name kinds = case kinds of Nil -> None; Cons (key, kind) rest -> if same key name then Some kind else signature-kind name rest
   kind-result-type :: Kind -> Bool
@@ -65,17 +70,17 @@ module Cinch.Instance where
     Some (name, actual) -> (case signature-kind name kinds of Some expected -> kind-equal actual expected; None -> False)
     None -> False)
   signature-requirements :: List (String, Kind) -> List Requirement -> Bool
-  signature-requirements kinds requirements = case requirements of Nil -> True; Cons r rest -> signature-goal kinds (requirement-type r) && signature-requirements kinds rest
+  signature-requirements kinds requirements = case requirements of Nil -> True; Cons r rest -> signature-goal kinds (r.ty) && signature-requirements kinds rest
   method-signatures-known :: List (String, Kind) -> List CoreClassMethod -> Bool
   method-signatures-known kinds methods = case methods of Nil -> True; Cons member rest -> signature-requirements kinds (scheme-requirements (class-method-scheme member)) && method-signatures-known kinds rest
   descriptions-known :: List (String, Kind) -> List String -> List CoreClass -> Bool
   descriptions-known kinds seen descriptions = case descriptions of
     Nil -> True
-    Cons description rest -> not (has-name (class-name description) seen) && class-closed description
-      && (case signature-kind (class-name description) kinds of Some kind -> kind-equal kind (class-kind description); None -> False)
-      && method-signatures-known kinds (class-methods description) && descriptions-known kinds (Cons (class-name description) seen) rest
+    Cons description rest -> not (has-name (description.name) seen) && class-closed description
+      && (case signature-kind (description.name) kinds of Some kind -> kind-equal kind (description.kind); None -> False)
+      && method-signatures-known kinds (description.methods) && descriptions-known kinds (Cons (description.name) seen) rest
   class-context-closed :: CoreClassContext -> Bool
-  class-context-closed context = signature-kinds-closed (context-class-kinds context) Nil && descriptions-known (context-class-kinds context) Nil (context-classes context)
+  class-context-closed context = signature-kinds-closed (context.class-kinds) Nil && descriptions-known (context.class-kinds) Nil (context.classes)
   merge-kinds :: List (String, Kind) -> List (String, Kind) -> List (String, Kind)
   merge-kinds first second = case first of
     Nil -> second
@@ -98,19 +103,11 @@ module Cinch.Instance where
   merge-descriptions :: List CoreClass -> List CoreClass -> List CoreClass
   merge-descriptions first second = case first of
     Nil -> second
-    Cons description rest -> case find-class (class-name description) second of
-      Some old -> if kind-equal (class-kind description) (class-kind old) && (case quant-pairs (class-params description) (class-params old) Nil of Some pairs -> True; None -> False) && same-methods (class-methods description) (class-methods old) then merge-descriptions rest second else Cons description (merge-descriptions rest second)
+    Cons description rest -> case find-class (description.name) second of
+      Some old -> if kind-equal (description.kind) (old.kind) && (case quant-pairs (description.params) (old.params) Nil of Some pairs -> True; None -> False) && same-methods (description.methods) (old.methods) then merge-descriptions rest second else Cons description (merge-descriptions rest second)
       None -> merge-descriptions rest (Cons description second)
   merge-class-contexts :: CoreClassContext -> CoreClassContext -> CoreClassContext
-  merge-class-contexts first second = MkCoreClassContext (merge-kinds (context-class-kinds first) (context-class-kinds second)) (merge-descriptions (context-classes first) (context-classes second))
-  class-name :: CoreClass -> String
-  class-name node = case node of MkCoreClass s name kind qs members -> name
-  class-kind :: CoreClass -> Kind
-  class-kind node = case node of MkCoreClass s name kind qs members -> kind
-  class-params :: CoreClass -> List Quant
-  class-params node = case node of MkCoreClass s name kind qs members -> qs
-  class-methods :: CoreClass -> List CoreClassMethod
-  class-methods node = case node of MkCoreClass s name kind qs members -> members
+  merge-class-contexts first second = CoreClassContext (merge-kinds (first.class-kinds) (second.class-kinds)) (merge-descriptions (first.classes) (second.classes))
   class-method-name :: CoreClassMethod -> String
   class-method-name member = case member of
     MkCoreClassMethod s name slot sc -> name
@@ -127,20 +124,8 @@ module Cinch.Instance where
   class-method-equation member = case member of
     MkCoreClassMethod s name slot sc -> None
     MkCoreEquationMethod s name slot sc symbol equation -> Some (symbol, equation)
-  instance-name :: CoreInstance -> String
-  instance-name node = case node of MkCoreInstance s name flag sc fields -> name
-  instance-implicit :: CoreInstance -> Bool
-  instance-implicit node = case node of MkCoreInstance s name flag sc fields -> flag
-  instance-scheme :: CoreInstance -> Scheme
-  instance-scheme node = case node of MkCoreInstance s name flag sc fields -> sc
-  instance-fields :: CoreInstance -> List CoreDictionaryField
-  instance-fields node = case node of MkCoreInstance s name flag sc fields -> fields
   field-at :: Nat -> List CoreDictionaryField -> Option CoreDictionaryField
-  field-at slot fields = case fields of Nil -> None; Cons first rest -> if dictionary-field-slot first == slot then Some first else field-at slot rest
-  dictionary-field-slot :: CoreDictionaryField -> Nat
-  dictionary-field-slot field = case field of MkCoreDictionaryField s slot definition -> slot
-  dictionary-field-definition :: CoreDictionaryField -> CoreDefinition
-  dictionary-field-definition field = case field of MkCoreDictionaryField s slot definition -> definition
+  field-at slot fields = case fields of Nil -> None; Cons first rest -> if first.field-slot == slot then Some first else field-at slot rest
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   has-name :: String -> List String -> Bool
@@ -150,43 +135,43 @@ module Cinch.Instance where
   equal-type :: UType -> UType -> Bool
   equal-type a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "dictionary contract")) of Nil -> True; other -> False
   declaration-kind :: List Quant -> Kind
-  declaration-kind qs = case qs of Nil -> KType; Cons q rest -> KFun (quant-kind q) (declaration-kind rest)
+  declaration-kind qs = case qs of Nil -> KType; Cons q rest -> KFun (q.kind) (declaration-kind rest)
   find-class :: String -> List CoreClass -> Option CoreClass
-  find-class name descriptions = case descriptions of Nil -> None; Cons d rest -> if same name (class-name d) then Some d else find-class name rest
+  find-class name descriptions = case descriptions of Nil -> None; Cons d rest -> if same name (d.name) then Some d else find-class name rest
   application :: String -> Kind -> UType -> Option (List UType)
   application name kind ty = case ty of
     UCon symbol actual -> if same symbol name && kind-equal kind actual then Some Nil else None
     UApp f x -> case application name kind f of Some args -> Some (args <> [x]); None -> None
     other -> None
   class-target :: CoreClass -> UType -> Bool
-  class-target description ty = valid-type ty && kind-equal (type-kind ty) KType && (case application (class-name description) (class-kind description) ty of
-    Some args -> argument-kinds (class-params description) args
+  class-target description ty = valid-type ty && kind-equal (type-kind ty) KType && (case application (description.name) (description.kind) ty of
+    Some args -> argument-kinds (description.params) args
     None -> False)
   argument-kinds :: List Quant -> List UType -> Bool
   argument-kinds qs args = case (qs, args) of
     (Nil, Nil) -> True
-    (Cons q rest, Cons arg more) -> kind-equal (quant-kind q) (type-kind arg) && argument-kinds rest more
+    (Cons q rest, Cons arg more) -> kind-equal (q.kind) (type-kind arg) && argument-kinds rest more
     other -> False
   bound-id :: UType -> Option Nat
   bound-id ty = case ty of UBound id name kind -> Some id; UIndex carrier (IBound id name) -> Some id; other -> None
   quantifier :: Nat -> List Quant -> Option Quant
-  quantifier id qs = case qs of Nil -> None; Cons q rest -> if id == quant-id q then Some q else quantifier id rest
+  quantifier id qs = case qs of Nil -> None; Cons q rest -> if id == q.id then Some q else quantifier id rest
   class-bindings :: List Quant -> List Quant -> List UType -> List UType -> List Nat -> Option (List (Nat, UType))
   class-bindings params all formal actual seen = case (params, formal, actual) of
     (Nil, Nil, Nil) -> Some Nil
     (Cons p ps, Cons f fs, Cons a args) -> case bound-id f of
       Some id -> if has-id id seen then None else case quantifier id all of
-        Some q -> if kind-equal (quant-kind p) (quant-kind q) && kind-equal (type-kind f) (quant-kind q) && quant-implicit p == quant-implicit q then
+        Some q -> if kind-equal (p.kind) (q.kind) && kind-equal (type-kind f) (q.kind) && p.only == q.only then
           (case class-bindings ps all fs args (Cons id seen) of Some more -> Some (Cons (id, a) more); None -> None) else None
         None -> None
       None -> None
     other -> None
   parameter-types :: List Quant -> List UType
-  parameter-types qs = case qs of Nil -> Nil; Cons q rest -> Cons (UBound (quant-id q) (quant-name q) (quant-kind q)) (parameter-types rest)
+  parameter-types qs = case qs of Nil -> Nil; Cons q rest -> Cons (UBound (q.id) (q.name) (q.kind)) (parameter-types rest)
   member-bindings :: CoreClass -> CoreClassMethod -> List UType -> Option (List (Nat, UType))
   member-bindings description member actual = let sc = class-method-scheme member in case scheme-requirements sc of
-    Cons self rest -> case application (class-name description) (class-kind description) (requirement-type self) of
-      Some formal -> class-bindings (class-params description) (scheme-params sc) formal actual Nil
+    Cons self rest -> case application (description.name) (description.kind) (self.ty) of
+      Some formal -> class-bindings (description.params) (scheme-params sc) formal actual Nil
       None -> None
     Nil -> None
   methods-closed :: CoreClass -> Nat -> List String -> List CoreClassMethod -> Bool
@@ -194,24 +179,24 @@ module Cinch.Instance where
     Nil -> True
     Cons member rest -> string-length (class-method-name member) > 0 && class-method-slot member == next && not (has-name (class-method-name member) seen)
       && contract-scheme-closed (class-method-scheme member)
-      && (case member-bindings description member (parameter-types (class-params description)) of Some pairs -> True; None -> False)
+      && (case member-bindings description member (parameter-types (description.params)) of Some pairs -> True; None -> False)
       && methods-closed description (next + 1) (Cons (class-method-name member) seen) rest
   class-closed :: CoreClass -> Bool
-  class-closed description = string-length (class-name description) > 0 && contract-quants-closed (class-params description)
-    && kind-equal (class-kind description) (declaration-kind (class-params description))
-    && methods-closed description 0 Nil (class-methods description)
+  class-closed description = string-length (description.name) > 0 && contract-quants-closed (description.params)
+    && kind-equal (description.kind) (declaration-kind (description.params))
+    && methods-closed description 0 Nil (description.methods)
 
   -- Alpha comparison checks each binder kind in the already matched prefix.
   quant-pairs :: List Quant -> List Quant -> List (Nat, UType) -> Option (List (Nat, UType))
   quant-pairs first second pairs = case (first, second) of
     (Nil, Nil) -> Some pairs
-    (Cons a rest, Cons b more) -> if kind-equal (map-kind-types (substitute-bound pairs) (quant-kind a)) (quant-kind b) && quant-implicit a == quant-implicit b then
-      quant-pairs rest more (Cons (quant-id a, UBound (quant-id b) (quant-name b) (quant-kind b)) pairs) else None
+    (Cons a rest, Cons b more) -> if kind-equal (map-kind-types (substitute-bound pairs) (a.kind)) (b.kind) && a.only == b.only then
+      quant-pairs rest more (Cons (a.id, UBound (b.id) (b.name) (b.kind)) pairs) else None
     other -> None
   requirement-types-equal :: List Requirement -> List Requirement -> Bool
   requirement-types-equal first second = case (first, second) of
     (Nil, Nil) -> True
-    (Cons a rest, Cons b more) -> equal-type (requirement-type a) (requirement-type b) && requirement-types-equal rest more
+    (Cons a rest, Cons b more) -> equal-type (a.ty) (b.ty) && requirement-types-equal rest more
     other -> False
   scheme-equivalent :: Scheme -> Scheme -> Bool
   scheme-equivalent first second = contract-scheme-closed first && contract-scheme-closed second && (case quant-pairs (scheme-params first) (scheme-params second) Nil of
@@ -223,23 +208,23 @@ module Cinch.Instance where
   highest :: List Nat -> Nat
   highest ids = case ids of Nil -> 0; Cons id rest -> let more = highest rest in if id > more then id else more
   requirement-ids :: List Requirement -> List Nat
-  requirement-ids rs = case rs of Nil -> Nil; Cons r rest -> type-all-ids (requirement-type r) <> requirement-ids rest
+  requirement-ids rs = case rs of Nil -> Nil; Cons r rest -> type-all-ids (r.ty) <> requirement-ids rest
   scheme-ids :: Scheme -> List Nat
   scheme-ids sc = type-all-ids (scheme-body sc) <> requirement-ids (scheme-requirements sc) <> quantifier-ids (scheme-params sc)
   quantifier-ids :: List Quant -> List Nat
-  quantifier-ids qs = case qs of Nil -> Nil; Cons q rest -> type-all-ids (UBound (quant-id q) (quant-name q) (quant-kind q)) <> quantifier-ids rest
+  quantifier-ids qs = case qs of Nil -> Nil; Cons q rest -> type-all-ids (UBound (q.id) (q.name) (q.kind)) <> quantifier-ids rest
   quant-names :: List Quant -> List String
-  quant-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q) (quant-names rest)
+  quant-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (q.name) (quant-names rest)
   fresh-display :: String -> List String -> String
   fresh-display candidate names = if has-name candidate names then fresh-display (string-concat candidate "'") names else candidate
   fresh-members :: List Quant -> List (Nat, UType) -> Nat -> List String -> (List Quant, List (Nat, UType))
   fresh-members qs pairs next names = case qs of
     Nil -> (Nil, pairs)
-    Cons q rest -> if pair-id (quant-id q) pairs then fresh-members rest pairs next names else
-      let kind = map-kind-types (substitute-bound pairs) (quant-kind q) in
+    Cons q rest -> if pair-id (q.id) pairs then fresh-members rest pairs next names else
+      let kind = map-kind-types (substitute-bound pairs) (q.kind) in
       let display = fresh-display (string-concat "#method-parameter-" (int-to-string (nat-to-int next))) names in
-      let renamed = MkQuant next display kind (quant-implicit q) in
-      case fresh-members rest (Cons (quant-id q, UBound next display kind) pairs) (next + 1) (Cons display names) of
+      let renamed = Quant next display kind (q.only) in
+      case fresh-members rest (Cons (q.id, UBound next display kind) pairs) (next + 1) (Cons display names) of
         (more, final) -> (Cons renamed more, final)
   -- This is the callable field contract. Factory context and the private
   -- self capture are added by implementation-scheme, not erased here.
@@ -248,8 +233,8 @@ module Cinch.Instance where
     Nil -> False
     Cons actual rest -> same-method member actual || declared-member member rest
   specialized-method-bindings :: CoreClass -> Scheme -> CoreClassMethod -> Option (Scheme, List (Nat, UType))
-  specialized-method-bindings description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
-    case application (class-name description) (class-kind description) (scheme-body factory) of
+  specialized-method-bindings description factory member = if not (class-closed description && declared-member member (description.methods) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
+    case application (description.name) (description.kind) (scheme-body factory) of
       Some actual -> case member-bindings description member actual of
         Some pairs -> let sc = class-method-scheme member in
           case fresh-members (scheme-params sc) pairs (highest (scheme-ids factory <> scheme-ids sc) + 1) (quant-names (scheme-params factory)) of
@@ -269,8 +254,8 @@ module Cinch.Instance where
   annotation-locals :: List Quant -> List (Nat, UType) -> List (Nat, UType) -> Option (List (String, UType))
   annotation-locals parameters specialized aligned = case parameters of
     Nil -> Some Nil
-    Cons parameter rest -> case (annotation-actual (quant-id parameter) specialized, annotation-locals rest specialized aligned) of
-      (Some value, Some more) -> Some (Cons (quant-name parameter, substitute-bound aligned value) more)
+    Cons parameter rest -> case (annotation-actual (parameter.id) specialized, annotation-locals rest specialized aligned) of
+      (Some value, Some more) -> Some (Cons (parameter.name, substitute-bound aligned value) more)
       other -> None
   -- Surface binders retain their declaring class/method identities even
   -- when specialization freshens method variables or an instance has an
@@ -283,25 +268,25 @@ module Cinch.Instance where
         None -> None)
     None -> None
   requirement-names :: List Requirement -> List String
-  requirement-names rs = case rs of Nil -> Nil; Cons r rest -> Cons (requirement-name r) (requirement-names rest)
+  requirement-names rs = case rs of Nil -> Nil; Cons r rest -> Cons (r.name) (requirement-names rest)
   captured-requirements :: Nat -> List String -> List Requirement -> List Requirement
   captured-requirements next hidden rs = case rs of
     Nil -> Nil
-    Cons r rest -> Cons (MkRequirement (if has-name (requirement-name r) hidden then string-concat "#instance-context-" (int-to-string (nat-to-int next)) else requirement-name r) (requirement-type r)) (captured-requirements (next + 1) hidden rest)
+    Cons r rest -> Cons (Requirement (if has-name (r.name) hidden then string-concat "#instance-context-" (int-to-string (nat-to-int next)) else r.name) (r.ty)) (captured-requirements (next + 1) hidden rest)
   implementation-scheme :: Scheme -> Scheme -> Scheme
   implementation-scheme factory member = qualified (scheme-params member)
     (captured-requirements 0 (requirement-names (scheme-requirements member)) (scheme-requirements factory)
-      <> [MkRequirement "#instance-self" (scheme-body factory)] <> scheme-requirements member) (scheme-body member)
+      <> [Requirement "#instance-self" (scheme-body factory)] <> scheme-requirements member) (scheme-body member)
   dictionary-method-symbol :: String -> Nat -> String
   dictionary-method-symbol owner slot = string-concat-all ["#instance-method:", owner, ":", int-to-string (nat-to-int slot)]
   fields-closed :: BodyBindings -> List GuardedBinding -> CoreClass -> Scheme -> String -> List CoreClassMethod -> List CoreDictionaryField -> Bool
   fields-closed bodies guards description factory symbol members fields = case (members, fields) of
     (Nil, Nil) -> True
     (Cons member rest, Cons field more) -> case specialize-method description factory member of
-      Some expected -> let definition = dictionary-field-definition field in
-        dictionary-field-slot field == class-method-slot member
-          && same (core-name definition) (dictionary-method-symbol symbol (class-method-slot member))
-          && scheme-equivalent (implementation-scheme factory expected) (core-scheme definition)
+      Some expected -> let definition = field.field-definition in
+        field.field-slot == class-method-slot member
+          && same (definition.name) (dictionary-method-symbol symbol (class-method-slot member))
+          && scheme-equivalent (implementation-scheme factory expected) (definition.scheme)
           && core-definition-checked-contracts-closed bodies guards definition && core-definition-result-types definition
           && fields-closed bodies guards description factory symbol rest more
       None -> False
@@ -311,10 +296,10 @@ module Cinch.Instance where
   instance-closed :: CoreClassContext -> CoreInstance -> Bool
   instance-closed = instance-contracts-closed empty-body-bindings Nil
   instance-contracts-closed :: BodyBindings -> List GuardedBinding -> CoreClassContext -> CoreInstance -> Bool
-  instance-contracts-closed bodies guards context node = let factory = instance-scheme node in
-    class-context-closed context && signature-requirements (context-class-kinds context) (scheme-requirements factory) && string-length (instance-name node) > 0 && contract-scheme-closed factory && (case target-owner (scheme-body factory) of
-      Some owner -> (case find-class owner (context-classes context) of
-        Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed bodies guards description factory (instance-name node) (class-methods description) (instance-fields node)
+  instance-contracts-closed bodies guards context node = let factory = node.scheme in
+    class-context-closed context && signature-requirements (context.class-kinds) (scheme-requirements factory) && string-length (node.name) > 0 && contract-scheme-closed factory && (case target-owner (scheme-body factory) of
+      Some owner -> (case find-class owner (context.classes) of
+        Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed bodies guards description factory (node.name) (description.methods) (node.fields)
         None -> False)
       None -> False)
 
@@ -351,12 +336,14 @@ module Cinch.Instance where
     FiniteLawSamples :: Nat -> FiniteLawResult
     FiniteLawCounterexample :: FiniteLawResult
     FiniteLawUnavailable :: String -> FiniteLawResult
-  data LawEnvironment where
-    MkLawEnvironment :: List CoreInstance -> BodyBindings -> List CoreDefinition -> LawEnvironment
+  record LawEnvironment where
+    instances :: List CoreInstance
+    bodies :: BodyBindings
+    definitions :: List CoreDefinition
 
   sample-finite-law :: LawEnvironment -> CoreInstance -> CoreGiven -> List (Nat, List LawValue) -> CoreTerm -> CoreTerm -> FiniteLawResult
   sample-finite-law env dictionary given binders left right =
-    sample-assignments env dictionary (given-symbol given) binders Nil left right 0
+    sample-assignments env dictionary (given.symbol) binders Nil left right 0
 
   sample-assignments :: LawEnvironment -> CoreInstance -> String -> List (Nat, List LawValue) -> List (Nat, LawValue) -> CoreTerm -> CoreTerm -> Nat -> FiniteLawResult
   sample-assignments env dictionary self binders values left right count = if count >= 256 then FiniteLawSamples count else case binders of
@@ -488,13 +475,13 @@ module Cinch.Instance where
   find-instance :: String -> List CoreInstance -> Option CoreInstance
   find-instance identity instances = case instances of
     Nil -> None
-    Cons first rest -> if same identity (instance-name first) then Some first else find-instance identity rest
+    Cons first rest -> if same identity (first.name) then Some first else find-instance identity rest
 
   sample-evidence :: LawEnvironment -> CoreInstance -> String -> CoreEvidence -> Option CoreInstance
   sample-evidence env dictionary self evidence = case evidence of
     CEGiven sp subject symbol -> if same symbol self then Some dictionary else None
     CEInstance sp subject identity actuals (CEArgumentsEnd end) ->
-      (case env of MkLawEnvironment instances bodies definitions -> find-instance identity instances)
+      (case env of LawEnvironment instances bodies definitions -> find-instance identity instances)
     other -> None
 
   scalar-sample-argument :: LawValue -> Option Arithmetic
@@ -522,14 +509,14 @@ module Cinch.Instance where
   -- The checked global identity and selected dictionary slot carry the body.
   sample-external :: LawEnvironment -> String -> List LawValue -> Option LawValue
   sample-external env name args = case env of
-    MkLawEnvironment instances bodies definitions -> (case body-binding name (body-bindings-members bodies) of
+    LawEnvironment instances bodies definitions -> (case body-binding name (bodies.bindings-members) of
       Some binding -> sample-checked-body (binding-function binding) args
       None -> None)
 
   sample-external-method :: LawEnvironment -> UType -> String -> String -> Nat -> List UType -> CoreEvidence -> List LawValue -> Option LawValue
   sample-external-method env ty name owner slot actuals evidence args = case (env, evidence) of
-    (MkLawEnvironment instances bodies definitions, CEInstance at subject dictionary Nil (CEArgumentsEnd end)) ->
-      (case selected-method-body dictionary slot (body-bindings-members bodies) of
+    (LawEnvironment instances bodies definitions, CEInstance at subject dictionary Nil (CEArgumentsEnd end)) ->
+      (case selected-method-body dictionary slot (bodies.bindings-members) of
         Some binding -> if method-selection-matches dictionary slot name owner actuals subject binding
           && binding-matches (binding-name binding) "external" (mono ty) binding then sample-checked-body (binding-function binding) args else None
         None -> None)
@@ -551,7 +538,7 @@ module Cinch.Instance where
   sample-source-definition :: String -> List CoreDefinition -> Option CoreDefinition
   sample-source-definition name definitions = case definitions of
     Nil -> None
-    Cons first rest -> if same name (core-name first) then Some first else sample-source-definition name rest
+    Cons first rest -> if same name (first.name) then Some first else sample-source-definition name rest
 
   sample-function-arrow :: UType -> Bool
   sample-function-arrow ty = case ty of
@@ -561,12 +548,12 @@ module Cinch.Instance where
 
   sample-global :: LawEnvironment -> CoreInstance -> String -> CoreTerm -> String -> String -> List LawValue -> Nat -> (Option LawValue, Nat)
   sample-global env dictionary self term name role arguments fuel = case env of
-    MkLawEnvironment instances bodies definitions -> (case sample-source-definition name definitions of
-      Some definition -> (case (core-givens definition, core-clauses definition) of
-        (Nil, Cons (MkCoreClause sp patterns body) rest) -> (case arguments of
+    LawEnvironment instances bodies definitions -> (case sample-source-definition name definitions of
+      Some definition -> (case (definition.givens, definition.clauses) of
+        (Nil, Cons (CoreClause sp patterns body) rest) -> (case arguments of
           Nil -> if list-length patterns > 0 && sample-function-arrow (core-type term) then (Some (LawFunction term), fuel)
-            else sample-clauses env dictionary self (core-clauses definition) Nil fuel
-          other -> sample-clauses env dictionary self (core-clauses definition) arguments fuel)
+            else sample-clauses env dictionary self (definition.clauses) Nil fuel
+          other -> sample-clauses env dictionary self (definition.clauses) arguments fuel)
         other -> (None, fuel))
       None -> (case arguments of
         Nil -> if same role "external" && sample-function-arrow (core-type term) then (Some (LawFunction term), fuel)
@@ -589,9 +576,9 @@ module Cinch.Instance where
         Some (LawFunction function) -> sample-call env dictionary self Nil function arguments remaining
         other -> (None, remaining))
       CMethod sp ty name owner slot actuals (Cons evidence Nil) -> case sample-evidence env dictionary self evidence of
-        Some actual -> case target-owner (scheme-body (instance-scheme actual)) of
+        Some actual -> case target-owner (scheme-body (actual.scheme)) of
           Some declaring -> if same owner declaring then
-            (case sample-field env actual slot (instance-fields actual) arguments remaining of
+            (case sample-field env actual slot (actual.fields) arguments remaining of
               (None, after-method) -> if after-method == 0 then (None, 0)
                 else (sample-external-method env ty name owner slot actuals evidence arguments, after-method)
               evaluated -> evaluated)
@@ -603,17 +590,17 @@ module Cinch.Instance where
   sample-field :: LawEnvironment -> CoreInstance -> Nat -> List CoreDictionaryField -> List LawValue -> Nat -> (Option LawValue, Nat)
   sample-field env dictionary slot fields arguments fuel = if fuel == 0 then (None, 0) else case fields of
     Nil -> (None, fuel - 1)
-    Cons field rest -> if slot == dictionary-field-slot field then
-      let definition = dictionary-field-definition field in
-      (case core-givens definition of
-        Cons given Nil -> sample-clauses env dictionary (given-symbol given) (core-clauses definition) arguments (fuel - 1)
+    Cons field rest -> if slot == field.field-slot then
+      let definition = field.field-definition in
+      (case definition.givens of
+        Cons given Nil -> sample-clauses env dictionary (given.symbol) (definition.clauses) arguments (fuel - 1)
         other -> (None, fuel - 1))
       else sample-field env dictionary slot rest arguments (fuel - 1)
 
   sample-clauses :: LawEnvironment -> CoreInstance -> String -> List CoreClause -> List LawValue -> Nat -> (Option LawValue, Nat)
   sample-clauses env dictionary self clauses arguments fuel = if fuel == 0 then (None, 0) else case clauses of
     Nil -> (None, fuel - 1)
-    Cons (MkCoreClause sp patterns body) rest -> case sample-patterns patterns arguments Nil of
+    Cons (CoreClause sp patterns body) rest -> case sample-patterns patterns arguments Nil of
       SampleHit locals -> (case core-effects body of
         URow UEnd -> sample-term env dictionary self locals body (fuel - 1)
         other -> (None, fuel - 1))

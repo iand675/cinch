@@ -28,9 +28,9 @@ module Main where
   corrupt-modules :: String -> List Module -> List Module
   corrupt-modules key modules = case modules of
     Nil -> Nil
-    Cons (MkModule sp name declarations) rest -> Cons (MkModule sp name (corrupt key declarations)) (corrupt-modules key rest)
+    Cons (Module sp name declarations) rest -> Cons (Module sp name (corrupt key declarations)) (corrupt-modules key rest)
   corrupt-program :: String -> Program -> Program
-  corrupt-program key program = case program of MkProgram sp modules -> MkProgram sp (corrupt-modules key modules)
+  corrupt-program key program = case program of Program sp modules -> Program sp (corrupt-modules key modules)
   has-decision :: CoreTerm -> Bool
   has-decision term = case term of
     CDecision sp ty predicate test -> True
@@ -45,9 +45,9 @@ module Main where
     CArgument sp value rest -> has-decision value || has-decision rest
     other -> False
   clause-decision :: List CoreClause -> Bool
-  clause-decision clauses = case clauses of Nil -> False; Cons (MkCoreClause sp patterns body) rest -> has-decision body || clause-decision rest
+  clause-decision clauses = case clauses of Nil -> False; Cons (CoreClause sp patterns body) rest -> has-decision body || clause-decision rest
   retained :: List CoreDefinition -> Bool
-  retained definitions = case definitions of Nil -> False; Cons definition rest -> clause-decision (core-clauses definition) || retained rest
+  retained definitions = case definitions of Nil -> False; Cons definition rest -> clause-decision (definition.clauses) || retained rest
   source-bodies :: List CheckedBinding -> List BodyBinding
   source-bodies bindings = case bindings of
     Nil -> Nil
@@ -65,7 +65,7 @@ module Main where
         let program = corrupt-program mutation resolved in
         let checks = check-program program in
         let result = elaborate-program "source-decisions" program in
-        let errors = checks <> elaboration-errors result in
+        let errors = checks <> result.errors in
         if list-length errors > 0 then (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics errors)
         else if same mutation "require-body-context" && closed Nil (elaboration-core result) then (95, "body-backed decision closed without its actual source body context")
         else if (same mutation "ordinary" || retained (elaboration-core result)) && closed (source-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "decision lost its checked Core node or closed value identity")

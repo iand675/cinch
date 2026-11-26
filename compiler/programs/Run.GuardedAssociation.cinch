@@ -34,7 +34,7 @@ module Main where
     (CApply sp (UPi (id + 1) "y" nat (URow UEnd) (required (literal first) (UBound (id + 1) "y" (value-kind nat))))
       (CUse sp (header id) (interface-global native) "external" Nil) (CInt sp nat (int-to-string first))) (CInt sp nat (int-to-string second))
   definition :: UType -> CoreTerm -> CoreDefinition
-  definition expected body = MkCoreDefinition sp "caller" (mono expected) Nil Nil Nil [MkCoreClause sp Nil body]
+  definition expected body = CoreDefinition sp "caller" (mono expected) Nil Nil Nil [CoreClause sp Nil body]
   typed :: List CoreGlobal -> CoreDefinition -> Bool
   typed globals value = case close-typing-context [("Nat", KType)] globals of Some context -> typing-definition-closed context value; None -> False
   globals :: Nat -> String -> UType -> Option GuardedBinding -> List CoreGlobal

@@ -78,8 +78,8 @@ module Cinch.ExportType where
   forall-binder-names :: List Quant -> List (Nat, String) -> (String, List (Nat, String))
   forall-binder-names qs scope = case qs of
     Nil -> ("", scope)
-    Cons q rest -> let binder = argument-name (quant-name q) scope in
-      case forall-binder-names rest (Cons (quant-id q, binder) scope) of
+    Cons q rest -> let binder = argument-name (q.name) scope in
+      case forall-binder-names rest (Cons (q.id, binder) scope) of
         (names, bound) -> (string-concat-all [" ", binder, names], bound)
   argument-name :: String -> List (Nat, String) -> String
   argument-name name scope = let fallback = fresh-name "p" (list-length scope) in
@@ -110,9 +110,9 @@ module Cinch.ExportType where
   parameter-rows :: List (Nat, String) -> List Quant -> Result String (List (String, String, Bool))
   parameter-rows scope quants = case quants of
     Nil -> Ok Nil
-    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
-      case (kind-display-in scope (quant-kind q), parameter-rows (Cons (quant-id q, name) scope) rest) of
-        (Ok kind, Ok more) -> Ok (Cons (name, kind, quant-implicit q) more)
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (q.name) scope in
+      case (kind-display-in scope (q.kind), parameter-rows (Cons (q.id, name) scope) rest) of
+        (Ok kind, Ok more) -> Ok (Cons (name, kind, q.only) more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
   export-constructor-fields :: Scheme -> Result String (List String)
@@ -143,7 +143,7 @@ module Cinch.ExportType where
   ordinary-quantifiers :: List Quant -> Bool
   ordinary-quantifiers quants = case quants of
     Nil -> True
-    Cons q rest -> not (quant-implicit q) && kind-equal (quant-kind q) KType && ordinary-quantifiers rest
+    Cons q rest -> not (q.only) && kind-equal (q.kind) KType && ordinary-quantifiers rest
   ordinary-type :: UType -> Bool
   ordinary-type ty = case ty of
     UCon name kind -> True
@@ -188,8 +188,8 @@ module Cinch.ExportType where
   constructor-quantifiers :: List (Nat, String) -> List Quant -> (List String, List (Nat, String))
   constructor-quantifiers scope quants = case quants of
     Nil -> (Nil, scope)
-    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
-      case constructor-quantifiers (Cons (quant-id q, name) scope) rest of
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (q.name) scope in
+      case constructor-quantifiers (Cons (q.id, name) scope) rest of
         (names, bound) -> (Cons name names, bound)
   ordinary-fields :: List (Nat, String) -> UType -> Result String (List String)
   ordinary-fields scope ty = case ty of
@@ -370,14 +370,14 @@ module Cinch.ExportType where
   quantifiers scope quants = case quants of
     Nil -> Ok ("", scope)
     Cons q rest -> let name = fresh-name "q" (list-length scope) in
-      (case (kind-in scope (quant-kind q), quantifiers (Cons (quant-id q, name) scope) rest) of
-        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "} " else ") ", more], bound)
+      (case (kind-in scope (q.kind), quantifiers (Cons (q.id, name) scope) rest) of
+        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if q.only then "{" else "(", name, " :: ", kind, if q.only then "} " else ") ", more], bound)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
   requirements :: List (Nat, String) -> Nat -> List Requirement -> Result String String
   requirements scope position needs = case needs of
     Nil -> Ok ""
-    Cons first rest -> join [Ok (fresh-name "d" position), Ok " :: ", application-in scope (requirement-type first),
+    Cons first rest -> join [Ok (fresh-name "d" position), Ok " :: ", application-in scope (first.ty),
       case rest of Nil -> Ok ""; more -> join [Ok ", ", requirements scope (position + 1) more]]
   with-result :: List (Result String String) -> Result String (String, List String) -> Result String (String, List String)
   with-result prefix result = case result of
@@ -443,19 +443,19 @@ module Cinch.ExportType where
   value-quantifiers-after :: List (Nat, String) -> Nat -> List Quant -> List String -> Result String (List String, List (Nat, String))
   value-quantifiers-after scope position quants pieces = case quants of
     Nil -> Ok (pieces, scope)
-    Cons q rest -> let name = source-binder (fresh-name "q" position) (quant-name q) scope in
-      (case kind-display-in scope (quant-kind q) of
+    Cons q rest -> let name = source-binder (fresh-name "q" position) (q.name) scope in
+      (case kind-display-in scope (q.kind) of
         Err error -> Err error
-        Ok kind -> let piece = string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "}" else ")"] in
+        Ok kind -> let piece = string-concat-all [if q.only then "{" else "(", name, " :: ", kind, if q.only then "}" else ")"] in
           let separated = case pieces of Nil -> piece; more -> string-concat-all [" ", piece] in
-          value-quantifiers-after (Cons (quant-id q, name) scope) (position + 1) rest (Cons separated pieces))
+          value-quantifiers-after (Cons (q.id, name) scope) (position + 1) rest (Cons separated pieces))
   -- Display and factory metadata share one binder allocation. A dictionary
   -- name may collide with a quantified type name without capturing it.
   value-requirement-rows :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String (List String)
   value-requirement-rows scope used position needs = case needs of
     Nil -> Ok Nil
-    Cons first rest -> let name = source-binder (if same (requirement-name first) "#self" then "dict" else fresh-name "d" position) (requirement-name first) used in
-      (case (application-in scope (requirement-type first), value-requirement-rows scope (Cons (0, name) used) (position + 1) rest) of
+    Cons first rest -> let name = source-binder (if same (first.name) "#self" then "dict" else fresh-name "d" position) (first.name) used in
+      (case (application-in scope (first.ty), value-requirement-rows scope (Cons (0, name) used) (position + 1) rest) of
         (Ok head, Ok more) -> Ok (Cons (string-concat-all [name, " :: ", head]) more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error)

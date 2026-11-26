@@ -8,7 +8,7 @@ module Cinch.Contracts where
   import Cinch.Load
   import Cinch.Parse (parse-scheme)
   import Cinch.Nominal (global-stage-str-nat, interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (sort-by)
   import Data.Nat (nat-from-int)
@@ -19,7 +19,7 @@ module Cinch.Contracts where
 
   export interface-headers, interface-fixity-header, interface-fixity-headers, interface-declarations, public-global
   export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, expr-references, imported-class-references, kernel-references
-  export ImportedClasses, imported-classes, imported-class-rows, imported-class-row
+  export ImportedClasses, imported-classes, imported-class-row
   export prepare-imported-class-methods, imported-class-methods
   export PreparedExternals, prepare-externals, select-externals
 
@@ -32,7 +32,7 @@ module Cinch.Contracts where
   public-global :: LoadedInterface -> String -> String
   public-global i name = case loaded-identities i name of
     Cons identity Nil -> interface-global identity
-    other -> pack (Cons 'o' (Cons '.' (encode-identity (unpack (loaded-module i)) (Cons '.' (encode-identity (unpack name) Nil)))))
+    other -> pack (Cons 'o' (Cons '.' (encode-identity (unpack (i.name)) (Cons '.' (encode-identity (unpack name) Nil)))))
 
   entries :: LoadedInterface -> List (String, String, String) -> List Decl
   entries i names = case names of
@@ -51,8 +51,8 @@ module Cinch.Contracts where
   interface-headers :: List LoadedInterface -> List Module
   interface-headers interfaces = case interfaces of
     Nil -> Nil
-    Cons i rest -> Cons (MkModule zero (loaded-module i) (decl-spine zero
-      (entries i (loaded-exports i) <> fixities (loaded-fixities i)))) (interface-headers rest)
+    Cons i rest -> Cons (Module zero (i.name) (decl-spine zero
+      (entries i (i.exports) <> fixities (i.fixities)))) (interface-headers rest)
 
   -- Parsing and exported fixities use just the operators, including
   -- those without a declared fixity that shadow an inherited spelling.
@@ -61,8 +61,8 @@ module Cinch.Contracts where
   interface-fixity-headers interfaces = map interface-fixity-header interfaces
 
   interface-fixity-header :: LoadedInterface -> Module
-  interface-fixity-header i = MkModule zero (loaded-module i) (decl-spine zero
-    (operator-entries i (loaded-exports i) <> fixities (loaded-fixities i)))
+  interface-fixity-header i = Module zero (i.name) (decl-spine zero
+    (operator-entries i (i.exports) <> fixities (i.fixities)))
 
   operator-entries :: LoadedInterface -> List (String, String, String) -> List Decl
   operator-entries i names = case names of
@@ -84,8 +84,8 @@ module Cinch.Contracts where
   interface-declarations :: LoadedInterface -> List Decl
   -- Canonical private slots may be reached by checked defaults and laws.
   -- Imported source names still come exclusively from loaded-exports.
-  interface-declarations i = Cons (DInterface zero (loaded-module i) (loaded-hash i) (loaded-contract i))
-    (declarations i (loaded-exports i <> loaded-private-methods i)
+  interface-declarations i = Cons (DInterface zero (i.name) (i.hash) (i.doc))
+    (declarations i (i.exports <> i.private-methods)
       <> overloads i (loaded-names i))
 
   overloads :: LoadedInterface -> List String -> List Decl
@@ -158,8 +158,11 @@ module Cinch.Contracts where
 
   -- Keep every contract and look up external declarations by demand.
   -- Positions preserve first-definition precedence and diagnostic order.
-  data PreparedExternals where
-    PreparedExternals :: List Decl -> List (Nat, Decl) -> HashMap String (List (Nat, Decl)) -> Nat -> PreparedExternals
+  record PreparedExternals where
+    field0 :: List Decl
+    field1 :: List (Nat, Decl)
+    field2 :: HashMap String (List (Nat, Decl))
+    field3 :: Nat
 
   prepare-externals :: List Decl -> PreparedExternals
   prepare-externals declarations = index-externals declarations declarations 0 Nil hash-map-empty
@@ -276,7 +279,7 @@ module Cinch.Contracts where
     if same kind "value" || same kind "constructor" || same kind "method" then case resolved-text metadata of
       Some text -> case parse-scheme name (string-to-bytes text) of
         Parsed ty Nil -> case qualify-resolved metadata ty of (resolved, errors) -> (Some resolved, errors)
-        other -> (None, [MkDiagnostic "bootstrap.resolve" s (string-concat "cannot parse resolved scheme for " name)])
+        other -> (None, [Diagnostic "bootstrap.resolve" s (string-concat "cannot parse resolved scheme for " name)])
       None -> display-type s name kind metadata
     else display-type s name kind metadata
 
@@ -308,8 +311,8 @@ module Cinch.Contracts where
     else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
       JStr text -> case parse-scheme name (string-to-bytes text) of
         Parsed ty Nil -> (Some (canonical-kernel-type ty), Nil)
-        other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)) Nil)
-      other -> (None, Cons (MkDiagnostic "bootstrap.resolve" s (string-concat "missing imported scheme for " name)) Nil)
+        other -> (None, Cons (Diagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)) Nil)
+      other -> (None, Cons (Diagnostic "bootstrap.resolve" s (string-concat "missing imported scheme for " name)) Nil)
     else (None, Nil)
 
   type-references :: TypeExpr -> List String
@@ -435,8 +438,10 @@ module Cinch.Contracts where
         other -> more)
     other -> Nil
 
-  data ImportedClasses where
-    ImportedClasses :: List (String, Json) -> HashMap String Json -> HashMap String (Option (List (String, Nat, TypeExpr))) -> ImportedClasses
+  record ImportedClasses where
+    class-rows :: List (String, Json)
+    indexed :: HashMap String Json
+    methods :: HashMap String (Option (List (String, Nat, TypeExpr)))
 
   -- Keep document order for checks that visit all rows, and keep the first
   -- row for lookups, including when a class is re-exported.
@@ -462,9 +467,6 @@ module Cinch.Contracts where
   index-class-rows rows indexed = case rows of
     Nil -> indexed
     Cons (native, row) rest -> index-class-rows rest (hash-map-insert native row indexed)
-
-  imported-class-rows :: ImportedClasses -> List (String, Json)
-  imported-class-rows (ImportedClasses ordered indexed methods) = ordered
 
   imported-class-row :: String -> ImportedClasses -> Option Json
   imported-class-row name (ImportedClasses ordered indexed methods) = hash-map-lookup name indexed
@@ -546,7 +548,7 @@ module Cinch.Contracts where
   param-references :: List TypeParam -> List String
   param-references params = case params of
     Nil -> Nil
-    Cons p rest -> (case param-kind p of None -> Nil; Some ty -> type-references ty) <> param-references rest
+    Cons p rest -> (case p.kind of None -> Nil; Some ty -> type-references ty) <> param-references rest
 
   -- Keep the recursive list frame small. Putting this declaration match
   -- inside the traversal reserves every branch's native slots for every
@@ -571,7 +573,7 @@ module Cinch.Contracts where
     DSig s name ty -> type-references ty
     DMethod s label name ty -> type-references ty
     DLaw s name syntax -> law-references syntax
-    DRewrite s name (MkRewriteSyntax targeted params bounds pattern replacement guard evidence) ->
+    DRewrite s name (RewriteSyntax targeted params bounds pattern replacement guard evidence) ->
       param-references params <> type-references bounds <> expr-references pattern <> expr-references replacement
       <> (case guard of Some condition -> expr-references condition; None -> Nil)
       <> rewrite-proof-references evidence
@@ -603,7 +605,7 @@ module Cinch.Contracts where
   type-family-eq-references :: List TypeFamilyEq -> List String
   type-family-eq-references eqs = case eqs of
     Nil -> Nil
-    Cons (MkTypeFamilyEq s head args rhs) rest -> type-references args <> type-references rhs <> type-family-eq-references rest
+    Cons (TypeFamilyEq s head args rhs) rest -> type-references args <> type-references rhs <> type-family-eq-references rest
 
   contract-clause-references :: List ContractClause -> List String
   contract-clause-references clauses = case clauses of
@@ -616,7 +618,7 @@ module Cinch.Contracts where
   prim-body-references :: List PrimBody -> List String
   prim-body-references bodies = case bodies of
     Nil -> Nil
-    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       ctor-references uses <> (case justification of Some evidence -> rewrite-proof-references evidence; None -> Nil) <> prim-body-references rest
 
   declaration-references :: List Decl -> List String

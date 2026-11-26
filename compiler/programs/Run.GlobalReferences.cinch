@@ -17,7 +17,7 @@ module Main where
   dictionary :: UType -> UType
   dictionary ty = UApp (UCon "Class" (KFun KType KType)) ty
   definition :: String -> Scheme -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreDefinition
-  definition name sc givens patterns body = MkCoreDefinition sp name sc Nil givens Nil [MkCoreClause sp patterns body]
+  definition name sc givens patterns body = CoreDefinition sp name sc Nil givens Nil [CoreClause sp patterns body]
   result :: CoreTerm -> CoreDefinition
   result body = definition "answer" (mono int) Nil Nil body
   accepted :: CoreGlobals -> CoreDefinition -> Bool
@@ -29,7 +29,7 @@ module Main where
     let initial = insert-global-declaration intrinsic empty-global-declarations in
     let with-value = insert-global-declaration (GlobalValue "answer" "value" (mono int)) initial in
     let merged = insert-global-declaration (GlobalIntrinsicViews "runtime.identity" [sc]) with-value in
-    let ordered = ordered-global-declarations merged in
+    let ordered = merged.global-declarations in
     let duplicate = insert-global-declaration (GlobalValue "answer" "external" (mono int)) merged in
     let after-duplicate = insert-global-declaration intrinsic duplicate in
     let invalid = insert-global-declaration (GlobalValue "bad" "local" (mono int)) merged in
@@ -42,32 +42,32 @@ module Main where
         None -> False)
     , (case close-indexed-globals after-duplicate Nil Nil of None -> True; Some actual -> False)
     , (case close-indexed-globals invalid Nil Nil of None -> True; Some actual -> False)
-    , (case globals-refusal (ordered-global-declarations duplicate) of
+    , (case globals-refusal (duplicate.global-declarations) of
         Some reason -> string-compare reason "answer is declared twice" == 0
         None -> False)
     ]
   checks :: Nat -> List Bool
   checks nonce =
-    let a = UBound nonce "a" KType in let q = MkQuant nonce "a" KType False in
+    let a = UBound nonce "a" KType in let q = Quant nonce "a" KType False in
     let identity = MkScheme [q] (UFun a a) in
-    let member = qualified [q] [MkRequirement "self" (dictionary a)] (UFun a a) in
+    let member = qualified [q] [Requirement "self" (dictionary a)] (UFun a a) in
     let alias-type = UBound (nonce + 2) "element" KType in
-    let alias-scheme = MkScheme [MkQuant (nonce + 2) "element" KType False] (UFun alias-type alias-type) in
+    let alias-scheme = MkScheme [Quant (nonce + 2) "element" KType False] (UFun alias-type alias-type) in
     let intrinsic = GlobalValue "runtime.identity" "intrinsic" identity in
     let alias = GlobalValue "runtime.identity" "intrinsic" alias-scheme in
     let intrinsic-declarations = add-global alias [intrinsic, GlobalValue "answer" "value" (mono int)] in
-    let locals = qualified Nil [MkRequirement "context" (dictionary int)] int in
-    let polymorphic = MkScheme [q, MkQuant (nonce + 1) "n" (value-kind a) False] (UFun a a) in
+    let locals = qualified Nil [Requirement "context" (dictionary int)] int in
+    let polymorphic = MkScheme [q, Quant (nonce + 1) "n" (value-kind a) False] (UFun a a) in
     let declarations =
           [ GlobalValue "answer" "value" (mono int)
           , GlobalValue "truth" "constructor" (mono bool)
           , GlobalValue "one" "external" (mono int)
           , GlobalValue "identity" "external" identity
           , GlobalValue "poly" "value" identity
-          , GlobalValue "poly2" "value" (MkScheme [q, MkQuant (nonce + 1) "b" KType False] (UFun a a))
+          , GlobalValue "poly2" "value" (MkScheme [q, Quant (nonce + 1) "b" KType False] (UFun a a))
           , GlobalValue "indexed" "external" polymorphic
           , GlobalValue "dict-int" "implicit-instance" (mono (dictionary int))
-          , GlobalValue "needs-dict" "external" (qualified Nil [MkRequirement "d" (dictionary int)] int)
+          , GlobalValue "needs-dict" "external" (qualified Nil [Requirement "d" (dictionary int)] int)
           , GlobalValue "with-given" "value" locals
           , GlobalValue "local" "value" (mono (UFun int int))
           , GlobalMethod "method" "Class" 3 member
@@ -79,24 +79,24 @@ module Main where
         let need evidence = CQualifiedUse sp int "needs-dict" "external" Nil [evidence] in
         let use evidence owner slot = CMethod sp (UFun int int) "method" owner slot [int] [evidence] in
         let project term = CApply sp int term (CInt sp int "1") in
-        let given = CGiven sp "#given" (dictionary int) in
+        let given = CoreGiven sp "#given" (dictionary int) in
         let g = CEGiven sp (dictionary int) "#given" in
         let body = definition "with-given" locals [given] Nil (need g) in
         let x = nonce + 10 in
         let fresh = URigid (nonce + 100) "universal" 1 KType in
-        let poly = MkCoreDefinition sp "poly" identity [(nonce, fresh)] Nil Nil [MkCoreClause sp [CPVar sp fresh x "x"] (CLocal sp fresh x "x" Nil)] in
+        let poly = CoreDefinition sp "poly" identity [(nonce, fresh)] Nil Nil [CoreClause sp [CPVar sp fresh x "x"] (CLocal sp fresh x "x" Nil)] in
         [ globals-closed declarations
         , not (globals-closed (Cons (GlobalValue "answer" "value" (mono bool)) declarations))
         , not (globals-closed [GlobalValue "bad" "local" (mono int)])
         , not (globals-closed [GlobalMethod "bad" "Different" 3 member])
         , accepted globals (result (CUse sp int "one" "external" Nil))
         , accepted globals poly
-        , not (accepted globals (MkCoreDefinition sp "poly" identity [(nonce, int)] Nil Nil [MkCoreClause sp [CPVar sp int x "x"] (CInt sp int "1")]))
-        , not (accepted globals (MkCoreDefinition sp "poly" identity [(nonce + 1, fresh)] Nil Nil (core-clauses poly)))
-        , not (accepted globals (MkCoreDefinition sp "poly" identity Nil Nil Nil (core-clauses poly)))
-        , not (accepted globals (MkCoreDefinition sp "poly2" (MkScheme [q, MkQuant (nonce + 1) "b" KType False] (UFun a a)) [(nonce, fresh), (nonce + 1, fresh)] Nil Nil (core-clauses poly)))
+        , not (accepted globals (CoreDefinition sp "poly" identity [(nonce, int)] Nil Nil [CoreClause sp [CPVar sp int x "x"] (CInt sp int "1")]))
+        , not (accepted globals (CoreDefinition sp "poly" identity [(nonce + 1, fresh)] Nil Nil (poly.clauses)))
+        , not (accepted globals (CoreDefinition sp "poly" identity Nil Nil Nil (poly.clauses)))
+        , not (accepted globals (CoreDefinition sp "poly2" (MkScheme [q, Quant (nonce + 1) "b" KType False] (UFun a a)) [(nonce, fresh), (nonce + 1, fresh)] Nil Nil (poly.clauses)))
         , not (accepted globals (result (CUse sp bool "truth" "constructor" Nil)))
-        , not (accepted globals (MkCoreDefinition sp "answer" (mono int) Nil Nil Nil Nil))
+        , not (accepted globals (CoreDefinition sp "answer" (mono int) Nil Nil Nil Nil))
         , not (accepted globals (result (CUse sp int "missing" "external" Nil)))
         , not (accepted globals (result (CUse sp int "truth" "constructor" Nil)))
         , not (accepted globals (result (CUse sp int "one" "constructor" Nil)))
@@ -119,7 +119,7 @@ module Main where
         , not (accepted globals (definition "answer" (mono int) [given] Nil (need g)))
         , not (accepted globals (definition "with-given" locals Nil Nil (need d)))
         , not (accepted globals (definition "with-given" locals [given, given] Nil (need g)))
-        , not (accepted globals (definition "with-given" locals [CGiven sp "#given" (dictionary bool)] Nil (need g)))
+        , not (accepted globals (definition "with-given" locals [CoreGiven sp "#given" (dictionary bool)] Nil (need g)))
         , not (accepted globals (result (need g)))
         , accepted globals (result (CWith sp int given (CUse sp (dictionary int) "dict-int" "implicit-instance" Nil) (need g)))
         , not (accepted globals (result (CWith sp int given (CInt sp int "1") (need g))))

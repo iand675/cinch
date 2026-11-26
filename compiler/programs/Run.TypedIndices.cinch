@@ -61,12 +61,12 @@ module Main where
     let proof-projected = UIndexForget (UIndex refined (IRigid id "arg" 0)) in
     let generalized-ok = case scheme-params generalized of Cons q Nil -> valid-type (scheme-body generalized); other -> False in
     let capture-ok = case renamed of URefine fresh name carrier predicate -> not (fresh == id) && good predicate (UCompare "==" (UIndex integer (IBound fresh "result")) (UIndexPromote variable)); value -> False in
-    let q = MkQuant (nonce + 50) "n" (value-kind nat) False in
-    let bound-index = UBound (quant-id q) "n" (value-kind nat) in
+    let q = Quant (nonce + 50) "n" (value-kind nat) False in
+    let bound-index = UBound (q.id) "n" (value-kind nat) in
     let consumer-type = UFun (family bound-index) integer in
     let consumer-scheme = MkScheme [q] consumer-type in
     let consumer = CUse sp consumer-type "consume" "value" [bound-index] in
-    let answer body = MkCoreDefinition sp "answer" (mono integer) Nil Nil Nil [MkCoreClause sp Nil body] in
+    let answer body = CoreDefinition sp "answer" (mono integer) Nil Nil Nil [CoreClause sp Nil body] in
     let constant = CInt sp integer "7" in
     let consumer-local = nonce + 51 in
     let nested-local = nonce + 52 in
@@ -135,7 +135,7 @@ module Main where
     , good (normalize (empty-store "literal") (UIndexMath "+" (UIndex nat (IInteger 2)) one)) (UIndex nat (IInteger 3))
     , typed-index-admissible sum
     , not (typed-index-admissible (UIndexPromote nm))
-    , not (core-data-closed (MkCoreData sp "unscoped" KType Nil [MkCoreConstructor sp "field" (mono (family promoted))]))
+    , not (core-data-closed (MkCoreData sp "unscoped" KType Nil [CoreConstructor sp "field" (mono (family promoted))]))
     , provable [(id, refined)] (UCompare ">" proof-projected (UIndex nat (IInteger 0)))
     , not (provable [(id, nat)] (UCompare "==" proof-projected proof-projected))
     , not (provable [(other, refined)] (UCompare "==" proof-projected proof-projected))

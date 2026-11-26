@@ -23,7 +23,7 @@ module Main where
 
   import Text.Lex (Span)
   import Cinch.Ast
-  import Cinch.Report (Diagnostic, diagnostic-message, diagnostic-rung)
+  import Cinch.Report (Diagnostic)
   import Cinch.Eval (Value, VInt, VStr, VChr, eval-expr-in-program, eval-main, value-equal, render-value)
   import Cinch.Parse (parse-program)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -127,7 +127,7 @@ module Main where
                         (Cons (DFun sp "is-odd" (Cons (Cons (pvar "n") Nil, odd-body) Nil)) Nil))))))))))
 
   prog :: Program
-  prog = MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp prog-decls)) Nil)
+  prog = Program sp (Cons (Module sp "Main" (decl-spine sp prog-decls)) Nil)
 
   -- -------------------------------------------- the expressions evaluated
 
@@ -199,7 +199,7 @@ module Main where
       (Cons (DFun sp "f" (Cons (Cons (pvar "a") (Cons (pvar "b") Nil), var "a") Nil)) Nil)
 
   bad-arity-program :: Program
-  bad-arity-program = MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp bad-arity-decls)) Nil)
+  bad-arity-program = Program sp (Cons (Module sp "Main" (decl-spine sp bad-arity-decls)) Nil)
 
   bad-arity-expr :: Expr
   bad-arity-expr = call (var "f") (int "1")
@@ -207,7 +207,7 @@ module Main where
   -- A program holding a declaration the parser could not model is refused
   -- by name before anything is evaluated.
   unmodeled-decl-program :: Program
-  unmodeled-decl-program = MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (Cons (DUnmodeled sp "an-attribute-block") Nil))) Nil)
+  unmodeled-decl-program = Program sp (Cons (Module sp "Main" (decl-spine sp (Cons (DUnmodeled sp "an-attribute-block") Nil))) Nil)
 
   unmodeled-decl-result :: Result (List Diagnostic) Value
   unmodeled-decl-result = eval-expr-in-program unmodeled-decl-program (int "0")
@@ -271,7 +271,7 @@ module Main where
   refuses r want = case r of
     Err ds -> case ds of
       Nil -> False
-      Cons d rest -> (string-compare (diagnostic-rung d) "bootstrap.eval" == 0) && (string-compare (diagnostic-message d) want == 0)
+      Cons d rest -> (string-compare (d.rung) "bootstrap.eval" == 0) && (string-compare (d.message) want == 0)
     Ok v -> False
 
   main-ok :: Bool

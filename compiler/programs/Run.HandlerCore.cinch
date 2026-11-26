@@ -26,13 +26,13 @@ module Main where
   one :: CoreTerm
   one = CInt sp int "1"
   answer :: CoreTerm -> CoreDefinition
-  answer body = MkCoreDefinition sp "answer" (mono int) Nil Nil Nil [MkCoreClause sp Nil body]
+  answer body = CoreDefinition sp "answer" (mono int) Nil Nil Nil [CoreClause sp Nil body]
   checks :: Nat -> List Bool
   checks nonce =
-    let operation = MkCoreOperation sp "signal" 1 (mono (UFunEff unit row int)) in
-    let declaration = MkCoreEffect sp "Signal" KEffect Nil [operation] in
+    let operation = CoreOperation sp "signal" 1 (mono (UFunEff unit row int)) in
+    let declaration = CoreEffect sp "Signal" KEffect Nil [operation] in
     let kinds = [("Int", KType), ("Unit", KType), ("Bool", KType), ("Signal", KEffect), ("Other", KEffect)] in
-    let globals = [GlobalValue "answer" "value" (mono int), GlobalValue "run" "value" (mono (UFunEff unit other-row int)), GlobalValue "signal" "operation" (core-operation-scheme operation), GlobalValue "hidden" "external" (mono (UFunEff unit row int)), GlobalValue "outside" "external" (mono (UFunEff unit other-row int))] in
+    let globals = [GlobalValue "answer" "value" (mono int), GlobalValue "run" "value" (mono (UFunEff unit other-row int)), GlobalValue "signal" "operation" (operation.operation-scheme), GlobalValue "hidden" "external" (mono (UFunEff unit row int)), GlobalValue "outside" "external" (mono (UFunEff unit other-row int))] in
     case (close-typing-context-with-effects kinds globals [declaration], close-typing-context kinds globals) of
       (Some context, Some unregistered) ->
         let check value = typing-definition-closed context (answer value) in
@@ -51,8 +51,8 @@ module Main where
         let with-other = handled (make-handler ret-outside (slots call) other-row) empty in
         let creator = CLet sp (core-type ret) (nonce + 20) "created" (mono int) outside ret in
         let creation = handled (make-handler creator (slots call) empty) empty in
-        let creation-run = MkCoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [MkCoreClause sp [CPWild sp unit] creation] in
-        let run = MkCoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [MkCoreClause sp [CPWild sp unit] with-other] in
+        let creation-run = CoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [CoreClause sp [CPWild sp unit] creation] in
+        let run = CoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [CoreClause sp [CPWild sp unit] with-other] in
         let condition = CPrimitive sp (UCon "Bool" KType) "<" (CArgument sp call (CArgument sp one (CArgumentsEnd sp))) in
         let guarded test first = CCase sp int (CUnit sp unit) (CAlternative sp (CPWild sp unit) (CGuard sp int test first) (CAlternative sp (CPWild sp unit) call (CAlternativesEnd sp))) in
         [ not (check creation)
@@ -89,9 +89,9 @@ module Main where
   universal nonce =
     let parse-label = UCon "Parse" KEffect in
     let effects = URow (UArg parse-label UEnd) in
-    let q = MkQuant nonce "a" KType False in
+    let q = Quant nonce "a" KType False in
     let sc = MkScheme [q] (UFunEff unit effects (UBound nonce "a" KType)) in
-    let declaration = MkCoreEffect sp "Parse" KEffect Nil [MkCoreOperation sp "fail" 1 sc] in
+    let declaration = CoreEffect sp "Parse" KEffect Nil [CoreOperation sp "fail" 1 sc] in
     let globals = [GlobalValue "answer" "value" (mono int), GlobalValue "fail" "operation" sc] in
     case close-typing-context-with-effects [("Int", KType), ("Unit", KType), ("Parse", KEffect)] globals [declaration] of
       Some context ->

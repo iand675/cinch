@@ -14,24 +14,21 @@ module Cinch.Usage where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export UsageShape, usage-name, usage-single-field, usage-fields-for, read-usage-shape, usage-fields-json
+  export UsageShape, usage-single-field, usage-fields-for, read-usage-shape, usage-fields-json
   export usage-equal, usage-shape-closed, prepare-usage-shape
   export UsageConstructor, usage-constructor-claims, usage-constructor-key, usage-constructor-agrees
 
   -- | A validated field table supplies no source constructor names, descriptors, tags or bodies.
-  data UsageShape where
-    -- | Keep actual parameter roles and the conjunction of every defining constructor's fields.
-    CheckedUsageShape :: String -> List Quant -> List (String, List UType) -> UsageShape
-
-  -- | Read the exact checked nominal owner used only by the task-property table.
-  usage-name :: UsageShape -> String
-  usage-name shape = case shape of CheckedUsageShape owner parameters fields -> owner
+  record UsageShape where
+    name :: String
+    parameters :: List Quant
+    fields :: List (String, List UType)
 
   -- A checked single-constructor shape can validate the field type in
   -- an explicitly unboxed ABI even when its constructor is private.
   usage-single-field :: UsageShape -> Option UType
   usage-single-field shape = case shape of
-    CheckedUsageShape owner params [(constructor, [payload])] -> Some payload
+    UsageShape owner params [(constructor, [payload])] -> Some payload
     other -> None
 
   -- | Compare scalar identity spellings without assigning semantic authority to a display name.
@@ -58,8 +55,8 @@ module Cinch.Usage where
         (case parameters rest (index + 1) of
           Err error -> Err error
           Ok more -> if any-name name (quant-names more) then Err "duplicate ownership parameter" else
-            if same role "Type" then Ok (Cons (MkQuant index name KType automatic) more)
-            else if same role "Region" then Ok (Cons (MkQuant index name KRegion automatic) more)
+            if same role "Type" then Ok (Cons (Quant index name KType automatic) more)
+            else if same role "Region" then Ok (Cons (Quant index name KRegion automatic) more)
             else Err "ownership fields require closed Type/Region parameters")
       other -> Err "invalid ownership parameter"
     JArrEnd -> Ok Nil
@@ -67,11 +64,11 @@ module Cinch.Usage where
 
   -- | Preserve definition-site binder names in canonical field syntax.
   quant-names :: List Quant -> List String
-  quant-names rows = case rows of Nil -> Nil; Cons first rest -> Cons (quant-name first) (quant-names rest)
+  quant-names rows = case rows of Nil -> Nil; Cons first rest -> Cons (first.name) (quant-names rest)
 
   -- | Find a parameter without inferring a role from a consumer's field use.
   parameter :: String -> List Quant -> Option Quant
-  parameter name rows = case rows of Nil -> None; Cons first rest -> if same name (quant-name first) then Some first else parameter name rest
+  parameter name rows = case rows of Nil -> None; Cons first rest -> if same name (first.name) then Some first else parameter name rest
 
   -- | Parse field syntax under the exact defining binders, retaining lexical binder validation.
   parameter-prefix :: List Quant -> String
@@ -83,7 +80,7 @@ module Cinch.Usage where
   parameter-words :: List Quant -> String
   parameter-words rows = case rows of
     Nil -> ""
-    Cons first rest -> string-concat-all [if quant-implicit first then "{" else "(", quant-name first, " :: ", kind-text (quant-kind first), if quant-implicit first then "}" else ")", (case rest of Nil -> ""; other -> " "), parameter-words rest]
+    Cons first rest -> string-concat-all [if first.only then "{" else "(", first.name, " :: ", kind-text (first.kind), if first.only then "}" else ")", (case rest of Nil -> ""; other -> " "), parameter-words rest]
 
   -- | Remove only the generated outer binder group, never a field's own unsupported forall.
   field-syntax :: List Quant -> String -> Result String TypeExpr
@@ -99,8 +96,8 @@ module Cinch.Usage where
   binding-syntax-matches :: List Quant -> TypeExpr -> Bool
   binding-syntax-matches params syntax = case (params, syntax) of
     (Nil, TQuantifiersEnd sp) -> True
-    (Cons first rest, TQuantifier sp name automatic (TName at role) more) -> same name (quant-name first)
-      && automatic == quant-implicit first && same role (kind-text (quant-kind first)) && binding-syntax-matches rest more
+    (Cons first rest, TQuantifier sp name automatic (TName at role) more) -> same name (first.name)
+      && automatic == first.only && same role (kind-text (first.kind)) && binding-syntax-matches rest more
     other -> False
 
   -- Keep the actual defining identity. Instantiation looks up structural
@@ -115,7 +112,7 @@ module Cinch.Usage where
   field-type :: List Quant -> TypeExpr -> Option UType
   field-type params syntax = case syntax of
     TName sp name -> (case parameter name params of
-      Some bound -> if kind-equal (quant-kind bound) KType then Some (UBound (quant-id bound) (quant-name bound) KType) else None
+      Some bound -> if kind-equal (bound.kind) KType then Some (UBound (bound.id) (bound.name) KType) else None
       None -> if scalar name then Some (UCon name KType) else None)
     TTuple sp fields -> (case field-types params fields of Some values -> Some (UTuple values); None -> None)
     TApp sp (TName at name) (TArg arg value (TArgsEnd end)) ->
@@ -126,8 +123,8 @@ module Cinch.Usage where
         None -> None)
     TApp sp (TName at name) (TArg arg (TName rt region) (TArg vt value (TArgsEnd end))) ->
       if same name "Ref" || same name "Mut" then (case (parameter region params, field-type params value) of
-        (Some bound, Some carrier) -> if kind-equal (quant-kind bound) KRegion then
-          Some (UApp (UApp (UCon name borrow-constructor-kind) (UBound (quant-id bound) (quant-name bound) KRegion)) carrier) else None
+        (Some bound, Some carrier) -> if kind-equal (bound.kind) KRegion then
+          Some (UApp (UApp (UCon name borrow-constructor-kind) (UBound (bound.id) (bound.name) KRegion)) carrier) else None
         other -> None) else None
     other -> None
 
@@ -151,7 +148,7 @@ module Cinch.Usage where
   result-arguments :: List Quant -> TypeExpr -> Bool
   result-arguments params arguments = case (params, arguments) of
     (Nil, TArgsEnd sp) -> True
-    (Cons first rest, TArg sp (TName at name) more) -> same name (quant-name first) && result-arguments rest more
+    (Cons first rest, TArg sp (TName at name) more) -> same name (first.name) && result-arguments rest more
     other -> False
 
   -- The structural contract check already established exact coverage.
@@ -203,8 +200,11 @@ module Cinch.Usage where
     Ok header -> let fields = decode-usage-fields header in
       \kinds -> admit-usage-header header (\unit -> fields) kinds
 
-  data UsageHeader where
-    UsageHeader :: String -> String -> List Quant -> Json -> UsageHeader
+  record UsageHeader where
+    field0 :: String
+    field1 :: String
+    field2 :: List Quant
+    field3 :: Json
 
   read-usage-header :: Json -> Result String UsageHeader
   read-usage-header row = if not (nominal-entry-valid row) then Err "invalid defining ownership metadata" else
@@ -227,7 +227,7 @@ module Cinch.Usage where
     if not (declared-owner-kind symbol (kind-arrow params) kinds) then Err "ownership owner kind disagrees with its defining header" else
       (case fields () of
         Err error -> Err error
-        Ok checked -> Ok (CheckedUsageShape symbol params checked))
+        Ok checked -> Ok (UsageShape symbol params checked))
 
   -- | Compare the full defining kind before field instantiation, including erased Region roles.
   declared-owner-kind :: String -> Kind -> (String -> Option Kind) -> Bool
@@ -237,20 +237,20 @@ module Cinch.Usage where
 
   -- | Build a nominal's full kind from its declared parameter sequence.
   kind-arrow :: List Quant -> Kind
-  kind-arrow params = case params of Nil -> KType; Cons first rest -> KFun (quant-kind first) (kind-arrow rest)
+  kind-arrow params = case params of Nil -> KType; Cons first rest -> KFun (first.kind) (kind-arrow rest)
 
   -- | Bind actual type arguments only when every declared role and arity agrees.
   actual-pairs :: List Quant -> List UType -> Option (List (Nat, UType))
   actual-pairs params actuals = case (params, actuals) of
     (Nil, Nil) -> Some Nil
-    (Cons first rest, Cons value more) -> if kind-equal (quant-kind first) (type-kind value) then
-      (case actual-pairs rest more of Some pairs -> Some (Cons (quant-id first, value) pairs); None -> None) else None
+    (Cons first rest, Cons value more) -> if kind-equal (first.kind) (type-kind value) then
+      (case actual-pairs rest more of Some pairs -> Some (Cons (first.id, value) pairs); None -> None) else None
     other -> None
 
   -- | Instantiate checked private fields solely for structural task-property and provenance walks.
   usage-fields-for :: UsageShape -> List UType -> Option (List UType)
   usage-fields-for shape actuals = case shape of
-    CheckedUsageShape owner params fields -> (case actual-pairs params actuals of
+    UsageShape owner params fields -> (case actual-pairs params actuals of
       Some pairs -> Some (instantiate-fields pairs (all-fields fields))
       None -> None)
 
@@ -261,7 +261,7 @@ module Cinch.Usage where
   -- | Recheck field scope and owner roles whenever a later Core typing context is closed.
   usage-shape-closed :: KindIndex -> UsageShape -> Bool
   usage-shape-closed kinds shape = case shape of
-    CheckedUsageShape owner params fields -> (case kind-at owner kinds of
+    UsageShape owner params fields -> (case kind-at owner kinds of
       Some actual -> kind-equal actual (kind-arrow params) && closed-fields kinds params (all-fields fields)
       None -> False)
 
@@ -274,14 +274,14 @@ module Cinch.Usage where
   -- | Compare decoded duplicate proofs semantically, after the loader checks their defining bytes.
   usage-equal :: UsageShape -> UsageShape -> Bool
   usage-equal first second = case (first, second) of
-    (CheckedUsageShape a params fields, CheckedUsageShape b other more) -> same a b && same-parameters params other && same-constructors fields more
+    (UsageShape a params fields, UsageShape b other more) -> same a b && same-parameters params other && same-constructors fields more
 
   -- | Preserve every defining parameter role and implicitness when merging proof occurrences.
   same-parameters :: List Quant -> List Quant -> Bool
   same-parameters first second = case (first, second) of
     (Nil, Nil) -> True
-    (Cons a rest, Cons b more) -> quant-id a == quant-id b && kind-equal (quant-kind a) (quant-kind b)
-      && quant-implicit a == quant-implicit b && same-parameters rest more
+    (Cons a rest, Cons b more) -> a.id == b.id && kind-equal (a.kind) (b.kind)
+      && a.only == b.only && same-parameters rest more
     other -> False
 
   -- | Preserve complete constructor alternatives internally without creating source bindings or runtime tags.
@@ -295,11 +295,13 @@ module Cinch.Usage where
     (Cons (a, fields) rest, Cons (b, more) remaining) -> same a b && same-fields fields more && same-constructors rest remaining
     other -> False
 
-  data UsageConstructor where
-    UsageConstructor :: String -> List Quant -> List UType -> UsageConstructor
+  record UsageConstructor where
+    field0 :: String
+    field1 :: List Quant
+    field2 :: List UType
 
   usage-constructor-claims :: UsageShape -> List (String, UsageConstructor)
-  usage-constructor-claims (CheckedUsageShape owner params constructors) =
+  usage-constructor-claims (UsageShape owner params constructors) =
     map (\entry -> case entry of (name, fields) -> (name, UsageConstructor owner params fields)) constructors
 
   usage-constructor-key :: String -> Option String
@@ -366,7 +368,7 @@ module Cinch.Usage where
 
   -- | Find a quantified binder by its actual identity rather than its source spelling or position.
   quantified-id :: Nat -> List Quant -> Option Quant
-  quantified-id id rows = case rows of Nil -> None; Cons first rest -> if id == quant-id first then Some first else quantified-id id rest
+  quantified-id id rows = case rows of Nil -> None; Cons first rest -> if id == first.id then Some first else quantified-id id rest
 
   -- | Check binder uniqueness, complete coverage and every declared role before substituting field types.
   result-binding-pairs :: List Quant -> List UType -> List Quant -> List Nat -> Option (List (Nat, UType))
@@ -374,10 +376,10 @@ module Cinch.Usage where
     (Nil, Nil) -> Some Nil
     (Cons wanted more, Cons (UBound id name role) rest) -> if nat-member id seen then None else
       (case quantified-id id actual of
-        Some bound -> if kind-equal role (quant-kind wanted) && kind-equal role (quant-kind bound)
-            && quant-implicit wanted == quant-implicit bound then
+        Some bound -> if kind-equal role (wanted.kind) && kind-equal role (bound.kind)
+            && wanted.only == bound.only then
           (case result-binding-pairs more rest actual (Cons id seen) of
-            Some pairs -> Some (Cons (id, UBound (quant-id wanted) (quant-name wanted) (quant-kind wanted)) pairs)
+            Some pairs -> Some (Cons (id, UBound (wanted.id) (wanted.name) (wanted.kind)) pairs)
             None -> None) else None
         None -> None)
     other -> None
@@ -389,8 +391,8 @@ module Cinch.Usage where
   -- | Resolve a checked parameter by binder identity, retaining the exporter's canonical source spelling.
   bound-name :: Nat -> Kind -> List Quant -> List (String, String, Bool) -> Option String
   bound-name id role params names = case (params, names) of
-    (Cons first rest, Cons (name, kind, automatic) more) -> if id == quant-id first then
-      (if kind-equal role (quant-kind first) then Some name else None) else bound-name id role rest more
+    (Cons first rest, Cons (name, kind, automatic) more) -> if id == first.id then
+      (if kind-equal role (first.kind) then Some name else None) else bound-name id role rest more
     other -> None
 
   -- | Print only the same closed first-order carriers accepted by the ownership reader.
@@ -440,7 +442,7 @@ module Cinch.Usage where
   checked-result-arguments :: List Quant -> List UType -> Bool
   checked-result-arguments params arguments = case (params, arguments) of
     (Nil, Nil) -> True
-    (Cons first rest, Cons (UBound id name kind) more) -> id == quant-id first && kind-equal kind (quant-kind first) && checked-result-arguments rest more
+    (Cons first rest, Cons (UBound id name kind) more) -> id == first.id && kind-equal kind (first.kind) && checked-result-arguments rest more
     other -> False
 
   -- | Export all ordinary fields and refuse constrained, erased, dependent or effectful constructor arrows.
@@ -466,10 +468,10 @@ module Cinch.Usage where
   checked-constructors :: String -> String -> List Quant -> List (String, String, Bool) -> List CoreConstructor -> Option Json
   checked-constructors owner identity params names constructors = case constructors of
     Nil -> Some JArrEnd
-    Cons first rest -> let scheme = core-constructor-scheme first in
+    Cons first rest -> let scheme = first.constructor-scheme in
       (case scheme-requirements scheme of
         Cons requirement more -> None
-        Nil -> (case (constructor-pairs (scheme-params scheme) params (scheme-body scheme), export-global (core-constructor-name first), checked-constructors owner identity params names rest) of
+        Nil -> (case (constructor-pairs (scheme-params scheme) params (scheme-body scheme), export-global (first.constructor-name), checked-constructors owner identity params names rest) of
           (Some pairs, Ok name, Some more) -> if not (same (nominal-owner name) (nominal-owner identity)) then None else
             (case checked-fields owner params names (substitute-bound pairs (scheme-body scheme)) of
               Some fields -> Some (JArr (JObj "identity" (JStr name) (JObj "fields" fields (JObj "result" (JStr (result-text identity names)) JObjEnd))) more)

@@ -8,7 +8,7 @@ module Main where
   import Cinch.Contracts (interface-headers)
   import Cinch.Parse (parse-program-with)
   import Cinch.Resolve (resolve-program-with)
-  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Cinch.Infer (elaborate-program, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
   import Cinch.Core
   import Cinch.Type
   import Cinch.Index
@@ -31,7 +31,7 @@ module Main where
   run interfaces source element = case parse-program-with "conditional-methods" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "conditional-methods" resolved in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if closed (bindings-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
           errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)
@@ -55,7 +55,7 @@ module Main where
     (CApply sp (remaining-type id first) (CUse sp (signature-type id) "actual-conditional" "external" Nil) (CInt sp nat (int-to-string first)))
     (CInt sp nat (int-to-string second))
   definition :: CoreTerm -> CoreDefinition
-  definition body = MkCoreDefinition sp "caller" (mono nat) Nil Nil Nil [MkCoreClause sp Nil body]
+  definition body = CoreDefinition sp "caller" (mono nat) Nil Nil Nil [CoreClause sp Nil body]
   typed :: UType -> CoreTerm -> Bool
   typed actual body = case close-typing-context [("Nat", KType)]
     [GlobalValue "actual-conditional" "external" (mono actual), GlobalValue "caller" "value" (mono nat)] of
@@ -82,7 +82,7 @@ module Main where
       && (case core-let-fact Nil Nil (id + 20) (mono nat) good of None -> True; Some invented -> False)
       && not (typed actual (core-body (seal-definition (empty-store "conditional refresh") (definition wrong))))
   core-body :: CoreDefinition -> CoreTerm
-  core-body d = case core-clauses d of Cons (MkCoreClause at patterns body) rest -> body; other -> CError sp
+  core-body d = case d.clauses of Cons (CoreClause at patterns body) rest -> body; other -> CError sp
   all-core-checks :: Nat -> Bool
   all-core-checks id = core-checks id && core-checks (id + 101) && core-checks (id + 1009) && core-checks (id + 10007) && core-checks (id + 100003)
   field :: String -> Json -> Json

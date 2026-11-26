@@ -17,7 +17,7 @@ module Main where
   arrow :: UType
   arrow = UFun nat nat
   definition :: String -> Nat -> CoreTerm -> CoreDefinition
-  definition name id body = MkCoreDefinition sp name (mono arrow) Nil Nil Nil [MkCoreClause sp [CPVar sp nat id "input"] body]
+  definition name id body = CoreDefinition sp name (mono arrow) Nil Nil Nil [CoreClause sp [CPVar sp nat id "input"] body]
   local :: Nat -> CoreTerm
   local id = CLocal sp nat id "input" Nil
   constant :: CoreTerm
@@ -92,7 +92,7 @@ module Main where
     other -> False
   wildcard-check :: Nat -> Bool
   wildcard-check id = let sc = mono (UFun nat (UFun nat nat)) in
-    let actual = MkCoreDefinition sp "second" sc Nil Nil Nil [MkCoreClause sp [CPWild sp nat, CPVar sp nat id "second"] (local id)] in
+    let actual = CoreDefinition sp "second" sc Nil Nil Nil [CoreClause sp [CPWild sp nat, CPVar sp nat id "second"] (local id)] in
     case core-source-body Nil [actual] Nil "second" of
       Some body -> second-slot body && (case close-globals-with-definitions [associated body] [actual] of Some context -> global-definition-closed context actual; None -> False)
       None -> False

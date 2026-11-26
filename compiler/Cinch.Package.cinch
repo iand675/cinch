@@ -4,8 +4,7 @@ module Cinch.Package where
 
   import Cinch.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
   import Cinch.Interface (sha256-hex, fnv-byte, fnv-json-value, fnv-json-string, u64-decimal)
-  import Cinch.PackedBody (Region, PackedSignature, region-start, package-offset, hold-package-source,
-    CheckedBodyTable, PackedTerm, retain-checked-body-table, checked-body-id, checked-definition, checked-term)
+  import Cinch.PackedBody (Region, PackedSignature, package-offset, hold-package-source, CheckedBodyTable, PackedTerm, retain-checked-body-table, checked-body-id, checked-definition, checked-term)
   import Cinch.PackageHash (HashSummary, summarize-row, compose-hashes, apply-summary)
   import Cinch.TotalRules (valid-sort, decimal-number, operation-type)
   import Data.Array (array-append, array-from-list, array-get, array-length)
@@ -44,21 +43,42 @@ module Cinch.Package where
       ret i32 %value
     } when endian big
 
-  data PackedTable where
-    PackedTable :: I64 -> Array String -> Region -> Region -> Array PackedSignature -> PackedTable
-  data FlatBodies where
-    FlatBodies :: Region -> Region -> Region -> Region -> FlatBodies
-  data Package where
-    Package :: Region -> Region -> FlatBodies -> Region -> Region -> Package
-  data StringTable where
-    StringTable :: Nat -> Nat -> Region -> StringTable
-  data PackageSnapshot where
-    PackageSnapshot :: Bytes -> StringTable -> Array String -> Region -> PackageSnapshot
-  data PackedBodyTable where
-    BodyTable :: CheckedBodyTable -> HashMap Nat Json -> PackedBodyTable
+  record PackedTable where
+    address :: I64
+    strings :: Array String
+    nodes :: Region
+    operands :: Region
+    signatures :: Array PackedSignature
+  record FlatBodies where
+    bodies :: Region
+    edges :: Region
+    nodes :: Region
+    operands :: Region
+  record Package where
+    field0 :: Region
+    field1 :: Region
+    field2 :: FlatBodies
+    field3 :: Region
+    field4 :: Region
+  record StringTable where
+    field0 :: Nat
+    field1 :: Nat
+    field2 :: Region
+  record PackageSnapshot where
+    source :: Bytes
+    table :: StringTable
+    texts :: Array String
+    abi :: Region
+  record PackedBodyTable where
+    field0 :: CheckedBodyTable
+    field1 :: HashMap Nat Json
 
-  data PackageContract where
-    PackageContract :: String -> String -> Json -> String -> Option PackedBodyTable -> PackageContract
+  record PackageContract where
+    field0 :: String
+    field1 :: String
+    field2 :: Json
+    field3 :: String
+    field4 :: Option PackedBodyTable
 
   package-contract :: PackageContract -> (String, String, (Json, String, Option PackedBodyTable))
   package-contract (PackageContract name declared doc computed bodies) = (name, declared, (doc, computed, bodies))
@@ -106,10 +126,13 @@ module Cinch.Package where
     , definitionsArray = string-to-bytes "{\"definitions\":["
     }
 
-  data PackedClosure where
-    PackedClosure :: Nat -> List Nat -> Json -> PackedClosure
-  data BodyHashes where
-    BodyHashCache :: Nat -> HashMap Nat HashSummary -> BodyHashes
+  record PackedClosure where
+    field0 :: Nat
+    field1 :: List Nat
+    field2 :: Json
+  record BodyHashes where
+    field0 :: Nat
+    field1 :: HashMap Nat HashSummary
   data Definitions where
     NoDefinitions :: Definitions
     IndexedDefinitions :: PackedTable -> CheckedBodyTable -> WireSyntax -> HashMap Nat Json -> HashMap Nat PackedClosure -> BodyHashes -> Definitions
@@ -440,7 +463,7 @@ module Cinch.Package where
   read-flat-signatures address strings flat index previous rows = case flat of
     FlatBodies bodies edges nodes operands ->
       if index == region-size bodies / 32 then Ok (array-from-list (reverse rows)) else
-        let at = region-start bodies + index * 32 in
+        let at = bodies.start + index * 32 in
         case (array-get strings (word address at), array-get strings (word address (at + 4))) of
           (Some identity, Some result) ->
             if string-length identity == 0 || out-of-order previous identity || word address (at + 28) /= 0 || not (valid-sort result) then
@@ -471,7 +494,7 @@ module Cinch.Package where
       else if id >= region-size nodes / 16 then Err "packed body node outside its section"
       else if id < cursor || id >= parent then Err "packed body child is not in postorder"
       else
-        let at = region-start nodes + id * 16 in
+        let at = nodes.start + id * 16 in
         let a = word address (at + 4) in
         let b = word address (at + 8) in
         let c = word address (at + 12) in
@@ -628,7 +651,7 @@ module Cinch.Package where
   hash-wire-term syntax packed table hash id depth = case packed of
     PackedTable address strings nodes operands signatures ->
       if depth == 0 || id >= region-size nodes / 16 then Err "packed body node outside its section" else
-        let at = region-start nodes + id * 16 in
+        let at = nodes.start + id * 16 in
         let a = word address (at + 4) in
         let b = word address (at + 8) in
         let c = word address (at + 12) in
@@ -786,7 +809,7 @@ module Cinch.Package where
   hash-body-closure syntax packed checked (PackedClosure count selected document) table hash rows cache hashes = case table of
     None -> Ok (document, hash, IndexedDefinitions packed checked syntax rows cache hashes)
     Some spans -> case (packed, hashes) of
-      (PackedTable address strings nodes operands signatures, BodyHashCache visits cached) ->
+      (PackedTable address strings nodes operands signatures, BodyHashes visits cached) ->
         let prefix = fnv64a-update hash (syntax.definitionsArray) in
         let total = array-length signatures in
         -- Small bodies stay on the direct path. A one-off large closure
@@ -802,7 +825,7 @@ module Cinch.Package where
         (case next of
           Err message -> Err message
           Ok (digest, prepared) -> Ok (document, digest,
-            IndexedDefinitions packed checked syntax rows cache (BodyHashCache (visits + count) prepared)))
+            IndexedDefinitions packed checked syntax rows cache (BodyHashes (visits + count) prepared)))
 
   read-body-closure :: WireSyntax -> PackedTable -> CheckedBodyTable -> HashMap Nat Json -> HashMap Nat PackedClosure -> BodyHashes -> Nat -> Option StringTable -> U64 -> Result String (Json, U64, Definitions)
   read-body-closure syntax packed checked rows cache hashes root table hash = case hash-map-lookup root cache of
@@ -833,7 +856,7 @@ module Cinch.Package where
           let packed = PackedTable address strings nodes operands signatures in
           (case check-flat-rows packed 0 0 of
             Err message -> Err message
-            Ok unit -> Ok (IndexedDefinitions packed (retain-checked-body-table source strings nodes operands signatures) wire-syntax hash-map-empty hash-map-empty (BodyHashCache 0 hash-map-empty))))
+            Ok unit -> Ok (IndexedDefinitions packed (retain-checked-body-table source strings nodes operands signatures) wire-syntax hash-map-empty hash-map-empty (BodyHashes 0 hash-map-empty))))
 
   read-strings :: Bytes -> I64 -> Region -> Nat -> Nat -> List String -> Result String (Array String)
   read-strings source address raw at limit items =
@@ -871,14 +894,14 @@ module Cinch.Package where
   retain-body-table definitions = case definitions of
     IndexedDefinitions packed checked syntax rows cache hashes -> case packed of
       PackedTable address strings nodes operands signatures | array-length signatures > 0 ->
-        Some (BodyTable checked rows)
+        Some (PackedBodyTable checked rows)
       other -> None
     other -> None
 
   -- A compatibility row may come from a legacy JSON value or a synthesized
   -- declaration. Match the complete definition before taking package authority.
   packed-definition-for :: PackedBodyTable -> String -> Json -> Option (List String, String, PackedTerm, List String)
-  packed-definition-for (BodyTable table rows) name row = case checked-body-id table name of
+  packed-definition-for (PackedBodyTable table rows) name row = case checked-body-id table name of
     Some id -> (case hash-map-lookup id rows of
       Some original | json-eq original row -> (case checked-definition table id of
         Some (identity, parameters, result, term, calls) -> Some (parameters, result, term, calls)

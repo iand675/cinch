@@ -46,10 +46,10 @@ module Main where
     let complex-codec = case value-carrier (value-kind complex) of Some value -> good complex value; None -> False in
     let family = UApp (UCon "Dec" (KFun KProp KType)) (UPropLit True) in
     let kind-codec = case value-carrier (value-kind family) of Some value -> good family value; None -> False in
-    let metadata = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono arrow)] in
-    let leaked = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono required)] in
-    let runtime-prop = MkCoreDefinition sp "bad" (mono (UCon "Bool" KType)) Nil Nil Nil [MkCoreClause sp Nil (CUse sp (UPropLit True) "fabricated" "value" Nil)] in
-    let unchecked-required = MkCoreDefinition sp "bad" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CUse sp literal "fabricated" "value" Nil)] in
+    let metadata = MkCoreData sp "metadata" KType Nil [CoreConstructor sp "contract" (mono arrow)] in
+    let leaked = MkCoreData sp "metadata" KType Nil [CoreConstructor sp "contract" (mono required)] in
+    let runtime-prop = CoreDefinition sp "bad" (mono (UCon "Bool" KType)) Nil Nil Nil [CoreClause sp Nil (CUse sp (UPropLit True) "fabricated" "value" Nil)] in
+    let unchecked-required = CoreDefinition sp "bad" (mono nat) Nil Nil Nil [CoreClause sp Nil (CUse sp literal "fabricated" "value" Nil)] in
     [ kind-equal (type-kind p) KProp
     , not (kind-equal KProp KType)
     , valid-type p

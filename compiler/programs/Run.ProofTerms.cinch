@@ -30,7 +30,7 @@ module Main where
   ref :: Nat -> CoreTerm
   ref id = CProofRef sp truth id "h"
   definition :: String -> UType -> List CorePattern -> CoreTerm -> CoreDefinition
-  definition name ty patterns body = MkCoreDefinition sp name (mono ty) Nil Nil Nil [MkCoreClause sp patterns body]
+  definition name ty patterns body = CoreDefinition sp name (mono ty) Nil Nil Nil [CoreClause sp patterns body]
   nonnegative :: UType -> UType
   nonnegative value = UCompare ">=" value (UIndex int (IInteger 0))
   refined-result :: Nat -> UType

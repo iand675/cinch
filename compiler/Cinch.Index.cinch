@@ -159,7 +159,6 @@ module Cinch.Index where
   substitute-index-metas :: List (Nat, IndexTerm) -> IndexTerm -> IndexTerm
   substitute-index-metas pairs term = substitute-worker True pairs term
 
-
   -- Complete structural trees retain binding identity and rigid levels.
   -- Decoding establishes syntax only; index-scoped and typed admissibility
   -- remain separate checks before a term may enter a proof context.

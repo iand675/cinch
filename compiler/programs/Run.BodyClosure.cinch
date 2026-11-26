@@ -34,7 +34,7 @@ module Main where
   has-member :: String -> List LoadedInterface -> Bool
   has-member name members = case members of
     Nil -> False
-    Cons first rest -> string-compare name (loaded-module first) == 0 || has-member name rest
+    Cons first rest -> string-compare name (first.name) == 0 || has-member name rest
 
   -- | Require the exact presence or absence of each named interface.
   members-match :: Json -> Bool -> List LoadedInterface -> Bool
@@ -76,7 +76,7 @@ module Main where
       JStr expected -> if string-compare expected "" /= 0 && string-compare message expected == 0 then 0 else failure message
       other -> failure message)
     Ok interfaces -> (case field "expected_error" manifest of
-      JNull -> let members = interface-set-members interfaces in
+      JNull -> let members = interfaces.set-members in
         if count-matches (field "member_count" manifest) members
           && members-match (field "present_members" manifest) True members
           && members-match (field "absent_members" manifest) False members

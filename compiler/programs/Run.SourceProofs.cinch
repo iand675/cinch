@@ -17,21 +17,21 @@ module Main where
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   find :: String -> List CoreDefinition -> Option CoreDefinition
-  find name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else find name rest
+  find name definitions = case definitions of Nil -> None; Cons d rest -> if same name (d.name) then Some d else find name rest
   all-closed :: List CoreDefinition -> Bool
   all-closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && all-closed rest
   linked :: List CoreDefinition -> Bool
   linked definitions = case find "forward" definitions of
-    Some d -> case core-clauses d of
-      Cons (MkCoreClause s [CPProof at predicate id name] (CErasedApply call result row fun (CProofRef ref condition key display))) Nil -> id == key
-      Cons (MkCoreClause s Nil (CLambda lambda ty (CPProof at predicate id name) (CErasedApply call result row fun (CProofRef ref condition key display)))) Nil -> id == key
+    Some d -> case d.clauses of
+      Cons (CoreClause s [CPProof at predicate id name] (CErasedApply call result row fun (CProofRef ref condition key display))) Nil -> id == key
+      Cons (CoreClause s Nil (CLambda lambda ty (CPProof at predicate id name) (CErasedApply call result row fun (CProofRef ref condition key display)))) Nil -> id == key
       other -> False
     None -> True
   run :: Bytes -> (Int, String)
   run source = case parse-program "source-proofs" source of
     Parsed program Nil -> let checked = check-program program in
       let result = elaborate-program "source-proofs" program in
-      let errors = elaboration-errors result in
+      let errors = result.errors in
       if list-length checked > 0 || list-length errors > 0 then
         (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics (checked <> errors))
       else if all-closed (elaboration-core result) && linked (elaboration-core result) then (0, "")

@@ -25,90 +25,91 @@ module Cinch.Load where
   import Text.Lex (Span, bytes-slice)
   import Algebra.Semigroup
 
-  export ImportedValue, imported-name, imported-symbol, imported-arity, imported-scheme
+  export ImportedValue
   export imported-type
-  export LoadedInterface, loaded-module, loaded-hash, loaded-contract, nominal-owner
-  export loaded-values, loaded-fixities, loaded-imports
-  export loaded-exports, loaded-identities, loaded-names
+  export LoadedInterface, nominal-owner
+  export loaded-identities, loaded-names
   export load-interface, load-interface-set, validate-interface-set
-  export ValidatedInterfaces, load-validated-interfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, known-contract-end, canonical-interface-validation
+  export ValidatedInterfaces, load-validated-interfaces, validated-interface-sources-match, validated-interface-references-match, known-contract-end, canonical-interface-validation
   export load-referenced-object-interfaces
   export load-interface-from-contract, load-interface-set-from-contracts
   export load-validated-package-contracts
   export load-interface-from-document, load-interface-set-from-documents, load-object-interfaces-with-known, load-object-interface-sources
-  export loaded-entry, loaded-private-methods, contract-intrinsic
+  export loaded-entry, contract-intrinsic
   export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
   export load-checked-body-interface-set-from-documents, load-body-interfaces-with-known, load-body-interfaces-with-admission
   export prepare-body-interface-load
-  export check-interface-set, interface-set-members
+  export check-interface-set
   export contract-nominals, contract-usage-nominals
   export interface-set-body, interface-set-has-body, admitted-packed-function
   export interface-set-instance, interface-set-signature
 
-  data ImportedValue where
-    MkImportedValue :: String -> String -> Nat -> String -> ImportedValue
-
-  imported-name :: ImportedValue -> String
-  imported-name v = case v of MkImportedValue name symbol arity scheme -> name
-
-  imported-symbol :: ImportedValue -> String
-  imported-symbol v = case v of MkImportedValue name symbol arity scheme -> symbol
-
-  imported-arity :: ImportedValue -> Nat
-  imported-arity v = case v of MkImportedValue name symbol arity scheme -> arity
-
-  imported-scheme :: ImportedValue -> String
-  imported-scheme v = case v of MkImportedValue name symbol arity scheme -> scheme
+  record ImportedValue where
+    name :: String
+    symbol :: String
+    arity :: Nat
+    scheme :: String
 
   imported-type :: ImportedValue -> ParseOutcome TypeExpr
-  imported-type v = parse-scheme (imported-name v) (string-to-bytes (imported-scheme v))
+  imported-type v = parse-scheme (v.name) (string-to-bytes (v.scheme))
 
   -- Every exported row by its defining identity, built once per interface:
   -- a consumer asking for one name probes a table instead of scanning the
   -- whole contract document. Each table keeps the first row in document
   -- order, which is the row the scan it replaces returned.
-  data ExportEntries where
-    MkExportEntries ::
-      HashMap String Json -> HashMap String Json -> HashMap String Json
-      -> HashMap String Json -> HashMap String Json -> HashMap String Json
-      -> (HashMap String (List (String, String, String)), List String)
-      -> ExportEntries
+  record ExportEntries where
+    values :: HashMap String Json
+    types :: HashMap String Json
+    signatures :: HashMap String Json
+    constructors :: HashMap String Json
+    methods :: HashMap String Json
+    instances :: HashMap String Json
+    names :: (HashMap String (List (String, String, String)), List String)
 
   -- `exports` and `private-methods` are the two row sets every consumer asks
   -- for by name, and both are read once here rather than per ask: a law
   -- closure test asks every interface for them, so deriving them per ask was
   -- queries x interfaces x rows work.
-  data LoadedInterface where
-    MkLoadedInterface :: Bool -> String -> String -> Json -> String -> List ImportedValue
-      -> List (String, String, Nat) -> List (String, String) -> ExportEntries
-      -> List (String, String, String) -> List (String, String, String) -> Option (List TotalGraph) -> LoadedInterface
+  record LoadedInterface where
+    verified :: Bool
+    name :: String
+    hash :: String
+    doc :: Json
+    source :: String
+    values :: List ImportedValue
+    fixities :: List (String, String, Nat)
+    imports :: List (String, String)
+    entries :: ExportEntries
+    exports :: List (String, String, String)
+    private-methods :: List (String, String, String)
+    bodies :: Option (List TotalGraph)
 
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
-  data InterfaceSet where
-    CheckedInterfaceSet :: List LoadedInterface -> HashMap String (List TotalGraph)
-      -> HashMap String Json -> HashMap String Json -> InterfaceSet
-  interface-set-members :: InterfaceSet -> List LoadedInterface
-  interface-set-members set = case set of CheckedInterfaceSet members bodies instances signatures -> members
+  record InterfaceSet where
+    set-members :: List LoadedInterface
+    bodies :: HashMap String (List TotalGraph)
+    instances :: HashMap String Json
+    signatures :: HashMap String Json
   interface-set-body :: String -> InterfaceSet -> Option TotalFunction
-  interface-set-body native set = case set of CheckedInterfaceSet members bodies instances signatures -> set-body native (body-graphs native bodies)
+  interface-set-body native set = case set of InterfaceSet members bodies instances signatures -> set-body native (body-graphs native bodies)
   interface-set-has-body :: String -> InterfaceSet -> Bool
-  interface-set-has-body native set = case set of CheckedInterfaceSet members bodies instances signatures -> (case hash-map-lookup native bodies of Some graphs -> True; None -> False)
+  interface-set-has-body native set = case set of InterfaceSet members bodies instances signatures -> (case hash-map-lookup native bodies of Some graphs -> True; None -> False)
   interface-set-instance :: String -> InterfaceSet -> Option Json
-  interface-set-instance identity set = case set of CheckedInterfaceSet members bodies instances signatures -> hash-map-lookup identity instances
+  interface-set-instance identity set = case set of InterfaceSet members bodies instances signatures -> hash-map-lookup identity instances
   interface-set-signature :: String -> InterfaceSet -> Option Json
-  interface-set-signature identity set = case set of CheckedInterfaceSet members bodies instances signatures -> hash-map-lookup identity signatures
+  interface-set-signature identity set = case set of InterfaceSet members bodies instances signatures -> hash-map-lookup identity signatures
 
   -- The first definition in interface and row order is also the one
   -- returned by the ordered lookup of a defining dictionary or signature.
   checked-interface-set :: List LoadedInterface -> InterfaceSet
   checked-interface-set members =
     let (instances, signatures) = method-owners (reverse members) hash-map-empty hash-map-empty in
-    CheckedInterfaceSet members (index-graph-bodies (set-bodies members)) instances signatures
+    InterfaceSet members (index-graph-bodies (set-bodies members)) instances signatures
   method-owners :: List LoadedInterface -> HashMap String Json -> HashMap String Json -> (HashMap String Json, HashMap String Json)
   method-owners members instances signatures = case members of
     Nil -> (instances, signatures)
-    Cons first rest -> let exports = field "exports" (loaded-contract first) in
+    Cons first rest -> let exports = field "exports" (first.doc) in
       method-owners rest (row-table-into "id" (field "instances" exports) instances)
         (row-table-into "identity" (field "signatures" exports) signatures)
   body-graphs :: String -> HashMap String (List TotalGraph) -> List TotalGraph
@@ -132,7 +133,7 @@ module Cinch.Load where
   -- Match the complete closure before taking authority from a package.
   -- A synthesized declaration may have the same symbol and a different body.
   admitted-packed-function :: String -> Json -> InterfaceSet -> Option TotalFunction
-  admitted-packed-function native doc (CheckedInterfaceSet members bodies instances signatures) =
+  admitted-packed-function native doc (InterfaceSet members bodies instances signatures) =
     match-packed-function native doc (body-graphs native bodies)
 
   match-packed-function :: String -> Json -> List TotalGraph -> Option TotalFunction
@@ -160,7 +161,7 @@ module Cinch.Load where
   set-bodies :: List LoadedInterface -> List TotalGraph
   set-bodies interfaces = case interfaces of
     Nil -> Nil
-    Cons (MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods prepared) rest ->
+    Cons (LoadedInterface verified name hash doc source values fixes refs entries exports private-methods prepared) rest ->
       let graphs = (case prepared of
         Some checked -> checked
         None -> export-body-graphs None (field "exports" doc)) in
@@ -195,7 +196,7 @@ module Cinch.Load where
   -- source replacements. Reuse the proof only for that exact sequence.
   load-body-interfaces-with-admission :: ValidatedInterfaces -> List (String, String, Json) -> Result String InterfaceSet
   load-body-interfaces-with-admission checked inputs = case checked of
-    MkValidatedInterfaces members indexed closures ordered ->
+    ValidatedInterfaces members indexed closures ordered ->
       if ordered && admitted-body-documents members inputs then Ok (checked-interface-set members)
       else load-body-interfaces-using (read-known-document indexed) inputs
 
@@ -203,7 +204,7 @@ module Cinch.Load where
   -- module table together. The direct result is for a resolver that kept
   -- the original list of admitted documents in order.
   prepare-body-interface-load :: ValidatedInterfaces -> (Option InterfaceSet, List (String, String, Json) -> (Result String InterfaceSet, Bool))
-  prepare-body-interface-load (MkValidatedInterfaces members indexed closures ordered) =
+  prepare-body-interface-load (ValidatedInterfaces members indexed closures ordered) =
     let known = read-known-document indexed in
     let fallback = \inputs -> (load-body-interfaces-using known inputs, False) in
     if not ordered || not (verified-body-documents members) then (None, fallback) else
@@ -213,14 +214,14 @@ module Cinch.Load where
   verified-body-documents :: List LoadedInterface -> Bool
   verified-body-documents members = case members of
     Nil -> True
-    Cons (MkLoadedInterface True owner digest original source values fixes refs entries exports methods bodies) rest ->
+    Cons (LoadedInterface True owner digest original source values fixes refs entries exports methods bodies) rest ->
       verified-body-documents rest
     other -> False
 
   admitted-body-documents :: List LoadedInterface -> List (String, String, Json) -> Bool
   admitted-body-documents members inputs = case (members, inputs) of
     (Nil, Nil) -> True
-    (Cons (MkLoadedInterface True owner digest original source values fixes refs entries exports methods bodies) rest,
+    (Cons (LoadedInterface True owner digest original source values fixes refs entries exports methods bodies) rest,
       Cons (name, hash, doc) more) -> same owner name && same digest hash
         && compare-documents False doc original && admitted-body-documents rest more
     other -> False
@@ -230,7 +231,7 @@ module Cinch.Load where
   -- original order for the strict set check. A closed set needs no queue.
   body-closed-interfaces :: List LoadedInterface -> List LoadedInterface
   body-closed-interfaces members =
-    let index = MkInterfaceIndex members (interface-table members hash-map-empty) hash-map-empty in
+    let index = InterfaceIndex members (interface-table members hash-map-empty) hash-map-empty in
     case incomplete-interfaces members index Nil of
       Nil -> members
       pending ->
@@ -240,14 +241,14 @@ module Cinch.Load where
   incomplete-interfaces :: List LoadedInterface -> InterfaceIndex -> List String -> List String
   incomplete-interfaces members index pending = case members of
     Nil -> pending
-    Cons member rest -> case verify-refs (loaded-imports member) index of
-      Err problem -> incomplete-interfaces rest index (Cons (loaded-module member) pending)
+    Cons member rest -> case verify-refs (member.imports) index of
+      Err problem -> incomplete-interfaces rest index (Cons (member.name) pending)
       Ok unit -> incomplete-interfaces rest index pending
 
   interface-users :: List LoadedInterface -> HashMap String (List String) -> HashMap String (List String)
   interface-users members users = case members of
     Nil -> users
-    Cons member rest -> interface-users rest (interface-user-edges (loaded-module member) (loaded-imports member) users)
+    Cons member rest -> interface-users rest (interface-user-edges (member.name) (member.imports) users)
   interface-user-edges :: String -> List (String, String) -> HashMap String (List String) -> HashMap String (List String)
   interface-user-edges importer refs users = case refs of
     Nil -> users
@@ -265,42 +266,22 @@ module Cinch.Load where
   retain-body-closed-interfaces :: List LoadedInterface -> HashMap String () -> List LoadedInterface
   retain-body-closed-interfaces members removed = case members of
     Nil -> Nil
-    Cons member rest -> case hash-map-lookup (loaded-module member) removed of
+    Cons member rest -> case hash-map-lookup (member.name) removed of
       Some checked -> retain-body-closed-interfaces rest removed
       None -> Cons member (retain-body-closed-interfaces rest removed)
-
-  loaded-module :: LoadedInterface -> String
-  loaded-module i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> name
-
-  loaded-hash :: LoadedInterface -> String
-  loaded-hash i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> hash
-
-  loaded-contract :: LoadedInterface -> Json
-  loaded-contract i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> doc
-
-  loaded-values :: LoadedInterface -> List ImportedValue
-  loaded-values i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> values
-
-  loaded-fixities :: LoadedInterface -> List (String, String, Nat)
-  loaded-fixities i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> fixes
-
-  loaded-imports :: LoadedInterface -> List (String, String)
-  loaded-imports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> refs
 
   -- Name, namespace category, defining identity. Contract-only class
   -- members are intentionally absent: only explicit export lists bind
   -- names in the importing module. Read once, when the interface is
   -- loaded: every name a consumer binds asks for these rows, so deriving
   -- them per ask cost names x rows allocations per interface.
-  loaded-exports :: LoadedInterface -> List (String, String, String)
-  loaded-exports i = case i of MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> exports
 
   -- The defining identities of one public name, document order, each once:
   -- the probe `public-global` and `overloads` make per name, answered from
   -- the name table the load built instead of a scan of every row.
   loaded-identities :: LoadedInterface -> String -> List String
   loaded-identities i name = case i of
-    MkLoadedInterface verified at hash doc source values fixes refs entries exports private-methods bodies ->
+    LoadedInterface verified at hash doc source values fixes refs entries exports private-methods bodies ->
       identity-list (hash-map-lookup name (name-entries entries))
   identity-list :: Option (List (String, String, String)) -> List String
   identity-list looked = case looked of
@@ -349,13 +330,13 @@ module Cinch.Load where
   -- spellings are a scope concern; all aliases share this defining row.
   loaded-entry :: LoadedInterface -> String -> String -> Option Json
   loaded-entry i kind identity = case i of
-    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies ->
-      if same kind "value" then entry-in value-entries identity entries
-      else if same kind "type" then entry-in type-entries identity entries
-      else if same kind "signature" then entry-in signature-entries identity entries
-      else if same kind "constructor" then entry-in constructor-entries identity entries
-      else if same kind "method" then entry-in method-entries identity entries
-      else if same kind "instance" then entry-in instance-entries identity entries
+    LoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies ->
+      if same kind "value" then entry-in (\r -> (r :: ExportEntries).values) identity entries
+      else if same kind "type" then entry-in (\r -> (r :: ExportEntries).types) identity entries
+      else if same kind "signature" then entry-in (\r -> (r :: ExportEntries).signatures) identity entries
+      else if same kind "constructor" then entry-in (\r -> (r :: ExportEntries).constructors) identity entries
+      else if same kind "method" then entry-in (\r -> (r :: ExportEntries).methods) identity entries
+      else if same kind "instance" then entry-in (\r -> (r :: ExportEntries).instances) identity entries
       else None
 
   -- Foreign records carry module-local symbols. Match the complete defining
@@ -371,12 +352,12 @@ module Cinch.Load where
 
   name-entries :: ExportEntries -> HashMap String (List (String, String, String))
   name-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances (table, ordered) -> table
+    ExportEntries values types signatures constructors methods instances (table, ordered) -> table
   -- Keep first-occurrence order as the name table is built. Scoping and
   -- overload declarations both need one binding per public spelling.
   loaded-names :: LoadedInterface -> List String
   loaded-names i = case i of
-    MkLoadedInterface verified home hash doc source values fixes refs (MkExportEntries vs ts ss cs ms instances (table, ordered)) exports private-methods bodies -> ordered
+    LoadedInterface verified home hash doc source values fixes refs (ExportEntries vs ts ss cs ms instances (table, ordered)) exports private-methods bodies -> ordered
   -- The globals this interface exports, `interface-global` of every export
   -- identity and of every private method identity: the two lists the law
   -- closure compares a name against. Both are encoded once here instead of
@@ -384,24 +365,6 @@ module Cinch.Load where
   -- table: `Hash String` folds `nat-mul` over the bytes, so probing with it
   -- costs more than the short `string-compare` scan it would replace
   -- (design/compilation-speed.md 2.5 measured that).
-  value-entries :: ExportEntries -> HashMap String Json
-  value-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> values
-  type-entries :: ExportEntries -> HashMap String Json
-  type-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> types
-  signature-entries :: ExportEntries -> HashMap String Json
-  signature-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> signatures
-  constructor-entries :: ExportEntries -> HashMap String Json
-  constructor-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> constructors
-  method-entries :: ExportEntries -> HashMap String Json
-  method-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> methods
-  instance-entries :: ExportEntries -> HashMap String Json
-  instance-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances names -> instances
   entry-in :: (ExportEntries -> HashMap String Json) -> String -> ExportEntries -> Option Json
   entry-in table identity entries = hash-map-lookup identity (table entries)
 
@@ -411,7 +374,7 @@ module Cinch.Load where
   -- constructor, and its own identity carries the row.
   export-entries :: List (String, String, String) -> Json -> ExportEntries
   export-entries rows exports =
-    MkExportEntries
+    ExportEntries
       (row-table "symbol" (field "values" exports))
       (row-table "identity" (field "types" exports))
       (row-table "identity" (field "signatures" exports))
@@ -479,10 +442,6 @@ module Cinch.Load where
         (JObj "class" (JStr owner) (JObj "identity" (JStr identity) row))
         (method-rows owner rest acc)
     other -> acc
-
-  loaded-private-methods :: LoadedInterface -> List (String, String, String)
-  loaded-private-methods i = case i of
-    MkLoadedInterface verified name hash doc source values fixes refs entries exports private-methods bodies -> private-methods
 
   private-signature-methods :: String -> Json -> List (String, String, String)
   private-signature-methods owner rows = case rows of
@@ -890,7 +849,7 @@ module Cinch.Load where
 
   read-values :: Json -> List ImportedValue
   read-values values = case values of
-    JArr v rest -> Cons (MkImportedValue (text (field "name" v)) (text (field "symbol" v))
+    JArr v rest -> Cons (ImportedValue (text (field "name" v)) (text (field "symbol" v))
       (number (field "arity" v)) (text (field "scheme" v))) (read-values rest)
     other -> Nil
 
@@ -979,7 +938,7 @@ module Cinch.Load where
       None -> None
       Some table -> Some (export-body-graphs bodies exports)) in
     let text = if bytes-len source == 0 then "" else (case string-from-bytes source of Some s -> s; None -> "") in
-    Ok (MkLoadedInterface verified name hash doc text (read-values (field "values" exports))
+    Ok (LoadedInterface verified name hash doc text (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
       (export-entries rows exports) rows private prepared)
 
@@ -994,7 +953,7 @@ module Cinch.Load where
       Some previous -> Err (string-concat "duplicate interface module: " name)
       None -> case load name hash payload of
         Err message -> Err (string-concat-all [name, ": ", message])
-        Ok i -> let follows-dependencies = ordered && preceding-interface-refs (loaded-imports i) seen in
+        Ok i -> let follows-dependencies = ordered && preceding-interface-refs (i.imports) seen in
           read-interface-rows load rest (hash-map-insert name i seen) (Cons i loaded) follows-dependencies
 
   -- The writer normally emits dependency-first order. Each matching
@@ -1005,7 +964,7 @@ module Cinch.Load where
   preceding-interface-refs refs seen = case refs of
     Nil -> True
     Cons (name, hash) rest -> (case hash-map-lookup name seen of
-      Some member -> same hash (loaded-hash member) && preceding-interface-refs rest seen
+      Some member -> same hash (member.hash) && preceding-interface-refs rest seen
       None -> False)
 
   -- A declared hash from a synthetic contract is insufficient. Only the
@@ -1014,7 +973,7 @@ module Cinch.Load where
   read-known-document :: HashMap String LoadedInterface -> String -> String -> Json -> Result String LoadedInterface
   read-known-document known name hash doc = case hash-map-lookup name known of
     Some previous -> (case previous of
-      MkLoadedInterface True owner identity original source values fixes refs entries exports methods bodies
+      LoadedInterface True owner identity original source values fixes refs entries exports methods bodies
         | same hash identity && compare-documents False doc original -> Ok previous
       other -> load-interface-from-document name hash doc)
     None -> load-interface-from-document name hash doc
@@ -1028,7 +987,7 @@ module Cinch.Load where
   read-known-source :: HashMap String LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
   read-known-source known name hash src = case hash-map-lookup name known of
     Some previous -> (case previous of
-      MkLoadedInterface True owner identity original source values fixes refs entries exports methods bodies
+      LoadedInterface True owner identity original source values fixes refs entries exports methods bodies
         | same hash identity && string-length source > 0 && bytes-compare (string-to-bytes source) src == 0 -> Ok previous
       other -> read-parsed-source known name hash src)
     None -> read-parsed-source known name hash src
@@ -1055,12 +1014,14 @@ module Cinch.Load where
   -- module table holds every loaded module. The law table holds only names
   -- mentioned by law syntax. Several interfaces can re-export the same
   -- identity; the first in input order supplies its owner for law checks.
-  data InterfaceIndex where
-    MkInterfaceIndex :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String String -> InterfaceIndex
+  record InterfaceIndex where
+    all :: List LoadedInterface
+    by-name :: HashMap String LoadedInterface
+    globals :: HashMap String String
 
   index-interfaces :: List LoadedInterface -> InterfaceIndex
   index-interfaces loaded =
-    MkInterfaceIndex loaded (interface-table loaded hash-map-empty)
+    InterfaceIndex loaded (interface-table loaded hash-map-empty)
       (law-exporters loaded)
 
   -- Module name to interface. Later entries replace earlier entries.
@@ -1068,7 +1029,7 @@ module Cinch.Load where
   interface-table :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
   interface-table loaded table = case loaded of
     Nil -> table
-    Cons i rest -> interface-table rest (hash-map-insert (loaded-module i) i table)
+    Cons i rest -> interface-table rest (hash-map-insert (i.name) i table)
 
   -- Law syntax passes the literal spelling of each reference to its
   -- decoder's lookup. Collect those spellings before visiting exports, so
@@ -1080,7 +1041,7 @@ module Cinch.Load where
   law-names :: List LoadedInterface -> HashMap String String -> HashMap String String
   law-names loaded requested = case loaded of
     Nil -> requested
-    Cons first rest -> law-names rest (class-law-names (field "signatures" (field "exports" (loaded-contract first))) requested)
+    Cons first rest -> law-names rest (class-law-names (field "signatures" (field "exports" (first.doc))) requested)
   class-law-names :: Json -> HashMap String String -> HashMap String String
   class-law-names rows requested = case rows of
     JArr first rest -> class-law-names rest (syntax-law-names (field "laws" first) requested)
@@ -1100,10 +1061,10 @@ module Cinch.Load where
   index-law-exporters loaded requested owners = case loaded of
     Nil -> owners
     Cons first rest ->
-      let home = loaded-module first in
+      let home = first.name in
       let later = index-law-exporters rest requested owners in
-      index-law-export-rows (loaded-exports first) home requested
-        (index-law-export-rows (loaded-private-methods first) home requested later)
+      index-law-export-rows (first.exports) home requested
+        (index-law-export-rows (first.private-methods) home requested later)
   index-law-export-rows :: List (String, String, String) -> String -> HashMap String String -> HashMap String String -> HashMap String String
   index-law-export-rows rows home requested owners = case rows of
     Nil -> owners
@@ -1112,24 +1073,21 @@ module Cinch.Load where
       Some spelling -> index-law-export-rows rest home requested (hash-map-insert spelling home owners)
 
   interface-by-name :: InterfaceIndex -> String -> Option LoadedInterface
-  interface-by-name ix name = case ix of MkInterfaceIndex all by-name globals -> hash-map-lookup name by-name
-
-  interfaces-of :: InterfaceIndex -> List LoadedInterface
-  interfaces-of ix = case ix of MkInterfaceIndex all by-name globals -> all
+  interface-by-name ix name = case ix of InterfaceIndex all by-name globals -> hash-map-lookup name by-name
 
   verify-refs :: List (String, String) -> InterfaceIndex -> Result String Unit
   verify-refs refs ix = case refs of
     Nil -> Ok ()
     Cons (name, hash) rest -> case interface-by-name ix name of
       None -> Err (string-concat "missing interface dependency: " name)
-      Some i -> if same hash (loaded-hash i) then verify-refs rest ix
+      Some i -> if same hash (i.hash) then verify-refs rest ix
         else Err (string-concat "stale interface dependency: " name)
 
   verify-set :: List LoadedInterface -> InterfaceIndex -> Result String Unit
   verify-set remaining ix = case remaining of
     Nil -> Ok ()
-    Cons i rest -> case verify-refs (loaded-imports i) ix of
-      Err message -> Err (string-concat-all [loaded-module i, ": ", message])
+    Cons i rest -> case verify-refs (i.imports) ix of
+      Err message -> Err (string-concat-all [i.name, ": ", message])
       Ok unit -> verify-set rest ix
 
   -- The earliest ready row in input order must win, including when a
@@ -1155,8 +1113,8 @@ module Cinch.Load where
   count-imports loaded position counts ready = case loaded of
     Nil -> (counts, ready)
     Cons member rest ->
-      let count = list-length (loaded-imports member) in
-      let pending = hash-map-insert (loaded-module member) (position, count) counts in
+      let count = list-length (member.imports) in
+      let pending = hash-map-insert (member.name) (position, count) counts in
       let queued = if count == 0 then merge-ready-interfaces ready (ReadyInterface position member NoReadyInterface NoReadyInterface) else ready in
       count-imports rest (position + 1) pending queued
 
@@ -1166,7 +1124,7 @@ module Cinch.Load where
       None -> Ok (reverse ordered)
       Some name -> Err (string-concat "cyclic interface dependencies involving " name)
     ReadyInterface position member left right ->
-      let importers = interface-users-of (loaded-module member) users in
+      let importers = interface-users-of (member.name) users in
       let (remaining, queued) = release-interface-users importers ix counts (merge-ready-interfaces left right) in
       order-ready-interfaces loaded ix users remaining queued (Cons member ordered)
 
@@ -1185,27 +1143,28 @@ module Cinch.Load where
   blocked-interface :: List LoadedInterface -> HashMap String (Nat, Nat) -> Option String
   blocked-interface loaded counts = case loaded of
     Nil -> None
-    Cons member rest -> let name = loaded-module member in case hash-map-lookup name counts of
+    Cons member rest -> let name = member.name in case hash-map-lookup name counts of
       Some (position, count) | count > 0 -> Some name
       other -> blocked-interface rest counts
 
   load-interface-set :: List (String, String, Bytes) -> Result String (List LoadedInterface)
   load-interface-set inputs = case load-validated-interfaces inputs of
     Err message -> Err message
-    Ok checked -> Ok (validated-interfaces-members checked)
+    Ok checked -> Ok (checked.interfaces-members)
 
   -- Only a successful set check can supply this handle to the object loader.
-  data ValidatedInterfaces where
-    MkValidatedInterfaces :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String ModuleClosure -> Bool -> ValidatedInterfaces
-  validated-interfaces-members :: ValidatedInterfaces -> List LoadedInterface
-  validated-interfaces-members checked = case checked of MkValidatedInterfaces members indexed closures ordered -> members
+  record ValidatedInterfaces where
+    interfaces-members :: List LoadedInterface
+    indexed :: HashMap String LoadedInterface
+    closures :: HashMap String ModuleClosure
+    ordered :: Bool
   load-validated-interfaces :: List (String, String, Bytes) -> Result String ValidatedInterfaces
   load-validated-interfaces inputs = read-validated-interfaces-using load-interface inputs
   read-validated-interfaces-using :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String ValidatedInterfaces
   read-validated-interfaces-using load inputs = case read-interface-rows load inputs hash-map-empty Nil True of
     Err message -> Err message
     Ok (loaded, indexed, ordered) ->
-      let ix = MkInterfaceIndex loaded indexed (law-exporters loaded) in
+      let ix = InterfaceIndex loaded indexed (law-exporters loaded) in
       if ordered then validate-ordered-interfaces loaded loaded ix True else validate-indexed-interfaces loaded ix
   load-packed-contract :: String -> String -> (Json, String, Option PackedBodyTable) -> Result String LoadedInterface
   load-packed-contract expected-name expected-hash (doc, digest, bodies) = case check-contract-envelope bodies expected-name doc of
@@ -1221,7 +1180,7 @@ module Cinch.Load where
   -- admitted source establishes the end of an embedded contract.
   known-contract-end :: ValidatedInterfaces -> (String -> Bytes -> Nat -> Option Nat)
   known-contract-end checked =
-    let sources = index-contract-sources (validated-interfaces-members checked) hash-map-empty in
+    let sources = index-contract-sources (checked.interfaces-members) hash-map-empty in
     \hash src start -> case hash-map-lookup hash sources of
       None -> None
       Some original ->
@@ -1231,7 +1190,7 @@ module Cinch.Load where
   index-contract-sources :: List LoadedInterface -> HashMap String Bytes -> HashMap String Bytes
   index-contract-sources members sources = case members of
     Nil -> sources
-    Cons (MkLoadedInterface True name hash doc original values fixes refs entries exports methods bodies) rest ->
+    Cons (LoadedInterface True name hash doc original values fixes refs entries exports methods bodies) rest ->
       index-contract-sources rest (if string-length original > 0 then hash-map-insert hash (string-to-bytes original) sources else sources)
     Cons other rest -> index-contract-sources rest sources
 
@@ -1239,7 +1198,7 @@ module Cinch.Load where
   validated-interface-sources-match = validated-object-contracts-match source-agrees load-interface
   source-agrees :: LoadedInterface -> Bytes -> Bool
   source-agrees member bytes = case member of
-    MkLoadedInterface verified name hash doc source values fixes refs entries exports methods bodies ->
+    LoadedInterface verified name hash doc source values fixes refs entries exports methods bodies ->
       string-length source > 0 && bytes-compare (string-to-bytes source) bytes == 0
 
   -- Public reference rows resolve only to contracts already verified by the
@@ -1250,7 +1209,7 @@ module Cinch.Load where
   -- Validate the represented closure before classifying those client rows.
   load-referenced-object-interfaces :: ValidatedInterfaces -> List (String, String, Option Json) -> Option (List LoadedInterface)
   load-referenced-object-interfaces checked inputs = case checked of
-    MkValidatedInterfaces members indexed closures ordered ->
+    ValidatedInterfaces members indexed closures ordered ->
       case match-object-contracts public-reference private-reference inputs indexed hash-map-empty True of
         None -> None
         Some matched -> case validate-interface-set matched of
@@ -1266,7 +1225,7 @@ module Cinch.Load where
   validated-object-contracts-match :: forall a. (LoadedInterface -> a -> Bool) ->
     (String -> String -> a -> Result String LoadedInterface) -> ValidatedInterfaces -> List (String, String, a) -> Bool
   validated-object-contracts-match agrees load checked inputs = case checked of
-    MkValidatedInterfaces members by-name closures ordered ->
+    ValidatedInterfaces members by-name closures ordered ->
       let count = list-length members in
       let input-count = list-length inputs in
       let extra = input-count == count + 1 in
@@ -1276,7 +1235,7 @@ module Cinch.Load where
           Some matched ->
             -- Class laws consult the first exporter of a global. Replay
             -- that check against the object's original row order.
-            let index = MkInterfaceIndex matched by-name (law-exporters matched) in
+            let index = InterfaceIndex matched by-name (law-exporters matched) in
             interface-laws-valid matched index closures)
   match-object-contracts :: forall a. (LoadedInterface -> a -> Bool) ->
     (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) ->
@@ -1285,7 +1244,7 @@ module Cinch.Load where
     Nil -> Some Nil
     Cons (name, hash, payload) rest -> case (hash-map-lookup name indexed, hash-map-lookup name seen) of
       (Some member, None) -> (case member of
-        MkLoadedInterface True owner identity doc source values fixes refs entries exports methods bodies ->
+        LoadedInterface True owner identity doc source values fixes refs entries exports methods bodies ->
           if same hash identity && agrees member payload then
             (case match-object-contracts agrees load rest indexed (hash-map-insert name () seen) extra of
               Some matched -> Some (Cons member matched)
@@ -1306,12 +1265,12 @@ module Cinch.Load where
   -- take over the longest module prefix of an already-owned identity.
   standalone-object-interface :: LoadedInterface -> HashMap String LoadedInterface -> Bool
   standalone-object-interface member indexed =
-    let name = loaded-module member in
-    let exports = field "exports" (loaded-contract member) in
+    let name = member.name in
+    let exports = field "exports" (member.doc) in
     case (field "types" exports, field "signatures" exports, field "instances" exports,
           interface-nominals member, interface-body-declarations member) of
       (JArrEnd, JArrEnd, JArrEnd, Nil, Nil) -> undotted-name name
-        && (case verify-refs (loaded-imports member) (MkInterfaceIndex Nil indexed hash-map-empty) of Ok unit -> True; Err message -> False)
+        && (case verify-refs (member.imports) (InterfaceIndex Nil indexed hash-map-empty) of Ok unit -> True; Err message -> False)
         && plain-object-values (field "values" exports)
       other -> False
   undotted-name :: String -> Bool
@@ -1375,7 +1334,7 @@ module Cinch.Load where
     JArr row rest -> conditional-method-nominals usage (field "method_contracts" row) (conditional-instance-nominals usage rest tail)
     other -> tail
   interface-nominals :: LoadedInterface -> List Json
-  interface-nominals i = contract-nominals (loaded-contract i)
+  interface-nominals i = contract-nominals (i.doc)
   -- | Project only recognized contract positions, excluding arbitrary body, layout and diagnostic JSON.
   contract-nominals :: Json -> List Json
   contract-nominals document = contract-nominal-rows False document
@@ -1400,8 +1359,10 @@ module Cinch.Load where
     JArr row rest -> let more = ownership-nominals usage rest tail in
       if has-field "ownership" row then keep-nominal usage (field "ownership" row) more else more
     other -> tail
-  data ModuleClosure where
-    ModuleClosure :: Nat -> HashMap String () -> List String -> ModuleClosure
+  record ModuleClosure where
+    size :: Nat
+    members :: HashMap String ()
+    names :: List String
 
   name-in :: String -> ModuleClosure -> Bool
   name-in name reachable = case reachable of
@@ -1433,7 +1394,7 @@ module Cinch.Load where
     Cons (name, hash) rest -> if name-in name reachable then include-dependencies rest closures ix reachable
       else (case (interface-by-name ix name, closure-of name closures) of
         (Some member, ModuleClosure size members names) ->
-          let merged = visit-imports (loaded-imports member) Nil ix names size (closure-insert name reachable) in
+          let merged = visit-imports (member.imports) Nil ix names size (closure-insert name reachable) in
           include-dependencies rest closures ix merged
         other -> include-dependencies rest closures ix reachable)
 
@@ -1448,7 +1409,7 @@ module Cinch.Load where
       else if name-in name reachable then visit-imports rest pending ix names (steps - 1) reachable
       else (case interface-by-name ix name of
         None -> visit-imports rest pending ix names (steps - 1) reachable
-        Some member -> visit-imports (loaded-imports member) (Cons rest pending) ix names (steps - 1) (closure-insert name reachable))
+        Some member -> visit-imports (member.imports) (Cons rest pending) ix names (steps - 1) (closure-insert name reachable))
 
   include-members :: List String -> ModuleClosure -> ModuleClosure
   include-members entries reachable = case entries of
@@ -1460,8 +1421,8 @@ module Cinch.Load where
   index-closures ordered ix closures = case ordered of
     Nil -> closures
     Cons i rest ->
-      let home = loaded-module i in
-      let refs = loaded-imports i in
+      let home = i.name in
+      let refs = i.imports in
       let largest = largest-dependency refs closures (ModuleClosure 0 hash-map-empty Nil) in
       let reachable = closure-insert home (include-dependencies refs closures ix largest) in
       index-closures rest ix (hash-map-insert home reachable closures)
@@ -1498,7 +1459,7 @@ module Cinch.Load where
   -- table holds only exported identities that law syntax names.
   law-global-present :: String -> ModuleClosure -> InterfaceIndex -> Bool
   law-global-present name reachable ix = case ix of
-    MkInterfaceIndex all by-name globals -> case hash-map-lookup name globals of
+    InterfaceIndex all by-name globals -> case hash-map-lookup name globals of
       None -> False
       Some owner -> name-in owner reachable
 
@@ -1560,7 +1521,7 @@ module Cinch.Load where
   interface-laws-valid :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> Bool
   interface-laws-valid interfaces ix closures = case interfaces of
     Nil -> True
-    Cons first rest -> signature-laws-valid (field "signatures" (field "exports" (loaded-contract first))) ix closures
+    Cons first rest -> signature-laws-valid (field "signatures" (field "exports" (first.doc))) ix closures
       && interface-laws-valid rest ix closures
   data NominalOwner where
     MissingNominalOwner :: NominalOwner
@@ -1578,8 +1539,10 @@ module Cinch.Load where
     OrdinaryNominalOwner -> not (same (text (field "kind" row)) "signature")
     SignatureNominalOwner parameters -> same (text (field "kind" row)) "signature"
       && (same owner-name home || same-contract (field "parameters" row) parameters)
-  data NominalAdmission where
-    NominalAdmission :: String -> Json -> NominalOwner -> NominalAdmission
+  record NominalAdmission where
+    field0 :: String
+    field1 :: Json
+    field2 :: NominalOwner
   -- Keep the parsed defining contract by identity so repeated mentions
   -- can use the same owner lookup. Each importing module still checks
   -- reachability and each row still checks its nominal and signature facts.
@@ -1602,23 +1565,25 @@ module Cinch.Load where
   verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String NominalAdmission -> Result String Unit
   verify-nominal-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
-    Cons i rest -> let home = loaded-module i in
+    Cons i rest -> let home = i.name in
       let reachable = closure-of home closures in
       case verify-nominal-rows home (interface-nominals i) reachable ix seen of
         Err message -> Err (string-concat-all [home, ": ", message])
-        Ok checked -> case verify-signature-contracts home (field "signatures" (field "exports" (loaded-contract i))) reachable ix closures of
+        Ok checked -> case verify-signature-contracts home (field "signatures" (field "exports" (i.doc))) reachable ix closures of
           Err message -> Err message
           Ok unit -> verify-nominal-set rest ix closures checked
 
-  data BodyDeclaration where
-    DeclaredBody :: String -> Json -> Json -> BodyDeclaration
+  record BodyDeclaration where
+    identity :: String
+    resolved :: Json
+    body :: Json
 
   body-declaration :: String -> Json -> BodyDeclaration
-  body-declaration identity row = DeclaredBody identity (field "resolved" row) (field "total_body" row)
+  body-declaration identity row = BodyDeclaration identity (field "resolved" row) (field "total_body" row)
 
   same-body-declaration :: BodyDeclaration -> BodyDeclaration -> Bool
   same-body-declaration first second = case (first, second) of
-    (DeclaredBody name resolved graph, DeclaredBody identity other body) ->
+    (BodyDeclaration name resolved graph, BodyDeclaration identity other body) ->
       same name identity && same-contract resolved other && same-contract graph body
 
   measure-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
@@ -1631,7 +1596,7 @@ module Cinch.Load where
       let more = measure-body-declarations (resolved-measures row) (value-body-declarations rest tail) in
       (case field "total_body" row of
         JNull -> more
-        doc -> Cons (DeclaredBody (text (field "symbol" row)) (field "resolved" row) doc) more)
+        doc -> Cons (BodyDeclaration (text (field "symbol" row)) (field "resolved" row) doc) more)
     other -> tail
   signature-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
   signature-body-declarations rows tail = case rows of
@@ -1646,7 +1611,7 @@ module Cinch.Load where
     JArr row rest -> method-body-declarations (field "method_bodies" row) (instance-body-declarations rest tail)
     other -> tail
   interface-body-declarations :: LoadedInterface -> List BodyDeclaration
-  interface-body-declarations i = let exports = field "exports" (loaded-contract i) in
+  interface-body-declarations i = let exports = field "exports" (i.doc) in
     let instances = field "instances" exports in
     let conditional = conditional-instance-body-declarations instances Nil in
     let ordinary = instance-body-declarations instances conditional in
@@ -1672,8 +1637,9 @@ module Cinch.Load where
           None -> body-node-owner-at ix identity at)
       else body-node-owner-at ix identity at
     else ""
-  data BodyAdmissions where
-    MkBodyAdmissions :: HashMap String (String, Json) -> HashMap String BodyDeclaration -> BodyAdmissions
+  record BodyAdmissions where
+    field0 :: HashMap String (String, Json)
+    field1 :: HashMap String BodyDeclaration
 
   verify-body-nodes :: Json -> ModuleClosure -> InterfaceIndex -> HashMap String (String, Json) -> Result String (HashMap String (String, Json))
   verify-body-nodes rows reachable ix seen = case rows of
@@ -1696,8 +1662,8 @@ module Cinch.Load where
   verify-body-declarations :: List BodyDeclaration -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> Result String BodyAdmissions
   verify-body-declarations declarations reachable ix seen = case (declarations, seen) of
     (Nil, _) -> Ok seen
-    (Cons declared rest, MkBodyAdmissions nodes previous) -> case declared of
-      DeclaredBody identity resolved body ->
+    (Cons declared rest, BodyAdmissions nodes previous) -> case declared of
+      BodyDeclaration identity resolved body ->
         -- A previously admitted definition already records its exact owner.
         -- Each importer still has to reach that owner and the body's nodes.
         let owner-name = (case hash-map-lookup identity nodes of Some (owner, _) -> owner; None -> body-node-owner ix identity) in
@@ -1715,12 +1681,12 @@ module Cinch.Load where
                 _ -> verify-body-consistency rest reachable ix seen declared (case prior of Some _ -> True; None -> False))))
 
   verify-body-consistency :: List BodyDeclaration -> ModuleClosure -> InterfaceIndex -> BodyAdmissions -> BodyDeclaration -> Bool -> Result String BodyAdmissions
-  verify-body-consistency rest reachable ix (MkBodyAdmissions nodes declarations) declared conflict = case declared of
-    DeclaredBody identity resolved body ->
+  verify-body-consistency rest reachable ix (BodyAdmissions nodes declarations) declared conflict = case declared of
+    BodyDeclaration identity resolved body ->
       (case verify-body-nodes (field "definitions" body) reachable ix nodes of
         Err message -> Err message
         Ok checked -> if conflict then Err (string-concat "conflicting defining total body declarations: " identity)
-          else verify-body-declarations rest reachable ix (MkBodyAdmissions checked (hash-map-insert identity declared declarations)))
+          else verify-body-declarations rest reachable ix (BodyAdmissions checked (hash-map-insert identity declared declarations)))
 
   method-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
   method-body-owners-valid rows owner ix = case rows of
@@ -1759,23 +1725,23 @@ module Cinch.Load where
   verify-body-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
     Cons i rest ->
-      let exports = field "exports" (loaded-contract i) in
-      let reachable = closure-of (loaded-module i) closures in
-      if not (instance-body-owners-valid (field "instances" exports) (loaded-module i) ix) then Err "method body is not owned by its declaring dictionary module"
+      let exports = field "exports" (i.doc) in
+      let reachable = closure-of (i.name) closures in
+      if not (instance-body-owners-valid (field "instances" exports) (i.name) ix) then Err "method body is not owned by its declaring dictionary module"
       else if not (ordering-owners-valid (field "values" exports) reachable ix) then Err "keyed ordering body disagrees with its defining value or dictionary contract"
       else (case verify-body-declarations (interface-body-declarations i) reachable ix seen of
-      Err message -> Err (string-concat-all [loaded-module i, ": ", message])
+      Err message -> Err (string-concat-all [i.name, ": ", message])
       Ok checked -> verify-body-set rest ix closures checked)
 
   validate-interface-set :: List LoadedInterface -> Result String (List LoadedInterface)
   validate-interface-set loaded = case validate-interfaces loaded of
     Err message -> Err message
-    Ok checked -> Ok (validated-interfaces-members checked)
+    Ok checked -> Ok (checked.interfaces-members)
 
   validate-interfaces :: List LoadedInterface -> Result String ValidatedInterfaces
   validate-interfaces loaded = case unique-interface-table loaded hash-map-empty of
     None -> Err "duplicate interface module in resolved context"
-    Some by-name -> validate-indexed-interfaces loaded (MkInterfaceIndex loaded by-name (law-exporters loaded))
+    Some by-name -> validate-indexed-interfaces loaded (InterfaceIndex loaded by-name (law-exporters loaded))
 
   validate-indexed-interfaces :: List LoadedInterface -> InterfaceIndex -> Result String ValidatedInterfaces
   validate-indexed-interfaces loaded ix = case order-interfaces loaded ix of
@@ -1788,36 +1754,36 @@ module Cinch.Load where
 
   validate-ordered-interfaces :: List LoadedInterface -> List LoadedInterface -> InterfaceIndex -> Bool -> Result String ValidatedInterfaces
   validate-ordered-interfaces loaded ordered ix unchanged = case ix of
-    MkInterfaceIndex entries by-name globals -> let closures = index-closures ordered ix hash-map-empty in
+    InterfaceIndex entries by-name globals -> let closures = index-closures ordered ix hash-map-empty in
       case verify-interface-contracts loaded ix closures of
         Err message -> Err message
-        Ok unit -> Ok (MkValidatedInterfaces ordered by-name closures unchanged)
+        Ok unit -> Ok (ValidatedInterfaces ordered by-name closures unchanged)
 
   same-interface-order :: List LoadedInterface -> List LoadedInterface -> Bool
   same-interface-order before after = case (before, after) of
     (Nil, Nil) -> True
-    (Cons first rest, Cons second more) -> same (loaded-module first) (loaded-module second) && same-interface-order rest more
+    (Cons first rest, Cons second more) -> same (first.name) (second.name) && same-interface-order rest more
     other -> False
 
   verify-interface-contracts :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> Result String Unit
   verify-interface-contracts members index closures = case verify-nominal-set members index closures hash-map-empty of
     Err message -> Err message
-    Ok unit -> verify-body-set members index closures (MkBodyAdmissions hash-map-empty hash-map-empty)
+    Ok unit -> verify-body-set members index closures (BodyAdmissions hash-map-empty hash-map-empty)
 
   -- Ordering cannot change the dependency graph or matching digests. A
   -- reordered set must still check contract comparisons and first exporters
   -- in its new order before resolution or inference can reuse the evidence.
   canonical-interface-validation :: ValidatedInterfaces -> Result String ValidatedInterfaces
   canonical-interface-validation checked = case checked of
-    MkValidatedInterfaces members by-name closures ordered ->
-      if ordered then Ok checked else case verify-interface-contracts members (MkInterfaceIndex members by-name (law-exporters members)) closures of
+    ValidatedInterfaces members by-name closures ordered ->
+      if ordered then Ok checked else case verify-interface-contracts members (InterfaceIndex members by-name (law-exporters members)) closures of
         Err message -> Err message
-        Ok unit -> Ok (MkValidatedInterfaces members by-name closures True)
+        Ok unit -> Ok (ValidatedInterfaces members by-name closures True)
 
   unique-interface-table :: List LoadedInterface -> HashMap String LoadedInterface -> Option (HashMap String LoadedInterface)
   unique-interface-table loaded seen = case loaded of
     Nil -> Some seen
-    Cons i rest -> let name = loaded-module i in case hash-map-lookup name seen of
+    Cons i rest -> let name = i.name in case hash-map-lookup name seen of
       Some previous -> None
       None -> unique-interface-table rest (hash-map-insert name i seen)
 
@@ -1831,8 +1797,7 @@ module Cinch.Load where
   missing-dependency :: List LoadedInterface -> InterfaceIndex -> Bool
   missing-dependency remaining ix = case remaining of
     Nil -> False
-    Cons i rest -> missing-ref (loaded-imports i) ix || missing-dependency rest ix
-
+    Cons i rest -> missing-ref (i.imports) ix || missing-dependency rest ix
 
   conditional-body-declarations :: Json -> List BodyDeclaration -> List BodyDeclaration
   conditional-body-declarations rows tail = case rows of

@@ -50,7 +50,7 @@ module Main where
 
   -- One module named `Main` holding `ds`.
   program-of :: List Decl -> Program
-  program-of ds = MkProgram (at 1 1) (Cons (MkModule (at 1 1) "Main" (decl-spine (at 1 1) ds)) Nil)
+  program-of ds = Program (at 1 1) (Cons (Module (at 1 1) "Main" (decl-spine (at 1 1) ds)) Nil)
 
   one-decl :: Decl -> List Decl
   one-decl d = Cons d Nil
@@ -218,7 +218,7 @@ module Main where
   -- a polymorphic signature is outside the fragment.
   type-form-program :: Program
   type-form-program =
-    program-of (one-decl (DSig (at 4 3) "id" (TForall (at 4 8) (forall-param-spine (at 4 8) (Cons (MkTypeParam (at 4 8) "a" None False) Nil)) (TName (at 4 8) "a"))))
+    program-of (one-decl (DSig (at 4 3) "id" (TForall (at 4 8) (forall-param-spine (at 4 8) (Cons (TypeParam (at 4 8) "a" None False) Nil)) (TName (at 4 8) "a"))))
 
   -- an unmodeled type, with the parser's own source text.
   unmodeled-type-program :: Program

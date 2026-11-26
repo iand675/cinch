@@ -26,7 +26,7 @@ module Cinch.Eager where
   clause-references :: Bool -> List CoreClause -> List String
   clause-references immediate clauses = case clauses of
     Nil -> Nil
-    Cons (MkCoreClause sp patterns body) more ->
+    Cons (CoreClause sp patterns body) more ->
       let rest = clause-references immediate more in
       case patterns of
         Nil -> references immediate body rest
@@ -35,7 +35,7 @@ module Cinch.Eager where
   initializers :: List CoreDefinition -> List (Span, String, List String)
   initializers definitions = case definitions of
     Nil -> Nil
-    Cons (MkCoreDefinition sp owner scheme bindings givens rigids clauses) rest ->
+    Cons (CoreDefinition sp owner scheme bindings givens rigids clauses) rest ->
       let more = initializers rest in
       case givens of
         Nil -> (case clause-references True clauses of Nil -> more; edges -> Cons (sp, owner, edges) more)
@@ -52,7 +52,7 @@ module Cinch.Eager where
   caller-graph :: List CoreDefinition -> HashMap String (List String) -> HashMap String (List String)
   caller-graph definitions graph = case definitions of
     Nil -> graph
-    Cons (MkCoreDefinition sp owner scheme bindings givens rigids clauses) rest ->
+    Cons (CoreDefinition sp owner scheme bindings givens rigids clauses) rest ->
       caller-graph rest (add-edges owner (clause-references False clauses) graph)
   ancestors :: HashMap String (List String) -> List String -> HashMap String Bool -> HashMap String Bool
   ancestors graph pending seen = case pending of

@@ -41,11 +41,10 @@ module Cinch.Target where
   import Text.Show (nat-to-string)
   import Algebra.Semigroup
 
-  export TargetProfile, MkTargetProfile, selectable-profile, requested-profile, configured-profile, configure-platform, selection-arch, profile-required, profile-features
-  export profile-name, profile-triple, profile-os, profile-arch, profile-libc, profile-word-size, profile-endian
+  export TargetProfile, selectable-profile, requested-profile, configured-profile, configure-platform, selection-arch
   export supported-targets, profile-of-triple, host-profile, target-profile
   export target-triple-of, unsupported-target, target-ir-header
-  export WhenAtom, MkWhenAtom, atom-negated, atom-kind, atom-value
+  export WhenAtom
   export lower-atom, atom-holds, atom-render, atom-actual, atoms-contradict
   export condition-holds, condition-render, condition-describe, overlap-reason, primitive-target, when-vocabulary
   export target-view, target-view-program
@@ -56,46 +55,27 @@ module Cinch.Target where
   -- is the triple unless a caller asked for a platform version, which the
   -- seed records as `<name>-os<version>`; it identifies the profile in a
   -- store key, so it is kept distinct from the triple it derives from.
-  data TargetProfile where
-    MkTargetProfile ::
-      String -> String -> String -> String -> String -> Nat -> String -> Bool -> List String -> List String -> TargetProfile
-
-  profile-name :: TargetProfile -> String
-  profile-name p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> name
-
-  profile-triple :: TargetProfile -> String
-  profile-triple p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> triple
-
-  profile-os :: TargetProfile -> String
-  profile-os p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> os
-
-  profile-arch :: TargetProfile -> String
-  profile-arch p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> arch
-
-  profile-libc :: TargetProfile -> String
-  profile-libc p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> libc
-
-  profile-word-size :: TargetProfile -> Nat
-  profile-word-size p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> bits
-
-  profile-endian :: TargetProfile -> String
-  profile-endian p = case p of MkTargetProfile name triple os arch libc bits endian portable required features -> endian
-
-  profile-required :: TargetProfile -> List String
-  profile-required profile = case profile of MkTargetProfile name triple os arch libc bits endian portable required features -> required
-
-  profile-features :: TargetProfile -> List String
-  profile-features profile = case profile of MkTargetProfile name triple os arch libc bits endian portable required features -> features
+  record TargetProfile where
+    name :: String
+    triple :: String
+    os :: String
+    arch :: String
+    libc :: String
+    word-size :: Nat
+    endian :: String
+    portable :: Bool
+    required :: List String
+    features :: List String
 
   profile-capabilities :: TargetProfile -> List String
-  profile-capabilities profile = let required = profile-required profile in
-    required <> foldr (\feature rest -> if has-triple feature required then rest else Cons feature rest) Nil (profile-features profile)
+  profile-capabilities profile = let required = profile.required in
+    required <> foldr (\feature rest -> if has-triple feature required then rest else Cons feature rest) Nil (profile.features)
 
   -- Portable instruction selection retains the target ABI, data layout and
   -- linker triple while compiling the source's architecture-neutral alternatives.
   selection-arch :: TargetProfile -> String
   selection-arch p = case p of
-    MkTargetProfile name triple os arch libc bits endian portable required features -> if portable then "portable" else arch
+    TargetProfile name triple os arch libc bits endian portable required features -> if portable then "portable" else arch
 
   selectable-profile :: (Option String, Bool) -> Result String TargetProfile
   selectable-profile options = case options of (wanted, portable) -> requested-profile (wanted, portable, Nil)
@@ -112,14 +92,14 @@ module Cinch.Target where
 
   configure-platform :: TargetProfile -> Bool -> List String -> Option (List String) -> TargetProfile
   configure-platform profile portable required features = case profile of
-    MkTargetProfile name triple os arch libc bits endian flag prior defaults ->
+    TargetProfile name triple os arch libc bits endian flag prior defaults ->
       let chosen = case features of None -> defaults; Some explicit -> reverse explicit in
-      MkTargetProfile (if portable then name <> "-portable" else name)
+      TargetProfile (if portable then name <> "-portable" else name)
         triple os arch libc bits endian portable (reverse required) chosen
 
   -- LLVM layouts for the triples accepted by profile-of-triple.
   target-ir-header :: TargetProfile -> String
-  target-ir-header profile = string-concat-all ["target triple = \"", profile-triple profile, "\"\ntarget datalayout = \"", target-layout (profile-arch profile) (profile-os profile), "\"\n"]
+  target-ir-header profile = string-concat-all ["target triple = \"", profile.triple, "\"\ntarget datalayout = \"", target-layout (profile.arch) (profile.os), "\"\n"]
   target-layout :: String -> String -> String
   target-layout machine system =
     if string-compare machine "wasm32" == 0 then "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-i128:128-n32:64-S128-ni:1:10:20"
@@ -180,15 +160,15 @@ module Cinch.Target where
     Some (arch, os, libc) ->
       -- The freestanding Wasm target is the one 32-bit entry in the table.
       if string-compare arch "wasm32" == 0 then
-        Ok (MkTargetProfile triple triple os arch libc 32 "little" False Nil Nil)
-      else Ok (MkTargetProfile triple triple os arch libc 64 (if string-compare arch "powerpc64" == 0 then "big" else "little") False Nil ["u32.wrappingAdd"])
+        Ok (TargetProfile triple triple os arch libc 32 "little" False Nil Nil)
+      else Ok (TargetProfile triple triple os arch libc 64 (if string-compare arch "powerpc64" == 0 then "big" else "little") False Nil ["u32.wrappingAdd"])
 
   -- The profile of the machine this compiler runs on. `Cinch.Host` is
   -- rendered from the build host before the sources are hashed, the same
   -- way `Cinch.RuntimeAbi` is, because a compiled program cannot ask
   -- Rust for its own triple.
   host-profile :: TargetProfile
-  host-profile = MkTargetProfile host-triple host-triple host-os host-arch host-libc 64 "little" False Nil ["u32.wrappingAdd"]
+  host-profile = TargetProfile host-triple host-triple host-os host-arch host-libc 64 "little" False Nil ["u32.wrappingAdd"]
 
   -- The profile a caller asked for: the host's own target, or the profile of
   -- one supported triple. `--target` defaults to the host, so a compile that
@@ -203,7 +183,7 @@ module Cinch.Target where
   target-triple-of :: Option String -> Result String String
   target-triple-of requested = case target-profile requested of
     Err message -> Err message
-    Ok profile -> Ok (profile-triple profile)
+    Ok profile -> Ok (profile.triple)
 
   -- -------------------------------------------------------------------- atoms
 
@@ -211,17 +191,10 @@ module Cinch.Target where
   -- head (`Available`, `arch`, `os`, `libc`, `endian`, `word-size`,
   -- `target`) and `value` its argument, kept as the spelling the source
   -- used so a refusal can quote the clause back.
-  data WhenAtom where
-    MkWhenAtom :: Bool -> String -> String -> WhenAtom
-
-  atom-negated :: WhenAtom -> Bool
-  atom-negated a = case a of MkWhenAtom negated kind value -> negated
-
-  atom-kind :: WhenAtom -> String
-  atom-kind a = case a of MkWhenAtom negated kind value -> kind
-
-  atom-value :: WhenAtom -> String
-  atom-value a = case a of MkWhenAtom negated kind value -> value
+  record WhenAtom where
+    negated :: Bool
+    kind :: String
+    value :: String
 
   -- The vocabulary every `when` refusal quotes, in the seed's words.
   when-vocabulary :: String
@@ -249,12 +222,12 @@ module Cinch.Target where
   lower-negated inner = case lower-atom inner of
     Err message -> Err message
     Ok atom -> case atom of
-      MkWhenAtom negated kind value ->
+      WhenAtom negated kind value ->
         if negated then
           Err (string-concat-all
             ["a `when` clause is negated once: `not (", atom-render-of kind value,
             ")` is the clause itself (", when-vocabulary, ")"])
-        else Ok (MkWhenAtom True kind value)
+        else Ok (WhenAtom True kind value)
 
   atom-render-of :: String -> String -> String
   atom-render-of kind value = string-concat kind (string-concat " " value)
@@ -277,19 +250,19 @@ module Cinch.Target where
   atom-of :: String -> String -> Result String WhenAtom
   atom-of kind value =
     if string-compare value "" == 0 then Err when-vocabulary
-    else if string-compare kind "Available" == 0 then Ok (MkWhenAtom False kind value)
-    else if string-compare kind "arch" == 0 then Ok (MkWhenAtom False kind value)
-    else if string-compare kind "os" == 0 then Ok (MkWhenAtom False kind value)
-    else if string-compare kind "libc" == 0 then Ok (MkWhenAtom False kind value)
-    else if string-compare kind "target" == 0 then Ok (MkWhenAtom False kind value)
+    else if string-compare kind "Available" == 0 then Ok (WhenAtom False kind value)
+    else if string-compare kind "arch" == 0 then Ok (WhenAtom False kind value)
+    else if string-compare kind "os" == 0 then Ok (WhenAtom False kind value)
+    else if string-compare kind "libc" == 0 then Ok (WhenAtom False kind value)
+    else if string-compare kind "target" == 0 then Ok (WhenAtom False kind value)
     else if string-compare kind "endian" == 0 then
       if string-compare value "little" == 0 || string-compare value "big" == 0 then
-        Ok (MkWhenAtom False kind value)
+        Ok (WhenAtom False kind value)
       else Err (string-concat-all
         ["an `endian` atom is `little` or `big`, and `", value,
         "` is neither (primitive operations and inline target IR specification section 13)"])
     else if string-compare kind "word-size" == 0 then
-      if string-is-digits value then Ok (MkWhenAtom False kind value)
+      if string-is-digits value then Ok (WhenAtom False kind value)
       else Err "a `word-size` atom is a bit width as an integer, such as `word-size 32` or `word-size 64` (primitive operations and inline target IR specification section 13)"
     else Err when-vocabulary
 
@@ -306,7 +279,7 @@ module Cinch.Target where
   -- The atom as written, without its negation.
   atom-render :: WhenAtom -> String
   atom-render atom = case atom of
-    MkWhenAtom negated kind value ->
+    WhenAtom negated kind value ->
       if negated then string-concat-all ["not (", atom-render-of kind value, ")"]
       else atom-render-of kind value
 
@@ -314,14 +287,14 @@ module Cinch.Target where
   -- error's account of why the atom failed.
   atom-actual :: WhenAtom -> TargetProfile -> String
   atom-actual atom profile = case atom of
-    MkWhenAtom negated kind value ->
+    WhenAtom negated kind value ->
       if string-compare kind "arch" == 0 then string-concat-all ["the target's arch is `", selection-arch profile, "`"]
-      else if string-compare kind "os" == 0 then string-concat-all ["the target's os is `", profile-os profile, "`"]
-      else if string-compare kind "libc" == 0 then string-concat-all ["the target links `", profile-libc profile, "`"]
-      else if string-compare kind "endian" == 0 then string-concat-all ["the target's endian is `", profile-endian profile, "`"]
+      else if string-compare kind "os" == 0 then string-concat-all ["the target's os is `", profile.os, "`"]
+      else if string-compare kind "libc" == 0 then string-concat-all ["the target links `", profile.libc, "`"]
+      else if string-compare kind "endian" == 0 then string-concat-all ["the target's endian is `", profile.endian, "`"]
       else if string-compare kind "word-size" == 0 then
-        string-concat-all ["the target's word size is ", nat-to-string (profile-word-size profile), " bits"]
-      else if string-compare kind "target" == 0 then string-concat-all ["the target's triple is `", profile-triple profile, "`"]
+        string-concat-all ["the target's word size is ", nat-to-string (profile.word-size), " bits"]
+      else if string-compare kind "target" == 0 then string-concat-all ["the target's triple is `", profile.triple, "`"]
       else (case profile-capabilities profile of
         Nil -> "the target profile carries no capability evidence"
         caps -> string-concat "the target profile carries " (join-with ", " caps))
@@ -329,14 +302,14 @@ module Cinch.Target where
   -- Does the atom name what the target profile is?
   atom-holds :: WhenAtom -> TargetProfile -> Bool
   atom-holds atom profile = case atom of
-    MkWhenAtom negated kind value ->
+    WhenAtom negated kind value ->
       (if string-compare kind "arch" == 0 then string-compare value (selection-arch profile) == 0
-      else if string-compare kind "os" == 0 then string-compare value (profile-os profile) == 0
-      else if string-compare kind "libc" == 0 then string-compare value (profile-libc profile) == 0
-      else if string-compare kind "endian" == 0 then string-compare value (profile-endian profile) == 0
+      else if string-compare kind "os" == 0 then string-compare value (profile.os) == 0
+      else if string-compare kind "libc" == 0 then string-compare value (profile.libc) == 0
+      else if string-compare kind "endian" == 0 then string-compare value (profile.endian) == 0
       else if string-compare kind "word-size" == 0 then
-        string-compare value (nat-to-string (profile-word-size profile)) == 0
-      else if string-compare kind "target" == 0 then string-compare value (profile-triple profile) == 0
+        string-compare value (nat-to-string (profile.word-size)) == 0
+      else if string-compare kind "target" == 0 then string-compare value (profile.triple) == 0
       else string-compare kind "Available" == 0 && has-triple value (profile-capabilities profile)) /= negated
 
   -- Why this atom does not hold, naming the atom and what the profile is
@@ -365,7 +338,7 @@ module Cinch.Target where
   -- contradicts it.
   atoms-contradict :: WhenAtom -> WhenAtom -> Bool
   atoms-contradict a b = case (a, b) of
-    (MkWhenAtom negated-a kind-a value-a, MkWhenAtom negated-b kind-b value-b) ->
+    (WhenAtom negated-a kind-a value-a, WhenAtom negated-b kind-b value-b) ->
       if not (same-component kind-a kind-b) then False
       else if string-compare kind-a "Available" == 0 then
         -- A capability's component has no single value, so only its own
@@ -465,9 +438,9 @@ module Cinch.Target where
 
   matching-atom :: WhenAtom -> List WhenAtom -> Option String
   matching-atom atom others = case atom of
-    MkWhenAtom negated kind value -> case others of
+    WhenAtom negated kind value -> case others of
       Nil -> None
-      Cons (MkWhenAtom other-negated other-kind other-value) rest ->
+      Cons (WhenAtom other-negated other-kind other-value) rest ->
         if same-component kind other-kind && string-compare kind "Available" /= 0
           && string-compare value other-value == 0
           && negated == other-negated
@@ -584,7 +557,7 @@ module Cinch.Target where
   guarded-bodies :: List PrimBody -> Bool
   guarded-bodies bodies = case bodies of
     Nil -> False
-    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       case when of Nil -> guarded-bodies rest; Cons clause remaining -> True
 
   primitive-target :: String -> List Expr -> TargetProfile -> Result String PrimTarget
@@ -593,7 +566,7 @@ module Cinch.Target where
     Ok atoms -> (case failed-atoms atoms profile of
       Nil -> Ok ApplicablePrimitive
       reasons -> Ok (InapplicablePrimitive (string-concat-all ["the `", family, "` body's `when ", render-atoms atoms,
-        "` on ", profile-triple profile, ": ", join-with ", " reasons])))
+        "` on ", profile.triple, ": ", join-with ", " reasons])))
 
   failed-atoms :: List WhenAtom -> TargetProfile -> List String
   failed-atoms atoms profile = case atoms of
@@ -605,10 +578,10 @@ module Cinch.Target where
   select-bodies :: TargetProfile -> List PrimBody -> List PrimBody -> Result String (List PrimBody)
   select-bodies profile bodies acc = case bodies of
     Nil -> Ok (reverse acc)
-    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified when selected justification uses immediates) rest ->
       case primitive-target family when profile of
         Err message -> Err message
-        Ok projected -> select-bodies profile rest (Cons (MkPrimBody sp family fragment unverified when projected justification uses immediates) acc)
+        Ok projected -> select-bodies profile rest (Cons (PrimBody sp family fragment unverified when projected justification uses immediates) acc)
 
   conditioned-view :: TargetProfile -> Module -> Result String Module
   conditioned-view profile m = case check-definition-disjointness m of
@@ -620,7 +593,7 @@ module Cinch.Target where
   apply-view :: TargetProfile -> Module -> List String -> Result String Module
   apply-view profile m dropped = case prune-decls profile dropped (module-decls m) Nil of
     Err message -> Err message
-    Ok kept -> Ok (MkModule (module-span m) (module-name m) (decl-spine (module-span m) kept))
+    Ok kept -> Ok (Module (m.span) (m.name) (decl-spine (m.span) kept))
 
   -- The module names every false import would have contributed.
   dropped-modules :: TargetProfile -> List Decl -> List String -> Result String (List String)
@@ -685,9 +658,9 @@ module Cinch.Target where
 
   -- The target's view of every module in a program.
   target-view-program :: TargetProfile -> Program -> Result String Program
-  target-view-program profile program = case target-views profile (program-modules program) Nil of
+  target-view-program profile program = case target-views profile (program.modules) Nil of
     Err message -> Err message
-    Ok modules -> Ok (MkProgram (program-span program) modules)
+    Ok modules -> Ok (Program (program.span) modules)
 
   target-views :: TargetProfile -> List Module -> List Module -> Result String (List Module)
   target-views profile modules acc = case modules of

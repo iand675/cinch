@@ -1,7 +1,7 @@
 -- Read a closed interface set before lexing the source's operator chains.
 module Cinch.Inputs where
 
-  import Cinch.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, load-validated-package-contracts, validated-interfaces-members)
+  import Cinch.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, load-validated-package-contracts)
   import Cinch.Package (PackageSnapshot, read-package-documents, read-package-snapshot)
   import Cinch.Document
   import Data.Path (path-from-string)
@@ -130,4 +130,4 @@ module Cinch.Inputs where
   read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
   read-interfaces path = case read-validated-interfaces path of
     Err message -> Err message
-    Ok checked -> Ok (validated-interfaces-members checked)
+    Ok checked -> Ok (checked.interfaces-members)

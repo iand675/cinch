@@ -3,7 +3,7 @@
 -- creation and decision evidence here, before checker elaboration.
 module Cinch.Builtin where
 
-  import Cinch.Ast (Decl, TypeExpr, Program, MkProgram, MkModule, DExternal, DData, DClass, DMethod, DSig, MkTypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
+  import Cinch.Ast (Decl, TypeExpr, Program, Module, DExternal, DData, DClass, DMethod, DSig, TypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Cinch.RuntimeAbi (runtime-abi-int)
   import Cinch.Parse (parse-program, parse-scheme)
   import Cinch.Document
@@ -14,44 +14,28 @@ module Cinch.Builtin where
   export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, ad-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
   export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
-  export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
-  export scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-operation-scheme, scalar-intrinsic
+  export ScalarShape, ScalarOperation
+  export scalar-operation-scheme, scalar-intrinsic
 
   -- | Describe one canonical integer carrier independently of a source binding's display name.
-  data ScalarShape where
-    -- | Retain the builtin nominal identity, fixed bit width, and signed interpretation.
-    ScalarShape :: String -> Nat -> Bool -> ScalarShape
+  record ScalarShape where
+    shape-name :: String
+    shape-width :: Nat
+    shape-signed :: Bool
   -- | Retain a closed pure scalar operation from the compiler's intrinsic vocabulary.
-  data ScalarOperation where
-    -- | Pair exact operand/result carriers with a compiler-selected operation code.
-    ScalarOperation :: List ScalarShape -> ScalarShape -> String -> ScalarOperation
-  -- | Read the canonical nominal identity required by a scalar operation.
-  scalar-shape-name :: ScalarShape -> String
-  scalar-shape-name shape = case shape of ScalarShape name width signed -> name
-  -- | Read the fixed LLVM integer width of a scalar carrier.
-  scalar-shape-width :: ScalarShape -> Nat
-  scalar-shape-width shape = case shape of ScalarShape name width signed -> width
-  -- | Distinguish sign extension from zero extension at a scalar result boundary.
-  scalar-shape-signed :: ScalarShape -> Bool
-  scalar-shape-signed shape = case shape of ScalarShape name width signed -> signed
-  -- | Read every operand in its original evaluation order.
-  scalar-operation-arguments :: ScalarOperation -> List ScalarShape
-  scalar-operation-arguments operation = case operation of ScalarOperation arguments result code -> arguments
-  -- | Read the declared scalar result carrier.
-  scalar-operation-result :: ScalarOperation -> ScalarShape
-  scalar-operation-result operation = case operation of ScalarOperation arguments result code -> result
-  -- | Read an operation code selected only by the closed intrinsic registry.
-  scalar-operation-code :: ScalarOperation -> String
-  scalar-operation-code operation = case operation of ScalarOperation arguments result code -> code
+  record ScalarOperation where
+    operation-arguments :: List ScalarShape
+    operation-result :: ScalarShape
+    operation-code :: String
   -- | Render the exact first-order nominal scheme used for source intrinsic validation.
   scalar-operation-scheme :: ScalarOperation -> String
-  scalar-operation-scheme operation = scalar-argument-scheme (scalar-operation-arguments operation)
-    (scalar-shape-name (scalar-operation-result operation))
+  scalar-operation-scheme operation = scalar-argument-scheme (operation.operation-arguments)
+    (operation.operation-result.shape-name)
   -- | Preserve scalar arrow order without adding implicit values or constraints.
   scalar-argument-scheme :: List ScalarShape -> String -> String
   scalar-argument-scheme arguments result = case arguments of
     Nil -> result
-    Cons first rest -> string-concat-all [scalar-shape-name first, " -> ", scalar-argument-scheme rest result]
+    Cons first rest -> string-concat-all [first.shape-name, " -> ", scalar-argument-scheme rest result]
   -- | Admit only fixed integer nominals supported by the one-word Native scalar ABI.
   scalar-shape :: String -> Option ScalarShape
   scalar-shape name =
@@ -87,7 +71,7 @@ module Cinch.Builtin where
       else scalar-widening-conversion body [("i8To", "I8"), ("i16To", "I16"), ("i32To", "I32"), ("i64To", "I64"), ("u8To", "U8"), ("u16To", "U16"), ("u32To", "U32"), ("u64To", "U64")]
     Cons (prefix, code) rest -> if string-starts-with prefix body then
       (case scalar-shape (string-drop (string-length prefix) body) of
-        Some shape -> if (string-compare code "udiv" == 0 || string-compare code "urem" == 0) && scalar-shape-signed shape
+        Some shape -> if (string-compare code "udiv" == 0 || string-compare code "urem" == 0) && shape.shape-signed
           then scalar-family body rest
           else Some (scalar-family-operation code shape)
         None -> scalar-family body rest)
@@ -127,8 +111,8 @@ module Cinch.Builtin where
     Cons (prefix, name) rest -> if string-starts-with prefix body then
       (case (scalar-shape name, scalar-shape (string-drop (string-length prefix) body)) of
         (Some source, Some destination) -> if
-          (scalar-shape-signed source == scalar-shape-signed destination && scalar-shape-width source <= scalar-shape-width destination)
-          || (not (scalar-shape-signed source) && scalar-shape-signed destination && scalar-shape-width source < scalar-shape-width destination)
+          (source.shape-signed == destination.shape-signed && source.shape-width <= destination.shape-width)
+          || (not (source.shape-signed) && destination.shape-signed && source.shape-width < destination.shape-width)
           then Some (ScalarOperation [source] destination "widen") else None
         other -> None)
       else scalar-widening-conversion body rest
@@ -438,7 +422,6 @@ module Cinch.Builtin where
     else if slot == 2 then "par-map"
     else "par-workers"
 
-
   -- The checked data path retains the index and erases the bound field.
   finite-index-declaration :: Decl
   finite-index-declaration =
@@ -446,7 +429,7 @@ module Cinch.Builtin where
     let nat = TName sp "Nat" in
     let bound = TInfix sp "<" (TName sp "i") (TName sp "n") in
     let result = TApp sp (TName sp "b.Fin") (TArg sp (TName sp "n") (TArgsEnd sp)) in
-    DData sp "b.Fin" [MkTypeParam sp "n" (Some nat) False]
+    DData sp "b.Fin" [TypeParam sp "n" (Some nat) False]
       [("b.Fin", TFun sp (TBound sp "i" nat (TBoundsEnd sp))
         (TFun sp (TBound sp "bound" bound (TBoundsEnd sp)) result))]
 
@@ -459,9 +442,9 @@ module Cinch.Builtin where
     let k = TName sp "k" in
     let tail = vector k in
     let result = vector (TInfix sp "+" k (TIndex sp "1")) in
-    DData sp "b.Vec" [MkTypeParam sp "n" (Some nat) False, MkTypeParam sp "a" None False]
+    DData sp "b.Vec" [TypeParam sp "n" (Some nat) False, TypeParam sp "a" None False]
       [("b.Vec.Nil", vector (TIndex sp "0")),
-       ("b.Vec.Cons", TForall sp (forall-param-spine sp [MkTypeParam sp "k" (Some nat) False])
+       ("b.Vec.Cons", TForall sp (forall-param-spine sp [TypeParam sp "k" (Some nat) False])
          (TFun sp element (TFun sp tail result)))]
 
   builtin-declarations :: List Decl

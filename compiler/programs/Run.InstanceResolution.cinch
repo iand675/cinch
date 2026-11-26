@@ -6,7 +6,7 @@ module Main where
   import Cinch.Load (InterfaceSet, check-interface-set)
   import Cinch.Inputs (read-interfaces)
   import Cinch.Nominal (interface-global)
-  import Cinch.Report (diagnostic-message)
+  import Cinch.Report (Diagnostic)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -101,9 +101,9 @@ module Main where
   invalid-context-check :: UType -> Bool
   invalid-context-check requirement = case fresh-meta KType (empty-store "invalid factory context") of
     (meta, fresh) ->
-      let poison = qualified Nil [MkRequirement "invalid" requirement] (eq nat) in
+      let poison = qualified Nil [Requirement "invalid" requirement] (eq nat) in
       let term = needed (eq meta) Nil in
-      let definition = MkCoreDefinition s "context-trial" (mono (core-type term)) Nil Nil Nil [MkCoreClause s Nil term] in
+      let definition = CoreDefinition s "context-trial" (mono (core-type term)) Nil Nil Nil [CoreClause s Nil term] in
       case resolve-dictionary-definition-with classes [("poison", poison), ("integer", mono (eq integer))] definition fresh of
         (out, done) -> clean done && string-compare (type-text (normalize done meta)) "Int" == 0
   invalid-context-checks :: Bool
@@ -117,7 +117,7 @@ module Main where
       ("repeated", mono (eq integer)), ("third", mono (eq nat)), ("repeated", mono (eq nat))] in
     let prefix = "ambiguous instance: overlapping implicit contracts for " in
     let duplicate = prefix <> "repeated and repeated" in
-    case map diagnostic-message (store-errors (check-instance-coherence entries start)) of
+    case map (\r -> (r :: Diagnostic).message) (store-errors (check-instance-coherence entries start)) of
       [first, second, third, fourth] -> string-compare first (prefix <> "first and second") == 0
         && string-compare second duplicate == 0 && string-compare third duplicate == 0 && string-compare fourth duplicate == 0
       other -> False
@@ -125,7 +125,7 @@ module Main where
   coherence-carrier-buckets start =
     let concrete = ("concrete", mono (eq nat)) in
     let distinct = ("distinct", mono (eq integer)) in
-    let generic = ("generic", qualified [MkQuant 0 "a" KType False] Nil (eq (UBound 0 "a" KType))) in
+    let generic = ("generic", qualified [Quant 0 "a" KType False] Nil (eq (UBound 0 "a" KType))) in
     clean (check-instance-coherence [concrete, distinct] start)
       && store-error-count (check-instance-coherence [concrete, generic] start) == 1
       && store-error-count (check-instance-coherence [generic, distinct] start) == 1
@@ -139,8 +139,8 @@ module Main where
     let distinct = ("option", mono (eq (UApp (UCon "Option" unary) nat))) in
     let pair = ("pair", mono (eq (UApp (UApp (UCon "Pair" binary) nat) nat))) in
     let other-argument = ("list-of-int", mono (eq (UApp list integer))) in
-    let generic = ("generic", qualified [MkQuant 1 "a" KType False] Nil (eq (UApp list (UBound 1 "a" KType)))) in
-    let higher = ("higher", qualified [MkQuant 2 "f" unary False] Nil (eq (UApp (UBound 2 "f" unary) nat))) in
+    let generic = ("generic", qualified [Quant 1 "a" KType False] Nil (eq (UApp list (UBound 1 "a" KType)))) in
+    let higher = ("higher", qualified [Quant 2 "f" unary False] Nil (eq (UApp (UBound 2 "f" unary) nat))) in
     let arrow = ("arrow", mono (eq (UApp (UApp (UCon "(->)" binary) nat) nat))) in
     let function = ("function", mono (eq (UFun nat nat))) in
     let duplicate = ("list", mono (eq integer)) in
@@ -159,28 +159,28 @@ module Main where
     let a = UBound q "a" KType in
     let list-con = UCon "List" (KFun KType KType) in
     let leaf-entry = (leaf, mono (eq nat)) in
-    let generic = qualified [MkQuant q "a" KType False] [MkRequirement "element" (eq a)] (eq (UApp list-con a)) in
+    let generic = qualified [Quant q "a" KType False] [Requirement "element" (eq a)] (eq (UApp list-con a)) in
     let factories = [leaf-entry, (list, generic)] in
     let start = empty-store "instance resolver" in
     let unique = accepted leaf (resolve-ready-term classes factories Nil (needed (eq nat) Nil) start) in
-    let scope = [CGiven s given (eq nat)] in
+    let scope = [CoreGiven s given (eq nat)] in
     let lexical = case resolve-ready-term classes factories scope (needed (eq nat) scope) start of (term, st) -> clean st && given-named given term in
     let generic-ok = case resolve-ready-term classes factories Nil (needed (eq (UApp list-con nat)) Nil) start of (term, st) -> clean st && generic-evidence list leaf term in
     let ambiguous = refused (resolve-ready-term classes [leaf-entry, ("other", mono (eq nat))] Nil (needed (eq nat) Nil) start) in
-    let alien = refused (resolve-ready-term classes factories Nil (needed (eq nat) [CGiven s "alien" (eq nat)]) start) in
+    let alien = refused (resolve-ready-term classes factories Nil (needed (eq nat) [CoreGiven s "alien" (eq nat)]) start) in
     let forged = refused (resolve-ready-term classes factories Nil (request (eq nat) [CEInstance s (eq nat) "forged" Nil (CEArgumentsEnd s)]) start) in
     let arity = refused (resolve-ready-term classes factories Nil (request (eq nat) [CEInstance s (eq nat) leaf [nat] (CEArgumentsEnd s)]) start) in
-    let cycle-sc = qualified Nil [MkRequirement "again" (eq nat)] (eq nat) in
+    let cycle-sc = qualified Nil [Requirement "again" (eq nat)] (eq nat) in
     let cycle = refused (resolve-ready-term classes [("cycle", cycle-sc)] Nil (needed (eq nat) Nil) start) in
-    let spoofed = case resolve-ready-term classes factories scope (needed (eq nat) [CGiven s given (eq integer)]) start of (term, st) -> clean st && given-named given term in
+    let spoofed = case resolve-ready-term classes factories scope (needed (eq nat) [CoreGiven s given (eq integer)]) start of (term, st) -> clean st && given-named given term in
     let bad-child = refused (resolve-ready-term classes (Cons ("integer", mono (eq integer)) factories) Nil
       (request (eq (UApp list-con nat)) [CEInstance s (eq (UApp list-con nat)) list [nat]
         (CEArgument s (CEInstance s (eq integer) "integer" Nil (CEArgumentsEnd s)) (CEArgumentsEnd s))]) start) in
     let transactional = case fresh-meta KType start of
           (meta, fresh) ->
-            let poison = qualified Nil [MkRequirement "missing" (UApp (UCon "Missing" (KFun KType KType)) nat)] (eq nat) in
+            let poison = qualified Nil [Requirement "missing" (UApp (UCon "Missing" (KFun KType KType)) nat)] (eq nat) in
             let term = needed (eq meta) Nil in
-            let definition = MkCoreDefinition s "transaction" (mono (core-type term)) Nil Nil Nil [MkCoreClause s Nil term] in
+            let definition = CoreDefinition s "transaction" (mono (core-type term)) Nil Nil Nil [CoreClause s Nil term] in
             case resolve-dictionary-definition-with classes [("poison", poison), ("integer", mono (eq integer))] definition fresh of
               (out, done) -> clean done && string-compare (type-text (normalize done meta)) "Int" == 0 in
     if not unique then 1 else if not lexical then 2 else if not generic-ok then 3 else if not ambiguous then 4

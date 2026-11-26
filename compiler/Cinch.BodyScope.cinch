@@ -12,8 +12,9 @@ module Cinch.BodyScope where
   data ScopeBlocks a where
     NoScopeBlocks :: ScopeBlocks a
     ScopeBlock :: Nat -> ScopeTree a -> ScopeBlocks a -> ScopeBlocks a
-  data BodyScope a where
-    BodyScope :: Nat -> ScopeBlocks a -> BodyScope a
+  record BodyScope a where
+    count :: Nat
+    blocks :: ScopeBlocks a
 
   empty-body-scope :: forall a. BodyScope a
   empty-body-scope = BodyScope 0 NoScopeBlocks

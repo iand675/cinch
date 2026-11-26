@@ -73,7 +73,7 @@ module Cinch.Ownership where
   same-bool-maps definitions left right = case definitions of
     Nil -> True
     Cons d rest ->
-      let name = core-name d in
+      let name = d.name in
       let ok = (case (hash-map-lookup name left, hash-map-lookup name right) of
             (None, None) -> True
             (Some a, Some b) -> same-bools a b
@@ -84,7 +84,7 @@ module Cinch.Ownership where
   same-arena-phases definitions left right = case definitions of
     Nil -> True
     Cons d rest ->
-      let name = core-name d in
+      let name = d.name in
       let ok = (case (hash-map-lookup name left, hash-map-lookup name right) of
             (None, None) -> True
             (Some a, Some b) -> if a then b else not b
@@ -319,12 +319,12 @@ module Cinch.Ownership where
   -- parameters owned (`False`) so Perceus reset/reuse fires without stripping
   -- `#b` borrowing from read-only AST/environment traversals.
   reuse-scrutinee-params :: CoreDefinition -> List Nat
-  reuse-scrutinee-params d = collect-reuse-clauses (core-clauses d) Nil
+  reuse-scrutinee-params d = collect-reuse-clauses (d.clauses) Nil
 
   collect-reuse-clauses :: List CoreClause -> List Nat -> List Nat
   collect-reuse-clauses clauses acc = case clauses of
     Nil -> acc
-    Cons (MkCoreClause sp pats body) rest ->
+    Cons (CoreClause sp pats body) rest ->
       let pids = param-var-pairs (own-runtime-params pats) 0 Nil in
       collect-reuse-clauses rest (collect-reuse-params-term (core-type body) pids body acc)
 
@@ -484,16 +484,16 @@ module Cinch.Ownership where
   escape-clauses :: List CoreClause -> HashMap String (List Bool) -> HashMap String (List Bool) -> List Nat -> List Nat
   escape-clauses clauses borrows consumed escaped = case clauses of
     Nil -> escaped
-    Cons (MkCoreClause sp pats body) rest ->
+    Cons (CoreClause sp pats body) rest ->
       let pids = param-var-pairs (own-runtime-params pats) 0 Nil in
       escape-clauses rest borrows consumed (escape-term pids borrows consumed True body escaped)
 
   consumed-eligible :: CoreDefinition -> Option Nat
   consumed-eligible d =
-    let name = core-name d in
+    let name = d.name in
     if same-str name "main" || same-str name "Main.main" then None
-    else case (core-givens d, core-openings d, core-clauses d) of
-      (Nil, Nil, Cons (MkCoreClause sp pats body) rest) ->
+    else case (d.givens, d.openings, d.clauses) of
+      (Nil, Nil, Cons (CoreClause sp pats body) rest) ->
         let n = list-length (own-runtime-params pats) in
         if n == 0 then None else Some n
       other -> None
@@ -503,18 +503,18 @@ module Cinch.Ownership where
     Nil -> (Nil, acc)
     Cons d rest -> case init-consumed rest acc of
       (elig, m) -> case consumed-eligible d of
-        Some arity -> (Cons (d, arity) elig, hash-map-insert (core-name d) (rep-bool arity True) m)
+        Some arity -> (Cons (d, arity) elig, hash-map-insert (d.name) (rep-bool arity True) m)
         None -> (elig, m)
 
   consumed-sweep :: List (CoreDefinition, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> (HashMap String (List Bool), Bool)
   consumed-sweep elig borrows consumed changed = case elig of
     Nil -> (consumed, changed)
     Cons (d, arity) rest ->
-      let name = core-name d in
+      let name = d.name in
       let cur = (case hash-map-lookup name consumed of Some m -> m; None -> Nil) in
       if not (any-true cur) then consumed-sweep rest borrows consumed changed
       else
-        let esc = escape-clauses (core-clauses d) borrows consumed Nil in
+        let esc = escape-clauses (d.clauses) borrows consumed Nil in
         let next = clear-indices cur esc in
         let diff = not (same-bools cur next) in
         let m2 = if diff then hash-map-insert name next consumed else consumed in
@@ -531,7 +531,7 @@ module Cinch.Ownership where
   prune-bool-map elig m out = case elig of
     Nil -> out
     Cons (d, arity) rest ->
-      let name = core-name d in
+      let name = d.name in
       let next = (case hash-map-lookup name m of
             Some mask | any-true mask -> hash-map-insert name mask out
             other -> out) in
@@ -878,22 +878,22 @@ module Cinch.Ownership where
   clauses-non-escaping :: HashMap String Bool -> List CoreClause -> Bool
   clauses-non-escaping safe clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause sp pats body) rest -> term-non-escaping safe body && clauses-non-escaping safe rest
+    Cons (CoreClause sp pats body) rest -> term-non-escaping safe body && clauses-non-escaping safe rest
 
   init-non-escaping :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool
   init-non-escaping defs acc = case defs of
     Nil -> acc
-    Cons d rest -> init-non-escaping rest (hash-map-insert (core-name d) True acc)
+    Cons d rest -> init-non-escaping rest (hash-map-insert (d.name) True acc)
 
   non-escaping-sweep :: List CoreDefinition -> HashMap String Bool -> Bool -> (HashMap String Bool, Bool)
   non-escaping-sweep defs safe changed = case defs of
     Nil -> (safe, changed)
     Cons d rest ->
-      let name = core-name d in
+      let name = d.name in
       let cur = (case hash-map-lookup name safe of Some True -> True; other -> False) in
       if not cur then non-escaping-sweep rest safe changed
       else
-        let ok = clauses-non-escaping safe (core-clauses d) in
+        let ok = clauses-non-escaping safe (d.clauses) in
         if ok then non-escaping-sweep rest safe changed
         else non-escaping-sweep rest (hash-map-insert name False safe) True
 
@@ -919,7 +919,7 @@ module Cinch.Ownership where
   clauses-call-alloc-loop :: HashMap String Bool -> List CoreClause -> Bool
   clauses-call-alloc-loop alloc-loops clauses = case clauses of
     Nil -> False
-    Cons (MkCoreClause sp pats body) rest -> term-calls-alloc-loop alloc-loops body || clauses-call-alloc-loop alloc-loops rest
+    Cons (CoreClause sp pats body) rest -> term-calls-alloc-loop alloc-loops body || clauses-call-alloc-loop alloc-loops rest
 
   term-allocates-ctor :: CoreTerm -> Bool
   term-allocates-ctor term = case term of
@@ -937,15 +937,15 @@ module Cinch.Ownership where
   clauses-allocate-ctor :: List CoreClause -> Bool
   clauses-allocate-ctor clauses = case clauses of
     Nil -> False
-    Cons (MkCoreClause sp pats body) rest -> term-allocates-ctor body || clauses-allocate-ctor rest
+    Cons (CoreClause sp pats body) rest -> term-allocates-ctor body || clauses-allocate-ctor rest
 
   collect-allocating-loops :: List CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Bool -> HashMap String Bool
   collect-allocating-loops defs tail-groups acc = case defs of
     Nil -> acc
     Cons d rest ->
-      let name = core-name d in
+      let name = d.name in
       let next = case hash-map-lookup name tail-groups of
-            Some g -> if clauses-allocate-ctor (core-clauses d) then hash-map-insert name True acc else acc
+            Some g -> if clauses-allocate-ctor (d.clauses) then hash-map-insert name True acc else acc
             None -> acc in
       collect-allocating-loops rest tail-groups next
 
@@ -988,7 +988,7 @@ module Cinch.Ownership where
   clauses-call-self :: String -> List CoreClause -> Bool
   clauses-call-self self clauses = case clauses of
     Nil -> False
-    Cons (MkCoreClause sp pats body) rest -> term-calls-self self body || clauses-call-self self rest
+    Cons (CoreClause sp pats body) rest -> term-calls-self self body || clauses-call-self self rest
 
   -- | Identify non-recursive, side-effect-free functions that return a
   -- non-arena leaf (`Int`, `Nat`, `Bool`, `String`, `Bytes`, etc.), never
@@ -1005,18 +1005,18 @@ module Cinch.Ownership where
   select-arena-phases defs tail-groups safe alloc-loops out = case defs of
     Nil -> out
     Cons d rest ->
-      let name = core-name d in
+      let name = d.name in
       let in-tail-group = (case hash-map-lookup name tail-groups of Some g -> True; None -> False) in
       let is-safe = (case hash-map-lookup name safe of Some True -> True; other -> False) in
       let ok = not (same-str name "main" || same-str name "Main.main")
             && not in-tail-group
             && is-safe
-            && (case (core-givens d, core-openings d, core-clauses d) of
-                  (Nil, Nil, Cons (MkCoreClause sp pats body) more) ->
+            && (case (d.givens, d.openings, d.clauses) of
+                  (Nil, Nil, Cons (CoreClause sp pats body) more) ->
                     is-non-arena-leaf-type (core-type body)
                     && not (has-function-param (own-runtime-params pats))
-                    && not (clauses-call-self name (core-clauses d))
-                    && clauses-call-alloc-loop alloc-loops (core-clauses d)
+                    && not (clauses-call-self name (d.clauses))
+                    && clauses-call-alloc-loop alloc-loops (d.clauses)
                   other -> False) in
       let next = if ok then hash-map-insert name True out else out in
       select-arena-phases rest tail-groups safe alloc-loops next
@@ -1061,7 +1061,7 @@ module Cinch.Ownership where
   clauses-use-concurrency :: List CoreClause -> Bool
   clauses-use-concurrency clauses = case clauses of
     Nil -> False
-    Cons (MkCoreClause sp pats body) rest -> term-uses-concurrency body || clauses-use-concurrency rest
+    Cons (CoreClause sp pats body) rest -> term-uses-concurrency body || clauses-use-concurrency rest
 
   -- | True if any definition in the program uses parallel or concurrent primitives.
   -- When False, every reference count in the module is statically thread-local
@@ -1069,7 +1069,7 @@ module Cinch.Ownership where
   program-uses-concurrency :: List CoreDefinition -> Bool
   program-uses-concurrency defs = case defs of
     Nil -> False
-    Cons d rest -> clauses-use-concurrency (core-clauses d) || program-uses-concurrency rest
+    Cons d rest -> clauses-use-concurrency (d.clauses) || program-uses-concurrency rest
 
   all-nullary-ctors :: List CoreConstructor -> Bool
   all-nullary-ctors cs = case cs of

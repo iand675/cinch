@@ -11,8 +11,9 @@ module Cinch.PackageHash where
   -- For a fixed byte stream, FNV-1a touches the low byte with xor and
   -- multiplies by an odd constant. The other bits contribute independently
   -- by prime^length. Store the 256 results for an initial low byte.
-  data HashSummary where
-    Summary :: U64 -> Bytes -> HashSummary
+  record HashSummary where
+    field0 :: U64
+    field1 :: Bytes
 
   -- Each range row follows a previously hashed row, so include its comma.
   summarize-row :: Bytes -> HashSummary
@@ -20,17 +21,17 @@ module Cinch.PackageHash where
     let table = bytes-new 2048 in
     let size = bytes-len input in
     let filled = hold-package-source input (fill-table (bytes-data input) (nat-to-i64 size) table 0 0) in
-    case filled of _ -> Summary (prime-power (size + 1) 1099511628211 1) table
+    case filled of _ -> HashSummary (prime-power (size + 1) 1099511628211 1) table
 
   compose-hashes :: HashSummary -> HashSummary -> HashSummary
-  compose-hashes (Summary first left) (Summary second right) =
+  compose-hashes (HashSummary first left) (HashSummary second right) =
     let table = bytes-new 2048 in
     let filled = hold-package-source left (hold-package-source right
       (compose-table (bytes-data left) (bytes-data right) second table 0)) in
-    case filled of _ -> Summary (wrapping-mul-u64 first second) table
+    case filled of _ -> HashSummary (wrapping-mul-u64 first second) table
 
   apply-summary :: HashSummary -> U64 -> U64
-  apply-summary (Summary factor table) hash =
+  apply-summary (HashSummary factor table) hash =
     hold-package-source table (apply-table (bytes-data table) factor hash)
 
   prime-power :: Nat -> U64 -> U64 -> U64

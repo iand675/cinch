@@ -67,7 +67,7 @@ module Cinch.Driver where
   zero-span = Span 0 0 0 0
 
   diagnostic :: String -> Diagnostic
-  diagnostic msg = MkDiagnostic "bootstrap.driver" zero-span msg
+  diagnostic msg = Diagnostic "bootstrap.driver" zero-span msg
 
   -- --------------------------------------------------------- argument scan
 

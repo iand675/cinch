@@ -5,7 +5,7 @@ module Cinch.Nominal where
   import Cinch.Ast
   import Cinch.Builtin (array-type-name, cell-type-name, cell-effect-name)
   import Cinch.PackedBody (hold-package-source)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Cinch.Document
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -452,7 +452,7 @@ module Cinch.Nominal where
     JArr row rest -> same identity (text (field "identity" row)) || contains-identity identity rest
     other -> False
   fail :: Span -> String -> (TypeExpr, List Diagnostic)
-  fail sp message = (TUnmodeled sp message, [MkDiagnostic "bootstrap.resolve" sp message])
+  fail sp message = (TUnmodeled sp message, [Diagnostic "bootstrap.resolve" sp message])
   qualify-name :: Json -> List String -> Span -> String -> (TypeExpr, List Diagnostic)
   qualify-name refs locals sp name =
     if same name "Io" then (TName sp "b.Io", Nil)

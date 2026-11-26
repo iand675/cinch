@@ -7,7 +7,7 @@ module Cinch.Stage where
   import Cinch.Expand (decl-has-macro-call, clauses-have-macro-call, hygienic-term, closed-code-template, fill-splices as macro-fill-splices, fill-splices-with, macro-name-argument, name-macro, value-macro, take-group, DeclarationProducer, QuotedDeclarations, ConstructDeclarations, declaration-spelling, declaration-macro, macro-parameters, syntax-template-of, expand-error)
   import Cinch.Parse (Ps, POk, PBad, parse-tree-record-fields, Fix, macro-argument-groups, indexed-module-scope-fixes)
   import Cinch.Resolve (MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle, source-import-closure)
-  import Cinch.Report (Diagnostic, MkDiagnostic, diagnostic-span, diagnostic-rung, diagnostic-message, render-position)
+  import Cinch.Report (Diagnostic, render-position)
   import Cinch.StageEval
   import Cinch.Nominal (stage-quotation-module, stage-code-type-name, global-stage-code)
   import Cinch.Type (Scheme, UType, UApp, UCon, scheme-body)
@@ -28,7 +28,7 @@ module Cinch.Stage where
   -- its template range and call site until ordinary checking has diagnosed
   -- the generated declarations. An ordinary source error keeps its origin.
   explain-expansion-errors :: Program -> List Diagnostic -> List Diagnostic
-  explain-expansion-errors program errors = case expansion-sites (program-modules program) of
+  explain-expansion-errors program errors = case expansion-sites (program.modules) of
     Nil -> errors
     sites -> map (explain-expansion-error sites) errors
   expansion-sites :: List Module -> List (Span, Span, String)
@@ -51,15 +51,15 @@ module Cinch.Stage where
         " (in expansion of " <> name <> " at " <> render-position caller <> ")" <> tail
       else tail
   explain-expansion-error :: List (Span, Span, String) -> Diagnostic -> Diagnostic
-  explain-expansion-error sites error = let at = diagnostic-span error in let notes = expansion-notes at sites in
+  explain-expansion-error sites error = let at = error.span in let notes = expansion-notes at sites in
     if same notes "" then error else
-      let message = diagnostic-message error in
+      let message = error.message in
       let origin = if string-starts-with "unknown index " message || string-starts-with "unknown name " message
             then " (the name does not resolve where this template was defined)" else "" in
-      MkDiagnostic (diagnostic-rung error) at (message <> origin <> notes)
+      Diagnostic (error.rung) at (message <> origin <> notes)
 
   stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
-  stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
+  stage-error site message = Err [Diagnostic "bootstrap.stage" site message]
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -74,8 +74,12 @@ module Cinch.Stage where
   data MacroCallers where
     RootCall :: MacroCallers
     CallerSite :: String -> List (String, Fix) -> MacroCallers -> MacroCallers
-  data MacroSite where
-    MkMacroSite :: String -> List (String, Fix) -> HashMap String Module -> MacroNamespaces -> MacroCallers -> MacroSite
+  record MacroSite where
+    owner :: String
+    fix :: List (String, Fix)
+    modules :: HashMap String Module
+    names :: MacroNamespaces
+    parent :: MacroCallers
 
   stage-work :: List Decl -> Bool
   stage-work declarations = case declarations of
@@ -122,14 +126,14 @@ module Cinch.Stage where
   quotation-declarations site =
     [DExport site "" [ExportName site [quote-type-name], ExportName site ["quoteNat"], ExportName site ["quoteInt"], ExportName site ["quoteBool"], ExportName site ["strNat"]],
      DExternal site "strNat" "stage-primitive" (Some (TFun site (TName site "String") (TName site "Nat"))) JNull,
-     DData site quote-type-name [MkTypeParam site "a" None False]
+     DData site quote-type-name [TypeParam site "a" None False]
       [(stage-quotation-constructor, TFun site (TName site "a") (quote-type site quote-type-name "a"))]]
     <> quote-function site "quoteNat" "Nat"
     <> quote-function site "quoteInt" "Int"
     <> quote-function site "quoteBool" "Bool"
 
   quotation-scope :: Span -> Module
-  quotation-scope site = MkModule site stage-quotation-module (decl-spine site (quotation-declarations site))
+  quotation-scope site = Module site stage-quotation-module (decl-spine site (quotation-declarations site))
 
   -- The carrier a splice site expects, read off the spliced expression: the
   -- `t` of a `Code t`, whether the splice names a stage function returning
@@ -376,13 +380,13 @@ module Cinch.Stage where
   stage-modules :: String -> List String -> List Module -> Result (List Diagnostic) (List Module)
   stage-modules owner reachable modules = case modules of
     Nil -> Ok Nil
-    Cons first rest | not (runtime-value-name (module-name first) reachable) -> stage-modules owner reachable rest
-    Cons first rest -> let name = module-name first in let body = module-decls first in
+    Cons first rest | not (runtime-value-name (first.name) reachable) -> stage-modules owner reachable rest
+    Cons first rest -> let name = first.name in let body = module-decls first in
       let helpers = if same owner name then generator-helpers name body else hash-map-empty in
       case (stage-declarations name helpers (same owner name) (runtime-value-names body) body body, stage-modules owner reachable rest) of
-        (Ok declarations, Ok tail) -> let site = module-span first in
+        (Ok declarations, Ok tail) -> let site = first.span in
           let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil Nil) declarations else declarations in
-          Ok (Cons (MkModule site name (decl-spine site visible)) tail)
+          Ok (Cons (Module site name (decl-spine site visible)) tail)
         (Err errors, other) -> Err errors
         (other, Err errors) -> Err errors
 
@@ -401,12 +405,15 @@ module Cinch.Stage where
 
   -- Resolve the spelling through the caller's imports and exports. The
   -- quotation's free names and carrier belong to its defining module.
-  data CodeTemplate where
-    CodeTemplate :: String -> List Pat -> TypeExpr -> Expr -> CodeTemplate
+  record CodeTemplate where
+    field0 :: String
+    field1 :: List Pat
+    field2 :: TypeExpr
+    field3 :: Expr
 
   surface-template :: MacroSite -> String -> Option CodeTemplate
   surface-template scope spelling = case scope of
-    MkMacroSite owner fix modules names parent -> (case lookup-macro names owner spelling of
+    MacroSite owner fix modules names parent -> (case lookup-macro names owner spelling of
       Some (home, name) -> (case hash-map-lookup home modules of
         Some definition -> let declarations = module-decls definition in
           (case (template-equation name declarations, stage-signature name declarations) of
@@ -435,22 +442,17 @@ module Cinch.Stage where
     TApp site (TName at name) (TArg arg carrier (TArgsEnd end)) | same name "Code" -> Some carrier
     other -> None
 
-  data ExpandScope where
-    MkExpandScope :: MacroSite -> List Decl -> ExpandScope
-
-  scope-site :: ExpandScope -> MacroSite
-  scope-site scope = case scope of MkExpandScope site template -> site
+  record ExpandScope where
+    site :: MacroSite
+    template :: List Decl
 
   defining-scope :: String -> ExpandScope -> ExpandScope
-  defining-scope home scope = case scope-site scope of
-    MkMacroSite owner fix modules names parent ->
-      MkExpandScope (MkMacroSite home (indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent)) Nil
-
-  scope-template :: ExpandScope -> List Decl
-  scope-template scope = case scope of MkExpandScope site template -> template
+  defining-scope home scope = case scope.site of
+    MacroSite owner fix modules names parent ->
+      ExpandScope (MacroSite home (indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent)) Nil
 
   scope-with-template :: List Decl -> ExpandScope -> ExpandScope
-  scope-with-template declarations scope = MkExpandScope (scope-site scope) declarations
+  scope-with-template declarations scope = ExpandScope (scope.site) declarations
 
   expand-clause :: CheckedProgram -> String -> ExpandScope -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-clause checked owner scope body fuel = case body of
@@ -465,9 +467,9 @@ module Cinch.Stage where
     EApp at function argument -> code-application checked owner scope site original function (Cons argument args) (fuel - 1)
     EQuote at body -> (case args of Nil -> expand-clause checked owner scope body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
     EMacroCall at path tokens -> (case args of
-      Nil -> expand-call (scope-site scope) at path tokens (fuel - 1)
+      Nil -> expand-call (scope.site) at path tokens (fuel - 1)
       other -> stage-error site "a macro quotation does not take runtime arguments")
-    EVar at name -> (case surface-template (scope-site scope) name of
+    EVar at name -> (case surface-template (scope.site) name of
       Some (CodeTemplate home parameters ty body) -> (case hygienic-term body (macro-budget - fuel) of
         (renamed, serial) -> if serial + 1 > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else
           (case apply-code-template checked owner scope home site parameters ty args Nil renamed (macro-budget - (serial + 1)) of
@@ -525,7 +527,7 @@ module Cinch.Stage where
       Some key -> Ok (EApp site (EVar site key) (EUnit site), fuel)
       None -> expand-code checked home scope site (EVar at name) fuel)
     ESplice site expression -> expand-code checked home scope site expression fuel
-    EMacroCall site path tokens -> expand-call (scope-site scope) site path tokens fuel
+    EMacroCall site path tokens -> expand-call (scope.site) site path tokens fuel
     other -> walk-children (template-holes checked home scope names) term fuel
 
   code-operand :: String -> List (String, String) -> Option String
@@ -543,7 +545,7 @@ module Cinch.Stage where
       Ok (StageQuoted value, remaining) -> case literal site carrier value of
         Err errors -> Err errors
         Ok term -> Ok (term, remaining)
-      Ok (StageCode template, remaining) -> Ok (template-body template, remaining)
+      Ok (StageCode template, remaining) -> Ok (template.body, remaining)
       Ok other -> stage-error site "splice did not produce checked code"
 
   expand-clauses :: CheckedProgram -> String -> ExpandScope -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
@@ -563,7 +565,7 @@ module Cinch.Stage where
     other -> Ok (declaration, fuel)
 
   expand-template :: CheckedProgram -> String -> ExpandScope -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  expand-template checked owner scope fuel = case scope-template scope of
+  expand-template checked owner scope fuel = case scope.template of
     Nil -> Ok (Nil, fuel)
     Cons first rest -> case expand-template-declaration checked owner scope first fuel of
       Err errors -> Err errors
@@ -578,14 +580,14 @@ module Cinch.Stage where
     Nil -> None
 
   emit-stage-value :: CheckedProgram -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
-  emit-stage-value checked scope site value fuel = case (scope-site scope, value) of
-    (MkMacroSite owner fix modules names parent, EVar at spelling) -> (case lookup-macro names owner spelling of
+  emit-stage-value checked scope site value fuel = case (scope.site, value) of
+    (MacroSite owner fix modules names parent, EVar at spelling) -> (case lookup-macro names owner spelling of
       Some (home, name) -> (case hash-map-lookup home modules of
         Some definition -> let declarations = module-decls definition in (case (stored-declarations name declarations, stage-signature name declarations) of
           (Some template, Some (TName at carrier)) | same carrier "Declarations" ->
             let destination = defining-scope home scope in (case expand-template checked home (scope-with-template (decls-of template) destination) fuel of
               Err errors -> Err errors
-              Ok (expanded, remaining) -> (case fill-declarations (scope-site destination) fix (MacroOperands Nil Nil) expanded remaining of
+              Ok (expanded, remaining) -> (case fill-declarations (destination.site) fix (MacroOperands Nil Nil) expanded remaining of
                 Err errors -> Err errors
                 Ok (filled, done) -> Ok ([DGeneratedGroup site home (home <> "." <> name) (decl-spine (decl-span template) filled)], done)))
           other -> stage-error site "emit requires a stage value of type Declarations")
@@ -637,7 +639,7 @@ module Cinch.Stage where
     DMacro site body -> stage-error site "a macro requires a signature or equation"
     DStage site body -> Ok (if quotation-bodied body then [DMacroBinding site (definition-name body)] else Nil, fuel)
     DGenerate site actions -> (case evaluator of
-      Some checked -> expand-actions site-context checked owner (MkExpandScope site-context Nil) (decls-of actions) fuel
+      Some checked -> expand-actions site-context checked owner (ExpandScope site-context Nil) (decls-of actions) fuel
       None -> stage-error site "generator requires a checked stage program")
     DSig site name ty -> if quotation-signature-of name module-decls then Ok (Nil, fuel) else Ok ([declaration], fuel)
     DFun site name clauses -> if clauses-have-macro-call clauses then
@@ -670,10 +672,10 @@ module Cinch.Stage where
   expand-term :: MacroSite -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-term site-context e fuel = case e of
     ESyntaxCaptureUnder at key name argument -> (case site-context of
-      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> walk-one (expand-term (MkMacroSite owner caller-fix modules names parent)) (ESyntaxCaptureUnder at key name) argument fuel
+      MacroSite home fix modules names (CallerSite owner caller-fix parent) -> walk-one (expand-term (MacroSite owner caller-fix modules names parent)) (ESyntaxCaptureUnder at key name) argument fuel
       other -> stage-error at "Syntax.captureUnder outside its expansion")
     EArgumentScope at argument -> (case site-context of
-      MkMacroSite home fix modules names (CallerSite owner caller-fix parent) -> walk-one (expand-term (MkMacroSite owner caller-fix modules names parent)) (EArgumentScope at) argument fuel
+      MacroSite home fix modules names (CallerSite owner caller-fix parent) -> walk-one (expand-term (MacroSite owner caller-fix modules names parent)) (EArgumentScope at) argument fuel
       other -> stage-error at "macro argument outside its expansion")
     EMacroCall site path tokens -> expand-call site-context site path tokens fuel
     other -> walk-children (expand-term site-context) e fuel
@@ -749,7 +751,7 @@ module Cinch.Stage where
   expand-call :: MacroSite -> Span -> String -> List MacroToken -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else
     case caller of
-      MkMacroSite owner fix modules names parent -> case lookup-macro names owner path of
+      MacroSite owner fix modules names parent -> case lookup-macro names owner path of
         None -> expand-error site (cat ["`", path, "` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)"])
         Some (home, name) -> case hash-map-lookup home modules of
           None -> expand-error site (cat ["unavailable macro module ", home])
@@ -762,15 +764,16 @@ module Cinch.Stage where
               else let (renamed, serial) = hygienic-term template (macro-budget - fuel) in
                 if serial + 1 > macro-budget then expand-error site "macro expansion exhausted its work budget" else case macro-fill-splices renamed (zip-parameters parameters groups) fix of
                   Err errors -> Err errors
-                  Ok filled -> let scope = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+                  Ok filled -> let scope = MacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
                     case expand-term scope filled (macro-budget - (serial + 1)) of
                       Err errors -> Err errors
                       Ok (expanded, remaining) -> Ok (ETemplateScope site home expanded, remaining)
 
   -- Name arguments reify a single token at the call site. Syntax arguments
   -- preserve their token trees until a template splices them.
-  data MacroOperands where
-    MacroOperands :: List (String, String) -> List (String, List LToken) -> MacroOperands
+  record MacroOperands where
+    names :: List (String, String)
+    syntax :: List (String, List LToken)
   bind-operands :: Span -> List (String, String) -> List (List LToken) -> Result (List Diagnostic) MacroOperands
   bind-operands site params groups = case (params, groups) of
     (Nil, Nil) -> Ok (MacroOperands Nil Nil)
@@ -796,7 +799,7 @@ module Cinch.Stage where
   reify-name :: MacroSite -> MacroOperands -> Expr -> Nat -> Result (List Diagnostic) (Option ReifiedName)
   reify-name scope operands expr fuel = if fuel == 0 then expand-error (expr-span expr) "macro expansion exhausted its work budget" else
     case (scope, operands) of
-      (MkMacroSite owner fix modules namespaces parent, MacroOperands locals syntax) -> (case expr of
+      (MacroSite owner fix modules namespaces parent, MacroOperands locals syntax) -> (case expr of
         EVar site name -> Ok (name-operand name locals)
         ELitSym site name -> Ok (Some (SymbolValue name))
         EApp site (EVar op-site op) argument | (same op "name-to-sym" || same op "sym-to-name") && stage-operation-available namespaces owner op ->
@@ -814,7 +817,7 @@ module Cinch.Stage where
               None -> Ok None
               Some (params, body) -> case bind-operands site params (macro-argument-groups (thaw-macro-tokens tokens) (list-length params)) of
                 Err errors -> Err errors
-                Ok args -> let nested = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
+                Ok args -> let nested = MacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
                   (case reify-name nested args body (fuel - 1) of
                     Ok (Some (NameValue spelling)) -> Ok (Some (NameValue spelling))
                     Err errors -> Err errors
@@ -835,7 +838,7 @@ module Cinch.Stage where
 
   expand-declaration-call :: MacroSite -> Span -> String -> List MacroToken -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declaration-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else case caller of
-    MkMacroSite owner fix modules names parent -> (case lookup-macro names owner path of
+    MacroSite owner fix modules names parent -> (case lookup-macro names owner path of
       None -> expand-error site (cat ["declaration macro is not in scope: ", path])
       Some (home, name) -> case hash-map-lookup home modules of
         None -> expand-error site (cat ["unavailable macro module ", home])
@@ -843,7 +846,7 @@ module Cinch.Stage where
           None -> expand-error site "emit requires a macro producing Declarations"
           Some (params, template) -> let groups = macro-argument-groups (thaw-macro-tokens tokens) (list-length params) in
             if list-length groups /= list-length params then expand-error site "declaration macro token-tree arity mismatch" else
-              let scope = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+              let scope = MacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
               (case bind-operands site params groups of
                 Err errors -> Err errors
                 Ok operands -> case template of
@@ -860,11 +863,11 @@ module Cinch.Stage where
       (current, MacroOperands names syntax, EVar at param) -> (case take-group param syntax of
         Some tokens -> Ok (argument-home, tokens, fuel)
         None -> expand-error at "record fields require a Syntax operand")
-      (MkMacroSite owner fix modules namespaces parent, args, EMacroCall at path tokens) -> (case lookup-macro namespaces owner path of
+      (MacroSite owner fix modules namespaces parent, args, EMacroCall at path tokens) -> (case lookup-macro namespaces owner path of
         Some (home, name) -> (case hash-map-lookup home modules of
           Some definition -> (case value-macro "Syntax" name (module-decls definition) of
             Some (params, body) -> (case bind-operands at params (macro-argument-groups (thaw-macro-tokens tokens) (list-length params)) of
-              Ok nested -> field-syntax (MkMacroSite home (indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
+              Ok nested -> field-syntax (MacroSite home (indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
               Err errors -> Err errors)
             None -> expand-error at "record fields require a macro producing Syntax")
           None -> expand-error at ("unavailable macro module " <> home))
@@ -873,7 +876,7 @@ module Cinch.Stage where
 
   construct-declarations :: MacroSite -> MacroOperands -> String -> String -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   construct-declarations scope operands argument-home macro-name site expression fuel = case (scope, expression) of
-    (MkMacroSite home fix modules namespaces parent, EApp at (EApp inner (EVar op-site op) requested) field-value) | same op "Syntax.recordDeclaration" && stage-operation-available namespaces home op ->
+    (MacroSite home fix modules namespaces parent, EApp at (EApp inner (EVar op-site op) requested) field-value) | same op "Syntax.recordDeclaration" && stage-operation-available namespaces home op ->
       (case reify-name scope operands requested fuel of
         Ok (Some (NameValue name)) -> (case string-char-at name 0 of
           Some first | is-ascii-upper first -> (case field-syntax scope operands argument-home field-value fuel of
@@ -1020,8 +1023,9 @@ module Cinch.Stage where
   generator-name :: Span -> String
   generator-name site = "#generate-" <> nat-to-string (span-start site)
 
-  data StageDependencies where
-    StageDependencies :: HashMap String (String, List String) -> List (String, Span) -> StageDependencies
+  record StageDependencies where
+    nodes :: HashMap String (String, List String)
+    roots :: List (String, Span)
 
   dependency-node :: String -> String -> String -> List String -> StageDependencies -> StageDependencies
   dependency-node owner key label dependencies graph = case graph of
@@ -1081,7 +1085,7 @@ module Cinch.Stage where
     StageDependencies nodes Nil -> Nil
     StageDependencies nodes (Cons (name, site) rest) -> (case hash-map-lookup name nodes of
       Some (label, dependencies) -> (case cycle-edges nodes label [label] dependencies (hash-map-insert label () hash-map-empty) of
-        (Some chain, seen) -> [MkDiagnostic "bootstrap.stage" site ("stage dependency cycle: " <> render-cycle chain)]
+        (Some chain, seen) -> [Diagnostic "bootstrap.stage" site ("stage dependency cycle: " <> render-cycle chain)]
         (None, seen) -> staged-cycle (StageDependencies nodes rest))
       None -> staged-cycle (StageDependencies nodes rest))
 
@@ -1089,13 +1093,13 @@ module Cinch.Stage where
   expand-module resolve program headers names current fuel =
     let declarations = module-decls current in
     if not (stage-work declarations) then Ok (current, Nil, fuel) else
-      let owner = module-name current in
-      let finish = \evaluator -> case expand-declarations evaluator (MkMacroSite owner (indexed-module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
+      let owner = current.name in
+      let finish = \evaluator -> case expand-declarations evaluator (MacroSite owner (indexed-module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
             Err errors -> Err errors
-            Ok (body, emitted, remaining) -> let site = module-span current in Ok (MkModule site owner (decl-spine site body), emitted, remaining) in
-      if not (needs-stage-check declarations) then finish None else let modules = program-modules program in case stage-modules owner (source-import-closure owner modules) modules of
+            Ok (body, emitted, remaining) -> let site = current.span in Ok (Module site owner (decl-spine site body), emitted, remaining) in
+      if not (needs-stage-check declarations) then finish None else let modules = program.modules in case stage-modules owner (source-import-closure owner modules) modules of
         Err errors -> Err errors
-        Ok modules -> let site = program-span program in case resolve (MkProgram site (Cons (quotation-scope site) modules)) of
+        Ok modules -> let site = program.span in case resolve (Program site (Cons (quotation-scope site) modules)) of
           (resolved, Nil) -> case check-and-retain resolved of
             Err errors -> Err errors
             Ok checked -> finish (Some checked)
@@ -1110,7 +1114,7 @@ module Cinch.Stage where
       Err errors -> Err errors
       Ok (expanded, names-here, remaining) -> case expand-modules resolve program headers names rest remaining of
         Err errors -> Err errors
-        Ok (tail, reports, done) -> Ok (Cons expanded tail, (case names-here of Nil -> reports; other -> Cons (module-name first, names-here) reports), done)
+        Ok (tail, reports, done) -> Ok (Cons expanded tail, (case names-here of Nil -> reports; other -> Cons (first.name, names-here) reports), done)
 
   modules-have-stage-work :: List Module -> Bool
   modules-have-stage-work modules = case modules of
@@ -1146,18 +1150,18 @@ module Cinch.Stage where
 
   prepare-stage-module :: MacroNamespaces -> Module -> Module
   prepare-stage-module names m = let declarations = module-decls m in
-    if not (needs-stage-check declarations) then m else let home = module-name m in
-      let site = module-span m in MkModule site home (decl-spine site (map (prepare-stage-code home (stage-operation-available names home) declarations) declarations))
+    if not (needs-stage-check declarations) then m else let home = m.name in
+      let site = m.span in Module site home (decl-spine site (map (prepare-stage-code home (stage-operation-available names home) declarations) declarations))
 
   expand-stages-with :: (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) Program
   expand-stages-with resolve import-headers program = case expand-stages-with-report resolve import-headers program of
     Err errors -> Err errors
     Ok (expanded, generated) -> Ok expanded
   expand-stages-with-report :: (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) (Program, List (String, List String))
-  expand-stages-with-report resolve import-headers program = let modules = program-modules program in
+  expand-stages-with-report resolve import-headers program = let modules = program.modules in
     if not (modules-have-stage-work modules) then Ok (program, Nil) else
       let imports = import-headers () in let names = macro-namespaces modules imports in
       let prepared = map (prepare-stage-module names) modules in
-      case expand-modules resolve (MkProgram (program-span program) prepared) (module-name-index (prepared <> imports)) names prepared macro-budget of
+      case expand-modules resolve (Program (program.span) prepared) (module-name-index (prepared <> imports)) names prepared macro-budget of
         Err errors -> Err errors
-        Ok (expanded, reports, fuel) -> Ok (MkProgram (program-span program) expanded, reports)
+        Ok (expanded, reports, fuel) -> Ok (Program (program.span) expanded, reports)

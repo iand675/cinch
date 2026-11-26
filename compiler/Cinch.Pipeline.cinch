@@ -16,8 +16,8 @@
 
 module Cinch.Pipeline where
 
-  import Cinch.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, module-name-index, Decl, DClass)
-  import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, check-and-retain-with-interfaces-tuned, check-and-retain-with-admitted-interfaces-tuned, prepare-admitted-check, prepare-admitted-check-tuned, prepare-admitted-check-cached, checked-surface, checked-elaboration, checked-generated, with-generated)
+  import Cinch.Ast (Program, Module, module-decls, module-name-index, Decl, DClass)
+  import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, check-and-retain-with-interfaces-tuned, check-and-retain-with-admitted-interfaces-tuned, prepare-admitted-check, prepare-admitted-check-tuned, prepare-admitted-check-cached, with-generated)
   import Cinch.Core (CoreDefinition)
   import Cinch.CoreBody (dense-claims-verified)
   import Cinch.Infer (elaboration-core)
@@ -25,16 +25,16 @@ module Cinch.Pipeline where
   import Cinch.Ir (emit-checked-diagnostics, emit-checked-program)
   import Cinch.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache)
-  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-strategy, tuning-workers, tuning-with-strategy, tuning-with-workers, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
-  import Cinch.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, session-revision, session-unit-cache, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
-  import Cinch.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
+  import Cinch.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Cinch.PackageWrite (encode-interface-package, encode-object-package)
   import Cinch.Parse (parse-program)
   import Cinch.Parse (parse-program-with, parse-program-with-index, parse-program-with-index-tuned)
-  import Cinch.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
+  import Cinch.Load (LoadedInterface, load-interface, validate-interface-set, ValidatedInterfaces, canonical-interface-validation)
   import Cinch.Inputs (InterfaceInputs, read-validated-interfaces, embedded-library-home, read-interface-inputs, interface-input-files, interface-package-file, load-client-interface-inputs)
   import Cinch.Host (compiler-epoch)
-  import Cinch.Object (PackedClient, read-packed-client, packed-client-key, packed-client-code, admit-packed-client)
+  import Cinch.Object (PackedClient, read-packed-client, packed-client-key, admit-packed-client)
   import Cinch.Contracts (interface-headers, interface-fixity-headers)
   import Cinch.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, prepare-admitted-resolution, resolve-overlay-with, unshadowed-interfaces)
   import Cinch.Stage (expand-stages-with-report, explain-expansion-errors)
@@ -42,7 +42,7 @@ module Cinch.Pipeline where
   import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows)
   import Cinch.Interface (fnv-source-hash, sha256-hex)
   import Cinch.TargetLiterals (target-literal-errors)
-  import Cinch.Target (TargetProfile, profile-triple, profile-arch, selection-arch, profile-required, profile-features, profile-os, profile-libc, profile-endian, profile-word-size, target-ir-header, target-profile, target-view-program, host-profile)
+  import Cinch.Target (TargetProfile, selection-arch, target-ir-header, target-profile, target-view-program, host-profile)
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Cinch.Document
@@ -189,7 +189,7 @@ module Cinch.Pipeline where
     Ok profile -> if interface-output-conflict mode ir manifest then pipeline-bad-args else case read-validated-interfaces manifest of
       Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
       Ok admitted ->
-        let interfaces = validated-interfaces-members admitted in
+        let interfaces = admitted.interfaces-members in
         (case mode of
           InterfacesOnly -> compile-source-interfaces-tuned tuning profile interfaces source ir
           ObjectOnly -> pipeline-bad-args
@@ -241,7 +241,7 @@ module Cinch.Pipeline where
   load-object-client reclaim references configuration = case references of
     Err message -> Err ("bootstrap.interfaces: " <> message)
     Ok inputs ->
-      let metadata = (case configuration of Err message -> None; Ok config -> Some (runtime-object-metadata-file config)) in
+      let metadata = (case configuration of Err message -> None; Ok config -> Some (config.object-metadata-file)) in
       (case load-client-interface-inputs inputs metadata of
         Err message -> Err ("bootstrap.interfaces: " <> message)
         Ok (checked, snapshot) -> (case configuration of
@@ -263,11 +263,17 @@ module Cinch.Pipeline where
     if enabled then case ioWrite (string-to-bytes text) of _ -> ()
     else ()
 
-  data ServeEnv where
-    ServeEnv :: TargetProfile -> Bool -> Bool -> Bool -> List LoadedInterface -> HashMap String Module -> RuntimeObject
-      -> (Program -> List LoadedInterface -> (Program, List Diagnostic, Bool))
-      -> (CompileTuning -> Bool -> HashMap String CoreDefinition -> Program -> Result (List Diagnostic) CheckedProgram)
-      -> String -> ServeEnv
+  record ServeEnv where
+    profile :: TargetProfile
+    inlining :: Bool
+    debug :: Bool
+    reclaim :: Bool
+    interfaces :: List LoadedInterface
+    headers :: HashMap String Module
+    provider :: RuntimeObject
+    resolve :: Program -> List LoadedInterface -> (Program, List Diagnostic, Bool)
+    retain-cached :: CompileTuning -> Bool -> HashMap String CoreDefinition -> Program -> Result (List Diagnostic) CheckedProgram
+    source :: String
 
   -- Execute one resident incremental build request (shared by --serve-ir and
   -- --serve-stream). Uses REAPER item fingerprinting + INCR body-only recheck
@@ -276,7 +282,7 @@ module Cinch.Pipeline where
   run-incremental-request-env :: forall r. using (io :: Io r) => Bool -> CompileTuning -> ServeEnv -> Bytes -> IncrementalSession ->{IO r, Diverge} IncrementalStep
   run-incremental-request-env streaming tuning env src session = case env of
     ServeEnv profile inlining debug reclaim interfaces headers provider resolve retain-cached source ->
-      let next-rev = session-revision session + 1 in
+      let next-rev = session.revision + 1 in
       let use-inline = effective-inlining tuning inlining in
       case parse-program-with-index-tuned tuning source src headers of
         Failed bundle ->
@@ -288,12 +294,12 @@ module Cinch.Pipeline where
         Parsed program Nil -> case target-view-program profile program of
           Err message ->
             StepFailure (failure-output message pipeline-check-refused) (invalidate-incremental-session session) message pipeline-check-refused
-          Ok view -> case object-source-conflict (program-modules view) interfaces of
+          Ok view -> case object-source-conflict (view.modules) interfaces of
             Some name ->
               let msg = "bootstrap.object: module " <> name <> " is already supplied by the library object; rebuild the library to change it" in
               StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
             None ->
-              let overlays = (if not (has-signature-overlay (program-modules view)) then Nil else
+              let overlays = (if not (has-signature-overlay (view.modules)) then Nil else
                     case recheck-source-overlays profile src view interfaces interfaces Nil of
                       Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
                         Some (Cons first rest) -> Cons first rest
@@ -322,7 +328,7 @@ module Cinch.Pipeline where
                               StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
                             Ok checked0 ->
                               let checked = with-generated generated checked0 in
-                              case emit-runtime-program-for-profile-cached tuning profile use-inline debug reclaim checked (Some provider) (session-unit-cache active-session) dirty-set of
+                              case emit-runtime-program-for-profile-cached tuning profile use-inline debug reclaim checked (Some provider) (active-session.unit-cache) dirty-set of
                                 Err errors ->
                                   let msg = render-diagnostics errors in
                                   StepFailure (failure-output msg pipeline-emit-refused) (invalidate-incremental-session session) msg pipeline-emit-refused
@@ -366,7 +372,7 @@ module Cinch.Pipeline where
       Err message -> write-failure ir message pipeline-interface-failed
       Ok (checked, provider, metadata, object-path, code) ->
         if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-        let interfaces = validated-interfaces-members checked in
+        let interfaces = checked.interfaces-members in
         let headers = module-name-index (interface-fixity-headers interfaces) in
         let admitted = canonical-interface-validation checked in
         let resolve = prepare-admitted-resolution admitted in
@@ -432,7 +438,7 @@ module Cinch.Pipeline where
       Err message -> write-failure ir message pipeline-interface-failed
       Ok (checked, provider, metadata, object-path, code) ->
         if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-        let interfaces = validated-interfaces-members checked in
+        let interfaces = checked.interfaces-members in
         let headers = module-name-index (interface-fixity-headers interfaces) in
         let admitted = canonical-interface-validation checked in
         let resolve = prepare-admitted-resolution admitted in
@@ -466,7 +472,7 @@ module Cinch.Pipeline where
               case ioWrite (string-to-bytes (render-stats-event next-session next-tuning)) of
                 _ -> serve-stream-loop newline cr source ir env inlining next-tuning next-prev next-session
             None ->
-              case ioWrite (string-to-bytes (render-error-event (session-revision session) pipeline-bad-args ("unknown compile strategy: " <> arg))) of
+              case ioWrite (string-to-bytes (render-error-event (session.revision) pipeline-bad-args ("unknown compile strategy: " <> arg))) of
                 _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
         else if string-starts-with "workers " cmd then
           let arg = string-strip (string-drop 8 cmd) in
@@ -478,10 +484,10 @@ module Cinch.Pipeline where
                   case ioWrite (string-to-bytes (render-stats-event session next-tuning)) of
                     _ -> serve-stream-loop newline cr source ir env inlining next-tuning previous session
             None ->
-              case ioWrite (string-to-bytes (render-error-event (session-revision session) pipeline-bad-args ("invalid worker count: " <> arg))) of
+              case ioWrite (string-to-bytes (render-error-event (session.revision) pipeline-bad-args ("invalid worker count: " <> arg))) of
                 _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
         else if string-compare cmd "" == 0 || string-compare cmd "rebuild" == 0 then
-          let next-rev = session-revision session + 1 in
+          let next-rev = session.revision + 1 in
           case fs-read source of
             Err error ->
               let msg = "bootstrap.object: cannot read source" in
@@ -498,7 +504,7 @@ module Cinch.Pipeline where
                   status -> case ioWrite (string-to-bytes (render-error-event next-rev err-status message)) of
                     _ -> serve-stream-loop newline cr source ir env inlining tuning (Some (src, output)) next-session
         else
-          case ioWrite (string-to-bytes (render-error-event (session-revision session) pipeline-bad-args ("unknown stream command: " <> cmd))) of
+          case ioWrite (string-to-bytes (render-error-event (session.revision) pipeline-bad-args ("unknown stream command: " <> cmd))) of
             _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
 
   publish-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
@@ -542,7 +548,7 @@ module Cinch.Pipeline where
     emit-object-client-tuned default-tuning inlining debug reclaim profile mode admitted provider source ir
   emit-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
   emit-object-client-tuned tuning inlining debug reclaim profile mode admitted provider source ir =
-    let interfaces = validated-interfaces-members admitted in
+    let interfaces = admitted.interfaces-members in
     let headers = module-name-index (interface-fixity-headers interfaces) in
     emit-object-client-using-tuned tuning inlining debug reclaim profile mode interfaces provider
       (\name src -> parse-program-with-index-tuned tuning name src headers) (\bytes program -> check-object-client-tuned tuning profile bytes program admitted) source ir
@@ -557,7 +563,7 @@ module Cinch.Pipeline where
         Err (message, status) -> write-failure ir message status
         Ok (view, checked) -> case mode of
           IrOnly -> write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
-          other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
+          other -> let admitted = unshadowed-interfaces (view.modules) interfaces in
             let entry = path-stem (path-from-string source) in
             let exported = export-interfaces-aliased checked admitted src in
             case serialize-exported checked profile entry admitted Nil exported of
@@ -585,7 +591,7 @@ module Cinch.Pipeline where
       Ok rows -> case write-interface-output ir (Ok rows) of
         0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
           0 -> (case fs-write (build-manifest-path ir)
-              (canonical-bytes (build-generated-manifest (checked-generated checked) (checked-primitive-rows checked) entry (manifest-target profile) admitted rows)) of
+              (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) entry (manifest-target profile) admitted rows)) of
             Ok written -> pipeline-ok
             Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
           code -> code
@@ -614,7 +620,7 @@ module Cinch.Pipeline where
       let configuration = read-runtime-object-config config in
       case (references, configuration) of
         (Ok inputs, Ok settings) -> (case interface-package-file inputs of
-          Some package | string-compare package (runtime-object-metadata-file settings) == 0 ->
+          Some package | string-compare package (settings.object-metadata-file) == 0 ->
             let receipt = path-from-string (prefix <> ".ll.receipt") in
             let receipt-name = normalize-path (path-to-string receipt) in
             let additional = map normalize-path (runtime-object-input-files settings) in
@@ -622,7 +628,7 @@ module Cinch.Pipeline where
             else case read-packed-client settings of
               Err message -> write-failure ir message pipeline-interface-failed
               Ok packed -> case prepare-packed-build-tuned tuning packed profile use-inline debug reclaim source ir receipt of
-                0 -> finish-native-build-tuned tuning ir executable object-copy runtime (profile-triple profile) (packed-client-code packed) clang run
+                0 -> finish-native-build-tuned tuning ir executable object-copy runtime (profile.triple) (packed.client-code) clang run
                 code -> code
           other -> link-uncached-client-tuned tuning use-inline debug reclaim profile references configuration source paths ir executable object-copy runtime clang run)
         other -> link-uncached-client-tuned tuning use-inline debug reclaim profile references configuration source paths ir executable object-copy runtime clang run
@@ -642,7 +648,7 @@ module Cinch.Pipeline where
           let emitted = emit-object-client-tuned tuning inlining debug reclaim profile IrOnly checked provider source ir in
           case arena-leave arena of
             _ -> case emitted of
-              0 -> finish-native-build-tuned tuning ir executable object-copy runtime (profile-triple profile) object-bytes clang run
+              0 -> finish-native-build-tuned tuning ir executable object-copy runtime (profile.triple) object-bytes clang run
               code -> code
 
   prepare-packed-build :: forall r. using (io :: Io r) => PackedClient -> TargetProfile -> Bool -> Bool -> Bool -> String -> Path -> Path ->{IO r} Int
@@ -653,7 +659,7 @@ module Cinch.Pipeline where
     let arena = arena-new phase-arena-first-chunk in
     let status = (case packed-client-key packed of
       (triple, object-hash, package-hash) ->
-        if string-compare triple (profile-triple profile) /= 0 then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
+        if string-compare triple (profile.triple) /= 0 then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
         else case fs-read (path-from-string source) of
           Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
           Ok src ->
@@ -671,7 +677,7 @@ module Cinch.Pipeline where
               Ok (admitted, provider, metadata) -> if not (provider-matches-profile metadata profile)
                 then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
                 else
-                  let interfaces = validated-interfaces-members admitted in
+                  let interfaces = admitted.interfaces-members in
                   let headers = module-name-index (interface-fixity-headers interfaces) in
                   let parse = \name input -> parse-program-with-index-tuned tuning name input headers in
                   let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
@@ -738,7 +744,7 @@ module Cinch.Pipeline where
   checked-admitted-source profile checked overlays program = checked-admitted-source-tuned default-tuning profile checked overlays program
   checked-admitted-source-tuned :: CompileTuning -> TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
   checked-admitted-source-tuned tuning profile checked overlays program =
-    let interfaces = validated-interfaces-members checked in
+    let interfaces = checked.interfaces-members in
     let admitted = canonical-interface-validation checked in
     let check = (case admitted of
       Ok canonical -> check-and-retain-with-admitted-interfaces-tuned tuning canonical
@@ -774,7 +780,7 @@ module Cinch.Pipeline where
   retain-resolved-source :: TargetProfile -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
   retain-resolved-source profile check result = case result of
     (resolved, Nil) -> case check resolved of
-      Ok checked -> (case target-literal-errors (profile-word-size profile) (checked-elaboration checked) of
+      Ok checked -> (case target-literal-errors (profile.word-size) (checked.elaboration) of
         Nil -> check-runtime-entry checked
         errors -> Err errors)
       Err errors -> Err errors
@@ -782,11 +788,11 @@ module Cinch.Pipeline where
   overlay-interface :: String -> List LoadedInterface -> Option LoadedInterface
   overlay-interface name interfaces = case interfaces of
     Nil -> None
-    Cons entry rest -> if string-compare name (loaded-module entry) == 0 then Some entry else overlay-interface name rest
+    Cons entry rest -> if string-compare name (entry.name) == 0 then Some entry else overlay-interface name rest
   overlay-interface-index :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
   overlay-interface-index interfaces indexed = case interfaces of
     Nil -> indexed
-    Cons entry rest -> overlay-interface-index rest (hash-map-insert (loaded-module entry) entry indexed)
+    Cons entry rest -> overlay-interface-index rest (hash-map-insert (entry.name) entry indexed)
   overlay-dependencies :: List (String, String) -> HashMap String LoadedInterface -> HashMap String Unit -> List LoadedInterface -> Result String (List LoadedInterface)
   overlay-dependencies pending all seen found = case pending of
     Nil -> Ok found
@@ -794,16 +800,16 @@ module Cinch.Pipeline where
       Some existing -> overlay-dependencies rest all seen found
       None -> case hash-map-lookup name all of
         None -> Err (string-concat "missing source replacement dependency: " name)
-        Some dependency -> overlay-dependencies (loaded-imports dependency <> rest) all (hash-map-insert name () seen) (Cons dependency found)
+        Some dependency -> overlay-dependencies (dependency.imports <> rest) all (hash-map-insert name () seen) (Cons dependency found)
   overlay-module :: String -> List Module -> List Module -> Option (Module, List Module)
   overlay-module name modules before = case modules of
     Nil -> None
-    Cons candidate rest -> if string-compare name (module-name candidate) == 0 then Some (candidate, reverse before <> rest)
+    Cons candidate rest -> if string-compare name (candidate.name) == 0 then Some (candidate, reverse before <> rest)
       else overlay-module name rest (Cons candidate before)
   replace-overlay-interface :: LoadedInterface -> List LoadedInterface -> List LoadedInterface
   replace-overlay-interface fresh interfaces = case interfaces of
     Nil -> Nil
-    Cons previous rest -> if string-compare (loaded-module fresh) (loaded-module previous) == 0 then Cons fresh rest
+    Cons previous rest -> if string-compare (fresh.name) (previous.name) == 0 then Cons fresh rest
       else Cons previous (replace-overlay-interface fresh rest)
   checked-overlay-source :: TargetProfile -> Program -> List LoadedInterface -> Option LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-overlay-source profile program dependencies facade = case facade of
@@ -825,11 +831,11 @@ module Cinch.Pipeline where
   -- of early homes and checks every retained consumer against fresh hashes.
   recheck-source-overlays :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> List LoadedInterface -> List (String, Json) -> Result String (Program, List LoadedInterface, List (String, Json))
   recheck-source-overlays profile source program order interfaces written =
-    recheck-indexed-overlays profile source (overlay-source-homes (program-modules program) hash-map-empty) program order interfaces written
+    recheck-indexed-overlays profile source (overlay-source-homes (program.modules) hash-map-empty) program order interfaces written
   overlay-source-homes :: List Module -> HashMap String Unit -> HashMap String Unit
   overlay-source-homes modules homes = case modules of
     Nil -> homes
-    Cons first rest -> let name = module-name first in
+    Cons first rest -> let name = first.name in
       if embedded-library-home name then overlay-source-homes rest (hash-map-insert name () homes)
       else overlay-source-homes rest homes
   recheck-indexed-overlays :: TargetProfile -> Bytes -> HashMap String Unit -> Program -> List LoadedInterface -> List LoadedInterface -> List (String, Json) -> Result String (Program, List LoadedInterface, List (String, Json))
@@ -839,16 +845,16 @@ module Cinch.Pipeline where
       other -> case validate-interface-set interfaces of
         Err message -> Err (string-concat "bootstrap.interfaces: " message)
         Ok checked -> Ok (program, checked, reverse written))
-    Cons previous rest -> let name = loaded-module previous in
+    Cons previous rest -> let name = previous.name in
       (case hash-map-lookup name homes of
-        Some present -> (case overlay-module name (program-modules program) Nil of
+        Some present -> (case overlay-module name (program.modules) Nil of
           None -> recheck-indexed-overlays profile source homes program rest interfaces written
-          Some (replacement, remaining) -> case overlay-dependencies (loaded-imports previous) (overlay-interface-index interfaces hash-map-empty) hash-map-empty Nil of
+          Some (replacement, remaining) -> case overlay-dependencies (previous.imports) (overlay-interface-index interfaces hash-map-empty) hash-map-empty Nil of
             Err message -> Err (string-concat "bootstrap.interfaces: " message)
-            Ok dependencies -> let sp = program-span program in
-              case rebuild-source-interface profile source (MkProgram sp [replacement]) name dependencies (overlay-interface "Prelude" interfaces) of
+            Ok dependencies -> let sp = program.span in
+              case rebuild-source-interface profile source (Program sp [replacement]) name dependencies (overlay-interface "Prelude" interfaces) of
                 Err message -> Err message
-                Ok (fresh, doc) -> recheck-indexed-overlays profile source homes (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
+                Ok (fresh, doc) -> recheck-indexed-overlays profile source homes (Program sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
         None -> recheck-indexed-overlays profile source homes program rest interfaces written)
 
   -- A base-package home the client declares itself is the client's version of
@@ -859,7 +865,7 @@ module Cinch.Pipeline where
   object-source-conflict :: List Module -> List LoadedInterface -> Option String
   object-source-conflict modules interfaces = case modules of
     Nil -> None
-    Cons first rest -> let name = module-name first in
+    Cons first rest -> let name = first.name in
       if embedded-library-home name then object-source-conflict rest interfaces
       else (case overlay-interface name interfaces of
         Some prior -> Some name
@@ -873,7 +879,7 @@ module Cinch.Pipeline where
   has-signature-overlay :: List Module -> Bool
   has-signature-overlay modules = case modules of
     Nil -> False
-    Cons m rest -> (embedded-library-home (module-name m) && declares-signature (module-decls m)) || has-signature-overlay rest
+    Cons m rest -> (embedded-library-home (m.name) && declares-signature (module-decls m)) || has-signature-overlay rest
   -- Compare all checked ABI, dependency, law and default-body rows. Only
   -- producer and source provenance differ between an embedded compilation
   -- and rechecking the same public contract from a client's source bundle.
@@ -883,13 +889,13 @@ module Cinch.Pipeline where
   matched-object-overlays rows interfaces = case rows of
     Nil -> Some Nil
     Cons (name, fresh) rest -> case overlay-interface name interfaces of
-      Some previous | bytes-compare (overlay-contract-bytes fresh) (overlay-contract-bytes (loaded-contract previous)) == 0 ->
+      Some previous | bytes-compare (overlay-contract-bytes fresh) (overlay-contract-bytes (previous.doc)) == 0 ->
         (case matched-object-overlays rest interfaces of Some more -> Some (Cons previous more); None -> None)
       other -> None
   check-object-source :: TargetProfile -> List LoadedInterface -> (List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram) -> Bytes -> Program -> Result (List Diagnostic) CheckedProgram
   check-object-source profile interfaces check source program =
     let run-check = \overlays -> check overlays program in
-    if not (has-signature-overlay (program-modules program)) then run-check Nil else
+    if not (has-signature-overlay (program.modules)) then run-check Nil else
       case recheck-source-overlays profile source program interfaces interfaces Nil of
         Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
           Some (Cons first rest) -> run-check (Cons first rest)
@@ -901,9 +907,9 @@ module Cinch.Pipeline where
     check-object-client-tuned default-tuning profile source program checked
   check-object-client-tuned :: CompileTuning -> TargetProfile -> Bytes -> Program -> ValidatedInterfaces -> Result String CheckedProgram
   check-object-client-tuned tuning profile source program checked =
-    check-object-client-using profile (validated-interfaces-members checked) (checked-admitted-source-tuned tuning profile checked) source program
+    check-object-client-using profile (checked.interfaces-members) (checked-admitted-source-tuned tuning profile checked) source program
   check-object-client-using :: TargetProfile -> List LoadedInterface -> (List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram) -> Bytes -> Program -> Result String CheckedProgram
-  check-object-client-using profile interfaces check source program = case object-source-conflict (program-modules program) interfaces of
+  check-object-client-using profile interfaces check source program = case object-source-conflict (program.modules) interfaces of
     Some name -> Err ("bootstrap.object: module " <> name <> " is already supplied by the library object; rebuild the library to change it")
     None -> case check-object-source profile interfaces check source program of
       Err errors -> Err (render-source-diagnostics source errors)
@@ -930,7 +936,7 @@ module Cinch.Pipeline where
         Err message -> write-failure prefix message pipeline-check-refused
         Ok view -> (case recheck-source-overlays profile src view interfaces interfaces Nil of
           Err message -> write-failure prefix message pipeline-check-refused
-          Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
+          Ok (remaining, effective, replaced) -> case (remaining.modules, replaced) of
             (Nil, Cons first rest) -> write-interface-output prefix (Ok replaced)
             other -> case checked-source-tuned tuning profile remaining effective of
               Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
@@ -990,11 +996,11 @@ module Cinch.Pipeline where
   after-parse-with-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-parse-with-tuned tuning inlining reclaim profile mode admitted name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-    Parsed prog Nil -> let interfaces = validated-interfaces-members admitted in case target-view-program profile prog of
+    Parsed prog Nil -> let interfaces = admitted.interfaces-members in case target-view-program profile prog of
       Err message -> write-failure ir message pipeline-check-refused
       Ok view -> (if checks-only mode then case recheck-source-overlays profile src view interfaces interfaces Nil of
           Err message -> write-failure ir (source-overlay-error profile src view interfaces message) pipeline-check-refused
-          Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
+          Ok (remaining, effective, replaced) -> case (remaining.modules, replaced) of
             (Nil, Cons first rest) -> (case mode of
               CheckOnly -> case serialize-artifacts Nil JArrEnd profile (path-stem (path-from-string name)) effective replaced of
                 done -> write-interface-output ir (Ok Nil)
@@ -1039,7 +1045,7 @@ module Cinch.Pipeline where
     (TypesOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
     (BodiesOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
     (other, Err found) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
-    (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
+    (other, Ok checked) -> let admitted = unshadowed-interfaces (checked.surface.modules) interfaces in
       case serialize-exported checked profile (path-stem (path-from-string name)) admitted replaced (export-interfaces-aliased checked admitted src) of
         done -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
 
@@ -1081,7 +1087,7 @@ module Cinch.Pipeline where
   serialize-exported :: forall r. using (io :: Io r) => CheckedProgram -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) -> Result String (List (String, Json)) ->{IO r, Diverge} Unit
   serialize-exported checked profile entry admitted replaced exported = case exported of
     Err message -> ()
-    Ok rows -> serialize-artifacts (checked-generated checked) (checked-primitive-rows checked) profile entry admitted (replaced <> rows)
+    Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) profile entry admitted (replaced <> rows)
 
   serialize-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
   serialize-artifacts generated primitives profile entry admitted rows =
@@ -1120,9 +1126,9 @@ module Cinch.Pipeline where
   admitted-build-interfaces :: HashMap String Unit -> List LoadedInterface -> List (String, String, Json)
   admitted-build-interfaces compiled interfaces = case interfaces of
     Nil -> Nil
-    Cons entry rest -> let name = loaded-module entry in (case hash-map-lookup name compiled of
+    Cons entry rest -> let name = entry.name in (case hash-map-lookup name compiled of
       Some present -> admitted-build-interfaces compiled rest
-      None -> Cons (name, loaded-hash entry, loaded-contract entry) (admitted-build-interfaces compiled rest))
+      None -> Cons (name, entry.hash, entry.doc) (admitted-build-interfaces compiled rest))
 
   capability-array :: List String -> Json
   capability-array values = case values of
@@ -1130,15 +1136,15 @@ module Cinch.Pipeline where
     Cons value rest -> JArr (JStr value) (capability-array rest)
 
   manifest-target :: TargetProfile -> Json
-  manifest-target profile = JObj "triple" (JStr (profile-triple profile))
-    (JObj "os" (JStr (profile-os profile)) (JObj "arch" (JStr (selection-arch profile))
-      (JObj "libc" (JStr (profile-libc profile)) (JObj "word_size" (JNum (nat-to-int (profile-word-size profile)))
-        (JObj "endian" (JStr (profile-endian profile)) (JObj "features" (capability-array (profile-features profile))
-          (JObj "required" (capability-array (profile-required profile)) JObjEnd)))))))
+  manifest-target profile = JObj "triple" (JStr (profile.triple))
+    (JObj "os" (JStr (profile.os)) (JObj "arch" (JStr (selection-arch profile))
+      (JObj "libc" (JStr (profile.libc)) (JObj "word_size" (JNum (nat-to-int (profile.word-size)))
+        (JObj "endian" (JStr (profile.endian)) (JObj "features" (capability-array (profile.features))
+          (JObj "required" (capability-array (profile.required)) JObjEnd)))))))
 
   provider-matches-profile :: Json -> TargetProfile -> Bool
   provider-matches-profile document profile = case object-field "target" document of
-    JStr triple -> string-compare triple (profile-triple profile) == 0
+    JStr triple -> string-compare triple (profile.triple) == 0
     other -> False
 
   emit-target-program :: TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
@@ -1157,7 +1163,7 @@ module Cinch.Pipeline where
   -- The dense body artifact: every checked definition, each with its own
   -- type side table. A consumer decodes one definition at a time.
   dense-bodies-document :: CheckedProgram -> Option Json
-  dense-bodies-document checked = case dense-claims-verified (elaboration-core (checked-elaboration checked)) of
+  dense-bodies-document checked = case dense-claims-verified (elaboration-core (checked.elaboration)) of
     Some bodies -> Some (JObj "schema" (JNum 1) (JObj "bodies" bodies JObjEnd))
     None -> None
 
@@ -1192,8 +1198,10 @@ module Cinch.Pipeline where
   -- The typed backend emits a complete shared-runtime LLVM module. Linking
   -- is separate in this mode, so an unavailable lowering cannot fall back
   -- to the standalone fragment's representation or run an old artifact.
-  data RuntimeOutput where
-    RuntimeOutput :: Bytes -> Bytes -> Int -> RuntimeOutput
+  record RuntimeOutput where
+    code :: Bytes
+    diagnostics :: Bytes
+    status :: Int
 
   failure-output :: String -> Int -> RuntimeOutput
   failure-output text status = RuntimeOutput (string-to-bytes "") (string-to-bytes text) status
@@ -1286,7 +1294,7 @@ module Cinch.Pipeline where
     JArr row rest -> (case (object-field "module" row, object-field "iface_hash" row) of
       (JStr name, JStr identity) ->
         let document = (case hash-map-lookup name public of
-          Some admitted | string-compare (loaded-hash admitted) identity == 0 -> loaded-contract admitted
+          Some admitted | string-compare (admitted.hash) identity == 0 -> admitted.doc
           other -> private-object-contract name identity private) in
         (case document of
           JNull -> Err "object interface references require their checked contracts"
@@ -1500,7 +1508,7 @@ module Cinch.Pipeline where
           -- A caller that takes no object (`-`) takes no merged manifest
           -- either, so the provider's embedded contracts are never written
           -- back and the carved read a client uses is enough.
-          Ok admitted -> let interfaces = validated-interfaces-members admitted in case (if string-compare object-name "-" == 0 then read-runtime-object-client-mode True admitted configuration else read-runtime-object-publication admitted configuration) of
+          Ok admitted -> let interfaces = admitted.interfaces-members in case (if string-compare object-name "-" == 0 then read-runtime-object-client-mode True admitted configuration else read-runtime-object-publication admitted configuration) of
             Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
             Ok (provider, document, provider-path, provider-code) ->
               if not (provider-matches-profile document profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
@@ -1542,7 +1550,7 @@ module Cinch.Pipeline where
       Ok done -> if string-compare (path-to-string object) "-" == 0 then publish-library-package (map object-package-row exported) (JObj "facts" facts (JObj "units" units JObjEnd)) ir abi
         else case fs-write (path-from-string (path-to-string object <> ".provider.o")) provider-code of
           Err error -> pipeline-write-failed
-          Ok done -> assemble-library-object (profile-triple profile) document closure text units facts ir object abi
+          Ok done -> assemble-library-object (profile.triple) document closure text units facts ir object abi
   -- An object path of `-` asks for the module without its object: the IR,
   -- the checked interfaces and what the module adds to a manifest, and no
   -- assembler or linker run. A build that compiles the IR itself

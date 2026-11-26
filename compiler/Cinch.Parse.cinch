@@ -56,7 +56,7 @@ module Cinch.Parse where
 
   export parse-program, parse-program-with, parse-program-with-index, parse-program-with-index-tuned, parse-scheme, exported-fixities, indexed-exported-fixities
   export macro-argument-groups, parse-tree-value-fields, parse-tree-record-fields, parse-tree-term, module-scope-fixes, indexed-module-scope-fixes
-  export Ps, POk, PBad, Fix, MkFix, parse-expr
+  export Ps, POk, PBad, Fix, parse-expr
 
   -- ------------------------------------------------------------------
   -- The parser result: a value with the unconsumed token stream, or a
@@ -69,8 +69,9 @@ module Cinch.Parse where
 
   -- A fixity fact: the associativity word and the precedence a
   -- pre-scan of the stream recovered.
-  data Fix where
-    MkFix :: String -> Nat -> Fix
+  record Fix where
+    assoc :: String
+    prec :: Nat
 
   data LocalSyntax where
     LocalFunction :: Pat -> Expr -> LocalSyntax
@@ -238,7 +239,7 @@ module Cinch.Parse where
   fix-entries :: String -> Nat -> List LToken -> List (String, Fix)
   fix-entries assoc prec toks = case toks of
     Cons t rest -> case op-name-of (lt-token t) of
-      Some o -> Cons (o, MkFix assoc prec) (fix-entries-tail assoc prec rest)
+      Some o -> Cons (o, Fix assoc prec) (fix-entries-tail assoc prec rest)
       None -> Nil
     Nil -> Nil
 
@@ -254,18 +255,18 @@ module Cinch.Parse where
 
   lookup-fix :: String -> List (String, Fix) -> Fix
   lookup-fix op fix =
-    if string-compare op "$" == 0 then MkFix "right" 0
+    if string-compare op "$" == 0 then Fix "right" 0
     else case find-fix op fix of
       Some f -> f
       None -> case find-fix "$bootstrap-checked-prelude" fix of
-        Some marker -> MkFix "undeclared" 0
+        Some marker -> Fix "undeclared" 0
         None -> case prelude-fix op of
-          MkFix assoc prec ->
+          Fix assoc prec ->
             if string-compare assoc "undeclared" == 0 then
               case find-fix "$bootstrap-header" fix of
-                Some marker -> MkFix "left" 5
-                None -> MkFix assoc prec
-            else MkFix assoc prec
+                Some marker -> Fix "left" 5
+                None -> Fix assoc prec
+            else Fix assoc prec
 
   find-fix :: String -> List (String, Fix) -> Option Fix
   find-fix name entries = case entries of
@@ -281,7 +282,7 @@ module Cinch.Parse where
   declared-fixes ds = case ds of
     Nil -> Nil
     Cons d rest -> case d of
-      DFixity s assoc prec ops -> named-fixes ops (MkFix (assoc-word assoc) prec) <> declared-fixes rest
+      DFixity s assoc prec ops -> named-fixes ops (Fix (assoc-word assoc) prec) <> declared-fixes rest
       other -> declared-fixes rest
 
   named-fixes :: List String -> Fix -> List (String, Fix)
@@ -307,32 +308,32 @@ module Cinch.Parse where
     Cons (name, ty) rest -> (if is-operator-name name then Cons name Nil else Nil) <> operator-fields rest
 
   owned-fixes :: Module -> List (String, Fix)
-  owned-fixes m = declared-fixes (module-decls m) <> named-fixes (operator-declarations (module-decls m)) (MkFix "undeclared" 0)
+  owned-fixes m = declared-fixes (module-decls m) <> named-fixes (operator-declarations (module-decls m)) (Fix "undeclared" 0)
 
   -- Fixed facts of the seed's external base-library owners. These move
   -- into the checked interface loader when that port is complete.
   external-fixes :: String -> List (String, Fix)
   external-fixes name =
-    if string-compare name "Algebra.Semigroup" == 0 then named-fixes ["<>"] (MkFix "right" 6)
-    else if string-compare name "Category.Functor" == 0 then named-fixes ["<$>"] (MkFix "left" 4)
-    else if string-compare name "Category.Applicative" == 0 then named-fixes ["<*>"] (MkFix "left" 4)
-    else if string-compare name "Category.Alternative" == 0 then named-fixes ["<|>"] (MkFix "left" 3)
-    else if string-compare name "Category.Monad" == 0 then named-fixes [">>="] (MkFix "left" 1) <> named-fixes [">=>", "<=<"] (MkFix "right" 1)
+    if string-compare name "Algebra.Semigroup" == 0 then named-fixes ["<>"] (Fix "right" 6)
+    else if string-compare name "Category.Functor" == 0 then named-fixes ["<$>"] (Fix "left" 4)
+    else if string-compare name "Category.Applicative" == 0 then named-fixes ["<*>"] (Fix "left" 4)
+    else if string-compare name "Category.Alternative" == 0 then named-fixes ["<|>"] (Fix "left" 3)
+    else if string-compare name "Category.Monad" == 0 then named-fixes [">>="] (Fix "left" 1) <> named-fixes [">=>", "<=<"] (Fix "right" 1)
     else if string-compare name "Prelude" == 0 then prelude-fixes
-    else if string-compare name "Algebra.Arithmetic" == 0 then named-fixes ["*", "/", "%"] (MkFix "left" 9) <> named-fixes ["+", "-"] (MkFix "left" 8)
-    else if string-compare name "Relation.Eq" == 0 then named-fixes ["==", "/="] (MkFix "none" 3)
-    else if string-compare name "Relation.Ord" == 0 then named-fixes ["<", "<=", ">", ">="] (MkFix "none" 3)
-    else if string-compare name "Data.Bool" == 0 then named-fixes ["&&"] (MkFix "right" 2) <> named-fixes ["||"] (MkFix "right" 1)
-    else if string-compare name "Data.List" == 0 then named-fixes [":"] (MkFix "right" 5)
-    else if string-compare name "Algebra.Bits" == 0 then named-fixes ["<<", ">>"] (MkFix "left" 7) <> named-fixes ["&"] (MkFix "left" 6) <> named-fixes ["^"] (MkFix "left" 5) <> named-fixes ["|"] (MkFix "left" 4)
+    else if string-compare name "Algebra.Arithmetic" == 0 then named-fixes ["*", "/", "%"] (Fix "left" 9) <> named-fixes ["+", "-"] (Fix "left" 8)
+    else if string-compare name "Relation.Eq" == 0 then named-fixes ["==", "/="] (Fix "none" 3)
+    else if string-compare name "Relation.Ord" == 0 then named-fixes ["<", "<=", ">", ">="] (Fix "none" 3)
+    else if string-compare name "Data.Bool" == 0 then named-fixes ["&&"] (Fix "right" 2) <> named-fixes ["||"] (Fix "right" 1)
+    else if string-compare name "Data.List" == 0 then named-fixes [":"] (Fix "right" 5)
+    else if string-compare name "Algebra.Bits" == 0 then named-fixes ["<<", ">>"] (Fix "left" 7) <> named-fixes ["&"] (Fix "left" 6) <> named-fixes ["^"] (Fix "left" 5) <> named-fixes ["|"] (Fix "left" 4)
     else Nil
 
   prelude-fixes :: List (String, Fix)
-  prelude-fixes = named-fixes ["*", "/", "%"] (MkFix "left" 9) <> named-fixes ["+", "-"] (MkFix "left" 8)
-    <> named-fixes ["<<", ">>"] (MkFix "left" 7) <> named-fixes ["&"] (MkFix "left" 6)
-    <> named-fixes ["^"] (MkFix "left" 5) <> named-fixes [":"] (MkFix "right" 5) <> named-fixes ["|"] (MkFix "left" 4)
-    <> named-fixes ["==", "/=", "<", "<=", ">", ">="] (MkFix "none" 3)
-    <> named-fixes ["&&"] (MkFix "right" 2) <> named-fixes ["||"] (MkFix "right" 1)
+  prelude-fixes = named-fixes ["*", "/", "%"] (Fix "left" 9) <> named-fixes ["+", "-"] (Fix "left" 8)
+    <> named-fixes ["<<", ">>"] (Fix "left" 7) <> named-fixes ["&"] (Fix "left" 6)
+    <> named-fixes ["^"] (Fix "left" 5) <> named-fixes [":"] (Fix "right" 5) <> named-fixes ["|"] (Fix "left" 4)
+    <> named-fixes ["==", "/=", "<", "<=", ">", ">="] (Fix "none" 3)
+    <> named-fixes ["&&"] (Fix "right" 2) <> named-fixes ["||"] (Fix "right" 1)
 
   select-fixes :: List (String, Option String) -> List (String, Fix) -> List (String, Fix)
   select-fixes members surface = case members of
@@ -347,11 +348,10 @@ module Cinch.Parse where
   -- exported fixities are cached once computed, unless the walk below it
   -- was cut by the `seen` path (an import cycle through it): only then can
   -- the result depend on the importer's path. The flag reports such a cut.
-  data FixWalk where
-    FixWalk :: List (String, Fix) -> HashMap String (List (String, Fix)) -> Bool -> FixWalk
-
-  walk-fixes :: FixWalk -> List (String, Fix)
-  walk-fixes walk = case walk of FixWalk fixes cache cut -> fixes
+  record FixWalk where
+    fixes :: List (String, Fix)
+    cache :: HashMap String (List (String, Fix))
+    cut :: Bool
 
   -- `first` then `second`, the second walk continuing with the first's cache.
   append-walk :: FixWalk -> (HashMap String (List (String, Fix)) -> FixWalk) -> FixWalk
@@ -404,7 +404,7 @@ module Cinch.Parse where
   implicit-fixes modules seen cache = case hash-map-lookup "Prelude" modules of
     None -> FixWalk prelude-fixes cache False
     Some m -> case module-fixes "Prelude" modules seen cache of
-      FixWalk fixes next cut -> FixWalk (Cons ("$bootstrap-checked-prelude", MkFix "marker" 0) fixes) next cut
+      FixWalk fixes next cut -> FixWalk (Cons ("$bootstrap-checked-prelude", Fix "marker" 0) fixes) next cut
 
   -- The imports' fixities, the last import first.
   imported-fixes :: List Decl -> HashMap String Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
@@ -473,7 +473,7 @@ module Cinch.Parse where
   indexed-module-scope-fixes :: String -> HashMap String Module -> List (String, Fix) -> List (String, Fix)
   indexed-module-scope-fixes name headers fallback = case hash-map-lookup name headers of
     None -> fallback
-    Some m -> walk-fixes (private-module-fixes m headers (Cons name Nil) hash-map-empty)
+    Some m -> (private-module-fixes m headers (Cons name Nil) hash-map-empty).fixes
 
   -- Interface output uses the same defining facts as source parsing,
   -- including selected/renamed reexports and prefix-only shadowing.
@@ -481,11 +481,11 @@ module Cinch.Parse where
   exported-fixities :: String -> List Module -> List String -> List (String, String, Nat)
   exported-fixities name modules names = case exported-operators names of
     Nil -> Nil
-    wanted -> exported-fixity-facts wanted (walk-fixes (module-fixes name (module-name-index modules) Nil hash-map-empty))
+    wanted -> exported-fixity-facts wanted ((module-fixes name (module-name-index modules) Nil hash-map-empty).fixes)
   indexed-exported-fixities :: String -> HashMap String Module -> List String -> List (String, String, Nat)
   indexed-exported-fixities name modules names = case exported-operators names of
     Nil -> Nil
-    wanted -> exported-fixity-facts wanted (walk-fixes (module-fixes name modules Nil hash-map-empty))
+    wanted -> exported-fixity-facts wanted ((module-fixes name modules Nil hash-map-empty).fixes)
   exported-operators :: List String -> List String
   exported-operators names = case names of
     Nil -> Nil
@@ -494,7 +494,7 @@ module Cinch.Parse where
   exported-fixity-facts names facts = case names of
     Nil -> Nil
     Cons name rest -> case find-fix name facts of
-      Some (MkFix association precedence) ->
+      Some (Fix association precedence) ->
         if string-compare association "left" == 0 || string-compare association "right" == 0 || string-compare association "none" == 0 then
           Cons (name, association, precedence) (exported-fixity-facts rest facts)
         else exported-fixity-facts rest facts
@@ -511,15 +511,15 @@ module Cinch.Parse where
     Cons (old, previous) rest ->
       if string-compare name old == 0 then
         case current of
-          MkFix assoc prec -> case previous of
-            MkFix old-assoc old-prec -> if string-compare assoc old-assoc == 0 && prec == old-prec then Nil
+          Fix assoc prec -> case previous of
+            Fix old-assoc old-prec -> if string-compare assoc old-assoc == 0 && prec == old-prec then Nil
               else Cons (EFail sp (string-concat "conflicting fixity declarations for " name)) Nil
       else fix-conflict sp name current rest
 
   module-fix-errors :: List Module -> List ParseError
   module-fix-errors modules = case modules of
     Nil -> Nil
-    Cons m rest -> duplicate-fixes (module-span m) (declared-fixes (module-decls m)) Nil
+    Cons m rest -> duplicate-fixes (m.span) (declared-fixes (module-decls m)) Nil
       <> owner-fix-errors (module-decls m) (operator-declarations (module-decls m)) <> module-fix-errors rest
 
   owner-fix-errors :: List Decl -> List String -> List ParseError
@@ -540,17 +540,17 @@ module Cinch.Parse where
   -- Local declarations above take precedence over these defaults.
   prelude-fix :: String -> Fix
   prelude-fix op =
-    if string-compare op "*" == 0 || string-compare op "/" == 0 || string-compare op "%" == 0 then MkFix "left" 9
-    else if string-compare op "+" == 0 || string-compare op "-" == 0 then MkFix "left" 8
-    else if string-compare op "<<" == 0 || string-compare op ">>" == 0 then MkFix "left" 7
-    else if string-compare op "&" == 0 then MkFix "left" 6
-    else if string-compare op "^" == 0 then MkFix "left" 5
-    else if string-compare op ":" == 0 then MkFix "right" 5
-    else if string-compare op "|" == 0 then MkFix "left" 4
-    else if string-compare op "==" == 0 || string-compare op "/=" == 0 || string-compare op "<" == 0 || string-compare op "<=" == 0 || string-compare op ">" == 0 || string-compare op ">=" == 0 then MkFix "none" 3
-    else if string-compare op "&&" == 0 then MkFix "right" 2
-    else if string-compare op "||" == 0 then MkFix "right" 1
-    else MkFix "undeclared" 0
+    if string-compare op "*" == 0 || string-compare op "/" == 0 || string-compare op "%" == 0 then Fix "left" 9
+    else if string-compare op "+" == 0 || string-compare op "-" == 0 then Fix "left" 8
+    else if string-compare op "<<" == 0 || string-compare op ">>" == 0 then Fix "left" 7
+    else if string-compare op "&" == 0 then Fix "left" 6
+    else if string-compare op "^" == 0 then Fix "left" 5
+    else if string-compare op ":" == 0 then Fix "right" 5
+    else if string-compare op "|" == 0 then Fix "left" 4
+    else if string-compare op "==" == 0 || string-compare op "/=" == 0 || string-compare op "<" == 0 || string-compare op "<=" == 0 || string-compare op ">" == 0 || string-compare op ">=" == 0 then Fix "none" 3
+    else if string-compare op "&&" == 0 then Fix "right" 2
+    else if string-compare op "||" == 0 then Fix "right" 1
+    else Fix "undeclared" 0
 
   -- ------------------------------------------------------------------
   -- Generic token-run consumption (recovery and unmodeled capture).
@@ -734,19 +734,19 @@ module Cinch.Parse where
   parse-program-with-index-tuned tuning name src interfaces = case lex-source src of
     LexedFail s k -> Failed (Bundle name src (Cons (EFail s (lex-error-message k)) Nil))
     LexedTokens toks ->
-      case parse-modules toks src hash-map-empty (Cons ("$bootstrap-header", MkFix "header" 0) (scan-fixities toks)) Nil of
+      case parse-modules toks src hash-map-empty (Cons ("$bootstrap-header", Fix "header" 0) (scan-fixities toks)) Nil of
         POk headers rest ->
           let indexed = index-module-names (reverse headers) interfaces in
           case parse-modules-parallel tuning src toks indexed of
-            Some ms -> Parsed (MkProgram (program-span-of ms) ms) (module-fix-errors ms)
+            Some ms -> Parsed (Program (program-span-of ms) ms) (module-fix-errors ms)
             None -> case parse-modules toks src indexed Nil Nil of
-              POk ms tail -> Parsed (MkProgram (program-span-of ms) ms) (module-fix-errors ms)
-              PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
-        PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
+              POk ms tail -> Parsed (Program (program-span-of ms) ms) (module-fix-errors ms)
+              PBad -> Parsed (Program (Span 0 0 1 1) Nil) Nil
+        PBad -> Parsed (Program (Span 0 0 1 1) Nil) Nil
 
   program-span-of :: List Module -> Span
   program-span-of ms = case ms of
-    Cons m rest -> module-span m
+    Cons m rest -> m.span
     Nil -> Span 0 0 1 1
 
   parse-modules :: List LToken -> Bytes -> HashMap String Module -> List (String, Fix) -> List Module -> Ps (List Module)
@@ -766,7 +766,7 @@ module Cinch.Parse where
     PBad -> case take-bal toks 0 Nil of
       consumed ->
         let sp = run-span toks consumed in
-        let m = MkModule sp "(unparsed)" (decl-spine sp (Cons (DUnmodeled sp (slice-src src sp)) Nil)) in
+        let m = Module sp "(unparsed)" (decl-spine sp (Cons (DUnmodeled sp (slice-src src sp)) Nil)) in
         POk (reverse (Cons m acc)) (drop-toks toks (list-length consumed))
 
   parse-module :: List LToken -> Bytes -> HashMap String Module -> List (String, Fix) -> Ps Module
@@ -783,7 +783,7 @@ module Cinch.Parse where
         if is-word-t (lt-token w) "where" then
           case parse-module-block name rest3 src headers fix of
             POk ds rest4 -> let finish = case rest4 of Cons next more -> span-start (sp-of next); Nil -> bytes-len src in
-              POk (MkModule (Span (span-start start) finish (span-line start) (span-col start)) name (decl-spine start ds)) rest4
+              POk (Module (Span (span-start start) finish (span-line start) (span-col start)) name (decl-spine start ds)) rest4
             PBad -> PBad
         else PBad
       Nil -> PBad
@@ -1144,7 +1144,7 @@ module Cinch.Parse where
                     PBad -> PBad
                     POk fields tail -> case (rewrite-clause "match" fields, rewrite-clause "replace" fields, rewrite-clause "justify" fields) of
                       (Some pattern, Some replacement, Some evidence) -> POk (DRewrite sp name
-                        (MkRewriteSyntax targeted (Cons first rest) bounds pattern replacement (rewrite-clause "require" fields) (RewriteTerm evidence))) tail
+                        (RewriteSyntax targeted (Cons first rest) bounds pattern replacement (rewrite-clause "require" fields) (RewriteTerm evidence))) tail
                       other -> PBad
           other -> PBad
   parse-rewrite-context :: Span -> List LToken -> Bytes -> Ps TypeExpr
@@ -1236,7 +1236,7 @@ module Cinch.Parse where
       TVar family -> (case expect-punct-t rest "{" of
         POk at (Cons fragment after) -> (case (lt-token fragment, expect-punct-t after "}") of
           (TPrimFrag text, POk close tail) ->
-            parse-prim-modifiers (MkPrimBody (sp-of first) family text unsafe-body Nil UnprojectedPrimitive None Nil Nil) tail src fix
+            parse-prim-modifiers (PrimBody (sp-of first) family text unsafe-body Nil UnprojectedPrimitive None Nil Nil) tail src fix
           other -> PBad)
         other -> PBad)
       other -> PBad)
@@ -1258,19 +1258,19 @@ module Cinch.Parse where
     (body, rest) -> (case parse-expr body src fix of POk value Nil -> POk value rest; other -> PBad)
   parse-prim-modifiers :: PrimBody -> List LToken -> Bytes -> List (String, Fix) -> Ps PrimBody
   parse-prim-modifiers body toks src fix = case (body, toks) of
-    (MkPrimBody sp family fragment unverified when selected justification uses immediates, Cons word rest) ->
+    (PrimBody sp family fragment unverified when selected justification uses immediates, Cons word rest) ->
       let label = prim-word (lt-token word) in
       if string-compare label "when" == 0 then (case parse-when-atom rest of
-        POk value tail -> parse-prim-modifiers (MkPrimBody sp family fragment unverified (when <> [value]) selected justification uses immediates) tail src fix
+        POk value tail -> parse-prim-modifiers (PrimBody sp family fragment unverified (when <> [value]) selected justification uses immediates) tail src fix
         PBad -> PBad)
       else if string-compare label "justify" == 0 then (case (justification, parse-prim-clause rest src fix) of
-        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected (Some (RewriteTerm value)) uses immediates) tail src fix
+        (None, POk value tail) -> parse-prim-modifiers (PrimBody sp family fragment unverified when selected (Some (RewriteTerm value)) uses immediates) tail src fix
         other -> PBad)
       else if string-compare label "uses" == 0 then (case (uses, parse-prim-uses rest src Nil) of
-        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected justification values immediates) tail src fix
+        (Nil, POk values tail) -> parse-prim-modifiers (PrimBody sp family fragment unverified when selected justification values immediates) tail src fix
         other -> PBad)
       else if string-compare label "immarg" == 0 then (case (immediates, parse-prim-immediates rest Nil) of
-        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when selected justification uses values) tail src fix
+        (Nil, POk values tail) -> parse-prim-modifiers (PrimBody sp family fragment unverified when selected justification uses values) tail src fix
         other -> PBad)
       else POk body toks
     other -> POk body toks
@@ -1848,7 +1848,7 @@ module Cinch.Parse where
   params-as-lhs :: Span -> List TypeParam -> TypeExpr
   params-as-lhs sp params = case params of
     Nil -> TArgsEnd sp
-    Cons p rest -> TArg (param-span p) (TName (param-span p) (param-name p)) (params-as-lhs sp rest)
+    Cons p rest -> TArg (p.span) (TName (p.span) (p.name)) (params-as-lhs sp rest)
 
   parse-type-family :: Span -> List LToken -> Bytes -> Ps Decl
   parse-type-family sp toks src = case parse-ctor-name toks of
@@ -1874,7 +1874,7 @@ module Cinch.Parse where
         PBad -> PBad
       other -> PBad
     Cons t rest | is-punct-t (lt-token t) "=" -> case parse-type rest src of
-      POk rhs tail -> POk (DTypeFamily sp name params rk True [MkTypeFamilyEq sp name (params-as-lhs sp params) rhs]) tail
+      POk rhs tail -> POk (DTypeFamily sp name params rk True [TypeFamilyEq sp name (params-as-lhs sp params) rhs]) tail
       PBad -> PBad
     other -> if at-boundary toks then POk (DTypeFamily sp name params rk False Nil) toks else PBad
 
@@ -1900,7 +1900,7 @@ module Cinch.Parse where
       POk head rest1 -> case parse-type-atom-list rest1 src Nil of
         POk args rest2 -> case rest2 of
           Cons eq rest3 | is-punct-t (lt-token eq) "=" -> case parse-type rest3 src of
-            POk rhs tail -> POk (MkTypeFamilyEq (sp-of first) head (type-arg-spine (sp-of first) args) rhs) tail
+            POk rhs tail -> POk (TypeFamilyEq (sp-of first) head (type-arg-spine (sp-of first) args) rhs) tail
             PBad -> PBad
           other -> PBad
         PBad -> PBad
@@ -2244,8 +2244,8 @@ module Cinch.Parse where
   parse-params :: List LToken -> Bytes -> List TypeParam -> Ps (List TypeParam)
   parse-params toks src acc = case toks of
     Cons t rest -> case lt-token t of
-      TVar s -> parse-params rest src (Cons (MkTypeParam (sp-of t) s None False) acc)
-      TCon s -> parse-params rest src (Cons (MkTypeParam (sp-of t) s None False) acc)
+      TVar s -> parse-params rest src (Cons (TypeParam (sp-of t) s None False) acc)
+      TCon s -> parse-params rest src (Cons (TypeParam (sp-of t) s None False) acc)
       TPunct p ->
         if string-compare p "(" == 0 then
           case parse-enclosed-param (sp-of t) rest src ")" False of
@@ -2280,7 +2280,7 @@ module Cinch.Parse where
   finish-param :: Span -> String -> Option TypeExpr -> List LToken -> String -> Bool -> Ps TypeParam
   finish-param sp name kind toks close is-implicit = case toks of
     Cons t rest ->
-      if is-punct-t (lt-token t) close then POk (MkTypeParam (span-join sp (sp-of t)) name kind is-implicit) rest
+      if is-punct-t (lt-token t) close then POk (TypeParam (span-join sp (sp-of t)) name kind is-implicit) rest
       else PBad
     Nil -> PBad
 
@@ -2550,7 +2550,7 @@ module Cinch.Parse where
   chain-loop lhs toks src minp fix = case toks of
     Cons t rest -> case op-expr-of (lt-token t) of
       Some op -> case lookup-fix op fix of
-        MkFix assoc prec ->
+        Fix assoc prec ->
           if string-compare assoc "undeclared" == 0 then
             (case parse-app rest src fix of
               POk rhs remaining -> chain-loop

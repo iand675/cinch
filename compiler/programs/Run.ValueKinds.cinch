@@ -62,7 +62,7 @@ module Main where
   generic nonce =
     let a = UBound nonce "a" KType in
     let x = UBound (nonce + 1) "x" (value-kind a) in
-    MkScheme [MkQuant nonce "a" KType False, MkQuant (nonce + 1) "x" (value-kind a) False] (indexed a x)
+    MkScheme [Quant nonce "a" KType False, Quant (nonce + 1) "x" (value-kind a) False] (indexed a x)
   open-generic :: Nat -> Bool -> Bool
   open-generic nonce rigid = case open-scheme rigid (generic nonce) (enter-level (start (nonce + 10))) of
     (ty, pairs, before) -> case ty of
@@ -81,8 +81,8 @@ module Main where
     (carrier, first) -> case fresh-meta (value-kind carrier) first of
       (value, before) -> let scheme = generalize 0 Nil (indexed carrier value) before in
         case scheme-params scheme of
-          Cons a (Cons x Nil) -> kind-equal (quant-kind a) KType
-            && (case value-carrier (quant-kind x) of Some (UBound id name KType) -> id == quant-id a; other -> False)
+          Cons a (Cons x Nil) -> kind-equal (a.kind) KType
+            && (case value-carrier (x.kind) of Some (UBound id name KType) -> id == a.id; other -> False)
             && scheme-closed scheme
             && (case instantiate scheme before of (opened, after) -> clean after && valid-type (normalize after opened))
           other -> False
@@ -101,11 +101,11 @@ module Main where
       && kind-equal (type-kind (scheme-body (map-scheme-types (substitute-bound [(nonce, nat)]) (mono x)))) (value-kind nat)
   hidden-kind-hole :: Nat -> Bool
   hidden-kind-hole nonce = case fresh-meta KType (start nonce) of
-    (carrier, before) -> let scheme = MkScheme [MkQuant (nonce + 100) "x" (value-kind carrier) False] nat in
+    (carrier, before) -> let scheme = MkScheme [Quant (nonce + 100) "x" (value-kind carrier) False] nat in
       not (scheme-closed scheme) && list-length (scheme-metas before scheme) == 1
   definition :: UType -> CoreDefinition
-  definition actual = MkCoreDefinition sp "f" (mono nat) Nil Nil Nil
-    [MkCoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
+  definition actual = CoreDefinition sp "f" (mono nat) Nil Nil Nil
+    [CoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
   no-invented-witness :: Nat -> Bool
   no-invented-witness nonce = case fresh-meta (value-kind nat) (start nonce) of
     (value, before) -> not (core-definition-closed (seal-definition before (definition value)))

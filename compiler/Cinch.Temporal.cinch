@@ -22,11 +22,7 @@ module Cinch.Temporal where
 
   import Text.Lex (Span)
   import Text.Scan (string-starts-with)
-  import Cinch.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr
-    , EVar, ECon, ERecord, ERecordField, EProject, ELitInt, ELitFloat, ELitStr, ELitChar, EUnit, ETuple, EList, EApp, EBin, ENeg
-    , ELam, ELet, ELetScope, ELocalGroup, ELetRec, ELocalStrict, ELocalSignature, ELocalMemo, ELocalEnd, EIf, ECase, EGuarded, EAnn
-    , EForall, EUsing, EBind, EDo, EHandle, EHandler, EHandlerClause, EHandlerEnd, EWith, EArg, EArgsEnd, EBinding, EBindingsEnd
-    , EAlt, EAltsEnd, EQuote, ESplice, EMacroCall, EUnmodeled)
+  import Cinch.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr, EVar, ECon, ERecord, ERecordField, EProject, ELitInt, ELitFloat, ELitStr, ELitChar, EUnit, ETuple, EList, EApp, EBin, ENeg, ELam, ELet, ELetScope, ELocalGroup, ELetRec, ELocalStrict, ELocalSignature, ELocalMemo, ELocalEnd, EIf, ECase, EGuarded, EAnn, EForall, EUsing, EBind, EDo, EHandle, EHandler, EHandlerClause, EHandlerEnd, EWith, EArg, EArgsEnd, EBinding, EBindingsEnd, EAlt, EAltsEnd, EQuote, ESplice, EMacroCall, EUnmodeled)
   import Algebra.Semigroup
 
   export ContractKind, Safety, Liveness, Recurrence, Stability
@@ -215,5 +211,4 @@ module Cinch.Temporal where
     Cons first rest -> (case first of
       ContractFormula s op body -> 1
       other -> 0) + contract-formula-count rest
-
 

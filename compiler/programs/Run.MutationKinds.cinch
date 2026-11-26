@@ -19,7 +19,7 @@ module Main where
 
   -- | Verify a source-style quantified scheme over the supplied region binder kind.
   scoped :: Kind -> UType -> Bool
-  scoped kind body = scheme-well-formed kinds empty-type-scope (MkScheme [MkQuant 0 "r" kind False] body)
+  scoped kind body = scheme-well-formed kinds empty-type-scope (MkScheme [Quant 0 "r" kind False] body)
 
   -- | Exercise positive coexistence and forged, missing or wrongly kinded region refusals.
   checks :: List Bool
@@ -47,7 +47,7 @@ module Main where
     , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Mut" borrow-constructor-kind) region)) unit))
     , scoped KRegion (UFunEff unit (row (UApp (UCon "Trace" (KFun KRegion KEffect)) region)) unit)
     , not (scoped KRegion (UFunEff unit (row (UApp (UCon "Unknown.Forged" (KFun KRegion KEffect)) region)) unit))
-    , not (scheme-well-formed [("Unit", KType)] empty-type-scope (MkScheme [MkQuant 0 "r" KRegion False] (UFunEff unit (row label) unit)))
+    , not (scheme-well-formed [("Unit", KType)] empty-type-scope (MkScheme [Quant 0 "r" KRegion False] (UFunEff unit (row label) unit)))
     ]
 
   -- | Return the first failing authority check as a small process exit status.

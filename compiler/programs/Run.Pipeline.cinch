@@ -20,10 +20,10 @@ module Main where
 
   import Cinch.Driver (read-argv)
   import Cinch.Report (render-diagnostic)
-  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, MkCompileTuning, tuning-workers, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
   import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal)
-  import Cinch.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
+  import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile)
   import Data.List (reverse)
   import Data.Path (path-from-string)
   import Text.Args (ArgSpec, FlagSpec, ValueSpec, OptVal, opt-name, opt-value, args-options, args-values, parse-args)
@@ -116,7 +116,7 @@ module Main where
     let workers = case opts.workers of
           Some n -> n
           None -> 0 in
-    MkCompileTuning strategy workers
+    CompileTuning strategy workers
 
   -- Split leading options from the positional tail (or `run`/`build`
   -- subcommand), normalizing `-j` to `--jobs` and extracting any
@@ -140,7 +140,7 @@ module Main where
              || (endian /= "little" && endian /= "big") then None
           else
             let bits = if width == "32" then (32 :: Nat) else (64 :: Nat) in
-            let plat = MkTargetProfile name triple os arch libc bits endian False [] [] in
+            let plat = TargetProfile name triple os arch libc bits endian False [] [] in
             split-cli more acc (Some plat)
         _ -> None
       "run" -> Some (reverse acc, check-plat, SubLink True rest)
@@ -318,7 +318,7 @@ module Main where
               let tuning = resolve-tuning opts in
               let wanted = resolve-platform opts in
               do
-                _ <- apply-worker-budget (tuning-workers tuning)
+                _ <- apply-worker-budget (tuning.workers)
                 case sub of
                   SubLink is-run rest -> case (opts.roots, opts.mode-selected, opts.manifest, opts.object-config) of
                     (None, False, Some contracts, Some provider) ->
@@ -347,7 +347,7 @@ module Main where
       _ -> case wanted of
         Err message -> report-target-refusal (path-from-string prefix) message
         Ok profile ->
-          if profile-triple profile == profile-triple host-profile then
+          if profile.triple == host-profile.triple then
             link-source-with-object-tuned tuning inlining debug reclaim profile contracts provider runtime prefix source clang (if run then Some (program-words words) else None)
           else
             report-target-refusal (path-from-string prefix) (if run then "a foreign target cannot run on this host" else "native build requires a host target")

@@ -6,7 +6,7 @@ module Main where
   import Cinch.Ast
   import Cinch.Parse (parse-program, parse-scheme)
   import Cinch.Check (check-program)
-  import Cinch.Report (Diagnostic, diagnostic-message)
+  import Cinch.Report (Diagnostic)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
 
@@ -31,8 +31,8 @@ module Main where
   refinement-ok :: List Decl -> Bool
   refinement-ok ds = case find-decl "NonEmpty" ds of
     Some (DRefine s name (Cons a Nil) binder predicate) ->
-      same (param-name a) "a" && same (param-name binder) "xs"
-      && (case param-kind binder of
+      same (a.name) "a" && same (binder.name) "xs"
+      && (case binder.kind of
         Some (TApp t (TName h list-name) args) -> same list-name "List" && list-length (type-args-of args) == 1
         other -> False)
       && (case predicate of
@@ -45,7 +45,7 @@ module Main where
   forall-ok :: List Decl -> Bool
   forall-ok ds = case find-type "quantified" ds of
     Some (TForall s binders body) -> case forall-params-of binders of
-      Cons n (Cons a Nil) -> same (param-name n) "n" && kind-is n "Nat" && same (param-name a) "a" && kind-is a "Type" && param-implicit a
+      Cons n (Cons a Nil) -> same (n.name) "n" && kind-is n "Nat" && same (a.name) "a" && kind-is a "Type" && a.is-implicit
       other -> False
     other -> False
 
@@ -84,7 +84,7 @@ module Main where
       other -> find-fun name rest
 
   kind-is :: TypeParam -> String -> Bool
-  kind-is parameter expected = case param-kind parameter of
+  kind-is parameter expected = case parameter.kind of
     Some (TName s name) -> same name expected
     other -> False
 
@@ -105,9 +105,9 @@ module Main where
   data-metadata-ok :: List Decl -> Bool
   data-metadata-ok ds = case find-decl "Sample" ds of
     Some (DData s name (Cons n (Cons a (Cons b Nil))) ctors) ->
-      same (param-name n) "n" && kind-is n "Nat" && not (param-implicit n)
-      && same (param-name a) "a" && kind-is a "Type" && param-implicit a
-      && same (param-name b) "b" && (case param-kind b of None -> True; Some k -> False)
+      same (n.name) "n" && kind-is n "Nat" && not (n.is-implicit)
+      && same (a.name) "a" && kind-is a "Type" && a.is-implicit
+      && same (b.name) "b" && (case b.kind of None -> True; Some k -> False)
     other -> False
 
   foreign-ok :: String -> String -> String -> List Decl -> Bool
@@ -250,7 +250,7 @@ module Main where
   has-message-prefix :: String -> List Diagnostic -> Bool
   has-message-prefix text ds = case ds of
     Nil -> False
-    Cons d rest -> same text (string-slice (diagnostic-message d) 0 (string-length text)) || has-message-prefix text rest
+    Cons d rest -> same text (string-slice (d.message) 0 (string-length text)) || has-message-prefix text rest
 
   refusal-ok :: Bool
   refusal-ok = case parse-program "refined" (string-to-bytes "module Example where\n  f :: Int -> refined (r > 0) Int\n  f x = x\n") of
@@ -273,7 +273,7 @@ module Main where
   handler-ok :: Bool
   handler-ok = case parse-program "handler" (string-to-bytes handler-source) of
     Failed bundle -> False
-    Parsed program errors -> case program-modules program of
+    Parsed program errors -> case program.modules of
       Cons m Nil -> case find-fun "main" (module-decls m) of
         Some (DFun s name (Cons (Nil, EHandle hs body (EHandler hsp label clauses)) Nil)) -> handler-clauses-ok clauses && program-unmodeled-count program == 0
         other -> False
@@ -301,7 +301,7 @@ module Main where
 
   rows-ok :: Bool
   rows-ok = case parse-program "rows" (string-to-bytes rows-source) of
-    Parsed program Nil -> case program-modules program of
+    Parsed program Nil -> case program.modules of
       Cons m Nil -> let ds = module-decls m in
         (case row-of "open-row" ds of
           Some (TRow s labels (Some tail)) -> same tail "e" && (case type-args-of labels of
@@ -320,7 +320,7 @@ module Main where
 
   with-ok :: Bool
   with-ok = case parse-program "with" (string-to-bytes "module Main where\n  main :: Int\n  main = with (io = newIO ()) in with (next = io) in next\n") of
-    Parsed program Nil -> case program-modules program of
+    Parsed program Nil -> case program.modules of
       Cons m Nil -> case find-fun "main" (module-decls m) of
         Some (DFun s name (Cons (Nil, EWith ws (EBinding bs cap rhs (EBindingsEnd end)) (EWith ns (EBinding bs2 cap2 (EVar vs ref) (EBindingsEnd end2)) (EVar body result))) Nil)) ->
           same cap "io" && same cap2 "next" && same ref "io" && same result "next" && program-unmodeled-count program == 0
@@ -371,7 +371,7 @@ module Main where
         other -> False)
       other -> False)
     && (case parse-scheme "array-copy-signature" (string-to-bytes "forall r. Ref r (Array (Thunk {} Int)) -> Array (Thunk {} Int)") of
-      Parsed (TForall s binders (TFun fs input output)) Nil -> (case forall-params-of binders of Cons parameter Nil -> same (param-name parameter) "r"; other -> False)
+      Parsed (TForall s binders (TFun fs input output)) Nil -> (case forall-params-of binders of Cons parameter Nil -> same (parameter.name) "r"; other -> False)
         && borrowed-array-thunk input && array-thunk output
       other -> False)
 
@@ -444,7 +444,7 @@ module Main where
   functor-law-ok declaration = case declaration of
     DLaw sp name (LawForall (Cons parameter Nil) (LawArrow x (LawEquation left right))) -> case (left, right) of
       (EApp at (EApp apply (EVar m map) (EVar i identity)) (EVar lhs first), EVar rhs second) ->
-        same name "map-identity" && same (param-name parameter) "a" && law-value-binder "x" x
+        same name "map-identity" && same (parameter.name) "a" && law-value-binder "x" x
         && same map "map" && same identity "identity" && same first "x" && same second "x"
       other -> False
     other -> False
@@ -452,7 +452,7 @@ module Main where
   class-laws-ok :: Bool
   class-laws-ok = case parse-program "laws" (string-to-bytes class-law-source) of
     Parsed program Nil -> if program-unmodeled-count program == 0 then
-      (case program-modules program of
+      (case program.modules of
         Cons m Nil -> (case module-decls m of
           Cons (DFixity sp assoc precedence names) (Cons (DClass at semigroup p members) (Cons (DClass pos functor q next) Nil)) ->
             case (decls-of members, decls-of next) of
@@ -477,7 +477,7 @@ module Main where
 
   stage-syntax-ok :: Bool
   stage-syntax-ok = case parse-program "staging" (string-to-bytes staged-source) of
-    Parsed program Nil -> case program-modules program of
+    Parsed program Nil -> case program.modules of
       Cons owner Nil -> case module-decls owner of
         Cons (DStage at (DSig sp name (TName ty carrier))) (Cons (DStage value-site (DFun def value clauses)) (Cons (DGenerate gen actions) rest)) ->
           same name "count" && same carrier "Nat" && same value name && program-unmodeled-count program == 0 &&
@@ -489,7 +489,7 @@ module Main where
   method-index-lambda-ok :: Bool
   method-index-lambda-ok = case parse-program "method equation" (string-to-bytes
     "module Example where\n  signature Proof where\n    same :: (x :: Int) -> Eq (through (\\y z -> echo y) x) (through (\\a b -> echo a) x)\n") of
-    Parsed program Nil -> case program-modules program of
+    Parsed program Nil -> case program.modules of
       Cons m Nil -> case module-decls m of
         Cons (DClass at owner Nil methods) Nil -> case decls-of methods of
           Cons (DSig sp label ty) Nil -> same owner "Proof" && same label "same" &&
@@ -514,7 +514,7 @@ module Main where
     Failed errors -> 1
     Parsed program errors ->
       if program-unmodeled-count program == 0 && list-length errors == 0 then
-        case program-modules program of
+        case program.modules of
           Cons m Nil -> if not stage-syntax-ok then 22 else if not method-index-lambda-ok then 23 else if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
           other -> 2
       else 8

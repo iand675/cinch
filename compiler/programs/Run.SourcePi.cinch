@@ -17,31 +17,31 @@ module Main where
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   find :: String -> List CoreDefinition -> Option CoreDefinition
-  find name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else find name rest
+  find name definitions = case definitions of Nil -> None; Cons d rest -> if same name (d.name) then Some d else find name rest
   all-closed :: List CoreDefinition -> Bool
   all-closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && all-closed rest
   linked :: List CoreDefinition -> Bool
   linked definitions = case find "make" definitions of
-    Some d -> case (scheme-body (core-scheme d), core-clauses d) of
-      (UPi formal name domain row result, Cons (MkCoreClause s (Cons (CPVar p ty actual display) Nil) (CUse u out constructor role (Cons (UIndex carrier (IRigid witness wn level)) Nil))) Nil) ->
+    Some d -> case (scheme-body (d.scheme), d.clauses) of
+      (UPi formal name domain row result, Cons (CoreClause s (Cons (CPVar p ty actual display) Nil) (CUse u out constructor role (Cons (UIndex carrier (IRigid witness wn level)) Nil))) Nil) ->
         not (formal == actual) && actual == witness && same role "constructor"
       other -> False
     None -> True
   let-retained :: List CoreDefinition -> Bool
   let-retained definitions = case find "let-result" definitions of
-    Some d -> case core-clauses d of
-      Cons (MkCoreClause s Nil (CLet at ty id name sc rhs (CApply use out fun (CLocal ref arg slot display actuals)))) Nil -> id == slot
+    Some d -> case d.clauses of
+      Cons (CoreClause s Nil (CLet at ty id name sc rhs (CApply use out fun (CLocal ref arg slot display actuals)))) Nil -> id == slot
       other -> False
     None -> True
   nat-carrier :: UType -> Bool
   nat-carrier ty = case ty of UCon name KType -> same name "Nat"; other -> False
   implicit-value-linked :: List CoreDefinition -> Bool
   implicit-value-linked definitions = case find "bad" definitions of
-    Some d -> (case scheme-params (core-scheme d) of
-      [parameter] -> (case value-carrier (quant-kind parameter) of
+    Some d -> (case scheme-params (d.scheme) of
+      [parameter] -> (case value-carrier (parameter.kind) of
         Some carrier -> if nat-carrier carrier then
-          (case (opening-value-types (core-openings d), core-clauses d) of
-            ([(opened, declared)], [MkCoreClause sp Nil (CLocal at actual used name Nil)]) -> opened == used && nat-carrier declared && nat-carrier actual
+          (case (opening-value-types (d.openings), d.clauses) of
+            ([(opened, declared)], [CoreClause sp Nil (CLocal at actual used name Nil)]) -> opened == used && nat-carrier declared && nat-carrier actual
             other -> False)
           else True
         None -> True)
@@ -51,7 +51,7 @@ module Main where
   run source = case parse-program "source-pi" source of
     Parsed program Nil -> let checked = check-program program in
       let result = elaborate-program "source-pi" program in
-      let errors = elaboration-errors result in
+      let errors = result.errors in
       if list-length checked > 0 || list-length errors > 0 then
         (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics (checked <> errors))
       else if all-closed (elaboration-core result) && linked (elaboration-core result) && let-retained (elaboration-core result) && implicit-value-linked (elaboration-core result) then (0, "")

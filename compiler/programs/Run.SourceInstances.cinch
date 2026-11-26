@@ -6,7 +6,7 @@ module Main where
   import Cinch.Contracts (interface-headers)
   import Cinch.Parse (parse-program-with)
   import Cinch.Resolve (resolve-program-with)
-  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-classes, elaboration-class-context, elaboration-instances)
+  import Cinch.Infer (elaborate-program, elaboration-core, elaboration-classes, elaboration-class-context, elaboration-instances)
   import Cinch.Instance
   import Cinch.Nominal (interface-global)
   import Cinch.Type (scheme-params, scheme-requirements, kind-equal, kind-text, KType, KFun)
@@ -25,8 +25,8 @@ module Main where
   imported-only-closed :: List CoreClass -> Bool
   imported-only-closed descriptions = case (find-class (interface-global "A.Echo") descriptions, find-class (interface-global "A.PairOps") descriptions, find-class (interface-global "A.Mapper") descriptions) of
     (Some echo, Some pair, Some mapper) -> class-closed echo && class-closed pair && class-closed mapper
-      && kind-equal (class-kind mapper) (KFun (KFun KType KType) KType)
-      && (case class-methods pair of
+      && kind-equal (mapper.kind) (KFun (KFun KType KType) KType)
+      && (case pair.methods of
         Cons first (Cons second Nil) -> class-method-slot first == 0 && class-method-slot second == 1
           && string-compare (class-method-name first) "z-first" == 0
           && string-compare (class-method-name second) "a-last" == 0
@@ -37,7 +37,7 @@ module Main where
   class-report :: List CoreClass -> String
   class-report descriptions = case descriptions of
     Nil -> ""
-    Cons description rest -> string-concat-all [class-name description, " kind=", kind-text (class-kind description), " ", method-report (class-methods description), "\n", class-report rest]
+    Cons description rest -> string-concat-all [description.name, " kind=", kind-text (description.kind), " ", method-report (description.methods), "\n", class-report rest]
   method-report :: List CoreClassMethod -> String
   method-report methods = case methods of
     Nil -> ""
@@ -46,7 +46,7 @@ module Main where
   run interfaces source = case parse-program-with "source-instances" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "source-instances" resolved in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if not (closed (elaboration-core result)) then (94, "source core is not closed")
             else if not (class-context-closed (elaboration-class-context result)) then (95, string-concat "class context is not closed\n" (class-report (elaboration-classes result)))
             else if not (case elaboration-instances result of Nil -> imported-only-closed (elaboration-classes result); other -> True) then (96, string-concat "imported class contract changed\n" (class-report (elaboration-classes result)))

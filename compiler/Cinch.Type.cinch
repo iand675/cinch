@@ -2,7 +2,7 @@
 -- only after a diagnostic; they are not evidence of type equality.
 module Cinch.Type where
 
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Text.Lex (Span)
   import Cinch.Document
   import Data.Nat (nat-from-int, nat-to-int)
@@ -19,7 +19,7 @@ module Cinch.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
-  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
   export copy-marker-carrier, kernel-marker-carrier
   export foreign-pointer
   export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier
@@ -31,16 +31,16 @@ module Cinch.Type where
   export without-index-levels, index-of-type, typed-index-carrier, index-runtime-admissible, typed-index-admissible, open-pi, open-sigma, open-refinement
   export type-free-bound
   export include-effects, union-effects
-  export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
+  export Quant
   export Quants, QEnd, QCons, quants-of, quants-list, quants-length
-  export Requirement, MkRequirement, requirement-name, requirement-type, map-requirements
+  export Requirement, map-requirements
   export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
   export map-scheme-types, open-qualified
   export instantiate-params, map-quant-kinds, has-forall, quant-id-list, quant-names-text, same-quant-kinds, rename-quants, remove-ids
   export pending-number, pending-float, pending-comparison, default-numbers-for, finish-numbers
-  export Store, empty-store, store-errors, store-error-count, store-level, enter-level, restore-level
-  export store-law-scope, with-law-scope
-  export store-let-depth, with-let-depth
+  export Store, empty-store, store-errors, store-error-count, enter-level, restore-level
+  export with-law-scope
+  export with-let-depth
   export add-error, add-diagnostics, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type, valid-app-arg-kind
   export type-kind, type-text, display-type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
@@ -48,8 +48,8 @@ module Cinch.Type where
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
   export index-value-bounds
   export number-literal-carrier, wide-carrier, number-literal-valid, number-literal-error, float-literal-bits, float-string-bits, float-string-valid, float-string-error
-  export TypeFamilyRule, MkTypeFamilyRule, rule-vars, rule-lhs, rule-rhs, TypeFamilyRuleSet, MkTypeFamilyRuleSet, family-identity, family-arity, family-closed, family-returns-idx, family-rules, store-type-families, with-type-families, reduce-type-families, type-family-patterns-overlap, types-apart
-  export store-promoted, with-promoted, add-promoted-fn, with-families-and-promoted, reduce-types, strip-str-prefix, sing-type-parts, make-sing-type, same-type-parts, make-same-type, promoted-fn-kind, unwrap-app-spine, apply-app-spine, make-index-math
+  export TypeFamilyRule, TypeFamilyRuleSet, with-type-families, reduce-type-families, type-family-patterns-overlap, types-apart
+  export with-promoted, add-promoted-fn, with-families-and-promoted, reduce-types, strip-str-prefix, sing-type-parts, make-sing-type, same-type-parts, make-same-type, promoted-fn-kind, unwrap-app-spine, apply-app-spine, make-index-math
   export promoted-ctor-name, promoted-str-name, promoted-nil-name, promoted-cons-name, extract-promoted-list, strip-ctor-prefix
 
   export IndexMeasure, WordToNat, BufferLength, index-measure-name
@@ -97,8 +97,11 @@ module Cinch.Type where
     QEnd :: Quants
     QCons :: Quant -> Quants -> Quants
 
-  data Quant where
-    MkQuant :: Nat -> String -> Kind -> Bool -> Quant
+  record Quant where
+    id :: Nat
+    name :: String
+    kind :: Kind
+    only :: Bool
 
   data UType where
     UPropLit :: Bool -> UType
@@ -318,13 +321,13 @@ module Cinch.Type where
   quant-trees :: List Quant -> Json
   quant-trees qs = case qs of
     Nil -> JArrEnd
-    Cons (MkQuant id name kind only) rest -> JArr (tree "quant" [JNum (nat-to-int id), JStr name, kind-tree kind, JBool only]) (quant-trees rest)
+    Cons (Quant id name kind only) rest -> JArr (tree "quant" [JNum (nat-to-int id), JStr name, kind-tree kind, JBool only]) (quant-trees rest)
   read-quant-trees :: Json -> Option (List Quant)
   read-quant-trees doc = case doc of
     JArrEnd -> Some Nil
     JArr (JArr (JStr tag) (JArr a (JArr (JStr name) (JArr k (JArr (JBool only) JArrEnd))))) rest ->
       if same-tag tag "quant" then (case (tree-natural a, read-kind-tree k, read-quant-trees rest) of
-        (Some id, Some kind, Some qs) -> Some (Cons (MkQuant id name kind only) qs)
+        (Some id, Some kind, Some qs) -> Some (Cons (Quant id name kind only) qs)
         other -> None) else None
     other -> None
   same-tag :: String -> String -> Bool
@@ -532,15 +535,6 @@ module Cinch.Type where
     UArg first rest -> (if values then (carrier-type first || (carrier-node first && (case type-kind first of KValue c -> True; other -> False))) else carrier-node first) && carrier-spine rest values
     other -> False
 
-  quant-id :: Quant -> Nat
-  quant-id q = case q of MkQuant n name k only -> n
-  quant-name :: Quant -> String
-  quant-name q = case q of MkQuant n name k only -> name
-  quant-kind :: Quant -> Kind
-  quant-kind q = case q of MkQuant n name k only -> k
-  quant-implicit :: Quant -> Bool
-  quant-implicit q = case q of MkQuant n name k only -> only
-
   -- The binder spine and its list form. `UForall` holds the spine so that
   -- every occurrence in the `Kind`/`UType` group is a direct constructor
   -- field; the rest of the type engine speaks `List Quant`, so the two
@@ -553,14 +547,11 @@ module Cinch.Type where
   quants-length :: Quants -> Nat
   quants-length qs = case qs of QEnd -> 0; QCons q rest -> 1 + quants-length rest
 
-  data Requirement where
-    MkRequirement :: String -> UType -> Requirement
-  requirement-name :: Requirement -> String
-  requirement-name r = case r of MkRequirement name ty -> name
-  requirement-type :: Requirement -> UType
-  requirement-type r = case r of MkRequirement name ty -> ty
+  record Requirement where
+    name :: String
+    ty :: UType
   map-requirements :: (UType -> UType) -> List Requirement -> List Requirement
-  map-requirements f rs = case rs of Nil -> Nil; Cons (MkRequirement name ty) rest -> Cons (MkRequirement name (f ty)) (map-requirements f rest)
+  map-requirements f rs = case rs of Nil -> Nil; Cons (Requirement name ty) rest -> Cons (Requirement name (f ty)) (map-requirements f rest)
 
   data Scheme where
     MkScheme :: List Quant -> UType -> Scheme
@@ -577,12 +568,15 @@ module Cinch.Type where
   map-scheme-types :: (UType -> UType) -> Scheme -> Scheme
   map-scheme-types f sc = qualified (map-quant-kinds f (scheme-params sc)) (map-requirements f (scheme-requirements sc)) (f (scheme-body sc))
   map-quant-kinds :: (UType -> UType) -> List Quant -> List Quant
-  map-quant-kinds f qs = case qs of Nil -> Nil; Cons (MkQuant id name kind only) rest -> Cons (MkQuant id name (map-kind-types f kind) only) (map-quant-kinds f rest)
+  map-quant-kinds f qs = case qs of Nil -> Nil; Cons (Quant id name kind only) rest -> Cons (Quant id name (map-kind-types f kind) only) (map-quant-kinds f rest)
   mono :: UType -> Scheme
   mono ty = MkScheme Nil ty
 
-  data Cell where
-    MkCell :: Nat -> Nat -> Kind -> Option UType -> Cell
+  record Cell where
+    id :: Nat
+    level :: Nat
+    kind :: Kind
+    solution :: Option UType
   -- Trees store cells from newest to oldest: root, left, right. Each fork
   -- caches the oldest ID and greatest binding level in that tree.
   data CellTree where
@@ -606,26 +600,16 @@ module Cinch.Type where
   data StoreError where
     PlainError :: Diagnostic -> StoreError
     MismatchError :: String -> Span -> UType -> UType -> StoreError
-  data TypeFamilyRule where
-    MkTypeFamilyRule :: List Nat -> UType -> UType -> TypeFamilyRule
-  rule-vars :: TypeFamilyRule -> List Nat
-  rule-vars r = case r of MkTypeFamilyRule pvars lhs rhs -> pvars
-  rule-lhs :: TypeFamilyRule -> UType
-  rule-lhs r = case r of MkTypeFamilyRule pvars lhs rhs -> lhs
-  rule-rhs :: TypeFamilyRule -> UType
-  rule-rhs r = case r of MkTypeFamilyRule pvars lhs rhs -> rhs
-  data TypeFamilyRuleSet where
-    MkTypeFamilyRuleSet :: String -> Nat -> Bool -> Bool -> List TypeFamilyRule -> TypeFamilyRuleSet
-  family-identity :: TypeFamilyRuleSet -> String
-  family-identity f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> id
-  family-arity :: TypeFamilyRuleSet -> Nat
-  family-arity f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> arity
-  family-closed :: TypeFamilyRuleSet -> Bool
-  family-closed f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> closed
-  family-returns-idx :: TypeFamilyRuleSet -> Bool
-  family-returns-idx f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> returns-idx
-  family-rules :: TypeFamilyRuleSet -> List TypeFamilyRule
-  family-rules f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> rules
+  record TypeFamilyRule where
+    vars :: List Nat
+    lhs :: UType
+    rhs :: UType
+  record TypeFamilyRuleSet where
+    identity :: String
+    arity :: Nat
+    closed :: Bool
+    returns-idx :: Bool
+    rules :: List TypeFamilyRule
 
   promoted-nil-name :: String
   promoted-nil-name = "ctor:Data.Core.Nil"
@@ -686,71 +670,71 @@ module Cinch.Type where
     if arity == 0 then (if returns-idx then KValue (UCon "Nat" KType) else KType)
     else KFun KType (promoted-fn-kind (arity - 1) returns-idx)
 
-  data ErrorLog where
-    MkErrorLog :: Nat -> List StoreError -> ErrorLog
-  data Store where
-    MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> List TypeFamilyRuleSet -> List PromotedFn -> Store
+  record ErrorLog where
+    count :: Nat
+    errors :: List StoreError
+  record Store where
+    label :: String
+    next :: Nat
+    level :: Nat
+    cells :: CellStore
+    errors :: ErrorLog
+    numbers :: List PendingNumber
+    law-scope :: Bool
+    let-depth :: Nat
+    type-families :: List TypeFamilyRuleSet
+    promoted :: List PromotedFn
 
   empty-store :: String -> Store
-  empty-store label = MkStore label 0 0 EmptyCells (MkErrorLog 0 Nil) Nil False 0 Nil Nil
-  store-type-families :: Store -> List TypeFamilyRuleSet
-  store-type-families st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> fams
+  empty-store label = Store label 0 0 EmptyCells (ErrorLog 0 Nil) Nil False 0 Nil Nil
   with-type-families :: List TypeFamilyRuleSet -> Store -> Store
   with-type-families fams st = case st of
-    MkStore label next level cells errors numbers in-law depth old proms -> MkStore label next level cells errors numbers in-law depth fams proms
-  store-promoted :: Store -> List PromotedFn
-  store-promoted st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> proms
+    Store label next level cells errors numbers in-law depth old proms -> Store label next level cells errors numbers in-law depth fams proms
   with-promoted :: List PromotedFn -> Store -> Store
   with-promoted proms st = case st of
-    MkStore label next level cells errors numbers in-law depth fams old -> MkStore label next level cells errors numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams old -> Store label next level cells errors numbers in-law depth fams proms
   add-promoted-fn :: PromotedFn -> Store -> Store
   add-promoted-fn fn st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors numbers in-law depth fams (Cons fn proms)
+    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors numbers in-law depth fams (Cons fn proms)
   with-families-and-promoted :: List TypeFamilyRuleSet -> List PromotedFn -> Store -> Store
   with-families-and-promoted fams proms st = case st of
-    MkStore label next level cells errors numbers in-law depth old-f old-p -> MkStore label next level cells errors numbers in-law depth fams proms
-  store-let-depth :: Store -> Nat
-  store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> depth
+    Store label next level cells errors numbers in-law depth old-f old-p -> Store label next level cells errors numbers in-law depth fams proms
   with-let-depth :: Nat -> Store -> Store
   with-let-depth depth st = case st of
-    MkStore label next level cells errors numbers in-law previous fams proms -> MkStore label next level cells errors numbers in-law depth fams proms
-  store-law-scope :: Store -> Bool
-  store-law-scope st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> in-law
+    Store label next level cells errors numbers in-law previous fams proms -> Store label next level cells errors numbers in-law depth fams proms
   with-law-scope :: Bool -> Store -> Store
   with-law-scope active st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors numbers active depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors numbers active depth fams proms
   render-store-error :: StoreError -> Diagnostic
   render-store-error entry = case entry of
     PlainError diagnostic -> diagnostic
-    MismatchError label sp a b -> MkDiagnostic label sp (mismatch-message a b)
+    MismatchError label sp a b -> Diagnostic label sp (mismatch-message a b)
   render-store-errors :: List StoreError -> List Diagnostic
   render-store-errors entries = case entries of
     Nil -> Nil
     Cons entry rest -> Cons (render-store-error entry) (render-store-errors rest)
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth fams proms -> render-store-errors (reverse errors)
+  store-errors st = case st of Store label next level cells (ErrorLog count errors) numbers in-law depth fams proms -> render-store-errors (reverse errors)
   store-error-count :: Store -> Nat
-  store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth fams proms -> count
+  store-error-count st = case st of Store label next level cells (ErrorLog count errors) numbers in-law depth fams proms -> count
   prepend-error :: StoreError -> ErrorLog -> ErrorLog
-  prepend-error diagnostic log = case log of MkErrorLog count errors -> MkErrorLog (count + 1) (Cons diagnostic errors)
-  store-level :: Store -> Nat
-  store-level st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> level
+  prepend-error diagnostic log = case log of ErrorLog count errors -> ErrorLog (count + 1) (Cons diagnostic errors)
   enter-level :: Store -> Store
-  enter-level st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next (level + 1) cells errors numbers in-law depth fams proms
+  enter-level st = case st of Store label next level cells errors numbers in-law depth fams proms -> Store label next (level + 1) cells errors numbers in-law depth fams proms
   restore-level :: Nat -> Store -> Store
-  restore-level level st = case st of MkStore label next old cells errors numbers in-law depth fams proms -> MkStore label next level cells errors numbers in-law depth fams proms
+  restore-level level st = case st of Store label next old cells errors numbers in-law depth fams proms -> Store label next level cells errors numbers in-law depth fams proms
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells (prepend-error (PlainError (MkDiagnostic label sp message)) errors) numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells (prepend-error (PlainError (Diagnostic label sp message)) errors) numbers in-law depth fams proms
   add-diagnostics :: List Diagnostic -> Store -> Store
   add-diagnostics diagnostics st = case diagnostics of
     Nil -> st
     Cons d rest -> case st of
-      MkStore label next level cells errors numbers in-law depth fams proms ->
-        add-diagnostics rest (MkStore label next level cells (prepend-error (PlainError d) errors) numbers in-law depth fams proms)
+      Store label next level cells errors numbers in-law depth fams proms ->
+        add-diagnostics rest (Store label next level cells (prepend-error (PlainError d) errors) numbers in-law depth fams proms)
   add-mismatch-error :: Span -> UType -> UType -> Store -> Store
   add-mismatch-error sp a b st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth fams proms
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
@@ -759,7 +743,7 @@ module Cinch.Type where
     else fresh-meta-checked k checked
   fresh-meta-checked :: Kind -> Store -> (UType, Store)
   fresh-meta-checked k st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms ->
+    Store label next level cells errors numbers in-law depth fams proms ->
       let kind = normalize-kind st k in
       let dependencies = kind-metas st kind in
       if not (valid-kind kind) then (UError, add-error (Span 0 0 1 1) "invalid inference variable kind" st)
@@ -767,25 +751,25 @@ module Cinch.Type where
       else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
       else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
       else case lower level dependencies st of
-        MkStore label next level lowered errors numbers in-law depth fams2 proms2 -> (UMeta next kind, MkStore label (next + 1) level (push-cell (MkCell next level kind None) lowered) errors numbers in-law depth fams2 proms2)
+        Store label next level lowered errors numbers in-law depth fams2 proms2 -> (UMeta next kind, Store label (next + 1) level (push-cell (Cell next level kind None) lowered) errors numbers in-law depth fams2 proms2)
   known-metas :: List Nat -> Store -> Bool
   known-metas ids st = case ids of Nil -> True; Cons id rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
   fresh-id :: Store -> (Nat, Store)
-  fresh-id st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> (next, MkStore label (next + 1) level cells errors numbers in-law depth fams proms)
+  fresh-id st = case st of Store label next level cells errors numbers in-law depth fams proms -> (next, Store label (next + 1) level cells errors numbers in-law depth fams proms)
 
   cell-tree-first :: CellTree -> Nat
   cell-tree-first tree = case tree of
-    CellLeaf (MkCell id level kind solution) -> id
+    CellLeaf (Cell id level kind solution) -> id
     CellFork first highest current left right -> first
   cell-tree-level :: CellTree -> Nat
   cell-tree-level tree = case tree of
-    CellLeaf (MkCell id level kind solution) -> level
+    CellLeaf (Cell id level kind solution) -> level
     CellFork first highest current left right -> highest
   max-cell-level :: Nat -> Nat -> Nat
   max-cell-level a b = if a > b then a else b
   cell-fork :: Cell -> CellTree -> CellTree -> CellTree
   cell-fork current left right = case current of
-    MkCell id level kind solution ->
+    Cell id level kind solution ->
       CellFork (cell-tree-first right) (max-cell-level level (max-cell-level (cell-tree-level left) (cell-tree-level right))) current left right
   push-cell :: Cell -> CellStore -> CellStore
   push-cell current cells = case cells of
@@ -793,9 +777,9 @@ module Cinch.Type where
     other -> CellRun 1 (CellLeaf current) cells
   cell-in-tree :: Nat -> CellTree -> Option Cell
   cell-in-tree id tree = case tree of
-    CellLeaf current -> case current of MkCell key level kind solution -> if id == key then Some current else None
+    CellLeaf current -> case current of Cell key level kind solution -> if id == key then Some current else None
     CellFork first highest current left right -> case current of
-      MkCell key level kind solution ->
+      Cell key level kind solution ->
         if id == key then Some current else if id > key then None
         else if id < cell-tree-first left then cell-in-tree id right else cell-in-tree id left
   cell :: Nat -> CellStore -> Option Cell
@@ -803,12 +787,12 @@ module Cinch.Type where
     EmptyCells -> None
     CellRun size tree rest -> if id < cell-tree-first tree then cell id rest else cell-in-tree id tree
   find-cell :: Nat -> Store -> Option Cell
-  find-cell id st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> cell id cells
+  find-cell id st = case st of Store label next level cells errors numbers in-law depth fams proms -> cell id cells
   replace-cell-in-tree :: Nat -> Cell -> CellTree -> CellTree
   replace-cell-in-tree id replacement tree = case tree of
     CellLeaf current -> CellLeaf replacement
     CellFork first highest current left right -> case current of
-      MkCell key level kind solution ->
+      Cell key level kind solution ->
         if id == key then cell-fork replacement left right
         else if id < cell-tree-first left then cell-fork current left (replace-cell-in-tree id replacement right)
         else cell-fork current (replace-cell-in-tree id replacement left) right
@@ -821,8 +805,8 @@ module Cinch.Type where
   -- it. Only fresh-meta inserts, and its new ID exceeds all existing IDs.
   put-cell :: Cell -> Store -> Store
   put-cell c st = case (c, st) of
-    (MkCell id lev kind solution, MkStore label next level cells errors numbers in-law depth fams proms) ->
-      MkStore label next level (replace-cell id c cells) errors numbers in-law depth fams proms
+    (Cell id lev kind solution, Store label next level cells errors numbers in-law depth fams proms) ->
+      Store label next level (replace-cell id c cells) errors numbers in-law depth fams proms
 
   arrow-constructor-kind :: Kind
   arrow-constructor-kind = KFun KType (KFun KType KType)
@@ -838,7 +822,7 @@ module Cinch.Type where
   refinement-formals :: List Nat -> List Quant
   refinement-formals ids = case ids of
     Nil -> Nil
-    Cons id rest -> Cons (MkQuant id "#refinement-parameter" KType False) (refinement-formals rest)
+    Cons id rest -> Cons (Quant id "#refinement-parameter" KType False) (refinement-formals rest)
   former-kind :: List Nat -> Kind
   former-kind ids = case ids of Nil -> KType; Cons id rest -> KFun KType (former-kind rest)
   former-spine :: UType -> List UType -> (UType, List UType)
@@ -887,11 +871,11 @@ module Cinch.Type where
     UIndexPromote value -> normalize-promoted-index (normalize-with fuel st value)
     UIndexMath op left right -> make-index-math op (normalize-with fuel st left) (normalize-with fuel st right)
     UMeta id k -> case find-cell id st of
-      Some (MkCell n lev kind (Some solved)) -> normalize-with fuel st solved
-      Some (MkCell n lev kind None) -> normalized-variable st (UMeta id kind)
+      Some (Cell n lev kind (Some solved)) -> normalize-with fuel st solved
+      Some (Cell n lev kind None) -> normalized-variable st (UMeta id kind)
       None -> normalized-variable st ty
     UCon name k ->
-      let fams = store-type-families st in
+      let fams = st.type-families in
       if fuel > 0 then
         (case reduce-nullary-family fams name of
           Some reduced -> normalize-with (fuel - 1) st reduced
@@ -903,8 +887,8 @@ module Cinch.Type where
     UPi id name domain row result -> UPi id name (normalize-with fuel st domain) (normalize-with fuel st row) (normalize-with fuel st result)
     UApp f x ->
       let applied = type-application (normalize-with fuel st f) (normalize-with fuel st x) in
-      let fams = store-type-families st in
-      let proms = store-promoted st in
+      let fams = st.type-families in
+      let proms = st.promoted in
       if fuel > 0 then
         (case reduce-type-family-app fams applied of
           Some reduced -> normalize-with (fuel - 1) st reduced
@@ -936,7 +920,7 @@ module Cinch.Type where
 
   promoted-arity-of :: List PromotedFn -> String -> Option Nat
   promoted-arity-of proms id = case lookup-promoted-fn id proms of
-    Some f -> Some (promoted-fn-arity f)
+    Some f -> Some (f.fn-arity)
     None -> promoted-builtin-arity id
 
   utype-to-pval :: List PromotedFn -> UType -> PVal UType
@@ -1035,7 +1019,7 @@ module Cinch.Type where
   lookup-type-family :: String -> List TypeFamilyRuleSet -> Option TypeFamilyRuleSet
   lookup-type-family name fams = case fams of
     Nil -> None
-    Cons first rest -> if same-tag name (family-identity first) then Some first else lookup-type-family name rest
+    Cons first rest -> if same-tag name (first.identity) then Some first else lookup-type-family name rest
 
   is-type-family-head :: List TypeFamilyRuleSet -> UType -> Bool
   is-type-family-head fams ty = case ty of
@@ -1047,7 +1031,7 @@ module Cinch.Type where
   reduce-nullary-family fams name = case fams of
     Nil -> None
     other -> case lookup-type-family name fams of
-      Some (MkTypeFamilyRuleSet id arity closed returns-idx rules) ->
+      Some (TypeFamilyRuleSet id arity closed returns-idx rules) ->
         if arity == 0 then try-family-rules fams closed rules UEnd else None
       None -> None
 
@@ -1074,7 +1058,7 @@ module Cinch.Type where
     Nil -> None
     other -> case unwrap-app-spine ty Nil of
       (UCon name k, args) -> case lookup-type-family name fams of
-        Some (MkTypeFamilyRuleSet id arity closed returns-idx rules) ->
+        Some (TypeFamilyRuleSet id arity closed returns-idx rules) ->
           if list-length args >= arity then
             case split-args-at arity args of
               (matched-args, excess) -> case try-family-rules fams closed rules matched-args of
@@ -1087,7 +1071,7 @@ module Cinch.Type where
   try-family-rules :: List TypeFamilyRuleSet -> Bool -> List TypeFamilyRule -> UType -> Option UType
   try-family-rules fams closed rules args = case rules of
     Nil -> None
-    Cons (MkTypeFamilyRule pvars lhs rhs) rest ->
+    Cons (TypeFamilyRule pvars lhs rhs) rest ->
       case match-type-pattern pvars lhs args Nil of
         Some env -> Some (substitute env rhs)
         None ->
@@ -1215,7 +1199,7 @@ module Cinch.Type where
   index-solutions st ids = case ids of
     Nil -> Nil
     Cons id rest -> case find-cell id st of
-      Some (MkCell key level kind (Some solution)) -> case index-of-type (normalize st solution) of
+      Some (Cell key level kind (Some solution)) -> case index-of-type (normalize st solution) of
         Some value -> Cons (id, value) (index-solutions st rest)
         None -> index-solutions st rest
       other -> index-solutions st rest
@@ -1554,11 +1538,11 @@ module Cinch.Type where
     KFun a b -> merge-ids (kind-metas st a) (kind-metas st b)
     other -> Nil
   quant-metas :: Store -> List Quant -> List Nat
-  quant-metas st qs = case qs of Nil -> Nil; Cons q rest -> merge-ids (kind-metas st (quant-kind q)) (quant-metas st rest)
+  quant-metas st qs = case qs of Nil -> Nil; Cons q rest -> merge-ids (kind-metas st (q.kind)) (quant-metas st rest)
   scheme-metas :: Store -> Scheme -> List Nat
   scheme-metas st sc = merge-ids (quant-metas st (scheme-params sc)) (merge-ids (free-metas st (scheme-body sc)) (requirement-metas st (scheme-requirements sc)))
   requirement-metas :: Store -> List Requirement -> List Nat
-  requirement-metas st rs = case rs of Nil -> Nil; Cons r rest -> merge-ids (free-metas st (requirement-type r)) (requirement-metas st rest)
+  requirement-metas st rs = case rs of Nil -> Nil; Cons r rest -> merge-ids (free-metas st (r.ty)) (requirement-metas st rest)
 
   -- Predicativity: whether a polytype occurs anywhere in a type. No
   -- metavariable solution may contain one.
@@ -1631,20 +1615,20 @@ module Cinch.Type where
   lower level ids st = case ids of
     Nil -> st
     Cons id rest -> case find-cell id st of
-      Some (MkCell n lev k solution) -> lower level rest (if lev > level then put-cell (MkCell n level k solution) st else st)
+      Some (Cell n lev k solution) -> lower level rest (if lev > level then put-cell (Cell n level k solution) st else st)
       None -> lower level rest st
 
   bind-meta :: Span -> Nat -> Kind -> UType -> Store -> Store
   bind-meta sp id k ty st = case normalize st ty of
     UMeta n kind -> if id == n then (case find-cell id st of
-      Some (MkCell key level declared solution) -> unify-kind sp k kind (unify-kind sp k declared st)
+      Some (Cell key level declared solution) -> unify-kind sp k kind (unify-kind sp k declared st)
       None -> add-error sp "unknown inference variable" st)
       else bind-other sp id k (UMeta n kind) st
     other -> bind-other sp id k other st
   bind-other :: Span -> Nat -> Kind -> UType -> Store -> Store
   bind-other sp id k ty st = case find-cell id st of
     None -> add-error sp "unknown inference variable" st
-    Some (MkCell n lev kind solution) ->
+    Some (Cell n lev kind solution) ->
       let checked = if valid-app-arg-kind (normalize-kind st k) ty then unify-kind sp k kind st else unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
       if store-error-count checked > store-error-count st then checked
       else let solution-type = normalize checked ty in
@@ -1653,7 +1637,7 @@ module Cinch.Type where
           if contains-id id metas then add-error sp "infinite type: inference variable occurs in its own solution" checked
           else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
           else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
-          else put-cell (MkCell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev metas checked)
+          else put-cell (Cell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev metas checked)
 
   unify-kind :: Span -> Kind -> Kind -> Store -> Store
   unify-kind sp first second st =
@@ -2124,11 +2108,11 @@ module Cinch.Type where
   instantiate-ordered rigid qs earlier st = case qs of
     Nil -> (Nil, st)
     Cons q rest -> case st of
-      MkStore label next level cells errors numbers in-law depth fams proms ->
-        let kind = map-kind-types (substitute earlier) (quant-kind q) in
-        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law depth fams proms) else fresh-meta kind st in
-        case instantiate-ordered rigid rest (Cons (quant-id q, ty) earlier) next-store of
-          (pairs, final-store) -> (Cons (quant-id q, ty) pairs, final-store)
+      Store label next level cells errors numbers in-law depth fams proms ->
+        let kind = map-kind-types (substitute earlier) (q.kind) in
+        let (ty, next-store) = if rigid then (URigid next (q.name) level kind, Store label (next + 1) level cells errors numbers in-law depth fams proms) else fresh-meta kind st in
+        case instantiate-ordered rigid rest (Cons (q.id, ty) earlier) next-store of
+          (pairs, final-store) -> (Cons (q.id, ty) pairs, final-store)
   instantiate :: Scheme -> Store -> (UType, Store)
   instantiate sc st = case open-scheme False sc st of (ty, pairs, next-store) -> (ty, next-store)
   skolemize :: Scheme -> Store -> (UType, Store)
@@ -2145,14 +2129,14 @@ module Cinch.Type where
   generalized current level blocked ids next st = case ids of
     Nil -> (Nil, Nil)
     Cons id rest -> case find-cell id st of
-      Some (MkCell n lev k None) ->
+      Some (Cell n lev k None) ->
         if (lev > level || (current && lev == level)) && not (contains-id id blocked) then
           let name = string-concat "a" (nat-to-string next) in
           case generalized current level blocked rest (next + 1) st of
             -- Retain the inference variable's unique identity. Restarting
             -- ids at zero would capture an outer generalized variable in
             -- the core of an inner polymorphic let binding.
-            (qs, pairs) -> (Cons (MkQuant id name (normalize-kind st k) False) qs, Cons (id, UBound id name (normalize-kind st k)) pairs)
+            (qs, pairs) -> (Cons (Quant id name (normalize-kind st k) False) qs, Cons (id, UBound id name (normalize-kind st k)) pairs)
         else generalized current level blocked rest next st
       other -> generalized current level blocked rest next st
   generalize :: Nat -> List Nat -> UType -> Store -> Scheme
@@ -2167,7 +2151,7 @@ module Cinch.Type where
   -- argument's private witnesses. Retain independent instantiation
   -- variables at this level; environment and Pi-escaping metas stay fixed.
   generalize-application-with :: (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
-  generalize-application-with blocked ty st = generalize-at True (store-level st) blocked ty st
+  generalize-application-with blocked ty st = generalize-at True (st.level) blocked ty st
   generalize-at :: Bool -> Nat -> (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
   generalize-at current level blocked ty st =
     let resolved = normalize st ty in
@@ -2176,7 +2160,7 @@ module Cinch.Type where
       Some ids -> let local = pi-escaping-metas (type-pi-ids resolved) ids st Nil in
         -- A strict let shares each unresolved literal carrier with its uses.
         -- Default and validate the carrier when the enclosing definition closes.
-        let monomorphic = merge-ids local (number-meta-ids (pending-numbers st) st) in
+        let monomorphic = merge-ids local (number-meta-ids (st.numbers) st) in
         let environment = if generalizable-any current level ids st then blocked () else Nil in
         case generalized current level (merge-ids environment monomorphic) ids 0 st of
           (qs, pairs) -> let closed = close-pairs Nil pairs in
@@ -2186,7 +2170,7 @@ module Cinch.Type where
   generalizable-any current level ids st = case ids of
     Nil -> False
     Cons id rest -> (case find-cell id st of
-      Some (MkCell n lev k None) -> lev > level || (current && lev == level)
+      Some (Cell n lev k None) -> lev > level || (current && lev == level)
       other -> False) || generalizable-any current level rest st
   -- Generalize kind dependencies first. A value parameter's carrier may
   -- itself contain type or value inference variables; no raw meta is
@@ -2202,27 +2186,27 @@ module Cinch.Type where
   ready-meta :: List Nat -> List Nat -> Store -> Option Nat
   ready-meta candidates pending st = case candidates of
     Nil -> None
-    Cons id rest -> let dependencies = case find-cell id st of Some (MkCell key level kind solution) -> kind-metas st kind; None -> Nil in
+    Cons id rest -> let dependencies = case find-cell id st of Some (Cell key level kind solution) -> kind-metas st kind; None -> Nil in
       if any-pending dependencies pending then ready-meta rest pending st else Some id
   any-pending :: List Nat -> List Nat -> Bool
   any-pending ids pending = case ids of Nil -> False; Cons id rest -> contains-id id pending || any-pending rest pending
   -- Polytype binder helpers (design/rank-n-polymorphism.md section 8).
   quant-id-list :: List Quant -> List Nat
-  quant-id-list qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-id q) (quant-id-list rest)
+  quant-id-list qs = case qs of Nil -> Nil; Cons q rest -> Cons (q.id) (quant-id-list rest)
   quant-names-text :: List Quant -> String
-  quant-names-text qs = case qs of Nil -> ""; Cons q rest -> string-concat-all [" ", quant-name q, quant-names-text rest]
+  quant-names-text qs = case qs of Nil -> ""; Cons q rest -> string-concat-all [" ", q.name, quant-names-text rest]
   remove-ids :: List Nat -> List Nat -> List Nat
   remove-ids gone ids = case gone of Nil -> ids; Cons id rest -> remove-ids rest (remove-id id ids)
   same-quant-kinds :: List Quant -> List Quant -> Bool
   same-quant-kinds qs rs = case (qs, rs) of
     (Nil, Nil) -> True
-    (Cons q more, Cons r rest) -> kind-equal (quant-kind q) (quant-kind r) && same-quant-kinds more rest
+    (Cons q more, Cons r rest) -> kind-equal (q.kind) (r.kind) && same-quant-kinds more rest
     other -> False
   -- Rename the binders `from` to `to` positionally: alpha-equivalence of
   -- two polytypes reads both bodies over one set of binder ids.
   rename-quants :: List Quant -> List Quant -> List (Nat, UType)
   rename-quants before after = case (before, after) of
-    (Cons f rest, Cons (MkQuant id name kind only) more) -> Cons (quant-id f, UBound id name kind) (rename-quants rest more)
+    (Cons f rest, Cons (Quant id name kind only) more) -> Cons (f.id, UBound id name kind) (rename-quants rest more)
     other -> Nil
   remove-id :: Nat -> List Nat -> List Nat
   remove-id id ids = case ids of Nil -> Nil; Cons first rest -> if id == first then remove-id id rest else Cons first (remove-id id rest)
@@ -2699,7 +2683,7 @@ module Cinch.Type where
   typed-index-solutions st ids = case ids of
     Nil -> Nil
     Cons id rest -> case find-cell id st of
-      Some (MkCell key level kind (Some solution)) -> Cons (id, normalize st solution) (typed-index-solutions st rest)
+      Some (Cell key level kind (Some solution)) -> Cons (id, normalize st solution) (typed-index-solutions st rest)
       other -> typed-index-solutions st rest
   normalize-value-index :: Store -> UType -> IndexTerm -> UType
   normalize-value-index st carrier value = case substitute-value-index True (typed-index-solutions st (index-free-metas value)) carrier value of
@@ -2794,7 +2778,7 @@ module Cinch.Type where
   validate-index-references sp expected term st = case term of
     IMeta id -> case find-cell id st of
       None -> add-error sp "unknown index inference variable" st
-      Some (MkCell key level kind solution) -> case value-carrier kind of
+      Some (Cell key level kind solution) -> case value-carrier kind of
         None -> add-error sp "a type inference variable cannot be used as a value index" st
         Some carrier -> case expected of Some actual -> unify sp actual carrier st; None -> st
     IAdd a b -> validate-index-references sp expected b (validate-index-references sp expected a st)
@@ -3024,15 +3008,15 @@ module Cinch.Type where
     other -> ty
   reserve-type-ids :: UType -> UType -> Store -> Store
   reserve-type-ids first second st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms ->
+    Store label next level cells errors numbers in-law depth fams proms ->
       let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
-      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth fams proms
+      Store label (if next > highest then next else highest + 1) level cells errors numbers in-law depth fams proms
   cells-level :: CellStore -> Nat
   cells-level cells = case cells of
     EmptyCells -> 0
     CellRun size tree rest -> max-cell-level (cell-tree-level tree) (cells-level rest)
   pi-level :: Store -> Nat
-  pi-level st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  pi-level st = case st of Store label next level cells errors numbers in-law depth fams proms -> let highest = cells-level cells in (if level > highest then level else highest) + 1
   -- Two polytypes are equal when their binders agree in number and kind
   -- and their bodies unify over one shared set of rigid variables, opened
   -- one level deeper than every existing metavariable: `bind-other`'s
@@ -3045,13 +3029,13 @@ module Cinch.Type where
       let right = quants-list rs in
       if not (list-length left == list-length right && same-quant-kinds left right) then
         add-error sp (string-concat-all ["polymorphic types differ in their quantifiers: expected ", display-type-text b, ", found ", display-type-text a]) st
-      else let outer = store-level st in
+      else let outer = st.level in
         case instantiate-params True left (enter-level st) of
           (pairs, opened) -> restore-level outer (unify sp (substitute pairs x) (substitute (shared-rigids right pairs) y) opened)
     other -> mismatch sp a b st
   shared-rigids :: List Quant -> List (Nat, UType) -> List (Nat, UType)
   shared-rigids rs pairs = case (rs, pairs) of
-    (Cons r rest, Cons (id, rigid) more) -> Cons (quant-id r, rigid) (shared-rigids rest more)
+    (Cons r rest, Cons (id, rigid) more) -> Cons (r.id, rigid) (shared-rigids rest more)
     other -> Nil
   unify-pi :: Span -> UType -> UType -> Store -> Store
   unify-pi sp first second st = case (first, second) of
@@ -3061,13 +3045,13 @@ module Cinch.Type where
         if store-error-count checked > store-error-count st then checked
         else if not (valid-type (normalize checked first) && valid-type (normalize checked second)) then
           add-error sp "dependent domain inference captures a binder" checked
-        else let outer-level = store-level checked in
+        else let outer-level = checked.level in
           let scoped = restore-level (pi-level checked) (reserve-type-ids first second checked) in
           case fresh-id scoped of
             (fresh, prepared) ->
               -- No pre-existing meta may acquire this newly opened
               -- binder. Contextual higher-order metas need a later rule.
-              let witness = URigid fresh "#pi" (store-level prepared) (value-kind (normalize checked domain)) in
+              let witness = URigid fresh "#pi" (prepared.level) (value-kind (normalize checked domain)) in
               let left-row = substitute [(id, witness)] (normalize checked row) in
               let right-row = substitute [(key, witness)] (normalize checked effects) in
               let left-result = substitute [(id, witness)] (normalize checked result) in
@@ -3086,7 +3070,7 @@ module Cinch.Type where
     let checked = validate-type-indices sp argument (validate-type-indices sp function st) in
     if store-error-count checked > store-error-count st then (UError, UError, checked)
     else if not (valid-type function && valid-type argument) then (UError, UError, add-error sp "invalid dependent application input" checked)
-    else if escapes (store-level checked) (normalize checked function) || escapes (store-level checked) (normalize checked argument) then
+    else if escapes (checked.level) (normalize checked function) || escapes (checked.level) (normalize checked argument) then
       (UError, UError, add-error sp "dependent application escapes its scope" checked)
     else open-pi-normalized sp (normalize checked function) (normalize checked argument) checked
   open-pi-normalized :: Span -> UType -> UType -> Store -> (UType, UType, Store)
@@ -3160,7 +3144,7 @@ module Cinch.Type where
   pi-escaping-metas binders ordered st escaped = case ordered of
     Nil -> escaped
     Cons id rest -> case find-cell id st of
-      Some (MkCell key level kind solution) ->
+      Some (Cell key level kind solution) ->
         let local = any-pending (kind-free-bound (normalize-kind st kind)) binders || any-pending (kind-metas st kind) escaped in
         pi-escaping-metas binders rest st (if local then Cons id escaped else escaped)
       None -> pi-escaping-metas binders rest st escaped
@@ -3234,17 +3218,15 @@ module Cinch.Type where
     other -> term
 
   pending-number :: Span -> UType -> Int -> Store -> Store
-  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth fams proms
+  pending-number sp ty value st = case st of Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth fams proms
   pending-float :: Span -> UType -> String -> Store -> Store
-  pending-float sp ty raw st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors (Cons (PendingFloat sp ty raw) numbers) in-law depth fams proms
+  pending-float sp ty raw st = case st of Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors (Cons (PendingFloat sp ty raw) numbers) in-law depth fams proms
   -- Primitive equality may see a literal's still-unsolved carrier through
   -- a generic call or constructor. Check it after ordinary constraints and
   -- numeric defaulting; never invent an Eq dictionary or default a skolem.
   pending-comparison :: Span -> UType -> List String -> Store -> Store
   pending-comparison sp ty allowed st = case st of
-    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth fams proms
-  pending-numbers :: Store -> List PendingNumber
-  pending-numbers st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> numbers
+    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth fams proms
   number-meta-ids :: List PendingNumber -> Store -> List Nat
   number-meta-ids checks st = case checks of
     Nil -> Nil
@@ -3269,7 +3251,7 @@ module Cinch.Type where
       UMeta id KType -> default-number-checks wanted floats rest (if contains-id id wanted then unify sp ty (UCon "F64" KType) st else st)
       other -> default-number-checks wanted floats rest st)
   default-numbers-for :: UType -> Store -> Store
-  default-numbers-for wanted st = let checks = pending-numbers st in
+  default-numbers-for wanted st = let checks = st.numbers in
     default-number-checks (free-metas st wanted) (float-meta-ids checks st) checks st
   number-carrier :: UType -> UType
   number-carrier ty = case refinement-view ty of URefine id name carrier predicate -> number-carrier carrier; other -> ty
@@ -3296,7 +3278,7 @@ module Cinch.Type where
   comparison-name :: String -> List String -> Bool
   comparison-name name allowed = case allowed of Nil -> False; Cons first rest -> same-tag name first || comparison-name name rest
   finish-numbers :: Store -> Store
-  finish-numbers st = let checks = pending-numbers st in
+  finish-numbers st = let checks = st.numbers in
     let floats = float-meta-ids checks st in
     let checked = check-number-checks floats checks st in
-    case checked of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors Nil in-law depth fams proms
+    case checked of Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors Nil in-law depth fams proms

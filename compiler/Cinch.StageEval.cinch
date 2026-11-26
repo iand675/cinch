@@ -1,19 +1,19 @@
 -- Evaluate checked compile-time computations with a shared work budget.
 -- The caller supplies a program checked in its compile-time namespace.
 module Cinch.StageEval where
-  import Cinch.Check (CheckedProgram, checked-elaboration)
+  import Cinch.Check (CheckedProgram)
   import Cinch.Core
   import Cinch.Guarded (guarded-reading)
   import Cinch.Proof (Arithmetic, AInteger)
-  import Cinch.Instance (CoreInstance, find-instance, field-at, instance-fields, dictionary-field-definition)
+  import Cinch.Instance (CoreInstance, find-instance, field-at)
   import Cinch.Nominal (stage-quotation-module, global-stage-str-nat)
   import Text.Scan (string-strip)
   import Cinch.Ast (Expr, Decl, DInterface)
-  import Cinch.Builtin (scalar-intrinsic, scalar-operation-code, scalar-operation-arguments, scalar-operation-result, scalar-shape-name)
+  import Cinch.Builtin (scalar-intrinsic)
   import Cinch.Load (contract-intrinsic)
   import Cinch.ExportType (export-global)
   import Cinch.Infer (elaboration-core, elaboration-declarations, elaboration-method-scope, elaboration-instances)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Cinch.TotalSemantics (total-numeric-operation, total-numeric-comparison, arithmetic-constant)
   import Cinch.Total (parse-decimal-value, total-decimal-value)
   import Cinch.Type (UType, UCon, KType, integer-literal-valid, mono, scheme-arity)
@@ -24,7 +24,7 @@ module Cinch.StageEval where
 
   export StageValue, StageInteger, StageBoolean, StageString, StageUnit, StageQuoted, StageCode, evaluate-stage
   export StageMachine, StageConversion, StageCallable, StageNominal, StageField, StageFieldsEnd
-  export StageTemplate, MkStageTemplate, template-carrier, template-body
+  export StageTemplate
   export stage-quotation-constructor
 
   -- The synthesized stage module and its constructor names come from
@@ -37,14 +37,9 @@ module Cinch.StageEval where
   -- body is the resolved expression whose splice sites the expander fills
   -- when the quotation is constructed. Declared before `StageValue`, which
   -- carries it: a data type cannot mention one declared later.
-  data StageTemplate where
-    MkStageTemplate :: String -> Expr -> StageTemplate
-
-  template-carrier :: StageTemplate -> String
-  template-carrier template = case template of MkStageTemplate carrier body -> carrier
-
-  template-body :: StageTemplate -> Expr
-  template-body template = case template of MkStageTemplate carrier body -> body
+  record StageTemplate where
+    carrier :: String
+    body :: Expr
 
   data StageValue where
     StageInteger :: Int -> StageValue
@@ -67,10 +62,12 @@ module Cinch.StageEval where
     -- template beside the reified body.
     StageCode :: StageTemplate -> StageValue
 
-  data StageEnvironment where
-    StageEnvironment :: List CoreDefinition -> List Decl -> ProofScope -> List CoreInstance -> Option (String, CoreInstance) -> StageEnvironment
-  stage-definitions :: StageEnvironment -> List CoreDefinition
-  stage-definitions environment = case environment of StageEnvironment definitions declarations scope instances self -> definitions
+  record StageEnvironment where
+    definitions :: List CoreDefinition
+    declarations :: List Decl
+    scope :: ProofScope
+    instances :: List CoreInstance
+    self :: Option (String, CoreInstance)
 
   data StageMatch where
     Match :: List (Nat, StageValue) -> StageMatch
@@ -81,22 +78,22 @@ module Cinch.StageEval where
   same left right = string-compare left right == 0
 
   stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
-  stage-error site message = Err [MkDiagnostic "bootstrap.stage" site message]
+  stage-error site message = Err [Diagnostic "bootstrap.stage" site message]
 
   definition-for :: String -> List CoreDefinition -> Option CoreDefinition
   definition-for name definitions = case definitions of
     Nil -> None
-    Cons definition rest -> if same (core-name definition) name then Some definition else definition-for name rest
+    Cons definition rest -> if same (definition.name) name then Some definition else definition-for name rest
 
   exported-definition :: String -> List CoreDefinition -> Option CoreDefinition
   exported-definition name definitions = case definitions of
     Nil -> None
-    Cons definition rest -> case export-global (core-name definition) of
+    Cons definition rest -> case export-global (definition.name) of
       Ok identity -> if same identity name then Some definition else exported-definition name rest
       Err message -> exported-definition name rest
 
   evaluate-stage :: CheckedProgram -> Span -> String -> Nat -> Result (List Diagnostic) (StageValue, Nat)
-  evaluate-stage checked site name fuel = let typed = checked-elaboration checked in
+  evaluate-stage checked site name fuel = let typed = checked.elaboration in
     let definitions = elaboration-core typed in
     let scope = elaboration-method-scope typed in
     case exported-definition name definitions of
@@ -143,15 +140,15 @@ module Cinch.StageEval where
     Cons (key, value) rest -> if id == key then Some value else stage-local id rest
 
   evaluate-definition :: StageEnvironment -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
-  evaluate-definition definitions site definition values fuel = case core-givens definition of
-    Nil -> evaluate-clauses definitions site (core-name definition) (core-clauses definition) values fuel
+  evaluate-definition definitions site definition values fuel = case definition.givens of
+    Nil -> evaluate-clauses definitions site (definition.name) (definition.clauses) values fuel
     other -> stage-error site "dictionary arguments are unavailable in compile-time evaluation"
 
   evaluate-clauses :: StageEnvironment -> Span -> String -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-clauses definitions site name clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     case clauses of
       Nil -> stage-error site (string-concat-all ["no checked compile-time clause matches ", name, " with ", nat-to-string (list-length values), " arguments"])
-      Cons (MkCoreClause clause-site patterns body) rest -> case match-stage-patterns patterns values Nil of
+      Cons (CoreClause clause-site patterns body) rest -> case match-stage-patterns patterns values Nil of
         Match locals -> evaluate-term definitions locals clause-site body (fuel - 1)
         NoMatch -> evaluate-clauses definitions site name rest values (fuel - 1)
         UnavailablePattern pattern-site -> stage-error pattern-site "pattern is unavailable in compile-time evaluation"
@@ -182,9 +179,9 @@ module Cinch.StageEval where
     else if same role "constructor" then
       (if list-length values < scheme-arity (mono ty) then Ok (StageCallable name role ty (stage-fields values), fuel)
        else evaluate-constructor site ty name values fuel)
-    else case definition-for name (stage-definitions definitions) of
-      Some definition -> (case core-clauses definition of
-        Cons (MkCoreClause at patterns body) rest | list-length values < list-length patterns ->
+    else case definition-for name (definitions.definitions) of
+      Some definition -> (case definition.clauses of
+        Cons (CoreClause at patterns body) rest | list-length values < list-length patterns ->
           Ok (StageCallable name role ty (stage-fields values), fuel)
         other -> evaluate-definition definitions site definition values fuel)
       None -> case (definitions, export-global name) of
@@ -198,9 +195,9 @@ module Cinch.StageEval where
   -- An imported binding is identified by its defining intrinsic declaration.
   conversion-shape :: String -> Option (String, String)
   conversion-shape symbol = case scalar-intrinsic symbol of
-    Some operation -> (case scalar-operation-arguments operation of
-      [source] | same (scalar-operation-code operation) "widen" ->
-        Some (scalar-shape-name source, scalar-shape-name (scalar-operation-result operation))
+    Some operation -> (case operation.operation-arguments of
+      [source] | same (operation.operation-code) "widen" ->
+        Some (source.shape-name, operation.operation-result.shape-name)
       other -> None)
     None -> if same symbol "cinch.runtime.intFromI64" then Some ("I64", "Int")
       else if same symbol "cinch.runtime.natFromI64" then Some ("I64", "Nat") else None
@@ -279,10 +276,10 @@ module Cinch.StageEval where
         (CEGiven at ty name, Some (symbol, dictionary)) | same name symbol -> Some dictionary
         other -> None) in
       (case source of
-        Some dictionary -> (case field-at slot (instance-fields dictionary) of
-          Some field -> let definition = dictionary-field-definition field in (case core-givens definition of
-            [given] -> evaluate-clauses (StageEnvironment core declarations scope instances (Some (given-symbol given, dictionary)))
-              site (core-name definition) (core-clauses definition) values fuel
+        Some dictionary -> (case field-at slot (dictionary.fields) of
+          Some field -> let definition = field.field-definition in (case definition.givens of
+            [given] -> evaluate-clauses (StageEnvironment core declarations scope instances (Some (given.symbol, dictionary)))
+              site (definition.name) (definition.clauses) values fuel
             other -> stage-error site "selected compile-time method requires additional dictionary arguments")
           None -> stage-error site "selected compile-time dictionary has no method at this slot")
         None -> (case arguments of

@@ -22,7 +22,6 @@ module Data.Core where
   export List, Nil, Cons, Option, None, Some
   export Result, Err, Ok
 
-
   data List a where
     Nil :: List a
     Cons :: a -> List a -> List a

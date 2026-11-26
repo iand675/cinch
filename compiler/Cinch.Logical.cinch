@@ -32,8 +32,9 @@ module Cinch.Logical where
 
   -- Each variable denotes the parameter at its original position, or one
   -- of its proper subcomponents. A let alias never creates a decrease.
-  data Origin where
-    Origin :: Nat -> Bool -> Origin
+  record Origin where
+    field0 :: Nat
+    field1 :: Bool
   remember :: CorePattern -> Nat -> Bool -> List (Nat, Origin) -> List (Nat, Origin)
   remember pattern pos strict locals = case pattern of
     CPVar sp ty id name -> Cons (id, Origin pos strict) locals
@@ -104,11 +105,11 @@ module Cinch.Logical where
   check-clauses :: String -> List CoreClause -> Store -> Store
   check-clauses name clauses st = case clauses of
     Nil -> st
-    Cons (MkCoreClause sp patterns body) rest ->
+    Cons (CoreClause sp patterns body) rest ->
       let valid = safe-term name (list-length patterns) (parameters patterns 0) body in
       check-clauses name rest (if valid then st else add-error sp "a spec definition must terminate by structural descent and must be pure" st)
   check-specification :: CoreDefinition -> Store -> Store
   check-specification definition st = case definition of
-    MkCoreDefinition sp name sc openings givens private clauses ->
+    CoreDefinition sp name sc openings givens private clauses ->
       if pure-signature (scheme-body sc) then check-clauses name clauses st
       else add-error sp "a spec definition must be pure" st

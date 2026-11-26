@@ -1,9 +1,9 @@
 -- The checked pipeline boundary retains typed declarations from runtime input.
 module Main where
   import Cinch.Ast
-  import Cinch.Check (check-and-retain, checked-elaboration)
+  import Cinch.Check (check-and-retain)
   import Cinch.Infer (elaboration-core, elaboration-data)
-  import Cinch.Core (CoreDefinition, core-scheme)
+  import Cinch.Core (CoreDefinition)
   import Cinch.Type (scheme-params)
   import Cinch.Parse (parse-program)
   import Cinch.Resolve (resolve-program)
@@ -21,7 +21,7 @@ module Main where
         (resolved, Nil) -> case check-and-retain resolved of
           Err errors -> 4
           Ok checked ->
-            let typed = checked-elaboration checked in
+            let typed = checked.elaboration in
             let definitions = elaboration-core typed in
             let datas = elaboration-data typed in
             if list-length definitions /= 3 then 11
@@ -36,6 +36,6 @@ module Main where
   has-polymorphism :: List CoreDefinition -> Bool
   has-polymorphism definitions = case definitions of
     Nil -> False
-    Cons definition rest -> case scheme-params (core-scheme definition) of
+    Cons definition rest -> case scheme-params (definition.scheme) of
       Nil -> has-polymorphism rest
       Cons q more -> True

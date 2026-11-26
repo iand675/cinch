@@ -35,13 +35,13 @@ module Main where
   arguments :: CoreTerm -> CoreTerm -> CoreTerm
   arguments a b = CArgument sp a (CArgument sp b (CArgumentsEnd sp))
   answer :: CoreTerm -> CoreDefinition
-  answer body = MkCoreDefinition sp "answer" (mono int) Nil Nil Nil [MkCoreClause sp Nil body]
+  answer body = CoreDefinition sp "answer" (mono int) Nil Nil Nil [CoreClause sp Nil body]
   kinds :: List (String, Kind)
   kinds = [("Int", KType), ("Nat", KType), ("I64", KType), ("Bool", KType), ("Unit", KType), ("String", KType), ("Char", KType), ("Bytes", KType), ("Log", KEffect), ("Box", KType), ("At", KFun (value-kind nat) KType)]
   checks :: Nat -> List Bool
   checks nonce =
-    let q = MkQuant nonce "a" KType False in let a = UBound nonce "a" KType in
-    let indexed = MkScheme [MkQuant (nonce + 1) "n" (value-kind nat) False] (UApp (UCon "At" (KFun (value-kind nat) KType)) (UIndex nat (IBound (nonce + 1) "n"))) in
+    let q = Quant nonce "a" KType False in let a = UBound nonce "a" KType in
+    let indexed = MkScheme [Quant (nonce + 1) "n" (value-kind nat) False] (UApp (UCon "At" (KFun (value-kind nat) KType)) (UIndex nat (IBound (nonce + 1) "n"))) in
     let declarations =
           [ GlobalValue "answer" "value" (mono int)
           , GlobalValue "True" "constructor" (mono bool)
@@ -63,7 +63,7 @@ module Main where
         let x = nonce + 10 in let fresh = URigid (nonce + 20) "hidden" 1 KType in
         let generic = CUse sp (UFun fresh fresh) "generic" "external" [fresh] in
         let local = CPVar sp int x "x" in
-        let function body = MkCoreDefinition sp "function" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp [local] body] in
+        let function body = CoreDefinition sp "function" (mono (UFun int int)) Nil Nil Nil [CoreClause sp [local] body] in
         let wrong-index = UIndex nat (IRigid x "x" 0) in
         let marked = UApp (UCon "At" (KFun (value-kind nat) KType)) wrong-index in
         let bad-primitive = CPrimitive sp int "+" (arguments truth truth) in
@@ -90,16 +90,16 @@ module Main where
         , not (check (CPrimitive sp int "negate" (arguments integer integer)))
         , not (check (CApply sp int operation (CUnit sp unit)))
         , not (check (CApplyEff sp int zero-row operation (CUnit sp unit)))
-        , typing-definition-closed context (MkCoreDefinition sp "effect-function" (mono (UFunEff unit log-row int)) Nil Nil Nil [MkCoreClause sp [CPVar sp unit x "u"] (CApplyEff sp int log-row operation (CLocal sp unit x "u" Nil))])
+        , typing-definition-closed context (CoreDefinition sp "effect-function" (mono (UFunEff unit log-row int)) Nil Nil Nil [CoreClause sp [CPVar sp unit x "u"] (CApplyEff sp int log-row operation (CLocal sp unit x "u" Nil))])
         , not (check (CApplyEff sp int log-row operation (CUnit sp unit)))
-        , typing-definition-closed context (MkCoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp Nil (CLambda sp (UFun int int) local (CLocal sp int x "x" Nil))])
-        , not (typing-definition-closed context (MkCoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp Nil (CLambda sp (UFun int int) (CPVar sp bool x "x") integer)]))
-        , not (typing-definition-closed context (MkCoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [MkCoreClause sp Nil (CLambda sp (UFun int int) local truth)]))
+        , typing-definition-closed context (CoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [CoreClause sp Nil (CLambda sp (UFun int int) local (CLocal sp int x "x" Nil))])
+        , not (typing-definition-closed context (CoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [CoreClause sp Nil (CLambda sp (UFun int int) (CPVar sp bool x "x") integer)]))
+        , not (typing-definition-closed context (CoreDefinition sp "lambda" (mono (UFun int int)) Nil Nil Nil [CoreClause sp Nil (CLambda sp (UFun int int) local truth)]))
         , not (check (CCase sp int integer (CAlternative sp (CPConstructor sp int "True" Nil bool (CPDone sp)) integer (CAlternativesEnd sp))))
         , not (typing-definition-closed context (function (CLet sp int (x + 1) "wrong-index" (mono marked) (CUse sp marked "mark" "constructor" [wrong-index]) integer)))
         , not (check (CLet sp int x "hidden" (mono (UFun fresh fresh)) generic integer))
-        , typing-definition-closed context (MkCoreDefinition sp "answer" (mono int) Nil Nil [(nonce + 20, KType)] [MkCoreClause sp Nil (CLet sp int x "hidden" (mono (UFun fresh fresh)) generic integer)])
-        , not (typing-definition-closed context (MkCoreDefinition sp "answer" (mono int) Nil Nil [(nonce + 20, KType), (nonce + 20, KType)] [MkCoreClause sp Nil integer]))
+        , typing-definition-closed context (CoreDefinition sp "answer" (mono int) Nil Nil [(nonce + 20, KType)] [CoreClause sp Nil (CLet sp int x "hidden" (mono (UFun fresh fresh)) generic integer)])
+        , not (typing-definition-closed context (CoreDefinition sp "answer" (mono int) Nil Nil [(nonce + 20, KType), (nonce + 20, KType)] [CoreClause sp Nil integer]))
         , not (type-well-formed kinds empty-type-scope (UCon "missing" KType))
         , not (type-well-formed kinds empty-type-scope (UCon "Box" (KFun KType KType)))
         , not (type-well-formed kinds empty-type-scope fresh)
@@ -111,7 +111,7 @@ module Main where
       other -> [False]
   scope-checks :: Nat -> List Bool
   scope-checks nonce =
-    let q = MkQuant nonce "r" KRegion False in
+    let q = Quant nonce "r" KRegion False in
     let owner = URigid (nonce + 1) "r" 1 KRegion in
     let region = URigid (nonce + 2) "s" 2 KRegion in
     let inner = URigid (nonce + 3) "nested" 3 KRegion in
@@ -124,12 +124,12 @@ module Main where
     let callback = CLambda sp (UFun token int) (CPVar sp token (nonce + 10) "scope") integer in
     let good = CScope sp int region evidence callback in
     let task-kinds = Cons ("b.Io", KFun KRegion KType) (Cons ("b.Scope", scope-kind) kinds) in
-    let sc row = qualified [q] [MkRequirement "io" bound-io] (UFunEff unit row int) in
+    let sc row = qualified [q] [Requirement "io" bound-io] (UFunEff unit row int) in
     let check row body = (let declared = sc row in
       (case close-typing-context task-kinds [GlobalValue "scope-work" "value" declared, GlobalValue "effect" "external" (mono (UFunEff unit log-row int))] of
         None -> False
-        Some context -> typing-definition-closed context (MkCoreDefinition sp "scope-work" declared [(nonce, owner)] [CGiven sp "scope-io" actual-io] Nil [MkCoreClause sp [CPWild sp unit] body]))) in
-    let resolution supplied = (case resolve-dictionary-term-with [("b.Io", KFun KRegion KType)] Nil [CGiven sp "scope-io" actual-io] (CScope sp int region supplied callback) (empty-store "scope evidence") of
+        Some context -> typing-definition-closed context (CoreDefinition sp "scope-work" declared [(nonce, owner)] [CoreGiven sp "scope-io" actual-io] Nil [CoreClause sp [CPWild sp unit] body]))) in
+    let resolution supplied = (case resolve-dictionary-term-with [("b.Io", KFun KRegion KType)] Nil [CoreGiven sp "scope-io" actual-io] (CScope sp int region supplied callback) (empty-store "scope evidence") of
       (found, checked) -> (case store-errors checked of Nil -> check diverge found; other -> False)) in
     let effectful = CLambda sp (UFunEff token log-row int) (CPWild sp token) (CApplyEff sp int log-row (CUse sp (UFunEff unit log-row int) "effect" "external" Nil) (CUnit sp unit)) in
     let nested-token = scope-type owner inner in
@@ -137,10 +137,10 @@ module Main where
     let repeated = CScope sp int region evidence (CLambda sp (UFun token int) (CPWild sp token) integer) in
     let escaped = CLet sp int (nonce + 11) "outside" (mono (UFun token int)) callback integer in
     [ check diverge good
-    , resolution (CENeeded sp actual-io [CGiven sp "scope-io" actual-io])
+    , resolution (CENeeded sp actual-io [CoreGiven sp "scope-io" actual-io])
     , not (resolution (CENeeded sp actual-io Nil))
     , not (resolution (CEGiven sp actual-io "missing"))
-    , not (resolution (CENeeded sp (io region) [CGiven sp "scope-io" actual-io]))
+    , not (resolution (CENeeded sp (io region) [CoreGiven sp "scope-io" actual-io]))
     , check diverge (map-term-types (\ty -> ty) good)
     , not (check zero-row good)
     , not (check diverge (CScope sp int owner evidence (CLambda sp (UFun (scope-type owner owner) int) (CPWild sp (scope-type owner owner)) integer)))
@@ -162,7 +162,7 @@ module Main where
     ]
   task-checks :: Nat -> List Bool
   task-checks nonce =
-    let q = MkQuant nonce "r" KRegion False in
+    let q = Quant nonce "r" KRegion False in
     let owner = URigid (nonce + 1) "r" 1 KRegion in
     let region = URigid (nonce + 2) "s" 2 KRegion in
     let other-region = URigid (nonce + 3) "other" 3 KRegion in
@@ -173,13 +173,13 @@ module Main where
     let row = URow (UArg (UApp (UCon "Async" (KFun KRegion KEffect)) owner) (UArg (UApp (UCon "Cancel" (KFun KRegion KEffect)) owner) (UArg (UCon "Diverge" KEffect) UEnd))) in
     let bound-owner = UBound nonce "r" KRegion in
     let bound-row = URow (UArg (UApp (UCon "Async" (KFun KRegion KEffect)) bound-owner) (UArg (UApp (UCon "Cancel" (KFun KRegion KEffect)) bound-owner) (UArg (UCon "Diverge" KEffect) UEnd))) in
-    let declared = qualified [q] [MkRequirement "io" (io (UBound nonce "r" KRegion))] (UFunEff unit bound-row result) in
+    let declared = qualified [q] [Requirement "io" (io (UBound nonce "r" KRegion))] (UFunEff unit bound-row result) in
     let worker-ty = UFun unit result in
-    let capture-owner = MkQuant (nonce + 30) "r" KRegion False in
-    let capture-region = MkQuant (nonce + 31) "s" KRegion False in
+    let capture-owner = Quant (nonce + 30) "r" KRegion False in
+    let capture-region = Quant (nonce + 31) "s" KRegion False in
     let capture-token = scope-type (UBound (nonce + 30) "r" KRegion) (UBound (nonce + 31) "s" KRegion) in
-    let captured-scope = MkScheme [capture-owner, capture-region, MkQuant (nonce + 32) "token" (value-kind capture-token) False] worker-ty in
-    let captured-number = MkScheme [MkQuant (nonce + 33) "n" (value-kind nat) False] worker-ty in
+    let captured-scope = MkScheme [capture-owner, capture-region, Quant (nonce + 32) "token" (value-kind capture-token) False] worker-ty in
+    let captured-number = MkScheme [Quant (nonce + 33) "n" (value-kind nat) False] worker-ty in
     let declarations = [GlobalValue "task-work" "value" declared, GlobalValue "task-body" "external" (mono worker-ty), GlobalValue "hidden-scope" "external" captured-scope, GlobalValue "hidden-number" "external" captured-number, GlobalValue "True" "constructor" (mono bool)] in
     let task-kinds = [("b.Io", KFun KRegion KType), ("b.Scope", scope-kind), ("b.Task", task-kind), (interface-global "Data.Core.Result", KFun KType (KFun KType KType))] <> kinds in
     let scope-id = nonce + 10 in let handle-id = nonce + 11 in
@@ -195,7 +195,7 @@ module Main where
     let wrap body = CScope sp result region (CEGiven sp (io owner) "io") (CLambda sp (UFunEff token row result) (CPVar sp token scope-id "s") body) in
     let check body = (case close-typing-context task-kinds declarations of
       None -> False
-      Some context -> typing-definition-closed context (MkCoreDefinition sp "task-work" declared [(nonce, owner)] [CGiven sp "io" (io owner)] Nil [MkCoreClause sp [CPWild sp unit] body])) in
+      Some context -> typing-definition-closed context (CoreDefinition sp "task-work" declared [(nonce, owner)] [CoreGiven sp "io" (io owner)] Nil [CoreClause sp [CPWild sp unit] body])) in
     [ check (wrap (bind join))
     , check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp handle-ty scope-value hidden-number) join))
     , not (check (wrap (CLet sp result handle-id "h" (mono handle-ty) (CSpawn sp handle-ty scope-value hidden-scope) join)))
@@ -224,7 +224,7 @@ module Main where
     let declarations = add-global (GlobalValue symbol "intrinsic" raw) (add-global (GlobalValue symbol "intrinsic" refined) [GlobalValue "read" "value" (mono (UFun bytes nat)), GlobalValue "refined-read" "value" (mono (UFun bytes result))]) in
     let payload = CPVar sp bytes (nonce + 91) "bytes" in
     let argument = CLocal sp bytes (nonce + 91) "bytes" Nil in
-    let define name output function = MkCoreDefinition sp name (mono (UFun bytes output)) Nil Nil Nil [MkCoreClause sp [payload] (CApply sp output function argument)] in
+    let define name output function = CoreDefinition sp name (mono (UFun bytes output)) Nil Nil Nil [CoreClause sp [payload] (CApply sp output function argument)] in
     let raw-use = CUse sp (UFun bytes nat) symbol "intrinsic" Nil in
     let refined-use = CUse sp (UFun bytes result) symbol "intrinsic" Nil in
     [ (case close-typing-context kinds declarations of
@@ -270,10 +270,10 @@ module Main where
   value-parameter-checks :: Nat -> List Bool
   value-parameter-checks nonce =
     let key = nonce + 200 in let value = nonce + 201 in let unit-id = nonce + 202 in
-    let sc = MkScheme [MkQuant key "n" (value-kind nat) False] (UFun unit nat) in
+    let sc = MkScheme [Quant key "n" (value-kind nat) False] (UFun unit nat) in
     let opened = URigid value "n" 1 (value-kind nat) in
-    let clause body = MkCoreClause sp [CPVar sp unit unit-id "u"] body in
-    let make openings body = MkCoreDefinition sp "implicit" sc openings Nil Nil [clause body] in
+    let clause body = CoreClause sp [CPVar sp unit unit-id "u"] body in
+    let make openings body = CoreDefinition sp "implicit" sc openings Nil Nil [clause body] in
     let body = CLocal sp nat value "n" Nil in
     let declarations = [GlobalValue "implicit" "value" sc] in
     let check d = case close-typing-context kinds declarations of Some context -> typing-definition-closed context d; None -> False in
@@ -282,10 +282,10 @@ module Main where
     , not (check (make [(key, opened)] (CLocal sp int value "n" Nil)))
     , not (check (make [(key, opened)] (CLocal sp nat (value + 10) "forged" Nil)))
     , not (check (make [(key, UIndex int (IRigid value "n" 1))] body))
-    , not (check (MkCoreDefinition sp "implicit" sc [(key, opened)] Nil Nil [MkCoreClause sp [CPVar sp unit value "shadow"] body]))
-    , (let type-sc = MkScheme [MkQuant key "a" KType False] (UFun unit nat) in
+    , not (check (CoreDefinition sp "implicit" sc [(key, opened)] Nil Nil [CoreClause sp [CPVar sp unit value "shadow"] body]))
+    , (let type-sc = MkScheme [Quant key "a" KType False] (UFun unit nat) in
        case close-typing-context kinds [GlobalValue "type-only" "value" type-sc] of
-         Some context -> not (typing-definition-closed context (MkCoreDefinition sp "type-only" type-sc [(key, URigid value "a" 1 KType)] Nil Nil [clause body]))
+         Some context -> not (typing-definition-closed context (CoreDefinition sp "type-only" type-sc [(key, URigid value "a" 1 KType)] Nil Nil [clause body]))
          None -> False)
     ]
   verdict :: Int -> List Bool -> Int

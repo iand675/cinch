@@ -85,8 +85,8 @@ module Main where
     let (type-meta, ts) = fresh-meta KType (empty-store "type-meta") in
     let occurs = not (succeeds (unify sp type-meta (URefine id "x" type-meta (UPropLit True)) ts)) in
     let type-escape = not (succeeds (unify sp type-meta (URefine id "x" nat (UCompare "==" (bound id) (UIndex nat (IRigid other "inner" 3)))) ts)) in
-    let leaked = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono refined)] in
-    let forged = MkCoreDefinition sp "forged" (mono refined) Nil Nil Nil [MkCoreClause sp Nil (CInt sp refined "3")] in
+    let leaked = MkCoreData sp "metadata" KType Nil [CoreConstructor sp "contract" (mono refined)] in
+    let forged = CoreDefinition sp "forged" (mono refined) Nil Nil Nil [CoreClause sp Nil (CInt sp refined "3")] in
     [ valid-type refined
     , kind-equal (type-kind refined) KType
     , good refined renamed

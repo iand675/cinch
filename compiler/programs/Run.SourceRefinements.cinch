@@ -1,7 +1,7 @@
 module Main where
   import Cinch.Ast
   import Cinch.Parse (parse-program)
-  import Cinch.Check (check-and-retain, checked-elaboration)
+  import Cinch.Check (check-and-retain)
   import Cinch.Resolve (resolve-program)
   import Cinch.Infer
   import Cinch.Core
@@ -15,7 +15,7 @@ module Main where
     Parsed program Nil -> case resolve-program program of
       (resolved, Nil) -> case check-and-retain resolved of
         Err errors -> (4, render-diagnostics errors)
-        Ok checked -> if elaboration-core-contracts-closed (checked-elaboration checked) then (0, "")
+        Ok checked -> if elaboration-core-contracts-closed (checked.elaboration) then (0, "")
           else (94, "refinement Core did not retain checked evidence")
       (resolved, errors) -> (4, render-diagnostics errors)
     other -> (2, "refinement source parse failed")

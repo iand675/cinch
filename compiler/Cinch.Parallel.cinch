@@ -27,9 +27,9 @@ module Cinch.Parallel where
   import Data.String (string-compare, unpack)
 
   export CompileStrategy, Latency, Throughput
-  export CompileTuning, MkCompileTuning
+  export CompileTuning
   export default-tuning, latency-tuning, throughput-tuning
-  export tuning-strategy, tuning-workers, tuning-with-strategy, tuning-with-workers
+  export tuning-with-strategy, tuning-with-workers
   export tuning-is-latency, tuning-is-throughput
   export strategy-name, parse-compile-strategy, parse-nat-word
   export tuning-chunk-size, chunk-list, flatten-lists, apply-worker-budget
@@ -38,41 +38,34 @@ module Cinch.Parallel where
     Latency :: CompileStrategy
     Throughput :: CompileStrategy
 
-  data CompileTuning where
-    MkCompileTuning :: CompileStrategy -> Nat -> CompileTuning
+  record CompileTuning where
+    strategy :: CompileStrategy
+    workers :: Nat
 
   default-tuning :: CompileTuning
-  default-tuning = MkCompileTuning Throughput 0
+  default-tuning = CompileTuning Throughput 0
 
   latency-tuning :: Nat -> CompileTuning
-  latency-tuning workers = MkCompileTuning Latency workers
+  latency-tuning workers = CompileTuning Latency workers
 
   throughput-tuning :: Nat -> CompileTuning
-  throughput-tuning workers = MkCompileTuning Throughput workers
-
-  tuning-strategy :: CompileTuning -> CompileStrategy
-  tuning-strategy tuning = case tuning of
-    MkCompileTuning strategy workers -> strategy
-
-  tuning-workers :: CompileTuning -> Nat
-  tuning-workers tuning = case tuning of
-    MkCompileTuning strategy workers -> workers
+  throughput-tuning workers = CompileTuning Throughput workers
 
   tuning-with-strategy :: CompileStrategy -> CompileTuning -> CompileTuning
   tuning-with-strategy strategy tuning = case tuning of
-    MkCompileTuning old workers -> MkCompileTuning strategy workers
+    CompileTuning old workers -> CompileTuning strategy workers
 
   tuning-with-workers :: Nat -> CompileTuning -> CompileTuning
   tuning-with-workers workers tuning = case tuning of
-    MkCompileTuning strategy old -> MkCompileTuning strategy workers
+    CompileTuning strategy old -> CompileTuning strategy workers
 
   tuning-is-latency :: CompileTuning -> Bool
-  tuning-is-latency tuning = case tuning-strategy tuning of
+  tuning-is-latency tuning = case tuning.strategy of
     Latency -> True
     Throughput -> False
 
   tuning-is-throughput :: CompileTuning -> Bool
-  tuning-is-throughput tuning = case tuning-strategy tuning of
+  tuning-is-throughput tuning = case tuning.strategy of
     Latency -> False
     Throughput -> True
 
@@ -106,8 +99,8 @@ module Cinch.Parallel where
   -- to amortize closure/marking overhead while preserving load balance.
   tuning-chunk-size :: CompileTuning -> Nat -> Nat
   tuning-chunk-size tuning total = case tuning of
-    MkCompileTuning Latency workers -> 1
-    MkCompileTuning Throughput workers ->
+    CompileTuning Latency workers -> 1
+    CompileTuning Throughput workers ->
       if total <= 16 then 1
       else
         let effective = if workers == 0 then (8 :: Nat) else workers in

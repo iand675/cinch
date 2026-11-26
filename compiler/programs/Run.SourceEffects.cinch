@@ -1,12 +1,12 @@
 module Main where
   import Cinch.Ast
   import Cinch.Parse (parse-program)
-  import Cinch.Check (check-and-retain, checked-elaboration)
+  import Cinch.Check (check-and-retain)
   import Cinch.Resolve (resolve-program)
   import Cinch.Infer
   import Cinch.Core
   import Cinch.Global
-  import Cinch.Typing (TypingContext, close-typing-context-with-effects, context-effects)
+  import Cinch.Typing (TypingContext, close-typing-context-with-effects)
   import Cinch.Type
   import Cinch.Index (IBound)
   import Cinch.Report (render-diagnostics)
@@ -31,7 +31,7 @@ module Main where
     let kinds = [("Unit", KType), ("State", kind)] in
     let globals = [GlobalValue "read" "operation" sc] in
     (case close-typing-context-with-effects kinds globals [declaration] of
-      Some context -> case context-effects context of Cons found Nil -> string-compare (core-effect-name found) "State" == 0; other -> False
+      Some context -> case context.effects of Cons found Nil -> string-compare (found.effect-name) "State" == 0; other -> False
       None -> False)
       && no-context (close-typing-context-with-effects kinds Nil [declaration])
       && no-context (close-typing-context-with-effects kinds [GlobalValue "read" "value" sc] [declaration])
@@ -42,38 +42,38 @@ module Main where
   kernel :: Nat -> Bool
   kernel id =
     let region = UBound id "r" KRegion in
-    let q = MkQuant id "r" KRegion False in
+    let q = Quant id "r" KRegion False in
     let kind = KFun KRegion KEffect in
     let label = UApp (UCon "State" kind) region in
     let unit = UCon "Unit" KType in
     let row = URow (UArg label UEnd) in
     let sc = MkScheme [q] (UFunEff unit row unit) in
-    let op = MkCoreOperation sp "read" 1 sc in
-    let good = MkCoreEffect sp "State" kind [q] [op] in
+    let op = CoreOperation sp "read" 1 sc in
+    let good = CoreEffect sp "State" kind [q] [op] in
     every
       [ registry kind sc good
       , core-effect-closed good
-      , core-effect-closed (MkCoreEffect sp "State" kind [q] [op, MkCoreOperation sp "write" 2 sc])
-      , not (core-effect-closed (MkCoreEffect sp "State" KType [q] [op]))
-      , not (core-effect-closed (MkCoreEffect sp "Other" kind [q] [op]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] Nil))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q, q] [op]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 0 sc]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [op, MkCoreOperation sp "write" 1 sc]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [op, MkCoreOperation sp "read" 2 sc]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (mono (UFunEff unit row unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFun unit unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff unit row (UFun unit unit)))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff (UBound id "r" KType) row unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff (UBound (id + 1) "a" KType) row unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff unit (URow (UArg (UCon "Diverge" KEffect) UEnd)) unit))]))
-      , core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "write" 1 (MkScheme [q] (UFun unit (UFunEff unit row unit)))])
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff region row unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff UEnd row unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff unit row UEnd))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q] (UFunEff (UApp unit unit) row unit))]))
-      , not (core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q, MkQuant (id + 1) "n" (value-kind (UCon "Nat" KType)) False] (UFunEff (UApp (UCon "Sized" (KFun (value-kind (UCon "Int" KType)) KType)) (UIndex (UCon "Int" KType) (IBound (id + 1) "n"))) row unit))]))
-      , core-effect-closed (MkCoreEffect sp "State" kind [q] [MkCoreOperation sp "read" 1 (MkScheme [q, MkQuant (id + 1) "n" (value-kind (UCon "Nat" KType)) False] (UFunEff (UApp (UCon "Sized" (KFun (value-kind (UCon "Nat" KType)) KType)) (UIndex (UCon "Nat" KType) (IBound (id + 1) "n"))) row unit))])
+      , core-effect-closed (CoreEffect sp "State" kind [q] [op, CoreOperation sp "write" 2 sc])
+      , not (core-effect-closed (CoreEffect sp "State" KType [q] [op]))
+      , not (core-effect-closed (CoreEffect sp "Other" kind [q] [op]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] Nil))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q, q] [op]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 0 sc]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [op, CoreOperation sp "write" 1 sc]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [op, CoreOperation sp "read" 2 sc]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (mono (UFunEff unit row unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFun unit unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff unit row (UFun unit unit)))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff (UBound id "r" KType) row unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff (UBound (id + 1) "a" KType) row unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff unit (URow (UArg (UCon "Diverge" KEffect) UEnd)) unit))]))
+      , core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "write" 1 (MkScheme [q] (UFun unit (UFunEff unit row unit)))])
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff region row unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff UEnd row unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff unit row UEnd))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q] (UFunEff (UApp unit unit) row unit))]))
+      , not (core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q, Quant (id + 1) "n" (value-kind (UCon "Nat" KType)) False] (UFunEff (UApp (UCon "Sized" (KFun (value-kind (UCon "Int" KType)) KType)) (UIndex (UCon "Int" KType) (IBound (id + 1) "n"))) row unit))]))
+      , core-effect-closed (CoreEffect sp "State" kind [q] [CoreOperation sp "read" 1 (MkScheme [q, Quant (id + 1) "n" (value-kind (UCon "Nat" KType)) False] (UFunEff (UApp (UCon "Sized" (KFun (value-kind (UCon "Nat" KType)) KType)) (UIndex (UCon "Nat" KType) (IBound (id + 1) "n"))) row unit))])
       ]
   run :: Bytes -> (Int, String)
   run source = if not (kernel (340282366920938463463374607431768211456 + bytes-len source)) then (95, "effect kernel accepted a forged declaration") else
@@ -81,7 +81,7 @@ module Main where
       Parsed program Nil -> case resolve-program program of
         (resolved, Nil) -> case check-and-retain resolved of
           Err errors -> (4, render-diagnostics errors)
-          Ok checked -> let result = checked-elaboration checked in
+          Ok checked -> let result = checked.elaboration in
             let effects = elaboration-effects result in
             if list-length effects > 0 && effects-closed effects && closed (elaboration-core result) then (0, "")
             else (94, "typed effect declaration was not retained")

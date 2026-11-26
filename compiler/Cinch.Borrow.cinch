@@ -50,7 +50,7 @@ module Cinch.Borrow where
   same-borrow-modes definitions left right = case definitions of
     Nil -> True
     Cons d rest ->
-      let name = core-name d in
+      let name = d.name in
       let ok = case (hash-map-lookup name left, hash-map-lookup name right) of
             (None, None) -> True
             (Some a, Some b) -> same-bool-list a b
@@ -77,7 +77,7 @@ module Cinch.Borrow where
   count-tail-groups defs tail-groups counts = case defs of
     Nil -> counts
     Cons d rest ->
-      let next = case hash-map-lookup (core-name d) tail-groups of
+      let next = case hash-map-lookup (d.name) tail-groups of
             Some (gid, width) ->
               let key = nat-to-string gid in
               let cur = case hash-map-lookup key counts of Some n -> n; None -> 0 in
@@ -94,11 +94,11 @@ module Cinch.Borrow where
 
   borrow-eligible-definition :: CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Nat -> Option Nat
   borrow-eligible-definition d tail-groups group-counts =
-    let name = core-name d in
+    let name = d.name in
     if same-text name "main" || same-text name "Main.main" then None
     else if in-multi-tail-group name tail-groups group-counts then None
-    else case (core-givens d, core-openings d, core-clauses d) of
-      (Nil, Nil, Cons (MkCoreClause sp patterns body) rest) ->
+    else case (d.givens, d.openings, d.clauses) of
+      (Nil, Nil, Cons (CoreClause sp patterns body) rest) ->
         if not (borrow-single-stage patterns False) then None
         else
           let arity = list-length (borrow-runtime-params patterns) in
@@ -113,7 +113,7 @@ module Cinch.Borrow where
       (eligible, acc) -> case borrow-eligible-definition d tail-groups group-counts of
         Some arity ->
           let init-mask = clear-mask-indices (replicate-bool arity True) (reuse-scrutinee-params d) in
-          (Cons (d, arity) eligible, hash-map-insert (core-name d) init-mask acc)
+          (Cons (d, arity) eligible, hash-map-insert (d.name) init-mask acc)
         None -> (eligible, acc)
 
   -- Unwrap call spine: head and flat argument list.
@@ -370,7 +370,7 @@ module Cinch.Borrow where
   analyze-clauses :: String -> Nat -> List Bool -> HashMap String (List Bool) -> List CoreClause -> List Nat -> List Nat
   analyze-clauses self arity mask modes clauses owned = case clauses of
     Nil -> owned
-    Cons (MkCoreClause sp patterns body) rest ->
+    Cons (CoreClause sp patterns body) rest ->
       let rparams = borrow-runtime-params patterns in
       case clause-param-bindings rparams mask 0 (Nil, Nil) of
         (pids, bvars) ->
@@ -382,11 +382,11 @@ module Cinch.Borrow where
   borrow-sweep eligible modes changed = case eligible of
     Nil -> (modes, changed)
     Cons (d, arity) rest ->
-      let name = core-name d in
+      let name = d.name in
       let cur-mask = case hash-map-lookup name modes of Some m -> m; None -> Nil in
       if not (any-borrowed cur-mask) then borrow-sweep rest modes changed
       else
-        let owned = analyze-clauses name arity cur-mask modes (core-clauses d) Nil in
+        let owned = analyze-clauses name arity cur-mask modes (d.clauses) Nil in
         let next-mask = clear-mask-indices cur-mask owned in
         let diff = not (same-bool-list cur-mask next-mask) in
         let next-modes = if diff then hash-map-insert name next-mask modes else modes in
@@ -404,7 +404,7 @@ module Cinch.Borrow where
   prune-borrow-modes eligible modes out = case eligible of
     Nil -> out
     Cons (d, arity) rest ->
-      let name = core-name d in
+      let name = d.name in
       let next = case hash-map-lookup name modes of
             Some m | any-borrowed m -> hash-map-insert name m out
             other -> out in

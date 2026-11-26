@@ -1,12 +1,12 @@
 -- Checked physical library objects. Source visibility still comes exclusively
 -- from the independently loaded interface set, never from this unit inventory.
 module Cinch.Object where
-  import Cinch.Load (LoadedInterface, ImportedValue, loaded-module, loaded-hash, loaded-contract, load-object-interfaces-with-known, load-object-interface-sources, loaded-values, imported-symbol)
-  import Cinch.Load (ValidatedInterfaces, validated-interfaces-members, validated-interface-sources-match, validated-interface-references-match, load-referenced-object-interfaces, known-contract-end)
+  import Cinch.Load (LoadedInterface, ImportedValue, load-object-interfaces-with-known, load-object-interface-sources)
+  import Cinch.Load (ValidatedInterfaces, validated-interface-sources-match, validated-interface-references-match, load-referenced-object-interfaces, known-contract-end)
   import Cinch.Load (load-validated-package-contracts)
   import Cinch.Interface (fnv-source-hash, sha256-hex)
   import Cinch.Package (PackageSnapshot, authenticated-snapshot-abi, packaged-abi, read-package-source, decode-package-snapshot)
-  import Cinch.Target (profile-of-triple, profile-endian, profile-word-size)
+  import Cinch.Target (profile-of-triple)
   import Cinch.RuntimeAbi (runtime-abi-int)
   import Cinch.Builtin (scalar-intrinsic)
   import Cinch.Infer (scalar-interface-contract-matches)
@@ -27,26 +27,26 @@ module Cinch.Object where
   export read-runtime-object-client-mode, admit-runtime-object-client-mode
   export read-runtime-object-publication
   export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
-  export runtime-object-metadata-file, admit-runtime-object-package-client
-  export PackedClient, read-packed-client, packed-client-key, packed-client-code, admit-packed-client
-  export object-unit, unit-symbol, unit-closure, unit-params, unit-result
+  export admit-runtime-object-package-client
+  export PackedClient, read-packed-client, packed-client-key, admit-packed-client
+  export object-unit
   export read-object-unit-roots
   export llvm-object-symbol
   export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit
   export object-string-layout, llvm-data-bytes, object-has-unit-symbol
 
-  data RuntimeUnit where
-    RuntimeUnit :: String -> String -> List Nat -> Option Nat -> RuntimeUnit
-  data RuntimeObject where
-    RuntimeObject :: HashMap String RuntimeUnit -> HashMap String () -> HashMap String () -> HashMap String Json -> HashMap String Json -> Json -> RuntimeObject
-  unit-symbol :: RuntimeUnit -> String
-  unit-symbol value = case value of RuntimeUnit name closure params result -> name
-  unit-closure :: RuntimeUnit -> String
-  unit-closure value = case value of RuntimeUnit name closure params result -> closure
-  unit-params :: RuntimeUnit -> List Nat
-  unit-params value = case value of RuntimeUnit name closure params result -> params
-  unit-result :: RuntimeUnit -> Option Nat
-  unit-result value = case value of RuntimeUnit name closure params result -> result
+  record RuntimeUnit where
+    symbol :: String
+    closure :: String
+    params :: List Nat
+    result :: Option Nat
+  record RuntimeObject where
+    units :: HashMap String RuntimeUnit
+    exports :: HashMap String ()
+    instances :: HashMap String ()
+    dictionaries :: HashMap String Json
+    families :: HashMap String Json
+    constructors :: Json
   -- Keep output collision checks separate from source export authorization.
   object-has-unit-symbol :: String -> RuntimeObject -> Bool
   object-has-unit-symbol symbol value = case value of
@@ -81,7 +81,7 @@ module Cinch.Object where
   exported-instances :: List LoadedInterface -> HashMap String () -> HashMap String ()
   exported-instances interfaces symbols = case interfaces of
     Nil -> symbols
-    Cons first rest -> exported-instances rest (instance-symbols (field "instances" (field "exports" (loaded-contract first))) symbols)
+    Cons first rest -> exported-instances rest (instance-symbols (field "instances" (field "exports" (first.doc))) symbols)
   -- Factory workers do not bind ordinary source values. Their authority is
   -- a checked instance export and its actual selected native inventory row.
   object-dictionary :: String -> List Nat -> RuntimeObject -> Option (RuntimeUnit, String, Nat, List Nat)
@@ -117,7 +117,7 @@ module Cinch.Object where
   closed-function-fields units fields methods = case (fields, methods) of
     (Nil, JArrEnd) -> True
     (Cons 1 rest, JArr (JStr name) more) -> (case hash-map-lookup name units of
-      Some unit -> (case unit-params unit of Nil -> False; other -> True) && closed-function-fields units rest more
+      Some unit -> (case unit.params of Nil -> False; other -> True) && closed-function-fields units rest more
       None -> False)
     other -> False
   object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
@@ -294,7 +294,7 @@ module Cinch.Object where
   foreign-symbol :: String -> List LoadedInterface -> Bool
   foreign-symbol symbol interfaces = case interfaces of
     Nil -> False
-    Cons first rest -> foreign-symbol-row symbol (loaded-module first) (field "foreign" (field "exports" (loaded-contract first))) || foreign-symbol symbol rest
+    Cons first rest -> foreign-symbol-row symbol (first.name) (field "foreign" (field "exports" (first.doc))) || foreign-symbol symbol rest
   foreign-values-only :: Json -> List LoadedInterface -> Bool
   foreign-values-only rows interfaces = case rows of
     JArr row rest -> (case (field "symbol" row, field "resolved" row, field "total_body" row) of
@@ -310,7 +310,7 @@ module Cinch.Object where
     JArrEnd -> True
     other -> False
   foreign-interface-only :: LoadedInterface -> List LoadedInterface -> Bool
-  foreign-interface-only wanted interfaces = let exports = field "exports" (loaded-contract wanted) in
+  foreign-interface-only wanted interfaces = let exports = field "exports" (wanted.doc) in
     case (field "instances" exports, field "signatures" exports) of
       (JArrEnd, JArrEnd) -> opaque-types-only (field "types" exports) && foreign-values-only (field "values" exports) interfaces
       other -> False
@@ -337,14 +337,14 @@ module Cinch.Object where
       (case (field "symbol" row, field "scheme" row, field "resolved" row, field "total_body" row) of
         (JStr identity, JStr scheme, JObj key value tail, JNull) ->
           bytes-compare (canonical-bytes (scalar-reexport-contract wanted)) (canonical-bytes (scalar-reexport-contract row)) == 0
-            && scalar-reexport-foreign identity row (loaded-module defining) (field "foreign" (field "exports" (loaded-contract defining)))
+            && scalar-reexport-foreign identity row (defining.name) (field "foreign" (field "exports" (defining.doc)))
         other -> False) || scalar-reexport-row wanted defining rest
     other -> False
   -- | Resolve a scalar alias only through the provider's already checked interface inventory.
   scalar-reexport-value :: Json -> List LoadedInterface -> Bool
   scalar-reexport-value wanted represented = case represented of
     Nil -> False
-    Cons defining rest -> scalar-reexport-row wanted defining (field "values" (field "exports" (loaded-contract defining)))
+    Cons defining rest -> scalar-reexport-row wanted defining (field "values" (field "exports" (defining.doc)))
       || scalar-reexport-value wanted rest
   -- | Require exact represented contracts for every scalar exported by a code-free facade.
   scalar-reexport-values :: Json -> List LoadedInterface -> Bool
@@ -354,7 +354,7 @@ module Cinch.Object where
     other -> False
   -- | Admit only implementation-free scalar aliases; ordinary values and new defining contracts still require an object.
   scalar-reexport-only :: LoadedInterface -> List LoadedInterface -> Bool
-  scalar-reexport-only wanted represented = let doc = loaded-contract wanted in let exports = field "exports" doc in
+  scalar-reexport-only wanted represented = let doc = wanted.doc in let exports = field "exports" doc in
     case (field "types" exports, field "instances" exports, field "signatures" exports, field "foreign" exports, field "units" doc) of
       (JArrEnd, JArrEnd, JArrEnd, JArrEnd, JArrEnd) -> scalar-reexport-values (field "values" exports) represented
       other -> False
@@ -365,23 +365,23 @@ module Cinch.Object where
   index-object-interfaces :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
   index-object-interfaces actual indexed = case actual of
     Nil -> indexed
-    Cons first rest -> index-object-interfaces rest (hash-map-insert (loaded-module first) first indexed)
+    Cons first rest -> index-object-interfaces rest (hash-map-insert (first.name) first indexed)
   matching-interface-list :: List LoadedInterface -> HashMap String LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
   matching-interface-list remaining indexed wanted actual = case remaining of
     Nil -> True
     Cons first rest ->
-      (case hash-map-lookup (loaded-module first) indexed of
-        Some represented -> same (loaded-hash first) (loaded-hash represented)
+      (case hash-map-lookup (first.name) indexed of
+        Some represented -> same (first.hash) (represented.hash)
         None -> foreign-interface-only first wanted || scalar-reexport-only first actual)
       && matching-interface-list rest indexed wanted actual
   exported-symbols :: List LoadedInterface -> HashMap String () -> HashMap String ()
   exported-symbols interfaces symbols = case interfaces of
     Nil -> symbols
-    Cons first rest -> exported-symbols rest (value-symbols (loaded-values first) symbols)
+    Cons first rest -> exported-symbols rest (value-symbols (first.values) symbols)
   value-symbols :: List ImportedValue -> HashMap String () -> HashMap String ()
   value-symbols values symbols = case values of
     Nil -> symbols
-    Cons first rest -> value-symbols rest (hash-map-insert (imported-symbol first) () symbols)
+    Cons first rest -> value-symbols rest (hash-map-insert (first.symbol) () symbols)
   -- The runtime object a manifest document states. The caller parses the
   -- manifest once and passes the document on, because the same bytes are also
   -- the artifact it returns: parsing them a second time to recover them was
@@ -399,7 +399,7 @@ module Cinch.Object where
     if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
       (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool counted, JStr actual, JBool True) -> counted == reclaim && actual-abi == runtime-abi-int && same expected-triple actual
         && (case profile-of-triple actual of
-          Ok profile -> same endian (profile-endian profile) && bits == nat-to-int (profile-word-size profile)
+          Ok profile -> same endian (profile.endian) && bits == nat-to-int (profile.word-size)
           Err message -> False)
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
@@ -492,8 +492,10 @@ module Cinch.Object where
   -- that has always produced it. A carved read that succeeds accepted the
   -- same document, because the reduced manifest and every span parsed, or
   -- were bytes that had, and a value in place of `null` is the original.
-  data Carved where
-    MkCarved :: Builder -> Nat -> List (Nat, Nat, Nat) -> Carved
+  record Carved where
+    pieces :: Builder
+    copied :: Nat
+    spans :: List (Nat, Nat, Nat)
   -- The byte at an offset, or 256 past the end.
   byte-at :: Bytes -> Nat -> Nat
   byte-at src i = if i < bytes-len src then bytes-get src i else 256
@@ -559,15 +561,15 @@ module Cinch.Object where
 
   carve-span :: Bytes -> Nat -> Nat -> Nat -> Carved -> Carved
   carve-span src value after ordinal carved = case carved of
-    MkCarved pieces copied spans ->
+    Carved pieces copied spans ->
       if value <= bytes-len src then
-        MkCarved (builder-add-string "null" (builder-add-bytes (bytes-slice src copied value) pieces)) after (Cons (ordinal, value, after) spans)
+        Carved (builder-add-string "null" (builder-add-bytes (bytes-slice src copied value) pieces)) after (Cons (ordinal, value, after) spans)
       else carved
   carve-contracts :: ValidatedInterfaces -> Bytes -> Option (Bytes, List (Nat, Nat, Nat))
   carve-contracts validated src = let table = contract-table src in
     if table == 0 then None else
-      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (known-contract-end validated) (MkCarved builder-new 0 Nil) of
-        (after, MkCarved pieces copied spans) -> if after == 0 then None else
+      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (known-contract-end validated) (Carved builder-new 0 Nil) of
+        (after, Carved pieces copied spans) -> if after == 0 then None else
           (case spans of
             Nil -> None
             other -> let end = bytes-len src in
@@ -603,34 +605,40 @@ module Cinch.Object where
   read-runtime-object-publication :: forall r. using (io :: Io r) => ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   read-runtime-object-publication validated path = case read-runtime-object-config path of
     Err message -> Err message
-    Ok configuration -> admit-runtime-object-artifacts (Some validated) False True (validated-interfaces-members validated) configuration
+    Ok configuration -> admit-runtime-object-artifacts (Some validated) False True (validated.interfaces-members) configuration
 
-  data RuntimeObjectConfig where
-    MkRuntimeObjectConfig :: String -> String -> String -> String -> String -> RuntimeObjectConfig
+  record RuntimeObjectConfig where
+    triple :: String
+    object-file :: String
+    object-metadata-file :: String
+    object-hash :: String
+    metadata-hash :: String
   runtime-object-input-files :: RuntimeObjectConfig -> List String
   runtime-object-input-files configuration = case configuration of
-    MkRuntimeObjectConfig triple object-file metadata-file object-hash metadata-hash -> [object-file, metadata-file]
-  runtime-object-metadata-file :: RuntimeObjectConfig -> String
-  runtime-object-metadata-file configuration = case configuration of
-    MkRuntimeObjectConfig triple object-file metadata-file object-hash metadata-hash -> metadata-file
+    RuntimeObjectConfig triple object-file metadata-file object-hash metadata-hash -> [object-file, metadata-file]
   read-runtime-object-config :: forall r. using (io :: Io r) => String ->{IO r} Result String RuntimeObjectConfig
   read-runtime-object-config path = case fs-read (path-from-string path) of
     Err error -> Err "cannot read runtime object configuration"
     Ok bytes -> case parse-json path bytes of
       Parsed doc Nil -> (case (field "schema" doc, field "target" doc, field "object" doc, field "metadata" doc, field "object_sha256" doc, field "metadata_sha256" doc) of
         (JNum 1, JStr expected-triple, JStr object-file, JStr metadata-file, JStr object-hash, JStr metadata-hash) ->
-          Ok (MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash)
+          Ok (RuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash)
         other -> Err "malformed runtime object configuration")
       other -> Err "runtime object configuration is not valid JSON"
 
   -- Bind the receipt lookup and, on a miss, admission to the same verified
   -- bytes. The source archive can be atomically replaced after this read.
-  data PackedClient where
-    PackedClient :: String -> String -> String -> String -> Bytes -> Bytes -> PackedClient
+  record PackedClient where
+    triple :: String
+    file :: String
+    object-hash :: String
+    package-hash :: String
+    client-code :: Bytes
+    package :: Bytes
 
   read-packed-client :: forall r. using (io :: Io r) => RuntimeObjectConfig ->{IO r} Result String PackedClient
   read-packed-client configuration = case configuration of
-    MkRuntimeObjectConfig triple object-file package-file object-hash package-hash ->
+    RuntimeObjectConfig triple object-file package-file object-hash package-hash ->
       case read-package-source package-file of
         Err message -> Err ("bootstrap.interfaces: " <> message)
         Ok package -> case fs-read (path-from-string object-file) of
@@ -643,10 +651,6 @@ module Cinch.Object where
   packed-client-key packed = case packed of
     PackedClient triple file object-hash package-hash code package -> (triple, object-hash, package-hash)
 
-  packed-client-code :: PackedClient -> Bytes
-  packed-client-code packed = case packed of
-    PackedClient triple file object-hash package-hash code package -> code
-
   admit-packed-client :: forall r. PackedClient -> Bool ->{IO r} Result String (ValidatedInterfaces, RuntimeObject, Json)
   admit-packed-client packed reclaim = case packed of
     PackedClient triple file object-hash package-hash code package ->
@@ -656,7 +660,7 @@ module Cinch.Object where
           Err message -> Err ("bootstrap.interfaces: " <> message)
           Ok checked -> case authenticated-snapshot-abi package-hash snapshot of
             Err message -> Err ("bootstrap.object: " <> message)
-            Ok artifact -> case parse-runtime-abi (Some checked) reclaim triple (validated-interfaces-members checked) file code artifact of
+            Ok artifact -> case parse-runtime-abi (Some checked) reclaim triple (checked.interfaces-members) file code artifact of
               Err message -> Err ("bootstrap.object: " <> message)
               Ok (provider, document, path, bytes) -> Ok (checked, provider, document)
 
@@ -667,7 +671,7 @@ module Cinch.Object where
 
   admit-runtime-object-artifacts :: forall r. using (io :: Io r) => Option ValidatedInterfaces -> Bool -> Bool -> List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-artifacts validated carve reclaim interfaces configuration = case configuration of
-    MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
+    RuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
         (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
           parse-runtime-object-bytes validated carve reclaim expected-triple interfaces object-file metadata-file code metadata
@@ -706,24 +710,24 @@ module Cinch.Object where
 
   admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-client-mode reclaim validated configuration =
-    admit-runtime-object-artifacts (Some validated) True reclaim (validated-interfaces-members validated) configuration
+    admit-runtime-object-artifacts (Some validated) True reclaim (validated.interfaces-members) configuration
 
   admit-runtime-object-package-client :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig -> PackageSnapshot ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-package-client reclaim validated configuration snapshot = case configuration of
-    MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
+    RuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case fs-read (path-from-string object-file) of
         Err error -> Err "cannot read runtime object artifacts"
         Ok code -> if not (same (sha256-hex code) object-hash) then Err "runtime object artifact digest mismatch" else
           (case authenticated-snapshot-abi metadata-hash snapshot of
             Err message -> Err message
             Ok artifact -> parse-runtime-abi (Some validated) reclaim expected-triple
-              (validated-interfaces-members validated) object-file code artifact))
+              (validated.interfaces-members) object-file code artifact))
   -- The carved read, or `None` for the whole one.
   admit-carved :: Bool -> String -> ValidatedInterfaces -> Bytes -> String -> Bytes -> Option (RuntimeObject, Json)
   admit-carved reclaim expected-triple validated code metadata-file metadata = case carve-contracts validated metadata of
     None -> None
     Some (reduced, spans) -> (case parse-json metadata-file reduced of
-      Parsed artifact Nil -> (case parse-runtime-object-contracts reclaim expected-triple (validated-interfaces-members validated) code artifact (CarvedContracts validated metadata spans) of
+      Parsed artifact Nil -> (case parse-runtime-object-contracts reclaim expected-triple (validated.interfaces-members) code artifact (CarvedContracts validated metadata spans) of
         Ok provider -> Some (provider, artifact)
         Err message -> None)
       other -> None)

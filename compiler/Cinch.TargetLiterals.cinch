@@ -4,7 +4,7 @@ module Cinch.TargetLiterals where
   import Cinch.Type
   import Cinch.Instance
   import Cinch.Infer (Elaboration, elaboration-core, elaboration-instances)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Text.Lex (Span)
   import Algebra.Semigroup
 
@@ -17,17 +17,17 @@ module Cinch.TargetLiterals where
   instance-errors :: List CoreInstance -> List Diagnostic
   instance-errors instances = case instances of
     Nil -> Nil
-    Cons dictionary rest -> definition-errors (map dictionary-field-definition (instance-fields dictionary)) <> instance-errors rest
+    Cons dictionary rest -> definition-errors (map (\r -> (r :: CoreDictionaryField).field-definition) (dictionary.fields)) <> instance-errors rest
 
   definition-errors :: List CoreDefinition -> List Diagnostic
   definition-errors definitions = case definitions of
     Nil -> Nil
-    Cons d rest -> clause-errors (core-clauses d) <> definition-errors rest
+    Cons d rest -> clause-errors (d.clauses) <> definition-errors rest
 
   clause-errors :: List CoreClause -> List Diagnostic
   clause-errors clauses = case clauses of
     Nil -> Nil
-    Cons (MkCoreClause at patterns body) rest -> patterns-errors patterns <> literal-errors body <> clause-errors rest
+    Cons (CoreClause at patterns body) rest -> patterns-errors patterns <> literal-errors body <> clause-errors rest
 
   patterns-errors :: List CorePattern -> List Diagnostic
   patterns-errors ps = case ps of Nil -> Nil; Cons first rest -> pattern-errors first <> patterns-errors rest
@@ -56,4 +56,4 @@ module Cinch.TargetLiterals where
     other -> Nil
   narrow-word :: Span -> String -> String -> String -> List Diagnostic
   narrow-word sp name carrier text = if valid-integer-literal (UCon carrier KType) text then Nil else
-    [MkDiagnostic "bootstrap.check" sp ("integer literal " <> text <> " is out of range for " <> name <> " on the 32-bit target")]
+    [Diagnostic "bootstrap.check" sp ("integer literal " <> text <> " is out of range for " <> name <> " on the 32-bit target")]

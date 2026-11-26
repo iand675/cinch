@@ -8,7 +8,7 @@ module Main where
   import Cinch.Contracts (declaration-references)
   import Cinch.Check (check-program)
   import Cinch.Eval (Value, VInt, eval-main, eval-main-result, render-value)
-  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Report (Diagnostic, render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseError, EFail)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
@@ -89,7 +89,7 @@ module Main where
   contains-message :: String -> List Diagnostic -> Bool
   contains-message expected errors = case errors of
     Nil -> False
-    Cons d rest -> string-compare expected (diagnostic-message d) == 0 || contains-message expected rest
+    Cons d rest -> string-compare expected (d.message) == 0 || contains-message expected rest
 
   negative-ok :: String -> String -> Bool
   negative-ok text expected = case parse-program "resolve-negative" (string-to-bytes text) of
@@ -141,7 +141,7 @@ module Main where
   effect-fixity-ok :: Bool
   effect-fixity-ok =
     (case parse-program "effect-owner" (string-to-bytes (string-concat effect-library "module Main where\n  import A\n  main :: Int\n  main = 1 <+> 2 <+> 3\n")) of
-      Parsed program Nil -> case program-modules program of
+      Parsed program Nil -> case program.modules of
         Cons library-module (Cons main-module Nil) -> case module-decls main-module of
           Cons imported (Cons sig (Cons (DFun s name (Cons (Nil, EBin bs op left (EBin rs op2 middle right)) Nil)) Nil)) -> string-compare op "<+>" == 0 && string-compare op op2 == 0 && program-unmodeled-count program == 0
           other -> False
@@ -215,7 +215,7 @@ module Main where
   kernel-ok :: Bool
   kernel-ok = case parse-program "kernel" (string-to-bytes kernel-source) of
     Parsed program Nil -> case resolve-program program of
-      (resolved, Nil) -> case program-modules resolved of
+      (resolved, Nil) -> case resolved.modules of
         Cons m Nil -> builtin-contracts-ok (module-decls m)
           && list-length (check-program resolved) == 0
         other -> False
@@ -234,7 +234,7 @@ module Main where
   effect-ok :: Bool
   effect-ok = case parse-program "effect" (string-to-bytes effect-source) of
     Parsed program Nil -> case resolve-program program of
-      (resolved, Nil) -> case program-modules resolved of
+      (resolved, Nil) -> case resolved.modules of
         Cons m Nil -> case language-decls (module-decls m) of
           Cons (DEffect s owner Nil (Cons (operation, TFunEff ar input (TRow rs labels None) output) Nil)) (Cons sig (Cons (DFun fs main-name (Cons (Nil, EHandle hs body (EHandler hsp (TName ls label) clauses)) Nil)) Nil)) ->
             string-compare owner label == 0
@@ -260,7 +260,7 @@ module Main where
   proof-ok :: Bool
   proof-ok = case parse-program "proof" (string-to-bytes proof-source) of
     Parsed program Nil -> case resolve-program program of
-      (resolved, Nil) -> case program-modules resolved of
+      (resolved, Nil) -> case resolved.modules of
         Cons m Nil -> let ds = module-decls m in
           proof-constructor-ok "b.Yes" 0 ds && proof-constructor-ok "b.No" 1 ds
           && (case find-external "b.decide" ds of
@@ -294,7 +294,7 @@ module Main where
   dependent-scope-one :: Bool -> String -> String -> Bool
   dependent-scope-one local annotation body = case parse-program "dependent-scope" (string-to-bytes (dependent-scope-source annotation body)) of
     Parsed program Nil -> case resolve-program program of
-      (resolved, Nil) -> case program-modules resolved of
+      (resolved, Nil) -> case resolved.modules of
         Cons m Nil -> let ds = module-decls m in
           case (constant-symbol "31" ds, constant-symbol "7" ds, precondition-type ds) of
             (Some global-index, Some global-limit, Some (TUsing s bounds result)) -> case type-bounds-of bounds of
@@ -334,7 +334,7 @@ module Main where
     let source = "module Main where\n  import Leaf as L\n  import Leaf as R\n  main :: Int\n  main = L.value + R.value\nmodule Leaf where\n  value :: Int\n  value = 21\nmodule Free where\n  unused :: Int\n  unused = 0\n" in
     case parse-program "source-order" (string-to-bytes source) of
       Parsed program Nil -> (case resolve-program program of
-        (resolved, Nil) -> (case program-modules resolved of
+        (resolved, Nil) -> (case resolved.modules of
           [m] -> same-references (resolved-homes (module-decls m)) ["Leaf", "Main", "Free"]
           other -> False)
         other -> False)
@@ -357,11 +357,11 @@ module Main where
   prepared-interface-provenance-ok =
     let sp = Span 0 0 1 1 in
     let body = [DSig sp "main" (TName sp "Int"), DFun sp "main" [(Nil, ELitInt sp "0")]] in
-    let input = \declarations -> MkProgram sp [MkModule sp "Main" (decl-spine sp declarations)] in
+    let input = \declarations -> Program sp [Module sp "Main" (decl-spine sp declarations)] in
     let resolve = prepare-admitted-resolution (load-validated-interfaces Nil) in
     case (resolve (input body) Nil, resolve (input (Cons (DInterface sp "Fabricated" "bad" JObjEnd) body)) Nil) of
       ((resolved, Nil, True), (supplied, Cons first rest, False)) ->
-        string-compare (diagnostic-message first) "this declaration requires further namespace elaboration" == 0
+        string-compare (first.message) "this declaration requires further namespace elaboration" == 0
       other -> False
 
   main :: Unit ->{IO r} Int

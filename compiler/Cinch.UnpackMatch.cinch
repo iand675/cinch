@@ -35,7 +35,7 @@ module Cinch.UnpackMatch where
   bind-product sp id name slot patterns plan = case (slot, plan) of
     (ProductSlot label ty ctor actuals fields, Plan next lets) | list-length fields == list-length patterns ->
       (case bind-slots sp fields patterns next of
-        (ps, args, end) -> let fn = CUse sp (arrow fields ty) (core-constructor-name ctor) "constructor" actuals in
+        (ps, args, end) -> let fn = CUse sp (arrow fields ty) (ctor.constructor-name) "constructor" actuals in
           (ps, Plan end (Cons (sp, id, name, apply-words sp fn args) lets)))
     other -> (Nil, Invalid)
 
@@ -46,7 +46,7 @@ module Cinch.UnpackMatch where
       CPVar sp t id name -> bind-product sp id name slot (map (CPWild sp) fields) plan
       CPAs sp t id name inner -> (case product-pattern lookup slot inner plan of
         (ps, nested) -> bind-product sp id name slot ps nested)
-      CPConstructor sp t name args sc children | string-compare name (core-constructor-name ctor) == 0 ->
+      CPConstructor sp t name args sc children | string-compare name (ctor.constructor-name) == 0 ->
         let ps = runtime-patterns (field-list children) in
         if list-length ps == list-length fields then lower-patterns lookup ps plan else (Nil, Invalid)
       other -> (Nil, Invalid))

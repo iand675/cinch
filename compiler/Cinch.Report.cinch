@@ -17,20 +17,10 @@ module Cinch.Report where
   -- A diagnostic carries its rung, source span, and rendered message.
   -- Pure algebraic data (no closure fields) so diagnostics and stores
   -- satisfy `Share` across parallel compiler passes.
-  data Diagnostic where
-    MkDiagnostic :: String -> Span -> String -> Diagnostic
-
-  diagnostic-rung :: Diagnostic -> String
-  diagnostic-rung d = case d of
-    MkDiagnostic rung s msg -> rung
-
-  diagnostic-span :: Diagnostic -> Span
-  diagnostic-span d = case d of
-    MkDiagnostic rung s msg -> s
-
-  diagnostic-message :: Diagnostic -> String
-  diagnostic-message d = case d of
-    MkDiagnostic rung s msg -> msg
+  record Diagnostic where
+    rung :: String
+    span :: Span
+    message :: String
 
   -- `line:col`, the position a reader navigates to.
   render-position :: Span -> String
@@ -41,9 +31,9 @@ module Cinch.Report where
   -- with the rung name where the file name goes.
   render-diagnostic :: Diagnostic -> String
   render-diagnostic d =
-    let rung = diagnostic-rung d in
-    let pos = render-position (diagnostic-span d) in
-    let message = diagnostic-message d in
+    let rung = d.rung in
+    let pos = render-position (d.span) in
+    let message = d.message in
     let rendered = (if string-starts-with "name is not in scope: " message then
       string-concat-all ["unknown name ", string-drop (string-length "name is not in scope: ") message, " (", message, ")"] else
       if string-starts-with "unknown type constructor or unbound type variable: " message then
@@ -100,11 +90,11 @@ module Cinch.Report where
         Some path -> origin-at wanted-line prefix source (end + 1) (line + 1) path line
         None -> origin-at wanted-line prefix source (end + 1) (line + 1) label start
   render-source-diagnostic :: Bytes -> Bytes -> Diagnostic -> String
-  render-source-diagnostic prefix source diagnostic = case origin-at (span-line (diagnostic-span diagnostic)) prefix source 0 1 "" 0 of
+  render-source-diagnostic prefix source diagnostic = case origin-at (span-line (diagnostic.span)) prefix source 0 1 "" 0 of
     None -> render-diagnostic diagnostic
     Some (path, line) -> string-concat (render-diagnostic diagnostic)
       (string-concat " (in " (string-concat path (string-concat ":" (string-concat (nat-to-string line)
-        (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic-span diagnostic))) ")"))))))
+        (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic.span))) ")"))))))
   render-source-diagnostics-from :: Bytes -> Bytes -> List Diagnostic -> String
   render-source-diagnostics-from prefix source diagnostics = case diagnostics of
     Nil -> empty-string

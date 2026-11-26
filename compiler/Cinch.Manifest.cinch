@@ -52,9 +52,9 @@ module Cinch.Manifest where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Json (parse-json, print-json, canonical-bytes, digest-hex)
 
-  export ManifestSurvey, MkManifestSurvey
+  export ManifestSurvey
   export manifest-survey, manifest-parses, manifest-canonical
-  export PackageFacts, MkPackageFacts, manifest-package-facts
+  export PackageFacts, manifest-package-facts
   export manifest-bytes-equal, content-identity
   export manifest-field, manifest-items
   export manifest-reorder, manifest-add-key
@@ -67,14 +67,24 @@ module Cinch.Manifest where
   -- top-level entry changes them, whether the reordering is visible in the
   -- printed form (so the invariance check is not vacuous), and whether the
   -- content hash follows the canonical bytes.
-  data ManifestSurvey where
-    MkManifestSurvey :: Bool -> Int -> Int -> Bool -> Bool -> Bool -> Bool -> ManifestSurvey
+  record ManifestSurvey where
+    field0 :: Bool
+    field1 :: Int
+    field2 :: Int
+    field3 :: Bool
+    field4 :: Bool
+    field5 :: Bool
+    field6 :: Bool
 
   -- The package questions, from a single parse: did it parse, how many
   -- modules, the facade module, its 0-based index in `order`, and whether
   -- `order` is a permutation of the module list.
-  data PackageFacts where
-    MkPackageFacts :: Bool -> Option Nat -> Option String -> Option Nat -> Option Bool -> PackageFacts
+  record PackageFacts where
+    field0 :: Bool
+    field1 :: Option Nat
+    field2 :: Option String
+    field3 :: Option Nat
+    field4 :: Option Bool
 
   -- ---------------------------------------------------------------- bytes
 
@@ -266,7 +276,7 @@ module Cinch.Manifest where
     let rc = canonical-bytes r in
     let dc = canonical-bytes d in
     let c2 = canonical-or-empty c in
-    MkManifestSurvey True
+    ManifestSurvey True
       (round-trip-code-of src c)
       (round-trip-code-of c c2)
       (manifest-bytes-equal c rc)
@@ -277,7 +287,7 @@ module Cinch.Manifest where
   manifest-survey :: Bytes -> ManifestSurvey
   manifest-survey src = case parse-json "manifest" src of
     Parsed v soft -> survey-of src v
-    Failed b -> MkManifestSurvey False 1 1 False False False False
+    Failed b -> ManifestSurvey False 1 1 False False False False
 
   -- -------------------------------------------------------- package facts
 
@@ -316,9 +326,9 @@ module Cinch.Manifest where
     let names = module-names-of items in
     let order = order-of v in
     let facade = facade-of items in
-    MkPackageFacts True (count-of names) facade (facade-index-of facade order) (permutation-of names order)
+    PackageFacts True (count-of names) facade (facade-index-of facade order) (permutation-of names order)
 
   manifest-package-facts :: Bytes -> PackageFacts
   manifest-package-facts src = case parse-json "manifest" src of
     Parsed v soft -> package-facts-of v
-    Failed b -> MkPackageFacts False None None None None
+    Failed b -> PackageFacts False None None None None

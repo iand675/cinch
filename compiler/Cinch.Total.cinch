@@ -5,9 +5,7 @@
 module Cinch.Total where
   import Cinch.BodyScope (BodyScope, body-scope-from-list, empty-body-scope, push-body-slot, body-slot)
   import Cinch.Package (PackedBodyTable, packed-definition-for)
-  import Cinch.PackedBody (PackedTerm, PackedArguments, same-packed-term, packed-node, packed-argument-node,
-    PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm,
-    NoPackedArguments, NextPackedArgument)
+  import Cinch.PackedBody (PackedTerm, PackedArguments, same-packed-term, packed-node, packed-argument-node, PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm, NoPackedArguments, NextPackedArgument)
   import Cinch.TotalRules (valid-sort, decimal-number, operation-type)
   import Cinch.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
@@ -28,15 +26,26 @@ module Cinch.Total where
 
   -- Keep the original row for contract equality and emission. All semantic
   -- queries use the signature, body and call edges checked at admission.
-  data TotalRow where
-    TotalRow :: String -> Nat -> Json -> List String -> String -> Json -> List String -> Option PackedTerm -> TotalRow
+  record TotalRow where
+    name :: String
+    position :: Nat
+    document :: Json
+    parameters :: List String
+    result :: String
+    body :: Json
+    targets :: List String
+    packed :: Option PackedTerm
   data TotalRows where
     SingleRow :: String -> TotalRow -> TotalRows
     IndexedRows :: Nat -> HashMap String TotalRow -> TotalRows
-  data VisitedRows where
-    VisitedRows :: HashMap String TotalRow -> Nat -> List TotalRow -> VisitedRows
-  data TotalGraph where
-    MkTotalGraph :: Option Json -> TotalRows -> List TotalRow -> TotalGraph
+  record VisitedRows where
+    done :: HashMap String TotalRow
+    size :: Nat
+    selected :: List TotalRow
+  record TotalGraph where
+    doc :: Option Json
+    rows :: TotalRows
+    ordered :: List TotalRow
   data TotalFunction where
     MkTotalFunction :: TotalGraph -> String -> TotalFunction
     MkSourceProjection :: String -> String -> String -> Json -> TotalFunction
@@ -68,16 +77,10 @@ module Cinch.Total where
     IndexedRows count table -> hash-map-lookup name table
   row-count :: TotalRows -> Nat
   row-count rows = case rows of SingleRow identity row -> 1; IndexedRows count table -> count
-  row-name :: TotalRow -> String
-  row-name (TotalRow name position original parameters result body targets packed) = name
   row-body :: TotalRow -> Json
   row-body (TotalRow name position original parameters result body targets packed) = term-value body
   term-value :: Json -> Json
   term-value body = case body of JTerm term -> term-document term; other -> other
-  row-document :: TotalRow -> Json
-  row-document (TotalRow name position original parameters result body targets packed) = original
-  row-targets :: TotalRow -> List String
-  row-targets (TotalRow name position original parameters result body targets packed) = targets
 
   arguments-fit :: TotalRows -> BodyScope String -> Json -> List String -> Bool
   arguments-fit definitions scope arguments parameters = case (arguments, parameters) of
@@ -132,7 +135,7 @@ module Cinch.Total where
       VisitedRows done size selected -> case hash-map-lookup name done of
         Some prior -> acyclic-calls definitions path visited rest
         None -> case (hash-map-lookup name path, find-row name definitions) of
-          (None, Some declaration) -> (case acyclic-calls definitions (hash-map-insert name () path) visited (row-targets declaration) of
+          (None, Some declaration) -> (case acyclic-calls definitions (hash-map-insert name () path) visited (declaration.targets) of
             Some (VisitedRows checked count reached) ->
               acyclic-calls definitions path (VisitedRows (hash-map-insert name declaration checked) (count + 1) (Cons declaration reached)) rest
             None -> None)
@@ -158,7 +161,7 @@ module Cinch.Total where
   index-definitions :: Option PackedBodyTable -> Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
   index-definitions bodies rows position table indexed = case rows of
     JArr declaration rest -> case definition-row bodies declaration position of
-      Some row -> let name = row-name row in (case hash-map-lookup name table of
+      Some row -> let name = row.name in (case hash-map-lookup name table of
         None -> index-definitions bodies rest (position + 1) (hash-map-insert name row table) (Cons row indexed)
         Some duplicate -> None)
       None -> None
@@ -209,33 +212,33 @@ module Cinch.Total where
     case definitions of
       -- The only possible internal call would recurse back to this row.
       JArr declaration JArrEnd -> (case definition-row bodies declaration 0 of
-        Some row -> let name = row-name row in
+        Some row -> let name = row.name in
           if (case root of Some required -> same name required; None -> True) && valid-single-definition row
-          then Some (MkTotalGraph (Some doc) (SingleRow name row) [row]) else None
+          then Some (TotalGraph (Some doc) (SingleRow name row) [row]) else None
         None -> None)
       other -> case index-definitions bodies definitions 0 hash-map-empty Nil of
         Some (rows, indexed) ->
-          if (all-packed-rows indexed || valid-definitions rows indexed) && check-graph-roots rows indexed root then Some (MkTotalGraph (Some doc) rows (reverse indexed))
+          if (all-packed-rows indexed || valid-definitions rows indexed) && check-graph-roots rows indexed root then Some (TotalGraph (Some doc) rows (reverse indexed))
           else None
         None -> None
     else None
 
   check-graph-roots :: TotalRows -> List TotalRow -> Option String -> Bool
   check-graph-roots rows definitions root = case root of
-    None -> case walk-calls rows (map row-name definitions) of
+    None -> case walk-calls rows (map (\r -> (r :: TotalRow).name) definitions) of
       Some checked -> True
       None -> False
     Some name -> exact-roots rows [name]
 
   total-function :: TotalGraph -> String -> Option TotalFunction
-  total-function graph name = case graph of MkTotalGraph doc rows ordered -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
+  total-function graph name = case graph of TotalGraph doc rows ordered -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
   total-graph-body :: TotalGraph -> String -> Option Json
   total-graph-body graph name = case graph of
-    MkTotalGraph doc rows ordered -> (case find-row name rows of
+    TotalGraph doc rows ordered -> (case find-row name rows of
       Some row -> Some (row-body row)
       None -> None)
   total-document :: TotalGraph -> Json
-  total-document (MkTotalGraph original rows ordered) = case original of
+  total-document (TotalGraph original rows ordered) = case original of
     Some doc -> doc
     None -> JObj "version" (JNum 1) (JObj "definitions" (closure-rows ordered) JObjEnd)
   -- Projections are reconstructed against the checked source constructors.
@@ -282,7 +285,7 @@ module Cinch.Total where
   total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain result steps -> name; MkKeyedOrdering name less greater -> name
   function-row :: TotalFunction -> Option TotalRow
   function-row function = case function of
-    MkTotalFunction (MkTotalGraph doc rows ordered) name -> find-row name rows
+    MkTotalFunction (TotalGraph doc rows ordered) name -> find-row name rows
     other -> None
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
@@ -308,7 +311,7 @@ module Cinch.Total where
   -- compatibility document for a projected closure.
   total-function-matches-document :: TotalFunction -> Json -> Bool
   total-function-matches-document function doc = case function of
-    MkTotalFunction (MkTotalGraph original rows ordered) name ->
+    MkTotalFunction (TotalGraph original rows ordered) name ->
       fields ["version", "definitions"] doc && (case field "version" doc of
         JNum value -> value == 1 && match-total-rows ordered (field "definitions" doc)
         other -> False)
@@ -316,7 +319,7 @@ module Cinch.Total where
   match-total-rows :: List TotalRow -> Json -> Bool
   match-total-rows rows definitions = case (rows, definitions) of
     (Nil, JArrEnd) -> True
-    (Cons row rest, JArr expected more) -> json-eq (row-document row) expected && match-total-rows rest more
+    (Cons row rest, JArr expected more) -> json-eq (row.document) expected && match-total-rows rest more
     other -> False
 
   compare-position :: TotalRow -> TotalRow -> Ordering
@@ -324,17 +327,17 @@ module Cinch.Total where
     if first < second then LT else if first > second then GT else EQ
   closure-rows :: List TotalRow -> Json
   closure-rows rows = case rows of
-    Cons row rest -> JArr (row-document row) (closure-rows rest)
+    Cons row rest -> JArr (row.document) (closure-rows rest)
     Nil -> JArrEnd
   projected-graph :: TotalRows -> List TotalRow -> TotalGraph
-  projected-graph index rows = MkTotalGraph None index rows
+  projected-graph index rows = TotalGraph None index rows
   total-graph-symbols :: TotalGraph -> List String
-  total-graph-symbols (MkTotalGraph doc rows ordered) = map row-name ordered
+  total-graph-symbols (TotalGraph doc rows ordered) = map (\r -> (r :: TotalRow).name) ordered
   total-function-closure :: TotalGraph -> String -> Option TotalFunction
-  total-function-closure graph name = case graph of MkTotalGraph doc rows ordered -> (case find-row name rows of
+  total-function-closure graph name = case graph of TotalGraph doc rows ordered -> (case find-row name rows of
     None -> None
     Some row | row-count rows == 1 -> Some (MkTotalFunction graph name)
-    Some row -> (case row-targets row of
+    Some row -> (case row.targets of
       Nil -> Some (MkTotalFunction (projected-graph (SingleRow name row) [row]) name)
       targets -> (case walk-calls rows [name] of
         None -> None
@@ -353,7 +356,7 @@ module Cinch.Total where
     (TotalRow name position original parameters result body targets (Some left),
      TotalRow other ordinal declaration args returns term calls (Some right)) ->
       same-packed-term left right || total-documents-equal original declaration
-    other -> total-documents-equal (row-document first) (row-document second)
+    other -> total-documents-equal (first.document) (second.document)
 
   same-total-rows :: List TotalRow -> List TotalRow -> Bool
   same-total-rows first second = case (first, second) of
@@ -364,7 +367,7 @@ module Cinch.Total where
   total-function-equal :: TotalFunction -> TotalFunction -> Bool
   total-function-equal first second = same (total-identity first) (total-identity second) &&
     (case (first, second) of
-      (MkTotalFunction (MkTotalGraph a left x) p, MkTotalFunction (MkTotalGraph b right y) q) -> same-total-rows x y
+      (MkTotalFunction (TotalGraph a left x) p, MkTotalFunction (TotalGraph b right y) q) -> same-total-rows x y
       other -> total-documents-equal (total-function-document first) (total-function-document second))
   total-body :: TotalFunction -> Json
   total-body function = case function-row function of Some row -> row-body row; None -> JNull
@@ -396,7 +399,7 @@ module Cinch.Total where
     Some row -> Some (row-term row)
     None -> None
   total-graph-term :: TotalGraph -> String -> Option TotalTerm
-  total-graph-term (MkTotalGraph doc rows ordered) name = case find-row name rows of
+  total-graph-term (TotalGraph doc rows ordered) name = case find-row name rows of
     Some row -> Some (row-term row)
     None -> None
   row-term :: TotalRow -> TotalTerm
@@ -452,8 +455,10 @@ module Cinch.Total where
     Cons char rest -> if char-code char == 45 then (case rest of Nil -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (Cons char rest) 0
   -- Retain the existing limit on possible literal outcomes, tracking their
   -- count and extrema without copying a list at every conditional.
-  data LiteralBounds where
-    LiteralBounds :: Int -> Int -> Nat -> LiteralBounds
+  record LiteralBounds where
+    field0 :: Int
+    field1 :: Int
+    field2 :: Nat
   join-literal-bounds :: LiteralBounds -> LiteralBounds -> Option LiteralBounds
   join-literal-bounds (LiteralBounds low high count) (LiteralBounds other-low other-high other-count) =
     let total = count + other-count in
@@ -501,13 +506,13 @@ module Cinch.Total where
     None -> False
 
   total-graph-for-roots :: TotalGraph -> List String -> Bool
-  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows ordered -> exact-roots rows roots
+  total-graph-for-roots graph roots = case graph of TotalGraph doc rows ordered -> exact-roots rows roots
 
   -- Every row of `first` must be byte-identical to the row of `second` that
   -- carries the same identity, and a row `second` does not have is compatible.
   compatible-rows :: List TotalRow -> TotalRows -> Bool
   compatible-rows first table = case first of
-    Cons row rest -> (case find-row (row-name row) table of
+    Cons row rest -> (case find-row (row.name) table of
       Some prior -> same-total-row row prior
       None -> True) && compatible-rows rest table
     Nil -> True
@@ -520,24 +525,26 @@ module Cinch.Total where
   graph-views-compatible :: TotalFunction -> TotalFunction -> Bool
   graph-views-compatible first second = case (total-source-projection first, total-source-projection second) of
     (False, False) -> case (first, second) of
-      (MkTotalFunction (MkTotalGraph a left ordered) p, MkTotalFunction (MkTotalGraph b rows other) q) -> compatible-rows ordered rows
+      (MkTotalFunction (TotalGraph a left ordered) p, MkTotalFunction (TotalGraph b rows other) q) -> compatible-rows ordered rows
       other -> True
     (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
     (True, False) -> projection-compatible first second
     (False, True) -> projection-compatible second first
   projection-compatible :: TotalFunction -> TotalFunction -> Bool
   projection-compatible projection graph = case graph of
-    MkTotalFunction (MkTotalGraph doc rows ordered) name ->
+    MkTotalFunction (TotalGraph doc rows ordered) name ->
       (case find-row (total-identity projection) rows of None -> True; Some row -> False)
     other -> True
 
   -- Checked graph rows sharing an identity must agree byte for byte. A
   -- projection or keyed ordering excludes a graph row with its identity.
   -- Projection and ordering descriptors only compare within their own kind.
-  data TotalCompatibility where
-    CheckedTotalCompatibility :: HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
+  record TotalCompatibility where
+    rows :: HashMap String TotalRow
+    projections :: HashMap String TotalFunction
+    orderings :: HashMap String TotalFunction
   empty-total-compatibility :: TotalCompatibility
-  empty-total-compatibility = CheckedTotalCompatibility hash-map-empty hash-map-empty hash-map-empty
+  empty-total-compatibility = TotalCompatibility hash-map-empty hash-map-empty hash-map-empty
   remember-descriptor :: TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalFunction)
   remember-descriptor function descriptors = let name = total-identity function in
     case hash-map-lookup name descriptors of
@@ -546,7 +553,7 @@ module Cinch.Total where
   remember-graph-rows :: List TotalRow -> HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalRow)
   remember-graph-rows rows known projections orderings = case rows of
     Cons row rest ->
-      let name = row-name row in
+      let name = row.name in
       case (hash-map-lookup name projections, hash-map-lookup name orderings) of
         (None, None) ->
           case hash-map-lookup name known of
@@ -556,19 +563,19 @@ module Cinch.Total where
     Nil -> Some known
   extend-total-compatibility :: TotalFunction -> TotalCompatibility -> Option TotalCompatibility
   extend-total-compatibility function context = case context of
-    CheckedTotalCompatibility rows projections orderings -> case function of
-      MkTotalFunction (MkTotalGraph doc table ordered) name -> (case remember-graph-rows ordered rows projections orderings of
-        Some known -> Some (CheckedTotalCompatibility known projections orderings)
+    TotalCompatibility rows projections orderings -> case function of
+      MkTotalFunction (TotalGraph doc table ordered) name -> (case remember-graph-rows ordered rows projections orderings of
+        Some known -> Some (TotalCompatibility known projections orderings)
         None -> None)
       MkSourceProjection name domain result steps -> (case hash-map-lookup name rows of
         Some row -> None
         None -> (case remember-descriptor function projections of
-          Some known -> Some (CheckedTotalCompatibility rows known orderings)
+          Some known -> Some (TotalCompatibility rows known orderings)
           None -> None))
       MkKeyedOrdering name less greater -> (case hash-map-lookup name rows of
         Some row -> None
         None -> (case remember-descriptor function orderings of
-          Some known -> Some (CheckedTotalCompatibility rows projections known)
+          Some known -> Some (TotalCompatibility rows projections known)
           None -> None))
 
   total-decimal-value :: String -> Option Int

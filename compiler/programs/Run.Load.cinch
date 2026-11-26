@@ -19,14 +19,14 @@ module Main where
   find-value :: String -> List ImportedValue -> Option ImportedValue
   find-value name values = case values of
     Nil -> None
-    Cons v rest -> if same name (imported-name v) then Some v else find-value name rest
+    Cons v rest -> if same name (v.name) then Some v else find-value name rest
 
   value-ok :: String -> List ImportedValue -> Bool
   value-ok name values = case find-value name values of
     None -> False
     Some v -> case imported-type v of
       Parsed ty Nil ->
-        if same name "answer" then same (imported-symbol v) "Lib.answer" && imported-arity v == 0
+        if same name "answer" then same (v.symbol) "Lib.answer" && v.arity == 0
           && (case ty of TName s n -> same n "Int"; other -> False)
         else if same name "identity" then case ty of
           TForall s binders (TFun f (TName a first) (TName b second)) ->
@@ -41,7 +41,7 @@ module Main where
   contract-ok :: Bytes -> LoadedInterface -> Bool
   contract-ok src loaded = case iface-parse src of
     None -> False
-    Some doc -> same (canonical-json doc) (canonical-json (loaded-contract loaded))
+    Some doc -> same (canonical-json doc) (canonical-json (loaded.doc))
 
   class-head :: TypeExpr -> String
   class-head ty = case ty of TName s name -> name; TApp s head args -> class-head head; other -> ""
@@ -70,7 +70,7 @@ module Main where
       && resolved-class mapper "Lib.Mapper" 3 && resolved-class locked "Lib.Secret" 1
       && (case field "slot" mapper of JNum index -> index == 0; other -> False)
       && (case field "class" locked of JStr owner -> same owner "Lib.Secret"; other -> False)
-      && not (visible-name "Secret" (loaded-exports loaded)) && not (visible-name "locked" (loaded-exports loaded))
+      && not (visible-name "Secret" (loaded.exports)) && not (visible-name "locked" (loaded.exports))
     other -> False
   kernel-contract-ok :: LoadedInterface -> Bool
   kernel-contract-ok loaded = case loaded-entry loaded "value" "Lib.kernel-write" of
@@ -110,21 +110,21 @@ module Main where
 
   loaded-ok :: Bytes -> LoadedInterface -> Bool
   loaded-ok src loaded = contract-ok src loaded &&
-    (if same (loaded-module loaded) "Lib" then
-      value-ok "answer" (loaded-values loaded) && value-ok "identity" (loaded-values loaded)
-      && value-ok "bounded" (loaded-values loaded)
-      && exported "Mapper" "signature" "Lib.Mapper" (loaded-exports loaded)
-      && exported "reveal" "method" "Lib.Hidden.reveal" (loaded-exports loaded)
-      && not (visible-name "Hidden" (loaded-exports loaded))
-      && not (visible-name "private-method" (loaded-exports loaded))
-      && not (visible-name "map-item" (loaded-exports loaded))
+    (if same (loaded.name) "Lib" then
+      value-ok "answer" (loaded.values) && value-ok "identity" (loaded.values)
+      && value-ok "bounded" (loaded.values)
+      && exported "Mapper" "signature" "Lib.Mapper" (loaded.exports)
+      && exported "reveal" "method" "Lib.Hidden.reveal" (loaded.exports)
+      && not (visible-name "Hidden" (loaded.exports))
+      && not (visible-name "private-method" (loaded.exports))
+      && not (visible-name "map-item" (loaded.exports))
       && class-contracts-ok loaded && kernel-contract-ok loaded
       && (case loaded-entry loaded "instance" "Lib.Secret_Int" of Some provider -> instance-target-ok provider "Lib.Secret"; other -> False)
-      && not (visible-name "Secret_Int" (loaded-exports loaded))
-      && (case loaded-fixities loaded of
+      && not (visible-name "Secret_Int" (loaded.exports))
+      && (case loaded.fixities of
         Cons (op, assoc, prec) Nil -> same op "<+>" && same assoc "right" && prec == 6
         other -> False)
-    else if same (loaded-module loaded) "Data.Nat" then proof-contract-ok loaded
+    else if same (loaded.name) "Data.Nat" then proof-contract-ok loaded
     else True)
 
   exported :: String -> String -> String -> List (String, String, String) -> Bool

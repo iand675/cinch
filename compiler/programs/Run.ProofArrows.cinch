@@ -57,9 +57,9 @@ module Main where
     (result, before) -> not (clean (unify sp result (UProofFun (URigid (nonce + 1) "inner" 1 KProp) empty-row integer) (enter-level before)))
   lexical :: Nat -> Bool
   lexical nonce =
-    let q = MkQuant nonce "p" KProp False in let p = UBound nonce "p" KProp in
-    let r = MkQuant (nonce + 1) "r" KRow False in let row = UBound (nonce + 1) "r" KRow in
-    let a = MkQuant (nonce + 2) "a" KType False in let result = UBound (nonce + 2) "a" KType in
+    let q = Quant nonce "p" KProp False in let p = UBound nonce "p" KProp in
+    let r = Quant (nonce + 1) "r" KRow False in let row = UBound (nonce + 1) "r" KRow in
+    let a = Quant (nonce + 2) "a" KType False in let result = UBound (nonce + 2) "a" KType in
     let sc = MkScheme [q, r, a] (UProofFun p row result) in
     scheme-well-formed kinds empty-type-scope sc && contract-scheme-closed sc
       && not (scheme-well-formed kinds empty-type-scope (MkScheme [r, a] (UProofFun p row result)))
@@ -76,7 +76,7 @@ module Main where
     let ty = UProofFun (UPropLit True) empty-row integer in
     let term = CUse sp ty "requires" "external" Nil in
     let value = CInt sp integer "1" in
-    let declaration = MkCoreDefinition sp "answer" (mono integer) Nil Nil Nil [MkCoreClause sp Nil (CApply sp integer term value)] in
+    let declaration = CoreDefinition sp "answer" (mono integer) Nil Nil Nil [CoreClause sp Nil (CApply sp integer term value)] in
     let context-kinds = [("Int", KType)] in
     case close-typing-context context-kinds [GlobalValue "requires" "external" (mono ty), GlobalValue "answer" "value" (mono integer)] of
       Some context -> not (typing-definition-closed context declaration)
@@ -121,7 +121,7 @@ module Main where
     , not (scheme-closed (mono (UProofFun p (UMeta nonce KRow) integer)))
     , not (scheme-closed (mono (UProofFun p empty-row (UMeta nonce KType))))
     , not (contract-scheme-closed (mono generic))
-    , contract-scheme-closed (MkScheme [MkQuant nonce "n" (value-kind nat) False] (UProofFun predicate empty-row integer))
+    , contract-scheme-closed (MkScheme [Quant nonce "n" (value-kind nat) False] (UProofFun predicate empty-row integer))
     , not (contract-scheme-closed (mono (UProofFun predicate empty-row integer)))
     , not (valid-type (substitute-bound [(nonce, UIndex integer (IInteger 1))] (UProofFun predicate empty-row integer)))
     , refuses-runtime-proofs nonce

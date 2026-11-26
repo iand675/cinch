@@ -49,28 +49,22 @@ module Cinch.Check where
   import Cinch.Core (CoreDefinition)
   import Cinch.Parallel (CompileTuning, default-tuning)
   import Cinch.Load (LoadedInterface, ValidatedInterfaces)
-  import Cinch.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaborate-with-interfaces-tuned, elaborate-with-admitted-interfaces-tuned, prepare-admitted-elaboration, prepare-admitted-elaboration-tuned, prepare-admitted-elaboration-cached, elaboration-errors, needs-inference, infer-program)
+  import Cinch.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaborate-with-interfaces-tuned, elaborate-with-admitted-interfaces-tuned, prepare-admitted-elaboration, prepare-admitted-elaboration-tuned, prepare-admitted-elaboration-cached, needs-inference, infer-program)
 
-  export check-program, CheckedProgram, checked-generated, with-generated, check-and-retain, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, checked-surface, checked-elaboration
+  export check-program, CheckedProgram, with-generated, check-and-retain, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces
   export check-and-retain-with-interfaces-tuned, check-and-retain-with-admitted-interfaces-tuned
   export prepare-admitted-check, prepare-admitted-check-tuned, prepare-admitted-check-cached
 
   -- The constructor stays private. A backend receives the resolved source
   -- and retained typed declarations only after the current independent
   -- global/kind/term/proof checks have accepted that same program.
-  data CheckedProgram where
-    MkCheckedProgram :: Program -> Elaboration -> List (String, List String) -> CheckedProgram
+  record CheckedProgram where
+    surface :: Program
+    elaboration :: Elaboration
+    generated :: List (String, List String)
 
-  checked-surface :: CheckedProgram -> Program
-  checked-surface checked = case checked of MkCheckedProgram surface typed generated -> surface
-
-  checked-elaboration :: CheckedProgram -> Elaboration
-  checked-elaboration checked = case checked of MkCheckedProgram surface typed generated -> typed
-
-  checked-generated :: CheckedProgram -> List (String, List String)
-  checked-generated checked = case checked of MkCheckedProgram surface typed generated -> generated
   with-generated :: List (String, List String) -> CheckedProgram -> CheckedProgram
-  with-generated names checked = case checked of MkCheckedProgram surface typed generated -> MkCheckedProgram surface typed names
+  with-generated names checked = case checked of CheckedProgram surface typed generated -> CheckedProgram surface typed names
 
   check-and-retain :: Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain program = check-and-retain-with-interfaces Nil program
@@ -94,18 +88,17 @@ module Cinch.Check where
     \tuning retained cached program -> check-and-retain-using (elaborate tuning retained cached) program
   check-and-retain-using :: (Program -> Elaboration) -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-using elaborate program =
-    let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in
+    let legacy = if needs-inference program then Nil else case program of Program s modules -> check-modules modules in
     case legacy of
       Cons first rest -> Err legacy
       Nil -> let typed = elaborate program in
-        case elaboration-errors typed of
-          Nil -> Ok (MkCheckedProgram program typed Nil)
+        case typed.errors of
+          Nil -> Ok (CheckedProgram program typed Nil)
           found -> Err found
 
   -- The diagnostics list is appended with the `Semigroup` operator (the
   -- prelude spells list append through it). Its defining module supplies
   -- the fixity with the imported operator.
-
 
   -- The rung's name in every diagnostic it renders.
   rung :: String
@@ -118,7 +111,7 @@ module Cinch.Check where
 
   -- One failure, at `s`, with `msg`.
   fail :: Span -> String -> List Diagnostic
-  fail s msg = Cons (MkDiagnostic rung s msg) Nil
+  fail s msg = Cons (Diagnostic rung s msg) Nil
 
   -- ------------------------------------------------------------------ types
 
@@ -143,11 +136,14 @@ module Cinch.Check where
   -- collected before any body is checked so top-level functions may be
   -- mutually recursive.
 
-  data Registry where
-    MkRegistry :: HashMap String Ty -> HashMap String () -> HashMap String Ty -> Registry
+  record Registry where
+    signatures :: HashMap String Ty
+    constructors :: HashMap String ()
+    globals :: HashMap String Ty
 
-  data Environment where
-    MkEnvironment :: List (String, Ty) -> HashMap String Ty -> Environment
+  record Environment where
+    locals :: List (String, Ty)
+    globals :: HashMap String Ty
 
   -- ----------------------------------------------------------- type display
 
@@ -397,16 +393,16 @@ module Cinch.Check where
   -- and the two built-in Bool constructors.
   base-env :: Registry -> Environment
   base-env registry = case registry of
-    MkRegistry signatures constructors globals ->
-      MkEnvironment Nil (hash-map-insert "True" TyBool (hash-map-insert "False" TyBool globals))
+    Registry signatures constructors globals ->
+      Environment Nil (hash-map-insert "True" TyBool (hash-map-insert "False" TyBool globals))
 
   extend-env :: String -> Ty -> Environment -> Environment
   extend-env name ty env = case env of
-    MkEnvironment locals globals -> MkEnvironment (Cons (name, ty) locals) globals
+    Environment locals globals -> Environment (Cons (name, ty) locals) globals
 
   env-lookup :: String -> Environment -> Option Ty
   env-lookup name env = case env of
-    MkEnvironment locals globals -> lookup-local-or-global name locals globals
+    Environment locals globals -> lookup-local-or-global name locals globals
 
   lookup-local-or-global :: String -> List (String, Ty) -> HashMap String Ty -> Option Ty
   lookup-local-or-global name locals globals = case locals of
@@ -911,9 +907,9 @@ module Cinch.Check where
 
   scan-signature :: Span -> String -> Ty -> List Diagnostic -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
   scan-signature at name ty diagnostics registry acc = case registry of
-    MkRegistry signatures constructors globals -> case hash-map-lookup name signatures of
+    Registry signatures constructors globals -> case hash-map-lookup name signatures of
       Some prior -> (registry, push-diagnostics (fail at (string-concat "duplicate signature for " name)) acc)
-      None -> (MkRegistry (hash-map-insert name ty signatures) constructors (hash-map-insert name ty globals), push-diagnostics diagnostics acc)
+      None -> (Registry (hash-map-insert name ty signatures) constructors (hash-map-insert name ty globals), push-diagnostics diagnostics acc)
 
   scan-decl :: Decl -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
   scan-decl d registry acc = case d of
@@ -949,11 +945,11 @@ module Cinch.Check where
   scan-ctors owner ctors registry acc = case ctors of
     Nil -> (registry, acc)
     Cons (name, texpr) rest -> case registry of
-      MkRegistry signatures constructors globals -> case hash-map-lookup name constructors of
+      Registry signatures constructors globals -> case hash-map-lookup name constructors of
         Some prior -> scan-ctors owner rest registry (push-diagnostics (fail (type-expr-span texpr) (string-concat "duplicate constructor: " name)) acc)
         None -> case constructor-type name owner texpr of
           (ty, diagnostics) -> scan-ctors owner rest
-            (MkRegistry signatures (hash-map-insert name () constructors) (hash-map-insert name ty globals))
+            (Registry signatures (hash-map-insert name () constructors) (hash-map-insert name ty globals))
             (push-diagnostics diagnostics acc)
 
   constructor-type :: String -> String -> TypeExpr -> (Ty, List Diagnostic)
@@ -1046,9 +1042,9 @@ module Cinch.Check where
   check-modules :: List Module -> List Diagnostic
   check-modules ms = case ms of
     Nil -> Nil
-    Cons m rest -> case scan-decls (module-decls m) (MkRegistry hash-map-empty hash-map-empty hash-map-empty) Nil of
+    Cons m rest -> case scan-decls (module-decls m) (Registry hash-map-empty hash-map-empty hash-map-empty) Nil of
       (registry, registry-diags) -> case registry of
-        MkRegistry signatures constructors globals ->
+        Registry signatures constructors globals ->
           registry-diags <> check-decls signatures (base-env registry) (module-decls m) <> check-modules rest
 
   -- Each module owns its registry. Private names from another module
@@ -1056,4 +1052,4 @@ module Cinch.Check where
   -- Imported interfaces must be resolved before extending that registry.
   check-program :: Program -> List Diagnostic
   check-program p = if needs-inference p then infer-program rung p else case p of
-    MkProgram s ms -> check-modules ms
+    Program s ms -> check-modules ms

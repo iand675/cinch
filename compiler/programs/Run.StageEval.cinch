@@ -1,8 +1,7 @@
 module Main where
-  import Cinch.Ast (program-span)
   import Cinch.Check (check-and-retain)
   import Cinch.Parse (parse-program)
-  import Cinch.Report (MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Cinch.Resolve (resolve-program)
   import Cinch.StageEval
   import Text.Parse (Parsed)
@@ -15,14 +14,14 @@ module Main where
     Parsed program Nil -> case resolve-program program of
       (resolved, Nil) -> case check-and-retain resolved of
         Err errors -> 3
-        Ok checked -> let site = program-span program in
+        Ok checked -> let site = program.span in
           case evaluate-stage checked site "StageInput.selected" 512 of
             Ok (StageInteger value, fuel) -> if value /= 42 || fuel >= 512 then 5 else
               (case evaluate-stage checked site "StageInput.unavailable" 512 of
-                Err (Cons (MkDiagnostic rung at message) Nil) ->
+                Err (Cons (Diagnostic rung at message) Nil) ->
                   if string-compare message "primitive `cinch.runtime.arrayReplicate` is not available at compile time" /= 0 then 6 else
                     (case evaluate-stage checked site "StageInput.selected" 1 of
-                      Err (Cons (MkDiagnostic name where-at limited) Nil) ->
+                      Err (Cons (Diagnostic name where-at limited) Nil) ->
                         if string-compare limited "compile-time evaluation exhausted its work budget" == 0 then 0 else 7
                       other -> 7)
                 other -> 6)

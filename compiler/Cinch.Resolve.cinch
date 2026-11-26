@@ -7,8 +7,8 @@ module Cinch.Resolve where
   import Cinch.Ast
   import Cinch.Nominal (stage-quotation-module, interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
   import Cinch.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration, vector-declaration)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
-  import Cinch.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
+  import Cinch.Report (Diagnostic)
+  import Cinch.Load (LoadedInterface, loaded-names, validate-interface-set, ValidatedInterfaces, canonical-interface-validation)
   import Cinch.Inputs (embedded-library-home)
   import Cinch.Contracts (public-global, interface-fixity-header, interface-declarations, overload-references, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, imported-class-references, kernel-references)
   import Cinch.Contracts (PreparedExternals, prepare-externals, select-externals)
@@ -26,20 +26,32 @@ module Cinch.Resolve where
   export prepare-admitted-resolution
 
   -- Visible spelling, defining module, internal global spelling.
-  data Binding where
-    MkBinding :: String -> String -> String -> Binding
+  record Binding where
+    name :: String
+    owner :: String
+    symbol :: String
 
   -- Imported path, visible qualifier, alias-only, selected surface.
-  data View where
-    MkView :: Span -> String -> String -> Bool -> List Binding -> View
+  record View where
+    s :: Span
+    path :: String
+    qualifier :: String
+    only :: Bool
+    selected :: List Binding
 
   -- An already processed module's export surface and elaborated body.
-  data Scoped where
-    MkScoped :: String -> List Binding -> List Decl -> Scoped
+  record Scoped where
+    name :: String
+    surface :: List Binding
+    body :: List Decl
 
-  data PreparedDeclarations where
-    PreparedDeclarations :: PreparedExternals -> List String -> HashMap String Bool -> HashMap String Module
-      -> HashMap String Bool -> HashMap String Scoped -> PreparedDeclarations
+  record PreparedDeclarations where
+    field0 :: PreparedExternals
+    field1 :: List String
+    field2 :: HashMap String Bool
+    field3 :: HashMap String Module
+    field4 :: HashMap String Bool
+    field5 :: HashMap String Scoped
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -48,7 +60,7 @@ module Cinch.Resolve where
   cat parts = string-concat-all parts
 
   fail :: Span -> String -> List Diagnostic
-  fail sp text = Cons (MkDiagnostic "bootstrap.resolve" sp text) Nil
+  fail sp text = Cons (Diagnostic "bootstrap.resolve" sp text) Nil
 
   has-name :: String -> List String -> Bool
   has-name name names = case names of
@@ -59,57 +71,48 @@ module Cinch.Resolve where
   lookup-binding name entries = case entries of
     Nil -> None
     Cons b rest -> case b of
-      MkBinding visible owner symbol -> if same name visible then Some b else lookup-binding name rest
+      Binding visible owner symbol -> if same name visible then Some b else lookup-binding name rest
 
   -- A module's visible surface during renaming: the ordered list the passes
   -- carry for shadowing order, and a name index so reaching a binding is one
   -- hash probe instead of a scan of every visible declaration. The index
   -- keeps the front-most binding of a repeated spelling, which is the one
   -- the scan would find.
-  data LexicalScope where
-    MkLexicalScope :: String -> Bool -> List Binding -> HashMap String Binding -> List (String, String) -> LexicalScope
+  record LexicalScope where
+    field0 :: String
+    field1 :: Bool
+    field2 :: List Binding
+    field3 :: HashMap String Binding
+    field4 :: List (String, String)
   data CallerScopes where
     NoCaller :: CallerScopes
     CallerScope :: LexicalScope -> List String -> CallerScopes -> CallerScopes
-  data Visible where
-    MkVisible :: LexicalScope -> List (String, LexicalScope) -> CallerScopes -> Visible
+  record Visible where
+    lexical :: LexicalScope
+    homes :: List (String, LexicalScope)
+    caller :: CallerScopes
 
   binding-index :: List Binding -> HashMap String Binding
   binding-index entries = case entries of
     Nil -> hash-map-empty
-    Cons binding rest -> hash-map-insert (binding-name binding) binding (binding-index rest)
+    Cons binding rest -> hash-map-insert (binding.name) binding (binding-index rest)
 
   visible-lookup :: String -> Visible -> Option Binding
   visible-lookup name entries = case entries of
-    MkVisible (MkLexicalScope origin captured order index bindings) homes caller -> hash-map-lookup name index
+    Visible (LexicalScope origin captured order index bindings) homes caller -> hash-map-lookup name index
 
   visible-order :: Visible -> List Binding
-  visible-order entries = case entries of MkVisible (MkLexicalScope origin captured order index bindings) homes caller -> order
-
-  binding-name :: Binding -> String
-  binding-name b = case b of
-    MkBinding name owner symbol -> name
-
-  binding-owner :: Binding -> String
-  binding-owner binding = case binding of MkBinding name home symbol -> home
-
-  binding-symbol :: Binding -> String
-  binding-symbol b = case b of
-    MkBinding name owner symbol -> symbol
+  visible-order entries = case entries of Visible (LexicalScope origin captured order index bindings) homes caller -> order
 
   kernel-bindings :: List (String, String) -> List Binding
   kernel-bindings entries = case entries of
     Nil -> Nil
-    Cons (name, symbol) rest -> Cons (MkBinding name "<builtin>" symbol) (kernel-bindings rest)
-
-  scoped-name :: Scoped -> String
-  scoped-name s = case s of
-    MkScoped name surface body -> name
+    Cons (name, symbol) rest -> Cons (Binding name "<builtin>" symbol) (kernel-bindings rest)
 
   scope-index :: List Scoped -> HashMap String Scoped -> HashMap String Scoped
   scope-index scopes indexed = case scopes of
     Nil -> indexed
-    Cons scope rest -> scope-index rest (hash-map-insert (scoped-name scope) scope indexed)
+    Cons scope rest -> scope-index rest (hash-map-insert (scope.name) scope indexed)
 
   -- The identity spelling (Cinch.Nominal.encode-identity): plain
   -- identifier characters are themselves and everything else, including the
@@ -132,12 +135,13 @@ module Cinch.Resolve where
   qualify :: String -> List Binding -> List Binding
   qualify prefix entries = case entries of
     Nil -> Nil
-    Cons (MkBinding name owner symbol) rest -> Cons (MkBinding (cat [prefix, ".", name]) owner symbol) (qualify prefix rest)
+    Cons (Binding name owner symbol) rest -> Cons (Binding (cat [prefix, ".", name]) owner symbol) (qualify prefix rest)
 
   -- A module's signature and equations name the same binding. Duplicate
   -- declarations stay in the body for the checker to diagnose.
-  data BindingRows where
-    BindingRows :: List Binding -> HashMap String Binding -> BindingRows
+  record BindingRows where
+    rows :: List Binding
+    index :: HashMap String Binding
   own-bindings :: String -> List Decl -> List Binding -> List Binding
   own-bindings home ds initial = case collect-own-bindings home ds (BindingRows initial (binding-index initial)) of
     BindingRows rows index -> rows
@@ -166,16 +170,16 @@ module Cinch.Resolve where
     BindingRows rows index -> case hash-map-lookup label index of
       Some binding -> entries
       None ->
-        let binding = MkBinding label owner (symbol ()) in
+        let binding = Binding label owner (symbol ()) in
         BindingRows (Cons binding rows) (hash-map-insert label binding index)
   add-macro :: String -> String -> BindingRows -> BindingRows
   add-macro home name entries = add-declared name home (\unit -> "#macro." <> name) entries
   macro-binding :: Binding -> Bool
-  macro-binding binding = string-starts-with "#macro." (binding-symbol binding)
+  macro-binding binding = string-starts-with "#macro." (binding.symbol)
   -- Global symbols include their module. Stage symbols carry it in the owner.
   same-declaration :: Binding -> Binding -> Bool
-  same-declaration left right = same (binding-symbol left) (binding-symbol right)
-    && (not (macro-binding left) || same (binding-owner left) (binding-owner right))
+  same-declaration left right = same (left.symbol) (right.symbol)
+    && (not (macro-binding left) || same (left.owner) (right.owner))
 
   select-phase :: Bool -> List Binding -> List Binding
   select-phase macros bindings = case bindings of
@@ -223,9 +227,9 @@ module Cinch.Resolve where
   validate-modules :: HashMap String Bool -> HashMap String Bool -> List Module -> HashMap String Bool -> List Diagnostic
   validate-modules sources interfaces remaining seen = case remaining of
     Nil -> Nil
-    Cons m rest -> let home = module-name m in
-      (if referenced home seen then fail (module-span m) (cat ["duplicate module: ", home]) else Nil)
-      <> (if referenced home interfaces then fail (module-span m) "source module conflicts with a loaded interface" else Nil)
+    Cons m rest -> let home = m.name in
+      (if referenced home seen then fail (m.span) (cat ["duplicate module: ", home]) else Nil)
+      <> (if referenced home interfaces then fail (m.span) "source module conflicts with a loaded interface" else Nil)
       <> validate-imports sources interfaces (module-decls m)
       <> validate-modules sources interfaces rest (hash-map-insert home True seen)
 
@@ -282,7 +286,7 @@ module Cinch.Resolve where
   order-ready-modules modules waiting edges queue ordered = case queue of
     ReadyEnd -> (reverse ordered, waiting-modules modules waiting 0)
     ReadyNode rank ordinal m left right ->
-      let home = module-name m in
+      let home = m.name in
       let rest = merge-ready left right in
       (case hash-map-lookup home edges of
         None -> order-ready-modules modules waiting edges rest (Cons m ordered)
@@ -310,8 +314,8 @@ module Cinch.Resolve where
     Cons (name, alias) rest -> case select-members sp path rest surface of
       (others, errors) -> case hash-map-lookup name surface of
         None -> (others, fail sp (cat ["`", path, "` has no member `", name, "` to import (as `", (case alias of None -> name; Some renamed -> renamed), "`)"]) <> errors)
-        Some (MkBinding visible owner symbol) ->
-          (Cons (MkBinding (case alias of None -> name; Some renamed -> renamed) owner symbol) others, errors)
+        Some (Binding visible owner symbol) ->
+          (Cons (Binding (case alias of None -> name; Some renamed -> renamed) owner symbol) others, errors)
 
   -- A hidden name must be a member of the source's surface: a misspelled one
   -- would otherwise hide nothing, silently.
@@ -325,7 +329,7 @@ module Cinch.Resolve where
   without-hidden :: HashMap String Bool -> List Binding -> List Binding
   without-hidden hidden surface = case surface of
     Nil -> Nil
-    Cons b rest -> if referenced (binding-name b) hidden then without-hidden hidden rest
+    Cons b rest -> if referenced (b.name) hidden then without-hidden hidden rest
       else Cons b (without-hidden hidden rest)
 
   -- The surface one import contributes. A hidden member is out of the
@@ -353,9 +357,9 @@ module Cinch.Resolve where
       (views, errors) -> case d of
         DImport s path mods alias members hidden args -> case hash-map-lookup path done of
           None -> (views, fail s (cat ["module was not resolved before its importer: ", path]) <> errors)
-          Some (MkScoped home surface body) -> case import-surface s path members hidden surface of
+          Some (Scoped home surface body) -> case import-surface s path members hidden surface of
             (selected, failures) ->
-              (Cons (MkView s path (case alias of None -> short-name path; Some qualifier -> qualifier)
+              (Cons (View s path (case alias of None -> short-name path; Some qualifier -> qualifier)
                 (case alias of None -> False; Some qualifier -> case members of Nil -> True; Cons item more -> False) (case mods of [mode] | same mode "stage" -> select-phase True selected; other -> selected)) views, failures <> errors)
         other -> (views, errors)
 
@@ -364,7 +368,7 @@ module Cinch.Resolve where
   bare-imports :: List View -> List Binding -> HashMap String Binding -> (List Binding, List Diagnostic)
   bare-imports views acc indexed = case views of
     Nil -> (reverse acc, Nil)
-    Cons (MkView s path qualifier only selected) rest -> if only then bare-imports rest acc indexed
+    Cons (View s path qualifier only selected) rest -> if only then bare-imports rest acc indexed
       else case merge-imports s selected acc indexed of
         (entries, names, errors) -> case bare-imports rest entries names of
           (all, more) -> (all, errors <> more)
@@ -373,10 +377,10 @@ module Cinch.Resolve where
   merge-imports sp incoming acc indexed = case incoming of
     Nil -> (acc, indexed, Nil)
     Cons b rest -> case b of
-      MkBinding name home symbol -> case hash-map-lookup name indexed of
+      Binding name home symbol -> case hash-map-lookup name indexed of
         None -> merge-imports sp rest (Cons b acc) (hash-map-insert name b indexed)
         Some prior | same-declaration prior b -> merge-imports sp rest acc indexed
-        Some (MkBinding old previous symbol-before) -> case merge-imports sp rest acc indexed of
+        Some (Binding old previous symbol-before) -> case merge-imports sp rest acc indexed of
           -- Both ways out are named, as the seed's refusal does: a selection
           -- renames one side, and a hiding list leaves one out.
           (entries, names, errors) -> (entries, names, fail sp (cat ["the name `", name, "` is imported from both ", previous, " and ", home
@@ -385,14 +389,14 @@ module Cinch.Resolve where
   qualified-imports :: List View -> List Binding
   qualified-imports views = case views of
     Nil -> Nil
-    Cons (MkView s path qualifier only selected) rest -> qualify qualifier selected <> qualified-imports rest
+    Cons (View s path qualifier only selected) rest -> qualify qualifier selected <> qualified-imports rest
 
   qualified-duplicates :: Span -> List Binding -> HashMap String Binding -> List Diagnostic
   qualified-duplicates sp incoming seen = case incoming of
     Nil -> Nil
-    Cons b rest -> case hash-map-lookup (binding-name b) seen of
-      None -> qualified-duplicates sp rest (hash-map-insert (binding-name b) b seen)
-      Some old -> (if same-declaration old b then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
+    Cons b rest -> case hash-map-lookup (b.name) seen of
+      None -> qualified-duplicates sp rest (hash-map-insert (b.name) b seen)
+      Some old -> (if same-declaration old b then Nil else fail sp (cat ["ambiguous qualified import: ", b.name]))
         <> qualified-duplicates sp rest seen
 
   export-items :: List Decl -> List ExportItem
@@ -412,7 +416,7 @@ module Cinch.Resolve where
   view-index views = case views of
     Nil -> hash-map-empty
     Cons view rest -> case view of
-      MkView s path qualifier only selected -> hash-map-insert path view (hash-map-insert qualifier view (view-index rest))
+      View s path qualifier only selected -> hash-map-insert path view (hash-map-insert qualifier view (view-index rest))
 
   join-parts :: List String -> String
   join-parts parts = case parts of
@@ -430,10 +434,10 @@ module Cinch.Resolve where
   add-exports sp incoming acc = case incoming of
     Nil -> (acc, Nil)
     Cons b rest -> case acc of
-      BindingRows rows index -> case hash-map-lookup (binding-name b) index of
-        None -> add-exports sp rest (BindingRows (Cons b rows) (hash-map-insert (binding-name b) b index))
+      BindingRows rows index -> case hash-map-lookup (b.name) index of
+        None -> add-exports sp rest (BindingRows (Cons b rows) (hash-map-insert (b.name) b index))
         Some old -> case add-exports sp rest acc of
-          (entries, errors) -> (entries, (if same-declaration old b then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
+          (entries, errors) -> (entries, (if same-declaration old b then Nil else fail sp (cat ["duplicate export: ", b.name])) <> errors)
 
   build-exports :: List ExportItem -> HashMap String Binding -> HashMap String View -> BindingRows -> (List Binding, List Diagnostic)
   build-exports items visible views acc = case items of
@@ -442,13 +446,13 @@ module Cinch.Resolve where
       ExportName s parts -> let name = join-parts parts in case hash-map-lookup name visible of
         None -> case build-exports rest visible views acc of
           (entries, errors) -> (entries, fail s (cat ["`", name, "` is not a name in scope to export"]) <> errors)
-        Some (MkBinding name home symbol) -> case add-exports s (Cons (MkBinding (last-part parts) home symbol) Nil) acc of
+        Some (Binding name home symbol) -> case add-exports s (Cons (Binding (last-part parts) home symbol) Nil) acc of
           (entries, errors) -> case build-exports rest visible views entries of
             (surface, more) -> (surface, errors <> more)
       ExportModule s name -> case hash-map-lookup name views of
         None -> case build-exports rest visible views acc of
           (entries, errors) -> (entries, fail s (cat ["module is not imported to export: ", name]) <> errors)
-        Some (MkView sp path qualifier only selected) -> case add-exports s selected acc of
+        Some (View sp path qualifier only selected) -> case add-exports s selected acc of
           (entries, errors) -> case build-exports rest visible views entries of
             (surface, more) -> (surface, errors <> more)
 
@@ -458,15 +462,15 @@ module Cinch.Resolve where
   shared-signatures :: String -> List Decl -> List LoadedInterface -> List Binding
   shared-signatures home declarations checked = case checked of
     Nil -> Nil
-    Cons first rest -> if same home (loaded-module first) then signature-bindings home declarations first
+    Cons first rest -> if same home (first.name) then signature-bindings home declarations first
       else shared-signatures home declarations rest
   signature-bindings :: String -> List Decl -> LoadedInterface -> List Binding
   signature-bindings home declarations checked = case declarations of
     Nil -> Nil
     Cons (DClass sp name params members) rest -> let identity = home <> "." <> name in
       let more = signature-bindings home rest checked in
-      if exports-identity "signature" identity (loaded-exports checked) then
-        Cons (MkBinding name home (interface-global identity)) (signature-method-bindings home identity (decls-of members) checked more) else more
+      if exports-identity "signature" identity (checked.exports) then
+        Cons (Binding name home (interface-global identity)) (signature-method-bindings home identity (decls-of members) checked more) else more
     Cons other rest -> signature-bindings home rest checked
 
   signature-method-bindings :: String -> String -> List Decl -> LoadedInterface -> List Binding -> List Binding
@@ -474,37 +478,37 @@ module Cinch.Resolve where
     Nil -> bindings
     Cons (DSig sp name syntax) rest -> let identity = owner <> "." <> name in
       let more = signature-method-bindings home owner rest checked bindings in
-      if exports-identity "method" identity (loaded-exports checked) then Cons (MkBinding name home (interface-global identity)) more else more
+      if exports-identity "method" identity (checked.exports) then Cons (Binding name home (interface-global identity)) more else more
     Cons other rest -> signature-method-bindings home owner rest checked bindings
   defining-symbol :: String -> String -> Visible -> String
   defining-symbol home name visible = case visible-lookup name visible of
-    Some (MkBinding label source symbol) | same source home && string-starts-with "i." symbol -> symbol
+    Some (Binding label source symbol) | same source home && string-starts-with "i." symbol -> symbol
     other -> global-name home name
 
   module-visibility :: Module -> HashMap String Scoped -> List Binding -> List LoadedInterface -> (List Binding, List Binding, List View, List Diagnostic)
   module-visibility m done base checked =
-    let home = module-name m in
+    let home = m.name in
     let declared = own-bindings home (module-decls m) (shared-signatures home (module-decls m) checked) in
     let (views, errors) = import-views (module-decls m) done in
     let (bare, clashes) = bare-imports views Nil hash-map-empty in
     let qualified = qualified-imports views in
-    let prelude-bindings = case hash-map-lookup "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
+    let prelude-bindings = case hash-map-lookup "Prelude" done of None -> base; Some (Scoped n surface body) -> surface in
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
-    (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified hash-map-empty)
+    (declared, visible, views, errors <> clashes <> qualified-duplicates (m.span) qualified hash-map-empty)
 
   build-scope :: Module -> HashMap String Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (Scoped, List (String, LexicalScope), List Diagnostic)
   build-scope m done base earlier checked =
-    let home = module-name m in
+    let home = m.name in
     let (declared, visible, views, visibility-errors) = module-visibility m done base checked in
     let indexed = binding-index visible in
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) indexed (view-index views) (BindingRows Nil hash-map-empty) in
-    let lexical = MkLexicalScope home False visible indexed Nil in
+    let lexical = LexicalScope home False visible indexed Nil in
     let has-macro = declares-macros (module-decls m) in
     let homes = Cons (home, lexical) earlier in
-    let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
-    (MkScoped home surface body, if has-macro then homes else earlier, visibility-errors <> export-errors <> body-errors)
+    let (body, body-errors) = rename-decls home (Visible lexical homes NoCaller) (module-decls m) in
+    (Scoped home surface body, if has-macro then homes else earlier, visibility-errors <> export-errors <> body-errors)
 
   find-home :: String -> List (String, LexicalScope) -> Option LexicalScope
   find-home name homes = case homes of
@@ -514,26 +518,26 @@ module Cinch.Resolve where
   -- Index the macro spelling chosen by the same imports and exports the
   -- resolver uses for values. Source and interface validation still runs on
   -- the complete program before any generated code can be accepted.
-  data MacroNamespaces where
-    MkMacroNamespaces :: HashMap String (List Binding) -> MacroNamespaces
+  record MacroNamespaces where
+    field0 :: HashMap String (List Binding)
   macro-namespaces :: List Module -> List Module -> MacroNamespaces
   macro-namespaces modules headers =
-    let imported = external-macro-headers (reference-index (map module-name modules)) headers in
-    case module-order (map macro-header modules) (reference-index (map scoped-name imported)) of
-      (ordered, blocked) -> MkMacroNamespaces (macro-scope-order ordered (scope-index (reverse imported) hash-map-empty) hash-map-empty)
+    let imported = external-macro-headers (reference-index (map (\r -> (r :: Module).name) modules)) headers in
+    case module-order (map macro-header modules) (reference-index (map (\r -> (r :: Scoped).name) imported)) of
+      (ordered, blocked) -> MacroNamespaces (macro-scope-order ordered (scope-index (reverse imported) hash-map-empty) hash-map-empty)
   external-macro-headers :: HashMap String Bool -> List Module -> List Scoped
   external-macro-headers sources headers = case headers of
     Nil -> Nil
-    Cons m rest -> let home = module-name m in
+    Cons m rest -> let home = m.name in
       if referenced home sources then external-macro-headers sources rest else
-        Cons (MkScoped home (external-names home (module-decls m)) Nil) (external-macro-headers sources rest)
+        Cons (Scoped home (external-names home (module-decls m)) Nil) (external-macro-headers sources rest)
   external-names :: String -> List Decl -> List Binding
   external-names home declarations = case declarations of
     Nil -> Nil
-    Cons (DExternal site name role declared-type metadata) rest -> Cons (MkBinding name home name) (external-names home rest)
+    Cons (DExternal site name role declared-type metadata) rest -> Cons (Binding name home name) (external-names home rest)
     Cons other rest -> external-names home rest
   macro-header :: Module -> Module
-  macro-header m = MkModule (module-span m) (module-name m) (decl-spine (module-span m) (map macro-declaration (module-decls m)))
+  macro-header m = Module (m.span) (m.name) (decl-spine (m.span) (map macro-declaration (module-decls m)))
   macro-declaration :: Decl -> Decl
   macro-declaration declaration = case declaration of
     DStage s (DDeclarationMacro at name patterns body) -> DMacroBinding s name
@@ -549,18 +553,18 @@ module Cinch.Resolve where
       let (surface, errors) = (case export-items (module-decls m) of
         Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
         Cons first more -> build-exports (Cons first more) (binding-index visible) (view-index views) (BindingRows Nil hash-map-empty)) in
-      let home = module-name m in
-      macro-scope-order rest (hash-map-insert home (MkScoped home surface Nil) done) (hash-map-insert home visible scopes)
+      let home = m.name in
+      macro-scope-order rest (hash-map-insert home (Scoped home surface Nil) done) (hash-map-insert home visible scopes)
   lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
   lookup-macro names owner spelling = case macro-site-binding names owner spelling of
-    Some binding | macro-binding binding -> Some (binding-owner binding, string-drop 7 (binding-symbol binding))
+    Some binding | macro-binding binding -> Some (binding.owner, string-drop 7 (binding.symbol))
     other -> None
   stage-operation-available :: MacroNamespaces -> String -> String -> Bool
   stage-operation-available names owner spelling = case macro-site-binding names owner spelling of
     None -> True
     Some shadow -> False
   macro-site-binding :: MacroNamespaces -> String -> String -> Option Binding
-  macro-site-binding (MkMacroNamespaces scopes) owner spelling = case hash-map-lookup owner scopes of
+  macro-site-binding (MacroNamespaces scopes) owner spelling = case hash-map-lookup owner scopes of
     Some bindings -> lookup-binding spelling bindings
     None -> None
 
@@ -568,20 +572,20 @@ module Cinch.Resolve where
   resolve-ordered modules blocked done indexed base homes checked = case modules of
     Nil -> (reverse done, indexed, case blocked of Nil -> Nil; Cons first rest -> import-cycle first blocked)
     Cons m pending -> case build-scope m indexed base homes checked of
-      (ready, more-homes, errors) -> case resolve-ordered pending blocked (Cons ready done) (hash-map-insert (scoped-name ready) ready indexed) base more-homes checked of
+      (ready, more-homes, errors) -> case resolve-ordered pending blocked (Cons ready done) (hash-map-insert (ready.name) ready indexed) base more-homes checked of
         (ordered, scopes, more) -> (ordered, scopes, errors <> more)
 
   -- Every remaining module has an unresolved edge into the remaining
   -- graph. Follow one edge per module until it repeats. Drop the prefix
   -- before the repeated module, which may just be an importer of the cycle.
   import-cycle :: Module -> List Module -> List Diagnostic
-  import-cycle first remaining = case cycle-from (module-name first) (module-name-index remaining) hash-map-empty Nil of
+  import-cycle first remaining = case cycle-from (first.name) (module-name-index remaining) hash-map-empty Nil of
     Some (site, chain) -> fail site (cat ["module import cycle: ", render-cycle chain])
-    None -> fail (module-span first) (cat ["unresolved module imports involving ", module-name first])
+    None -> fail (first.span) (cat ["unresolved module imports involving ", first.name])
   cycle-from :: String -> HashMap String Module -> HashMap String Bool -> List String -> Option (Span, List String)
   cycle-from name remaining seen visited = case hash-map-lookup name remaining of
     None -> None
-    Some m -> if referenced name seen then Some (module-span m, reverse (cycle-prefix name visited) <> [name])
+    Some m -> if referenced name seen then Some (m.span, reverse (cycle-prefix name visited) <> [name])
       else (case first-pending-import (module-decls m) remaining of
         Some next -> cycle-from next remaining (hash-map-insert name True seen) (Cons name visited)
         None -> None)
@@ -607,7 +611,7 @@ module Cinch.Resolve where
   scoped-decls :: List Scoped -> List Decl
   scoped-decls modules = case modules of
     Nil -> Nil
-    Cons (MkScoped home surface ds) rest -> ds <> scoped-decls rest
+    Cons (Scoped home surface ds) rest -> ds <> scoped-decls rest
 
   -- C ABI spellings denote the same machine types as in the native checker.
   -- Pointer-sized aliases retain their target-dependent width.
@@ -627,7 +631,7 @@ module Cinch.Resolve where
   type-name :: Visible -> List String -> String -> String
   type-name visible locals name = if has-name name locals then name else case visible-lookup name visible of
     None -> if has-name (annotation-type-local name) locals then name else c-scalar-name name
-    Some b -> if has-name (annotation-type-local name) locals then name else binding-symbol b
+    Some b -> if has-name (annotation-type-local name) locals then name else b.symbol
 
   -- A term annotation can shadow a type name while the same spelling
   -- still resolves to a value in its body.
@@ -677,16 +681,16 @@ module Cinch.Resolve where
   -- supply the missing type or index, even if it has the expected kind.
   insertion-only-name :: Visible -> List String -> String -> Bool
   insertion-only-name visible locals name = case visible of
-    MkVisible definition homes (CallerScope insertion captured parent) -> (case visible-lookup name visible of
+    Visible definition homes (CallerScope insertion captured parent) -> (case visible-lookup name visible of
       Some binding -> False
-      None -> case visible-lookup name (MkVisible insertion homes parent) of
+      None -> case visible-lookup name (Visible insertion homes parent) of
         Some binding -> not (has-name name locals || has-name (annotation-type-local name) locals || opaque-name-reserved name)
         None -> False)
     other -> False
 
   scope-diagnostic :: Visible -> String -> String
   scope-diagnostic visible message = case visible of
-    MkVisible (MkLexicalScope origin True order index aliases) homes caller -> message <> " (not bound in captured source scope " <> origin <> ")"
+    Visible (LexicalScope origin True order index aliases) homes caller -> message <> " (not bound in captured source scope " <> origin <> ")"
     other -> message
 
   rename-type :: Visible -> List String -> TypeExpr -> TypeExpr
@@ -727,14 +731,14 @@ module Cinch.Resolve where
   -- An actual source-effect binding retains its own identity and cannot authorize an intrinsic.
   rename-cell-effects :: Visible -> List String -> TypeExpr -> TypeExpr
   rename-cell-effects visible locals labels = case labels of
-    TArg sp (TName at name) rest -> TArg sp (if cell-effect-name name && not (case visible-lookup name visible of Some binding -> string-starts-with "#effect." (binding-symbol binding); None -> False) then TName at ("#kernel." <> name) else rename-type visible locals (TName at name)) (rename-cell-effects visible locals rest)
+    TArg sp (TName at name) rest -> TArg sp (if cell-effect-name name && not (case visible-lookup name visible of Some binding -> string-starts-with "#effect." (binding.symbol); None -> False) then TName at ("#kernel." <> name) else rename-type visible locals (TName at name)) (rename-cell-effects visible locals rest)
     TArg sp label rest -> TArg sp (rename-type visible locals label) (rename-cell-effects visible locals rest)
     other -> rename-type visible locals labels
 
   parameter-names :: List TypeParam -> List String
   parameter-names params = case params of
     Nil -> Nil
-    Cons p rest -> Cons (param-name p) (parameter-names rest)
+    Cons p rest -> Cons (p.name) (parameter-names rest)
 
   is-pattern-var-name :: String -> Bool
   is-pattern-var-name name = case unpack name of
@@ -756,16 +760,16 @@ module Cinch.Resolve where
   rename-type-family-eqs :: String -> Visible -> List TypeFamilyEq -> List TypeFamilyEq
   rename-type-family-eqs home visible eqs = case eqs of
     Nil -> Nil
-    Cons (MkTypeFamilyEq s head args rhs) rest ->
+    Cons (TypeFamilyEq s head args rhs) rest ->
       let pvars = pattern-type-vars args in
-      Cons (MkTypeFamilyEq s (global-name home head) (rename-type visible pvars args) (rename-type visible pvars rhs))
+      Cons (TypeFamilyEq s (global-name home head) (rename-type visible pvars args) (rename-type visible pvars rhs))
         (rename-type-family-eqs home visible rest)
 
   rename-params :: Visible -> List String -> List TypeParam -> List TypeParam
   rename-params visible locals params = case params of
     Nil -> Nil
-    Cons (MkTypeParam s name kind only) rest ->
-      Cons (MkTypeParam s name (case kind of None -> None; Some t -> Some (rename-type visible locals t)) only)
+    Cons (TypeParam s name kind only) rest ->
+      Cons (TypeParam s name (case kind of None -> None; Some t -> Some (rename-type visible locals t)) only)
         (rename-params visible (Cons name locals) rest)
 
   rename-ctors :: String -> Visible -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
@@ -818,7 +822,7 @@ module Cinch.Resolve where
   visible-qualifier :: String -> List Binding -> Bool
   visible-qualifier qualifier bindings = case bindings of
     Nil -> False
-    Cons binding rest -> same qualifier (name-qualifier (binding-name binding)) || visible-qualifier qualifier rest
+    Cons binding rest -> same qualifier (name-qualifier (binding.name)) || visible-qualifier qualifier rest
 
   captured-name :: String -> List (String, String) -> Option String
   captured-name name aliases = case aliases of
@@ -828,14 +832,14 @@ module Cinch.Resolve where
   resolve-use :: Span -> Bool -> Visible -> List String -> String -> (String, List Diagnostic)
   resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
     else case visible of
-      MkVisible (MkLexicalScope origin captured order index aliases) homes caller -> (case (constructor, captured-name name aliases) of
+      Visible (LexicalScope origin captured order index aliases) homes caller -> (case (constructor, captured-name name aliases) of
         (False, Some key) -> (key, Nil)
         other -> resolve-global-use sp constructor visible name)
 
   resolve-global-use :: Span -> Bool -> Visible -> String -> (String, List Diagnostic)
   resolve-global-use sp constructor visible name = case visible-lookup name visible of
       Some b | macro-binding b -> (name, fail sp (cat ["compile-time macro requires an invocation: ", name]))
-      Some b -> (binding-symbol b, Nil)
+      Some b -> (b.symbol, Nil)
       None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.recordDeclaration", "Syntax.lambda", "Syntax.captureType"] ->
         (name, fail sp (cat [name, " is compile-time only"]))
       None -> if constructor && (same name "True" || same name "False" || same name "Refl") then (name, Nil)
@@ -974,14 +978,14 @@ module Cinch.Resolve where
 
   builtin-decision-use :: Visible -> List String -> Expr -> Bool
   builtin-decision-use visible locals expression = case expression of
-    EVar sp name -> not (has-name name locals) && (case visible-lookup name visible of Some binding -> same (binding-symbol binding) "b.decide"; None -> False)
+    EVar sp name -> not (has-name name locals) && (case visible-lookup name visible of Some binding -> same (binding.symbol) "b.decide"; None -> False)
     other -> False
   -- In a branch test, the structural former may also have the standard
   -- refinement constructor in scope. A distinct constructor keeps its
   -- ordinary binding and type.
   branch-predicate-former :: Visible -> String -> Bool
   branch-predicate-former visible name = has-name name ["NonZero", "NotNull", "Ascii", "Ordered"] && (case visible-lookup name visible of
-    Some binding -> same name "NonZero" && same (binding-symbol binding) (global-algebra-arithmetic-nonzero)
+    Some binding -> same name "NonZero" && same (binding.symbol) (global-algebra-arithmetic-nonzero)
     None -> True)
   branch-literal :: String -> Expr -> Bool
   branch-literal expected syntax = case syntax of
@@ -995,9 +999,9 @@ module Cinch.Resolve where
     EApp sp (ECon at name (EArgsEnd end)) input | branch-predicate-former visible name ->
       rename-branch-value visible locals (ECon sp name (EArg at input (EArgsEnd end)))
     EApp sp (EVar at name) input -> (case visible-lookup name visible of
-      Some binding | not (has-name name locals) && same (binding-symbol binding) (global-data-bool-not) ->
+      Some binding | not (has-name name locals) && same (binding.symbol) (global-data-bool-not) ->
         (case rename-branch-value visible locals input of
-          (value, errors) -> (EApp sp (EVar at (binding-symbol binding)) value, errors))
+          (value, errors) -> (EApp sp (EVar at (binding.symbol)) value, errors))
       other -> rename-expr visible locals syntax)
     other -> rename-expr visible locals syntax
   -- Predicate operators denote logical operations here. Ordinary applications
@@ -1089,7 +1093,7 @@ module Cinch.Resolve where
         (right, more) ->
           let rewritten = case visible-lookup op visible of
                 None -> EBin s op left right
-                Some binding -> EApp s (EApp s (EVar s (binding-symbol binding)) left) right in
+                Some binding -> EApp s (EApp s (EVar s (binding.symbol)) left) right in
           (rewritten, errors <> more)
     ENeg s x -> case rename-expr visible locals x of
       (renamed, errors) -> (ENeg s renamed, errors)
@@ -1149,23 +1153,23 @@ module Cinch.Resolve where
     ESyntaxReference s key (LiteralSpelling name) -> if has-name key locals then (EVar s key, Nil)
       else (e, fail s (cat ["captured local `", name, "` is not in scope"]))
     ESyntaxCaptureUnder s key (LiteralSpelling name) body -> if not (has-name key locals) then (e, fail s (cat ["captured local `", name, "` is not in scope"])) else (case visible of
-      MkVisible lexical homes (CallerScope (MkLexicalScope origin captured order index aliases) names remaining) ->
-        let extended = MkLexicalScope origin True order index (Cons (name, key) aliases) in
-        rename-expr (MkVisible extended homes remaining) (without-spelling name names) body
+      Visible lexical homes (CallerScope (LexicalScope origin captured order index aliases) names remaining) ->
+        let extended = LexicalScope origin True order index (Cons (name, key) aliases) in
+        rename-expr (Visible extended homes remaining) (without-spelling name names) body
       other -> (e, fail s "Syntax.captureUnder outside its expansion"))
     ESyntaxNamed s home spelling fields -> (e, fail s "unexpanded syntax constructor")
     EDefinitionName s home spelling -> (case visible of
-      MkVisible lexical homes (CallerScope previous names parent) -> (case visible-lookup spelling visible of
-        Some binding | not (macro-binding binding) -> (EVar s (binding-symbol binding), Nil)
+      Visible lexical homes (CallerScope previous names parent) -> (case visible-lookup spelling visible of
+        Some binding | not (macro-binding binding) -> (EVar s (binding.symbol), Nil)
         other -> (e, fail s (cat ["name `", spelling, "` is not bound in captured source scope ", home])))
       other -> (e, fail s "macro definition reference outside its expansion"))
     ETemplateScope s home body -> (case visible of
-      MkVisible lexical homes caller -> case find-home home homes of
-        Some definition -> rename-expr (MkVisible definition homes (CallerScope lexical locals caller)) Nil body
+      Visible lexical homes caller -> case find-home home homes of
+        Some definition -> rename-expr (Visible definition homes (CallerScope lexical locals caller)) Nil body
         None -> (e, fail s (cat ["macro definition module is unavailable: ", home])))
     EArgumentScope s body -> (case visible of
-      MkVisible lexical homes (CallerScope (MkLexicalScope origin captured order index aliases) names remaining) ->
-        rename-expr (MkVisible (MkLexicalScope origin True order index aliases) homes remaining) names body
+      Visible lexical homes (CallerScope (LexicalScope origin captured order index aliases) names remaining) ->
+        rename-expr (Visible (LexicalScope origin True order index aliases) homes remaining) names body
       other -> (e, fail s "macro argument outside its expansion"))
     ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
@@ -1245,7 +1249,7 @@ module Cinch.Resolve where
   extend-generated :: List Binding -> HashMap String Binding -> HashMap String Binding
   extend-generated bindings index = case bindings of
     Nil -> index
-    Cons entry rest -> hash-map-insert (binding-name entry) entry (extend-generated rest index)
+    Cons entry rest -> hash-map-insert (entry.name) entry (extend-generated rest index)
 
   rename-decl :: String -> Visible -> List Decl -> HashMap String (List String) -> Decl -> (List Decl, List Diagnostic)
   rename-decl home visible declarations methods d = case d of
@@ -1297,9 +1301,9 @@ module Cinch.Resolve where
           (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a refinement")) else
       let names = parameter-names params in
-      let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
+      let renamed-binder = case binder of TypeParam at local kind only -> TypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
       (Cons (DRefine s (global-name home name) (rename-params visible Nil params) renamed-binder
-        (rename-predicate visible (Cons (param-name binder) names) predicate)) Nil, Nil)
+        (rename-predicate visible (Cons (binder.name) names) predicate)) Nil, Nil)
     DEffect s name params ops -> (Cons (DEffect s (source-effect-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ops)) Nil, Nil)
     DInstance s only name params class-app members -> if structural-class-head class-app then
@@ -1329,12 +1333,12 @@ module Cinch.Resolve where
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
     DNamedDeclaration s hole body -> (Nil, fail s "a name splice is only meaningful inside a `quoteDecls` template")
     DGeneratedGroup s owner macro-name template -> (case visible of
-      MkVisible insertion homes caller -> case find-home owner homes of
+      Visible insertion homes caller -> case find-home owner homes of
         None -> (Nil, fail s (cat ["macro definition module is unavailable: ", owner]))
-        Some (MkLexicalScope origin captured order index aliases) ->
+        Some (LexicalScope origin captured order index aliases) ->
           let group = decls-of template in let declared = own-bindings home group Nil in
-          let scoped = MkLexicalScope origin captured (declared <> order) (extend-generated declared index) aliases in
-          rename-decls home (MkVisible scoped homes (CallerScope insertion Nil caller)) group)
+          let scoped = LexicalScope origin captured (declared <> order) (extend-generated declared index) aliases in
+          rename-decls home (Visible scoped homes (CallerScope insertion Nil caller)) group)
     DMacroBinding s name -> (Nil, Nil)
     DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
@@ -1423,12 +1427,12 @@ module Cinch.Resolve where
   rename-prim-bodies :: Visible -> List PrimBody -> (List PrimBody, List Diagnostic)
   rename-prim-bodies visible bodies = case bodies of
     Nil -> (Nil, Nil)
-    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
+    Cons (PrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
       let (evidence, evidence-errors) = (case justification of
         None -> (None, Nil)
         Some evidence -> (case rename-rewrite-evidence visible Nil evidence of (renamed, errors) -> (Some renamed, errors))) in
       (case rename-prim-bodies visible rest of
-        (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition selected evidence
+        (more, errors) -> (Cons (PrimBody sp family fragment unverified condition selected evidence
           (rename-record-fields False visible Nil uses) immediates) more, evidence-errors <> errors))
 
   rewrite-application :: Expr -> List Expr -> Option (Span, String, List Expr)
@@ -1443,7 +1447,7 @@ module Cinch.Resolve where
       Some ordinary -> None
       None -> let qualifier = name-qualifier name in
         (case visible-lookup qualifier visible of
-          Some owner -> if string-length qualifier > 0 then Some (sp, binding-symbol owner, short-name name, args) else None
+          Some owner -> if string-length qualifier > 0 then Some (sp, owner.symbol, short-name name, args) else None
           None -> None)
     None -> None
   rename-rewrite-evidence :: Visible -> List String -> RewriteJustification -> (RewriteJustification, List Diagnostic)
@@ -1456,7 +1460,7 @@ module Cinch.Resolve where
   rewrite-parameter-sites :: List TypeParam -> List (Span, String)
   rewrite-parameter-sites params = case params of
     Nil -> Nil
-    Cons param rest -> Cons (param-span param, param-name param) (rewrite-parameter-sites rest)
+    Cons param rest -> Cons (param.span, param.name) (rewrite-parameter-sites rest)
   rewrite-requirement-sites :: TypeExpr -> List (Span, String)
   rewrite-requirement-sites bounds = case bounds of
     TBound sp name ty rest -> if string-length name > 0 then Cons (sp, name) (rewrite-requirement-sites rest)
@@ -1464,7 +1468,7 @@ module Cinch.Resolve where
     other -> Nil
   rename-rewrite :: Visible -> RewriteSyntax -> (RewriteSyntax, List Diagnostic)
   rename-rewrite visible syntax = case syntax of
-    MkRewriteSyntax targeted params bounds pattern replacement guard evidence ->
+    RewriteSyntax targeted params bounds pattern replacement guard evidence ->
       let names = parameter-names params in
       let locals = names <> bound-names bounds in
       let duplicates = duplicate-group-sites "rewrite binder" Nil (rewrite-parameter-sites params <> rewrite-requirement-sites bounds) in
@@ -1474,7 +1478,7 @@ module Cinch.Resolve where
         None -> (None, Nil)
         Some expression -> (case rename-expr visible locals expression of (renamed, errors) -> (Some renamed, errors))) in
       let (justification, proof-errors) = rename-rewrite-evidence visible locals evidence in
-      (MkRewriteSyntax targeted (rename-params visible Nil params) (rename-type visible names bounds) left right condition justification,
+      (RewriteSyntax targeted (rename-params visible Nil params) (rename-type visible names bounds) left right condition justification,
        duplicates <> left-errors <> right-errors <> guard-errors <> proof-errors)
 
   rename-class-members :: String -> String -> Visible -> List String -> List Decl -> (List Decl, List Diagnostic)
@@ -1533,57 +1537,57 @@ module Cinch.Resolve where
   -- Only explicit imports and the implicit Prelude look up a lexical
   -- surface. Keep every admitted contract for defining identities and laws.
   interface-bindings :: LoadedInterface -> List Binding
-  interface-bindings i = let home = loaded-module i in
-    map (\name -> MkBinding name home (public-global i name)) (loaded-names i)
+  interface-bindings i = let home = i.name in
+    map (\name -> Binding name home (public-global i name)) (loaded-names i)
 
   interface-scope :: LoadedInterface -> Bool -> (Scoped, Module)
   interface-scope i exposed =
-    (MkScoped (loaded-module i) (if exposed then interface-bindings i else Nil) (interface-declarations i), interface-fixity-header i)
+    (Scoped (i.name) (if exposed then interface-bindings i else Nil) (interface-declarations i), interface-fixity-header i)
 
   interface-contexts :: HashMap String Bool -> List LoadedInterface -> (List Scoped, List Module)
   interface-contexts targets interfaces = case interfaces of
     Nil -> (Nil, Nil)
-    Cons i rest -> case (interface-scope i (referenced (loaded-module i) targets), interface-contexts targets rest) of
+    Cons i rest -> case (interface-scope i (referenced (i.name) targets), interface-contexts targets rest) of
       ((built, header), (more, headers)) -> (Cons built more, Cons header headers)
 
   export-references :: List Scoped -> List String
   export-references scopes = case scopes of
     Nil -> Nil
-    Cons (MkScoped home surface body) rest -> binding-references surface <> export-references rest
+    Cons (Scoped home surface body) rest -> binding-references surface <> export-references rest
 
   binding-references :: List Binding -> List String
   binding-references bindings = case bindings of
     Nil -> Nil
-    Cons b rest -> Cons (binding-symbol b) (binding-references rest)
+    Cons b rest -> Cons (b.symbol) (binding-references rest)
 
   resolve-program-with :: Program -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-program-with p interfaces = resolve-signature-overlays p interfaces Nil
 
   resolve-signature-overlays :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-signature-overlays p interfaces checked = case validate-interface-set interfaces of
-    Err message -> (p, fail (program-span p) message)
+    Err message -> (p, fail (p.span) message)
     Ok ordered -> resolve-ordered-interfaces p ordered checked
   resolve-admitted-signature-overlays :: Program -> Result String ValidatedInterfaces -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-admitted-signature-overlays p admitted checked = case admitted of
-    Err message -> (p, fail (program-span p) message)
+    Err message -> (p, fail (p.span) message)
     Ok ready -> case canonical-interface-validation ready of
-      Err message -> (p, fail (program-span p) message)
-      Ok ordered -> resolve-ordered-interfaces p (validated-interfaces-members ordered) checked
+      Err message -> (p, fail (p.span) message)
+      Ok ordered -> resolve-ordered-interfaces p (ordered.interfaces-members) checked
   -- The declarations and outbound names of a validated package are fixed
   -- for the session. The result records whether the resolved program kept
   -- the original package declarations in order.
   prepare-admitted-resolution :: Result String ValidatedInterfaces -> (Program -> List LoadedInterface -> (Program, List Diagnostic, Bool))
   prepare-admitted-resolution admitted = case admitted of
-    Err message -> \p checked -> (p, fail (program-span p) message, False)
-    Ok ready -> let ordered = validated-interfaces-members ready in
-      let imported = reference-index (map loaded-module ordered) in
+    Err message -> \p checked -> (p, fail (p.span) message, False)
+    Ok ready -> let ordered = ready.interfaces-members in
+      let imported = reference-index (map (\r -> (r :: LoadedInterface).name) ordered) in
       case interface-contexts imported ordered of
         (members, headers) ->
           let scopes = scope-index members hash-map-empty in
           let base = builtin-declarations <> scoped-decls members in
           let records = imported-record-symbols base in
           let prepared = PreparedDeclarations (prepare-externals base) records (reference-index records) (module-name-index headers) imported scopes in
-          \p checked -> let modules = program-modules p in
+          \p checked -> let modules = p.modules in
             if shadows-admitted-interface imported modules
               then resolve-context-with None p (unshadowed-interfaces modules ordered) Nil checked
               else resolve-context-with (Some prepared) p ordered Nil checked
@@ -1591,12 +1595,12 @@ module Cinch.Resolve where
   shadows-admitted-interface :: HashMap String Bool -> List Module -> Bool
   shadows-admitted-interface imported modules = case modules of
     Nil -> False
-    Cons source rest -> let name = module-name source in
+    Cons source rest -> let name = source.name in
       if embedded-library-home name && referenced name imported
         then True else shadows-admitted-interface imported rest
   resolve-ordered-interfaces :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-ordered-interfaces p ordered checked =
-    let available = unshadowed-interfaces (program-modules p) ordered in
+    let available = unshadowed-interfaces (p.modules) ordered in
     resolve-context p available Nil checked
 
   -- A source module beside the entry shadows the base-package copy of the
@@ -1607,12 +1611,12 @@ module Cinch.Resolve where
   unshadowed-interfaces :: List Module -> List LoadedInterface -> List LoadedInterface
   unshadowed-interfaces modules interfaces = case interfaces of
     Nil -> Nil
-    other -> unshadowed-indexed-interfaces (reference-index (map module-name modules)) interfaces
+    other -> unshadowed-indexed-interfaces (reference-index (map (\r -> (r :: Module).name) modules)) interfaces
   unshadowed-indexed-interfaces :: HashMap String Bool -> List LoadedInterface -> List LoadedInterface
   unshadowed-indexed-interfaces sources interfaces = case interfaces of
     Nil -> Nil
     Cons i rest ->
-      if referenced (loaded-module i) sources && embedded-library-home (loaded-module i)
+      if referenced (i.name) sources && embedded-library-home (i.name)
         then unshadowed-indexed-interfaces sources rest
         else Cons i (unshadowed-indexed-interfaces sources rest)
 
@@ -1622,9 +1626,9 @@ module Cinch.Resolve where
   -- into that closure or made available as a source import.
   resolve-overlay-with :: Program -> List LoadedInterface -> LoadedInterface -> (Program, List Diagnostic)
   resolve-overlay-with p dependencies facade = case validate-interface-set dependencies of
-    Err message -> (p, fail (program-span p) message)
-    Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
-      let base = overlay-base-bindings facade (loaded-exports facade) available Nil in
+    Err message -> (p, fail (p.span) message)
+    Ok ordered -> let available = unshadowed-interfaces (p.modules) ordered in
+      let base = overlay-base-bindings facade (facade.exports) available Nil in
       resolve-context p available base Nil
 
   overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
@@ -1634,7 +1638,7 @@ module Cinch.Resolve where
       let symbol = interface-global identity in
       case overlay-defining-interface (identity-owner (reverse (unpack identity))) kind identity dependencies of
         Some owner -> overlay-base-bindings facade rest dependencies
-          (if same symbol (public-global facade name) then Cons (MkBinding name owner symbol) found else found)
+          (if same symbol (public-global facade name) then Cons (Binding name owner symbol) found else found)
         None -> overlay-base-bindings facade rest dependencies found
 
   identity-owner :: List Char -> String
@@ -1645,8 +1649,8 @@ module Cinch.Resolve where
   overlay-defining-interface :: String -> String -> String -> List LoadedInterface -> Option String
   overlay-defining-interface owner kind identity dependencies = case dependencies of
     Nil -> None
-    Cons i rest -> if same owner (loaded-module i) then
-      (if exports-identity kind identity (loaded-exports i) then Some owner else None)
+    Cons i rest -> if same owner (i.name) then
+      (if exports-identity kind identity (i.exports) then Some owner else None)
       else overlay-defining-interface owner kind identity rest
 
   exports-identity :: String -> String -> List (String, String, String) -> Bool
@@ -1660,11 +1664,11 @@ module Cinch.Resolve where
 
   resolve-context-with :: Option PreparedDeclarations -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic, Bool)
   resolve-context-with prepared p available base checked = case p of
-    MkProgram sp modules ->
-      let sources = reference-index (map module-name modules) in
+    Program sp modules ->
+      let sources = reference-index (map (\r -> (r :: Module).name) modules) in
       let imported = (case prepared of
         Some (PreparedDeclarations externals records indexed headers known scopes) -> known
-        None -> reference-index (map loaded-module available)) in
+        None -> reference-index (map (\r -> (r :: LoadedInterface).name) available)) in
       case validate-modules sources imported modules hash-map-empty of
         Nil -> case (module-order modules imported, prepared) of
           ((ordered, blocked), Some (PreparedDeclarations externals records indexed headers known scopes)) ->
@@ -1718,7 +1722,7 @@ module Cinch.Resolve where
         (body, errors) -> let retained = (case (prepared, errors) of
           (Some package, Nil) -> True
           other -> False) in
-          (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors, retained)
+          (Program sp (Cons (Module sp "Main" (decl-spine sp (contexts <> body))) Nil), errors, retained)
     (done, indexed, errors) -> (p, errors, False)
 
   resolution-declarations :: Option PreparedDeclarations -> List Scoped -> List Scoped -> (List (List String) -> List Decl, List String, HashMap String Bool)
@@ -1746,21 +1750,21 @@ module Cinch.Resolve where
   source-scopes :: HashMap String Bool -> List Scoped -> List Scoped
   source-scopes sources done = case done of
     Nil -> Nil
-    Cons s rest -> if referenced (scoped-name s) sources then Cons s (source-scopes sources rest) else source-scopes sources rest
+    Cons s rest -> if referenced (s.name) sources then Cons s (source-scopes sources rest) else source-scopes sources rest
 
   scoped-references :: List Scoped -> List String
   scoped-references scopes = case scopes of
     Nil -> Nil
-    Cons (MkScoped home surface body) rest -> declaration-references body <> scoped-references rest
+    Cons (Scoped home surface body) rest -> declaration-references body <> scoped-references rest
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.
   source-contexts :: HashMap String Module -> HashMap String Scoped -> List Scoped -> Bool -> (List String, HashMap String Bool) -> List Binding -> List Decl
   source-contexts available all-scopes scopes prelude records base = case scopes of
     Nil -> Nil
-    Cons (MkScoped name surface body) rest ->
+    Cons (Scoped name surface body) rest ->
       let source = hash-map-lookup name available in
-      let at = (case source of Some m -> module-span m; None -> Span 0 0 1 1) in
+      let at = (case source of Some m -> m.span; None -> Span 0 0 1 1) in
       let declarations = (case source of Some m -> module-decls m; None -> Nil) in
       let begin = span-start at in
       let finish = span-end at in
@@ -1777,7 +1781,7 @@ module Cinch.Resolve where
   source-record-symbols :: List Module -> List String
   source-record-symbols modules = case modules of
     Nil -> Nil
-    Cons m rest -> declared-record-symbols (module-name m) (module-decls m) <> source-record-symbols rest
+    Cons m rest -> declared-record-symbols (m.name) (module-decls m) <> source-record-symbols rest
   declared-record-symbols :: String -> List Decl -> List String
   declared-record-symbols home declarations = case declarations of
     Nil -> Nil
@@ -1834,7 +1838,7 @@ module Cinch.Resolve where
   visible-record-index :: HashMap String Bool -> List Binding -> HashMap String Bool -> HashMap String Bool
   visible-record-index records bindings found = case bindings of
     Nil -> found
-    Cons binding rest -> let symbol = binding-symbol binding in
+    Cons binding rest -> let symbol = binding.symbol in
       visible-record-index records rest
         (if referenced symbol records then hash-map-insert symbol True found else found)
   record-source-context :: Option Module -> HashMap String Scoped -> (List String, HashMap String Bool) -> List Binding -> Json -> Json
@@ -1880,12 +1884,12 @@ module Cinch.Resolve where
   consumed-base-imports :: List Binding -> List String -> List String -> List String
   consumed-base-imports bindings references found = case bindings of
     Nil -> found
-    Cons (MkBinding name owner symbol) rest -> consumed-base-imports rest references
+    Cons (Binding name owner symbol) rest -> consumed-base-imports rest references
       (if has-name symbol references && not (has-name owner found) then Cons owner found else found)
   strings-json :: List String -> Json
   strings-json values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings-json rest)
   surface-names :: List Binding -> List String
-  surface-names bindings = case bindings of Nil -> Nil; Cons first rest -> Cons (binding-name first) (surface-names rest)
+  surface-names bindings = case bindings of Nil -> Nil; Cons first rest -> Cons (first.name) (surface-names rest)
   fixity-json :: List (String, String, Nat) -> Json
   fixity-json facts = case facts of
     Nil -> JArrEnd
@@ -1895,7 +1899,7 @@ module Cinch.Resolve where
   surface-json :: List Binding -> Json
   surface-json bindings = case bindings of
     Nil -> JArrEnd
-    Cons (MkBinding name origin symbol) rest -> JArr
+    Cons (Binding name origin symbol) rest -> JArr
       (JObj "name" (JStr name) (JObj "origin" (JStr origin) (JObj "symbol" (JStr symbol) JObjEnd))) (surface-json rest)
 
   symbols-json :: List Decl -> Json

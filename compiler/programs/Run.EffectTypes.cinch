@@ -116,12 +116,12 @@ module Main where
   opening r =
     let region = UBound 0 "r" KRegion in
     let effects = UBound 1 "e" KRow in
-    let scheme = qualified [MkQuant 0 "r" KRegion False, MkQuant 1 "e" KRow False]
-          [MkRequirement "io" (capability region)] (UFunEff (UCon "Unit" KType) effects (capability region)) in
+    let scheme = qualified [Quant 0 "r" KRegion False, Quant 1 "e" KRow False]
+          [Requirement "io" (capability region)] (UFunEff (UCon "Unit" KType) effects (capability region)) in
     case open-qualified False scheme (empty-store "effect-types") of
       (UFunEff arg actual-row result, Cons requirement Nil, pairs, start) ->
         let checked = unify sp result (capability r) (unify sp actual-row (row [io r]) start) in
-        clean checked && equal (normalize checked (requirement-type requirement)) (capability r)
+        clean checked && equal (normalize checked (requirement.ty)) (capability r)
           && equal (normalize checked actual-row) (row [io r]) && scheme-arity scheme == 1
       other -> False
   generalization :: Bool
@@ -138,7 +138,7 @@ module Main where
   core-check r =
     let unit = UCon "Unit" KType in
     let effects = row [io r] in
-    let given = CGiven sp "#runtime" (capability r) in
+    let given = CoreGiven sp "#runtime" (capability r) in
     let request = CQualifiedUse sp (UFunEff unit effects unit) "b.operation" "builtin" [r] [CENeeded sp (capability r) [given]] in
     let call = CApplyEff sp unit effects request (CUnit sp unit) in
     let supplied = CWith sp unit given (CUse sp (capability r) "argument" "local" Nil) call in
@@ -153,7 +153,7 @@ module Main where
       && equal (core-effects closure) (row Nil)
       && not (clean (include-effects sp (core-effects resolved) (row Nil) (empty-store "effect-types")))
       && (case resolved of
-        CWith s ty scope value (CApplyEff a result actual-row (CQualifiedUse c function name role actuals (Cons (CEGiven e goal symbol) Nil)) argument) -> string-compare symbol (given-symbol scope) == 0
+        CWith s ty scope value (CApplyEff a result actual-row (CQualifiedUse c function name role actuals (Cons (CEGiven e goal symbol) Nil)) argument) -> string-compare symbol (scope.symbol) == 0
         other -> False)
   joined-meta :: UType -> Bool
   joined-meta r = case fresh-meta KRow (empty-store "effect-types") of

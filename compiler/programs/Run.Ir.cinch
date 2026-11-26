@@ -76,7 +76,7 @@ module Main where
   fib-decls = decl-spine sp (Cons fib-sig (Cons fib-decl (Cons fib-main-sig (Cons fib-main-decl Nil))))
 
   fib-ast :: Program
-  fib-ast = MkProgram sp (Cons (MkModule sp "Main" fib-decls) Nil)
+  fib-ast = Program sp (Cons (Module sp "Main" fib-decls) Nil)
 
   -- ------------------------------ fragment B: let-bound arithmetic
 
@@ -101,7 +101,7 @@ module Main where
   arith-decls = decl-spine sp (Cons arith-main-sig (Cons arith-main-decl Nil))
 
   arith-ast :: Program
-  arith-ast = MkProgram sp (Cons (MkModule sp "Main" arith-decls) Nil)
+  arith-ast = Program sp (Cons (Module sp "Main" arith-decls) Nil)
 
   -- -------------------------- fragment C: a two-parameter function
 
@@ -134,7 +134,7 @@ module Main where
   pick-decls = decl-spine sp (Cons pick-sig (Cons pick-decl (Cons pick-main-sig (Cons pick-main-decl Nil))))
 
   pick-ast :: Program
-  pick-ast = MkProgram sp (Cons (MkModule sp "Main" pick-decls) Nil)
+  pick-ast = Program sp (Cons (Module sp "Main" pick-decls) Nil)
 
   -- -------------------- a fragment outside the boundary, refused
 
@@ -151,7 +151,7 @@ module Main where
   bad-decls = decl-spine sp (Cons bad-main-decl Nil)
 
   bad-ast :: Program
-  bad-ast = MkProgram sp (Cons (MkModule sp "Main" bad-decls) Nil)
+  bad-ast = Program sp (Cons (Module sp "Main" bad-decls) Nil)
 
   bad-diags :: List Diagnostic
   bad-diags = emit-diagnostics bad-ast

@@ -41,4 +41,4 @@ module Main where
     let result = run-suite example-suite in
     case fs-write report-path (string-to-bytes (render-result result)) of
       Err e -> 255
-      Ok _ -> result-failed result
+      Ok _ -> result.failed

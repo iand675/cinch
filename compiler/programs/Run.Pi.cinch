@@ -94,7 +94,7 @@ module Main where
       (hole, before) -> let scheme = generalize 0 Nil (pi binder (at carrier hole)) before in
         list-length (scheme-params scheme) == 0 && not (scheme-closed scheme)
   definition :: UType -> CoreDefinition
-  definition actual = MkCoreDefinition sp "f" (mono nat) Nil Nil Nil [MkCoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
+  definition actual = CoreDefinition sp "f" (mono nat) Nil Nil Nil [CoreClause sp Nil (CUse sp nat "callee" "global" [actual])]
   no-invented-witness :: Nat -> Bool
   no-invented-witness nonce = case fresh-meta (value-kind nat) (start nonce) of
     (hole, before) -> not (core-definition-closed (seal-definition before (definition (pi (nonce + 100) (at nat hole)))))

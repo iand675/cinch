@@ -5,7 +5,7 @@ module Cinch.Layout where
   import Cinch.Core
   import Cinch.Type
   import Cinch.Nominal (interface-global)
-  import Cinch.Usage (UsageShape, usage-name, usage-single-field)
+  import Cinch.Usage (UsageShape, usage-single-field)
   import Cinch.Document
   import Algebra.Semigroup
   import Text.Lex (Span)
@@ -13,8 +13,12 @@ module Cinch.Layout where
 
   export check-layouts
 
-  data Request where
-    Requested :: Span -> String -> String -> List String -> Option Json -> Request
+  record Request where
+    field0 :: Span
+    field1 :: String
+    field2 :: String
+    field3 :: List String
+    field4 :: Option Json
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -32,7 +36,7 @@ module Cinch.Layout where
   requests :: List Decl -> List Request
   requests ds = case ds of
     Nil -> Nil
-    Cons (DWrapperLayout site name repr label) rest -> Cons (Requested site name repr label None) (requests rest)
+    Cons (DWrapperLayout site name repr label) rest -> Cons (Request site name repr label None) (requests rest)
     Cons (DInterface site home hash doc) rest ->
       abi-requests site home (field "types" (field "exports" doc)) (field "layouts" (field "abi" doc)) (requests rest)
     Cons other rest -> requests rest
@@ -44,7 +48,7 @@ module Cinch.Layout where
         (JStr repr, JStr name) | same repr "unboxed" || same repr "transparent" -> (case named-row name types of
           Some ty -> (case field "identity" ty of
             JStr identity | same identity (home <> "." <> name) ->
-              Cons (Requested site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) rest
+              Cons (Request site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) rest
             other -> rest)
           None -> rest)
         other -> rest)
@@ -63,7 +67,7 @@ module Cinch.Layout where
       other -> "$f" <> nat-to-string ordinal))
   layout-label :: List String -> Option Json -> CoreData -> String
   layout-label labels published d = case core-data-constructors d of
-    [ctor] -> payload-label labels 0 (scheme-body (core-constructor-scheme ctor))
+    [ctor] -> payload-label labels 0 (scheme-body (ctor.constructor-scheme))
     other -> (case published of
       Some row -> (case field "fields" row of JArr entry JArrEnd -> (case field "name" entry of JStr name -> name; other -> ""); other -> "")
       None -> "")
@@ -71,7 +75,7 @@ module Cinch.Layout where
   requested :: String -> List Request -> Option Request
   requested name layouts = case layouts of
     Nil -> None
-    Cons (Requested site owner repr label published) rest -> if same name owner then Some (Requested site owner repr label published) else requested name rest
+    Cons (Request site owner repr label published) rest -> if same name owner then Some (Request site owner repr label published) else requested name rest
   data-for :: String -> List CoreData -> Option CoreData
   data-for name datas = case datas of
     Nil -> None
@@ -79,7 +83,7 @@ module Cinch.Layout where
   private-payload :: String -> List UsageShape -> Option UType
   private-payload owner shapes = case shapes of
     Nil -> None
-    Cons shape rest -> if same owner (usage-name shape) then usage-single-field shape else private-payload owner rest
+    Cons shape rest -> if same owner (shape.name) then usage-single-field shape else private-payload owner rest
   represented-field :: CoreData -> List UsageShape -> Option UType
   represented-field d shapes = case core-data-constructors d of
     [constructor] -> (case core-constructor-fields constructor of [payload] -> Some payload; other -> None)
@@ -108,7 +112,7 @@ module Cinch.Layout where
         Some name -> (case scalar-layout name of
           Some physical -> Ok physical
           None -> (case (requested name layouts, data-for name datas) of
-            (Some (Requested at wrapper repr labels row), Some nested) | same repr "unboxed" -> physical-layout layouts datas shapes (Cons owner seen) nested
+            (Some (Request at wrapper repr labels row), Some nested) | same repr "unboxed" -> physical-layout layouts datas shapes (Cons owner seen) nested
             other -> Err "repr(unboxed) requires a fixed single-word payload"))
         None -> Err "repr(unboxed) requires a fixed single-word payload")
 
@@ -143,7 +147,7 @@ module Cinch.Layout where
     Cons d rest -> case attach-layouts layouts all shapes rest st of
       (more, checked) -> (case requested (core-data-name d) layouts of
         None -> (Cons d more, checked)
-        Some (Requested site owner repr labels published) -> let label = layout-label labels published d in (case (if same repr "transparent" then transparent-layout d shapes else physical-layout layouts all shapes Nil d) of
+        Some (Request site owner repr labels published) -> let label = layout-label labels published d in (case (if same repr "transparent" then transparent-layout d shapes else physical-layout layouts all shapes Nil d) of
           Err message -> (Cons d more, add-error site message checked)
           Ok (word, bytes, align) -> (case published of
             Some row | not (matches-published row label bytes align) -> (Cons d more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)

@@ -10,7 +10,7 @@ module Cinch.PackedBody where
   import Data.Machine (u32-to-nat)
   import Data.Nat (nat-to-int)
 
-  export Region, PackedSignature, region-start, package-offset, hold-package-source
+  export Region, PackedSignature, package-offset, hold-package-source
   export CheckedBodyTable, retain-checked-body-table, checked-body-id, checked-definition
   export checked-term, packed-term-json
   export PackedTerm, PackedArguments, same-packed-term, packed-node, packed-argument-node
@@ -36,19 +36,34 @@ module Cinch.PackedBody where
       ret i32 %value
     } when endian big
 
-  data Region where
-    Region :: Nat -> Nat -> Region
-  data PackedSignature where
-    PackedSignature :: String -> List String -> String -> Nat -> Region -> PackedSignature
+  record Region where
+    start :: Nat
+    length :: Nat
+  record PackedSignature where
+    field0 :: String
+    field1 :: List String
+    field2 :: String
+    field3 :: Nat
+    field4 :: Region
   -- Immutable Share-safe packed body view: all node words, operand words, and
   -- signature callee lists are materialized into immutable arrays on load so
   -- `CheckedBodyTable` and `Cinch.Document.Json` carry no mutable `Bytes`.
-  data CheckedBodyTable where
-    BodyTable :: I64 -> Nat -> Array String -> Array Nat -> Array Nat -> Array PackedSignature -> Array (Option (List String)) -> HashMap String Nat -> CheckedBodyTable
-  data PackedTerm where
-    PackedTermRef :: CheckedBodyTable -> Nat -> PackedTerm
-  data PackedArguments where
-    PackedOperandSpan :: CheckedBodyTable -> Nat -> Nat -> PackedArguments
+  record CheckedBodyTable where
+    identity :: I64
+    size :: Nat
+    strings :: Array String
+    nodes :: Array Nat
+    operands :: Array Nat
+    signatures :: Array PackedSignature
+    callees :: Array (Option (List String))
+    indexed :: HashMap String Nat
+  record PackedTerm where
+    field0 :: CheckedBodyTable
+    field1 :: Nat
+  record PackedArguments where
+    field0 :: CheckedBodyTable
+    field1 :: Nat
+    field2 :: Nat
   data PackedNode where
     PackedLocal :: Nat -> PackedNode
     PackedNumber :: String -> String -> PackedNode
@@ -61,9 +76,6 @@ module Cinch.PackedBody where
   data PackedArgumentNode where
     NoPackedArguments :: PackedArgumentNode
     NextPackedArgument :: PackedTerm -> PackedArguments -> PackedArgumentNode
-
-  region-start :: Region -> Nat
-  region-start region = case region of Region start length -> start
 
   word :: I64 -> Nat -> Nat
   word address at = u32-to-nat (load-word address (package-offset at))
@@ -101,7 +113,7 @@ module Cinch.PackedBody where
     let operand-words = extract-region-words source operands in
     let callees = extract-signature-callees source signatures 0 Nil in
     let identity = hold-package-source source (bytes-data source) in
-    BodyTable identity (bytes-len source) strings node-words operand-words signatures callees (index-packed-signatures signatures 0 hash-map-empty)
+    CheckedBodyTable identity (bytes-len source) strings node-words operand-words signatures callees (index-packed-signatures signatures 0 hash-map-empty)
 
   index-packed-signatures :: Array PackedSignature -> Nat -> HashMap String Nat -> HashMap String Nat
   index-packed-signatures signatures at indexed = case array-get signatures at of
@@ -110,19 +122,19 @@ module Cinch.PackedBody where
       index-packed-signatures signatures (at + 1) (hash-map-insert name at indexed)
 
   checked-body-id :: CheckedBodyTable -> String -> Option Nat
-  checked-body-id (BodyTable identity size strings nodes operands signatures callees indexed) name = hash-map-lookup name indexed
+  checked-body-id (CheckedBodyTable identity size strings nodes operands signatures callees indexed) name = hash-map-lookup name indexed
 
   checked-term :: CheckedBodyTable -> Nat -> Option PackedTerm
   checked-term table id = case table of
-    BodyTable identity size strings nodes operands signatures callees indexed -> case array-get signatures id of
-      Some (PackedSignature name parameters result root edges) -> Some (PackedTermRef table root)
+    CheckedBodyTable identity size strings nodes operands signatures callees indexed -> case array-get signatures id of
+      Some (PackedSignature name parameters result root edges) -> Some (PackedTerm table root)
       None -> None
 
   checked-definition :: CheckedBodyTable -> Nat -> Option (String, List String, String, PackedTerm, List String)
   checked-definition table id = case table of
-    BodyTable identity size strings nodes operands signatures callees indexed -> (case (array-get signatures id, array-get callees id) of
+    CheckedBodyTable identity size strings nodes operands signatures callees indexed -> (case (array-get signatures id, array-get callees id) of
       (Some (PackedSignature name parameters result root edges), Some (Some calls)) ->
-        Some (name, parameters, result, PackedTermRef table root, calls)
+        Some (name, parameters, result, PackedTerm table root, calls)
       other -> None)
 
   packed-callees :: I64 -> Array PackedSignature -> Nat -> Nat -> List String -> Option (List String)
@@ -136,14 +148,14 @@ module Cinch.PackedBody where
   -- Node IDs identify a checked definition only within the same retained
   -- snapshot.
   same-packed-term :: PackedTerm -> PackedTerm -> Bool
-  same-packed-term (PackedTermRef first a) (PackedTermRef second b) =
+  same-packed-term (PackedTerm first a) (PackedTerm second b) =
     a == b && (case (first, second) of
-      (BodyTable id1 len1 s1 n1 o1 sig1 c1 idx1, BodyTable id2 len2 s2 n2 o2 sig2 c2 idx2) ->
+      (CheckedBodyTable id1 len1 s1 n1 o1 sig1 c1 idx1, CheckedBodyTable id2 len2 s2 n2 o2 sig2 c2 idx2) ->
         id1 == id2 && len1 == len2 && array-length n1 == array-length n2 && array-length o1 == array-length o2)
 
   packed-node :: PackedTerm -> PackedNode
-  packed-node (PackedTermRef table id) = case table of
-    BodyTable identity size strings nodes operands signatures callees indexed ->
+  packed-node (PackedTerm table id) = case table of
+    CheckedBodyTable identity size strings nodes operands signatures callees indexed ->
       let base = id * 4 in
       case (array-get nodes base, array-get nodes (base + 1), array-get nodes (base + 2), array-get nodes (base + 3)) of
         (Some tag, Some a, Some b, Some c) -> packed-node-words table strings signatures tag a b c
@@ -163,26 +175,26 @@ module Cinch.PackedBody where
       4 -> (case array-get signatures a of
         Some (PackedSignature name parameters result root edges) -> PackedCall name (packed-arguments table b c)
         None -> InvalidPackedTerm)
-      5 -> PackedLet (PackedTermRef table a) (PackedTermRef table b)
-      6 -> PackedIf (PackedTermRef table a) (PackedTermRef table b) (PackedTermRef table c)
+      5 -> PackedLet (PackedTerm table a) (PackedTerm table b)
+      6 -> PackedIf (PackedTerm table a) (PackedTerm table b) (PackedTerm table c)
       other -> InvalidPackedTerm
 
   -- These offsets come only from checked nodes and operand ranges. The
   -- private cursors can advance through that range or follow a checked ID.
   packed-arguments :: CheckedBodyTable -> Nat -> Nat -> PackedArguments
   packed-arguments table first count = case table of
-    BodyTable identity size strings nodes operands signatures callees indexed ->
+    CheckedBodyTable identity size strings nodes operands signatures callees indexed ->
       let end = first + count in
-      if end <= array-length operands then PackedOperandSpan table first end
-      else PackedOperandSpan table 0 0
+      if end <= array-length operands then PackedArguments table first end
+      else PackedArguments table 0 0
 
   packed-argument-node :: PackedArguments -> PackedArgumentNode
-  packed-argument-node (PackedOperandSpan table at end) =
+  packed-argument-node (PackedArguments table at end) =
     if at >= end then NoPackedArguments else
       (case table of
-        BodyTable identity size strings nodes operands signatures callees indexed ->
+        CheckedBodyTable identity size strings nodes operands signatures callees indexed ->
           case array-get operands at of
-            Some id -> NextPackedArgument (PackedTermRef table id) (PackedOperandSpan table (at + 1) end)
+            Some id -> NextPackedArgument (PackedTerm table id) (PackedArguments table (at + 1) end)
             None -> NoPackedArguments)
 
   -- Legacy interfaces spell these same nodes as canonically ordered JSON.

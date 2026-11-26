@@ -389,7 +389,7 @@ fn the_body_loader_prunes_stale_importers_and_keeps_dependency_order() {
     let ordered = documents(&[&child, &root, &independent]);
     let main = format!(r#"module Main where
   import Cinch.Interface (iface-parse)
-  import Cinch.Load (load-checked-body-interface-set-from-documents, interface-set-members, loaded-module)
+  import Cinch.Load (LoadedInterface, InterfaceSet, load-checked-body-interface-set-from-documents)
   import Cinch.Document (Json)
   documents :: List (String, String, String) -> Option (List (String, String, Json))
   documents rows = case rows of
@@ -407,7 +407,7 @@ fn the_body_loader_prunes_stale_importers_and_keeps_dependency_order() {
     None -> False
     Some docs -> case load-checked-body-interface-set-from-documents docs of
       Err error -> False
-      Ok checked -> same-modules (map loaded-module (interface-set-members checked)) expected
+      Ok checked -> same-modules (map (\i -> (i :: LoadedInterface).name) checked.set-members) expected
   main :: Int
   main = if admits [{stale}] ["Independent", "Root"] && admits [{ordered}] ["Root", "Child", "Independent"] then 0 else 1
 "#);

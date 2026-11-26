@@ -35,14 +35,14 @@ module Cinch.Incremental where
   import Algebra.Semigroup
   import Cinch.Ast
   import Cinch.BodyContract (binding-name)
-  import Cinch.Check (CheckedProgram, checked-elaboration)
+  import Cinch.Check (CheckedProgram)
   import Cinch.Contracts (expr-references)
-  import Cinch.Core (CoreDefinition, core-name)
+  import Cinch.Core (CoreDefinition)
   import Cinch.Document
   import Cinch.Infer (elaboration-bindings, elaboration-core, CheckedBinding, checked-body-binding)
   import Cinch.Interface (fnv-ordered-json)
-  import Cinch.Parallel (CompileTuning, tuning-strategy, tuning-workers, strategy-name)
-  import Cinch.RuntimeIr (UnitIrCache, empty-unit-ir-cache, unit-cache-size)
+  import Cinch.Parallel (CompileTuning, strategy-name)
+  import Cinch.RuntimeIr (UnitIrCache, empty-unit-ir-cache)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-to-list)
   import Data.List (reverse)
   import Data.Nat (nat-to-int)
@@ -51,9 +51,9 @@ module Cinch.Incremental where
   import Data.String (string-compare, string-concat)
   import Text.Show (nat-to-string, int-to-string)
 
-  export ProgramIndex, index-resolved-program, index-surface-hash, index-body-count, index-body-deps, index-reverse-deps
+  export ProgramIndex, index-resolved-program, index-body-count
   export IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild
-  export IncrementalSession, empty-incremental-session, session-revision, session-unit-cache, session-cached-body-count
+  export IncrementalSession, empty-incremental-session, session-cached-body-count
   export plan-incremental-build, record-incremental-success, invalidate-incremental-session
   export render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event
 
@@ -69,24 +69,17 @@ module Cinch.Incremental where
   -- - body-names: unique DFun names in declaration order
   -- - body-deps: DFun name -> referenced callee names
   -- - reverse-deps: callee name -> dependent caller names
-  data ProgramIndex where
-    MkProgramIndex :: String -> Bool -> HashMap String String -> List String -> HashMap String (List String) -> HashMap String (List String) -> ProgramIndex
-
-  index-surface-hash :: ProgramIndex -> String
-  index-surface-hash idx = case idx of
-    MkProgramIndex surface sensitive bodies names deps rev -> surface
+  record ProgramIndex where
+    surface-hash :: String
+    sensitive :: Bool
+    bodies :: HashMap String String
+    names :: List String
+    body-deps :: HashMap String (List String)
+    reverse-deps :: HashMap String (List String)
 
   index-body-count :: ProgramIndex -> Nat
   index-body-count idx = case idx of
-    MkProgramIndex surface sensitive bodies names deps rev -> list-length names
-
-  index-body-deps :: ProgramIndex -> HashMap String (List String)
-  index-body-deps idx = case idx of
-    MkProgramIndex surface sensitive bodies names deps rev -> deps
-
-  index-reverse-deps :: ProgramIndex -> HashMap String (List String)
-  index-reverse-deps idx = case idx of
-    MkProgramIndex surface sensitive bodies names deps rev -> rev
+    ProgramIndex surface sensitive bodies names deps rev -> list-length names
 
   str-list-json :: List String -> Json
   str-list-json xs = case xs of
@@ -115,7 +108,7 @@ module Cinch.Incremental where
 
   prim-body-tag :: PrimBody -> String
   prim-body-tag body = case body of
-    MkPrimBody sp kind text safe conds sel just uses imms ->
+    PrimBody sp kind text safe conds sel just uses imms ->
       kind <> ":" <> (if safe then "1:" else "0:") <> text
 
   strip-source-spans :: Json -> Json
@@ -248,7 +241,7 @@ module Cinch.Incremental where
   modules-surface-json ms = case ms of
     Nil -> JArrEnd
     Cons m rest ->
-      JArr (JArr (JStr (module-name m)) (JArr (decls-surface-json (module-decls m)) JArrEnd)) (modules-surface-json rest)
+      JArr (JArr (JStr (m.name)) (JArr (decls-surface-json (module-decls m)) JArrEnd)) (modules-surface-json rest)
 
   all-module-decls :: List Module -> List Decl
   all-module-decls ms = case ms of
@@ -257,14 +250,14 @@ module Cinch.Incremental where
 
   index-resolved-program :: Program -> ProgramIndex
   index-resolved-program program =
-    let ms = program-modules program in
+    let ms = program.modules in
     let ds = all-module-decls ms in
     let surface-doc = modules-surface-json ms in
     let surface = fnv-ordered-json surface-doc in
     let sensitive = decls-have-sensitive ds || json-has-str "TRefined" surface-doc in
     let (clause-map, names) = collect-clauses-map ds hash-map-empty Nil in
     let (hashes, deps, rev) = build-body-tables names clause-map hash-map-empty hash-map-empty hash-map-empty in
-    MkProgramIndex surface sensitive hashes names deps rev
+    ProgramIndex surface sensitive hashes names deps rev
 
   -- ------------------------------------------------------------- INCR
 
@@ -273,35 +266,32 @@ module Cinch.Incremental where
     PlanBodyOnly :: ProgramIndex -> List String -> HashMap String Nat -> HashMap String CoreDefinition -> Nat -> Nat -> IncrementalPlan
     PlanFullRebuild :: ProgramIndex -> IncrementalPlan
 
-  data IncrementalSession where
-    MkIncrementalSession :: Nat -> Option ProgramIndex -> HashMap String CoreDefinition -> HashMap String Nat -> UnitIrCache -> Option String -> IncrementalSession
+  record IncrementalSession where
+    revision :: Nat
+    idx :: Option ProgramIndex
+    core :: HashMap String CoreDefinition
+    totals :: HashMap String Nat
+    unit-cache :: UnitIrCache
+    ir :: Option String
 
   empty-incremental-session :: IncrementalSession
-  empty-incremental-session = MkIncrementalSession 0 None hash-map-empty hash-map-empty empty-unit-ir-cache None
-
-  session-revision :: IncrementalSession -> Nat
-  session-revision session = case session of
-    MkIncrementalSession rev idx core totals units ir -> rev
-
-  session-unit-cache :: IncrementalSession -> UnitIrCache
-  session-unit-cache session = case session of
-    MkIncrementalSession rev idx core totals units ir -> units
+  empty-incremental-session = IncrementalSession 0 None hash-map-empty hash-map-empty empty-unit-ir-cache None
 
   session-cached-body-count :: IncrementalSession -> Nat
   session-cached-body-count session = case session of
-    MkIncrementalSession rev idx core totals units ir -> case idx of
-      Some (MkProgramIndex surface sensitive bodies names deps rev-deps) -> list-length names
+    IncrementalSession rev idx core totals units ir -> case idx of
+      Some (ProgramIndex surface sensitive bodies names deps rev-deps) -> list-length names
       None -> 0
 
   invalidate-incremental-session :: IncrementalSession -> IncrementalSession
   invalidate-incremental-session session = case session of
-    MkIncrementalSession rev idx core totals units ir ->
-      MkIncrementalSession rev None hash-map-empty hash-map-empty empty-unit-ir-cache None
+    IncrementalSession rev idx core totals units ir ->
+      IncrementalSession rev None hash-map-empty hash-map-empty empty-unit-ir-cache None
 
   index-core-defs :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
   index-core-defs defs acc = case defs of
     Nil -> acc
-    Cons d rest -> index-core-defs rest (hash-map-insert (core-name d) d acc)
+    Cons d rest -> index-core-defs rest (hash-map-insert (d.name) d acc)
 
   collect-total-body-names :: List CheckedBinding -> HashMap String Nat -> HashMap String Nat
   collect-total-body-names bindings acc = case bindings of
@@ -312,10 +302,10 @@ module Cinch.Incremental where
 
   record-incremental-success :: IncrementalSession -> ProgramIndex -> CheckedProgram -> UnitIrCache -> String -> IncrementalSession
   record-incremental-success session idx checked units ir =
-    let typed = checked-elaboration checked in
+    let typed = checked.elaboration in
     let core-map = index-core-defs (elaboration-core typed) hash-map-empty in
     let total-names = collect-total-body-names (elaboration-bindings typed) hash-map-empty in
-    MkIncrementalSession (session-revision session + 1) (Some idx) core-map total-names units (Some ir)
+    IncrementalSession (session.revision + 1) (Some idx) core-map total-names units (Some ir)
 
   find-dirty-bodies :: List String -> HashMap String String -> HashMap String String -> List String -> HashMap String Nat -> Nat -> (List String, HashMap String Nat, Nat, Nat)
   find-dirty-bodies names old-hashes new-hashes dirty-rev dirty-set reused = case names of
@@ -365,11 +355,11 @@ module Cinch.Incremental where
   plan-incremental-build session resolved =
     let new-idx = index-resolved-program resolved in
     case session of
-      MkIncrementalSession rev old-opt last-core last-totals units last-ir -> case old-opt of
+      IncrementalSession rev old-opt last-core last-totals units last-ir -> case old-opt of
         None -> PlanFullRebuild new-idx
-        Some (MkProgramIndex old-surface old-sens old-hashes old-names old-deps old-rev) ->
+        Some (ProgramIndex old-surface old-sens old-hashes old-names old-deps old-rev) ->
           case new-idx of
-            MkProgramIndex new-surface new-sens new-hashes new-names new-deps new-rev ->
+            ProgramIndex new-surface new-sens new-hashes new-names new-deps new-rev ->
               if old-sens || new-sens || not (same old-surface new-surface) then PlanFullRebuild new-idx
               else case find-dirty-bodies new-names old-hashes new-hashes Nil hash-map-empty 0 of
                 (dirty-list, dirty-set, dirty-n, reused-n) ->
@@ -390,8 +380,8 @@ module Cinch.Incremental where
   render-ready-event :: CompileTuning -> String
   render-ready-event tuning = json-line (
     JObj "event" (JStr "ready")
-      (JObj "strategy" (JStr (strategy-name (tuning-strategy tuning)))
-        (JObj "workers" (JNum (nat-to-int (tuning-workers tuning))) JObjEnd)))
+      (JObj "strategy" (JStr (strategy-name (tuning.strategy)))
+        (JObj "workers" (JNum (nat-to-int (tuning.workers))) JObjEnd)))
 
   render-plan-event :: Nat -> String -> Nat -> Nat -> String
   render-plan-event rev kind dirty reused = json-line (
@@ -422,8 +412,8 @@ module Cinch.Incremental where
   render-stats-event :: IncrementalSession -> CompileTuning -> String
   render-stats-event session tuning = json-line (
     JObj "event" (JStr "stats")
-      (JObj "revision" (JNum (nat-to-int (session-revision session)))
+      (JObj "revision" (JNum (nat-to-int (session.revision)))
         (JObj "cached_bodies" (JNum (nat-to-int (session-cached-body-count session)))
-          (JObj "cached_units" (JNum (nat-to-int (unit-cache-size (session-unit-cache session))))
-            (JObj "strategy" (JStr (strategy-name (tuning-strategy tuning)))
-              (JObj "workers" (JNum (nat-to-int (tuning-workers tuning))) JObjEnd))))))
+          (JObj "cached_units" (JNum (nat-to-int (session.unit-cache.cache-size)))
+            (JObj "strategy" (JStr (strategy-name (tuning.strategy)))
+              (JObj "workers" (JNum (nat-to-int (tuning.workers))) JObjEnd))))))

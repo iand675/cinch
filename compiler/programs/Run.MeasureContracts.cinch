@@ -6,7 +6,7 @@ module Main where
   import Cinch.Contracts (interface-headers)
   import Cinch.Parse (parse-program-with)
   import Cinch.Resolve (resolve-program-with)
-  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Cinch.Infer (elaborate-program, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
   import Cinch.Core (CoreDefinition, core-definition-bodies-closed)
   import Cinch.BodyContract (BodyBinding)
   import Cinch.Report (render-diagnostics)
@@ -23,7 +23,7 @@ module Main where
   run interfaces source = case parse-program-with "imported-preconditions" source (interface-headers interfaces) of
     Parsed program Nil -> case resolve-program-with program interfaces of
       (resolved, Nil) -> let result = elaborate-program "imported-preconditions" resolved in
-        case elaboration-errors result of
+        case result.errors of
           Nil -> if closed (bindings-bodies (elaboration-bindings result)) (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
           errors -> (4, render-diagnostics errors)
       (resolved, errors) -> (4, render-diagnostics errors)

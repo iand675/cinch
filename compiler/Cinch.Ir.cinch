@@ -43,7 +43,7 @@
 module Cinch.Ir where
 
   import Cinch.Ast
-  import Cinch.Check (CheckedProgram, checked-surface)
+  import Cinch.Check (CheckedProgram)
   import Cinch.Report
   import Data.List
   import Data.Nat
@@ -64,10 +64,10 @@ module Cinch.Ir where
   -- scalar renderer still consumes the associated surface here; shared
   -- runtime lowering will consume the retained checked elaboration.
   emit-checked-program :: CheckedProgram -> String
-  emit-checked-program program = emit-program (checked-surface program)
+  emit-checked-program program = emit-program (program.surface)
 
   emit-checked-diagnostics :: CheckedProgram -> List Diagnostic
-  emit-checked-diagnostics program = emit-diagnostics (checked-surface program)
+  emit-checked-diagnostics program = emit-diagnostics (program.surface)
 
   -- ------------------------------------------------------------- the writer
 
@@ -78,30 +78,21 @@ module Cinch.Ir where
   -- `Builder`: appending to a `String` copies everything emitted so far,
   -- so a module emitted piece by piece would cost time quadratic in its
   -- length; the builder appends in constant time and flattens once.
-  data Gen where
-    MkGen :: Nat -> List (String, String) -> List String -> Builder -> Gen
-
-  gen-code :: Gen -> Builder
-  gen-code g = case g of
-    MkGen n env fns code -> code
-
-  gen-env :: Gen -> List (String, String)
-  gen-env g = case g of
-    MkGen n env fns code -> env
-
-  gen-fns :: Gen -> List String
-  gen-fns g = case g of
-    MkGen n env fns code -> fns
+  record Gen where
+    n :: Nat
+    env :: List (String, String)
+    fns :: List String
+    code :: Builder
 
   -- Append text as it stands (a prologue carries its own newlines).
   gen-text :: Gen -> String -> Gen
   gen-text g s = case g of
-    MkGen n env fns code -> MkGen n env fns (builder-add-string s code)
+    Gen n env fns code -> Gen n env fns (builder-add-string s code)
 
   -- Append one line.
   gen-line :: Gen -> String -> Gen
   gen-line g s = case g of
-    MkGen n env fns code -> MkGen n env fns (builder-add-line s code)
+    Gen n env fns code -> Gen n env fns (builder-add-line s code)
 
   -- Join string fragments; the writer combinator every emitter uses.
   cat :: List String -> String
@@ -111,7 +102,7 @@ module Cinch.Ir where
   -- `%s` for slots, `%p` for parameters, `L` for labels.
   fresh-named :: Gen -> String -> (Gen, String)
   fresh-named g prefix = case g of
-    MkGen n env fns code -> (MkGen (n + 1) env fns code, cat [prefix, nat-to-string n])
+    Gen n env fns code -> (Gen (n + 1) env fns code, cat [prefix, nat-to-string n])
 
   fresh-val :: Gen -> (Gen, String)
   fresh-val g = fresh-named g "%v"
@@ -125,17 +116,17 @@ module Cinch.Ir where
   -- Start a function: fresh counters and an empty local environment.
   reset-gen :: Gen -> Gen
   reset-gen g = case g of
-    MkGen n env fns code -> MkGen 0 Nil fns code
+    Gen n env fns code -> Gen 0 Nil fns code
 
   -- The environment extended with one binding (the most recent first).
   env-bind :: String -> String -> Gen -> Gen
   env-bind name slot g = case g of
-    MkGen n env fns code -> MkGen n (Cons (name, slot) env) fns code
+    Gen n env fns code -> Gen n (Cons (name, slot) env) fns code
 
   -- Replace the environment (a function's parameter bindings).
   with-env :: List (String, String) -> Gen -> Gen
   with-env bindings g = case g of
-    MkGen n env fns code -> MkGen n bindings fns code
+    Gen n env fns code -> Gen n bindings fns code
 
   env-lookup :: String -> List (String, String) -> Option String
   env-lookup name env = case env of
@@ -177,11 +168,11 @@ module Cinch.Ir where
 
   -- A local's value sits in its slot; a use is a load.
   gen-use :: Gen -> String -> (Gen, String)
-  gen-use g name = case env-lookup name (gen-env g) of
+  gen-use g name = case env-lookup name (g.env) of
     Some slot ->
       let (g1, v) = fresh-val g in
       (gen-line g1 (cat ["  ", v, " = load i64, i64* ", slot]), v)
-    None -> if name-in name (gen-fns g) then gen-call g name Nil
+    None -> if name-in name (g.fns) then gen-call g name Nil
       else (gen-text g (cat ["  ; unsupported name `", name, "` in value position\n"]), "0")
 
   -- `True` and `False` are the fragment's only lowered constructors; they
@@ -194,7 +185,7 @@ module Cinch.Ir where
 
   gen-app :: Gen -> Expr -> (Gen, String)
   gen-app g e = case app-head e of
-    EVar s name -> case name-in name (gen-fns g) of
+    EVar s name -> case name-in name (g.fns) of
       True -> gen-call g name (app-args e)
       False -> (gen-text g (cat ["  ; unsupported call to `", name, "`\n"]), "0")
     other -> (gen-text g "  ; unsupported application head\n", "0")
@@ -406,7 +397,7 @@ module Cinch.Ir where
   -- emitted as the `i32` entry rather than as a `cinch_` function.
   program-function-names :: Program -> List String
   program-function-names p = case p of
-    MkProgram s ms -> module-fn-names ms
+    Program s ms -> module-fn-names ms
 
   module-fn-names :: List Module -> List String
   module-fn-names ms = case ms of
@@ -429,14 +420,14 @@ module Cinch.Ir where
   -- The rung's entry point: the whole program as one LLVM module.
   emit-program :: Program -> String
   emit-program p =
-    builder-run (gen-code (gen-entry-wrapper (gen-modules (MkGen 0 Nil (program-function-names p) (builder-add-string ir-header builder-new)) (program-modules p))))
+    builder-run ((gen-entry-wrapper (gen-modules (Gen 0 Nil (program-function-names p) (builder-add-string ir-header builder-new)) (p.modules))).code)
 
   -- ------------------------------------------------------------ diagnostics
 
   -- A rung diagnostic: the rung name, the node's span and the message, so
   -- it renders exactly like the compiler's own.
   diag :: Span -> String -> Diagnostic
-  diag s msg = MkDiagnostic "bootstrap.ir" s msg
+  diag s msg = Diagnostic "bootstrap.ir" s msg
 
   append-diags :: List Diagnostic -> List Diagnostic -> List Diagnostic
   append-diags a b = case a of
@@ -532,7 +523,7 @@ module Cinch.Ir where
   -- program is in the fragment and `emit-program` produces its IR.
   emit-diagnostics :: Program -> List Diagnostic
   emit-diagnostics p = case p of
-    MkProgram s ms -> case ms of
+    Program s ms -> case ms of
       Cons first (Cons second rest) -> Cons (diag s "multiple modules need qualified symbols, which this emitter does not lower yet") Nil
       other -> append-diags (module-refusals (program-function-names p) ms)
         (append-diags (entry-refusal s (function-arities ms)) (module-value-refusals (function-arities ms) ms))

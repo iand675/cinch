@@ -27,9 +27,9 @@ module Main where
   corrupt-modules :: String -> List Module -> List Module
   corrupt-modules key modules = case modules of
     Nil -> Nil
-    Cons (MkModule sp name declarations) rest -> Cons (MkModule sp name (corrupt key declarations)) (corrupt-modules key rest)
+    Cons (Module sp name declarations) rest -> Cons (Module sp name (corrupt key declarations)) (corrupt-modules key rest)
   corrupt-program :: String -> Program -> Program
-  corrupt-program key program = case program of MkProgram sp modules -> MkProgram sp (corrupt-modules key modules)
+  corrupt-program key program = case program of Program sp modules -> Program sp (corrupt-modules key modules)
   has-projection :: CoreTerm -> Bool
   has-projection term = case term of
     CForget sp ty body -> True
@@ -44,9 +44,9 @@ module Main where
     CArgument sp value rest -> has-projection value || has-projection rest
     other -> False
   clause-projection :: List CoreClause -> Bool
-  clause-projection clauses = case clauses of Nil -> False; Cons (MkCoreClause sp patterns body) rest -> has-projection body || clause-projection rest
+  clause-projection clauses = case clauses of Nil -> False; Cons (CoreClause sp patterns body) rest -> has-projection body || clause-projection rest
   retained :: List CoreDefinition -> Bool
-  retained definitions = case definitions of Nil -> False; Cons definition rest -> clause-projection (core-clauses definition) || retained rest
+  retained definitions = case definitions of Nil -> False; Cons definition rest -> clause-projection (definition.clauses) || retained rest
   closed :: List CoreDefinition -> Bool
   closed definitions = case definitions of Nil -> True; Cons definition rest -> core-definition-closed definition && closed rest
   run :: Bytes -> String -> (Int, String)
@@ -56,7 +56,7 @@ module Main where
         let program = corrupt-program mutation resolved in
         let checks = check-program program in
         let result = elaborate-program "source-projection" program in
-        let errors = checks <> elaboration-errors result in
+        let errors = checks <> result.errors in
         if list-length errors > 0 then (if list-length (elaboration-core result) == 0 then 4 else 93, render-diagnostics errors)
         else if (same mutation "ordinary" || retained (elaboration-core result)) && closed (elaboration-core result) then (0, "") else (94, "projection lost its checked Core node or closed value identity")
       (resolved, errors) -> (3, render-diagnostics errors)
