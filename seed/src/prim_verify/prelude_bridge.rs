@@ -34,7 +34,7 @@ struct ScalarInfo {
     is_bool: bool,
 }
 
-fn default_fixities() -> FixityTable {
+pub(crate) fn default_fixities() -> FixityTable {
     let mut f = FixityTable::new();
     let _ = f.insert("||", Assoc::Right, 2);
     let _ = f.insert("&&", Assoc::Right, 3);
@@ -44,6 +44,9 @@ fn default_fixities() -> FixityTable {
     let _ = f.insert("+", Assoc::Left, 6);
     let _ = f.insert("-", Assoc::Left, 6);
     let _ = f.insert("*", Assoc::Left, 7);
+    let _ = f.insert("<>", Assoc::Right, 5);
+    let _ = f.insert(":", Assoc::Right, 5);
+    let _ = f.insert("$", Assoc::Right, 0);
     f
 }
 
@@ -810,6 +813,51 @@ fn render_type_pred(ty: &Type) -> String {
 struct SpecVal {
     node: NodeId,
     signed: bool,
+}
+
+/// Build a `RewriteEquiv` obligation proving `lhs == rhs` for a `rewrite ... justify verify` rule.
+pub fn build_rewrite_obligation(
+    module: &str,
+    rule_name: &str,
+    binders: &[(String, SemTy, bool)],
+    ret_ty: (SemTy, bool),
+    match_tm: &Term,
+    replace_tm: &Term,
+) -> Result<Obligation, String> {
+    let mut g = SemGraph::new();
+    let mut env: HashMap<String, SpecVal> = HashMap::new();
+    let mut sem_params = Vec::with_capacity(binders.len());
+    for (idx, (name, ty, signed)) in binders.iter().enumerate() {
+        let node = g.param(idx, name.clone(), *ty);
+        sem_params.push(SemParam {
+            index: idx,
+            name: name.clone(),
+            ty: *ty,
+            signed: *signed,
+        });
+        env.insert(name.clone(), SpecVal { node, signed: *signed });
+    }
+    let lhs = lower_spec_term(&mut g, match_tm, &env, Some(ret_ty))?;
+    let rhs = lower_spec_term(&mut g, replace_tm, &env, Some(ret_ty))?;
+    let goal = match (g.ty(lhs.node), g.ty(rhs.node)) {
+        (SemTy::Bool, SemTy::Bool) => g.iff(lhs.node, rhs.node),
+        (SemTy::Bv(w1), SemTy::Bv(w2)) if w1 == w2 => g.bv_eq(lhs.node, rhs.node),
+        (t1, t2) => {
+            return Err(format!(
+                "rewrite `{module}.{rule_name}` LHS ({t1}) and RHS ({t2}) have mismatched semantic types"
+            ))
+        }
+    };
+    Ok(Obligation::new(
+        format!("{module}.rewrite.{rule_name}::equiv"),
+        "cinch-rewrite-sem@1",
+        ObligationKind::RewriteEquiv {
+            rule_name: format!("{module}.{rule_name}"),
+        },
+        sem_params,
+        g,
+        goal,
+    ))
 }
 
 fn build_source_spec_obligation(

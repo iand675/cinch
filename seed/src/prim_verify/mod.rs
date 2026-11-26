@@ -14,9 +14,11 @@
 
 pub mod bitblast;
 pub mod llvm_ir;
+pub mod mem_contract;
 pub mod prelude_bridge;
 pub mod sem;
 pub mod smt;
+pub mod translate_val;
 
 use bitblast::{CdclLratProver, CompiledLratChecker, ExternalSatProver, KernelLratChecker};
 use llvm_ir::LlvmSemantics;
@@ -719,6 +721,7 @@ pub fn cli(args: &[String]) -> i32 {
     let mut cache_dir: Option<PathBuf> = proof_cache_dir_from_env();
     let mut replay_only = replay_only_from_env();
     let mut emit_smt_dir: Option<PathBuf> = None;
+    let mut audit_unsafe = false;
     let mut json_out = false;
     let mut verbose = false;
 
@@ -737,6 +740,8 @@ pub fn cli(args: &[String]) -> i32 {
             cache_dir = Some(PathBuf::from(d));
         } else if a == "--replay-only" {
             replay_only = true;
+        } else if a == "--audit-unsafe" {
+            audit_unsafe = true;
         } else if let Some(d) = a.strip_prefix("--emit-smt=") {
             emit_smt_dir = Some(PathBuf::from(d));
         } else if a == "--json" {
@@ -927,11 +932,94 @@ pub fn cli(args: &[String]) -> i32 {
         );
     }
 
-    if summary.disproved > 0 || summary.rejected_by_policy > 0 || (replay_only && summary.unverified > 0) {
+    let mut boundary_violations = 0usize;
+    if audit_unsafe {
+        for file in &files {
+            match mem_contract::audit_file_contracts(file) {
+                Ok(rep) => {
+                    boundary_violations += rep.violations.len();
+                    if !json_out {
+                        println!(
+                            "boundary-audit {}: unsafe={} atomics={} mem={} asm={} violations={}",
+                            file.display(),
+                            rep.unsafe_bodies_audited,
+                            rep.atomic_ops_checked,
+                            rep.memory_ops_checked,
+                            rep.inline_asm_checked,
+                            rep.violations.len()
+                        );
+                        for v in &rep.violations {
+                            println!("  [CONTRACT] {}.{}#{} ({}): {}", v.module, v.prim_name, v.body_index, v.rule, v.message);
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("cinch verify-prims: boundary audit {}: {err}", file.display());
+                    return 1;
+                }
+            }
+        }
+    }
+
+    if summary.disproved > 0
+        || summary.rejected_by_policy > 0
+        || boundary_violations > 0
+        || (replay_only && summary.unverified > 0)
+    {
         1
     } else {
         0
     }
+}
+
+/// CLI entrypoint for `cinch verify-codegen <file.cinch>`:
+/// checks the program, emits LLVM IR, and runs LRAT translation validation
+/// (`SemGraph(Core) ⊑ SemGraph(LLVM)`) across all pure scalar user functions.
+pub fn cli_verify_codegen(args: &[String]) -> i32 {
+    let Some(path_str) = args.first() else {
+        eprintln!("usage: cinch verify-codegen <file.cinch>");
+        return 2;
+    };
+    let path = std::path::Path::new(path_str);
+    let src = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("cinch verify-codegen: cannot read `{}`: {e}", path.display());
+            return 2;
+        }
+    };
+    let program = match crate::driver::check_sources(&src, path_str) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("cinch verify-codegen: check failed: {e}");
+            return 1;
+        }
+    };
+    let ir = match crate::codegen::emit(&program) {
+        Ok(ir) => ir,
+        Err(e) => {
+            eprintln!("cinch verify-codegen: codegen failed: {e}");
+            return 1;
+        }
+    };
+    let reports = translate_val::validate_program_codegen(&program, &ir, "Main.");
+    let mut verified = 0usize;
+    let mut disproved = 0usize;
+    for r in &reports {
+        println!("  [{}] {} ({}) — {}", r.status.to_uppercase(), r.fn_name, r.stage, r.details);
+        if r.status == "verified" {
+            verified += 1;
+        } else if r.status == "disproved" {
+            disproved += 1;
+        }
+    }
+    println!(
+        "\nverify-codegen summary: functions={} verified={} disproved={}",
+        reports.len(),
+        verified,
+        disproved
+    );
+    if disproved > 0 { 1 } else { 0 }
 }
 
 // =========================================================================

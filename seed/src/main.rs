@@ -133,6 +133,7 @@ fn main() {
         Some("run") => (Mode::Run, &args[1..]),
         Some("core") => exit(cinch::driver::core_cli(&args[1..])),
         Some("verify-prims") => exit(cinch::prim_verify::cli(&args[1..])),
+        Some("verify-codegen") => exit(cinch::prim_verify::cli_verify_codegen(&args[1..])),
         Some("cxx") => exit(cinch::cxx::cli(&args[1..])),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("repl") => {
