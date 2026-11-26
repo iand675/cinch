@@ -1500,10 +1500,12 @@ module Cinch.Resolve where
     None -> None
   rename-rewrite-evidence :: Visible -> List String -> RewriteJustification -> (RewriteJustification, List Diagnostic)
   rename-rewrite-evidence visible locals evidence = case evidence of
-    RewriteTerm expression -> (case rewrite-citation visible expression of
-      Some (sp, owner, member, args) -> (case rename-expr visible locals (expr-spine sp args) of
-        (renamed, errors) -> (RewriteLaw sp owner member (exprs-of renamed), errors))
-      None -> (case rename-expr visible locals expression of (renamed, errors) -> (RewriteTerm renamed, errors)))
+    RewriteTerm expression ->
+      if is-verify-justification evidence then (evidence, [])
+      else (case rewrite-citation visible expression of
+        Some (sp, owner, member, args) -> (case rename-expr visible locals (expr-spine sp args) of
+          (renamed, errors) -> (RewriteLaw sp owner member (exprs-of renamed), errors))
+        None -> (case rename-expr visible locals expression of (renamed, errors) -> (RewriteTerm renamed, errors)))
     RewriteLaw sp owner member args -> (evidence, [])
   rewrite-parameter-sites :: List TypeParam -> List (Span, String)
   rewrite-parameter-sites params = case params of

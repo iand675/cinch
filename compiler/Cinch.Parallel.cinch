@@ -32,7 +32,7 @@ module Cinch.Parallel where
   export CompileStrategy, Latency, Throughput, Eq_CompileStrategy, Show_CompileStrategy
   export CompileTuning
   export default-tuning, latency-tuning, throughput-tuning
-  export tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl
+  export tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only
   export tuning-is-latency, tuning-is-throughput
   export strategy-name, parse-compile-strategy, parse-nat-word
   export tuning-chunk-size, chunk-list, flatten-lists, apply-worker-budget
@@ -58,27 +58,35 @@ module Cinch.Parallel where
     workers :: Nat
     prim-verify :: String
     jpl :: Bool
+    proof-cache :: List (String, String)
+    replay-only :: Bool
 
   default-tuning :: CompileTuning
-  default-tuning = CompileTuning Throughput 0 "default" False
+  default-tuning = CompileTuning Throughput 0 "default" False [] False
 
   latency-tuning :: Nat -> CompileTuning
-  latency-tuning workers = CompileTuning Latency workers "default" False
+  latency-tuning workers = CompileTuning Latency workers "default" False [] False
 
   throughput-tuning :: Nat -> CompileTuning
-  throughput-tuning workers = CompileTuning Throughput workers "default" False
+  throughput-tuning workers = CompileTuning Throughput workers "default" False [] False
 
   tuning-with-strategy :: CompileStrategy -> CompileTuning -> CompileTuning
-  tuning-with-strategy strategy tuning = CompileTuning strategy tuning.workers tuning.prim-verify tuning.jpl
+  tuning-with-strategy strategy tuning = CompileTuning strategy tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only
 
   tuning-with-workers :: Nat -> CompileTuning -> CompileTuning
-  tuning-with-workers workers tuning = CompileTuning tuning.strategy workers tuning.prim-verify tuning.jpl
+  tuning-with-workers workers tuning = CompileTuning tuning.strategy workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only
 
   tuning-with-prim-verify :: String -> CompileTuning -> CompileTuning
-  tuning-with-prim-verify pv tuning = CompileTuning tuning.strategy tuning.workers pv tuning.jpl
+  tuning-with-prim-verify pv tuning = CompileTuning tuning.strategy tuning.workers pv tuning.jpl tuning.proof-cache tuning.replay-only
 
   tuning-with-jpl :: Bool -> CompileTuning -> CompileTuning
-  tuning-with-jpl jpl tuning = CompileTuning tuning.strategy tuning.workers tuning.prim-verify jpl
+  tuning-with-jpl jpl tuning = CompileTuning tuning.strategy tuning.workers tuning.prim-verify jpl tuning.proof-cache tuning.replay-only
+
+  tuning-with-proof-cache :: List (String, String) -> CompileTuning -> CompileTuning
+  tuning-with-proof-cache pc tuning = CompileTuning tuning.strategy tuning.workers tuning.prim-verify tuning.jpl pc tuning.replay-only
+
+  tuning-with-replay-only :: Bool -> CompileTuning -> CompileTuning
+  tuning-with-replay-only ro tuning = CompileTuning tuning.strategy tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache ro
 
   tuning-is-latency :: CompileTuning -> Bool
   tuning-is-latency tuning = tuning.strategy == Latency

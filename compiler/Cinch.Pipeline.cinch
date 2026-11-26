@@ -25,7 +25,7 @@ module Cinch.Pipeline where
   import Cinch.Ir (emit-checked-diagnostics, emit-checked-program)
   import Cinch.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache)
-  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
   import Cinch.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Cinch.PackageWrite (encode-interface-package, encode-object-package)
@@ -749,7 +749,7 @@ module Cinch.Pipeline where
   -- checker. It never asks another compiler to manufacture source contracts.
   profile-tuning :: TargetProfile -> CompileTuning -> CompileTuning
   profile-tuning profile tuning =
-    tuning-with-jpl (profile.jpl) (tuning-with-prim-verify (profile.prim-verify) tuning)
+    tuning-with-replay-only (profile.replay-only) (tuning-with-jpl (profile.jpl) (tuning-with-prim-verify (profile.prim-verify) tuning))
 
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-source profile program interfaces = checked-source-tuned default-tuning profile program interfaces

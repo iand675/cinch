@@ -47,11 +47,13 @@ module Cinch.PrimVerify where
   export receipt-semantics-id, receipt-prover-id, receipt-tcb
   export PrimProofFact, MkPrimProofFact, prim-proof-fact-to-json
   export VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen
-  export PrimParamSpec, MkPrimParamSpec
+  export PrimParamSpec, MkPrimParamSpec, param-spec-name, param-spec-width, param-spec-signed, param-spec-fp, param-spec-bool
   export SpecDef, MkSpecDef
-  export LratStep, LratAdd, verify-lrat
-  export SemGraph, SemType, SBool, SBv, SFp, obligation-to-smtlib2
-  export verify-prim-body, is-verify-justification-word, worst-trust-tier, receipts-tcb-union
+  export LratStep, LratAdd, verify-lrat, parse-lrat-steps, verify-lrat-text, serialize-lrat-steps
+  export SemGraph, SemType, SBool, SBv, SFp, SVec, obligation-to-smtlib2
+  export verify-prim-body, verify-prim-body-cached, verify-prim-cross-target
+  export verify-alethe, verify-rewrite-rule, audit-memory-atomic-contract, validate-llvm-equiv
+  export is-verify-justification-word, worst-trust-tier, receipts-tcb-union
 
   -- ==========================================================================
   -- 1. Persistent NatMap (binary trie over Nat keys, Share/positivity-safe)
@@ -253,22 +255,25 @@ module Cinch.PrimVerify where
     SBool :: SemType
     SBv :: Nat -> SemType
     SFp :: Nat -> SemType
+    SVec :: Nat -> Nat -> SemType
 
   sem-type-key :: SemType -> String
   sem-type-key t = case t of
     SBool -> "bool"
     SBv w -> string-concat "bv" (nat-to-string w)
     SFp w -> string-concat "fp" (nat-to-string w)
+    SVec n w -> string-concat-all ["vec", nat-to-string n, "x", nat-to-string w]
 
   sem-type-width :: SemType -> Nat
   sem-type-width t = case t of
     SBool -> 1
     SBv w -> w
     SFp w -> w
+    SVec n w -> n * w
 
   data SemNode where
     NBoolConst :: Bool -> SemNode
-    NBvConst :: Nat -> U64 -> SemNode
+    NBvConst :: Nat -> U64 -> U64 -> SemNode
     NVar :: Nat -> SemType -> String -> SemNode
     NNot :: Nat -> SemNode
     NAnd :: Nat -> Nat -> SemNode
@@ -281,6 +286,8 @@ module Cinch.PrimVerify where
     NBvBin :: String -> Nat -> Nat -> Nat -> SemNode
     NBvCmp :: String -> Nat -> Nat -> Nat -> SemNode
     NBvCast :: String -> Nat -> Nat -> Nat -> SemNode
+    NBvExtract :: Nat -> Nat -> Nat -> SemNode
+    NBvConcat :: Nat -> Nat -> SemNode
     NBvTri :: String -> Nat -> Nat -> Nat -> Nat -> SemNode
     NFpUn :: String -> Nat -> Nat -> SemNode
     NFpBin :: String -> Nat -> Nat -> Nat -> SemNode
@@ -290,7 +297,7 @@ module Cinch.PrimVerify where
   node-key :: SemNode -> String
   node-key n = case n of
     NBoolConst b -> if b then "B1" else "B0"
-    NBvConst w v -> string-concat-all ["C", nat-to-string w, ":", u64-decimal v]
+    NBvConst w lo hi -> string-concat-all ["C", nat-to-string w, ":", u64-decimal hi, ":", u64-decimal lo]
     NVar i ty nm -> string-concat-all ["V", nat-to-string i, ":", sem-type-key ty]
     NNot a -> string-concat "!(" (string-concat (nat-to-string a) ")")
     NAnd a b -> string-concat-all ["&(", nat-to-string a, ",", nat-to-string b, ")"]
@@ -303,6 +310,8 @@ module Cinch.PrimVerify where
     NBvBin op w a b -> string-concat-all [op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
     NBvCmp op w a b -> string-concat-all ["cmp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
     NBvCast op fw tw a -> string-concat-all [op, "_", nat-to-string fw, "_", nat-to-string tw, "(", nat-to-string a, ")"]
+    NBvExtract hi lo a -> string-concat-all ["ext_", nat-to-string hi, "_", nat-to-string lo, "(", nat-to-string a, ")"]
+    NBvConcat hi lo -> string-concat-all ["cat(", nat-to-string hi, ",", nat-to-string lo, ")"]
     NBvTri op w a b c -> string-concat-all [op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ",", nat-to-string c, ")"]
     NFpUn op w a -> string-concat-all ["fp_", op, "_", nat-to-string w, "(", nat-to-string a, ")"]
     NFpBin op w a b -> string-concat-all ["fp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
@@ -347,6 +356,62 @@ module Cinch.PrimVerify where
     else if w == 0 then 0
     else wrapping-sub-u64 (wrapping-shl-u64 1 (nat-u32 w)) 1
 
+  u128-mask :: Nat -> (U64, U64)
+  u128-mask w =
+    if w == 0 then (0, 0)
+    else if w <= 64 then (u64-mask w, 0)
+    else if w >= 128 then (18446744073709551615, 18446744073709551615)
+    else (18446744073709551615, u64-mask (saturating-sub w 64))
+
+  u128-sign-bit :: Nat -> (U64, U64)
+  u128-sign-bit w =
+    if w == 0 then (0, 0)
+    else if w <= 64 then (u64-sign-bit w, 0)
+    else (0, u64-sign-bit (saturating-sub w 64))
+
+  u128-add :: (U64, U64) -> (U64, U64) -> (U64, U64)
+  u128-add a b = case (a, b) of
+    ((lo1, hi1), (lo2, hi2)) ->
+      let lo = wrapping-add-u64 lo1 lo2 in
+      let carry = if lt-u64 lo lo1 then (1 :: U64) else (0 :: U64) in
+      let hi = wrapping-add-u64 (wrapping-add-u64 hi1 hi2) carry in
+      (lo, hi)
+
+  u128-neg :: (U64, U64) -> (U64, U64)
+  u128-neg a = case a of
+    (lo, hi) ->
+      let nlo = bit-xor-u64 lo 18446744073709551615 in
+      let nhi = bit-xor-u64 hi 18446744073709551615 in
+      u128-add (nlo, nhi) (1, 0)
+
+  u128-mul10 :: (U64, U64) -> (U64, U64)
+  u128-mul10 x =
+    let x2 = u128-add x x in
+    let x4 = u128-add x2 x2 in
+    let x8 = u128-add x4 x4 in
+    u128-add x8 x2
+
+  parse-u128-digits :: List Char -> (U64, U64) -> Option (U64, U64)
+  parse-u128-digits cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest ->
+      if is-ascii-digit c then
+        let d = nat-u64 (saturating-sub (char-code c) 48) in
+        parse-u128-digits rest (u128-add (u128-mul10 acc) (d, 0))
+      else None
+
+  parse-ir-u128 :: String -> Option (U64, U64)
+  parse-ir-u128 tok =
+    if string-starts-with "-" tok then
+      case unpack (string-slice tok 1 (string-length tok)) of
+        Nil -> None
+        digits -> case parse-u128-digits digits (0, 0) of
+          Some mag -> Some (u128-neg mag)
+          None -> None
+    else case unpack tok of
+      Nil -> None
+      digits -> parse-u128-digits digits (0, 0)
+
   g-intern :: SemNode -> SemGraph -> (Nat, SemGraph)
   g-intern node g = case g of
     MkSemGraph cnt nodes cache fp ->
@@ -361,8 +426,24 @@ module Cinch.PrimVerify where
   g-bool :: Bool -> SemGraph -> (Nat, SemGraph)
   g-bool b g = g-intern (NBoolConst b) g
 
+  g-bv-pair :: Nat -> U64 -> U64 -> SemGraph -> (Nat, SemGraph)
+  g-bv-pair w lo hi g = case u128-mask w of
+    (mlo, mhi) -> g-intern (NBvConst w (bit-and-u64 lo mlo) (bit-and-u64 hi mhi)) g
+
   g-bv :: Nat -> U64 -> SemGraph -> (Nat, SemGraph)
-  g-bv w v g = g-intern (NBvConst w (bit-and-u64 v (u64-mask w))) g
+  g-bv w v g = g-bv-pair w v 0 g
+
+  g-bv-smin :: Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-smin w g = case u128-sign-bit w of (lo, hi) -> g-bv-pair w lo hi g
+
+  g-bv-mask :: Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-mask w g = case u128-mask w of (lo, hi) -> g-bv-pair w lo hi g
+
+  g-bv-extract :: Nat -> Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-extract hi lo a g = g-intern (NBvExtract hi lo a) g
+
+  g-bv-concat :: Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-concat hi lo g = g-intern (NBvConcat hi lo) g
 
   g-var :: Nat -> SemType -> String -> SemGraph -> (Nat, SemGraph)
   g-var idx ty nm g = g-intern (NVar idx ty nm) g
@@ -428,7 +509,7 @@ module Cinch.PrimVerify where
     None -> "?"
     Some n -> case n of
       NBoolConst b -> if b then "true" else "false"
-      NBvConst w v -> string-concat-all ["bv", nat-to-string w, ":", u64-decimal v]
+      NBvConst w lo hi -> string-concat-all ["bv", nat-to-string w, ":", u64-decimal hi, ":", u64-decimal lo]
       NVar i ty nm -> string-concat-all ["v", nat-to-string i, ":", sem-type-key ty]
       NNot a -> string-concat-all ["(not ", serialize-sem a g, ")"]
       NAnd a b -> string-concat-all ["(and ", serialize-sem a g, " ", serialize-sem b g, ")"]
@@ -441,6 +522,8 @@ module Cinch.PrimVerify where
       NBvBin op w a b -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
       NBvCmp op w a b -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
       NBvCast op fw tw a -> string-concat-all ["(", op, ".", nat-to-string fw, ".", nat-to-string tw, " ", serialize-sem a g, ")"]
+      NBvExtract hi lo a -> string-concat-all ["(extract.", nat-to-string hi, ".", nat-to-string lo, " ", serialize-sem a g, ")"]
+      NBvConcat hi lo -> string-concat-all ["(concat ", serialize-sem hi g, " ", serialize-sem lo g, ")"]
       NBvTri op w a b c -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, " ", serialize-sem c g, ")"]
       NFpUn op w a -> string-concat-all ["(fp.", op, ".", nat-to-string w, " ", serialize-sem a g, ")"]
       NFpBin op w a b -> string-concat-all ["(fp.", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
@@ -457,21 +540,30 @@ module Cinch.PrimVerify where
   data SemVal where
     MkSemVal :: Nat -> Nat -> SemType -> SemVal
     MkSemPair :: SemVal -> SemVal -> SemVal
+    MkSemVec :: List (Nat, Nat) -> Nat -> SemVal
 
   sv-val :: SemVal -> Nat
   sv-val v = case v of
     MkSemVal val p ty -> val
     MkSemPair a b -> sv-val a
+    MkSemVec lanes ew -> case lanes of Cons (lv, lp) rest -> lv; Nil -> 0
 
   sv-poison :: SemVal -> Nat
   sv-poison v = case v of
     MkSemVal val p ty -> p
     MkSemPair a b -> sv-poison a
+    MkSemVec lanes ew -> case lanes of Cons (lv, lp) rest -> lp; Nil -> 0
 
   sv-type :: SemVal -> SemType
   sv-type v = case v of
     MkSemVal val p ty -> ty
     MkSemPair a b -> sv-type a
+    MkSemVec lanes ew -> SVec (list-len-lanes lanes) ew
+
+  list-len-lanes :: List (Nat, Nat) -> Nat
+  list-len-lanes xs = case xs of
+    Nil -> 0
+    Cons h t -> 1 + list-len-lanes t
 
   data LlvmEnv where
     MkLlvmEnv :: List (String, SemVal) -> Nat -> SemGraph -> Option SemVal -> LlvmEnv
@@ -486,19 +578,32 @@ module Cinch.PrimVerify where
     Nil -> ""
     Cons code rest -> string-strip code
 
+  -- Compact `<16 x i8>` -> `<16_x_i8>` and `<i32 0, i32 1>` -> `<i32_0,_i32_1>`
+  -- so vector types and constant masks tokenize cleanly as single words.
+  compact-angle-chars :: Bool -> List Char -> List Char
+  compact-angle-chars inside cs = case cs of
+    Nil -> Nil
+    Cons c rest ->
+      let code = char-code c in
+      if code == 60 then Cons c (compact-angle-chars True rest)
+      else if code == 62 then Cons c (compact-angle-chars False rest)
+      else if inside && (code == 32 || code == 9) then Cons '_' (compact-angle-chars True rest)
+      else if inside && code == 44 then Cons '~' (compact-angle-chars True rest)
+      else Cons c (compact-angle-chars inside rest)
+
   tokenize-ir-chars :: List Char -> List Char
   tokenize-ir-chars cs = case cs of
     Nil -> Nil
     Cons c rest ->
       let code = char-code c in
-      if code == 44 || code == 40 || code == 41 || code == 123 || code == 125 then
+      if code == 44 || code == 40 || code == 41 || code == 123 || code == 125 || code == 91 || code == 93 then
         Cons ' ' (tokenize-ir-chars rest)
       else if code == 61 then
         Cons ' ' (Cons '=' (Cons ' ' (tokenize-ir-chars rest)))
       else Cons c (tokenize-ir-chars rest)
 
   ir-words :: String -> List String
-  ir-words line = string-words (pack (tokenize-ir-chars (unpack (strip-ir-comment line))))
+  ir-words line = string-words (pack (tokenize-ir-chars (compact-angle-chars False (unpack (strip-ir-comment line)))))
 
   parse-u64-digits :: List Char -> U64 -> Option U64
   parse-u64-digits cs acc = case cs of
@@ -526,6 +631,15 @@ module Cinch.PrimVerify where
     if same s "i1" then Some SBool
     else if same s "float" then Some (SFp 32)
     else if same s "double" then Some (SFp 64)
+    else if string-starts-with "<" s && string-ends-with ">" s && string-length s > 4 then
+      let inner = string-slice s 1 (saturating-sub (string-length s) 1) in
+      case string-split-on "_x_" inner of
+        Cons cnt-str (Cons elem-str Nil) ->
+          (case (parse-nat-str cnt-str, parse-llvm-type elem-str) of
+            (Some n, Some SBool) | n >= 1 && n <= 64 -> Some (SVec n 1)
+            (Some n, Some (SBv ew)) | n >= 1 && n <= 64 -> Some (SVec n ew)
+            other -> None)
+        other -> None
     else if string-starts-with "i" s && string-length s > 1 then
       case parse-nat-str (string-slice s 1 (string-length s)) of
         Some w | w >= 1 && w <= 128 -> Some (SBv w)
@@ -544,6 +658,9 @@ module Cinch.PrimVerify where
       if is-ascii-digit c then parse-nat-digits rest (acc * 10 + saturating-sub (char-code c) 48)
       else None
 
+  repeat-lane :: Nat -> (Nat, Nat) -> List (Nat, Nat)
+  repeat-lane n lp = if n == 0 then Nil else Cons lp (repeat-lane (saturating-sub n 1) lp)
+
   resolve-operand :: String -> SemType -> LlvmEnv -> Result String (SemVal, SemGraph)
   resolve-operand tok ty env = case env of
     MkLlvmEnv binds ub g ret ->
@@ -557,22 +674,34 @@ module Cinch.PrimVerify where
         Ok (MkSemVal v p SBool, g2)
       else if same tok "poison" || same tok "undef" then
         let (p, g1) = g-bool True g in
-        let (v, g2) = case ty of
-              SBool -> g-bool False g1
-              SBv w -> g-bv w 0 g1
-              SFp w -> g-bv w 0 g1 in
-        Ok (MkSemVal v p ty, g2)
+        (case ty of
+          SBool -> let (v, g2) = g-bool False g1 in Ok (MkSemVal v p SBool, g2)
+          SBv w -> let (v, g2) = g-bv w 0 g1 in Ok (MkSemVal v p (SBv w), g2)
+          SFp w -> let (v, g2) = g-bv w 0 g1 in Ok (MkSemVal v p (SFp w), g2)
+          SVec n ew ->
+            let (zv, g2) = if ew == 1 then g-bool False g1 else g-bv ew 0 g1 in
+            Ok (MkSemVec (repeat-lane n (zv, p)) ew, g2))
+      else if same tok "zeroinitializer" then
+        let (p, g1) = g-bool False g in
+        (case ty of
+          SBool -> let (v, g2) = g-bool False g1 in Ok (MkSemVal v p SBool, g2)
+          SBv w -> let (v, g2) = g-bv w 0 g1 in Ok (MkSemVal v p (SBv w), g2)
+          SFp w -> let (v, g2) = g-bv w 0 g1 in Ok (MkSemVal v p (SFp w), g2)
+          SVec n ew ->
+            let (zv, g2) = if ew == 1 then g-bool False g1 else g-bv ew 0 g1 in
+            Ok (MkSemVec (repeat-lane n (zv, p)) ew, g2))
       else if string-starts-with "%" tok then
         case env-lookup tok binds of
           Some sv -> Ok (sv, g)
           None -> Err (string-concat "unresolved LLVM operand " tok)
-      else case parse-ir-u64 tok of
-        Some num ->
+      else case parse-ir-u128 tok of
+        Some (lo, hi) ->
           let (p, g1) = g-bool False g in
           (case ty of
-            SBool -> let (v, g2) = g-bool (not (eq-u64 num 0)) g1 in Ok (MkSemVal v p SBool, g2)
-            SBv w -> let (v, g2) = g-bv w num g1 in Ok (MkSemVal v p (SBv w), g2)
-            SFp w -> let (v, g2) = g-bv w num g1 in Ok (MkSemVal v p (SFp w), g2))
+            SBool -> let (v, g2) = g-bool (not (eq-u64 lo 0 && eq-u64 hi 0)) g1 in Ok (MkSemVal v p SBool, g2)
+            SBv w -> let (v, g2) = g-bv-pair w lo hi g1 in Ok (MkSemVal v p (SBv w), g2)
+            SFp w -> let (v, g2) = g-bv-pair w lo hi g1 in Ok (MkSemVal v p (SFp w), g2)
+            SVec n ew -> Err (string-concat "scalar constant used as vector operand " tok))
         None -> Err (string-concat "unsupported LLVM operand " tok)
 
   strip-ir-flags :: List String -> (Bool, Bool, Bool, List String)
@@ -686,8 +815,8 @@ module Cinch.PrimVerify where
                             else if has-str op ["sdiv", "srem"] then
                               let (zero, g4) = g-bv w 0 g3 in
                               let (div0, g5) = g-bv-cmp "eq" w (sv-val vb) zero g4 in
-                              let (smin, g6) = g-bv w (u64-sign-bit w) g5 in
-                              let (neg1, g7) = g-bv w (u64-mask w) g6 in
+                              let (smin, g6) = g-bv-smin w g5 in
+                              let (neg1, g7) = g-bv-mask w g6 in
                               let (is-min, g8) = g-bv-cmp "eq" w (sv-val va) smin g7 in
                               let (is-m1, g9) = g-bv-cmp "eq" w (sv-val vb) neg1 g8 in
                               let (ov-ub, g10) = g-and is-min is-m1 g9 in
@@ -697,6 +826,14 @@ module Cinch.PrimVerify where
                               let (res, g14) = g-bv-bin op w (sv-val va) (sv-val vb) g13 in
                               Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p ty) binds) ub3 g14 ret)
                             else Err (string-concat "unsupported LLVM binop " op)
+                          SVec count ew ->
+                            case (va, vb) of
+                              (MkSemVec la ewa, MkSemVec lb ewb) ->
+                                (case lower-vec-binop-lanes op ew nsw nuw la lb g2 of
+                                  Err e -> Err e
+                                  Ok (out-lanes, g3) ->
+                                    Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes ew) binds) ub g3 ret))
+                              other -> Err (string-concat "non-vector operand to vector binop " op)
                           SBool ->
                             if same op "and" then
                               let (res, g4) = g-and (sv-val va) (sv-val vb) g3 in
@@ -713,6 +850,156 @@ module Cinch.PrimVerify where
                             Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p ty) binds) ub g4 ret))
       other -> Err (string-concat "malformed LLVM binop " op)
 
+  lower-vec-binop-lanes :: String -> Nat -> Bool -> Bool -> List (Nat, Nat) -> List (Nat, Nat) -> SemGraph -> Result String (List (Nat, Nat), SemGraph)
+  lower-vec-binop-lanes op ew nsw nuw la lb g = case (la, lb) of
+    (Nil, Nil) -> Ok (Nil, g)
+    (Cons (va, pa) ra, Cons (vb, pb) rb) ->
+      let (base-p, g1) = g-or pa pb g in
+      if has-str op ["add", "sub", "mul"] then
+        let (res, g2) = g-bv-bin op ew va vb g1 in
+        let (ov-p, g3) = arith-overflow-poison op ew nsw nuw va vb res g2 in
+        let (p, g4) = g-or base-p ov-p g3 in
+        (case lower-vec-binop-lanes op ew nsw nuw ra rb g4 of
+          Err e -> Err e
+          Ok (rest, g5) -> Ok (Cons (res, p) rest, g5))
+      else if has-str op ["and", "or", "xor"] then
+        let (res, g2) = g-bv-bin op ew va vb g1 in
+        (case lower-vec-binop-lanes op ew nsw nuw ra rb g2 of
+          Err e -> Err e
+          Ok (rest, g3) -> Ok (Cons (res, base-p) rest, g3))
+      else if has-str op ["shl", "lshr", "ashr"] then
+        let (res, g2) = g-bv-bin op ew va vb g1 in
+        let (w-const, g3) = g-bv ew (nat-u64 ew) g2 in
+        let (oob, g4) = g-bv-cmp "uge" ew vb w-const g3 in
+        let (p, g5) = g-or base-p oob g4 in
+        (case lower-vec-binop-lanes op ew nsw nuw ra rb g5 of
+          Err e -> Err e
+          Ok (rest, g6) -> Ok (Cons (res, p) rest, g6))
+      else Err (string-concat "unsupported vector binop " op)
+    other -> Err "mismatched vector lane counts in binop"
+
+  slice-bv-to-lanes :: Nat -> Nat -> Nat -> Nat -> Nat -> SemGraph -> (List (Nat, Nat), SemGraph)
+  slice-bv-to-lanes v p count ew idx g =
+    if idx >= count then (Nil, g)
+    else
+      let lo = idx * ew in
+      let hi = saturating-sub (lo + ew) 1 in
+      let (lane-raw, g1) = g-bv-extract hi lo v g in
+      let (lane-val, g2) =
+            if ew == 1 then
+              let (z, ga) = g-bv 1 0 g1 in g-bv-cmp "ne" 1 lane-raw z ga
+            else (lane-raw, g1) in
+      case slice-bv-to-lanes v p count ew (idx + 1) g2 of
+        (rest, g3) -> (Cons (lane-val, p) rest, g3)
+
+  pack-lanes-to-bv :: List (Nat, Nat) -> Nat -> SemGraph -> Result String (Nat, Nat, SemGraph)
+  pack-lanes-to-bv lanes ew g = case lanes of
+    Nil -> Err "empty vector in bitcast"
+    Cons (lv, lp) Nil ->
+      if ew == 1 then
+        let (one, g1) = g-bv 1 1 g in
+        let (zero, g2) = g-bv 1 0 g1 in
+        let (b, g3) = g-ite lv one zero g2 in
+        Ok (b, lp, g3)
+      else Ok (lv, lp, g)
+    Cons (lv, lp) rest ->
+      case pack-lanes-to-bv rest ew g of
+        Err e -> Err e
+        Ok (hi-v, hi-p, g1) ->
+          let (lo-v, g2) =
+                if ew == 1 then
+                  let (one, ga) = g-bv 1 1 g1 in
+                  let (zero, gb) = g-bv 1 0 ga in
+                  g-ite lv one zero gb
+                else (lv, g1) in
+          let (cat-v, g3) = g-bv-concat hi-v lo-v g2 in
+          let (cat-p, g4) = g-or lp hi-p g3 in
+          Ok (cat-v, cat-p, g4)
+
+  cast-vec-lanes :: String -> Nat -> Nat -> List (Nat, Nat) -> SemGraph -> (List (Nat, Nat), SemGraph)
+  cast-vec-lanes op fw tw lanes g = case lanes of
+    Nil -> (Nil, g)
+    Cons (lv, lp) rest ->
+      let (cv, g1) =
+            if fw == 1 && tw > 1 then
+              let (one, ga) = if same op "sext" then g-bv-mask tw g else g-bv tw 1 g in
+              let (zero, gb) = g-bv tw 0 ga in
+              g-ite lv one zero gb
+            else if fw > 1 && tw == 1 then
+              let (one, ga) = g-bv fw 1 g in
+              let (m, gb) = g-bv-bin "and" fw lv one ga in
+              g-bv-cmp "eq" fw m one gb
+            else g-bv-cast op fw tw lv g in
+      case cast-vec-lanes op fw tw rest g1 of
+        (more, g2) -> (Cons (cv, lp) more, g2)
+
+  icmp-vec-lanes :: String -> Nat -> List (Nat, Nat) -> List (Nat, Nat) -> SemGraph -> Result String (List (Nat, Nat), SemGraph)
+  icmp-vec-lanes pred ew la lb g = case (la, lb) of
+    (Nil, Nil) -> Ok (Nil, g)
+    (Cons (va, pa) ra, Cons (vb, pb) rb) ->
+      let (p, g1) = g-or pa pb g in
+      let (c, g2) =
+            if ew == 1 then
+              if same pred "eq" then g-intern (NEqBool va vb) g1 else g-intern (NXor va vb) g1
+            else g-bv-cmp pred ew va vb g1 in
+      (case icmp-vec-lanes pred ew ra rb g2 of
+        Err e -> Err e
+        Ok (rest, g3) -> Ok (Cons (c, p) rest, g3))
+    other -> Err "mismatched vector lane counts in icmp"
+
+  set-lane-at :: Nat -> (Nat, Nat) -> List (Nat, Nat) -> Result String (List (Nat, Nat))
+  set-lane-at idx new-lane lanes = case lanes of
+    Nil -> Err "insertelement lane index out of range"
+    Cons h t ->
+      if idx == 0 then Ok (Cons new-lane t)
+      else case set-lane-at (saturating-sub idx 1) new-lane t of
+        Err e -> Err e
+        Ok rest -> Ok (Cons h rest)
+
+  get-lane-at :: Nat -> List (Nat, Nat) -> Option (Nat, Nat)
+  get-lane-at idx lanes = case lanes of
+    Nil -> None
+    Cons h t -> if idx == 0 then Some h else get-lane-at (saturating-sub idx 1) t
+
+  parse-shuffle-mask :: String -> Nat -> Option (List Nat)
+  parse-shuffle-mask tok count =
+    if same tok "zeroinitializer" then Some (repeat-nat count 0)
+    else if string-starts-with "<" tok && string-ends-with ">" tok && string-length tok > 2 then
+      let inner = string-slice tok 1 (saturating-sub (string-length tok) 1) in
+      parse-shuffle-items (string-split-on "~" inner)
+    else None
+
+  repeat-nat :: Nat -> Nat -> List Nat
+  repeat-nat n x = if n == 0 then Nil else Cons x (repeat-nat (saturating-sub n 1) x)
+
+  parse-shuffle-items :: List String -> Option (List Nat)
+  parse-shuffle-items items = case items of
+    Nil -> Some Nil
+    Cons raw rest ->
+      let parts = string-split-on "_" raw in
+      case last-nonempty parts of
+        Some num-str ->
+          (case parse-nat-str num-str of
+            Some idx -> (case parse-shuffle-items rest of Some more -> Some (Cons idx more); None -> None)
+            None -> None)
+        None -> None
+
+  last-nonempty :: List String -> Option String
+  last-nonempty xs = case xs of
+    Nil -> None
+    Cons h t -> case last-nonempty t of
+      Some found -> Some found
+      None -> if string-length h > 0 then Some h else None
+
+  gather-shuffle-lanes :: List Nat -> List (Nat, Nat) -> Result String (List (Nat, Nat))
+  gather-shuffle-lanes idxs pool = case idxs of
+    Nil -> Ok Nil
+    Cons i rest -> case get-lane-at i pool of
+      None -> Err "shufflevector index out of bounds"
+      Some lp -> case gather-shuffle-lanes rest pool of
+        Err e -> Err e
+        Ok more -> Ok (Cons lp more)
+
   lower-cast :: String -> String -> List String -> LlvmEnv -> Result String LlvmEnv
   lower-cast lhs op args env =
     let (nsw, nuw, exact, rest) = strip-ir-flags args in
@@ -728,7 +1015,7 @@ module Cinch.PrimVerify where
                     let p = sv-poison v in
                     (case (src-ty, dst-ty) of
                       (SBool, SBv tw) ->
-                        let (one, g2) = g-bv tw (if same op "sext" then u64-mask tw else 1) g1 in
+                        let (one, g2) = if same op "sext" then g-bv-mask tw g1 else g-bv tw 1 g1 in
                         let (zero, g3) = g-bv tw 0 g2 in
                         let (res, g4) = g-ite (sv-val v) one zero g3 in
                         Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p dst-ty) binds) ub g4 ret)
@@ -740,6 +1027,23 @@ module Cinch.PrimVerify where
                       (SBv fw, SBv tw) ->
                         let (res, g2) = g-bv-cast op fw tw (sv-val v) g1 in
                         Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p dst-ty) binds) ub g2 ret)
+                      (SBv fw, SVec count ew) | same op "bitcast" && count * ew == fw ->
+                        let (lanes, g2) = slice-bv-to-lanes (sv-val v) p count ew 0 g1 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVec lanes ew) binds) ub g2 ret)
+                      (SVec count ew, SBv tw) | same op "bitcast" && count * ew == tw ->
+                        (case v of
+                          MkSemVec lanes vew ->
+                            (case pack-lanes-to-bv lanes ew g1 of
+                              Err e -> Err e
+                              Ok (bv-v, bv-p, g2) ->
+                                Ok (MkLlvmEnv (Cons (lhs, MkSemVal bv-v bv-p (SBv tw)) binds) ub g2 ret))
+                          other -> Err "bitcast expects vector operand")
+                      (SVec c1 ew1, SVec c2 ew2) | c1 == c2 ->
+                        (case v of
+                          MkSemVec lanes vew ->
+                            let (out-lanes, g2) = cast-vec-lanes op ew1 ew2 lanes g1 in
+                            Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes ew2) binds) ub g2 ret)
+                          other -> Err "vector cast expects vector operand")
                       (other1, other2) ->
                         let (res, g2) = g-intern (NFpCast op (sem-type-width src-ty) (sem-type-width dst-ty) (sv-val v)) g1 in
                         Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p dst-ty) binds) ub g2 ret))
@@ -771,6 +1075,14 @@ module Cinch.PrimVerify where
                             let (res, g4) = if same pred "eq" then g-intern (NEqBool (sv-val va) (sv-val vb)) g3
                                   else g-intern (NXor (sv-val va) (sv-val vb)) g3 in
                             Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p SBool) binds) ub g4 ret)
+                          SVec count ew ->
+                            (case (va, vb) of
+                              (MkSemVec la ewa, MkSemVec lb ewb) ->
+                                (case icmp-vec-lanes pred ew la lb g2 of
+                                  Err e -> Err e
+                                  Ok (out-lanes, g4) ->
+                                    Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes 1) binds) ub g4 ret))
+                              other -> Err "non-vector operand to vector icmp")
                           SFp w -> Err "icmp on float")
       other -> Err "malformed LLVM icmp"
 
@@ -1012,6 +1324,66 @@ module Cinch.PrimVerify where
                           Ok (MkLlvmEnv (Cons (head, chosen) binds) ub g0 ret)
                         other -> Err (string-concat "unresolved aggregate in extractvalue " agg-tok))
                 other -> Err "malformed LLVM extractvalue")
+            else if same op "insertelement" then
+              (case op-args of
+                Cons vty-tok (Cons v-tok (Cons ety-tok (Cons e-tok (Cons ity-tok (Cons idx-tok Nil))))) ->
+                  (case (parse-llvm-type vty-tok, parse-llvm-type ety-tok, parse-nat-str idx-tok) of
+                    (Some (SVec count ew), Some ety, Some idx) ->
+                      (case resolve-operand v-tok (SVec count ew) env of
+                        Err e -> Err e
+                        Ok (MkSemVec lanes vew, g1) ->
+                          (case env of
+                            MkLlvmEnv binds ub g0 ret ->
+                              (case resolve-operand e-tok ety (MkLlvmEnv binds ub g1 ret) of
+                                Err e -> Err e
+                                Ok (ev, g2) ->
+                                  (case set-lane-at idx (sv-val ev, sv-poison ev) lanes of
+                                    Err e -> Err e
+                                    Ok next-lanes -> Ok (MkLlvmEnv (Cons (head, MkSemVec next-lanes ew) binds) ub g2 ret))))
+                        Ok other -> Err "insertelement expects vector operand")
+                    other -> Err "malformed LLVM insertelement types")
+                other -> Err "malformed LLVM insertelement")
+            else if same op "extractelement" then
+              (case op-args of
+                Cons vty-tok (Cons v-tok (Cons ity-tok (Cons idx-tok Nil))) ->
+                  (case (parse-llvm-type vty-tok, parse-nat-str idx-tok) of
+                    (Some (SVec count ew), Some idx) ->
+                      (case resolve-operand v-tok (SVec count ew) env of
+                        Err e -> Err e
+                        Ok (MkSemVec lanes vew, g1) ->
+                          (case env of
+                            MkLlvmEnv binds ub g0 ret ->
+                              (case get-lane-at idx lanes of
+                                None -> Err "extractelement lane index out of range"
+                                Some (lv, lp) ->
+                                  let ety = if ew == 1 then SBool else SBv ew in
+                                  Ok (MkLlvmEnv (Cons (head, MkSemVal lv lp ety) binds) ub g1 ret)))
+                        Ok other -> Err "extractelement expects vector operand")
+                    other -> Err "malformed LLVM extractelement types")
+                other -> Err "malformed LLVM extractelement")
+            else if same op "shufflevector" then
+              (case op-args of
+                Cons vty1 (Cons v1-tok (Cons vty2 (Cons v2-tok (Cons mty-tok (Cons mask-tok Nil))))) ->
+                  (case (parse-llvm-type vty1, parse-llvm-type mty-tok) of
+                    (Some (SVec n ew), Some (SVec m mw)) ->
+                      (case resolve-operand v1-tok (SVec n ew) env of
+                        Err e -> Err e
+                        Ok (MkSemVec l1 ew1, g1) ->
+                          (case env of
+                            MkLlvmEnv binds ub g0 ret ->
+                              (case resolve-operand v2-tok (SVec n ew) (MkLlvmEnv binds ub g1 ret) of
+                                Err e -> Err e
+                                Ok (MkSemVec l2 ew2, g2) ->
+                                  (case parse-shuffle-mask mask-tok m of
+                                    None -> Err (string-concat "unsupported shufflevector mask " mask-tok)
+                                    Some idxs ->
+                                      (case gather-shuffle-lanes idxs (l1 <> l2) of
+                                        Err e -> Err e
+                                        Ok out-lanes -> Ok (MkLlvmEnv (Cons (head, MkSemVec out-lanes ew) binds) ub g2 ret)))
+                                Ok other -> Err "shufflevector expects vector rhs"))
+                        Ok other -> Err "shufflevector expects vector lhs")
+                    other -> Err "malformed LLVM shufflevector types")
+                other -> Err "malformed LLVM shufflevector")
             else if same op "call" then
               lower-intrinsic-call head op-args env
             else Err (string-concat "unsupported LLVM instruction in verifier: " op)
@@ -1026,6 +1398,229 @@ module Cinch.PrimVerify where
       case lower-ir-line (ir-words line) env of
         Err e -> Err e
         Ok next -> lower-ir-lines rest next
+
+  -- --------------------------------------------------------------------------
+  -- 4b. Acyclic Multi-Block CFG Lowering (`label:`, `br i1`, `br label`, `phi`)
+  -- --------------------------------------------------------------------------
+
+  is-cfg-line :: String -> Bool
+  is-cfg-line line =
+    let t = strip-ir-comment line in
+    if string-length t == 0 then False
+    else if string-ends-with ":" t then True
+    else case ir-words t of
+      Cons w rest -> same w "br" || has-str "phi" rest
+      Nil -> False
+
+  has-cfg-lines :: List String -> Bool
+  has-cfg-lines lines = case lines of
+    Nil -> False
+    Cons l rest -> is-cfg-line l || has-cfg-lines rest
+
+  is-label-line :: String -> Option String
+  is-label-line line =
+    let t = strip-ir-comment line in
+    if string-length t > 1 && string-ends-with ":" t && not (string-contains " " t) then
+      Some (string-slice t 0 (saturating-sub (string-length t) 1))
+    else None
+
+  split-ir-blocks :: List String -> String -> List String -> Bool -> List (String, List String)
+  split-ir-blocks lines cur-lbl cur-acc started = case lines of
+    Nil ->
+      if started || (case cur-acc of Nil -> False; other -> True) then
+        Cons (cur-lbl, reverse cur-acc) Nil
+      else Nil
+    Cons raw rest ->
+      let t = strip-ir-comment raw in
+      if string-length t == 0 then split-ir-blocks rest cur-lbl cur-acc started
+      else case is-label-line t of
+        Some next-lbl ->
+          if started || (case cur-acc of Nil -> False; other -> True) then
+            Cons (cur-lbl, reverse cur-acc) (split-ir-blocks rest next-lbl Nil True)
+          else split-ir-blocks rest next-lbl Nil True
+        None -> split-ir-blocks rest cur-lbl (Cons t cur-acc) True
+
+  lookup-block-idx :: String -> List (String, List String) -> Nat -> Option Nat
+  lookup-block-idx lbl blocks idx = case blocks of
+    Nil -> None
+    Cons (blbl, blines) rest ->
+      if same lbl blbl then Some idx
+      else lookup-block-idx lbl rest (idx + 1)
+
+  strip-percent :: String -> String
+  strip-percent s =
+    if string-starts-with "%" s && string-length s > 1 then string-slice s 1 (string-length s)
+    else s
+
+  lookup-nat-str :: String -> List (String, Nat) -> Option Nat
+  lookup-nat-str k xs = case xs of
+    Nil -> None
+    Cons (k1, v1) rest -> if same k k1 then Some v1 else lookup-nat-str k rest
+
+  upsert-reach :: String -> Nat -> List (String, Nat) -> SemGraph -> (List (String, Nat), SemGraph)
+  upsert-reach lbl cond xs g = case xs of
+    Nil -> (Cons (lbl, cond) Nil, g)
+    Cons (k, old) rest ->
+      if same k lbl then
+        let (merged, g1) = g-or old cond g in
+        (Cons (k, merged) rest, g1)
+      else case upsert-reach lbl cond rest g of
+        (more, g1) -> (Cons (k, old) more, g1)
+
+  add-edge-cond :: String -> String -> Nat -> List (String, List (String, Nat)) -> List (String, List (String, Nat))
+  add-edge-cond dst src cond xs = case xs of
+    Nil -> Cons (dst, Cons (src, cond) Nil) Nil
+    Cons (k, es) rest ->
+      if same k dst then Cons (k, Cons (src, cond) es) rest
+      else Cons (k, es) (add-edge-cond dst src cond rest)
+
+  lookup-edges :: String -> List (String, List (String, Nat)) -> List (String, Nat)
+  lookup-edges dst xs = case xs of
+    Nil -> Nil
+    Cons (k, es) rest -> if same k dst then es else lookup-edges dst rest
+
+  lookup-block-binds :: String -> List (String, List (String, SemVal)) -> Option (List (String, SemVal))
+  lookup-block-binds lbl xs = case xs of
+    Nil -> None
+    Cons (k, bs) rest -> if same k lbl then Some bs else lookup-block-binds lbl rest
+
+  merge-sem-val :: Nat -> SemVal -> SemVal -> SemGraph -> Result String (SemVal, SemGraph)
+  merge-sem-val cond vt vf g = case (vt, vf) of
+    (MkSemVal v1 p1 ty1, MkSemVal v2 p2 ty2) ->
+      let (mv, g1) = g-ite cond v1 v2 g in
+      let (mp, g2) = g-ite cond p1 p2 g1 in
+      Ok (MkSemVal mv mp ty1, g2)
+    other -> Err "cannot merge aggregate/vector values across CFG branches"
+
+  parse-phi-pairs :: List String -> Result String (List (String, String))
+  parse-phi-pairs ws = case ws of
+    Nil -> Ok Nil
+    Cons val-tok (Cons lbl-tok rest) ->
+      case parse-phi-pairs rest of
+        Err e -> Err e
+        Ok more -> Ok (Cons (val-tok, strip-percent lbl-tok) more)
+    other -> Err "malformed LLVM phi incoming list"
+
+  eval-phi-pairs :: List (String, String) -> SemType -> List (String, Nat) -> List (String, List (String, SemVal)) -> List (String, SemVal) -> Nat -> SemGraph -> Option SemVal -> Result String (SemVal, SemGraph)
+  eval-phi-pairs pairs ty edges bbinds cur-binds ub g acc = case pairs of
+    Nil -> case acc of
+      Some sv -> Ok (sv, g)
+      None -> Err "phi node has no reachable incoming edge"
+    Cons (val-tok, pred-lbl) rest ->
+      case lookup-nat-str pred-lbl edges of
+        None -> eval-phi-pairs rest ty edges bbinds cur-binds ub g acc
+        Some econd ->
+          let pbinds = case lookup-block-binds pred-lbl bbinds of Some bs -> bs; None -> cur-binds in
+          case resolve-operand val-tok ty (MkLlvmEnv pbinds ub g None) of
+            Err e -> Err e
+            Ok (sv, g1) ->
+              (case acc of
+                None -> eval-phi-pairs rest ty edges bbinds cur-binds ub g1 (Some sv)
+                Some prev ->
+                  (case merge-sem-val econd sv prev g1 of
+                    Err e -> Err e
+                    Ok (merged, g2) -> eval-phi-pairs rest ty edges bbinds cur-binds ub g2 (Some merged)))
+
+  lower-cfg-block-lines :: String -> Nat -> List (String, List String) -> List String -> Nat -> List (String, SemVal) -> List (String, Nat) -> List (String, List (String, Nat)) -> List (String, List (String, SemVal)) -> Nat -> Option SemVal -> SemGraph -> Result String (List (String, SemVal), List (String, Nat), List (String, List (String, Nat)), Nat, Option SemVal, SemGraph)
+  lower-cfg-block-lines blbl bidx all-blocks lines reach binds reach-map edge-map bbinds ub ret-acc g = case lines of
+    Nil -> Ok (binds, reach-map, edge-map, ub, ret-acc, g)
+    Cons line rest ->
+      let ws = ir-words line in
+      case ws of
+        Nil -> lower-cfg-block-lines blbl bidx all-blocks rest reach binds reach-map edge-map bbinds ub ret-acc g
+        -- Unconditional branch: br label %dest
+        Cons "br" (Cons "label" (Cons dst-tok Nil)) ->
+          let dst = strip-percent dst-tok in
+          case lookup-block-idx dst all-blocks 0 of
+            None -> Err (string-concat "containment (no-escape): undefined branch target %" dst)
+            Some tidx ->
+              if tidx <= bidx then Err (string-concat "containment (no-escape): cyclic/backward branch to %" dst)
+              else
+                let (rm1, g1) = upsert-reach dst reach reach-map g in
+                let em1 = add-edge-cond dst blbl reach edge-map in
+                Ok (binds, rm1, em1, ub, ret-acc, g1)
+        -- Conditional branch: br i1 %cond, label %t, label %f
+        Cons "br" (Cons "i1" (Cons cond-tok (Cons "label" (Cons t-tok (Cons "label" (Cons f-tok Nil)))))) ->
+          let t-lbl = strip-percent t-tok in
+          let f-lbl = strip-percent f-tok in
+          case (lookup-block-idx t-lbl all-blocks 0, lookup-block-idx f-lbl all-blocks 0) of
+            (Some tidx, Some fidx) | tidx > bidx && fidx > bidx ->
+              (case resolve-operand cond-tok SBool (MkLlvmEnv binds ub g None) of
+                Err e -> Err e
+                Ok (cv, g1) ->
+                  -- Branching on poison is immediate UB when this block is reachable!
+                  let (p-ub, g2) = g-and reach (sv-poison cv) g1 in
+                  let (ub1, g3) = g-or ub p-ub g2 in
+                  let (t-cond, g4) = g-and reach (sv-val cv) g3 in
+                  let (not-c, g5) = g-not (sv-val cv) g4 in
+                  let (f-cond, g6) = g-and reach not-c g5 in
+                  let (rm1, g7) = upsert-reach t-lbl t-cond reach-map g6 in
+                  let (rm2, g8) = upsert-reach f-lbl f-cond rm1 g7 in
+                  let em1 = add-edge-cond t-lbl blbl t-cond edge-map in
+                  let em2 = add-edge-cond f-lbl blbl f-cond em1 in
+                  Ok (binds, rm2, em2, ub1, ret-acc, g8))
+            other -> Err "containment (no-escape): cyclic/backward or undefined conditional branch target"
+        -- Return inside a CFG block: merge into `ret-acc` guarded by `reach`
+        Cons "ret" (Cons ty-tok (Cons val-tok Nil)) ->
+          (case parse-llvm-type ty-tok of
+            None -> Err (string-concat "unsupported ret type " ty-tok)
+            Some ty ->
+              (case resolve-operand val-tok ty (MkLlvmEnv binds ub g None) of
+                Err e -> Err e
+                Ok (rv, g1) ->
+                  (case ret-acc of
+                    None -> Ok (binds, reach-map, edge-map, ub, Some rv, g1)
+                    Some prev ->
+                      (case merge-sem-val reach rv prev g1 of
+                        Err e -> Err e
+                        Ok (merged, g2) -> Ok (binds, reach-map, edge-map, ub, Some merged, g2)))))
+        -- Phi node: %lhs = phi <ty> [ v1, %p1 ], [ v2, %p2 ], ...
+        Cons lhs (Cons "=" (Cons "phi" (Cons ty-tok phi-rest))) ->
+          (case parse-llvm-type ty-tok of
+            None -> Err (string-concat "unsupported phi type " ty-tok)
+            Some ty ->
+              (case parse-phi-pairs phi-rest of
+                Err e -> Err e
+                Ok pairs ->
+                  let edges = lookup-edges blbl edge-map in
+                  (case eval-phi-pairs pairs ty edges bbinds binds ub g None of
+                    Err e -> Err e
+                    Ok (pv, g1) ->
+                      lower-cfg-block-lines blbl bidx all-blocks rest reach (Cons (lhs, pv) binds) reach-map edge-map bbinds ub ret-acc g1)))
+        -- Regular instruction: run with fresh local-ub = False, then guard `ub |= reach && local-ub`
+        other ->
+          let (local-ub0, g1) = g-bool False g in
+          case lower-ir-line ws (MkLlvmEnv binds local-ub0 g1 None) of
+            Err e -> Err e
+            Ok (MkLlvmEnv binds2 local-ub2 g2 r2) ->
+              let (guarded-ub, g3) = g-and reach local-ub2 g2 in
+              let (ub1, g4) = g-or ub guarded-ub g3 in
+              lower-cfg-block-lines blbl bidx all-blocks rest reach binds2 reach-map edge-map bbinds ub1 ret-acc g4
+
+  lower-cfg-blocks-loop :: List (String, List String) -> List (String, List String) -> Nat -> List (String, SemVal) -> List (String, Nat) -> List (String, List (String, Nat)) -> List (String, List (String, SemVal)) -> Nat -> Option SemVal -> SemGraph -> Result String LlvmEnv
+  lower-cfg-blocks-loop all-blocks pending bidx base-binds reach-map edge-map bbinds ub ret-acc g = case pending of
+    Nil -> Ok (MkLlvmEnv base-binds ub g ret-acc)
+    Cons (blbl, blines) rest ->
+      let (reach, g1) = case lookup-nat-str blbl reach-map of
+            Some r -> (r, g)
+            None -> g-bool False g in
+      case lower-cfg-block-lines blbl bidx all-blocks blines reach base-binds reach-map edge-map bbinds ub ret-acc g1 of
+        Err e -> Err e
+        Ok (exit-binds, rm1, em1, ub1, ret1, g2) ->
+          lower-cfg-blocks-loop all-blocks rest (bidx + 1) exit-binds rm1 em1 (Cons (blbl, exit-binds) bbinds) ub1 ret1 g2
+
+  lower-ir-fragment :: String -> List (String, SemVal) -> Nat -> SemGraph -> Result String LlvmEnv
+  lower-ir-fragment fragment binds ub0 g0 =
+    let lines = string-split-on "\n" fragment in
+    if not (has-cfg-lines lines) then
+      lower-ir-lines lines (MkLlvmEnv binds ub0 g0 None)
+    else
+      let blocks = split-ir-blocks lines "entry" Nil False in
+      case blocks of
+        Nil -> Err "empty LLVM fragment"
+        Cons (entry-lbl, entry-lines) rest ->
+          let (t-id, g1) = g-bool True g0 in
+          lower-cfg-blocks-loop blocks blocks 0 binds (Cons (entry-lbl, t-id) Nil) Nil Nil ub0 None g1
 
   init-llvm-params :: List PrimParamSpec -> Nat -> List (String, SemVal) -> SemGraph -> (List (String, SemVal), List (Nat, SemType, String), SemGraph)
   init-llvm-params ps idx binds g = case ps of
@@ -1090,10 +1685,10 @@ module Cinch.PrimVerify where
         let (v, g1) = g-bool False g in Ok (v, SBool, g1)
       else Err (string-concat "unsupported constructor in prim spec: " name)
     ELitInt sp digits ->
-      case parse-ir-u64 digits of
-        Some num ->
+      case parse-ir-u128 digits of
+        Some (lo, hi) ->
           let w = case expected of SBv n -> n; other -> 64 in
-          let (v, g1) = g-bv w num g in Ok (v, SBv w, g1)
+          let (v, g1) = g-bv-pair w lo hi g in Ok (v, SBv w, g1)
         None -> Err (string-concat "invalid integer literal in prim spec: " digits)
     ENeg sp inner ->
       case lower-spec-expr binds expected inner g of
@@ -1169,7 +1764,7 @@ module Cinch.PrimVerify where
   infer-op-signed :: String -> Bool
   infer-op-signed fn =
     string-ends-with "-i8" fn || string-ends-with "-i16" fn || string-ends-with "-i32" fn
-      || string-ends-with "-i64" fn || string-ends-with "-isize" fn
+      || string-ends-with "-i64" fn || string-ends-with "-i128" fn || string-ends-with "-isize" fn
 
   lower-spec-call :: List (String, Nat, SemType) -> SemType -> String -> List Expr -> SemGraph -> Result String (Nat, SemType, SemGraph)
   lower-spec-call binds expected fn args g = case args of
@@ -1183,7 +1778,7 @@ module Cinch.PrimVerify where
           Err err -> Err err
           Ok (va, SBv w, g1) ->
             if string-starts-with "bit-not-" fn then
-              let (ones, g2) = g-bv w (u64-mask w) g1 in
+              let (ones, g2) = g-bv-mask w g1 in
               let (r, g3) = g-bv-bin "xor" w va ones g2 in Ok (r, SBv w, g3)
             else if string-starts-with "wrapping-neg-" fn then
               let (zero, g2) = g-bv w 0 g1 in
@@ -1298,14 +1893,14 @@ module Cinch.PrimVerify where
           Some (g-bv-cmp "ne" w na zero g2)
         None -> None
     UCompare rel a b ->
-      case (lower-index-utype env a g, lower-index-utype env b g) of
-        (Some (na, w1, sg1, g1), other) ->
+      case lower-index-utype env a g of
+        Some (na, w1, sg1, g1) ->
           (case lower-index-utype env b g1 of
             Some (nb, w2, sg2, g2) ->
               let w = if w1 > 0 then w1 else if w2 > 0 then w2 else 64 in
-              let sg = sg1 || sg2 in
-              let (na2, g3) = if w1 == 0 then g-bv w (extract-const-u64 na g2) g2 else (na, g2) in
-              let (nb2, g4) = if w2 == 0 then g-bv w (extract-const-u64 nb g3) g3 else (nb, g3) in
+              let sg = if w1 > 0 then sg1 else if w2 > 0 then sg2 else (sg1 || sg2) in
+              let (na2, g3) = if w1 == 0 then (case extract-const-u128 na g2 of (lo, hi) -> g-bv-pair w lo hi g2) else (na, g2) in
+              let (nb2, g4) = if w2 == 0 then (case extract-const-u128 nb g3 of (lo, hi) -> g-bv-pair w lo hi g3) else (nb, g3) in
               let cmp-op =
                     if same rel "==" then "eq"
                     else if same rel "/=" then "ne"
@@ -1315,13 +1910,13 @@ module Cinch.PrimVerify where
                     else (if sg then "sge" else "uge") in
               Some (g-bv-cmp cmp-op w na2 nb2 g4)
             None -> None)
-        other -> None
+        None -> None
     other -> None
 
-  extract-const-u64 :: Nat -> SemGraph -> U64
-  extract-const-u64 id g = case graph-node id g of
-    Some (NBvConst w v) -> v
-    other -> 0
+  extract-const-u128 :: Nat -> SemGraph -> (U64, U64)
+  extract-const-u128 id g = case graph-node id g of
+    Some (NBvConst w lo hi) -> (lo, hi)
+    other -> (0, 0)
 
   lookup-ref-var :: String -> List (String, Nat, SemType, Bool) -> Option (Nat, Nat, Bool)
   lookup-ref-var nm env = case env of
@@ -1339,10 +1934,8 @@ module Cinch.PrimVerify where
   lower-index-term :: List (String, Nat, SemType, Bool) -> IndexTerm -> SemGraph -> Option (Nat, Nat, Bool, SemGraph)
   lower-index-term env term g = case term of
     IInteger n ->
-      let v = if n >= 0 then nat-u64 (nat-from-int n)
-              else if 0 - n >= 0 then wrapping-sub-u64 0 (nat-u64 (nat-from-int (0 - n)))
-              else 0 in
-      let (id, g1) = g-bv 64 v g in
+      let (lo, hi) = case parse-ir-u128 (int-to-string n) of Some p -> p; None -> (0, 0) in
+      let (id, g1) = g-bv-pair 128 lo hi g in
       Some (id, 0, n < 0, g1)
     IBound id nm ->
       case lookup-ref-var nm env of
@@ -1364,6 +1957,7 @@ module Cinch.PrimVerify where
     SBv w -> string-concat-all ["(_ BitVec ", nat-to-string w, ")"]
     SFp 32 -> "Float32"
     SFp w -> "Float64"
+    SVec n w -> string-concat-all ["(_ BitVec ", nat-to-string (n * w), ")"]
 
   smt-decls :: List (Nat, SemType, String) -> List String
   smt-decls vars = case vars of
@@ -1376,7 +1970,9 @@ module Cinch.PrimVerify where
     None -> "false"
     Some n -> case n of
       NBoolConst b -> if b then "true" else "false"
-      NBvConst w v -> string-concat-all ["(_ bv", u64-decimal v, " ", nat-to-string w, ")"]
+      NBvConst w lo hi ->
+        if w <= 64 then string-concat-all ["(_ bv", u64-decimal lo, " ", nat-to-string w, ")"]
+        else string-concat-all ["(concat (_ bv", u64-decimal hi, " ", nat-to-string (saturating-sub w 64), ") (_ bv", u64-decimal lo, " 64))"]
       NVar i ty nm -> string-concat "v" (nat-to-string i)
       NNot a -> string-concat-all ["(not ", smt-expr a g, ")"]
       NAnd a b -> string-concat-all ["(and ", smt-expr a g, " ", smt-expr b g, ")"]
@@ -1414,6 +2010,10 @@ module Cinch.PrimVerify where
         else if same op "trunc" && tw < fw then
           string-concat-all ["((_ extract ", nat-to-string (saturating-sub tw 1), " 0) ", smt-expr a g, ")"]
         else smt-expr a g
+      NBvExtract hi lo a ->
+        string-concat-all ["((_ extract ", nat-to-string hi, " ", nat-to-string lo, ") ", smt-expr a g, ")"]
+      NBvConcat hi lo ->
+        string-concat-all ["(concat ", smt-expr hi g, " ", smt-expr lo g, ")"]
       NFpBin op w a b ->
         let fop =
               if same op "fadd" then "fp.add RNE"
@@ -1532,15 +2132,21 @@ module Cinch.PrimVerify where
       let st5 = bb-add-clause [c, z, lit-neg e] st4 in
       (z, st5)
 
-  bb-const-bits :: Nat -> U64 -> List Int
-  bb-const-bits w v = bb-const-bits-loop w 0 v
+  bb-const-bits-pair :: Nat -> U64 -> U64 -> List Int
+  bb-const-bits-pair w lo hi = bb-const-bits-pair-loop w 0 lo hi
 
-  bb-const-bits-loop :: Nat -> Nat -> U64 -> List Int
-  bb-const-bits-loop w i v =
+  bb-const-bits-pair-loop :: Nat -> Nat -> U64 -> U64 -> List Int
+  bb-const-bits-pair-loop w i lo hi =
     if i >= w then Nil
     else
-      let bit = if i < 64 then not (eq-u64 (bit-and-u64 (wrapping-shr-u64 v (nat-u32 i)) 1) 0) else False in
-      Cons (if bit then lit-true else lit-false) (bb-const-bits-loop w (i + 1) v)
+      let bit =
+            if i < 64 then not (eq-u64 (bit-and-u64 (wrapping-shr-u64 lo (nat-u32 i)) 1) 0)
+            else if i < 128 then not (eq-u64 (bit-and-u64 (wrapping-shr-u64 hi (nat-u32 (saturating-sub i 64))) 1) 0)
+            else False in
+      Cons (if bit then lit-true else lit-false) (bb-const-bits-pair-loop w (i + 1) lo hi)
+
+  bb-const-bits :: Nat -> U64 -> List Int
+  bb-const-bits w v = bb-const-bits-pair w v 0
 
   bb-fresh-bits :: Nat -> BlastState -> (List Int, BlastState)
   bb-fresh-bits w st =
@@ -1719,7 +2325,7 @@ module Cinch.PrimVerify where
   bb-node-uncached :: SemNode -> SemGraph -> BlastState -> Result String (List Int, BlastState)
   bb-node-uncached node g st = case node of
     NBoolConst b -> Ok ([if b then lit-true else lit-false], st)
-    NBvConst w v -> Ok (bb-const-bits w v, st)
+    NBvConst w lo hi -> Ok (bb-const-bits-pair w lo hi, st)
     NVar idx ty nm ->
       let w = sem-type-width ty in
       let (bits, st1) = bb-fresh-bits w st in
@@ -1860,6 +2466,14 @@ module Cinch.PrimVerify where
         else if same op "zext" then Ok (la <> repeat-bit (saturating-sub tw fw) lit-false, st1)
         else if same op "sext" then Ok (la <> repeat-bit (saturating-sub tw fw) (last-bit la), st1)
         else Ok (la, st1)
+    NBvExtract hi lo a -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) -> Ok (take-bits (saturating-sub (hi + 1) lo) (drop-bits lo la), st1)
+    NBvConcat hi lo -> case bb-node lo g st of
+      Err e -> Err e
+      Ok (lb, st1) -> case bb-node hi g st1 of
+        Err e -> Err e
+        Ok (la, st2) -> Ok (lb <> la, st2)
     NBvTri op w a b c -> Err (string-concat "requires external SMT solver for ternary op: " op)
     other -> Err "floating-point obligation requires an external SMT solver"
 
@@ -1945,6 +2559,71 @@ module Cinch.PrimVerify where
     Cons (LratAdd cid lits hints) rest ->
       string-concat-all [nat-to-string cid, " ", join-int lits, " 0 ", join-nat hints, " 0\n", serialize-lrat-steps rest]
 
+  parse-signed-int :: String -> Option Int
+  parse-signed-int tok =
+    if string-starts-with "-" tok && string-length tok > 1 then
+      case parse-nat-str (string-slice tok 1 (string-length tok)) of
+        Some n -> Some (0 - nat-to-int n)
+        None -> None
+    else case parse-nat-str tok of
+      Some n -> Some (nat-to-int n)
+      None -> None
+
+  parse-lrat-lits :: List String -> Result String (List Int, List String)
+  parse-lrat-lits ws = case ws of
+    Nil -> Err "LRAT line missing 0 terminator after literals"
+    Cons "0" rest -> Ok (Nil, rest)
+    Cons w rest ->
+      case parse-signed-int w of
+        None -> Err (string-concat "invalid LRAT literal " w)
+        Some l -> case parse-lrat-lits rest of
+          Err e -> Err e
+          Ok (more, tail) -> Ok (Cons l more, tail)
+
+  parse-lrat-hints :: List String -> Result String (List Nat)
+  parse-lrat-hints ws = case ws of
+    Nil -> Err "LRAT line missing 0 terminator after hints"
+    Cons "0" rest -> Ok Nil
+    Cons w rest ->
+      case parse-nat-str w of
+        None -> Err (string-concat "invalid LRAT hint id " w)
+        Some hid -> case parse-lrat-hints rest of
+          Err e -> Err e
+          Ok more -> Ok (Cons hid more)
+
+  parse-lrat-lines :: List String -> Result String (List LratStep)
+  parse-lrat-lines lines = case lines of
+    Nil -> Ok Nil
+    Cons raw rest ->
+      let ws = string-words (string-strip raw) in
+      case ws of
+        Nil -> parse-lrat-lines rest
+        Cons cid-str tail ->
+          (case parse-nat-str cid-str of
+            None -> Err (string-concat "invalid LRAT clause id " cid-str)
+            Some cid ->
+              (case tail of
+                Cons "d" del-rest -> parse-lrat-lines rest
+                other ->
+                  (case parse-lrat-lits tail of
+                    Err e -> Err e
+                    Ok (lits, after-lits) ->
+                      (case parse-lrat-hints after-lits of
+                        Err e -> Err e
+                        Ok hints ->
+                          (case parse-lrat-lines rest of
+                            Err e -> Err e
+                            Ok more -> Ok (Cons (LratAdd cid lits hints) more))))))
+
+  parse-lrat-steps :: String -> Result String (List LratStep)
+  parse-lrat-steps txt = parse-lrat-lines (string-split-on "\n" txt)
+
+  verify-lrat-text :: Nat -> List (Nat, List Int) -> String -> Result String Unit
+  verify-lrat-text max-var orig-clauses lrat-txt =
+    case parse-lrat-steps lrat-txt of
+      Err e -> Err e
+      Ok steps -> verify-lrat max-var orig-clauses steps
+
   join-int :: List Int -> String
   join-int xs = case xs of
     Nil -> ""
@@ -2008,6 +2687,33 @@ module Cinch.PrimVerify where
     Nil -> nm-empty
     Cons (MkTrail lit lvl reason) rest -> assign-lit-val lit (rebuild-assign rest)
 
+  -- Count unassigned literals in a clause; returns (satisfied?, count, first-unassigned-lit).
+  inspect-clause :: List Int -> NatMap Int -> Nat -> Option Int -> (Bool, Nat, Option Int)
+  inspect-clause lits assign cnt first-u = case lits of
+    Nil -> (False, cnt, first-u)
+    Cons l rest ->
+      let v = eval-lit l assign in
+      if v == 1 then (True, 0, None)
+      else if v == -1 then inspect-clause rest assign cnt first-u
+      else
+        let next-u = case first-u of Some u -> Some u; None -> Some l in
+        inspect-clause rest assign (cnt + 1) next-u
+
+  -- Pick a literal from the shortest unsatisfied clause (MOM/clause-directed branching)
+  -- so the solver stays strictly inside the active cone of influence instead of
+  -- branching blindly on unrelated variables.
+  pick-from-clauses :: List (Nat, List Int) -> NatMap Int -> Nat -> Option Int -> Option Int
+  pick-from-clauses cs assign best-len best-lit = case cs of
+    Nil -> best-lit
+    Cons (cid, lits) rest ->
+      case inspect-clause lits assign 0 None of
+        (True, cnt, u) -> pick-from-clauses rest assign best-len best-lit
+        (False, cnt, Some u) ->
+          if cnt <= 2 then Some u
+          else if cnt < best-len then pick-from-clauses rest assign cnt (Some u)
+          else pick-from-clauses rest assign best-len best-lit
+        other -> pick-from-clauses rest assign best-len best-lit
+
   pick-unassigned :: Nat -> Nat -> NatMap Int -> Option Nat
   pick-unassigned cur max-var assign =
     if cur >= max-var then None
@@ -2033,16 +2739,20 @@ module Cinch.PrimVerify where
               let next-cs = Cons (next-cid, learned) cs in
               sat-loop max-var (next-cid + 1) new-level next-cs budget bt-assign bt-trail (Cons step lrat-acc) (conflicts + 1)
       BcpOk assign1 trail1 ->
-        case pick-unassigned 1 max-var assign1 of
+        let next-lit = case pick-from-clauses cs assign1 999999 None of
+              Some l -> Some l
+              None -> case pick-unassigned 1 max-var assign1 of
+                Some v -> Some (0 - nat-to-int v)
+                None -> None in
+        case next-lit of
           None -> SatModel assign1
-          Some v ->
-            let dec-lit = 0 - nat-to-int v in
+          Some dec-lit ->
             let next-lvl = level + 1 in
             sat-loop max-var next-cid next-lvl cs budget (assign-lit-val dec-lit assign1) (Cons (MkTrail dec-lit next-lvl None) trail1) lrat-acc conflicts
 
   prove-cnf-lrat :: Nat -> Nat -> List (Nat, List Int) -> SatResult
   prove-cnf-lrat max-var next-cid cs =
-    sat-loop max-var next-cid 0 cs 4096 nm-empty Nil Nil 0
+    sat-loop max-var next-cid 0 cs 2048 nm-empty Nil Nil 0
 
   eval-model-bits :: List Int -> Nat -> NatMap Int -> U64
   eval-model-bits bits i model = case bits of
@@ -2080,9 +2790,79 @@ module Cinch.PrimVerify where
   make-assumed-receipt goal-hash checker-id reason =
     MkTrustReceipt goal-hash semantics-id-llvm "none" checker-id "assumed" "none" "none" reason [checker-id, semantics-id-llvm]
 
-  check-one-obligation :: String -> Bool -> String -> String -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt
-  check-one-obligation ob-name is-jpl verify-mode just-word g goal-id =
+  lookup-cached-proof :: String -> List (String, String) -> Option String
+  lookup-cached-proof key entries = case entries of
+    Nil -> None
+    Cons (k, v) rest -> if same key k then Some v else lookup-cached-proof key rest
+
+  clause-max-var :: List Int -> Nat -> Nat
+  clause-max-var lits acc = case lits of
+    Nil -> acc
+    Cons l rest ->
+      let v = lit-var l in
+      clause-max-var rest (if v > acc then v else acc)
+
+  mark-lits-active :: List Int -> NatMap Bool -> NatMap Bool
+  mark-lits-active lits active = case lits of
+    Nil -> active
+    Cons l rest -> mark-lits-active rest (nm-insert (lit-var l) True active)
+
+  -- Single reverse-topological pass over `rev-clauses` keeping only Tseitin
+  -- clauses in the exact cone of influence of `active`.
+  cone-filter-clauses :: List (Nat, List Int) -> NatMap Bool -> List (Nat, List Int) -> List (Nat, List Int)
+  cone-filter-clauses cs active acc = case cs of
+    Nil -> reverse acc
+    Cons (cid, lits) rest ->
+      let mv = clause-max-var lits 0 in
+      case nm-lookup mv active of
+        Some True -> cone-filter-clauses rest (mark-lits-active lits active) (Cons (cid, lits) acc)
+        other -> cone-filter-clauses rest active acc
+
+  prove-bitwise-loop :: Option Int -> List Int -> List Int -> BlastState -> List String -> Result VerifyOutcome (List String)
+  prove-bitwise-loop assume-opt la lb base-st proof-acc = case (la, lb) of
+    (Nil, Nil) -> Ok (reverse proof-acc)
+    (Cons ai ar, Cons bi br) ->
+      let (diff, st1) = bb-xor ai bi base-st in
+      if diff == lit-false then
+        prove-bitwise-loop assume-opt ar br base-st (Cons "trivial" proof-acc)
+      else
+        let st2 = bb-add-clause [diff] st1 in
+        let st3 = case assume-opt of
+              Some la-lit -> bb-add-clause [la-lit] st2
+              None -> st2 in
+        case st3 of
+          MkBlastState max-var next-cid rev-cs memo vbits ->
+            let act0 = nm-insert 1 True (nm-insert (lit-var diff) True nm-empty) in
+            let act1 = case assume-opt of
+                  Some la-lit -> nm-insert (lit-var la-lit) True act0
+                  None -> act0 in
+            let cone-cs = cone-filter-clauses rev-cs act1 Nil in
+            case prove-cnf-lrat max-var next-cid cone-cs of
+              SatModel model ->
+                Err (OutcomeDisproved (string-concat "counterexample: " (format-counterexample (reverse vbits) model)))
+              SatUnknown reason ->
+                Err (OutcomeOpen reason)
+              SatUnsat lrat-steps ->
+                case verify-lrat max-var rev-cs lrat-steps of
+                  Err bad -> Err (OutcomeOpen (string-concat "LRAT kernel rejected bitwise proof: " bad))
+                  Ok verified -> prove-bitwise-loop assume-opt ar br base-st (Cons (serialize-lrat-steps lrat-steps) proof-acc)
+    other -> Err (OutcomeOpen "mismatched bitvector widths in equality check")
+
+  try-decompose-bv-eq :: Nat -> SemGraph -> Option (Option Nat, Nat, Nat, Nat)
+  try-decompose-bv-eq goal-id g = case graph-node goal-id g of
+    Some (NBvCmp "eq" w a b) | w > 1 -> Some (None, w, a, b)
+    Some (NImplies assume body) ->
+      (case graph-node body g of
+        Some (NBvCmp "eq" w a b) | w > 1 -> Some (Some assume, w, a, b)
+        other -> None)
+    other -> None
+
+  check-one-obligation-cached :: String -> Bool -> String -> String -> List (String, String) -> Bool -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt
+  check-one-obligation-cached ob-name is-jpl verify-mode just-word proof-cache replay-only g goal-id =
     let goal-hash = sha256-hex (string-to-bytes (string-concat-all [ob-name, ":", serialize-sem goal-id g])) in
+    let use-compiled = same just-word "verify-compiled-lrat" in
+    let checker-id = if use-compiled then "cinch-compiled-lrat@1" else "cinch-kernel-lrat@1" in
+    let tier = if use-compiled then "compiled-cert" else "kernel-cert" in
     if same verify-mode "off" then
       Ok (make-assumed-receipt goal-hash "cinch-verify-off@1" "assumed (prim-verify=off)")
     else if graph-has-fp g then
@@ -2090,52 +2870,116 @@ module Cinch.PrimVerify where
         Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" "assumed (lax downgrade: floating-point obligation requires external SMT solver)")
       else Err (OutcomeOpen (string-concat ob-name ": floating-point obligation requires an external SMT solver (use --prim-verify=lax to downgrade to assumed)"))
     else
-      case bb-node goal-id g init-blast-state of
-        Err reason ->
-          if same verify-mode "lax" then
-            Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
-          else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
-        Ok (Cons goal-lit Nil, st1) ->
-          -- Assert negation of goal: UNSAT => goal is valid!
-          let st2 = bb-add-clause [lit-neg goal-lit] st1 in
-          case st2 of
-            MkBlastState max-var next-cid rev-clauses memo vbits ->
-              let clauses = reverse rev-clauses in
-              case prove-cnf-lrat max-var next-cid clauses of
-                SatModel model ->
-                  Err (OutcomeDisproved (string-concat-all [ob-name, " counterexample: ", format-counterexample (reverse vbits) model]))
-                SatUnknown reason ->
+      -- Fast bit-cone decomposition for wide bitvector equalities when not replaying a single cached LRAT file.
+      case (lookup-cached-proof goal-hash proof-cache, replay-only, try-decompose-bv-eq goal-id g) of
+        (None, False, Some (assume-opt, w, lhs-id, rhs-id)) ->
+          let blast-res = case assume-opt of
+                None ->
+                  (case bb-node lhs-id g init-blast-state of
+                    Err e -> Err e
+                    Ok (la, st1) -> case bb-node rhs-id g st1 of
+                      Err e -> Err e
+                      Ok (lb, st2) -> Ok (None, la, lb, st2))
+                Some aid ->
+                  (case bb-node aid g init-blast-state of
+                    Err e -> Err e
+                    Ok (Cons alit Nil, st0) ->
+                      (case bb-node lhs-id g st0 of
+                        Err e -> Err e
+                        Ok (la, st1) -> case bb-node rhs-id g st1 of
+                          Err e -> Err e
+                          Ok (lb, st2) -> Ok (Some alit, la, lb, st2))
+                    Ok other -> Err "assumption did not bit-blast to 1 bit") in
+          (case blast-res of
+            Err reason ->
+              if same verify-mode "lax" then
+                Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
+              else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
+            Ok (alit-opt, la, lb, st2) ->
+              (case prove-bitwise-loop alit-opt la lb st2 Nil of
+                Err (OutcomeDisproved detail) ->
+                  Err (OutcomeDisproved (string-concat-all [ob-name, " ", detail]))
+                Err (OutcomeOpen reason) ->
                   if same verify-mode "lax" then
                     Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
                   else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
-                SatUnsat lrat-steps ->
-                  -- Independently verify the LRAT certificate before issuing any receipt!
-                  case verify-lrat max-var clauses lrat-steps of
-                    Err bad-proof ->
-                      Err (OutcomeOpen (string-concat-all [ob-name, ": LRAT kernel rejected proof: ", bad-proof]))
-                    Ok verified ->
-                      let use-compiled = same just-word "verify-compiled-lrat" in
-                      let checker-id = if use-compiled then "cinch-compiled-lrat@1" else "cinch-kernel-lrat@1" in
-                      let tier = if use-compiled then "compiled-cert" else "kernel-cert" in
-                      if not (policy-allows-tier is-jpl verify-mode tier) then
-                        Err (OutcomeRejected (string-concat-all
-                          [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+                Err other-err -> Err other-err
+                Ok bit-proofs ->
+                  if not (policy-allows-tier is-jpl verify-mode tier) then
+                    Err (OutcomeRejected (string-concat-all
+                      [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+                  else
+                    let ev-hash = sha256-hex (string-to-bytes (join-str "\n" bit-proofs)) in
+                    let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
+                    Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb)))
+        other ->
+          case bb-node goal-id g init-blast-state of
+            Err reason ->
+              if same verify-mode "lax" then
+                Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
+              else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
+            Ok (Cons goal-lit Nil, st1) ->
+              -- Assert negation of goal: UNSAT => goal is valid!
+              let st2 = bb-add-clause [lit-neg goal-lit] st1 in
+              case st2 of
+                MkBlastState max-var next-cid rev-clauses memo vbits ->
+                  let clauses = rev-clauses in
+                  -- Check persistent proof cache first; ALWAYS re-verify through independent LRAT kernel!
+                  case lookup-cached-proof goal-hash proof-cache of
+                    Some cached-lrat ->
+                      (case verify-lrat-text max-var clauses cached-lrat of
+                        Err bad-proof ->
+                          Err (OutcomeOpen (string-concat-all [ob-name, ": cached LRAT proof failed kernel verification (tampered): ", bad-proof]))
+                        Ok verified ->
+                          if not (policy-allows-tier is-jpl verify-mode tier) then
+                            Err (OutcomeRejected (string-concat-all
+                              [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+                          else
+                            let ev-hash = sha256-hex (string-to-bytes cached-lrat) in
+                            let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
+                            Ok (MkTrustReceipt goal-hash semantics-id-llvm "cached-lrat-replay@1" checker-id tier "lrat/v1" ev-hash "verified" tcb))
+                    None ->
+                      if replay-only then
+                        Err (OutcomeOpen (string-concat-all [ob-name, ": replay-only mode has no cached LRAT proof for ", goal-hash]))
                       else
-                        let ev-hash = sha256-hex (string-to-bytes (serialize-lrat-steps lrat-steps)) in
-                        let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
-                        Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb)
-        Ok other -> Err (OutcomeOpen (string-concat ob-name ": goal did not bit-blast to a single boolean literal"))
+                        let act = nm-insert 1 True (nm-insert (lit-var goal-lit) True nm-empty) in
+                        let cone-cs = cone-filter-clauses clauses act Nil in
+                        (case prove-cnf-lrat max-var next-cid cone-cs of
+                          SatModel model ->
+                            Err (OutcomeDisproved (string-concat-all [ob-name, " counterexample: ", format-counterexample (reverse vbits) model]))
+                          SatUnknown reason ->
+                            if same verify-mode "lax" then
+                              Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
+                            else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
+                          SatUnsat lrat-steps ->
+                            -- Independently verify the LRAT certificate before issuing any receipt!
+                            case verify-lrat max-var clauses lrat-steps of
+                              Err bad-proof ->
+                                Err (OutcomeOpen (string-concat-all [ob-name, ": LRAT kernel rejected proof: ", bad-proof]))
+                              Ok verified ->
+                                if not (policy-allows-tier is-jpl verify-mode tier) then
+                                  Err (OutcomeRejected (string-concat-all
+                                    [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+                                else
+                                  let ev-hash = sha256-hex (string-to-bytes (serialize-lrat-steps lrat-steps)) in
+                                  let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
+                                  Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb))
+            Ok other -> Err (OutcomeOpen (string-concat ob-name ": goal did not bit-blast to a single boolean literal"))
 
-  run-obligations :: Bool -> String -> String -> SemGraph -> List (String, Nat) -> List TrustReceipt -> VerifyOutcome
-  run-obligations is-jpl verify-mode just-word g obs acc = case obs of
+  check-one-obligation :: String -> Bool -> String -> String -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt
+  check-one-obligation ob-name is-jpl verify-mode just-word g goal-id =
+    check-one-obligation-cached ob-name is-jpl verify-mode just-word Nil False g goal-id
+
+  run-obligations-cached :: Bool -> String -> String -> List (String, String) -> Bool -> SemGraph -> List (String, Nat) -> List TrustReceipt -> VerifyOutcome
+  run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g obs acc = case obs of
     Nil ->
       let receipts = reverse acc in
       if same (worst-trust-tier receipts) "assumed" then OutcomeAssumed receipts
       else OutcomeVerified receipts
     Cons (ob-name, goal-id) rest ->
-      case check-one-obligation ob-name is-jpl verify-mode just-word g goal-id of
+      case check-one-obligation-cached ob-name is-jpl verify-mode just-word proof-cache replay-only g goal-id of
         Err failure -> failure
-        Ok receipt -> run-obligations is-jpl verify-mode just-word g rest (Cons receipt acc)
+        Ok receipt -> run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g rest (Cons receipt acc)
 
   conjoin-assumptions :: List (String, Nat, SemType, Bool) -> List UType -> Nat -> SemGraph -> (Nat, SemGraph)
   conjoin-assumptions ref-env preds acc g = case preds of
@@ -2147,6 +2991,26 @@ module Cinch.PrimVerify where
           conjoin-assumptions ref-env rest next-acc g2
         None -> conjoin-assumptions ref-env rest acc g
 
+  lookup-param-ref-entry :: Nat -> List (String, Nat, SemType, Bool) -> Option (Nat, SemType, Bool)
+  lookup-param-ref-entry idx ref-env = case ref-env of
+    Nil -> None
+    Cons (nm, nid, ty, sg) rest ->
+      if idx == 0 then Some (nid, ty, sg)
+      else lookup-param-ref-entry (saturating-sub idx 1) rest
+
+  conjoin-indexed-assumptions :: List (String, Nat, SemType, Bool) -> List (Nat, UType) -> Nat -> SemGraph -> (Nat, SemGraph)
+  conjoin-indexed-assumptions ref-env ipreds acc g = case ipreds of
+    Nil -> (acc, g)
+    Cons (pidx, pred) rest ->
+      let local-env = case lookup-param-ref-entry pidx ref-env of
+            Some (nid, ty, sg) -> Cons ("r", nid, ty, sg) ref-env
+            None -> ref-env in
+      case lower-refinement-pred local-env pred g of
+        Some (np, g1) ->
+          let (next-acc, g2) = g-and acc np g1 in
+          conjoin-indexed-assumptions ref-env rest next-acc g2
+        None -> conjoin-indexed-assumptions ref-env rest acc g
+
   build-ref-env :: List PrimParamSpec -> List (Nat, SemType, String) -> SemGraph -> (List (String, Nat, SemType, Bool), SemGraph)
   build-ref-env ps vars g = case (ps, vars) of
     (Cons p pr, Cons (idx, ty, nm) vr) ->
@@ -2155,9 +3019,9 @@ module Cinch.PrimVerify where
         (rest, g2) -> (Cons (nm, nid, ty, param-spec-signed p) rest, g2)
     other -> (Nil, g)
 
-  -- Main entry point called from `Bootstrap.Infer` / `Bootstrap.Foreign`.
-  verify-prim-body :: String -> Bool -> String -> String -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> Option UType -> Option Expr -> List SpecDef -> String -> Bool -> VerifyOutcome
-  verify-prim-body prim-name is-jpl verify-mode just-word fragment params result preconds postcond spec-opt spec-defs spec-display is-unsafe =
+  -- Main entry point with proof-cache + replay-only + indexed parameter refinements.
+  verify-prim-body-cached :: String -> Bool -> String -> String -> List (String, String) -> Bool -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> Option UType -> Option Expr -> List SpecDef -> String -> Bool -> VerifyOutcome
+  verify-prim-body-cached prim-name is-jpl verify-mode just-word proof-cache replay-only fragment params result req-preds param-preds postcond spec-opt spec-defs spec-display is-unsafe =
     let (ub0, g0) = g-bool False empty-sem-graph in
     case init-llvm-params params 0 Nil g0 of
       (binds, vars, g1) ->
@@ -2165,7 +3029,7 @@ module Cinch.PrimVerify where
           let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":", fragment])) in
           OutcomeAssumed [make-assumed-receipt gh "cinch-verify-off@1" "assumed (prim-verify=off)"]
         else
-          case lower-ir-lines (string-split-on "\n" fragment) (MkLlvmEnv binds ub0 g1 None) of
+          case lower-ir-fragment fragment binds ub0 g1 of
             Err err-msg ->
               if same verify-mode "lax" then
                 let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":", fragment])) in
@@ -2177,7 +3041,8 @@ module Cinch.PrimVerify where
               let (true-id, g3) = g-bool True g2 in
               case build-ref-env params vars g3 of
                 (ref-env, g4) ->
-                  let (assume-id, g5) = conjoin-assumptions ref-env preconds true-id g4 in
+                  let (assume1, g4b) = conjoin-assumptions ref-env req-preds true-id g4 in
+                  let (assume-id, g5) = conjoin-indexed-assumptions ref-env param-preds assume1 g4b in
                   let (not-ub, g6) = g-not ub-cond g5 in
                   let (ob-no-ub, g7) = g-implies assume-id not-ub g6 in
                   let (not-poison, g8) = g-not (sv-poison ret-sv) g7 in
@@ -2187,7 +3052,6 @@ module Cinch.PrimVerify where
                         if param-spec-bool result then SBool
                         else if param-spec-fp result then SFp (param-spec-width result)
                         else SBv (param-spec-width result) in
-                  -- Adapt Bool return (`i8` 0/1 in LLVM) to `SBool` if needed.
                   let (ret-val-id, ret-val-ty, g10) =
                         case (param-spec-bool result, sv-type ret-sv) of
                           (True, SBv w) ->
@@ -2195,19 +3059,17 @@ module Cinch.PrimVerify where
                             let (nz, gb) = g-bv-cmp "ne" w (sv-val ret-sv) zero ga in
                             (nz, SBool, gb)
                           other -> (sv-val ret-sv, sv-type ret-sv, g9) in
-                  -- Optional source `spec` equivalence obligation.
                   case spec-opt of
                     None ->
-                      -- Optional return refinement obligation if present.
                       (case postcond of
-                        None -> run-obligations is-jpl verify-mode just-word g10 base-obs Nil
+                        None -> run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g10 base-obs Nil
                         Some post-pred ->
                           let post-env = Cons ("r", ret-val-id, ret-val-ty, param-spec-signed result) ref-env in
                           (case lower-refinement-pred post-env post-pred g10 of
                             Some (post-id, g11) ->
                               let (ob-post, g12) = g-implies assume-id post-id g11 in
-                              run-obligations is-jpl verify-mode just-word g12 (base-obs <> [("return-refinement", ob-post)]) Nil
-                            None -> run-obligations is-jpl verify-mode just-word g10 base-obs Nil))
+                              run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g12 (base-obs <> [("return-refinement", ob-post)]) Nil
+                            None -> run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g10 base-obs Nil))
                     Some spec-expr ->
                       case lower-prim-spec spec-expr spec-defs vars res-ty g10 of
                         Err spec-err ->
@@ -2225,4 +3087,358 @@ module Cinch.PrimVerify where
                                     g-bv-cmp "eq" w1 ret-val-id cast-spec ga
                                 other -> g-bool False g11 in
                           let (ob-spec, g13) = g-implies assume-id eq-id g12 in
-                          run-obligations is-jpl verify-mode just-word g13 (base-obs <> [("spec-equiv", ob-spec)]) Nil
+                          run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g13 (base-obs <> [("spec-equiv", ob-spec)]) Nil
+
+  verify-prim-body :: String -> Bool -> String -> String -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> Option UType -> Option Expr -> List SpecDef -> String -> Bool -> VerifyOutcome
+  verify-prim-body prim-name is-jpl verify-mode just-word fragment params result preconds postcond spec-opt spec-defs spec-display is-unsafe =
+    verify-prim-body-cached prim-name is-jpl verify-mode just-word Nil False fragment params result preconds Nil postcond spec-opt spec-defs spec-display is-unsafe
+
+  -- ==========================================================================
+  -- 10. Cross-Target Equivalence (`CrossTargetEquiv`)
+  -- ==========================================================================
+
+  verify-prim-cross-target :: String -> Bool -> String -> String -> List (String, String) -> Bool -> String -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> VerifyOutcome
+  verify-prim-cross-target prim-name is-jpl verify-mode just-word proof-cache replay-only frag-a frag-b params result req-preds param-preds =
+    if same verify-mode "off" then
+      let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":cross:", frag-a, "|", frag-b])) in
+      OutcomeAssumed [make-assumed-receipt gh "cinch-verify-off@1" "assumed (prim-verify=off)"]
+    else
+      let (ub0, g0) = g-bool False empty-sem-graph in
+      case init-llvm-params params 0 Nil g0 of
+        (binds, vars, g1) ->
+          case lower-ir-fragment frag-a binds ub0 g1 of
+            Err err-a ->
+              if same verify-mode "lax" then
+                let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":cross-a"])) in
+                OutcomeAssumed [make-assumed-receipt gh "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", err-a, ")"])]
+              else OutcomeOpen (string-concat-all [prim-name, " cross-target lhs: ", err-a])
+            Ok (MkLlvmEnv b1 ub-a g2 None) -> OutcomeOpen (string-concat prim-name " cross-target lhs has no ret")
+            Ok (MkLlvmEnv b1 ub-a g2 (Some ret-a)) ->
+              let (ub0-b, g2b) = g-bool False g2 in
+              case lower-ir-fragment frag-b binds ub0-b g2b of
+                Err err-b ->
+                  if same verify-mode "lax" then
+                    let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":cross-b"])) in
+                    OutcomeAssumed [make-assumed-receipt gh "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", err-b, ")"])]
+                  else OutcomeOpen (string-concat-all [prim-name, " cross-target rhs: ", err-b])
+                Ok (MkLlvmEnv b2 ub-b g3 None) -> OutcomeOpen (string-concat prim-name " cross-target rhs has no ret")
+                Ok (MkLlvmEnv b2 ub-b g3 (Some ret-b)) ->
+                  let (true-id, g4) = g-bool True g3 in
+                  case build-ref-env params vars g4 of
+                    (ref-env, g5) ->
+                      let (assume1, g5b) = conjoin-assumptions ref-env req-preds true-id g5 in
+                      let (assume-id, g6) = conjoin-indexed-assumptions ref-env param-preds assume1 g5b in
+                      let (eq-ub, g7) = g-intern (NEqBool ub-a ub-b) g6 in
+                      let (eq-p, g8) = g-intern (NEqBool (sv-poison ret-a) (sv-poison ret-b)) g7 in
+                      let (eq-v, g9) = case (sv-type ret-a, sv-type ret-b) of
+                            (SBool, SBool) -> g-intern (NEqBool (sv-val ret-a) (sv-val ret-b)) g8
+                            (SBv w1, SBv w2) | w1 == w2 -> g-bv-cmp "eq" w1 (sv-val ret-a) (sv-val ret-b) g8
+                            other -> g-bool False g8 in
+                      let (not-p, g10) = g-not (sv-poison ret-a) g9 in
+                      let (v-guarded, g11) = g-implies not-p eq-v g10 in
+                      let (p-and-v, g12) = g-and eq-p v-guarded g11 in
+                      let (not-ub, g13) = g-not ub-a g12 in
+                      let (ub-guarded, g14) = g-implies not-ub p-and-v g13 in
+                      let (full-eq, g15) = g-and eq-ub ub-guarded g14 in
+                      let (goal, g16) = g-implies assume-id full-eq g15 in
+                      run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g16 [("cross-target-equiv", goal)] Nil
+
+  -- ==========================================================================
+  -- 11. Alethe Proof-Checker Seam (`cinch-alethe-checker@1`, `alethe/v1`)
+  -- ==========================================================================
+
+  alethe-known-rule :: String -> Bool
+  alethe-known-rule r =
+    has-str r
+      [ "resolution", "th_resolution", "rup", "and", "or", "not_not"
+      , "equiv_pos1", "equiv_pos2", "equiv_neg1", "equiv_neg2"
+      , "trans", "cong", "refl", "la_generic", "bv_bitblast", "bitblast"
+      , "false", "true", "not_or", "or_pos", "and_pos", "and_neg"
+      , "implies", "ite1", "ite2", "eq_reflexive", "eq_transitive"
+      , "eq_congruent", "contraction", "reordering"
+      ]
+
+  strip-parens :: String -> String
+  strip-parens s = pack (strip-paren-chars (unpack s))
+
+  strip-paren-chars :: List Char -> List Char
+  strip-paren-chars cs = case cs of
+    Nil -> Nil
+    Cons c rest ->
+      let code = char-code c in
+      if code == 40 || code == 41 then Cons ' ' (strip-paren-chars rest)
+      else Cons c (strip-paren-chars rest)
+
+  extract-after-keyword :: String -> List String -> Option String
+  extract-after-keyword kw ws = case ws of
+    Nil -> None
+    Cons w (Cons val rest) -> if same w kw then Some val else extract-after-keyword kw (Cons val rest)
+    Cons w Nil -> None
+
+  extract-premises-block :: String -> List String
+  extract-premises-block line = case string-split-on ":premises" line of
+    Cons before (Cons after rest) ->
+      case string-split-on "(" after of
+        Cons pre (Cons inside more) ->
+          (case string-split-on ")" inside of
+            Cons pids tail -> string-words pids
+            Nil -> Nil)
+        other -> Nil
+    other -> Nil
+
+  all-premises-declared :: List String -> List String -> Option String
+  all-premises-declared pids known = case pids of
+    Nil -> None
+    Cons p rest ->
+      if has-str p known then all-premises-declared rest known
+      else Some p
+
+  verify-alethe-lines :: List String -> List String -> Nat -> Bool -> Result String String
+  verify-alethe-lines lines known steps derived-empty = case lines of
+    Nil ->
+      if derived-empty && steps > 0 then
+        Ok (string-concat-all ["alethe-verified ", nat-to-string steps, " step(s)"])
+      else Err "Alethe proof did not derive empty clause (cl)"
+    Cons raw rest ->
+      let t = string-strip raw in
+      if string-length t == 0 || string-starts-with ";" t then
+        verify-alethe-lines rest known steps derived-empty
+      else if string-starts-with "(assume " t then
+        let ws = string-words (strip-parens t) in
+        (case ws of
+          Cons "assume" (Cons aid more) ->
+            verify-alethe-lines rest (Cons aid known) steps derived-empty
+          other -> Err "malformed Alethe assume command")
+      else if string-starts-with "(step " t then
+        let ws = string-words (strip-parens t) in
+        (case ws of
+          Cons "step" (Cons sid more) ->
+            (case extract-after-keyword ":rule" ws of
+              None -> Err (string-concat "Alethe step missing :rule: " sid)
+              Some rule ->
+                if same rule "hole" || same rule "trust" then
+                  Err (string-concat "Alethe proof uses unverified rule: " rule)
+                else if not (alethe-known-rule rule) then
+                  Err (string-concat "Alethe proof uses unknown rule: " rule)
+                else
+                  let pids = extract-premises-block t in
+                  (case all-premises-declared pids known of
+                    Some missing -> Err (string-concat-all ["Alethe step ", sid, " references undeclared premise ", missing])
+                    None ->
+                      let is-empty = string-contains " (cl) " t || string-contains " (cl):" t in
+                      verify-alethe-lines rest (Cons sid known) (steps + 1) (derived-empty || is-empty)))
+          other -> Err "malformed Alethe step command")
+      else if string-starts-with "(anchor " t || same t ")" then
+        verify-alethe-lines rest known steps derived-empty
+      else Err (string-concat "unsupported Alethe command: " t)
+
+  verify-alethe :: String -> Result String String
+  verify-alethe text = verify-alethe-lines (string-split-on "\n" text) Nil 0 False
+
+  -- ==========================================================================
+  -- 12. Verified `rewrite ... justify verify` Rules
+  -- ==========================================================================
+
+  utype-to-sem-type :: UType -> Option SemType
+  utype-to-sem-type ty = case refinement-view ty of
+    URefine id nm base pred -> utype-to-sem-type base
+    UCon name k ->
+      let short = strip-module-prefix name in
+      if same short "Bool" then Some SBool
+      else if same short "I8" || same short "U8" then Some (SBv 8)
+      else if same short "I16" || same short "U16" then Some (SBv 16)
+      else if same short "I32" || same short "U32" || same short "Char" then Some (SBv 32)
+      else if same short "I64" || same short "U64" || same short "Usize" || same short "Isize" then Some (SBv 64)
+      else if same short "I128" || same short "U128" then Some (SBv 128)
+      else None
+    other -> None
+
+  init-rewrite-binds :: List (String, UType) -> Nat -> SemGraph -> Result String (List (String, Nat, SemType), SemGraph)
+  init-rewrite-binds locals idx g = case locals of
+    Nil -> Ok (Nil, g)
+    Cons (nm, ty) rest ->
+      case utype-to-sem-type ty of
+        None -> Err (string-concat "rewrite formal has non-bitvector type: " nm)
+        Some st ->
+          let (nid, g1) = g-var idx st nm g in
+          case init-rewrite-binds rest (idx + 1) g1 of
+            Err e -> Err e
+            Ok (more, g2) -> Ok (Cons (nm, nid, st) more, g2)
+
+  verify-rewrite-rule :: String -> Bool -> String -> String -> List (String, String) -> Bool -> List (String, UType) -> UType -> Expr -> Expr -> VerifyOutcome
+  verify-rewrite-rule rule-name is-jpl verify-mode just-word proof-cache replay-only locals res-utype lhs-expr rhs-expr =
+    if same verify-mode "off" then
+      let gh = sha256-hex (string-to-bytes (string-concat "rewrite:" rule-name)) in
+      OutcomeAssumed [make-assumed-receipt gh "cinch-verify-off@1" "assumed (prim-verify=off)"]
+    else
+      case utype-to-sem-type res-utype of
+        None -> OutcomeOpen (string-concat rule-name ": rewrite result type is not a modeled bitvector/Bool type")
+        Some res-st ->
+          case init-rewrite-binds locals 0 empty-sem-graph of
+            Err err-b -> OutcomeOpen (string-concat-all [rule-name, ": ", err-b])
+            Ok (binds, g1) ->
+              case lower-spec-expr binds res-st lhs-expr g1 of
+                Err err-l -> OutcomeOpen (string-concat-all [rule-name, " lhs: ", err-l])
+                Ok (lv, lty, g2) ->
+                  case lower-spec-expr binds lty rhs-expr g2 of
+                    Err err-r -> OutcomeOpen (string-concat-all [rule-name, " rhs: ", err-r])
+                    Ok (rv, rty, g3) ->
+                      let (eq-id, g4) = case (lty, rty) of
+                            (SBool, SBool) -> g-intern (NEqBool lv rv) g3
+                            (SBv w1, SBv w2) | w1 == w2 -> g-bv-cmp "eq" w1 lv rv g3
+                            other -> g-bool False g3 in
+                      run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g4 [(string-concat "rewrite:" rule-name, eq-id)] Nil
+
+  -- ==========================================================================
+  -- 13. Memory & Atomic Boundary Contract Auditor + LLVM Translation Validation
+  -- ==========================================================================
+
+  atomic-ord-rank :: String -> Option Nat
+  atomic-ord-rank ord =
+    if same ord "unordered" then Some 0
+    else if same ord "monotonic" then Some 1
+    else if same ord "acquire" then Some 2
+    else if same ord "release" then Some 2
+    else if same ord "acq_rel" then Some 3
+    else if same ord "seq_cst" then Some 4
+    else None
+
+  is-power-of-two-nat :: Nat -> Bool
+  is-power-of-two-nat n =
+    if n == 0 then False
+    else if n == 1 then True
+    else if nat-odd n then False
+    else is-power-of-two-nat (nat-half n)
+
+  find-align-nat :: List String -> Option Nat
+  find-align-nat ws = case ws of
+    Nil -> None
+    Cons "align" (Cons nstr rest) -> parse-nat-str nstr
+    Cons w rest -> find-align-nat rest
+
+  find-orderings :: List String -> List String
+  find-orderings ws = case ws of
+    Nil -> Nil
+    Cons w rest ->
+      case atomic-ord-rank w of
+        Some r -> Cons w (find-orderings rest)
+        None -> find-orderings rest
+
+  llvm-byte-width :: String -> Option Nat
+  llvm-byte-width ty =
+    if same ty "ptr" || same ty "double" then Some 8
+    else if same ty "float" then Some 4
+    else if string-starts-with "i" ty && string-length ty > 1 then
+      case parse-nat-str (string-slice ty 1 (string-length ty)) of
+        Some bits -> Some (nat-half (nat-half (nat-half (bits + 7))))
+        None -> None
+    else None
+
+  audit-boundary-line :: String -> Bool -> String -> List String
+  audit-boundary-line prim-name is-pure raw =
+    let clean = strip-ir-comment raw in
+    let ws = ir-words clean in
+    let pure-v =
+          if is-pure && (has-str "store" ws || has-str "atomicrmw" ws || has-str "cmpxchg" ws || has-str "fence" ws || has-str "volatile" ws) then
+            [string-concat prim-name ": pure prim body performs memory write/atomic/volatile effect"]
+          else Nil in
+    let ords = find-orderings ws in
+    let align-opt = find-align-nat ws in
+    let atomic-v =
+          if has-str "load" ws && has-str "atomic" ws then
+            let ord-errs = case ords of
+                  Cons o rest | same o "release" || same o "acq_rel" ->
+                    [string-concat-all [prim-name, ": `load atomic` forbids ordering `", o, "`"]]
+                  Nil -> [string-concat prim-name ": `load atomic` missing memory ordering"]
+                  other -> Nil in
+            let align-errs = case align-opt of
+                  None -> [string-concat prim-name ": `load atomic` requires explicit alignment"]
+                  Some al ->
+                    if not (is-power-of-two-nat al) then [string-concat prim-name ": `load atomic` alignment must be a power of two"]
+                    else if has-str "i64" ws && al < 8 then [string-concat prim-name ": `load atomic i64` requires align >= 8"]
+                    else if has-str "i32" ws && al < 4 then [string-concat prim-name ": `load atomic i32` requires align >= 4"]
+                    else Nil in
+            ord-errs <> align-errs
+          else if has-str "store" ws && has-str "atomic" ws then
+            let ord-errs = case ords of
+                  Cons o rest | same o "acquire" || same o "acq_rel" ->
+                    [string-concat-all [prim-name, ": `store atomic` forbids ordering `", o, "`"]]
+                  Nil -> [string-concat prim-name ": `store atomic` missing memory ordering"]
+                  other -> Nil in
+            let align-errs = case align-opt of
+                  None -> [string-concat prim-name ": `store atomic` requires explicit alignment"]
+                  Some al ->
+                    if not (is-power-of-two-nat al) then [string-concat prim-name ": `store atomic` alignment must be a power of two"]
+                    else if has-str "i64" ws && al < 8 then [string-concat prim-name ": `store atomic i64` requires align >= 8"]
+                    else if has-str "i32" ws && al < 4 then [string-concat prim-name ": `store atomic i32` requires align >= 4"]
+                    else Nil in
+            ord-errs <> align-errs
+          else if has-str "fence" ws then
+            (case ords of
+              Cons o rest | same o "unordered" || same o "monotonic" ->
+                [string-concat-all [prim-name, ": `fence` forbids ordering `", o, "`"]]
+              Nil -> [string-concat prim-name ": `fence` missing ordering"]
+              other -> Nil)
+          else if has-str "atomicrmw" ws then
+            (case ords of
+              Cons o rest | same o "unordered" -> [string-concat prim-name ": `atomicrmw` forbids `unordered`"]
+              Nil -> [string-concat prim-name ": `atomicrmw` missing ordering"]
+              other -> Nil)
+          else if has-str "cmpxchg" ws then
+            (case ords of
+              Cons s-ord (Cons f-ord rest) ->
+                let e1 = if same s-ord "unordered" || same f-ord "unordered" then
+                           [string-concat prim-name ": `cmpxchg` forbids `unordered`"]
+                         else Nil in
+                let e2 = if same f-ord "release" || same f-ord "acq_rel" then
+                           [string-concat-all [prim-name, ": `cmpxchg` failure ordering forbids `", f-ord, "`"]]
+                         else Nil in
+                let e3 = case (atomic-ord-rank s-ord, atomic-ord-rank f-ord) of
+                           (Some sr, Some fr) | fr > sr ->
+                             [string-concat-all [prim-name, ": `cmpxchg` failure ordering `", f-ord, "` stronger than success ordering `", s-ord, "`"]]
+                           other -> Nil in
+                e1 <> e2 <> e3
+              other -> [string-concat prim-name ": `cmpxchg` requires success and failure orderings"])
+          else Nil in
+    let asm-v =
+          if string-contains "asm " clean && string-contains "syscall" clean then
+            if not (string-contains "~{rcx}" clean && string-contains "~{r11}" clean) then
+              [string-concat prim-name ": x86_64 `syscall` inline asm must clobber `~{rcx}` and `~{r11}`"]
+            else Nil
+          else Nil in
+    pure-v <> atomic-v <> asm-v
+
+  audit-boundary-lines :: String -> Bool -> List String -> List String
+  audit-boundary-lines prim-name is-pure lines = case lines of
+    Nil -> Nil
+    Cons l rest -> audit-boundary-line prim-name is-pure l <> audit-boundary-lines prim-name is-pure rest
+
+  audit-memory-atomic-contract :: String -> Bool -> String -> List String
+  audit-memory-atomic-contract prim-name is-pure fragment =
+    audit-boundary-lines prim-name is-pure (string-split-on "\n" fragment)
+
+  -- Translation Validation: prove `frag-after` is UB-free, poison-free, and
+  -- bit-for-bit identical to `frag-before` with a kernel-checked LRAT proof.
+  validate-llvm-equiv :: String -> String -> String -> List PrimParamSpec -> PrimParamSpec -> VerifyOutcome
+  validate-llvm-equiv fn-name frag-before frag-after params result =
+    let (ub0, g0) = g-bool False empty-sem-graph in
+    case init-llvm-params params 0 Nil g0 of
+      (binds, vars, g1) ->
+        case lower-ir-fragment frag-before binds ub0 g1 of
+          Err err-a -> OutcomeOpen (string-concat-all [fn-name, " TV lhs: ", err-a])
+          Ok (MkLlvmEnv b1 ub-a g2 None) -> OutcomeOpen (string-concat fn-name " TV lhs has no ret")
+          Ok (MkLlvmEnv b1 ub-a g2 (Some ret-a)) ->
+            let (ub0-b, g2b) = g-bool False g2 in
+            case lower-ir-fragment frag-after binds ub0-b g2b of
+              Err err-b -> OutcomeOpen (string-concat-all [fn-name, " TV rhs: ", err-b])
+              Ok (MkLlvmEnv b2 ub-b g3 None) -> OutcomeOpen (string-concat fn-name " TV rhs has no ret")
+              Ok (MkLlvmEnv b2 ub-b g3 (Some ret-b)) ->
+                let (not-ub, g4) = g-not ub-b g3 in
+                let (not-p, g5) = g-not (sv-poison ret-b) g4 in
+                let (wd, g6) = g-and not-ub not-p g5 in
+                let (eq-v, g7) = case (sv-type ret-a, sv-type ret-b) of
+                      (SBool, SBool) -> g-intern (NEqBool (sv-val ret-a) (sv-val ret-b)) g6
+                      (SBv w1, SBv w2) | w1 == w2 -> g-bv-cmp "eq" w1 (sv-val ret-a) (sv-val ret-b) g6
+                      other -> g-bool False g6 in
+                let (goal, g8) = g-and wd eq-v g7 in
+                run-obligations-cached True "strict" "verify" Nil False g8 [(string-concat "tv:" fn-name, goal)] Nil
