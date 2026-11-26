@@ -335,14 +335,14 @@ fn parse_prim_sig(
             Type::Fun { arg, res, .. } => {
                 let (base, pred) = unwrap_refined(arg);
                 let info = parse_scalar_type(base, word_bits)?;
-                params.push((format!("%{idx}"), info, pred.cloned()));
+                params.push((format!("%{idx}"), info, pred));
                 idx += 1;
                 cur = res;
             }
             Type::DepFun(name, arg, _, _, res, _) => {
                 let (base, pred) = unwrap_refined(arg);
                 let info = parse_scalar_type(base, word_bits)?;
-                params.push((name.text.clone(), info, pred.cloned()));
+                params.push((name.text.clone(), info, pred));
                 idx += 1;
                 cur = res;
             }
@@ -351,15 +351,33 @@ fn parse_prim_sig(
     }
     let (base_ty, refinement) = unwrap_refined(cur);
     let ret = parse_scalar_type(base_ty, word_bits)?;
-    Ok((params, ret, refinement.cloned()))
+    Ok((params, ret, refinement))
 }
 
-fn unwrap_refined(ty: &Type) -> (&Type, Option<&Type>) {
+fn unwrap_refined(ty: &Type) -> (&Type, Option<Type>) {
     // `refined (pred) Base` parses as `App(App(Var("refined"), pred), Base)`.
     if let Type::App(f, base, _) = ty {
         if let Type::App(head, pred, _) = f.as_ref() {
             if matches!(head.as_ref(), Type::Var(n, _) if n.text == "refined") {
-                return (base.as_ref(), Some(pred.as_ref()));
+                return (base.as_ref(), Some((**pred).clone()));
+            }
+        }
+        // `InRange lo hi Base` parses as `App(App(App(Con("InRange"), lo), hi), Base)`.
+        if let Type::App(f2, hi, sp) = f.as_ref() {
+            if let Type::App(head, lo, _) = f2.as_ref() {
+                if matches!(head.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "InRange")) {
+                    let r_var = Type::Var(crate::ast::Name::new("r", *sp), *sp);
+                    let pred = Type::App(
+                        Box::new(Type::App(
+                            Box::new(Type::App(head.clone(), lo.clone(), *sp)),
+                            hi.clone(),
+                            *sp,
+                        )),
+                        Box::new(r_var),
+                        *sp,
+                    );
+                    return (base.as_ref(), Some(pred));
+                }
             }
         }
     }
@@ -601,8 +619,12 @@ fn lower_refinement_int(
     match expr {
         Type::Var(n, _) => vars.get(&n.text).copied(),
         Type::Num(s, _) => {
-            let v: i128 = s.parse().ok()?;
-            Some(g.bv_const(exact_w, v as u128))
+            let v: u128 = if let Some(rest) = s.strip_prefix('-') {
+                rest.parse::<u128>().ok()?.wrapping_neg()
+            } else {
+                s.parse::<u128>().ok()?
+            };
+            Some(g.bv_const(exact_w, v))
         }
         Type::App(op, arg, _) => {
             if matches!(op.as_ref(), Type::Var(n, _) if n.text == "-") {

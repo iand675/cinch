@@ -178,7 +178,13 @@ impl Tseitin {
 
     fn mk_bv_const(&self, width: u16, bits: u128) -> Vec<i32> {
         (0..width)
-            .map(|i| if ((bits >> i) & 1) != 0 { self.true_lit } else { self.false_lit() })
+            .map(|i| {
+                if i < 128 && ((bits >> i) & 1) != 0 {
+                    self.true_lit
+                } else {
+                    self.false_lit()
+                }
+            })
             .collect()
     }
 
