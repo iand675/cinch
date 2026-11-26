@@ -200,6 +200,8 @@ module Cinch.Builtin where
     "cinch.runtime.bytesLen" -> Some ("Bytes -> Nat", "cinch_bytes_len")
     "cinch.runtime.bytesGet" -> Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
     "cinch.runtime.bytesNew" -> Some ("Nat -> Bytes", "cinch_bytes_new")
+    "cinch.runtime.utf8Validate" -> Some ("Bytes -> Bool", "cinch_utf8_validate")
+    "cinch.runtime.utf8CountChars" -> Some ("Bytes -> Nat", "cinch_utf8_count_chars")
     "cinch.runtime.slotsFoldNat" -> Some ("Nat -> U64", "cinch_nat_low_word")
     _ -> case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)

@@ -156,11 +156,17 @@ module Data.String where
       None -> None
       Some c -> Some (c, w)
 
-  -- | Validate UTF-8 from a byte boundary. Complete ASCII words are checked
-  -- with SWAR; non-ASCII sequences and tails retain scalar validation.
+  -- Runtime SIMD UTF-8 validator (`seed/runtime/src/string.rs`, Keiser-Lemire lookup4).
+  -- Private to Data.String so callers observe only the pure reference API.
+  foreign import ccall "cinch.runtime.utf8Validate" utf8-validate-bytes :: Bytes -> Bool
+
+  -- | Validate UTF-8 from a byte boundary. Full-buffer validation (i == 0)
+  -- dispatches to the runtime's SIMD validator; non-zero offsets use 8-byte
+  -- SWAR for ASCII runs and scalar validation for non-ASCII sequences and tails.
   utf8-valid-from :: Bytes -> Nat -> Bool
   utf8-valid-from b i =
-    if i >= bytes-len b then True
+    if i == 0 then utf8-validate-bytes b
+    else if i >= bytes-len b then True
     else if i + 8 <= bytes-len b && ascii-block b i then utf8-valid-from b (i + 8)
     else case utf8-at b i of
       None -> False
@@ -171,7 +177,7 @@ module Data.String where
   string-from-bytes b =
     -- The conversion in copies (the wrap/copy discipline): after
     -- wrapping, no alias of the caller's buffer can mutate the string.
-    if utf8-valid-from b 0 then Some (StrBuf (bytes-copy b)) else None
+    if utf8-validate-bytes b then Some (StrBuf (bytes-copy b)) else None
 
   empty-string :: String
   empty-string = StrBuf (bytes-new 0)
