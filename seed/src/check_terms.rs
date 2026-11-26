@@ -9151,6 +9151,143 @@ impl Checker {
                 let val = sargs[1].clone();
                 self.compile_sing_rows(rows, cols, types, expected, ctx_span, uncovered, carrier, val)
             }
+            Ty::Adt(ref name, ref sargs)
+                if name == crate::known::STRING
+                    && sargs.is_empty()
+                    && rows.iter().any(|r| matches!(r.pats[0], ast::Pat::Str(..))) =>
+            {
+                let mut literals: Vec<(String, ECore, Vec<Row<'_>>)> = Vec::new();
+                let mut literal_index = HashMap::new();
+                let mut defaults = Vec::new();
+                for mut r in rows.into_iter() {
+                    let p0 = r.pats[0].clone();
+                    match &p0 {
+                        ast::Pat::Var(n, _) => {
+                            if let ECore::Var(l) = &col0 {
+                                self.bind_syntax_local(
+                                    &mut r.env,
+                                    &n,
+                                    *l,
+                                    Scheme::mono(ty0.clone()),
+                                    None,
+                                    n.span,
+                                )?;
+                            }
+                            let mut a = r;
+                            a.pats.remove(0);
+                            defaults.push(a);
+                        }
+                        ast::Pat::Wild(_) => {
+                            let mut a = r;
+                            a.pats.remove(0);
+                            defaults.push(a);
+                        }
+                        ast::Pat::Str(v, _) => {
+                            let position = match literal_index.get(v) {
+                                Some(&position) => position,
+                                None => {
+                                    let position = literals.len();
+                                    let node = ECore::ConstBytes(v.as_bytes().to_vec());
+                                    literals.push((v.clone(), node, Vec::new()));
+                                    literal_index.insert(v.clone(), position);
+                                    position
+                                }
+                            };
+                            self.mark_consumed(&mut r, &col0);
+                            r.pats.remove(0);
+                            literals[position].2.push(r);
+                        }
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                crate::diagnostic!("pattern does not match type {}", inner_ty),
+                            ));
+                        }
+                    }
+                }
+                let rest_cols = cols[1..].to_vec();
+                let rest_tys = types[1..].to_vec();
+                let mut branch_weights = Vec::with_capacity(literals.len() + 1);
+                for (_, _, rows) in &mut literals {
+                    if !defaults.is_empty() {
+                        let mut branch = defaults.clone();
+                        branch.append(rows);
+                        *rows = branch;
+                    }
+                    rows.sort_by_key(|r| r.idx);
+                    branch_weights.push(BranchWeights::of(rows));
+                }
+                branch_weights.push(BranchWeights::of(&defaults));
+                let sums = self.decision_weights(&branch_weights, "this string literal match", ctx_span)?;
+                let (lit_sums, default_sum) = sums.split_at(literals.len());
+                let mut branch_maps = Vec::new();
+                let default_space = if literals.is_empty() {
+                    uncovered.to_string()
+                } else {
+                    let lits: Vec<String> = literals.iter().map(|(v, _, _)| format!("{v:?}")).collect();
+                    format!("a string other than {}", lits.join(", "))
+                };
+                let (mut chain, m) = self.isolate(|s| {
+                    s.compile_rows(
+                        defaults,
+                        rest_cols.clone(),
+                        rest_tys.clone(),
+                        expected,
+                        ctx_span,
+                        &default_space,
+                    )
+                })?;
+                branch_maps.push(m);
+                let default_weight = default_sum[0];
+                let mut rest_w = default_weight;
+                let scrut_bytes = self.fresh_local();
+                self.note_local_ty(scrut_bytes, &Ty::Bytes);
+                let wide_string_match = literals.len() >= 16;
+                let mut strings = Vec::new();
+                for (i, (v, node, branch)) in literals.into_iter().enumerate().rev() {
+                    let (body, m) = self.isolate(|s| {
+                        s.compile_rows(
+                            branch,
+                            rest_cols.clone(),
+                            rest_tys.clone(),
+                            expected,
+                            ctx_span,
+                            &format!("the string {v:?}"),
+                        )
+                    })?;
+                    branch_maps.push(m);
+                    if wide_string_match {
+                        strings.push(SymbolBranch { name: v, body, weight: lit_sums[i] });
+                        continue;
+                    }
+                    let cmp = string_bytes_eq_cond(ECore::Var(scrut_bytes), node);
+                    let (tw, fw) = pair_weights(lit_sums[i], rest_w);
+                    chain = ECore::If(
+                        Box::new(cmp),
+                        CBranch::weighted(tw, body),
+                        CBranch::weighted(fw, chain),
+                    );
+                    rest_w = match (lit_sums[i], rest_w) {
+                        (Some(a), Some(b)) => Some(a.saturating_add(b)),
+                        _ => None,
+                    };
+                }
+                self.merge_branches(branch_maps);
+                let dispatch = if wide_string_match {
+                    let selected = self.fresh_local();
+                    self.note_local_ty(selected, &Ty::Prim(Scalar::I64));
+                    compile_string_dispatch(ECore::Var(scrut_bytes), selected, strings, chain, default_weight)
+                } else {
+                    chain
+                };
+                let bytes_proj = ECore::Proj(
+                    Box::new(observed),
+                    crate::core::ProjField::slot(0, crate::core::Class::Obj),
+                    Ty::Bytes,
+                    Vec::new(),
+                );
+                Ok(ECore::Let(scrut_bytes, Box::new(bytes_proj), Box::new(dispatch)))
+            }
             Ty::Adt(_, ty_args) => {
                 let info = self.lookup_known_type(&type_name_str(&inner_ty))?.clone();
                 let ty_args = ty_args.clone();
@@ -9775,6 +9912,7 @@ impl Checker {
                     let shape = match pattern {
                         ast::Pat::Unit(_) => Ty::Unit,
                         ast::Pat::Int(..) => Ty::Int,
+                        ast::Pat::Str(..) => Ty::Adt(crate::known::STRING.into(), Vec::new()),
                         ast::Pat::Sym(..) => Ty::Sym,
                         ast::Pat::Tuple(items, _) => {
                             Ty::Tuple(items.iter().map(|_| self.uni.fresh()).collect())
@@ -10034,6 +10172,16 @@ impl Checker {
                 }
                 out
             }
+            ast::Pat::Cons(head, tail, span) => ast::Pat::Con(
+                ast::ConPath {
+                    segments: vec![
+                        ast::Name::new(self.prelude_module.clone(), *span),
+                        ast::Name::new("Cons", *span),
+                    ],
+                },
+                vec![self.expand_pat(head)?, self.expand_pat(tail)?],
+                *span,
+            ),
             ast::Pat::Record(path, fields, span) => {
                 let parts = path.parts();
                 let info = self.lookup_type(&parts).map_err(|_| {
@@ -12860,12 +13008,16 @@ fn check_row_binders(pats: &[ast::Pat]) -> Result<()> {
                     walk(a, seen)?;
                 }
             }
+            ast::Pat::Cons(head, tail, _) => {
+                walk(head, seen)?;
+                walk(tail, seen)?;
+            }
             ast::Pat::Record(_, fields, _) => {
                 for (_, a) in fields {
                     walk(a, seen)?;
                 }
             }
-            ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) | ast::Pat::Sym(_, _) => {}
+            ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) | ast::Pat::Str(_, _) | ast::Pat::Sym(_, _) => {}
         }
         Ok(())
     }
@@ -13128,6 +13280,97 @@ fn compile_symbol_dispatch(
     // The runtime compares UTF-8 bytes, which agrees with Rust's string order.
     branches.sort_unstable_by(|left, right| left.name.cmp(&right.name));
     let ordinal = search(&value, &branches, 0);
+    let (body, body_weight) = select(selected, 0, branches.len(), &mut branches.into_iter());
+    let (fallback_weight, body_weight) = pair_weights(fallback_weight, body_weight);
+    ECore::Let(
+        selected,
+        Box::new(ordinal),
+        Box::new(ECore::If(
+            Box::new(less(ECore::Var(selected), 0)),
+            CBranch::weighted(fallback_weight, fallback),
+            CBranch::weighted(body_weight, body),
+        )),
+    )
+}
+
+fn string_bytes_eq_cond(col_bytes: ECore, lit_bytes: ECore) -> ECore {
+    let cmp = app_spine(
+        ECore::Prim(PrimOp::Bytes(BytesOp::Compare)),
+        vec![col_bytes, lit_bytes],
+    );
+    app_spine(
+        ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Eq }),
+        vec![cmp, ECore::Int(0)],
+    )
+}
+
+/// Binary-search dispatch for wide string literal matches, keeping decision
+/// depth logarithmic in the number of literal arms.
+fn compile_string_dispatch(
+    value_bytes: ECore,
+    selected: LocalId,
+    mut branches: Vec<SymbolBranch>,
+    fallback: ECore,
+    fallback_weight: Option<u32>,
+) -> ECore {
+    fn less(left: ECore, right: i64) -> ECore {
+        app_spine(
+            ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Lt }),
+            vec![left, ECore::Int(right)],
+        )
+    }
+
+    fn search(value_bytes: &ECore, branches: &[SymbolBranch], base: i64) -> ECore {
+        let middle = branches.len() / 2;
+        let literal = ECore::ConstBytes(branches[middle].name.as_bytes().to_vec());
+        if branches.len() == 1 {
+            let equal = string_bytes_eq_cond(value_bytes.clone(), literal);
+            return ECore::If(
+                Box::new(equal),
+                CBranch::new(ECore::Int(base)),
+                CBranch::new(ECore::Int(-1)),
+            );
+        }
+        let order = app_spine(
+            ECore::Prim(PrimOp::Bytes(BytesOp::Compare)),
+            vec![value_bytes.clone(), literal],
+        );
+        let (left, right) = branches.split_at(middle);
+        ECore::If(
+            Box::new(less(order, 0)),
+            CBranch::new(search(value_bytes, left, base)),
+            CBranch::new(search(value_bytes, right, base + middle as i64)),
+        )
+    }
+
+    fn select(
+        selected: LocalId,
+        base: i64,
+        length: usize,
+        branches: &mut impl Iterator<Item = SymbolBranch>,
+    ) -> (ECore, Option<u32>) {
+        if length == 1 {
+            let branch = branches.next().expect("one body for each string ordinal");
+            return (branch.body, branch.weight);
+        }
+        let middle = length / 2;
+        let cut = base + middle as i64;
+        let (left, left_weight) = select(selected, base, middle, branches);
+        let (right, right_weight) = select(selected, cut, length - middle, branches);
+        let weight = left_weight.zip(right_weight).map(|(left, right)| left.saturating_add(right));
+        let (left_weight, right_weight) = pair_weights(left_weight, right_weight);
+        (
+            ECore::If(
+                Box::new(less(ECore::Var(selected), cut)),
+                CBranch::weighted(left_weight, left),
+                CBranch::weighted(right_weight, right),
+            ),
+            weight,
+        )
+    }
+
+    branches.sort_unstable_by(|left, right| left.name.as_bytes().cmp(right.name.as_bytes()));
+    let ordinal = search(&value_bytes, &branches, 0);
     let (body, body_weight) = select(selected, 0, branches.len(), &mut branches.into_iter());
     let (fallback_weight, body_weight) = pair_weights(fallback_weight, body_weight);
     ECore::Let(

@@ -1831,6 +1831,37 @@ impl Checker {
                             a.pats.remove(0);
                             var_rows.push(a);
                         }
+                        ast::Pat::Cons(head, tail, span) if adt_name.as_str() == crate::known::LIST => {
+                            let cp = ast::ConPath { segments: vec![ast::Name::new("Cons".to_string(), *span)] };
+                            let v = self.ctor_for_type(&info, &cp, *span)?;
+                            let (tag, arity) = match &v.kind {
+                                ValueKind::Ctor { tag, arity, .. } => (*tag, *arity),
+                                _ => return Err(Error::at(*span, format!("{} is not a constructor", v.name))),
+                            };
+                            let ctor_id = format!("ctor:{}.{}", v.module, v.name);
+                            if let Some((ref kid, _)) = known_ctor {
+                                if kid != &ctor_id {
+                                    return Err(Error::at(
+                                        *span,
+                                        crate::diagnostic!(
+                                            "impossible arm: constructor {} cannot match {}",
+                                            v.name,
+                                            ty0
+                                        ),
+                                    ));
+                                }
+                            }
+                            let cargs = vec![(**head).clone(), (**tail).clone()];
+                            if cargs.len() != arity {
+                                return Err(Error::at(*span, "constructor arity mismatch"));
+                            }
+                            let mut a = r.clone();
+                            self.mark_consumed(&mut a, &col0);
+                            let mut pats = cargs;
+                            pats.extend(r.pats[1..].iter().cloned());
+                            a.pats = pats;
+                            ctor_rows[tag].push(a);
+                        }
                         ast::Pat::List(lpats, span) if adt_name.as_str() == crate::known::LIST => {
                             // Desugar `[]` / `[p1, ...]` into `Nil` / `Cons` patterns!
                             let mut desugared = ast::Pat::Con(

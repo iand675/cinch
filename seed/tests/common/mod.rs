@@ -187,45 +187,67 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     }
 
     // Compiler fixtures select the source modules they exercise. Supply the
-    // transitive imports of those modules from this checkout, preserving
-    // every explicitly supplied source (including custom fixture versions).
+    // transitive imports of those modules (both compiler modules and any
+    // non-base stdlib modules from `seed/prelude/`) from this checkout,
+    // preserving every explicitly supplied source (including custom fixture versions).
+    let base_modules: HashSet<String> = cinch::driver::base_package()
+        .modules
+        .iter()
+        .map(|m| m.name.clone())
+        .chain(std::iter::once("Prelude.Generated".to_string()))
+        .collect();
     let mut provided = HashSet::new();
     let mut pending = Vec::new();
     for (name, source) in files {
-        if !name.starts_with("Bootstrap.") && !source.contains("Bootstrap.") {
-            continue;
-        }
+        let is_compiler_fixture = name.starts_with("Bootstrap.")
+            || name.starts_with("Cinch.")
+            || source.contains("Bootstrap.")
+            || source.contains("Cinch.");
         if let Ok(header) = cinch::driver::scan_file(source, name) {
             for (module, imports) in header.modules {
-                pending.extend(imports.into_iter().map(|(dependency, _)| dependency).filter(|name| {
-                    module.starts_with("Bootstrap.") || matches!(name.as_str(),
-                        "Bootstrap.RuntimeAbi" | "Bootstrap.Index" | "Bootstrap.CoreBody" | "Bootstrap.Total")
+                pending.extend(imports.into_iter().map(|(dependency, _)| dependency).filter(|dep| {
+                    if !is_compiler_fixture {
+                        return false;
+                    }
+                    if module.starts_with("Bootstrap.") || module.starts_with("Cinch.") {
+                        return true;
+                    }
+                    if matches!(dep.as_str(),
+                        "Bootstrap.RuntimeAbi" | "Bootstrap.Index" | "Bootstrap.CoreBody" | "Bootstrap.Total"
+                        | "Cinch.RuntimeAbi" | "Cinch.Index" | "Cinch.CoreBody" | "Cinch.Total")
+                    {
+                        return true;
+                    }
+                    !base_modules.contains(dep)
                 }));
                 provided.insert(module);
             }
         }
     }
     let bootstrap_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../compiler");
+    let prelude_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("prelude");
     while let Some(module) = pending.pop() {
-        if !(module.starts_with("Bootstrap.") || module == "Data.Array")
-            || !provided.insert(module.clone())
-        {
+        if base_modules.contains(&module) || !provided.insert(module.clone()) {
             continue;
         }
         let name = format!("{module}.cinch");
         if dir.join(&name).exists() {
             continue;
         }
-        let source = if module == "Bootstrap.Host" {
+        let source = if module == "Bootstrap.Host" || module == "Cinch.Host" {
             host_module(&dir)
-        } else if module == "Data.Array" {
-            // The pinned provider omits this compiler toolkit dependency.
-            include_str!("../../prelude/Data/Array.cinch").to_owned()
-        } else {
+        } else if module.starts_with("Bootstrap.") || module.starts_with("Cinch.") {
             match std::fs::read_to_string(bootstrap_dir.join(&name)) {
                 Ok(source) => source,
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(err) => panic!("read compiler fixture dependency {name}: {err}"),
+            }
+        } else {
+            let rel = format!("{}.cinch", module.replace('.', "/"));
+            match std::fs::read_to_string(prelude_dir.join(&rel)) {
+                Ok(source) => source,
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(err) => panic!("read stdlib dependency {name}: {err}"),
             }
         };
         let header = cinch::driver::scan_file(&source, &name)

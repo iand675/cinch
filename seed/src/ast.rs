@@ -361,6 +361,8 @@ pub enum Pat {
     /// Integer literal: the decimal digit string, with a leading `-` when
     /// prefix negation folded into it.
     Int(String, Span),
+    /// String literal: UTF-8 string value, matched by byte equality.
+    Str(String, Span),
     /// `'name` in pattern position: matches the interned `Sym` constant
     /// of the spelling by identity (primitive types specification
     /// section 9).
@@ -373,6 +375,8 @@ pub enum Pat {
     Tuple(Vec<Pat>, Span),
     /// `[p1, ..., pn]`; empty is the `Nil` pattern.
     List(Vec<Pat>, Span),
+    /// `p1 : p2`, right-associative list cons pattern.
+    Cons(Box<Pat>, Box<Pat>, Span),
     /// `R { x = p, ... }`, a constructor pattern with named fields.
     Record(ConPath, Vec<(Name, Pat)>, Span),
 }
@@ -383,11 +387,12 @@ impl Pat {
             Pat::Var(_, s)
             | Pat::Wild(s)
             | Pat::Unit(s)
-            | Pat::Int(_, s) | Pat::Sym(_, s)
+            | Pat::Int(_, s) | Pat::Str(_, s) | Pat::Sym(_, s)
             | Pat::Con(_, _, s)
             | Pat::As(_, _, s)
             | Pat::Tuple(_, s)
             | Pat::List(_, s)
+            | Pat::Cons(_, _, s)
             | Pat::Record(_, _, s) => *s,
         }
     }
@@ -2325,6 +2330,7 @@ fn hyg_pat_named(p: &Pat, cx: &mut HygCx, sc: &mut HygScope, names: &[(Name, Nam
         Pat::Wild(s) => Pat::Wild(*s),
         Pat::Unit(s) => Pat::Unit(*s),
         Pat::Int(v, s) => Pat::Int(v.clone(), *s),
+        Pat::Str(v, s) => Pat::Str(v.clone(), *s),
         Pat::Sym(v, s) => Pat::Sym(v.clone(), *s),
         Pat::Con(path, pats, s) => {
             let path = if sc.capture { capture_con(path, RefKind::Value, sc, cx) } else { qualify_con(cx, path, *s)? };
@@ -2353,6 +2359,11 @@ fn hyg_pat_named(p: &Pat, cx: &mut HygCx, sc: &mut HygScope, names: &[(Name, Nam
                 out.push(hyg_pat_named(x, cx, sc, names)?);
             }
             Pat::List(out, *s)
+        }
+        Pat::Cons(head, tail, s) => {
+            let h = hyg_pat_named(head, cx, sc, names)?;
+            let t = hyg_pat_named(tail, cx, sc, names)?;
+            Pat::Cons(Box::new(h), Box::new(t), *s)
         }
         Pat::Record(path, fields, s) => {
             let path = if sc.capture { capture_con(path, RefKind::Value, sc, cx) } else { qualify_con(cx, path, *s)? };
@@ -2591,6 +2602,10 @@ fn pat_names(p: &Pat, names: &mut Vec<Name>) {
         Pat::As(n, inner, _) => { names.push(n.clone()); pat_names(inner, names); }
         Pat::Con(_, pats, _) | Pat::Tuple(pats, _) | Pat::List(pats, _) => {
             for p in pats { pat_names(p, names); }
+        }
+        Pat::Cons(head, tail, _) => {
+            pat_names(head, names);
+            pat_names(tail, names);
         }
         Pat::Record(_, fields, _) => { for (_, p) in fields { pat_names(p, names); } }
         _ => {}

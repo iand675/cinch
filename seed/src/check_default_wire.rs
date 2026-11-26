@@ -151,6 +151,16 @@ impl Checker {
             }
             ast::Pat::Wild(_) => Some(default_node("PWild", [])),
             ast::Pat::Int(text, _) => Some(default_node("PLitInt", [text.into()])),
+            ast::Pat::Str(text, _) => Some(default_node("PLitStr", [text.into()])),
+            ast::Pat::Cons(head, tail, _) => {
+                let h = self.default_pattern(head, locals)?;
+                let t = self.default_pattern(tail, locals)?;
+                let spine = default_node(
+                    "PArg",
+                    [h, default_node("PArg", [t, default_node("PArgsEnd", [])])],
+                );
+                Some(default_node("PCon", ["Data.Core.Cons".into(), spine]))
+            }
             ast::Pat::As(name, inner, _)
                 if name.local_binding().is_none() && !name.text.contains('.') =>
             {

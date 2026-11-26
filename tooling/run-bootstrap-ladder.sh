@@ -60,13 +60,25 @@ seed="$root/seed"
 dir="$(mktemp -d)"
 trap 'rm -rf "$dir"' EXIT
 
-# The toolkit the artifacts import and the package does not embed.
-toolkit=(Lex Scan Parse Json Builder Fnv)
-for m in "${toolkit[@]}"; do cp "$seed/prelude/Text/$m.cinch" "$dir/Text.$m.cinch"; done
-cp "$seed/prelude/Data/Array.cinch" "$dir/Data.Array.cinch"
-cp "$seed/prelude/Data/Bytes/Word.cinch" "$dir/Data.Bytes.Word.cinch"
-# Every bootstrap module.
+# Every compiler module and every transitive stdlib dependency from seed/prelude.
 cp "$root"/compiler/*.cinch "$dir/"
+python3 -c '
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / "tooling"))
+from stdlib_closure import resolve_stdlib_closure
+root = Path(sys.argv[1])
+dest = Path(sys.argv[2])
+files = {p.name: p.read_bytes() for p in dest.glob("*.cinch")}
+for m in ("Lex", "Scan", "Parse", "Json", "Builder", "Fnv"):
+    files[f"Text.{m}.cinch"] = (root / "seed/prelude/Text" / f"{m}.cinch").read_bytes()
+for m in ("Data.Array", "Data.Bytes.Word"):
+    files[f"{m}.cinch"] = (root / "seed/prelude" / f"{m.replace(\".\", \"/\")}.cinch").read_bytes()
+for name, data in resolve_stdlib_closure(root, files).items():
+    out = dest / name
+    if not out.exists():
+        out.write_bytes(data)
+' "$root" "$dir"
 
 if [ "$#" -eq 0 ]; then
   # No program given: type-check every ladder module as a project. A module

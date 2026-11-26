@@ -383,6 +383,15 @@ impl Checker {
                     args: ps,
                 })
             }
+            ast::Pat::Cons(head, tail, _) => {
+                let h = self.compile_promoted_pat(module, head, locals)?;
+                let t = self.compile_promoted_pat(module, tail, locals)?;
+                Ok(PPat::Ctor {
+                    identity: crate::types::PROMOTED_CONS.to_string(),
+                    args: vec![h, t],
+                })
+            }
+            ast::Pat::Str(_, _) => Err("string patterns are not supported in promoted functions".into()),
             ast::Pat::Sym(_, _) => Err("symbol patterns are not supported in promoted functions".into()),
             ast::Pat::Record(_, _, _) => {
                 Err("record field patterns are not yet supported in promoted functions".into())

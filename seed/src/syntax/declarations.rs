@@ -507,7 +507,8 @@ fn pattern(pat: &mut Pat, visit: &mut impl FnMut(&mut Name, RefKind)) {
         }
         Pat::As(_, pat, _) => pattern(pat, visit),
         Pat::Tuple(pats, _) | Pat::List(pats, _) => for pat in pats { pattern(pat, visit); },
-        Pat::Var(..) | Pat::Wild(..) | Pat::Int(..) | Pat::Sym(..) | Pat::Unit(..) => {}
+        Pat::Cons(head, tail, _) => { pattern(head, visit); pattern(tail, visit); }
+        Pat::Var(..) | Pat::Wild(..) | Pat::Int(..) | Pat::Str(..) | Pat::Sym(..) | Pat::Unit(..) => {}
     }
 }
 

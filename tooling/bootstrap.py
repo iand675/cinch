@@ -726,6 +726,8 @@ def collect_compiler_sources() -> dict[str, bytes]:
     for module in COMPILER_PRELUDE:
         files[f"{module}.cinch"] = (ROOT / "seed" / "prelude" / f"{module.replace('.', '/')}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "compiler" / "programs" / "Run.Pipeline.cinch").read_bytes()
+    from stdlib_closure import resolve_stdlib_closure
+    files = resolve_stdlib_closure(ROOT, files)
     # Every bundled compiler module participates in the source compilation.
     # Make the seed-built stage check that same complete closure, including
     # modules that the CLI does not call, and publish their real interfaces.

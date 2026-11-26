@@ -2598,7 +2598,29 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_pattern(&mut self) -> Result<Pat> {
-        let pat = if matches!(self.peek_tok(), Tok::ConId(_)) {
+        let pat = self.parse_pattern_cons()?;
+        if self.at(&Tok::ColonColon) {
+            return Err(self.err(
+                "pattern type annotations are not supported in the bootstrap slice",
+            ));
+        }
+        Ok(pat)
+    }
+
+    fn parse_pattern_cons(&mut self) -> Result<Pat> {
+        let head = self.parse_pattern_app()?;
+        if matches!(self.peek_tok(), Tok::Op(s) if s == ":") {
+            self.bump();
+            let tail = self.parse_pattern_cons()?;
+            let span = head.span();
+            Ok(Pat::Cons(Box::new(head), Box::new(tail), span))
+        } else {
+            Ok(head)
+        }
+    }
+
+    fn parse_pattern_app(&mut self) -> Result<Pat> {
+        if matches!(self.peek_tok(), Tok::ConId(_)) {
             let path = self.parse_con_path()?;
             let span = path.span();
             if self.at(&Tok::LBrace) {
@@ -2609,16 +2631,10 @@ impl<'a> Parser<'a> {
             while self.starts_atomic_pattern() {
                 args.push(self.parse_atomic_pattern()?);
             }
-            Pat::Con(path, args, span)
+            Ok(Pat::Con(path, args, span))
         } else {
-            self.parse_atomic_pattern()?
-        };
-        if self.at(&Tok::ColonColon) {
-            return Err(self.err(
-                "pattern type annotations are not supported in the bootstrap slice",
-            ));
+            self.parse_atomic_pattern()
         }
-        Ok(pat)
     }
 
     /// `{ x = p, ... }` after a constructor path; at least one field.
@@ -2739,8 +2755,12 @@ impl<'a> Parser<'a> {
                 self.expect(&Tok::RBracket, "`]` closing the list pattern")?;
                 Ok(Pat::List(items, span))
             }
-            Tok::StrLit(_) | Tok::CharLit(_) | Tok::FloatLit(_) => Err(self.err(
-                "string, character and float literal patterns are not supported in the bootstrap slice",
+            Tok::StrLit(s) => {
+                self.bump();
+                Ok(Pat::Str(s, span))
+            }
+            Tok::CharLit(_) | Tok::FloatLit(_) => Err(self.err(
+                "character and float literal patterns are not supported in the bootstrap slice",
             )),
             Tok::TypeNameLit(s) => Err(self.err(format!(
                 "the type name quote `''{s}` belongs to a staging or macro name position (surface grammar local amendments section 12)"

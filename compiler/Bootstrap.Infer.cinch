@@ -3351,6 +3351,9 @@ module Bootstrap.Infer where
       Some (ps, vs) -> Some (PPTuple ps, vs)
       None -> None
     PList _ args -> compile-promoted-pat-list-elems (pats-of args)
+    PCons _ head tail -> case (compile-promoted-pat head, compile-promoted-pat tail) of
+      (Some (p, v1), Some (tl, v2)) -> Some (PPCon promoted-cons-name (PPArg p (PPArg tl PPEnd)), v1 <> v2)
+      other -> None
     PAnn _ inner _ -> compile-promoted-pat inner
     other -> None
 
@@ -6662,6 +6665,7 @@ module Bootstrap.Infer where
         other -> (CPWild s carrier, UError, Nil, add-error s "tuple pattern on non-tuple Sing carrier" st)
       PFamilyCon s fallback _ args -> bind-sing-pattern sp classes kinds families env raw-carrier (PCon s fallback args) st
       PList s args -> bind-sing-pattern sp classes kinds families env raw-carrier (desugar-sing-list-pat s (pats-of args)) st
+      PCons s head tail -> bind-sing-pattern sp classes kinds families env raw-carrier (PCon s "Data.Core.Cons" (PArg (pat-span head) head (PArg (pat-span tail) tail (PArgsEnd s)))) st
       PCon s cname args ->
         if same cname "True" then
           (CPConstructor s (primitive-type "Bool") "True" Nil (primitive-type "Bool") (CPDone s), UCon "ctor:True" KType, Nil, unify s carrier (primitive-type "Bool") st)
@@ -11775,6 +11779,7 @@ module Bootstrap.Infer where
     PCon sp name fields -> PCon sp name (record-pattern all fields)
     PTuple sp fields -> PTuple sp (record-pattern all fields)
     PList sp fields -> PList sp (record-pattern all fields)
+    PCons sp head tail -> PCons sp (record-pattern all head) (record-pattern all tail)
     PAs sp name inner -> PAs sp name (record-pattern all inner)
     PAnn sp inner ty -> PAnn sp (record-pattern all inner) ty
     PArg sp first rest -> PArg sp (record-pattern all first) (record-pattern all rest)

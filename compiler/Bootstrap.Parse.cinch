@@ -323,13 +323,14 @@ module Bootstrap.Parse where
     else if string-compare name "Relation.Eq" == 0 then named-fixes ["==", "/="] (MkFix "none" 3)
     else if string-compare name "Relation.Ord" == 0 then named-fixes ["<", "<=", ">", ">="] (MkFix "none" 3)
     else if string-compare name "Data.Bool" == 0 then named-fixes ["&&"] (MkFix "right" 2) <> named-fixes ["||"] (MkFix "right" 1)
+    else if string-compare name "Data.List" == 0 then named-fixes [":"] (MkFix "right" 5)
     else if string-compare name "Algebra.Bits" == 0 then named-fixes ["<<", ">>"] (MkFix "left" 7) <> named-fixes ["&"] (MkFix "left" 6) <> named-fixes ["^"] (MkFix "left" 5) <> named-fixes ["|"] (MkFix "left" 4)
     else Nil
 
   prelude-fixes :: List (String, Fix)
   prelude-fixes = named-fixes ["*", "/", "%"] (MkFix "left" 9) <> named-fixes ["+", "-"] (MkFix "left" 8)
     <> named-fixes ["<<", ">>"] (MkFix "left" 7) <> named-fixes ["&"] (MkFix "left" 6)
-    <> named-fixes ["^"] (MkFix "left" 5) <> named-fixes ["|"] (MkFix "left" 4)
+    <> named-fixes ["^"] (MkFix "left" 5) <> named-fixes [":"] (MkFix "right" 5) <> named-fixes ["|"] (MkFix "left" 4)
     <> named-fixes ["==", "/=", "<", "<=", ">", ">="] (MkFix "none" 3)
     <> named-fixes ["&&"] (MkFix "right" 2) <> named-fixes ["||"] (MkFix "right" 1)
 
@@ -544,6 +545,7 @@ module Bootstrap.Parse where
     else if string-compare op "<<" == 0 || string-compare op ">>" == 0 then MkFix "left" 7
     else if string-compare op "&" == 0 then MkFix "left" 6
     else if string-compare op "^" == 0 then MkFix "left" 5
+    else if string-compare op ":" == 0 then MkFix "right" 5
     else if string-compare op "|" == 0 then MkFix "left" 4
     else if string-compare op "==" == 0 || string-compare op "/=" == 0 || string-compare op "<" == 0 || string-compare op "<=" == 0 || string-compare op ">" == 0 || string-compare op ">=" == 0 then MkFix "none" 3
     else if string-compare op "&&" == 0 then MkFix "right" 2
@@ -2320,8 +2322,21 @@ module Bootstrap.Parse where
     PBad -> PBad
 
   parse-pat :: List LToken -> Bytes -> Ps Pat
-  parse-pat toks src = case parse-pat-atomic toks src of
+  parse-pat toks src = case parse-pat-cons toks src of
     POk p rest -> pat-tail p rest src
+    PBad -> PBad
+
+  parse-pat-cons :: List LToken -> Bytes -> Ps Pat
+  parse-pat-cons toks src = case parse-pat-atomic toks src of
+    POk head rest -> case rest of
+      Cons op more -> case lt-token op of
+        TOp s -> if string-compare s ":" == 0 then
+          (case parse-pat-cons more src of
+            POk tail remaining -> POk (PCons (span-join (pat-span head) (pat-span tail)) head tail) remaining
+            PBad -> PBad)
+          else POk head rest
+        _ -> POk head rest
+      Nil -> POk head rest
     PBad -> PBad
 
   pat-tail :: Pat -> List LToken -> Bytes -> Ps Pat

@@ -302,6 +302,7 @@ module Bootstrap.Ast where
     PLitSym :: Span -> String -> Pat
     PTuple :: Span -> Pat -> Pat
     PList :: Span -> Pat -> Pat
+    PCons :: Span -> Pat -> Pat -> Pat
     PAs :: Span -> String -> Pat -> Pat
     PAnn :: Span -> Pat -> TypeExpr -> Pat
     PArg :: Span -> Pat -> Pat -> Pat
@@ -333,6 +334,7 @@ module Bootstrap.Ast where
     PLitSym s text -> s
     PTuple s xs -> s
     PList s xs -> s
+    PCons s h t -> s
     PAs s n inner -> s
     PAnn s inner t -> s
     PArg s x rest -> s
@@ -925,6 +927,7 @@ module Bootstrap.Ast where
     PLitSym s text -> 0
     PTuple s xs -> pats-unmodeled (pats-of xs)
     PList s xs -> pats-unmodeled (pats-of xs)
+    PCons s h t -> pat-unmodeled-count h + pat-unmodeled-count t
     PAs s n inner -> pat-unmodeled-count inner
     PAnn s inner t -> pat-unmodeled-count inner + type-unmodeled-count t
     PArg s x rest -> pat-unmodeled-count x + pat-unmodeled-count rest
@@ -1194,6 +1197,7 @@ module Bootstrap.Ast where
     PLitSym part0 part1 -> JArr (JStr "PLitSym") (JArr (JStr part1) (JArrEnd))
     PTuple part0 part1 -> JArr (JStr "PTuple") (JArr (source-identity-pat part1) (JArrEnd))
     PList part0 part1 -> JArr (JStr "PList") (JArr (source-identity-pat part1) (JArrEnd))
+    PCons part0 part1 part2 -> JArr (JStr "PCons") (JArr (source-identity-pat part1) (JArr (source-identity-pat part2) (JArrEnd)))
     PAs part0 part1 part2 -> JArr (JStr "PAs") (JArr (JStr part1) (JArr (source-identity-pat part2) (JArrEnd)))
     PAnn part0 part1 part2 -> JArr (JStr "PAnn") (JArr (source-identity-pat part1) (JArr (source-identity-type part2) (JArrEnd)))
     PArg part0 part1 part2 -> JArr (JStr "PArg") (JArr (source-identity-pat part1) (JArr (source-identity-pat part2) (JArrEnd)))
@@ -1389,10 +1393,16 @@ module Bootstrap.Ast where
           (case globals name of Some identity -> Some (PCon sp identity pattern, bound); None -> None)
         else None
       None -> None
-    JArr (JStr tag) (JArr first (JArr rest JArrEnd)) -> if not (default-tag tag "PArg") then None else
-      (case (default-pattern sp globals first, default-pattern sp globals rest) of
-        (Some (pattern, bound), Some (more, bindings)) -> Some (PArg sp pattern more, bound <> bindings)
-        other -> None)
+    JArr (JStr tag) (JArr first (JArr rest JArrEnd)) ->
+      if default-tag tag "PArg" then
+        (case (default-pattern sp globals first, default-pattern sp globals rest) of
+          (Some (pattern, bound), Some (more, bindings)) -> Some (PArg sp pattern more, bound <> bindings)
+          other -> None)
+      else if default-tag tag "PCons" then
+        (case (default-pattern sp globals first, default-pattern sp globals rest) of
+          (Some (head, b1), Some (tail, b2)) -> Some (PCons sp head tail, b1 <> b2)
+          other -> None)
+      else None
     other -> None
 
   default-patterns :: Span -> (String -> Option String) -> Json -> Option (List Pat, List String)

@@ -524,12 +524,16 @@ fn pat_names(p: &ast::Pat, out: &mut Vec<String>) {
                 pat_names(a, out);
             }
         }
+        ast::Pat::Cons(head, tail, _) => {
+            pat_names(head, out);
+            pat_names(tail, out);
+        }
         ast::Pat::Record(_, fields, _) => {
             for (_, a) in fields {
                 pat_names(a, out);
             }
         }
-        ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) | ast::Pat::Sym(_, _) => {}
+        ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) | ast::Pat::Str(_, _) | ast::Pat::Sym(_, _) => {}
     }
 }
 
@@ -14508,6 +14512,10 @@ fn collect_pat_names(p: &ast::Pat, out: &mut Vec<String>) {
                 collect_pat_names(a, out);
             }
         }
+        ast::Pat::Cons(head, tail, _) => {
+            collect_pat_names(head, out);
+            collect_pat_names(tail, out);
+        }
         ast::Pat::Record(_, fields, _) => {
             for (_, f) in fields {
                 collect_pat_names(f, out);
@@ -16953,6 +16961,9 @@ fn pats_cover(a: &ast::Pat, b: &ast::Pat) -> bool {
         (_, Pat::As(_, inner, _)) => pats_cover(a, inner),
         (Pat::Unit(_), Pat::Unit(_)) => true,
         (Pat::Int(x, _), Pat::Int(y, _)) => x == y,
+        (Pat::Str(x, _), Pat::Str(y, _)) => x == y,
+        (Pat::Sym(x, _), Pat::Sym(y, _)) => x == y,
+        (Pat::Cons(ha, ta, _), Pat::Cons(hb, tb, _)) => pats_cover(ha, hb) && pats_cover(ta, tb),
         (Pat::Con(pa, aa, _), Pat::Con(pb, ab, _)) => {
             pa.parts() == pb.parts()
                 && aa.len() == ab.len()
@@ -22814,6 +22825,9 @@ impl Checker {
                 Value::Adt { fields, .. } => fields.get(i.slot).cloned().ok_or_else(|| {
                     Error::plain("internal error: record projection out of range")
                 })?,
+                Value::Str(s) if i.slot == 0 => {
+                    Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(s.into_bytes())))
+                }
                 other => {
                     return Err(Error::plain(format!(
                         "internal error: record projection from {}",

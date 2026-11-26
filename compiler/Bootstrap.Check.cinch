@@ -733,6 +733,7 @@ module Bootstrap.Check where
     PRecordField s name value rest -> (env, fail s "record field spine is not a pattern")
     PTuple s xs -> check-tuple-pat env s xs expected
     PList s xs -> (env, fail s "unsupported pattern: list literal")
+    PCons s h t -> (env, fail s "unsupported pattern: list cons")
     PAs s n inner -> (env, fail s "unsupported pattern: as binding")
     PAnn s inner t -> (env, fail s "unsupported pattern: type annotation")
     PArg s x rest -> (env, fail s "unsupported pattern: pattern spine cell")

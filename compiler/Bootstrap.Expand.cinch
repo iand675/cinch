@@ -384,6 +384,9 @@ module Bootstrap.Expand where
       (renamed, more, after) -> (PTuple s renamed, more, after)
     PList s args -> case hygienic-pattern args renames serial of
       (renamed, more, after) -> (PList s renamed, more, after)
+    PCons s head tail -> case hygienic-pattern head renames serial of
+      (rh, more, after) -> case hygienic-pattern tail more after of
+        (rt, final, done) -> (PCons s rh rt, final, done)
     PAnn s inner ty -> case hygienic-pattern inner renames serial of
       (renamed, more, after) -> (PAnn s renamed ty, more, after)
     PArg s first rest -> case hygienic-pattern first renames serial of

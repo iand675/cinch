@@ -796,6 +796,7 @@ module Bootstrap.Resolve where
     PRecordField s name value rest -> pattern-names value <> pattern-names rest
     PTuple s args -> pattern-names args
     PList s args -> pattern-names args
+    PCons s head tail -> pattern-names head <> pattern-names tail
     PAs s name inner -> Cons name (pattern-names inner)
     PAnn s inner ty -> pattern-names inner
     PArg s first rest -> pattern-names first <> pattern-names rest
@@ -874,6 +875,9 @@ module Bootstrap.Resolve where
       (renamed, errors) -> (PTuple s renamed, errors)
     PList s args -> case rename-pat visible args of
       (renamed, errors) -> (list-pattern s renamed, errors)
+    PCons s head tail -> case rename-pat visible head of
+      (rh, e1) -> case rename-pat visible tail of
+        (rt, e2) -> (PCon s (global-data-core-cons) (PArg (pat-span rh) rh (PArg (pat-span rt) rt (PArgsEnd s))), e1 <> e2)
     PAs s name inner -> case rename-pat visible inner of
       (renamed, errors) -> (PAs s name renamed, errors)
     PAnn s inner ty -> case rename-pat visible inner of

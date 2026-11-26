@@ -345,6 +345,7 @@ module Bootstrap.Contracts where
     PRecordField s name value rest -> pat-references value <> pat-references rest
     PTuple s args -> pat-references args
     PList s args -> [global-data-core-nil, global-data-core-cons] <> pat-references args
+    PCons s head tail -> [global-data-core-cons] <> pat-references head <> pat-references tail
     PAs s name inner -> pat-references inner
     PAnn s inner ty -> pat-references inner <> type-references ty
     PArg s x rest -> pat-references x <> pat-references rest
