@@ -1,5 +1,15 @@
 # Agent guidance
 
+## Definition of done
+
+Any language, type-system, verification, codegen, or CLI feature is **not done** until the self-hosted Cinch compiler (`compiler/`) has full feature parity with the Rust seed (`seed/`). Implementing a feature only in the Rust seed / Stage 0 bootstrap compiler is never sufficient (unless the user explicitly asks for a seed-only experiment).
+
+Specifically, before considering a compiler feature complete:
+
+- **Self-hosted implementation:** Implement the full feature (surface parsing, name resolution, type/effect/verification checking, Core/IR lowering, interface/manifest emission, and diagnostics) in `compiler/` alongside any required `seed/` or `seed/runtime/` changes.
+- **Stage 3 fixed point:** Rebuild the bootstrap ladder and pass `tooling/bootstrap.sh check` so Stages 2 and 3 reach a verified fixed point (with all smokes, interface self-check, and changed-source probe passing).
+- **Stage 3 test parity:** Route integration tests through `common::source_frontend` / `common::drive_with_profile` (never hardcoding Rust-seed-only entry points) and verify they pass directly against the Stage 3 self-hosted compiler via `tooling/run_stage_targets.py --stage 3 ...`, as well as against the Rust seed.
+
 ## Website work
 
 Before changing the Cinch website, read [website/AGENTS.md](website/AGENTS.md). It routes to the detailed [design handbook](website/design/design-handbook.md) and [inspiration atlas](website/design/inspiration-atlas.md), including the user's archived images, source links, and design decisions.
