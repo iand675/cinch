@@ -7,6 +7,8 @@ module Cinch.Type where
   import Cinch.Document
   import Data.Nat (nat-from-int, nat-to-int)
   import Data.Int (int-div, int-rem)
+  import Data.String (string-compare, string-byte-length, string-slice)
+  import Prim.Machine (ge-i64, lt-i64)
   import Cinch.Index
   import Cinch.Nominal (interface-global, decode-identity, global-data-core-list, global-data-string-string, global-data-string-length)
   import Cinch.Promote
@@ -66,10 +68,9 @@ module Cinch.Type where
   index-measure-name :: IndexMeasure -> String
   index-measure-name measure = case measure of WordToNat -> "toNat"; BufferLength -> "length"
   same-index-measure :: IndexMeasure -> IndexMeasure -> Bool
-  same-index-measure a b = case (a, b) of
-    (WordToNat, WordToNat) -> True
-    (BufferLength, BufferLength) -> True
-    other -> False
+  same-index-measure a b = case a of
+    WordToNat -> case b of WordToNat -> True; other -> False
+    BufferLength -> case b of BufferLength -> True; other -> False
 
   implicit instance Eq_IndexMeasure :: Eq IndexMeasure where
     (==) a b = same-index-measure a b
@@ -269,8 +270,16 @@ module Cinch.Type where
   deferral-parts ty = case later-parts ty of
     Some result -> Some (URow UEnd, result)
     None -> thunk-parts ty
+  is-later :: UType -> Bool
+  is-later ty = case ty of
+    UApp (UCon name kind) result -> same-tag name "Later" && kind-equal kind later-kind
+    other -> False
+  is-thunk :: UType -> Bool
+  is-thunk ty = case ty of
+    UApp (UApp (UCon name kind) row) result -> same-tag name "Thunk" && kind-equal kind thunk-kind
+    other -> False
   later-domain :: UType -> Bool
-  later-domain ty = case later-parts ty of Some carrier -> True; None -> False
+  later-domain ty = is-later ty
   later-unrestricted :: ArrowUsage -> UType -> Bool
   later-unrestricted usage arrow = case usage of
     UsageMany -> (case arrow of
@@ -280,9 +289,7 @@ module Cinch.Type where
       other -> False)
     other -> False
   distinct-deferrals :: UType -> UType -> Bool
-  distinct-deferrals first second = case later-parts first of
-    Some result -> (case thunk-parts second of Some parts -> True; None -> False)
-    None -> (case (thunk-parts first, later-parts second) of (Some parts, Some result) -> True; other -> False)
+  distinct-deferrals first second = (is-later first && is-thunk second) || (is-thunk first && is-later second)
 
   lazy-kind :: Kind
   lazy-kind = KFun KRow (KFun KRegion (KFun KType KType))
@@ -363,9 +370,15 @@ module Cinch.Type where
   read-quant-trees doc = case doc of
     JArrEnd -> Some []
     JArr (JArr (JStr tag) (JArr a (JArr (JStr name) (JArr k (JArr (JBool only) JArrEnd))))) rest ->
-      if same-tag tag "quant" then (case (tree-natural a, read-kind-tree k, read-quant-trees rest) of
-        (Some id, Some kind, Some qs) -> Some ((Quant id name kind only) : qs)
-        other -> None) else None
+      if same-tag tag "quant" then
+        (case tree-natural a of
+          Some id -> case read-kind-tree k of
+            Some kind -> case read-quant-trees rest of
+              Some qs -> Some ((Quant id name kind only) : qs)
+              None -> None
+            None -> None
+          None -> None)
+      else None
     other -> None
   same-tag :: String -> String -> Bool
   same-tag a b = a == b
@@ -376,9 +389,11 @@ module Cinch.Type where
   read-former-ids :: Json -> Option (List Nat)
   read-former-ids doc = case doc of
     JArrEnd -> Some []
-    JArr first rest -> case (tree-natural first, read-former-ids rest) of
-      (Some id, Some ids) -> Some (id : ids)
-      other -> None
+    JArr first rest -> case tree-natural first of
+      Some id -> case read-former-ids rest of
+        Some ids -> Some (id : ids)
+        None -> None
+      None -> None
     other -> None
   read-kind-tree :: Json -> Option Kind
   read-kind-tree doc = case doc of
@@ -387,7 +402,11 @@ module Cinch.Type where
     JArr (JStr tag) (JArr payload JArrEnd) -> if same-tag tag "value" then
       (case read-carrier-tree payload of Some carrier -> Some (KValue carrier); None -> None) else None
     JArr (JStr tag) (JArr a (JArr b JArrEnd)) -> if same-tag tag "kind-fun" then
-      (case (read-kind-tree a, read-kind-tree b) of (Some left, Some right) -> Some (KFun left right); other -> None) else None
+      (case read-kind-tree a of
+        Some left -> case read-kind-tree b of
+          Some right -> Some (KFun left right)
+          None -> None
+        None -> None) else None
     other -> None
   read-carrier-tree :: Json -> Option UType
   read-carrier-tree doc = case doc of
@@ -397,15 +416,19 @@ module Cinch.Type where
       Some value -> if same-tag tag "row" then Some (URow value) else if same-tag tag "tuple" then Some (UTuple value) else if same-tag tag "prop-not" then Some (UPropNot value) else if same-tag tag "prop-nonzero" then Some (UPropNonZero value) else if same-tag tag "prop-nonzero-pending" then Some (UPropNonZeroPending value) else if same-tag tag "prop-not-null" then Some (UPropNotNull value) else if same-tag tag "prop-ascii" then Some (UPropAscii value) else if same-tag tag "prop-ordered" then Some (UPropOrdered value) else if same-tag tag "index-forget" then Some (UIndexForget value) else if same-tag tag "index-to-nat" then Some (UIndexMeasure WordToNat value) else if same-tag tag "index-buffer-length" then Some (UIndexMeasure BufferLength value) else if same-tag tag "index-byte-length" then Some (UIndexByteLength value) else if same-tag tag "index-string-length" then Some (UIndexStringLength value) else if same-tag tag "index-borrow-read" then Some (UIndexBorrowRead value) else if same-tag tag "index-promote" then Some (UIndexPromote value) else None
       None -> None
     JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
-      if same-tag tag "con" then (case (a, read-kind-tree b) of (JStr name, Some kind) -> Some (UCon name kind); other -> None)
-      else if same-tag tag "meta" then (case (tree-natural a, read-kind-tree b) of (Some id, Some kind) -> Some (UMeta id kind); other -> None)
-      else if same-tag tag "index" then (case (read-carrier-tree a, index-from-tree b) of (Some carrier, Some value) -> Some (UIndex carrier value); other -> None)
-      else if same-tag tag "forall" then (case (read-quant-trees a, read-carrier-tree b) of
-        (Some qs, Some body) -> Some (UForall (quants-of qs) body)
-        other -> None)
-      else if same-tag tag "usage-fun" then (case (a, read-carrier-tree b) of
-        (JStr marker, Some arrow) -> case parse-arrow-usage marker of
-          Some usage -> if computational-arrow arrow then Some (UUsageArrow usage arrow) else None
+      if same-tag tag "con" then (case a of JStr name -> (case read-kind-tree b of Some kind -> Some (UCon name kind); None -> None); other -> None)
+      else if same-tag tag "meta" then (case tree-natural a of Some id -> (case read-kind-tree b of Some kind -> Some (UMeta id kind); None -> None); None -> None)
+      else if same-tag tag "index" then (case read-carrier-tree a of Some carrier -> (case index-from-tree b of Some value -> Some (UIndex carrier value); None -> None); None -> None)
+      else if same-tag tag "forall" then (case read-quant-trees a of
+        Some qs -> case read-carrier-tree b of
+          Some body -> Some (UForall (quants-of qs) body)
+          None -> None
+        None -> None)
+      else if same-tag tag "usage-fun" then (case a of
+        JStr marker -> case parse-arrow-usage marker of
+          Some usage -> case read-carrier-tree b of
+            Some arrow -> if computational-arrow arrow then Some (UUsageArrow usage arrow) else None
+            None -> None
           None -> None
         other -> None)
       else case read-carrier-tree a of
@@ -416,31 +439,57 @@ module Cinch.Type where
           other -> None
         other -> None
     JArr (JStr tag) (JArr a (JArr b (JArr c JArrEnd))) ->
-      if same-tag tag "index-total-call" then (case (b, read-carrier-tree c) of
-        (JStr identity, Some args) -> (case read-total-function a identity of Some function -> Some (UIndexCall function args); None -> None)
+      if same-tag tag "index-total-call" then (case b of
+        JStr identity -> case read-carrier-tree c of
+          Some args -> (case read-total-function a identity of Some function -> Some (UIndexCall function args); None -> None)
+          None -> None
         other -> None)
-      else if same-tag tag "refinement-former" then (case (a, read-former-ids b, read-carrier-tree c) of
-        (JStr name, Some ids, Some body) -> Some (URefineFormer name ids body)
+      else if same-tag tag "refinement-former" then (case a of
+        JStr name -> case read-former-ids b of
+          Some ids -> case read-carrier-tree c of
+            Some body -> Some (URefineFormer name ids body)
+            None -> None
+          None -> None
         other -> None)
-      else if same-tag tag "prop-compare" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr relation, Some left, Some right) -> Some (UCompare relation left right); other -> None)
-      else if same-tag tag "index-constructor" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr name, Some arrow, Some input) -> Some (UIndexConstructor name arrow input); other -> None)
-      else if same-tag tag "index-math" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr op, Some left, Some right) -> Some (UIndexMath op left right); other -> None)
-      else if same-tag tag "bound" then (case (tree-natural a, b, read-kind-tree c) of (Some id, JStr name, Some kind) -> Some (UBound id name kind); other -> None)
-      else if same-tag tag "effect-fun" then (case (read-carrier-tree a, read-carrier-tree b, read-carrier-tree c) of (Some domain, Some row, Some result) -> Some (UFunEff domain row result); other -> None)
-      else if same-tag tag "proof-fun" then (case (read-carrier-tree a, read-carrier-tree b, read-carrier-tree c) of (Some predicate, Some row, Some result) -> Some (UProofFun predicate row result); other -> None)
+      else if same-tag tag "prop-compare" then (case a of JStr relation -> (case read-carrier-tree b of Some left -> (case read-carrier-tree c of Some right -> Some (UCompare relation left right); None -> None); None -> None); other -> None)
+      else if same-tag tag "index-constructor" then (case a of JStr name -> (case read-carrier-tree b of Some arrow -> (case read-carrier-tree c of Some input -> Some (UIndexConstructor name arrow input); None -> None); None -> None); other -> None)
+      else if same-tag tag "index-math" then (case a of JStr op -> (case read-carrier-tree b of Some left -> (case read-carrier-tree c of Some right -> Some (UIndexMath op left right); None -> None); None -> None); other -> None)
+      else if same-tag tag "bound" then (case tree-natural a of Some id -> (case b of JStr name -> (case read-kind-tree c of Some kind -> Some (UBound id name kind); None -> None); other -> None); None -> None)
+      else if same-tag tag "effect-fun" then (case read-carrier-tree a of Some domain -> (case read-carrier-tree b of Some row -> (case read-carrier-tree c of Some result -> Some (UFunEff domain row result); None -> None); None -> None); None -> None)
+      else if same-tag tag "proof-fun" then (case read-carrier-tree a of Some predicate -> (case read-carrier-tree b of Some row -> (case read-carrier-tree c of Some result -> Some (UProofFun predicate row result); None -> None); None -> None); None -> None)
       else None
     JArr (JStr tag) (JArr a (JArr b (JArr c (JArr d JArrEnd)))) -> if same-tag tag "rigid" then
-      (case (tree-natural a, b, tree-natural c, read-kind-tree d) of (Some id, JStr name, Some level, Some kind) -> Some (URigid id name level kind); other -> None)
-      else if same-tag tag "refined" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d) of
-        (Some id, JStr name, Some carrier, Some predicate) -> Some (URefine id name carrier predicate)
-        other -> None)
-      else if same-tag tag "sigma" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d) of
-        (Some id, JStr name, Some domain, Some body) -> Some (USigma id name domain body)
-        other -> None) else None
+      (case tree-natural a of Some id -> (case b of JStr name -> (case tree-natural c of Some level -> (case read-kind-tree d of Some kind -> Some (URigid id name level kind); None -> None); None -> None); other -> None); None -> None)
+      else if same-tag tag "refined" then (case tree-natural a of
+        Some id -> case b of
+          JStr name -> case read-carrier-tree c of
+            Some carrier -> case read-carrier-tree d of
+              Some predicate -> Some (URefine id name carrier predicate)
+              None -> None
+            None -> None
+          other -> None
+        None -> None)
+      else if same-tag tag "sigma" then (case tree-natural a of
+        Some id -> case b of
+          JStr name -> case read-carrier-tree c of
+            Some domain -> case read-carrier-tree d of
+              Some body -> Some (USigma id name domain body)
+              None -> None
+            None -> None
+          other -> None
+        None -> None) else None
     JArr (JStr tag) (JArr a (JArr b (JArr c (JArr d (JArr e JArrEnd))))) ->
-      if same-tag tag "pi" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d, read-carrier-tree e) of
-        (Some id, JStr name, Some domain, Some row, Some result) -> Some (UPi id name domain row result)
-        other -> None) else None
+      if same-tag tag "pi" then (case tree-natural a of
+        Some id -> case b of
+          JStr name -> case read-carrier-tree c of
+            Some domain -> case read-carrier-tree d of
+              Some row -> case read-carrier-tree e of
+                Some result -> Some (UPi id name domain row result)
+                None -> None
+              None -> None
+            None -> None
+          other -> None
+        None -> None) else None
     other -> None
 
   kind-equal :: Kind -> Kind -> Bool
@@ -459,9 +508,14 @@ module Cinch.Type where
   carrier-equal :: UType -> UType -> Bool
   carrier-equal first second = carrier-type first && carrier-type second &&
     (same-shape first second || (case store-errors (unify (Span 0 0 1 1) (opaque-carrier first) (opaque-carrier second) (empty-store "kind conversion")) of [] -> True; other -> False))
+  opaque-kind :: Kind -> Kind
+  opaque-kind kind = case kind of
+    KValue carrier -> KValue (opaque-carrier carrier)
+    KFun a b -> if kind-is-ground kind then kind else KFun (opaque-kind a) (opaque-kind b)
+    other -> kind
   opaque-carrier :: UType -> UType
   opaque-carrier ty = case ty of
-    UPropLit value -> UPropLit value
+    UPropLit value -> ty
     UCompare relation left right -> UCompare relation (opaque-carrier left) (opaque-carrier right)
     UPropAnd left right -> UPropAnd (opaque-carrier left) (opaque-carrier right)
     UPropOr left right -> UPropOr (opaque-carrier left) (opaque-carrier right)
@@ -483,10 +537,10 @@ module Cinch.Type where
     UIndexCall function args -> UIndexCall function (opaque-carrier args)
     UIndexPromote value -> UIndexPromote (opaque-carrier value)
     UIndexMath op left right -> UIndexMath op (opaque-carrier left) (opaque-carrier right)
-    UMeta id k -> URigid (id * 2) "#kind-meta" 0 (map-kind-types opaque-carrier k)
-    URigid id name level k -> URigid (id * 2 + 1) name level (map-kind-types opaque-carrier k)
-    UCon name k -> UCon name (map-kind-types opaque-carrier k)
-    UBound id name k -> UBound id name (map-kind-types opaque-carrier k)
+    UMeta id k -> URigid (id * 2) "#kind-meta" 0 (opaque-kind k)
+    URigid id name level k -> URigid (id * 2 + 1) name level (opaque-kind k)
+    UCon name k -> if kind-is-ground k then ty else UCon name (opaque-kind k)
+    UBound id name k -> if kind-is-ground k then ty else UBound id name (opaque-kind k)
     UIndex carrier value -> UIndex (opaque-carrier carrier) (opaque-index value)
     UPi id name domain row result -> UPi id name (opaque-carrier domain) (opaque-carrier row) (opaque-carrier result)
     UApp f x -> UApp (opaque-carrier f) (opaque-carrier x)
@@ -494,6 +548,7 @@ module Cinch.Type where
     UFunEff a row b -> UFunEff (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
     UUsageArrow usage arrow -> UUsageArrow usage (opaque-carrier arrow)
     UProofFun a row b -> UProofFun (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
+    URow UEnd -> ty
     URow labels -> URow (opaque-carrier labels)
     URowJoin a b -> URowJoin (opaque-carrier a) (opaque-carrier b)
     UTuple fields -> UTuple (opaque-carrier fields)
@@ -532,6 +587,11 @@ module Cinch.Type where
   -- function has an exact replacement and no closure is built. `KValue`
   -- holds its carrier directly, so each of these is one field rebuild
   -- rather than an encode and a decode of the whole type tree.
+  kind-is-ground :: Kind -> Bool
+  kind-is-ground kind = case kind of
+    KValue _ -> False
+    KFun a b -> kind-is-ground a && kind-is-ground b
+    other -> True
   map-kind-types :: (UType -> UType) -> Kind -> Kind
   map-kind-types f kind = case kind of
     KValue carrier -> KValue (f carrier)
@@ -540,7 +600,7 @@ module Cinch.Type where
   normalize-kind :: Store -> Kind -> Kind
   normalize-kind st kind = case kind of
     KValue carrier -> KValue (normalize st carrier)
-    KFun a b -> KFun (normalize-kind st a) (normalize-kind st b)
+    KFun a b -> if kind-is-ground kind then kind else KFun (normalize-kind st a) (normalize-kind st b)
     other -> kind
   valid-kind :: Kind -> Bool
   valid-kind kind = case kind of
@@ -653,21 +713,11 @@ module Cinch.Type where
   promoted-cons-name :: String
   promoted-cons-name = "ctor:Data.Core.Cons"
   promoted-ctor-name :: String -> Bool
-  promoted-ctor-name name = case unpack name of
-    c1 : c2 : c3 : c4 : c5 : rest ->
-      char-code c1 == 99 && char-code c2 == 116 && char-code c3 == 111 && char-code c4 == 114 && char-code c5 == 58
-    other -> False
+  promoted-ctor-name name = ge-i64 (string-compare name "ctor:") 0 && lt-i64 (string-compare name "ctor;") 0
   strip-ctor-prefix :: String -> String
-  strip-ctor-prefix name = case unpack name of
-    c1 : c2 : c3 : c4 : c5 : rest ->
-      if char-code c1 == 99 && char-code c2 == 116 && char-code c3 == 111 && char-code c4 == 114 && char-code c5 == 58
-      then pack rest
-      else name
-    other -> name
+  strip-ctor-prefix name = if promoted-ctor-name name then string-slice name 5 (string-byte-length name) else name
   promoted-str-name :: String -> Bool
-  promoted-str-name name = case unpack name of
-    c1 : rest -> char-code c1 == 34
-    [] -> False
+  promoted-str-name name = lt-i64 (string-compare name "#") 0 && ge-i64 (string-compare name "\"") 0
   extract-promoted-list :: UType -> Option (List UType)
   extract-promoted-list ty = case ty of
     UCon name k | same-tag name promoted-nil-name -> Some []
@@ -682,9 +732,11 @@ module Cinch.Type where
     c : rest -> c : (strip-trailing-quote rest)
 
   strip-str-prefix :: String -> String
-  strip-str-prefix name = case unpack name of
-    c1 : rest -> if char-code c1 == 34 then pack (strip-trailing-quote rest) else name
-    other -> name
+  strip-str-prefix name = if promoted-str-name name then
+    (case unpack name of
+      c1 : rest -> pack (strip-trailing-quote rest)
+      other -> name)
+    else name
 
   sing-type-parts :: UType -> Option (UType, UType)
   sing-type-parts ty = case ty of
@@ -727,27 +779,28 @@ module Cinch.Type where
     let-depth :: Nat
     type-families :: List TypeFamilyRuleSet
     promoted :: List PromotedFn
+    solve-epoch :: Nat
 
   empty-store :: String -> Store
-  empty-store label = Store label 0 0 EmptyCells (ErrorLog 0 []) [] False 0 [] []
+  empty-store label = Store label 0 0 EmptyCells (ErrorLog 0 []) [] False 0 [] [] 0
   with-type-families :: List TypeFamilyRuleSet -> Store -> Store
   with-type-families fams st = case st of
-    Store label next level cells errors numbers in-law depth old proms -> Store label next level cells errors numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth old proms epoch -> Store label next level cells errors numbers in-law depth fams proms epoch
   with-promoted :: List PromotedFn -> Store -> Store
   with-promoted proms st = case st of
-    Store label next level cells errors numbers in-law depth fams old -> Store label next level cells errors numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams old epoch -> Store label next level cells errors numbers in-law depth fams proms epoch
   add-promoted-fn :: PromotedFn -> Store -> Store
   add-promoted-fn fn st = case st of
-    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors numbers in-law depth fams (fn : proms)
+    Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors numbers in-law depth fams (fn : proms) epoch
   with-families-and-promoted :: List TypeFamilyRuleSet -> List PromotedFn -> Store -> Store
   with-families-and-promoted fams proms st = case st of
-    Store label next level cells errors numbers in-law depth old-f old-p -> Store label next level cells errors numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth old-f old-p epoch -> Store label next level cells errors numbers in-law depth fams proms epoch
   with-let-depth :: Nat -> Store -> Store
   with-let-depth depth st = case st of
-    Store label next level cells errors numbers in-law previous fams proms -> Store label next level cells errors numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law previous fams proms epoch -> Store label next level cells errors numbers in-law depth fams proms epoch
   with-law-scope :: Bool -> Store -> Store
   with-law-scope active st = case st of
-    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors numbers active depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors numbers active depth fams proms epoch
   render-store-error :: StoreError -> Diagnostic
   render-store-error entry = case entry of
     PlainError diagnostic -> diagnostic
@@ -757,36 +810,41 @@ module Cinch.Type where
     [] -> []
     entry : rest -> (render-store-error entry) : (render-store-errors rest)
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of Store label next level cells (ErrorLog count errors) numbers in-law depth fams proms -> render-store-errors (reverse errors)
+  store-errors st = case st of Store label next level cells (ErrorLog count errors) numbers in-law depth fams proms epoch -> render-store-errors (reverse errors)
   store-error-count :: Store -> Nat
-  store-error-count st = case st of Store label next level cells (ErrorLog count errors) numbers in-law depth fams proms -> count
+  store-error-count st = case st of Store label next level cells (ErrorLog count errors) numbers in-law depth fams proms epoch -> count
   prepend-error :: StoreError -> ErrorLog -> ErrorLog
   prepend-error diagnostic log = case log of ErrorLog count errors -> ErrorLog (count + 1) (diagnostic : errors)
   enter-level :: Store -> Store
-  enter-level st = case st of Store label next level cells errors numbers in-law depth fams proms -> Store label next (level + 1) cells errors numbers in-law depth fams proms
+  enter-level st = case st of Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next (level + 1) cells errors numbers in-law depth fams proms epoch
   restore-level :: Nat -> Store -> Store
-  restore-level level st = case st of Store label next old cells errors numbers in-law depth fams proms -> Store label next level cells errors numbers in-law depth fams proms
+  restore-level level st = case st of Store label next old cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors numbers in-law depth fams proms epoch
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells (prepend-error (PlainError (Diagnostic label sp message)) errors) numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells (prepend-error (PlainError (Diagnostic label sp message)) errors) numbers in-law depth fams proms epoch
   add-diagnostics :: List Diagnostic -> Store -> Store
   add-diagnostics diagnostics st = case diagnostics of
     [] -> st
     d : rest -> case st of
-      Store label next level cells errors numbers in-law depth fams proms ->
-        add-diagnostics rest (Store label next level cells (prepend-error (PlainError d) errors) numbers in-law depth fams proms)
+      Store label next level cells errors numbers in-law depth fams proms epoch ->
+        add-diagnostics rest (Store label next level cells (prepend-error (PlainError d) errors) numbers in-law depth fams proms epoch)
   add-mismatch-error :: Span -> UType -> UType -> Store -> Store
   add-mismatch-error sp a b st = case st of
-    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth fams proms epoch
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
-    let checked = validate-kind-indices (Span 0 0 1 1) k original in
-    if store-error-count checked > store-error-count original then (UError, checked)
-    else fresh-meta-checked k checked
+    if kind-is-ground k then
+      case original of
+        Store label next level cells errors numbers in-law depth fams proms epoch ->
+          (UMeta next k, Store label (next + 1) level (push-cell (Cell next level k None) cells) errors numbers in-law depth fams proms epoch)
+    else
+      let checked = validate-kind-indices (Span 0 0 1 1) k original in
+      if store-error-count checked > store-error-count original then (UError, checked)
+      else fresh-meta-checked k checked
   fresh-meta-checked :: Kind -> Store -> (UType, Store)
   fresh-meta-checked k st = case st of
-    Store label next level cells errors numbers in-law depth fams proms ->
+    Store label next level cells errors numbers in-law depth fams proms epoch ->
       let kind = normalize-kind st k in
       let dependencies = kind-metas st kind in
       if not (valid-kind kind) then (UError, add-error (Span 0 0 1 1) "invalid inference variable kind" st)
@@ -794,11 +852,11 @@ module Cinch.Type where
       else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
       else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
       else case lower level dependencies st of
-        Store label next level lowered errors numbers in-law depth fams2 proms2 -> (UMeta next kind, Store label (next + 1) level (push-cell (Cell next level kind None) lowered) errors numbers in-law depth fams2 proms2)
+        Store label next level lowered errors numbers in-law depth fams2 proms2 epoch2 -> (UMeta next kind, Store label (next + 1) level (push-cell (Cell next level kind None) lowered) errors numbers in-law depth fams2 proms2 epoch2)
   known-metas :: List Nat -> Store -> Bool
   known-metas ids st = case ids of [] -> True; id : rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
   fresh-id :: Store -> (Nat, Store)
-  fresh-id st = case st of Store label next level cells errors numbers in-law depth fams proms -> (next, Store label (next + 1) level cells errors numbers in-law depth fams proms)
+  fresh-id st = case st of Store label next level cells errors numbers in-law depth fams proms epoch -> (next, Store label (next + 1) level cells errors numbers in-law depth fams proms epoch)
 
   cell-tree-first :: CellTree -> Nat
   cell-tree-first tree = case tree of
@@ -830,7 +888,7 @@ module Cinch.Type where
     EmptyCells -> None
     CellRun size tree rest -> if id < cell-tree-first tree then cell id rest else cell-in-tree id tree
   find-cell :: Nat -> Store -> Option Cell
-  find-cell id st = case st of Store label next level cells errors numbers in-law depth fams proms -> cell id cells
+  find-cell id st = case st of Store label next level cells errors numbers in-law depth fams proms epoch -> cell id cells
   replace-cell-in-tree :: Nat -> Cell -> CellTree -> CellTree
   replace-cell-in-tree id replacement tree = case tree of
     CellLeaf current -> CellLeaf replacement
@@ -847,9 +905,11 @@ module Cinch.Type where
   -- Both callers found this ID in the same store before lowering or solving
   -- it. Only fresh-meta inserts, and its new ID exceeds all existing IDs.
   put-cell :: Cell -> Store -> Store
-  put-cell c st = case (c, st) of
-    (Cell id lev kind solution, Store label next level cells errors numbers in-law depth fams proms) ->
-      Store label next level (replace-cell id c cells) errors numbers in-law depth fams proms
+  put-cell c st = case c of
+    Cell id lev kind solution -> case st of
+      Store label next level cells errors numbers in-law depth fams proms epoch ->
+        let next-epoch = case solution of Some _ -> epoch + 1; None -> epoch in
+        Store label next level (replace-cell id c cells) errors numbers in-law depth fams proms next-epoch
 
   arrow-constructor-kind :: Kind
   arrow-constructor-kind = KFun KType (KFun KType KType)
@@ -871,9 +931,11 @@ module Cinch.Type where
   former-spine :: UType -> List UType -> (UType, List UType)
   former-spine ty args = case ty of UApp head value -> former-spine head (value : args); other -> (ty, args)
   former-substitution :: List Nat -> List UType -> List (Nat, UType)
-  former-substitution ids args = case (ids, args) of
-    (id : more, actual : rest) -> (id, actual) : (former-substitution more rest)
-    other -> []
+  former-substitution ids args = case ids of
+    id : more -> case args of
+      actual : rest -> (id, actual) : (former-substitution more rest)
+      [] -> []
+    [] -> []
   -- Opening the structural view is explicit. Inference and export keep the
   -- original application so that matching a higher-kinded parameter can
   -- recover the checked former and its actual arguments.
@@ -881,17 +943,79 @@ module Cinch.Type where
   former-witnesses ids next = case ids of
     [] -> []
     id : rest -> (UBound next "#refinement-parameter" KType) : (former-witnesses rest (next + 1))
+  has-refine-former-head :: UType -> Bool
+  has-refine-former-head ty = case ty of
+    URefineFormer _ _ _ -> True
+    UApp head _ -> has-refine-former-head head
+    other -> False
   refinement-view :: UType -> UType
-  refinement-view ty = case former-spine ty [] of
-    (URefineFormer name ids body, args) ->
-      if list-length ids == list-length args then substitute (former-substitution ids args) body else ty
-    other -> ty
+  refinement-view ty = if has-refine-former-head ty then
+    (case former-spine ty [] of
+      (URefineFormer name ids body, args) ->
+        if list-length ids == list-length args then substitute (former-substitution ids args) body else ty
+      other -> ty)
+    else ty
+  needs-normalize :: Bool -> Store -> UType -> Bool
+  needs-normalize has-fams st ty = case ty of
+    UPropLit _ -> False
+    UCompare _ left right -> needs-normalize has-fams st left || needs-normalize has-fams st right
+    UPropAnd left right -> needs-normalize has-fams st left || needs-normalize has-fams st right
+    UPropOr left right -> needs-normalize has-fams st left || needs-normalize has-fams st right
+    UPropNot body -> needs-normalize has-fams st body
+    UPropNonZero body -> needs-normalize has-fams st body
+    UPropNotNull body -> needs-normalize has-fams st body
+    UPropAscii body -> needs-normalize has-fams st body
+    UPropOrdered body -> needs-normalize has-fams st body
+    UPropNonZeroPending _ -> True
+    URequire predicates body -> needs-normalize has-fams st predicates || needs-normalize has-fams st body
+    URefine _ _ carrier predicate -> needs-normalize has-fams st carrier || needs-normalize has-fams st predicate
+    UIndexForget value -> needs-normalize has-fams st value
+    UIndexByteLength value -> needs-normalize has-fams st value
+    UIndexMeasure _ value -> needs-normalize has-fams st value
+    UIndexStringLength value -> needs-normalize has-fams st value
+    UIndexBorrowRead value -> needs-normalize has-fams st value
+    UIndexConstructor _ arrow input -> needs-normalize has-fams st arrow || needs-normalize has-fams st input
+    UIndexList element fields -> needs-normalize has-fams st element || needs-normalize has-fams st fields
+    UIndexCall _ args -> needs-normalize has-fams st args
+    UIndexPromote _ -> True
+    UIndexMath _ _ _ -> True
+    UMeta id k -> case find-cell id st of
+      Some (Cell _ _ _ (Some _)) -> True
+      Some (Cell _ _ kind None) -> not (kind-is-ground kind && kind-equal k kind)
+      None -> not (kind-is-ground k)
+    UCon _ k -> has-fams || not (kind-is-ground k)
+    UBound _ _ k -> not (kind-is-ground k)
+    URigid _ _ _ k -> not (kind-is-ground k)
+    UIndex _ _ -> True
+    UPi _ _ domain row result -> needs-normalize has-fams st domain || needs-normalize has-fams st row || needs-normalize has-fams st result
+    UApp f x ->
+      has-fams
+      || (case f of UApp (UCon name (KFun KType (KFun KType KType))) _ -> same-tag name "(->)"; other -> False)
+      || is-promoted-fn-head f
+      || needs-normalize has-fams st f
+      || needs-normalize has-fams st x
+    UFun a b -> needs-normalize has-fams st a || needs-normalize has-fams st b
+    UFunEff a row b -> needs-normalize has-fams st a || needs-normalize has-fams st row || needs-normalize has-fams st b
+    UUsageArrow _ arrow -> needs-normalize has-fams st arrow
+    UProofFun a row b -> needs-normalize has-fams st a || needs-normalize has-fams st row || needs-normalize has-fams st b
+    URow UEnd -> False
+    URow (UArg label UEnd) -> needs-normalize has-fams st label
+    URow _ -> True
+    URowJoin _ _ -> True
+    UTuple xs -> needs-normalize has-fams st xs
+    USigma _ _ domain body -> needs-normalize has-fams st domain || needs-normalize has-fams st body
+    UForall _ body -> needs-normalize has-fams st body
+    UArg x rest -> needs-normalize has-fams st x || needs-normalize has-fams st rest
+    other -> False
+
   normalize :: Store -> UType -> UType
-  normalize st ty = normalize-with 64 st ty
+  normalize st ty =
+    let has-fams = case st.type-families of [] -> False; other -> True in
+    if needs-normalize has-fams st ty then normalize-with 64 st ty else ty
 
   normalize-with :: Nat -> Store -> UType -> UType
   normalize-with fuel st ty = case ty of
-    UPropLit value -> UPropLit value
+    UPropLit value -> ty
     UCompare relation left right -> UCompare relation (normalize-with fuel st left) (normalize-with fuel st right)
     UPropAnd left right -> UPropAnd (normalize-with fuel st left) (normalize-with fuel st right)
     UPropOr left right -> UPropOr (normalize-with fuel st left) (normalize-with fuel st right)
@@ -915,34 +1039,54 @@ module Cinch.Type where
     UIndexMath op left right -> make-index-math op (normalize-with fuel st left) (normalize-with fuel st right)
     UMeta id k -> case find-cell id st of
       Some (Cell n lev kind (Some solved)) -> normalize-with fuel st solved
-      Some (Cell n lev kind None) -> normalized-variable st (UMeta id kind)
-      None -> normalized-variable st ty
+      Some (Cell n lev kind None) ->
+        if kind-is-ground kind then (if kind-equal k kind then ty else UMeta id kind)
+        else case normalize-kind st kind of
+          KValue carrier -> UIndex carrier (IMeta id)
+          other -> UMeta id other
+      None ->
+        if kind-is-ground k then ty
+        else case normalize-kind st k of
+          KValue carrier -> UIndex carrier (IMeta id)
+          other -> UMeta id other
     UCon name k ->
-      let fams = st.type-families in
-      if fuel > 0 then
-        (case reduce-nullary-family fams name of
-          Some reduced -> normalize-with (fuel - 1) st reduced
-          None -> normalized-variable st ty)
-      else normalized-variable st ty
-    UBound id name k -> normalized-variable st ty
-    URigid id name level k -> normalized-variable st ty
+      case st.type-families of
+        [] -> if kind-is-ground k then ty else normalized-variable st ty
+        fams ->
+          if fuel > 0 then
+            (case reduce-nullary-family fams name of
+              Some reduced -> normalize-with (fuel - 1) st reduced
+              None -> if kind-is-ground k then ty else normalized-variable st ty)
+          else if kind-is-ground k then ty else normalized-variable st ty
+    UBound id name k -> if kind-is-ground k then ty else normalized-variable st ty
+    URigid id name level k -> if kind-is-ground k then ty else normalized-variable st ty
     UIndex carrier value -> normalize-value-index st (normalize-with fuel st carrier) value
     UPi id name domain row result -> UPi id name (normalize-with fuel st domain) (normalize-with fuel st row) (normalize-with fuel st result)
     UApp f x ->
       let applied = type-application (normalize-with fuel st f) (normalize-with fuel st x) in
-      let fams = st.type-families in
-      let proms = st.promoted in
       if fuel > 0 then
-        (case reduce-type-family-app fams applied of
-          Some reduced -> normalize-with (fuel - 1) st reduced
-          None -> case reduce-promoted-app proms applied of
-            Some reduced -> if same-shape reduced applied then applied else normalize-with (fuel - 1) st reduced
-            None -> applied)
+        case st.type-families of
+          [] ->
+            if is-promoted-fn-head applied then
+              (case reduce-promoted-app (st.promoted) applied of
+                Some reduced -> if same-shape reduced applied then applied else normalize-with (fuel - 1) st reduced
+                None -> applied)
+            else applied
+          fams ->
+            (case reduce-type-family-app fams applied of
+              Some reduced -> normalize-with (fuel - 1) st reduced
+              None ->
+                if is-promoted-fn-head applied then
+                  (case reduce-promoted-app (st.promoted) applied of
+                    Some reduced -> if same-shape reduced applied then applied else normalize-with (fuel - 1) st reduced
+                    None -> applied)
+                else applied)
       else applied
     UFun a b -> UFun (normalize-with fuel st a) (normalize-with fuel st b)
     UFunEff a row b -> UFunEff (normalize-with fuel st a) (normalize-with fuel st row) (normalize-with fuel st b)
     UUsageArrow usage arrow -> UUsageArrow usage (normalize-with fuel st arrow)
     UProofFun a row b -> UProofFun (normalize-with fuel st a) (normalize-with fuel st row) (normalize-with fuel st b)
+    URow UEnd -> ty
     URow labels -> URow (unique-effects (normalize-with fuel st labels))
     URowJoin a b -> union-effects (normalize-with fuel st a) (normalize-with fuel st b)
     UTuple xs -> UTuple (normalize-with fuel st xs)
@@ -957,8 +1101,10 @@ module Cinch.Type where
     other -> normalize (with-type-families fams (empty-store "type-family")) ty
 
   reduce-types :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> UType
-  reduce-types fams proms ty = case (fams, proms) of
-    ([], []) -> ty
+  reduce-types fams proms ty = case fams of
+    [] -> case proms of
+      [] -> ty
+      other -> normalize (with-families-and-promoted fams proms (empty-store "type-family")) ty
     other -> normalize (with-families-and-promoted fams proms (empty-store "type-family")) ty
 
   promoted-arity-of :: List PromotedFn -> String -> Option Nat
@@ -1096,20 +1242,28 @@ module Cinch.Type where
       x : rest -> case split-args-at (n - 1) rest of
         (spine, tail) -> (UArg x spine, tail)
 
+  has-type-family-head :: List TypeFamilyRuleSet -> UType -> Bool
+  has-type-family-head fams ty = case ty of
+    UCon name k -> case lookup-type-family name fams of Some _ -> True; None -> False
+    UApp f x -> has-type-family-head fams f
+    other -> False
+
   reduce-type-family-app :: List TypeFamilyRuleSet -> UType -> Option UType
   reduce-type-family-app fams ty = case fams of
     [] -> None
-    other -> case unwrap-app-spine ty [] of
-      (UCon name k, args) -> case lookup-type-family name fams of
-        Some (TypeFamilyRuleSet id arity closed returns-idx rules) ->
-          if list-length args >= arity then
-            case split-args-at arity args of
-              (matched-args, excess) -> case try-family-rules fams closed rules matched-args of
-                Some reduced -> Some (apply-app-spine reduced excess)
-                None -> None
-          else None
-        None -> None
-      other -> None
+    other -> if has-type-family-head fams ty then
+      (case unwrap-app-spine ty [] of
+        (UCon name k, args) -> case lookup-type-family name fams of
+          Some (TypeFamilyRuleSet id arity closed returns-idx rules) ->
+            if list-length args >= arity then
+              case split-args-at arity args of
+                (matched-args, excess) -> case try-family-rules fams closed rules matched-args of
+                  Some reduced -> Some (apply-app-spine reduced excess)
+                  None -> None
+            else None
+          None -> None
+        other2 -> None)
+      else None
 
   try-family-rules :: List TypeFamilyRuleSet -> Bool -> List TypeFamilyRule -> UType -> Option UType
   try-family-rules fams closed rules args = case rules of
@@ -1168,48 +1322,78 @@ module Cinch.Type where
   patterns-apart fams pv1 a pv2 b =
     if is-pat-var pv1 a || is-pat-var pv2 b then False
     else if is-type-family-head fams a || is-type-family-head fams b then False
-    else case (a, b) of
-      (UMeta id k, other) -> False
-      (other, UMeta id k) -> False
-      (URigid id n l k, other) -> False
-      (other, URigid id n l k) -> False
-      (UIndex c1 (IRigid id n l), other) -> False
-      (other, UIndex c2 (IRigid id n l)) -> False
-      (UIndex c1 (IMeta id), other) -> False
-      (other, UIndex c2 (IMeta id)) -> False
-      (UIndex c1 (IInteger n1), UIndex c2 (IInteger n2)) -> n1 /= n2
-      (UIndex c1 t1, UIndex c2 t2) -> False
-      (UIndexMath op1 x1 y1, other) -> False
-      (other, UIndexMath op2 x2 y2) -> False
-      (UCon n1 k1, UCon n2 k2) -> not (same-tag n1 n2)
-      (UCon n1 k1, UApp f2 x2) -> True
-      (UApp f1 x1, UCon n2 k2) -> True
-      (UApp f1 x1, UApp f2 x2) ->
-        case (unwrap-app-spine a [], unwrap-app-spine b []) of
-          ((h1, args1), (h2, args2)) ->
-            if patterns-apart fams pv1 h1 pv2 h2 then True
-            else if list-length args1 /= list-length args2 then True
-            else lists-apart fams pv1 args1 pv2 args2
-      (UTuple xs, UTuple ys) -> patterns-apart fams pv1 xs pv2 ys
-      (UArg a1 r1, UArg a2 r2) -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 r1 pv2 r2
-      (UEnd, UEnd) -> False
-      (UFun a1 b1, UFun a2 b2) -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 b1 pv2 b2
-      (UCon n1 k1, UTuple ys) -> True
-      (UTuple xs, UCon n2 k2) -> True
-      (UApp f1 x1, UTuple ys) -> True
-      (UTuple xs, UApp f2 x2) -> True
-      (UCon n1 k1, UIndex c2 t2) -> True
-      (UIndex c1 t1, UCon n2 k2) -> True
-      (UApp f1 x1, UIndex c2 t2) -> True
-      (UIndex c1 t1, UApp f2 x2) -> True
-      (UTuple xs, UIndex c2 t2) -> True
-      (UIndex c1 t1, UTuple ys) -> True
+    else case a of
+      UMeta id k -> False
+      URigid id n l k -> False
+      UIndexMath op1 x1 y1 -> False
+      UIndex c1 (IRigid id n l) -> False
+      UIndex c1 (IMeta id) -> False
+      UIndex c1 t1 -> case b of
+        UMeta id k -> False
+        URigid id n l k -> False
+        UIndexMath op2 x2 y2 -> False
+        UIndex c2 (IRigid id n l) -> False
+        UIndex c2 (IMeta id) -> False
+        UIndex c2 t2 -> case t1 of
+          IInteger n1 -> case t2 of IInteger n2 -> n1 /= n2; other -> False
+          other -> False
+        UCon n2 k2 -> True
+        UApp f2 x2 -> True
+        UTuple ys -> True
+        other -> False
+      UCon n1 k1 -> case b of
+        UMeta id k -> False
+        URigid id n l k -> False
+        UIndexMath op2 x2 y2 -> False
+        UIndex c2 (IRigid id n l) -> False
+        UIndex c2 (IMeta id) -> False
+        UCon n2 k2 -> not (same-tag n1 n2)
+        UApp f2 x2 -> True
+        UTuple ys -> True
+        UIndex c2 t2 -> True
+        other -> False
+      UApp f1 x1 -> case b of
+        UMeta id k -> False
+        URigid id n l k -> False
+        UIndexMath op2 x2 y2 -> False
+        UIndex c2 (IRigid id n l) -> False
+        UIndex c2 (IMeta id) -> False
+        UCon n2 k2 -> True
+        UApp f2 x2 ->
+          case unwrap-app-spine a [] of
+            (h1, args1) -> case unwrap-app-spine b [] of
+              (h2, args2) ->
+                if patterns-apart fams pv1 h1 pv2 h2 then True
+                else if list-length args1 /= list-length args2 then True
+                else lists-apart fams pv1 args1 pv2 args2
+        UTuple ys -> True
+        UIndex c2 t2 -> True
+        other -> False
+      UTuple xs -> case b of
+        UMeta id k -> False
+        URigid id n l k -> False
+        UIndexMath op2 x2 y2 -> False
+        UIndex c2 (IRigid id n l) -> False
+        UIndex c2 (IMeta id) -> False
+        UTuple ys -> patterns-apart fams pv1 xs pv2 ys
+        UCon n2 k2 -> True
+        UApp f2 x2 -> True
+        UIndex c2 t2 -> True
+        other -> False
+      UArg a1 r1 -> case b of
+        UArg a2 r2 -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 r1 pv2 r2
+        other -> False
+      UFun a1 b1 -> case b of
+        UFun a2 b2 -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 b1 pv2 b2
+        other -> False
       other -> False
 
   lists-apart :: List TypeFamilyRuleSet -> List Nat -> List UType -> List Nat -> List UType -> Bool
-  lists-apart fams pv1 xs pv2 ys = case (xs, ys) of
-    (a : ra, b : rb) -> patterns-apart fams pv1 a pv2 b || lists-apart fams pv1 ra pv2 rb
-    other -> False
+  lists-apart fams pv1 xs pv2 ys = case xs of
+    a : ra -> case ys of
+      b : rb -> patterns-apart fams pv1 a pv2 b || lists-apart fams pv1 ra pv2 rb
+      [] -> False
+    [] -> False
 
   type-family-patterns-overlap :: List TypeFamilyRuleSet -> List Nat -> UType -> List Nat -> UType -> Bool
   type-family-patterns-overlap fams pv1 lhs1 pv2 lhs2 = not (patterns-apart fams pv1 lhs1 pv2 lhs2)
@@ -1219,10 +1403,10 @@ module Cinch.Type where
 
   normalized-variable :: Store -> UType -> UType
   normalized-variable st ty = case ty of
-    UCon name k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IGlobal name); None -> UCon name kind)
-    UMeta id k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IMeta id); None -> UMeta id kind)
-    UBound id name k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IBound id name); None -> UBound id name kind)
-    URigid id name level k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IRigid id name level); None -> URigid id name level kind)
+    UCon name k -> if kind-is-ground k then ty else case normalize-kind st k of KValue carrier -> UIndex carrier (IGlobal name); kind -> UCon name kind
+    UMeta id k -> if kind-is-ground k then ty else case normalize-kind st k of KValue carrier -> UIndex carrier (IMeta id); kind -> UMeta id kind
+    UBound id name k -> if kind-is-ground k then ty else case normalize-kind st k of KValue carrier -> UIndex carrier (IBound id name); kind -> UBound id name kind
+    URigid id name level k -> if kind-is-ground k then ty else case normalize-kind st k of KValue carrier -> UIndex carrier (IRigid id name level); kind -> URigid id name level kind
     other -> ty
   index-of-type :: UType -> Option IndexTerm
   index-of-type ty = case ty of
@@ -1378,8 +1562,10 @@ module Cinch.Type where
       Some (mutable, region, carrier) -> integer-carrier carrier
       None -> False)
     UIndexConstructor name (UCon owner KType) UEnd -> string-length name > 0 && string-length owner > 0
-    UIndexConstructor name arrow input -> (case (arrow, typed-index-carrier input) of
-      (UFun domain (UCon owner KType), Some actual) -> string-length name > 0 && valid-type arrow && typed-index-admissible input && same-shape domain actual
+    UIndexConstructor name arrow input -> (case arrow of
+      UFun domain (UCon owner KType) -> case typed-index-carrier input of
+        Some actual -> string-length name > 0 && valid-type arrow && typed-index-admissible input && same-shape domain actual
+        None -> False
       other -> False)
     UIndexList element fields -> carrier-type element && list-index-fields element fields
     UIndexCall function args -> total-call-arguments (total-parameters function) args
@@ -1392,7 +1578,7 @@ module Cinch.Type where
     UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow
       && (carrier-type result || proposition-type result)
     UApp f x -> valid-type f && valid-type x && (case type-kind f of
-      KFun a b -> is-promoted-fn-head f || valid-app-arg-kind a x
+      KFun a b -> valid-app-arg-kind a x || is-promoted-fn-head f
       other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UForall qs body -> quants-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
@@ -1421,9 +1607,12 @@ module Cinch.Type where
   -- The same check as valid-type's UApp arm, allowing promoted functions and promoted values.
   valid-app-arg-kind :: Kind -> UType -> Bool
   valid-app-arg-kind expected actual =
-    kind-equal expected (type-kind actual)
-    || (kind-equal expected KType && (case type-kind actual of KValue _ -> True; other -> False))
-    || ((case expected of KValue _ -> True; other -> False) && is-promoted-value-type actual)
+    let actual-kind = type-kind actual in
+    kind-equal expected actual-kind
+    || (case expected of
+      KType -> case actual-kind of KValue _ -> True; other -> False
+      KValue _ -> is-promoted-value-type actual
+      other -> False)
 
   distinct-former-ids :: List Nat -> Bool
   distinct-former-ids ids = case ids of [] -> True; id : rest -> not (contains-id id rest) && distinct-former-ids rest
@@ -1662,51 +1851,72 @@ module Cinch.Type where
       None -> lower level rest st
 
   bind-meta :: Span -> Nat -> Kind -> UType -> Store -> Store
-  bind-meta sp id k ty st = case normalize st ty of
+  bind-meta sp id k ty st = bind-meta-normalized sp id k (normalize st ty) st
+  bind-meta-normalized :: Span -> Nat -> Kind -> UType -> Store -> Store
+  bind-meta-normalized sp id k ty st = case ty of
     UMeta n kind -> if id == n then (case find-cell id st of
       Some (Cell key level declared solution) -> unify-kind sp k kind (unify-kind sp k declared st)
       None -> add-error sp "unknown inference variable" st)
-      else bind-other sp id k (UMeta n kind) st
-    other -> bind-other sp id k other st
-  bind-other :: Span -> Nat -> Kind -> UType -> Store -> Store
-  bind-other sp id k ty st = case find-cell id st of
+      else bind-other-normalized sp id k ty st
+    other -> bind-other-normalized sp id k other st
+  bind-other-normalized :: Span -> Nat -> Kind -> UType -> Store -> Store
+  bind-other-normalized sp id k ty st = case find-cell id st of
     None -> add-error sp "unknown inference variable" st
     Some (Cell n lev kind solution) ->
-      let checked = if valid-app-arg-kind (normalize-kind st k) ty then unify-kind sp k kind st else unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
-      if store-error-count checked > store-error-count st then checked
-      else let solution-type = normalize checked ty in
-        if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
-        else let metas = normalized-free-metas checked solution-type in
-          if contains-id id metas then add-error sp "infinite type: inference variable occurs in its own solution" checked
-          else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
-          else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
-          else put-cell (Cell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev metas checked)
+      if kind-is-ground k && kind-is-ground kind && kind-equal k kind && valid-app-arg-kind k ty then
+        if not (valid-type ty) then add-error sp "invalid type in type inference" st
+        else let metas = normalized-free-metas st ty in
+          if contains-id id metas then add-error sp "infinite type: inference variable occurs in its own solution" st
+          else if has-forall ty then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text ty)) st
+          else if escapes lev ty then add-error sp "a quantified type variable escapes its scope" st
+          else put-cell (Cell n lev kind (Some ty)) (lower lev metas st)
+      else
+        let checked = if valid-app-arg-kind (normalize-kind st k) ty then unify-kind sp k kind st else unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
+        if store-error-count checked > store-error-count st then checked
+        else let solution-type = if checked.solve-epoch == st.solve-epoch then ty else normalize checked ty in
+          if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
+          else let metas = normalized-free-metas checked solution-type in
+            if contains-id id metas then add-error sp "infinite type: inference variable occurs in its own solution" checked
+            else if has-forall solution-type then add-error sp (string-concat "a type variable cannot stand for a polymorphic type; annotate the binding with its polymorphic type: " (display-type-text solution-type)) checked
+            else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
+            else put-cell (Cell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev metas checked)
 
   unify-kind :: Span -> Kind -> Kind -> Store -> Store
   unify-kind sp first second st =
-    let a = normalize-kind st first in
-    let b = normalize-kind st second in
-    if not (valid-kind a && valid-kind b) then add-error sp "invalid kind in type inference" st
-    else if kind-equal a b then st else case (a, b) of
-      (KValue carrier, KValue right) -> unify sp carrier right st
-      (KFun domain range, KFun input output) -> unify-kind sp range output (unify-kind sp domain input st)
-      other -> add-error sp "kind mismatch in type inference" st
+    if kind-is-ground first && kind-is-ground second && kind-equal first second then st
+    else
+      let a = normalize-kind st first in
+      let b = normalize-kind st second in
+      if not (valid-kind a && valid-kind b) then add-error sp "invalid kind in type inference" st
+      else if kind-equal a b then st
+      else case a of
+        KValue carrier -> case b of
+          KValue right -> unify sp carrier right st
+          other -> add-error sp "kind mismatch in type inference" st
+        KFun domain range -> case b of
+          KFun input output -> unify-kind sp range output (unify-kind sp domain input st)
+          other -> add-error sp "kind mismatch in type inference" st
+        other -> add-error sp "kind mismatch in type inference" st
 
   unify :: Span -> UType -> UType -> Store -> Store
   unify sp first second st =
     let checked = validate-type-indices sp second (validate-type-indices sp first st) in
-    let a = normalize checked first in
-    let b = normalize checked second in
     if store-error-count checked > store-error-count st then checked
-    else case a of
-      UError -> checked
-      UMeta id k -> bind-meta sp id k b checked
-      UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) b checked
-      other -> case b of
-        UError -> checked
-        UMeta id k -> bind-meta sp id k a checked
-        UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) a checked
-        other -> unify-structure sp a b checked
+    else unify-normalized sp (normalize checked first) (normalize checked second) checked
+  unify-normalized :: Span -> UType -> UType -> Store -> Store
+  unify-normalized sp a b st = case a of
+    UError -> st
+    UMeta id k -> bind-meta-normalized sp id k b st
+    UIndex carrier (IMeta id) -> if same-shape a b then st else bind-meta-normalized sp id (value-kind carrier) b st
+    other -> case b of
+      UError -> st
+      UMeta id k -> bind-meta-normalized sp id k a st
+      UIndex carrier (IMeta id) -> if same-shape a b then st else bind-meta-normalized sp id (value-kind carrier) a st
+      other -> unify-structure sp a b st
+  unify-after :: Span -> Nat -> UType -> UType -> Store -> Store
+  unify-after sp epoch first second st =
+    if st.solve-epoch == epoch then unify-normalized sp first second st
+    else unify-normalized sp (normalize st first) (normalize st second) st
   mismatch :: Span -> UType -> UType -> Store -> Store
   mismatch sp a b st = add-mismatch-error sp a b st
   foreign-pointer :: UType -> Bool
@@ -1790,47 +2000,55 @@ module Cinch.Type where
       any -> None)
     any -> None
   unify-comparison :: Span -> String -> UType -> UType -> UType -> UType -> Store -> Store
-  unify-comparison sp relation left right x y st = case (typed-index-carrier left, typed-index-carrier x) of
-    (Some a, Some b) | not (same-tag relation "Eq") && not (same-shape a b) && mathematical-carrier a && mathematical-carrier b ->
-      (case comparison-literals-at b left right of
-        Some (first, second) -> unify sp second y (unify sp first x st)
-        None -> case comparison-literals-at a x y of
-          Some (first, second) -> unify sp right second (unify sp left first st)
-          None -> mismatch sp left x st)
-    other -> unify sp right y (unify sp left x st)
+  unify-comparison sp relation left right x y st = case typed-index-carrier left of
+    Some a -> case typed-index-carrier x of
+      Some b | not (same-tag relation "Eq") && not (same-shape a b) && mathematical-carrier a && mathematical-carrier b ->
+        (case comparison-literals-at b left right of
+          Some (first, second) -> unify sp second y (unify sp first x st)
+          None -> case comparison-literals-at a x y of
+            Some (first, second) -> unify sp right second (unify sp left first st)
+            None -> mismatch sp left x st)
+      other -> let epoch = st.solve-epoch in unify-after sp epoch right y (unify-normalized sp left x st)
+    None -> let epoch = st.solve-epoch in unify-after sp epoch right y (unify-normalized sp left x st)
+  unify-app-fallback :: Span -> UType -> UType -> UType -> UType -> Store -> Store
+  unify-app-fallback sp a f x b st = case b of
+    UApp g y -> let epoch = st.solve-epoch in unify-after sp epoch x y (unify-normalized sp f g st)
+    UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
+    UFunEff domain effects result -> unify-pure-arrow-application sp a (UFun domain result) effects st
+    other -> mismatch sp a b st
   unify-structure :: Span -> UType -> UType -> Store -> Store
   unify-structure sp a b st = case a of
     UPropLit value -> case b of UPropLit other -> if (if value then other else not other) then st else mismatch sp a b st; other -> mismatch sp a b st
     UCompare relation left right -> case b of UCompare op x y -> if same-tag relation op then unify-comparison sp relation left right x y st else mismatch sp a b st; other -> mismatch sp a b st
-    UPropAnd left right -> case b of UPropAnd x y -> unify sp right y (unify sp left x st); other -> mismatch sp a b st
-    UPropOr left right -> case b of UPropOr x y -> unify sp right y (unify sp left x st); other -> mismatch sp a b st
-    UPropNot body -> case b of UPropNot other -> unify sp body other st; other -> mismatch sp a b st
-    UPropNonZero body -> case b of UPropNonZero other -> unify sp body other st; other -> mismatch sp a b st
-    UPropNotNull body -> case b of UPropNotNull other -> unify sp body other st; other -> mismatch sp a b st
-    UPropAscii body -> case b of UPropAscii other -> unify sp body other st; other -> mismatch sp a b st
-    UPropOrdered body -> case b of UPropOrdered other -> unify sp body other st; other -> mismatch sp a b st
-    UPropNonZeroPending body -> case b of UPropNonZeroPending other -> unify sp body other st; other -> mismatch sp a b st
-    URequire predicates body -> case b of URequire ps result -> unify sp body result (unify sp predicates ps st); other -> mismatch sp a b st
+    UPropAnd left right -> case b of UPropAnd x y -> let epoch = st.solve-epoch in unify-after sp epoch right y (unify-normalized sp left x st); other -> mismatch sp a b st
+    UPropOr left right -> case b of UPropOr x y -> let epoch = st.solve-epoch in unify-after sp epoch right y (unify-normalized sp left x st); other -> mismatch sp a b st
+    UPropNot body -> case b of UPropNot other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropNonZero body -> case b of UPropNonZero other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropNotNull body -> case b of UPropNotNull other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropAscii body -> case b of UPropAscii other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropOrdered body -> case b of UPropOrdered other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropNonZeroPending body -> case b of UPropNonZeroPending other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    URequire predicates body -> case b of URequire ps result -> let epoch = st.solve-epoch in unify-after sp epoch body result (unify-normalized sp predicates ps st); other -> mismatch sp a b st
     URefine id name carrier predicate -> case refinement-view b of
       URefine key other input condition -> if valid-type a && valid-type b then
         unify-pi sp (refinement-pi id name carrier predicate) (refinement-pi key other input condition) st
         else add-error sp "ill-formed refinement type" st
       other -> mismatch sp a b st
     URefineFormer name ids body -> if same-shape a b then st else mismatch sp a b st
-    UIndexForget value -> case b of UIndexForget other -> unify sp value other st; other -> mismatch sp a b st
-    UIndexByteLength value -> case b of UIndexByteLength other -> unify sp value other st; other -> mismatch sp a b st
-    UIndexMeasure measure value -> case b of UIndexMeasure other-measure other | same-index-measure measure other-measure -> unify sp value other st; other -> mismatch sp a b st
-    UIndexStringLength value -> case b of UIndexStringLength other -> unify sp value other st; other -> mismatch sp a b st
-    UIndexBorrowRead value -> case b of UIndexBorrowRead other -> unify sp value other st; other -> mismatch sp a b st
+    UIndexForget value -> case b of UIndexForget other -> unify-normalized sp value other st; other -> mismatch sp a b st
+    UIndexByteLength value -> case b of UIndexByteLength other -> unify-normalized sp value other st; other -> mismatch sp a b st
+    UIndexMeasure measure value -> case b of UIndexMeasure other-measure other | same-index-measure measure other-measure -> unify-normalized sp value other st; other -> mismatch sp a b st
+    UIndexStringLength value -> case b of UIndexStringLength other -> unify-normalized sp value other st; other -> mismatch sp a b st
+    UIndexBorrowRead value -> case b of UIndexBorrowRead other -> unify-normalized sp value other st; other -> mismatch sp a b st
     UIndexConstructor name arrow input -> (case b of
-      UIndexConstructor other function value | same-tag name other -> unify sp input value (unify sp arrow function st)
+      UIndexConstructor other function value | same-tag name other -> let epoch = st.solve-epoch in unify-after sp epoch input value (unify-normalized sp arrow function st)
       other -> add-error sp (string-concat (mismatch-message a b) " (index mismatch)") st)
     UIndexList element fields -> case b of
-      UIndexList other values -> unify sp fields values (unify sp element other st)
+      UIndexList other values -> let epoch = st.solve-epoch in unify-after sp epoch fields values (unify-normalized sp element other st)
       other -> mismatch sp a b st
-    UIndexCall function args -> case b of UIndexCall other values -> if total-function-equal function other then unify sp args values st else mismatch sp a b st; other -> mismatch sp a b st
-    UIndexPromote value -> case b of UIndexPromote other -> unify sp value other st; other -> mismatch sp a b st
-    UIndexMath op left right -> case b of UIndexMath operation a1 a2 -> if same-tag op operation then unify sp right a2 (unify sp left a1 st) else mismatch sp a b st; other -> mismatch sp a b st
+    UIndexCall function args -> case b of UIndexCall other values -> if total-function-equal function other then unify-normalized sp args values st else mismatch sp a b st; other -> mismatch sp a b st
+    UIndexPromote value -> case b of UIndexPromote other -> unify-normalized sp value other st; other -> mismatch sp a b st
+    UIndexMath op left right -> case b of UIndexMath operation a1 a2 -> if same-tag op operation then let epoch = st.solve-epoch in unify-after sp epoch right a2 (unify-normalized sp left a1 st) else mismatch sp a b st; other -> mismatch sp a b st
     UPi id name domain row result -> unify-pi sp a (function-pi b) st
     UIndex carrier value -> case b of
       UIndex other right -> let checked = unify sp carrier other st in
@@ -1838,35 +2056,43 @@ module Cinch.Type where
         else unify-index sp (normalize checked carrier) (resolve-index checked value) (resolve-index checked right) checked
       UIndexConstructor name arrow input -> add-error sp (string-concat (mismatch-message a b) " (index mismatch)") st
       other -> mismatch sp a b st
-    UCon n k -> case b of UCon m l -> if n == m then (if promoted-ctor-name n || is-promoted-fn-name n then st else unify-kind sp k l st) else mismatch sp a b st; other -> mismatch sp a b st
-    UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
-    URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
+    UCon n k -> case b of
+      UCon m l -> if n == m then
+        (if kind-is-ground k && kind-is-ground l && kind-equal k l then st
+         else if promoted-ctor-name n || is-promoted-fn-name n then st
+         else unify-kind sp k l st)
+        else mismatch sp a b st
+      other -> mismatch sp a b st
+    UBound n name k -> case b of
+      UBound m other l -> if n == m then (if kind-is-ground k && kind-is-ground l && kind-equal k l then st else unify-kind sp k l st) else mismatch sp a b st
+      other -> mismatch sp a b st
+    URigid n name lev k -> case b of
+      URigid m other l kind -> if n == m then (if kind-is-ground k && kind-is-ground kind && kind-equal k kind then st else unify-kind sp k kind st) else mismatch sp a b st
+      other -> mismatch sp a b st
     UApp f x -> if distinct-deferrals a b then
       add-error sp (string-concat (mismatch-message a b) " (Later and Thunk are distinct types)") st
-      else (case (refinement-view a, refinement-view b) of
-        (URefine id name carrier predicate, URefine key other input condition) -> unify sp (URefine id name carrier predicate) (URefine key other input condition) st
-        other -> case b of
-          UApp g y -> unify sp x y (unify sp f g st)
-          UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
-          UFunEff domain effects result -> unify-pure-arrow-application sp a (UFun domain result) effects st
-          other -> mismatch sp a b st)
+      else case refinement-view a of
+        URefine id name carrier predicate -> case refinement-view b of
+          URefine key other input condition -> unify sp (URefine id name carrier predicate) (URefine key other input condition) st
+          other -> unify-app-fallback sp a f x b st
+        other -> unify-app-fallback sp a f x b st
     UFun x y -> case b of
       UPi id name domain row result -> unify-pi sp (function-pi a) b st
-      UFun u v -> unify sp y v (unify sp x u st)
-      UFunEff u row v -> unify sp y v (unify sp x u (unify sp (URow UEnd) row st))
+      UFun u v -> let epoch = st.solve-epoch in unify-after sp epoch y v (unify-normalized sp x u st)
+      UFunEff u row v -> let epoch = st.solve-epoch in unify-after sp epoch y v (unify-after sp epoch x u (unify-normalized sp (URow UEnd) row st))
       UApp f result -> unify sp y result (unify sp (UApp arrow-constructor x) f st)
       other -> mismatch sp a b st
     UFunEff x row y -> case b of
       UPi id name domain effects result -> unify-pi sp (function-pi a) b st
-      UFun u v -> unify sp y v (unify sp x u (unify sp row (URow UEnd) st))
-      UFunEff u effects v -> unify sp y v (unify sp x u (unify sp row effects st))
+      UFun u v -> let epoch = st.solve-epoch in unify-after sp epoch y v (unify-after sp epoch x u (unify-normalized sp row (URow UEnd) st))
+      UFunEff u effects v -> let epoch = st.solve-epoch in unify-after sp epoch y v (unify-after sp epoch x u (unify-normalized sp row effects st))
       UApp f result -> unify-pure-arrow-application sp b (UFun x y) row st
       other -> mismatch sp a b st
     UUsageArrow usage arrow -> case b of
-      UUsageArrow other-usage other-arrow -> if same-arrow-usage usage other-usage then unify sp arrow other-arrow st else mismatch sp a b st
+      UUsageArrow other-usage other-arrow -> if same-arrow-usage usage other-usage then unify-normalized sp arrow other-arrow st else mismatch sp a b st
       other -> mismatch sp a b st
     UProofFun predicate row result -> case b of
-      UProofFun condition effects output -> unify sp result output (unify sp row effects (unify sp predicate condition st))
+      UProofFun condition effects output -> let epoch = st.solve-epoch in unify-after sp epoch result output (unify-after sp epoch row effects (unify-normalized sp predicate condition st))
       other -> mismatch sp a b st
     URow labels -> case b of
       URow effects -> if valid-effects labels && valid-effects effects then
@@ -1877,12 +2103,12 @@ module Cinch.Type where
     URowJoin first second -> if valid-type a && valid-type b && kind-equal (type-kind b) KRow then
       unify-open-rows sp a b st
       else add-error sp "malformed open effect row" st
-    UTuple xs -> case b of UTuple ys -> unify sp xs ys st; other -> mismatch sp a b st
+    UTuple xs -> case b of UTuple ys -> unify-normalized sp xs ys st; other -> mismatch sp a b st
     USigma id name domain body -> case b of
       USigma key other input output -> unify-pi sp (sigma-pi id name domain body) (sigma-pi key other input output) st
       other -> mismatch sp a b st
     UForall qs x -> case b of UForall rs y -> unify-forall sp a b st; other -> mismatch sp a b st
-    UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
+    UArg x rest -> case b of UArg y tail -> let epoch = st.solve-epoch in unify-after sp epoch rest tail (unify-normalized sp x y st); other -> mismatch sp a b st
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
     other -> mismatch sp a b st
 
@@ -1901,23 +2127,28 @@ module Cinch.Type where
         unify sp tail (union-effects (URow extra) rest) matched
       None -> mismatch sp (union-effects (URow labels) tail) (union-effects (URow required) rest) st
   unify-open-rows :: Span -> UType -> UType -> Store -> Store
-  unify-open-rows sp a b st = case (a, b) of
-    (URowJoin (URow labels) (UMeta id KRow), URow required) ->
-      extend-row sp labels (UMeta id KRow) required (URow UEnd) st
-    (URowJoin (URow left) tail, URowJoin (URow right) other-tail) ->
-      (case match-effects sp True left right left right st of
-        Some matched -> unify sp tail other-tail matched
-        None -> case (tail, other-tail) of
-          (UMeta id KRow, UMeta key KRow) | id /= key ->
-            let x = residual-labels left right in
-            let y = residual-labels right left in
-            case fresh-meta KRow st of
-              (shared, next) ->
-                unify sp other-tail (union-effects (URow x) shared)
-                  (unify sp tail (union-effects (URow y) shared) next)
-          (UMeta id KRow, other) -> extend-row sp left tail right other-tail st
-          (other, UMeta id KRow) -> extend-row sp right other-tail left tail st
-          other -> include-effects sp b a (include-effects sp a b st))
+  unify-open-rows sp a b st = case a of
+    URowJoin (URow labels) tail -> case b of
+      URow required -> case tail of
+        UMeta id KRow -> extend-row sp labels tail required (URow UEnd) st
+        other -> include-effects sp b a (include-effects sp a b st)
+      URowJoin (URow right) other-tail ->
+        (case match-effects sp True labels right labels right st of
+          Some matched -> unify sp tail other-tail matched
+          None -> case tail of
+            UMeta id KRow -> case other-tail of
+              UMeta key KRow | id /= key ->
+                let x = residual-labels labels right in
+                let y = residual-labels right labels in
+                case fresh-meta KRow st of
+                  (shared, next) ->
+                    unify sp other-tail (union-effects (URow x) shared)
+                      (unify sp tail (union-effects (URow y) shared) next)
+              other -> extend-row sp labels tail right other-tail st
+            other -> case other-tail of
+              UMeta id KRow -> extend-row sp right other-tail labels tail st
+              other2 -> include-effects sp b a (include-effects sp a b st))
+      other -> include-effects sp b a (include-effects sp a b st)
     other -> include-effects sp b a (include-effects sp a b st)
 
   -- Closed rows are sets, including when region variables later coincide.
@@ -1959,7 +2190,9 @@ module Cinch.Type where
               same-shape (substitute (former-substitution ids actuals) body)
                          (substitute (former-substitution keys actuals) template))
       other -> False
-    UCon n k -> case second of UCon m l -> n == m && (promoted-ctor-name n || kind-equal k l); other -> False
+    UCon n k -> case second of
+      UCon m l -> n == m && ((case k of KType -> (case l of KType -> True; other -> False); other -> False) || promoted-ctor-name n || kind-equal k l)
+      other -> False
     UBound n name k -> case second of UBound m other l -> n == m && kind-equal k l; other -> False
     URigid n name level k -> case second of URigid m other outer l -> n == m && kind-equal k l; other -> False
     UMeta n k -> case second of UMeta m l -> n == m && kind-equal k l; other -> False
@@ -2035,17 +2268,30 @@ module Cinch.Type where
   effect-row-parts :: UType -> (UType, List UType)
   effect-row-parts row = case row of
     URow labels -> (labels, [])
-    URowJoin a b -> case (effect-row-parts a, effect-row-parts b) of
-      ((first, left), (second, right)) -> (append-effects first second, merge-row-tails left right)
+    URowJoin a b -> case effect-row-parts a of
+      (first, left) -> case effect-row-parts b of
+        (second, right) -> (append-effects first second, merge-row-tails left right)
     other -> (UEnd, [other])
   joined-row-tails :: List UType -> UType
   joined-row-tails tails = case tails of [] -> URow UEnd; [first] -> first; first : rest -> URowJoin first (joined-row-tails rest)
   union-effects :: UType -> UType -> UType
-  union-effects first second = case (effect-row-parts first, effect-row-parts second) of
-    ((a, left), (b, right)) -> let labels = unique-effects (append-effects a b) in let tails = merge-row-tails left right in
-      case labels of
-        UEnd -> joined-row-tails tails
-        other -> case tails of [] -> URow labels; more -> URowJoin (URow labels) (joined-row-tails tails)
+  union-effects first second = case first of
+    URow UEnd -> case second of
+      URow UEnd -> first
+      URow labels -> URow (unique-effects labels)
+      other -> union-effects-general first second
+    other -> case second of
+      URow UEnd -> case first of
+        URow labels -> URow (unique-effects labels)
+        other2 -> union-effects-general first second
+      other2 -> union-effects-general first second
+  union-effects-general :: UType -> UType -> UType
+  union-effects-general first second = case effect-row-parts first of
+    (a, left) -> case effect-row-parts second of
+      (b, right) -> let labels = unique-effects (append-effects a b) in let tails = merge-row-tails left right in
+        case labels of
+          UEnd -> joined-row-tails tails
+          other -> case tails of [] -> URow labels; more -> URowJoin (URow labels) (joined-row-tails tails)
   include-effects :: Span -> UType -> UType -> Store -> Store
   include-effects sp actual allowed st =
     let a = normalize st actual in
@@ -2053,17 +2299,24 @@ module Cinch.Type where
     if not (valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow) then add-error sp "malformed effect row" st
     else if same-shape a b then st else include-effect-rows sp a b st
   include-effect-rows :: Span -> UType -> UType -> Store -> Store
-  include-effect-rows sp actual allowed st = case (actual, allowed) of
-    (URow UEnd, other) -> st
-    (URow labels, URow permitted) -> (case match-effects sp False labels permitted UEnd UEnd st of
-      Some solved -> solved
-      None -> add-error sp (string-concat-all ["effect rows do not match: performed effects exceed the declared row (performed ", type-text actual, ", declared ", type-text allowed, ")"]) st)
-    (URowJoin first second, other) -> include-effects sp second allowed (include-effects sp first allowed st)
-    (other, URowJoin first second) ->
-      let trial = include-effects sp actual first st in
-      if store-error-count trial == store-error-count st then trial
-      else include-effects sp actual second st
-    other -> add-error sp "effect inclusion needs resolved rows" st
+  include-effect-rows sp actual allowed st = case actual of
+    URow UEnd -> st
+    URow labels -> case allowed of
+      URow permitted -> (case match-effects sp False labels permitted UEnd UEnd st of
+        Some solved -> solved
+        None -> add-error sp (string-concat-all ["effect rows do not match: performed effects exceed the declared row (performed ", type-text actual, ", declared ", type-text allowed, ")"]) st)
+      URowJoin first second ->
+        let trial = include-effects sp actual first st in
+        if store-error-count trial == store-error-count st then trial
+        else include-effects sp actual second st
+      other -> add-error sp "effect inclusion needs resolved rows" st
+    URowJoin first second -> include-effects sp second allowed (include-effects sp first allowed st)
+    other -> case allowed of
+      URowJoin first second ->
+        let trial = include-effects sp actual first st in
+        if store-error-count trial == store-error-count st then trial
+        else include-effects sp actual second st
+      other2 -> add-error sp "effect inclusion needs resolved rows" st
 
   mapped :: Nat -> List (Nat, UType) -> Option UType
   mapped id pairs = case pairs of [] -> None; (n, ty) : rest -> if id == n then Some ty else mapped id rest
@@ -2081,79 +2334,114 @@ module Cinch.Type where
   substitute-rigid-types pairs ty = transform-type ReplaceRigid pairs ty
 
   transform-type :: TypeSubstitution -> List (Nat, UType) -> UType -> UType
-  transform-type mode pairs ty = case ty of
-    UPropLit value -> UPropLit value
-    UCompare relation left right -> UCompare relation (transform-type mode pairs left) (transform-type mode pairs right)
-    UPropAnd left right -> UPropAnd (transform-type mode pairs left) (transform-type mode pairs right)
-    UPropOr left right -> UPropOr (transform-type mode pairs left) (transform-type mode pairs right)
-    UPropNot body -> UPropNot (transform-type mode pairs body)
-    UPropNonZero body -> UPropNonZero (transform-type mode pairs body)
-    UPropNotNull body -> UPropNotNull (transform-type mode pairs body)
-    UPropAscii body -> UPropAscii (transform-type mode pairs body)
-    UPropOrdered body -> UPropOrdered (transform-type mode pairs body)
-    UPropNonZeroPending body -> normalize-pending-nonzero (transform-type mode pairs body)
-    URequire predicates body -> URequire (transform-type mode pairs predicates) (transform-type mode pairs body)
+  transform-type mode pairs ty = case pairs of
+    [] -> ty
+    other -> transform-type-nonempty mode pairs ty
+  transform-type-nonempty :: TypeSubstitution -> List (Nat, UType) -> UType -> UType
+  transform-type-nonempty mode pairs ty = case ty of
+    UPropLit value -> ty
+    UCompare relation left right -> UCompare relation (transform-type-nonempty mode pairs left) (transform-type-nonempty mode pairs right)
+    UPropAnd left right -> UPropAnd (transform-type-nonempty mode pairs left) (transform-type-nonempty mode pairs right)
+    UPropOr left right -> UPropOr (transform-type-nonempty mode pairs left) (transform-type-nonempty mode pairs right)
+    UPropNot body -> UPropNot (transform-type-nonempty mode pairs body)
+    UPropNonZero body -> UPropNonZero (transform-type-nonempty mode pairs body)
+    UPropNotNull body -> UPropNotNull (transform-type-nonempty mode pairs body)
+    UPropAscii body -> UPropAscii (transform-type-nonempty mode pairs body)
+    UPropOrdered body -> UPropOrdered (transform-type-nonempty mode pairs body)
+    UPropNonZeroPending body -> normalize-pending-nonzero (transform-type-nonempty mode pairs body)
+    URequire predicates body -> URequire (transform-type-nonempty mode pairs predicates) (transform-type-nonempty mode pairs body)
     URefine id name carrier predicate -> substitute-refinement mode pairs id name carrier predicate
-    UIndexForget value -> UIndexForget (transform-type mode pairs value)
-    UIndexByteLength value -> UIndexByteLength (transform-type mode pairs value)
-    UIndexMeasure measure value -> UIndexMeasure measure (transform-type mode pairs value)
-    UIndexStringLength value -> UIndexStringLength (transform-type mode pairs value)
-    UIndexBorrowRead value -> UIndexBorrowRead (transform-type mode pairs value)
-    UIndexConstructor name arrow input -> UIndexConstructor name (transform-type mode pairs arrow) (transform-type mode pairs input)
-    UIndexList element fields -> UIndexList (transform-type mode pairs element) (transform-type mode pairs fields)
-    UIndexCall function args -> UIndexCall function (transform-type mode pairs args)
-    UIndexPromote value -> UIndexPromote (transform-type mode pairs value)
-    UIndexMath op left right -> make-index-math op (transform-type mode pairs left) (transform-type mode pairs right)
+    UIndexForget value -> UIndexForget (transform-type-nonempty mode pairs value)
+    UIndexByteLength value -> UIndexByteLength (transform-type-nonempty mode pairs value)
+    UIndexMeasure measure value -> UIndexMeasure measure (transform-type-nonempty mode pairs value)
+    UIndexStringLength value -> UIndexStringLength (transform-type-nonempty mode pairs value)
+    UIndexBorrowRead value -> UIndexBorrowRead (transform-type-nonempty mode pairs value)
+    UIndexConstructor name arrow input -> UIndexConstructor name (transform-type-nonempty mode pairs arrow) (transform-type-nonempty mode pairs input)
+    UIndexList element fields -> UIndexList (transform-type-nonempty mode pairs element) (transform-type-nonempty mode pairs fields)
+    UIndexCall function args -> UIndexCall function (transform-type-nonempty mode pairs args)
+    UIndexPromote value -> UIndexPromote (transform-type-nonempty mode pairs value)
+    UIndexMath op left right -> make-index-math op (transform-type-nonempty mode pairs left) (transform-type-nonempty mode pairs right)
     UPi id name domain row result -> substitute-pi mode pairs id name domain row result
     UIndex carrier value ->
-      let changed = transform-type mode pairs carrier in
+      let changed = transform-type-nonempty mode pairs carrier in
       (case mode of
         ReplaceBound -> substitute-value-index False pairs changed value
         ReplaceMeta -> substitute-value-index True pairs changed value
         ReplaceRigid -> UIndex changed value)
-    UBound id name k -> case (case mode of ReplaceBound -> mapped id pairs; other -> None) of
-      Some replacement -> replacement
-      None -> UBound id name (transform-kind mode pairs k)
-    UCon name k -> UCon name (transform-kind mode pairs k)
-    URigid id name level k -> case (case mode of ReplaceRigid -> mapped id pairs; other -> None) of
-      Some replacement -> replacement
-      None -> URigid id name level (transform-kind mode pairs k)
-    UMeta id k -> case (case mode of ReplaceMeta -> mapped id pairs; other -> None) of
-      Some replacement -> replacement
-      None -> UMeta id (transform-kind mode pairs k)
-    UApp f x -> type-application (transform-type mode pairs f) (transform-type mode pairs x)
-    UFun a b -> UFun (transform-type mode pairs a) (transform-type mode pairs b)
-    UFunEff a row b -> UFunEff (transform-type mode pairs a) (transform-type mode pairs row) (transform-type mode pairs b)
-    UUsageArrow usage arrow -> UUsageArrow usage (transform-type mode pairs arrow)
-    UProofFun a row b -> UProofFun (transform-type mode pairs a) (transform-type mode pairs row) (transform-type mode pairs b)
-    URow labels -> URow (transform-type mode pairs labels)
-    URowJoin a b -> union-effects (transform-type mode pairs a) (transform-type mode pairs b)
-    UTuple xs -> UTuple (transform-type mode pairs xs)
+    UBound id name k -> case mode of
+      ReplaceBound -> case mapped id pairs of
+        Some replacement -> replacement
+        None -> if kind-is-ground k then ty else UBound id name (transform-kind mode pairs k)
+      other -> if kind-is-ground k then ty else UBound id name (transform-kind mode pairs k)
+    UCon name k -> if kind-is-ground k then ty else UCon name (transform-kind mode pairs k)
+    URigid id name level k -> case mode of
+      ReplaceRigid -> case mapped id pairs of
+        Some replacement -> replacement
+        None -> if kind-is-ground k then ty else URigid id name level (transform-kind mode pairs k)
+      other -> if kind-is-ground k then ty else URigid id name level (transform-kind mode pairs k)
+    UMeta id k -> case mode of
+      ReplaceMeta -> case mapped id pairs of
+        Some replacement -> replacement
+        None -> if kind-is-ground k then ty else UMeta id (transform-kind mode pairs k)
+      other -> if kind-is-ground k then ty else UMeta id (transform-kind mode pairs k)
+    UApp f x -> type-application (transform-type-nonempty mode pairs f) (transform-type-nonempty mode pairs x)
+    UFun a b -> UFun (transform-type-nonempty mode pairs a) (transform-type-nonempty mode pairs b)
+    UFunEff a row b -> UFunEff (transform-type-nonempty mode pairs a) (transform-type-nonempty mode pairs row) (transform-type-nonempty mode pairs b)
+    UUsageArrow usage arrow -> UUsageArrow usage (transform-type-nonempty mode pairs arrow)
+    UProofFun a row b -> UProofFun (transform-type-nonempty mode pairs a) (transform-type-nonempty mode pairs row) (transform-type-nonempty mode pairs b)
+    URow UEnd -> ty
+    URow labels -> URow (transform-type-nonempty mode pairs labels)
+    URowJoin a b -> union-effects (transform-type-nonempty mode pairs a) (transform-type-nonempty mode pairs b)
+    UTuple xs -> UTuple (transform-type-nonempty mode pairs xs)
     USigma id name domain body -> substitute-sigma mode pairs id name domain body
     -- A polytype's own binders shadow a bound-variable substitution.
-    UForall qs body -> UForall (quants-of (map-quant-kinds (transform-type mode pairs) (quants-list qs)))
-      (transform-type mode (case mode of ReplaceBound -> without-type-pairs (quant-id-list (quants-list qs)) pairs; other -> pairs) body)
-    UArg x rest -> UArg (transform-type mode pairs x) (transform-type mode pairs rest)
+    UForall qs body -> UForall (transform-quants mode pairs qs)
+      (transform-type mode (case mode of ReplaceBound -> without-quant-ids qs pairs; other -> pairs) body)
+    UArg x rest -> UArg (transform-type-nonempty mode pairs x) (transform-type-nonempty mode pairs rest)
     other -> ty
+  transform-quants :: TypeSubstitution -> List (Nat, UType) -> Quants -> Quants
+  transform-quants mode pairs qs = case qs of
+    QEnd -> QEnd
+    QCons (Quant id name kind only) rest ->
+      let next-kind = if kind-is-ground kind then kind else transform-kind mode pairs kind in
+      QCons (Quant id name next-kind only) (transform-quants mode pairs rest)
+  without-quant-ids :: Quants -> List (Nat, UType) -> List (Nat, UType)
+  without-quant-ids qs pairs = case qs of
+    QEnd -> pairs
+    QCons q rest -> without-quant-ids rest (without-type-pair (q.id) pairs)
   -- `transform-type` over a kind: the kind arms of the map, direct rather
   -- than through `map-kind-types (transform-type mode pairs)`, which built a
   -- closure at every `UCon`/`UBound`/`URigid`/`UMeta` node.
   transform-kind :: TypeSubstitution -> List (Nat, UType) -> Kind -> Kind
   transform-kind mode pairs kind = case kind of
-    KValue carrier -> KValue (transform-type mode pairs carrier)
-    KFun a b -> KFun (transform-kind mode pairs a) (transform-kind mode pairs b)
+    KValue carrier -> KValue (transform-type-nonempty mode pairs carrier)
+    KFun a b -> if kind-is-ground kind then kind else KFun (transform-kind mode pairs a) (transform-kind mode pairs b)
     other -> kind
   substitute-bound :: List (Nat, UType) -> UType -> UType
   substitute-bound pairs ty = substitute pairs ty
+  substitute-requirements :: List (Nat, UType) -> List Requirement -> List Requirement
+  substitute-requirements pairs rs = case pairs of
+    [] -> rs
+    other -> substitute-requirements-nonempty pairs rs
+  substitute-requirements-nonempty :: List (Nat, UType) -> List Requirement -> List Requirement
+  substitute-requirements-nonempty pairs rs = case rs of
+    [] -> []
+    (Requirement name ty) : rest -> (Requirement name (transform-type-nonempty ReplaceBound pairs ty)) : (substitute-requirements-nonempty pairs rest)
+  replace-meta-quant-kinds :: List (Nat, UType) -> List Quant -> List Quant
+  replace-meta-quant-kinds pairs qs = case qs of
+    [] -> []
+    (Quant id name kind only) : rest ->
+      let next-kind = if kind-is-ground kind then kind else transform-kind ReplaceMeta pairs kind in
+      (Quant id name next-kind only) : (replace-meta-quant-kinds pairs rest)
   instantiate-params :: Bool -> List Quant -> Store -> (List (Nat, UType), Store)
   instantiate-params rigid qs st = instantiate-ordered rigid qs [] st
   instantiate-ordered :: Bool -> List Quant -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
   instantiate-ordered rigid qs earlier st = case qs of
     [] -> ([], st)
     q : rest -> case st of
-      Store label next level cells errors numbers in-law depth fams proms ->
-        let kind = map-kind-types (substitute earlier) (q.kind) in
-        let (ty, next-store) = if rigid then (URigid next (q.name) level kind, Store label (next + 1) level cells errors numbers in-law depth fams proms) else fresh-meta kind st in
+      Store label next level cells errors numbers in-law depth fams proms epoch ->
+        let kind = case earlier of [] -> q.kind; other -> if kind-is-ground (q.kind) then q.kind else transform-kind ReplaceBound earlier (q.kind) in
+        let (ty, next-store) = if rigid then (URigid next (q.name) level kind, Store label (next + 1) level cells errors numbers in-law depth fams proms epoch) else fresh-meta kind st in
         case instantiate-ordered rigid rest ((q.id, ty) : earlier) next-store of
           (pairs, final-store) -> ((q.id, ty) : pairs, final-store)
   instantiate :: Scheme -> Store -> (UType, Store)
@@ -2166,7 +2454,7 @@ module Cinch.Type where
     other -> (UError, [], add-error (Span 0 0 1 1) "qualified scheme needs evidence-aware instantiation" st)
   open-qualified :: Bool -> Scheme -> Store -> (UType, List Requirement, List (Nat, UType), Store)
   open-qualified rigid sc st = case instantiate-params rigid (scheme-params sc) st of
-    (pairs, next-store) -> (substitute pairs (scheme-body sc), map-requirements (substitute pairs) (scheme-requirements sc), pairs, next-store)
+    (pairs, next-store) -> (substitute pairs (scheme-body sc), substitute-requirements pairs (scheme-requirements sc), pairs, next-store)
 
   generalized :: Bool -> Nat -> List Nat -> List Nat -> Nat -> Store -> (List Quant, List (Nat, UType))
   generalized current level blocked ids next st = case ids of
@@ -2206,8 +2494,10 @@ module Cinch.Type where
         let monomorphic = merge-ids local (number-meta-ids (st.numbers) st) in
         let environment = if generalizable-any current level ids st then blocked () else [] in
         case generalized current level (merge-ids environment monomorphic) ids 0 st of
-          (qs, pairs) -> let closed = close-pairs [] pairs in
-            (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed resolved), closed)
+          (qs, pairs) -> case pairs of
+            [] -> (MkScheme qs resolved, [])
+            other -> let closed = close-pairs [] pairs in
+              (MkScheme (replace-meta-quant-kinds closed qs) (replace-metas closed resolved), closed)
   -- Whether `generalized` would test any of `ids` against the blocked list.
   generalizable-any :: Bool -> Nat -> List Nat -> Store -> Bool
   generalizable-any current level ids st = case ids of
@@ -2241,16 +2531,19 @@ module Cinch.Type where
   remove-ids :: List Nat -> List Nat -> List Nat
   remove-ids gone ids = case gone of [] -> ids; id : rest -> remove-ids rest (remove-id id ids)
   same-quant-kinds :: List Quant -> List Quant -> Bool
-  same-quant-kinds qs rs = case (qs, rs) of
-    ([], []) -> True
-    (q : more, r : rest) -> kind-equal (q.kind) (r.kind) && same-quant-kinds more rest
-    other -> False
+  same-quant-kinds qs rs = case qs of
+    [] -> case rs of [] -> True; other -> False
+    q : more -> case rs of
+      r : rest -> kind-equal (q.kind) (r.kind) && same-quant-kinds more rest
+      [] -> False
   -- Rename the binders `from` to `to` positionally: alpha-equivalence of
   -- two polytypes reads both bodies over one set of binder ids.
   rename-quants :: List Quant -> List Quant -> List (Nat, UType)
-  rename-quants before after = case (before, after) of
-    (f : rest, (Quant id name kind only) : more) -> (f.id, UBound id name kind) : (rename-quants rest more)
-    other -> []
+  rename-quants before after = case before of
+    f : rest -> case after of
+      (Quant id name kind only) : more -> (f.id, UBound id name kind) : (rename-quants rest more)
+      [] -> []
+    [] -> []
   remove-id :: Nat -> List Nat -> List Nat
   remove-id id ids = case ids of [] -> []; first : rest -> if id == first then remove-id id rest else first : (remove-id id rest)
   close-pairs :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
@@ -2537,10 +2830,12 @@ module Cinch.Type where
     -- untyped beta reduction or arithmetic interpretation occurs here.
     other -> value
   fold-index :: UType -> String -> IndexTerm -> IndexTerm -> IndexTerm
-  fold-index carrier op a b = case (a, b) of
-    (IInteger x, IInteger y) -> if same-tag op "add" then IInteger (x + y)
-      else if same-tag op "mul" then IInteger (x * y)
-      else if natural-carrier carrier && x < y then ISubtract a b else IInteger (x - y)
+  fold-index carrier op a b = case a of
+    IInteger x -> case b of
+      IInteger y -> if same-tag op "add" then IInteger (x + y)
+        else if same-tag op "mul" then IInteger (x * y)
+        else if natural-carrier carrier && x < y then ISubtract a b else IInteger (x - y)
+      other -> if same-tag op "add" then IAdd a b else if same-tag op "mul" then IMultiply a b else ISubtract a b
     -- Conversion is iota on numerals only (D28). Symbolic identities,
     -- including n + 0, 0 * n and n - n, need propositional evidence.
     other -> if same-tag op "add" then IAdd a b else if same-tag op "mul" then IMultiply a b else ISubtract a b
@@ -2560,7 +2855,9 @@ module Cinch.Type where
       other -> True)
   natural-subtraction-defined :: UType -> IndexTerm -> IndexTerm -> Bool
   natural-subtraction-defined carrier a b = index-equal a b ||
-    (case (normalize-index carrier a, normalize-index carrier b) of (IInteger x, IInteger y) -> x >= y; other -> False)
+    (case normalize-index carrier a of
+      IInteger x -> case normalize-index carrier b of IInteger y -> x >= y; other -> False
+      other -> False)
 
   -- The carrier `type-kind` would wrap in `KValue`, without the document
   -- round trip. The definition it must agree with is
@@ -2694,12 +2991,13 @@ module Cinch.Type where
     UIndex carrier (IInteger n) -> if promotable-carrier carrier && integer-literal-valid carrier n then UIndex (UCon "Int" KType) (IInteger n) else UIndexPromote value
     other -> UIndexPromote value
   total-call-arguments :: List String -> UType -> Bool
-  total-call-arguments parameters args = case (parameters, args) of
-    ([], UEnd) -> True
-    (expected : rest, UArg input more) -> valid-type input
-      && (case typed-index-carrier input of Some actual -> same-shape actual (UCon expected KType); None -> False)
-      && total-call-arguments rest more
-    other -> False
+  total-call-arguments parameters args = case parameters of
+    [] -> case args of UEnd -> True; other -> False
+    expected : rest -> case args of
+      UArg input more -> valid-type input
+        && (case typed-index-carrier input of Some actual -> same-shape actual (UCon expected KType); None -> False)
+        && total-call-arguments rest more
+      other -> False
   total-call-runtime-arguments :: UType -> Bool
   total-call-runtime-arguments args = case args of
     UEnd -> True
@@ -2721,7 +3019,9 @@ module Cinch.Type where
     UIndexPromote input -> typed-index-admissible input
     UIndexMath op left right -> typed-index-admissible left && typed-index-admissible right
     UApp f x -> (case typed-index-carrier value of Some carrier -> True; None -> False)
-    other -> case (typed-index-carrier value, index-of-type value) of (Some carrier, Some term) -> index-runtime-admissible carrier term; other -> False)
+    other -> case typed-index-carrier value of
+      Some carrier -> case index-of-type value of Some term -> index-runtime-admissible carrier term; None -> False
+      None -> False)
   typed-index-solutions :: Store -> List Nat -> List (Nat, UType)
   typed-index-solutions st ids = case ids of
     [] -> []
@@ -2738,9 +3038,9 @@ module Cinch.Type where
   -- arithmetic still compare structurally.
   solve-natural-sum :: Span -> UType -> IndexTerm -> IndexTerm -> Int -> Store -> Store
   solve-natural-sum sp carrier first second total st =
-    let addend = case (first, second) of
-          (IMeta id, IInteger known) -> Some (id, known)
-          (IInteger known, IMeta id) -> Some (id, known)
+    let addend = case first of
+          IMeta id -> case second of IInteger known -> Some (id, known); other -> None
+          IInteger known -> case second of IMeta id -> Some (id, known); other -> None
           other -> None in
     case addend of
       Some (id, known) | natural-carrier carrier && known >= 0 && total >= known ->
@@ -2754,15 +3054,26 @@ module Cinch.Type where
   unify-index sp carrier first second st =
     let a = normalize-index carrier (resolve-index st first) in
     let b = normalize-index carrier (resolve-index st second) in
-    if index-equal a b then st else case (a, b) of
-      (IMeta id, right) -> bind-meta sp id (value-kind carrier) (UIndex carrier b) st
-      (left, IMeta id) -> bind-meta sp id (value-kind carrier) (UIndex carrier a) st
-      (IAdd x y, IInteger total) -> solve-natural-sum sp carrier x y total st
-      (IInteger total, IAdd x y) -> solve-natural-sum sp carrier x y total st
-      (IAdd x y, IAdd u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
-      (ISubtract x y, ISubtract u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
-      (IMultiply x y, IMultiply u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
-      other -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
+    if index-equal a b then st
+    else case a of
+      IMeta id -> bind-meta sp id (value-kind carrier) (UIndex carrier b) st
+      other -> case b of
+        IMeta id -> bind-meta sp id (value-kind carrier) (UIndex carrier a) st
+        other2 -> case a of
+          IAdd x y -> case b of
+            IInteger total -> solve-natural-sum sp carrier x y total st
+            IAdd u v -> unify-index sp carrier y v (unify-index sp carrier x u st)
+            other3 -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
+          IInteger total -> case b of
+            IAdd x y -> solve-natural-sum sp carrier x y total st
+            other3 -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
+          ISubtract x y -> case b of
+            ISubtract u v -> unify-index sp carrier y v (unify-index sp carrier x u st)
+            other3 -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
+          IMultiply x y -> case b of
+            IMultiply u v -> unify-index sp carrier y v (unify-index sp carrier x u st)
+            other3 -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
+          other3 -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
 
   validate-kind-indices :: Span -> Kind -> Store -> Store
   validate-kind-indices sp kind st = case kind of
@@ -2847,9 +3158,11 @@ module Cinch.Type where
   index-replacement-ok :: Nat -> List (Nat, UType) -> Option UType -> Bool
   index-replacement-ok id pairs expected = case mapped id pairs of
     None -> True
-    Some replacement -> case (index-of-type replacement, value-carrier (type-kind replacement)) of
-      (Some value, Some carrier) -> valid-type replacement && (case expected of Some actual -> carrier-equal actual carrier; None -> True)
-      other -> False
+    Some replacement -> case index-of-type replacement of
+      Some value -> case value-carrier (type-kind replacement) of
+        Some carrier -> valid-type replacement && (case expected of Some actual -> carrier-equal actual carrier; None -> True)
+        None -> False
+      None -> False
   index-replacements-ok :: Bool -> List (Nat, UType) -> Option UType -> IndexTerm -> Bool
   index-replacements-ok metas pairs expected term = case term of
     IBound id name -> if metas then True else index-replacement-ok id pairs expected
@@ -3036,13 +3349,15 @@ module Cinch.Type where
     other -> (UError, add-error sp "refinement opening requires a refined type" st)
 
   same-pi :: UType -> UType -> Bool
-  same-pi first second = case (first, second) of
-    (UPi id name domain row result, UPi key other input effects output) ->
-      let fresh = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) + 1 in
-      let witness = URigid fresh "#pi-alpha" 0 (value-kind domain) in
-      same-shape domain input
-        && same-shape (substitute [(id, witness)] row) (substitute [(key, witness)] effects)
-        && same-shape (substitute [(id, witness)] result) (substitute [(key, witness)] output)
+  same-pi first second = case first of
+    UPi id name domain row result -> case second of
+      UPi key other input effects output ->
+        let fresh = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) + 1 in
+        let witness = URigid fresh "#pi-alpha" 0 (value-kind domain) in
+        same-shape domain input
+          && same-shape (substitute [(id, witness)] row) (substitute [(key, witness)] effects)
+          && same-shape (substitute [(id, witness)] result) (substitute [(key, witness)] output)
+      other -> False
     other -> False
   function-pi :: UType -> UType
   function-pi ty = let fresh = largest-id (type-all-ids ty) + 1 in case ty of
@@ -3051,58 +3366,64 @@ module Cinch.Type where
     other -> ty
   reserve-type-ids :: UType -> UType -> Store -> Store
   reserve-type-ids first second st = case st of
-    Store label next level cells errors numbers in-law depth fams proms ->
+    Store label next level cells errors numbers in-law depth fams proms epoch ->
       let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
-      Store label (if next > highest then next else highest + 1) level cells errors numbers in-law depth fams proms
+      Store label (if next > highest then next else highest + 1) level cells errors numbers in-law depth fams proms epoch
   cells-level :: CellStore -> Nat
   cells-level cells = case cells of
     EmptyCells -> 0
     CellRun size tree rest -> max-cell-level (cell-tree-level tree) (cells-level rest)
   pi-level :: Store -> Nat
-  pi-level st = case st of Store label next level cells errors numbers in-law depth fams proms -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  pi-level st = case st of Store label next level cells errors numbers in-law depth fams proms epoch -> let highest = cells-level cells in (if level > highest then level else highest) + 1
   -- Two polytypes are equal when their binders agree in number and kind
   -- and their bodies unify over one shared set of rigid variables, opened
   -- one level deeper than every existing metavariable: `bind-other`'s
   -- escape check then refuses any older metavariable that would capture
   -- one (design/rank-n-polymorphism.md section 3). Polytypes are invariant.
   unify-forall :: Span -> UType -> UType -> Store -> Store
-  unify-forall sp a b st = case (a, b) of
-    (UForall qs x, UForall rs y) ->
-      let left = quants-list qs in
-      let right = quants-list rs in
-      if not (list-length left == list-length right && same-quant-kinds left right) then
-        add-error sp (string-concat-all ["polymorphic types differ in their quantifiers: expected ", display-type-text b, ", found ", display-type-text a]) st
-      else let outer = st.level in
-        case instantiate-params True left (enter-level st) of
-          (pairs, opened) -> restore-level outer (unify sp (substitute pairs x) (substitute (shared-rigids right pairs) y) opened)
+  unify-forall sp a b st = case a of
+    UForall qs x -> case b of
+      UForall rs y ->
+        let left = quants-list qs in
+        let right = quants-list rs in
+        if not (list-length left == list-length right && same-quant-kinds left right) then
+          add-error sp (string-concat-all ["polymorphic types differ in their quantifiers: expected ", display-type-text b, ", found ", display-type-text a]) st
+        else let outer = st.level in
+          case instantiate-params True left (enter-level st) of
+            (pairs, opened) -> restore-level outer (unify sp (substitute pairs x) (substitute (shared-rigids right pairs) y) opened)
+      other -> mismatch sp a b st
     other -> mismatch sp a b st
   shared-rigids :: List Quant -> List (Nat, UType) -> List (Nat, UType)
-  shared-rigids rs pairs = case (rs, pairs) of
-    (r : rest, (id, rigid) : more) -> (r.id, rigid) : (shared-rigids rest more)
-    other -> []
+  shared-rigids rs pairs = case rs of
+    r : rest -> case pairs of
+      (id, rigid) : more -> (r.id, rigid) : (shared-rigids rest more)
+      [] -> []
+    [] -> []
   unify-pi :: Span -> UType -> UType -> Store -> Store
-  unify-pi sp first second st = case (first, second) of
-    (UPi id name domain row result, UPi key other input effects output) ->
-      if not (valid-type first && valid-type second) then add-error sp "ill-formed dependent function type" st
-      else let checked = unify sp domain input st in
-        if store-error-count checked > store-error-count st then checked
-        else if not (valid-type (normalize checked first) && valid-type (normalize checked second)) then
-          add-error sp "dependent domain inference captures a binder" checked
-        else let outer-level = checked.level in
-          let scoped = restore-level (pi-level checked) (reserve-type-ids first second checked) in
-          case fresh-id scoped of
-            (fresh, prepared) ->
-              -- No pre-existing meta may acquire this newly opened
-              -- binder. Contextual higher-order metas need a later rule.
-              let witness = URigid fresh "#pi" (prepared.level) (value-kind (normalize checked domain)) in
-              let left-row = substitute [(id, witness)] (normalize checked row) in
-              let right-row = substitute [(key, witness)] (normalize checked effects) in
-              let left-result = substitute [(id, witness)] (normalize checked result) in
-              let right-result = substitute [(key, witness)] (normalize checked output) in
-              let valid = valid-type left-row && valid-type right-row && valid-type left-result && valid-type right-result in
-              let resolved = if valid then unify sp left-result right-result (unify sp left-row right-row prepared)
-                    else add-error sp "invalid dependent binder substitution" prepared in
-              restore-level outer-level resolved
+  unify-pi sp first second st = case first of
+    UPi id name domain row result -> case second of
+      UPi key other input effects output ->
+        if not (valid-type first && valid-type second) then add-error sp "ill-formed dependent function type" st
+        else let checked = unify sp domain input st in
+          if store-error-count checked > store-error-count st then checked
+          else if not (valid-type (normalize checked first) && valid-type (normalize checked second)) then
+            add-error sp "dependent domain inference captures a binder" checked
+          else let outer-level = checked.level in
+            let scoped = restore-level (pi-level checked) (reserve-type-ids first second checked) in
+            case fresh-id scoped of
+              (fresh, prepared) ->
+                -- No pre-existing meta may acquire this newly opened
+                -- binder. Contextual higher-order metas need a later rule.
+                let witness = URigid fresh "#pi" (prepared.level) (value-kind (normalize checked domain)) in
+                let left-row = substitute [(id, witness)] (normalize checked row) in
+                let right-row = substitute [(key, witness)] (normalize checked effects) in
+                let left-result = substitute [(id, witness)] (normalize checked result) in
+                let right-result = substitute [(key, witness)] (normalize checked output) in
+                let valid = valid-type left-row && valid-type right-row && valid-type left-result && valid-type right-result in
+                let resolved = if valid then unify sp left-result right-result (unify sp left-row right-row prepared)
+                      else add-error sp "invalid dependent binder substitution" prepared in
+                restore-level outer-level resolved
+      other -> mismatch sp first second st
     other -> mismatch sp first second st
 
   -- Apply an already checked value index to a dependent arrow. Source
@@ -3206,6 +3527,11 @@ module Cinch.Type where
 
   -- Core compares contracts after lexical scope checking; binder levels are
   -- inference bookkeeping, while numeric identities still determine values.
+  without-index-levels-kind :: Kind -> Kind
+  without-index-levels-kind kind = case kind of
+    KValue carrier -> KValue (without-index-levels carrier)
+    KFun a b -> if kind-is-ground kind then kind else KFun (without-index-levels-kind a) (without-index-levels-kind b)
+    other -> kind
   without-index-levels :: UType -> UType
   without-index-levels ty = case ty of
     UCompare relation left right -> UCompare relation (without-index-levels left) (without-index-levels right)
@@ -3235,6 +3561,7 @@ module Cinch.Type where
     UFunEff a row b -> UFunEff (without-index-levels a) (without-index-levels row) (without-index-levels b)
     UUsageArrow usage arrow -> UUsageArrow usage (without-index-levels arrow)
     UProofFun a row b -> UProofFun (without-index-levels a) (without-index-levels row) (without-index-levels b)
+    URow UEnd -> ty
     URow labels -> URow (without-index-levels labels)
     URowJoin a b -> URowJoin (without-index-levels a) (without-index-levels b)
     UTuple fields -> UTuple (without-index-levels fields)
@@ -3242,13 +3569,13 @@ module Cinch.Type where
     UForall qs body -> UForall qs (without-index-levels body)
     UArg x rest -> UArg (without-index-levels x) (without-index-levels rest)
     UIndex carrier value -> UIndex (without-index-levels carrier) (index-without-levels value)
-    UCon name k -> UCon name (map-kind-types without-index-levels k)
-    UBound id name k -> UBound id name (map-kind-types without-index-levels k)
-    URigid id name level k -> let kind = map-kind-types without-index-levels k in
-      (case value-carrier kind of
-        Some carrier -> UIndex carrier (IRigid id name 0)
-        None -> URigid id name level kind)
-    UMeta id k -> UMeta id (map-kind-types without-index-levels k)
+    UCon name k -> if kind-is-ground k then ty else UCon name (without-index-levels-kind k)
+    UBound id name k -> if kind-is-ground k then ty else UBound id name (without-index-levels-kind k)
+    URigid id name level k -> if kind-is-ground k then ty else
+      case without-index-levels-kind k of
+        KValue carrier -> UIndex carrier (IRigid id name 0)
+        kind -> URigid id name level kind
+    UMeta id k -> if kind-is-ground k then ty else UMeta id (without-index-levels-kind k)
     other -> ty
   index-without-levels :: IndexTerm -> IndexTerm
   index-without-levels term = case term of
@@ -3261,15 +3588,15 @@ module Cinch.Type where
     other -> term
 
   pending-number :: Span -> UType -> Int -> Store -> Store
-  pending-number sp ty value st = case st of Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors ((PendingNumber sp ty value) : numbers) in-law depth fams proms
+  pending-number sp ty value st = case st of Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors ((PendingNumber sp ty value) : numbers) in-law depth fams proms epoch
   pending-float :: Span -> UType -> String -> Store -> Store
-  pending-float sp ty raw st = case st of Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors ((PendingFloat sp ty raw) : numbers) in-law depth fams proms
+  pending-float sp ty raw st = case st of Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors ((PendingFloat sp ty raw) : numbers) in-law depth fams proms epoch
   -- Primitive equality may see a literal's still-unsolved carrier through
   -- a generic call or constructor. Check it after ordinary constraints and
   -- numeric defaulting; never invent an Eq dictionary or default a skolem.
   pending-comparison :: Span -> UType -> List String -> Store -> Store
   pending-comparison sp ty allowed st = case st of
-    Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors ((PendingComparison sp ty allowed) : numbers) in-law depth fams proms
+    Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors ((PendingComparison sp ty allowed) : numbers) in-law depth fams proms epoch
   number-meta-ids :: List PendingNumber -> Store -> List Nat
   number-meta-ids checks st = case checks of
     [] -> []
@@ -3324,4 +3651,4 @@ module Cinch.Type where
   finish-numbers st = let checks = st.numbers in
     let floats = float-meta-ids checks st in
     let checked = check-number-checks floats checks st in
-    case checked of Store label next level cells errors numbers in-law depth fams proms -> Store label next level cells errors [] in-law depth fams proms
+    case checked of Store label next level cells errors numbers in-law depth fams proms epoch -> Store label next level cells errors [] in-law depth fams proms epoch
