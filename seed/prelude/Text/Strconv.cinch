@@ -23,6 +23,7 @@ module Text.Strconv where
   import Data.Result
   import Data.String
   import Data.Unicode.Kernel
+  import Data.Wide (u64-to-u128, wrapping-u128-to-u64, wrapping-mul-u128, wrapping-add-u128, wrapping-shl-u128, wrapping-shr-u128, bit-or-u128, leading-zeros-u128)
   import Relation.Eq
   import Text.Builder
   import Text.Show
@@ -943,39 +944,52 @@ module Text.Strconv where
     TokSpecial :: F64 -> Nat -> FloatToken
     -- | Hexadecimal float: neg, mantissa, binary exponent, truncated flag, end offset.
     TokHex :: Bool -> U64 -> I64 -> Bool -> Nat -> FloatToken
-    -- | Validated decimal float: start offset, end offset, neg, whether underscores appeared.
-    TokDec :: Nat -> Nat -> Bool -> Bool -> FloatToken
+    -- | Validated decimal float: start offset, end offset, neg, underscore flag, up to 19-digit mantissa, base-10 exponent q, and truncation flag.
+    TokDec :: Nat -> Nat -> Bool -> Bool -> U64 -> I64 -> Bool -> FloatToken
 
-  -- | Compare buf[start..start+k] case-insensitively against an all-lowercase ASCII target.
-  match-ci-prefix :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat
-  match-ci-prefix buf start end pat k =
-    if k >= bytes-len pat || start + k >= end || start + k >= bytes-len buf then k
-    else
-      let cb = ascii-lower-byte (bytes-get buf (start + k)) in
-      let cp = bytes-get pat k in
-      if cb == cp then match-ci-prefix buf start end pat (k + 1)
-      else k
+  -- | Read one lowercase ASCII byte from buf at checked index i, or 0 if out of bounds.
+  lower-u8-at :: Bytes -> I64 -> I64 -> U8
+  lower-u8-at buf i end-i =
+    if 0 <= i && i < end-i && i < bytes-len-i64 buf then
+      let c = bytes-get-u8-at buf i in
+      if ge-u8 c 65 && le-u8 c 90 then wrapping-add-u8 c 32 else c
+    else 0
 
-  -- | Recognize NaN, Inf, +Inf, -Inf, Infinity, +Infinity, -Infinity (case-insensitive) at prefix.
+  -- | Recognize "inf" or "infinity" case-insensitively at buf[pos..end-i), returning 8, 3, or 0.
+  match-inf-len :: Bytes -> I64 -> I64 -> Nat
+  match-inf-len buf pos end-i =
+    if eq-u8 (lower-u8-at buf pos end-i) 105 && eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 1) end-i) 110 && eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 2) end-i) 102 then
+      if eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 3) end-i) 105 && eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 4) end-i) 110 && eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 5) end-i) 105 && eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 6) end-i) 116 && eq-u8 (lower-u8-at buf (wrapping-add-i64 pos 7) end-i) 121 then 8
+      else 3
+    else 0
+
+  -- | Recognize NaN, Inf, +Inf, -Inf, Infinity, +Infinity, -Infinity (case-insensitive) at prefix without allocation.
   scan-special-float :: Bytes -> Nat -> Nat -> Option FloatToken
   scan-special-float buf start end =
     if start >= end || start >= bytes-len buf then None
     else
-      let b0 = bytes-get buf start in
-      if b0 == 43 || b0 == 45 then
-        let neg = b0 == 45 in
-        let matched = match-ci-prefix buf (start + 1) end (string-to-bytes "infinity") 0 in
-        let consumed = if matched == 8 then (8 :: Nat) else if matched >= 3 then 3 else 0 in
-        if consumed > 0 then Some (TokSpecial (inf-f64 (if neg then wrapping-neg-i64 1 else 1)) (start + 1 + consumed))
-        else None
-      else if b0 == 105 || b0 == 73 then
-        let matched = match-ci-prefix buf start end (string-to-bytes "infinity") 0 in
-        let consumed = if matched == 8 then (8 :: Nat) else if matched >= 3 then 3 else 0 in
-        if consumed > 0 then Some (TokSpecial (inf-f64 1) (start + consumed))
-        else None
-      else if b0 == 110 || b0 == 78 then
-        let matched = match-ci-prefix buf start end (string-to-bytes "nan") 0 in
-        if matched == 3 then Some (TokSpecial nan-f64 (start + 3))
+      let s = (nat-to-i64 start :: I64) in
+      let e = if end <= bytes-len buf then (nat-to-i64 end :: I64) else (bytes-len-i64 buf :: I64) in
+      if 0 <= s && s < bytes-len-i64 buf then
+        let b0 = bytes-get-u8-at buf s in
+        if eq-u8 b0 43 || eq-u8 b0 45 then
+          let s1 = wrapping-add-i64 s 1 in
+          if 0 <= s1 && s1 < e && s1 < bytes-len-i64 buf then
+            let b1 = bytes-get-u8-at buf s1 in
+            if eq-u8 b1 105 || eq-u8 b1 73 then
+              let consumed = match-inf-len buf s1 e in
+              if consumed > 0 then Some (TokSpecial (inf-f64 (if eq-u8 b0 45 then wrapping-neg-i64 1 else 1)) (start + 1 + consumed))
+              else None
+            else None
+          else None
+        else if eq-u8 b0 105 || eq-u8 b0 73 then
+          let consumed = match-inf-len buf s e in
+          if consumed > 0 then Some (TokSpecial (inf-f64 1) (start + consumed))
+          else None
+        else if eq-u8 b0 110 || eq-u8 b0 78 then
+          if eq-u8 (lower-u8-at buf (wrapping-add-i64 s 1) e) 97 && eq-u8 (lower-u8-at buf (wrapping-add-i64 s 2) e) 110 then
+            Some (TokSpecial nan-f64 (start + 3))
+          else None
         else None
       else None
 
@@ -987,13 +1001,17 @@ module Text.Strconv where
       None ->
         if start >= end || start >= bytes-len buf then None
         else
-          let b0 = bytes-get buf start in
-          let neg = b0 == 45 in
-          let pos = if b0 == 45 || b0 == 43 then start + 1 else start in
+          let s = nat-to-i64 start in
+          let b0 = if 0 <= s && s < bytes-len-i64 buf then bytes-get-u8-at buf s else 0 in
+          let neg = eq-u8 b0 45 in
+          let pos = if eq-u8 b0 45 || eq-u8 b0 43 then start + 1 else start in
           if pos + 2 < end && pos + 1 < bytes-len buf && bytes-get buf pos == 48 && ascii-lower-byte (bytes-get buf (pos + 1)) == 120 then
             scan-hex-float buf start (pos + 2) end neg 0 0 0 0 False False False False
           else
-            scan-dec-float buf start pos end neg False False False
+            let end-i = if end <= bytes-len buf then (nat-to-i64 end :: I64) else (bytes-len-i64 buf :: I64) in
+            let pos-i = if pos <= bytes-len buf then (nat-to-i64 pos :: I64) else (bytes-len-i64 buf :: I64) in
+            let flags0 = if neg then (1 :: U32) else 0 in
+            scan-dec-float buf start pos-i end-i 0 0 0 flags0
 
   -- | Scan hexadecimal mantissa digits for a hex float literal.
   scan-hex-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> U64 -> I64 -> I64 -> I64 -> Bool -> Bool -> Bool -> Bool -> Option FloatToken
@@ -1063,41 +1081,102 @@ module Text.Strconv where
         scan-exp-digits buf (i + 1) end next saw-us
       else (acc, i, saw-us)
 
-  -- | Scan a decimal floating-point literal (mantissa, optional '.', optional 'e'/'E' exponent).
-  scan-dec-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool -> Bool -> Bool -> Option FloatToken
-  scan-dec-float buf orig-start i end neg saw-dot saw-digits saw-us =
-    if i < end && i < bytes-len buf then
-      let c = bytes-get buf i in
-      if c == 95 then
-        scan-dec-float buf orig-start (i + 1) end neg saw-dot saw-digits True
-      else if c == 46 && not saw-dot then
-        scan-dec-float buf orig-start (i + 1) end neg True saw-digits saw-us
-      else if c >= 48 && c <= 57 then
-        scan-dec-float buf orig-start (i + 1) end neg saw-dot True saw-us
-      else finish-dec-float buf orig-start i end neg saw-digits saw-us
-    else finish-dec-float buf orig-start i end neg saw-digits saw-us
-
-  -- | Scan optional decimal exponent and validate underscores.
-  finish-dec-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool -> Bool -> Option FloatToken
-  finish-dec-float buf orig-start i end neg saw-digits saw-us =
-    if not saw-digits then None
-    else if i < end && i < bytes-len buf && ascii-lower-byte (bytes-get buf i) == 101 then
-      let p1 = i + 1 in
-      if p1 >= end || p1 >= bytes-len buf then None
-      else
-        let sc = bytes-get buf p1 in
-        let p2 = if sc == 45 || sc == 43 then p1 + 1 else p1 in
-        if p2 >= end || p2 >= bytes-len buf then None
+  -- | Scan unsigned decimal exponent digits using unboxed I64 indexing (clamping magnitude at 100000).
+  scan-dec-exp-i64 :: Bytes -> I64 -> I64 -> I64 -> Bool -> Bool -> (I64, I64, Bool, Bool)
+  scan-dec-exp-i64 buf i end-i acc saw-us clamped =
+    if 0 <= i && i < end-i && i < bytes-len-i64 buf then
+      let c = bytes-get-u8-at buf i in
+      if eq-u8 c 95 then scan-dec-exp-i64 buf (wrapping-add-i64 i 1) end-i acc True clamped
+      else if ge-u8 c 48 && le-u8 c 57 then
+        let d = u8-to-i64 (wrapping-sub-u8 c 48) in
+        if lt-i64 acc 100000 then
+          scan-dec-exp-i64 buf (wrapping-add-i64 i 1) end-i (wrapping-add-i64 (wrapping-mul-i64 acc 10) d) saw-us clamped
         else
-          let d0 = bytes-get buf p2 in
-          if d0 < 48 || d0 > 57 then None
+          scan-dec-exp-i64 buf (wrapping-add-i64 i 1) end-i acc saw-us True
+      else (acc, i, saw-us, clamped)
+    else (acc, i, saw-us, clamped)
+
+  -- | Single-pass unboxed scanner for decimal floating-point literals: captures up to 19 significant
+  -- digits in a U64 mantissa, decimal exponent q, and packed flags (bit 0: neg, 1: saw-dot, 2: saw-digits, 3: trunc, 4: saw-us).
+  scan-dec-float :: Bytes -> Nat -> I64 -> I64 -> U64 -> I64 -> I64 -> U32 -> Option FloatToken
+  scan-dec-float buf orig-start i end-i mant sig frac-exp flags =
+    if 0 <= i && i < end-i && i < bytes-len-i64 buf then
+      let c = bytes-get-u8-at buf i in
+      if ge-u8 c 48 && le-u8 c 57 then
+        let d = wrapping-sub-u8 c 48 in
+        let next-i = wrapping-add-i64 i 1 in
+        let saw-dot = ne-u32 (bit-and-u32 flags 2) 0 in
+        let flags-d = bit-or-u32 flags 4 in
+        if eq-u8 d 0 && eq-i64 sig 0 then
+          if saw-dot then
+            if gt-i64 frac-exp (wrapping-neg-i64 100000) then
+              scan-dec-float buf orig-start next-i end-i mant 0 (wrapping-sub-i64 frac-exp 1) flags-d
+            else
+              scan-dec-float buf orig-start next-i end-i mant 0 frac-exp (bit-or-u32 flags-d 8)
           else
-            case scan-exp-digits buf p2 end 0 saw-us of
-              (_, fin, us2) ->
+            scan-dec-float buf orig-start next-i end-i mant 0 frac-exp flags-d
+        else if lt-i64 sig 19 then
+          let next-mant = wrapping-add-u64 (wrapping-mul-u64 mant 10) (u8-to-u64 d) in
+          let next-sig = wrapping-add-i64 sig 1 in
+          if saw-dot then
+            if gt-i64 frac-exp (wrapping-neg-i64 100000) then
+              scan-dec-float buf orig-start next-i end-i next-mant next-sig (wrapping-sub-i64 frac-exp 1) flags-d
+            else
+              scan-dec-float buf orig-start next-i end-i next-mant next-sig frac-exp (bit-or-u32 flags-d 8)
+          else
+            scan-dec-float buf orig-start next-i end-i next-mant next-sig frac-exp flags-d
+        else
+          let flags-t = if ne-u8 d 0 then bit-or-u32 flags-d 8 else flags-d in
+          if saw-dot then
+            scan-dec-float buf orig-start next-i end-i mant sig frac-exp flags-t
+          else if lt-i64 frac-exp 100000 then
+            scan-dec-float buf orig-start next-i end-i mant sig (wrapping-add-i64 frac-exp 1) flags-t
+          else
+            scan-dec-float buf orig-start next-i end-i mant sig frac-exp (bit-or-u32 flags-t 8)
+      else if eq-u8 c 46 && eq-u32 (bit-and-u32 flags 2) 0 then
+        scan-dec-float buf orig-start (wrapping-add-i64 i 1) end-i mant sig frac-exp (bit-or-u32 flags 2)
+      else if eq-u8 c 95 then
+        scan-dec-float buf orig-start (wrapping-add-i64 i 1) end-i mant sig frac-exp (bit-or-u32 flags 16)
+      else finish-dec-float buf orig-start i end-i mant frac-exp flags
+    else finish-dec-float buf orig-start i end-i mant frac-exp flags
+
+  -- | Scan optional decimal exponent, validate underscores, and finalize TokDec.
+  finish-dec-float :: Bytes -> Nat -> I64 -> I64 -> U64 -> I64 -> U32 -> Option FloatToken
+  finish-dec-float buf orig-start i end-i mant frac-exp flags =
+    let neg = ne-u32 (bit-and-u32 flags 1) 0 in
+    let saw-digits = ne-u32 (bit-and-u32 flags 4) 0 in
+    let trunc = ne-u32 (bit-and-u32 flags 8) 0 in
+    let saw-us = ne-u32 (bit-and-u32 flags 16) 0 in
+    if not saw-digits then None
+    else if 0 <= i && i < end-i && i < bytes-len-i64 buf then
+      let c = bytes-get-u8-at buf i in
+      if eq-u8 c 101 || eq-u8 c 69 then
+        let p1 = wrapping-add-i64 i 1 in
+        if 0 <= p1 && p1 < end-i && p1 < bytes-len-i64 buf then
+          let sc = bytes-get-u8-at buf p1 in
+          let e-neg = eq-u8 sc 45 in
+          let p2 = if eq-u8 sc 45 || eq-u8 sc 43 then wrapping-add-i64 p1 1 else p1 in
+          if 0 <= p2 && p2 < end-i && p2 < bytes-len-i64 buf then
+            let d0 = bytes-get-u8-at buf p2 in
+            if lt-u8 d0 48 || gt-u8 d0 57 then None
+            else case scan-dec-exp-i64 buf p2 end-i 0 saw-us False of
+              (eval, fin-i, us2, clamped) ->
+                let fin = if 0 <= fin-i then (nat-from-i64 fin-i :: Nat) else (0 :: Nat) in
                 if us2 && not (underscore-ok-range buf orig-start fin) then None
-                else Some (TokDec orig-start fin neg us2)
-    else if saw-us && not (underscore-ok-range buf orig-start i) then None
-    else Some (TokDec orig-start i neg saw-us)
+                else
+                  let signed-e = if e-neg then wrapping-neg-i64 eval else eval in
+                  let q = wrapping-add-i64 frac-exp signed-e in
+                  Some (TokDec orig-start fin neg us2 mant q (trunc || clamped))
+          else None
+        else None
+      else
+        let fin = if 0 <= i then (nat-from-i64 i :: Nat) else (0 :: Nat) in
+        if saw-us && not (underscore-ok-range buf orig-start fin) then None
+        else Some (TokDec orig-start fin neg saw-us mant frac-exp trunc)
+    else
+      let fin = if 0 <= i then (nat-from-i64 i :: Nat) else (0 :: Nat) in
+      if saw-us && not (underscore-ok-range buf orig-start fin) then None
+      else Some (TokDec orig-start fin neg saw-us mant frac-exp trunc)
 
   -- | Normalize a hex float mantissa up until bit (mantbits + 2) is nonzero.
   hex-atof-shift-up :: U64 -> I64 -> U32 -> (U64, I64)
@@ -1240,6 +1319,337 @@ module Text.Strconv where
         (next, eq-u32 next 2139095040)
       else (guess, False)
 
+  -- ---------------------------------------------------------------------
+  -- Eisel-Lemire fast decimal floating-point conversion (F64 and F32).
+  -- ---------------------------------------------------------------------
+
+  -- | Exact binary64 powers of 10 for exponents 0..22 (5^22 < 2^53).
+  pow10-f64-exact :: I64 -> F64
+  pow10-f64-exact k = case k of
+    0 -> 1.0
+    1 -> 10.0
+    2 -> 100.0
+    3 -> 1000.0
+    4 -> 10000.0
+    5 -> 100000.0
+    6 -> 1000000.0
+    7 -> 10000000.0
+    8 -> 100000000.0
+    9 -> 1000000000.0
+    10 -> 10000000000.0
+    11 -> 100000000000.0
+    12 -> 1000000000000.0
+    13 -> 10000000000000.0
+    14 -> 100000000000000.0
+    15 -> 1000000000000000.0
+    16 -> 10000000000000000.0
+    17 -> 100000000000000000.0
+    18 -> 1000000000000000000.0
+    19 -> 10000000000000000000.0
+    20 -> 100000000000000000000.0
+    21 -> 1000000000000000000000.0
+    22 -> 10000000000000000000000.0
+    _ -> 1.0
+
+  -- | Exact binary32 powers of 10 for exponents 0..10 (5^10 < 2^24).
+  pow10-f32-exact :: I64 -> F32
+  pow10-f32-exact k = f64-to-f32 (pow10-f64-exact k)
+
+  -- | Exact U64 powers of 5 for r in 0..15 (5^15 = 30517578125 < 2^35).
+  pow5-small :: U32 -> U64
+  pow5-small r = case r of
+    0 -> 1
+    1 -> 5
+    2 -> 25
+    3 -> 125
+    4 -> 625
+    5 -> 3125
+    6 -> 15625
+    7 -> 78125
+    8 -> 390625
+    9 -> 1953125
+    10 -> 9765625
+    11 -> 48828125
+    12 -> 244140625
+    13 -> 1220703125
+    14 -> 6103515625
+    15 -> 30517578125
+    _ -> 1
+
+  -- | Top 64 bits of 192-bit normalized 5^(16*(k-22)) for k in 0..41.
+  pow5-coarse-hi :: U32 -> U64
+  pow5-coarse-hi k = case k of
+    0 -> 14790561230404931453
+    1 -> 16420821625123739831
+    2 -> 18230774251475056848
+    3 -> 10120112665365530917
+    4 -> 11235582092889474423
+    5 -> 12474001934591998822
+    6 -> 13848924157002783033
+    7 -> 15375394465392026070
+    8 -> 17070116948172426941
+    9 -> 9475818434452569184
+    10 -> 10520271803096747014
+    11 -> 11679847981112819759
+    12 -> 12967236152753102995
+    13 -> 14396524142538228424
+    14 -> 15983352577617880224
+    15 -> 17745086042373215101
+    16 -> 9850501549098619803
+    17 -> 10936253623915059621
+    18 -> 12141680576410806693
+    19 -> 13479973333575319897
+    20 -> 14965776766268445882
+    21 -> 16615349947311448411
+    22 -> 9223372036854775808
+    23 -> 10240000000000000000
+    24 -> 11368683772161602973
+    25 -> 12621774483536188886
+    26 -> 14012984643248170709
+    27 -> 15557538194652854267
+    28 -> 17272337110188889250
+    29 -> 9588073174409622174
+    30 -> 10644899600020376799
+    31 -> 11818212630765741799
+    32 -> 13120851772591970218
+    33 -> 14567071740625403795
+    34 -> 16172698447808779626
+    35 -> 17955302187076837701
+    36 -> 9967194951097567535
+    37 -> 11065809325636130661
+    38 -> 12285516299433008781
+    39 -> 13639663065038175362
+    40 -> 15143067982934716300
+    41 -> 16812182738118149117
+    _ -> 0
+
+  -- | Middle 64 bits of 192-bit normalized 5^(16*(k-22)) for k in 0..41.
+  pow5-coarse-mid :: U32 -> U64
+  pow5-coarse-mid k = case k of
+    0 -> 41224521807705895
+    1 -> 18238200953240460069
+    2 -> 9881091751837770420
+    3 -> 11524923151806696212
+    4 -> 5684501474941004850
+    5 -> 15722703350174969551
+    6 -> 18055231442152805128
+    7 -> 18094982380531485284
+    8 -> 11887461593424094248
+    9 -> 4776009810824339053
+    10 -> 8890957387685944783
+    11 -> 13307468457454889596
+    12 -> 6479872166822743894
+    13 -> 18330958004207980480
+    14 -> 12429006944274865118
+    15 -> 5568164059729762005
+    16 -> 1286845328412881940
+    17 -> 15910522178918405146
+    18 -> 4549648098962661924
+    19 -> 6152128301777116498
+    20 -> 7484447039699372786
+    21 -> 5489534351736154547
+    22 -> 0
+    23 -> 0
+    24 -> 17302829768357445632
+    25 -> 10840359103457460224
+    26 -> 4377335499248575995
+    27 -> 15867153862612478214
+    28 -> 14253867870959833118
+    29 -> 280014188641050032
+    30 -> 14298703881791668535
+    31 -> 6851699533943015846
+    32 -> 6303799689591218185
+    33 -> 9041978409614302462
+    34 -> 9636544677901177879
+    35 -> 12065313099320625794
+    36 -> 9420804127960246895
+    37 -> 12450884661845487401
+    38 -> 15977522551232326327
+    39 -> 5417133557047315992
+    40 -> 8323548129336963345
+    41 -> 5172023733869224041
+    _ -> 0
+
+  -- | Bottom 64 bits of 192-bit normalized 5^(16*(k-22)) for k in 0..41.
+  pow5-coarse-lo :: U32 -> U64
+  pow5-coarse-lo k = case k of
+    0 -> 8779370984975028652
+    1 -> 3907751376965190627
+    2 -> 12366792864984564804
+    3 -> 9609203491930720603
+    4 -> 13761443712501013150
+    5 -> 1864104448039968717
+    6 -> 11690833164181629133
+    7 -> 16947191973758740733
+    8 -> 5046754370605664823
+    9 -> 8698609474967593155
+    10 -> 2043016374578554469
+    11 -> 17375326254472978276
+    12 -> 10368891985241138894
+    13 -> 14693917494923880210
+    14 -> 16315598095635316731
+    15 -> 12252412348221138266
+    16 -> 7569440132901066223
+    17 -> 152463534806234530
+    18 -> 3035406636157676338
+    19 -> 4207248508845946676
+    20 -> 818277032479480223
+    21 -> 13794925996247871622
+    22 -> 0
+    23 -> 0
+    24 -> 0
+    25 -> 0
+    26 -> 5834422113351499776
+    27 -> 3645919577108623424
+    28 -> 4075089390705140855
+    29 -> 8405950019642396823
+    30 -> 159020156881263929
+    31 -> 4164404064776327259
+    32 -> 2558554235903516003
+    33 -> 15068923402882553712
+    34 -> 1085800886772577201
+    35 -> 9686305643228442027
+    36 -> 13551548732107488397
+    37 -> 247386068735338552
+    38 -> 9592188640606484874
+    39 -> 10385887606337610153
+    40 -> 16294741154977620354
+    41 -> 7925577506409985721
+    _ -> 0
+
+  -- | Compute the exact 128-bit normalized Eisel-Lemire power-of-5 significand as an unboxed U128 for q in -342..308.
+  pow5-wide :: I64 -> U128
+  pow5-wide q =
+    let idx = wrapping-i64-to-u32 (wrapping-add-i64 q 352) in
+    let k-idx = wrapping-shr-u32 idx 4 in
+    let r = bit-and-u32 idx 15 in
+    let c-hi = pow5-coarse-hi k-idx in
+    let c-mid = pow5-coarse-mid k-idx in
+    if eq-u32 r 0 then
+      let w0 = bit-or-u128 (wrapping-shl-u128 (u64-to-u128 c-hi) 64) (u64-to-u128 c-mid) in
+      if lt-i64 q 0 then wrapping-add-u128 w0 1 else w0
+    else
+      let c-lo = pow5-coarse-lo k-idx in
+      let p5r = u64-to-u128 (pow5-small r) in
+      let lo-prod = wrapping-mul-u128 (u64-to-u128 c-lo) p5r in
+      let mid-prod = wrapping-add-u128 (wrapping-mul-u128 (u64-to-u128 c-mid) p5r) (wrapping-shr-u128 lo-prod 64) in
+      let hi-prod = wrapping-add-u128 (wrapping-mul-u128 (u64-to-u128 c-hi) p5r) (wrapping-shr-u128 mid-prod 64) in
+      let lz = leading-zeros-u128 hi-prod in
+      let sh = wrapping-sub-u32 64 lz in
+      let mid-u64 = wrapping-u128-to-u64 mid-prod in
+      let w0 = bit-or-u128 (wrapping-shl-u128 hi-prod lz) (u64-to-u128 (wrapping-shr-u64 mid-u64 sh)) in
+      if lt-i64 q 0 then wrapping-add-u128 w0 1 else w0
+
+  -- | Check whether mant * 10^q is a provably exact binary halfway tie (for -15 <= q <= 27).
+  is-exact-halfway-tie :: U64 -> I64 -> U64 -> Bool
+  is-exact-halfway-tie mant q lower =
+    if ge-i64 q 0 && le-i64 q 27 then eq-u64 lower 0
+    else if ge-i64 q (wrapping-neg-i64 15) && lt-i64 q 0 then
+      let d5 = pow5-small (wrapping-i64-to-u32 (wrapping-neg-i64 q)) in
+      case checked-rem-u64 mant d5 of
+        Some rem -> eq-u64 rem 0
+        None -> False
+    else False
+
+  -- | Unboxed Eisel-Lemire 128-bit core returning unsigned IEEE-754 bits, or max-bound-u64 when ambiguous.
+  eisel-lemire-bits :: U64 -> I64 -> I64 -> I64 -> I64 -> U64 -> U64
+  eisel-lemire-bits mant q mant-bits bias max-biased inf-bits =
+    let lz32 = leading-zeros-u64 mant in
+    let m = wrapping-shl-u64 mant lz32 in
+    let w = pow5-wide q in
+    let p-hi = wrapping-u128-to-u64 (wrapping-shr-u128 w 64) in
+    let p-lo = wrapping-u128-to-u64 w in
+    let prod1 = wrapping-mul-u128 (u64-to-u128 m) (u64-to-u128 p-hi) in
+    let upper0 = wrapping-u128-to-u64 (wrapping-shr-u128 prod1 64) in
+    let lower0 = wrapping-u128-to-u64 prod1 in
+    let prod2 = wrapping-mul-u128 (u64-to-u128 m) (u64-to-u128 p-lo) in
+    let lo2 = wrapping-u128-to-u64 (wrapping-shr-u128 prod2 64) in
+    let lower = wrapping-add-u64 lower0 lo2 in
+    let upper = if lt-u64 lower lower0 then wrapping-add-u64 upper0 1 else upper0 in
+    let upperbit = wrapping-shr-u64 upper 63 in
+    let ub-i64 = wrapping-u64-to-i64 upperbit in
+    let base-shift = wrapping-add-i64 ub-i64 (wrapping-sub-i64 61 mant-bits) in
+    let exp2 = wrapping-sub-i64 (wrapping-add-i64 (wrapping-add-i64 (wrapping-shr-i64 (wrapping-mul-i64 217706 q) 16) 63) bias) (u32-to-i64 lz32) in
+    let biased-exp = wrapping-add-i64 exp2 ub-i64 in
+    let mb-u32 = wrapping-i64-to-u32 mant-bits in
+    if le-i64 biased-exp 0 then
+      let extra = wrapping-sub-i64 1 biased-exp in
+      let total-shift = wrapping-add-i64 base-shift extra in
+      if gt-i64 total-shift 64 then 0
+      else if ge-i64 total-shift 63 then max-bound-u64
+      else
+        let sh32 = wrapping-i64-to-u32 total-shift in
+        let rem-mask = wrapping-sub-u64 (wrapping-shl-u64 1 sh32) 1 in
+        let rem = bit-and-u64 upper rem-mask in
+        let sig0 = wrapping-shr-u64 upper sh32 in
+        if eq-u64 rem rem-mask && ge-u64 lower 18446744073709551614 then max-bound-u64
+        else if eq-u64 rem 0 && le-u64 lower 1 && eq-u64 (bit-and-u64 sig0 1) 1 then
+          if is-exact-halfway-tie mant q lower then
+            let sig = wrapping-shr-u64 (wrapping-add-u64 sig0 (bit-and-u64 (wrapping-shr-u64 sig0 1) 1)) 1 in
+            sig
+          else max-bound-u64
+        else
+          let sig = wrapping-shr-u64 (wrapping-add-u64 sig0 1) 1 in
+          sig
+    else
+      let sh32 = wrapping-i64-to-u32 base-shift in
+      let rem-mask = wrapping-sub-u64 (wrapping-shl-u64 1 sh32) 1 in
+      let rem = bit-and-u64 upper rem-mask in
+      let sig0 = wrapping-shr-u64 upper sh32 in
+      if eq-u64 rem rem-mask && ge-u64 lower 18446744073709551614 then max-bound-u64
+      else if eq-u64 rem 0 && le-u64 lower 1 && eq-u64 (bit-and-u64 sig0 1) 1 then
+        if is-exact-halfway-tie mant q lower then
+          let sig1 = wrapping-shr-u64 (wrapping-add-u64 sig0 (bit-and-u64 (wrapping-shr-u64 sig0 1) 1)) 1 in
+          let top-carry = wrapping-shl-u64 1 (wrapping-add-u32 mb-u32 1) in
+          let sig = if eq-u64 sig1 top-carry then wrapping-shr-u64 sig1 1 else sig1 in
+          let be = if eq-u64 sig1 top-carry then wrapping-add-i64 biased-exp 1 else biased-exp in
+          if ge-i64 be max-biased then inf-bits
+          else
+            let frac-mask = wrapping-sub-u64 (wrapping-shl-u64 1 mb-u32) 1 in
+            bit-or-u64 (wrapping-shl-u64 (wrapping-i64-to-u64 be) mb-u32) (bit-and-u64 sig frac-mask)
+        else max-bound-u64
+      else
+        let sig1 = wrapping-shr-u64 (wrapping-add-u64 sig0 1) 1 in
+        let top-carry = wrapping-shl-u64 1 (wrapping-add-u32 mb-u32 1) in
+        let sig = if eq-u64 sig1 top-carry then wrapping-shr-u64 sig1 1 else sig1 in
+        let be = if eq-u64 sig1 top-carry then wrapping-add-i64 biased-exp 1 else biased-exp in
+        if ge-i64 be max-biased then inf-bits
+        else
+          let frac-mask = wrapping-sub-u64 (wrapping-shl-u64 1 mb-u32) 1 in
+          bit-or-u64 (wrapping-shl-u64 (wrapping-i64-to-u64 be) mb-u32) (bit-and-u64 sig frac-mask)
+
+  -- | Fast exact binary64 decimal conversion via Clinger exact path and unboxed Eisel-Lemire.
+  -- Returns unsigned IEEE-754 bits (with sign applied), or max-bound-u64 on rare fallback.
+  eisel-lemire-f64-bits :: Bool -> U64 -> I64 -> U64
+  eisel-lemire-f64-bits neg mant q =
+    let sign-bit = if neg then (9223372036854775808 :: U64) else 0 in
+    if eq-u64 mant 0 || lt-i64 q (wrapping-neg-i64 342) then sign-bit
+    else if gt-i64 q 308 then bit-or-u64 sign-bit 9218868437227405312
+    else if le-u64 mant 9007199254740992 && ge-i64 q (wrapping-neg-i64 22) && le-i64 q 22 then
+      let f = u64-to-f64 mant in
+      let mag = if ge-i64 q 0 then mul-f64 f (pow10-f64-exact q) else div-f64 f (pow10-f64-exact (wrapping-neg-i64 q)) in
+      bit-or-u64 sign-bit (f64-bits mag)
+    else
+      let raw = eisel-lemire-bits mant q 52 1023 2047 9218868437227405312 in
+      if eq-u64 raw max-bound-u64 then max-bound-u64
+      else bit-or-u64 sign-bit raw
+
+  -- | Fast exact binary32 decimal conversion via Clinger exact path and unboxed single-rounded Eisel-Lemire.
+  -- Returns unsigned IEEE-754 bits (with sign applied in low 32 bits), or max-bound-u64 on rare fallback.
+  eisel-lemire-f32-bits :: Bool -> U64 -> I64 -> U64
+  eisel-lemire-f32-bits neg mant q =
+    let sign-bit = if neg then (2147483648 :: U64) else 0 in
+    if eq-u64 mant 0 || lt-i64 q (wrapping-neg-i64 65) then sign-bit
+    else if gt-i64 q 38 then bit-or-u64 sign-bit 2139095040
+    else if le-u64 mant 16777216 && ge-i64 q (wrapping-neg-i64 10) && le-i64 q 10 then
+      let f = u64-to-f32 mant in
+      let mag = if ge-i64 q 0 then mul-f32 f (pow10-f32-exact q) else div-f32 f (pow10-f32-exact (wrapping-neg-i64 q)) in
+      bit-or-u64 sign-bit (u32-to-u64 (f32-bits mag))
+    else
+      let raw = eisel-lemire-bits mant q 23 127 255 2139095040 in
+      if eq-u64 raw max-bound-u64 then max-bound-u64
+      else bit-or-u64 sign-bit raw
+
   -- | Parse a binary64 float prefix from buf[start..end), returning value, next index, and overflow flag.
   parse-float64-prefix :: Bytes -> Nat -> Nat -> Option (F64, Nat, Bool)
   parse-float64-prefix buf start end =
@@ -1250,10 +1660,20 @@ module Text.Strconv where
         TokHex neg mant exp trunc next ->
           case hex-to-ieee-bits neg mant exp trunc 52 11 (wrapping-neg-i64 1023) of
             (bits, ovf) -> Some (f64-from-bits bits, next, ovf)
-        TokDec s0 e0 _ has-us ->
-          let clean = if has-us then strip-dec-bytes buf s0 e0 False else bytes-slice buf s0 e0 in
-          let v = f64-from-decimal clean in
-          Some (v, e0, is-inf-f64 v 0)
+        TokDec s0 e0 neg has-us mant q trunc ->
+          if not trunc then
+            let bits = eisel-lemire-f64-bits neg mant q in
+            if ne-u64 bits max-bound-u64 then
+              let ovf = eq-u64 (bit-and-u64 bits 9223372036854775807) 9218868437227405312 in
+              Some (f64-from-bits bits, e0, ovf)
+            else
+              let clean = if has-us then strip-dec-bytes buf s0 e0 False else bytes-slice buf s0 e0 in
+              let v = f64-from-decimal clean in
+              Some (v, e0, is-inf-f64 v 0)
+          else
+            let clean = if has-us then strip-dec-bytes buf s0 e0 False else bytes-slice buf s0 e0 in
+            let v = f64-from-decimal clean in
+            Some (v, e0, is-inf-f64 v 0)
 
   -- | Parse a binary32 float prefix from buf[start..end), returning value, next index, and overflow flag.
   parse-float32-prefix :: Bytes -> Nat -> Nat -> Option (F32, Nat, Bool)
@@ -1265,22 +1685,34 @@ module Text.Strconv where
         TokHex neg mant exp trunc next ->
           case hex-to-ieee-bits neg mant exp trunc 23 8 (wrapping-neg-i64 127) of
             (bits, ovf) -> Some (f32-from-bits (wrapping-u64-to-u32 bits), next, ovf)
-        TokDec s0 e0 neg _ ->
-          let clean = strip-dec-bytes buf s0 e0 True in
-          let exact = parse-exact-dec-unsigned clean in
-          let sign-bit = if neg then (2147483648 :: U32) else 0 in
-          case exact of
-            ExactDec digs dp ->
-              if bytes-len digs == 0 then
-                Some (f32-from-bits sign-bit, e0, False)
-              else if dp > 40 then
-                Some (f32-from-bits (bit-or-u32 sign-bit 2139095040), e0, True)
-              else if dp < -47 then
-                Some (f32-from-bits sign-bit, e0, False)
-              else
-                let approx = bit-and-u32 (f32-bits (f64-to-f32 (f64-from-decimal clean))) 2147483647 in
-                case correct-f32-bits exact approx of
-                  (mag-bits, ovf) -> Some (f32-from-bits (bit-or-u32 sign-bit mag-bits), e0, ovf)
+        TokDec s0 e0 neg _ mant q trunc ->
+          if not trunc then
+            let bits = eisel-lemire-f32-bits neg mant q in
+            if ne-u64 bits max-bound-u64 then
+              let b32 = wrapping-u64-to-u32 bits in
+              let ovf = eq-u32 (bit-and-u32 b32 2147483647) 2139095040 in
+              Some (f32-from-bits b32, e0, ovf)
+            else parse-float32-slow buf s0 e0 neg
+          else parse-float32-slow buf s0 e0 neg
+
+  -- | Exact multiprecision fallback for ambiguous or truncated binary32 decimal inputs.
+  parse-float32-slow :: Bytes -> Nat -> Nat -> Bool -> Option (F32, Nat, Bool)
+  parse-float32-slow buf s0 e0 neg =
+    let clean = strip-dec-bytes buf s0 e0 True in
+    let exact = parse-exact-dec-unsigned clean in
+    let sign-bit = if neg then (2147483648 :: U32) else 0 in
+    case exact of
+      ExactDec digs dp ->
+        if bytes-len digs == 0 then
+          Some (f32-from-bits sign-bit, e0, False)
+        else if dp > 40 then
+          Some (f32-from-bits (bit-or-u32 sign-bit 2139095040), e0, True)
+        else if dp < -47 then
+          Some (f32-from-bits sign-bit, e0, False)
+        else
+          let approx = bit-and-u32 (f32-bits (f64-to-f32 (f64-from-decimal clean))) 2147483647 in
+          case correct-f32-bits exact approx of
+            (mag-bits, ovf) -> Some (f32-from-bits (bit-or-u32 sign-bit mag-bits), e0, ovf)
 
   -- | Parse a binary64 float, returning ±Inf alongside StrconvRange on overflow.
   parse-float64-with-clamp :: String -> (F64, Option StrconvError)
