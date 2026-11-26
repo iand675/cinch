@@ -1,7 +1,7 @@
 {
   "description": "ABI 10 packed library provider with zero scalar unsafe div/rem, verified return refinements, SIMD verify, and formal proof-carrying prelude.",
-  "revision": "672fdc40996974e66a23d1fce9166c81546d454b",
+  "revision": "a9421bdc7ba6e42c011293d6d7ad6fd0ba5e2de9",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "7d18a6ac5a3a1755c67898aabcd54132d295830e68a43cbba06090bf5378bbb8"
+  "source_sha256": "6aa072549a5e9a0091bc84654f4e980c1698d76d025b8509ca13382703c58257"
 }
