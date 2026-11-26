@@ -220,6 +220,80 @@ fn arithmetic_search_requires_independently_rechecked_evidence() {
         ),
         4,
     ));
+    // Item 7 strengthening checks on the self-hosted Cinch.Proof solver:
+    // 1. Redundant looser bounds + pure-variable noise around a multi-term chain.
+    let a = v("a");
+    let b = v("b");
+    let c = v("c");
+    let d = v("d");
+    let e = v("e");
+    let f = v("f");
+    let cap = v("cap");
+    let plus = |l: &str, r: &str| format!(r#"["+",{l},{r}]"#);
+    let mul = |k: i64, r: &str| format!(r#"["*",["int",{k}],{r}]"#);
+    let mut redundant_facts = vec![
+        bound(&plus(&a, &b), &d),
+        bound(&plus(&d, &c), &e),
+        bound(&plus(&e, &f), &cap),
+        bound(&integer(0), &a),
+        bound(&integer(0), &b),
+        bound(&integer(0), &c),
+        bound(&integer(0), &f),
+    ];
+    for k in 1..=8 {
+        redundant_facts.push(bound(&plus(&a, &b), &plus(&d, &integer(k))));
+        redundant_facts.push(bound(&plus(&d, &c), &plus(&e, &integer(k))));
+        redundant_facts.push(bound(&plus(&e, &f), &plus(&cap, &integer(k))));
+    }
+    for i in 0..12 {
+        let noise = v(&format!("noise_{i}"));
+        redundant_facts.push(bound(&plus(&d, &noise), &integer(1000 + i)));
+        redundant_facts.push(bound(&plus(&e, &noise), &integer(2000 + i)));
+    }
+    packets.push((
+        "redundant multi-term chain discharges cleanly",
+        format!(
+            r#"{{"mode":"search","facts":[{}],"goal":{}}}"#,
+            redundant_facts.join(","),
+            bound(&plus(&a, &c), &cap)
+        ),
+        0,
+    ));
+    // 2. Proportional subsumption & opposite-direction contradiction (2x+2y <= 4 vs 3x+3y >= 7).
+    let prop_facts = vec![
+        bound(&plus(x, y), &integer(5)),
+        bound(&plus(&mul(2, x), &mul(2, y)), &integer(4)),
+        bound(&plus(&mul(3, x), &mul(3, y)), &integer(12)),
+    ];
+    packets.push((
+        "proportional subsumption proves tighter multi-term bound",
+        format!(
+            r#"{{"mode":"search","facts":[{}],"goal":{}}}"#,
+            prop_facts.join(","),
+            compare("lt", &plus(&mul(3, x), &mul(3, y)), &integer(7))
+        ),
+        0,
+    ));
+    // 3. Rational-feasible, integer-unsatisfiable 2x <= 1 && -2x <= -1 MUST remain refused over Q.
+    packets.push((
+        "integer-only unsat 2x == 1 stays refused over Q",
+        format!(
+            r#"{{"mode":"search","facts":[{},{}],"goal":false}}"#,
+            bound(&mul(2, x), &integer(1)),
+            bound(&integer(1), &mul(2, x)),
+        ),
+        4,
+    ));
+    // 4. Crowded context with 300 pure unrelated facts still discharges a non-literal derived bound.
+    packets.push((
+        "crowded context discharges derived bound after pure-var elimination",
+        format!(
+            r#"{{"mode":"search","facts":[{}],"goal":{}}}"#,
+            crowded.join(","),
+            bound(&plus(x, y), &integer(15))
+        ),
+        0,
+    ));
     for (name, input, status) in packets {
         std::fs::write(dir.join("case.txt"), input).unwrap();
         let out = std::process::Command::new(&exe)
