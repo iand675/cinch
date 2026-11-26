@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 seed with string literal patterns, list cons (:), concurrency primitives, and tail_conv disabled.",
+  "description": "ABI 10 seed with Keiser-Lemire SIMD UTF-8 runtime, Data.String SIMD validation, string literal patterns, list cons (:), concurrency primitives, and tail_conv disabled.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "d63c0e18cc71249ebc7ab43361b22240d5bd35c9",
+  "revision": "1c7e97cd3e5c5f3aa2c09a55c1a6f94ea7c41db7",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "4a9cf624aa96f97d7b57fc30534922f1c8e7f9f12e56e3420c1c6486fa5c10ab"
+  "source_sha256": "6c3b4e8e23c5bfebad1c3bc20a839ac15ab885e7382a92e17e2bcc2efeafd07f"
 }
