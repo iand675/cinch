@@ -758,6 +758,10 @@ module Cinch.Check where
             if expected-count == actual-count then (bound, ds)
             else (bound, ds <> fail s (string-concat-all ["tuple pattern has ", nat-to-string actual-count,
               " components but the tuple type has ", nat-to-string expected-count]))
+      TyUnit -> case pats-of xs of
+        [] -> (env, [])
+        other-pats -> case bind-extra-pats env other-pats of
+          (bound, ds) -> (bound, ds <> fail s "a tuple pattern requires a tuple type")
       other -> case bind-extra-pats env (pats-of xs) of
         (bound, ds) -> (bound, ds <> fail s "a tuple pattern requires a tuple type")
 
@@ -1039,6 +1043,7 @@ module Cinch.Check where
     DUnpackFields s name fields -> []
     DInlineHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
     DUnrollHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
+    DTestAttr s name tspec -> (case tspec of Ok value -> []; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 
   check-decls :: HashMap String Ty -> Environment -> List Decl -> List Diagnostic

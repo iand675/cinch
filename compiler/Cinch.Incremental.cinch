@@ -160,6 +160,12 @@ module Cinch.Incremental where
       JArr (JStr "DInlineHint") (JArr (JStr name) (JArr (result-str-json hint) JArrEnd))
     DUnrollHint sp name hint ->
       JArr (JStr "DUnrollHint") (JArr (JStr name) (JArr (result-str-json hint) JArrEnd))
+    DTestAttr sp name tspec ->
+      JArr (JStr "DTestAttr") (JArr (JStr name) (JArr (case tspec of
+        Err msg -> JArr (JStr "Err") (JArr (JStr msg) JArrEnd)
+        Ok s -> JArr (JStr "Ok") (JArr (JStr (if test-spec-is-test s then "test" else "test_only"))
+          (JArr (JBool (test-spec-ignored s)) (JArr (JBool (test-spec-should-fail s))
+            (JArr (JBool (test-spec-serial s)) (JArr (str-list-json (test-spec-tags s)) JArrEnd)))))) JArrEnd))
     DUnmodeled sp text -> JArr (JStr "DUnmodeled") (JArr (JStr text) JArrEnd)
     other -> JArr (JStr "DOther") JArrEnd
 

@@ -6055,7 +6055,7 @@ impl Checker {
             // (section 1.3); a macro-owned name's forms are its macro's
             // to validate.
             let macro_owned = self.macro_attr_names.contains_key(&name);
-            if seen.contains(&name) && !macro_owned {
+            if seen.contains(&name) && !macro_owned && name != "tag" {
                 return Err(Error::at(
                     a.span,
                     format!(
@@ -6222,6 +6222,33 @@ impl Checker {
                         a.span,
                         "`#[profile \"jpl\"]` annotates a module header (attribute annotations specification section 10)",
                     ));
+                }
+                "test" | "ignore" | "should_fail" | "timeout" | "retries" | "tag" | "serial" => {
+                    if site != AttrSite::FnDecl {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                }
+                "test_only" => {
+                    if !matches!(site, AttrSite::FnDecl | AttrSite::TypeDecl) {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                    if !arg_text(args).is_empty() {
+                        return Err(Error::at(
+                            a.span,
+                            "`#[test_only]` takes no arguments",
+                        ));
+                    }
+                }
+                "cfg" => {
+                    if !matches!(site, AttrSite::FnDecl | AttrSite::TypeDecl) {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                    if arg_text(args) != "test" {
+                        return Err(Error::at(
+                            a.span,
+                            "`#[cfg(...)]` currently supports only `#[cfg(test)]`",
+                        ));
+                    }
                 }
                 _ => {
                     if !macro_owned {

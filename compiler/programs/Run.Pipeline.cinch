@@ -18,11 +18,13 @@
 -- to the runtime's checked out-of-line entries.
 module Main where
 
+  import Algebra.Semigroup
   import Cinch.Driver (read-argv)
   import Cinch.Report (render-diagnostic)
-  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, Release, CompileTuning, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal)
+  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal, test-source-with-object-tuned, test-source-standalone-tuned)
+  import Cinch.TestRunner (parse-test-cli-args)
   import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile, profile-with-prim-verify, profile-with-jpl, valid-prim-verify-mode)
   import Data.List (reverse)
   import Data.Path (path-from-string)
@@ -89,6 +91,7 @@ module Main where
     , FlagSpec "inline"
     , FlagSpec "latency"
     , FlagSpec "throughput"
+    , FlagSpec "release"
     , FlagSpec "clear-features"
     , FlagSpec "portable-isa"
     , FlagSpec "lax-prim-verify"
@@ -135,6 +138,7 @@ module Main where
   data Subcommand where
     SubNone :: List String -> Subcommand
     SubLink :: Bool -> List String -> Subcommand
+    SubTest :: List String -> Subcommand
 
   split-cli :: List String -> List String -> Option TargetProfile -> Option (List String, Option TargetProfile, Subcommand)
   split-cli ws acc check-plat = case ws of
@@ -155,6 +159,7 @@ module Main where
         _ -> None
       "run" -> Some (reverse acc, check-plat, SubLink True rest)
       "build" -> Some (reverse acc, check-plat, SubLink False rest)
+      "test" -> Some (reverse acc, check-plat, SubTest rest)
       "--prim-verify" -> take-value w rest acc check-plat
       "--compile-profile" -> take-value w rest acc check-plat
       "--jobs" -> take-value w rest acc check-plat
@@ -236,6 +241,7 @@ module Main where
         , prim-verify = opts.prim-verify, jpl = opts.jpl })
     "latency" -> set-strategy Latency opts
     "throughput" -> set-strategy Throughput opts
+    "release" -> set-strategy Release opts
     "compile-profile" -> case opt-value opt of
       Some word -> case parse-compile-strategy word of
         Some s -> set-strategy s opts
@@ -372,6 +378,13 @@ module Main where
                     (None, False, Some contracts, Some provider) ->
                       link-words tuning is-run opts.inlining opts.rc-debug opts.reclaim wanted contracts provider rest
                     _ -> pipeline-bad-args
+                  SubTest rest -> case (opts.roots, opts.mode-selected) of
+                    (None, False) ->
+                      let test-tuning = case opts.strategy of
+                            None -> CompileTuning Latency tuning.workers tuning.prim-verify tuning.jpl
+                            Some _ -> tuning in
+                      test-words test-tuning opts.inlining opts.rc-debug opts.reclaim wanted opts.manifest opts.object-config rest
+                    _ -> pipeline-bad-args
                   SubNone words -> case (opts.roots, opts.mode, opts.rc-debug, opts.reclaim, opts.manifest, opts.object-config, words) of
                     (None, _, _, _, _, _, _) ->
                       run-selected tuning opts.mode opts.manifest opts.object-config wanted opts.rc-debug opts.reclaim opts.inlining words
@@ -380,6 +393,67 @@ module Main where
                         Err message -> report-target-refusal (path-from-string ir) message
                         Ok profile -> compile-requested-library-object-tuned tuning opts.inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi)
                     _ -> pipeline-bad-args
+
+  test-help-text :: String
+  test-help-text =
+    "cinch test - built-in isolated parallel test runner (nextest style)\n\n"
+    <> "Usage:\n"
+    <> "  cinch [--interfaces MANIFEST --objects CONFIG] test [OPTIONS...] RUNTIME PREFIX SOURCE [FILTER...]\n\n"
+    <> "Options:\n"
+    <> "  -j, --test-threads N          Max concurrent isolated test processes (default: 4)\n"
+    <> "  --serial                      Run all tests sequentially (equivalent to -j 1)\n"
+    <> "  -E, --filter-expr EXPR        Filterset expression: test(), module(), tag(), ignored(),\n"
+    <> "                                should_fail(), serial(), all(), none(), not/!, and/&, or/|, -\n"
+    <> "  --exact                       Match positional filters exactly\n"
+    <> "  --list                        List matching tests without compiling or running\n"
+    <> "  --list-json                   List matching tests as JSON\n"
+    <> "  --run-ignored default|all|only  Control #[ignore] tests (--ignored / --include-ignored)\n"
+    <> "  --timeout MS                  Global per-test timeout in milliseconds\n"
+    <> "  --slow-timeout MS             Slow test warning threshold in milliseconds (default: 10000)\n"
+    <> "  --retries N                   Retry failed tests up to N times (reports FLAKY on pass)\n"
+    <> "  --fail-fast / --no-fail-fast  Stop after first failure / run all tests\n"
+    <> "  --max-fail N                  Stop scheduling new tests after N failures\n"
+    <> "  --nocapture                   Print stdout/stderr immediately for all tests\n"
+    <> "  --success-output POLICY       never | immediate | final | immediate-final\n"
+    <> "  --failure-output POLICY       never | immediate | final | immediate-final\n"
+    <> "  --status-level LEVEL          none | fail | retry | slow | pass | skip | all\n"
+    <> "  --color auto|always|never     Enable or disable ANSI colors\n"
+    <> "  --format human|json           Output format (default: human)\n"
+    <> "  --junit PATH                  Write JUnit XML test report\n"
+    <> "  --json-report PATH            Write structured JSON test report\n"
+    <> "  --leak-check                  Build with --rc-debug and enforce CINCH_LEAK_CHECK=1 per test\n"
+    <> "  --no-run                      Compile and link test binary without running\n"
+    <> "  --partition count:i/n|hash:i/n  Deterministic CI sharding (1 <= i <= n)\n"
+    <> "  --clang PATH                  Path to clang executable\n"
+
+  has-help-flag :: List String -> Bool
+  has-help-flag ws = case ws of
+    [] -> False
+    "--help" : _ -> True
+    "-h" : _ -> True
+    _ : rest -> has-help-flag rest
+
+  test-words :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Result String TargetProfile -> Option String -> Option String -> List String ->{IO r, Diverge} Int
+  test-words tuning inlining debug reclaim wanted manifest object-config words =
+    if has-help-flag words then
+      do
+        _ <- ioWrite (string-to-bytes test-help-text)
+        0
+    else case parse-test-cli-args tuning.workers words of
+      Err msg -> do
+        _ <- ioWrite (string-to-bytes ("cinch test: " <> msg <> "\n"))
+        pipeline-bad-args
+      Ok (cfg, runtime, prefix, source) -> case wanted of
+        Err message -> report-target-refusal (path-from-string prefix) message
+        Ok profile ->
+          if profile.triple /= host-profile.triple then
+            report-target-refusal (path-from-string prefix) "cinch test requires a host target"
+          else case (manifest, object-config) of
+            (Some contracts, Some provider) ->
+              test-source-with-object-tuned tuning cfg inlining debug reclaim profile contracts provider runtime prefix source
+            (manifest-opt, None) ->
+              test-source-standalone-tuned tuning cfg inlining debug reclaim profile manifest-opt runtime prefix source
+            (None, Some _) -> pipeline-bad-args
 
   link-words :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> List String ->{IO r, Diverge} Int
   link-words tuning run inlining debug reclaim profile contracts provider words = case words of
