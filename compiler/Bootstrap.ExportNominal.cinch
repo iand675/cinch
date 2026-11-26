@@ -213,7 +213,7 @@ module Bootstrap.ExportNominal where
   primitive-observer :: String -> List Decl -> Bool
   primitive-observer name declarations = case declarations of
     Nil -> False
-    Cons (DForeign sp direction abi symbol actual ty) rest -> (same name actual && same direction "import" && same abi "ccall" && same symbol "cinch.runtime.bytesLen") || primitive-observer name rest
+    Cons (DForeign sp direction abi symbol actual ty) rest -> (same name actual && same direction "import" && same abi "ccall" && (same symbol "cinch.runtime.bytesLen" || same symbol "cinch.runtime.bytesLenI64")) || primitive-observer name rest
     Cons other rest -> primitive-observer name rest
   template-text :: List Decl -> List String -> TypeExpr -> Result String String
   template-text declarations locals syntax = case syntax of

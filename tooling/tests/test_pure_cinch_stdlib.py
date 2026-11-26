@@ -16,6 +16,7 @@ ALLOWED_INLINE_LLVM = {
     "Prim/Sys/Darwin.cinch",
     "Prim/Machine.cinch",
     "Prim/Wide.cinch",
+    "Data/AD.cinch",
     "Data/Machine.cinch",
     "Data/Wide.cinch",
     "Data/Char.cinch",

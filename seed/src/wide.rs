@@ -164,7 +164,7 @@ fn prim_sig(op: PrimOp) -> Option<Sig> {
     let r = |t: &crate::types::Ty| match t {
         crate::types::Ty::Prim(s) if s.is_wide() => Rep::Wide,
         crate::types::Ty::Param(_) if matches!(op,
-            PrimOp::MVar { classes, .. } | PrimOp::Slots { classes, .. }
+            PrimOp::MVar { classes, .. } | PrimOp::RwLock { classes, .. } | PrimOp::Slots { classes, .. }
                 | PrimOp::Array { classes, packed: None, .. }
                 if classes[0] == Class::Wide) => Rep::Wide,
         _ => Rep::Word,

@@ -1,9 +1,9 @@
 {
-  "description": "2026-11-25 main (PR #16) seed with Data.Wide, mapped packages, validated string views, tail_conv disabled, and unsound Bytes !invariant.load removed.",
+  "description": "ABI 10 seed at base revision with Share Sym/String, zero-contention LocalClosure + phase arenas, Atomic/RwLock concurrency primitives, tail_conv disabled, and unsound Bytes !invariant.load removed.",
   "patch": "compiler/seed/stage0.patch",
-  "patch_sha256": "ae905f0eacb1fb16ef695f7030ae862bd492022022c88c610fe1c923ec66694b",
+  "patch_sha256": "bc4cf2778bb6b6179a9ca8e939ce06a250801b7c123334de7b6647d0b19530a7",
   "revision": "897d845c5fa839c89131b581d89d8d78e5738280",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "a2c9e0199ab43acb09d818f7a8bc8e958cd12ebd42e3f4aeb3154cafe7f81143"
+  "source_sha256": "839a525a2625038896ec36034a6ae6734a1ac27e28e93775d7bf7c5ca7ee31aa"
 }

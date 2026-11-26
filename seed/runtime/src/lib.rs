@@ -618,6 +618,8 @@ pub mod string;
 pub mod stack;
 pub mod stm;
 pub mod mvar;
+pub mod atomic;
+pub mod rwlock;
 pub mod sym;
 pub mod sys;
 pub mod task;

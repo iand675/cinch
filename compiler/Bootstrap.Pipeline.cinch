@@ -17,17 +17,20 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-decls, module-name-index, Decl, DClass)
-  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, prepare-admitted-check, checked-surface, checked-elaboration, checked-generated, with-generated)
+  import Bootstrap.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, check-and-retain-with-interfaces-tuned, check-and-retain-with-admitted-interfaces-tuned, prepare-admitted-check, prepare-admitted-check-tuned, prepare-admitted-check-cached, checked-surface, checked-elaboration, checked-generated, with-generated)
+  import Bootstrap.Core (CoreDefinition)
   import Bootstrap.CoreBody (dense-claims-verified)
   import Bootstrap.Infer (elaboration-core)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
-  import Bootstrap.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-library-artifact-for-profile)
+  import Bootstrap.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache)
+  import Bootstrap.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-strategy, tuning-workers, tuning-with-strategy, tuning-with-workers, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Bootstrap.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, session-revision, session-unit-cache, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
   import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Bootstrap.PackageWrite (encode-interface-package, encode-object-package)
   import Bootstrap.Parse (parse-program)
-  import Bootstrap.Parse (parse-program-with, parse-program-with-index)
+  import Bootstrap.Parse (parse-program-with, parse-program-with-index, parse-program-with-index-tuned)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
   import Bootstrap.Inputs (InterfaceInputs, read-validated-interfaces, embedded-library-home, read-interface-inputs, interface-input-files, interface-package-file, load-client-interface-inputs)
   import Bootstrap.Host (compiler-epoch)
@@ -48,9 +51,9 @@ module Bootstrap.Pipeline where
   import Data.List (map, reverse)
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem, path-dirname, path-join)
-  import Data.String (string-concat, string-to-bytes)
+  import Data.String (string-concat, string-concat-all, string-from-bytes, string-to-bytes)
   import Effect.Fs (FsError, FileIsFile, file-meta-kind, file-meta-size, fs-metadata, fs-read, fs-rename, fs-write)
-  import Text.Scan (string-contains)
+  import Text.Scan (string-contains, string-strip, string-starts-with, string-drop)
   import Text.Lex (bytes-slice)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
   import Text.Show (int-to-string)
@@ -67,6 +70,7 @@ module Bootstrap.Pipeline where
     BodiesOnly :: PipelineMode
     IrOnly :: PipelineMode
     ServeIr :: PipelineMode
+    ServeStream :: PipelineMode
     EmitOnly :: PipelineMode
     EmitWithInterfaces :: PipelineMode
     InterfacesOnly :: PipelineMode
@@ -150,16 +154,22 @@ module Bootstrap.Pipeline where
   compile-source-mode-at :: forall r. using (io :: Io r) => Bool -> Bool -> Option String -> PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-mode-at inlining reclaim wanted mode source ir exe report =
     compile-source-profile-mode inlining reclaim (target-profile wanted) mode source ir exe report
+  effective-inlining :: CompileTuning -> Bool -> Bool
+  effective-inlining tuning requested = if tuning-is-latency tuning then False else requested
+
   compile-source-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
-  compile-source-profile-mode inlining reclaim selection mode source ir exe report = case selection of
+  compile-source-profile-mode inlining reclaim selection mode source ir exe report =
+    compile-source-profile-mode-tuned default-tuning inlining reclaim selection mode source ir exe report
+  compile-source-profile-mode-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-profile-mode-tuned tuning inlining reclaim selection mode source ir exe report = case selection of
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> case mode of
-      InterfacesOnly -> compile-source-interfaces profile Nil source ir
+      InterfacesOnly -> compile-source-interfaces-tuned tuning profile Nil source ir
       ObjectOnly -> pipeline-bad-args
       EmitWithInterfaces -> pipeline-bad-args
       other -> case fs-read (path-from-string source) of
         Err e -> pipeline-read-failed
-        Ok src -> after-parse inlining reclaim profile mode source src (parse-program source src) ir exe report
+        Ok src -> after-parse-tuned tuning (effective-inlining tuning inlining) reclaim profile mode source src (parse-program-with-index-tuned tuning source src hash-map-empty) ir exe report
 
   compile-source-with-manifest :: forall r. using (io :: Io r) => Bool -> Bool -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-with-manifest inlining reclaim manifest source ir exe report = compile-source-with-manifest-mode-at inlining reclaim None CompileAndRun manifest source ir exe report
@@ -171,19 +181,22 @@ module Bootstrap.Pipeline where
   compile-source-with-manifest-mode-at inlining reclaim wanted mode manifest source ir exe report =
     compile-manifest-profile-mode inlining reclaim (target-profile wanted) mode manifest source ir exe report
   compile-manifest-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
-  compile-manifest-profile-mode inlining reclaim selection mode manifest source ir exe report = case selection of
+  compile-manifest-profile-mode inlining reclaim selection mode manifest source ir exe report =
+    compile-manifest-profile-mode-tuned default-tuning inlining reclaim selection mode manifest source ir exe report
+  compile-manifest-profile-mode-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-manifest-profile-mode-tuned tuning inlining reclaim selection mode manifest source ir exe report = case selection of
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> if interface-output-conflict mode ir manifest then pipeline-bad-args else case read-validated-interfaces manifest of
       Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
       Ok admitted ->
         let interfaces = validated-interfaces-members admitted in
         (case mode of
-          InterfacesOnly -> compile-source-interfaces profile interfaces source ir
+          InterfacesOnly -> compile-source-interfaces-tuned tuning profile interfaces source ir
           ObjectOnly -> pipeline-bad-args
           EmitWithInterfaces -> pipeline-bad-args
           other -> (case fs-read (path-from-string source) of
             Err error -> pipeline-read-failed
-            Ok src -> after-parse-with inlining reclaim profile mode admitted source src (parse-program-with source src (interface-fixity-headers interfaces)) ir exe report))
+            Ok src -> after-parse-with-tuned tuning (effective-inlining tuning inlining) reclaim profile mode admitted source src (parse-program-with-index-tuned tuning source src (module-name-index (interface-fixity-headers interfaces))) ir exe report))
 
   -- `debug` selects debug counting (`--rc-debug`): the emitted program's
   -- count operations call the runtime's checked out-of-line entries.
@@ -201,19 +214,28 @@ module Bootstrap.Pipeline where
   compile-source-object-mode inlining debug reclaim wanted mode manifest object-config source ir =
     compile-object-profile-mode inlining debug reclaim (target-profile wanted) mode manifest object-config source ir
   compile-object-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
-  compile-object-profile-mode inlining debug reclaim selection mode manifest object-config source ir = case selection of
+  compile-object-profile-mode inlining debug reclaim selection mode manifest object-config source ir =
+    compile-object-profile-mode-tuned default-tuning inlining debug reclaim selection mode manifest object-config source ir
+  compile-object-profile-mode-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  compile-object-profile-mode-tuned tuning inlining debug reclaim selection mode manifest object-config source ir = case selection of
     Err message -> write-failure ir message pipeline-bad-args
     Ok profile -> case mode of
-      EmitWithInterfaces -> publish-object-client inlining debug reclaim profile manifest object-config source ir
-      ServeIr -> serve-object-client inlining debug reclaim profile manifest object-config source ir
-      IrOnly -> emit-admitted-object-client inlining debug reclaim profile IrOnly manifest object-config source ir
-      EmitOnly -> emit-admitted-object-client inlining debug reclaim profile EmitOnly manifest object-config source ir
+      EmitWithInterfaces -> publish-object-client-tuned tuning (effective-inlining tuning inlining) debug reclaim profile manifest object-config source ir
+      ServeIr -> serve-object-client-tuned tuning inlining debug reclaim profile manifest object-config source ir
+      ServeStream -> serve-stream-client-tuned tuning inlining debug reclaim profile manifest object-config source ir
+      IrOnly -> emit-admitted-object-client-tuned tuning (effective-inlining tuning inlining) debug reclaim profile IrOnly manifest object-config source ir
+      EmitOnly -> emit-admitted-object-client-tuned tuning (effective-inlining tuning inlining) debug reclaim profile EmitOnly manifest object-config source ir
       other -> pipeline-bad-args
   emit-admitted-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
   emit-admitted-object-client inlining debug reclaim profile mode manifest object-config source ir =
-    case load-object-client reclaim (read-interface-inputs manifest) (read-runtime-object-config object-config) of
+    emit-admitted-object-client-tuned default-tuning inlining debug reclaim profile mode manifest object-config source ir
+  emit-admitted-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  emit-admitted-object-client-tuned tuning inlining debug reclaim profile mode manifest object-config source ir =
+    let arena = arena-new phase-arena-first-chunk in
+    let status = (case load-object-client reclaim (read-interface-inputs manifest) (read-runtime-object-config object-config) of
       Err message -> write-failure ir message pipeline-interface-failed
-      Ok (checked, provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else emit-object-client inlining debug reclaim profile mode checked provider source ir
+      Ok (checked, provider, metadata, object-path, code) -> if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else emit-object-client-tuned tuning inlining debug reclaim profile mode checked provider source ir) in
+    case arena-leave arena of _ -> status
 
   load-object-client :: forall r. using (io :: Io r) => Bool -> Result String InterfaceInputs -> Result String RuntimeObjectConfig ->{IO r} Result String (ValidatedInterfaces, RuntimeObject, Json, String, Bytes)
   load-object-client reclaim references configuration = case references of
@@ -232,12 +254,107 @@ module Bootstrap.Pipeline where
               Err message -> Err ("bootstrap.object: " <> message)
               Ok (provider, metadata, path, code) -> Ok (checked, provider, metadata, path, code))))
 
+  data IncrementalStep where
+    StepSuccess :: RuntimeOutput -> IncrementalSession -> String -> Nat -> Nat -> Nat -> Nat -> IncrementalStep
+    StepFailure :: RuntimeOutput -> IncrementalSession -> String -> Int -> IncrementalStep
+
+  write-stream-text :: forall r. using (io :: Io r) => Bool -> String ->{IO r} Unit
+  write-stream-text enabled text =
+    if enabled then case ioWrite (string-to-bytes text) of _ -> ()
+    else ()
+
+  data ServeEnv where
+    ServeEnv :: TargetProfile -> Bool -> Bool -> Bool -> List LoadedInterface -> HashMap String Module -> RuntimeObject
+      -> (Program -> List LoadedInterface -> (Program, List Diagnostic, Bool))
+      -> (CompileTuning -> Bool -> HashMap String CoreDefinition -> Program -> Result (List Diagnostic) CheckedProgram)
+      -> String -> ServeEnv
+
+  -- Execute one resident incremental build request (shared by --serve-ir and
+  -- --serve-stream). Uses REAPER item fingerprinting + INCR body-only recheck
+  -- + LINK per-unit IR cache reuse when the surface holds, and falls back
+  -- cleanly to the parallel full build on surface/proof/overlay changes.
+  run-incremental-request-env :: forall r. using (io :: Io r) => Bool -> CompileTuning -> ServeEnv -> Bytes -> IncrementalSession ->{IO r, Diverge} IncrementalStep
+  run-incremental-request-env streaming tuning env src session = case env of
+    ServeEnv profile inlining debug reclaim interfaces headers provider resolve retain-cached source ->
+      let next-rev = session-revision session + 1 in
+      let use-inline = effective-inlining tuning inlining in
+      case parse-program-with-index-tuned tuning source src headers of
+        Failed bundle ->
+          let msg = render-bundle bundle in
+          StepFailure (failure-output msg pipeline-parse-failed) (invalidate-incremental-session session) msg pipeline-parse-failed
+        Parsed program (Cons err more) ->
+          let msg = render-bundle (Bundle source src (Cons err more)) in
+          StepFailure (failure-output msg pipeline-parse-failed) (invalidate-incremental-session session) msg pipeline-parse-failed
+        Parsed program Nil -> case target-view-program profile program of
+          Err message ->
+            StepFailure (failure-output message pipeline-check-refused) (invalidate-incremental-session session) message pipeline-check-refused
+          Ok view -> case object-source-conflict (program-modules view) interfaces of
+            Some name ->
+              let msg = "bootstrap.object: module " <> name <> " is already supplied by the library object; rebuild the library to change it" in
+              StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
+            None ->
+              let overlays = (if not (has-signature-overlay (program-modules view)) then Nil else
+                    case recheck-source-overlays profile src view interfaces interfaces Nil of
+                      Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
+                        Some (Cons first rest) -> Cons first rest
+                        other -> Nil)
+                      Err message -> Nil) in
+              let stage-resolve = \input -> case resolve input overlays of (resolved, errors, retained) -> (resolved, errors) in
+              case expand-stages-with-report stage-resolve (\unit -> interface-headers interfaces) view of
+                Err errors ->
+                  let msg = render-source-diagnostics src errors in
+                  StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
+                Ok (expanded, generated) -> case resolve expanded overlays of
+                  (resolved, Cons err more, retained) ->
+                    let msg = render-source-diagnostics src (explain-expansion-errors expanded (Cons err more)) in
+                    StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
+                  (resolved, Nil, retained) ->
+                    let active-session = case overlays of Nil -> session; Cons first rest -> empty-incremental-session in
+                    case plan-incremental-build active-session resolved of
+                      PlanReuseIr new-idx cached-ir reused-n ->
+                        case write-stream-text streaming (render-plan-event next-rev "noop" 0 reused-n) of
+                          _ -> StepSuccess (RuntimeOutput (string-to-bytes cached-ir) (string-to-bytes "") pipeline-ok) session "noop" 0 reused-n 0 0
+                      PlanBodyOnly new-idx dirty-list dirty-set reusable-core dirty-n reused-n ->
+                        case write-stream-text streaming (render-plan-event next-rev "body-only" dirty-n reused-n) of
+                          _ -> case retain-resolved-source profile (retain-cached tuning retained reusable-core) (resolved, Nil) of
+                            Err errors ->
+                              let msg = render-source-diagnostics src (explain-expansion-errors expanded errors) in
+                              StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
+                            Ok checked0 ->
+                              let checked = with-generated generated checked0 in
+                              case emit-runtime-program-for-profile-cached tuning profile use-inline debug reclaim checked (Some provider) (session-unit-cache active-session) dirty-set of
+                                Err errors ->
+                                  let msg = render-diagnostics errors in
+                                  StepFailure (failure-output msg pipeline-emit-refused) (invalidate-incremental-session session) msg pipeline-emit-refused
+                                Ok (ir-text, next-cache, emitted-n, reused-units) ->
+                                  let next-session = record-incremental-success session new-idx checked next-cache ir-text in
+                                  StepSuccess (RuntimeOutput (string-to-bytes ir-text) (string-to-bytes "") pipeline-ok) next-session "body-only" dirty-n reused-n emitted-n reused-units
+                      PlanFullRebuild new-idx ->
+                        let total-bodies = index-body-count new-idx in
+                        case write-stream-text streaming (render-plan-event next-rev "full" total-bodies 0) of
+                          _ -> case retain-resolved-source profile (retain-cached tuning retained hash-map-empty) (resolved, Nil) of
+                            Err errors ->
+                              let msg = render-source-diagnostics src (explain-expansion-errors expanded errors) in
+                              StepFailure (failure-output msg pipeline-check-refused) (invalidate-incremental-session session) msg pipeline-check-refused
+                            Ok checked0 ->
+                              let checked = with-generated generated checked0 in
+                              case emit-runtime-program-for-profile-cached tuning profile use-inline debug reclaim checked (Some provider) empty-unit-ir-cache hash-map-empty of
+                                Err errors ->
+                                  let msg = render-diagnostics errors in
+                                  StepFailure (failure-output msg pipeline-emit-refused) (invalidate-incremental-session session) msg pipeline-emit-refused
+                                Ok (ir-text, next-cache, emitted-n, reused-units) ->
+                                  let next-session = record-incremental-success session new-idx checked next-cache ir-text in
+                                  StepSuccess (RuntimeOutput (string-to-bytes ir-text) (string-to-bytes "") pipeline-ok) next-session "full" total-bodies 0 emitted-n reused-units
+
   -- Hold the admitted contracts and provider for the life of the session.
   -- Each newline on stdin requests an IR build from the current source
   -- file. Stdout carries a readiness line followed by one status per
   -- request. EOF ends the session.
   serve-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
   serve-object-client inlining debug reclaim profile manifest object-config source ir =
+    serve-object-client-tuned default-tuning inlining debug reclaim profile manifest object-config source ir
+  serve-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  serve-object-client-tuned tuning inlining debug reclaim profile manifest object-config source ir =
     let references = read-interface-inputs manifest in
     let configuration = read-runtime-object-config object-config in
     let normalize = \name -> path-to-string (path-normalize (path-from-string name)) in
@@ -253,52 +370,165 @@ module Bootstrap.Pipeline where
         let headers = module-name-index (interface-fixity-headers interfaces) in
         let admitted = canonical-interface-validation checked in
         let resolve = prepare-admitted-resolution admitted in
-        let retain = (case admitted of Ok canonical -> prepare-admitted-check canonical; Err message -> \retained -> check-and-retain-with-interfaces interfaces) in
-        let check = check-object-client-using profile interfaces (checked-prepared-source profile interfaces retain resolve) in
+        let retain-cached = (case admitted of Ok canonical -> prepare-admitted-check-cached canonical; Err message -> \cur-tuning retained cached -> check-and-retain-with-interfaces-tuned cur-tuning interfaces) in
+        let env = ServeEnv profile inlining debug reclaim interfaces headers provider resolve retain-cached source in
         case ioWrite (string-to-bytes "ready\n") of
-          _ -> serve-object-builds (string-to-bytes "\n") (path-from-string source) ir
-            (\src -> case checked-object-bytes profile (\name input -> parse-program-with-index name input headers) check source src of
-              Err (message, status) -> failure-output message status
-              Ok (view, program) -> runtime-module-output (emit-target-program profile inlining debug reclaim program (Some provider)))
-            None
+          _ -> serve-object-builds (string-to-bytes "\n") (path-from-string source) ir tuning env None empty-incremental-session
 
-  serve-object-builds :: forall r. using (io :: Io r) => Bytes -> Path -> Path -> (Bytes -> RuntimeOutput) -> Option (Bytes, RuntimeOutput) ->{IO r, Diverge} Int
-  serve-object-builds newline source ir build previous = case ioRead 1 of
+  serve-object-builds :: forall r. using (io :: Io r) => Bytes -> Path -> Path -> CompileTuning -> ServeEnv -> Option (Bytes, RuntimeOutput) -> IncrementalSession ->{IO r, Diverge} Int
+  serve-object-builds newline source ir tuning env previous session = case ioRead 1 of
     None -> pipeline-ok
     Some token -> if bytes-compare token newline /= 0 then pipeline-bad-args else
       case fs-read source of
         Err error -> (case write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed of
           status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
-            _ -> serve-object-builds newline source ir build None)
-        Ok src -> let output = (case previous of
-          Some (old-source, old-output) | bytes-compare old-source src == 0 -> old-output
-          other -> build src) in
-          (case write-resident-output ir previous output of
-            status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
-              _ -> serve-object-builds newline source ir build (Some (src, output)))
+            _ -> serve-object-builds newline source ir tuning env None (invalidate-incremental-session session))
+        Ok src -> case previous of
+          Some (old-source, old-output) | bytes-compare old-source src == 0 ->
+            (case write-resident-output ir previous old-output of
+              status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
+                _ -> serve-object-builds newline source ir tuning env (Some (src, old-output)) session)
+          other -> case run-incremental-request-env False tuning env src session of
+            StepSuccess output next-session kind rechecked reused-bodies emitted-units reused-units ->
+              (case write-resident-output ir previous output of
+                status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
+                  _ -> serve-object-builds newline source ir tuning env (Some (src, output)) next-session)
+            StepFailure output next-session message err-status ->
+              (case write-resident-output ir previous output of
+                status -> case ioWrite (string-to-bytes (int-to-string status <> "\n")) of
+                  _ -> serve-object-builds newline source ir tuning env (Some (src, output)) next-session)
+
+  read-stdin-line :: forall r. using (io :: Io r) => Bytes -> Bytes -> List String ->{IO r, Diverge} Option String
+  read-stdin-line newline cr acc = case ioRead 1 of
+    None -> case acc of
+      Nil -> None
+      Cons first rest -> Some (string-concat-all (reverse acc))
+    Some chunk ->
+      if bytes-compare chunk newline == 0 then Some (string-concat-all (reverse acc))
+      else if bytes-compare chunk cr == 0 then read-stdin-line newline cr acc
+      else case string-from-bytes chunk of
+        Some piece -> read-stdin-line newline cr (Cons piece acc)
+        None -> read-stdin-line newline cr acc
+
+  -- Streaming JSONL incremental server (--serve-stream).
+  -- Commands on stdin (one per line):
+  --   "" or "rebuild"       -> incremental compile, streaming plan + done/error JSONL events
+  --   "mode latency"        -> switch to low-latency hot-reload strategy
+  --   "mode throughput"     -> switch to full-build throughput strategy
+  --   "workers N"           -> dynamically adjust worker pool budget
+  --   "invalidate"          -> drop incremental caches
+  --   "stats"               -> emit current session cache and tuning stats
+  --   "quit" or EOF         -> exit cleanly
+  serve-stream-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  serve-stream-client-tuned tuning inlining debug reclaim profile manifest object-config source ir =
+    let references = read-interface-inputs manifest in
+    let configuration = read-runtime-object-config object-config in
+    let normalize = \name -> path-to-string (path-normalize (path-from-string name)) in
+    let outputs = map normalize [path-to-string ir, path-to-string (refusal-path ir)] in
+    let interface-files = case references of Ok inputs -> interface-input-files inputs; Err message -> Nil in
+    let object-files = case configuration of Ok config -> runtime-object-input-files config; Err message -> Nil in
+    if object-input-overlaps outputs (map normalize ([manifest, object-config, source] <> interface-files <> object-files)) then pipeline-bad-args else
+    case load-object-client reclaim references configuration of
+      Err message -> write-failure ir message pipeline-interface-failed
+      Ok (checked, provider, metadata, object-path, code) ->
+        if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
+        let interfaces = validated-interfaces-members checked in
+        let headers = module-name-index (interface-fixity-headers interfaces) in
+        let admitted = canonical-interface-validation checked in
+        let resolve = prepare-admitted-resolution admitted in
+        let retain-cached = (case admitted of Ok canonical -> prepare-admitted-check-cached canonical; Err message -> \cur-tuning retained cached -> check-and-retain-with-interfaces-tuned cur-tuning interfaces) in
+        let env = ServeEnv profile inlining debug reclaim interfaces headers provider resolve retain-cached source in
+        case ioWrite (string-to-bytes (render-ready-event tuning)) of
+          _ -> serve-stream-loop (string-to-bytes "\n") (string-to-bytes "\r") (path-from-string source) ir env inlining tuning None empty-incremental-session
+
+  serve-stream-loop :: forall r. using (io :: Io r) => Bytes -> Bytes -> Path -> Path -> ServeEnv -> Bool -> CompileTuning -> Option (Bytes, RuntimeOutput) -> IncrementalSession ->{IO r, Diverge} Int
+  serve-stream-loop newline cr source ir env inlining tuning previous session =
+    case read-stdin-line newline cr Nil of
+      None -> pipeline-ok
+      Some raw ->
+        let cmd = string-strip raw in
+        if string-compare cmd "quit" == 0 then pipeline-ok
+        else if string-compare cmd "stats" == 0 then
+          case ioWrite (string-to-bytes (render-stats-event session tuning)) of
+            _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
+        else if string-compare cmd "invalidate" == 0 then
+          let cleared = invalidate-incremental-session session in
+          case ioWrite (string-to-bytes (render-stats-event cleared tuning)) of
+            _ -> serve-stream-loop newline cr source ir env inlining tuning None cleared
+        else if string-starts-with "mode " cmd then
+          let arg = string-strip (string-drop 5 cmd) in
+          case parse-compile-strategy arg of
+            Some next-strat ->
+              let next-tuning = tuning-with-strategy next-strat tuning in
+              let changed-inline = effective-inlining tuning inlining /= effective-inlining next-tuning inlining in
+              let next-session = if changed-inline then invalidate-incremental-session session else session in
+              let next-prev = if changed-inline then None else previous in
+              case ioWrite (string-to-bytes (render-stats-event next-session next-tuning)) of
+                _ -> serve-stream-loop newline cr source ir env inlining next-tuning next-prev next-session
+            None ->
+              case ioWrite (string-to-bytes (render-error-event (session-revision session) pipeline-bad-args ("unknown compile strategy: " <> arg))) of
+                _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
+        else if string-starts-with "workers " cmd then
+          let arg = string-strip (string-drop 8 cmd) in
+          case parse-nat-word arg of
+            Some count ->
+              case apply-worker-budget count of
+                _ ->
+                  let next-tuning = tuning-with-workers count tuning in
+                  case ioWrite (string-to-bytes (render-stats-event session next-tuning)) of
+                    _ -> serve-stream-loop newline cr source ir env inlining next-tuning previous session
+            None ->
+              case ioWrite (string-to-bytes (render-error-event (session-revision session) pipeline-bad-args ("invalid worker count: " <> arg))) of
+                _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
+        else if string-compare cmd "" == 0 || string-compare cmd "rebuild" == 0 then
+          let next-rev = session-revision session + 1 in
+          case fs-read source of
+            Err error ->
+              let msg = "bootstrap.object: cannot read source" in
+              case write-failure ir msg pipeline-read-failed of
+                status -> case ioWrite (string-to-bytes (render-error-event next-rev status msg)) of
+                  _ -> serve-stream-loop newline cr source ir env inlining tuning None (invalidate-incremental-session session)
+            Ok src -> case run-incremental-request-env True tuning env src session of
+              StepSuccess output next-session kind rechecked reused-bodies emitted-units reused-units ->
+                case write-resident-output ir previous output of
+                  status -> case ioWrite (string-to-bytes (render-done-event next-rev status kind rechecked reused-bodies emitted-units reused-units)) of
+                    _ -> serve-stream-loop newline cr source ir env inlining tuning (Some (src, output)) next-session
+              StepFailure output next-session message err-status ->
+                case write-resident-output ir previous output of
+                  status -> case ioWrite (string-to-bytes (render-error-event next-rev err-status message)) of
+                    _ -> serve-stream-loop newline cr source ir env inlining tuning (Some (src, output)) next-session
+        else
+          case ioWrite (string-to-bytes (render-error-event (session-revision session) pipeline-bad-args ("unknown stream command: " <> cmd))) of
+            _ -> serve-stream-loop newline cr source ir env inlining tuning previous session
 
   publish-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
   publish-object-client inlining debug reclaim profile manifest object-config source ir =
-    let output = build-manifest-path ir in
-    let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
-    let package = interface-output-path ir in
-    let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output, path-to-string package] in
-    let direct = map normalize-name [manifest, object-config, source] in
-    if not (object-paths-distinct (outputs <> direct)) then pipeline-bad-args else
-      let references = read-interface-inputs manifest in
-      let configuration = read-runtime-object-config object-config in
-      let interface-inputs = (case references of Err message -> Nil; Ok rows -> interface-input-files rows) in
-      let object-inputs = (case configuration of Err message -> Nil; Ok config -> runtime-object-input-files config) in
-      if object-input-overlaps outputs (map normalize-name (interface-inputs <> object-inputs)) then pipeline-bad-args else
-        (case invalidate-interface-package package of
-          Err message -> pipeline-write-failed
-          Ok ready -> (case fs-write output (string-to-bytes "") of
-            Err error -> pipeline-write-failed
-            Ok cleared -> case load-object-client reclaim references configuration of
-              Err message -> write-failure ir message pipeline-interface-failed
-              Ok (checked, provider, metadata, object-path, code) ->
-                if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
-                  emit-object-client inlining debug reclaim profile EmitWithInterfaces checked provider source ir))
+    publish-object-client-tuned default-tuning inlining debug reclaim profile manifest object-config source ir
+  publish-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  publish-object-client-tuned tuning inlining debug reclaim profile manifest object-config source ir =
+    let arena = arena-new phase-arena-first-chunk in
+    let status = (
+      let output = build-manifest-path ir in
+      let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
+      let package = interface-output-path ir in
+      let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output, path-to-string package] in
+      let direct = map normalize-name [manifest, object-config, source] in
+      if not (object-paths-distinct (outputs <> direct)) then pipeline-bad-args else
+        let references = read-interface-inputs manifest in
+        let configuration = read-runtime-object-config object-config in
+        let interface-inputs = (case references of Err message -> Nil; Ok rows -> interface-input-files rows) in
+        let object-inputs = (case configuration of Err message -> Nil; Ok config -> runtime-object-input-files config) in
+        if object-input-overlaps outputs (map normalize-name (interface-inputs <> object-inputs)) then pipeline-bad-args else
+          (case invalidate-interface-package package of
+            Err message -> pipeline-write-failed
+            Ok ready -> (case fs-write output (string-to-bytes "") of
+              Err error -> pipeline-write-failed
+              Ok cleared -> case load-object-client reclaim references configuration of
+                Err message -> write-failure ir message pipeline-interface-failed
+                Ok (checked, provider, metadata, object-path, code) ->
+                  if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed else
+                    emit-object-client-tuned tuning inlining debug reclaim profile EmitWithInterfaces checked provider source ir))) in
+    case arena-leave arena of _ -> status
 
   object-input-overlaps :: List String -> List String -> Bool
   object-input-overlaps outputs inputs = case inputs of
@@ -309,23 +539,29 @@ module Bootstrap.Pipeline where
   build-manifest-path ir = path-from-string (path-to-string ir <> ".manifest.json")
   emit-object-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
   emit-object-client inlining debug reclaim profile mode admitted provider source ir =
+    emit-object-client-tuned default-tuning inlining debug reclaim profile mode admitted provider source ir
+  emit-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client-tuned tuning inlining debug reclaim profile mode admitted provider source ir =
     let interfaces = validated-interfaces-members admitted in
-    let headers = interface-fixity-headers interfaces in
-    emit-object-client-using inlining debug reclaim profile mode interfaces provider
-      (\name src -> parse-program-with name src headers) (\bytes program -> check-object-client profile bytes program admitted) source ir
+    let headers = module-name-index (interface-fixity-headers interfaces) in
+    emit-object-client-using-tuned tuning inlining debug reclaim profile mode interfaces provider
+      (\name src -> parse-program-with-index-tuned tuning name src headers) (\bytes program -> check-object-client-tuned tuning profile bytes program admitted) source ir
   emit-object-client-using :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> List LoadedInterface -> RuntimeObject -> (String -> Bytes -> ParseOutcome Program) -> (Bytes -> Program -> Result String CheckedProgram) -> String -> Path ->{IO r, Diverge} Int
   emit-object-client-using inlining debug reclaim profile mode interfaces provider parse check source ir =
+    emit-object-client-using-tuned default-tuning inlining debug reclaim profile mode interfaces provider parse check source ir
+  emit-object-client-using-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> List LoadedInterface -> RuntimeObject -> (String -> Bytes -> ParseOutcome Program) -> (Bytes -> Program -> Result String CheckedProgram) -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client-using-tuned tuning inlining debug reclaim profile mode interfaces provider parse check source ir =
     case fs-read (path-from-string source) of
       Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
       Ok src -> case checked-object-bytes profile parse check source src of
         Err (message, status) -> write-failure ir message status
         Ok (view, checked) -> case mode of
-          IrOnly -> write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
+          IrOnly -> write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
           other -> let admitted = unshadowed-interfaces (program-modules view) interfaces in
             let entry = path-stem (path-from-string source) in
             let exported = export-interfaces-aliased checked admitted src in
             case serialize-exported checked profile entry admitted Nil exported of
-              done -> after-object-client profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
+              done -> after-object-client-tuned tuning profile inlining debug reclaim (case mode of EmitWithInterfaces -> True; other -> False) admitted provider checked entry exported ir
 
   checked-object-bytes :: TargetProfile -> (String -> Bytes -> ParseOutcome Program) -> (Bytes -> Program -> Result String CheckedProgram) -> String -> Bytes -> Result (String, Int) (Program, CheckedProgram)
   checked-object-bytes profile parse check source src = case parse source src of
@@ -340,11 +576,14 @@ module Bootstrap.Pipeline where
   -- Interface publication and ordinary compilation share the same checked rows.
   after-object-client :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> Bool -> Bool -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Result String (List (String, Json)) -> Path ->{IO r, Diverge} Int
   after-object-client profile inlining debug reclaim publish admitted provider checked entry exported ir =
-    if not publish then write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider))
+    after-object-client-tuned default-tuning profile inlining debug reclaim publish admitted provider checked entry exported ir
+  after-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> Bool -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Result String (List (String, Json)) -> Path ->{IO r, Diverge} Int
+  after-object-client-tuned tuning profile inlining debug reclaim publish admitted provider checked entry exported ir =
+    if not publish then write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
     else case exported of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
       Ok rows -> case write-interface-output ir (Ok rows) of
-        0 -> case write-runtime-module ir (emit-target-program profile inlining debug reclaim checked (Some provider)) of
+        0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
           0 -> (case fs-write (build-manifest-path ir)
               (canonical-bytes (build-generated-manifest (checked-generated checked) (checked-primitive-rows checked) entry (manifest-target profile) admitted rows)) of
             Ok written -> pipeline-ok
@@ -361,6 +600,10 @@ module Bootstrap.Pipeline where
 
   link-source-with-object :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
   link-source-with-object inlining debug reclaim profile manifest config runtime prefix source clang run =
+    link-source-with-object-tuned default-tuning inlining debug reclaim profile manifest config runtime prefix source clang run
+  link-source-with-object-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
+  link-source-with-object-tuned tuning inlining debug reclaim profile manifest config runtime prefix source clang run =
+    let use-inline = effective-inlining tuning inlining in
     let ir = path-from-string (prefix <> ".ll") in
     let executable = prefix <> ".exe" in
     let object-copy = prefix <> ".library.o" in
@@ -378,26 +621,37 @@ module Bootstrap.Pipeline where
             if object-path-member receipt-name (paths <> additional) || object-input-overlaps (map normalize-path [path-to-string ir, path-to-string (refusal-path ir), executable, object-copy]) additional then pipeline-bad-args
             else case read-packed-client settings of
               Err message -> write-failure ir message pipeline-interface-failed
-              Ok packed -> case prepare-packed-build packed profile inlining debug reclaim source ir receipt of
-                0 -> finish-native-build ir executable object-copy runtime (profile-triple profile) (packed-client-code packed) clang run
+              Ok packed -> case prepare-packed-build-tuned tuning packed profile use-inline debug reclaim source ir receipt of
+                0 -> finish-native-build-tuned tuning ir executable object-copy runtime (profile-triple profile) (packed-client-code packed) clang run
                 code -> code
-          other -> link-uncached-client inlining debug reclaim profile references configuration source paths ir executable object-copy runtime clang run)
-        other -> link-uncached-client inlining debug reclaim profile references configuration source paths ir executable object-copy runtime clang run
+          other -> link-uncached-client-tuned tuning use-inline debug reclaim profile references configuration source paths ir executable object-copy runtime clang run)
+        other -> link-uncached-client-tuned tuning use-inline debug reclaim profile references configuration source paths ir executable object-copy runtime clang run
 
   link-uncached-client :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> Result String InterfaceInputs -> Result String RuntimeObjectConfig -> String -> List String -> Path -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
   link-uncached-client inlining debug reclaim profile references configuration source paths ir executable object-copy runtime clang run =
+    link-uncached-client-tuned default-tuning inlining debug reclaim profile references configuration source paths ir executable object-copy runtime clang run
+  link-uncached-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> TargetProfile -> Result String InterfaceInputs -> Result String RuntimeObjectConfig -> String -> List String -> Path -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
+  link-uncached-client-tuned tuning inlining debug reclaim profile references configuration source paths ir executable object-copy runtime clang run =
     case load-object-client reclaim references configuration of
       Err message -> write-failure ir message pipeline-interface-failed
       Ok (checked, provider, metadata, object-path, object-bytes) ->
         if not (provider-matches-profile metadata profile) then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
         else if object-path-member (path-to-string (path-normalize (path-from-string object-path))) paths then pipeline-bad-args
-        else case emit-object-client inlining debug reclaim profile IrOnly checked provider source ir of
-          0 -> finish-native-build ir executable object-copy runtime (profile-triple profile) object-bytes clang run
-          code -> code
+        else
+          let arena = arena-new phase-arena-first-chunk in
+          let emitted = emit-object-client-tuned tuning inlining debug reclaim profile IrOnly checked provider source ir in
+          case arena-leave arena of
+            _ -> case emitted of
+              0 -> finish-native-build-tuned tuning ir executable object-copy runtime (profile-triple profile) object-bytes clang run
+              code -> code
 
   prepare-packed-build :: forall r. using (io :: Io r) => PackedClient -> TargetProfile -> Bool -> Bool -> Bool -> String -> Path -> Path ->{IO r} Int
   prepare-packed-build packed profile inlining debug reclaim source ir receipt =
-    case packed-client-key packed of
+    prepare-packed-build-tuned default-tuning packed profile inlining debug reclaim source ir receipt
+  prepare-packed-build-tuned :: forall r. using (io :: Io r) => CompileTuning -> PackedClient -> TargetProfile -> Bool -> Bool -> Bool -> String -> Path -> Path ->{IO r} Int
+  prepare-packed-build-tuned tuning packed profile inlining debug reclaim source ir receipt =
+    let arena = arena-new phase-arena-first-chunk in
+    let status = (case packed-client-key packed of
       (triple, object-hash, package-hash) ->
         if string-compare triple (profile-triple profile) /= 0 then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
         else case fs-read (path-from-string source) of
@@ -418,13 +672,14 @@ module Bootstrap.Pipeline where
                 then write-failure ir "bootstrap.object: runtime object target mismatch" pipeline-interface-failed
                 else
                   let interfaces = validated-interfaces-members admitted in
-                  let headers = interface-fixity-headers interfaces in
-                  let parse = \name input -> parse-program-with name input headers in
-                  let check = \bytes program -> check-object-client profile bytes program admitted in
+                  let headers = module-name-index (interface-fixity-headers interfaces) in
+                  let parse = \name input -> parse-program-with-index-tuned tuning name input headers in
+                  let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
                   let output = (case checked-object-bytes profile parse check source src of
                     Err (message, status) -> failure-output message status
-                    Ok (view, checked) -> runtime-module-output (emit-target-program profile inlining debug reclaim checked (Some provider))) in
-                  write-native-ir ir receipt key output
+                    Ok (view, checked) -> runtime-module-output (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))) in
+                  write-native-ir ir receipt key output) in
+    case arena-leave arena of _ -> status
 
   write-native-ir :: forall r. using (io :: Io r) => Path -> Path -> String -> RuntimeOutput ->{IO r} Int
   write-native-ir ir receipt key output = case output of
@@ -448,13 +703,20 @@ module Bootstrap.Pipeline where
 
   finish-native-build :: forall r. using (io :: Io r) => Path -> String -> String -> String -> String -> Bytes -> String -> Option (List String) ->{IO r, Diverge} Int
   finish-native-build ir executable object-copy runtime triple code clang run =
+    finish-native-build-tuned default-tuning ir executable object-copy runtime triple code clang run
+  finish-native-build-tuned :: forall r. using (io :: Io r) => CompileTuning -> Path -> String -> String -> String -> String -> Bytes -> String -> Option (List String) ->{IO r, Diverge} Int
+  finish-native-build-tuned tuning ir executable object-copy runtime triple code clang run =
     case refresh-resident-file (path-from-string object-copy) code code of
       Err error -> pipeline-write-failed
-      Ok written -> link-object-client ir executable object-copy runtime triple clang run
+      Ok written -> link-object-client-tuned tuning ir executable object-copy runtime triple clang run
 
   link-object-client :: forall r. using (io :: Io r) => Path -> String -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
   link-object-client ir executable object-copy runtime triple clang run =
-    let arguments = ["-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] in
+    link-object-client-tuned default-tuning ir executable object-copy runtime triple clang run
+  link-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> Path -> String -> String -> String -> String -> String -> Option (List String) ->{IO r, Diverge} Int
+  link-object-client-tuned tuning ir executable object-copy runtime triple clang run =
+    let opt-flag = if tuning-is-latency tuning then "-O0" else "-O2" in
+    let arguments = [opt-flag, "-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] in
     let system-libs = if string-contains "-linux" triple then ["-ldl", "-lpthread", "-lm"] else Nil in
     case process-run (command (path-from-string clang) (arguments <> system-libs)) "" of
       Ok (0, output) -> (case run of
@@ -469,14 +731,18 @@ module Bootstrap.Pipeline where
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
-  checked-source profile program interfaces = check-source-phase profile interfaces (\input -> resolve-program-with input interfaces) program
+  checked-source profile program interfaces = checked-source-tuned default-tuning profile program interfaces
+  checked-source-tuned :: CompileTuning -> TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
+  checked-source-tuned tuning profile program interfaces = check-source-phase-tuned tuning profile interfaces (\input -> resolve-program-with input interfaces) program
   checked-admitted-source :: TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
-  checked-admitted-source profile checked overlays program =
+  checked-admitted-source profile checked overlays program = checked-admitted-source-tuned default-tuning profile checked overlays program
+  checked-admitted-source-tuned :: CompileTuning -> TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
+  checked-admitted-source-tuned tuning profile checked overlays program =
     let interfaces = validated-interfaces-members checked in
     let admitted = canonical-interface-validation checked in
     let check = (case admitted of
-      Ok canonical -> check-and-retain-with-admitted-interfaces canonical
-      Err message -> check-and-retain-with-interfaces interfaces) in
+      Ok canonical -> check-and-retain-with-admitted-interfaces-tuned tuning canonical
+      Err message -> check-and-retain-with-interfaces-tuned tuning interfaces) in
     checked-admitted-source-using profile interfaces check
       (\input replacements -> resolve-admitted-signature-overlays input admitted replacements) overlays program
   checked-admitted-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> List LoadedInterface -> (Program, List Diagnostic)) -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
@@ -492,7 +758,10 @@ module Bootstrap.Pipeline where
     check-expanded-source interfaces stage-resolve finish program
   check-source-phase :: TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-phase profile interfaces resolve program =
-    check-source-using profile interfaces (check-and-retain-with-interfaces interfaces) resolve program
+    check-source-phase-tuned default-tuning profile interfaces resolve program
+  check-source-phase-tuned :: CompileTuning -> TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
+  check-source-phase-tuned tuning profile interfaces resolve program =
+    check-source-using profile interfaces (check-and-retain-with-interfaces-tuned tuning interfaces) resolve program
   check-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-using profile interfaces check resolve program =
     check-expanded-source interfaces resolve (\expanded -> retain-resolved-source profile check (resolve expanded)) program
@@ -629,7 +898,10 @@ module Bootstrap.Pipeline where
 
   check-object-client :: TargetProfile -> Bytes -> Program -> ValidatedInterfaces -> Result String CheckedProgram
   check-object-client profile source program checked =
-    check-object-client-using profile (validated-interfaces-members checked) (checked-admitted-source profile checked) source program
+    check-object-client-tuned default-tuning profile source program checked
+  check-object-client-tuned :: CompileTuning -> TargetProfile -> Bytes -> Program -> ValidatedInterfaces -> Result String CheckedProgram
+  check-object-client-tuned tuning profile source program checked =
+    check-object-client-using profile (validated-interfaces-members checked) (checked-admitted-source-tuned tuning profile checked) source program
   check-object-client-using :: TargetProfile -> List LoadedInterface -> (List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram) -> Bytes -> Program -> Result String CheckedProgram
   check-object-client-using profile interfaces check source program = case object-source-conflict (program-modules program) interfaces of
     Some name -> Err ("bootstrap.object: module " <> name <> " is already supplied by the library object; rebuild the library to change it")
@@ -639,14 +911,20 @@ module Bootstrap.Pipeline where
 
   compile-source-interfaces :: forall r. using (io :: Io r) => TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
   compile-source-interfaces profile interfaces source prefix =
+    compile-source-interfaces-tuned default-tuning profile interfaces source prefix
+  compile-source-interfaces-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
+  compile-source-interfaces-tuned tuning profile interfaces source prefix =
     if interface-output-conflict InterfacesOnly prefix source then pipeline-bad-args else
     case invalidate-interface-package (interface-output-path prefix) of
       Err message -> write-failure prefix ("bootstrap.export: " <> message) pipeline-write-failed
-      Ok ready -> emit-source-interfaces profile interfaces source prefix
+      Ok ready -> emit-source-interfaces-tuned tuning profile interfaces source prefix
   emit-source-interfaces :: forall r. using (io :: Io r) => TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
-  emit-source-interfaces profile interfaces source prefix = case fs-read (path-from-string source) of
+  emit-source-interfaces profile interfaces source prefix =
+    emit-source-interfaces-tuned default-tuning profile interfaces source prefix
+  emit-source-interfaces-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
+  emit-source-interfaces-tuned tuning profile interfaces source prefix = case fs-read (path-from-string source) of
     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
-    Ok src -> case parse-program-with source src (interface-fixity-headers interfaces) of
+    Ok src -> case parse-program-with-index-tuned tuning source src (module-name-index (interface-fixity-headers interfaces)) of
       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
       Parsed program Nil -> case target-view-program profile program of
         Err message -> write-failure prefix message pipeline-check-refused
@@ -654,7 +932,7 @@ module Bootstrap.Pipeline where
           Err message -> write-failure prefix message pipeline-check-refused
           Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
             (Nil, Cons first rest) -> write-interface-output prefix (Ok replaced)
-            other -> case checked-source profile remaining effective of
+            other -> case checked-source-tuned tuning profile remaining effective of
               Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
               Ok checked -> case export-interfaces-aliased checked effective src of
                 Err message -> write-interface-output prefix (Err message)
@@ -696,15 +974,21 @@ module Bootstrap.Pipeline where
   -- recoverable errors beside the module, because handing a half-understood
   -- tree to the checker would be the silent drop the ladder forbids.
   after-parse :: forall r. using (io :: Io r) => Bool -> Bool -> TargetProfile -> PipelineMode -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-parse inlining reclaim profile mode name src outcome ir exe report = case outcome of
+  after-parse inlining reclaim profile mode name src outcome ir exe report =
+    after-parse-tuned default-tuning inlining reclaim profile mode name src outcome ir exe report
+  after-parse-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> TargetProfile -> PipelineMode -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-parse-tuned tuning inlining reclaim profile mode name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
     Parsed prog Nil -> case target-view-program profile prog of
       Err message -> write-failure ir message pipeline-check-refused
-      Ok view -> after-resolve profile inlining reclaim mode src view ir exe report
+      Ok view -> after-resolve-tuned tuning profile inlining reclaim mode src view ir exe report
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
   after-parse-with :: forall r. using (io :: Io r) => Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-parse-with inlining reclaim profile mode admitted name src outcome ir exe report = case outcome of
+  after-parse-with inlining reclaim profile mode admitted name src outcome ir exe report =
+    after-parse-with-tuned default-tuning inlining reclaim profile mode admitted name src outcome ir exe report
+  after-parse-with-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-parse-with-tuned tuning inlining reclaim profile mode admitted name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
     Parsed prog Nil -> let interfaces = validated-interfaces-members admitted in case target-view-program profile prog of
       Err message -> write-failure ir message pipeline-check-refused
@@ -715,10 +999,10 @@ module Bootstrap.Pipeline where
               CheckOnly -> case serialize-artifacts Nil JArrEnd profile (path-stem (path-from-string name)) effective replaced of
                 done -> write-interface-output ir (Ok Nil)
               other -> write-interface-output ir (Ok Nil))
-            (other, Nil) -> after-check-artifacts profile inlining reclaim mode name src effective Nil
-              (checked-admitted-source profile admitted Nil remaining) ir exe report
-            other -> after-check-artifacts profile inlining reclaim mode name src effective replaced (checked-source profile remaining effective) ir exe report
-        else after-check-artifacts profile inlining reclaim mode name src interfaces Nil (checked-admitted-source profile admitted Nil view) ir exe report)
+            (other, Nil) -> after-check-artifacts-tuned tuning profile inlining reclaim mode name src effective Nil
+              (checked-admitted-source-tuned tuning profile admitted Nil remaining) ir exe report
+            other -> after-check-artifacts-tuned tuning profile inlining reclaim mode name src effective replaced (checked-source-tuned tuning profile remaining effective) ir exe report
+        else after-check-artifacts-tuned tuning profile inlining reclaim mode name src interfaces Nil (checked-admitted-source-tuned tuning profile admitted Nil view) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
   -- A changed library module can invalidate a cached dependent while the
@@ -745,16 +1029,19 @@ module Bootstrap.Pipeline where
   -- `<entry>.manifest.json`. A checked source module supersedes the
   -- admitted interface of the same name.
   after-check-artifacts :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> String -> Bytes -> List LoadedInterface -> List (String, Json) -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-check-artifacts profile inlining reclaim mode name src interfaces replaced result ir exe report = case (mode, result) of
-    (InterfacesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
-    (ObjectOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
-    (IrOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
-    (TypesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
-    (BodiesOnly, other) -> after-check profile inlining reclaim mode src result ir exe report
-    (other, Err found) -> after-check profile inlining reclaim mode src result ir exe report
+  after-check-artifacts profile inlining reclaim mode name src interfaces replaced result ir exe report =
+    after-check-artifacts-tuned default-tuning profile inlining reclaim mode name src interfaces replaced result ir exe report
+  after-check-artifacts-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> Bool -> PipelineMode -> String -> Bytes -> List LoadedInterface -> List (String, Json) -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check-artifacts-tuned tuning profile inlining reclaim mode name src interfaces replaced result ir exe report = case (mode, result) of
+    (InterfacesOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
+    (ObjectOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
+    (IrOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
+    (TypesOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
+    (BodiesOnly, other) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
+    (other, Err found) -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
     (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
       case serialize-exported checked profile (path-stem (path-from-string name)) admitted replaced (export-interfaces-aliased checked admitted src) of
-        done -> after-check profile inlining reclaim mode src result ir exe report
+        done -> after-check-tuned tuning profile inlining reclaim mode src result ir exe report
 
   -- The artifact set is best effort: the frontend's own refusal codes stay
   -- the ones a caller reads, and an interface the checker admits but cannot
@@ -767,12 +1054,21 @@ module Bootstrap.Pipeline where
   arena-first-chunk :: I64
   arena-first-chunk = 1048576
 
+  -- Four-megabyte initial chunk for whole-phase batch compilation arenas.
+  -- Growth doubles up to 64 MiB; all KIND_CTOR / KIND_CLOSURE / KIND_DICT
+  -- blocks allocated in the phase carry RC_IMMORTAL (zero atomic RC writes
+  -- across parallel workers) and are freed wholesale at phase exit.
+  phase-arena-first-chunk :: I64
+  phase-arena-first-chunk = 4194304
+
   -- The arena entries (`seed/runtime/src/arena.rs`). The symbol
   -- namespace is reserved (D73), so a program reaches them only by
   -- spelling the intrinsic and only the checker's own intrinsic table
   -- types that spelling: nothing else in the language can obtain one.
   foreign import ccall "cinch.runtime.arenaNew" arena-new :: I64 -> I64
   foreign import ccall "cinch.runtime.arenaLeave" arena-leave :: I64 -> I64
+  foreign import ccall "cinch.runtime.arenaEnterPhase" arena-enter-phase :: I64 -> I64
+  foreign import ccall "cinch.runtime.arenaExitPhase" arena-exit-phase :: I64 -> I64
 
   -- Interface serialization is the one finished phase whose whole output
   -- is files: the documents themselves are built before this scope (the
@@ -847,10 +1143,16 @@ module Bootstrap.Pipeline where
 
   emit-target-program :: TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-target-program profile inlining debug reclaim checked provider =
-    emit-runtime-program-for-profile profile inlining debug reclaim checked provider
+    emit-target-program-tuned default-tuning profile inlining debug reclaim checked provider
+  emit-target-program-tuned :: CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-target-program-tuned tuning profile inlining debug reclaim checked provider =
+    emit-runtime-program-for-profile-tuned tuning profile inlining debug reclaim checked provider
 
   after-resolve :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-resolve profile inlining reclaim mode src prog ir exe report = after-check profile inlining reclaim mode src (check-source-phase profile Nil resolve-program prog) ir exe report
+  after-resolve profile inlining reclaim mode src prog ir exe report =
+    after-resolve-tuned default-tuning profile inlining reclaim mode src prog ir exe report
+  after-resolve-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-resolve-tuned tuning profile inlining reclaim mode src prog ir exe report = after-check-tuned tuning profile inlining reclaim mode src (check-source-phase-tuned tuning profile Nil resolve-program prog) ir exe report
 
   -- The dense body artifact: every checked definition, each with its own
   -- type side table. A consumer decodes one definition at a time.
@@ -865,7 +1167,10 @@ module Bootstrap.Pipeline where
     Err e -> pipeline-write-failed
 
   after-check :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-check profile inlining reclaim mode src result ir exe report = case result of
+  after-check profile inlining reclaim mode src result ir exe report =
+    after-check-tuned default-tuning profile inlining reclaim mode src result ir exe report
+  after-check-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check-tuned tuning profile inlining reclaim mode src result ir exe report = case result of
     Ok prog -> case mode of
       TypesOnly -> finish-check ir
       CheckOnly -> finish-check ir
@@ -874,8 +1179,8 @@ module Bootstrap.Pipeline where
           Ok written -> pipeline-ok
           Err e -> pipeline-write-failed)
         None -> write-failure ir "dense body document does not round trip" pipeline-emit-refused
-      IrOnly -> write-runtime-module ir (emit-target-program profile inlining False reclaim prog None)
-      EmitOnly -> write-runtime-module ir (emit-target-program profile inlining False reclaim prog None)
+      IrOnly -> write-runtime-module ir (emit-target-program-tuned tuning profile inlining False reclaim prog None)
+      EmitOnly -> write-runtime-module ir (emit-target-program-tuned tuning profile inlining False reclaim prog None)
       other -> after-emit mode (emit-checked-diagnostics prog) prog ir exe report
     Err found -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
 
@@ -946,6 +1251,7 @@ module Bootstrap.Pipeline where
       BodiesOnly -> pipeline-emit-refused
       IrOnly -> pipeline-emit-refused
       ServeIr -> pipeline-emit-refused
+      ServeStream -> pipeline-emit-refused
       EmitOnly -> pipeline-emit-refused
       EmitWithInterfaces -> pipeline-emit-refused
       InterfacesOnly -> pipeline-emit-refused
@@ -1165,17 +1471,26 @@ module Bootstrap.Pipeline where
 
   compile-source-library-object-at :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-library-object-at inlining profile manifest configuration source ir object abi =
-    compile-source-library-object-roots inlining profile Nil manifest configuration source ir object abi
+    compile-source-library-object-at-tuned default-tuning inlining profile manifest configuration source ir object abi
+  compile-source-library-object-at-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> TargetProfile -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-library-object-at-tuned tuning inlining profile manifest configuration source ir object abi =
+    compile-source-library-object-roots-tuned tuning (effective-inlining tuning inlining) profile Nil manifest configuration source ir object abi
 
   compile-requested-library-object :: forall r. using (io :: Io r) => Bool -> TargetProfile -> String -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-requested-library-object inlining profile roots manifest configuration source ir object abi =
+    compile-requested-library-object-tuned default-tuning inlining profile roots manifest configuration source ir object abi
+  compile-requested-library-object-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> TargetProfile -> String -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-requested-library-object-tuned tuning inlining profile roots manifest configuration source ir object abi =
     if object-path-member roots [source, manifest, configuration, path-to-string ir, path-to-string object, path-to-string abi, path-to-string object <> ".new.o", path-to-string object <> ".provider.o"] then pipeline-bad-args else
       case read-object-unit-roots roots of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-        Ok requested -> compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi
+        Ok requested -> compile-source-library-object-roots-tuned tuning (effective-inlining tuning inlining) profile requested manifest configuration source ir object abi
 
   compile-source-library-object-roots :: forall r. using (io :: Io r) => Bool -> TargetProfile -> List (String, List Nat) -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-library-object-roots inlining profile requested manifest configuration source ir object abi =
+    compile-source-library-object-roots-tuned default-tuning inlining profile requested manifest configuration source ir object abi
+  compile-source-library-object-roots-tuned :: forall r. using (io :: Io r) => CompileTuning -> Bool -> TargetProfile -> List (String, List Nat) -> String -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source-library-object-roots-tuned tuning inlining profile requested manifest configuration source ir object abi =
     let ir-name = path-to-string ir in let object-name = path-to-string object in let abi-name = path-to-string abi in
     if not (object-paths-distinct [manifest, configuration, source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"]) then pipeline-bad-args else
       case replace-object-package abi (string-to-bytes "") of
@@ -1192,16 +1507,19 @@ module Bootstrap.Pipeline where
               if object-path-member provider-path [source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
                 case fs-read (path-from-string source) of
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-                  Ok bytes -> case parse-program-with source bytes (interface-fixity-headers interfaces) of
+                  Ok bytes -> case parse-program-with-index-tuned tuning source bytes (module-name-index (interface-fixity-headers interfaces)) of
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
                     Parsed program Nil -> case target-view-program profile program of
                       Err message -> write-failure ir message pipeline-check-refused
-                      Ok view -> (case check-object-client profile bytes view admitted of
+                      Ok view -> (case check-object-client-tuned tuning profile bytes view admitted of
                         Err message -> write-failure ir message pipeline-check-refused
-                        Ok checked -> prepare-library-object profile inlining requested checked interfaces bytes provider document provider-code ir object abi)
+                        Ok checked -> prepare-library-object-tuned tuning profile inlining requested checked interfaces bytes provider document provider-code ir object abi)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
   prepare-library-object :: forall r. using (io :: Io r) => TargetProfile -> Bool -> List (String, List Nat) -> CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
-  prepare-library-object profile inlining requested checked interfaces source provider document provider-code ir object abi = case runtime-library-unit-roots checked requested of
+  prepare-library-object profile inlining requested checked interfaces source provider document provider-code ir object abi =
+    prepare-library-object-tuned default-tuning profile inlining requested checked interfaces source provider document provider-code ir object abi
+  prepare-library-object-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> List (String, List Nat) -> CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path ->{IO r, Diverge} Int
+  prepare-library-object-tuned tuning profile inlining requested checked interfaces source provider document provider-code ir object abi = case runtime-library-unit-roots checked requested of
     Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
     Ok roots -> case export-object-interfaces checked interfaces source of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
@@ -1209,7 +1527,7 @@ module Bootstrap.Pipeline where
         Err message -> Err message
         Ok provider-rows -> object-interface-closure exported provider-rows) of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-        Ok closure -> case emit-runtime-library-artifact-for-profile profile False inlining checked (Some provider) roots of
+        Ok closure -> case emit-runtime-library-artifact-for-profile-tuned tuning profile False inlining checked (Some provider) roots of
           Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused
           Ok (text, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else
             case index-object-output-units units provider hash-map-empty of

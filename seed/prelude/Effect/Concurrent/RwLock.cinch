@@ -1,0 +1,46 @@
+-- | A native reader-writer lock box (`RwLock a`).
+--
+-- Multiple concurrent readers access the stored value without serializing
+-- behind a single mutex; writers take exclusive access to replace the value.
+-- Constructors are private; handles are `Copy`, and sharing across tasks
+-- requires the stored value type `a` to be `Share`.
+module Effect.Concurrent.RwLock where
+
+  import Data.Option
+
+  export RwLock, rwlock-new, rwlock-read, rwlock-write, rwlock-swap, rwlock-try-read, rwlock-try-write
+
+  -- | A shared reader-writer lock protecting a value of type `a`.
+  data RwLock a where
+    MkRwLock :: RwLockCell a -> RwLock a
+
+  foreign import ccall "cinch.runtime.rwlockNew" cell-new :: forall a. a ->{MVar} RwLockCell a
+  foreign import ccall "cinch.runtime.rwlockRead" cell-read :: forall a. RwLockCell a ->{MVar, Diverge} a
+  foreign import ccall "cinch.runtime.rwlockWrite" cell-write :: forall a. RwLockCell a -> a ->{MVar, Diverge} Unit
+  foreign import ccall "cinch.runtime.rwlockSwap" cell-swap :: forall a. RwLockCell a -> a ->{MVar, Diverge} a
+  foreign import ccall "cinch.runtime.rwlockTryRead" cell-try-read :: forall a. RwLockCell a ->{MVar} Option a
+  foreign import ccall "cinch.runtime.rwlockTryWrite" cell-try-write :: forall a. RwLockCell a -> a ->{MVar} Bool
+
+  -- | Create a new reader-writer lock initialized to `x`.
+  rwlock-new :: forall a. a ->{MVar} RwLock a
+  rwlock-new x = MkRwLock (cell-new x)
+
+  -- | Acquire shared read access and return a caller-owned reference to the stored value.
+  rwlock-read :: forall a. RwLock a ->{MVar, Diverge} a
+  rwlock-read (MkRwLock cell) = cell-read cell
+
+  -- | Acquire exclusive write access and replace the stored value.
+  rwlock-write :: forall a. RwLock a -> a ->{MVar, Diverge} Unit
+  rwlock-write (MkRwLock cell) x = cell-write cell x
+
+  -- | Acquire exclusive write access, replace the stored value, and return the previous value.
+  rwlock-swap :: forall a. RwLock a -> a ->{MVar, Diverge} a
+  rwlock-swap (MkRwLock cell) x = cell-swap cell x
+
+  -- | Non-blocking shared read: returns `Some value` if not write-locked, or `None` if contended.
+  rwlock-try-read :: forall a. RwLock a ->{MVar} Option a
+  rwlock-try-read (MkRwLock cell) = cell-try-read cell
+
+  -- | Non-blocking exclusive write: replaces the value and returns `True` if uncontended, else `False`.
+  rwlock-try-write :: forall a. RwLock a -> a ->{MVar} Bool
+  rwlock-try-write (MkRwLock cell) x = cell-try-write cell x

@@ -11,6 +11,17 @@ fn prim_scheme(op: PrimOp) -> Scheme {
         let mut labels = vec![EffLabel::plain("MVar")];
         if op.blocking() { labels.push(EffLabel::plain("Diverge")); }
         Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
+    } else if let PrimOp::RwLock { op, .. } = op {
+        let mut args = args;
+        let last = args.pop().expect("RwLock intrinsic argument");
+        let mut labels = vec![EffLabel::plain("MVar")];
+        if op.blocking() { labels.push(EffLabel::plain("Diverge")); }
+        Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
+    } else if matches!(op, PrimOp::Atomic(_)) {
+        let mut args = args;
+        let last = args.pop().expect("Atomic intrinsic argument");
+        let labels = vec![EffLabel::plain("MVar")];
+        Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
     } else {
         Ty::funs(&args, res)
     };
@@ -21,6 +32,7 @@ fn prim_scheme(op: PrimOp) -> Scheme {
         PrimOp::ArrayCompute { op, .. } => scheme.params = op.params(),
         PrimOp::Stm { op, .. } => scheme.params = op.params(),
         PrimOp::MVar { op, .. } => scheme.params = op.params(),
+        PrimOp::RwLock { op, .. } => scheme.params = op.params(),
         PrimOp::Slots { op, .. } => scheme.params = op.params(),
         _ => {}
     }
@@ -356,7 +368,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "Type" | "Prop" | "True" | "False"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Type" | "Prop" | "True" | "False"
             | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -375,7 +387,7 @@ fn builtin_type_name(name: &str) -> bool {
 fn reserved_data_type_name(name: &str) -> bool {
     Scalar::parse(name).is_some() || matches!(name,
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
+            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
             | "Code" | "Syntax" | "TypeSyntax" | "PackedCode"
             | "SyntaxBinding" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap")
@@ -766,7 +778,7 @@ impl Checker {
     }
 
     fn install_builtins(&mut self) {
-        for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
+        for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym", "AtomicCell"] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
                 strict_positive_payload: None,
                 data_family: false,
@@ -783,7 +795,7 @@ impl Checker {
         // a shape, a column layout or a transactional variable's cell.
         for (name, payload) in [
             ("Array", Some(StrictPositivePayload::FiniteOwnedArray)),
-            ("Tensor", None), ("Columnar", None), ("TVar", None), ("MVarCell", None),
+            ("Tensor", None), ("Columnar", None), ("TVar", None), ("MVarCell", None), ("RwLockCell", None),
         ] {
             self.types.entry(name.into()).or_default().push(TypeKind {
                 strict_positive_payload: payload,
@@ -3297,7 +3309,7 @@ impl Checker {
                         params: &rec.params,
                         references,
                         data_family: false,
-                        reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"),
+                        reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"),
                         fields: Some(rec.fields.iter().map(|f| f.name.text.clone()).collect()),
                         field_erased: rec.fields.iter().map(|f| f.erased).collect(),
                     });
@@ -3857,13 +3869,13 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
-                        let kind = if matches!(op, PrimOp::Ad { .. } | PrimOp::Array { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
+                        let kind = if matches!(op, PrimOp::Ad { .. } | PrimOp::Array { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. }) {
                             let (args, result) = op.sig();
                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
                             // A cell read answers the value's own class,
                             // which the unit's copies resolve per vector;
                             // every array operation answers a block.
-                            let repr_result = matches!(op, PrimOp::Ad { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
+                            let repr_result = matches!(op, PrimOp::Ad { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. })
                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
                             self.fns.push(FnDef {
                                 id: fn_id(&module, &f.name.text),
@@ -5047,7 +5059,7 @@ impl Checker {
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
+                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell") {
                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
                     }
                     // The head is already registered, with its parameter
@@ -5288,7 +5300,7 @@ impl Checker {
                         || matches!(
                             rec.name.text.as_str(),
                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
+                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )

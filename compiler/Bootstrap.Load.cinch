@@ -20,7 +20,7 @@ module Bootstrap.Load where
   import Data.Bytes (bytes-compare, bytes-get, bytes-len)
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Data.String (string-from-bytes)
+  import Data.String (string-from-bytes, string-to-bytes, string-length, utf8-valid-from)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span, bytes-slice)
   import Algebra.Semigroup
@@ -79,7 +79,7 @@ module Bootstrap.Load where
   -- closure test asks every interface for them, so deriving them per ask was
   -- queries x interfaces x rows work.
   data LoadedInterface where
-    MkLoadedInterface :: Bool -> String -> String -> Json -> Bytes -> List ImportedValue
+    MkLoadedInterface :: Bool -> String -> String -> Json -> String -> List ImportedValue
       -> List (String, String, Nat) -> List (String, String) -> ExportEntries
       -> List (String, String, String) -> List (String, String, String) -> Option (List TotalGraph) -> LoadedInterface
 
@@ -978,7 +978,8 @@ module Bootstrap.Load where
     let prepared = (case bodies of
       None -> None
       Some table -> Some (export-body-graphs bodies exports)) in
-    Ok (MkLoadedInterface verified name hash doc source (read-values (field "values" exports))
+    let text = if bytes-len source == 0 then "" else (case string-from-bytes source of Some s -> s; None -> "") in
+    Ok (MkLoadedInterface verified name hash doc text (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
       (export-entries rows exports) rows private prepared)
 
@@ -1028,7 +1029,7 @@ module Bootstrap.Load where
   read-known-source known name hash src = case hash-map-lookup name known of
     Some previous -> (case previous of
       MkLoadedInterface True owner identity original source values fixes refs entries exports methods bodies
-        | same hash identity && bytes-len source > 0 && bytes-compare source src == 0 -> Ok previous
+        | same hash identity && string-length source > 0 && bytes-compare (string-to-bytes source) src == 0 -> Ok previous
       other -> read-parsed-source known name hash src)
     None -> read-parsed-source known name hash src
   read-parsed-source :: HashMap String LoadedInterface -> String -> String -> Bytes -> Result String LoadedInterface
@@ -1231,7 +1232,7 @@ module Bootstrap.Load where
   index-contract-sources members sources = case members of
     Nil -> sources
     Cons (MkLoadedInterface True name hash doc original values fixes refs entries exports methods bodies) rest ->
-      index-contract-sources rest (if bytes-len original > 0 then hash-map-insert hash original sources else sources)
+      index-contract-sources rest (if string-length original > 0 then hash-map-insert hash (string-to-bytes original) sources else sources)
     Cons other rest -> index-contract-sources rest sources
 
   validated-interface-sources-match :: ValidatedInterfaces -> List (String, String, Bytes) -> Bool
@@ -1239,7 +1240,7 @@ module Bootstrap.Load where
   source-agrees :: LoadedInterface -> Bytes -> Bool
   source-agrees member bytes = case member of
     MkLoadedInterface verified name hash doc source values fixes refs entries exports methods bodies ->
-      bytes-len source > 0 && bytes-compare source bytes == 0
+      string-length source > 0 && bytes-compare (string-to-bytes source) bytes == 0
 
   -- Public reference rows resolve only to contracts already verified by the
   -- loader. A private entry still supplies its independently checked document.

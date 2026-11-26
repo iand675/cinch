@@ -227,6 +227,7 @@ pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
         B => unsafe { (*p.cast::<crate::bytes::Bytes>()).release() },
         crate::block::KIND_BYTES_MAPPED => unsafe { (*p.cast::<crate::bytes::Bytes>()).unmap() },
         crate::block::KIND_MVAR => unsafe { std::ptr::drop_in_place(p.cast::<crate::mvar::MVar>()) },
+        crate::block::KIND_RWLOCK => unsafe { std::ptr::drop_in_place(p.cast::<crate::rwlock::RwLockBox>()) },
         _ => {}
     }
 }

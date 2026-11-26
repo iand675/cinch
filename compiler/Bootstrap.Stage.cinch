@@ -746,7 +746,7 @@ module Bootstrap.Stage where
   macro-budget :: Nat
   macro-budget = 8192
 
-  expand-call :: MacroSite -> Span -> String -> List LToken -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  expand-call :: MacroSite -> Span -> String -> List MacroToken -> Nat -> Result (List Diagnostic) (Expr, Nat)
   expand-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else
     case caller of
       MkMacroSite owner fix modules names parent -> case lookup-macro names owner path of
@@ -756,7 +756,7 @@ module Bootstrap.Stage where
           Some definition -> let declarations = module-decls definition in case syntax-template-of home (stage-operation-available names home) name declarations of
             None -> expand-error site (cat ["macro `", path, "` has no quotation template; only a `[| ... |]` macro body expands in this rung"])
             Some template -> let parameters = macro-parameters name declarations in
-              let groups = macro-argument-groups tokens (list-length parameters) in
+              let groups = macro-argument-groups (thaw-macro-tokens tokens) (list-length parameters) in
               if list-length groups /= list-length parameters then
                 expand-error site (cat ["macro `", path, "` takes ", nat-to-string (list-length parameters), " token-tree argument(s), but the invocation supplies ", nat-to-string (list-length groups)])
               else let (renamed, serial) = hygienic-term template (macro-budget - fuel) in
@@ -812,7 +812,7 @@ module Bootstrap.Stage where
             None -> expand-error site ("unavailable macro module " <> home)
             Some definition -> case name-macro name (module-decls definition) of
               None -> Ok None
-              Some (params, body) -> case bind-operands site params (macro-argument-groups tokens (list-length params)) of
+              Some (params, body) -> case bind-operands site params (macro-argument-groups (thaw-macro-tokens tokens) (list-length params)) of
                 Err errors -> Err errors
                 Ok args -> let nested = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
                   (case reify-name nested args body (fuel - 1) of
@@ -833,7 +833,7 @@ module Bootstrap.Stage where
     Err errors -> Err errors
     Ok None -> (case operands of MacroOperands names syntax -> declaration-spelling site expression syntax fix)
 
-  expand-declaration-call :: MacroSite -> Span -> String -> List LToken -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-declaration-call :: MacroSite -> Span -> String -> List MacroToken -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declaration-call caller site path tokens fuel = if fuel == 0 || fuel > macro-budget then expand-error site "macro expansion exhausted its work budget" else case caller of
     MkMacroSite owner fix modules names parent -> (case lookup-macro names owner path of
       None -> expand-error site (cat ["declaration macro is not in scope: ", path])
@@ -841,7 +841,7 @@ module Bootstrap.Stage where
         None -> expand-error site (cat ["unavailable macro module ", home])
         Some definition -> case declaration-macro name (module-decls definition) of
           None -> expand-error site "emit requires a macro producing Declarations"
-          Some (params, template) -> let groups = macro-argument-groups tokens (list-length params) in
+          Some (params, template) -> let groups = macro-argument-groups (thaw-macro-tokens tokens) (list-length params) in
             if list-length groups /= list-length params then expand-error site "declaration macro token-tree arity mismatch" else
               let scope = MkMacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
               (case bind-operands site params groups of
@@ -863,7 +863,7 @@ module Bootstrap.Stage where
       (MkMacroSite owner fix modules namespaces parent, args, EMacroCall at path tokens) -> (case lookup-macro namespaces owner path of
         Some (home, name) -> (case hash-map-lookup home modules of
           Some definition -> (case value-macro "Syntax" name (module-decls definition) of
-            Some (params, body) -> (case bind-operands at params (macro-argument-groups tokens (list-length params)) of
+            Some (params, body) -> (case bind-operands at params (macro-argument-groups (thaw-macro-tokens tokens) (list-length params)) of
               Ok nested -> field-syntax (MkMacroSite home (indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
               Err errors -> Err errors)
             None -> expand-error at "record fields require a macro producing Syntax")

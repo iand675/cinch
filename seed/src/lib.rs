@@ -52,6 +52,7 @@ pub mod stack;
 pub mod stm;
 pub mod slots;
 pub mod store;
+pub mod sync_prim;
 pub mod types;
 pub mod wide;
 pub mod total;

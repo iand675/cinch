@@ -158,6 +158,14 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Effect/Concurrent/MVar.cinch"),
     ),
     (
+        "Effect/Concurrent/Atomic.cinch",
+        include_str!("../prelude/Effect/Concurrent/Atomic.cinch"),
+    ),
+    (
+        "Effect/Concurrent/RwLock.cinch",
+        include_str!("../prelude/Effect/Concurrent/RwLock.cinch"),
+    ),
+    (
         "Effect/Clock.cinch",
         include_str!("../prelude/Effect/Clock.cinch"),
     ),

@@ -28,16 +28,21 @@ module Bootstrap.RuntimeIr where
   import Text.Show (nat-to-string, int-to-string)
   import Text.Scan (string-split-on, string-starts-with, string-contains)
   import Text.Lex (Span)
-  import Data.Array (array-from-list, array-get)
+  import Data.Array
+  import Bootstrap.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
+  import Bootstrap.Borrow (compute-borrow-modes, same-borrow-modes, any-borrowed)
+  import Bootstrap.Ownership (term-uses-id, terms-use-id, term-use-count, arm-has-reuse-alloc, compute-consumed-params, same-bool-maps, frame-let-mode, compute-arena-phases, same-arena-phases, program-uses-concurrency, is-immortal-enum-data)
   import Bootstrap.Document
   import Bootstrap.Target (TargetProfile, host-profile, selection-arch, profile-features, profile-required, target-ir-header)
   import Data.List (split-at)
-  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-to-list)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
   export emit-runtime-program-mode, emit-runtime-program-with-object-mode, emit-runtime-program-counting-mode
   export emit-runtime-program-for-target, emit-runtime-library-artifact-for-target
   export emit-runtime-program-for-profile, emit-runtime-library-artifact-for-profile
+  export emit-runtime-program-for-profile-tuned, emit-runtime-library-artifact-for-profile-tuned
+  export EmittedUnit, UnitIrCache, empty-unit-ir-cache, unit-cache-size, emit-runtime-program-for-profile-cached
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
   export emit-runtime-library-with-object-mode
   export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
@@ -62,13 +67,16 @@ module Bootstrap.RuntimeIr where
     -- A binder whose value is a constructor application that has not been
     -- built. A non-case use builds it; a case on it folds without building.
     DeferredConstructor :: Nat -> UType -> String -> List UType -> List CoreTerm -> Local
+    -- Marker indicating codegen is inside a self-tail loop body so stack
+    -- frame allocas are skipped and stack space stays O(1).
+    LoopMarker :: Local
 
   data RecursiveWorker where
     RecursiveWorker :: Nat -> UType -> String -> List CorePattern -> CoreTerm -> RecursiveWorker
 
   data TailContext where
     LocalTail :: List RecursiveWorker -> List Local -> Nat -> TailContext
-    GlobalTail :: Nat -> Nat -> Option (String, String) -> TailContext
+    GlobalTail :: Nat -> Nat -> Option (String, String) -> List Bool -> TailContext
 
   data Demand where
     Demand :: String -> List Nat -> Demand
@@ -89,6 +97,7 @@ module Bootstrap.RuntimeIr where
     PrimitiveIntrinsicDemand :: String -> Demand
     PrimitiveUseDemand :: String -> String -> Demand
     CprDemand :: String -> List Nat -> Demand
+    BorrowDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
@@ -104,8 +113,15 @@ module Bootstrap.RuntimeIr where
     CallableBindings :: HashMap String (List CheckedBinding) -> HashMap String CheckedBinding -> HashMap String CheckedBinding -> HashMap String TotalFunction -> HashMap String TotalFunction -> CallableBindings
   data ForeignBindings where
     ForeignBindings :: HashMap String (Option ForeignPlan) -> HashMap String (List ForeignPlan) -> List UType -> ForeignBindings
+  -- Static ownership plan computed once per program:
+  --   borrows, consumed-params (for RC_FRAME escape analysis),
+  --   bounded region-arena phases, and whether concurrency primitives are used.
+  data OwnershipPlan where
+    OwnershipPlan :: HashMap String (List Bool) -> HashMap String (List Bool) -> HashMap String Bool -> Bool -> OwnershipPlan
+  empty-ownership-plan :: OwnershipPlan
+  empty-ownership-plan = OwnershipPlan hash-map-empty hash-map-empty hash-map-empty True
   data BindingIndex where
-    BindingIndex :: CallableBindings -> ForeignBindings -> Option (HashMap String FunctionHints) -> HashMap String CoreDefinition -> BindingIndex
+    BindingIndex :: CallableBindings -> ForeignBindings -> Option (HashMap String FunctionHints) -> HashMap String CoreDefinition -> OwnershipPlan -> BindingIndex
   -- Keep declaration order for emitted layouts. The indexes are lookup-only,
   -- so their iteration order cannot affect the output.
   data DataIndex where
@@ -167,16 +183,19 @@ module Bootstrap.RuntimeIr where
   -- spelled so it can sit inside a quoted LLVM name, and empty between
   -- units; `serial` numbers what belongs to the module and to no unit.
   data WorkerQueue where
-    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> String -> Nat -> WorkerQueue
+    WorkerQueue :: List Demand -> HashMap String Unit -> Bool -> String -> Nat -> Bool -> WorkerQueue
   empty-queue :: WorkerQueue
-  empty-queue = WorkerQueue Nil hash-map-empty False "" 8
+  empty-queue = WorkerQueue Nil hash-map-empty False "" 8 False
 
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> WorkerQueue -> InlinePlan -> RuntimeContext
   -- An even key records the layout descriptor. The following odd key
-  -- records the nullary block with that same description.
+  -- records the nullary block with that same description. Shared globals
+  -- (`@cinch.desc.*` and `@empty-ctor*`) are recorded in `shared` so
+  -- parallel frontier units can emit independently and deduplicate
+  -- deterministically at merge time.
   data GlobalOutput where
-    GlobalOutput :: Builder -> HashMap Nat Nat -> GlobalOutput
+    GlobalOutput :: Builder -> HashMap Nat Nat -> List (Nat, String) -> GlobalOutput
   data Writer where
     Writer :: Nat -> GlobalOutput -> Builder -> List Diagnostic -> LayoutPlan -> RuntimeContext -> Writer
 
@@ -190,10 +209,26 @@ module Bootstrap.RuntimeIr where
   emit-lines w texts = case texts of Nil -> w; Cons first rest -> emit-lines (line w first) rest
   global :: Writer -> String -> Writer
   global w text = case w of
-    Writer next (GlobalOutput output defined) code errors layouts context ->
-      Writer next (GlobalOutput (builder-add-line text output) defined) code errors layouts context
+    Writer next (GlobalOutput output defined shared) code errors layouts context ->
+      Writer next (GlobalOutput (builder-add-line text output) defined shared) code errors layouts context
+  shared-global :: Writer -> Nat -> String -> Writer
+  shared-global w key text = case w of
+    Writer next (GlobalOutput output defined shared) code errors layouts context ->
+      case hash-map-lookup key defined of
+        Some written -> w
+        None -> Writer next (GlobalOutput output (hash-map-insert key 1 defined) (Cons (key, text) shared)) code errors layouts context
+  add-shared-lines :: List (Nat, String) -> Builder -> Builder
+  add-shared-lines rows acc = case rows of
+    Nil -> acc
+    Cons (key, text) rest -> add-shared-lines rest (builder-add-line text acc)
   render-globals :: GlobalOutput -> String
-  render-globals globals = case globals of GlobalOutput output defined -> builder-run output
+  render-globals globals = case globals of
+    GlobalOutput output defined shared ->
+      let shared-text = builder-run (add-shared-lines (reverse shared) builder-new) in
+      let own-text = builder-run output in
+      if string-length shared-text == 0 then own-text
+      else if string-length own-text == 0 then shared-text
+      else shared-text <> own-text
   -- Names come from three places, by what a name has to be unique in.
   --
   -- A local or a label is unique in its function. `fresh` numbers those
@@ -212,22 +247,25 @@ module Bootstrap.RuntimeIr where
   --
   -- Metadata is numbered and module wide by LLVM's rule, and anything asked
   -- for between units has no unit to be named by. `fresh-serial` numbers
-  -- both from a counter that never restarts.
+  -- both from a counter that never restarts in sequential mode, or emits
+  -- unit-local metadata placeholders (`!__cmN__`) in parallel frontier mode
+  -- that are deterministically renumbered at wave merge.
   fresh :: Writer -> String -> (Writer, String)
   fresh w prefix = case w of Writer next globals code errors layouts datas -> (Writer (next + 1) globals code errors layouts datas, cat [prefix, nat-to-string next])
   fresh-serial :: Writer -> String -> (Writer, String)
   fresh-serial w prefix = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
-      (Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope (serial + 1)) inlining), cat [prefix, nat-to-string serial])
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) ->
+      let emitted = if unit-mode && same prefix "!" then cat ["!__cm", nat-to-string serial, "__"] else cat [prefix, nat-to-string serial] in
+      (Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope (serial + 1) unit-mode) inlining), emitted)
   -- `kind` is `.kind` for a worker, whose name `symbol` wraps later, and a
   -- bare word for a global, whose name is quoted here because a unit's name
   -- holds characters a bare LLVM name may not.
   fresh-scoped :: Writer -> String -> (Writer, String)
   fresh-scoped w prefix = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) ->
       let worker = string-starts-with "." prefix in
       if same scope "" then fresh-serial w (if worker then prefix else cat ["@", prefix])
-      else (Writer (next + 1) globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining),
+      else (Writer (next + 1) globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining),
         if worker then cat [scope, prefix, nat-to-string next] else cat ["@\"", scope, ".", prefix, nat-to-string next, "\""])
   refuse :: Writer -> Span -> String -> Writer
   refuse w sp text = case w of Writer next globals code errors layouts datas -> Writer next globals code (Cons (MkDiagnostic "bootstrap.runtime-ir" sp text) errors) layouts datas
@@ -267,28 +305,54 @@ module Bootstrap.RuntimeIr where
   program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> instances
   program-callable-bindings :: ProgramInfo -> CallableBindings
   program-callable-bindings info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> callable
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions borrows) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> callable
   -- The first binding of this name still controls foreign lookup, even if
   -- a later binding of the same name carries a foreign plan.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions borrows) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   foreign-symbol-plans :: String -> ProgramInfo -> List ForeignPlan
   foreign-symbol-plans symbol info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case hash-map-lookup symbol symbols of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions borrows) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case hash-map-lookup symbol symbols of
       Some plans -> plans
       None -> Nil
   foreign-pointer-types :: ProgramInfo -> List UType
   foreign-pointer-types info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> pointers
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions borrows) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> pointers
   index-bindings :: CheckedProgram -> List CoreDefinition -> BindingIndex
   index-bindings checked definitions =
     let bindings = reverse (elaboration-bindings (checked-elaboration checked)) in
     let callable = index-callable bindings (CallableBindings hash-map-empty hash-map-empty hash-map-empty hash-map-empty hash-map-empty) in
     let foreigns = index-foreign bindings (ForeignBindings hash-map-empty hash-map-empty Nil) in
-    BindingIndex callable foreigns (collect-function-hints (program-modules (checked-surface checked)) None) (index-definitions (reverse definitions) hash-map-empty)
+    BindingIndex callable foreigns (collect-function-hints (program-modules (checked-surface checked)) None) (index-definitions (reverse definitions) hash-map-empty) empty-ownership-plan
+  program-ownership :: ProgramInfo -> OwnershipPlan
+  program-ownership info = case info of
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions plan) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> plan
+  with-ownership-plan :: OwnershipPlan -> ProgramInfo -> ProgramInfo
+  with-ownership-plan plan info = case info of
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions old) versions provider exposed effects tail-groups reclaim wasm32 families promoted ->
+      ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions plan) versions provider exposed effects tail-groups reclaim wasm32 families promoted
+  program-borrow-modes :: ProgramInfo -> HashMap String (List Bool)
+  program-borrow-modes info = case program-ownership info of
+    OwnershipPlan borrows consumed arenas concurrent -> borrows
+  program-consumed-params :: ProgramInfo -> HashMap String (List Bool)
+  program-consumed-params info = case program-ownership info of
+    OwnershipPlan borrows consumed arenas concurrent -> consumed
+  program-arena-phases :: ProgramInfo -> HashMap String Bool
+  program-arena-phases info = case program-ownership info of
+    OwnershipPlan borrows consumed arenas concurrent -> arenas
+  program-concurrent :: ProgramInfo -> Bool
+  program-concurrent info = case program-ownership info of
+    OwnershipPlan borrows consumed arenas concurrent -> concurrent
+  same-ownership-plan :: List CoreDefinition -> OwnershipPlan -> OwnershipPlan -> Bool
+  same-ownership-plan definitions left right = case (left, right) of
+    (OwnershipPlan b1 c1 a1 m1, OwnershipPlan b2 c2 a2 m2) ->
+      (if m1 then m2 else not m2)
+      && same-borrow-modes definitions b1 b2
+      && same-bool-maps definitions c1 c2
+      && same-arena-phases definitions a1 a2
   prepend-binding :: forall a. String -> a -> HashMap String (List a) -> HashMap String (List a)
   prepend-binding key value entries = case hash-map-lookup key entries of
     Some found -> hash-map-insert key (Cons value found) entries
@@ -323,7 +387,7 @@ module Bootstrap.RuntimeIr where
     Cons other rest -> index-function-hints rest hints
   function-hints :: ProgramInfo -> String -> FunctionHints
   function-hints info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> lookup-hints name hints
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions borrows) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> lookup-hints name hints
     other -> FunctionHints "" False None
   function-hint :: ProgramInfo -> String -> String
   function-hint info name = case function-hints info name of FunctionHints inline cold loop -> inline
@@ -533,7 +597,7 @@ module Bootstrap.RuntimeIr where
                 else if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then Some 0
                 else if is-type-family-name name (program-type-families datas) then Some 1
                 else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
-                else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
+                else if (same name "Bytes" || same name "String" || same name "AtomicCell") && kind-equal kind KType then Some 1 else
                 (case data-declaration name datas of
                   Some d -> Some (data-word-class d)
                   None -> if kind-equal kind KType && checked-string-word name datas then Some 1
@@ -677,13 +741,14 @@ module Bootstrap.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
     PrimitiveUseDemand symbol decl -> cat ["prim use:", symbol]
     CprDemand name classes -> cat [specialized-name name classes, "#cpr"]
+    BorrowDemand name classes -> cat [specialized-name name classes, "#b"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) ->
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) ->
       let key = demand-key demand in case hash-map-lookup key keys of
         Some found -> w
-        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries scope serial in
+        None -> let queue = WorkerQueue (Cons demand pending) (hash-map-insert key () keys) dictionaries scope serial unit-mode in
           Writer next globals code errors layouts (RuntimeContext datas bounds rigids queue inlining)
   demand-worker :: String -> List Nat -> Writer -> Writer
   demand-worker name classes w = request-demand (Demand name classes) w
@@ -694,21 +759,37 @@ module Bootstrap.RuntimeIr where
   -- A constant operand is 0, a raw word or an immediate, never a block.
   count-call :: Bool -> String -> String
   count-call duplicate value = cat ["  call void @cinch.typed.rc.", if duplicate then "dup" else "drop", "(i64 ", value, ")"]
+  count-call-local :: Bool -> String -> String
+  count-call-local duplicate value = cat ["  call void @cinch.typed.rc.", if duplicate then "dup" else "drop", ".local(i64 ", value, ")"]
   constant-word :: String -> Bool
   constant-word value = case string-char-at value 0 of
     Some c -> let code = char-code c in (code >= 48 && code <= 57) || code == 45
     None -> False
+  is-immortal-enum-type :: RuntimeContext -> UType -> Bool
+  is-immortal-enum-type context ty = case type-head (base ty) of
+    UCon name kind -> (case data-declaration name (program-info context) of
+      Some d -> is-immortal-enum-data d
+      None -> False)
+    other -> False
   -- One count operation as a line, or nothing under an emission that does
   -- not reclaim. Every direct call site goes through here, so the switch
   -- reaches the array, platform, builtin, stub and memo paths as well as
   -- `count-op`.
   count-line :: Bool -> String -> Writer -> Writer
   count-line duplicate value w = if program-reclaim (writer-program w) then line w (count-call duplicate value) else w
+  count-line-local :: Bool -> String -> Writer -> Writer
+  count-line-local duplicate value w = if program-reclaim (writer-program w) then line w (count-call-local duplicate value) else w
   count-op :: Bool -> UType -> String -> Writer -> Writer
   count-op duplicate ty value w = case word-class (writer-context w) ty of
     Some 0 -> w
     Some 3 -> w
-    Some code -> if constant-word value then w else count-line duplicate value w
+    Some code -> if constant-word value || is-immortal-enum-type (writer-context w) ty then w else count-line duplicate value w
+    None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
+  count-op-local :: Bool -> UType -> String -> Writer -> Writer
+  count-op-local duplicate ty value w = case word-class (writer-context w) ty of
+    Some 0 -> w
+    Some 3 -> w
+    Some code -> if constant-word value || is-immortal-enum-type (writer-context w) ty then w else count-line-local duplicate value w
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
   drop-locals :: List Local -> Writer -> Writer
   drop-locals locals w = case locals of
@@ -721,6 +802,12 @@ module Bootstrap.RuntimeIr where
     Cons (KnownSelf symbol name classes context) rest -> drop-locals rest w
     Cons (DeferredConstructor id ty name actuals args) rest -> drop-locals rest w
     Cons (SelfValue owner slot ty word) rest -> drop-locals rest w
+    Cons LoopMarker rest -> drop-locals rest w
+  in-loop-locals :: List Local -> Bool
+  in-loop-locals locals = case locals of
+    Nil -> False
+    Cons LoopMarker rest -> True
+    Cons other rest -> in-loop-locals rest
   local :: Nat -> List Local -> Option (UType, String)
   local id locals = case locals of
     Nil -> None
@@ -732,6 +819,7 @@ module Bootstrap.RuntimeIr where
     Cons (KnownSelf symbol name classes context) rest -> local id rest
     Cons (SelfValue owner slot ty word) rest -> local id rest
     Cons (DeferredConstructor key ty name actuals args) rest -> local id rest
+    Cons LoopMarker rest -> local id rest
 
   -- A shaped block describes itself (design/self-describing-blocks.md).
   -- Its description is the header's layout field, tag | counted-mask << 8,
@@ -772,19 +860,15 @@ module Bootstrap.RuntimeIr where
     cat [", i64 ", nat-to-string (mask % 18446744073709551616), descriptor-mask-words (mask / 18446744073709551616) (count - 1)]
   -- Emit an escaped description's static descriptor at its first use.
   with-descriptor :: Writer -> Nat -> Writer
-  with-descriptor w description = if description < 16777216 then w else case w of
-    Writer next (GlobalOutput output defined) code errors layouts context ->
-      let key = 2 * description in
-      (case hash-map-lookup key defined of
-        Some written -> w
-        None ->
-          let content = description - 16777216 in
-          let rest = content / 16777216 in
-          let words = rest % 65536 in
-          let mask-count = (words + 63) / 64 in
-          let declaration = cat [descriptor-symbol description, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
-            nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"] in
-          Writer next (GlobalOutput (builder-add-line declaration output) (hash-map-insert key 1 defined)) code errors layouts context)
+  with-descriptor w description = if description < 16777216 then w else
+    let key = 2 * description in
+    let content = description - 16777216 in
+    let rest = content / 16777216 in
+    let words = rest % 65536 in
+    let mask-count = (words + 63) / 64 in
+    let declaration = cat [descriptor-symbol description, " = private unnamed_addr constant [", nat-to-string (2 + mask-count), " x i64] [i64 ",
+      nat-to-string (content % 16777216), ", i64 ", nat-to-string words, descriptor-mask-words (rest / 65536) mask-count, "], align 8"] in
+    shared-global w key declaration
   -- A description as one word, for a runtime entry that takes either form
   -- (the columnar zip's pair): field << 1 | 1, or the descriptor's address.
   description-word :: Writer -> Nat -> (Writer, String)
@@ -812,15 +896,18 @@ module Bootstrap.RuntimeIr where
   static-word-value wasm32 word = case word of
     StaticBits bits -> cat ["i64 ", nat-to-string bits]
     StaticAddress address -> if wasm32 then cat ["[2 x i32] [i32 ptrtoint (ptr ", address, " to i32), i32 0]"] else cat ["i64 ptrtoint (ptr ", address, " to i64)"]
-  static-block :: Writer -> String -> Nat -> Nat -> List StaticWord -> Writer
-  static-block w storage descriptor kind payload =
+  static-block-line :: Bool -> String -> Nat -> Nat -> List StaticWord -> String
+  static-block-line wasm32 storage descriptor kind payload =
     let header = StaticBits (static-header kind (description-field descriptor)) in
     let body = Cons header payload in
     let words = if description-escaped descriptor then Cons (StaticAddress (descriptor-symbol descriptor)) body else body in
-    let wasm32 = program-wasm32 (writer-program w) in
     let values = join (map (static-word-value wasm32) words) in
     let initializer = if wasm32 then cat ["<{ ", join (map static-word-type words), " }> <{ ", values, " }>"] else cat ["[", nat-to-string (list-length words), " x i64] [", values, "]"] in
-    global (with-descriptor w descriptor) (cat [storage, " = private unnamed_addr constant ", initializer, ", align 8"])
+    cat [storage, " = private unnamed_addr constant ", initializer, ", align 8"]
+  static-block :: Writer -> String -> Nat -> Nat -> List StaticWord -> Writer
+  static-block w storage descriptor kind payload =
+    let wasm32 = program-wasm32 (writer-program w) in
+    global (with-descriptor w descriptor) (static-block-line wasm32 storage descriptor kind payload)
   static-prefix-words :: Nat -> Nat
   static-prefix-words description = if description-escaped description then 1 else 0
   -- A payload's per-word codes from its per-field classes: a wide field
@@ -995,7 +1082,13 @@ module Bootstrap.RuntimeIr where
     Cons d rest -> index-definitions rest (hash-map-insert (core-name d) d table)
   worker-definition :: String -> Writer -> Option CoreDefinition
   worker-definition name w = case writer-program w of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects groups reclaim wasm32 families promoted -> hash-map-lookup name definitions
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions borrows) versions provider exposed effects groups reclaim wasm32 families promoted -> hash-map-lookup name definitions
+  borrowed-local-word :: List Local -> CoreTerm -> Option String
+  borrowed-local-word locals term = case term of
+    CForget sp ty inner -> borrowed-local-word locals inner
+    CCast sp ty inner -> borrowed-local-word locals inner
+    CLocal sp ty id name Nil -> (case local id locals of Some (decl, word) -> Some word; None -> None)
+    other -> None
   join :: List String -> String
   join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
   argument-words :: List String -> List String
@@ -1504,6 +1597,206 @@ module Bootstrap.RuntimeIr where
       Ok (success, after) -> Ok (CIf sp output test success fallback, after)) cursor
     other -> handler-cps context (Span 0 0 1 1) body next cursor
 
+  all-i64-llvms :: List String -> Bool
+  all-i64-llvms llvms = case llvms of
+    Nil -> True
+    Cons ty rest -> same ty "i64" && all-i64-llvms rest
+
+  drop-typed-fields-rev :: List UType -> List String -> Writer -> Writer
+  drop-typed-fields-rev tys vals w = case (tys, vals) of
+    (Cons ty ts, Cons val vs) -> count-op False ty val (drop-typed-fields-rev ts vs w)
+    other -> w
+
+  frame-rhs-shape :: Writer -> CoreTerm -> Option (Writer, Nat, List CoreTerm)
+  frame-rhs-shape w rhs = case rhs of
+    CTuple tsp tty fields -> (case term-fields fields of
+      Some actual ->
+        let n = list-length actual in
+        if n == 0 || n > 8 || not (field-words (writer-context w) actual) then None
+        else if not (all-i64-llvms (value-llvms (writer-context w) (term-types actual))) then None
+        else
+          let (planned, desc) = request-layout tsp actual w in
+          if description-escaped desc then None else Some (planned, desc, actual)
+      None -> None)
+    other -> case head rhs of
+      CUse at cty name role actuals | same role "constructor" ->
+        let args = arguments rhs Nil in
+        let n = list-length args in
+        if n == 0 || n > 8 then None
+        else (case constructor name (writer-program w) of
+          Some (owner, tag, c) | list-length (core-constructor-fields c) == n ->
+            (case data-declaration owner (writer-program w) of
+              Some d -> (case core-data-layout d of
+                UniformData -> (case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
+                  Some classes -> (case constructor-context d classes w of
+                    Some ctx ->
+                      if not (all-i64-llvms (value-llvms (writer-context w) (term-types args))) then None
+                      else (case request-data at d classes w of
+                        (planned, descriptors) ->
+                          let desc = data-descriptor descriptors tag in
+                          if description-escaped desc then None else Some (planned, desc, args))
+                    None -> None)
+                  None -> None)
+                other -> None)
+              None -> None)
+          other -> None)
+      other -> None
+
+  -- | Idea 3: Stack-allocate (`RC_FRAME`) a non-escaping constructor/tuple `let`
+  -- binding outside loops. Mode 1 (borrowed-only uses) emits zero-FFI inline
+  -- reverse-order field release; mode 2 (single callee-consumed use) calls
+  -- `@cinch_frame_release` on exit.
+  try-frame-let :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> UType -> CoreTerm -> CoreTerm -> Option (Writer, String)
+  try-frame-let definitions locals w sp id ty rhs body =
+    if not (program-reclaim (writer-program w)) || in-loop-locals locals then None
+    else case word-class (writer-context w) ty of
+      Some 1 ->
+        let info = writer-program w in
+        let mode = frame-let-mode id body (program-borrow-modes info) (program-consumed-params info) False in
+        if mode == 0 then None
+        else (case frame-rhs-shape w rhs of
+          None -> None
+          Some (planned, desc, args) ->
+            let n = list-length args in
+            let field-tys = term-types args in
+            case expressions definitions locals planned args of
+              (ready, vals) ->
+                let (w1, fslot) = fresh ready "%fslot" in
+                let (w2, fptr) = fresh w1 "%fptr" in
+                let (w3, fword) = fresh w2 "%fword" in
+                let hdr-live = static-header 1 (description-field desc) + 17179869183 in
+                let hdr-dead = static-header 1 (description-field desc) + 17179869182 in
+                let arr-ty = cat ["[", nat-to-string (n + 1), " x i64]"] in
+                let allocated = emit-lines w3 [
+                  cat ["  ", fslot, " = alloca ", arr-ty, ", align 8"],
+                  cat ["  store i64 ", nat-to-string hdr-live, ", ptr ", fslot, ", align 8"],
+                  cat ["  ", fptr, " = getelementptr inbounds i64, ptr ", fslot, ", i64 1"]] in
+                let filled = store-typed allocated fptr 0 (typed-words vals) in
+                let boxed = line filled (cat ["  ", fword, " = ptrtoint ptr ", fptr, " to i64"]) in
+                let binding = if mode == 1 then Borrowed id ty fword else Local id ty fword in
+                case expression definitions (Cons binding locals) boxed body of
+                  (done, result) ->
+                    let released = (if mode == 1 then
+                          let marked = line done (cat ["  store i64 ", nat-to-string hdr-dead, ", ptr ", fslot, ", align 8"]) in
+                          drop-typed-fields-rev field-tys vals marked
+                        else line done (cat ["  call void @cinch_frame_release(i64 ", fword, ")"])) in
+                    Some (released, result))
+      other -> None
+
+  unwrap-let-var :: CoreTerm -> Option Nat
+  unwrap-let-var term = case term of
+    CLocal sp ty id name Nil -> Some id
+    CForget sp ty inner -> unwrap-let-var inner
+    CCast sp ty inner -> unwrap-let-var inner
+    other -> None
+
+  -- Check if `needle` appears directly as `CLocal needle` in exactly one slot
+  -- of `args`, and is NOT referenced anywhere in any other slot.
+  single-direct-move-slot :: Nat -> List CoreTerm -> Nat -> Option Nat
+  single-direct-move-slot needle args idx = case args of
+    Nil -> None
+    Cons a rest -> case unwrap-let-var a of
+      Some lid | lid == needle -> if terms-use-id needle rest then None else Some idx
+      other -> if term-uses-id needle a then None else single-direct-move-slot needle rest (idx + 1)
+
+  eval-args-moving :: List CoreDefinition -> List Local -> Writer -> Nat -> String -> Nat -> List CoreTerm -> (Writer, List String)
+  eval-args-moving definitions locals w target-idx moved-word idx args = case args of
+    Nil -> (w, Nil)
+    Cons a rest ->
+      if idx == target-idx then
+        (case eval-args-moving definitions locals w target-idx moved-word (idx + 1) rest of
+          (done, more) -> (done, Cons moved-word more))
+      else
+        (case expression definitions locals w a of
+          (ready, val) -> case eval-args-moving definitions locals ready target-idx moved-word (idx + 1) rest of
+            (done, more) -> (done, Cons val more))
+
+  try-move-into-alloc :: List CoreDefinition -> List Local -> Writer -> Nat -> UType -> String -> CoreTerm -> Option (Writer, String)
+  try-move-into-alloc definitions locals w id ty value body =
+    if not (same (value-llvm (writer-context w) ty) "i64") then None
+    else case body of
+      CTuple sp tty fields -> (case term-fields fields of
+        Some actual ->
+          if list-length actual > 16 || not (field-words (writer-context w) actual) then None
+          else (case single-direct-move-slot id actual 0 of
+            Some slot ->
+              (case eval-args-moving definitions locals w slot value 0 actual of
+                (evaluated, values) ->
+                  let (planned, descriptor) = request-layout sp actual evaluated in
+                  Some (allocate-typed planned descriptor (typed-values (value-llvms (writer-context planned) (term-types actual)) values)))
+            None -> None)
+        None -> None)
+      other -> case head body of
+        CUse at cty cname role actuals | same role "constructor" ->
+          let args = arguments body Nil in
+          (case single-direct-move-slot id args 0 of
+            None -> None
+            Some slot -> (case constructor cname (writer-program w) of
+              Some (owner, tag, c) | list-length args == list-length (core-constructor-fields c) ->
+                (case data-declaration owner (writer-program w) of
+                  Some d -> (case core-data-layout d of
+                    UniformData -> (case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
+                      Some classes -> (case constructor-context d classes w of
+                        Some ctx ->
+                          if not (all-i64-llvms (value-llvms ctx (core-constructor-fields c))) then None
+                          else (case request-data at d classes w of
+                            (planned, descriptor) -> case eval-args-moving definitions locals planned slot value 0 args of
+                              (ready, values) -> Some (allocate-typed ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values)))
+                        None -> None)
+                      None -> None)
+                    other -> None)
+                  None -> None)
+              other -> None))
+        other -> None
+
+  simple-word-let :: List CoreDefinition -> Writer -> CoreTerm -> Option (Span, Nat, UType, CoreTerm, CoreTerm)
+  simple-word-let definitions w term = case term of
+    CLet sp ty id name sc rhs body ->
+      (case fuse-scoped-call definitions w term of
+        Some f -> None
+        None ->
+          let has-params = (case scheme-params sc of Nil -> False; other -> True) in
+          let no-reqs = (case scheme-requirements sc of Nil -> True; other -> False) in
+          if (has-params && local-function-value rhs && no-reqs) || deferred-let w id sc rhs body then None
+          else if erased-region-parameters (scheme-params sc) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+            Some (sp, id, scheme-body sc, rhs, body)
+          else None)
+    other -> None
+
+  -- | Idea 1: Evaluate `body` with owned binding `(id, ty, value)`, applying:
+  --   1) Direct last-use return move (0 dup, 0 drop)
+  --   2) Nested-let early drop / linear chain move (drop `id` immediately after
+  --      `rhs2` when `id` is dead in `body2`)
+  --   3) Owned `CCase` scrutinee transfer (0 dup, enables Perceus reset/reuse)
+  --   4) Single-use direct move into a constructor or tuple field (0 dup, 0 drop)
+  eval-let-body :: List CoreDefinition -> List Local -> Writer -> Nat -> UType -> String -> CoreTerm -> (Writer, String)
+  eval-let-body definitions locals w id ty value body =
+    if not (term-uses-id id body) then
+      expression definitions locals (count-op False ty value w) body
+    else case unwrap-let-var body of
+      Some lid | lid == id -> (w, value)
+      other -> case simple-word-let definitions w body of
+        Some (sp2, id2, ty2, rhs2, body2) | id2 /= id && not (term-uses-id id body2) ->
+          (case eval-let-body definitions locals w id ty value rhs2 of
+            (ready, val2) -> eval-let-body definitions locals ready id2 ty2 val2 body2)
+        other -> case body of
+          CCase sp2 cty scrut alts | (case unwrap-let-var scrut of Some sid -> sid == id; None -> False) && not (term-uses-id id alts) ->
+            case-value definitions locals w ty value alts
+          other -> case try-move-into-alloc definitions locals w id ty value body of
+            Some moved -> moved
+            None -> case expression definitions (Cons (Local id ty value) locals) w body of
+              (done, result) -> (count-op False ty value done, result)
+
+  emit-let :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  emit-let definitions locals w sp id ty rhs body =
+    if not (term-uses-id id body) then
+      (case expression definitions locals w rhs of
+        (bound, value) -> expression definitions locals (count-op False ty value bound) body)
+    else case try-frame-let definitions locals w sp id ty rhs body of
+      Some framed -> framed
+      None -> case expression definitions locals w rhs of
+        (bound, value) -> eval-let-body definitions locals bound id ty value body
+
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
     CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text)
@@ -1559,9 +1852,7 @@ module Bootstrap.RuntimeIr where
           Some (ctor, actuals, args) -> expression definitions (Cons (DeferredConstructor id (scheme-body sc) ctor actuals args) locals) w body
           None -> unsupported w sp "deferred constructor let failed its checked representation")
         else if erased-region-parameters (scheme-params sc) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
-        (case expression definitions locals w rhs of
-          (bound, value) -> case expression definitions (Cons (Local id (scheme-body sc) value) locals) bound body of
-            (done, result) -> (count-op False (scheme-body sc) value done, result))
+          emit-let definitions locals w sp id (scheme-body sc) rhs body
         else (case bundled-let sp id sc rhs body of
           Some bundled -> expression definitions locals w bundled
           None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")
@@ -1573,8 +1864,10 @@ module Bootstrap.RuntimeIr where
       Some folded -> folded
       None -> case fuse-array-case definitions locals w sp value alternatives of
         Some fused -> fused
-        None -> case expression definitions locals w value of
-          (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
+        None -> case borrowed-local-word locals value of
+          Some word -> case-value-mode definitions locals w (core-type value) word False alternatives
+          None -> case expression definitions locals w value of
+            (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
@@ -2246,22 +2539,38 @@ module Bootstrap.RuntimeIr where
 
   -- | Keep actual payload classes in partial closures; consumption is a separate worker rule.
   mvar-argument-classes :: Nat -> Nat -> List Nat
-  mvar-argument-classes operation element = if operation == 0 then [element]
-    else if operation == 1 then [0] else if mvar-arity operation == 2 then [1, element] else [1]
+  mvar-argument-classes operation element =
+    if operation == 20 || operation == 30 then [0]
+    else if operation == 21 then [1, 0]
+    else if operation >= 22 && operation <= 28 then [1, 0, 0]
+    else if operation == 29 then [1, 0, 0, 0, 0]
+    else if operation == 0 || operation == 14 then [element]
+    else if operation == 1 then [0]
+    else if mvar-arity operation == 2 then [1, element]
+    else [1]
 
-  -- | Evaluate a checked MVar call in ordinary argument order and refuse unsupported wide storage.
+  -- | Evaluate a checked MVar/RwLock/Atomic call in ordinary argument order and refuse unsupported wide storage.
   mvar-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
   mvar-call definitions locals w sp name actuals givens args = case mvar-plan name of
-    Some (operation, scheme) -> case class-vector (writer-context w) actuals of
-      Some [element] -> if element == 3 then unsupported w sp "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet"
-        else if element > 2 || list-length givens /= 0 then unsupported w sp "MVar intrinsic needs its exact checked representation parameter"
-        else let parameters = mvar-argument-classes operation element in
-          let count = mvar-arity operation in let worker = specialized-name name [element] in
-          (case expressions definitions locals (request-demand (MVarDemand name [element]) w) (take-terms count args) of
+    Some (operation, scheme) ->
+      if operation >= 20 then
+        if list-length actuals /= 0 || list-length givens /= 0 then unsupported w sp "Atomic intrinsic takes no representation parameters"
+        else let parameters = mvar-argument-classes operation 0 in
+          let count = mvar-arity operation in let worker = specialized-name name [0] in
+          (case expressions definitions locals (request-demand (MVarDemand name [0]) w) (take-terms count args) of
             (ready, values) -> if list-length values < count then closure sp worker parameters values ready else
               (case call ready (symbol worker) values of
                 (done, result) -> apply-terms definitions locals done result (drop-terms count args)))
-      other -> unsupported w sp "MVar payload needs one checked runtime representation"
+      else case class-vector (writer-context w) actuals of
+        Some [element] -> if element == 3 then unsupported w sp "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet"
+          else if element > 2 || list-length givens /= 0 then unsupported w sp "MVar intrinsic needs its exact checked representation parameter"
+          else let parameters = mvar-argument-classes operation element in
+            let count = mvar-arity operation in let worker = specialized-name name [element] in
+            (case expressions definitions locals (request-demand (MVarDemand name [element]) w) (take-terms count args) of
+              (ready, values) -> if list-length values < count then closure sp worker parameters values ready else
+                (case call ready (symbol worker) values of
+                  (done, result) -> apply-terms definitions locals done result (drop-terms count args)))
+        other -> unsupported w sp "MVar payload needs one checked runtime representation"
     None -> unsupported w sp "MVar operation is unavailable in the selected ABI"
 
   -- | Drop borrowed counted arguments after access while skipping values consumed on every outcome.
@@ -2309,10 +2618,39 @@ module Bootstrap.RuntimeIr where
   mvar-runtime-mode operation = if operation >= 10 then 2
     else if operation == 6 || operation == 7 || operation == 8 || operation == 9 then 1 else 0
 
+  atomic-runtime-extern :: Nat -> String
+  atomic-runtime-extern operation =
+    if operation == 20 then "@cinch_atomic_new"
+    else if operation == 21 then "@cinch_atomic_load"
+    else if operation == 22 then "@cinch_atomic_store"
+    else if operation == 23 then "@cinch_atomic_swap"
+    else if operation == 24 then "@cinch_atomic_fetch_add"
+    else if operation == 25 then "@cinch_atomic_fetch_sub"
+    else if operation == 26 then "@cinch_atomic_fetch_and"
+    else if operation == 27 then "@cinch_atomic_fetch_or"
+    else if operation == 28 then "@cinch_atomic_fetch_xor"
+    else if operation == 29 then "@cinch_atomic_cas"
+    else "@cinch_atomic_fence"
+
   -- | Lower word payloads with status separate from output and ownership retained on all paths.
   mvar-lower :: Writer -> Nat -> Nat -> (Writer, String)
   mvar-lower w operation element =
-    if operation == 0 || operation == 1 then call w "@cinch_mvar_new" [if operation == 0 then "%arg0" else "0", nat-to-string element, if operation == 0 then "1" else "0"]
+    if operation >= 20 then
+      let args = value-parameters (mvar-arity operation) 0 in
+      (case call w (atomic-runtime-extern operation) args of
+        (done, result) -> if operation == 22 || operation == 30 then (done, "0") else (done, result))
+    else if operation == 14 then call w "@cinch_rwlock_new" ["%arg0", nat-to-string element]
+    else if operation >= 15 && operation <= 19 then
+      let (one, output) = fresh w "%ptr" in let (two, status) = fresh one "%v" in
+      let value = if mvar-arity operation == 2 then "%arg1" else "0" in
+      let rw-op = operation - 15 in
+      let access-line = cat ["  ", status, " = call i64 @cinch_rwlock_access(i64 %arg0, i64 ", value, ", i64 ", nat-to-string rw-op, ", ptr ", output, ")"] in
+      let accessed = line (line two (cat ["  ", output, " = alloca i64, align 8"])) access-line in
+      if operation == 18 then mvar-option accessed element status output
+      else if operation == 19 then (accessed, status)
+      else if operation == 16 then (accessed, "0") else
+        let (ready, result) = fresh accessed "%v" in (line ready (cat ["  ", result, " = load i64, ptr ", output, ", align 8"]), result)
+    else if operation == 0 || operation == 1 then call w "@cinch_mvar_new" [if operation == 0 then "%arg0" else "0", nat-to-string element, if operation == 0 then "1" else "0"]
     else
       let (one, output) = fresh w "%ptr" in let (two, status) = fresh one "%v" in
       let value = if mvar-arity operation == 2 then "%arg1" else "0" in
@@ -2323,7 +2661,7 @@ module Bootstrap.RuntimeIr where
       else if operation == 3 then (accessed, "0") else
         let (ready, result) = fresh accessed "%v" in (line ready (cat ["  ", result, " = load i64, ptr ", output, ", align 8"]), result)
 
-  -- | Emit a concrete MVar worker, with runtime-consumed inputs excluded from the final drops.
+  -- | Emit a concrete MVar/RwLock/Atomic worker, with runtime-consumed inputs excluded from the final drops.
   mvar-worker :: String -> List Nat -> Writer -> Writer
   mvar-worker name classes w = case (mvar-plan name, classes) of
     (Some (operation, scheme), [element]) -> if element > 2 then refuse w (Span 0 0 1 1) "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet" else
@@ -2424,9 +2762,11 @@ module Bootstrap.RuntimeIr where
     Nil -> w
     Cons code rest -> platform-drops (if code == 1 || code == 2 || code == 4 then count-line False (cat ["%arg", nat-to-string index]) w else w) rest (index + 1)
   platform-worker :: Writer -> String -> List Nat -> Nat -> (Writer, String)
-  platform-worker w external codes result = case platform-arguments w codes 0 of
+  platform-worker w external codes result = platform-worker-ex w external codes result True
+  platform-worker-ex :: Writer -> String -> List Nat -> Nat -> Bool -> (Writer, String)
+  platform-worker-ex w external codes result drop-args = case platform-arguments w codes 0 of
     (converted, values) -> case call converted (cat ["@", external]) values of
-      (called, raw) -> let dropped = platform-drops called codes 0 in
+      (called, raw) -> let dropped = if drop-args then platform-drops called codes 0 else called in
         if result == 0 then (dropped, raw)
         else if result == 1 then call dropped "@cinch_nat_from_i64" [raw]
         else platform-result dropped raw result
@@ -2462,21 +2802,34 @@ module Bootstrap.RuntimeIr where
       other -> unsupported w sp "runtime result has no checked Result constructors"
   bytes-borrowable-builtin :: String -> Bool
   bytes-borrowable-builtin name = fast-bytes-builtin name || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet"
+  false-flags :: Nat -> List Bool
+  false-flags n = if n == 0 then Nil else Cons False (false-flags (n - 1))
+  builtin-borrow-mask :: String -> Nat -> Option (List Bool)
+  builtin-borrow-mask name count =
+    if bytes-borrowable-builtin name && count >= 1 then Some (Cons True (false-flags (count - 1)))
+    else if same name "cinch.runtime.bytesCompare" && count == 2 then Some [True, True]
+    else if same name "cinch.runtime.natToI64" && count == 1 then Some [True]
+    else case nat-arithmetic-extern name of
+      Some ext | count == 2 -> Some [True, True]
+      other -> None
+  any-borrowed-local :: List Local -> List CoreTerm -> List Bool -> Bool
+  any-borrowed-local locals args mask = case (args, mask) of
+    (Cons arg rest, Cons True more) -> (case borrowed-local-word locals arg of Some w -> True; None -> any-borrowed-local locals rest more)
+    (Cons arg rest, Cons False more) -> any-borrowed-local locals rest more
+    other -> False
   builtin-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
   builtin-call definitions locals w sp name actuals givens args =
     let classes = builtin-classes name in
     let count = list-length classes in
     let supplied = list-length givens in
     if supplied > count then unsupported w sp "builtin context exceeds its checked ABI arity"
-    else if bytes-borrowable-builtin name && supplied == 0 && count >= 1 && list-length args >= count then
-      (case args of
-        Cons (CLocal lsp lty id lname Nil) rest-args -> case local id locals of
-          Some (decl, word) ->
-            let prepared = request-demand (BuiltinBorrowDemand name) w in
-            (case expressions definitions locals prepared (take-terms (count - 1) rest-args) of
-              (ready, rest-vals) -> case typed-call ready (builtin-result-llvm name) (symbol (cat [name, "#borrow"])) (builtin-arguments name (Cons word rest-vals)) of
-                (done, result) -> apply-terms definitions locals done result (drop-terms (count - 1) rest-args))
-          None -> builtin-call-owned definitions locals w sp name classes count supplied givens args
+    else if supplied == 0 && count >= 1 && list-length args >= count then
+      (case builtin-borrow-mask name count of
+        Some mask | any-borrowed-local locals (take-terms count args) mask ->
+          let prepared = request-demand (BuiltinBorrowDemand name) w in
+          (case eval-borrow-args definitions locals prepared (take-terms count args) mask of
+            (ready, values, post-drops) -> case typed-call ready (builtin-result-llvm name) (symbol (cat [name, "#borrow"])) (builtin-arguments name values) of
+              (called, result) -> apply-terms definitions locals (drop-locals post-drops called) result (drop-terms count args))
         other -> builtin-call-owned definitions locals w sp name classes count supplied givens args)
     else builtin-call-owned definitions locals w sp name classes count supplied givens args
   builtin-call-owned :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List Nat -> Nat -> Nat -> List String -> List CoreTerm -> (Writer, String)
@@ -2564,7 +2917,7 @@ module Bootstrap.RuntimeIr where
         cat [hdr-l, ":"],
         cat ["  ", p, " = inttoptr i64 %arg0 to ptr"],
         cat ["  ", hp, " = getelementptr i8, ptr ", p, ", i64 -8"],
-        cat ["  ", hdr, " = load atomic i64, ptr ", hp, " monotonic, align 8"],
+        cat ["  ", hdr, if program-concurrent (writer-program w4) then " = load atomic i64, ptr " else " = load i64, ptr ", hp, if program-concurrent (writer-program w4) then " monotonic, align 8" else ", align 8"],
         cat ["  ", sh, " = lshr i64 ", hdr, ", 35"],
         cat ["  ", kind, " = and i64 ", sh, ", 31"]] in
       if is-write then
@@ -2659,7 +3012,7 @@ module Bootstrap.RuntimeIr where
     if same op "len" then nat-from-i64-fast dropped2 result False
     else if same op "get" then nat-from-i64-fast dropped2 result True
     else (dropped2, result)
-  -- | Emit a private alwaysinline Bytes worker that borrows arg0 without RC traffic.
+  -- | Emit a private alwaysinline borrowed builtin worker without RC traffic on borrowed args.
   builtin-borrow-worker :: String -> Writer -> Writer
   builtin-borrow-worker name w =
     let classes = builtin-classes name in
@@ -2670,7 +3023,11 @@ module Bootstrap.RuntimeIr where
         None -> unsupported started (Span 0 0 1 1) "checked borrowed Bytes worker has no operation")
       else if same name "cinch.runtime.bytesLen" then bytes-access-worker-ex started "len" False
       else if same name "cinch.runtime.bytesGet" then bytes-access-worker-ex started "get" False
-      else unsupported started (Span 0 0 1 1) "checked borrowed worker is not a Bytes builtin") in
+      else case platform-intrinsic name of
+        Some (scheme, external, arguments, result) -> platform-worker-ex started external arguments result False
+        None -> case nat-arithmetic-extern name of
+          Some external -> call started (cat ["@", external]) ["%arg0", "%arg1"]
+          None -> unsupported started (Span 0 0 1 1) "checked borrowed worker is not a supported read-only builtin") in
     case lowered of (done, value) -> line (line done (cat ["  ret ", builtin-result-llvm name, " ", value])) "}"
   -- | Emit a checked intrinsic worker without importing executable text from interface metadata.
   builtin-worker :: String -> Writer -> Writer
@@ -3523,10 +3880,35 @@ module Bootstrap.RuntimeIr where
                 Some parameter-classes -> case expressions definitions locals (demand-worker (core-name d) classes indexed) args of
                   (ready, values) -> closure sp (specialized-name (core-name d) classes) parameter-classes (saved <> givens <> witnesses <> values) ready
                 None -> unsupported indexed sp "function parameters need known closure representations")
-              else case expressions definitions locals (demand-worker (core-name d) classes indexed) (take-terms count args) of
-                (ready, values) -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (core-name d) classes)) (typed-values (value-llvms context all-types) (saved <> givens <> witnesses <> values)) of
-                  (called, result) -> apply-terms definitions locals called result (drop-terms count args)
+              else case (saved, givens, witnesses, hash-map-lookup (core-name d) (program-borrow-modes (writer-program indexed))) of
+                (Nil, Nil, Nil, Some mask) | list-length mask == count && any-borrowed mask ->
+                  let planned = request-demand (BorrowDemand (core-name d) classes) indexed in
+                  (case eval-borrow-args definitions locals planned (take-terms count args) mask of
+                    (ready, values, post-drops) ->
+                      case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (core-name d) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
+                        (called, result) -> apply-terms definitions locals (drop-locals post-drops called) result (drop-terms count args))
+                other -> case expressions definitions locals (demand-worker (core-name d) classes indexed) (take-terms count args) of
+                  (ready, values) -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (core-name d) classes)) (typed-values (value-llvms context all-types) (saved <> givens <> witnesses <> values)) of
+                    (called, result) -> apply-terms definitions locals called result (drop-terms count args)
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
+  -- Evaluate arguments for a borrowed-parameter worker call:
+  -- local variables at borrowed positions pass directly without dup/drop;
+  -- computed expressions at borrowed positions are dropped right after the call.
+  eval-borrow-args :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> List Bool -> (Writer, List String, List Local)
+  eval-borrow-args definitions locals w args mask = case (args, mask) of
+    (Nil, other) -> (w, Nil, Nil)
+    (Cons arg rest, Cons True more) -> case borrowed-local-word locals arg of
+      Some word -> case eval-borrow-args definitions locals w rest more of
+        (done, vals, drops) -> (done, Cons word vals, drops)
+      None -> case expression definitions locals w arg of
+        (ready, val) -> case eval-borrow-args definitions locals ready rest more of
+          (done, vals, drops) -> (done, Cons val vals, Cons (Discard (core-type arg) val) drops)
+    (Cons arg rest, Cons False more) -> case expression definitions locals w arg of
+      (ready, val) -> case eval-borrow-args definitions locals ready rest more of
+        (done, vals, drops) -> (done, Cons val vals, drops)
+    (Cons arg rest, Nil) -> case expression definitions locals w arg of
+      (ready, val) -> case eval-borrow-args definitions locals ready rest Nil of
+        (done, vals, drops) -> (done, Cons val vals, drops)
   -- A call whose arguments and result travel at their own LLVM types.
   typed-call :: Writer -> String -> String -> List (String, String) -> (Writer, String)
   typed-call w result name args = let (next, value) = fresh w "%v" in
@@ -4109,6 +4491,7 @@ module Bootstrap.RuntimeIr where
     Cons (SelfValue owner slot ty value) rest -> if self-values-used owner body all then Cons (SelfValue owner slot ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
     Cons (Discard ty value) rest -> captures-from parameter body all rest
     Cons (DeferredConstructor id ty name actuals args) rest -> captures-from parameter body all rest
+    Cons LoopMarker rest -> captures-from parameter body all rest
   capture-types :: List Local -> List UType
   capture-types locals = case locals of
     Nil -> Nil
@@ -4451,14 +4834,11 @@ module Bootstrap.RuntimeIr where
   -- A nullary block's bytes are a pure function of its description.
   -- Emit one definition on its first use and let every site share it.
   with-nullary-block :: Writer -> String -> Nat -> Writer
-  with-nullary-block w storage descriptor = case w of
-    Writer next (GlobalOutput output defined) code errors layouts context ->
-      let key = 2 * descriptor + 1 in
-      (case hash-map-lookup key defined of
-        Some written -> w
-        None ->
-          let claimed = GlobalOutput output (hash-map-insert key 1 defined) in
-          static-block (Writer next claimed code errors layouts context) storage descriptor 1 [StaticBits 0])
+  with-nullary-block w storage descriptor =
+    let key = 2 * descriptor + 1 in
+    let wasm32 = program-wasm32 (writer-program w) in
+    let declared = with-descriptor w descriptor in
+    shared-global declared key (static-block-line wasm32 storage descriptor 1 [StaticBits 0])
   static-constructor :: Writer -> Nat -> (Writer, String)
   static-constructor w descriptor =
     let skip = static-prefix-words descriptor in
@@ -4542,7 +4922,9 @@ module Bootstrap.RuntimeIr where
     let (thirteen, regular-tag) = fresh twelve "%v" in
     let (fourteen, tag) = fresh thirteen "%v" in
     let address = line (line fourteen (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"])) (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 -1"]) in
-    let loaded = line address (cat ["  ", header, " = load atomic i64, ptr ", slot, " monotonic, align 8"]) in
+    let load-op = if program-concurrent (writer-program address) then " = load atomic i64, ptr " else " = load i64, ptr " in
+    let load-ord = if program-concurrent (writer-program address) then " monotonic, align 8" else ", align 8" in
+    let loaded = line address (cat ["  ", header, load-op, slot, load-ord]) in
     (emit-lines loaded [
       cat ["  ", layout, " = lshr i64 ", header, ", 40"],
       cat ["  ", regular-tag, " = and i64 ", layout, ", 255"],
@@ -5141,7 +5523,7 @@ module Bootstrap.RuntimeIr where
   -- tag goes, the switch's label base, the scrutinee's type, and the word
   -- every arm releases once it holds its own result.
   data SwitchJoin where
-    SwitchJoin :: String -> String -> String -> UType -> String -> SwitchJoin
+    SwitchJoin :: String -> String -> String -> UType -> String -> Bool -> SwitchJoin
   -- A pattern that cannot fail once the switch has selected its arm, so the
   -- arm needs no test of its own.
   irrefutable-pattern :: CorePattern -> Bool
@@ -5216,23 +5598,26 @@ module Bootstrap.RuntimeIr where
     other -> False
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
+    case-value-mode definitions locals w ty value True alternatives
+  case-value-mode :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> (Writer, String)
+  case-value-mode definitions locals w ty value owned alternatives =
     let (one, base) = fresh w "alt" in
     -- A switch names i64 cases and joins at an i64 phi; a wide scrutinee or
     -- result takes the chain, whose tests and slot are typed.
-    if wide-type (writer-context w) ty || same (alternatives-llvm w alternatives) "i128" then case-chain definitions locals one ty value alternatives else
+    if wide-type (writer-context w) ty || same (alternatives-llvm w alternatives) "i128" then case-chain definitions locals one ty value owned alternatives else
     case case-dispatch one alternatives base of
-      HeaderDispatch entries -> switch-value definitions locals one ty value True base entries alternatives
-      ImmediateDispatch entries -> switch-value definitions locals one ty value False base entries alternatives
-      ChainDispatch -> case-chain definitions locals one ty value alternatives
+      HeaderDispatch entries -> switch-value definitions locals one ty value owned True base entries alternatives
+      ImmediateDispatch entries -> switch-value definitions locals one ty value owned False base entries alternatives
+      ChainDispatch -> case-chain definitions locals one ty value owned alternatives
   -- The chain tests one alternative at a time and stores the taken arm's
   -- word in the join's slot. Any shape reaches a slot, guarded or not, so
   -- this is the fallback for everything a single dispatch cannot take.
-  case-chain :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
-  case-chain definitions locals w ty value alternatives =
+  case-chain :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> (Writer, String)
+  case-chain definitions locals w ty value owned alternatives =
     let result-ty = alternatives-llvm w alternatives in
     let (one, slot) = fresh w "%slot" in
     let (two, joined) = fresh one "casejoin" in
-    let finished = case-rows definitions locals (line two (cat ["  ", slot, " = alloca ", result-ty])) ty value slot joined alternatives in
+    let finished = case-rows definitions locals (line two (cat ["  ", slot, " = alloca ", result-ty])) ty value owned slot joined alternatives in
     let (ready, result) = fresh (line finished (cat [joined, ":"])) "%v" in
     (line ready (cat ["  ", result, " = load ", result-ty, ", ptr ", slot]), result)
   -- The LLVM type of the value a case's alternatives produce.
@@ -5240,31 +5625,32 @@ module Bootstrap.RuntimeIr where
   alternatives-llvm w alternatives = case alternatives of
     CAlternative sp pattern body rest -> value-llvm (writer-context w) (core-type body)
     other -> "i64"
-  case-rows :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> String -> CoreTerm -> Writer
-  case-rows definitions locals w ty value slot joined alternatives = case alternatives of
+  case-rows :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> Writer
+  case-rows definitions locals w ty value owned slot joined alternatives = case alternatives of
     CAlternativesEnd end -> line w "  unreachable"
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nextalt" in
       case match-alternative pattern body locals value failed one of
         (matched, bindings, rebuilt) -> case guarded-expression definitions (bindings <> locals) matched failed rebuilt of
-          (done, result) -> let stored = line (count-op False ty value done) (cat ["  store ", value-llvm (writer-context done) (core-type body), " ", result, ", ptr ", slot]) in
+          (done, result) -> let cleaned = if owned then count-op False ty value done else done in
+            let stored = line cleaned (cat ["  store ", value-llvm (writer-context done) (core-type body), " ", result, ", ptr ", slot]) in
             let next = line (line stored (cat ["  br label %", joined])) (cat [failed, ":"]) in
-            case-rows definitions locals next ty value slot joined rest
+            case-rows definitions locals next ty value owned slot joined rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
   -- One switch for the whole case, then one block per arm. Each arm leaves
   -- through a block of its own, so the join names every predecessor and
   -- becomes a phi rather than a slot.
-  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> (Writer, String)
-  switch-value definitions locals w ty value header base entries alternatives =
+  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> String -> String -> CoreTerm -> (Writer, String)
+  switch-value definitions locals w ty value owned header base entries alternatives =
     let (one, missed) = fresh w "switchmiss" in
     let (two, joined) = fresh one "casejoin" in
-    let join = SwitchJoin joined missed base ty value in
+    let join = SwitchJoin joined missed base ty value owned in
     if header then (case constructor-tag w value of
       (loaded, tag) -> switch-arms definitions locals (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False)
     else switch-arms definitions locals (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False
   switch-arms :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-arms definitions locals w join alternatives index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value -> case alternatives of
+    SwitchJoin joined missed base ty value owned -> case alternatives of
       CAlternativesEnd sp -> if defaulted then switch-join w join incoming
         else switch-join (line (line w (cat [missed, ":"])) "  unreachable") join incoming
       CAlternative sp pattern body rest -> case pattern of
@@ -5277,12 +5663,12 @@ module Bootstrap.RuntimeIr where
       other -> (line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable", incoming)
   switch-join :: Writer -> SwitchJoin -> String -> (Writer, String)
   switch-join w join incoming = case join of
-    SwitchJoin joined missed base ty value -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
+    SwitchJoin joined missed base ty value owned -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
       (line ready (cat ["  ", result, " = phi i64 ", incoming]), result)
   -- A default arm captures the scrutinee whole, so it needs no cell.
   switch-default-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> (Writer, String)
   switch-default-arm definitions locals w join body rest index incoming = case join of
-    SwitchJoin joined missed base ty value ->
+    SwitchJoin joined missed base ty value owned ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [missed, ":"]) in
       case guarded-expression definitions locals entry missed body of
@@ -5372,26 +5758,231 @@ module Bootstrap.RuntimeIr where
           (allocated, result) -> let both = line (line allocated (cat ["  br label %", join])) (cat [join, ":"]) in
             let (done, selected) = fresh both "%v" in
             (line done (cat ["  ", selected, " = phi i64 [ ", value, ", %", reuse, " ], [ ", result, ", %", create, " ]"]), selected))
+
+  -- | Idea 2: Full Perceus reset/reuse across `let`, `if`, proof wrappers, and
+  -- cross-constructor same-size cells (non-escaped uniform `i64` layouts).
+  flat-pattern-fields :: CorePattern -> Nat -> Option (List (Option Nat, UType, Nat))
+  flat-pattern-fields fields idx = case fields of
+    CPDone sp -> Some Nil
+    CPField sp (CPVar at fty id name) rest -> (case flat-pattern-fields rest (idx + 1) of
+      Some more -> Some (Cons (Some id, fty, idx) more)
+      None -> None)
+    CPField sp (CPWild at fty) rest -> (case flat-pattern-fields rest (idx + 1) of
+      Some more -> Some (Cons (None, fty, idx) more)
+      None -> None)
+    other -> None
+
+  load-reset-fields :: Writer -> String -> List (Option Nat, UType, Nat) -> (Writer, List (Option Nat, UType, String))
+  load-reset-fields w pointer fields = case fields of
+    Nil -> (w, Nil)
+    Cons (mid, fty, idx) rest ->
+      case load-word w pointer (nat-to-string idx) of
+        (loaded, val) -> case load-reset-fields loaded pointer rest of
+          (done, more) -> (done, Cons (mid, fty, val) more)
+
+  reset-partition-fields :: CoreTerm -> List (Option Nat, UType, String) -> (List Local, List (UType, String))
+  reset-partition-fields body fields = case fields of
+    Nil -> (Nil, Nil)
+    Cons (Some id, fty, val) rest -> case reset-partition-fields body rest of
+      (used, unused) ->
+        if term-uses-id id body then (Cons (Local id fty val) used, unused)
+        else (used, Cons (fty, val) unused)
+    Cons (None, fty, val) rest -> case reset-partition-fields body rest of
+      (used, unused) -> (used, Cons (fty, val) unused)
+
+  drop-unused-reset-fields :: List (UType, String) -> Writer -> Writer
+  drop-unused-reset-fields fields w = case fields of
+    Nil -> w
+    Cons (fty, val) rest -> count-op False fty val (drop-unused-reset-fields rest w)
+
+  dup-used-reset-fields :: List Local -> Writer -> Writer
+  dup-used-reset-fields fields w = case fields of
+    Nil -> w
+    Cons (Local id fty val) rest -> count-op True fty val (dup-used-reset-fields rest w)
+    Cons other rest -> dup-used-reset-fields rest w
+
+  free-reuse-token :: String -> Writer -> Writer
+  free-reuse-token tok w = line w (cat ["  call void @cinch_free(i64 ", tok, ")"])
+
+  matching-reuse-ctor :: Writer -> Nat -> CoreTerm -> Option (Writer, Nat, List CoreTerm)
+  matching-reuse-ctor w arity term = case head term of
+    CUse at cty name role actuals | same role "constructor" ->
+      let args = arguments term Nil in
+      if list-length args /= arity then None
+      else (case constructor name (writer-program w) of
+        Some (owner, tag, c) | list-length (core-constructor-fields c) == arity ->
+          (case data-declaration owner (writer-program w) of
+            Some d -> (case core-data-layout d of
+              UniformData -> (case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
+                Some classes -> (case constructor-context d classes w of
+                  Some ctx ->
+                    if not (all-i64-llvms (value-llvms (writer-context w) (term-types args))) then None
+                    else (case request-data at d classes w of
+                      (planned, descriptors) ->
+                        let desc = data-descriptor descriptors tag in
+                        if description-escaped desc then None else Some (planned, desc, args))
+                  None -> None)
+                None -> None)
+              other -> None)
+            None -> None)
+        other -> None)
+    other -> None
+
+  expression-with-reuse :: List CoreDefinition -> List Local -> Writer -> Nat -> String -> CoreTerm -> (Writer, String)
+  expression-with-reuse definitions locals w arity tok term = case term of
+    CProved sp ty ev body -> expression-with-reuse definitions locals w arity tok body
+    CRefine sp ty ev body -> expression-with-reuse definitions locals w arity tok body
+    CRefineProof sp ty witness body -> expression-with-reuse definitions locals w arity tok body
+    CForget sp ty body -> expression-with-reuse definitions locals w arity tok body
+    CCast sp ty body -> expression-with-reuse definitions locals w arity tok body
+    CRequire sp ty body -> expression-with-reuse definitions locals w arity tok body
+    CDischarge sp ty ev _ body -> expression-with-reuse definitions locals w arity tok body
+    CIf sp ty test yes no ->
+      let result-ty = value-llvm (writer-context w) ty in
+      case expression definitions locals w test of
+        (tested, cond) ->
+          let (w1, zero) = fresh tested "%v" in
+          let (w2, yes-l) = fresh w1 "ryes" in
+          let (w3, no-l) = fresh w2 "rno" in
+          let (w4, end-l) = fresh w3 "rend" in
+          let (w5, yes-out) = fresh w4 "ryesout" in
+          let (w6, no-out) = fresh w5 "rnoout" in
+          let branched = emit-lines w6 [
+            cat ["  ", zero, " = icmp ne i64 ", cond, ", 0"],
+            cat ["  br i1 ", zero, ", label %", yes-l, ", label %", no-l],
+            cat [yes-l, ":"]] in
+          case expression-with-reuse definitions locals branched arity tok yes of
+            (left, yval) ->
+              let after-yes = emit-lines left [cat ["  br label %", yes-out], cat [yes-out, ":"], cat ["  br label %", end-l], cat [no-l, ":"]] in
+              case expression-with-reuse definitions locals after-yes arity tok no of
+                (right, nval) ->
+                  let joined = emit-lines right [cat ["  br label %", no-out], cat [no-out, ":"], cat ["  br label %", end-l], cat [end-l, ":"]] in
+                  let (done, phi-v) = fresh joined "%v" in
+                  (line done (cat ["  ", phi-v, " = phi ", result-ty, " [ ", yval, ", %", yes-out, " ], [ ", nval, ", %", no-out, " ]"]), phi-v)
+    other -> case simple-word-let definitions w term of
+      Some (sp, id, lty, rhs, body) ->
+        if arm-has-reuse-alloc arity rhs then
+          (case expression-with-reuse definitions locals w arity tok rhs of
+            (bound, val) -> eval-let-body definitions locals bound id lty val body)
+        else if arm-has-reuse-alloc arity body then
+          (case expression definitions locals w rhs of
+            (bound, val) ->
+              if not (term-uses-id id body) then
+                expression-with-reuse definitions locals (count-op False lty val bound) arity tok body
+              else case expression-with-reuse definitions (Cons (Local id lty val) locals) bound arity tok body of
+                (done, res) -> (count-op False lty val done, res))
+        else expression definitions locals (free-reuse-token tok w) term
+      None -> case matching-reuse-ctor w arity term of
+        Some (planned, new-desc, args) ->
+          case expressions definitions locals planned args of
+            (ready, vals) ->
+              let (w1, can-r) = fresh ready "%canreuse" in
+              let (w2, hit-l) = fresh w1 "reusehit" in
+              let (w3, miss-l) = fresh w2 "reusemiss" in
+              let (w4, done-l) = fresh w3 "reusedone" in
+              let (w5, rptr) = fresh w4 "%rptr" in
+              let (w6, rhdr) = fresh w5 "%rhdr" in
+              let new-hdr = static-header 1 (description-field new-desc) + 1 in
+              let split = emit-lines w6 [
+                cat ["  ", can-r, " = icmp ne i64 ", tok, ", 0"],
+                cat ["  br i1 ", can-r, ", label %", hit-l, ", label %", miss-l],
+                cat [hit-l, ":"],
+                cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
+                cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
+                cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
+              let filled = line (store-typed split rptr 0 (typed-words vals)) (cat ["  br label %", done-l]) in
+              let miss-start = line filled (cat [miss-l, ":"]) in
+              case allocate-typed miss-start new-desc (typed-words vals) of
+                (allocated, fresh-val) ->
+                  let merged = emit-lines allocated [cat ["  br label %", done-l], cat [done-l, ":"]] in
+                  let (done, out-v) = fresh merged "%v" in
+                  (line done (cat ["  ", out-v, " = phi i64 [ ", tok, ", %", hit-l, " ], [ ", fresh-val, ", %", miss-l, " ]"]), out-v)
+        None -> expression definitions locals (free-reuse-token tok w) term
+
+  has-top-guard :: CoreTerm -> Bool
+  has-top-guard term = case term of
+    CGuard sp ty c b -> True
+    other -> False
+
+  value-live-in-body :: List Local -> String -> CoreTerm -> Bool
+  value-live-in-body locals word body = case locals of
+    Nil -> False
+    Cons (Local id ty v) rest -> (same v word && term-uses-id id body) || value-live-in-body rest word body
+    Cons (Borrowed id ty v) rest -> (same v word && term-uses-id id body) || value-live-in-body rest word body
+    Cons other rest -> value-live-in-body rest word body
+
+  reset-reuse-arm :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
+  reset-reuse-arm definitions locals w ty value pointer pattern body =
+    if not (program-reclaim (writer-program w)) || has-top-guard body || value-live-in-body locals value body then None
+    else case pattern of
+      CPConstructor sp aty name actuals sc fields ->
+        (case flat-pattern-fields fields 0 of
+          None -> None
+          Some flat ->
+            let arity = list-length flat in
+            if arity == 0 || not (arm-has-reuse-alloc arity body) then None
+            else (case constructor name (writer-program w) of
+              Some (owner, tag, c) | list-length (core-constructor-fields c) == arity ->
+                (case data-declaration owner (writer-program w) of
+                  Some d -> (case core-data-layout d of
+                    UniformData -> (case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
+                      Some classes -> (case constructor-context d classes w of
+                        Some ctx ->
+                          if not (all-i64-llvms (value-llvms ctx (core-constructor-fields c))) then None
+                          else (case request-data sp d classes w of
+                            (planned, descriptors) ->
+                              let old-desc = data-descriptor descriptors tag in
+                              if description-escaped old-desc then None
+                              else
+                                case load-reset-fields planned pointer flat of
+                                  (loaded, fvals) -> case reset-partition-fields body fvals of
+                                    (used-locals, unused-fields) ->
+                                      let (w1, uniq) = fresh loaded "%runiq" in
+                                      let (w2, uniq-l) = fresh w1 "resetuniq" in
+                                      let (w3, shared-l) = fresh w2 "resetshared" in
+                                      let (w4, join-l) = fresh w3 "resetjoin" in
+                                      let (w5, tok) = fresh w4 "%rtok" in
+                                      let checked = emit-lines w5 [
+                                        cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
+                                        cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
+                                        cat [uniq-l, ":"]] in
+                                      let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
+                                      let shared-start = line after-uniq (cat [shared-l, ":"]) in
+                                      let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
+                                      let joined = emit-lines after-shared [
+                                        cat [join-l, ":"],
+                                        cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
+                                      case expression-with-reuse definitions (used-locals <> locals) joined arity tok body of
+                                        (done, result) -> Some (drop-locals used-locals done, result))
+                        None -> None)
+                      None -> None)
+                    other -> None)
+                  None -> None)
+              other -> None))
+      other -> None
+
   -- A constructor arm reached by the switch: its fields are read from the
   -- cell the tag selected. Every field pattern is irrefutable, so no field
   -- can reach the miss block.
   switch-tag-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-tag-arm definitions locals w join pattern body rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value -> case pattern of
+    SwitchJoin joined missed base ty value owned -> case pattern of
       CPConstructor sp aty name actuals sc fields ->
         let (one, out) = fresh w "armout" in
         let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
         let (pointed, pointer) = fresh entry "%ptr" in
         let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
-        case match-fields fields pointer 0 missed cell of
-          (bound, bindings) -> case rebuild-case-cell definitions bindings bound ty value pointer pattern body of
-            Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
-            None -> (case guarded-expression definitions (bindings <> locals) bound missed body of
-              (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
+        case (if owned then reset-reuse-arm definitions locals cell ty value pointer pattern body else None) of
+          Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
+          None -> case match-fields fields pointer 0 missed cell of
+            (bound, bindings) -> case (if owned then rebuild-case-cell definitions bindings bound ty value pointer pattern body else None) of
+              Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
+              None -> (case guarded-expression definitions (bindings <> locals) bound missed body of
+                (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
       other -> (line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable", incoming)
   switch-word-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-word-arm definitions locals w join body rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value ->
+    SwitchJoin joined missed base ty value owned ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
       case guarded-expression definitions locals entry missed body of
@@ -5400,11 +5991,12 @@ module Bootstrap.RuntimeIr where
   -- predecessor, so the join reaches it without a slot.
   switch-leave :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-leave definitions locals w join out result rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value ->
-      switch-finish definitions locals (count-op False ty value w) join out result rest index incoming defaulted
+    SwitchJoin joined missed base ty value owned ->
+      let cleaned = if owned then count-op False ty value w else w in
+      switch-finish definitions locals cleaned join out result rest index incoming defaulted
   switch-finish :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-finish definitions locals w join out result rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value ->
+    SwitchJoin joined missed base ty value owned ->
       let left = line (line w (cat ["  br label %", out])) (cat [out, ":"]) in
       switch-arms definitions locals (line left (cat ["  br label %", joined])) join rest (index + 1)
         (cat [incoming, if index == 0 then "" else ", ", "[ ", result, ", %", out, " ]"]) defaulted
@@ -6015,14 +6607,25 @@ module Bootstrap.RuntimeIr where
   ordinary-worker-result definitions locals roots w failed body = case guarded-expression definitions locals w failed body of
     (done, word) -> (drop-locals roots done, word)
   worker-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> List CoreClause -> Writer -> Writer
-  worker-clauses definitions prefix roots offset clauses w = case clauses of
+  worker-clauses definitions prefix roots offset clauses w =
+    worker-clauses-arena definitions prefix roots offset None clauses w
+  worker-clauses-arena :: List CoreDefinition -> List Local -> List Local -> Nat -> Option String -> List CoreClause -> Writer -> Writer
+  worker-clauses-arena definitions prefix roots offset arena-handle clauses w = case clauses of
     Nil -> line w "  unreachable"
     Cons (MkCoreClause sp patterns body) rest ->
       let (one, failed) = fresh w "nexteq" in
       case match-clause patterns body prefix offset failed one of
         (matched, bindings, rebuilt) -> case worker-result definitions (bindings <> prefix) roots matched failed rebuilt of
-          (done, result) -> let returned = line done (cat ["  ret ", value-llvm (writer-context done) (core-type body), " ", result]) in
-            worker-clauses definitions prefix roots offset rest (line returned (cat [failed, ":"]))
+          (done, result) ->
+            let exited = (case arena-handle of
+                  Some h -> line done (cat ["  call i64 @cinch_arena_exit_phase(i64 ", h, ")"])
+                  None -> done) in
+            let returned = line exited (cat ["  ret ", value-llvm (writer-context exited) (core-type body), " ", result]) in
+            worker-clauses-arena definitions prefix roots offset arena-handle rest (line returned (cat [failed, ":"]))
+  worker-uses-arena :: String -> Writer -> Bool
+  worker-uses-arena name w =
+    let info = writer-program w in
+    program-reclaim info && not (program-wasm32 info) && (case hash-map-lookup name (program-arena-phases info) of Some True -> True; other -> False)
   worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
   worker definitions classes w d = case d of
     MkCoreDefinition sp name sc openings givens private clauses -> case class-bindings (scheme-params sc) classes of
@@ -6108,7 +6711,7 @@ module Bootstrap.RuntimeIr where
         let wrapped = line (line called (cat ["  ret ", result, " ", res])) "}" in
         let started = line (line wrapped (cat ["define private ", result, " ", symbol loop-name, "(", join (typed-arguments init-typed), ")", llvm-hint w (core-name d), worker-open w])) "entry:" in
         let looped = load-typed-loop-args typed (line (line (allocate-typed-loop-args typed started) "  br label %self.loop") "self.loop:") in
-        line (self-loop-clauses definitions (core-name d) classes param-llvms result prefix roots (core-clauses d) looped) "}"
+        line (self-loop-clauses definitions (core-name d) classes param-llvms result (Cons LoopMarker prefix) roots (core-clauses d) looped) "}"
   self-loop-clauses :: List CoreDefinition -> String -> List Nat -> List String -> String -> List Local -> List Local -> List CoreClause -> Writer -> Writer
   self-loop-clauses definitions self classes param-llvms result prefix roots clauses w = case clauses of
     Nil -> line w "  unreachable"
@@ -6322,9 +6925,11 @@ module Bootstrap.RuntimeIr where
         let first = cpr-result definitions ctor fllvms agg-ty locals roots selected failed yes in
         cpr-result definitions ctor fllvms agg-ty locals roots (line first (cat [otherwise, ":"])) failed no
     CCase sp ty value alts -> case parameter-value locals roots value of
-      Some (word, remaining) -> cpr-case-chain definitions ctor fllvms agg-ty locals remaining w (core-type value) word alts
-      None -> case expression definitions locals w value of
-        (ready, word) -> cpr-case-chain definitions ctor fllvms agg-ty locals roots ready (core-type value) word alts
+      Some (word, remaining) -> cpr-case-chain definitions ctor fllvms agg-ty locals remaining w (core-type value) word True alts
+      None -> case borrowed-local-word locals value of
+        Some word -> cpr-case-chain definitions ctor fllvms agg-ty locals roots w (core-type value) word False alts
+        None -> case expression definitions locals w value of
+          (ready, word) -> cpr-case-chain definitions ctor fllvms agg-ty locals roots ready (core-type value) word True alts
     CGuard sp ty condition body -> if core-alternative-covers term then
       cpr-result definitions ctor fllvms agg-ty locals roots w failed body
       else (case expression definitions locals w condition of
@@ -6357,16 +6962,16 @@ module Bootstrap.RuntimeIr where
             case cpr-emit-insert dropped agg-ty "poison" (typed-values fllvms vals) 0 of
               (built, agg) -> line built (cat ["  ret ", agg-ty, " ", agg])
       other -> line (refuse w (Span 0 0 1 1) "CPR worker leaf disagrees with product constructor") "  unreachable"
-  cpr-case-chain :: List CoreDefinition -> String -> List String -> String -> List Local -> List Local -> Writer -> UType -> String -> CoreTerm -> Writer
-  cpr-case-chain definitions ctor fllvms agg-ty locals roots w ty value alts = case alts of
+  cpr-case-chain :: List CoreDefinition -> String -> List String -> String -> List Local -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> Writer
+  cpr-case-chain definitions ctor fllvms agg-ty locals roots w ty value drop-scrut alts = case alts of
     CAlternativesEnd end -> line w "  unreachable"
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nextcpralt" in
       case match-alternative pattern body locals value failed one of
         (matched, bindings, rebuilt) ->
-          let owned = Cons (Discard ty value) roots in
+          let owned = if drop-scrut then Cons (Discard ty value) roots else roots in
           let done = cpr-result definitions ctor fllvms agg-ty (bindings <> locals) owned matched failed rebuilt in
-          cpr-case-chain definitions ctor fllvms agg-ty locals roots (line done (cat [failed, ":"])) ty value rest
+          cpr-case-chain definitions ctor fllvms agg-ty locals roots (line done (cat [failed, ":"])) ty value drop-scrut rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine in CPR worker") "  unreachable"
   proof-worker-stages :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> Nat -> List UType -> List Nat -> Nat -> Writer -> Writer
   proof-worker-stages definitions classes d prefix roots offset types arities rung w = case arities of
@@ -6377,7 +6982,11 @@ module Bootstrap.RuntimeIr where
       let parameters = typed-arguments (typed-values (value-llvms (writer-context w) (take-types count types)) (value-parameters count 0)) in
       let started = line (line w (cat ["define ", worker-linkage w name, result, " ", symbol name, "(", join parameters, ")", llvm-hint w (core-name d), worker-open w])) "entry:" in
       (case rest of
-        Nil -> line (worker-clauses definitions prefix roots offset (core-clauses d) started) "}"
+        Nil ->
+          if rung == 0 && worker-uses-arena (core-name d) started then
+            let entered = line started "  %arena.phase = call i64 @cinch_arena_enter_phase(i64 4096)" in
+            line (worker-clauses-arena definitions prefix roots offset (Some "%arena.phase") (core-clauses d) entered) "}"
+          else line (worker-clauses definitions prefix roots offset (core-clauses d) started) "}"
         Cons next-count more -> if wide-type (writer-context started) (final-result (scheme-body (core-scheme d))) then refuse started (Span 0 0 1 1) wide-refusal else
           case class-vector (writer-context started) (take-types next-count types) of
 
@@ -6467,7 +7076,7 @@ module Bootstrap.RuntimeIr where
   -- A direct call transfers its new arguments and captures before it
   -- releases this frame's roots. LLVM requires the following ret.
   transfer-tail-call :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List CoreTerm -> Writer
-  transfer-tail-call definitions locals roots saved width w callee args = transfer-tail-prefix definitions locals roots saved width w callee Nil args None
+  transfer-tail-call definitions locals roots saved width w callee args = transfer-tail-prefix definitions locals roots saved width w callee Nil args None Nil
 
   -- | Transfer checked evidence before positional arguments, retaining all values
   -- until this frame's roots have been released. Captures remain the local worker prefix.
@@ -6509,21 +7118,55 @@ module Bootstrap.RuntimeIr where
       other -> case expression definitions locals w arg of
         (ready, value) -> case tail-operands definitions locals roots saved ready rest of
           (done, values, remaining) -> (done, Cons value values, remaining)
-  transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Option (String, String) -> Writer
-  transfer-tail-prefix definitions locals roots saved width w callee prefix args loop = case tail-operands definitions locals roots saved w args of
-    (evaluated, values, remaining) -> case capture-values saved evaluated of
-      (copied, captures) ->
-        let count = list-length prefix + list-length values in
-        if count <= width then
-          let passed = captures <> prefix <> values <> padding-words (width - count) in
-          let ready = drop-locals remaining copied in
-          (case loop of
-            Some (self, metadata) | same self callee ->
-              let back = if same metadata "" then "  br label %self.loop" else "  br label %self.loop, !llvm.loop " <> metadata in
-              line (store-loop-arguments passed 0 ready) back
-            other -> let (next, result) = fresh ready "%v" in
-              line (line next (cat ["  ", result, " = musttail call i64 ", symbol callee, "(", join (argument-words passed), ")"])) (cat ["  ret i64 ", result]))
-        else refuse copied (Span 0 0 1 1) "tail call exceeds its checked worker width"
+  tail-borrow-operands :: List CoreDefinition -> List Local -> List Local -> Writer -> List CoreTerm -> List Bool -> (Writer, List String, List Local)
+  tail-borrow-operands definitions locals roots w args mask = case (args, mask) of
+    (Nil, other) -> (w, Nil, roots)
+    (Cons arg rest, Cons True more) -> case borrowed-local-word locals arg of
+      Some word -> case tail-borrow-operands definitions locals roots w rest more of
+        (done, values, remaining) -> (done, Cons word values, remaining)
+      None -> case expression definitions locals w arg of
+        (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+          (done, values, remaining) -> (done, Cons value values, remaining)
+    (Cons arg rest, Cons False more) -> case arg of
+      CLocal sp ty id name Nil -> case local id locals of
+        Some (decl, word) -> if word-aliases-unused word locals rest then
+          (case take-parameter-root word roots of
+            Some remaining -> case tail-borrow-operands definitions locals remaining w rest more of
+              (done, values, final-roots) -> (done, Cons word values, final-roots)
+            None -> case expression definitions locals w arg of
+              (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+                (done, values, remaining) -> (done, Cons value values, remaining))
+          else (case expression definitions locals w arg of
+            (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+              (done, values, remaining) -> (done, Cons value values, remaining))
+        None -> case expression definitions locals w arg of
+          (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+            (done, values, remaining) -> (done, Cons value values, remaining)
+      other -> case expression definitions locals w arg of
+        (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+          (done, values, remaining) -> (done, Cons value values, remaining)
+    (Cons arg rest, Nil) -> case expression definitions locals w arg of
+      (ready, value) -> case tail-borrow-operands definitions locals roots ready rest Nil of
+        (done, values, remaining) -> (done, Cons value values, remaining)
+
+  transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Option (String, String) -> List Bool -> Writer
+  transfer-tail-prefix definitions locals roots saved width w callee prefix args loop mask =
+    let evaled = if any-borrowed mask then tail-borrow-operands definitions locals roots w args mask
+          else tail-operands definitions locals roots saved w args in
+    case evaled of
+      (evaluated, values, remaining) -> case capture-values saved evaluated of
+        (copied, captures) ->
+          let count = list-length prefix + list-length values in
+          if count <= width then
+            let passed = captures <> prefix <> values <> padding-words (width - count) in
+            let ready = drop-locals remaining copied in
+            (case loop of
+              Some (self, metadata) | same self callee ->
+                let back = if same metadata "" then "  br label %self.loop" else "  br label %self.loop, !llvm.loop " <> metadata in
+                line (store-loop-arguments passed 0 ready) back
+              other -> let (next, result) = fresh ready "%v" in
+                line (line next (cat ["  ", result, " = musttail call i64 ", symbol callee, "(", join (argument-words passed), ")"])) (cat ["  ret i64 ", result]))
+          else refuse copied (Span 0 0 1 1) "tail call exceeds its checked worker width"
 
   -- Only source workers in the same direct tail cycle share a prototype.
   -- A call that crosses an object boundary keeps the checked public ABI.
@@ -6557,9 +7200,11 @@ module Bootstrap.RuntimeIr where
         let first = tail-result definitions locals roots context selected failed yes in
         tail-result definitions locals roots context (line first (cat [otherwise, ":"])) failed no
     CCase sp ty value alternatives -> case parameter-value locals roots value of
-      Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word alternatives
-      None -> case expression definitions locals w value of
-        (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word alternatives
+      Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word True alternatives
+      None -> case borrowed-local-word locals value of
+        Some word -> tail-rows definitions locals roots context w (core-type value) word False alternatives
+        None -> case expression definitions locals w value of
+          (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word True alternatives
     CGuard sp ty condition body -> if core-alternative-covers term then
       tail-result definitions locals roots context w failed body
       else (case expression definitions locals w condition of
@@ -6597,10 +7242,17 @@ module Bootstrap.RuntimeIr where
       LocalTail group saved width -> case recursive-call group term of
         Some (callee, args) -> transfer-tail-call definitions locals roots saved width w callee args
         None -> tail-return definitions locals roots w failed term
-      GlobalTail group width loop -> case global-tail-call definitions group w term of
+      GlobalTail group width loop mask -> case global-tail-call definitions group w term of
         Some (name, classes, evidence, args) ->
-          (case evidences definitions locals (demand-worker name classes w) evidence of
-            (ready, prefix) -> transfer-tail-prefix definitions locals roots Nil width ready (tail-worker-name (specialized-name name classes)) prefix args loop)
+          if any-borrowed mask then
+            let bcallee = cat [specialized-name name classes, "#b"] in
+            (case (evidence, loop) of
+              (Nil, Some (self-name, meta)) | same self-name bcallee ->
+                transfer-tail-prefix definitions locals roots Nil width w bcallee Nil args loop mask
+              other -> tail-return definitions locals roots w failed term)
+          else
+            (case evidences definitions locals (demand-worker name classes w) evidence of
+              (ready, prefix) -> transfer-tail-prefix definitions locals roots Nil width ready (tail-worker-name (specialized-name name classes)) prefix args loop Nil)
         None -> tail-return definitions locals roots w failed term
 
   tail-return :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
@@ -6616,63 +7268,63 @@ module Bootstrap.RuntimeIr where
     let released = count-op False ty word (line emitted (cat [cleanup, ":"])) in
     line released (cat ["  br label %", failed])
 
-  tail-rows :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> CoreTerm -> Writer
-  tail-rows definitions locals roots context w ty value alternatives =
+  tail-rows :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> CoreTerm -> Writer
+  tail-rows definitions locals roots context w ty value drop-scrut alternatives =
     let (one, base) = fresh w "alt" in
     case case-dispatch one alternatives base of
-      HeaderDispatch entries -> tail-switch definitions locals roots context one ty value True base entries alternatives
-      ImmediateDispatch entries -> tail-switch definitions locals roots context one ty value False base entries alternatives
-      ChainDispatch -> tail-chain definitions locals roots context one ty value alternatives
+      HeaderDispatch entries -> tail-switch definitions locals roots context one ty value drop-scrut True base entries alternatives
+      ImmediateDispatch entries -> tail-switch definitions locals roots context one ty value drop-scrut False base entries alternatives
+      ChainDispatch -> tail-chain definitions locals roots context one ty value drop-scrut alternatives
   -- The tail case dispatches once too: an arm returns from its own block, so
   -- an unmatched tag reaches the default arm, or no continuation at all.
-  tail-switch :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> Writer
-  tail-switch definitions locals roots context w ty value header base entries alternatives =
+  tail-switch :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> Bool -> String -> String -> CoreTerm -> Writer
+  tail-switch definitions locals roots context w ty value drop-scrut header base entries alternatives =
     let (one, missed) = fresh w "tailmiss" in
     if header then (case constructor-tag w value of
-      (loaded, tag) -> tail-switch-arms definitions locals roots context (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) ty value base missed alternatives 0 False)
-    else tail-switch-arms definitions locals roots context (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) ty value base missed alternatives 0 False
-  tail-switch-arms :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> Nat -> Bool -> Writer
-  tail-switch-arms definitions locals roots context w ty value base missed alternatives index defaulted = case alternatives of
+      (loaded, tag) -> tail-switch-arms definitions locals roots context (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) ty value drop-scrut base missed alternatives 0 False)
+    else tail-switch-arms definitions locals roots context (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) ty value drop-scrut base missed alternatives 0 False
+  tail-switch-arms :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> Nat -> Bool -> Writer
+  tail-switch-arms definitions locals roots context w ty value drop-scrut base missed alternatives index defaulted = case alternatives of
     CAlternativesEnd sp -> if defaulted then w
       else line (line w (cat [missed, ":"])) "  unreachable"
     CAlternative sp pattern body rest -> case pattern of
-      CPVar at pty id name -> tail-switch-default definitions (Cons (Borrowed id pty value) locals) roots context w ty value base missed body rest
-      CPWild at pty -> tail-switch-default definitions locals roots context w ty value base missed body rest
+      CPVar at pty id name -> tail-switch-default definitions (Cons (Borrowed id pty value) locals) roots context w ty value drop-scrut base missed body rest
+      CPWild at pty -> tail-switch-default definitions locals roots context w ty value drop-scrut base missed body rest
       other -> case arm-plan w pattern of
-        TagArm tag -> tail-switch-tag definitions locals roots context w ty value base missed pattern body rest index
-        WordArm tag -> tail-switch-word definitions locals roots context w ty value base missed body rest index
+        TagArm tag -> tail-switch-tag definitions locals roots context w ty value drop-scrut base missed pattern body rest index
+        WordArm tag -> tail-switch-word definitions locals roots context w ty value drop-scrut base missed body rest index
         NoArm -> line (refuse w sp "case alternative disagrees with the dispatch it was chosen for") "  unreachable"
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
-  tail-switch-default :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> CoreTerm -> Writer
-  tail-switch-default definitions locals roots context w ty value base missed body rest =
-    let owned = Cons (Discard ty value) roots in
+  tail-switch-default :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> CoreTerm -> Writer
+  tail-switch-default definitions locals roots context w ty value drop-scrut base missed body rest =
+    let owned = if drop-scrut then Cons (Discard ty value) roots else roots in
     tail-switch-arms definitions locals roots context
-      (tail-result definitions locals owned context (line w (cat [missed, ":"])) missed body) ty value base missed rest 0 True
-  tail-switch-tag :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> Writer
-  tail-switch-tag definitions locals roots context w ty value base missed pattern body rest index = case pattern of
+      (tail-result definitions locals owned context (line w (cat [missed, ":"])) missed body) ty value drop-scrut base missed rest 0 True
+  tail-switch-tag :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> String -> String -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> Writer
+  tail-switch-tag definitions locals roots context w ty value drop-scrut base missed pattern body rest index = case pattern of
     CPConstructor sp aty name actuals sc fields ->
       let entry = line w (cat [base, ".", nat-to-string index, ":"]) in
       let (pointed, pointer) = fresh entry "%ptr" in
       let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
       case match-fields fields pointer 0 missed cell of
-        (bound, bindings) -> let owned = Cons (Discard ty value) roots in
-          tail-switch-arms definitions locals roots context (tail-result definitions (bindings <> locals) owned context bound missed body) ty value base missed rest (index + 1) False
+        (bound, bindings) -> let owned = if drop-scrut then Cons (Discard ty value) roots else roots in
+          tail-switch-arms definitions locals roots context (tail-result definitions (bindings <> locals) owned context bound missed body) ty value drop-scrut base missed rest (index + 1) False
     other -> line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable"
-  tail-switch-word :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> String -> String -> CoreTerm -> CoreTerm -> Nat -> Writer
-  tail-switch-word definitions locals roots context w ty value base missed body rest index =
-    let owned = Cons (Discard ty value) roots in
+  tail-switch-word :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> String -> String -> CoreTerm -> CoreTerm -> Nat -> Writer
+  tail-switch-word definitions locals roots context w ty value drop-scrut base missed body rest index =
+    let owned = if drop-scrut then Cons (Discard ty value) roots else roots in
     tail-switch-arms definitions locals roots context
-      (tail-result definitions locals owned context (line w (cat [base, ".", nat-to-string index, ":"])) missed body) ty value base missed rest (index + 1) False
-  tail-chain :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> CoreTerm -> Writer
-  tail-chain definitions locals roots context w ty value alternatives = case alternatives of
+      (tail-result definitions locals owned context (line w (cat [base, ".", nat-to-string index, ":"])) missed body) ty value drop-scrut base missed rest (index + 1) False
+  tail-chain :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> Bool -> CoreTerm -> Writer
+  tail-chain definitions locals roots context w ty value drop-scrut alternatives = case alternatives of
     CAlternativesEnd end -> line w "  unreachable"
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nexttailalt" in
       case match-alternative pattern body locals value failed one of
         (matched, bindings, rebuilt) ->
-          let owned = Cons (Discard ty value) roots in
+          let owned = if drop-scrut then Cons (Discard ty value) roots else roots in
           let done = tail-result definitions (bindings <> locals) owned context matched failed rebuilt in
-          tail-chain definitions locals roots context (line done (cat [failed, ":"])) ty value rest
+          tail-chain definitions locals roots context (line done (cat [failed, ":"])) ty value drop-scrut rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
 
   -- The back edge stores all evaluated arguments after releasing the old
@@ -6731,7 +7383,122 @@ module Bootstrap.RuntimeIr where
           (case loop-metadata count w of (next, metadata) -> (next, Some (tail-worker-name name, metadata)))
         other -> (w, Some (tail-worker-name name, ""))) in
     let started = start-tail-worker (llvm-hint w (core-name d)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
-    line (global-tail-clauses definitions prefix roots offset (GlobalTail group width loop) (core-clauses d) started) "}"
+    line (global-tail-clauses definitions (Cons LoopMarker prefix) roots offset (GlobalTail group width loop Nil) (core-clauses d) started) "}"
+
+  -- | Build parameter roots omitting Discard entries for borrowed parameters (`True`).
+  borrowed-parameter-roots :: List CorePattern -> Nat -> List Bool -> List Local
+  borrowed-parameter-roots patterns index mask = case (patterns, mask) of
+    (Nil, other) -> Nil
+    (Cons first rest, Cons True more) -> borrowed-parameter-roots rest (index + 1) more
+    (Cons first rest, Cons False more) -> Cons (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) (borrowed-parameter-roots rest (index + 1) more)
+    (Cons first rest, Nil) -> Cons (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) (borrowed-parameter-roots rest (index + 1) Nil)
+
+  -- | Emit a private borrowed-parameter self-loop worker (i64/i128 parameters).
+  self-loop-worker-borrowed :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> List UType -> Nat -> List Bool -> Writer -> Writer
+  self-loop-worker-borrowed definitions classes d prefix roots types arity mask w =
+    let bname = cat [specialized-name (core-name d) classes, "#b"] in
+    let result = definition-result-llvm (writer-context w) d in
+    let param-llvms = value-llvms (writer-context w) (take-types arity types) in
+    let params = value-parameters arity 0 in
+    let typed = typed-values param-llvms params in
+    let init-typed = typed-values param-llvms (map (\word -> word <> ".initial") params) in
+    let started = line (line w (cat ["define private ", result, " ", symbol bname, "(", join (typed-arguments init-typed), ")", llvm-hint w (core-name d), worker-open w])) "entry:" in
+    let looped = load-typed-loop-args typed (line (line (allocate-typed-loop-args typed started) "  br label %self.loop") "self.loop:") in
+    line (self-loop-clauses-borrowed definitions (core-name d) classes param-llvms result (Cons LoopMarker prefix) roots mask (core-clauses d) looped) "}"
+
+  self-loop-clauses-borrowed :: List CoreDefinition -> String -> List Nat -> List String -> String -> List Local -> List Local -> List Bool -> List CoreClause -> Writer -> Writer
+  self-loop-clauses-borrowed definitions self classes param-llvms result prefix roots mask clauses w = case clauses of
+    Nil -> line w "  unreachable"
+    Cons (MkCoreClause sp patterns body) rest ->
+      let (one, failed) = fresh w "nexttaileq" in
+      case match-clause patterns body prefix 0 failed one of
+        (matched, bindings, rebuilt) ->
+          let done = self-loop-result-borrowed definitions self classes param-llvms result (bindings <> prefix) roots mask matched failed rebuilt in
+          self-loop-clauses-borrowed definitions self classes param-llvms result prefix roots mask rest (line done (cat [failed, ":"]))
+
+  self-loop-result-borrowed :: List CoreDefinition -> String -> List Nat -> List String -> String -> List Local -> List Local -> List Bool -> Writer -> String -> CoreTerm -> Writer
+  self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed term = case term of
+    CIf sp ty test yes no -> case expression definitions locals w test of
+      (tested, condition) ->
+        let (one, otherwise) = fresh tested "tailno" in
+        let selected = continue-if one condition otherwise in
+        let first = self-loop-result-borrowed definitions self classes param-llvms result locals roots mask selected failed yes in
+        self-loop-result-borrowed definitions self classes param-llvms result locals roots mask (line first (cat [otherwise, ":"])) failed no
+    CGuard sp ty condition body -> if core-alternative-covers term then
+      self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+      else (case expression definitions locals w condition of
+        (ready, value) -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask (continue-if ready value failed) failed body)
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      Nil -> if scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+        (case expression definitions locals w rhs of
+          (ready, value) ->
+            let bound = Local id (scheme-body sc) value in
+            let scoped = Cons bound locals in
+            let owned = Cons (Discard (scheme-body sc) value) roots in
+            let (one, cleanup) = fresh ready "tailcleanup" in
+            let emitted = self-loop-result-borrowed definitions self classes param-llvms result scoped owned mask one cleanup body in
+            let released = count-op False (scheme-body sc) value (line emitted (cat [cleanup, ":"])) in
+            line released (cat ["  br label %", failed]))
+        else self-loop-return definitions result locals roots w failed term
+      other -> self-loop-return definitions result locals roots w failed term
+    CRequire sp ty body -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+    CProved sp ty ev body -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+    CRefine sp ty ev body -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+    CRefineProof sp ty witness body -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+    CDischarge sp ty ev _ body -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+    CForget sp ty body -> self-loop-result-borrowed definitions self classes param-llvms result locals roots mask w failed body
+    other -> case self-loop-call-args self classes (list-length param-llvms) w term of
+      Some args -> case tail-borrow-operands definitions locals roots w args mask of
+        (evaluated, values, remaining) ->
+          let ready = drop-locals remaining evaluated in
+          line (store-typed-loop-args param-llvms values 0 ready) "  br label %self.loop"
+      None -> self-loop-return definitions result locals roots w failed term
+
+  -- | Emit a private borrowed-parameter single-function self-tail loop worker.
+  global-tail-worker-borrowed :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> List Local -> Writer -> Nat -> Nat -> Nat -> List Bool -> Writer
+  global-tail-worker-borrowed definitions d classes prefix roots w group width arity mask =
+    let bname = cat [specialized-name (core-name d) classes, "#b"] in
+    let (prepared, loop) = (case function-hints (writer-program w) (core-name d) of
+        FunctionHints inline cold (Some count) ->
+          (case loop-metadata count w of (next, metadata) -> (next, Some (bname, metadata)))
+        other -> (w, Some (bname, ""))) in
+    let widened = value-parameters arity 0 in
+    let init-params = map (\word -> word <> ".initial") widened in
+    let started = line (line prepared (cat ["define private i64 ", symbol bname, "(", join (argument-words init-params), ")", llvm-hint prepared (core-name d), worker-open prepared])) "entry:" in
+    let looped = load-loop-arguments widened (line (line (allocate-loop-arguments widened started) "  br label %self.loop") "self.loop:") in
+    line (global-tail-clauses definitions (Cons LoopMarker prefix) roots 0 (GlobalTail group arity loop mask) (core-clauses d) looped) "}"
+
+  -- | Emit a private borrowed-parameter companion worker (`@"<spec>#b"`).
+  borrow-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
+  borrow-worker definitions name classes w = case (worker-definition name w, hash-map-lookup name (program-borrow-modes (writer-program w))) of
+    (Some d, Some mask) -> case class-bindings (scheme-params (core-scheme d)) classes of
+      None -> refuse w (Span 0 0 1 1) "borrow worker needs representation classes"
+      Some bounds -> case definition-rigids d bounds of
+        None -> refuse w (Span 0 0 1 1) "borrow worker openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          if not (scheme-supported (writer-context scoped) (core-scheme d)) then refuse scoped (Span 0 0 1 1) "borrow worker scheme unsupported"
+          else case core-clauses d of
+            Cons (MkCoreClause at patterns body) rest ->
+              let parameters = runtime-parameters patterns in
+              let arity = list-length parameters in
+              let types = pattern-types parameters in
+              let prefix = self-binding scoped d classes in
+              let roots = borrowed-parameter-roots parameters 0 mask in
+              case (if wide-code classes then None else hash-map-lookup name (program-tail-groups (writer-program scoped))) of
+                Some (group, width) -> global-tail-worker-borrowed definitions d classes prefix roots scoped group width arity mask
+                None -> if self-tail-present name classes arity (core-clauses d) then
+                    self-loop-worker-borrowed definitions classes d prefix roots types arity mask scoped
+                  else
+                    let bname = cat [specialized-name name classes, "#b"] in
+                    let result = definition-result-llvm (writer-context scoped) d in
+                    let params = typed-arguments (typed-values (value-llvms (writer-context scoped) types) (value-parameters arity 0)) in
+                    let started = line (line scoped (cat ["define private ", result, " ", symbol bname, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
+                    if worker-uses-arena name started then
+                      let entered = line started "  %arena.phase = call i64 @cinch_arena_enter_phase(i64 4096)" in
+                      line (worker-clauses-arena definitions prefix roots 0 (Some "%arena.phase") (core-clauses d) entered) "}"
+                    else line (worker-clauses definitions prefix roots 0 (core-clauses d) started) "}"
+            Nil -> refuse scoped (Span 0 0 1 1) "borrow worker has no clauses"
+    other -> refuse w (Span 0 0 1 1) "borrow worker definition or mask is absent"
 
   recursive-worker :: List CoreDefinition -> RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Writer -> Writer
   recursive-worker definitions member group bounds rigids saved w = case member of
@@ -6752,37 +7519,238 @@ module Bootstrap.RuntimeIr where
               let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
               let done = tail-result definitions (bindings <> siblings <> prefix) roots (LocalTail group prefix width) ready failed rebuilt in
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
+  dispatch-demand :: List CoreDefinition -> Demand -> Writer -> Writer
+  dispatch-demand definitions demand claimed = case demand of
+    Demand name classes -> case worker-definition name claimed of
+      Some d -> worker definitions classes claimed d
+      None -> refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent"
+    ConstructorDemand name classes -> constructor-worker name classes claimed
+    LambdaDemand name saved-bound saved-rigid saved parameter body -> lambda-worker definitions name saved-bound saved-rigid saved parameter body claimed
+    RecursiveDemand member group saved-bound saved-rigid saved -> recursive-worker definitions member group saved-bound saved-rigid saved claimed
+    StubDemand name classes -> app-stub name classes claimed
+    DictionaryDemand name classes -> dictionary-worker definitions name classes claimed
+    ArrayDemand name classes -> array-worker name classes claimed
+    MVarDemand name classes -> mvar-worker name classes claimed
+    BuiltinDemand name -> builtin-worker name claimed
+    SymbolEquality -> global claimed "define internal i64 @\"cinch.runtime.symEq\"(i64 %a, i64 %b) alwaysinline {\n  %same = icmp eq i64 %a, %b\n  %result = zext i1 %same to i64\n  ret i64 %result\n}"
+    MemoWorker -> memo-worker claimed
+    ExternalDemand unit -> external-worker unit claimed
+    ForeignDemand plan -> foreign-worker plan claimed
+    ForeignNullFault -> foreign-null-declarations claimed
+    PrimitiveIntrinsicDemand symbol -> primitive-intrinsic-worker symbol claimed
+    PrimitiveUseDemand symbol decl -> global claimed decl
+    CprDemand name classes -> cpr-worker definitions name classes claimed
+    BorrowDemand name classes -> borrow-worker definitions name classes claimed
+    BuiltinBorrowDemand name -> builtin-borrow-worker name claimed
+
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
-    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial) inlining) -> case pending of
+    Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) -> case pending of
       -- Between units nothing is in scope, so a later name is the module's.
-      Nil -> Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue Nil keys dictionaries "" serial) inlining)
+      Nil -> Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue Nil keys dictionaries "" serial unit-mode) inlining)
       Cons demand rest ->
         let emitted-dictionary = dictionaries || (case demand of DictionaryDemand name classes -> True; other -> False) in
         -- A unit starts its own numbering and names what it lifts by its
         -- demand key, which is what makes the unit unique in the queue.
-        let claimed = Writer 0 globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary (llvm-data-bytes (demand-key demand)) serial) inlining) in
-        case demand of
-          Demand name classes -> case worker-definition name w of
-            Some d -> workers definitions (worker definitions classes claimed d)
-            None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
-          ConstructorDemand name classes -> workers definitions (constructor-worker name classes claimed)
-          LambdaDemand name saved-bound saved-rigid saved parameter body -> workers definitions (lambda-worker definitions name saved-bound saved-rigid saved parameter body claimed)
-          RecursiveDemand member group saved-bound saved-rigid saved -> workers definitions (recursive-worker definitions member group saved-bound saved-rigid saved claimed)
-          StubDemand name classes -> workers definitions (app-stub name classes claimed)
-          DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
-          ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
-          MVarDemand name classes -> workers definitions (mvar-worker name classes claimed)
-          BuiltinDemand name -> workers definitions (builtin-worker name claimed)
-          SymbolEquality -> workers definitions (global claimed "define internal i64 @\"cinch.runtime.symEq\"(i64 %a, i64 %b) alwaysinline {\n  %same = icmp eq i64 %a, %b\n  %result = zext i1 %same to i64\n  ret i64 %result\n}")
-          MemoWorker -> workers definitions (memo-worker claimed)
-          ExternalDemand unit -> workers definitions (external-worker unit claimed)
-          ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
-          ForeignNullFault -> workers definitions (foreign-null-declarations claimed)
-          PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
-          PrimitiveUseDemand symbol decl -> workers definitions (global claimed decl)
-          CprDemand name classes -> workers definitions (cpr-worker definitions name classes claimed)
-          BuiltinBorrowDemand name -> workers definitions (builtin-borrow-worker name claimed)
+        let claimed = Writer 0 globals code errors layouts (RuntimeContext datas Nil Nil (WorkerQueue rest keys emitted-dictionary (llvm-data-bytes (demand-key demand)) serial unit-mode) inlining) in
+        workers definitions (dispatch-demand definitions demand claimed)
+
+  -- Self-contained per-unit IR output produced by one frontier worker.
+  -- Pure `Share` data: unit-private globals and code, shared dedupable globals
+  -- (`@cinch.desc.*` / `@empty-ctor*`), local metadata count, diagnostics,
+  -- layouts, newly discovered demands, newly discovered method versions, and
+  -- whether a dictionary unit was emitted.
+  data EmittedUnit where
+    EmittedUnit :: String -> String -> List (Nat, String) -> String -> Nat -> List Diagnostic -> List (String, List Nat) -> List Demand -> List MethodVersion -> Bool -> EmittedUnit
+
+  -- Blaze LINK-style per-unit IR cache across incremental edits:
+  -- stores emitted units by demand key alongside the tail-group map,
+  -- static ownership plan, and settled method versions they were emitted under.
+  data UnitIrCache where
+    MkUnitIrCache :: HashMap String EmittedUnit -> HashMap String (Nat, Nat) -> OwnershipPlan -> List MethodVersion -> Nat -> UnitIrCache
+
+  empty-unit-ir-cache :: UnitIrCache
+  empty-unit-ir-cache = MkUnitIrCache hash-map-empty hash-map-empty empty-ownership-plan Nil 0
+
+  unit-cache-size :: UnitIrCache -> Nat
+  unit-cache-size cache = case cache of
+    MkUnitIrCache units tails ownership versions count -> count
+
+  drop-prefix-versions :: Nat -> List MethodVersion -> List MethodVersion
+  drop-prefix-versions n versions =
+    if n == 0 then versions
+    else case versions of
+      Nil -> Nil
+      Cons first rest -> drop-prefix-versions (n - 1) rest
+
+  emit-one-demand :: List CoreDefinition -> ProgramInfo -> InlinePlan -> Demand -> EmittedUnit
+  emit-one-demand definitions info plan demand =
+    let key = demand-key demand in
+    let base-version-count = list-length (program-versions info) in
+    let emitted-dict = case demand of DictionaryDemand name classes -> True; other -> False in
+    let unit-writer = Writer 0 (GlobalOutput builder-new hash-map-empty Nil) builder-new Nil (LayoutPlan Nil)
+          (RuntimeContext info Nil Nil (WorkerQueue Nil hash-map-empty emitted-dict (llvm-data-bytes key) 0 True) plan) in
+    case dispatch-demand definitions demand unit-writer of
+      Writer next (GlobalOutput own-globals defined shared) code errors (LayoutPlan layouts) (RuntimeContext after-info bounds rigids (WorkerQueue pending keys dict scope serial unit-mode) after-plan) ->
+        let new-versions = drop-prefix-versions base-version-count (program-versions after-info) in
+        EmittedUnit key (builder-run own-globals) (reverse shared) (builder-run code) serial (reverse errors) (reverse layouts) (reverse pending) new-versions dict
+
+  emit-demand-batch :: List CoreDefinition -> ProgramInfo -> InlinePlan -> List Demand -> List EmittedUnit -> List EmittedUnit
+  emit-demand-batch definitions info plan demands backwards = case demands of
+    Nil -> reverse backwards
+    Cons d rest -> emit-demand-batch definitions info plan rest (Cons (emit-one-demand definitions info plan d) backwards)
+
+  join-replaced :: String -> List String -> String
+  join-replaced replacement parts = case parts of
+    Nil -> ""
+    Cons only Nil -> only
+    Cons first rest -> cat [first, replacement, join-replaced replacement rest]
+
+  replace-placeholder :: String -> String -> String -> String
+  replace-placeholder needle replacement text =
+    if not (string-contains text needle) then text
+    else join-replaced replacement (string-split-on needle text)
+
+  renumber-meta-loop :: Nat -> Nat -> Nat -> String -> String
+  renumber-meta-loop index count base text =
+    if index >= count then text
+    else
+      let needle = cat ["!__cm", nat-to-string index, "__"] in
+      let replacement = cat ["!", nat-to-string (base + index)] in
+      renumber-meta-loop (index + 1) count base (replace-placeholder needle replacement text)
+
+  renumber-meta :: Nat -> Nat -> String -> String
+  renumber-meta count base text =
+    if count == 0 || string-length text == 0 then text
+    else renumber-meta-loop 0 count base text
+
+  append-builder-text :: String -> Builder -> Builder
+  append-builder-text text acc = if string-length text == 0 then acc else builder-add-string text acc
+
+  merge-shared-globals :: List (Nat, String) -> GlobalOutput -> GlobalOutput
+  merge-shared-globals rows acc = case rows of
+    Nil -> acc
+    Cons (key, line-text) rest -> case acc of
+      GlobalOutput output defined shared -> case hash-map-lookup key defined of
+        Some written -> merge-shared-globals rest acc
+        None -> merge-shared-globals rest (GlobalOutput output (hash-map-insert key 1 defined) (Cons (key, line-text) shared))
+
+  merge-unit-layouts :: List (String, List Nat) -> List (String, List Nat) -> List (String, List Nat)
+  merge-unit-layouts incoming acc = case incoming of
+    Nil -> acc
+    Cons (key, descriptions) rest ->
+      merge-unit-layouts rest (case layout-plan-lookup key acc of
+        Some existing -> acc
+        None -> Cons (key, descriptions) acc)
+
+  layout-plan-lookup :: String -> List (String, List Nat) -> Option (List Nat)
+  layout-plan-lookup key rows = case rows of
+    Nil -> None
+    Cons (name, descriptions) rest -> if same key name then Some descriptions else layout-plan-lookup key rest
+
+  merge-unit-versions :: List MethodVersion -> List MethodVersion -> List MethodVersion
+  merge-unit-versions incoming acc = case incoming of
+    Nil -> acc
+    Cons (MethodVersion owner slot classes) rest ->
+      let next = if version-present owner slot classes acc then acc else acc <> [MethodVersion owner slot classes] in
+      merge-unit-versions rest next
+
+  enqueue-frontier-demands :: Bool -> List Demand -> HashMap String Unit -> HashMap String Nat -> List Demand -> (HashMap String Unit, HashMap String Nat, List Demand)
+  enqueue-frontier-demands from-miss demands seen dirty-keys next-backwards = case demands of
+    Nil -> (seen, dirty-keys, next-backwards)
+    Cons d rest ->
+      let key = demand-key d in
+      let next-dirty = (if not from-miss then dirty-keys else case d of
+            LambdaDemand name a b c p body -> hash-map-insert key 1 dirty-keys
+            RecursiveDemand member group a b c -> hash-map-insert key 1 dirty-keys
+            other -> dirty-keys) in
+      case hash-map-lookup key seen of
+        Some already -> enqueue-frontier-demands from-miss rest seen next-dirty next-backwards
+        None -> enqueue-frontier-demands from-miss rest (hash-map-insert key () seen) next-dirty (Cons d next-backwards)
+
+  demand-cacheable :: HashMap String Nat -> HashMap String Nat -> Demand -> Bool
+  demand-cacheable dirty-names dirty-keys demand =
+    let key = demand-key demand in
+    case hash-map-lookup key dirty-keys of
+      Some marked -> False
+      None -> case demand of
+        Demand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        CprDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        BorrowDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        DictionaryDemand name classes -> False
+        other -> True
+
+  partition-frontier-cache :: HashMap String EmittedUnit -> HashMap String Nat -> HashMap String Nat -> List Demand -> List Demand -> List Demand -> (List Demand, List Demand)
+  partition-frontier-cache cache dirty-names dirty-keys frontier hits-rev misses-rev = case frontier of
+    Nil -> (reverse hits-rev, reverse misses-rev)
+    Cons d rest ->
+      let hit = if not (demand-cacheable dirty-names dirty-keys d) then False else (case hash-map-lookup (demand-key d) cache of Some found -> True; None -> False) in
+      if hit then partition-frontier-cache cache dirty-names dirty-keys rest (Cons d hits-rev) misses-rev
+      else partition-frontier-cache cache dirty-names dirty-keys rest hits-rev (Cons d misses-rev)
+
+  index-emitted-units :: List EmittedUnit -> HashMap String EmittedUnit -> HashMap String EmittedUnit
+  index-emitted-units units acc = case units of
+    Nil -> acc
+    Cons unit rest -> case unit of
+      EmittedUnit key g s c m e l p v d -> index-emitted-units rest (hash-map-insert key unit acc)
+
+  data FrontierState where
+    FrontierState :: GlobalOutput -> Builder -> List Diagnostic -> List (String, List Nat) -> HashMap String Unit -> Bool -> Nat -> ProgramInfo -> HashMap String EmittedUnit -> HashMap String Nat -> Nat -> Nat -> FrontierState
+
+  merge-frontier-ordered :: List Demand -> HashMap String EmittedUnit -> HashMap String EmittedUnit -> FrontierState -> List Demand -> (FrontierState, List Demand)
+  merge-frontier-ordered frontier cache fresh-map state next-backwards = case frontier of
+    Nil -> (state, reverse next-backwards)
+    Cons demand rest ->
+      let key = demand-key demand in
+      let (unit, from-miss) = case hash-map-lookup key fresh-map of
+            Some fresh-unit -> (fresh-unit, True)
+            None -> case hash-map-lookup key cache of
+              Some cached-unit -> (cached-unit, False)
+              None -> (EmittedUnit key "" Nil "" 0 Nil Nil Nil Nil False, True) in
+      case (state, unit) of
+        (FrontierState globals code errors layouts seen dict serial info collected dirty-keys emitted-n reused-n,
+         EmittedUnit ukey ug ushared ucode umeta uerrors ulayouts upending uversions udict) ->
+          let fixed-globals = renumber-meta umeta serial ug in
+          let fixed-code = renumber-meta umeta serial ucode in
+          let merged-globals = case merge-shared-globals ushared globals of
+                GlobalOutput out def sh -> GlobalOutput (append-builder-text fixed-globals out) def sh in
+          let merged-code = append-builder-text fixed-code code in
+          let merged-errors = errors <> uerrors in
+          let merged-layouts = merge-unit-layouts ulayouts layouts in
+          let merged-versions = merge-unit-versions uversions (program-versions info) in
+          let merged-info = with-versions merged-versions info in
+          let merged-collected = hash-map-insert ukey unit collected in
+          let (next-seen, next-dirty, more-next) = enqueue-frontier-demands from-miss upending seen dirty-keys next-backwards in
+          let next-state = FrontierState merged-globals merged-code merged-errors merged-layouts next-seen (dict || udict) (serial + umeta) merged-info merged-collected next-dirty (if from-miss then emitted-n + 1 else emitted-n) (if from-miss then reused-n else reused-n + 1) in
+          merge-frontier-ordered rest cache fresh-map next-state more-next
+
+  workers-frontier-loop :: CompileTuning -> List CoreDefinition -> InlinePlan -> HashMap String EmittedUnit -> HashMap String Nat -> List Demand -> FrontierState -> FrontierState
+  workers-frontier-loop tuning definitions plan cache dirty-names frontier state = case frontier of
+    Nil -> state
+    Cons first rest -> case state of
+      FrontierState globals code errors layouts seen dict serial info collected dirty-keys emitted-n reused-n ->
+        let (hits, misses) = partition-frontier-cache cache dirty-names dirty-keys frontier Nil Nil in
+        let miss-count = list-length misses in
+        let fresh-units =
+              if miss-count == 0 then Nil
+              else if miss-count == 1 then emit-demand-batch definitions info plan misses Nil
+              else
+                let chunks = chunk-list (tuning-chunk-size tuning miss-count) misses in
+                let batches = parMap (\batch -> emit-demand-batch definitions info plan batch Nil) chunks in
+                flatten-lists batches in
+        let fresh-map = index-emitted-units fresh-units hash-map-empty in
+        case merge-frontier-ordered frontier cache fresh-map state Nil of
+          (next-state, next-frontier) ->
+            workers-frontier-loop tuning definitions plan cache dirty-names next-frontier next-state
+
+  workers-frontier-tuned :: CompileTuning -> List CoreDefinition -> HashMap String EmittedUnit -> HashMap String Nat -> Writer -> (Writer, HashMap String EmittedUnit, Nat, Nat)
+  workers-frontier-tuned tuning definitions cache dirty-names w = case w of
+    Writer next globals code errors (LayoutPlan layouts) (RuntimeContext info bounds rigids (WorkerQueue pending keys dict scope serial unit-mode) plan) ->
+      let initial-frontier = reverse pending in
+      let start = FrontierState globals code errors layouts keys dict serial info hash-map-empty hash-map-empty 0 0 in
+      case workers-frontier-loop tuning definitions plan cache dirty-names initial-frontier start of
+        FrontierState fg fc fe fl fs fd fserial finfo collected fdirty emitted-n reused-n ->
+          (Writer 0 fg fc fe (LayoutPlan fl) (RuntimeContext finfo Nil Nil (WorkerQueue Nil fs fd "" fserial False) plan), collected, emitted-n, reused-n)
   declarations :: String
   declarations = declarations-counting False False True
   -- The four pooled parallel entries (runtime ABI 8). They are declared
@@ -6823,21 +7791,23 @@ module Bootstrap.RuntimeIr where
   worker-open :: Writer -> String
   worker-open w = function-open (program-wasm32 (writer-program w))
   declarations-counting :: Bool -> Bool -> Bool -> String
-  declarations-counting wasm32 debug reclaim = cat [
+  declarations-counting wasm32 debug reclaim = declarations-counting-mt wasm32 debug reclaim True
+  declarations-counting-mt :: Bool -> Bool -> Bool -> Bool -> String
+  declarations-counting-mt wasm32 debug reclaim concurrent = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\n",
     if wasm32 then "" else "declare i64 @cinch_sched_blocking_enter()\ndeclare i64 @cinch_sched_blocking_exit()\n",
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
-    "declare void @cinch_dup(i64)\ndeclare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
+    "declare void @cinch_dup(i64)\ndeclare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_free(i64)\ndeclare void @cinch_frame_release(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
+    if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers-mt wasm32 concurrent,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_array_tabulate_packed(i64, i64, i64)\ndeclare i64 @cinch_array_map_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_with_packed(i64, i64, i64, i64)\ndeclare i64 @cinch_array_foldl_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f32(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f64(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_i32(i64, i64, i64)\ndeclare i64 @cinch_array_map_unary_f32(i64, i64, i64)\ndeclare i64 @cinch_array_reduce_f32(i64, i64)\ndeclare i64 @cinch_array_reduce_f64(i64, i64)\ndeclare i64 @cinch_array_reduce_i32(i64, i64)\ndeclare i64 @cinch_array_reduce_u32(i64, i64)\ndeclare i64 @cinch_array_reduce_i64(i64, i64)\ndeclare i64 @cinch_array_dot_f32(i64, i64, i64)\ndeclare i64 @cinch_array_dot_f64(i64, i64, i64)\ndeclare i64 @cinch_array_dot_i32(i64, i64)\ndeclare i64 @cinch_array_strided_dot_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_fused_map_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_scan_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scan_u32(i64, i64, i64)\ndeclare i64 @cinch_array_filter_i32_gt(i64, i64)\ndeclare i64 @cinch_array_filter_packed(i64, i64)\ndeclare i64 @cinch_array_gather_f32(i64, i64, i64)\ndeclare i64 @cinch_array_gather_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_unique_u32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_combine_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_histogram_u8(i64, i64)\ndeclare i64 @cinch_array_histogram_u32(i64, i64)\ndeclare i64 @cinch_array_histogram_batch_u8(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_u8(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_segmented_reduce_f32(i64, i64, i64)\ndeclare i64 @cinch_array_spmv_csr_f32(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_1d(i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_2d(i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_set_exec_mode(i64)\ndeclare i64 @cinch_array_last_report_bytes()\ndeclare i64 @cinch_array_fill_f32(i64, i64)\ndeclare i64 @cinch_array_fill_f64(i64, i64)\ndeclare i64 @cinch_array_scale_f64(i64, i64)\ndeclare i64 @cinch_array_row_broadcast_f32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_add_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_adjoint_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_open(i64)\ndeclare i64 @cinch_device_close(i64)\ndeclare i64 @cinch_device_reset_telemetry(i64)\ndeclare i64 @cinch_device_upload_array(i64, i64)\ndeclare i64 @cinch_device_download_array(i64, i64, i64)\ndeclare i64 @cinch_device_buffer_free(i64)\ndeclare i64 @cinch_device_buffer_bytes(i64)\ndeclare i64 @cinch_device_dot_f32_bits(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_scan_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_filter_i32_gt_handle(i64, i64, i64, i64)\ndeclare i64 @cinch_device_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil_histogram_u8_arr(i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil2d_f32_arr(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_spmv_csr_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_report_bytes(i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_stm_state(i64)\ndeclare i64 @cinch_stm_publish(i64, i64)\ndeclare i64 @cinch_stm_wait_begin(i64)\ndeclare i64 @cinch_stm_wait_park(i64)\ndeclare i64 @cinch_stm_wait_cancel(i64)\ndeclare i64 @cinch_stm_wake(i64)\ndeclare i64 @cinch_stm_yield(i64)\n",
-    "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\n",
+    "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\ndeclare i64 @cinch_atomic_new(i64)\ndeclare i64 @cinch_atomic_load(i64, i64)\ndeclare i64 @cinch_atomic_store(i64, i64, i64)\ndeclare i64 @cinch_atomic_swap(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_add(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_sub(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_and(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_or(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_xor(i64, i64, i64)\ndeclare i64 @cinch_atomic_cas(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_atomic_fence(i64)\ndeclare i64 @cinch_rwlock_new(i64, i64)\ndeclare i64 @cinch_rwlock_access(i64, i64, i64, ptr)\n",
     "declare i64 @cinch_slots_new(i64, i64)\ndeclare i64 @cinch_slots_move(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_slots_clear(i64, i64, i64)\ndeclare i64 @cinch_slots_fault(i64)\ndeclare i64 @cinch_nat_low_word(i64)\ndeclare void @llvm.prefetch.p0(ptr, i32, i32, i32)\n",
     "declare i64 @cinch_io_read(i64)\ndeclare i64 @cinch_text_sha256(i64)\ndeclare i64 @cinch_text_sha512(i64)\ndeclare i64 @cinch_text_sha1(i64)\ndeclare i64 @cinch_text_md5(i64)\ndeclare i64 @cinch_text_hmac_sha256(i64, i64)\n",
-    "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_map_package_bytes(i64, i64)\ndeclare i64 @cinch_package_text(i64, i64, i64)\ndeclare i64 @cinch_nat_to_i64(i64)\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_argv_count()\n",
+    "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_map_package_bytes(i64, i64)\ndeclare i64 @cinch_package_text(i64, i64, i64)\ndeclare i64 @cinch_nat_to_i64(i64)\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_arena_enter_phase(i64)\ndeclare i64 @cinch_arena_exit_phase(i64)\ndeclare i64 @cinch_argv_count()\n",
     "declare i64 @cinch_net_tcp_connect(i64, i64)\ndeclare i64 @cinch_net_tcp_listen(i64, i64)\ndeclare i64 @cinch_net_tcp_accept(i64)\ndeclare i64 @cinch_net_listener_addr(i64)\ndeclare i64 @cinch_net_listener_close(i64)\ndeclare i64 @cinch_net_udp_send(i64, i64, i64)\ndeclare i64 @cinch_net_read(i64, i64)\ndeclare i64 @cinch_net_write(i64, i64)\ndeclare i64 @cinch_net_close(i64)\ndeclare i64 @cinch_net_resolve(i64, i64)\n",
     "declare i64 @cinch_process_spawn(i64, i64, i64, i64)\ndeclare i64 @cinch_process_write_stdin(i64, i64)\ndeclare i64 @cinch_process_close_stdin(i64)\ndeclare i64 @cinch_process_read(i64, i64, i64)\ndeclare i64 @cinch_process_wait(i64)\ndeclare i64 @cinch_process_close(i64)\n",
     "declare i64 @cinch_pty_open()\ndeclare i64 @cinch_pty_spawn(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_pty_read(i64, i64)\ndeclare i64 @cinch_pty_write(i64, i64)\ndeclare i64 @cinch_pty_wait(i64)\ndeclare i64 @cinch_pty_close(i64)\ndeclare i64 @cinch_pty_resize(i64, i64, i64)\n",
@@ -6853,40 +7823,61 @@ module Bootstrap.RuntimeIr where
     "declare float @llvm.copysign.f32(float, float)\ndeclare double @llvm.copysign.f64(double, double)\ndeclare float @llvm.fabs.f32(float)\ndeclare double @llvm.fabs.f64(double)\ndeclare float @llvm.sqrt.f32(float)\ndeclare double @llvm.sqrt.f64(double)\ndeclare float @llvm.sin.f32(float)\ndeclare double @llvm.sin.f64(double)\ndeclare float @llvm.cos.f32(float)\ndeclare double @llvm.cos.f64(double)\ndeclare float @llvm.exp.f32(float)\ndeclare double @llvm.exp.f64(double)\ndeclare float @llvm.log.f32(float)\ndeclare double @llvm.log.f64(double)\ndeclare float @llvm.floor.f32(float)\ndeclare double @llvm.floor.f64(double)\ndeclare float @llvm.ceil.f32(float)\ndeclare double @llvm.ceil.f64(double)\ndeclare float @llvm.trunc.f32(float)\ndeclare double @llvm.trunc.f64(double)\ndeclare float @llvm.round.f32(float)\ndeclare double @llvm.round.f64(double)\ndeclare float @llvm.roundeven.f32(float)\ndeclare double @llvm.roundeven.f64(double)\n",
     "declare <8 x i16> @llvm.smin.v8i16(<8 x i16>, <8 x i16>)\ndeclare <8 x i16> @llvm.smax.v8i16(<8 x i16>, <8 x i16>)\ndeclare <4 x i32> @llvm.smin.v4i32(<4 x i32>, <4 x i32>)\ndeclare <4 x i32> @llvm.smax.v4i32(<4 x i32>, <4 x i32>)\ndeclare <4 x i32> @llvm.fshl.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\ndeclare <4 x i32> @llvm.fshr.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\ndeclare <2 x i64> @llvm.fshl.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\ndeclare <2 x i64> @llvm.fshr.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\n",
     "!0 = !{}\n!1 = !{!\"cinch.tbaa\"}\n!2 = !{!\"cinch.hdr\", !1, i64 0}\n!3 = !{!2, !2, i64 0}\n!4 = !{!\"cinch.bytes\", !1, i64 0}\n!5 = !{!4, !4, i64 0}\n!6 = !{!\"branch_weights\", i32 9999, i32 1}\n!7 = !{!\"branch_weights\", i32 1, i32 9999}\n"]
-  -- The inline count operations of seed/src/codegen.rs (rc_op), as two
-  -- alwaysinline helpers. A word that is 0 or odd (an immediate) owns no
-  -- block. Otherwise the header at -8 holds the signed count in its low
-  -- 35 bits; shifted left by 29 it compares as the count itself: positive
-  -- is a count only this thread changes, updated in place; negative is a
-  -- block shared with other tasks (the runtime's atomic paths); 0 is an
-  -- immortal block, never written. A drop of the last reference calls
-  -- cinch_drop_slow, which releases the block.
+  -- Inline count helpers with RC_FRAME/RC_FRAME_RELEASED support (Idea 3) and
+  -- static thread-locality specialization (Idea 5): when `concurrent` is False,
+  -- all header loads are plain non-atomic loads with no MT branch; `.local`
+  -- helpers expose the same non-atomic path inside concurrent programs.
   count-helpers :: Bool -> String
-  count-helpers wasm32 = cat [
-    "define internal i1 @cinch.typed.rc.unique(ptr %p) alwaysinline", function-open wasm32, "\nentry:\n",
-    "  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n  %single = icmp eq i64 %top, 536870912\n  ret i1 %single\n}\n",
-    "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-    "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
-    "  %plain = icmp sgt i64 %top, 0\n  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
-    "other:\n  %shared = icmp ne i64 %top, 0\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n",
-    "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-    "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 29\n",
-    "  %plain = icmp sgt i64 %top, 536870912\n  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
-    "other:\n  switch i64 %top, label %mt [\n    i64 0, label %done\n    i64 536870912, label %slow\n  ]\n",
-    "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nmt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
+  count-helpers wasm32 = count-helpers-mt wasm32 True
+  count-helpers-mt :: Bool -> Bool -> String
+  count-helpers-mt wasm32 concurrent =
+    let hdr-load = if concurrent then "  %h = load atomic i64, ptr %hp monotonic, align 8\n" else "  %h = load i64, ptr %hp, align 8\n" in
+    cat [
+      "define internal i1 @cinch.typed.rc.unique(ptr %p) alwaysinline", function-open wasm32, "\nentry:\n",
+      "  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %top = shl i64 %h, 29\n  %single = icmp eq i64 %top, 536870912\n  ret i1 %single\n}\n",
+      "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
+      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %pos = icmp sgt i64 %top, 0\n  %plain = and i1 %pos, %nf\n",
+      "  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
+      if concurrent then
+        "other:\n  %nz = icmp ne i64 %top, 0\n  %shared = and i1 %nz, %nf\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"
+      else
+        "other:\n  br label %done\ndone:\n  ret void\n}\n",
+      "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
+      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %gt1 = icmp sgt i64 %top, 536870912\n  %plain = and i1 %gt1, %nf\n",
+      "  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
+      "other:\n  switch i64 %top, label %", if concurrent then "mt" else "done", " [\n    i64 0, label %done\n    i64 536870912, label %slow\n    i64 9223372036317904896, label %frame\n    i64 9223372035781033984, label %done\n  ]\n",
+      "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %w)\n  br label %done\n",
+      if concurrent then "mt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\n" else "",
+      "done:\n  ret void\n}\n",
+      "define internal void @cinch.typed.rc.dup.local(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
+      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
+      "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %pos = icmp sgt i64 %top, 0\n  %plain = and i1 %pos, %nf\n",
+      "  br i1 %plain, label %inc, label %done\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\ndone:\n  ret void\n}\n",
+      "define internal void @cinch.typed.rc.drop.local(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
+      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
+      "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %gt1 = icmp sgt i64 %top, 536870912\n  %plain = and i1 %gt1, %nf\n",
+      "  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
+      "other:\n  switch i64 %top, label %done [\n    i64 536870912, label %slow\n    i64 9223372036317904896, label %frame\n  ]\n",
+      "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
   -- The reference count debugging build (TargetProfile::rc_debug in
-  -- seed/src/core.rs): both helpers call the runtime's out-of-line
+  -- seed/src/core.rs): all helpers call the runtime's out-of-line
   -- cinch_dup and cinch_drop, so CINCH_RC_DEBUG=1 checks every count
-  -- operation this module performs against a live header. The helpers are
-  -- the only count operations the module emits, so no inline path stays.
+  -- operation this module performs against a live header.
   debug-count-helpers :: Bool -> String
   debug-count-helpers wasm32 = cat [
     "define internal i1 @cinch.typed.rc.unique(ptr %p) alwaysinline", function-open wasm32, "\nentry:\n  ret i1 false\n}\n",
     "declare void @cinch_drop(i64)\n",
     "define internal void @cinch.typed.rc.dup(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
-    "define internal void @cinch.typed.rc.drop(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]
+    "define internal void @cinch.typed.rc.drop(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n",
+    "define internal void @cinch.typed.rc.dup.local(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
+    "define internal void @cinch.typed.rc.drop.local(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]
   apply-entry :: String
   apply-entry = apply-entry-with-linkage False ""
   apply-entry-with-linkage :: Bool -> String -> String
@@ -6969,7 +7960,7 @@ module Bootstrap.RuntimeIr where
   empty-writer info = empty-writer-with-plan info NoInline
   empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
   empty-writer-with-plan info plan =
-    Writer 0 (GlobalOutput builder-new hash-map-empty) builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil empty-queue plan)
+    Writer 0 (GlobalOutput builder-new hash-map-empty Nil) builder-new Nil (LayoutPlan Nil) (RuntimeContext info Nil Nil empty-queue plan)
   -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
@@ -6977,15 +7968,65 @@ module Bootstrap.RuntimeIr where
   -- method versions settle. A pass that adds no version ran with exactly
   -- the versions a further pass would start from, so its writer is the
   -- emission itself.
+  tail-groups-subset :: List (String, (Nat, Nat)) -> HashMap String (Nat, Nat) -> Bool
+  tail-groups-subset pairs target-map = case pairs of
+    Nil -> True
+    Cons (name, (a, b)) rest -> case hash-map-lookup name target-map of
+      Some (x, y) -> a == x && b == y && tail-groups-subset rest target-map
+      None -> False
+
+  same-tail-groups :: HashMap String (Nat, Nat) -> HashMap String (Nat, Nat) -> Bool
+  same-tail-groups left right =
+    let left-rows = hash-map-to-list left in
+    let right-rows = hash-map-to-list right in
+    list-length left-rows == list-length right-rows && tail-groups-subset left-rows right
+
+  same-method-versions :: List MethodVersion -> List MethodVersion -> Bool
+  same-method-versions left right = case (left, right) of
+    (Nil, Nil) -> True
+    (Cons (MethodVersion a b c) rest1, Cons (MethodVersion x y z) rest2) ->
+      same a x && b == y && same-classes c z && same-method-versions rest1 rest2
+    other -> False
+
   settled-workers :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
   settled-workers definitions roots info = settled-workers-with-plan NoInline definitions roots info
   settled-workers-with-plan :: InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
-  settled-workers-with-plan plan definitions roots info = settle-method-versions plan definitions roots (plan-tail-groups definitions info)
-  settle-method-versions :: InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
-  settle-method-versions plan definitions roots info =
-    let emitted = workers definitions (demand-roots roots (empty-writer-with-plan info plan)) in
-    if list-length (program-versions (writer-program emitted)) == list-length (program-versions info) then emitted
-    else settle-method-versions plan definitions roots (writer-program emitted)
+  settled-workers-with-plan plan definitions roots info =
+    case settled-workers-with-plan-cached default-tuning plan definitions roots info empty-unit-ir-cache hash-map-empty of
+      (emitted, cache, emitted-n, reused-n) -> emitted
+  settled-workers-with-plan-tuned :: CompileTuning -> InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
+  settled-workers-with-plan-tuned tuning plan definitions roots info =
+    case settled-workers-with-plan-cached tuning plan definitions roots info empty-unit-ir-cache hash-map-empty of
+      (emitted, cache, emitted-n, reused-n) -> emitted
+  settled-workers-with-plan-cached :: CompileTuning -> InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> UnitIrCache -> HashMap String Nat -> (Writer, UnitIrCache, Nat, Nat)
+  settled-workers-with-plan-cached tuning plan definitions roots info cache dirty-names =
+    let planned-tails = plan-tail-groups definitions info in
+    let new-tails = program-tail-groups planned-tails in
+    let new-borrows = compute-borrow-modes definitions new-tails in
+    let new-consumed = compute-consumed-params definitions new-borrows in
+    let new-arenas = compute-arena-phases definitions new-tails in
+    let new-concurrent = program-uses-concurrency definitions in
+    let new-ownership = OwnershipPlan new-borrows new-consumed new-arenas new-concurrent in
+    let planned = with-ownership-plan new-ownership planned-tails in
+    let usable = case (plan, cache) of
+          (NoInline, MkUnitIrCache old-units old-tails old-ownership old-versions old-count) ->
+            if old-count > 0 && same-tail-groups old-tails new-tails && same-ownership-plan definitions old-ownership new-ownership then
+              (old-units, with-versions old-versions planned)
+            else (hash-map-empty, planned)
+          other -> (hash-map-empty, planned) in
+    case usable of
+      (seed-units, seeded-info) ->
+        settle-method-versions-cached tuning plan definitions roots seeded-info seed-units dirty-names
+  settle-method-versions-cached :: CompileTuning -> InlinePlan -> List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> HashMap String EmittedUnit -> HashMap String Nat -> (Writer, UnitIrCache, Nat, Nat)
+  settle-method-versions-cached tuning plan definitions roots info seed-units dirty-names =
+    case workers-frontier-tuned tuning definitions seed-units dirty-names (demand-roots roots (empty-writer-with-plan info plan)) of
+      (emitted, collected, emitted-n, reused-n) ->
+        let after-info = writer-program emitted in
+        if list-length (program-versions after-info) == list-length (program-versions info) then
+          (emitted, MkUnitIrCache collected (program-tail-groups after-info) (program-ownership after-info) (program-versions after-info) (emitted-n + reused-n), emitted-n, reused-n)
+        else
+          -- Method versions grew: re-settle cleanly without stale cached units.
+          settle-method-versions-cached tuning plan definitions roots after-info hash-map-empty dirty-names
   root-symbols :: List (String, List Nat) -> List String
   root-symbols roots = case roots of Nil -> Nil; Cons (name, classes) rest -> Cons (specialized-name name classes) (root-symbols rest)
   demand-roots :: List (String, List Nat) -> Writer -> Writer
@@ -7370,7 +8411,7 @@ module Bootstrap.RuntimeIr where
   library-object-facts w = case w of
     Writer next globals code errors (LayoutPlan names) context ->
       let datas = program-data (writer-program w) in
-      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted scope serial) inlining -> emitted) in
+      let dictionary-demand = (case context of RuntimeContext info bounds rigids (WorkerQueue pending keys emitted scope serial unit-mode) inlining -> emitted) in
       JObj "method_families" (library-method-family-facts w (program-classes (writer-program w))) (JObj "unpublished_dictionaries" (JBool dictionary-demand)
         (JObj "constructors" (library-constructor-layout-facts names datas) JObjEnd))
 
@@ -7399,12 +8440,15 @@ module Bootstrap.RuntimeIr where
     emit-runtime-library-artifact-for-target "" False artifact inlining checked provider roots
   emit-runtime-library-artifact-for-profile :: TargetProfile -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-artifact-for-profile profile artifact inlining checked provider roots =
-    emit-runtime-library-artifact-for-caps (target-ir-header profile) (target-caps-of-profile profile) artifact inlining checked provider roots
+    emit-runtime-library-artifact-for-profile-tuned default-tuning profile artifact inlining checked provider roots
+  emit-runtime-library-artifact-for-profile-tuned :: CompileTuning -> TargetProfile -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
+  emit-runtime-library-artifact-for-profile-tuned tuning profile artifact inlining checked provider roots =
+    emit-runtime-library-artifact-for-caps tuning (target-ir-header profile) (target-caps-of-profile profile) artifact inlining checked provider roots
   emit-runtime-library-artifact-for-target :: String -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-artifact-for-target header wasm32 artifact inlining checked provider roots =
-    emit-runtime-library-artifact-for-caps header (target-caps-of-wasm wasm32) artifact inlining checked provider roots
-  emit-runtime-library-artifact-for-caps :: String -> TargetCaps -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
-  emit-runtime-library-artifact-for-caps header caps artifact inlining checked provider roots =
+    emit-runtime-library-artifact-for-caps default-tuning header (target-caps-of-wasm wasm32) artifact inlining checked provider roots
+  emit-runtime-library-artifact-for-caps :: CompileTuning -> String -> TargetCaps -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
+  emit-runtime-library-artifact-for-caps tuning header caps artifact inlining checked provider roots =
     let wasm32 = same (target-caps-arch caps) "wasm32" in
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) <> instance-definitions (elaboration-instances typed) in
@@ -7412,7 +8456,7 @@ module Bootstrap.RuntimeIr where
     let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True caps (elaboration-type-families typed) (elaboration-promoted-fns typed) in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
-    case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan plan definitions (selected <> foreign-export-roots exports) info)) of
+    case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan-tuned tuning plan definitions (selected <> foreign-export-roots exports) info)) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
           let ir = cat [header, declarations-counting wasm32 False True, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "internal ", builder-run code] in
@@ -7437,12 +8481,22 @@ module Bootstrap.RuntimeIr where
     emit-runtime-program-for-target "" False inlining debug reclaim checked provider
   emit-runtime-program-for-profile :: TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-for-profile profile inlining debug reclaim checked provider =
-    emit-runtime-program-for-caps (target-ir-header profile) (target-caps-of-profile profile) inlining debug reclaim checked provider
+    emit-runtime-program-for-profile-tuned default-tuning profile inlining debug reclaim checked provider
+  emit-runtime-program-for-profile-tuned :: CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-for-profile-tuned tuning profile inlining debug reclaim checked provider =
+    case emit-runtime-program-for-profile-cached tuning profile inlining debug reclaim checked provider empty-unit-ir-cache hash-map-empty of
+      Err errors -> Err errors
+      Ok (ir, cache, emitted-n, reused-n) -> Ok ir
+  emit-runtime-program-for-profile-cached :: CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> UnitIrCache -> HashMap String Nat -> Result (List Diagnostic) (String, UnitIrCache, Nat, Nat)
+  emit-runtime-program-for-profile-cached tuning profile inlining debug reclaim checked provider cache dirty-names =
+    emit-runtime-program-for-caps-cached tuning (target-ir-header profile) (target-caps-of-profile profile) inlining debug reclaim checked provider cache dirty-names
   emit-runtime-program-for-target :: String -> Bool -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-for-target header wasm32 inlining debug reclaim checked provider =
-    emit-runtime-program-for-caps header (target-caps-of-wasm wasm32) inlining debug reclaim checked provider
-  emit-runtime-program-for-caps :: String -> TargetCaps -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-for-caps header caps inlining debug reclaim checked provider =
+    case emit-runtime-program-for-caps-cached default-tuning header (target-caps-of-wasm wasm32) inlining debug reclaim checked provider empty-unit-ir-cache hash-map-empty of
+      Err errors -> Err errors
+      Ok (ir, cache, emitted-n, reused-n) -> Ok ir
+  emit-runtime-program-for-caps-cached :: CompileTuning -> String -> TargetCaps -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> UnitIrCache -> HashMap String Nat -> Result (List Diagnostic) (String, UnitIrCache, Nat, Nat)
+  emit-runtime-program-for-caps-cached tuning header caps inlining debug reclaim checked provider cache dirty-names =
     let wasm32 = same (target-caps-arch caps) "wasm32" in
     let typed = checked-elaboration checked in
     let raw-definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
@@ -7453,17 +8507,20 @@ module Bootstrap.RuntimeIr where
     let exports = checked-c-exports (elaboration-bindings typed) in
     let roots = foreign-export-roots exports in
     let plan = inline-plan inlining definitions info in
-    let finish = \writer suffix -> case workers definitions (foreign-export-bridges exports writer) of
-          Writer next globals code Nil layouts context -> Ok (cat [header, declarations-counting wasm32 debug reclaim, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "", builder-run code, suffix])
+    let concurrent = program-uses-concurrency definitions in
+    let finish = \writer next-cache emitted-n reused-n suffix -> case workers definitions (foreign-export-bridges exports writer) of
+          Writer next globals code Nil layouts context -> Ok (cat [header, declarations-counting-mt wasm32 debug reclaim concurrent, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "", builder-run code, suffix], next-cache, emitted-n, reused-n)
           Writer next globals code errors layouts context -> Err errors in
     case runtime-entry (elaboration-core typed) None of
       Err errors -> Err errors
       Ok None -> (case exports of
         Nil -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
-        other -> finish (settled-workers-with-plan plan definitions roots info) "")
+        other -> case settled-workers-with-plan-cached tuning plan definitions roots info cache dirty-names of
+          (settled, next-cache, emitted-n, reused-n) -> finish settled next-cache emitted-n reused-n "")
       Ok (Some d) -> case entry-mode d of
         None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit -> Int, optionally effectful, without external evidence"]
         Some mode -> let name = core-name d in
-          let settled = settled-workers-with-plan plan definitions (Cons (name, Nil) roots) info in
-          let ready = case constructor name info of Some found -> workers definitions (demand-worker name Nil settled); None -> settled in
-          finish ready (entry wasm32 name mode reclaim)
+          case settled-workers-with-plan-cached tuning plan definitions (Cons (name, Nil) roots) info cache dirty-names of
+            (settled, next-cache, emitted-n, reused-n) ->
+              let ready = case constructor name info of Some found -> workers definitions (demand-worker name Nil settled); None -> settled in
+              finish ready next-cache emitted-n reused-n (entry wasm32 name mode reclaim)

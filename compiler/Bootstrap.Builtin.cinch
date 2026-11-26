@@ -262,6 +262,8 @@ module Bootstrap.Builtin where
     -- counted word.
     else if string-compare symbol "cinch.runtime.arenaNew" == 0 then Some ("I64 -> I64", "cinch_arena_new", [0], 0)
     else if string-compare symbol "cinch.runtime.arenaLeave" == 0 then Some ("I64 -> I64", "cinch_arena_leave", [0], 0)
+    else if string-compare symbol "cinch.runtime.arenaEnterPhase" == 0 then Some ("I64 -> I64", "cinch_arena_enter_phase", [0], 0)
+    else if string-compare symbol "cinch.runtime.arenaExitPhase" == 0 then Some ("I64 -> I64", "cinch_arena_exit_phase", [0], 0)
     else if string-compare symbol "cinch.runtime.netTcpConnect" == 0 then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_connect", [1, 0], 2)
     else if string-compare symbol "cinch.runtime.netTcpListen" == 0 then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_listen", [1, 0], 2)
     else if string-compare symbol "cinch.runtime.netTcpAccept" == 0 then Some ("I64 -> Result I64 I64", "cinch_net_tcp_accept", [0], 2)
@@ -492,7 +494,7 @@ module Bootstrap.Builtin where
 
   -- | Recognize the sealed carrier at its minimum ABI; runtime capability admission remains separate.
   mvar-type-name :: String -> Bool
-  mvar-type-name name = runtime-abi-int >= 10 && string-compare name "MVarCell" == 0
+  mvar-type-name name = runtime-abi-int >= 10 && (string-compare name "MVarCell" == 0 || string-compare name "RwLockCell" == 0)
 
   cell-type-name :: String -> Bool
   cell-type-name name = (runtime-abi-int >= 9 && string-compare name "TVar" == 0)
@@ -501,7 +503,7 @@ module Bootstrap.Builtin where
   cell-effect-name name = (runtime-abi-int >= 9 && string-compare name "STM" == 0)
     || (runtime-abi-int >= 10 && string-compare name "MVar" == 0)
 
-  -- | Pair each checked MVar opcode with its complete canonical effectful scheme.
+  -- | Pair each checked MVar/RwLock/Atomic opcode with its complete canonical effectful scheme.
   mvar-plan :: String -> Option (Nat, String)
   mvar-plan symbol = if runtime-abi-int < 10 then None else
     if string-compare symbol "cinch.runtime.mvarNew" == 0 then Some (0, "forall a. a ->{MVar} MVarCell a")
@@ -518,19 +520,43 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.mvarPutOrCancel" == 0 then Some (11, "forall a. MVarCell a -> a ->{MVar, Diverge} Bool")
     else if string-compare symbol "cinch.runtime.mvarReadOrCancel" == 0 then Some (12, "forall a. MVarCell a ->{MVar, Diverge} Option a")
     else if string-compare symbol "cinch.runtime.mvarSwapOrCancel" == 0 then Some (13, "forall a. MVarCell a -> a ->{MVar, Diverge} Option a")
+    else if string-compare symbol "cinch.runtime.rwlockNew" == 0 then Some (14, "forall a. a ->{MVar} RwLockCell a")
+    else if string-compare symbol "cinch.runtime.rwlockRead" == 0 then Some (15, "forall a. RwLockCell a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.rwlockWrite" == 0 then Some (16, "forall a. RwLockCell a -> a ->{MVar, Diverge} Unit")
+    else if string-compare symbol "cinch.runtime.rwlockSwap" == 0 then Some (17, "forall a. RwLockCell a -> a ->{MVar, Diverge} a")
+    else if string-compare symbol "cinch.runtime.rwlockTryRead" == 0 then Some (18, "forall a. RwLockCell a ->{MVar} Option a")
+    else if string-compare symbol "cinch.runtime.rwlockTryWrite" == 0 then Some (19, "forall a. RwLockCell a -> a ->{MVar} Bool")
+    else if string-compare symbol "cinch.runtime.atomicNew" == 0 then Some (20, "I64 ->{MVar} AtomicCell")
+    else if string-compare symbol "cinch.runtime.atomicLoad" == 0 then Some (21, "AtomicCell -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicStore" == 0 then Some (22, "AtomicCell -> I64 -> I64 ->{MVar} Unit")
+    else if string-compare symbol "cinch.runtime.atomicSwap" == 0 then Some (23, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicFetchAdd" == 0 then Some (24, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicFetchSub" == 0 then Some (25, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicFetchAnd" == 0 then Some (26, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicFetchOr" == 0 then Some (27, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicFetchXor" == 0 then Some (28, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    else if string-compare symbol "cinch.runtime.atomicCas" == 0 then Some (29, "AtomicCell -> I64 -> I64 -> I64 -> I64 ->{MVar} Bool")
+    else if string-compare symbol "cinch.runtime.atomicFence" == 0 then Some (30, "I64 ->{MVar} Unit")
     else None
 
   -- | Count value arguments without changing the ownership of captured partial arguments.
   mvar-arity :: Nat -> Nat
-  mvar-arity operation = if operation == 3 || operation == 5 || operation == 7 || operation == 11 || operation == 13 then 2 else 1
+  mvar-arity operation =
+    if operation == 29 then 5
+    else if operation >= 22 && operation <= 28 then 3
+    else if operation == 3 || operation == 5 || operation == 7 || operation == 11 || operation == 13
+      || operation == 16 || operation == 17 || operation == 19 || operation == 21 then 2
+    else 1
 
   -- | Identify the value reference transferred to the runtime on every outcome.
   mvar-consumes :: Nat -> Nat -> Bool
-  mvar-consumes operation index = (operation == 0 && index == 0) || (mvar-arity operation == 2 && index == 1)
+  mvar-consumes operation index =
+    if operation >= 20 then False
+    else ((operation == 0 || operation == 14) && index == 0) || (mvar-arity operation == 2 && index == 1)
 
   -- | Distinguish status-bearing optional payloads from Bool, Unit and direct results.
   mvar-optional :: Nat -> Bool
-  mvar-optional operation = operation == 6 || operation == 8 || operation == 10 || operation == 12 || operation == 13
+  mvar-optional operation = operation == 6 || operation == 8 || operation == 10 || operation == 12 || operation == 13 || operation == 18
 
   -- Array, Tensor and Columnar are primitive starting with ABI 6.
   array-type-name :: String -> Bool

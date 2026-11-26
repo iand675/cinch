@@ -5608,9 +5608,9 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
                 || self.value_may_hide_scope(cod, seen, fuel - 1),
             Ty::Adt(name, args) => {
-                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "Kernel" { return false; }
+                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" { return false; }
                 if name == "Task" { return true; }
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
+                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
                 }
                 seen.push(ty.clone());
@@ -5669,10 +5669,10 @@ impl Checker {
             },
             Ty::Mut(_, _) | Ty::Lazy { .. } => false,
             Ty::Bytes | Ty::Meta(_) | Ty::Thunk { .. } => transferring,
-            // `Sym` is a handle to runtime-owned interned state; the
-            // specification grants it `Eq`/`Ord`/`Show` only (primitive
-            // types specification section 9), never `Copy`.
-            Ty::Sym => transferring,
+            // `Sym` is an immortal, immutable handle to runtime-owned interned
+            // state: it is `Share` (design/parallel-evaluation.md section 2.4)
+            // while still never `Copy` (primitive types specification section 9).
+            Ty::Sym => usage != StructuralUsage::Copy,
             // An owned boundary pointer transfers ownership exactly once
             // (foreign function interface specification section 3), so it
             // is not duplicable; raw and borrow roles are plain addresses
@@ -5734,7 +5734,7 @@ impl Checker {
                 // is reached from both sides whether the handle is shared
                 // or moved (another copy of it may stay behind), so both
                 // need the value's type to be safe to share.
-                if matches!(name.as_str(), "TVar" | "MVarCell") {
+                if matches!(name.as_str(), "TVar" | "MVarCell" | "RwLockCell" | "AtomicCell") {
                     return usage == StructuralUsage::Copy
                         || args.iter().all(|a| self.structural_usage(a, scope, &mut Vec::new(), StructuralUsage::Share));
                 }
@@ -5746,6 +5746,16 @@ impl Checker {
                     Ok(i) => i,
                     Err(_) => return transferring,
                 };
+                // `Data.String.String` wraps a module-private immutable `Bytes`
+                // buffer (`StrBuf :: Bytes -> String`): no operation mutates it,
+                // so it is `Share` (design/parallel-evaluation.md section 2.4).
+                // Other private `Bytes` wrappers remain transfer-only.
+                if usage == StructuralUsage::Share
+                    && info.module == "Data.String"
+                    && info.name == "String"
+                {
+                    return true;
+                }
                 // A codata value is a record of observation closures: the
                 // closures themselves are never `Copy`.
                 if self.codata_types.contains(&(info.module.clone(), info.name.clone())) {

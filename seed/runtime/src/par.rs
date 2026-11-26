@@ -855,6 +855,66 @@ unsafe fn exec_both(job: *const JobHeader, _me: &'static Participant) {
     }
 }
 
+/// Maximum payload words (3-word closure prefix + up to 21 captures) held in a
+/// stack-local immortal shadow closure per worker range.
+const LOCAL_CLOSURE_MAX_WORDS: usize = 24;
+
+/// A worker-local `RC_IMMORTAL` shallow copy of a `parMap`/`parTabulate`
+/// closure block. Passing this to `apply_closure` eliminates both `cinch_dup`
+/// and `cinch_drop` atomic RMWs on the shared closure header on every element
+/// invocation while preserving exact capture duplication semantics.
+#[repr(C, align(16))]
+struct LocalClosure {
+    buf: [u64; 2 + LOCAL_CLOSURE_MAX_WORDS],
+    active: bool,
+}
+
+impl LocalClosure {
+    unsafe fn from_closure(f: i64) -> Self {
+        let mut out = Self {
+            buf: [0; 2 + LOCAL_CLOSURE_MAX_WORDS],
+            active: false,
+        };
+        if f == 0 || (f & 7) != 0 {
+            return out;
+        }
+        let p = f as usize as *const u8;
+        let h = unsafe { crate::block::read_header(p) };
+        if crate::block::kind(h) != crate::block::KIND_CLOSURE {
+            return out;
+        }
+        // An already-immortal closure needs no shadow copy.
+        if crate::block::rc(h) == crate::block::RC_IMMORTAL {
+            return out;
+        }
+        let nfilled = unsafe { (p as *const u64).add(2).read() } as usize;
+        let words = (crate::block::CLOSURE_PREFIX_WORDS as usize).saturating_add(nfilled);
+        if words > LOCAL_CLOSURE_MAX_WORDS {
+            return out;
+        }
+        let layout = crate::block::layout(h);
+        if crate::block::shape_escaped(layout) {
+            out.buf[0] = unsafe { (p as *const u64).sub(2).read() };
+        }
+        out.buf[1] = crate::block::header(crate::block::RC_IMMORTAL, crate::block::KIND_CLOSURE, layout);
+        unsafe {
+            std::ptr::copy_nonoverlapping(p as *const u64, out.buf.as_mut_ptr().add(2), words);
+        }
+        out.active = true;
+        out
+    }
+
+    #[inline]
+    unsafe fn invoke(&self, fallback: i64, arg: i64) -> i64 {
+        if self.active {
+            let local_word = unsafe { self.buf.as_ptr().add(2) } as usize as i64;
+            unsafe { apply_closure(local_word, arg) }
+        } else {
+            unsafe { call(fallback, arg) }
+        }
+    }
+}
+
 /// One `parTabulate` or `parMap` call: the closure, the input array (0
 /// for `parTabulate`) and its format, and the result array.
 struct RangeCtx {
@@ -890,13 +950,31 @@ impl RangeCtx {
         unsafe { arrays::write(self.out, i as i64, r) };
     }
 
+    /// Invocation `i` using a worker-local immortal closure shadow when
+    /// available, avoiding atomic RC traffic on `self.f`'s header.
+    unsafe fn invoke_with(&self, local: &LocalClosure, i: usize) {
+        let arg = if self.input == 0 {
+            crate::abi::cinch_nat_from_i64(i as i64)
+        } else {
+            let x = unsafe { arrays::read(self.input, i as i64) };
+            if rc::reclaiming() && arrays::counted(self.input_format) {
+                unsafe { rc::cinch_dup(x) };
+            }
+            x
+        };
+        let r = unsafe { local.invoke(self.f, arg) };
+        unsafe { arrays::write(self.out, i as i64, r) };
+    }
+
     /// Promote what a stolen range job reaches, the closure and the input
-    /// array, before the first split is published.
+    /// array (plus any unmarked heap leaves of active parent arenas), before
+    /// the first split is published.
     fn mark(&self) {
         if rc::reclaiming() && !self.marked.load(Relaxed) {
             unsafe {
                 rc::cinch_mark_mt(self.f);
                 rc::mark_mt_array(self.input);
+                crate::arena::mark_mt_all_active();
             }
             self.marked.store(true, Relaxed);
         }
@@ -932,10 +1010,20 @@ unsafe fn run_range(me: &'static Participant, ctx: &RangeCtx, lo: usize, hi: usi
     let mut splits: [MaybeUninit<RangeJob>; MAX_SPLITS] = [const { MaybeUninit::uninit() }; MAX_SPLITS];
     let mut made = 0;
     let (mut i, mut end) = (lo, hi);
+    // Build the stack-local immortal closure shadow once per range so repeated
+    // invocations never write to `ctx.f`'s header cache line.
+    let mut local = if rc::reclaiming() {
+        unsafe { LocalClosure::from_closure(ctx.f) }
+    } else {
+        LocalClosure { buf: [0; 2 + LOCAL_CLOSURE_MAX_WORDS], active: false }
+    };
     while i < end {
         if end - i >= 2 && made < MAX_SPLITS && me.deque.is_empty() && wants_work() && me.deque.has_room() {
             let mid = i + (end - i) / 2;
             ctx.mark();
+            // If `ctx.mark()` promoted captures, refresh the local shadow so
+            // any saved fields stay aligned (headers live on the targets, not
+            // in `saved[]`, so words are identical, and `mark()` already ran).
             let job = splits[made].write(RangeJob {
                 header: JobHeader::new(exec_range, me),
                 ctx,
@@ -947,9 +1035,10 @@ unsafe fn run_range(me: &'static Participant, ctx: &RangeCtx, lo: usize, hi: usi
             end = mid;
             continue;
         }
-        unsafe { ctx.invoke(i) };
+        unsafe { ctx.invoke_with(&local, i) };
         i += 1;
     }
+    let _ = &mut local;
     // Join in reverse: the last split is the deque's bottom job.
     while made > 0 {
         made -= 1;
@@ -1037,7 +1126,10 @@ pub unsafe extern "C" fn cinch_par_both(f: i64, g: i64, out: i64) -> i64 {
     if let Some(me) = parallel_participant() {
         if wants_work() && me.deque.has_room() {
             if rc::reclaiming() {
-                unsafe { rc::cinch_mark_mt(g) };
+                unsafe {
+                    rc::cinch_mark_mt(g);
+                    crate::arena::mark_mt_all_active();
+                }
             }
             let job = BothJob { header: JobHeader::new(exec_both, me), closure: g, result: UnsafeCell::new(0) };
             publish(me, &job.header);

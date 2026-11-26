@@ -131,6 +131,9 @@ pub struct Arena {
     /// a cell may hold a heap `Bytes` or a boxed `Nat` that only this
     /// reference kept alive, and those are the counted heap's to free.
     served: Vec<*mut u8>,
+    /// Prefix of `served` whose heap children have already been marked
+    /// atomic (`cinch_mark_mt`) before a parallel publication.
+    marked_up_to: usize,
 }
 
 const _: () = assert!(CHUNK_HEADER % 8 == 0, "the data area keeps the allocation's alignment");
@@ -151,6 +154,7 @@ const UNREAD: u8 = 0;
 const ON: u8 = 1;
 const OFF: u8 = 2;
 static ENABLED: AtomicU8 = AtomicU8::new(UNREAD);
+static PHASE_ENABLED: AtomicU8 = AtomicU8::new(UNREAD);
 
 /// Whether arena entry allocates anything. `CINCH_ARENA=1` says yes and
 /// the default says no; the read happens on the first
@@ -163,6 +167,21 @@ fn enabled() -> bool {
             let on = crate::heap::env_bytes(c"CINCH_ARENA") == Some(b"1");
             ENABLED.store(if on { ON } else { OFF }, Relaxed);
             on
+        }
+    }
+}
+
+/// Whether phase arenas are enabled. Default is on; `CINCH_ARENA=0` turns
+/// them off so A/B benchmarks can measure the same binary with and without
+/// phase arenas.
+fn phase_enabled() -> bool {
+    match PHASE_ENABLED.load(Relaxed) {
+        ON => true,
+        OFF => false,
+        _ => {
+            let off = crate::heap::env_bytes(c"CINCH_ARENA") == Some(b"0");
+            PHASE_ENABLED.store(if off { OFF } else { ON }, Relaxed);
+            !off
         }
     }
 }
@@ -235,6 +254,41 @@ fn enter(arena: *mut Arena) {
             ENTERED.fetch_sub(1, Relaxed);
         }
         _ => {}
+    }
+}
+
+/// Mark every unmarked heap child (such as `Bytes`, boxed `Nat`/`Int`, or
+/// `Array`) reachable from blocks served by the calling thread's active
+/// arenas before publishing work to parallel workers.
+///
+/// Arena blocks themselves stay [`RC_IMMORTAL`] (zero writes on `dup`/`drop`
+/// across all threads), while their non-arena heap leaves become atomically
+/// counted once so workers reading those leaves cannot race on plain RCs.
+/// Each served block is scanned at most once per arena lifetime.
+pub(crate) unsafe fn mark_mt_all_active() {
+    if ENTERED.load(Relaxed) == 0 || !crate::rc::reclaiming() {
+        return;
+    }
+    let mut ptr = current();
+    while !ptr.is_null() {
+        let arena = unsafe { &mut *ptr };
+        let len = arena.served.len();
+        if arena.marked_up_to < len {
+            let start = arena.marked_up_to;
+            arena.marked_up_to = len;
+            for i in start..len {
+                let served = arena.served[i];
+                let h = unsafe { crate::block::read_header(served) };
+                let scan = unsafe { crate::block::Scan::of(served, h) };
+                let mut at = scan.words();
+                while let Some((slot, _)) = scan.counted_below(at) {
+                    at = slot;
+                    let w = unsafe { served.cast::<i64>().add(slot).read() };
+                    unsafe { crate::rc::cinch_mark_mt(w) };
+                }
+            }
+        }
+        ptr = arena.prev;
     }
 }
 
@@ -321,6 +375,7 @@ pub unsafe fn new(bytes: usize) -> *mut Arena {
             blocks: 0,
             bytes: 0,
             served: Vec::new(),
+            marked_up_to: 0,
         });
         grow(&mut *arena, target);
     }
@@ -387,6 +442,21 @@ pub unsafe extern "C" fn cinch_arena_new(bytes: i64) -> i64 {
     unsafe { new(bytes as usize) as usize as i64 }
 }
 
+/// Always enter a fresh phase arena (regardless of `CINCH_ARENA`), returning
+/// its handle. Used by compiler batch phases whose only escaping value is a
+/// scalar exit code or heap `Bytes`, giving parallel workers `RC_IMMORTAL`
+/// zero-contention reads over shared AST/type/IR tables.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_arena_enter_phase(bytes: i64) -> i64 {
+    if bytes < 0 {
+        crate::abi::panic_exit(b"compiler bug: cinch_arena_enter_phase called with a negative size");
+    }
+    if !phase_enabled() {
+        return 0;
+    }
+    unsafe { new(bytes as usize) as usize as i64 }
+}
+
 /// Leave and free the arena `handle` names, restoring the arena entered
 /// before it, and return 0. The null handle (a disabled arena) is a
 /// no-op. Leaving an arena that is not the current one is a compiler bug:
@@ -402,6 +472,12 @@ pub unsafe extern "C" fn cinch_arena_leave(handle: i64) -> i64 {
     }
     unsafe { leave(arena) };
     0
+}
+
+/// Leave a phase arena entered with [`cinch_arena_enter_phase`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_arena_exit_phase(handle: i64) -> i64 {
+    unsafe { cinch_arena_leave(handle) }
 }
 
 /// The header a served block gets: its own kind and layout, and

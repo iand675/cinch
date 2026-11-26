@@ -691,7 +691,7 @@ module Bootstrap.Typing where
     UApp (UApp (UCon name kind) region) carrier -> if same name "Ref" then
       (case borrowed-carrier (task-base ty) of Some payload -> True; None -> False)
       else copyable-data context seen remaining ty
-    UCon name KType -> has name ["Int", "Nat", "Bool", "Unit", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
+    UCon name KType -> has name ["Int", "Nat", "Bool", "Unit", "Char", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
       || copyable-data context seen remaining ty
     other -> copyable-data context seen remaining ty
   copyable-tuple :: TypingContext -> List UType -> Nat -> UType -> Bool
@@ -766,14 +766,23 @@ module Bootstrap.Typing where
     Cons other rest -> task-signature owner rest
   -- Structural Copy/Share uses checked complete data declarations. Unknown
   -- carriers and mutable buffers do not acquire sharing from a printed name.
-  -- `String` is not in the scalar list: it is `StrBuf :: Bytes -> String`
-  -- (module-private, `Data.String`), so its sharing is whatever its fields
-  -- are, and `Bytes` is transfer-only. `design/parallel-evaluation.md`
-  -- section 1.2 states the same fact, and the `share` attribute that would
-  -- change it (section 2.4 item 2) is not implemented.
+  -- `Sym` is an immortal, immutable interned cell, and `Data.String.String`
+  -- wraps a module-private immutable `Bytes` buffer (`StrBuf :: Bytes -> String`)
+  -- that no operation mutates, so both are `Share` (design/parallel-evaluation.md
+  -- section 2.4). Other private `Bytes` wrappers remain transfer-only.
+  -- Pure immutable stdlib containers whose internal spines or constructors
+  -- are private in imported interfaces (`base.cpk`): their shareability is
+  -- structural over their type arguments, matching the seed when compiled
+  -- from source.
+  shareable-stdlib-unary :: String -> Bool
+  shareable-stdlib-unary name = same name (interface-global "Data.Set.Set")
+  shareable-stdlib-binary :: String -> Bool
+  shareable-stdlib-binary name =
+    same name (interface-global "Data.HashMap.HashMap")
+    || same name (interface-global "Data.Map.Map")
   task-shareable :: TypingContext -> List UType -> Nat -> UType -> Bool
   task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] then True else task-data-property context True seen fuel ty
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "Sym", "String", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || same name (global-data-string-string) || same name (interface-global "Data.Path.Path") then True else task-data-property context True seen fuel ty
     UTuple fields -> task-fields-property context True seen fuel fields
     USigma id name domain body -> task-property context True seen fuel domain && task-property context True seen fuel body
     -- `Array`, `Tensor` and `Columnar` are builtin type formers, not
@@ -783,9 +792,11 @@ module Bootstrap.Typing where
     -- `copyable-type` (design/parallel-evaluation.md section 2.3: an
     -- immutable `Array` is `Share` iff every element is).
     UApp (UCon name kind) element -> if same name "b.Io" then True
-      else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
+      else if (array-type-name name || cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
       else task-data-property context True seen fuel ty
     UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True
+      else if shareable-stdlib-binary name then
+        task-shareable context seen (fuel - 1) owner && task-shareable context seen (fuel - 1) region
       else (case borrow-type-parts (task-base ty) of
         Some (False, lifetime, carrier) -> task-shareable context seen (fuel - 1) carrier
         other -> task-data-property context True seen fuel ty)
@@ -796,10 +807,12 @@ module Bootstrap.Typing where
   -- ordinary saturated calls to return such values without inventing loans.
   task-region-free-type :: TypingContext -> List UType -> Nat -> UType -> Bool
   task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || same name (global-data-string-string) then True else task-data-property context False seen fuel ty
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || same name (global-data-string-string) || same name (interface-global "Data.Path.Path") then True else task-data-property context False seen fuel ty
     UTuple fields -> task-fields-property context False seen fuel fields
     USigma id name domain body -> task-property context False seen fuel domain && task-property context False seen fuel body
-    UApp (UCon name kind) element | cell-type-name name && kind-equal kind (KFun KType KType) -> task-region-free-type context seen (fuel - 1) element
+    UApp (UCon name kind) element | (cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) -> task-region-free-type context seen (fuel - 1) element
+    UApp (UApp (UCon name kind) first) second | shareable-stdlib-binary name ->
+      task-region-free-type context seen (fuel - 1) first && task-region-free-type context seen (fuel - 1) second
     other -> task-data-property context False seen fuel ty
   task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
   task-property context sharing seen fuel ty = if sharing then task-shareable context seen fuel ty else task-region-free-type context seen fuel ty
@@ -1892,7 +1905,7 @@ module Bootstrap.Typing where
     None -> ""
     Some message -> string-concat "; " message
   task-blocker :: TypingContext -> List UType -> Nat -> UType -> Option String
-  task-blocker context seen fuel ty = if fuel == 0 then None else if task-seen-type ty seen then None else
+  task-blocker context seen fuel ty = if fuel == 0 then None else if task-seen-type ty seen || task-shareable context seen fuel ty then None else
     case task-type-spine ty Nil of
       (UCon name kind, args) -> case task-data name (context-data context) of
         None -> Some (string-concat-all ["the type ", display-type-text ty,

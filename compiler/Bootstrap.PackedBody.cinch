@@ -2,10 +2,11 @@
 -- byte owner and a node ID, so consumers can traverse children in place.
 module Bootstrap.PackedBody where
 
-  import Data.Array (array-get)
+  import Data.Array (array-from-list, array-length, array-get)
   import Data.Bytes (bytes-data, bytes-len)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Json
+  import Data.List (reverse)
   import Data.Machine (u32-to-nat)
   import Data.Nat (nat-to-int)
 
@@ -39,8 +40,11 @@ module Bootstrap.PackedBody where
     Region :: Nat -> Nat -> Region
   data PackedSignature where
     PackedSignature :: String -> List String -> String -> Nat -> Region -> PackedSignature
+  -- Immutable Share-safe packed body view: all node words, operand words, and
+  -- signature callee lists are materialized into immutable arrays on load so
+  -- `CheckedBodyTable` and `Bootstrap.Document.Json` carry no mutable `Bytes`.
   data CheckedBodyTable where
-    BodyTable :: Bytes -> Array String -> Region -> Region -> Array PackedSignature -> HashMap String Nat -> CheckedBodyTable
+    BodyTable :: I64 -> Nat -> Array String -> Array Nat -> Array Nat -> Array PackedSignature -> Array (Option (List String)) -> HashMap String Nat -> CheckedBodyTable
   data PackedTerm where
     PackedTermRef :: CheckedBodyTable -> Nat -> PackedTerm
   data PackedArguments where
@@ -68,10 +72,36 @@ module Bootstrap.PackedBody where
   hold-package-source :: forall a. Bytes -> a -> a
   hold-package-source source result = case bytes-len source of _ -> result
 
+  read-region-words :: I64 -> Nat -> Nat -> List Nat -> Array Nat
+  read-region-words address at end backwards =
+    if at + 4 > end then array-from-list (reverse backwards)
+    else read-region-words address (at + 4) end (Cons (word address at) backwards)
+
+  extract-region-words :: Bytes -> Region -> Array Nat
+  extract-region-words source region = case region of
+    Region start size ->
+      if start + size <= bytes-len source && size % 4 == 0 then
+        hold-package-source source (read-region-words (bytes-data source) start (start + size) Nil)
+      else array-from-list Nil
+
+  extract-signature-callees :: Bytes -> Array PackedSignature -> Nat -> List (Option (List String)) -> Array (Option (List String))
+  extract-signature-callees source signatures at backwards = case array-get signatures at of
+    None -> array-from-list (reverse backwards)
+    Some (PackedSignature identity parameters result root (Region start length)) ->
+      let calls =
+            if start + length <= bytes-len source && length % 4 == 0 then
+              hold-package-source source (packed-callees (bytes-data source) signatures start (start + length) Nil)
+            else None in
+      extract-signature-callees source signatures (at + 1) (Cons calls backwards)
+
   -- Package alone validates the sections before handing them to this view.
   retain-checked-body-table :: Bytes -> Array String -> Region -> Region -> Array PackedSignature -> CheckedBodyTable
   retain-checked-body-table source strings nodes operands signatures =
-    BodyTable source strings nodes operands signatures (index-packed-signatures signatures 0 hash-map-empty)
+    let node-words = extract-region-words source nodes in
+    let operand-words = extract-region-words source operands in
+    let callees = extract-signature-callees source signatures 0 Nil in
+    let identity = hold-package-source source (bytes-data source) in
+    BodyTable identity (bytes-len source) strings node-words operand-words signatures callees (index-packed-signatures signatures 0 hash-map-empty)
 
   index-packed-signatures :: Array PackedSignature -> Nat -> HashMap String Nat -> HashMap String Nat
   index-packed-signatures signatures at indexed = case array-get signatures at of
@@ -80,23 +110,19 @@ module Bootstrap.PackedBody where
       index-packed-signatures signatures (at + 1) (hash-map-insert name at indexed)
 
   checked-body-id :: CheckedBodyTable -> String -> Option Nat
-  checked-body-id (BodyTable source strings nodes operands signatures indexed) name = hash-map-lookup name indexed
+  checked-body-id (BodyTable identity size strings nodes operands signatures callees indexed) name = hash-map-lookup name indexed
 
   checked-term :: CheckedBodyTable -> Nat -> Option PackedTerm
   checked-term table id = case table of
-    BodyTable source strings nodes operands signatures indexed -> case array-get signatures id of
-      Some (PackedSignature identity parameters result root edges) -> Some (PackedTermRef table root)
+    BodyTable identity size strings nodes operands signatures callees indexed -> case array-get signatures id of
+      Some (PackedSignature name parameters result root edges) -> Some (PackedTermRef table root)
       None -> None
 
   checked-definition :: CheckedBodyTable -> Nat -> Option (String, List String, String, PackedTerm, List String)
   checked-definition table id = case table of
-    BodyTable source strings nodes operands signatures indexed -> (case array-get signatures id of
-      Some (PackedSignature identity parameters result root (Region start length))
-        | start + length <= bytes-len source && length % 4 == 0 ->
-        let calls = hold-package-source source (packed-callees (bytes-data source) signatures start (start + length) Nil) in
-        (case calls of
-          Some callees -> Some (identity, parameters, result, PackedTermRef table root, callees)
-          None -> None)
+    BodyTable identity size strings nodes operands signatures callees indexed -> (case (array-get signatures id, array-get callees id) of
+      (Some (PackedSignature name parameters result root edges), Some (Some calls)) ->
+        Some (name, parameters, result, PackedTermRef table root, calls)
       other -> None)
 
   packed-callees :: I64 -> Array PackedSignature -> Nat -> Nat -> List String -> Option (List String)
@@ -108,27 +134,24 @@ module Bootstrap.PackedBody where
         None -> None)
 
   -- Node IDs identify a checked definition only within the same retained
-  -- snapshot. Keep both owners live through the address comparison.
+  -- snapshot.
   same-packed-term :: PackedTerm -> PackedTerm -> Bool
   same-packed-term (PackedTermRef first a) (PackedTermRef second b) =
     a == b && (case (first, second) of
-      (BodyTable one strings nodes operands signatures indexed, BodyTable two texts other-nodes other-operands other-signatures more) ->
-        hold-package-source one (hold-package-source two (bytes-data one == bytes-data two)))
+      (BodyTable id1 len1 s1 n1 o1 sig1 c1 idx1, BodyTable id2 len2 s2 n2 o2 sig2 c2 idx2) ->
+        id1 == id2 && len1 == len2 && array-length n1 == array-length n2 && array-length o1 == array-length o2)
 
   packed-node :: PackedTerm -> PackedNode
   packed-node (PackedTermRef table id) = case table of
-    BodyTable source strings (Region start size) operands signatures indexed ->
-      let at = start + id * 16 in
-      if id < size / 16 && at + 16 <= bytes-len source then
-        hold-package-source source (packed-node-at table (bytes-data source) strings signatures at)
-      else InvalidPackedTerm
+    BodyTable identity size strings nodes operands signatures callees indexed ->
+      let base = id * 4 in
+      case (array-get nodes base, array-get nodes (base + 1), array-get nodes (base + 2), array-get nodes (base + 3)) of
+        (Some tag, Some a, Some b, Some c) -> packed-node-words table strings signatures tag a b c
+        other -> InvalidPackedTerm
 
-  packed-node-at :: CheckedBodyTable -> I64 -> Array String -> Array PackedSignature -> Nat -> PackedNode
-  packed-node-at table address strings signatures at =
-    let a = word address (at + 4) in
-    let b = word address (at + 8) in
-    let c = word address (at + 12) in
-    case word address at of
+  packed-node-words :: CheckedBodyTable -> Array String -> Array PackedSignature -> Nat -> Nat -> Nat -> Nat -> PackedNode
+  packed-node-words table strings signatures tag a b c =
+    case tag of
       0 -> PackedLocal a
       1 -> (case (array-get strings a, array-get strings b) of
         (Some sort, Some decimal) -> PackedNumber sort decimal
@@ -148,19 +171,19 @@ module Bootstrap.PackedBody where
   -- private cursors can advance through that range or follow a checked ID.
   packed-arguments :: CheckedBodyTable -> Nat -> Nat -> PackedArguments
   packed-arguments table first count = case table of
-    BodyTable source strings nodes (Region base size) signatures indexed ->
-      let start = base + first * 4 in
-      let end = start + count * 4 in
-      if end <= base + size && end <= bytes-len source then PackedOperandSpan table start end
+    BodyTable identity size strings nodes operands signatures callees indexed ->
+      let end = first + count in
+      if end <= array-length operands then PackedOperandSpan table first end
       else PackedOperandSpan table 0 0
 
   packed-argument-node :: PackedArguments -> PackedArgumentNode
   packed-argument-node (PackedOperandSpan table at end) =
-    if at == end then NoPackedArguments else
+    if at >= end then NoPackedArguments else
       (case table of
-        BodyTable source strings nodes operands signatures indexed ->
-          let id = hold-package-source source (word (bytes-data source) at) in
-          NextPackedArgument (PackedTermRef table id) (PackedOperandSpan table (at + 4) end))
+        BodyTable identity size strings nodes operands signatures callees indexed ->
+          case array-get operands at of
+            Some id -> NextPackedArgument (PackedTermRef table id) (PackedOperandSpan table (at + 1) end)
+            None -> NoPackedArguments)
 
   -- Legacy interfaces spell these same nodes as canonically ordered JSON.
   packed-term-json :: PackedTerm -> Json

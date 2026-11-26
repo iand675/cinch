@@ -37,10 +37,11 @@ module Bootstrap.Parse where
                    Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TTickName, TTickType, TWord, TPrimFrag,
                    TPunct, TAttr, TEOF, LToken, lt-span, lt-virtual, lt-token,
                    Lexed, LexedTokens, LexedFail, LexErrorKind, lex-error-message,
-                   lex-source, bytes-slice)
+                   lex-source, lex-source-slice, bytes-slice)
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, Bundle,
                      ParseError, EFail)
   import Text.Scan (string-index-of, string-take, string-drop, string-strip, string-split-on)
+  import Data.Array
   import Data.Bool
   import Data.Bytes
   import Data.Char
@@ -51,8 +52,9 @@ module Bootstrap.Parse where
   import Text.Show (nat-to-string, char-string)
   import Algebra.Semigroup
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Bootstrap.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
 
-  export parse-program, parse-program-with, parse-program-with-index, parse-scheme, exported-fixities, indexed-exported-fixities
+  export parse-program, parse-program-with, parse-program-with-index, parse-program-with-index-tuned, parse-scheme, exported-fixities, indexed-exported-fixities
   export macro-argument-groups, parse-tree-value-fields, parse-tree-record-fields, parse-tree-term, module-scope-fixes, indexed-module-scope-fixes
   export Ps, POk, PBad, Fix, MkFix, parse-expr
 
@@ -656,13 +658,88 @@ module Bootstrap.Parse where
   parse-program-with name src interfaces = parse-program-with-index name src (module-name-index interfaces)
 
   parse-program-with-index :: String -> Bytes -> HashMap String Module -> ParseOutcome Program
-  parse-program-with-index name src interfaces = case lex-source src of
+  parse-program-with-index name src interfaces = parse-program-with-index-tuned default-tuning name src interfaces
+
+  split-module-body-end :: List LToken -> Nat -> Nat -> Option (Nat, List LToken)
+  split-module-body-end toks src-len depth = case toks of
+    Nil -> None
+    Cons t rest -> case lt-token t of
+      TEOF -> None
+      TPunct p ->
+        if string-compare p "{" == 0 then split-module-body-end rest src-len (depth + 1)
+        else if string-compare p "}" == 0 then
+          if depth <= 1 then
+            let finish = case rest of Cons next more -> span-start (sp-of next); Nil -> src-len in
+            Some (finish, rest)
+          else split-module-body-end rest src-len (depth - 1)
+        else split-module-body-end rest src-len depth
+      other -> split-module-body-end rest src-len depth
+
+  split-module-header-end :: List LToken -> Nat -> Option (Nat, List LToken)
+  split-module-header-end toks src-len = case toks of
+    Nil -> None
+    Cons t rest -> case lt-token t of
+      TEOF -> None
+      TPunct p | string-compare p "{" == 0 -> split-module-body-end rest src-len 1
+      other -> split-module-header-end rest src-len
+
+  split-top-level-module-ranges :: List LToken -> Nat -> List (Nat, Nat, Nat) -> Option (List (Nat, Nat, Nat))
+  split-top-level-module-ranges toks src-len acc = case toks of
+    Nil -> Some (reverse acc)
+    Cons t rest -> case lt-token t of
+      TEOF -> Some (reverse acc)
+      TPunct p | string-compare p ";" == 0 -> split-top-level-module-ranges rest src-len acc
+      other ->
+        let sp = sp-of t in
+        if is-word-t (lt-token t) "module" && span-col sp == 1 then
+          case split-module-header-end rest src-len of
+            Some (finish, more) -> split-top-level-module-ranges more src-len (Cons (span-start sp, finish, span-line sp) acc)
+            None -> None
+        else None
+
+  parse-range-chunk :: Bytes -> HashMap String Module -> List (Nat, Nat, Nat) -> List Module -> Option (List Module)
+  parse-range-chunk src headers ranges acc = case ranges of
+    Nil -> Some (reverse acc)
+    Cons (start, finish, line) rest -> case lex-source-slice src start finish line of
+      LexedFail sp k -> None
+      LexedTokens toks -> case parse-module toks src headers Nil of
+        POk m tail -> parse-range-chunk src headers rest (Cons m acc)
+        PBad -> None
+
+  collect-parsed-chunks :: List (Option (List Module)) -> List (List Module) -> Option (List Module)
+  collect-parsed-chunks results acc = case results of
+    Nil -> Some (flatten-lists (reverse acc))
+    Cons item rest -> case item of
+      None -> None
+      Some ms -> collect-parsed-chunks rest (Cons ms acc)
+
+  parse-modules-parallel :: CompileTuning -> Bytes -> List LToken -> HashMap String Module -> Option (List Module)
+  parse-modules-parallel tuning src toks headers =
+    case split-top-level-module-ranges toks (bytes-len src) Nil of
+      None -> None
+      Some ranges ->
+        let count = list-length ranges in
+        if count <= 1 then None
+        else case string-from-bytes src of
+          None -> None
+          Some src-text ->
+            let width = tuning-chunk-size tuning count in
+            let chunks = chunk-list width ranges in
+            let parsed = parMap (\chunk -> parse-range-chunk (string-to-bytes src-text) headers chunk Nil) chunks in
+            collect-parsed-chunks parsed Nil
+
+  parse-program-with-index-tuned :: CompileTuning -> String -> Bytes -> HashMap String Module -> ParseOutcome Program
+  parse-program-with-index-tuned tuning name src interfaces = case lex-source src of
     LexedFail s k -> Failed (Bundle name src (Cons (EFail s (lex-error-message k)) Nil))
     LexedTokens toks ->
       case parse-modules toks src hash-map-empty (Cons ("$bootstrap-header", MkFix "header" 0) (scan-fixities toks)) Nil of
-        POk headers rest -> case parse-modules toks src (index-module-names (reverse headers) interfaces) Nil Nil of
-          POk ms tail -> Parsed (MkProgram (program-span-of ms) ms) (module-fix-errors ms)
-          PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
+        POk headers rest ->
+          let indexed = index-module-names (reverse headers) interfaces in
+          case parse-modules-parallel tuning src toks indexed of
+            Some ms -> Parsed (MkProgram (program-span-of ms) ms) (module-fix-errors ms)
+            None -> case parse-modules toks src indexed Nil Nil of
+              POk ms tail -> Parsed (MkProgram (program-span-of ms) ms) (module-fix-errors ms)
+              PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
         PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
 
   program-span-of :: List Module -> Span
@@ -2597,7 +2674,7 @@ module Bootstrap.Parse where
     Cons opener rest -> case expr-name value of
       None -> PBad
       Some name -> (case parse-token-tree opener rest of
-        POk tree after -> POk (EMacroCall (span-join (expr-span value) (list-end-span tree)) name tree) after
+        POk tree after -> POk (EMacroCall (span-join (expr-span value) (list-end-span tree)) name (freeze-macro-tokens tree)) after
         PBad -> PBad)
     Nil -> PBad
 

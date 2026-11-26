@@ -203,9 +203,13 @@ fn run(exe: &Path, threads: Option<u32>) -> Run {
     let wall = started.elapsed();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(
-        stderr.matches("cinch-leak: live=0 immortal=0 leaked=0").count(),
+        stderr.matches("cinch-leak:").count(),
         1,
-        "expected exactly one clean leak report at {threads:?} participants, got: {stderr}"
+        "expected exactly one leak report at {threads:?} participants, got: {stderr}"
+    );
+    assert!(
+        stderr.contains(" leaked=0"),
+        "expected zero leaked blocks at {threads:?} participants, got: {stderr}"
     );
     Run {
         code: output.status.code().unwrap_or(-1),
@@ -775,53 +779,70 @@ module Main where
     );
 }
 
-/// A `String` is `StrBuf :: Bytes -> String` behind a module-private
-/// constructor (`seed/prelude/Data/String.cinch:70-71`), and `Bytes` is
-/// transfer-only, so a `String` is not `Share` (section 1.2 states the
-/// consequence, and the `share` attribute that would lift it, section 2.4
-/// item 2, is not implemented). Both a capture and a `parMap` element are
-/// therefore refused.
+/// `Data.String.String` wraps a module-private immutable `Bytes` buffer
+/// (`StrBuf :: Bytes -> String`), and `Sym` is an immortal interned handle,
+/// so both are `Share` (design/parallel-evaluation.md section 2.4). Both a
+/// capture and a `parMap` element of `String` are therefore admitted, while
+/// `Bytes` and user-defined `Bytes` wrappers (like `Sealed` below) remain
+/// transfer-only.
 #[test]
-fn a_string_capture_is_rejected() {
-    expect_err(
-        "parallel-share-string-capture",
+fn a_string_and_sym_capture_are_admitted() {
+    expect_ok(
+        "parallel-share-string-sym-capture",
         r#"
 module Main where
   import Data.Array
   import Data.Nat
   import Data.String (String, string-length)
+  import Data.Sym (intern)
 
-  table :: String -> Nat
-  table s = array-length (parTabulate 1 (\i -> string-length s))
+  table :: String -> Sym -> Nat
+  table s k = array-length (parTabulate 4 (\i -> string-length s + (if k == intern "ok" then i else 0)))
 
   main :: Int
-  main = 0
+  main = if table "hello" (intern "ok") == 4 then 0 else 1
 "#,
-        "a parallel capture must be Share",
+        0,
     );
 }
 
 #[test]
-fn a_par_map_over_string_elements_is_rejected() {
-    expect_err(
-        "parallel-share-element-string",
-        r#"
+fn a_par_map_over_string_elements_is_admitted() {
+    let source = r#"
 module Main where
   import Data.Array
-  import Data.String (String)
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.String (String, string-concat, string-length, string-to-bytes)
 
-  keep :: String -> String
-  keep s = s
+  tag :: String -> String -> String
+  tag prefix s = string-concat prefix s
 
-  bad :: List String -> List String
-  bad xs = parMap (\s -> keep s) xs
+  sum-lens :: List String -> Nat
+  sum-lens xs = case xs of
+    Nil -> 0
+    Cons s rest -> string-length s + sum-lens rest
 
-  main :: Int
-  main = 0
-"#,
-        "parMap's element type must be Share",
-    );
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in
+    let xs = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] in
+    let prefix = "p:" in
+    let mapped = parMap (\s -> tag prefix s) xs in
+    let expected = map (\s -> tag prefix s) xs in
+    let ok = sum-lens mapped == sum-lens expected in
+    case ioWrite (string-to-bytes (if ok then "OK" else "BAD")) of
+      _ -> 0
+"#;
+    let (dir, exe) = build("parallel-share-element-string", source);
+    for workers in [1, 2, 4] {
+        let out = run(&exe, Some(workers));
+        assert_eq!(out.code, 0, "workers={workers} stderr={}", out.stderr);
+        assert_eq!(out.stdout, "OK", "workers={workers} stderr={}", out.stderr);
+    }
+    common::cleanup(&dir);
 }
+
 
 /// The negative control for the array cases: `Array` recurses into its
 /// element, so an array of `Bytes` is still refused. Without this, teaching
