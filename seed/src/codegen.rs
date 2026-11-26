@@ -606,6 +606,11 @@ fn emit_module(
         // crossing of `seed/runtime/src/abi.rs`): the UTF-8 and
         // symbol intrinsics read buffer contents through it.
         "declare i64 @cinch_bytes_data(i64)",
+        // UTF-8 SIMD runtime operations (`seed/runtime/src/string.rs`).
+        "declare i64 @cinch_utf8_validate(i64, i64)",
+        "declare i64 @cinch_utf8_count_chars(i64, i64)",
+        "declare i64 @cinch_utf8_decode_at(i64, i64, i64)",
+        "declare i64 @cinch_utf8_encode(i64, i64, i64)",
         // The interned symbol table (`seed/runtime/src/sym.rs`):
         // cells in and out as words, names over the pointer-length
         // crossing above.
