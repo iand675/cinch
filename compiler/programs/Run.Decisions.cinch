@@ -1,13 +1,13 @@
 module Main where
   import Algebra.Semigroup
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Core
-  import Bootstrap.Global
-  import Bootstrap.Typing
-  import Bootstrap.Proof
-  import Bootstrap.Nominal (interface-global)
-  import Bootstrap.BodyContract (binding-function)
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Core
+  import Cinch.Global
+  import Cinch.Typing
+  import Cinch.Proof
+  import Cinch.Nominal (interface-global)
+  import Cinch.BodyContract (binding-function)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)

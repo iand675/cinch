@@ -6,24 +6,24 @@ fn module_registries_do_not_collide_or_leak_private_values() {
         "module_scopes",
         &[
             (
-                "Bootstrap.Ast.cinch",
-                include_str!("../../compiler/Bootstrap.Ast.cinch"),
+                "Cinch.Ast.cinch",
+                include_str!("../../compiler/Cinch.Ast.cinch"),
             ),
             (
-                "Bootstrap.Report.cinch",
-                include_str!("../../compiler/Bootstrap.Report.cinch"),
+                "Cinch.Report.cinch",
+                include_str!("../../compiler/Cinch.Report.cinch"),
             ),
             (
-                "Bootstrap.Check.cinch",
-                include_str!("../../compiler/Bootstrap.Check.cinch"),
+                "Cinch.Check.cinch",
+                include_str!("../../compiler/Cinch.Check.cinch"),
             ),
             (
-                "Bootstrap.Parse.cinch",
-                include_str!("../../compiler/Bootstrap.Parse.cinch"),
+                "Cinch.Parse.cinch",
+                include_str!("../../compiler/Cinch.Parse.cinch"),
             ),
             (
-                "Bootstrap.Ir.cinch",
-                include_str!("../../compiler/Bootstrap.Ir.cinch"),
+                "Cinch.Ir.cinch",
+                include_str!("../../compiler/Cinch.Ir.cinch"),
             ),
             (
                 "Main.cinch",

@@ -1,7 +1,7 @@
 module Main where
-  import Bootstrap.Total
+  import Cinch.Total
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Bootstrap.Document
+  import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Show (int-to-string)

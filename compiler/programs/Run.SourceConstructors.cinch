@@ -1,13 +1,13 @@
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Resolve (resolve-program)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Infer
-  import Bootstrap.Core
-  import Bootstrap.Type
-  import Bootstrap.Report (render-diagnostics)
-  import Bootstrap.Document
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Resolve (resolve-program)
+  import Cinch.Check (check-program)
+  import Cinch.Infer
+  import Cinch.Core
+  import Cinch.Type
+  import Cinch.Report (render-diagnostics)
+  import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

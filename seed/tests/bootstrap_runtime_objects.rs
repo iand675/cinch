@@ -60,13 +60,13 @@ fn cinch_calls_actual_library_objects_with_checked_layout_authority() {
         }
     }).unwrap().join().unwrap();
     let dir = common::project("runtime_objects", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.RuntimeIr.cinch", include_str!("../../compiler/Bootstrap.RuntimeIr.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.RuntimeIr.cinch", include_str!("../../compiler/Cinch.RuntimeIr.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RuntimeObject.cinch")),
     ]);
     let metadata = common::editable_object_fixture(&object, &provider.join("build"));

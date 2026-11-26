@@ -83,7 +83,7 @@ def sha(data: bytes) -> str:
 
 
 def fnv_decimal(data: bytes) -> str:
-    """`Bootstrap.Interface.fnv-source-hash`: FNV-1a over the bytes, in decimal."""
+    """`Cinch.Interface.fnv-source-hash`: FNV-1a over the bytes, in decimal."""
     value = 0xCBF29CE484222325
     for byte in data:
         value = ((value ^ byte) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF

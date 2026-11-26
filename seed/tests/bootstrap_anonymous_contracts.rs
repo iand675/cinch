@@ -35,12 +35,12 @@ fn manifest(source: &std::path::Path, target: &std::path::Path) {
 fn imported_anonymous_results_and_arguments_keep_their_meaning() {
     let source = producer();
     let dir = common::project("anonymous_contract_consumer", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RefinementClosure.cinch")),
     ]);
     let exe = common::build_executable(&dir, "Main.cinch", "anonymous-contracts").expect("compile the Cinch interface consumer");

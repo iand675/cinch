@@ -1,9 +1,9 @@
 -- Runtime checks of the type engine. The input determines rigid region
 -- identities after compilation, so the row solver runs in the executable.
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Dictionary (resolve-dictionary-term)
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Dictionary (resolve-dictionary-term)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

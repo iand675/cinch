@@ -16,7 +16,7 @@ fn bootstrap_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../compiler")
 }
 
-/// The top-level `compiler/Bootstrap.*.cinch` modules as (file name, source, module
+/// The top-level `compiler/Cinch.*.cinch` modules as (file name, source, module
 /// name), read at run time so the test cannot hold a stale copy of a file a
 /// stream is editing.
 fn ladder_modules() -> Vec<(String, String, String)> {
@@ -25,7 +25,7 @@ fn ladder_modules() -> Vec<(String, String, String)> {
     for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())) {
         let path: PathBuf = entry.expect("directory entry").path();
         if path.extension().and_then(|e| e.to_str()) != Some("cinch")
-            || !path.file_stem().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("Bootstrap."))
+            || !path.file_stem().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("Cinch."))
         {
             continue;
         }

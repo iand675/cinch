@@ -1,0 +1,464 @@
+-- Definition-owned private type facts for checked interface output.
+-- These rows grant neither constructor names nor field access to a client.
+module Cinch.ExportNominal where
+  import Algebra.Semigroup
+  import Cinch.Type
+  import Cinch.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
+  import Cinch.ExportType (export-global, export-parameters)
+  import Cinch.Usage (usage-fields-json)
+  import Cinch.Load (LoadedInterface, loaded-contract, contract-nominals)
+  import Cinch.Nominal (kernel-type-name, interface-global, global-data-core-list)
+  import Cinch.Instance (CoreClass, class-name, class-params)
+  import Cinch.Document
+  import Cinch.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DTypeFamily, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
+  import Cinch.Contracts (declaration-references)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+
+  export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names, binding-source-type
+  export sorted, DeclarationReferences, declaration-reference-index, indexed-abstract-type, source-effect-contract
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  parameter-json :: List (String, String, Bool) -> Json
+  parameter-json rows = case rows of
+    Nil -> JArrEnd
+    Cons (name, kind, automatic) rest -> JArr (JObj "name" (JStr name)
+      (JObj "kind" (JStr kind) (JObj "implicit" (JBool automatic) JObjEnd))) (parameter-json rest)
+  parameter-names :: List (String, String, Bool) -> Json
+  parameter-names rows = case rows of Nil -> JArrEnd; Cons (name, kind, automatic) rest -> JArr (JStr name) (parameter-names rest)
+  constructor-names :: String -> List CoreConstructor -> Result String Json
+  constructor-names owner rows = case rows of
+    Nil -> Ok JArrEnd
+    Cons first rest -> let name = core-constructor-name first in
+      let identity = if same name ("#codata:" <> owner) then owner else name in
+      case (export-global identity, constructor-names owner rest) of
+        (Ok name, Ok more) -> Ok (JArr (JStr name) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  declared-region-roles :: List TypeParam -> List Quant -> List Quant
+  declared-region-roles params quants = case (params, quants) of
+    (Cons parameter rest, Cons quant more) ->
+      let declared = case (param-kind parameter, quant-kind quant) of
+            (None, KRegion) -> MkQuant (quant-id quant) (quant-name quant) KType (quant-implicit quant)
+            other -> quant in
+      Cons declared (declared-region-roles rest more)
+    other -> quants
+  nominal-header-params :: String -> List Decl -> List Quant -> List Quant
+  nominal-header-params owner declarations quants = case declarations of
+    Nil -> quants
+    Cons (DData sp name params constructors) rest -> if same owner name then declared-region-roles params quants else nominal-header-params owner rest quants
+    Cons other rest -> nominal-header-params owner rest quants
+  has-region-quant :: List Quant -> Bool
+  has-region-quant quants = case quants of
+    Nil -> False
+    Cons first rest -> kind-equal (quant-kind first) KRegion || has-region-quant rest
+  data-nominal :: List Decl -> CoreData -> Result String Json
+  data-nominal declarations declaration =
+    let owner = core-data-name declaration in
+    let quants = core-data-params declaration in
+    let params = if has-region-quant quants then nominal-header-params owner declarations quants else quants in
+    case (export-global owner, export-parameters params, constructor-names (core-data-name declaration) (core-data-constructors declaration)) of
+      (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
+        (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
+          (JObj "params" (parameter-names parameters) (JObj "constructors" constructors
+            (JObj "refinement" JNull (case usage-fields-json declaration of Some fields -> JObj "usage" fields JObjEnd; None -> JObjEnd)))))))
+      (Err error, other, more) -> Err error
+      (other, Err error, more) -> Err error
+      (other, more, Err error) -> Err error
+  class-nominal :: CoreClass -> Result String Json
+  class-nominal description = case (export-global (class-name description), export-parameters (class-params description)) of
+    (Ok name, Ok parameters) -> Ok (JObj "identity" (JStr name)
+      (JObj "kind" (JStr "signature") (JObj "parameters" (parameter-json parameters)
+        (JObj "params" (parameter-names parameters) (JObj "constructors" JNull (JObj "refinement" JNull JObjEnd))))))
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+
+  -- Traverse checked syntax, never a search over pretty-printed names.
+  combine :: Result String (List String) -> Result String (List String) -> Result String (List String)
+  combine first second = case (first, second) of
+    (Ok a, Ok b) -> Ok (a <> b)
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  kind-references :: Kind -> Result String (List String)
+  kind-references kind = case kind of
+    KFun a b -> combine (kind-references a) (kind-references b)
+    KValue carrier -> type-references carrier
+    other -> Ok Nil
+  quant-references :: List Quant -> Result String (List String)
+  quant-references quants = case quants of Nil -> Ok Nil; Cons q rest -> combine (kind-references (quant-kind q)) (quant-references rest)
+  requirement-references :: List Requirement -> Result String (List String)
+  requirement-references requirements = case requirements of Nil -> Ok Nil; Cons r rest -> combine (type-references (requirement-type r)) (requirement-references rest)
+  kernel-effect :: String -> Kind -> Bool
+  kernel-effect name kind =
+    ((same name "Diverge" || same name "Blocking" || same name "Global" || same name "Fail" || same name "Reentrant" || same name "ThreadAffine") && kind-equal kind KEffect)
+    || ((same name "IO" || same name "Async" || same name "Cancel" || same name "Eval") && kind-equal kind (KFun KRegion KEffect))
+  source-effect-contract :: String
+  source-effect-contract = "a source effect operation table has no portable nominal contract"
+  effect-kind :: Kind -> Bool
+  effect-kind kind = case kind of KEffect -> True; KFun argument result -> effect-kind result; other -> False
+  type-references :: UType -> Result String (List String)
+  type-references ty = case ty of
+    UCon raw kind ->
+      if promoted-str-name raw || promoted-ctor-name raw then Ok Nil
+      else case export-global raw of
+      Err error -> Err error
+      Ok name -> if kernel-type-name name || same name "Io" || same name "Dec" || same name "Scope" || same name "Task" || ((same raw "#kernel.MVar" || same raw "#kernel.STM") && kind-equal kind KEffect) || kernel-effect name kind then kind-references kind
+        else if effect-kind kind && not (same raw "Foreign" || same raw "Mut" || same raw "#kernel.ForeignIO") then Err source-effect-contract
+        else combine (Ok [name]) (kind-references kind)
+    UBound id name kind -> kind-references kind
+    URigid id name level kind -> kind-references kind
+    UForall qs body -> combine (quant-references (quants-list qs)) (type-references body)
+    UApp f x -> combine (type-references f) (type-references x)
+    UFun a b -> combine (type-references a) (type-references b)
+    UFunEff a row b -> combine (type-references a) (combine (type-references row) (type-references b))
+    UUsageArrow usage arrow -> if valid-type ty then type-references arrow else Err "nominal export contains a malformed usage arrow"
+    UProofFun predicate row result -> if valid-type ty then combine (type-references predicate) (combine (type-references row) (type-references result)) else Err "nominal export contains a malformed erased proof arrow"
+    UPi id name a row b -> combine (type-references a) (combine (type-references row) (type-references b))
+    URequire predicates body -> combine (type-references predicates) (type-references body)
+    URefine id name carrier predicate -> combine (type-references carrier) (type-references predicate)
+    URefineFormer name ids body -> case export-global name of
+      Ok identity -> combine (Ok [identity]) (type-references body)
+      Err error -> Err error
+    UIndex carrier index -> type-references carrier
+    UIndexForget value -> type-references value
+    UIndexPromote value -> type-references value
+    UIndexByteLength value -> type-references value
+    UIndexMeasure measure value -> type-references value
+    UIndexStringLength value -> type-references value
+    UIndexBorrowRead value -> type-references value
+    -- Executable identities are emitted as checked measure contracts by
+    -- Export. Only their argument types can add nominal type dependencies.
+    UIndexCall function args -> type-references args
+    UIndexConstructor name arrow input -> combine (type-references arrow) (type-references input)
+    UIndexMath op a b -> combine (type-references a) (type-references b)
+    UCompare relation a b -> combine (type-references a) (type-references b)
+    UPropAnd a b -> combine (type-references a) (type-references b)
+    UPropOr a b -> combine (type-references a) (type-references b)
+    UPropNot value -> type-references value
+    UPropNonZero value -> type-references value
+    UPropNonZeroPending value -> if valid-type ty then type-references value else Err "nominal export contains an invalid NonZero proposition"
+    UPropNotNull value -> type-references value
+    UPropAscii value -> type-references value
+    UPropOrdered value -> type-references value
+    URow labels -> type-references labels
+    URowJoin a b -> combine (type-references a) (type-references b)
+    UTuple fields -> type-references fields
+    USigma id name domain body -> combine (type-references domain) (type-references body)
+    UArg first rest -> combine (type-references first) (type-references rest)
+    UEnd -> Ok Nil
+    UPropLit value -> Ok Nil
+    other -> Err "nominal export contains unsupported checked syntax"
+  insert :: String -> List String -> List String
+  insert name names = case names of
+    Nil -> [name]
+    Cons first rest -> let order = string-compare name first in
+      if order == 0 then names else if order < 0 then Cons name names else Cons first (insert name rest)
+  sorted :: List String -> List String -> List String
+  sorted names result = case names of Nil -> result; Cons name rest -> sorted rest (insert name result)
+
+  -- Imported carriers may be abstract in Core. Their complete defining
+  -- constructor identity table comes from the already validated artifact,
+  -- including the private nominal closure of its exported contracts.
+  find-nominal-row :: String -> List Json -> Option Json
+  find-nominal-row name rows = case rows of
+    Nil -> None
+    Cons row rest -> if same name (text (field "identity" row)) then Some row else find-nominal-row name rest
+  imported-nominal :: String -> List LoadedInterface -> Option Json
+  imported-nominal name interfaces = case interfaces of
+    Nil -> None
+    Cons first rest -> case find-nominal-row name (contract-nominals (loaded-contract first)) of Some row -> Some row; None -> imported-nominal name rest
+  source-class-nominal :: String -> List CoreClass -> Result String Json
+  source-class-nominal name classes = case classes of
+    Nil -> Err (string-concat "missing defining nominal contract: " name)
+    Cons description rest -> case export-global (class-name description) of
+      Ok identity -> if same name identity then class-nominal description else source-class-nominal name rest
+      Err error -> Err error
+  source-nominal :: String -> List Decl -> List CoreData -> List CoreClass -> Result String Json
+  source-nominal name declarations datas classes = case datas of
+    Nil -> case source-abstract-type declarations name of Some found -> found; None -> source-class-nominal name classes
+    Cons declaration rest -> case export-global (core-data-name declaration) of
+      Ok identity -> if same identity name then data-nominal declarations declaration else source-nominal name declarations rest classes
+      Err error -> Err error
+  nominal-rows :: List String -> List Decl -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
+  nominal-rows names declarations datas classes interfaces = case names of
+    Nil -> Ok JArrEnd
+    Cons name rest -> let actual = case imported-nominal name interfaces of Some row -> Ok row; None -> source-nominal name declarations datas classes in
+      case (actual, nominal-rows rest declarations datas classes interfaces) of
+        (Ok row, Ok more) -> Ok (JArr row more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  scheme-nominals :: Scheme -> List Decl -> List CoreData -> List CoreClass -> List LoadedInterface -> Result String Json
+  scheme-nominals scheme declarations datas classes interfaces = case combine (quant-references (scheme-params scheme))
+    (combine (requirement-references (scheme-requirements scheme)) (type-references (scheme-body scheme))) of
+      Err error -> Err error
+      Ok names -> nominal-rows (sorted names Nil) declarations datas classes interfaces
+
+  defining-refinement :: String -> List Decl -> Option Decl
+  defining-refinement name declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case declaration of
+      DRefine sp actual params binder predicate -> if same name actual then Some declaration else
+        (case export-global actual of
+          Ok identity -> if same name identity then Some declaration else defining-refinement name rest
+          Err error -> defining-refinement name rest)
+      other -> defining-refinement name rest
+  has-name :: String -> List String -> Bool
+  has-name name names = case names of Nil -> False; Cons first rest -> same name first || has-name name rest
+  source-parameter-names :: List TypeParam -> List String
+  source-parameter-names params = case params of Nil -> Nil; Cons p rest -> Cons (param-name p) (source-parameter-names rest)
+  primitive-observer :: String -> List Decl -> Bool
+  primitive-observer name declarations = case declarations of
+    Nil -> False
+    Cons (DForeign sp direction abi symbol actual ty) rest -> (same name actual && same direction "import" && same abi "ccall" && (same symbol "cinch.runtime.bytesLen" || same symbol "cinch.runtime.bytesLenI64")) || primitive-observer name rest
+    Cons other rest -> primitive-observer name rest
+  template-text :: List Decl -> List String -> TypeExpr -> Result String String
+  template-text declarations locals syntax = case syntax of
+    TName sp name -> if has-name name locals || kernel-type-name name || has-name name ["Type", "Prop", "Region", "Effect", "Row", "True", "False", "NonZero", "NotNull"] then Ok name else export-global name
+    TIndex sp literal -> Ok literal
+    TNegate sp body -> case template-text declarations locals body of Ok text -> Ok (string-concat "-" text); Err error -> Err error
+    TInfix sp op first second -> if has-name op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
+      (case (template-text declarations locals first, template-text declarations locals second) of
+        (Ok a, Ok b) -> Ok (string-concat-all ["(", a, " ", op, " ", b, ")"])
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+      else Err "refinement predicate has no portable checked operator"
+    TFun sp first second -> (case (template-text declarations locals first, template-text declarations locals second) of
+      (Ok a, Ok b) -> Ok (string-concat-all ["(", a, " -> ", b, ")"])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error)
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
+      if same name "NotNull" then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "NotNull " value); Err error -> Err error)
+      else if same name "Ascii" then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "Ascii " value); Err error -> Err error)
+      else if same name "Ordered" then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "Ordered " value); Err error -> Err error)
+      else if same name (global-data-core-list) then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "Data.Core.List " value); Err error -> Err error)
+      else if has-name name ["toNat", "#kernel.toNat", "NonZero", "length", "#kernel.length", "#kernel.bytes-length"] || primitive-observer name declarations then
+        (case template-text declarations locals input of
+          Ok value -> Ok (string-concat-all ["(", if same name "NonZero" then "NonZero" else if has-name name ["toNat", "#kernel.toNat"] then "b.toNat" else if has-name name ["length", "#kernel.length"] then "b.length" else "b.bytesLen", " ", value, ")"])
+          Err error -> Err error)
+      else Err "refinement application needs its retained defining contract"
+    other -> Err "refinement template has no portable checked representation"
+  template-predicate :: List Decl -> List String -> TypeExpr -> Result String String
+  template-predicate declarations locals syntax = case syntax of
+    TInfix sp op first second -> case (template-text declarations locals first, template-text declarations locals second) of
+      (Ok a, Ok b) -> Ok (string-concat-all [a, " ", op, " ", b])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> template-text declarations locals syntax
+  template-kind :: List Decl -> List String -> Bool -> TypeExpr -> Result String String
+  template-kind declarations locals grouped syntax = case syntax of
+    TFun sp first second -> case (template-kind declarations locals True first, template-kind declarations locals False second) of
+      (Ok a, Ok b) -> Ok (if grouped then string-concat-all ["(", a, " -> ", b, ")"] else string-concat-all [a, " -> ", b])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> template-text declarations locals syntax
+  template-parameters :: List Decl -> List String -> List TypeParam -> Result String (List (String, String, Bool))
+  template-parameters declarations locals params = case params of
+    Nil -> Ok Nil
+    Cons p rest -> let name = param-name p in
+      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-kind declarations locals False syntax),
+        template-parameters declarations (Cons name locals) rest) of
+        (Ok kind, Ok more) -> Ok (Cons (name, kind, param-implicit p) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  refinement-nominal :: List Decl -> Decl -> Result String Json
+  refinement-nominal declarations declaration = case declaration of
+    DRefine sp name params binder predicate -> case param-kind binder of
+      None -> Err "checked refinement lost its declared carrier"
+      Some carrier -> let locals = source-parameter-names params in
+        case (export-global name, template-parameters declarations Nil params,
+          template-text declarations locals carrier, template-predicate declarations (Cons (param-name binder) locals) predicate) of
+          (Ok identity, Ok parameters, Ok base, Ok condition) -> Ok (JObj "identity" (JStr identity)
+            (JObj "kind" (JStr "refinement") (JObj "params" (parameter-names parameters)
+              (JObj "parameters" (parameter-json parameters) (JObj "constructors" JNull
+                (JObj "refinement" (JObj "binder" (JStr (param-name binder))
+                  (JObj "carrier" (JStr base) (JObj "predicate" (JStr condition) JObjEnd))) JObjEnd))))))
+          (Err error, other, more, last) -> Err error
+          (other, Err error, more, last) -> Err error
+          (other, more, Err error, last) -> Err error
+          (other, more, last, Err error) -> Err error
+    other -> Err "missing defining refinement declaration"
+  opaque-nominal :: List Decl -> Decl -> Result String Json
+  opaque-nominal declarations declaration = case declaration of
+    DOpaque sp name params kind -> case (export-global name, template-parameters declarations Nil params) of
+      (Ok identity, Ok parameters) -> Ok (JObj "identity" (JStr identity)
+        (JObj "kind" (JStr "opaque") (JObj "parameters" (parameter-json parameters)
+          (JObj "params" (parameter-names parameters) (JObj "constructors" JNull (JObj "refinement" JNull JObjEnd))))))
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> Err "missing checked opaque declaration"
+  source-opaque :: List Decl -> String -> Option (Result String Json)
+  source-opaque declarations name = find-source-opaque declarations declarations name
+  find-source-opaque :: List Decl -> List Decl -> String -> Option (Result String Json)
+  find-source-opaque declarations remaining name = case remaining of
+    Nil -> None
+    Cons (DOpaque sp actual params kind) rest -> case export-global actual of
+      Ok identity -> if same name actual || same name identity then Some (opaque-nominal declarations (DOpaque sp actual params kind)) else find-source-opaque declarations rest name
+      Err error -> Some (Err error)
+    Cons other rest -> find-source-opaque declarations rest name
+  type-family-param-kind :: Option TypeExpr -> String
+  type-family-param-kind mk = case mk of
+    None -> "Type"
+    Some (TName _ name) ->
+      if same name "Type" || same name "Nat" || same name "Int" || same name "Region" || same name "Prop" || same name "Row" || same name "Effect"
+      then name else "Type"
+    Some _ -> "Type"
+  type-family-parameters :: List TypeParam -> List (String, String, Bool)
+  type-family-parameters params = case params of
+    Nil -> Nil
+    Cons p rest -> Cons (param-name p, type-family-param-kind (param-kind p), param-implicit p) (type-family-parameters rest)
+  type-family-nominal :: Decl -> Result String Json
+  type-family-nominal declaration = case declaration of
+    DTypeFamily sp name params rkind closed eqs -> case export-global name of
+      Ok identity ->
+        let parameters = type-family-parameters params in
+        Ok (JObj "identity" (JStr identity)
+          (JObj "kind" (JStr "type_family") (JObj "parameters" (parameter-json parameters)
+            (JObj "params" (parameter-names parameters) (JObj "constructors" JNull (JObj "refinement" JNull JObjEnd))))))
+      Err error -> Err error
+    other -> Err "missing checked type family declaration"
+  find-source-type-family :: List Decl -> String -> Option (Result String Json)
+  find-source-type-family remaining name = case remaining of
+    Nil -> None
+    Cons (DTypeFamily sp actual params rkind closed eqs) rest -> case export-global actual of
+      Ok identity -> if same name actual || same name identity then Some (type-family-nominal (DTypeFamily sp actual params rkind closed eqs)) else find-source-type-family rest name
+      Err error -> Some (Err error)
+    Cons other rest -> find-source-type-family rest name
+  source-abstract-type :: List Decl -> String -> Option (Result String Json)
+  source-abstract-type declarations name = case source-refinement declarations name of
+    Some found -> Some found
+    None -> case source-opaque declarations name of
+      Some found -> Some found
+      None -> find-source-type-family declarations name
+  source-refinement :: List Decl -> String -> Option (Result String Json)
+  source-refinement declarations name = case defining-refinement name declarations of None -> None; Some declaration -> Some (refinement-nominal declarations declaration)
+  insert-nominal :: Json -> Json -> Result String Json
+  insert-nominal row rows = case rows of
+    JArr first rest -> let order = string-compare (text (field "identity" row)) (text (field "identity" first)) in
+      if order == 0 then (if json-eq row first then Ok rows else Err "conflicting defining nominal contracts")
+      else if order < 0 then Ok (JArr row rows)
+      else case insert-nominal row rest of Ok more -> Ok (JArr first more); Err error -> Err error
+    JArrEnd -> Ok (JArr row JArrEnd)
+    other -> Err "invalid defining nominal closure"
+  merge-nominals :: Json -> Json -> Result String Json
+  merge-nominals first second = case first of
+    JArr row rest -> (case insert-nominal row second of Ok next -> merge-nominals rest next; Err error -> Err error)
+    JArrEnd -> Ok second
+    other -> Err "invalid defining nominal closure"
+  referenced-refinements :: List Decl -> HashMap String Decl -> List String -> List String -> Result String Json
+  referenced-refinements declarations refinements names seen = case names of
+    Nil -> Ok JArrEnd
+    Cons name rest -> if has-name name seen then referenced-refinements declarations refinements rest seen else
+      (case hash-map-lookup name refinements of
+        None -> referenced-refinements declarations refinements rest (Cons name seen)
+        Some declaration -> case declaration of
+          DRefine sp actual params binder predicate -> let refs = (declaration-references [DData sp actual params Nil, DSig sp actual predicate] <>
+            (case param-kind binder of Some carrier -> declaration-references [DSig sp actual carrier]; None -> Nil)) in
+            case (refinement-nominal declarations declaration, referenced-refinements declarations refinements (refs <> rest) (Cons name seen)) of
+              (Ok row, Ok more) -> insert-nominal row more
+              (Err error, other) -> Err error
+              (other, Err error) -> Err error
+          other -> Err "invalid checked refinement provenance")
+  -- Every query name a declaration answers for, paired with the references
+  -- the walk below used to emit for it. The order is the walk's order.
+  reference-entries :: Decl -> List (String, List String)
+  reference-entries declaration = case declaration of
+    DClass sp actual params members -> reference-entries-of (decls-of members)
+    DInstance sp flag actual params head-type members ->
+      Cons (actual, declaration-references [DData sp actual params Nil, DSig sp actual head-type])
+        (reference-entries-of (decls-of members))
+    DData sp actual params constructors -> constructor-reference-entries constructors
+    other -> case decl-name declaration of
+      Some actual -> Cons (actual, declaration-references [declaration]) Nil
+      None -> Nil
+  reference-entries-of :: List Decl -> List (String, List String)
+  reference-entries-of declarations = case declarations of
+    Nil -> Nil
+    Cons declaration rest -> reference-entries declaration <> reference-entries-of rest
+  -- One entry per distinct constructor name, first occurrence winning: the
+  -- walk this replaces stopped at the first matching constructor.
+  constructor-reference-entries :: List (String, TypeExpr) -> List (String, List String)
+  constructor-reference-entries constructors = constructor-reference-entries-from constructors Nil
+  constructor-reference-entries-from :: List (String, TypeExpr) -> List (String, List String) -> List (String, List String)
+  constructor-reference-entries-from constructors seen = case constructors of
+    Nil -> Nil
+    Cons (actual, syntax) rest ->
+      if entry-present actual seen then constructor-reference-entries-from rest seen
+      else Cons (actual, declaration-references [DSig (type-expr-span syntax) actual syntax])
+        (constructor-reference-entries-from rest (Cons (actual, Nil) seen))
+  entry-present :: String -> List (String, List String) -> Bool
+  entry-present name entries = case entries of
+    Nil -> False
+    Cons (first, refs) rest -> same name first || entry-present name rest
+  -- The reference names of every binding, built once per export instead of
+  -- walked once per exported row. A later entry for a name appends, so each
+  -- name's list keeps declaration order exactly as the walk produced it.
+  data DeclarationReferences where
+    DeclarationReferences :: HashMap String (List String) -> HashMap String Decl -> HashMap String (Nat, TypeExpr) -> DeclarationReferences
+
+  declaration-reference-index :: List Decl -> DeclarationReferences
+  declaration-reference-index declarations = reference-index-of declarations 0 (DeclarationReferences hash-map-empty hash-map-empty hash-map-empty)
+  reference-index-of :: List Decl -> Nat -> DeclarationReferences -> DeclarationReferences
+  reference-index-of declarations position index = case declarations of
+    Nil -> index
+    Cons declaration rest -> case index of
+      DeclarationReferences references refinements signatures ->
+        reference-index-of rest (position + 1)
+          (DeclarationReferences (reference-index-insert (reference-entries declaration) references)
+            (index-refinement declaration refinements) (index-signature declaration position signatures))
+  index-refinement :: Decl -> HashMap String Decl -> HashMap String Decl
+  index-refinement declaration refinements = case declaration of
+    DRefine sp actual params binder predicate ->
+      let named = first-declaration actual declaration refinements in
+      case export-global actual of
+        Ok identity -> first-declaration identity declaration named
+        Err error -> named
+    other -> refinements
+  first-declaration :: String -> Decl -> HashMap String Decl -> HashMap String Decl
+  first-declaration name declaration index = case hash-map-lookup name index of
+    Some first -> index
+    None -> hash-map-insert name declaration index
+  index-signature :: Decl -> Nat -> HashMap String (Nat, TypeExpr) -> HashMap String (Nat, TypeExpr)
+  index-signature declaration position signatures = case declaration of
+    DSig sp name ty -> case hash-map-lookup name signatures of
+      Some first -> signatures
+      None -> hash-map-insert name (position, ty) signatures
+    other -> signatures
+  indexed-abstract-type :: List Decl -> DeclarationReferences -> String -> Option (Result String Json)
+  indexed-abstract-type declarations index name = case index of
+    DeclarationReferences references refinements signatures -> case hash-map-lookup name refinements of
+      Some declaration -> Some (refinement-nominal declarations declaration)
+      None -> source-opaque declarations name
+  reference-index-insert :: List (String, List String) -> HashMap String (List String) -> HashMap String (List String)
+  reference-index-insert entries index = case entries of
+    Nil -> index
+    Cons (name, refs) rest -> reference-index-insert rest (hash-map-insert name (reference-names-of name index <> refs) index)
+  reference-names-of :: String -> HashMap String (List String) -> List String
+  reference-names-of name index = case hash-map-lookup name index of Some refs -> refs; None -> Nil
+  binding-reference-names :: String -> DeclarationReferences -> List String
+  binding-reference-names name index = case index of
+    DeclarationReferences references refinements signatures -> reference-names-of name references
+  binding-source-type :: DeclarationReferences -> String -> Option TypeExpr
+  binding-source-type index name = case index of
+    DeclarationReferences references refinements signatures ->
+      case earliest-signature signatures (Cons name (Cons (string-concat "m." name) (reference-names-of name references))) None of
+        Some (position, ty) -> Some ty
+        None -> None
+  earliest-signature :: HashMap String (Nat, TypeExpr) -> List String -> Option (Nat, TypeExpr) -> Option (Nat, TypeExpr)
+  earliest-signature signatures names best = case names of
+    Nil -> best
+    Cons name rest -> case hash-map-lookup name signatures of
+      None -> earliest-signature signatures rest best
+      Some (position, ty) -> case best of
+        Some (previous, prior) -> earliest-signature signatures rest (if position < previous then Some (position, ty) else best)
+        None -> earliest-signature signatures rest (Some (position, ty))
+  binding-refinements :: List Decl -> DeclarationReferences -> String -> Result String Json
+  binding-refinements declarations index name = case index of
+    DeclarationReferences references refinements signatures -> referenced-refinements declarations refinements (binding-reference-names name index) Nil

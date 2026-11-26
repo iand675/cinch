@@ -5,8 +5,8 @@ mod common;
 #[test]
 fn compiled_cinch_checks_actual_total_body_graphs_and_forged_variants() {
     let dir = common::project("total_bodies", &[
-        ("Bootstrap.BodyScope.cinch", include_str!("../../compiler/Bootstrap.BodyScope.cinch")),
-        ("Bootstrap.Total.cinch", include_str!("../../compiler/Bootstrap.Total.cinch")),
+        ("Cinch.BodyScope.cinch", include_str!("../../compiler/Cinch.BodyScope.cinch")),
+        ("Cinch.Total.cinch", include_str!("../../compiler/Cinch.Total.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.Total.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "total-bodies").expect("compile independent total-body checker");

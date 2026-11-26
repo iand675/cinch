@@ -168,7 +168,7 @@ fn host_module(directory: &Path) -> String {
     let host = TargetProfile::native();
     // Each fixture compiler owns a separate project and output directory.
     let epoch = cinch::interface::content_hash_bytes(directory.as_os_str().as_encoded_bytes());
-    let mut source = String::from("module Bootstrap.Host where\n");
+    let mut source = String::from("module Cinch.Host where\n");
     for (name, value) in [
         ("host-triple", host.triple), ("host-os", host.os),
         ("host-arch", host.arch), ("host-libc", host.libc),
@@ -199,22 +199,18 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     let mut provided = HashSet::new();
     let mut pending = Vec::new();
     for (name, source) in files {
-        let is_compiler_fixture = name.starts_with("Bootstrap.")
-            || name.starts_with("Cinch.")
-            || source.contains("Bootstrap.")
-            || source.contains("Cinch.");
+        let is_compiler_fixture = name.starts_with("Cinch.") || source.contains("Cinch.");
         if let Ok(header) = cinch::driver::scan_file(source, name) {
             for (module, imports) in header.modules {
                 pending.extend(imports.into_iter().map(|(dependency, _)| dependency).filter(|dep| {
                     if !is_compiler_fixture {
                         return false;
                     }
-                    if module.starts_with("Bootstrap.") || module.starts_with("Cinch.") {
+                    if module.starts_with("Cinch.") {
                         return true;
                     }
                     if matches!(dep.as_str(),
-                        "Bootstrap.RuntimeAbi" | "Bootstrap.Index" | "Bootstrap.CoreBody" | "Bootstrap.Total"
-                        | "Cinch.RuntimeAbi" | "Cinch.Index" | "Cinch.CoreBody" | "Cinch.Total")
+                        "Cinch.RuntimeAbi" | "Cinch.Index" | "Cinch.CoreBody" | "Cinch.Total")
                     {
                         return true;
                     }
@@ -234,9 +230,9 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         if dir.join(&name).exists() {
             continue;
         }
-        let source = if module == "Bootstrap.Host" || module == "Cinch.Host" {
+        let source = if module == "Cinch.Host" {
             host_module(&dir)
-        } else if module.starts_with("Bootstrap.") || module.starts_with("Cinch.") {
+        } else if module.starts_with("Cinch.") {
             match std::fs::read_to_string(bootstrap_dir.join(&name)) {
                 Ok(source) => source,
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
@@ -393,7 +389,7 @@ pub fn check_library_fixture_native(dir: &Path, entry: &str) -> Result<(), Strin
     if interfaces.is_empty() { return Err("Native library fixture produced no checked interfaces".into()); }
     for iface in interfaces {
         let module = &iface.module;
-        if module == "Bootstrap" || module.starts_with("Bootstrap.") {
+        if module == "Cinch" || module.starts_with("Cinch.") {
             return Err(format!("Native library fixture contains compiler implementation module {module}"));
         }
         std::fs::write(dir.join("build").join(format!("{module}.cinchif")), iface.to_json())

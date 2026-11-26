@@ -4,15 +4,15 @@ mod common;
 #[test]
 fn source_projection_preserves_carriers_and_kernel_authority() {
     let dir = common::project("source_projection", &[
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Infer.cinch", include_str!("../../compiler/Bootstrap.Infer.cinch")),
-        ("Bootstrap.Builtin.cinch", include_str!("../../compiler/Bootstrap.Builtin.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Infer.cinch", include_str!("../../compiler/Cinch.Infer.cinch")),
+        ("Cinch.Builtin.cinch", include_str!("../../compiler/Cinch.Builtin.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.SourceProjection.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-projection").expect("build source constructor checker");

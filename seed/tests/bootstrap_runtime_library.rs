@@ -10,13 +10,13 @@ fn symbol(module: &str, name: &str) -> String { format!("cinch.typed.{}", global
 #[test]
 fn checked_library_roots_emit_linkable_owned_and_specialized_workers() {
     let dir = common::project("runtime_library", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.RuntimeIr.cinch", include_str!("../../compiler/Bootstrap.RuntimeIr.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.RuntimeIr.cinch", include_str!("../../compiler/Cinch.RuntimeIr.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RuntimeLibrary.cinch")),
     ]);
     let emitter = common::build_executable(&dir, "Main.cinch", "library-emitter").expect("build actual Cinch library emitter");

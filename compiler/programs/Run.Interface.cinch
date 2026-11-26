@@ -41,10 +41,10 @@
 
 module Main where
 
-  import Bootstrap.Interface
+  import Cinch.Interface
   import Data.Bool
   import Data.Bytes
-  import Bootstrap.Document
+  import Cinch.Document
   import Data.List
   import Data.Nat
   import Data.Option

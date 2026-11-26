@@ -1,13 +1,13 @@
 -- The executable receives foreign declarations after it has been built.
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Infer
-  import Bootstrap.RuntimeAbi (runtime-abi-int)
-  import Bootstrap.Core
-  import Bootstrap.Report (render-diagnostics)
-  import Bootstrap.Document
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Check (check-program)
+  import Cinch.Infer
+  import Cinch.RuntimeAbi (runtime-abi-int)
+  import Cinch.Core
+  import Cinch.Report (render-diagnostics)
+  import Cinch.Document
   import Data.String (string-from-bytes)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

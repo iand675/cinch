@@ -1,0 +1,575 @@
+-- Executable, closed total-body contracts. A pure scheme or class slot is
+-- not a body. Only this module can construct the checked graph/function
+-- handles; the complete graph is typed and checked for dependency cycles.
+-- These standalone version-1 artifacts are not yet admitted by cinchif.
+module Cinch.Total where
+  import Cinch.BodyScope (BodyScope, body-scope-from-list, empty-body-scope, push-body-slot, body-slot)
+  import Cinch.Package (PackedBodyTable, packed-definition-for)
+  import Cinch.PackedBody (PackedTerm, PackedArguments, same-packed-term, packed-node, packed-argument-node,
+    PackedLocal, PackedNumber, PackedBool, PackedPrimitive, PackedCall, PackedLet, PackedIf, InvalidPackedTerm,
+    NoPackedArguments, NextPackedArgument)
+  import Cinch.TotalRules (valid-sort, decimal-number, operation-type)
+  import Cinch.Document
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.List (sort-by)
+  import Data.Ordering (Ordering, LT, EQ, GT)
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Algebra.Semigroup
+
+  export TotalGraph, TotalFunction, check-total-graph, check-total-graph-with-package, check-total-function, check-total-function-with-package, total-function, total-graph-for-roots, total-graph-body
+  export parse-decimal-value, total-decimal-value, total-function-closure, total-graph-symbols
+  export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-matches-document, total-function-graph, total-function-equal, total-functions-compatible
+  export projection-result-sort, source-field-projection, source-total-projection, total-source-projection, read-total-function
+  export read-keyed-ordering, keyed-ordering-slots
+  export TotalCompatibility, empty-total-compatibility, extend-total-compatibility
+  export TotalTerm, TotalArguments, TermNode, LocalTerm, NumberTerm, BoolTerm, PrimitiveTerm, CallTerm, LetTerm, IfTerm, InvalidTerm
+  export ArgumentNode, NoArguments, NextArgument, InvalidArguments
+  export total-term, total-graph-term, term-node, argument-node, total-function-is-packed
+
+  -- Keep the original row for contract equality and emission. All semantic
+  -- queries use the signature, body and call edges checked at admission.
+  data TotalRow where
+    TotalRow :: String -> Nat -> Json -> List String -> String -> Json -> List String -> Option PackedTerm -> TotalRow
+  data TotalRows where
+    SingleRow :: String -> TotalRow -> TotalRows
+    IndexedRows :: Nat -> HashMap String TotalRow -> TotalRows
+  data VisitedRows where
+    VisitedRows :: HashMap String TotalRow -> Nat -> List TotalRow -> VisitedRows
+  data TotalGraph where
+    MkTotalGraph :: Option Json -> TotalRows -> List TotalRow -> TotalGraph
+  data TotalFunction where
+    MkTotalFunction :: TotalGraph -> String -> TotalFunction
+    MkSourceProjection :: String -> String -> String -> Json -> TotalFunction
+    MkKeyedOrdering :: String -> Nat -> Nat -> TotalFunction
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  has :: String -> List String -> Bool
+  has key keys = case keys of Nil -> False; Cons first rest -> same key first || has key rest
+  without :: String -> List String -> List String
+  without key keys = case keys of Nil -> Nil; Cons first rest -> if same key first then rest else Cons first (without key rest)
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  fields :: List String -> Json -> Bool
+  fields keys doc = case doc of
+    JObj key value rest -> has key keys && fields (without key keys) rest
+    JObjEnd -> (case keys of Nil -> True; other -> False)
+    other -> False
+  sorts :: Json -> Option (List String)
+  sorts rows = case rows of
+    JArr (JStr sort) rest -> if valid-sort sort then (case sorts rest of Some more -> Some (Cons sort more); None -> None) else None
+    JArrEnd -> Some Nil
+    other -> None
+  find-row :: String -> TotalRows -> Option TotalRow
+  find-row name rows = case rows of
+    SingleRow identity row -> if same name identity then Some row else None
+    IndexedRows count table -> hash-map-lookup name table
+  row-count :: TotalRows -> Nat
+  row-count rows = case rows of SingleRow identity row -> 1; IndexedRows count table -> count
+  row-name :: TotalRow -> String
+  row-name (TotalRow name position original parameters result body targets packed) = name
+  row-body :: TotalRow -> Json
+  row-body (TotalRow name position original parameters result body targets packed) = term-value body
+  term-value :: Json -> Json
+  term-value body = case body of JTerm term -> term-document term; other -> other
+  row-document :: TotalRow -> Json
+  row-document (TotalRow name position original parameters result body targets packed) = original
+  row-targets :: TotalRow -> List String
+  row-targets (TotalRow name position original parameters result body targets packed) = targets
+
+  arguments-fit :: TotalRows -> BodyScope String -> Json -> List String -> Bool
+  arguments-fit definitions scope arguments parameters = case (arguments, parameters) of
+    (JArr argument rest, Cons expected more) -> (case infer definitions scope argument of Some actual -> same expected actual; None -> False) && arguments-fit definitions scope rest more
+    (JArrEnd, Nil) -> True
+    other -> False
+  call-type :: TotalRows -> BodyScope String -> Json -> TotalRow -> Option String
+  call-type definitions scope arguments (TotalRow name position original parameters result body targets packed) =
+    if arguments-fit definitions scope arguments parameters then Some result else None
+  infer :: TotalRows -> BodyScope String -> Json -> Option String
+  infer definitions scope term = let node = text (field "node" term) in
+    if same node "local" then
+      (if fields ["node", "slot"] term then (case field "slot" term of JNum index -> if index >= 0 then body-slot (nat-from-int index) scope else None; other -> None) else None)
+    else if same node "number" then
+      (if fields ["node", "sort", "decimal"] term && decimal-number (text (field "sort" term)) (text (field "decimal" term)) then Some (text (field "sort" term)) else None)
+    else if same node "bool" then
+      (if fields ["node", "value"] term then (case field "value" term of JBool value -> Some "Bool"; other -> None) else None)
+    else if same node "primitive" then
+      (if fields ["node", "operation", "arguments"] term then (case operation-type (text (field "operation" term)) of
+        Some (parameters, result) -> if arguments-fit definitions scope (field "arguments" term) parameters then Some result else None
+        None -> None) else None)
+    else if same node "call" then
+      (if fields ["node", "target", "arguments"] term then (case find-row (text (field "target" term)) definitions of
+        Some declaration -> call-type definitions scope (field "arguments" term) declaration
+        None -> None) else None)
+    else if same node "let" then
+      (if fields ["node", "value", "body"] term then (case infer definitions scope (field "value" term) of
+        Some sort -> infer definitions (push-body-slot scope sort) (field "body" term)
+        None -> None) else None)
+    else if same node "if" then
+      (if fields ["node", "condition", "yes", "no"] term then (case (infer definitions scope (field "condition" term), infer definitions scope (field "yes" term), infer definitions scope (field "no" term)) of
+        (Some condition, Some yes, Some no) -> if same condition "Bool" && same yes no then Some yes else None
+        other -> None) else None)
+    else None
+
+  calls-arguments :: Json -> List String -> List String
+  calls-arguments rows tail = case rows of
+    JArr first rest -> calls-into first (calls-arguments rest tail)
+    other -> tail
+  calls-into :: Json -> List String -> List String
+  calls-into term tail = let node = text (field "node" term) in
+    if same node "call" then Cons (text (field "target" term)) (calls-arguments (field "arguments" term) tail)
+    else if same node "primitive" then calls-arguments (field "arguments" term) tail
+    else if same node "let" then calls-into (field "value" term) (calls-into (field "body" term) tail)
+    else if same node "if" then calls-into (field "condition" term) (calls-into (field "yes" term) (calls-into (field "no" term) tail))
+    else tail
+  -- Completed rows double as the index of the reachable subgraph.
+  acyclic-calls :: TotalRows -> HashMap String () -> VisitedRows -> List String -> Option VisitedRows
+  acyclic-calls definitions path visited targets = case targets of
+    Nil -> Some visited
+    Cons name rest -> case visited of
+      VisitedRows done size selected -> case hash-map-lookup name done of
+        Some prior -> acyclic-calls definitions path visited rest
+        None -> case (hash-map-lookup name path, find-row name definitions) of
+          (None, Some declaration) -> (case acyclic-calls definitions (hash-map-insert name () path) visited (row-targets declaration) of
+            Some (VisitedRows checked count reached) ->
+              acyclic-calls definitions path (VisitedRows (hash-map-insert name declaration checked) (count + 1) (Cons declaration reached)) rest
+            None -> None)
+          other -> None
+  walk-calls :: TotalRows -> List String -> Option VisitedRows
+  walk-calls rows roots = acyclic-calls rows hash-map-empty (VisitedRows hash-map-empty 0 Nil) roots
+  definition-name :: Json -> Option String
+  definition-name declaration = let name = text (field "identity" declaration) in
+    if string-length name > 0 && fields ["identity", "parameters", "result", "body"] declaration then Some name else None
+  definition-row :: Option PackedBodyTable -> Json -> Nat -> Option TotalRow
+  definition-row bodies declaration position =
+    let name = text (field "identity" declaration) in
+    let body = field "body" declaration in
+    let packed = (case bodies of Some table -> packed-definition-for table name declaration; None -> None) in
+    case packed of
+      Some (parameters, result, term, calls) -> Some (TotalRow name position declaration parameters result body calls (Some term))
+      None -> (case (definition-name declaration, sorts (field "parameters" declaration)) of
+        (Some name, Some parameters) ->
+          let result = text (field "result" declaration) in
+          let expanded = term-value body in
+          if valid-sort result then Some (TotalRow name position declaration parameters result expanded (calls-into expanded Nil) None) else None
+        other -> None)
+  index-definitions :: Option PackedBodyTable -> Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
+  index-definitions bodies rows position table indexed = case rows of
+    JArr declaration rest -> case definition-row bodies declaration position of
+      Some row -> let name = row-name row in (case hash-map-lookup name table of
+        None -> index-definitions bodies rest (position + 1) (hash-map-insert name row table) (Cons row indexed)
+        Some duplicate -> None)
+      None -> None
+    JArrEnd -> Some (IndexedRows position table, indexed)
+    other -> None
+  valid-definition :: TotalRows -> TotalRow -> Bool
+  valid-definition all (TotalRow name position original parameters result body targets packed) =
+    case infer all (body-scope-from-list parameters) (term-value body) of
+      Some inferred -> same result inferred
+      None -> False
+  valid-definitions :: TotalRows -> List TotalRow -> Bool
+  valid-definitions all rows = case rows of
+    Cons declaration rest -> valid-definition all declaration && valid-definitions all rest
+    Nil -> True
+  -- The wire reader checked each row's types and its edge sorts against
+  -- the same table. This proof applies only if every row matches that
+  -- table and the graph walk below finds every referenced definition.
+  all-packed-rows :: List TotalRow -> Bool
+  all-packed-rows rows = case rows of
+    Nil -> True
+    Cons (TotalRow name position original parameters result body targets (Some term)) rest -> all-packed-rows rest
+    other -> False
+
+  valid-single-definition :: TotalRow -> Bool
+  valid-single-definition row = case row of
+    TotalRow name position original parameters result body targets (Some term) -> (case targets of Nil -> True; other -> False)
+    other -> valid-definition (IndexedRows 0 hash-map-empty) row
+
+  check-total-graph :: Json -> Option TotalGraph
+  check-total-graph doc = check-graph None doc None
+
+  check-total-graph-with-package :: PackedBodyTable -> Json -> Option TotalGraph
+  check-total-graph-with-package bodies doc = check-graph (Some bodies) doc None
+
+  -- Interface declarations require one root and its exact closure. Walking
+  -- from that root proves acyclicity and membership in the same traversal.
+  check-total-function :: Json -> String -> Option TotalFunction
+  check-total-function doc name = check-total-function-with-package None doc name
+
+  check-total-function-with-package :: Option PackedBodyTable -> Json -> String -> Option TotalFunction
+  check-total-function-with-package bodies doc name = case check-graph bodies doc (Some name) of
+    Some graph -> Some (MkTotalFunction graph name)
+    None -> None
+
+  check-graph :: Option PackedBodyTable -> Json -> Option String -> Option TotalGraph
+  check-graph bodies doc root = if fields ["version", "definitions"] doc && (case field "version" doc of JNum value -> value == 1; other -> False) then
+    let definitions = field "definitions" doc in
+    case definitions of
+      -- The only possible internal call would recurse back to this row.
+      JArr declaration JArrEnd -> (case definition-row bodies declaration 0 of
+        Some row -> let name = row-name row in
+          if (case root of Some required -> same name required; None -> True) && valid-single-definition row
+          then Some (MkTotalGraph (Some doc) (SingleRow name row) [row]) else None
+        None -> None)
+      other -> case index-definitions bodies definitions 0 hash-map-empty Nil of
+        Some (rows, indexed) ->
+          if (all-packed-rows indexed || valid-definitions rows indexed) && check-graph-roots rows indexed root then Some (MkTotalGraph (Some doc) rows (reverse indexed))
+          else None
+        None -> None
+    else None
+
+  check-graph-roots :: TotalRows -> List TotalRow -> Option String -> Bool
+  check-graph-roots rows definitions root = case root of
+    None -> case walk-calls rows (map row-name definitions) of
+      Some checked -> True
+      None -> False
+    Some name -> exact-roots rows [name]
+
+  total-function :: TotalGraph -> String -> Option TotalFunction
+  total-function graph name = case graph of MkTotalGraph doc rows ordered -> (case find-row name rows of Some row -> Some (MkTotalFunction graph name); None -> None)
+  total-graph-body :: TotalGraph -> String -> Option Json
+  total-graph-body graph name = case graph of
+    MkTotalGraph doc rows ordered -> (case find-row name rows of
+      Some row -> Some (row-body row)
+      None -> None)
+  total-document :: TotalGraph -> Json
+  total-document (MkTotalGraph original rows ordered) = case original of
+    Some doc -> doc
+    None -> JObj "version" (JNum 1) (JObj "definitions" (closure-rows ordered) JObjEnd)
+  -- Projections are reconstructed against the checked source constructors.
+  -- Their carrier-tree representation carries no imported body authority.
+  source-total-projection :: String -> String -> List (String, Nat) -> Option TotalFunction
+  source-total-projection name domain steps = source-field-projection name domain "Bytes" steps
+  projection-result-sort :: String -> Bool
+  projection-result-sort result = has result ["Bytes", "Nat", "Int"]
+  projection-document :: String -> String -> Json -> Json
+  projection-document domain result steps = JObj "domain" (JStr domain) (JObj "fields" steps
+    (if same result "Bytes" then JObjEnd else JObj "result" (JStr result) JObjEnd))
+  source-field-projection :: String -> String -> String -> List (String, Nat) -> Option TotalFunction
+  source-field-projection name domain result steps = read-source-projection name (projection-document domain result (projection-steps steps))
+  projection-steps :: List (String, Nat) -> Json
+  projection-steps steps = case steps of
+    Nil -> JArrEnd
+    Cons (constructor, index) rest -> JArr (JArr (JStr constructor) (JArr (JNum (nat-to-int index)) JArrEnd)) (projection-steps rest)
+  valid-projection-steps :: Json -> Bool
+  valid-projection-steps steps = case steps of
+    JArr (JArr (JStr constructor) (JArr (JNum index) JArrEnd)) rest ->
+      string-length constructor > 0 && index >= 0 && valid-projection-steps rest
+    JArrEnd -> True
+    other -> False
+  read-source-projection :: String -> Json -> Option TotalFunction
+  read-source-projection name doc = let result = if fields ["domain", "fields"] doc then "Bytes" else if fields ["domain", "fields", "result"] doc then text (field "result" doc) else "" in
+    if not (projection-result-sort result && string-length name > 0) then None else case (field "domain" doc, field "fields" doc) of
+      (JStr domain, JArr first rest) -> if string-length domain > 0 && not (valid-sort domain) && valid-projection-steps (JArr first rest) then Some (MkSourceProjection name domain result (JArr first rest)) else None
+      other -> None
+  read-total-function :: Json -> String -> Option TotalFunction
+  read-total-function doc name = if fields ["source_projection"] doc then read-source-projection name (field "source_projection" doc) else
+    case check-total-graph doc of Some graph -> total-function graph name; None -> None
+  -- A keyed body only describes control flow over its caller's dictionary.
+  -- It cannot enter the first-order evaluator or a symbolic value index.
+  read-keyed-ordering :: String -> Json -> Option TotalFunction
+  read-keyed-ordering name doc = if string-length name == 0 || not (fields ["less_slot", "greater_slot"] doc) then None else
+    case (field "less_slot" doc, field "greater_slot" doc) of
+      (JNum less, JNum greater) -> if less >= 0 && greater >= 0 && less /= greater then Some (MkKeyedOrdering name (nat-from-int less) (nat-from-int greater)) else None
+      other -> None
+  keyed-ordering-slots :: TotalFunction -> Option (Nat, Nat)
+  keyed-ordering-slots function = case function of MkKeyedOrdering name less greater -> Some (less, greater); other -> None
+  total-source-projection :: TotalFunction -> Bool
+  total-source-projection function = case function of MkSourceProjection name domain result steps -> True; other -> False
+  total-identity :: TotalFunction -> String
+  total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain result steps -> name; MkKeyedOrdering name less greater -> name
+  function-row :: TotalFunction -> Option TotalRow
+  function-row function = case function of
+    MkTotalFunction (MkTotalGraph doc rows ordered) name -> find-row name rows
+    other -> None
+  total-parameters :: TotalFunction -> List String
+  total-parameters function = case function of
+    MkSourceProjection name domain result steps -> [domain]
+    other -> (case function-row function of Some (TotalRow name position original parameters result body targets packed) -> parameters; None -> Nil)
+  total-result :: TotalFunction -> String
+  total-result function = case function of
+    MkSourceProjection name domain result steps -> result
+    other -> (case function-row function of Some (TotalRow name position original parameters result body targets packed) -> result; None -> "")
+  -- Only an admitted closed function carries an executable graph.
+  total-function-graph :: TotalFunction -> Option TotalGraph
+  total-function-graph function = case function of
+    MkTotalFunction graph name -> Some graph
+    other -> None
+
+  total-function-document :: TotalFunction -> Json
+  total-function-document function = case function of
+    MkTotalFunction graph name -> total-document graph
+    MkSourceProjection name domain result steps -> JObj "source_projection" (projection-document domain result steps) JObjEnd
+    MkKeyedOrdering name less greater -> JObj "keyed_ordering" (JObj "less_slot" (JNum (nat-to-int less)) (JObj "greater_slot" (JNum (nat-to-int greater)) JObjEnd)) JObjEnd
+  -- The admitted graph's shape and version are fixed. Compare the
+  -- requested rows directly, including their order, without emitting a
+  -- compatibility document for a projected closure.
+  total-function-matches-document :: TotalFunction -> Json -> Bool
+  total-function-matches-document function doc = case function of
+    MkTotalFunction (MkTotalGraph original rows ordered) name ->
+      fields ["version", "definitions"] doc && (case field "version" doc of
+        JNum value -> value == 1 && match-total-rows ordered (field "definitions" doc)
+        other -> False)
+    other -> False
+  match-total-rows :: List TotalRow -> Json -> Bool
+  match-total-rows rows definitions = case (rows, definitions) of
+    (Nil, JArrEnd) -> True
+    (Cons row rest, JArr expected more) -> json-eq (row-document row) expected && match-total-rows rest more
+    other -> False
+
+  compare-position :: TotalRow -> TotalRow -> Ordering
+  compare-position (TotalRow a first doc params result body targets packed) (TotalRow b second other args returns term callees other-packed) =
+    if first < second then LT else if first > second then GT else EQ
+  closure-rows :: List TotalRow -> Json
+  closure-rows rows = case rows of
+    Cons row rest -> JArr (row-document row) (closure-rows rest)
+    Nil -> JArrEnd
+  projected-graph :: TotalRows -> List TotalRow -> TotalGraph
+  projected-graph index rows = MkTotalGraph None index rows
+  total-graph-symbols :: TotalGraph -> List String
+  total-graph-symbols (MkTotalGraph doc rows ordered) = map row-name ordered
+  total-function-closure :: TotalGraph -> String -> Option TotalFunction
+  total-function-closure graph name = case graph of MkTotalGraph doc rows ordered -> (case find-row name rows of
+    None -> None
+    Some row | row-count rows == 1 -> Some (MkTotalFunction graph name)
+    Some row -> (case row-targets row of
+      Nil -> Some (MkTotalFunction (projected-graph (SingleRow name row) [row]) name)
+      targets -> (case walk-calls rows [name] of
+        None -> None
+        Some (VisitedRows reachable size reached) ->
+          if size == row-count rows then Some (MkTotalFunction graph name)
+          else
+            let selected = sort-by compare-position reached in
+            Some (MkTotalFunction (projected-graph (IndexedRows size reachable) selected) name))))
+  -- Checked total documents contain no floating-point JSON values.
+  -- Matching structure can skip serialization. Canonical bytes still
+  -- compare documents that encode the same fields in different orders.
+  total-documents-equal :: Json -> Json -> Bool
+  total-documents-equal first second = json-eq first second || bytes-compare (canonical-bytes first) (canonical-bytes second) == 0
+  same-total-row :: TotalRow -> TotalRow -> Bool
+  same-total-row first second = case (first, second) of
+    (TotalRow name position original parameters result body targets (Some left),
+     TotalRow other ordinal declaration args returns term calls (Some right)) ->
+      same-packed-term left right || total-documents-equal original declaration
+    other -> total-documents-equal (row-document first) (row-document second)
+
+  same-total-rows :: List TotalRow -> List TotalRow -> Bool
+  same-total-rows first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons x xs, Cons y ys) -> same-total-row x y && same-total-rows xs ys
+    other -> False
+
+  total-function-equal :: TotalFunction -> TotalFunction -> Bool
+  total-function-equal first second = same (total-identity first) (total-identity second) &&
+    (case (first, second) of
+      (MkTotalFunction (MkTotalGraph a left x) p, MkTotalFunction (MkTotalGraph b right y) q) -> same-total-rows x y
+      other -> total-documents-equal (total-function-document first) (total-function-document second))
+  total-body :: TotalFunction -> Json
+  total-body function = case function-row function of Some row -> row-body row; None -> JNull
+
+  -- Consumers inspect one checked node at a time. References to children
+  -- remain opaque so traversal does not require a particular backing tree.
+  data TotalTerm where
+    JsonTerm :: Json -> TotalTerm
+    WireTerm :: PackedTerm -> TotalTerm
+  data TotalArguments where
+    JsonArguments :: Json -> TotalArguments
+    WireArguments :: PackedArguments -> TotalArguments
+  data TermNode where
+    LocalTerm :: Nat -> TermNode
+    NumberTerm :: String -> String -> TermNode
+    BoolTerm :: Bool -> TermNode
+    PrimitiveTerm :: String -> TotalArguments -> TermNode
+    CallTerm :: String -> TotalArguments -> TermNode
+    LetTerm :: TotalTerm -> TotalTerm -> TermNode
+    IfTerm :: TotalTerm -> TotalTerm -> TotalTerm -> TermNode
+    InvalidTerm :: TermNode
+  data ArgumentNode where
+    NoArguments :: ArgumentNode
+    NextArgument :: TotalTerm -> TotalArguments -> ArgumentNode
+    InvalidArguments :: ArgumentNode
+
+  total-term :: TotalFunction -> Option TotalTerm
+  total-term function = case function-row function of
+    Some row -> Some (row-term row)
+    None -> None
+  total-graph-term :: TotalGraph -> String -> Option TotalTerm
+  total-graph-term (MkTotalGraph doc rows ordered) name = case find-row name rows of
+    Some row -> Some (row-term row)
+    None -> None
+  row-term :: TotalRow -> TotalTerm
+  row-term (TotalRow name position original parameters result body targets packed) = case packed of
+    Some term -> WireTerm term
+    None -> JsonTerm body
+  total-function-is-packed :: TotalFunction -> Bool
+  total-function-is-packed function = case function-row function of
+    Some (TotalRow name position original parameters result body targets (Some term)) -> True
+    other -> False
+
+  argument-node :: TotalArguments -> ArgumentNode
+  argument-node (JsonArguments args) = case args of
+    JArr first rest -> NextArgument (JsonTerm first) (JsonArguments rest)
+    JArrEnd -> NoArguments
+    other -> InvalidArguments
+  argument-node (WireArguments args) = case packed-argument-node args of
+    NextPackedArgument first rest -> NextArgument (WireTerm first) (WireArguments rest)
+    NoPackedArguments -> NoArguments
+  term-node :: TotalTerm -> TermNode
+  term-node (WireTerm term) = case packed-node term of
+    PackedLocal slot -> LocalTerm slot
+    PackedNumber sort decimal -> NumberTerm sort decimal
+    PackedBool value -> BoolTerm value
+    PackedPrimitive operation args -> PrimitiveTerm operation (WireArguments args)
+    PackedCall callee args -> CallTerm callee (WireArguments args)
+    PackedLet value body -> LetTerm (WireTerm value) (WireTerm body)
+    PackedIf condition yes no -> IfTerm (WireTerm condition) (WireTerm yes) (WireTerm no)
+    InvalidPackedTerm -> InvalidTerm
+  term-node (JsonTerm doc) = let node = text (field "node" doc) in
+    if same node "local" then (case field "slot" doc of JNum slot | slot >= 0 -> LocalTerm (nat-from-int slot); other -> InvalidTerm)
+    else if same node "number" then NumberTerm (text (field "sort" doc)) (text (field "decimal" doc))
+    else if same node "bool" then (case field "value" doc of JBool value -> BoolTerm value; other -> InvalidTerm)
+    else if same node "primitive" then PrimitiveTerm (text (field "operation" doc)) (JsonArguments (field "arguments" doc))
+    else if same node "call" then CallTerm (text (field "target" doc)) (JsonArguments (field "arguments" doc))
+    else if same node "let" then LetTerm (JsonTerm (field "value" doc)) (JsonTerm (field "body" doc))
+    else if same node "if" then IfTerm (JsonTerm (field "condition" doc)) (JsonTerm (field "yes" doc)) (JsonTerm (field "no" doc))
+    else InvalidTerm
+
+  -- A universal finite return envelope, derived from actual literal leaves.
+  -- Unknown arithmetic/parameters remain unknown. Conditions may narrow the
+  -- result further, but taking both checked branches is always conservative.
+  decimal-fold :: List Char -> Int -> Option Int
+  decimal-fold chars value = case chars of
+    Nil -> Some value
+    Cons char rest -> let code = char-code char in
+      if code >= 48 && code <= 57 then decimal-fold rest (value * 10 + (nat-to-int code - 48)) else None
+  decimal-value :: String -> Option Int
+  decimal-value value = if string-length value > 4096 then None else parse-decimal-value value
+  parse-decimal-value :: String -> Option Int
+  parse-decimal-value value = case unpack value of
+    Nil -> None
+    Cons char rest -> if char-code char == 45 then (case rest of Nil -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (Cons char rest) 0
+  -- Retain the existing limit on possible literal outcomes, tracking their
+  -- count and extrema without copying a list at every conditional.
+  data LiteralBounds where
+    LiteralBounds :: Int -> Int -> Nat -> LiteralBounds
+  join-literal-bounds :: LiteralBounds -> LiteralBounds -> Option LiteralBounds
+  join-literal-bounds (LiteralBounds low high count) (LiteralBounds other-low other-high other-count) =
+    let total = count + other-count in
+    if total <= 256 then Some (LiteralBounds (if low <= other-low then low else other-low)
+      (if high >= other-high then high else other-high) total) else None
+  unknown-domains :: List String -> BodyScope (Option LiteralBounds) -> BodyScope (Option LiteralBounds)
+  unknown-domains parameters scope = case parameters of
+    Nil -> scope
+    Cons parameter rest -> unknown-domains rest (push-body-slot scope None)
+  argument-domains :: TotalGraph -> BodyScope (Option LiteralBounds) -> TotalArguments -> Nat -> BodyScope (Option LiteralBounds) -> (BodyScope (Option LiteralBounds), Nat)
+  argument-domains graph scope arguments fuel values = if fuel == 0 then (values, 0) else case argument-node arguments of
+    NextArgument argument rest -> (case literal-results graph scope argument fuel of
+      (value, left) -> argument-domains graph scope rest left (push-body-slot values value))
+    other -> (values, fuel)
+  literal-results :: TotalGraph -> BodyScope (Option LiteralBounds) -> TotalTerm -> Nat -> (Option LiteralBounds, Nat)
+  literal-results graph scope term fuel = if fuel == 0 then (None, 0) else
+    let remaining = fuel - 1 in case term-node term of
+      NumberTerm sort decimal -> (case decimal-value decimal of
+        Some value -> (Some (LiteralBounds value value 1), remaining)
+        None -> (None, remaining))
+      LocalTerm slot -> (case body-slot slot scope of Some domain -> (domain, remaining); None -> (None, remaining))
+      IfTerm condition yes no -> (case literal-results graph scope yes remaining of
+        (Some first, left) -> (case literal-results graph scope no left of
+          (Some second, final) -> (join-literal-bounds first second, final)
+          other -> other)
+        other -> other)
+      LetTerm value body -> (case literal-results graph scope value remaining of
+        (bound, left) -> literal-results graph (push-body-slot scope bound) body left)
+      CallTerm callee-name operands -> (case total-graph-term graph callee-name of
+        Some callee -> (case argument-domains graph scope operands remaining empty-body-scope of
+          (values, left) -> literal-results graph values callee left)
+        None -> (None, remaining))
+      other -> (None, remaining)
+  total-bounds :: TotalFunction -> Option (Int, Int)
+  total-bounds function = if not (has (total-result function) ["Nat", "Int", "I64"]) then None else
+    case (total-function-graph function, total-term function) of
+      (Some graph, Some term) -> (case literal-results graph (unknown-domains (total-parameters function) empty-body-scope) term 4096 of
+        (Some (LiteralBounds low high count), remaining) -> Some (low, high)
+        other -> None)
+      other -> None
+
+  exact-roots :: TotalRows -> List String -> Bool
+  exact-roots rows roots = case walk-calls rows roots of
+    Some (VisitedRows reachable size reached) -> size == row-count rows
+    None -> False
+
+  total-graph-for-roots :: TotalGraph -> List String -> Bool
+  total-graph-for-roots graph roots = case graph of MkTotalGraph doc rows ordered -> exact-roots rows roots
+
+  -- Every row of `first` must be byte-identical to the row of `second` that
+  -- carries the same identity, and a row `second` does not have is compatible.
+  compatible-rows :: List TotalRow -> TotalRows -> Bool
+  compatible-rows first table = case first of
+    Cons row rest -> (case find-row (row-name row) table of
+      Some prior -> same-total-row row prior
+      None -> True) && compatible-rows rest table
+    Nil -> True
+  total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
+  total-functions-compatible first second = case (first, second) of
+    (MkKeyedOrdering name less greater, MkKeyedOrdering other small large) -> not (same name other) || (less == small && greater == large)
+    (MkKeyedOrdering name less greater, other) -> projection-compatible first second
+    (other, MkKeyedOrdering name less greater) -> projection-compatible second first
+    other -> graph-views-compatible first second
+  graph-views-compatible :: TotalFunction -> TotalFunction -> Bool
+  graph-views-compatible first second = case (total-source-projection first, total-source-projection second) of
+    (False, False) -> case (first, second) of
+      (MkTotalFunction (MkTotalGraph a left ordered) p, MkTotalFunction (MkTotalGraph b rows other) q) -> compatible-rows ordered rows
+      other -> True
+    (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
+    (True, False) -> projection-compatible first second
+    (False, True) -> projection-compatible second first
+  projection-compatible :: TotalFunction -> TotalFunction -> Bool
+  projection-compatible projection graph = case graph of
+    MkTotalFunction (MkTotalGraph doc rows ordered) name ->
+      (case find-row (total-identity projection) rows of None -> True; Some row -> False)
+    other -> True
+
+  -- Checked graph rows sharing an identity must agree byte for byte. A
+  -- projection or keyed ordering excludes a graph row with its identity.
+  -- Projection and ordering descriptors only compare within their own kind.
+  data TotalCompatibility where
+    CheckedTotalCompatibility :: HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> TotalCompatibility
+  empty-total-compatibility :: TotalCompatibility
+  empty-total-compatibility = CheckedTotalCompatibility hash-map-empty hash-map-empty hash-map-empty
+  remember-descriptor :: TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalFunction)
+  remember-descriptor function descriptors = let name = total-identity function in
+    case hash-map-lookup name descriptors of
+      None -> Some (hash-map-insert name function descriptors)
+      Some old -> if total-function-equal old function then Some descriptors else None
+  remember-graph-rows :: List TotalRow -> HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalRow)
+  remember-graph-rows rows known projections orderings = case rows of
+    Cons row rest ->
+      let name = row-name row in
+      case (hash-map-lookup name projections, hash-map-lookup name orderings) of
+        (None, None) ->
+          case hash-map-lookup name known of
+            None -> remember-graph-rows rest (hash-map-insert name row known) projections orderings
+            Some prior -> if same-total-row row prior then remember-graph-rows rest known projections orderings else None
+        other -> None
+    Nil -> Some known
+  extend-total-compatibility :: TotalFunction -> TotalCompatibility -> Option TotalCompatibility
+  extend-total-compatibility function context = case context of
+    CheckedTotalCompatibility rows projections orderings -> case function of
+      MkTotalFunction (MkTotalGraph doc table ordered) name -> (case remember-graph-rows ordered rows projections orderings of
+        Some known -> Some (CheckedTotalCompatibility known projections orderings)
+        None -> None)
+      MkSourceProjection name domain result steps -> (case hash-map-lookup name rows of
+        Some row -> None
+        None -> (case remember-descriptor function projections of
+          Some known -> Some (CheckedTotalCompatibility rows known orderings)
+          None -> None))
+      MkKeyedOrdering name less greater -> (case hash-map-lookup name rows of
+        Some row -> None
+        None -> (case remember-descriptor function orderings of
+          Some known -> Some (CheckedTotalCompatibility rows projections known)
+          None -> None))
+
+  total-decimal-value :: String -> Option Int
+  total-decimal-value text = decimal-value text

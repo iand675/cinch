@@ -1,12 +1,12 @@
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Dictionary
-  import Bootstrap.BodyContract (BodyBinding, check-imported-method-binding)
-  import Bootstrap.Load (InterfaceSet, check-interface-set)
-  import Bootstrap.Inputs (read-interfaces)
-  import Bootstrap.Nominal (interface-global)
-  import Bootstrap.Report (diagnostic-message)
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Dictionary
+  import Cinch.BodyContract (BodyBinding, check-imported-method-binding)
+  import Cinch.Load (InterfaceSet, check-interface-set)
+  import Cinch.Inputs (read-interfaces)
+  import Cinch.Nominal (interface-global)
+  import Cinch.Report (diagnostic-message)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)

@@ -1,16 +1,16 @@
 -- Observable rank-one checking, with namespace/export facts retained.
 module Main where
 
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Infer
-  import Bootstrap.Type (scheme-params, quant-implicit, scheme-arity, empty-store, fresh-meta,
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Check (check-program)
+  import Cinch.Infer
+  import Cinch.Type (scheme-params, quant-implicit, scheme-arity, empty-store, fresh-meta,
     Kind, KType, KFun, UType, UCon, UBound, Scheme, MkScheme, Quant, MkQuant,
     enter-level, open-scheme, unify, store-errors, value-kind, quant-kind, quant-id, kind-equal, UFun)
-  import Bootstrap.Resolve (resolve-program)
-  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
-  import Bootstrap.Document
+  import Cinch.Resolve (resolve-program)
+  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

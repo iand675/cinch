@@ -4,10 +4,10 @@ mod common;
 #[test]
 fn refinement_core_rechecks_actual_values_and_contexts() {
     let dir = common::project("refinement_core", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RefinementCore.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "refinement-core").expect("build the Cinch refinement Core runner");

@@ -5,7 +5,7 @@ mod common;
 #[test]
 fn package_io_reports_missing_and_empty_files_and_keeps_mapped_bytes_alive() {
     let source = r#"module Main where
-  import Bootstrap.Package (read-package-source)
+  import Cinch.Package (read-package-source)
   import Data.Bytes (bytes-len)
 
   main :: Unit ->{IO r, Diverge} Int
@@ -21,7 +21,7 @@ fn package_io_reports_missing_and_empty_files_and_keeps_mapped_bytes_alive() {
               Ok bytes -> if bytes-len bytes == 3 then 0 else 6
 "#;
     let dir = common::project("package_io_diagnostics", &[
-        ("Bootstrap.Package.cinch", include_str!("../../compiler/Bootstrap.Package.cinch")),
+        ("Cinch.Package.cinch", include_str!("../../compiler/Cinch.Package.cinch")),
         ("Main.cinch", source),
     ]);
     std::fs::write(dir.join("empty.cpk"), b"").unwrap();

@@ -3,14 +3,14 @@ mod common;
 #[test]
 fn source_dependent_functions_use_checked_argument_values() {
     let dir = common::project("source_pi", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Infer.cinch", include_str!("../../compiler/Bootstrap.Infer.cinch")),
-        ("Bootstrap.Nominal.cinch", include_str!("../../compiler/Bootstrap.Nominal.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Infer.cinch", include_str!("../../compiler/Cinch.Infer.cinch")),
+        ("Cinch.Nominal.cinch", include_str!("../../compiler/Cinch.Nominal.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.SourcePi.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-pi").expect("build source Pi checker");

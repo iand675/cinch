@@ -1,13 +1,13 @@
 -- Runtime-fed source and explicit representation roots become a library module.
 -- No source entry point or Native frontend participates in this compilation.
 module Main where
-  import Bootstrap.Check (check-and-retain)
-  import Bootstrap.RuntimeIr (emit-runtime-library-artifact-with-object)
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Resolve (resolve-program-with)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Check (check-and-retain)
+  import Cinch.RuntimeIr (emit-runtime-library-artifact-with-object)
+  import Cinch.Parse (parse-program)
+  import Cinch.Resolve (resolve-program-with)
+  import Cinch.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Bootstrap.Document
+  import Cinch.Document
   import Data.Nat (nat-from-int)
   import Text.Show (nat-to-string, int-to-string)
   import Algebra.Semigroup

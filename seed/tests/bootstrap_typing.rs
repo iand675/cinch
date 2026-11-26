@@ -4,13 +4,13 @@ mod common;
 #[test]
 fn core_typing_rechecks_annotations_with_actual_declarations_and_scopes() {
     let dir = common::project("core_typing", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Dictionary.cinch", include_str!("../../compiler/Bootstrap.Dictionary.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
-        ("Bootstrap.Global.cinch", include_str!("../../compiler/Bootstrap.Global.cinch")),
-        ("Bootstrap.Kinds.cinch", include_str!("../../compiler/Bootstrap.Kinds.cinch")),
-        ("Bootstrap.Typing.cinch", include_str!("../../compiler/Bootstrap.Typing.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Dictionary.cinch", include_str!("../../compiler/Cinch.Dictionary.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
+        ("Cinch.Global.cinch", include_str!("../../compiler/Cinch.Global.cinch")),
+        ("Cinch.Kinds.cinch", include_str!("../../compiler/Cinch.Kinds.cinch")),
+        ("Cinch.Typing.cinch", include_str!("../../compiler/Cinch.Typing.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.CoreTyping.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "core-typing")

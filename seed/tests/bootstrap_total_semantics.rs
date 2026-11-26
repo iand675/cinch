@@ -19,7 +19,7 @@ fn checked_with_nat_method(source: &str, method_body: &str) -> cinch::core::Prog
 #[test]
 fn compiled_cinch_reflects_only_actual_numeric_equations() {
     let dir = common::project("numeric_body_semantics", &[
-        ("Bootstrap.TotalSemantics.cinch", include_str!("../../compiler/Bootstrap.TotalSemantics.cinch")),
+        ("Cinch.TotalSemantics.cinch", include_str!("../../compiler/Cinch.TotalSemantics.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.TotalSemantics.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "numeric-body-semantics").expect("compile body semantic recognizer");
@@ -93,7 +93,7 @@ fn compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results()
     definitions.push(def("exhausted", vec![Sort::Nat], Sort::Nat, call("fuel13")));
     let graph = CheckedGraph::check(definitions.clone()).expect("independently check every graph sort and dependency");
     let dir = common::project("total_body_readings", &[
-        ("Bootstrap.TotalSemantics.cinch", include_str!("../../compiler/Bootstrap.TotalSemantics.cinch")),
+        ("Cinch.TotalSemantics.cinch", include_str!("../../compiler/Cinch.TotalSemantics.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.TotalBodyReadings.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "total-body-readings").expect("compile closed-body evaluator");
@@ -120,9 +120,9 @@ fn compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results()
 #[test]
 fn compiled_cinch_method_facts_require_the_actual_selected_implementation() {
     let dir = common::project("method_body_authority", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.MethodBodyAuthority.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "method-body-authority").expect("compile selected-method authority checker");

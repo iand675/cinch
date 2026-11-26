@@ -2,7 +2,7 @@
 -- prerequisite made runnable (compiler/README.md: a rung is a
 -- runnable artifact, not a claim). It declares a hard-coded suite of
 -- five checks (three passing, two failing with distinct codes), runs
--- it through Bootstrap.Test.run-suite, writes the rendered report to
+-- it through Cinch.Test.run-suite, writes the rendered report to
 -- bootstrap-test-report.txt in the working directory through
 -- Effect.Fs, and returns the failure count as its exit code (0 only
 -- when nothing failed, the convention every harness in this repo
@@ -13,7 +13,7 @@
 
 module Main where
 
-  import Bootstrap.Test
+  import Cinch.Test
   import Data.Path (Path, path-from-string)
   import Effect.Fs (fs-write)
 

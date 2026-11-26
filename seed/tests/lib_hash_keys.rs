@@ -28,7 +28,7 @@
 //                  one generic function over a list of pairs.
 //   name to index  a symbol table: a name-to-index map built from a list
 //                  and queried for present and absent names, the absent
-//                  case answering -1 (the shape `Bootstrap.Check` needs),
+//                  case answering -1 (the shape `Cinch.Check` needs),
 //                  the same table keyed by the names' bytes answering
 //                  identically, and an overwrite visible through the key.
 //   home reach     one minimal program per key type: Bytes keys with only

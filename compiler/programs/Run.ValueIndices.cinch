@@ -1,9 +1,9 @@
 -- Typed indices are checked with binding identities supplied after compilation.
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Core
-  import Bootstrap.Document
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Core
+  import Cinch.Document
   import Data.Nat (nat-from-int)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)

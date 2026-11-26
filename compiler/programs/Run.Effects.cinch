@@ -1,10 +1,10 @@
 -- Input is supplied after this checker executable has been compiled.
 module Main where
 
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Resolve (resolve-program)
-  import Bootstrap.Infer (elaborate-program, elaboration-errors)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Parse (parse-program)
+  import Cinch.Resolve (resolve-program)
+  import Cinch.Infer (elaborate-program, elaboration-errors)
+  import Cinch.Report (render-diagnostics)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

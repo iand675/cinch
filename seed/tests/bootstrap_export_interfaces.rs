@@ -4,15 +4,15 @@ mod common;
 #[test]
 fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     let dir = common::project("export_interfaces", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Export.cinch", include_str!("../../compiler/Bootstrap.Export.cinch")),
-        ("Bootstrap.ExportType.cinch", include_str!("../../compiler/Bootstrap.ExportType.cinch")),
-        ("Bootstrap.ExportNominal.cinch", include_str!("../../compiler/Bootstrap.ExportNominal.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Export.cinch", include_str!("../../compiler/Cinch.Export.cinch")),
+        ("Cinch.ExportType.cinch", include_str!("../../compiler/Cinch.ExportType.cinch")),
+        ("Cinch.ExportNominal.cinch", include_str!("../../compiler/Cinch.ExportNominal.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ExportInterfaces.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile actual Cinch interface writer");
@@ -403,15 +403,15 @@ fn every_interface_family_agrees_with_the_seed_for_a_cross_module_use() {
 
     // The Cinch exporter's contracts for the same bytes.
     let dir = common::project("export_interfaces", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Export.cinch", include_str!("../../compiler/Bootstrap.Export.cinch")),
-        ("Bootstrap.ExportType.cinch", include_str!("../../compiler/Bootstrap.ExportType.cinch")),
-        ("Bootstrap.ExportNominal.cinch", include_str!("../../compiler/Bootstrap.ExportNominal.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Export.cinch", include_str!("../../compiler/Cinch.Export.cinch")),
+        ("Cinch.ExportType.cinch", include_str!("../../compiler/Cinch.ExportType.cinch")),
+        ("Cinch.ExportNominal.cinch", include_str!("../../compiler/Cinch.ExportNominal.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ExportInterfaces.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile the Cinch interface writer");
@@ -506,15 +506,15 @@ fn named_refinement_display_still_diverges_between_the_producers() {
         .exports.values.iter().find(|v| v.name == "one").unwrap().clone();
 
     let dir = common::project("export_interfaces", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Export.cinch", include_str!("../../compiler/Bootstrap.Export.cinch")),
-        ("Bootstrap.ExportType.cinch", include_str!("../../compiler/Bootstrap.ExportType.cinch")),
-        ("Bootstrap.ExportNominal.cinch", include_str!("../../compiler/Bootstrap.ExportNominal.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Export.cinch", include_str!("../../compiler/Cinch.Export.cinch")),
+        ("Cinch.ExportType.cinch", include_str!("../../compiler/Cinch.ExportType.cinch")),
+        ("Cinch.ExportNominal.cinch", include_str!("../../compiler/Cinch.ExportNominal.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ExportInterfaces.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile the Cinch interface writer");

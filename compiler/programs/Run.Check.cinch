@@ -1,7 +1,7 @@
 -- Rung 3's runnable artifact: the checker's driver program.
 --
 -- `module Main` so `cinch run compiler/programs/Run.Check.cinch` (with
--- Bootstrap.Ast, Bootstrap.Report and Bootstrap.Check beside it) runs it
+-- Cinch.Ast, Cinch.Report and Cinch.Check beside it) runs it
 -- with no test harness in the way. It hand-builds the AST of
 -- `examples/compiler/fib.cinch`, so the layout of every span below is that
 -- file's own (line 4 is the `fib` signature, line 5 its clause, line 8
@@ -34,9 +34,9 @@ module Main where
   import Data.Path (path-from-string)
   import Effect.Fs (fs-write)
   import Data.Result (Result, Ok, Err)
-  import Bootstrap.Ast
-  import Bootstrap.Report
-  import Bootstrap.Check
+  import Cinch.Ast
+  import Cinch.Report
+  import Cinch.Check
 
   -- The declaration lists and the check lists below are appended with the
   -- `Semigroup` operator, so this module declares its fixity.

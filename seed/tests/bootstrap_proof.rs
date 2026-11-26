@@ -7,8 +7,8 @@ fn arithmetic_search_requires_independently_rechecked_evidence() {
         "proof",
         &[
             (
-                "Bootstrap.Proof.cinch",
-                include_str!("../../compiler/Bootstrap.Proof.cinch"),
+                "Cinch.Proof.cinch",
+                include_str!("../../compiler/Cinch.Proof.cinch"),
             ),
             (
                 "Main.cinch",

@@ -1,7 +1,7 @@
 -- The rung 4 driver: the fragment as a runnable artifact.
 --
--- Builds three fragments' trees by hand (the same nodes `Bootstrap.Parse`
--- would fill and `Bootstrap.Check` would accept), asks `Bootstrap.Ir` for
+-- Builds three fragments' trees by hand (the same nodes `Cinch.Parse`
+-- would fill and `Cinch.Check` would accept), asks `Cinch.Ir` for
 -- each one's LLVM IR text, and writes that text beside this program:
 --
 --   program.ll              `fib` and a `main` that is 0 when fib 10 == 55
@@ -25,9 +25,9 @@
 
 module Main where
 
-  import Bootstrap.Ast
-  import Bootstrap.Ir
-  import Bootstrap.Report
+  import Cinch.Ast
+  import Cinch.Ir
+  import Cinch.Report
   import Data.Bytes
   import Data.Path
   import Effect.Fs

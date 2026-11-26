@@ -3,11 +3,11 @@ mod common;
 #[test]
 fn buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts() {
     let dir=common::project("buffer_aliases",&[
-        ("Bootstrap.Check.cinch",include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch",include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch",include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch",include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch",include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch",include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch",include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch",include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch",include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch",include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch",include_str!("../../compiler/programs/Run.SourceRefinements.cinch")),
     ]);
     let exe=common::build_refinement_checker(&dir,"buffer-aliases").expect("build independent Core alias checker");

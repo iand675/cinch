@@ -4,11 +4,11 @@ mod common;
 #[test]
 fn closed_effect_rows_regions_and_scope_are_checked_in_cinch() {
     let dir = common::project("effect_types", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Dictionary.cinch", include_str!("../../compiler/Bootstrap.Dictionary.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Dictionary.cinch", include_str!("../../compiler/Cinch.Dictionary.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.EffectTypes.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "effect-types").expect("build Cinch effect type runner");

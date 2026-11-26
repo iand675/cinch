@@ -8,12 +8,12 @@ fn mutation_row_labels_preserve_borrow_and_nominal_kind_authority() {
         "mutation_kinds",
         &[
             (
-                "Bootstrap.Type.cinch",
-                include_str!("../../compiler/Bootstrap.Type.cinch"),
+                "Cinch.Type.cinch",
+                include_str!("../../compiler/Cinch.Type.cinch"),
             ),
             (
-                "Bootstrap.Kinds.cinch",
-                include_str!("../../compiler/Bootstrap.Kinds.cinch"),
+                "Cinch.Kinds.cinch",
+                include_str!("../../compiler/Cinch.Kinds.cinch"),
             ),
             (
                 "Main.cinch",

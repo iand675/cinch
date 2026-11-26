@@ -4,10 +4,10 @@ mod common;
 #[test]
 fn globals_recheck_instantiations_roles_slots_and_lexical_dictionaries() {
     let dir = common::project("global_references", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
-        ("Bootstrap.Global.cinch", include_str!("../../compiler/Bootstrap.Global.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
+        ("Cinch.Global.cinch", include_str!("../../compiler/Cinch.Global.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.GlobalReferences.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "global-references")
@@ -25,12 +25,12 @@ fn globals_recheck_instantiations_roles_slots_and_lexical_dictionaries() {
 #[test]
 fn hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation() {
     let dir = common::project("constructor_scopes", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
-        ("Bootstrap.Global.cinch", include_str!("../../compiler/Bootstrap.Global.cinch")),
-        ("Bootstrap.Typing.cinch", include_str!("../../compiler/Bootstrap.Typing.cinch")),
-        ("Bootstrap.Kinds.cinch", include_str!("../../compiler/Bootstrap.Kinds.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
+        ("Cinch.Global.cinch", include_str!("../../compiler/Cinch.Global.cinch")),
+        ("Cinch.Typing.cinch", include_str!("../../compiler/Cinch.Typing.cinch")),
+        ("Cinch.Kinds.cinch", include_str!("../../compiler/Cinch.Kinds.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ConstructorScopes.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "constructor-scopes").expect("build actual Cinch constructor-scope checker");

@@ -1,5 +1,5 @@
 module Main where
-  import Bootstrap.Report
+  import Cinch.Report
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
   import Text.Lex (Span)

@@ -31,13 +31,13 @@ def write_json(path: Path, value: object) -> None:
 
 def loader_sources() -> dict[str, bytes]:
     """Collect the actual loader implementation and its source dependency closure."""
-    pending = ['Bootstrap.Load']
+    pending = ['Cinch.Load']
     files: dict[str, bytes] = {}
     while pending:
         name = pending.pop()
         if name in files:
             continue
-        path = ROOT / 'compiler' / f'{name}.cinch' if name.startswith('Bootstrap.') else ROOT / 'seed/prelude' / Path(*name.split('.')).with_suffix('.cinch')
+        path = ROOT / 'compiler' / f'{name}.cinch' if name.startswith('Cinch.') else ROOT / 'seed/prelude' / Path(*name.split('.')).with_suffix('.cinch')
         if not path.is_file():
             continue
         files[name] = path.read_bytes()

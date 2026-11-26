@@ -1,12 +1,12 @@
 # Self-hosted Cinch compiler (`compiler/`)
 
-`compiler/` contains the Cinch compiler written in Cinch: 65 `Bootstrap.*.cinch` modules implementing lexing, layout, parsing, macro expansion, module and interface loading, type/effect/refinement/proof/ownership/temporal checking, Core verification, and typed LLVM IR + native object emission.
+`compiler/` contains the Cinch compiler written in Cinch: 65 `Cinch.*.cinch` modules implementing lexing, layout, parsing, macro expansion, module and interface loading, type/effect/refinement/proof/ownership/temporal checking, Core verification, and typed LLVM IR + native object emission.
 
-Both `compiler/` and the Rust seed (`seed/`) speak **interface schema 10** and **runtime ABI 10** (`Bootstrap.RuntimeAbi.cinch`), including memory-mapped packed interfaces (`.cpk`).
+Both `compiler/` and the Rust seed (`seed/`) speak **interface schema 10** and **runtime ABI 10** (`Cinch.RuntimeAbi.cinch`), including memory-mapped packed interfaces (`.cpk`).
 
 ## Two compiler trees
 
-- **`compiler/` (this directory)** is the self-hosted Cinch compiler. Modules currently keep the `Bootstrap.` namespace prefix while interface identities are pinned.
+- **`compiler/` (this directory)** is the self-hosted Cinch compiler. All 65 compiler modules use the `Cinch.` namespace and can import any module from `seed/prelude/` via automatic stdlib closure bundling.
 - **`seed/` (beside this directory)** is the Rust bootstrap seed: it builds Stage 1 from scratch, owns the `cinchruntime` archive, and holds the `seed/prelude/` standard library sources.
 
 ## Directory layout
@@ -15,7 +15,7 @@ Both `compiler/` and the Rust seed (`seed/`) speak **interface schema 10** and *
 
 | Path | Contents |
 | --- | --- |
-| `Bootstrap.*.cinch` | The 65 compiler implementation modules (one module per file matching its dotted name) |
+| `Cinch.*.cinch` | The 65 compiler implementation modules (one module per file matching its dotted name) |
 | `programs/` | Standalone rung drivers (`Run.<Rung>.cinch`) and counterexample fixtures |
 | `pins/` | Lockfiles (`stage0.lock.json`, `library-provider.lock.json`) and `--object-roots` tables |
 | `evidence/` | Recorded verification receipts grouped by subject (`current/`, `stdlib/`, `native/`, `runtime/`, `other/`) |
@@ -28,20 +28,20 @@ Both `compiler/` and the Rust seed (`seed/`) speak **interface schema 10** and *
 
 | Pipeline stage | Modules |
 | --- | --- |
-| **Syntax & AST** | `Bootstrap.Ast`, `Bootstrap.Parse`, `Bootstrap.Layout`, `Bootstrap.Report`, `Bootstrap.Document`, `Bootstrap.Target`, `Bootstrap.TargetLiterals`, `Bootstrap.Expand` |
-| **Resolution & interfaces** | `Bootstrap.Resolve`, `Bootstrap.Nominal`, `Bootstrap.Load`, `Bootstrap.Interface`, `Bootstrap.Manifest`, `Bootstrap.Package`, `Bootstrap.PackageHash`, `Bootstrap.PackageWrite`, `Bootstrap.PackedBody`, `Bootstrap.Export`, `Bootstrap.ExportNominal`, `Bootstrap.ExportType`, `Bootstrap.Inputs`, `Bootstrap.Index` |
-| **Static checking & Core** | `Bootstrap.Builtin`, `Bootstrap.Contracts`, `Bootstrap.BodyContract`, `Bootstrap.BodyScope`, `Bootstrap.Type`, `Bootstrap.Promote`, `Bootstrap.Infer`, `Bootstrap.Instance`, `Bootstrap.Dictionary`, `Bootstrap.Check`, `Bootstrap.Core`, `Bootstrap.CoreBody`, `Bootstrap.Global`, `Bootstrap.Kinds`, `Bootstrap.Typing`, `Bootstrap.Foreign`, `Bootstrap.Logical`, `Bootstrap.Proof`, `Bootstrap.Eval`, `Bootstrap.Total`, `Bootstrap.TotalRules`, `Bootstrap.TotalSemantics`, `Bootstrap.Guarded`, `Bootstrap.Eager`, `Bootstrap.Usage`, `Bootstrap.Borrow`, `Bootstrap.Ownership`, `Bootstrap.Temporal`, `Bootstrap.TemporalCheck`, `Bootstrap.Unpack`, `Bootstrap.UnpackMatch`, `Bootstrap.Stage`, `Bootstrap.StageEval`, `Bootstrap.Ad` |
-| **Parallel, incremental & codegen** | `Bootstrap.Parallel`, `Bootstrap.Incremental`, `Bootstrap.RuntimeAbi`, `Bootstrap.Ir`, `Bootstrap.RuntimeIr`, `Bootstrap.Object`, `Bootstrap.Driver`, `Bootstrap.Pipeline`, `Bootstrap.Test` |
+| **Syntax & AST** | `Cinch.Ast`, `Cinch.Parse`, `Cinch.Layout`, `Cinch.Report`, `Cinch.Document`, `Cinch.Target`, `Cinch.TargetLiterals`, `Cinch.Expand` |
+| **Resolution & interfaces** | `Cinch.Resolve`, `Cinch.Nominal`, `Cinch.Load`, `Cinch.Interface`, `Cinch.Manifest`, `Cinch.Package`, `Cinch.PackageHash`, `Cinch.PackageWrite`, `Cinch.PackedBody`, `Cinch.Export`, `Cinch.ExportNominal`, `Cinch.ExportType`, `Cinch.Inputs`, `Cinch.Index` |
+| **Static checking & Core** | `Cinch.Builtin`, `Cinch.Contracts`, `Cinch.BodyContract`, `Cinch.BodyScope`, `Cinch.Type`, `Cinch.Promote`, `Cinch.Infer`, `Cinch.Instance`, `Cinch.Dictionary`, `Cinch.Check`, `Cinch.Core`, `Cinch.CoreBody`, `Cinch.Global`, `Cinch.Kinds`, `Cinch.Typing`, `Cinch.Foreign`, `Cinch.Logical`, `Cinch.Proof`, `Cinch.Eval`, `Cinch.Total`, `Cinch.TotalRules`, `Cinch.TotalSemantics`, `Cinch.Guarded`, `Cinch.Eager`, `Cinch.Usage`, `Cinch.Borrow`, `Cinch.Ownership`, `Cinch.Temporal`, `Cinch.TemporalCheck`, `Cinch.Unpack`, `Cinch.UnpackMatch`, `Cinch.Stage`, `Cinch.StageEval`, `Cinch.Ad` |
+| **Parallel, incremental & codegen** | `Cinch.Parallel`, `Cinch.Incremental`, `Cinch.RuntimeAbi`, `Cinch.Ir`, `Cinch.RuntimeIr`, `Cinch.Object`, `Cinch.Driver`, `Cinch.Pipeline`, `Cinch.Test` |
 
-`Bootstrap.Ast` and `Bootstrap.Report` form the shared frontend/backend contract. Explicit `*Unmodeled` AST nodes ensure any parsed grammar form not yet modeled is counted (`program-unmodeled-count`) and refused by name rather than silently dropped.
+`Cinch.Ast` and `Cinch.Report` form the shared frontend/backend contract. Explicit `*Unmodeled` AST nodes ensure any parsed grammar form not yet modeled is counted (`program-unmodeled-count`) and refused by name rather than silently dropped.
 
 ## The four-stage bootstrap ladder
 
 Self-hosting builds progress through four isolated stages under `build/bootstrap/stageN/`:
 
 1. **Stage 0 (pinned Rust seed):** built from the revision, patch, and hashes pinned in `pins/stage0.lock.json`. Local edits to `seed/` do not silently alter Stage 0.
-2. **Stage 1 (Cinch built by Stage 0):** compiles the frozen `Bootstrap.*.cinch` snapshot with Stage 0 and links against the pinned `--release` `cinchruntime`.
-3. **Stage 2 (Cinch built by Stage 1):** compiles the same frozen snapshot using Stage 1 as the sole frontend (`--emit-ir-with-interfaces`), linking with the prebuilt base library object from `pins/library-provider.lock.json` (which provides base library units only, never `Bootstrap.*`).
+2. **Stage 1 (Cinch built by Stage 0):** compiles the frozen `Cinch.*.cinch` snapshot with Stage 0 and links against the pinned `--release` `cinchruntime`.
+3. **Stage 2 (Cinch built by Stage 1):** compiles the same frozen snapshot using Stage 1 as the sole frontend (`--emit-ir-with-interfaces`), linking with the prebuilt base library object from `pins/library-provider.lock.json` (which provides base library units only, never `Cinch.*`).
 4. **Stage 3 (fixed-point verification):** compiles the frozen snapshot again with Stage 2 and asserts byte-identical LLVM IR, compiled interfaces, and linked executables between Stage 2 and Stage 3, followed by a changed-source diagnostic probe.
 
 Run the ladder via `tooling/bootstrap.sh`:
@@ -106,18 +106,18 @@ cargo test --manifest-path seed/Cargo.toml --test bootstrap_contract
 
 Failures report directly without falling back to the Rust frontend, and test artifacts land in `.cinch-self-tests/`.
 
-## Coding discipline for `Bootstrap.*.cinch`
+## Coding discipline for `Cinch.*.cinch`
 
 Modules in `compiler/` follow the bootstrap subset rules:
 
 - **Full equation arity:** bind the exact number of parameters matching the signature's arrow count (eta-expand partial applications).
 - **Top-level polymorphism only:** lift polymorphic or `using`-constrained helpers to top-level declarations.
-- **Flat acyclic modules:** one module per file (`Bootstrap.Foo.cinch` declares `module Bootstrap.Foo where`) with no import cycles.
+- **Flat acyclic modules:** one module per file (`Cinch.Foo.cinch` declares `module Cinch.Foo where`) with no import cycles.
 - **Declaring-module fixity:** declare operator fixities only in the defining module.
 - **Case patterns:** match constructors, tuples, lists, and integer literals; compare strings/chars with `string-compare`, `eq-char`/`char-code`, or intern to `Sym`.
 - **Escaped string literals:** standard escapes only (`\n`, `\r`, `\t`, `\\`, `\"`, `\'`, `\u{HEX}`).
 - **Reserved keywords:** never use keywords (`as`, `implicit`, `target`, `data`, `type`, `to`, `stage`, `spec`, `macro`, `law`, `prim`, `using`, `forall`, `import`, `module`, `if`, `then`, `else`, `where`, `in`, `of`, `let`, `case`) as binders.
-- **Recursive ADT spines:** represent recursive sequences inside mutually recursive groups with explicit spine constructors (see `*-spine` types in `Bootstrap.Ast`).
+- **Recursive ADT spines:** represent recursive sequences inside mutually recursive groups with explicit spine constructors (see `*-spine` types in `Cinch.Ast`).
 - **Guarded recursion:** recurse through top-level functions, lambdas, or `letrec`; eager cyclic value bindings are rejected.
 - **ASCII dashes only:** avoid em dashes and en dashes in Cinch source and comments.
 

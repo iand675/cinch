@@ -1,10 +1,10 @@
 module Main where
-  import Bootstrap.Total
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Core
-  import Bootstrap.Kinds
-  import Bootstrap.Document (parse-json)
+  import Cinch.Total
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Core
+  import Cinch.Kinds
+  import Cinch.Document (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
   import Data.Path (path-from-string)

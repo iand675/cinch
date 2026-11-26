@@ -92,7 +92,7 @@ fn standard_monoid_default_transports_the_checked_owner_clauses() {
     };
     assert_eq!(identity("Algebra.Semigroup.sconcat"), "i.Algebra$2eSemigroup$2esconcat");
     assert_eq!(identity("Data.FromList.FromList.from-list"), "i.Data$2eFromList$2eFromList$2efrom$2dlist");
-    assert_eq!(identity("Bootstrap.Infer.Bootstrap.Infer.add-error"), "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror");
+    assert_eq!(identity("Cinch.Infer.Cinch.Infer.add-error"), "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror");
     assert_eq!(identity("Data.Sym.$"), "i.Data$2eSym$2e$24");
     assert_eq!(identity("Data.Sym.\u{2192}"), "i.Data$2eSym$2e$e2$86$92");
     assert!(body.contains("\"ECase\""));

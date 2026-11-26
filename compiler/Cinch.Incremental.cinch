@@ -1,0 +1,429 @@
+-- Blaze-style incremental and streaming recompilation (design/incremental-recompilation.md).
+--
+-- Three cooperating layers mirroring REAPER, INCR, and LINK:
+--
+-- 1. REAPER (`ProgramIndex`, `index-resolved-program`):
+--    Computes span-insensitive AST surface and body fingerprints per item
+--    from the resolved program plus body dependency edges (`body-deps` and
+--    `reverse-deps`). A comment, whitespace, or line-number edit changes
+--    nothing; a body-only edit leaves `surface-hash` unchanged and marks
+--    only the edited function name(s) dirty.
+--
+-- 2. INCR (`IncrementalSession`, `plan-incremental-build`):
+--    Diffs the new `ProgramIndex` against the resident previous revision:
+--    - `PlanReuseIr`: no item changed (no-op / whitespace / comment edit) ->
+--      skip checking and IR emission completely.
+--    - `PlanBodyOnly`: surface held and no total/proof-bearing body changed ->
+--      recheck ONLY the dirty function bodies (in parallel when > 1) against
+--      the resident module tables and reuse every unchanged `CoreDefinition`.
+--    - `PlanFullRebuild`: surface or proof/stage changed (or prior edit
+--      failed) -> fall back cleanly to the deterministic N-core parallel
+--      full rebuild.
+--
+-- 3. LINK (`UnitIrCache` in `Cinch.RuntimeIr`):
+--    Preserves per-unit emitted LLVM IR keyed by demand key across edits.
+--    On a body-only edit (with inlining off, the default and `Latency`
+--    strategy), unchanged units are spliced straight from cache without
+--    re-emitting LLVM IR.
+--
+-- Advisory cache invariant: invalidating or bypassing the session cache
+-- costs time, never correctness. Output IR is byte-identical to a fresh
+-- cold compile.
+
+module Cinch.Incremental where
+
+  import Algebra.Semigroup
+  import Cinch.Ast
+  import Cinch.BodyContract (binding-name)
+  import Cinch.Check (CheckedProgram, checked-elaboration)
+  import Cinch.Contracts (expr-references)
+  import Cinch.Core (CoreDefinition, core-name)
+  import Cinch.Document
+  import Cinch.Infer (elaboration-bindings, elaboration-core, CheckedBinding, checked-body-binding)
+  import Cinch.Interface (fnv-ordered-json)
+  import Cinch.Parallel (CompileTuning, tuning-strategy, tuning-workers, strategy-name)
+  import Cinch.RuntimeIr (UnitIrCache, empty-unit-ir-cache, unit-cache-size)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-to-list)
+  import Data.List (reverse)
+  import Data.Nat (nat-to-int)
+  import Data.Option (Option, None, Some)
+  import Data.Result (Result, Ok, Err)
+  import Data.String (string-compare, string-concat)
+  import Text.Show (nat-to-string, int-to-string)
+
+  export ProgramIndex, index-resolved-program, index-surface-hash, index-body-count, index-body-deps, index-reverse-deps
+  export IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild
+  export IncrementalSession, empty-incremental-session, session-revision, session-unit-cache, session-cached-body-count
+  export plan-incremental-build, record-incremental-success, invalidate-incremental-session
+  export render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  -- ------------------------------------------------------------- REAPER
+
+  -- Whole-program item index built from a resolved Program:
+  -- - surface-hash: FNV-1a over all non-DFun declarations + ordered DFun names
+  -- - has-sensitive: True if proof/spec/law/rewrite/temporal/stage/corec decls exist
+  -- - body-hashes: DFun name -> FNV-1a over all clauses of that DFun
+  -- - body-names: unique DFun names in declaration order
+  -- - body-deps: DFun name -> referenced callee names
+  -- - reverse-deps: callee name -> dependent caller names
+  data ProgramIndex where
+    MkProgramIndex :: String -> Bool -> HashMap String String -> List String -> HashMap String (List String) -> HashMap String (List String) -> ProgramIndex
+
+  index-surface-hash :: ProgramIndex -> String
+  index-surface-hash idx = case idx of
+    MkProgramIndex surface sensitive bodies names deps rev -> surface
+
+  index-body-count :: ProgramIndex -> Nat
+  index-body-count idx = case idx of
+    MkProgramIndex surface sensitive bodies names deps rev -> list-length names
+
+  index-body-deps :: ProgramIndex -> HashMap String (List String)
+  index-body-deps idx = case idx of
+    MkProgramIndex surface sensitive bodies names deps rev -> deps
+
+  index-reverse-deps :: ProgramIndex -> HashMap String (List String)
+  index-reverse-deps idx = case idx of
+    MkProgramIndex surface sensitive bodies names deps rev -> rev
+
+  str-list-json :: List String -> Json
+  str-list-json xs = case xs of
+    Nil -> JArrEnd
+    Cons first rest -> JArr (JStr first) (str-list-json rest)
+
+  ctor-list-json :: List (String, TypeExpr) -> Json
+  ctor-list-json cs = case cs of
+    Nil -> JArrEnd
+    Cons (name, ty) rest -> JArr (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)) (ctor-list-json rest)
+
+  bool-pair-list-json :: List (String, Bool) -> Json
+  bool-pair-list-json pairs = case pairs of
+    Nil -> JArrEnd
+    Cons (name, flag) rest -> JArr (JArr (JStr name) (JArr (JBool flag) JArrEnd)) (bool-pair-list-json rest)
+
+  result-str-json :: Result String String -> Json
+  result-str-json r = case r of
+    Ok s -> JArr (JStr "Ok") (JArr (JStr s) JArrEnd)
+    Err s -> JArr (JStr "Err") (JArr (JStr s) JArrEnd)
+
+  prim-bodies-json :: List PrimBody -> Json
+  prim-bodies-json bodies = case bodies of
+    Nil -> JArrEnd
+    Cons b rest -> JArr (JStr (prim-body-tag b)) (prim-bodies-json rest)
+
+  prim-body-tag :: PrimBody -> String
+  prim-body-tag body = case body of
+    MkPrimBody sp kind text safe conds sel just uses imms ->
+      kind <> ":" <> (if safe then "1:" else "0:") <> text
+
+  strip-source-spans :: Json -> Json
+  strip-source-spans doc = case doc of
+    JObj key val rest ->
+      if same key "source_start" || same key "source_end" then strip-source-spans rest
+      else JObj key val (strip-source-spans rest)
+    other -> other
+
+  -- Span-free canonical JSON projection of a single declaration's surface.
+  -- `DFun` contributes only its name tag here; its clauses are hashed
+  -- independently in `body-hashes` so body-only edits keep `surface-hash` stable.
+  decl-surface-json :: Decl -> Json
+  decl-surface-json d = case d of
+    DFun sp name clauses -> JArr (JStr "DFun") (JArr (JStr name) JArrEnd)
+    DSig sp name ty -> JArr (JStr "DSig") (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd))
+    DMethod sp label name ty -> JArr (JStr "DMethod") (JArr (JStr label) (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)))
+    DSource sp name meta -> JArr (JStr "DSource") (JArr (JStr name) (JArr (strip-source-spans meta) JArrEnd))
+    DInterface sp name hash meta -> JArr (JStr "DInterface") (JArr (JStr name) (JArr (JStr hash) JArrEnd))
+    DExternal sp name category syntax meta ->
+      JArr (JStr "DExternal") (JArr (JStr name) (JArr (JStr category)
+        (JArr (case syntax of Some ty -> source-identity-type ty; None -> JNull) (JArr meta JArrEnd))))
+    DData sp name params ctors ->
+      JArr (JStr "DData") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (ctor-list-json ctors) JArrEnd)))
+    DOpaque sp name params ty ->
+      JArr (JStr "DOpaque") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (source-identity-type ty) JArrEnd)))
+    DRefine sp name params binder ty ->
+      JArr (JStr "DRefine") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (source-law-parameters [binder]) (JArr (source-identity-type ty) JArrEnd))))
+    DClass sp name params members ->
+      JArr (JStr "DClass") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (decls-surface-json (decls-of members)) JArrEnd)))
+    DInstance sp flag name params head members ->
+      JArr (JStr "DInstance") (JArr (JBool flag) (JArr (JStr name) (JArr (source-law-parameters params) (JArr (source-identity-type head) (JArr (decls-surface-json (decls-of members)) JArrEnd)))))
+    DFixity sp assoc prec ops ->
+      JArr (JStr "DFixity") (JArr (JStr assoc) (JArr (JNum (nat-to-int prec)) (JArr (str-list-json ops) JArrEnd)))
+    DRecord sp name params fields ->
+      JArr (JStr "DRecord") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (ctor-list-json fields) JArrEnd)))
+    DCodata sp name params obs ->
+      JArr (JStr "DCodata") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (ctor-list-json obs) JArrEnd)))
+    DEffect sp name params ops ->
+      JArr (JStr "DEffect") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (ctor-list-json ops) JArrEnd)))
+    DForeign sp dir abi sym name ty ->
+      JArr (JStr "DForeign") (JArr (JStr dir) (JArr (JStr abi) (JArr (JStr sym) (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)))))
+    DPrim sp name ty bodies ->
+      JArr (JStr "DPrim") (JArr (JStr name) (JArr (source-identity-type ty) (JArr (prim-bodies-json bodies) JArrEnd)))
+    DWrapperLayout sp name kind fields ->
+      JArr (JStr "DWrapperLayout") (JArr (JStr name) (JArr (JStr kind) (JArr (str-list-json fields) JArrEnd)))
+    DUnpackFields sp name fields ->
+      JArr (JStr "DUnpackFields") (JArr (JStr name) (JArr (bool-pair-list-json fields) JArrEnd))
+    DInlineHint sp name hint ->
+      JArr (JStr "DInlineHint") (JArr (JStr name) (JArr (result-str-json hint) JArrEnd))
+    DUnrollHint sp name hint ->
+      JArr (JStr "DUnrollHint") (JArr (JStr name) (JArr (result-str-json hint) JArrEnd))
+    DUnmodeled sp text -> JArr (JStr "DUnmodeled") (JArr (JStr text) JArrEnd)
+    other -> JArr (JStr "DOther") JArrEnd
+
+  decls-surface-json :: List Decl -> Json
+  decls-surface-json ds = case ds of
+    Nil -> JArrEnd
+    Cons d rest -> JArr (decl-surface-json d) (decls-surface-json rest)
+
+  decl-is-sensitive :: Decl -> Bool
+  decl-is-sensitive d = case d of
+    DProof sp inner -> True
+    DSpec sp inner -> True
+    DCorec sp inner -> True
+    DRefine sp name params binder ty -> True
+    DLaw sp name syn -> True
+    DRewrite sp name syn -> True
+    DContract sp kind name def clauses -> True
+    DStage sp inner -> True
+    DGenerate sp inner -> True
+    DStageLet sp e -> True
+    DStageEmitValue sp e -> True
+    DStageEmit sp inner -> True
+    DStageBranch sp cond yes no -> True
+    DConditional sp conds inner -> True
+    DDecl sp a b -> decl-is-sensitive a || decl-is-sensitive b
+    other -> False
+
+  decls-have-sensitive :: List Decl -> Bool
+  decls-have-sensitive ds = case ds of
+    Nil -> False
+    Cons d rest -> decl-is-sensitive d || decls-have-sensitive rest
+
+  json-has-str :: String -> Json -> Bool
+  json-has-str wanted doc = case doc of
+    JStr s -> same s wanted
+    JArr first rest -> json-has-str wanted first || json-has-str wanted rest
+    JObj key val rest -> json-has-str wanted val || json-has-str wanted rest
+    other -> False
+
+  collect-clauses-map :: List Decl -> HashMap String (List (List Pat, Expr)) -> List String -> (HashMap String (List (List Pat, Expr)), List String)
+  collect-clauses-map ds acc names-rev = case ds of
+    Nil -> (acc, reverse names-rev)
+    Cons d rest -> case d of
+      DFun sp name clauses -> case hash-map-lookup name acc of
+        Some prior -> collect-clauses-map rest (hash-map-insert name (prior <> clauses) acc) names-rev
+        None -> collect-clauses-map rest (hash-map-insert name clauses acc) (Cons name names-rev)
+      other -> collect-clauses-map rest acc names-rev
+
+  clauses-refs :: List (List Pat, Expr) -> List String -> List String
+  clauses-refs cs acc = case cs of
+    Nil -> acc
+    Cons (pats, body) rest -> clauses-refs rest (expr-references body <> acc)
+
+  dedup-names :: List String -> HashMap String Nat -> List String -> List String
+  dedup-names xs seen acc = case xs of
+    Nil -> reverse acc
+    Cons name rest -> case hash-map-lookup name seen of
+      Some present -> dedup-names rest seen acc
+      None -> dedup-names rest (hash-map-insert name 1 seen) (Cons name acc)
+
+  add-reverse-edges :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
+  add-reverse-edges caller callees rev = case callees of
+    Nil -> rev
+    Cons callee rest ->
+      let existing = case hash-map-lookup callee rev of Some xs -> xs; None -> Nil in
+      add-reverse-edges caller rest (hash-map-insert callee (Cons caller existing) rev)
+
+  build-body-tables :: List String -> HashMap String (List (List Pat, Expr)) -> HashMap String String -> HashMap String (List String) -> HashMap String (List String) -> (HashMap String String, HashMap String (List String), HashMap String (List String))
+  build-body-tables names clause-map hashes deps rev = case names of
+    Nil -> (hashes, deps, rev)
+    Cons name rest ->
+      let cs = case hash-map-lookup name clause-map of Some found -> found; None -> Nil in
+      let h = fnv-ordered-json (source-clauses-document cs) in
+      let refs = dedup-names (clauses-refs cs Nil) hash-map-empty Nil in
+      build-body-tables rest clause-map (hash-map-insert name h hashes) (hash-map-insert name refs deps) (add-reverse-edges name refs rev)
+
+  modules-surface-json :: List Module -> Json
+  modules-surface-json ms = case ms of
+    Nil -> JArrEnd
+    Cons m rest ->
+      JArr (JArr (JStr (module-name m)) (JArr (decls-surface-json (module-decls m)) JArrEnd)) (modules-surface-json rest)
+
+  all-module-decls :: List Module -> List Decl
+  all-module-decls ms = case ms of
+    Nil -> Nil
+    Cons m rest -> module-decls m <> all-module-decls rest
+
+  index-resolved-program :: Program -> ProgramIndex
+  index-resolved-program program =
+    let ms = program-modules program in
+    let ds = all-module-decls ms in
+    let surface-doc = modules-surface-json ms in
+    let surface = fnv-ordered-json surface-doc in
+    let sensitive = decls-have-sensitive ds || json-has-str "TRefined" surface-doc in
+    let (clause-map, names) = collect-clauses-map ds hash-map-empty Nil in
+    let (hashes, deps, rev) = build-body-tables names clause-map hash-map-empty hash-map-empty hash-map-empty in
+    MkProgramIndex surface sensitive hashes names deps rev
+
+  -- ------------------------------------------------------------- INCR
+
+  data IncrementalPlan where
+    PlanReuseIr :: ProgramIndex -> String -> Nat -> IncrementalPlan
+    PlanBodyOnly :: ProgramIndex -> List String -> HashMap String Nat -> HashMap String CoreDefinition -> Nat -> Nat -> IncrementalPlan
+    PlanFullRebuild :: ProgramIndex -> IncrementalPlan
+
+  data IncrementalSession where
+    MkIncrementalSession :: Nat -> Option ProgramIndex -> HashMap String CoreDefinition -> HashMap String Nat -> UnitIrCache -> Option String -> IncrementalSession
+
+  empty-incremental-session :: IncrementalSession
+  empty-incremental-session = MkIncrementalSession 0 None hash-map-empty hash-map-empty empty-unit-ir-cache None
+
+  session-revision :: IncrementalSession -> Nat
+  session-revision session = case session of
+    MkIncrementalSession rev idx core totals units ir -> rev
+
+  session-unit-cache :: IncrementalSession -> UnitIrCache
+  session-unit-cache session = case session of
+    MkIncrementalSession rev idx core totals units ir -> units
+
+  session-cached-body-count :: IncrementalSession -> Nat
+  session-cached-body-count session = case session of
+    MkIncrementalSession rev idx core totals units ir -> case idx of
+      Some (MkProgramIndex surface sensitive bodies names deps rev-deps) -> list-length names
+      None -> 0
+
+  invalidate-incremental-session :: IncrementalSession -> IncrementalSession
+  invalidate-incremental-session session = case session of
+    MkIncrementalSession rev idx core totals units ir ->
+      MkIncrementalSession rev None hash-map-empty hash-map-empty empty-unit-ir-cache None
+
+  index-core-defs :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
+  index-core-defs defs acc = case defs of
+    Nil -> acc
+    Cons d rest -> index-core-defs rest (hash-map-insert (core-name d) d acc)
+
+  collect-total-body-names :: List CheckedBinding -> HashMap String Nat -> HashMap String Nat
+  collect-total-body-names bindings acc = case bindings of
+    Nil -> acc
+    Cons b rest -> case checked-body-binding b of
+      Some body -> collect-total-body-names rest (hash-map-insert (binding-name body) 1 acc)
+      None -> collect-total-body-names rest acc
+
+  record-incremental-success :: IncrementalSession -> ProgramIndex -> CheckedProgram -> UnitIrCache -> String -> IncrementalSession
+  record-incremental-success session idx checked units ir =
+    let typed = checked-elaboration checked in
+    let core-map = index-core-defs (elaboration-core typed) hash-map-empty in
+    let total-names = collect-total-body-names (elaboration-bindings typed) hash-map-empty in
+    MkIncrementalSession (session-revision session + 1) (Some idx) core-map total-names units (Some ir)
+
+  find-dirty-bodies :: List String -> HashMap String String -> HashMap String String -> List String -> HashMap String Nat -> Nat -> (List String, HashMap String Nat, Nat, Nat)
+  find-dirty-bodies names old-hashes new-hashes dirty-rev dirty-set reused = case names of
+    Nil -> (reverse dirty-rev, dirty-set, list-length dirty-rev, reused)
+    Cons name rest ->
+      let unchanged = case (hash-map-lookup name old-hashes, hash-map-lookup name new-hashes) of
+            (Some a, Some b) -> same a b
+            other -> False in
+      if unchanged then find-dirty-bodies rest old-hashes new-hashes dirty-rev dirty-set (reused + 1)
+      else find-dirty-bodies rest old-hashes new-hashes (Cons name dirty-rev) (hash-map-insert name 1 dirty-set) reused
+
+  any-in-set :: List String -> HashMap String Nat -> Bool
+  any-in-set names table = case names of
+    Nil -> False
+    Cons name rest -> case hash-map-lookup name table of
+      Some present -> True
+      None -> any-in-set rest table
+
+  build-reusable-core :: List String -> HashMap String Nat -> HashMap String CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
+  build-reusable-core names dirty-set last-core acc = case names of
+    Nil -> acc
+    Cons name rest -> case hash-map-lookup name dirty-set of
+      Some dirty -> build-reusable-core rest dirty-set last-core acc
+      None -> case hash-map-lookup name last-core of
+        Some def -> build-reusable-core rest dirty-set last-core (hash-map-insert name def acc)
+        None -> build-reusable-core rest dirty-set last-core acc
+
+  mark-name-list :: List String -> HashMap String Nat -> HashMap String Nat
+  mark-name-list names table = case names of
+    Nil -> table
+    Cons name rest -> mark-name-list rest (hash-map-insert name 1 table)
+
+  -- Direct callers of an edited function may have inlined its small total
+  -- primitive body during RuntimeIr lowering (`imported-total-body`).
+  -- Invalidating 1-hop reverse-deps in the LINK unit cache keeps emitted IR
+  -- byte-identical to a fresh cold compile while INCR still rechecks only the
+  -- edited body itself.
+  expand-ir-dirty :: List String -> HashMap String (List String) -> HashMap String (List String) -> HashMap String Nat -> HashMap String Nat
+  expand-ir-dirty dirty old-rev new-rev acc = case dirty of
+    Nil -> acc
+    Cons name rest ->
+      let callers1 = case hash-map-lookup name old-rev of Some xs -> xs; None -> Nil in
+      let callers2 = case hash-map-lookup name new-rev of Some xs -> xs; None -> Nil in
+      expand-ir-dirty rest old-rev new-rev (mark-name-list callers2 (mark-name-list callers1 acc))
+
+  plan-incremental-build :: IncrementalSession -> Program -> IncrementalPlan
+  plan-incremental-build session resolved =
+    let new-idx = index-resolved-program resolved in
+    case session of
+      MkIncrementalSession rev old-opt last-core last-totals units last-ir -> case old-opt of
+        None -> PlanFullRebuild new-idx
+        Some (MkProgramIndex old-surface old-sens old-hashes old-names old-deps old-rev) ->
+          case new-idx of
+            MkProgramIndex new-surface new-sens new-hashes new-names new-deps new-rev ->
+              if old-sens || new-sens || not (same old-surface new-surface) then PlanFullRebuild new-idx
+              else case find-dirty-bodies new-names old-hashes new-hashes Nil hash-map-empty 0 of
+                (dirty-list, dirty-set, dirty-n, reused-n) ->
+                  if dirty-n == 0 then
+                    (case last-ir of
+                      Some ir -> PlanReuseIr new-idx ir reused-n
+                      None -> PlanFullRebuild new-idx)
+                  else
+                    let reusable = build-reusable-core new-names dirty-set last-core hash-map-empty in
+                    let ir-dirty = expand-ir-dirty dirty-list old-rev new-rev dirty-set in
+                    PlanBodyOnly new-idx dirty-list ir-dirty reusable dirty-n reused-n
+
+  -- ---------------------------------------------------------- STREAMING
+
+  json-line :: Json -> String
+  json-line doc = canonical-json doc <> "\n"
+
+  render-ready-event :: CompileTuning -> String
+  render-ready-event tuning = json-line (
+    JObj "event" (JStr "ready")
+      (JObj "strategy" (JStr (strategy-name (tuning-strategy tuning)))
+        (JObj "workers" (JNum (nat-to-int (tuning-workers tuning))) JObjEnd)))
+
+  render-plan-event :: Nat -> String -> Nat -> Nat -> String
+  render-plan-event rev kind dirty reused = json-line (
+    JObj "event" (JStr "plan")
+      (JObj "revision" (JNum (nat-to-int rev))
+        (JObj "kind" (JStr kind)
+          (JObj "dirty" (JNum (nat-to-int dirty))
+            (JObj "reused" (JNum (nat-to-int reused)) JObjEnd)))))
+
+  render-done-event :: Nat -> Int -> String -> Nat -> Nat -> Nat -> Nat -> String
+  render-done-event rev status kind rechecked reused-bodies emitted-units reused-units = json-line (
+    JObj "event" (JStr "done")
+      (JObj "revision" (JNum (nat-to-int rev))
+        (JObj "status" (JNum status)
+          (JObj "kind" (JStr kind)
+            (JObj "rechecked" (JNum (nat-to-int rechecked))
+              (JObj "reused_bodies" (JNum (nat-to-int reused-bodies))
+                (JObj "emitted_units" (JNum (nat-to-int emitted-units))
+                  (JObj "reused_units" (JNum (nat-to-int reused-units)) JObjEnd))))))))
+
+  render-error-event :: Nat -> Int -> String -> String
+  render-error-event rev status message = json-line (
+    JObj "event" (JStr "error")
+      (JObj "revision" (JNum (nat-to-int rev))
+        (JObj "status" (JNum status)
+          (JObj "message" (JStr message) JObjEnd))))
+
+  render-stats-event :: IncrementalSession -> CompileTuning -> String
+  render-stats-event session tuning = json-line (
+    JObj "event" (JStr "stats")
+      (JObj "revision" (JNum (nat-to-int (session-revision session)))
+        (JObj "cached_bodies" (JNum (nat-to-int (session-cached-body-count session)))
+          (JObj "cached_units" (JNum (nat-to-int (unit-cache-size (session-unit-cache session))))
+            (JObj "strategy" (JStr (strategy-name (tuning-strategy tuning)))
+              (JObj "workers" (JNum (nat-to-int (tuning-workers tuning))) JObjEnd))))))

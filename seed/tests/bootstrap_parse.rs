@@ -1,11 +1,11 @@
 
-//! Rung 1 of the bootstrap ladder: `Bootstrap.Parse` reads the language's
+//! Rung 1 of the bootstrap ladder: `Cinch.Parse` reads the language's
 //! own surface grammar into the shared contract tree.
 //!
 //! The Cinch program this test runs is
 //! `compiler/programs/Run.Parse.cinch` (shipped as the entry, with
 //! `__DIR__` substituted for the project directory), beside
-//! `compiler/Bootstrap.Parse.cinch` and the toolkit. It parses the two
+//! `compiler/Cinch.Parse.cinch` and the toolkit. It parses the two
 //! hand-checked examples and the whole prelude corpus and writes
 //! `report.txt`; the test reads that back. The evidence pinned here:
 //!
@@ -19,7 +19,7 @@
 //!     unmodeled count matches the measured table;
 //!   * the agreement relation against the compiler's own parser: for each
 //!     corpus module the compiler parses, every declaration name the
-//!     compiler finds is also found by `Bootstrap.Parse`, unless the
+//!     compiler finds is also found by `Cinch.Parse`, unless the
 //!     module has an unmodeled node to account for the miss. A missing
 //!     name with no unmodeled node is the silent drop this catches.
 //!
@@ -34,9 +34,9 @@ mod common;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const PARSE_SRC: &str = include_str!("../../compiler/Bootstrap.Parse.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const PARSE_SRC: &str = include_str!("../../compiler/Cinch.Parse.cinch");
 const RUN: &str = include_str!("../../compiler/programs/Run.Parse.cinch");
 const FIB: &str = include_str!("../../examples/compiler/fib.cinch");
 const CLASSES: &str = include_str!("../../examples/compiler/classes.cinch");
@@ -46,65 +46,65 @@ const CLASSES: &str = include_str!("../../examples/compiler/classes.cinch");
 /// purpose: the table is the record of what the parser covers, and the
 /// failure message prints the whole measured table to replace this one.
 const EXPECTED_UNMODELED: &[(&str, usize)] = &[
-    ("Bootstrap.Ast", 0),
-    ("Bootstrap.Builtin", 0),
-    ("Bootstrap.BodyContract", 0),
-    ("Bootstrap.BodyScope", 0),
-    ("Bootstrap.Check", 0),
-    ("Bootstrap.Contracts", 0),
-    ("Bootstrap.Core", 0),
-    ("Bootstrap.CoreBody", 0),
-    ("Bootstrap.Dictionary", 0),
-    ("Bootstrap.Document", 0),
-    ("Bootstrap.Eager", 0),
-    ("Bootstrap.Driver", 0),
-    ("Bootstrap.Eval", 0),
-    ("Bootstrap.Expand", 0),
-    ("Bootstrap.Export", 0),
-    ("Bootstrap.ExportNominal", 0),
-    ("Bootstrap.ExportType", 0),
-    ("Bootstrap.Foreign", 0),
-    ("Bootstrap.Index", 0),
-    ("Bootstrap.Infer", 0),
-    ("Bootstrap.Inputs", 0),
-    ("Bootstrap.Instance", 0),
-    ("Bootstrap.Global", 0),
-    ("Bootstrap.Guarded", 0),
-    ("Bootstrap.Kinds", 0),
-    ("Bootstrap.Layout", 0),
-    ("Bootstrap.Typing", 0),
-    ("Bootstrap.Target", 0),
-    ("Bootstrap.TargetLiterals", 0),
-    ("Bootstrap.Usage", 0),
-    ("Bootstrap.Interface", 0),
-    ("Bootstrap.Ir", 0),
-    ("Bootstrap.Load", 0),
-    ("Bootstrap.Logical", 0),
-    ("Bootstrap.Manifest", 0),
-    ("Bootstrap.Nominal", 0),
-    ("Bootstrap.Object", 0),
-    ("Bootstrap.Package", 0),
-    ("Bootstrap.PackageHash", 0),
-    ("Bootstrap.PackageWrite", 0),
-    ("Bootstrap.PackedBody", 0),
-    ("Bootstrap.Parse", 0),
-    ("Bootstrap.Pipeline", 0),
-    ("Bootstrap.Proof", 0),
-    ("Bootstrap.Report", 0),
-    ("Bootstrap.Resolve", 0),
-    ("Bootstrap.RuntimeAbi", 0),
-    ("Bootstrap.RuntimeIr", 0),
-    ("Bootstrap.Stage", 0),
-    ("Bootstrap.Temporal", 0),
-    ("Bootstrap.TemporalCheck", 0),
-    ("Bootstrap.StageEval", 0),
-    ("Bootstrap.Test", 0),
-    ("Bootstrap.Total", 0),
-    ("Bootstrap.TotalRules", 0),
-    ("Bootstrap.TotalSemantics", 0),
-    ("Bootstrap.Type", 0),
-    ("Bootstrap.Unpack", 0),
-    ("Bootstrap.UnpackMatch", 0),
+    ("Cinch.Ast", 0),
+    ("Cinch.Builtin", 0),
+    ("Cinch.BodyContract", 0),
+    ("Cinch.BodyScope", 0),
+    ("Cinch.Check", 0),
+    ("Cinch.Contracts", 0),
+    ("Cinch.Core", 0),
+    ("Cinch.CoreBody", 0),
+    ("Cinch.Dictionary", 0),
+    ("Cinch.Document", 0),
+    ("Cinch.Eager", 0),
+    ("Cinch.Driver", 0),
+    ("Cinch.Eval", 0),
+    ("Cinch.Expand", 0),
+    ("Cinch.Export", 0),
+    ("Cinch.ExportNominal", 0),
+    ("Cinch.ExportType", 0),
+    ("Cinch.Foreign", 0),
+    ("Cinch.Index", 0),
+    ("Cinch.Infer", 0),
+    ("Cinch.Inputs", 0),
+    ("Cinch.Instance", 0),
+    ("Cinch.Global", 0),
+    ("Cinch.Guarded", 0),
+    ("Cinch.Kinds", 0),
+    ("Cinch.Layout", 0),
+    ("Cinch.Typing", 0),
+    ("Cinch.Target", 0),
+    ("Cinch.TargetLiterals", 0),
+    ("Cinch.Usage", 0),
+    ("Cinch.Interface", 0),
+    ("Cinch.Ir", 0),
+    ("Cinch.Load", 0),
+    ("Cinch.Logical", 0),
+    ("Cinch.Manifest", 0),
+    ("Cinch.Nominal", 0),
+    ("Cinch.Object", 0),
+    ("Cinch.Package", 0),
+    ("Cinch.PackageHash", 0),
+    ("Cinch.PackageWrite", 0),
+    ("Cinch.PackedBody", 0),
+    ("Cinch.Parse", 0),
+    ("Cinch.Pipeline", 0),
+    ("Cinch.Proof", 0),
+    ("Cinch.Report", 0),
+    ("Cinch.Resolve", 0),
+    ("Cinch.RuntimeAbi", 0),
+    ("Cinch.RuntimeIr", 0),
+    ("Cinch.Stage", 0),
+    ("Cinch.Temporal", 0),
+    ("Cinch.TemporalCheck", 0),
+    ("Cinch.StageEval", 0),
+    ("Cinch.Test", 0),
+    ("Cinch.Total", 0),
+    ("Cinch.TotalRules", 0),
+    ("Cinch.TotalSemantics", 0),
+    ("Cinch.Type", 0),
+    ("Cinch.Unpack", 0),
+    ("Cinch.UnpackMatch", 0),
     ("Text.Lex", 0),
     ("Text.Scan", 0),
     ("Text.Parse", 0),
@@ -355,9 +355,9 @@ fn compiler_names(
 /// prelude modules would shadow the embedded family).
 fn built_program(tag: &str) -> (PathBuf, PathBuf) {
     let dir = common::project(tag, &[
-        ("Bootstrap.Ast.cinch", AST_SRC),
-        ("Bootstrap.Report.cinch", REPORT_SRC),
-        ("Bootstrap.Parse.cinch", PARSE_SRC),
+        ("Cinch.Ast.cinch", AST_SRC),
+        ("Cinch.Report.cinch", REPORT_SRC),
+        ("Cinch.Parse.cinch", PARSE_SRC),
     ]);
     let lit = format!("{:?}", dir.to_string_lossy());
     std::fs::write(dir.join("Main.cinch"), RUN.replace("__DIR__", &lit)).expect("write run");
@@ -444,7 +444,7 @@ fn the_parser_reads_the_examples_and_agrees_on_the_corpus() {
             let missing: Vec<&String> = want.difference(&m.decls).collect();
             if missing.len() > m.unmodeled {
                 problems.push(format!(
-                    "{name}: {} declaration names the compiler finds are absent from Bootstrap.Parse with only {} unmodeled nodes to account for them: {missing:?}",
+                    "{name}: {} declaration names the compiler finds are absent from Cinch.Parse with only {} unmodeled nodes to account for them: {missing:?}",
                     missing.len(),
                     m.unmodeled
                 ));
@@ -470,9 +470,9 @@ fn the_parser_reads_the_examples_and_agrees_on_the_corpus() {
 #[test]
 fn record_syntax_keeps_labels_order_patterns_and_nested_values() {
     let dir = common::project("record_syntax", &[
-        ("Bootstrap.Ast.cinch", AST_SRC),
-        ("Bootstrap.Report.cinch", REPORT_SRC),
-        ("Bootstrap.Parse.cinch", PARSE_SRC),
+        ("Cinch.Ast.cinch", AST_SRC),
+        ("Cinch.Report.cinch", REPORT_SRC),
+        ("Cinch.Parse.cinch", PARSE_SRC),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RecordSyntax.cinch")),
     ]);
     let exe = common::build_executable(&dir, "Main.cinch", "record-syntax").expect("build record parser");

@@ -12,7 +12,7 @@ import bootstrap_objects
 
 MAIN = '''-- | Execute private guarded-alias refusal and typing observations.
 module Main where
-  import Bootstrap.RuntimeIr (foreign-alias-guard-observations)
+  import Cinch.RuntimeIr (foreign-alias-guard-observations)
   -- | Name a failed guard by its stable one-based observation index.
   first-failure :: Int -> List Bool -> Int
   first-failure index values = case values of Nil -> 0; Cons first rest -> if first then first-failure (index + 1) rest else index
@@ -45,9 +45,9 @@ def main() -> None:
             raise bootstrap.BootstrapError('private guard runtime differs from the admitted provider')
     files = bootstrap.collect_compiler_sources()
     production_hash = bootstrap.source_hash(files)
-    implementation = files['Bootstrap.RuntimeIr.cinch']
+    implementation = files['Cinch.RuntimeIr.cinch']
     suffix = (bootstrap.ROOT / 'seed/tests/fixtures/foreign-alias-guard-probes.cinch.inc').read_bytes()
-    files['Bootstrap.RuntimeIr.cinch'] = implementation + b'\n' + suffix
+    files['Cinch.RuntimeIr.cinch'] = implementation + b'\n' + suffix
     files['Main.cinch'] = MAIN.encode()
     source, ir, executable = args.artifacts / 'Bundle.cinch', args.artifacts / 'probe.ll', args.artifacts / 'probe'
     source.write_bytes(bootstrap.bundle(files))

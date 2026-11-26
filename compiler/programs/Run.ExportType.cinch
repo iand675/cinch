@@ -1,9 +1,9 @@
 module Main where
   import Algebra.Semigroup
-  import Bootstrap.ExportType
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Nominal (interface-global)
+  import Cinch.ExportType
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Nominal (interface-global)
   import Data.Char (char-from-code)
   import Effect.Fs (fs-write)
   import Data.Path (path-from-string)
@@ -57,7 +57,7 @@ module Main where
       other -> Err "valid alpha-renamed scheme was refused") <>
     row "source-identity" (export-global "m.A.Token") <>
     row "escaped-identity" (export-global "m.Bootstrap$2eInfer.Bootstrap$2eInfer$2eadd$2derror") <>
-    row "spelling" (Ok (interface-global "Bootstrap.Infer.Bootstrap.Infer.add-error")) <>
+    row "spelling" (Ok (interface-global "Cinch.Infer.Cinch.Infer.add-error")) <>
     row "escaped-spelling" (Ok (interface-global "Data.Sym.$")) <>
     row "scalar-spelling" (Ok (interface-global "Data.Sym.→")) <>
     row "empty-spelling" (Ok (interface-global "")) <>

@@ -33,7 +33,7 @@ class NightlyPublication(unittest.TestCase):
         digest = hashlib.sha256(content).hexdigest()
         (directory / binary).write_bytes(content)
         (directory / (binary + ".sha256")).write_text(f"{digest}  {binary}\n")
-        # Bootstrap.Host varies per system, so bundle hashes must not be
+        # Cinch.Host varies per system, so bundle hashes must not be
         # compared across architectures even when the revision is identical.
         (directory / f"build-{system}.json").write_text(json.dumps({
             "revision": REVISION, "system": system, "stage": 3,

@@ -3,12 +3,12 @@ mod common;
 #[test]
 fn guarded_nat_bodies_need_actual_preconditions_and_formal_scope() {
     let dir = common::project("guarded_body_kernel", &[
-        ("Bootstrap.Guarded.cinch", include_str!("../../compiler/Bootstrap.Guarded.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Proof.cinch", include_str!("../../compiler/Bootstrap.Proof.cinch")),
-        ("Bootstrap.Nominal.cinch", include_str!("../../compiler/Bootstrap.Nominal.cinch")),
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
+        ("Cinch.Guarded.cinch", include_str!("../../compiler/Cinch.Guarded.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Proof.cinch", include_str!("../../compiler/Cinch.Proof.cinch")),
+        ("Cinch.Nominal.cinch", include_str!("../../compiler/Cinch.Nominal.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.GuardedBodies.cinch")),
     ]);
     let (_, interfaces) = cinch::driver::check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "guarded-kernel-base.cinch").unwrap();

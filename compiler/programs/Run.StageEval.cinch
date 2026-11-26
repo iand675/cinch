@@ -1,10 +1,10 @@
 module Main where
-  import Bootstrap.Ast (program-span)
-  import Bootstrap.Check (check-and-retain)
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Report (MkDiagnostic)
-  import Bootstrap.Resolve (resolve-program)
-  import Bootstrap.StageEval
+  import Cinch.Ast (program-span)
+  import Cinch.Check (check-and-retain)
+  import Cinch.Parse (parse-program)
+  import Cinch.Report (MkDiagnostic)
+  import Cinch.Resolve (resolve-program)
+  import Cinch.StageEval
   import Text.Parse (Parsed)
 
   source :: String

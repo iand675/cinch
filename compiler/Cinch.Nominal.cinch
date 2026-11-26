@@ -1,0 +1,633 @@
+-- Definition-site nominal contracts. These private type facts grant no
+-- source names; only the interface's export table builds a source scope.
+module Cinch.Nominal where
+
+  import Cinch.Ast
+  import Cinch.Builtin (array-type-name, cell-type-name, cell-effect-name)
+  import Cinch.PackedBody (hold-package-source)
+  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Document
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+  import Data.Bytes (bytes-copy-range, bytes-data, bytes-get, bytes-len, bytes-new, bytes-set)
+  import Data.Nat (nat-div, nat-rem, nat-to-i64, checked-nat-from-i64)
+  import Data.Machine (wrapping-add-i64, lt-i64)
+  import Data.Char (char-from-code)
+  import Data.String (string-from-bytes, string-to-bytes)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+
+  export interface-global, raw-interface-global, encode-identity, decode-identity, resolved-entry-valid, resolved-nominals
+  export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate, resolved-measures
+  export global-data-core-nil, global-data-core-cons, global-data-core-list, global-data-core-result, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-ok, global-data-core-err, global-data-string-string, global-data-string-length, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-relation-ord-ord, global-data-ordering-ordering, global-data-ordering-lt, global-data-ordering-eq, global-data-ordering-gt, global-algebra-arithmetic-nonzero, global-data-bool-not
+  export stage-quotation-module, stage-code-type-name, global-stage-code, global-stage-str-nat
+  export nominal-entry-valid
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  present :: String -> Json -> Bool
+  present name doc = case doc of JObj key value rest -> same name key || present name rest; other -> False
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  -- The identity spelling every interface, object and symbol name agrees on.
+  -- It is injective and reversible: `$` always starts an escape, a plain
+  -- character is itself, and a component separator is never inside an
+  -- escape. `[A-Za-z0-9_]` is itself, `$` is `$24`, and every other scalar
+  -- is the lowercase two-digit hex of each of its UTF-8 bytes (`$2e` for a
+  -- dot, `$2d` for a hyphen, `$e2$86$92` for a right arrow). The dot is
+  -- escaped inside an identity because the `m.` and `o.` prefixes already
+  -- spend a bare dot on the boundary between two components.
+  --
+  -- Callers pack the whole name once, without a numeral string (and its
+  -- UTF-8 check) per character or a copy of the encoded suffix at every
+  -- step.
+  encode-identity :: List Char -> List Char -> List Char
+  encode-identity chars rest = case chars of
+    Nil -> rest
+    Cons c more -> let code = char-code c in
+      if plain-code code then Cons c (encode-identity more rest)
+      else escaped-code code (encode-identity more rest)
+  -- The decimal fallback this replaced spent four characters on every
+  -- plain letter. The escape is also shorter for punctuation: `$2e` against
+  -- `46_`, and the plain class is the whole difference on identifier text.
+  plain-code :: Nat -> Bool
+  plain-code code = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || code == 95
+  escaped-code :: Nat -> List Char -> List Char
+  escaped-code code rest =
+    if code < 128 then escape-byte code rest
+    else if code < 2048 then escape-byte (192 + nat-div code 64) (escape-byte (128 + nat-rem code 64) rest)
+    else if code < 65536 then escape-byte (224 + nat-div code 4096)
+      (escape-byte (128 + nat-rem (nat-div code 64) 64) (escape-byte (128 + nat-rem code 64) rest))
+    else escape-byte (240 + nat-div code 262144) (escape-byte (128 + nat-rem (nat-div code 4096) 64)
+      (escape-byte (128 + nat-rem (nat-div code 64) 64) (escape-byte (128 + nat-rem code 64) rest)))
+  escape-byte :: Nat -> List Char -> List Char
+  escape-byte byte rest = Cons '$' (Cons (hex-digit (nat-div byte 16)) (Cons (hex-digit (nat-rem byte 16)) rest))
+  hex-digit :: Nat -> Char
+  hex-digit n = if n < 10 then digit-char n
+    else if n == 10 then 'a' else if n == 11 then 'b' else if n == 12 then 'c'
+    else if n == 13 then 'd' else if n == 14 then 'e' else 'f'
+  digit-char :: Nat -> Char
+  digit-char n = if n == 0 then '0' else if n == 1 then '1' else if n == 2 then '2' else if n == 3 then '3' else if n == 4 then '4'
+    else if n == 5 then '5' else if n == 6 then '6' else if n == 7 then '7' else if n == 8 then '8' else '9'
+  -- The inverse, for the consumers that read a spelling back: `export-global`
+  -- in front of every interface symbol and the readable type text in a
+  -- diagnostic. A run of escapes is one scalar's UTF-8 encoding, so a stray
+  -- continuation byte, an overlong form, a surrogate and a value past
+  -- `0x10FFFF` are all refused rather than guessed. An encoded run ends at
+  -- the first character outside the grammar, which is how a name embedded in
+  -- a longer spelling keeps its suffix.
+  decode-identity :: List Char -> Option (String, List Char)
+  decode-identity chars = case decode-run chars Nil of
+    Some (reversed, rest) -> Some (pack (reverse reversed), rest)
+    None -> None
+  decode-run :: List Char -> List Char -> Option (List Char, List Char)
+  decode-run chars reversed = case chars of
+    Nil -> Some (reversed, Nil)
+    Cons c rest -> let code = char-code c in
+      if plain-code code then decode-run rest (Cons c reversed)
+      else if code == 36 then (case hex-byte rest of
+        Some (lead, more) -> (case decode-scalar lead more of
+          Some (scalar, after) -> decode-run after (Cons scalar reversed)
+          None -> None)
+        None -> None)
+      else Some (reversed, chars)
+  -- Each admitted lead and continuation byte's payload is taken modulo its
+  -- field width, which is the same number for every value its width admits:
+  -- `lead >= 194` for two bytes is `lead mod 32 = lead - 192`, and a
+  -- continuation byte's `mod 64` is its `- 128`. That keeps every step total.
+  decode-scalar :: Nat -> List Char -> Option (Char, List Char)
+  decode-scalar lead chars =
+    if lead < 128 then scalar-char lead 0 chars
+    else if lead < 194 then None
+    else if lead < 224 then (case continuation-byte chars of
+      Some (first, more) -> scalar-char ((nat-rem lead 32) * 64 + nat-rem first 64) 128 more
+      None -> None)
+    else if lead < 240 then (case continuation-byte chars of
+      Some (first, more) -> (case continuation-byte more of
+        Some (second, after) -> scalar-char ((nat-rem lead 16) * 4096 + (nat-rem first 64) * 64 + nat-rem second 64) 2048 after
+        None -> None)
+      None -> None)
+    else if lead < 245 then (case continuation-byte chars of
+      Some (first, more) -> (case continuation-byte more of
+        Some (second, after) -> (case continuation-byte after of
+          Some (third, done) -> scalar-char ((nat-rem lead 8) * 262144 + (nat-rem first 64) * 4096 + (nat-rem second 64) * 64 + nat-rem third 64) 65536 done
+          None -> None)
+        None -> None)
+      None -> None)
+    else None
+  scalar-char :: Nat -> Nat -> List Char -> Option (Char, List Char)
+  scalar-char code minimum rest = if code < minimum then None else case char-from-code code of
+    Some scalar -> Some (scalar, rest)
+    None -> None
+  continuation-byte :: List Char -> Option (Nat, List Char)
+  continuation-byte chars = case chars of
+    Cons c rest -> if char-code c == 36 then (case hex-byte rest of
+      Some (byte, more) -> if byte >= 128 && byte < 192 then Some (byte, more) else None
+      None -> None)
+      else None
+    Nil -> None
+  hex-byte :: List Char -> Option (Nat, List Char)
+  hex-byte chars = case hex-digit-code chars of
+    Some (high, more) -> (case hex-digit-code more of
+      Some (low, rest) -> Some (high * 16 + low, rest)
+      None -> None)
+    None -> None
+  hex-digit-code :: List Char -> Option (Nat, List Char)
+  hex-digit-code chars = case chars of
+    Cons c rest -> let code = char-code c in
+      if code >= 48 && code <= 57 then Some (code - 48, rest)
+      else if code >= 97 && code <= 102 then Some (code - 87, rest)
+      else None
+    Nil -> None
+  -- Read one byte and mark an escaped byte by adding 256. The outer
+  -- loops check the offset and retain the source buffer across the read.
+  prim classify-identity-byte :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %input = inttoptr i64 %0 to ptr
+      %address = getelementptr i8, ptr %input, i64 %1
+      %code = load i8, ptr %address, align 1
+      %lowercase = or i8 %code, 32
+      %alpha-index = sub i8 %lowercase, 97
+      %alpha = icmp ult i8 %alpha-index, 26
+      %digit-index = sub i8 %code, 48
+      %digit = icmp ult i8 %digit-index, 10
+      %underscore = icmp eq i8 %code, 95
+      %alphanumeric = or i1 %alpha, %digit
+      %plain = or i1 %alphanumeric, %underscore
+      %byte = zext i8 %code to i64
+      %escaped = add i64 %byte, 256
+      %marked = select i1 %plain, i64 %byte, i64 %escaped
+      ret i64 %marked
+    }
+  identity-escaped-size :: I64 -> I64 -> I64 -> I64 -> I64
+  identity-escaped-size input length at size = if lt-i64 at length then
+    let code = classify-identity-byte input at in
+    let next = if lt-i64 code 256 then wrapping-add-i64 size 1 else wrapping-add-i64 size 3 in
+    identity-escaped-size input length (wrapping-add-i64 at 1) next
+    else size
+  plain-identity-end :: I64 -> I64 -> I64 -> I64
+  plain-identity-end input length at =
+    if lt-i64 at length && lt-i64 (classify-identity-byte input at) 256 then
+      plain-identity-end input length (wrapping-add-i64 at 1)
+    else at
+  identity-hex-byte :: InRange 0 15 Nat -> InRange 48 102 Nat
+  identity-hex-byte code = if code < 10 then 48 + code else 87 + code
+  -- Copy complete runs of literal bytes. Punctuation and non-ASCII
+  -- characters still use the same lowercase escape at each byte.
+  write-identity-bytes :: Bytes -> I64 -> I64 -> Nat -> Bytes -> Nat -> Bool
+  write-identity-bytes input address length at output pos =
+    if at < bytes-len input then
+      let stop = hold-package-source input (plain-identity-end address length (nat-to-i64 at)) in
+      case checked-nat-from-i64 stop of
+        Some end | at <= end -> let count = end - at in
+          if at + count <= bytes-len input && pos + count <= bytes-len output then
+            let copied = if count == 0 then () else bytes-copy-range output input pos at count in
+            let next = pos + count in
+            if end < bytes-len input then
+              (if next + 2 < bytes-len output then
+                let code = bytes-get input end in
+                let dollar = bytes-set output next 36 in
+                let high = bytes-set output (next + 1) (identity-hex-byte (nat-rem (nat-div code 16) 16)) in
+                let low = bytes-set output (next + 2) (identity-hex-byte (nat-rem code 16)) in
+                write-identity-bytes input address length (end + 1) output (next + 3)
+              else False)
+            else next == bytes-len output
+          else False
+        other -> False
+    else pos == bytes-len output
+  identity-global-bytes :: Bytes -> Option String
+  identity-global-bytes input =
+    let size = bytes-len input in
+    if size > 715827881 then None else
+      let length = nat-to-i64 size in
+      let address = bytes-data input in
+      let required = hold-package-source input (identity-escaped-size address length 0 2) in
+      case checked-nat-from-i64 required of
+        Some count | count >= 2 ->
+          let output = bytes-new count in
+          let first = bytes-set output 0 105 in
+          let second = bytes-set output 1 46 in
+          if write-identity-bytes input address length 0 output 2 then string-from-bytes output else None
+        other -> None
+  interface-global :: String -> String
+  interface-global identity = case identity-global-bytes (string-to-bytes identity) of
+    Some name -> name
+    None -> pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
+
+  -- Object admission indexes producer symbols. Accept the complete
+  -- canonical global spelling before looking up its decoded UTF-8 name.
+  raw-interface-global :: String -> Option String
+  raw-interface-global name =
+    let input = string-to-bytes name in
+    if 1 < bytes-len input && bytes-get input 0 == 105 && bytes-get input 1 == 46 then
+      (let output = bytes-new (raw-identity-size input 2 0) in
+        if write-raw-identity input 2 output 0 then string-from-bytes output else None)
+    else None
+  raw-identity-size :: Bytes -> Nat -> Nat -> Nat
+  raw-identity-size input at size = if at < bytes-len input then
+    raw-identity-size input (at + (if bytes-get input at == 36 then 3 else 1)) (size + 1)
+    else size
+  raw-identity-hex :: Nat -> InRange 0 16 Nat
+  raw-identity-hex code = if code >= 48 && code <= 57 then code - 48
+    else if code >= 97 && code <= 102 then code - 87 else 16
+  write-raw-identity :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  write-raw-identity input at output pos =
+    if at < bytes-len input then
+      (if pos < bytes-len output then
+        (let code = bytes-get input at in
+        if plain-code code then
+          (let written = bytes-set output pos code in write-raw-identity input (at + 1) output (pos + 1))
+        else if code == 36 && at + 2 < bytes-len input then
+          (let high = raw-identity-hex (bytes-get input (at + 1)) in
+          let low = raw-identity-hex (bytes-get input (at + 2)) in
+          if high < 16 && low < 16 then
+            (let byte = high * 16 + low in
+            if plain-code byte then False
+            else let written = bytes-set output pos byte in write-raw-identity input (at + 3) output (pos + 1))
+          else False)
+        else False)
+      else False)
+    else pos == bytes-len output
+
+  -- The encoded global of each identity the compiler compares against, in
+  -- the spelling `interface-global` defines. A literal is one read-only
+  -- constant; `interface-global` of a literal re-encodes it on every
+  -- evaluation, which is a character list plus a fresh buffer per
+  -- comparison. Each constant is `interface-global` of the identity its
+  -- comment names, and the checker compares against that spelling.
+  global-data-core-nil :: String
+  global-data-core-nil = "i.Data$2eCore$2eNil"  -- Data.Core.Nil
+  global-data-core-cons :: String
+  global-data-core-cons = "i.Data$2eCore$2eCons"  -- Data.Core.Cons
+  global-data-core-list :: String
+  global-data-core-list = "i.Data$2eCore$2eList"  -- Data.Core.List
+  global-data-core-result :: String
+  global-data-core-result = "i.Data$2eCore$2eResult"  -- Data.Core.Result
+  global-data-core-option :: String
+  global-data-core-option = "i.Data$2eCore$2eOption"  -- Data.Core.Option
+  global-data-core-some :: String
+  global-data-core-some = "i.Data$2eCore$2eSome"  -- Data.Core.Some
+  global-data-core-none :: String
+  global-data-core-none = "i.Data$2eCore$2eNone"  -- Data.Core.None
+  global-data-core-ok :: String
+  global-data-core-ok = "i.Data$2eCore$2eOk"  -- Data.Core.Ok
+  global-data-core-err :: String
+  global-data-core-err = "i.Data$2eCore$2eErr"  -- Data.Core.Err
+  global-data-string-length :: String
+  global-data-string-length = "i.Data$2eString$2estring$2dlength"
+  global-data-string-string :: String
+  global-data-string-string = "i.Data$2eString$2eString"  -- Data.String.String
+  global-data-fromlist-fromlist :: String
+  global-data-fromlist-fromlist = "i.Data$2eFromList$2eFromList"  -- Data.FromList.FromList
+  global-data-fromlist-fromlist-from-list :: String
+  global-data-fromlist-fromlist-from-list = "i.Data$2eFromList$2eFromList$2efrom$2dlist"  -- Data.FromList.FromList.from-list
+  global-relation-ord-ord :: String
+  global-relation-ord-ord = "i.Relation$2eOrd$2eOrd"  -- Relation.Ord.Ord
+  global-data-ordering-ordering :: String
+  global-data-ordering-ordering = "i.Data$2eOrdering$2eOrdering"  -- Data.Ordering.Ordering
+  global-data-ordering-lt :: String
+  global-data-ordering-lt = "i.Data$2eOrdering$2eLT"  -- Data.Ordering.LT
+  global-data-ordering-eq :: String
+  global-data-ordering-eq = "i.Data$2eOrdering$2eEQ"  -- Data.Ordering.EQ
+  global-data-ordering-gt :: String
+  global-data-ordering-gt = "i.Data$2eOrdering$2eGT"  -- Data.Ordering.GT
+  global-algebra-arithmetic-nonzero :: String
+  global-algebra-arithmetic-nonzero = "i.Algebra$2eArithmetic$2eNonZero"  -- Algebra.Arithmetic.NonZero
+  global-data-bool-not :: String
+  global-data-bool-not = "i.Data$2eBool$2enot"  -- Data.Bool.not
+  -- The compile-time code type has ONE identity, spelled two ways: `Code` in
+  -- ordinary source and `#StageCode` inside the synthesized stage module.
+  -- Both resolve to the declaration the expander builds, so a `Code t` a
+  -- stage function returns unifies with a `Code t` a quotation produces.
+  -- Two identities for this notion would let an interface producer and a
+  -- consumer disagree about which type they are naming.
+  --
+  -- The spelling is `global-name` of `#StageCode` in module
+  -- `#stage-quotation`, computed once here so no caller re-derives it:
+  -- `m.` then both components identity-encoded (`#` is `$23`, `-` is `$2d`).
+  stage-quotation-module :: String
+  stage-quotation-module = "#stage-quotation"
+  stage-code-type-name :: String
+  stage-code-type-name = "#StageCode"
+  global-stage-code :: String
+  global-stage-code = "m.$23stage$2dquotation.$23StageCode"
+  global-stage-str-nat :: String
+  global-stage-str-nat = "m.$23stage$2dquotation.strNat"
+  kernel-type-name :: String -> Bool
+  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
+  nonempty :: Json -> Bool
+  nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
+  indexed-name :: String -> HashMap String () -> Bool
+  indexed-name name seen = case hash-map-lookup name seen of Some _ -> True; None -> False
+  constructor-index :: Json -> HashMap String () -> Nat -> Option (HashMap String (), Nat)
+  constructor-index rows seen count = case rows of
+    JArr (JStr name) rest | string-length name > 0 && not (indexed-name name seen) ->
+      constructor-index rest (hash-map-insert name () seen) (count + 1)
+    JArrEnd -> Some (seen, count)
+    other -> None
+  valid-parameters :: Json -> Json -> List String -> Bool
+  valid-parameters rows names seen = case (rows, names) of
+    (JArr row rest, JArr (JStr name) more) -> same name (text (field "name" row)) && string-length name > 0 && not (has name seen)
+      && nonempty (field "kind" row) && (case field "implicit" row of JBool value -> True; other -> False)
+      && valid-parameters rest more (Cons name seen)
+    (JArrEnd, JArrEnd) -> True
+    other -> False
+  parameter-has-name :: String -> Json -> Bool
+  parameter-has-name name rows = case rows of JArr row rest -> same name (text (field "name" row)) || parameter-has-name name rest; other -> False
+  valid-refinement-row :: Json -> Bool
+  valid-refinement-row row = let template = field "refinement" row in
+    nonempty (field "binder" template) && nonempty (field "carrier" template) && nonempty (field "predicate" template)
+    && not (parameter-has-name (text (field "binder" template)) (field "parameters" row))
+  null-field :: String -> Json -> Bool
+  null-field name row = present name row && (case field name row of JNull -> True; other -> False)
+  -- | Test exact defining constructor membership without introducing source-visible names.
+  usage-member :: String -> Json -> Bool
+  usage-member name rows = case rows of JArr (JStr first) rest -> same name first || usage-member name rest; other -> False
+  -- | Reject executable or layout metadata in the dedicated usage-only constructor rows.
+  usage-keys :: Json -> List String -> Bool
+  usage-keys row seen = case row of
+    JObj key value rest -> has key ["identity", "fields", "result"] && not (has key seen) && usage-keys rest (Cons key seen)
+    JObjEnd -> list-length seen == 3
+    other -> False
+  -- | Validate complete constructor coverage before a later typed field decoder can use the proof.
+  usage-rows-valid :: Json -> HashMap String () -> HashMap String () -> Nat -> Bool
+  usage-rows-valid rows constructors seen remaining = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      remaining > 0 && usage-keys row Nil && indexed-name identity constructors && not (indexed-name identity seen)
+      && nonempty (field "result" row) && usage-strings (field "fields" row)
+      && usage-rows-valid rest constructors (hash-map-insert identity () seen) (saturating-sub remaining 1)
+    JArrEnd -> remaining == 0
+    other -> False
+  -- | Keep field syntax nonempty; its carrier grammar is checked independently after kind admission.
+  usage-strings :: Json -> Bool
+  usage-strings rows = case rows of JArr first rest -> nonempty first && usage-strings rest; JArrEnd -> True; other -> False
+  -- | Keep a proof-bearing nominal limited to its complete defining identity and usage-only schema.
+  usage-contract-keys :: Json -> List String -> Bool
+  usage-contract-keys row seen = case row of
+    JObj key value rest -> has key ["identity", "kind", "params", "parameters", "constructors", "refinement", "usage"]
+      && not (has key seen) && usage-contract-keys rest (Cons key seen)
+    JObjEnd -> list-length seen == 7
+    other -> False
+  -- | Absence preserves old metadata; a present proof must cover a nonempty data family completely.
+  valid-nominal-body :: Json -> Bool
+  valid-nominal-body row = let kind = text (field "kind" row) in
+    let usage = present "usage" row in
+    if same kind "data" then null-field "refinement" row &&
+      (case constructor-index (field "constructors" row) hash-map-empty 0 of
+        None -> False
+        Some (constructors, count) -> not usage ||
+          (count > 0 && usage-contract-keys row Nil && usage-rows-valid (field "usage" row) constructors hash-map-empty count))
+    else not usage && (if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
+      else null-field "refinement" row && (same kind "opaque" || same kind "signature") && null-field "constructors" row)
+  valid-nominal-entry :: String -> Json -> Bool
+  valid-nominal-entry identity row = string-length identity > 0
+    && valid-parameters (field "parameters" row) (field "params" row) Nil
+    && valid-nominal-body row
+  valid-nominals :: Json -> HashMap String () -> Bool
+  valid-nominals rows seen = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      not (indexed-name identity seen) && valid-nominal-entry identity row
+      && valid-nominals rest (hash-map-insert identity () seen)
+    JArrEnd -> True
+    other -> False
+  -- | Validate a standalone defining contract with the same rules as occurrence-resolved nominal rows.
+  nominal-entry-valid :: Json -> Bool
+  nominal-entry-valid row = valid-nominal-entry (text (field "identity" row)) row
+  resolved-entry-valid :: Json -> Bool
+  resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
+    JNull -> True
+    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) hash-map-empty && valid-measures (field "measures" row) Nil)
+  resolved-nominals :: Json -> Json
+  resolved-nominals metadata = case field "resolved" metadata of JNull -> JArrEnd; row -> append-rows (field "nominals" row) (measure-nominals (field "measures" row))
+  append-rows :: Json -> Json -> Json
+  append-rows first second = case first of JArr row rest -> JArr row (append-rows rest second); other -> second
+  resolved-measures :: Json -> Json
+  resolved-measures metadata = case field "measures" (field "resolved" metadata) of JNull -> JArrEnd; rows -> rows
+  measure-nominals :: Json -> Json
+  measure-nominals rows = case rows of JArr row rest -> append-rows (field "nominals" (field "resolved" row)) (measure-nominals rest); other -> JArrEnd
+  valid-measures :: Json -> List String -> Bool
+  valid-measures rows seen = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      string-length identity > 0 && not (has identity seen) && nonempty (field "scheme" (field "resolved" row))
+      && valid-nominals (field "nominals" (field "resolved" row)) hash-map-empty
+      && (case field "measures" (field "resolved" row) of JNull -> True; JArrEnd -> True; other -> False)
+      && present "total_body" row && (case field "total_body" row of JNull -> False; other -> True)
+      && valid-measures rest (Cons identity seen)
+    JArrEnd -> True
+    JNull -> True
+    other -> False
+  measure-references :: Json -> Json
+  measure-references rows = case rows of
+    JArr row rest -> JArr (JObj "identity" (field "identity" row) (JObj "kind" (JStr "measure") JObjEnd)) (measure-references rest)
+    other -> JArrEnd
+  measure-reference :: String -> Json -> Bool
+  measure-reference name rows = case rows of
+    JArr row rest -> (same name (text (field "identity" row)) && same "measure" (text (field "kind" row))) || measure-reference name rest
+    other -> False
+  -- In an argument position a name can denote a constructor index. The
+  -- elaborator subsequently checks its carrier and defining public table.
+  qualify-argument :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-argument refs locals argument = case argument of
+    TName at name -> case qualify-name refs locals at name of
+      (ty, Nil) -> (ty, Nil)
+      (ty, errors) -> if constructor-reference name refs then (TName at (interface-global name), Nil) else (ty, errors)
+    other -> qualify refs locals argument
+  constructor-reference :: String -> Json -> Bool
+  constructor-reference name rows = case rows of
+    JArr row rest -> usage-member name (field "constructors" row) || constructor-reference name rest
+    other -> False
+  singleton-reference :: String -> Json -> Bool
+  singleton-reference name rows = case rows of
+    JArr row rest -> (case field "constructors" row of
+      JArr (JStr symbol) JArrEnd -> same symbol name
+      other -> False) || singleton-reference name rest
+    other -> False
+  resolved-text :: Json -> Option String
+  resolved-text metadata = case field "scheme" (field "resolved" metadata) of JStr scheme -> Some scheme; other -> None
+  contains-identity :: String -> Json -> Bool
+  contains-identity identity rows = case rows of
+    JArr row rest -> same identity (text (field "identity" row)) || contains-identity identity rest
+    other -> False
+  fail :: Span -> String -> (TypeExpr, List Diagnostic)
+  fail sp message = (TUnmodeled sp message, [MkDiagnostic "bootstrap.resolve" sp message])
+  qualify-name :: Json -> List String -> Span -> String -> (TypeExpr, List Diagnostic)
+  qualify-name refs locals sp name =
+    if same name "Io" then (TName sp "b.Io", Nil)
+    else if same name "Scope" then (TName sp "b.Scope", Nil)
+    else if same name "Task" then (TName sp "b.Task", Nil)
+    else if same name "Fin" then (TName sp "b.Fin", Nil)
+    else if same name "Vec" then (TName sp "b.Vec", Nil)
+    else if has name locals || kernel-type-name name then (TName sp name, Nil)
+    else if contains-identity name refs then (TName sp (interface-global name), Nil)
+    else fail sp (string-concat "resolved scheme contains an unbound type name: " name)
+  quantified-names :: TypeExpr -> List String
+  quantified-names qs = case qs of TQuantifier s name only kind rest -> Cons name (quantified-names rest); other -> Nil
+  -- Qualify carrier annotations before adding their binder to the scope.
+  -- The elaborator checks their kinds; this traversal checks provenance
+  -- and ensures that later quantifiers cannot appear in earlier carriers.
+  qualify-kind :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-kind refs locals ty = case ty of
+    TName s name -> if has name ["Type", "Region", "Effect", "Row"] then (ty, Nil) else qualify refs locals ty
+    TFun s a b -> case (qualify-kind refs locals a, qualify-kind refs locals b) of
+      ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
+    other -> qualify refs locals ty
+  qualify-quantifiers :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-quantifiers refs locals qs = case qs of
+    TQuantifier s name only kind rest -> if string-length name == 0 || has name locals then fail s "invalid resolved quantifier kinds or scope"
+      else case (qualify-kind refs locals kind, qualify-quantifiers refs (Cons name locals) rest) of
+        ((annotation, errors), (more, others)) -> (TQuantifier s name only annotation more, errors <> others)
+    TQuantifiersEnd s -> (qs, Nil)
+    other -> fail (type-expr-span qs) "invalid resolved quantifier kinds or scope"
+  signature-reference :: String -> Json -> Bool
+  signature-reference name refs = same name "Io" || same name "Copy" || same name "Kernel" || signature-in-rows name refs
+  signature-in-rows :: String -> Json -> Bool
+  signature-in-rows name refs = case refs of
+    JArr row rest -> (same name (text (field "identity" row)) && same (text (field "kind" row)) "signature") || signature-in-rows name rest
+    other -> False
+  constraint-head :: TypeExpr -> String
+  constraint-head ty = case ty of TName s name -> name; TApp s head args -> constraint-head head; other -> ""
+  qualify-bounds :: Json -> List String -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-bounds refs locals seen bounds = case bounds of
+    TBoundsEnd s -> (bounds, Nil)
+    TBound s name class-app rest ->
+      if resolved-predicate-syntax class-app then
+        (if not (same name "") then fail s "resolved named proof binding needs erased proof elaboration"
+         else case (qualify-predicate refs locals class-app, qualify-bounds refs locals seen rest) of
+           ((predicate, errors), (more, others)) -> (TBound s name predicate more, errors <> others))
+      else if string-length name == 0 || has name seen then fail s "invalid resolved dictionary binder scope"
+      else if not (signature-reference (constraint-head class-app) refs) then fail s "resolved context needs a defining signature contract"
+      else case (qualify refs locals class-app, qualify-bounds refs locals (Cons name seen) rest) of
+        ((app, errors), (more, others)) -> (TBound s name app more, errors <> others)
+    other -> fail (type-expr-span bounds) "resolved context needs dictionary or proposition elaboration"
+  qualify :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify refs locals ty = case ty of
+    TName s name -> qualify-name refs locals s name
+    TRefined s predicate carrier -> case qualify refs locals carrier of
+      (base, errors) -> case anonymous-predicate-names locals predicate Nil of
+        Nil -> case qualify-predicate refs locals predicate of
+          (condition, more) -> (TRefined s condition base, errors <> more)
+        Cons name Nil -> case qualify-predicate refs (Cons name locals) predicate of
+          (condition, more) -> (TRefined s condition base, errors <> more)
+        other -> fail s "resolved refinement has more than one unbound result name"
+    TIndex s digits -> (ty, Nil)
+    TNegate s body -> case qualify refs locals body of (value, errors) -> (TNegate s value, errors)
+    TFun s (TBound bound name carrier (TBoundsEnd end)) result -> case (qualify refs locals carrier, qualify refs (Cons name locals) result) of
+      ((domain, errors), (out, others)) -> (TFun s (TBound bound name domain (TBoundsEnd end)) out, errors <> others)
+    TFunEff s (TBound bound name carrier (TBoundsEnd end)) row result -> case (qualify refs locals carrier, qualify-row (Cons name locals) row, qualify refs (Cons name locals) result) of
+      ((domain, errors), (effects, more), (out, others)) -> (TFunEff s (TBound bound name domain (TBoundsEnd end)) effects out, errors <> more <> others)
+    TFun s a b -> case (qualify refs locals a, qualify refs locals b) of
+      ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
+    TFunEff s a row b -> case (qualify refs locals a, qualify-row locals row, qualify refs locals b) of
+      ((x, ex), (effects, ee), (y, ey)) -> (TFunEff s x effects y, ex <> ee <> ey)
+    TUsageArrow s usage arrow -> case qualify refs locals arrow of
+      (renamed, errors) -> (TUsageArrow s usage renamed, errors)
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+      qualify-predicate refs locals ty
+    TApp s (TName at name) args | has name ["b.toNat", "b.length", "b.bytesLen"] -> qualify-predicate refs locals ty
+    TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
+      ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
+    TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
+    TList s args -> case qualify refs locals args of (xs, errors) -> (TList s xs, errors)
+    TStrLit s text -> (ty, Nil)
+    TSigma s name dom body -> case (qualify refs locals dom, qualify refs (Cons name locals) body) of
+      ((d, ed), (b, eb)) -> (TSigma s name d b, ed <> eb)
+    TArg s x rest -> case (qualify-argument refs locals x, qualify refs locals rest) of
+      ((a, ea), (xs, es)) -> (TArg s a xs, ea <> es)
+    TArgsEnd s -> (ty, Nil)
+    TForall s qs body -> case (qualify-quantifiers refs locals qs, qualify refs (quantified-names qs <> locals) body) of
+      ((binders, errors), (out, others)) -> (TForall s binders out, errors <> others)
+    TUsing s bounds body -> case (qualify-bounds refs (contract-argument-names body <> locals) Nil bounds, qualify refs locals body) of
+      ((context, errors), (out, more)) -> (TUsing s context out, errors <> more)
+    other -> fail (type-expr-span ty) "resolved scheme needs dictionary, effect or dependent elaboration"
+  -- Predicate application heads are contracts, never implicit binders.
+  -- The predicate qualifier separately checks the admitted vocabulary.
+  anonymous-predicate-names :: List String -> TypeExpr -> List String -> List String
+  anonymous-predicate-names locals syntax seen = case syntax of
+    TName s name -> if has name locals || has name seen || has name ["True", "False"] then seen else Cons name seen
+    TInfix s op a b -> anonymous-predicate-names locals b (anonymous-predicate-names locals a seen)
+    TNegate s body -> anonymous-predicate-names locals body seen
+    TApp s head args -> anonymous-predicate-names locals args seen
+    TArg s first rest -> anonymous-predicate-names locals rest (anonymous-predicate-names locals first seen)
+    other -> seen
+  qualify-row :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-row locals row = case row of
+    TRow s labels None -> case qualify-effects locals labels of (out, errors) -> (TRow s out None, errors)
+    TRow s labels (Some name) -> if has name locals then
+      (case qualify-effects locals labels of (out, errors) -> (TRow s out (Some name), errors))
+      else fail s "unbound resolved effect row tail"
+    other -> fail (type-expr-span row) "resolved effect row needs open-row elaboration"
+  qualify-effects :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-effects locals labels = case labels of
+    TArgsEnd s -> (labels, Nil)
+    TArg s label rest -> case (qualify-effect locals label, qualify-effects locals rest) of
+      ((out, errors), (more, others)) -> (TArg s out more, errors <> others)
+    other -> fail (type-expr-span labels) "invalid resolved effect label spine"
+  qualify-effect :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-effect locals label = case label of
+    TName s name -> if cell-effect-name name then (TName s (string-concat "#kernel." name), Nil)
+      else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, Nil)
+      else fail s "resolved effect label needs a kernel contract"
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
+      if has name ["IO", "Async", "Cancel", "Eval", "Mut"] && has region locals then (label, Nil)
+      else fail s "resolved effect label has an unknown identity or region"
+    other -> fail (type-expr-span label) "resolved effect label needs region elaboration"
+  qualify-resolved :: Json -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-resolved metadata ty = if resolved-entry-valid metadata then qualify (append-rows (resolved-nominals metadata) (measure-references (resolved-measures metadata))) Nil ty
+    else fail (type-expr-span ty) "invalid resolved nominal contract"
+
+  contract-argument-names :: TypeExpr -> List String
+  contract-argument-names ty = case ty of
+    TFun s (TBound b name carrier (TBoundsEnd end)) body -> Cons name (contract-argument-names body)
+    TFunEff s (TBound b name carrier (TBoundsEnd end)) row body -> Cons name (contract-argument-names body)
+    TFun s domain body -> contract-argument-names body
+    TFunEff s domain row body -> contract-argument-names body
+    TUsageArrow s usage arrow -> contract-argument-names arrow
+    other -> Nil
+
+  resolved-predicate-syntax :: TypeExpr -> Bool
+  resolved-predicate-syntax syntax = case syntax of
+    TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
+    TName s name -> same name "True" || same name "False"
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
+    other -> False
+  qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-predicate refs locals syntax = case syntax of
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+      case (qualify-predicate refs locals a, qualify-predicate refs locals b) of
+        ((left, errors), (right, more)) ->
+          (TApp s (TName at name) (TArg first left (TArg second right (TArgsEnd end))), errors <> more)
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
+      if has name ["b.toNat", "b.length", "b.bytesLen"] then (case qualify-predicate refs locals input of
+        (value, errors) -> (TApp sp (TName at (if same name "b.toNat" then "#kernel.toNat" else if same name "b.length" then "#kernel.length" else "#kernel.bytes-length")) (TArg arg value (TArgsEnd end)), errors))
+      else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
+        (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
+      else if measure-reference name refs || singleton-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
+        (arguments, errors) -> (TApp sp (TName at (interface-global name)) arguments, errors))
+      else fail sp "resolved predicate needs checked mathematical operands"
+    TApp sp (TName at name) arguments -> if measure-reference name refs then (case qualify-predicate-args refs locals arguments of
+      (values, errors) -> (TApp sp (TName at (interface-global name)) values, errors))
+      else fail sp "resolved predicate application has no defining measure contract"
+    TName s name -> if same name "True" || same name "False" then (syntax, Nil) else qualify-name refs locals s name
+    TIndex s text -> (syntax, Nil)
+    TNegate s body -> case qualify-predicate refs locals body of (out, errors) -> (TNegate s out, errors)
+    TInfix s op a b -> if has op ["+", "-", "*", "<", "<=", "==", "/=", ">=", ">", "&&", "||"] then
+      (case (qualify-predicate refs locals a, qualify-predicate refs locals b) of
+        ((left, errors), (right, more)) -> (TInfix s op left right, errors <> more))
+      else fail s "resolved predicate operator needs a checked contract"
+    other -> fail (type-expr-span syntax) "resolved predicate needs checked mathematical operands"
+
+  -- A private defining template has a closed binder/parameter telescope.
+  -- Decode its kernel operations using the same rule as resolved schemes.
+  qualify-refinement-predicate :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-refinement-predicate locals syntax = qualify-predicate JArrEnd locals syntax
+
+  qualify-predicate-args :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-predicate-args refs locals arguments = case arguments of
+    TArgsEnd sp -> (arguments, Nil)
+    TArg sp first rest -> (case (qualify-predicate refs locals first, qualify-predicate-args refs locals rest) of
+      ((value, errors), (more, others)) -> (TArg sp value more, errors <> others))
+    other -> fail (type-expr-span arguments) "invalid defining measure argument spine"

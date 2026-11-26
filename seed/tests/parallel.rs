@@ -1025,7 +1025,7 @@ module Main where
 /// capture must be Share" cannot tell whether the type is genuinely mutable
 /// or whether the compiler simply had no declaration to read. The
 /// self-hosted compiler now says which type and why
-/// (`Bootstrap.Typing.par-blocker-clause`); the seed still says only the rule.
+/// (`Cinch.Typing.par-blocker-clause`); the seed still says only the rule.
 /// This test drives the bootstrap frontend and asserts the improved message,
 /// so the seed's message is a recorded divergence rather than an untested
 /// difference.

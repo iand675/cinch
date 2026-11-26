@@ -123,7 +123,7 @@ class BootstrapContract(unittest.TestCase):
             root = Path(temporary)
             (root / "compiler").mkdir()
             (root / "compiler" / "pins").mkdir()
-            for path in (original / "compiler").glob("Bootstrap.*.cinch"):
+            for path in (original / "compiler").glob("Cinch.*.cinch"):
                 (root / "compiler" / path.name).write_bytes(path.read_bytes())
             (root / "compiler/programs").symlink_to(original / "compiler/programs", target_is_directory=True)
             (root / "seed").symlink_to(original / "seed", target_is_directory=True)
@@ -247,7 +247,7 @@ class BootstrapContract(unittest.TestCase):
 
     def test_the_compiler_source_set_carries_the_parmap_prelude_module(self):
         # `parMap` lowers through `Data.Array`'s `array-from-list` and
-        # `array-to-list` (`Bootstrap.Infer.par-map-array-call`), and that
+        # `array-to-list` (`Cinch.Infer.par-map-array-call`), and that
         # module is not in the embedded base package, so a `parMap` anywhere
         # in the compiler resolves only when the module is in the same source
         # set. The bundle has to carry the module's real bytes, because the
@@ -309,7 +309,7 @@ class BootstrapContract(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            module_names = ("Main", "Bootstrap.Check")
+            module_names = ("Main", "Cinch.Check")
             files = {name + ".cinch": b"source" for name in module_names}
             template = bootstrap.read_json(Path(__file__).parent / "fixtures/checked-interface.json")
             runtime_abi = bootstrap.library_provider_lock()["runtime_abi"]
@@ -329,11 +329,11 @@ class BootstrapContract(unittest.TestCase):
             produced.write_bytes(pack([contract(name) for name in module_names]))
             bootstrap.require_compiler_interfaces(root, files)
             wrong_abi = 5 if runtime_abi == 6 else 6
-            produced.write_bytes(pack([contract("Main", wrong_abi), contract("Bootstrap.Check")]))
+            produced.write_bytes(pack([contract("Main", wrong_abi), contract("Cinch.Check")]))
             with self.assertRaisesRegex(bootstrap.BootstrapError, "wrong runtime ABI"):
                 bootstrap.require_compiler_interfaces(root, files)
             name, _, doc = contract("Main")
-            produced.write_bytes(pack([(name, "incorrect", doc), contract("Bootstrap.Check")]))
+            produced.write_bytes(pack([(name, "incorrect", doc), contract("Cinch.Check")]))
             with self.assertRaisesRegex(bootstrap.BootstrapError, "invalid packed interface identity"):
                 bootstrap.require_compiler_interfaces(root, files)
 
@@ -344,23 +344,23 @@ class BootstrapContract(unittest.TestCase):
         package = {"modules": [{"name": "Data.Core"}]}
         identities = bootstrap_objects.admitted_interface_identities(bootstrap, metadata, package)
         self.assertEqual(identities, [("Data.Core", "checked-base-hash")])
-        row["interface"] = {**base, "imports": [{"module": "Bootstrap.Check"}]}
+        row["interface"] = {**base, "imports": [{"module": "Cinch.Check"}]}
         with self.assertRaisesRegex(bootstrap.BootstrapError, "depends on compiler implementation"):
             bootstrap_objects.admitted_interface_identities(bootstrap, metadata, package)
 
     def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
-        live = (bootstrap.ROOT / "compiler/Bootstrap.RuntimeAbi.cinch").read_bytes()
+        live = (bootstrap.ROOT / "compiler/Cinch.RuntimeAbi.cinch").read_bytes()
         self.assertEqual(live, bootstrap.runtime_abi_source(10))
         pinned = bootstrap.collect_compiler_sources()
         lock = bootstrap.library_provider_lock()
-        self.assertEqual(pinned["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(lock["runtime_abi"]))
+        self.assertEqual(pinned["Cinch.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(lock["runtime_abi"]))
         prepared = {}
         for runtime_abi in bootstrap.RUNTIME_ABIS:
             with self.subTest(runtime_abi=runtime_abi), patch.object(bootstrap, "library_provider_lock", return_value={**lock, "runtime_abi": runtime_abi}):
                 prepared[runtime_abi] = bootstrap.collect_compiler_sources()
-            self.assertEqual(prepared[runtime_abi]["Bootstrap.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(runtime_abi))
+            self.assertEqual(prepared[runtime_abi]["Cinch.RuntimeAbi.cinch"], bootstrap.runtime_abi_source(runtime_abi))
             self.assertIn(f"runtime-abi = {runtime_abi}".encode(), bootstrap.bundle(prepared[runtime_abi]))
-            self.assertIn(f"runtime-abi-int = {runtime_abi}".encode(), prepared[runtime_abi]["Bootstrap.RuntimeAbi.cinch"])
+            self.assertIn(f"runtime-abi-int = {runtime_abi}".encode(), prepared[runtime_abi]["Cinch.RuntimeAbi.cinch"])
         self.assertEqual(len({bootstrap.source_hash(files) for files in prepared.values()}), len(bootstrap.RUNTIME_ABIS))
         for invalid in (None, True, "5", 0, 4, 99):
             with self.assertRaises(bootstrap.BootstrapError):
@@ -642,7 +642,7 @@ class BootstrapContract(unittest.TestCase):
             compiler.chmod(0o755)
             product = directory / "changed-source" / "stage2"
             product.mkdir(parents=True)
-            files = {"Bootstrap.Check.cinch": b'  rung = "bootstrap.check"\n'}
+            files = {"Cinch.Check.cinch": b'  rung = "bootstrap.check"\n'}
             with patch.object(bootstrap, "BUILD", directory), \
                     patch.object(bootstrap, "compiler_sources", return_value=files), \
                     patch.object(bootstrap, "build_self", return_value=compiler) as build:

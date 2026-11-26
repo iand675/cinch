@@ -1,8 +1,8 @@
 -- Binding identities depend on input supplied after compilation.
 module Main where
 
-  import Bootstrap.Index
-  import Bootstrap.Document
+  import Cinch.Index
+  import Cinch.Document
   import Data.Nat (nat-from-int)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

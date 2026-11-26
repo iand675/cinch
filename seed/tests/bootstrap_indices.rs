@@ -7,8 +7,8 @@ fn index_substitution_preserves_scope_and_binding_identity() {
         "indices",
         &[
             (
-                "Bootstrap.Index.cinch",
-                include_str!("../../compiler/Bootstrap.Index.cinch"),
+                "Cinch.Index.cinch",
+                include_str!("../../compiler/Cinch.Index.cinch"),
             ),
             (
                 "Main.cinch",

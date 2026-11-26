@@ -1,14 +1,14 @@
 module Main where
   import Algebra.Semigroup
-  import Bootstrap.Parse (parse-program, parse-program-with)
-  import Bootstrap.Resolve (resolve-program, resolve-program-with)
-  import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Load (LoadedInterface, load-interface-set)
-  import Bootstrap.Interface (iface-hash)
-  import Bootstrap.Check (check-and-retain)
-  import Bootstrap.Export (export-interfaces)
-  import Bootstrap.Report (render-diagnostics)
-  import Bootstrap.Document
+  import Cinch.Parse (parse-program, parse-program-with)
+  import Cinch.Resolve (resolve-program, resolve-program-with)
+  import Cinch.Contracts (interface-headers)
+  import Cinch.Load (LoadedInterface, load-interface-set)
+  import Cinch.Interface (iface-hash)
+  import Cinch.Check (check-and-retain)
+  import Cinch.Export (export-interfaces)
+  import Cinch.Report (render-diagnostics)
+  import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)

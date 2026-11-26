@@ -3,11 +3,11 @@
 -- and multi-module emission are named refusals.
 module Main where
 
-  import Bootstrap.Ast
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Ir (emit-diagnostics)
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Report (Diagnostic, diagnostic-message)
+  import Cinch.Ast
+  import Cinch.Check (check-program)
+  import Cinch.Ir (emit-diagnostics)
+  import Cinch.Parse (parse-program)
+  import Cinch.Report (Diagnostic, diagnostic-message)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   independent :: String

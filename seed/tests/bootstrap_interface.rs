@@ -1,4 +1,4 @@
-//! Rung: reading a compiled module interface (`Bootstrap.Interface`).
+//! Rung: reading a compiled module interface (`Cinch.Interface`).
 //!
 //! A self-hosted compiler consumes its dependencies' `.cinchif` artifacts
 //! instead of re-parsing their sources, so this test proves the rung reads a
@@ -34,7 +34,7 @@ mod common;
 use std::path::Path;
 use std::process::Command;
 
-const INTERFACE_SRC: &str = include_str!("../../compiler/Bootstrap.Interface.cinch");
+const INTERFACE_SRC: &str = include_str!("../../compiler/Cinch.Interface.cinch");
 const RUN_SRC: &str = include_str!("../../compiler/programs/Run.Interface.cinch");
 
 /// The module whose interface is read: a data type, an operator with a fixity
@@ -413,7 +413,7 @@ fn the_interface_reader_answers_a_real_artifact() {
     let dir = common::project(
         "iface-run",
         &[
-            ("Bootstrap.Interface.cinch", INTERFACE_SRC),
+            ("Cinch.Interface.cinch", INTERFACE_SRC),
             ("Main.cinch", RUN_SRC),
         ],
     );

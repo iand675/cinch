@@ -1,0 +1,59 @@
+-- A pointer-sized literal is checked at the width of the selected target.
+module Cinch.TargetLiterals where
+  import Cinch.Core
+  import Cinch.Type
+  import Cinch.Instance
+  import Cinch.Infer (Elaboration, elaboration-core, elaboration-instances)
+  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export target-literal-errors
+
+  target-literal-errors :: Nat -> Elaboration -> List Diagnostic
+  target-literal-errors width checked = if width /= 32 then Nil else
+    definition-errors (elaboration-core checked) <> instance-errors (elaboration-instances checked)
+
+  instance-errors :: List CoreInstance -> List Diagnostic
+  instance-errors instances = case instances of
+    Nil -> Nil
+    Cons dictionary rest -> definition-errors (map dictionary-field-definition (instance-fields dictionary)) <> instance-errors rest
+
+  definition-errors :: List CoreDefinition -> List Diagnostic
+  definition-errors definitions = case definitions of
+    Nil -> Nil
+    Cons d rest -> clause-errors (core-clauses d) <> definition-errors rest
+
+  clause-errors :: List CoreClause -> List Diagnostic
+  clause-errors clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause at patterns body) rest -> patterns-errors patterns <> literal-errors body <> clause-errors rest
+
+  patterns-errors :: List CorePattern -> List Diagnostic
+  patterns-errors ps = case ps of Nil -> Nil; Cons first rest -> pattern-errors first <> patterns-errors rest
+  pattern-errors :: CorePattern -> List Diagnostic
+  pattern-errors p = case p of
+    CPInt sp ty text -> word-errors sp ty text
+    CPConstructor sp ty name actuals constructor fields -> pattern-errors fields
+    CPTuple sp ty fields -> pattern-errors fields
+    CPField sp first rest -> pattern-errors first <> pattern-errors rest
+    CPAs sp ty id label inner -> pattern-errors inner
+    other -> Nil
+
+  terms-errors :: List CoreTerm -> List Diagnostic
+  terms-errors terms = case terms of Nil -> Nil; Cons first rest -> literal-errors first <> terms-errors rest
+  literal-errors :: CoreTerm -> List Diagnostic
+  literal-errors term = case term of
+    CInt sp ty text -> word-errors sp ty text
+    CLambda sp ty p body -> pattern-errors p <> literal-errors body
+    CAlternative sp p body rest -> pattern-errors p <> literal-errors body <> literal-errors rest
+    other -> terms-errors (term-children term)
+
+  word-errors :: Span -> UType -> String -> List Diagnostic
+  word-errors sp ty text = case ty of
+    UCon name KType -> if string-compare name "Usize" == 0 then narrow-word sp name "U32" text
+      else if string-compare name "Isize" == 0 then narrow-word sp name "I32" text else Nil
+    other -> Nil
+  narrow-word :: Span -> String -> String -> String -> List Diagnostic
+  narrow-word sp name carrier text = if valid-integer-literal (UCon carrier KType) text then Nil else
+    [MkDiagnostic "bootstrap.check" sp ("integer literal " <> text <> " is out of range for " <> name <> " on the 32-bit target")]

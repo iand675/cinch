@@ -76,10 +76,10 @@ module Main where
 class ParallelIncrementalUnitTests(unittest.TestCase):
     def test_parallel_and_incremental_modules_in_compiler_sources(self):
         sources = bootstrap.collect_compiler_sources()
-        self.assertIn("Bootstrap.Parallel.cinch", sources)
-        self.assertIn("Bootstrap.Incremental.cinch", sources)
-        self.assertIn("Bootstrap.Borrow.cinch", sources)
-        self.assertIn("Bootstrap.Ownership.cinch", sources)
+        self.assertIn("Cinch.Parallel.cinch", sources)
+        self.assertIn("Cinch.Incremental.cinch", sources)
+        self.assertIn("Cinch.Borrow.cinch", sources)
+        self.assertIn("Cinch.Ownership.cinch", sources)
         main_src = sources["Main.cinch"].decode("utf-8")
         self.assertIn("--serve-stream", main_src)
         self.assertIn("--compile-profile", main_src)

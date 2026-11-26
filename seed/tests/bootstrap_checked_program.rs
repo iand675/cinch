@@ -2,16 +2,16 @@
 mod common;
 fn files() -> Vec<(&'static str, &'static str)> {
     vec![
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Builtin.cinch", include_str!("../../compiler/Bootstrap.Builtin.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Ir.cinch", include_str!("../../compiler/Bootstrap.Ir.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Builtin.cinch", include_str!("../../compiler/Cinch.Builtin.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Ir.cinch", include_str!("../../compiler/Cinch.Ir.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.CheckedProgram.cinch")),
     ]
 }
@@ -31,7 +31,7 @@ fn checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary() 
 fn checked_program_constructor_is_not_an_external_authority_bypass() {
     let mut project = files();
     project.retain(|(name, _)| *name != "Main.cinch");
-    project.push(("Main.cinch", "module Main where\n  import Bootstrap.Ast\n  import Bootstrap.Infer (Elaboration)\n  import Bootstrap.Check\n  forge :: Program -> Elaboration -> CheckedProgram\n  forge surface typed = MkCheckedProgram surface typed\n  main :: Int\n  main = 0\n"));
+    project.push(("Main.cinch", "module Main where\n  import Cinch.Ast\n  import Cinch.Infer (Elaboration)\n  import Cinch.Check\n  forge :: Program -> Elaboration -> CheckedProgram\n  forge surface typed = MkCheckedProgram surface typed\n  main :: Int\n  main = 0\n"));
     let dir = common::project("checked_program_private", &project);
     let error = common::check(&dir, "Main.cinch").expect_err("private checked constructor must be inaccessible");
     assert!(error.contains("MkCheckedProgram"), "{error}");

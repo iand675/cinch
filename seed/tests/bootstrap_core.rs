@@ -6,14 +6,14 @@ mod common;
 #[test]
 fn typed_terms_retain_instantiation_patterns_and_polymorphic_scope() {
     let dir = common::project("typed_core", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Dictionary.cinch", include_str!("../../compiler/Bootstrap.Dictionary.cinch")),
-        ("Bootstrap.Infer.cinch", include_str!("../../compiler/Bootstrap.Infer.cinch")),
-        ("Bootstrap.Nominal.cinch", include_str!("../../compiler/Bootstrap.Nominal.cinch")),
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Dictionary.cinch", include_str!("../../compiler/Cinch.Dictionary.cinch")),
+        ("Cinch.Infer.cinch", include_str!("../../compiler/Cinch.Infer.cinch")),
+        ("Cinch.Nominal.cinch", include_str!("../../compiler/Cinch.Nominal.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.Core.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "core").expect("build Cinch typed-core reader");

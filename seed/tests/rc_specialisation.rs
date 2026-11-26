@@ -337,7 +337,7 @@ module Main where
 /// The field the head read is dead by then, so it appeared in no arm's
 /// moved set and in every arm's `rest`, and each arm's release dropped it
 /// a second time. On the bootstrap sources that is a double free on every
-/// call of `Bootstrap.Total.infer`, which is why stage 2 segfaulted inside
+/// call of `Cinch.Total.infer`, which is why stage 2 segfaulted inside
 /// `allocate_block` with an empty log rather than reporting anything. The
 /// head now keeps the release, so the field is dropped once, before the
 /// condition runs.

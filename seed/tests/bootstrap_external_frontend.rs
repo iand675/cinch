@@ -74,7 +74,7 @@ fn selected_frontend_failures_and_non_base_interfaces_never_fall_back() {
     let error = drive(&frontend, Mode::Check, &dir, entry, None).unwrap_err();
     assert!(error.contains("selected checker refused"), "{error}");
     std::fs::remove_file(dir.join("selected-was-invoked")).unwrap();
-    std::fs::write(&frontend.interfaces, "{\"schema\":1,\"interfaces\":[[\"Bootstrap.Infer\",\"hash\",\"body.cinchif\"]]}").unwrap();
+    std::fs::write(&frontend.interfaces, "{\"schema\":1,\"interfaces\":[[\"Cinch.Infer\",\"hash\",\"body.cinchif\"]]}").unwrap();
     let error = drive(&frontend, Mode::Check, &dir, entry, None).unwrap_err();
     assert!(error.contains("distinct checked base interfaces"), "{error}");
     assert!(!dir.join("selected-was-invoked").exists());
@@ -96,11 +96,11 @@ fn explicit_native_library_fixture_produces_checked_interfaces() {
 #[test]
 fn native_library_fixture_cannot_supply_bootstrap_implementation_interfaces() {
     let dir = common::project("forbidden_native_compiler_fixture", &[
-        ("Bootstrap.Forbidden.cinch", "module Bootstrap.Forbidden where\n  value :: Int\n  value = 37\n"),
-        ("Main.cinch", "module Main where\n  import Bootstrap.Forbidden\n  main :: Int\n  main = Forbidden.value\n"),
+        ("Cinch.Forbidden.cinch", "module Cinch.Forbidden where\n  value :: Int\n  value = 37\n"),
+        ("Main.cinch", "module Main where\n  import Cinch.Forbidden\n  main :: Int\n  main = Forbidden.value\n"),
     ]);
     let error = common::check_library_fixture_native(&dir, "Main.cinch").unwrap_err();
-    assert!(error.contains("compiler implementation module Bootstrap.Forbidden"), "{error}");
+    assert!(error.contains("compiler implementation module Cinch.Forbidden"), "{error}");
     common::cleanup(&dir);
 }
 

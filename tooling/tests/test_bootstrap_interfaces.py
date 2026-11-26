@@ -119,21 +119,21 @@ class CompilerInterfaceGate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "cinch").write_bytes(b"self-built compiler")
-            dependency = {**doc, "module": "Bootstrap.Check"}
+            dependency = {**doc, "module": "Cinch.Check"}
             from pack_interfaces import PackedInterfaces, pack
             (root / "compiler.ll.cpk").write_bytes(pack([
                 ("Main", contracts.interface_hash(doc), doc),
-                ("Bootstrap.Check", contracts.interface_hash(dependency), dependency),
+                ("Cinch.Check", contracts.interface_hash(dependency), dependency),
             ]))
             (root / "base.cpk").write_bytes(pack([]))
-            files = {"Main.cinch": b"module Main where\n  import Bootstrap.Check\n", "Bootstrap.Check.cinch": b"checked source"}
+            files = {"Main.cinch": b"module Main where\n  import Cinch.Check\n", "Cinch.Check.cinch": b"checked source"}
 
             def run(command, cwd, log):
                 self.assertEqual(command[0], root / "cinch")
                 self.assertEqual(command[1:3], ["--check-types", "--interfaces"])
                 self.assertEqual(command[3].suffix, ".cpk")
                 manifest = PackedInterfaces(command[3].read_bytes())
-                self.assertEqual(manifest.documents, [("Bootstrap.Check", contracts.interface_hash(dependency), dependency)])
+                self.assertEqual(manifest.documents, [("Cinch.Check", contracts.interface_hash(dependency), dependency)])
                 self.assertEqual(Path(command[4]).read_bytes(), files["Main.cinch"])
                 (cwd / "entry.diagnostics").write_text("")
                 return 0

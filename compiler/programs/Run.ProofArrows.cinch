@@ -1,12 +1,12 @@
 -- Runtime-derived identities exercise erased arrows through the real type
 -- engine and independent scopes. No runtime term may impersonate a proof.
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Core
-  import Bootstrap.Kinds
-  import Bootstrap.Global
-  import Bootstrap.Typing
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Core
+  import Cinch.Kinds
+  import Cinch.Global
+  import Cinch.Typing
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)

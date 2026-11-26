@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard the compiler directory's layout.
 
-The compiler's own modules are the `Bootstrap.*.cinch` files in `compiler/`.
+The compiler's own modules are the `Cinch.*.cinch` files in `compiler/`.
 Everything that is record rather than source lives under a directory there:
 historical results under `evidence/`, working notes under `notes/`,
 development patches under `patches/`, and the inputs a build reads by path

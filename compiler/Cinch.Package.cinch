@@ -1,0 +1,998 @@
+-- Typed interface packages. Packed body references keep the verified byte
+-- snapshot alive and never expose its address.
+module Cinch.Package where
+
+  import Cinch.BodyScope (BodyScope, body-scope-from-list, push-body-slot, body-slot)
+  import Cinch.Interface (sha256-hex, fnv-byte, fnv-json-value, fnv-json-string, u64-decimal)
+  import Cinch.PackedBody (Region, PackedSignature, region-start, package-offset, hold-package-source,
+    CheckedBodyTable, PackedTerm, retain-checked-body-table, checked-body-id, checked-definition, checked-term)
+  import Cinch.PackageHash (HashSummary, summarize-row, compose-hashes, apply-summary)
+  import Cinch.TotalRules (valid-sort, decimal-number, operation-type)
+  import Data.Array (array-append, array-from-list, array-get, array-length)
+  import Data.Bytes (bytes-data, bytes-len, bytes-new)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Cinch.Document
+  import Data.List (sort)
+  import Data.Machine (u32-to-nat)
+  import Data.Nat (checked-nat-from-i64, nat-to-int)
+  import Prim.Sys (SysError, SysNotFound, SysPermissionDenied, SysAlreadyExists,
+    SysNotADirectory, SysIsADirectory, SysInvalidName, SysIoError,
+    sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
+  import Text.Fnv (fnv64a-update)
+
+  export PackageContract, package-contract, read-package-documents, packaged-abi
+  export PackageSnapshot, read-package-source, decode-package-snapshot, read-package-snapshot, authenticated-snapshot-abi
+  export PackedBodyTable, packed-definition-for
+
+  foreign import ccall "cinch.runtime.packageText" package-text :: Bytes -> I64 -> I64 -> Result I64 String
+  foreign import ccall "cinch.runtime.mapPackageBytes" map-package-bytes :: I64 -> I64 -> Result I64 Bytes
+
+  -- The caller has checked the word against its containing region. The
+  -- validator and checked views keep the backing bytes live through the read.
+  prim load-word :: I64 -> I64 -> U32 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %ptr = getelementptr i8, ptr %base, i64 %1
+      %word = load i32, ptr %ptr, align 1
+      ret i32 %word
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %ptr = getelementptr i8, ptr %base, i64 %1
+      %word = load i32, ptr %ptr, align 1
+      %value = call i32 @llvm.bswap.i32(i32 %word)
+      ret i32 %value
+    } when endian big
+
+  data PackedTable where
+    PackedTable :: I64 -> Array String -> Region -> Region -> Array PackedSignature -> PackedTable
+  data FlatBodies where
+    FlatBodies :: Region -> Region -> Region -> Region -> FlatBodies
+  data Package where
+    Package :: Region -> Region -> FlatBodies -> Region -> Region -> Package
+  data StringTable where
+    StringTable :: Nat -> Nat -> Region -> StringTable
+  data PackageSnapshot where
+    PackageSnapshot :: Bytes -> StringTable -> Array String -> Region -> PackageSnapshot
+  data PackedBodyTable where
+    BodyTable :: CheckedBodyTable -> HashMap Nat Json -> PackedBodyTable
+
+  data PackageContract where
+    PackageContract :: String -> String -> Json -> String -> Option PackedBodyTable -> PackageContract
+
+  package-contract :: PackageContract -> (String, String, (Json, String, Option PackedBodyTable))
+  package-contract (PackageContract name declared doc computed bodies) = (name, declared, (doc, computed, bodies))
+
+  -- Prepare these fixed canonical fragments once per package.
+  record WireSyntax where
+    localNode :: Bytes
+    decimalField :: Bytes
+    numberSort :: Bytes
+    falseNode :: Bytes
+    trueNode :: Bytes
+    primitiveOperation :: Bytes
+    callTarget :: Bytes
+    letBody :: Bytes
+    letValue :: Bytes
+    ifCondition :: Bytes
+    ifNo :: Bytes
+    ifYes :: Bytes
+    argumentsArray :: Bytes
+    endGraph :: Bytes
+    identityField :: Bytes
+    parametersField :: Bytes
+    resultField :: Bytes
+    definitionsArray :: Bytes
+
+  wire-syntax :: WireSyntax
+  wire-syntax = WireSyntax
+    { localNode = string-to-bytes "{\"node\":\"local\",\"slot\":"
+    , decimalField = string-to-bytes "{\"decimal\":"
+    , numberSort = string-to-bytes ",\"node\":\"number\",\"sort\":"
+    , falseNode = string-to-bytes "{\"node\":\"bool\",\"value\":false}"
+    , trueNode = string-to-bytes "{\"node\":\"bool\",\"value\":true}"
+    , primitiveOperation = string-to-bytes ",\"node\":\"primitive\",\"operation\":"
+    , callTarget = string-to-bytes ",\"node\":\"call\",\"target\":"
+    , letBody = string-to-bytes "{\"body\":"
+    , letValue = string-to-bytes ",\"node\":\"let\",\"value\":"
+    , ifCondition = string-to-bytes "{\"condition\":"
+    , ifNo = string-to-bytes ",\"no\":"
+    , ifYes = string-to-bytes ",\"node\":\"if\",\"yes\":"
+    , argumentsArray = string-to-bytes "{\"arguments\":["
+    , endGraph = string-to-bytes "],\"version\":1}"
+    , identityField = string-to-bytes ",\"identity\":"
+    , parametersField = string-to-bytes ",\"parameters\":["
+    , resultField = string-to-bytes ",\"result\":"
+    , definitionsArray = string-to-bytes "{\"definitions\":["
+    }
+
+  data PackedClosure where
+    PackedClosure :: Nat -> List Nat -> Json -> PackedClosure
+  data BodyHashes where
+    BodyHashCache :: Nat -> HashMap Nat HashSummary -> BodyHashes
+  data Definitions where
+    NoDefinitions :: Definitions
+    IndexedDefinitions :: PackedTable -> CheckedBodyTable -> WireSyntax -> HashMap Nat Json -> HashMap Nat PackedClosure -> BodyHashes -> Definitions
+
+  region-size :: Region -> Nat
+  region-size region = case region of Region start length -> length
+  word :: I64 -> Nat -> Nat
+  word address at = u32-to-nat (load-word address (package-offset at))
+
+  subregion :: Region -> Nat -> Nat -> Result String Region
+  subregion region offset size = case region of
+    Region start length ->
+      if offset + size <= length then Ok (Region (start + offset) size)
+      else Err "package span outside its section"
+
+  row-span :: I64 -> Region -> Nat -> Result String Region
+  row-span address region at = subregion region (word address at) (word address (at + 4))
+
+  sections :: I64 -> Nat -> Nat -> Nat -> Nat -> Option (List Region)
+  sections address size end at previous =
+    if at == end then (if previous == size then Some Nil else None) else
+      let start = word address at in
+      let length = word address (at + 4) in
+      let limit = start + length in
+      if start /= previous || limit > size then None else
+        (case sections address size end (at + 8) limit of
+          None -> None
+          Some rest -> Some (Cons (Region start length) rest))
+
+  package-header :: I64 -> Nat -> Result String Package
+  package-header address size =
+    if size < 88 || word address 0 /= 1129204035 || word address 4 /= 877350984 ||
+       word address 8 /= size || word address 12 /= 4 then Err "invalid interface package header" else
+      (case sections address size 88 16 88 of
+        Some [strings, modules, values, bodies, edges, nodes, operands, documents, abi] ->
+          if region-size nodes % 16 /= 0 || region-size operands % 4 /= 0 then Err "mis-sized packed body node or operand section"
+          else if region-size modules % 36 /= 0 || region-size bodies % 32 /= 0 ||
+                  region-size values % 32 /= 0 || region-size edges % 4 /= 0 then Err "mis-sized interface package section"
+          else Ok (Package strings modules (FlatBodies bodies edges nodes operands) documents abi)
+        other -> Err "invalid interface package section directory")
+
+  -- The caller has authenticated these bytes as the object's metadata.
+  -- Reuse the package directory check before exposing the ABI section.
+  packaged-abi :: forall r. Bytes ->{IO r} Result String (Option Json)
+  packaged-abi source =
+    let size = bytes-len source in
+    if size < 8 then Ok None else hold-package-source source (decode-packaged-abi source size)
+
+  decode-packaged-abi :: forall r. Bytes -> Nat ->{IO r} Result String (Option Json)
+  decode-packaged-abi source size =
+    let address = bytes-data source in
+    -- Recognize the seven-byte family prefix so unsupported versions refuse
+    -- through the package header check.
+    if word address 0 /= 1129204035 || word address 4 % 16777216 /= 4935752 then Ok None else
+      (case package-header address size of
+        Err message -> Err message
+        Ok (Package strings modules format documents abi) ->
+          (case decode-package-abi source abi (string-table address strings) None of
+            Err message -> Err message
+            Ok artifact -> Ok (Some artifact)))
+
+  decode-package-abi :: forall r. Bytes -> Region -> Result String StringTable -> Option (Array String) ->{IO r} Result String Json
+  decode-package-abi source (Region start length) table prefix =
+    let address = bytes-data source in
+    if length == 0 then Err "interface package has no object ABI"
+    else if length < 4 then Err "truncated structured ABI header"
+    else (case table of
+      Err message -> Err message
+      Ok (StringTable beginning count raw) -> if word address start > count then Err "invalid structured ABI string boundary"
+        else (case abi-texts source address (StringTable beginning count raw) prefix of
+          Err message -> Err message
+          Ok texts -> read-document address texts NoDefinitions (Region (start + 4) (length - 4))))
+
+  authenticated-snapshot-abi :: forall r. String -> PackageSnapshot ->{IO r} Result String Json
+  authenticated-snapshot-abi sha snapshot = case snapshot of
+    PackageSnapshot source table texts abi ->
+      if string-compare (sha256-hex source) sha /= 0 then Err "runtime object artifact digest mismatch"
+      else hold-package-source source (decode-package-abi source abi (Ok table) (Some texts))
+
+  text-at :: Bytes -> I64 -> Region -> Nat -> Result String String
+  text-at source address strings at = case row-span address strings at of
+    Err message -> Err message
+    Ok (Region start size) -> (case package-text source (package-offset start) (package-offset size) of
+      Ok value -> Ok value
+      Err error -> Err "invalid UTF-8 in interface package")
+
+  -- A zero intermediate state falls back to the canonical writer. That
+  -- also handles strings containing an escape, without copying plain text.
+  fnv-plain-quoted-range :: U64 -> I64 -> Nat -> Nat -> U64
+  fnv-plain-quoted-range hash address start size =
+    let end = start + size in
+    if start <= 4294967295 && end <= 4294967295 then
+      hash-plain-utf8 address (package-offset start) (package-offset end) (fnv-byte hash 34)
+    else 0
+
+  hash-plain-utf8 :: I64 -> I64 -> I64 -> U64 -> U64
+  hash-plain-utf8 address at end hash =
+    if at == end then fnv-byte hash 34
+    else if le-i64 (wrapping-add-i64 at 8) end then
+      let next = fnv-plain-octet hash address at in
+      if eq-u64 next 0 then 0 else hash-plain-utf8 address (wrapping-add-i64 at 8) end next
+    else
+      let next = fnv-plain-byte hash address at in
+      if eq-u64 next 0 then 0 else hash-plain-utf8 address (wrapping-add-i64 at 1) end next
+
+  -- Bounded by hash-plain-utf8. Vector lanes follow address order on
+  -- either endianness, and the FNV steps remain sequential.
+  prim fnv-plain-octet :: U64 -> I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %1 to ptr
+      %at = getelementptr i8, ptr %base, i64 %2
+      %raw = load <8 x i8>, ptr %at, align 1
+      %control = icmp ult <8 x i8> %raw, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %quote = icmp eq <8 x i8> %raw, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %backslash = icmp eq <8 x i8> %raw, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %escapes = or <8 x i1> %quote, %backslash
+      %needs-escape = or <8 x i1> %control, %escapes
+      %mask = bitcast <8 x i1> %needs-escape to i8
+      %plain = icmp eq i8 %mask, 0
+      %byte0 = extractelement <8 x i8> %raw, i32 0
+      %word0 = zext i8 %byte0 to i64
+      %mixed0 = xor i64 %0, %word0
+      %hash0 = mul i64 %mixed0, 1099511628211
+      %byte1 = extractelement <8 x i8> %raw, i32 1
+      %word1 = zext i8 %byte1 to i64
+      %mixed1 = xor i64 %hash0, %word1
+      %hash1 = mul i64 %mixed1, 1099511628211
+      %byte2 = extractelement <8 x i8> %raw, i32 2
+      %word2 = zext i8 %byte2 to i64
+      %mixed2 = xor i64 %hash1, %word2
+      %hash2 = mul i64 %mixed2, 1099511628211
+      %byte3 = extractelement <8 x i8> %raw, i32 3
+      %word3 = zext i8 %byte3 to i64
+      %mixed3 = xor i64 %hash2, %word3
+      %hash3 = mul i64 %mixed3, 1099511628211
+      %byte4 = extractelement <8 x i8> %raw, i32 4
+      %word4 = zext i8 %byte4 to i64
+      %mixed4 = xor i64 %hash3, %word4
+      %hash4 = mul i64 %mixed4, 1099511628211
+      %byte5 = extractelement <8 x i8> %raw, i32 5
+      %word5 = zext i8 %byte5 to i64
+      %mixed5 = xor i64 %hash4, %word5
+      %hash5 = mul i64 %mixed5, 1099511628211
+      %byte6 = extractelement <8 x i8> %raw, i32 6
+      %word6 = zext i8 %byte6 to i64
+      %mixed6 = xor i64 %hash5, %word6
+      %hash6 = mul i64 %mixed6, 1099511628211
+      %byte7 = extractelement <8 x i8> %raw, i32 7
+      %word7 = zext i8 %byte7 to i64
+      %mixed7 = xor i64 %hash6, %word7
+      %hash7 = mul i64 %mixed7, 1099511628211
+      %next = select i1 %plain, i64 %hash7, i64 0
+      ret i64 %next
+    }
+
+  prim fnv-plain-byte :: U64 -> I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %1 to ptr
+      %at = getelementptr i8, ptr %base, i64 %2
+      %byte = load i8, ptr %at, align 1
+      %control = icmp ult i8 %byte, 32
+      %quote = icmp eq i8 %byte, 34
+      %backslash = icmp eq i8 %byte, 92
+      %escapes = or i1 %quote, %backslash
+      %needs-escape = or i1 %control, %escapes
+      %word = zext i8 %byte to i64
+      %mixed = xor i64 %0, %word
+      %hash = mul i64 %mixed, 1099511628211
+      %next = select i1 %needs-escape, i64 0, i64 %hash
+      ret i64 %next
+    }
+
+  -- All referenced strings have already been bounds and UTF-8 checked by
+  -- read-strings. Hash the same bytes in place while the mapping is live.
+  digest-string :: I64 -> Option StringTable -> U64 -> Nat -> String -> U64
+  digest-string address table hash id text = case table of
+    None -> hash
+    Some (StringTable base count (Region raw length)) ->
+      let at = base + 8 * id in
+      let start = word address at in
+      let size = word address (at + 4) in
+      if start + size > length then fnv-json-string hash text else
+        let result = fnv-plain-quoted-range hash address (raw + start) size in
+        if eq-u64 result 0 then fnv-json-string hash text else result
+
+  digest-token :: Option StringTable -> U64 -> U64 -> U64
+  digest-token table hash byte = case table of None -> hash; Some strings -> fnv-byte hash byte
+
+  digest-value :: Option StringTable -> U64 -> Json -> U64
+  digest-value table hash value = case table of None -> hash; Some strings -> fnv-json-value hash value
+
+  read-document :: forall r. I64 -> Array String -> Definitions -> Region ->{IO r} Result String Json
+  read-document address strings definitions region = case read-hashed-document address strings definitions region None of
+    Err message -> Err message
+    Ok (document, hash, decoded) -> Ok document
+
+  read-hashed-document :: forall r. I64 -> Array String -> Definitions -> Region -> Option StringTable ->{IO r} Result String (Json, U64, Definitions)
+  read-hashed-document address strings definitions (Region start size) table =
+    let limit = start + size in
+    case read-value address strings definitions start limit 256 table 0xCBF29CE484222325 of
+      Err message -> Err message
+      Ok (value, end, hash, decoded) -> if end == limit then Ok (value, hash, decoded) else Err "trailing bytes in structured contract"
+
+  read-value :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
+  read-value address strings definitions at limit depth table hash =
+    if depth == 0 || at + 4 > limit then Err "truncated or over-nested structured contract" else
+      let cursor = at + 4 in
+      case word address at of
+        0 -> Ok (JNull, cursor, digest-value table hash JNull, definitions)
+        1 -> Ok (JBool False, cursor, digest-value table hash (JBool False), definitions)
+        2 -> Ok (JBool True, cursor, digest-value table hash (JBool True), definitions)
+        3 -> read-number address definitions cursor limit False table hash
+        4 -> if cursor + 4 > limit then Err "truncated text index" else
+          (let id = word address cursor in
+            case array-get strings id of
+              None -> Err "text outside package string table"
+              Some value -> Ok (JStr value, cursor + 4, digest-string address table hash id value, definitions))
+        5 -> if cursor + 4 > limit then Err "truncated array header" else
+          read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil table (digest-token table hash 91)
+        6 -> if cursor + 4 > limit then Err "truncated object header" else
+          read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None JObjEnd table (digest-token table hash 123)
+        8 -> read-number address definitions cursor limit True table hash
+        9 -> (case definitions of
+          IndexedDefinitions packed checked syntax rows cache hashes | cursor + 4 <= limit -> (case read-body-closure syntax packed checked rows cache hashes (word address cursor) table hash of
+            Err message -> Err message
+            Ok (body, digest, checked) -> Ok (body, cursor + 4, digest, checked))
+          other -> Err "unexpected packed body root")
+        other -> Err "unknown structured contract tag"
+
+  read-number :: I64 -> Definitions -> Nat -> Nat -> Bool -> Option StringTable -> U64 -> Result String (Json, Nat, U64, Definitions)
+  read-number address definitions at limit negative table hash =
+    if at + 8 > limit then Err "truncated structured contract integer" else
+      let low = word address at in
+      let high = word address (at + 4) in
+      let value = nat-to-int (if high == 0 then low else low + high * 4294967296) in
+      let number = JNum (if negative then 0 - value else value) in
+      let digest = (case table of
+        None -> hash
+        Some _ | high == 0 && low < 100 ->
+          let signed = if negative && low /= 0 then fnv-byte hash 45 else hash in
+          fnv-small-decimal signed (wrapping-i64-to-u64 (package-offset low))
+        other -> fnv-json-value hash number) in
+      Ok (number, at + 8, digest, definitions)
+
+  -- Exact decimal bytes for a checked magnitude below 100.
+  prim fnv-small-decimal :: U64 -> U64 -> U64 where
+    llvm {
+      %tens = udiv i64 %1, 10
+      %ones = urem i64 %1, 10
+      %leading = add i64 %tens, 48
+      %leading-state = xor i64 %0, %leading
+      %with-leading = mul i64 %leading-state, 1099511628211
+      %two-digits = icmp uge i64 %1, 10
+      %state = select i1 %two-digits, i64 %with-leading, i64 %0
+      %last = add i64 %ones, 48
+      %mixed = xor i64 %state, %last
+      %digest = mul i64 %mixed, 1099511628211
+      ret i64 %digest
+    }
+
+  array-from-reverse :: List Json -> Json -> Json
+  array-from-reverse items out = case items of
+    Nil -> out
+    Cons item rest -> array-from-reverse rest (JArr item out)
+
+  object-from-reverse :: Json -> Json -> Json
+  object-from-reverse items out = case items of
+    JObj name item rest -> object-from-reverse rest (JObj name item out)
+    other -> out
+
+  read-array :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> List Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
+  read-array address strings definitions left at limit depth items table hash =
+    if left == 0 then Ok (array-from-reverse items JArrEnd, at, digest-token table hash 93, definitions) else
+      (case read-value address strings definitions at limit depth table hash of
+        Err message -> Err message
+        Ok (item, end, digest, decoded) -> read-array address strings decoded (left - 1) end limit depth (Cons item items)
+          table (if left == 1 then digest else digest-token table digest 44))
+
+  out-of-order :: Option String -> String -> Bool
+  out-of-order previous name = case previous of
+    None -> False
+    Some earlier -> string-compare earlier name >= 0
+
+  contract-field-projection :: String -> Option Json
+  contract-field-projection name =
+    if string-compare name "compiler" == 0 || string-compare name "source_hash" == 0 then Some (JStr "")
+    else if string-compare name "units" == 0 then Some JArrEnd
+    else None
+
+  read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
+  read-object address strings definitions left at limit depth previous items table hash =
+    if left == 0 then Ok (object-from-reverse items JObjEnd, at, digest-token table hash 125, definitions)
+    else if at + 4 > limit then Err "truncated field key" else
+      (let id = word address at in
+        case array-get strings id of
+          None -> Err "field key outside package string table"
+          Some name -> if out-of-order previous name then Err "unordered or duplicate structured contract field" else
+            (let prefix = digest-token table (digest-string address table hash id name) 58 in
+              let projected = case table of Some spans | depth == 255 -> contract-field-projection name; other -> None in
+              let field-table = case projected of None -> table; Some placeholder -> None in
+              case read-value address strings definitions (at + 4) limit depth field-table prefix of
+                Err message -> Err message
+                Ok (item, end, digest, decoded) ->
+                  let next = case projected of None -> digest; Some placeholder -> digest-value table prefix placeholder in
+                  read-object address strings decoded (left - 1) end limit depth (Some name) (JObj name item items)
+                    table (if left == 1 then next else digest-token table next 44)))
+
+  operand-region :: Region -> Nat -> Nat -> Result String Region
+  operand-region region first count = subregion region (first * 4) (count * 4)
+
+  reversed-words :: I64 -> Nat -> Nat -> List Nat -> List Nat
+  reversed-words address at end tail =
+    if at == end then tail else reversed-words address (at + 4) end (Cons (word address at) tail)
+
+  read-parameters :: I64 -> Array String -> Nat -> Nat -> List String -> Result String (List String)
+  read-parameters address strings start end tail =
+    if start == end then Ok tail
+    else if end < 4 then Err "truncated packed body parameter" else
+      let previous = end - 4 in
+      case array-get strings (word address previous) of
+        Some sort -> if valid-sort sort then read-parameters address strings start previous (Cons sort tail)
+          else Err "invalid packed body parameter sort"
+        None -> Err "packed body parameter outside package string table"
+
+  -- Read just the headers first so call sites can check forward references
+  -- without decoding either the callee's expression or a temporary graph.
+  read-flat-signatures :: I64 -> Array String -> FlatBodies -> Nat -> Option String -> List PackedSignature -> Result String (Array PackedSignature)
+  read-flat-signatures address strings flat index previous rows = case flat of
+    FlatBodies bodies edges nodes operands ->
+      if index == region-size bodies / 32 then Ok (array-from-list (reverse rows)) else
+        let at = region-start bodies + index * 32 in
+        case (array-get strings (word address at), array-get strings (word address (at + 4))) of
+          (Some identity, Some result) ->
+            if string-length identity == 0 || out-of-order previous identity || word address (at + 28) /= 0 || not (valid-sort result) then
+              Err "invalid packed body definition row"
+            else
+              (case (operand-region operands (word address (at + 8)) (word address (at + 12)),
+                     operand-region edges (word address (at + 20)) (word address (at + 24))) of
+                (Ok (Region parameter-start parameter-size), Ok calls) ->
+                  (case read-parameters address strings parameter-start (parameter-start + parameter-size) Nil of
+                    Err message -> Err message
+                    Ok parameters ->
+                      let row = PackedSignature identity parameters result (word address (at + 16)) calls in
+                      read-flat-signatures address strings flat (index + 1) (Some identity) (Cons row rows))
+                other -> Err "packed body span outside its section")
+          other -> Err "packed body definition outside package string table"
+
+  finish-flat-term :: String -> Nat -> Nat -> List Nat -> Result String (String, Nat, List Nat)
+  finish-flat-term sort cursor id targets =
+    if cursor == id then Ok (sort, id + 1, targets) else Err "unreferenced packed body node"
+
+  -- Consume each definition's contiguous postorder interval once, in source
+  -- evaluation order. A let's checked value sort is in scope only for its
+  -- body. Validation does not allocate a compatibility expression tree.
+  check-flat-term :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> Nat -> List Nat -> Result String (String, Nat, List Nat)
+  check-flat-term table scope cursor parent id depth targets = case table of
+    PackedTable address strings nodes operands signatures ->
+      if depth == 0 then Err "over-nested packed body"
+      else if id >= region-size nodes / 16 then Err "packed body node outside its section"
+      else if id < cursor || id >= parent then Err "packed body child is not in postorder"
+      else
+        let at = region-start nodes + id * 16 in
+        let a = word address (at + 4) in
+        let b = word address (at + 8) in
+        let c = word address (at + 12) in
+        let left = depth - 1 in
+        (case word address at of
+          0 | b == 0 && c == 0 -> (case body-slot a scope of
+            Some sort -> finish-flat-term sort cursor id targets
+            None -> Err "packed body local slot outside its scope")
+          1 | c == 0 -> (case (array-get strings a, array-get strings b) of
+            (Some sort, Some decimal) | decimal-number sort decimal ->
+              finish-flat-term sort cursor id targets
+            (Some sort, Some decimal) -> Err "invalid packed body number"
+            other -> Err "packed body number outside package string table")
+          2 | a <= 1 && b == 0 && c == 0 ->
+            finish-flat-term "Bool" cursor id targets
+          3 -> (case array-get strings a of
+            Some operation -> (case operation-type operation of
+              Some (parameters, result) ->
+                check-flat-application table scope cursor id left parameters result b c targets
+              None -> Err "unknown packed body primitive")
+            None -> Err "packed body primitive outside package string table")
+          4 -> (case array-get signatures a of
+            Some (PackedSignature callee parameters result root edges) ->
+              check-flat-application table scope cursor id left parameters result b c (Cons a targets)
+            None -> Err "packed body definition outside its section")
+          5 | c == 0 -> (case check-flat-term table scope cursor id a left targets of
+            Err message -> Err message
+            Ok (sort, next, calls) -> (case check-flat-term table (push-body-slot scope sort) next id b left calls of
+              Err message -> Err message
+              Ok (result, following, used) ->
+                finish-flat-term result following id used))
+          6 -> (case check-flat-term table scope cursor id a left targets of
+            Err message -> Err message
+            Ok (sort, next, calls) ->
+              if string-compare sort "Bool" /= 0 then Err "packed body condition is not Bool" else
+                (case check-flat-term table scope next id b left calls of
+                  Err message -> Err message
+                  Ok (yes-sort, following, used) -> (case check-flat-term table scope following id c left used of
+                    Err message -> Err message
+                    Ok (no-sort, final, all) ->
+                      if string-compare yes-sort no-sort /= 0 then Err "packed body branch sorts disagree"
+                      else finish-flat-term yes-sort final id all)))
+          other -> Err "invalid packed body node")
+
+  check-flat-arguments :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> Nat -> Nat -> List String -> List Nat -> Result String (Nat, List Nat)
+  check-flat-arguments table scope cursor parent depth at end parameters targets =
+    case (at == end, parameters) of
+      (True, Nil) -> Ok (cursor, targets)
+      (False, Cons expected rest) -> (case table of
+        PackedTable address strings nodes operands signatures ->
+          (case check-flat-term table scope cursor parent (word address at) depth targets of
+            Err message -> Err message
+            Ok (sort, next, calls) ->
+              if string-compare sort expected /= 0 then Err "packed body argument sort mismatch"
+              else check-flat-arguments table scope next parent depth (at + 4) end rest calls))
+      other -> Err "packed body argument arity mismatch"
+
+  check-flat-application :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> List String -> String -> Nat -> Nat -> List Nat -> Result String (String, Nat, List Nat)
+  check-flat-application table scope cursor id depth parameters result start count targets =
+    case table of
+      PackedTable address strings nodes operands signatures ->
+        (case operand-region operands start count of
+          Err message -> Err message
+          Ok (Region at length) ->
+            case check-flat-arguments table scope cursor id depth at (at + length) parameters targets of
+              Err message -> Err message
+              Ok (next, calls) ->
+                finish-flat-term result next id calls)
+
+  skip-target :: Nat -> List Nat -> List Nat
+  skip-target callee calls = case calls of
+    Cons first rest | first == callee -> skip-target callee rest
+    other -> calls
+
+  edges-agree :: I64 -> Nat -> Nat -> List Nat -> Bool
+  edges-agree address at end calls = case calls of
+    Nil -> at == end
+    Cons first rest -> at < end && word address at == first &&
+      edges-agree address (at + 4) end (skip-target first rest)
+
+  -- An explicit stack keeps a valid long chain of compact calls off the
+  -- process stack. The edge spans and their agreement with call nodes have
+  -- already been checked.
+  data PackedVisit where
+    EnterBody :: Nat -> PackedVisit
+    LeaveBody :: Nat -> PackedVisit
+
+  stack-body-edges :: I64 -> Nat -> Nat -> List PackedVisit -> List PackedVisit
+  stack-body-edges address at end rest =
+    if at == end then rest
+    else stack-body-edges address (at + 4) end (Cons (EnterBody (word address at)) rest)
+
+  check-body-cycles :: I64 -> Array PackedSignature -> Nat -> List PackedVisit -> HashMap Nat Nat -> Bool
+  check-body-cycles address signatures next pending visited = case pending of
+    Nil -> if next == array-length signatures then True
+      else check-body-cycles address signatures (next + 1) [EnterBody next] visited
+    Cons (EnterBody id) rest -> (case array-get signatures id of
+      None -> False
+      Some (PackedSignature identity parameters result root (Region start length)) ->
+        if length == 0 then check-body-cycles address signatures next rest visited else
+        (case hash-map-lookup id visited of
+          Some done -> done == 1 && check-body-cycles address signatures next rest visited
+          None -> check-body-cycles address signatures next
+            (stack-body-edges address start (start + length) (Cons (LeaveBody id) rest))
+            (hash-map-insert id 0 visited)))
+    Cons (LeaveBody id) rest -> check-body-cycles address signatures next rest (hash-map-insert id 1 visited)
+
+  parameter-document :: List String -> Json -> Json
+  parameter-document backwards tail = case backwards of
+    Nil -> tail
+    Cons sort rest -> parameter-document rest (JArr (JStr sort) tail)
+
+  check-flat-rows :: PackedTable -> Nat -> Nat -> Result String Unit
+  check-flat-rows table index first = case table of
+    PackedTable address strings nodes operands signatures ->
+      if index == array-length signatures then
+        (if first /= region-size nodes / 16 then Err "unreferenced packed body node"
+         else if not (check-body-cycles address signatures 0 Nil hash-map-empty) then Err "cyclic packed total-body graph"
+         else Ok ())
+      else
+        (case array-get signatures index of
+          None -> Err "packed body definition outside its section"
+          Some (PackedSignature identity parameters result root (Region edge-start edge-size)) ->
+            (case check-flat-term table (body-scope-from-list parameters) first (region-size nodes / 16) root 256 Nil of
+              Err message -> Err message
+              Ok (actual, next, calls) ->
+                if string-compare actual result /= 0 then Err "packed body result sort disagrees with its declaration"
+                else if not (edges-agree address edge-start (edge-start + edge-size) (sort calls)) then Err "packed body dependencies disagree with its expression"
+                else check-flat-rows table (index + 1) next))
+
+  body-document :: Json -> Json
+  body-document definitions = JObj "definitions" definitions (JObj "version" (JNum 1) JObjEnd)
+
+  -- The verified signature table already carries the exact edge spans.
+  -- Closure walks reuse those spans and never reread a definition header.
+  reachable-bodies :: PackedTable -> List Nat -> HashMap Nat Nat -> List Nat -> Result String (List Nat)
+  reachable-bodies packed pending seen selected = case (packed, pending) of
+    (PackedTable address strings nodes operands signatures, Cons first rest) ->
+      (case hash-map-lookup first seen of
+        Some known -> reachable-bodies packed rest seen selected
+        None -> (case array-get signatures first of
+          None -> Err "packed body definition outside its section"
+          Some (PackedSignature identity parameters result root (Region start length)) ->
+            reachable-bodies packed (reversed-words address start (start + length) rest)
+              (hash-map-insert first 0 seen) (Cons first selected)))
+    (PackedTable address strings nodes operands signatures, Nil) -> Ok selected
+
+  hash-node-text :: I64 -> StringTable -> Array String -> U64 -> Nat -> Result String U64
+  hash-node-text address table strings hash id = case array-get strings id of
+    None -> Err "packed body text outside package string table"
+    Some text -> Ok (digest-string address (Some table) hash id text)
+
+  hash-wire-term :: WireSyntax -> PackedTable -> StringTable -> U64 -> Nat -> Nat -> Result String U64
+  hash-wire-term syntax packed table hash id depth = case packed of
+    PackedTable address strings nodes operands signatures ->
+      if depth == 0 || id >= region-size nodes / 16 then Err "packed body node outside its section" else
+        let at = region-start nodes + id * 16 in
+        let a = word address (at + 4) in
+        let b = word address (at + 8) in
+        let c = word address (at + 12) in
+        let next = depth - 1 in
+        case word address at of
+          0 -> Ok (fnv-byte (fnv-json-value (fnv64a-update hash (syntax.localNode)) (JNum (nat-to-int a))) 125)
+          1 -> (case hash-node-text address table strings (fnv64a-update hash (syntax.decimalField)) b of
+            Err message -> Err message
+            Ok literal -> (case hash-node-text address table strings (fnv64a-update literal (syntax.numberSort)) a of
+              Err message -> Err message
+              Ok result -> Ok (fnv-byte result 125)))
+          2 -> Ok (fnv64a-update hash (if a == 0 then (syntax.falseNode) else (syntax.trueNode)))
+          3 -> (case hash-wire-application syntax packed table hash b c next of
+            Err message -> Err message
+            Ok arguments -> (case hash-node-text address table strings
+              (fnv64a-update arguments (syntax.primitiveOperation)) a of
+                Err message -> Err message
+                Ok operation -> Ok (fnv-byte operation 125)))
+          4 -> (case array-get signatures a of
+            None -> Err "packed body definition outside its section"
+            Some (PackedSignature name parameters result root edges) ->
+              (case hash-wire-application syntax packed table hash b c next of
+                Err message -> Err message
+                Ok arguments -> Ok (fnv-byte (fnv-json-string (fnv64a-update arguments (syntax.callTarget)) name) 125)))
+          5 -> (case hash-wire-term syntax packed table (fnv64a-update hash (syntax.letBody)) b next of
+            Err message -> Err message
+            Ok body -> (case hash-wire-term syntax packed table (fnv64a-update body (syntax.letValue)) a next of
+              Err message -> Err message
+              Ok value -> Ok (fnv-byte value 125)))
+          6 -> (case hash-wire-term syntax packed table (fnv64a-update hash (syntax.ifCondition)) a next of
+            Err message -> Err message
+            Ok condition -> (case hash-wire-term syntax packed table (fnv64a-update condition (syntax.ifNo)) c next of
+              Err message -> Err message
+              Ok no -> (case hash-wire-term syntax packed table (fnv64a-update no (syntax.ifYes)) b next of
+                Err message -> Err message
+                Ok yes -> Ok (fnv-byte yes 125))))
+          other -> Err "invalid packed body node"
+
+  hash-wire-application :: WireSyntax -> PackedTable -> StringTable -> U64 -> Nat -> Nat -> Nat -> Result String U64
+  hash-wire-application syntax packed table hash start count depth = case packed of
+    PackedTable address strings nodes operands signatures ->
+      (case operand-region operands start count of
+        Err message -> Err message
+        Ok (Region at length) -> hash-wire-arguments syntax packed table at (at + length) depth (fnv64a-update hash (syntax.argumentsArray)))
+
+  hash-wire-arguments :: WireSyntax -> PackedTable -> StringTable -> Nat -> Nat -> Nat -> U64 -> Result String U64
+  hash-wire-arguments syntax packed table at end depth hash =
+    if at == end then Ok (fnv-byte hash 93) else case packed of
+      PackedTable address strings nodes operands signatures ->
+        (case hash-wire-term syntax packed table hash (word address at) depth of
+          Err message -> Err message
+          Ok argument -> hash-wire-arguments syntax packed table (at + 4) end depth
+            (if at + 4 == end then argument else fnv-byte argument 44))
+
+  hash-parameter-list :: U64 -> List String -> U64
+  hash-parameter-list hash parameters = case parameters of
+    Nil -> fnv-byte hash 93
+    Cons sort Nil -> fnv-byte (fnv-json-string hash sort) 93
+    Cons sort rest -> hash-parameter-list (fnv-byte (fnv-json-string hash sort) 44) rest
+
+  hash-wire-row :: WireSyntax -> PackedTable -> StringTable -> Nat -> U64 -> Result String U64
+  hash-wire-row syntax packed table id hash = case packed of
+    PackedTable address strings nodes operands signatures -> case array-get signatures id of
+      None -> Err "packed body definition outside its section"
+      Some (PackedSignature name parameters result root edges) ->
+        (case hash-wire-term syntax packed table (fnv64a-update hash (syntax.letBody)) root 256 of
+          Err message -> Err message
+          Ok body ->
+            let identity = fnv-json-string (fnv64a-update body (syntax.identityField)) name in
+            let arguments = hash-parameter-list (fnv64a-update identity (syntax.parametersField)) parameters in
+            Ok (fnv-byte (fnv-json-string (fnv64a-update arguments (syntax.resultField)) result) 125))
+
+  hash-wire-rows :: WireSyntax -> PackedTable -> StringTable -> List Nat -> U64 -> Result String U64
+  hash-wire-rows syntax packed table indices hash = case indices of
+    Nil -> Ok (fnv64a-update hash (syntax.endGraph))
+    Cons first rest -> (case hash-wire-row syntax packed table first hash of
+      Err message -> Err message
+      Ok digest -> hash-wire-rows syntax packed table rest (case rest of Nil -> digest; other -> fnv-byte digest 44))
+
+  -- Cache complete nodes of a binary tree over the sorted body IDs.
+  -- A graph hashes the largest covered nodes in order. Leaves are built
+  -- only when selected by a real contract's already validated closure.
+  range-summary :: HashMap Nat Json -> Nat -> Nat -> Nat -> HashMap Nat HashSummary -> Result String (HashSummary, HashMap Nat HashSummary)
+  range-summary rows node start size cached = case hash-map-lookup node cached of
+    Some summary -> Ok (summary, cached)
+    None -> if size == 1 then
+      (case hash-map-lookup start rows of
+        None -> Err "packed body definition outside its section"
+        Some row -> let summary = summarize-row (canonical-bytes row) in
+          Ok (summary, hash-map-insert node summary cached))
+      else
+        let half = size / 2 in
+        let left = node * 2 in
+        (case range-summary rows left start half cached of
+          Err message -> Err message
+          Ok (before, first) -> (case range-summary rows (left + 1) (start + half) half first of
+            Err message -> Err message
+            Ok (after, second) -> let summary = compose-hashes before after in
+              Ok (summary, hash-map-insert node summary second)))
+
+  apply-range :: HashMap Nat Json -> Nat -> Nat -> Nat -> Nat -> Nat -> U64 -> HashMap Nat HashSummary -> Result String (U64, HashMap Nat HashSummary)
+  apply-range rows low high node start size hash cached =
+    if low == start && high == start + size then
+      (case range-summary rows node start size cached of
+        Err message -> Err message
+        Ok (summary, prepared) -> Ok (apply-summary summary hash, prepared))
+    else let half = size / 2 in
+      let middle = start + half in
+      let left = node * 2 in
+      if high <= middle then apply-range rows low high left start half hash cached
+      else if low >= middle then apply-range rows low high (left + 1) middle half hash cached
+      else (case apply-range rows low middle left start half hash cached of
+        Err message -> Err message
+        Ok (before, prepared) -> apply-range rows middle high (left + 1) middle half before prepared)
+
+  grow-power-of-two :: Nat -> Nat -> Nat
+  grow-power-of-two limit size = if size >= limit then size else grow-power-of-two limit (size * 2)
+
+  -- Gather successive IDs into half-open ranges. Isolated rows start
+  -- straight from the wire unless another graph has cached their node.
+  hash-contiguous-rows :: WireSyntax -> PackedTable -> StringTable -> HashMap Nat Json -> Nat -> Nat -> Nat -> List Nat -> U64 -> HashMap Nat HashSummary -> Result String (U64, HashMap Nat HashSummary)
+  hash-contiguous-rows syntax packed table rows size low high remaining hash cached = case remaining of
+    Cons next rest | next == high ->
+      hash-contiguous-rows syntax packed table rows size low (high + 1) rest hash cached
+    other ->
+      let next = (if high == low + 1 then
+          (case hash-map-lookup (size + low) cached of
+            Some summary -> Ok (apply-summary summary hash, cached)
+            None -> (case hash-wire-row syntax packed table low (fnv-byte hash 44) of
+              Err message -> Err message
+              Ok digest -> Ok (digest, cached)))
+        else apply-range rows low high 1 0 size hash cached) in
+      (case next of
+        Err message -> Err message
+        Ok (digest, prepared) -> (case remaining of
+          Nil -> Ok (fnv64a-update digest (syntax.endGraph), prepared)
+          Cons first rest -> hash-contiguous-rows syntax packed table rows size first (first + 1) rest digest prepared))
+
+  reference-body-rows :: CheckedBodyTable -> Array PackedSignature -> List Nat -> HashMap Nat Json -> Json -> Result String (Json, HashMap Nat Json)
+  reference-body-rows checked signatures indices rows tail = case indices of
+    Nil -> Ok (body-document tail, rows)
+    Cons first rest -> (case hash-map-lookup first rows of
+      Some row -> reference-body-rows checked signatures rest rows (JArr row tail)
+      None -> (case array-get signatures first of
+        None -> Err "packed body definition outside its section"
+        Some (PackedSignature name parameters result root edges) ->
+            let arguments = parameter-document (reverse parameters) JArrEnd in
+            (case checked-term checked first of
+              None -> Err "packed body definition outside its section"
+              Some term ->
+                let row = JObj "body" (JTerm term) (JObj "identity" (JStr name) (JObj "parameters" arguments (JObj "result" (JStr result) JObjEnd))) in
+                reference-body-rows checked signatures rest (hash-map-insert first row rows) (JArr row tail))))
+
+  hash-body-closure :: WireSyntax -> PackedTable -> CheckedBodyTable -> PackedClosure -> Option StringTable -> U64 -> HashMap Nat Json -> HashMap Nat PackedClosure -> BodyHashes -> Result String (Json, U64, Definitions)
+  hash-body-closure syntax packed checked (PackedClosure count selected document) table hash rows cache hashes = case table of
+    None -> Ok (document, hash, IndexedDefinitions packed checked syntax rows cache hashes)
+    Some spans -> case (packed, hashes) of
+      (PackedTable address strings nodes operands signatures, BodyHashCache visits cached) ->
+        let prefix = fnv64a-update hash (syntax.definitionsArray) in
+        let total = array-length signatures in
+        -- Small bodies stay on the direct path. A one-off large closure
+        -- needn't build a hash tree either, unless this package revisits rows.
+        let next = (case selected of
+          Cons first (Cons second rest) | count >= 8 && visits >= total * 4 ->
+            (case hash-wire-row syntax packed spans first prefix of
+              Err message -> Err message
+              Ok initial -> hash-contiguous-rows syntax packed spans rows (grow-power-of-two total 1) second (second + 1) rest initial cached)
+          other -> (case hash-wire-rows syntax packed spans selected prefix of
+            Err message -> Err message
+            Ok digest -> Ok (digest, cached))) in
+        (case next of
+          Err message -> Err message
+          Ok (digest, prepared) -> Ok (document, digest,
+            IndexedDefinitions packed checked syntax rows cache (BodyHashCache (visits + count) prepared)))
+
+  read-body-closure :: WireSyntax -> PackedTable -> CheckedBodyTable -> HashMap Nat Json -> HashMap Nat PackedClosure -> BodyHashes -> Nat -> Option StringTable -> U64 -> Result String (Json, U64, Definitions)
+  read-body-closure syntax packed checked rows cache hashes root table hash = case hash-map-lookup root cache of
+    Some graph -> hash-body-closure syntax packed checked graph table hash rows cache hashes
+    None -> case packed of
+      PackedTable address strings nodes operands signatures ->
+        (case array-get signatures root of
+          None -> Err "packed body definition outside its section"
+          Some (PackedSignature name parameters result node (Region start length)) ->
+            let closure = (if length == 0 then Ok [root] else reachable-bodies packed [root] hash-map-empty Nil) in
+            (case closure of
+              Err message -> Err message
+              Ok reachable ->
+                let selected = sort reachable in
+                (case reference-body-rows checked signatures (reverse selected) rows JArrEnd of
+                  Err message -> Err message
+                  Ok (document, projected) ->
+                    let graph = PackedClosure (list-length selected) selected document in
+                    hash-body-closure syntax packed checked graph table hash projected (hash-map-insert root graph cache) hashes)))
+
+  read-package-definitions :: forall r. Bytes -> Array String -> FlatBodies ->{IO r} Result String Definitions
+  read-package-definitions source strings flat = case flat of
+    FlatBodies bodies edges nodes operands ->
+      let address = bytes-data source in
+      (case read-flat-signatures address strings flat 0 None Nil of
+        Err message -> Err message
+        Ok signatures ->
+          let packed = PackedTable address strings nodes operands signatures in
+          (case check-flat-rows packed 0 0 of
+            Err message -> Err message
+            Ok unit -> Ok (IndexedDefinitions packed (retain-checked-body-table source strings nodes operands signatures) wire-syntax hash-map-empty hash-map-empty (BodyHashCache 0 hash-map-empty))))
+
+  read-strings :: Bytes -> I64 -> Region -> Nat -> Nat -> List String -> Result String (Array String)
+  read-strings source address raw at limit items =
+    if at == limit then Ok (array-from-list (reverse items)) else
+      (case text-at source address raw at of
+        Err message -> Err message
+        Ok value -> read-strings source address raw (at + 8) limit (Cons value items))
+
+  string-table :: I64 -> Region -> Result String StringTable
+  string-table address (Region base length) =
+    if length < 4 then Err "truncated package string table" else
+      let count = word address base in
+      let table-size = 4 + count * 8 in
+      if table-size > length then Err "invalid package string table length" else
+        Ok (StringTable (base + 4) count (Region (base + table-size) (length - table-size)))
+
+  contract-texts :: Bytes -> I64 -> StringTable -> Region -> Result String (Array String)
+  contract-texts source address (StringTable start count raw) (Region abi length) =
+    if length > 0 && length < 4 then Err "truncated structured ABI header" else
+      let needed = if length == 0 then count else word address abi in
+      if needed > count then Err "invalid structured ABI string boundary" else
+        read-strings source address raw start (start + needed * 8) Nil
+
+  abi-texts :: Bytes -> I64 -> StringTable -> Option (Array String) -> Result String (Array String)
+  abi-texts source address (StringTable start count raw) prefix = case prefix of
+    None -> read-strings source address raw start (start + count * 8) Nil
+    Some texts ->
+      let used = array-length texts in
+      if used == count then Ok texts else
+        (case read-strings source address raw (start + used * 8) (start + count * 8) Nil of
+          Err message -> Err message
+          Ok suffix -> Ok (array-append texts suffix))
+
+  retain-body-table :: Definitions -> Option PackedBodyTable
+  retain-body-table definitions = case definitions of
+    IndexedDefinitions packed checked syntax rows cache hashes -> case packed of
+      PackedTable address strings nodes operands signatures | array-length signatures > 0 ->
+        Some (BodyTable checked rows)
+      other -> None
+    other -> None
+
+  -- A compatibility row may come from a legacy JSON value or a synthesized
+  -- declaration. Match the complete definition before taking package authority.
+  packed-definition-for :: PackedBodyTable -> String -> Json -> Option (List String, String, PackedTerm, List String)
+  packed-definition-for (BodyTable table rows) name row = case checked-body-id table name of
+    Some id -> (case hash-map-lookup id rows of
+      Some original | json-eq original row -> (case checked-definition table id of
+        Some (identity, parameters, result, term, calls) -> Some (parameters, result, term, calls)
+        None -> None)
+      other -> None)
+    None -> None
+
+  read-rows :: forall r. Bytes -> I64 -> Region -> StringTable -> Array String -> Region -> Definitions -> Nat -> Nat -> Nat -> List PackageContract ->{IO r} Result String (List PackageContract, Definitions)
+  read-rows source address raw table strings documents definitions base count index items =
+    if index == count then Ok (reverse items, definitions) else
+      let id = word address (base + index * 36 + 32) in
+      if id >= count then Err "invalid package manifest index" else
+        let row = base + id * 36 in
+        (case text-at source address raw row of
+          Err message -> Err message
+          Ok name -> case text-at source address raw (row + 8) of
+            Err message -> Err message
+            Ok digest -> case row-span address documents (row + 24) of
+              Err message -> Err message
+              Ok region -> case read-hashed-document address strings definitions region (Some table) of
+                Err message -> Err message
+                Ok (document, computed, decoded) -> read-rows source address raw table strings documents decoded base count (index + 1)
+                  (Cons (PackageContract name digest document (u64-decimal computed) None) items))
+
+  decode-package :: forall r. Bytes ->{IO r} Result String (List PackageContract, StringTable, Array String, Region)
+  decode-package source =
+    let address = bytes-data source in
+    case package-header address (bytes-len source) of
+      Err message -> Err message
+      Ok (Package strings (Region modules module-size) format documents abi) ->
+        case string-table address strings of
+          Err message -> Err message
+          Ok (StringTable start count raw) ->
+            let table = StringTable start count raw in
+            case contract-texts source address table abi of
+              Err message -> Err message
+              Ok texts -> case read-package-definitions source texts format of
+                Err message -> Err message
+                Ok definitions -> case read-rows source address raw table texts documents definitions modules (module-size / 36) 0 Nil of
+                  Err message -> Err message
+                  Ok (rows, decoded) ->
+                    let bodies = retain-body-table decoded in
+                    Ok (map (attach-package-bodies bodies) rows, table, texts, abi)
+
+  attach-package-bodies :: Option PackedBodyTable -> PackageContract -> PackageContract
+  attach-package-bodies bodies (PackageContract name declared doc computed previous) =
+    PackageContract name declared doc computed bodies
+
+  -- Read one bounded snapshot when the contracts and object ABI have
+  -- the same path. Publishers rename a new inode so readers can keep
+  -- using the original mapping after publication and descriptor close.
+  read-package-snapshot :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract, PackageSnapshot)
+  read-package-snapshot path = case read-package-source path of
+    Err message -> Err message
+    Ok source -> decode-package-snapshot source
+
+  decode-package-snapshot :: forall r. Bytes ->{IO r} Result String (List PackageContract, PackageSnapshot)
+  decode-package-snapshot source = case hold-package-source source (decode-package source) of
+    Err message -> Err message
+    Ok (rows, table, texts, abi) -> Ok (rows, PackageSnapshot source table texts abi)
+
+  read-package-source :: forall r. using (io :: Io r) => String ->{IO r} Result String Bytes
+  read-package-source path = case sys-open-read path of
+    Err error -> Err (string-concat-all ["cannot open interface package ", path, ": ", package-sys-error error])
+    Ok fd -> case read-package-bytes fd of
+      result -> case sys-close fd of _ -> (case result of
+        Err message -> Err (string-concat-all ["interface package ", path, ": ", message])
+        Ok bytes -> Ok bytes)
+
+  -- Prim.Sys retains an error category, while mapPackageBytes retains the
+  -- numeric platform error. Keep both when the buffered fallback also fails.
+  package-sys-error :: SysError -> String
+  package-sys-error error = case error of
+    SysNotFound -> "SysNotFound"
+    SysPermissionDenied -> "SysPermissionDenied"
+    SysAlreadyExists -> "SysAlreadyExists"
+    SysNotADirectory -> "SysNotADirectory"
+    SysIsADirectory -> "SysIsADirectory"
+    SysInvalidName -> "SysInvalidName"
+    SysIoError -> "SysIoError"
+
+  package-number :: I64 -> String
+  package-number value = if value < 0 then
+    string-concat "-" (u64-decimal (wrapping-i64-to-u64 (wrapping-sub-i64 0 value)))
+    else u64-decimal (wrapping-i64-to-u64 value)
+
+  read-package-bytes :: forall r. using (io :: Io r) => I64 ->{IO r} Result String Bytes
+  read-package-bytes fd = case sys-lseek fd 0 sys-seek-end of
+    Ok length | length > 0 && length <= 4294967295 ->
+      (case map-package-bytes fd length of
+        Ok mapped -> Ok mapped
+        Err error ->
+          let context = string-concat-all ["mmap failed (error ", package-number error,
+                ", length ", package-number length, "); fallback: "] in
+          let result = case (checked-nat-from-i64 length, sys-lseek fd 0 sys-seek-set) of
+                (Some size, Ok 0) -> fill-package-buffer fd (bytes-new size) length 0
+                (None, other) -> Err "length does not fit Nat"
+                (Some size, Err failure) -> Err (string-concat "lseek(SEEK_SET): " (package-sys-error failure))
+                (Some size, Ok start) -> Err (string-concat "lseek(SEEK_SET) returned " (package-number start)) in
+          (case result of Err message -> Err (string-concat context message); Ok bytes -> Ok bytes))
+    Ok length -> Err (string-concat "invalid interface package length: " (package-number length))
+    Err error -> Err (string-concat "lseek(SEEK_END): " (package-sys-error error))
+
+  fill-package-buffer :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result String Bytes
+  fill-package-buffer fd bytes length used =
+    if used == length then Ok bytes else
+      (case sys-read fd bytes used (wrapping-sub-i64 length used) of
+        Ok got | got > 0 -> fill-package-buffer fd bytes length (wrapping-add-i64 used got)
+        Ok got -> Err (string-concat-all ["unexpected EOF/read result ", package-number got,
+          " after ", package-number used, " of ", package-number length, " bytes"])
+        Err error -> Err (string-concat-all ["read after ", package-number used,
+          " of ", package-number length, " bytes: ", package-sys-error error]))
+
+  read-package-documents :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract)
+  read-package-documents path = case read-package-snapshot path of
+    Ok (rows, snapshot) -> Ok rows
+    Err message -> Err message

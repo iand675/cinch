@@ -1,18 +1,18 @@
 -- Interfaces and source are runtime inputs to this compiled Cinch checker.
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Inputs (read-interfaces)
-  import Bootstrap.Load (LoadedInterface)
-  import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Parse (parse-program-with)
-  import Bootstrap.Resolve (resolve-program-with)
-  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-classes, elaboration-class-context, elaboration-instances)
-  import Bootstrap.Instance
-  import Bootstrap.Nominal (interface-global)
-  import Bootstrap.Type (scheme-params, scheme-requirements, kind-equal, kind-text, KType, KFun)
+  import Cinch.Ast
+  import Cinch.Inputs (read-interfaces)
+  import Cinch.Load (LoadedInterface)
+  import Cinch.Contracts (interface-headers)
+  import Cinch.Parse (parse-program-with)
+  import Cinch.Resolve (resolve-program-with)
+  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-classes, elaboration-class-context, elaboration-instances)
+  import Cinch.Instance
+  import Cinch.Nominal (interface-global)
+  import Cinch.Type (scheme-params, scheme-requirements, kind-equal, kind-text, KType, KFun)
   import Text.Show (nat-to-string)
-  import Bootstrap.Core (CoreDefinition, core-definition-closed)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Core (CoreDefinition, core-definition-closed)
+  import Cinch.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

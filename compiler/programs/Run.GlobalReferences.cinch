@@ -1,8 +1,8 @@
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Core
-  import Bootstrap.Global
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Core
+  import Cinch.Global
   import Algebra.Semigroup
   import Text.Lex (Span)
   import Data.Path (path-from-string)

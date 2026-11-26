@@ -1,15 +1,15 @@
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-and-retain, checked-elaboration)
-  import Bootstrap.Resolve (resolve-program)
-  import Bootstrap.Infer
-  import Bootstrap.Core
-  import Bootstrap.Global
-  import Bootstrap.Typing (TypingContext, close-typing-context-with-effects, context-effects)
-  import Bootstrap.Type
-  import Bootstrap.Index (IBound)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Check (check-and-retain, checked-elaboration)
+  import Cinch.Resolve (resolve-program)
+  import Cinch.Infer
+  import Cinch.Core
+  import Cinch.Global
+  import Cinch.Typing (TypingContext, close-typing-context-with-effects, context-effects)
+  import Cinch.Type
+  import Cinch.Index (IBound)
+  import Cinch.Report (render-diagnostics)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Data.Nat (nat-from-int)

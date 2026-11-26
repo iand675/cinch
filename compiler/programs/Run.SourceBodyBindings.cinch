@@ -1,11 +1,11 @@
 module Main where
-  import Bootstrap.Type
+  import Cinch.Type
   import Algebra.Semigroup
-  import Bootstrap.Core
-  import Bootstrap.Global
-  import Bootstrap.BodyContract
-  import Bootstrap.Total (total-body, total-function-document)
-  import Bootstrap.Document
+  import Cinch.Core
+  import Cinch.Global
+  import Cinch.BodyContract
+  import Cinch.Total (total-body, total-function-document)
+  import Cinch.Document
   import Text.Lex (Span)
   import Text.Show (nat-to-string)
   import Data.Path (path-from-string)

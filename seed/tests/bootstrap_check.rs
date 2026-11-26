@@ -1,4 +1,4 @@
-//! Rung 3: the fragment checker (`compiler/Bootstrap.Check.cinch`).
+//! Rung 3: the fragment checker (`compiler/Cinch.Check.cinch`).
 //!
 //! The rung's artifact is a real program, `compiler/programs/Run.Check.cinch`,
 //! shipped here as the entry module of a project holding the toolkit, the two
@@ -23,9 +23,9 @@
 
 mod common;
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const CHECK_SRC: &str = include_str!("../../compiler/Bootstrap.Check.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const CHECK_SRC: &str = include_str!("../../compiler/Cinch.Check.cinch");
 const RUN: &str = include_str!("../../compiler/programs/Run.Check.cinch");
 
 /// The report file the rung's program writes, pinned byte for byte. Each case
@@ -92,9 +92,9 @@ fn the_fragment_checker_accepts_fib_and_names_every_refusal() {
     let dir = common::project(
         "check",
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
-            ("Bootstrap.Check.cinch", CHECK_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
+            ("Cinch.Check.cinch", CHECK_SRC),
             ("Main.cinch", RUN),
         ],
     );

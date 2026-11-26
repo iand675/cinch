@@ -1,18 +1,18 @@
 -- Source-level namespace tests, checked and interpreted after elaboration.
 module Main where
 
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Resolve (resolve-program, prepare-admitted-resolution)
-  import Bootstrap.Load (load-validated-interfaces)
-  import Bootstrap.Contracts (declaration-references)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Eval (Value, VInt, eval-main, eval-main-result, render-value)
-  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Resolve (resolve-program, prepare-admitted-resolution)
+  import Cinch.Load (load-validated-interfaces)
+  import Cinch.Contracts (declaration-references)
+  import Cinch.Check (check-program)
+  import Cinch.Eval (Value, VInt, eval-main, eval-main-result, render-value)
+  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseError, EFail)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
-  import Bootstrap.Document
+  import Cinch.Document
   import Text.Lex (Span)
 
   library :: String

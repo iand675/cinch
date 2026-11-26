@@ -1,0 +1,1087 @@
+-- Static ownership, escape, reuse, bounded-arena, and thread-locality analyses
+-- for the self-hosted Cinch compiler.
+--
+-- Five cooperating analyses:
+--   1. Exact shadowing-aware liveness (`term-uses-id`, `terms-use-id`) for
+--      early drops and last-use ownership transfer (move instead of dup+drop).
+--   2. Perceus reset/reuse planning and borrow/reuse co-design
+--      (`reuse-scrutinee-params`, `arm-has-reuse-alloc`): keeps parameters
+--      whose case arms rebuild a same-arity constructor owned for in-place
+--      reuse while read-only traversals stay borrowed (`#b`).
+--   3. Escape analysis for stack/frame allocation (`compute-consumed-params`,
+--      `frame-let-mode`): places non-escaping constructor/tuple `let` bindings
+--      on the stack (`RC_FRAME`) with deterministic release on scope exit.
+--   4. Bounded region-scoped arena inference (`compute-arena-phases`): proves
+--      non-recursive, side-effect-free functions returning non-arena leaves
+--      that call recursive helpers safe for a bounded local phase arena.
+--   5. Static thread-locality (`program-uses-concurrency`) and nullary enum
+--      detection (`is-immortal-enum-data`).
+module Cinch.Ownership where
+
+  import Data.List
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Cinch.Core
+  import Cinch.Type
+
+  export term-uses-id, terms-use-id, term-use-count, pattern-binds-id
+  export reuse-scrutinee-params, arm-has-reuse-alloc
+  export compute-consumed-params, same-bool-maps, frame-let-mode
+  export compute-arena-phases, same-arena-phases
+  export program-uses-concurrency, is-immortal-enum-data, is-non-arena-leaf-type
+
+  same-str :: String -> String -> Bool
+  same-str a b = string-compare a b == 0
+
+  has-id :: Nat -> List Nat -> Bool
+  has-id needle xs = case xs of
+    Nil -> False
+    Cons x rest -> if x == needle then True else has-id needle rest
+
+  add-id :: Nat -> List Nat -> List Nat
+  add-id x xs = if has-id x xs then xs else Cons x xs
+
+  lookup-pair :: Nat -> List (Nat, Nat) -> Option Nat
+  lookup-pair needle pairs = case pairs of
+    Nil -> None
+    Cons (k, v) rest -> if k == needle then Some v else lookup-pair needle rest
+
+  rep-bool :: Nat -> Bool -> List Bool
+  rep-bool n v = if n == 0 then Nil else Cons v (rep-bool (n - 1) v)
+
+  any-true :: List Bool -> Bool
+  any-true xs = case xs of
+    Nil -> False
+    Cons b rest -> b || any-true rest
+
+  same-bools :: List Bool -> List Bool -> Bool
+  same-bools left right = case (left, right) of
+    (Nil, Nil) -> True
+    (Cons a arest, Cons b brest) -> (if a then b else not b) && same-bools arest brest
+    other -> False
+
+  clear-at :: List Bool -> Nat -> List Bool
+  clear-at mask idx = case mask of
+    Nil -> Nil
+    Cons b rest -> if idx == 0 then Cons False rest else Cons b (clear-at rest (idx - 1))
+
+  clear-indices :: List Bool -> List Nat -> List Bool
+  clear-indices mask idxs = case idxs of
+    Nil -> mask
+    Cons idx rest -> clear-indices (clear-at mask idx) rest
+
+  same-bool-maps :: List CoreDefinition -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool
+  same-bool-maps definitions left right = case definitions of
+    Nil -> True
+    Cons d rest ->
+      let name = core-name d in
+      let ok = (case (hash-map-lookup name left, hash-map-lookup name right) of
+            (None, None) -> True
+            (Some a, Some b) -> same-bools a b
+            other -> False) in
+      ok && same-bool-maps rest left right
+
+  same-arena-phases :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool -> Bool
+  same-arena-phases definitions left right = case definitions of
+    Nil -> True
+    Cons d rest ->
+      let name = core-name d in
+      let ok = (case (hash-map-lookup name left, hash-map-lookup name right) of
+            (None, None) -> True
+            (Some a, Some b) -> if a then b else not b
+            other -> False) in
+      ok && same-arena-phases rest left right
+
+  -- Unwrap call spine (shared across analyses).
+  call-head :: CoreTerm -> CoreTerm
+  call-head term = case term of
+    CApply sp ty f x -> call-head f
+    CApplyEff sp ty row f x -> call-head f
+    CErasedApply sp ty row f x -> call-head f
+    other -> term
+
+  call-args :: CoreTerm -> List CoreTerm -> List CoreTerm
+  call-args term acc = case term of
+    CApply sp ty f x -> call-args f (Cons x acc)
+    CApplyEff sp ty row f x -> call-args f (Cons x acc)
+    CErasedApply sp ty row f x -> call-args f acc
+    other -> acc
+
+  unwrap-var-id :: CoreTerm -> Option Nat
+  unwrap-var-id term = case term of
+    CLocal sp ty id name Nil -> Some id
+    CForget sp ty inner -> unwrap-var-id inner
+    CCast sp ty inner -> unwrap-var-id inner
+    other -> None
+
+  -- =========================================================================
+  -- 1. Exact shadowing-aware liveness (`term-uses-id`, `terms-use-id`)
+  -- =========================================================================
+
+  pattern-binds-id :: Nat -> CorePattern -> Bool
+  pattern-binds-id needle pat = case pat of
+    CPVar sp ty id name -> id == needle
+    CPAs sp ty id name inner -> id == needle || pattern-binds-id needle inner
+    CPConstructor sp ty name actuals sc fields -> pattern-binds-id needle fields
+    CPTuple sp ty fields -> pattern-binds-id needle fields
+    CPField sp first rest -> pattern-binds-id needle first || pattern-binds-id needle rest
+    other -> False
+
+  rec-bindings-bind-id :: Nat -> CoreTerm -> Bool
+  rec-bindings-bind-id needle members = case members of
+    CRecursiveBinding id name value rest -> id == needle || rec-bindings-bind-id needle rest
+    other -> False
+
+  rec-bindings-use-id :: Nat -> CoreTerm -> Bool
+  rec-bindings-use-id needle members = case members of
+    CRecursiveBinding id name value rest -> term-uses-id needle value || rec-bindings-use-id needle rest
+    other -> False
+
+  alts-use-id :: Nat -> CoreTerm -> Bool
+  alts-use-id needle alts = case alts of
+    CAlternative sp pat body rest ->
+      (not (pattern-binds-id needle pat) && term-uses-id needle body) || alts-use-id needle rest
+    other -> False
+
+  handler-ops-use-id :: Nat -> CoreTerm -> Bool
+  handler-ops-use-id needle ops = case ops of
+    CHandlerOperation sp slot params ty body rest ->
+      term-uses-id needle body || handler-ops-use-id needle rest
+    other -> False
+
+  terms-use-id :: Nat -> List CoreTerm -> Bool
+  terms-use-id needle terms = case terms of
+    Nil -> False
+    Cons t rest -> term-uses-id needle t || terms-use-id needle rest
+
+  args-chain-uses-id :: Nat -> CoreTerm -> Bool
+  args-chain-uses-id needle chain = case chain of
+    CArgument sp first rest -> term-uses-id needle first || args-chain-uses-id needle rest
+    other -> False
+
+  term-uses-id :: Nat -> CoreTerm -> Bool
+  term-uses-id needle term = case term of
+    CLocal sp ty id name actuals -> id == needle
+    CLet sp ty id name sc rhs body ->
+      term-uses-id needle rhs || (id /= needle && term-uses-id needle body)
+    CLambda sp ty pat body ->
+      not (pattern-binds-id needle pat) && term-uses-id needle body
+    CCase sp ty scrut alts ->
+      term-uses-id needle scrut || alts-use-id needle alts
+    CAlternative sp pat body rest ->
+      alts-use-id needle term
+    CRecursiveFunctions sp ty members body ->
+      if rec-bindings-bind-id needle members then False
+      else rec-bindings-use-id needle members || term-uses-id needle body
+    CRecursiveValues sp ty region members body ->
+      if rec-bindings-bind-id needle members then False
+      else rec-bindings-use-id needle members || term-uses-id needle body
+    CIf sp ty cond yes no ->
+      term-uses-id needle cond || term-uses-id needle yes || term-uses-id needle no
+    CApply sp ty f x -> term-uses-id needle f || term-uses-id needle x
+    CApplyEff sp ty row f x -> term-uses-id needle f || term-uses-id needle x
+    CErasedApply sp ty row f x -> term-uses-id needle f || term-uses-id needle x
+    CTuple sp ty fields -> args-chain-uses-id needle fields
+    CPrimitive sp ty op args -> args-chain-uses-id needle args
+    CWith sp ty given val body -> term-uses-id needle val || term-uses-id needle body
+    CHandler sp ty ret ops -> term-uses-id needle ret || handler-ops-use-id needle ops
+    CHandle sp ty lbl res body h -> term-uses-id needle body || term-uses-id needle h
+    CScope sp ty region ev cb -> term-uses-id needle cb
+    CMemoScope sp ty region body -> term-uses-id needle body
+    CSpawn sp ty tok body -> term-uses-id needle tok || term-uses-id needle body
+    CJoin sp ty tok body -> term-uses-id needle tok || term-uses-id needle body
+    CDecision sp ty pred cond -> term-uses-id needle cond
+    CPolyIntro sp ty ids body -> term-uses-id needle body
+    CPolyElim sp ty val args -> term-uses-id needle val
+    CGuard sp ty cond body -> term-uses-id needle cond || term-uses-id needle body
+    CProved sp ty ev body -> term-uses-id needle body
+    CRefine sp ty ev body -> term-uses-id needle body
+    CRefineProof sp ty w body -> term-uses-id needle body
+    CForget sp ty body -> term-uses-id needle body
+    CCast sp ty body -> term-uses-id needle body
+    CRequire sp ty body -> term-uses-id needle body
+    CDischarge sp ty ev _ body -> term-uses-id needle body
+    other -> False
+
+  -- =========================================================================
+  -- 2. Perceus reset/reuse planning & borrow/reuse co-design
+  -- =========================================================================
+
+  pattern-field-count :: CorePattern -> Nat
+  pattern-field-count fields = case fields of
+    CPField sp first rest -> 1 + pattern-field-count rest
+    other -> 0
+
+  -- Does `term` allocate a uniform `arity`-field constructor on its evaluation
+  -- spine (matching `expression-with-reuse`: `let`, `if`, proof wrappers, and
+  -- direct constructor applications, NOT nested `case` which frees the token)?
+  arm-has-reuse-alloc :: Nat -> CoreTerm -> Bool
+  arm-has-reuse-alloc arity term =
+    if arity == 0 then False
+    else case term of
+      CLet sp ty id name sc rhs body ->
+        arm-has-reuse-alloc arity rhs || arm-has-reuse-alloc arity body
+      CIf sp ty cond yes no ->
+        arm-has-reuse-alloc arity yes || arm-has-reuse-alloc arity no
+      CProved sp ty ev body -> arm-has-reuse-alloc arity body
+      CRefine sp ty ev body -> arm-has-reuse-alloc arity body
+      CRefineProof sp ty w body -> arm-has-reuse-alloc arity body
+      CForget sp ty body -> arm-has-reuse-alloc arity body
+      CCast sp ty body -> arm-has-reuse-alloc arity body
+      CRequire sp ty body -> arm-has-reuse-alloc arity body
+      CDischarge sp ty ev _ body -> arm-has-reuse-alloc arity body
+      other -> case call-head term of
+        CUse sp ty name role actuals | same-str role "constructor" ->
+          list-length (call-args term Nil) == arity
+        other -> False
+
+  type-head-name :: UType -> Option String
+  type-head-name ty = case base-type ty of
+    UCon name kind -> Some name
+    UApp head arg -> type-head-name head
+    other -> None
+
+  same-type-head :: UType -> UType -> Bool
+  same-type-head a b = case (type-head-name a, type-head-name b) of
+    (Some x, Some y) -> same-str x y
+    other -> False
+
+  -- Check whether any constructor alternative of a `CCase` matches a
+  -- non-nullary constructor (with scrutinee `sid` dead in the arm body)
+  -- and allocates a same-arity constructor on its spine.
+  case-has-reusable-arm :: Nat -> CoreTerm -> Bool
+  case-has-reusable-arm sid alts = case alts of
+    CAlternative sp pat body rest ->
+      let hit = (case pat of
+            CPConstructor at ty name actuals sc fields ->
+              let n = pattern-field-count fields in
+              n > 0 && not (term-uses-id sid body) && arm-has-reuse-alloc n body
+            other -> False) in
+      hit || case-has-reusable-arm sid rest
+    other -> False
+
+  collect-reuse-params-term :: UType -> List (Nat, Nat) -> CoreTerm -> List Nat -> List Nat
+  collect-reuse-params-term ret-ty pids term acc = case term of
+    CCase sp ty scrut alts ->
+      let acc1 = (case unwrap-var-id scrut of
+            Some sid -> (case lookup-pair sid pids of
+              Some idx ->
+                if same-type-head (core-type scrut) ret-ty && case-has-reusable-arm sid alts
+                then add-id idx acc else acc
+              None -> acc)
+            None -> collect-reuse-params-term ret-ty pids scrut acc) in
+      collect-reuse-params-alts ret-ty pids alts acc1
+    CLet sp ty id name sc rhs body ->
+      let acc1 = collect-reuse-params-term ret-ty pids rhs acc in
+      let pids2 = (case unwrap-var-id rhs of
+            Some src -> (case lookup-pair src pids of
+              Some idx -> Cons (id, idx) pids
+              None -> pids)
+            None -> pids) in
+      collect-reuse-params-term ret-ty pids2 body acc1
+    CIf sp ty cond yes no ->
+      let a1 = collect-reuse-params-term ret-ty pids cond acc in
+      let a2 = collect-reuse-params-term ret-ty pids yes a1 in
+      collect-reuse-params-term ret-ty pids no a2
+    CGuard sp ty cond body ->
+      collect-reuse-params-term ret-ty pids body (collect-reuse-params-term ret-ty pids cond acc)
+    CProved sp ty ev body -> collect-reuse-params-term ret-ty pids body acc
+    CRefine sp ty ev body -> collect-reuse-params-term ret-ty pids body acc
+    CRefineProof sp ty w body -> collect-reuse-params-term ret-ty pids body acc
+    CForget sp ty body -> collect-reuse-params-term ret-ty pids body acc
+    CCast sp ty body -> collect-reuse-params-term ret-ty pids body acc
+    CRequire sp ty body -> collect-reuse-params-term ret-ty pids body acc
+    CDischarge sp ty ev _ body -> collect-reuse-params-term ret-ty pids body acc
+    other -> acc
+
+  collect-reuse-params-alts :: UType -> List (Nat, Nat) -> CoreTerm -> List Nat -> List Nat
+  collect-reuse-params-alts ret-ty pids alts acc = case alts of
+    CAlternative sp pat body rest ->
+      collect-reuse-params-alts ret-ty pids rest (collect-reuse-params-term ret-ty pids body acc)
+    other -> acc
+
+  own-runtime-params :: List CorePattern -> List CorePattern
+  own-runtime-params pats = case pats of
+    Nil -> Nil
+    Cons p rest -> if erased-pattern p then own-runtime-params rest else Cons p (own-runtime-params rest)
+
+  param-var-pairs :: List CorePattern -> Nat -> List (Nat, Nat) -> List (Nat, Nat)
+  param-var-pairs pats idx acc = case pats of
+    Nil -> acc
+    Cons p rest ->
+      let next = (case p of
+            CPVar sp ty id name -> Cons (id, idx) acc
+            CPAs sp ty id name inner -> Cons (id, idx) acc
+            other -> acc) in
+      param-var-pairs rest (idx + 1) next
+
+  -- | Parameter indices of `d` whose `CCase` arms transform a value of the
+  -- same datatype in place. Borrow inference keeps only these transformer
+  -- parameters owned (`False`) so Perceus reset/reuse fires without stripping
+  -- `#b` borrowing from read-only AST/environment traversals.
+  reuse-scrutinee-params :: CoreDefinition -> List Nat
+  reuse-scrutinee-params d = collect-reuse-clauses (core-clauses d) Nil
+
+  collect-reuse-clauses :: List CoreClause -> List Nat -> List Nat
+  collect-reuse-clauses clauses acc = case clauses of
+    Nil -> acc
+    Cons (MkCoreClause sp pats body) rest ->
+      let pids = param-var-pairs (own-runtime-params pats) 0 Nil in
+      collect-reuse-clauses rest (collect-reuse-params-term (core-type body) pids body acc)
+
+  -- =========================================================================
+  -- 3. Escape analysis for stack / frame allocation (`RC_FRAME`)
+  -- =========================================================================
+
+  is-readonly-builtin-name :: String -> Bool
+  is-readonly-builtin-name name =
+    same-str name "cinch.runtime.bytesLen"
+    || same-str name "cinch.runtime.bytesLenI64"
+    || same-str name "cinch.runtime.bytesGet"
+    || same-str name "cinch.runtime.bytesGetU8"
+    || same-str name "cinch.runtime.bytesGetU8At"
+    || same-str name "cinch.runtime.bytesLoadLe32"
+    || same-str name "cinch.runtime.bytesLoadLe32At"
+    || same-str name "cinch.runtime.bytesLoadLe64"
+    || same-str name "cinch.runtime.bytesLoadLe64At"
+    || same-str name "cinch.runtime.bytesCompare"
+    || same-str name "cinch.runtime.bytesData"
+    || same-str name "cinch.runtime.natAdd"
+    || same-str name "cinch.runtime.natSub"
+    || same-str name "cinch.runtime.natMul"
+    || same-str name "cinch.runtime.natDiv"
+    || same-str name "cinch.runtime.natRem"
+    || same-str name "cinch.runtime.natCmp"
+    || same-str name "cinch.runtime.natToI64"
+    || same-str name "cinch.runtime.intAdd"
+    || same-str name "cinch.runtime.intSub"
+    || same-str name "cinch.runtime.intMul"
+    || same-str name "cinch.runtime.intDiv"
+    || same-str name "cinch.runtime.intRem"
+    || same-str name "cinch.runtime.intNeg"
+    || same-str name "cinch.runtime.intCmp"
+    || same-str name "cinch.runtime.intToI64"
+    || same-str name "cinch.runtime.arrayLen"
+    || same-str name "cinch.runtime.arrayGet"
+
+  -- Collect parameter indices that may escape (returned, stored, captured,
+  -- passed to a non-consumed/non-borrowed callee, or passed in tail position
+  -- to another unit).
+  escape-term :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
+  escape-term pids borrows consumed in-tail term escaped = case term of
+    CLocal sp ty id name actuals -> (case lookup-pair id pids of
+      Some idx -> add-id idx escaped
+      None -> escaped)
+    CForget sp ty inner -> escape-term pids borrows consumed in-tail inner escaped
+    CCast sp ty inner -> escape-term pids borrows consumed in-tail inner escaped
+    CRequire sp ty body -> escape-term pids borrows consumed in-tail body escaped
+    CProved sp ty ev body -> escape-term pids borrows consumed in-tail body escaped
+    CRefine sp ty ev body -> escape-term pids borrows consumed in-tail body escaped
+    CRefineProof sp ty w body -> escape-term pids borrows consumed in-tail body escaped
+    CDischarge sp ty ev _ body -> escape-term pids borrows consumed in-tail body escaped
+    CGuard sp ty cond body ->
+      let e1 = escape-term pids borrows consumed False cond escaped in
+      escape-term pids borrows consumed in-tail body e1
+    CIf sp ty cond yes no ->
+      let e1 = escape-term pids borrows consumed False cond escaped in
+      let e2 = escape-term pids borrows consumed in-tail yes e1 in
+      escape-term pids borrows consumed in-tail no e2
+    CLet sp ty lid lname sc rhs body -> case unwrap-var-id rhs of
+      Some src ->
+        let pids2 = (case lookup-pair src pids of
+              Some idx -> Cons (lid, idx) pids
+              None -> pids) in
+        escape-term pids2 borrows consumed in-tail body escaped
+      None ->
+        let e1 = escape-term pids borrows consumed False rhs escaped in
+        escape-term pids borrows consumed in-tail body e1
+    CCase sp ty scrut alts ->
+      case unwrap-var-id scrut of
+        Some sid ->
+          let scrut-p = lookup-pair sid pids in
+          escape-alts pids borrows consumed in-tail scrut-p alts escaped
+        None ->
+          let e1 = escape-term pids borrows consumed False scrut escaped in
+          escape-alts pids borrows consumed in-tail None alts e1
+    CApply sp ty f x -> escape-app pids borrows consumed in-tail term escaped
+    CApplyEff sp ty row f x -> escape-app pids borrows consumed in-tail term escaped
+    CErasedApply sp ty row f x -> escape-app pids borrows consumed in-tail term escaped
+    other -> escape-list pids borrows consumed False (runtime-term-children term) escaped
+
+  escape-alts :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> Option Nat -> CoreTerm -> List Nat -> List Nat
+  escape-alts pids borrows consumed in-tail scrut-p alts escaped = case alts of
+    CAlternative sp pat body rest ->
+      let pids2 = (case (pat, scrut-p) of
+            (CPVar at pty id pname, Some idx) -> Cons (id, idx) pids
+            (CPAs at pty id pname inner, Some idx) -> Cons (id, idx) pids
+            other -> pids) in
+      let e1 = escape-term pids2 borrows consumed in-tail body escaped in
+      escape-alts pids borrows consumed in-tail scrut-p rest e1
+    other -> escaped
+
+  escape-app :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
+  escape-app pids borrows consumed in-tail term escaped =
+    let h = call-head term in
+    let args = call-args term Nil in
+    case h of
+      CUse sp ty name role actuals | not (same-str role "foreign") && not (same-str role "constructor") ->
+        if is-readonly-builtin-name name then
+          escape-readonly-args pids borrows consumed args escaped
+        else
+          -- Only saturated `#b` borrowed calls are guaranteed never to drop
+          -- an `RC_FRAME` argument; partial applications allocate closures
+          -- and owned callees would trigger premature `cinch_frame_release`.
+          (case hash-map-lookup name borrows of
+            Some bm | list-length bm == list-length args ->
+              escape-call-args pids borrows consumed args (Some bm) None escaped
+            other -> escape-list pids borrows consumed False args escaped)
+      CUse sp ty name role actuals ->
+        escape-list pids borrows consumed False args escaped
+      other ->
+        let e1 = escape-term pids borrows consumed False h escaped in
+        escape-list pids borrows consumed False args e1
+
+  escape-readonly-args :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> List Nat -> List Nat
+  escape-readonly-args pids borrows consumed args escaped = case args of
+    Nil -> escaped
+    Cons a rest ->
+      let e1 = (case unwrap-var-id a of
+            Some id -> escaped
+            None -> escape-term pids borrows consumed False a escaped) in
+      escape-readonly-args pids borrows consumed rest e1
+
+  mask-flag :: Option (List Bool) -> Nat -> Bool
+  mask-flag opt idx = case opt of
+    None -> False
+    Some xs -> nth-bool xs idx
+
+  nth-bool :: List Bool -> Nat -> Bool
+  nth-bool xs idx = case xs of
+    Nil -> False
+    Cons b rest -> if idx == 0 then b else nth-bool rest (idx - 1)
+
+  escape-call-args :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> List Nat -> List Nat
+  escape-call-args pids borrows consumed args bmask cmask escaped =
+    escape-call-args-at pids borrows consumed args bmask cmask 0 escaped
+
+  escape-call-args-at :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> Nat -> List Nat -> List Nat
+  escape-call-args-at pids borrows consumed args bmask cmask idx escaped = case args of
+    Nil -> escaped
+    Cons a rest ->
+      let safe = mask-flag bmask idx || mask-flag cmask idx in
+      let e1 = (if safe then
+            (case unwrap-var-id a of
+              Some id -> escaped
+              None -> escape-term pids borrows consumed False a escaped)
+          else escape-term pids borrows consumed False a escaped) in
+      escape-call-args-at pids borrows consumed rest bmask cmask (idx + 1) e1
+
+  escape-list :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> List CoreTerm -> List Nat -> List Nat
+  escape-list pids borrows consumed in-tail terms escaped = case terms of
+    Nil -> escaped
+    Cons t rest ->
+      escape-list pids borrows consumed in-tail rest (escape-term pids borrows consumed in-tail t escaped)
+
+  escape-clauses :: List CoreClause -> HashMap String (List Bool) -> HashMap String (List Bool) -> List Nat -> List Nat
+  escape-clauses clauses borrows consumed escaped = case clauses of
+    Nil -> escaped
+    Cons (MkCoreClause sp pats body) rest ->
+      let pids = param-var-pairs (own-runtime-params pats) 0 Nil in
+      escape-clauses rest borrows consumed (escape-term pids borrows consumed True body escaped)
+
+  consumed-eligible :: CoreDefinition -> Option Nat
+  consumed-eligible d =
+    let name = core-name d in
+    if same-str name "main" || same-str name "Main.main" then None
+    else case (core-givens d, core-openings d, core-clauses d) of
+      (Nil, Nil, Cons (MkCoreClause sp pats body) rest) ->
+        let n = list-length (own-runtime-params pats) in
+        if n == 0 then None else Some n
+      other -> None
+
+  init-consumed :: List CoreDefinition -> HashMap String (List Bool) -> (List (CoreDefinition, Nat), HashMap String (List Bool))
+  init-consumed defs acc = case defs of
+    Nil -> (Nil, acc)
+    Cons d rest -> case init-consumed rest acc of
+      (elig, m) -> case consumed-eligible d of
+        Some arity -> (Cons (d, arity) elig, hash-map-insert (core-name d) (rep-bool arity True) m)
+        None -> (elig, m)
+
+  consumed-sweep :: List (CoreDefinition, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> (HashMap String (List Bool), Bool)
+  consumed-sweep elig borrows consumed changed = case elig of
+    Nil -> (consumed, changed)
+    Cons (d, arity) rest ->
+      let name = core-name d in
+      let cur = (case hash-map-lookup name consumed of Some m -> m; None -> Nil) in
+      if not (any-true cur) then consumed-sweep rest borrows consumed changed
+      else
+        let esc = escape-clauses (core-clauses d) borrows consumed Nil in
+        let next = clear-indices cur esc in
+        let diff = not (same-bools cur next) in
+        let m2 = if diff then hash-map-insert name next consumed else consumed in
+        consumed-sweep rest borrows m2 (changed || diff)
+
+  consumed-fixpoint :: Nat -> List (CoreDefinition, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> HashMap String (List Bool)
+  consumed-fixpoint fuel elig borrows consumed =
+    if fuel == 0 then hash-map-empty
+    else case consumed-sweep elig borrows consumed False of
+      (next, True) -> consumed-fixpoint (fuel - 1) elig borrows next
+      (next, False) -> next
+
+  prune-bool-map :: List (CoreDefinition, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> HashMap String (List Bool)
+  prune-bool-map elig m out = case elig of
+    Nil -> out
+    Cons (d, arity) rest ->
+      let name = core-name d in
+      let next = (case hash-map-lookup name m of
+            Some mask | any-true mask -> hash-map-insert name mask out
+            other -> out) in
+      prune-bool-map rest m next
+
+  -- | Compute deterministic fixed-point non-escaping (`consumed`) parameter
+  -- masks for stack/frame escape analysis.
+  compute-consumed-params :: List CoreDefinition -> HashMap String (List Bool) -> HashMap String (List Bool)
+  compute-consumed-params definitions borrows =
+    case init-consumed definitions hash-map-empty of
+      (elig, initial) ->
+        let settled = consumed-fixpoint 4096 elig borrows initial in
+        prune-bool-map elig settled hash-map-empty
+
+  -- Classify how `let id = rhs in body` uses `id`:
+  --   0 = escapes (must stay heap-allocated)
+  --   1 = frame-eligible, read-only / borrowed uses only (no owned callee drop!)
+  --   2 = frame-eligible, includes proven-consumed owned callee(s)
+  -- Rule: `id` must NEVER escape, NEVER be passed in tail position (D104),
+  -- NEVER be captured in a lambda/rec/ctor/tuple, and NEVER be returned.
+  -- Combining two modes: 0 dominates (escape), else max(a, b).
+  combine-frame-mode :: Nat -> Nat -> Nat
+  combine-frame-mode a b =
+    if a == 0 || b == 0 then 0
+    else if a == 2 || b == 2 then 2
+    else 1
+
+  alts-no-alias-pattern :: CoreTerm -> Bool
+  alts-no-alias-pattern alts = case alts of
+    CAlternative sp pat body rest -> (case pat of
+      CPVar at pty id pname -> False
+      CPAs at pty id pname inner -> False
+      other -> alts-no-alias-pattern rest)
+    other -> True
+
+  frame-use-term :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> Nat
+  frame-use-term needle borrows consumed in-tail term = case term of
+    CLocal sp ty id name actuals -> if id == needle then 0 else 1
+    CForget sp ty inner -> frame-use-term needle borrows consumed in-tail inner
+    CCast sp ty inner -> frame-use-term needle borrows consumed in-tail inner
+    CRequire sp ty body -> frame-use-term needle borrows consumed in-tail body
+    CProved sp ty ev body -> frame-use-term needle borrows consumed in-tail body
+    CRefine sp ty ev body -> frame-use-term needle borrows consumed in-tail body
+    CRefineProof sp ty w body -> frame-use-term needle borrows consumed in-tail body
+    CDischarge sp ty ev _ body -> frame-use-term needle borrows consumed in-tail body
+    CGuard sp ty cond body ->
+      combine-frame-mode (frame-use-term needle borrows consumed False cond) (frame-use-term needle borrows consumed in-tail body)
+    CIf sp ty cond yes no ->
+      let m1 = frame-use-term needle borrows consumed False cond in
+      let m2 = frame-use-term needle borrows consumed in-tail yes in
+      let m3 = frame-use-term needle borrows consumed in-tail no in
+      combine-frame-mode m1 (combine-frame-mode m2 m3)
+    CLet sp ty lid lname sc rhs body ->
+      let m1 = frame-use-term needle borrows consumed False rhs in
+      if lid == needle then m1
+      else combine-frame-mode m1 (frame-use-term needle borrows consumed in-tail body)
+    CCase sp ty scrut alts ->
+      let m1 = (case unwrap-var-id scrut of
+            Some sid | sid == needle -> if alts-no-alias-pattern alts then (1 :: Nat) else (0 :: Nat)
+            other -> frame-use-term needle borrows consumed False scrut) in
+      combine-frame-mode m1 (frame-use-alts needle borrows consumed in-tail alts)
+    CApply sp ty f x -> frame-use-app needle borrows consumed in-tail term
+    CApplyEff sp ty row f x -> frame-use-app needle borrows consumed in-tail term
+    CErasedApply sp ty row f x -> frame-use-app needle borrows consumed in-tail term
+    CPrimitive sp ty op args -> frame-use-args-chain needle borrows consumed args
+    CTuple sp ty fields -> frame-use-args-chain needle borrows consumed fields
+    CDecision sp ty pred cond -> frame-use-term needle borrows consumed False cond
+    CLambda sp ty pat body ->
+      if pattern-binds-id needle pat then 1
+      else if term-uses-id needle body then 0 else 1
+    CRecursiveFunctions sp ty members body ->
+      if term-uses-id needle term then 0 else 1
+    CRecursiveValues sp ty region members body ->
+      if term-uses-id needle term then 0 else 1
+    other ->
+      if term-uses-id needle term then 0 else 1
+
+  frame-use-args-chain :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> CoreTerm -> Nat
+  frame-use-args-chain needle borrows consumed chain = case chain of
+    CArgument sp first rest ->
+      combine-frame-mode (frame-use-term needle borrows consumed False first) (frame-use-args-chain needle borrows consumed rest)
+    other -> 1
+
+  frame-use-list :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Nat
+  frame-use-list needle borrows consumed terms = case terms of
+    Nil -> 1
+    Cons t rest ->
+      combine-frame-mode (frame-use-term needle borrows consumed False t) (frame-use-list needle borrows consumed rest)
+
+  frame-use-alts :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> Nat
+  frame-use-alts needle borrows consumed in-tail alts = case alts of
+    CAlternative sp pat body rest ->
+      let m1 = if pattern-binds-id needle pat then (1 :: Nat) else frame-use-term needle borrows consumed in-tail body in
+      combine-frame-mode m1 (frame-use-alts needle borrows consumed in-tail rest)
+    other -> 1
+
+  frame-use-app :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> Nat
+  frame-use-app needle borrows consumed in-tail term =
+    let h = call-head term in
+    let args = call-args term Nil in
+    let n-args = list-length args in
+    case h of
+      CUse sp ty name role actuals | not (same-str role "foreign") && not (same-str role "constructor") ->
+        -- Tail call cannot pass a stack frame pointer (D104: musttail/self-loop overwrites frame).
+        if in-tail && terms-use-id needle args then 0
+        else if is-readonly-builtin-name name then
+          frame-use-readonly-args needle borrows consumed args
+        else
+          let bmask = (case hash-map-lookup name borrows of
+                Some bm | list-length bm == n-args -> Some bm
+                other -> None) in
+          let cmask = (case hash-map-lookup name consumed of
+                Some cm | list-length cm == n-args -> Some cm
+                other -> None) in
+          frame-use-call-args needle borrows consumed args bmask cmask 0
+      other ->
+        -- Direct `needle` passed to a constructor/foreign/indirect call escapes (CLocal -> 0),
+        -- while a sub-expression like `Cons (read-pair p) Nil` recurses into `read-pair p`.
+        combine-frame-mode (frame-use-term needle borrows consumed False h) (frame-use-list needle borrows consumed args)
+
+  frame-use-readonly-args :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Nat
+  frame-use-readonly-args needle borrows consumed args = case args of
+    Nil -> 1
+    Cons a rest ->
+      let m1 = (case unwrap-var-id a of
+            Some id | id == needle -> (1 :: Nat)
+            other -> frame-use-term needle borrows consumed False a) in
+      combine-frame-mode m1 (frame-use-readonly-args needle borrows consumed rest)
+
+  frame-use-call-args :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> Nat -> Nat
+  frame-use-call-args needle borrows consumed args bmask cmask idx = case args of
+    Nil -> 1
+    Cons a rest ->
+      let m1 = (case unwrap-var-id a of
+            Some id | id == needle ->
+              if mask-flag bmask idx then (1 :: Nat)
+              else if mask-flag cmask idx then (2 :: Nat)
+              else (0 :: Nat)
+            other -> frame-use-term needle borrows consumed False a) in
+      combine-frame-mode m1 (frame-use-call-args needle borrows consumed rest bmask cmask (idx + 1))
+
+  -- Count occurrences of free variable `needle` (capped at 2).
+  term-use-count :: Nat -> CoreTerm -> Nat
+  term-use-count needle term = case term of
+    CLocal sp ty id name actuals -> if id == needle then 1 else 0
+    CLet sp ty id name sc rhs body ->
+      let c1 = term-use-count needle rhs in
+      if c1 >= 2 || id == needle then c1 else c1 + term-use-count needle body
+    CIf sp ty c y n ->
+      let c1 = term-use-count needle c in
+      let cy = term-use-count needle y in
+      let cn = term-use-count needle n in
+      c1 + (if cy > cn then cy else cn)
+    CCase sp ty scrut alts ->
+      term-use-count needle scrut + alts-use-count needle alts
+    CApply sp ty f x -> term-use-count needle f + term-use-count needle x
+    CApplyEff sp ty row f x -> term-use-count needle f + term-use-count needle x
+    CErasedApply sp ty row f x -> term-use-count needle f + term-use-count needle x
+    CGuard sp ty c b -> term-use-count needle c + term-use-count needle b
+    CProved sp ty ev b -> term-use-count needle b
+    CRefine sp ty ev b -> term-use-count needle b
+    CRefineProof sp ty w b -> term-use-count needle b
+    CForget sp ty b -> term-use-count needle b
+    CCast sp ty b -> term-use-count needle b
+    CRequire sp ty b -> term-use-count needle b
+    CDischarge sp ty ev _ b -> term-use-count needle b
+    other -> if term-uses-id needle term then 2 else 0
+
+  alts-use-count :: Nat -> CoreTerm -> Nat
+  alts-use-count needle alts = case alts of
+    CAlternative sp pat body rest ->
+      let c1 = if pattern-binds-id needle pat then (0 :: Nat) else term-use-count needle body in
+      let c2 = alts-use-count needle rest in
+      if c1 > c2 then c1 else c2
+    other -> 0
+
+  -- | Decide whether `let id = rhs in body` is eligible for `RC_FRAME` stack
+  -- allocation. Returns 0 (heap), 1 (frame, borrowed-only uses), or 2 (frame,
+  -- passed to one proven-consumed owned callee).
+  frame-let-mode :: Nat -> CoreTerm -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> Nat
+  frame-let-mode id body borrows consumed in-tail =
+    if not (term-uses-id id body) then 0
+    else
+      let mode = frame-use-term id borrows consumed in-tail body in
+      if mode == 2 && term-use-count id body /= 1 then 0 else mode
+
+  -- =========================================================================
+  -- 4. Bounded region-scoped arenas (`compute-arena-phases`)
+  -- =========================================================================
+
+  base-type :: UType -> UType
+  base-type ty = case refinement-view ty of
+    URefine id name carrier predicate -> base-type carrier
+    URequire predicates body -> base-type body
+    other -> ty
+
+  is-non-arena-leaf-type :: UType -> Bool
+  is-non-arena-leaf-type ty = case base-type ty of
+    UCon name KType ->
+      same-str name "Int" || same-str name "Nat" || same-str name "Bool"
+      || same-str name "Char" || same-str name "Unit" || same-str name "String"
+      || same-str name "Bytes" || same-str name "I64" || same-str name "U64"
+      || same-str name "I32" || same-str name "U32" || same-str name "I16"
+      || same-str name "U16" || same-str name "I8" || same-str name "U8"
+      || same-str name "F64" || same-str name "F32" || same-str name "Sym"
+    other -> False
+
+  is-pure-non-escaping-builtin :: String -> Bool
+  is-pure-non-escaping-builtin name =
+    is-readonly-builtin-name name
+    || same-str name "cinch.runtime.bytesNew"
+    || same-str name "cinch.runtime.bytesSet"
+    || same-str name "cinch.runtime.bytesFromData"
+    || same-str name "cinch.runtime.natFromI64"
+    || same-str name "cinch.runtime.intFromNat"
+    || same-str name "cinch.runtime.symIntern"
+    || same-str name "cinch.runtime.textF64ToDecimal"
+    || same-str name "cinch.runtime.textF64FromDecimal"
+    || same-str name "cinch.prim.eqI64"
+    || same-str name "cinch.prim.neI64"
+
+  is-pure-prim-op :: String -> Bool
+  is-pure-prim-op op =
+    same-str op "+" || same-str op "-" || same-str op "*" || same-str op "/"
+    || same-str op "negate" || same-str op "==" || same-str op "/="
+    || same-str op "<" || same-str op "<=" || same-str op ">" || same-str op ">="
+    || same-str op "&&" || same-str op "||"
+    || same-str op "decision-true" || same-str op "decision-false"
+
+  is-empty-effect-row :: UType -> Bool
+  is-empty-effect-row row = case row of
+    URow UEnd -> True
+    other -> False
+
+  is-pure-leaf-fn-type :: UType -> Bool
+  is-pure-leaf-fn-type ty = case base-type ty of
+    UFun a b -> is-non-arena-leaf-type a && is-pure-leaf-fn-type b
+    UFunEff a row b -> is-empty-effect-row row && is-non-arena-leaf-type a && is-pure-leaf-fn-type b
+    UPi id n a row b -> is-empty-effect-row row && is-non-arena-leaf-type a && is-pure-leaf-fn-type b
+    UUsageArrow u inner -> is-pure-leaf-fn-type inner
+    other -> is-non-arena-leaf-type other
+
+  is-leaf-instance-head :: UType -> Bool
+  is-leaf-instance-head ty = case base-type ty of
+    UCon name kind -> True
+    UApp cls arg -> is-non-arena-leaf-type arg && is-leaf-instance-head cls
+    other -> False
+
+  is-leaf-instance-type :: UType -> Bool
+  is-leaf-instance-type ty = case base-type ty of
+    UApp cls arg -> is-non-arena-leaf-type arg && is-leaf-instance-head cls
+    other -> False
+
+  is-pure-closed-method :: UType -> List CoreEvidence -> Bool
+  is-pure-closed-method ty ev = case ev of
+    [CEInstance sp receiver factory Nil (CEArgumentsEnd end)] ->
+      is-leaf-instance-type receiver && is-pure-leaf-fn-type ty
+    other -> False
+
+  -- Does `term` contain only statically non-escaping operations (given `safe`
+  -- set of already-proven non-escaping definitions)?
+  term-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
+  term-non-escaping safe term = case term of
+    CLocal sp ty id name actuals -> True
+    CInt sp ty t -> True
+    CString sp ty t -> True
+    CChar sp ty t -> True
+    CSymbol sp ty t -> True
+    CUnit sp ty -> True
+    CUse sp ty name role actuals ->
+      if same-str role "constructor" then True
+      else if same-str role "foreign" then False
+      else if is-pure-non-escaping-builtin name then True
+      else (case hash-map-lookup name safe of Some True -> True; other -> False)
+    CQualifiedUse sp ty name role actuals ev ->
+      not (same-str role "foreign") && is-pure-closed-method ty ev
+    CMethod sp ty name owner slot actuals ev ->
+      is-pure-closed-method ty ev
+    CSpawn sp ty tok body -> False
+    CJoin sp ty tok body -> False
+    CScope sp ty r ev cb -> False
+    CMemoScope sp ty r body -> False
+    CHandle sp ty lbl res body h -> False
+    CHandler sp ty ret ops -> False
+    CPrimitive sp ty op args -> is-pure-prim-op op && args-chain-non-escaping safe args
+    CLambda sp ty pat body -> term-non-escaping safe body
+    CRecursiveFunctions sp ty members body ->
+      rec-bindings-non-escaping safe members && term-non-escaping safe body
+    CRecursiveValues sp ty region members body -> False
+    CApply sp ty f x -> app-non-escaping safe term
+    CApplyEff sp ty row f x -> app-non-escaping safe term
+    CErasedApply sp ty row f x -> app-non-escaping safe term
+    CLet sp ty id name sc rhs body -> term-non-escaping safe rhs && term-non-escaping safe body
+    CIf sp ty c y n -> term-non-escaping safe c && term-non-escaping safe y && term-non-escaping safe n
+    CCase sp ty s alts -> term-non-escaping safe s && alts-non-escaping safe alts
+    CTuple sp ty fields -> args-chain-non-escaping safe fields
+    CGuard sp ty c b -> term-non-escaping safe c && term-non-escaping safe b
+    CProved sp ty ev b -> term-non-escaping safe b
+    CRefine sp ty ev b -> term-non-escaping safe b
+    CRefineProof sp ty w b -> term-non-escaping safe b
+    CForget sp ty b -> term-non-escaping safe b
+    CCast sp ty b -> term-non-escaping safe b
+    CRequire sp ty b -> term-non-escaping safe b
+    CDischarge sp ty ev _ b -> term-non-escaping safe b
+    CDecision sp ty pred c -> term-non-escaping safe c
+    other -> False
+
+  app-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
+  app-non-escaping safe term =
+    let h = call-head term in
+    let args = call-args term Nil in
+    (case h of
+      CUse sp ty name role actuals ->
+        if same-str role "constructor" then True
+        else if same-str role "foreign" then False
+        else if is-pure-non-escaping-builtin name then True
+        else (case hash-map-lookup name safe of Some True -> True; other -> False)
+      CQualifiedUse sp ty name role actuals ev ->
+        not (same-str role "foreign") && is-pure-closed-method ty ev
+      CMethod sp ty name owner slot actuals ev ->
+        is-pure-closed-method ty ev
+      other -> False) && terms-non-escaping safe args
+
+  terms-non-escaping :: HashMap String Bool -> List CoreTerm -> Bool
+  terms-non-escaping safe terms = case terms of
+    Nil -> True
+    Cons t rest -> term-non-escaping safe t && terms-non-escaping safe rest
+
+  alts-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
+  alts-non-escaping safe alts = case alts of
+    CAlternative sp pat body rest -> term-non-escaping safe body && alts-non-escaping safe rest
+    other -> True
+
+  args-chain-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
+  args-chain-non-escaping safe chain = case chain of
+    CArgument sp first rest -> term-non-escaping safe first && args-chain-non-escaping safe rest
+    other -> True
+
+  rec-bindings-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
+  rec-bindings-non-escaping safe members = case members of
+    CRecursiveBinding id name val rest -> term-non-escaping safe val && rec-bindings-non-escaping safe rest
+    other -> True
+
+  clauses-non-escaping :: HashMap String Bool -> List CoreClause -> Bool
+  clauses-non-escaping safe clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause sp pats body) rest -> term-non-escaping safe body && clauses-non-escaping safe rest
+
+  init-non-escaping :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool
+  init-non-escaping defs acc = case defs of
+    Nil -> acc
+    Cons d rest -> init-non-escaping rest (hash-map-insert (core-name d) True acc)
+
+  non-escaping-sweep :: List CoreDefinition -> HashMap String Bool -> Bool -> (HashMap String Bool, Bool)
+  non-escaping-sweep defs safe changed = case defs of
+    Nil -> (safe, changed)
+    Cons d rest ->
+      let name = core-name d in
+      let cur = (case hash-map-lookup name safe of Some True -> True; other -> False) in
+      if not cur then non-escaping-sweep rest safe changed
+      else
+        let ok = clauses-non-escaping safe (core-clauses d) in
+        if ok then non-escaping-sweep rest safe changed
+        else non-escaping-sweep rest (hash-map-insert name False safe) True
+
+  non-escaping-fixpoint :: Nat -> List CoreDefinition -> HashMap String Bool -> HashMap String Bool
+  non-escaping-fixpoint fuel defs safe =
+    if fuel == 0 then hash-map-empty
+    else case non-escaping-sweep defs safe False of
+      (next, True) -> non-escaping-fixpoint (fuel - 1) defs next
+      (next, False) -> next
+
+  -- Does `term` call any allocating recursive helper (in `alloc-loops`)?
+  term-calls-alloc-loop :: HashMap String Bool -> CoreTerm -> Bool
+  term-calls-alloc-loop alloc-loops term = case term of
+    CUse sp ty name role actuals | not (same-str role "foreign") && not (same-str role "constructor") ->
+      (case hash-map-lookup name alloc-loops of Some True -> True; other -> False)
+    other -> terms-call-alloc-loop alloc-loops (runtime-term-children term)
+
+  terms-call-alloc-loop :: HashMap String Bool -> List CoreTerm -> Bool
+  terms-call-alloc-loop alloc-loops terms = case terms of
+    Nil -> False
+    Cons t rest -> term-calls-alloc-loop alloc-loops t || terms-call-alloc-loop alloc-loops rest
+
+  clauses-call-alloc-loop :: HashMap String Bool -> List CoreClause -> Bool
+  clauses-call-alloc-loop alloc-loops clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp pats body) rest -> term-calls-alloc-loop alloc-loops body || clauses-call-alloc-loop alloc-loops rest
+
+  term-allocates-ctor :: CoreTerm -> Bool
+  term-allocates-ctor term = case term of
+    CTuple sp ty fields -> True
+    CApply sp ty f x -> (case call-head term of
+      CUse at cty name role actuals | same-str role "constructor" -> True
+      other -> term-allocates-ctor f || term-allocates-ctor x)
+    other -> terms-allocate-ctor (runtime-term-children term)
+
+  terms-allocate-ctor :: List CoreTerm -> Bool
+  terms-allocate-ctor terms = case terms of
+    Nil -> False
+    Cons t rest -> term-allocates-ctor t || terms-allocate-ctor rest
+
+  clauses-allocate-ctor :: List CoreClause -> Bool
+  clauses-allocate-ctor clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp pats body) rest -> term-allocates-ctor body || clauses-allocate-ctor rest
+
+  collect-allocating-loops :: List CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Bool -> HashMap String Bool
+  collect-allocating-loops defs tail-groups acc = case defs of
+    Nil -> acc
+    Cons d rest ->
+      let name = core-name d in
+      let next = case hash-map-lookup name tail-groups of
+            Some g -> if clauses-allocate-ctor (core-clauses d) then hash-map-insert name True acc else acc
+            None -> acc in
+      collect-allocating-loops rest tail-groups next
+
+  own-pattern-type :: CorePattern -> UType
+  own-pattern-type pat = case pat of
+    CPWild sp ty -> ty
+    CPVar sp ty id name -> ty
+    CPAs sp ty id name inner -> ty
+    CPConstructor sp ty name actuals sc fields -> ty
+    CPTuple sp ty fields -> ty
+    CPInt sp ty t -> ty
+    CPString sp ty t -> ty
+    CPChar sp ty t -> ty
+    CPSymbol sp ty t -> ty
+    other -> UError
+
+  -- Check that a function has no higher-order function parameters.
+  has-function-param :: List CorePattern -> Bool
+  has-function-param pats = case pats of
+    Nil -> False
+    Cons p rest ->
+      let is-fn = (case base-type (own-pattern-type p) of
+            UFun a b -> True
+            UFunEff a r b -> True
+            UPi id n a r b -> True
+            UUsageArrow u a -> True
+            other -> False) in
+      is-fn || has-function-param rest
+
+  term-calls-self :: String -> CoreTerm -> Bool
+  term-calls-self self term = case term of
+    CUse sp ty name role actuals -> same-str name self
+    other -> terms-call-self self (runtime-term-children term)
+
+  terms-call-self :: String -> List CoreTerm -> Bool
+  terms-call-self self terms = case terms of
+    Nil -> False
+    Cons t rest -> term-calls-self self t || terms-call-self self rest
+
+  clauses-call-self :: String -> List CoreClause -> Bool
+  clauses-call-self self clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp pats body) rest -> term-calls-self self body || clauses-call-self self rest
+
+  -- | Identify non-recursive, side-effect-free functions that return a
+  -- non-arena leaf (`Int`, `Nat`, `Bool`, `String`, `Bytes`, etc.), never
+  -- escape any arena-allocated constructor, and call an allocating recursive
+  -- helper that produces scratch traffic. Each such function gets a bounded
+  -- local phase arena freed immediately on return.
+  compute-arena-phases :: List CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Bool
+  compute-arena-phases definitions tail-groups =
+    let safe = non-escaping-fixpoint 4096 definitions (init-non-escaping definitions hash-map-empty) in
+    let alloc-loops = collect-allocating-loops definitions tail-groups hash-map-empty in
+    select-arena-phases definitions tail-groups safe alloc-loops hash-map-empty
+
+  select-arena-phases :: List CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Bool -> HashMap String Bool -> HashMap String Bool -> HashMap String Bool
+  select-arena-phases defs tail-groups safe alloc-loops out = case defs of
+    Nil -> out
+    Cons d rest ->
+      let name = core-name d in
+      let in-tail-group = (case hash-map-lookup name tail-groups of Some g -> True; None -> False) in
+      let is-safe = (case hash-map-lookup name safe of Some True -> True; other -> False) in
+      let ok = not (same-str name "main" || same-str name "Main.main")
+            && not in-tail-group
+            && is-safe
+            && (case (core-givens d, core-openings d, core-clauses d) of
+                  (Nil, Nil, Cons (MkCoreClause sp pats body) more) ->
+                    is-non-arena-leaf-type (core-type body)
+                    && not (has-function-param (own-runtime-params pats))
+                    && not (clauses-call-self name (core-clauses d))
+                    && clauses-call-alloc-loop alloc-loops (core-clauses d)
+                  other -> False) in
+      let next = if ok then hash-map-insert name True out else out in
+      select-arena-phases rest tail-groups safe alloc-loops next
+
+  -- =========================================================================
+  -- 5. Static thread-locality & nullary enum detection
+  -- =========================================================================
+
+  is-concurrency-name :: String -> Bool
+  is-concurrency-name name =
+    same-str name "par-both" || same-str name "par-tabulate" || same-str name "par-map" || same-str name "par-workers"
+    || same-str name "cinch.runtime.mvarNew" || same-str name "cinch.runtime.mvarNewEmpty"
+    || same-str name "cinch.runtime.mvarTake" || same-str name "cinch.runtime.mvarPut"
+    || same-str name "cinch.runtime.mvarRead" || same-str name "cinch.runtime.mvarTryTake"
+    || same-str name "cinch.runtime.mvarTryPut" || same-str name "cinch.runtime.mvarTryRead"
+    || same-str name "cinch.runtime.mvarSwap" || same-str name "cinch.runtime.mvarIsEmpty"
+    || same-str name "cinch.runtime.rwlockNew" || same-str name "cinch.runtime.rwlockRead"
+    || same-str name "cinch.runtime.rwlockWrite" || same-str name "cinch.runtime.rwlockTryRead"
+    || same-str name "cinch.runtime.rwlockTryWrite"
+    || same-str name "cinch.runtime.atomicNew" || same-str name "cinch.runtime.atomicLoad"
+    || same-str name "cinch.runtime.atomicStore" || same-str name "cinch.runtime.atomicSwap"
+    || same-str name "cinch.runtime.atomicFetchAdd" || same-str name "cinch.runtime.atomicFetchSub"
+    || same-str name "cinch.runtime.atomicFetchAnd" || same-str name "cinch.runtime.atomicFetchOr"
+    || same-str name "cinch.runtime.atomicFetchXor" || same-str name "cinch.runtime.atomicCas"
+    || same-str name "cinch.runtime.atomicFence"
+    || same-str name "cinch.runtime.stmPublish" || same-str name "cinch.runtime.stmState"
+
+  term-uses-concurrency :: CoreTerm -> Bool
+  term-uses-concurrency term = case term of
+    CSpawn sp ty tok body -> True
+    CJoin sp ty tok body -> True
+    CPrimitive sp ty op args -> is-concurrency-name op || terms-use-concurrency (runtime-term-children term)
+    CUse sp ty name role actuals -> is-concurrency-name name
+    CLambda sp ty pat body -> term-uses-concurrency body
+    other -> terms-use-concurrency (runtime-term-children term)
+
+  terms-use-concurrency :: List CoreTerm -> Bool
+  terms-use-concurrency terms = case terms of
+    Nil -> False
+    Cons t rest -> term-uses-concurrency t || terms-use-concurrency rest
+
+  clauses-use-concurrency :: List CoreClause -> Bool
+  clauses-use-concurrency clauses = case clauses of
+    Nil -> False
+    Cons (MkCoreClause sp pats body) rest -> term-uses-concurrency body || clauses-use-concurrency rest
+
+  -- | True if any definition in the program uses parallel or concurrent primitives.
+  -- When False, every reference count in the module is statically thread-local
+  -- (never shared/negative), so RC helpers skip atomic loads and MT branches.
+  program-uses-concurrency :: List CoreDefinition -> Bool
+  program-uses-concurrency defs = case defs of
+    Nil -> False
+    Cons d rest -> clauses-use-concurrency (core-clauses d) || program-uses-concurrency rest
+
+  all-nullary-ctors :: List CoreConstructor -> Bool
+  all-nullary-ctors cs = case cs of
+    Nil -> True
+    Cons c rest -> (case core-constructor-fields c of Nil -> all-nullary-ctors rest; other -> False)
+
+  -- | True when a `CoreData` has only 0-arity constructors (uniform layout),
+  -- meaning every runtime value of this type is a static `RC_IMMORTAL` nullary
+  -- block whose `dup` and `drop` are statically no-ops.
+  is-immortal-enum-data :: CoreData -> Bool
+  is-immortal-enum-data d = case core-data-layout d of
+    UniformData -> (case core-data-constructors d of
+      Nil -> False
+      Cons first rest -> all-nullary-ctors (Cons first rest))
+    other -> False

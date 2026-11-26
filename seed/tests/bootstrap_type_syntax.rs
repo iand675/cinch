@@ -8,20 +8,20 @@ fn predicates_indices_and_refined_results_keep_their_structure() {
         "type_syntax",
         &[
             (
-                "Bootstrap.Ast.cinch",
-                include_str!("../../compiler/Bootstrap.Ast.cinch"),
+                "Cinch.Ast.cinch",
+                include_str!("../../compiler/Cinch.Ast.cinch"),
             ),
             (
-                "Bootstrap.Report.cinch",
-                include_str!("../../compiler/Bootstrap.Report.cinch"),
+                "Cinch.Report.cinch",
+                include_str!("../../compiler/Cinch.Report.cinch"),
             ),
             (
-                "Bootstrap.Parse.cinch",
-                include_str!("../../compiler/Bootstrap.Parse.cinch"),
+                "Cinch.Parse.cinch",
+                include_str!("../../compiler/Cinch.Parse.cinch"),
             ),
             (
-                "Bootstrap.Check.cinch",
-                include_str!("../../compiler/Bootstrap.Check.cinch"),
+                "Cinch.Check.cinch",
+                include_str!("../../compiler/Cinch.Check.cinch"),
             ),
             (
                 "Main.cinch",

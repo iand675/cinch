@@ -1,0 +1,567 @@
+-- Portable interface syntax comes from checked types, never diagnostic text.
+-- Unsolved identities and unrepresentable rows are explicit export refusals.
+module Cinch.ExportType where
+  import Algebra.Semigroup
+  import Cinch.Type
+  import Cinch.Promote (is-promoted-fn-name, strip-promoted-fn-name)
+  import Cinch.Nominal (decode-identity)
+  import Cinch.Ast
+  import Cinch.Index
+  import Cinch.Total (total-identity, total-source-projection)
+  import Data.String
+  import Text.Scan (string-starts-with, string-drop)
+  import Text.Show (nat-to-string, int-to-string)
+
+  export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
+  export export-parameters, export-constructor-fields, export-constructor-display, export-instance-scheme
+  export constructor-field-erasure
+  export export-resolved-value-scheme, export-equation-display
+  export diagnostic-member-name
+
+  join :: List (Result String String) -> Result String String
+  join parts = case parts of
+    Nil -> Ok ""
+    Cons (Err error) rest -> Err error
+    Cons (Ok first) rest -> case join rest of Err error -> Err error; Ok more -> Ok (string-concat first more)
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  -- The whole identity, or a refusal. The grammar is Cinch.Nominal's
+  -- `decode-identity`; a spelling is an identity only when it decodes
+  -- completely and canonically, so a trailing character or an escape that
+  -- does not spell one scalar is not a source name to compare against.
+  decode :: List Char -> Result String String
+  decode input = case decode-identity input of
+    Some (value, Nil) -> if string-length value > 0 then Ok value else Err "empty encoded defining identity"
+    other -> Err "invalid encoded defining identity"
+  split-owner :: List Char -> List Char -> Result String (String, String)
+  split-owner input prefix = case input of
+    Nil -> Err "source defining identity has no member"
+    Cons c rest -> if char-code c == 46 then
+      (case (decode (reverse prefix), decode rest) of
+        (Ok owner, Ok member) -> Ok (owner, member)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+      else split-owner rest (Cons c prefix)
+  export-global :: String -> Result String String
+  -- Resolve reserves the unencoded runtime entry spelling for Main.main.
+  -- Interfaces still record its defining source identity, like every value.
+  export-global name = if string-starts-with "#effect." name then export-global (string-drop 8 name) else if same name "#kernel.MVar" then Ok "MVar" else if same name "#kernel.STM" then Ok "STM" else if same name "#kernel.ForeignIO" then Ok "IO" else if same name "main" then Ok "Main.main" else case unpack name of
+    Cons prefix (Cons dot rest) -> if char-code dot == 46 && char-code prefix == 105 then decode rest
+      else if char-code dot == 46 && char-code prefix == 109 then
+        (case split-owner rest Nil of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))
+      else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec" else if same name "b.Fin" then Ok "Fin" else if same name "b.Vec" then Ok "Vec" else if same name "b.Scope" then Ok "Scope" else if same name "b.Task" then Ok "Task"
+      else if char-code dot == 46 && char-code prefix == 98 then Err "unported kernel defining identity" else Ok name
+    other -> Ok name
+
+  -- Linkage identities stay encoded. Diagnostics use the source spelling.
+  diagnostic-member-name :: String -> String
+  diagnostic-member-name symbol = case export-global symbol of
+    Ok name -> pack (diagnostic-member-chars (unpack name) Nil)
+    Err message -> symbol
+  diagnostic-member-chars :: List Char -> List Char -> List Char
+  diagnostic-member-chars input seen = case input of
+    Nil -> reverse seen
+    Cons c rest -> diagnostic-member-chars rest (if char-code c == 46 then Nil else Cons c seen)
+
+  local :: Nat -> List (Nat, String) -> Result String String
+  local id scope = case scope of
+    Nil -> Err "interface type contains an unbound local identity"
+    Cons (key, name) rest -> if id == key then Ok name else local id rest
+  fresh-name :: String -> Nat -> String
+  fresh-name prefix id = string-concat prefix (nat-to-string id)
+  scope-name-used :: String -> List (Nat, String) -> Bool
+  scope-name-used wanted scope = case scope of
+    Nil -> False
+    Cons (id, name) rest -> same wanted name || scope-name-used wanted rest
+  fresh-scoped-name :: String -> List (Nat, String) -> String
+  fresh-scoped-name name scope = if scope-name-used name scope then fresh-scoped-name (string-concat name "-r") scope else name
+  forall-binder-names :: List Quant -> List (Nat, String) -> (String, List (Nat, String))
+  forall-binder-names qs scope = case qs of
+    Nil -> ("", scope)
+    Cons q rest -> let binder = argument-name (quant-name q) scope in
+      case forall-binder-names rest (Cons (quant-id q, binder) scope) of
+        (names, bound) -> (string-concat-all [" ", binder, names], bound)
+  argument-name :: String -> List (Nat, String) -> String
+  argument-name name scope = let fallback = fresh-name "p" (list-length scope) in
+    fresh-scoped-name (case unpack name of
+      Nil -> fallback
+      Cons first rest -> if char-code first == 35 || char-code first == 36 then fallback else name) scope
+  kind-in :: List (Nat, String) -> Kind -> Result String String
+  kind-in scope kind = case kind of
+    KType -> Ok "Type"
+    KProp -> Ok "Prop"
+    KRegion -> Ok "Region"
+    KEffect -> Ok "Effect"
+    KRow -> Ok "Row"
+    KFun a b -> join [Ok "(", kind-in scope a, Ok " -> ", kind-in scope b, Ok ")"]
+    KValue carrier -> type-in scope carrier
+  kind-display-in :: List (Nat, String) -> Kind -> Result String String
+  kind-display-in scope kind = case kind of
+    KFun first rest -> join [kind-argument-in scope first, Ok " -> ", kind-display-in scope rest]
+    other -> kind-in scope kind
+  kind-argument-in :: List (Nat, String) -> Kind -> Result String String
+  kind-argument-in scope kind = case kind of
+    KFun first rest -> join [Ok "(", kind-display-in scope kind, Ok ")"]
+    other -> kind-in scope kind
+  export-kind :: Kind -> Result String String
+  export-kind kind = kind-in Nil kind
+  export-parameters :: List Quant -> Result String (List (String, String, Bool))
+  export-parameters quants = parameter-rows Nil quants
+  parameter-rows :: List (Nat, String) -> List Quant -> Result String (List (String, String, Bool))
+  parameter-rows scope quants = case quants of
+    Nil -> Ok Nil
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
+      case (kind-display-in scope (quant-kind q), parameter-rows (Cons (quant-id q, name) scope) rest) of
+        (Ok kind, Ok more) -> Ok (Cons (name, kind, quant-implicit q) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
+  export-constructor-fields :: Scheme -> Result String (List String)
+  export-constructor-fields scheme = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> constructor-field-rows scope (scheme-body scheme)
+  constructor-field-rows :: List (Nat, String) -> UType -> Result String (List String)
+  constructor-field-rows scope ty = case ty of
+    UFun domain result -> prepend-field (type-in scope domain) (constructor-field-rows scope result)
+    UPi id name domain row result -> prepend-field (type-in scope domain)
+      (constructor-field-rows (Cons (id, source-binder (fresh-name "p" (list-length scope)) name scope) scope) result)
+    UProofFun predicate row result -> prepend-field (type-in scope predicate) (constructor-field-rows scope result)
+    URequire predicates result -> Err "constrained constructor fields require checked proof metadata"
+    other -> Ok Nil
+  constructor-field-erasure :: UType -> List Bool
+  constructor-field-erasure ty = case ty of
+    UFun domain result -> Cons False (constructor-field-erasure result)
+    UPi id name domain row result -> Cons False (constructor-field-erasure result)
+    UProofFun predicate row result -> Cons True (constructor-field-erasure result)
+    other -> Nil
+  prepend-field :: Result String String -> Result String (List String) -> Result String (List String)
+  prepend-field first rest = case (first, rest) of
+    (Ok value, Ok more) -> Ok (Cons value more)
+    (Err error, other) -> Err error
+    (other, Err error) -> Err error
+  -- Ordinary constructors use the public schema's nominal application
+  -- syntax. Keep the fully resolved scheme on its separate canonical path.
+  ordinary-quantifiers :: List Quant -> Bool
+  ordinary-quantifiers quants = case quants of
+    Nil -> True
+    Cons q rest -> not (quant-implicit q) && kind-equal (quant-kind q) KType && ordinary-quantifiers rest
+  ordinary-type :: UType -> Bool
+  ordinary-type ty = case ty of
+    UCon name kind -> True
+    UBound id name kind -> kind-equal kind KType
+    UApp f x -> ordinary-type f && ordinary-type x
+    UFun a b -> ordinary-type a && ordinary-type b
+    UTuple items -> ordinary-tuple items
+    other -> False
+  ordinary-tuple :: UType -> Bool
+  ordinary-tuple items = case items of
+    UEnd -> True
+    UArg first rest -> ordinary-type first && ordinary-tuple rest
+    other -> False
+  -- A constructor's display scheme names every nominal by its defining
+  -- identity, exactly as a value's scheme does (design/base-as-a-package.md,
+  -- "Identity comes from the declaring module"). There is no base-family
+  -- exception: rewriting `Data.Core.List` to `List` here made this producer
+  -- disagree with the seed's, so a source-identical replacement of an
+  -- embedded home changed that home's interface hash and every consumer of
+  -- it was refused as stale.
+  constructor-type :: List (Nat, String) -> UType -> Result String String
+  constructor-type scope ty = case ty of
+    UCon name kind ->
+      if promoted-str-name name then Ok name
+      else if same name promoted-nil-name then Ok "[]"
+      else if promoted-ctor-name name then export-global (strip-ctor-prefix name)
+      else if is-promoted-fn-name name then Ok (strip-promoted-fn-name name)
+      else export-global name
+    UApp f x -> join [constructor-type scope f, Ok " ", case x of
+      UApp g y -> join [Ok "(", constructor-type scope x, Ok ")"]
+      other -> constructor-type scope x]
+    UFun a b -> join [Ok "(", constructor-type scope a, Ok " -> ", constructor-type scope b, Ok ")"]
+    UTuple items -> join [Ok "(", constructor-tuple scope items, Ok ")"]
+    other -> type-in scope ty
+  constructor-tuple :: List (Nat, String) -> UType -> Result String String
+  constructor-tuple scope items = case items of
+    UEnd -> Ok ""
+    UArg first rest -> join [constructor-type scope first, case rest of
+      UEnd -> Ok ""
+      other -> join [Ok ", ", constructor-tuple scope rest]]
+    other -> Err "invalid constructor tuple"
+  constructor-quantifiers :: List (Nat, String) -> List Quant -> (List String, List (Nat, String))
+  constructor-quantifiers scope quants = case quants of
+    Nil -> (Nil, scope)
+    Cons q rest -> let name = source-binder (fresh-name "q" (list-length scope)) (quant-name q) scope in
+      case constructor-quantifiers (Cons (quant-id q, name) scope) rest of
+        (names, bound) -> (Cons name names, bound)
+  ordinary-fields :: List (Nat, String) -> UType -> Result String (List String)
+  ordinary-fields scope ty = case ty of
+    UFun domain result -> prepend-field (constructor-type scope domain) (ordinary-fields scope result)
+    other -> Ok Nil
+  export-constructor-display :: Bool -> Scheme -> (Result String (List String), Result String String)
+  export-constructor-display hidden scheme = let quants = scheme-params scheme in let body = scheme-body scheme in
+    if hidden || not (ordinary-quantifiers quants && ordinary-type body) then (export-constructor-fields scheme, export-value-scheme scheme)
+    else case scheme-requirements scheme of
+      Cons first rest -> (export-constructor-fields scheme, export-value-scheme scheme)
+      Nil -> case constructor-quantifiers Nil quants of
+        (names, scope) -> (ordinary-fields scope body, case names of
+          Nil -> constructor-type scope body
+          other -> join [Ok "forall ", Ok (strings " " names), Ok " . ", constructor-type scope body])
+  index-in :: List (Nat, String) -> IndexTerm -> Result String String
+  index-in scope index = case index of
+    IInteger n -> Ok (int-to-string n)
+    IBound id name -> local id scope
+    IRigid id name level -> local id scope
+    IGlobal name -> export-global name
+    IApply f x -> join [Ok "(", index-in scope f, Ok " ", index-in scope x, Ok ")"]
+    IAdd a b -> join [Ok "(", index-in scope a, Ok " + ", index-in scope b, Ok ")"]
+    ISubtract a b -> join [Ok "(", index-in scope a, Ok " - ", index-in scope b, Ok ")"]
+    IMultiply a b -> join [Ok "(", index-in scope a, Ok " * ", index-in scope b, Ok ")"]
+    other -> Err "interface index has no portable checked representation"
+  separated :: List (Nat, String) -> String -> UType -> Result String String
+  separated scope delimiter spine = separated-style False scope delimiter spine
+  separated-style :: Bool -> List (Nat, String) -> String -> UType -> Result String String
+  separated-style display scope delimiter spine = case spine of
+    UEnd -> Ok ""
+    UArg first UEnd -> type-in-style display scope first
+    UArg first rest -> join [type-in-style display scope first, Ok delimiter, separated-style display scope delimiter rest]
+    other -> Err "malformed checked interface spine"
+  row-parts :: List (Nat, String) -> UType -> Result String (List String, List String)
+  row-parts scope row = case row of
+    URow labels -> row-labels scope labels
+    URowJoin first second -> (case (row-parts scope first, row-parts scope second) of
+      (Ok (a, x), Ok (b, y)) -> Ok (a <> b, x <> y)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error)
+    UBound id name KRow -> (case local id scope of Ok value -> Ok (Nil, [value]); Err error -> Err error)
+    URigid id name level KRow -> (case local id scope of Ok value -> Ok (Nil, [value]); Err error -> Err error)
+    other -> Err "unresolved or malformed exported effect row"
+  application-in :: List (Nat, String) -> UType -> Result String String
+  application-in scope ty = application-style False scope ty
+  application-style :: Bool -> List (Nat, String) -> UType -> Result String String
+  application-style display scope ty = case ty of
+    UApp f x -> join [application-style display scope f, Ok " ", type-in-style display scope x]
+    other -> type-in-style display scope ty
+  row-labels :: List (Nat, String) -> UType -> Result String (List String, List String)
+  row-labels scope labels = case labels of
+    UEnd -> Ok (Nil, Nil)
+    UArg first rest -> (case (application-in scope first, row-labels scope rest) of
+      (Ok value, Ok (more, tails)) -> Ok (Cons value more, tails)
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error)
+    other -> row-parts scope labels
+  has :: String -> List String -> Bool
+  has value values = case values of Nil -> False; Cons first rest -> same value first || has value rest
+  unique :: List String -> List String -> List String
+  unique values seen = case values of Nil -> reverse seen; Cons first rest -> unique rest (if has first seen then seen else Cons first seen)
+  strings :: String -> List String -> String
+  strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
+  row-in :: List (Nat, String) -> UType -> Result String String
+  row-in scope row = case row-parts scope row of
+    Err error -> Err error
+    Ok (labels, tails) -> let body = strings ", " (unique labels Nil) in
+      case unique tails Nil of
+        Nil -> Ok (if string-length body == 0 then "" else string-concat-all ["{", body, "}"])
+        Cons tail Nil -> Ok (string-concat-all ["{", body, " | ", tail, "}"])
+        other -> Err "exported effect row has independent unresolved tails"
+  -- Resolved contracts keep Native canonical binary applications. Public
+  -- source schemes flatten application spines without changing binder scope.
+  nonportable-string-length :: String
+  nonportable-string-length = "opaque string length has no resolved interface encoding"
+  nonportable-machine-arithmetic :: String
+  nonportable-machine-arithmetic = "fixed-width operands in type arithmetic have no resolved interface encoding"
+  portable-arithmetic-operand :: UType -> Bool
+  portable-arithmetic-operand ty = case ty of
+    UIndexPromote value -> case value-carrier (type-kind value) of
+      Some (UCon name KType) -> same name "Int" || same name "Nat"
+      other -> False
+    other -> True
+  usage-arrow-prefix :: Bool -> Bool -> List (Nat, String) -> Nat -> ArrowUsage -> UType -> Option (List (Result String String), List (Nat, String), UType)
+  usage-arrow-prefix display positions scope position usage arrow =
+    let operator = string-concat-all [" ", arrow-usage-text usage, " ->"] in
+    case arrow of
+      UFun domain result -> Some ([Ok "(", type-in-style display scope domain, Ok operator, Ok " "], scope, result)
+      UFunEff domain row result -> Some ([Ok "(", type-in-style display scope domain, Ok operator, row-in scope row, Ok " "], scope, result)
+      UPi id name domain row result ->
+        let binder = if positions then fresh-scoped-name (fresh-name "arg" position) scope else argument-name name scope in
+        let bound = Cons (id, binder) scope in
+        Some ([Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ")", Ok operator, row-in bound row, Ok " "], bound, result)
+      other -> None
+  type-in :: List (Nat, String) -> UType -> Result String String
+  type-in scope ty = type-in-style False scope ty
+  type-in-style :: Bool -> List (Nat, String) -> UType -> Result String String
+  type-in-style display scope ty = case ty of
+    URefineFormer name ids body -> export-global name
+    UCon name kind ->
+      if promoted-str-name name then Ok name
+      else if same name promoted-nil-name then Ok "[]"
+      else if promoted-ctor-name name then export-global (strip-ctor-prefix name)
+      else if is-promoted-fn-name name then Ok (strip-promoted-fn-name name)
+      else export-global name
+    UBound id name kind -> local id scope
+    URigid id name level kind -> local id scope
+    UIndex carrier index -> index-in scope index
+    UIndexForget value -> type-in-style display scope value
+    UIndexPromote value -> type-in-style display scope value
+    UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
+    UIndexMeasure measure value -> join [Ok (string-concat-all ["(", if display then "" else "b.", index-measure-name measure, " "]), type-in-style display scope value, Ok ")"]
+    UIndexStringLength value -> if display then join [Ok "(Data.String.string-length ", type-in-style display scope value, Ok ")"] else Err nonportable-string-length
+    UIndexBorrowRead value -> Err "local borrow observation cannot appear in a published contract"
+    UIndexConstructor name scheme UEnd -> export-global name
+    UIndexConstructor name arrow input -> join [Ok "(", export-global name, Ok " ", type-in-style display scope input, Ok ")"]
+    UIndexCall function args -> if total-source-projection function && not display then Err "source nominal projection requires a local proof context"
+      else join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
+    UIndexMath op a b -> if display || (portable-arithmetic-operand a && portable-arithmetic-operand b) then
+      join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", op, " "]), type-in-style display scope b, Ok ")"]
+      else Err nonportable-machine-arithmetic
+    UPropLit value -> Ok (if value then "True" else "False")
+    UCompare relation a b -> if same relation "Eq" then
+      join [Ok "(Eq ", type-in-style display scope a, Ok " ", type-in-style display scope b, Ok ")"]
+      else join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", relation, " "]), type-in-style display scope b, Ok ")"]
+    UPropAnd a b -> join [Ok "(", type-in-style display scope a, Ok " && ", type-in-style display scope b, Ok ")"]
+    UPropOr a b -> join [Ok "(", type-in-style display scope a, Ok " || ", type-in-style display scope b, Ok ")"]
+    UPropNot value -> join [Ok "(Not ", type-in-style display scope value, Ok ")"]
+    UPropNonZero value -> join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+    UPropNonZeroPending value -> if valid-type ty then join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+      else Err "cannot export an invalid NonZero proposition"
+    UPropNotNull value -> join [Ok "(NotNull ", type-in-style display scope value, Ok ")"]
+    UPropAscii value -> join [Ok "(Ascii ", type-in-style display scope value, Ok ")"]
+    UPropOrdered value -> join [Ok "(Ordered ", type-in-style display scope value, Ok ")"]
+    URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
+    URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
+    UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
+      join [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " ", type-in-style display bound result, Ok ")"]
+    UApp f x -> case sing-type-parts ty of
+      Some (carrier, val) -> join [Ok "(Sing ", type-in-style display scope val, Ok ")"]
+      None -> (case extract-promoted-list ty of
+        Some elems -> join [Ok "[", promoted-list-in display scope elems, Ok "]"]
+        None -> (case thunk-parts ty of
+          Some (row, result) -> case row-in scope row of
+            Err error -> Err error
+            Ok effects -> join [Ok "(Thunk ", Ok (if same effects "" then "{}" else effects), Ok " ", type-in-style display scope result, Ok ")"]
+          None -> (case lazy-parts ty of
+            Some (row, region, result) -> (case row-in scope row of
+              Err error -> Err error
+              Ok effects -> join [Ok "(Lazy ", Ok (if same effects "" then "{}" else effects), Ok " ",
+                type-in-style display scope region, Ok " ", type-in-style display scope result, Ok ")"])
+            None -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
+              join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"])))
+    UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
+    UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
+    UUsageArrow usage arrow -> case usage-arrow-prefix display False scope 0 usage arrow of
+      Some (prefix, bound, result) -> join (prefix <> [type-in-style display bound result, Ok ")"])
+      None -> Err "malformed usage-annotated arrow in interface"
+    UProofFun predicate row result -> if valid-type ty then
+      join [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " ", type-in-style display scope result, Ok ")"]
+      else Err "malformed erased proof arrow in interface"
+    UTuple fields -> join [Ok "(", separated-style display scope ", " fields, Ok ")"]
+    USigma id name domain body -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
+      join [Ok "(Sigma (", Ok binder, Ok " :: ", type-in-style display scope domain, Ok "). ", type-in-style display bound body, Ok ")"]
+    -- design/rank-n-polymorphism.md section 5: the source spelling, which
+    -- the reader parses back through the nested-forall conversion.
+    UForall qs body -> case forall-binder-names (quants-list qs) scope of
+      (names, bound) -> join [Ok "(forall", Ok names, Ok ". ", type-in-style display bound body, Ok ")"]
+    other -> Err "checked type has no portable interface representation"
+  export-type :: UType -> Result String String
+  export-type ty = type-in Nil ty
+  promoted-list-in :: Bool -> List (Nat, String) -> List UType -> Result String String
+  promoted-list-in display scope elems = case elems of
+    Nil -> Ok ""
+    Cons x Nil -> type-in-style display scope x
+    Cons x rest -> join [type-in-style display scope x, Ok ", ", promoted-list-in display scope rest]
+  quantifiers :: List (Nat, String) -> List Quant -> Result String (String, List (Nat, String))
+  quantifiers scope quants = case quants of
+    Nil -> Ok ("", scope)
+    Cons q rest -> let name = fresh-name "q" (list-length scope) in
+      (case (kind-in scope (quant-kind q), quantifiers (Cons (quant-id q, name) scope) rest) of
+        (Ok kind, Ok (more, bound)) -> Ok (string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "} " else ") ", more], bound)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+  requirements :: List (Nat, String) -> Nat -> List Requirement -> Result String String
+  requirements scope position needs = case needs of
+    Nil -> Ok ""
+    Cons first rest -> join [Ok (fresh-name "d" position), Ok " :: ", application-in scope (requirement-type first),
+      case rest of Nil -> Ok ""; more -> join [Ok ", ", requirements scope (position + 1) more]]
+  with-result :: List (Result String String) -> Result String (String, List String) -> Result String (String, List String)
+  with-result prefix result = case result of
+    Err error -> Err error
+    Ok (body, predicates) -> case join (prefix <> [Ok body, Ok ")"]) of Err error -> Err error; Ok value -> Ok (value, predicates)
+  -- Source contracts sink their proof context under computational binders.
+  -- Portable syntax places it at signature scope, where the named Pi
+  -- arguments still identify the exact variables used by each obligation.
+  scheme-result :: List (Nat, String) -> UType -> Result String (String, List String)
+  scheme-result scope ty = result-in False False scope 0 ty
+  -- Display argument positions follow checked identities. The same scope is
+  -- used for domains, effects and obligations, so renaming cannot capture a
+  -- quantified parameter or change which argument a predicate describes.
+  result-in :: Bool -> Bool -> List (Nat, String) -> Nat -> UType -> Result String (String, List String)
+  result-in display positions scope position ty = case ty of
+    UPi id name domain row result -> let binder = if positions then fresh-scoped-name (fresh-name "arg" position) scope else argument-name name scope in let bound = Cons (id, binder) scope in
+      with-result [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " "] (result-in display positions bound (position + 1) result)
+    UFun domain result -> with-result [Ok "(", type-in-style display scope domain, Ok " -> "] (result-in display positions scope (position + 1) result)
+    UFunEff domain row result -> with-result [Ok "(", type-in-style display scope domain, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
+    UUsageArrow usage arrow -> case usage-arrow-prefix display positions scope position usage arrow of
+      Some (prefix, bound, result) -> with-result prefix (result-in display positions bound (position + 1) result)
+      None -> Err "malformed usage-annotated arrow in interface"
+    UProofFun predicate row result -> if valid-type ty then
+      with-result [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
+      else Err "malformed erased proof arrow in interface"
+    URequire predicates body -> case body of
+      UPi id name a row b -> Err "early dependent precondition cannot be moved across an argument"
+      UFun a b -> Err "early precondition cannot be moved across an argument"
+      UFunEff a row b -> Err "early effectful precondition cannot be moved across an argument"
+      UUsageArrow usage arrow -> Err "early precondition cannot be moved across a usage-annotated argument"
+      UProofFun predicate row result -> Err "early erased-proof precondition cannot be moved across an argument"
+      other -> (case (separated-style display scope ", " predicates, result-in display positions scope position body) of
+        (Ok conditions, Ok (value, rest)) -> Ok (value, Cons conditions rest)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+    other -> case type-in-style display scope ty of Err error -> Err error; Ok value -> Ok (value, Nil)
+  export-scheme :: Scheme -> Result String String
+  export-scheme scheme = case quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (requirements scope 0 (scheme-requirements scheme), scheme-result scope (scheme-body scheme)) of
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+      (Ok dictionaries, Ok (body, predicates)) ->
+        let contexts = (if string-length dictionaries == 0 then Nil else [dictionaries]) <> predicates in
+        let constrained = case contexts of Nil -> Ok body; more -> join [Ok "using (", Ok (strings ", " more), Ok ") => ", Ok body] in
+        if string-length prefix == 0 then constrained else join [Ok "forall ", Ok prefix, Ok ". ", constrained]
+
+  -- Source contracts, declaration parameters and constructor fields retain
+  -- their declared binder names. The separate canonical scheme printer stays
+  -- alpha-stable. Freshening prevents a source spelling from capturing a binder.
+  source-binder :: String -> String -> List (Nat, String) -> String
+  source-binder fallback name scope = fresh-scoped-name (case unpack name of
+    Nil -> fallback
+    Cons first rest -> if char-code first == 35 || char-code first == 36 || same name "_" then fallback else name) scope
+  value-quantifiers :: List (Nat, String) -> List Quant -> Result String (String, List (Nat, String))
+  value-quantifiers scope quants = case value-quantifiers-after scope (list-length scope) quants Nil of
+    Err error -> Err error
+    Ok (pieces, bound) -> Ok (string-concat-all (reverse pieces), bound)
+  -- Pieces are collected while descending and joined once on the way out.
+  -- Rendering each binder around the already-rendered tail would copy the
+  -- whole suffix at every level, which is quadratic in the binder count; the
+  -- pieces themselves are the same strings in the same order.
+  value-quantifiers-after :: List (Nat, String) -> Nat -> List Quant -> List String -> Result String (List String, List (Nat, String))
+  value-quantifiers-after scope position quants pieces = case quants of
+    Nil -> Ok (pieces, scope)
+    Cons q rest -> let name = source-binder (fresh-name "q" position) (quant-name q) scope in
+      (case kind-display-in scope (quant-kind q) of
+        Err error -> Err error
+        Ok kind -> let piece = string-concat-all [if quant-implicit q then "{" else "(", name, " :: ", kind, if quant-implicit q then "}" else ")"] in
+          let separated = case pieces of Nil -> piece; more -> string-concat-all [" ", piece] in
+          value-quantifiers-after (Cons (quant-id q, name) scope) (position + 1) rest (Cons separated pieces))
+  -- Display and factory metadata share one binder allocation. A dictionary
+  -- name may collide with a quantified type name without capturing it.
+  value-requirement-rows :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String (List String)
+  value-requirement-rows scope used position needs = case needs of
+    Nil -> Ok Nil
+    Cons first rest -> let name = source-binder (if same (requirement-name first) "#self" then "dict" else fresh-name "d" position) (requirement-name first) used in
+      (case (application-in scope (requirement-type first), value-requirement-rows scope (Cons (0, name) used) (position + 1) rest) of
+        (Ok head, Ok more) -> Ok (Cons (string-concat-all [name, " :: ", head]) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error)
+  value-requirements :: List (Nat, String) -> List (Nat, String) -> Nat -> List Requirement -> Result String String
+  value-requirements scope used position needs = case value-requirement-rows scope used position needs of
+    Ok rows -> Ok (strings ", " rows)
+    Err error -> Err error
+  export-instance-scheme :: Scheme -> Result String (String, List String, String)
+  export-instance-scheme scheme = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (application-in scope (scheme-body scheme), value-requirement-rows scope scope 0 (scheme-requirements scheme)) of
+      (Ok head, Ok context) -> let constrained = case context of Nil -> head; more -> string-concat-all ["using (", strings ", " more, ") => ", head] in
+        Ok (head, context, if string-length prefix == 0 then constrained else string-concat-all ["forall ", prefix, ". ", constrained])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+  -- This is the display scheme of an equality method. Its checked
+  -- telescope comes from the same declaration as its equation. Consumers
+  -- must use a resolved contract before trusting an imported proposition.
+  export-equation-display :: Scheme -> LawSyntax -> Result String String
+  export-equation-display scheme equation = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme),
+      equation-display-in scope Nil (scheme-body scheme) equation) of
+      (Ok dictionaries, Ok body) ->
+        let context = if string-length dictionaries == 0 then body else string-concat-all ["using (", dictionaries, ") => ", body] in
+        Ok (if string-length prefix == 0 then context else string-concat-all ["forall ", prefix, ". ", context])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+
+  equation-display-in :: List (Nat, String) -> List (String, String) -> UType -> LawSyntax -> Result String String
+  equation-display-in scope names ty syntax = case syntax of
+    LawForall parameters body -> equation-display-in scope names ty body
+    LawArrow argument body -> (case ty of
+      UPi id name domain row result ->
+        let binder = argument-name name scope in let bound = Cons (id, binder) scope in
+        join [Ok "((", Ok binder, Ok " :: ", type-in-style True scope domain, Ok ") ->", row-in bound row, Ok " ",
+          equation-display-in bound (Cons (name, binder) names) result body, Ok ")"]
+      UFun domain result -> join [Ok "(", type-in-style True scope domain, Ok " -> ", equation-display-in scope names result body, Ok ")"]
+      UProofFun predicate row result ->
+        join [Ok "(", type-in-style True scope predicate, Ok " ->", row-in scope row, Ok " ",
+          equation-display-in scope names result body, Ok ")"]
+      other -> Err "checked equality method has a different argument telescope")
+    LawEquation left right -> join [Ok "(Eq ", equation-operand scope names left, Ok " ", equation-operand scope names right, Ok ")"]
+    LawProposition body -> Err "equality method display needs a checked equation"
+
+  equation-name :: List (String, String) -> String -> Result String String
+  equation-name names name = case names of
+    Nil -> export-global name
+    Cons (source, actual) rest -> if same source name then Ok actual else equation-name rest name
+
+  equation-operand :: List (Nat, String) -> List (String, String) -> Expr -> Result String String
+  equation-operand scope names expression = case expression of
+    EVar sp name -> equation-name names name
+    EUnit sp -> Ok "()"
+    ELitInt sp digits -> Ok digits
+    ENeg sp body -> join [Ok "(-", equation-operand scope names body, Ok ")"]
+    EBin sp op left right -> join [Ok "(", equation-operand scope names left, Ok " ", Ok op, Ok " ", equation-operand scope names right, Ok ")"]
+    EApp sp head argument -> join [Ok "(", equation-operand scope names head, Ok " ", equation-operand scope names argument, Ok ")"]
+    ELam sp (Cons (PVar at name) Nil) body ->
+      let binder = fresh-scoped-name name scope in
+      join [Ok "(\\", Ok binder, Ok " -> ", equation-operand (Cons (0, binder) scope) (Cons (name, binder) names) body, Ok ")"]
+    EAnn sp body annotation -> join [Ok "(", equation-operand scope names body, Ok " :: ", equation-annotation annotation, Ok ")"]
+    other -> Err "checked equality operand has no display syntax"
+
+  equation-annotation :: TypeExpr -> Result String String
+  equation-annotation annotation = case annotation of
+    TName sp name -> export-global name
+    TIndex sp digits -> Ok digits
+    TApp sp head args -> join [Ok "(", equation-annotation head, equation-annotation-arguments args, Ok ")"]
+    TFun sp domain result -> join [Ok "(", equation-annotation domain, Ok " -> ", equation-annotation result, Ok ")"]
+    other -> Err "equality operand annotation has no display syntax"
+
+  equation-annotation-arguments :: TypeExpr -> Result String String
+  equation-annotation-arguments args = case args of
+    TArgsEnd sp -> Ok ""
+    TArg sp first rest -> join [Ok " ", equation-annotation first, equation-annotation-arguments rest]
+    other -> Err "malformed equality annotation application"
+
+  export-value-scheme :: Scheme -> Result String String
+  export-value-scheme scheme = value-scheme-in False scheme
+  -- Keep checked source binder names in a resolved value contract, while
+  -- preserving canonical binary applications throughout its type tree.
+  export-resolved-value-scheme :: Scheme -> Result String (Option String)
+  export-resolved-value-scheme scheme = case value-scheme-style False False scheme of
+    Ok spelling -> Ok (Some spelling)
+    Err error -> if same error nonportable-machine-arithmetic || same error nonportable-string-length then Ok None else Err error
+  has-preconditions :: UType -> Bool
+  has-preconditions ty = case ty of
+    UPi id name domain row result -> has-preconditions result
+    UFun domain result -> has-preconditions result
+    UFunEff domain row result -> has-preconditions result
+    UUsageArrow usage arrow -> has-preconditions arrow
+    UProofFun predicate row result -> has-preconditions result
+    URequire predicates body -> True
+    other -> False
+  export-display-scheme :: Scheme -> Result String String
+  export-display-scheme scheme = value-scheme-in (has-preconditions (scheme-body scheme)) scheme
+  value-scheme-in :: Bool -> Scheme -> Result String String
+  value-scheme-in positions scheme = value-scheme-style True positions scheme
+  value-scheme-style :: Bool -> Bool -> Scheme -> Result String String
+  value-scheme-style display positions scheme = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme), result-in display positions scope 0 (scheme-body scheme)) of
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+      (Ok dictionaries, Ok (body, predicates)) ->
+        let contexts = (if string-length dictionaries == 0 then Nil else [dictionaries]) <> predicates in
+        let constrained = case contexts of Nil -> Ok body; more -> join [Ok "using (", Ok (strings ", " more), Ok ") => ", Ok body] in
+        if string-length prefix == 0 then constrained else join [Ok "forall ", Ok prefix, Ok ". ", constrained]

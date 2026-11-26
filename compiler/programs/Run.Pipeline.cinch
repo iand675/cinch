@@ -23,12 +23,12 @@
 -- runtime's checked out-of-line entries (the rc_debug target profile).
 module Main where
 
-  import Bootstrap.Driver (read-argv)
-  import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, MkCompileTuning, tuning-workers, parse-compile-strategy, parse-nat-word, apply-worker-budget)
-  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Bootstrap.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal)
-  import Bootstrap.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
+  import Cinch.Driver (read-argv)
+  import Cinch.Report (render-diagnostic)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, MkCompileTuning, tuning-workers, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal)
+  import Cinch.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
   import Data.Path (path-from-string)
 
   data RequestedPlatform where

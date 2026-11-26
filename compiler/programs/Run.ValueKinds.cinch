@@ -1,8 +1,8 @@
 -- Carrier types and fresh identities are exercised after compilation.
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Document
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Document
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

@@ -1,12 +1,12 @@
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Core
-  import Bootstrap.Global
-  import Bootstrap.Typing
-  import Bootstrap.BodyContract
-  import Bootstrap.Total
-  import Bootstrap.Document
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Core
+  import Cinch.Global
+  import Cinch.Typing
+  import Cinch.BodyContract
+  import Cinch.Total
+  import Cinch.Document
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Path (path-from-string)

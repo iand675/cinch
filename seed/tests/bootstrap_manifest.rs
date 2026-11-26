@@ -1,6 +1,6 @@
 //! Rung 2 of the bootstrap ladder: canonical manifests.
 //!
-//! The rung is `compiler/Bootstrap.Manifest.cinch` driven by
+//! The rung is `compiler/Cinch.Manifest.cinch` driven by
 //! `compiler/programs/Run.Manifest.cinch`, a real program built and run
 //! through `cinch::driver`. The program reads a directory of interface
 //! artifacts plus `seed/prelude/cinch-base.cinchpkg`, prints one line per
@@ -38,7 +38,7 @@ mod common;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const MANIFEST_SRC: &str = include_str!("../../compiler/Bootstrap.Manifest.cinch");
+const MANIFEST_SRC: &str = include_str!("../../compiler/Cinch.Manifest.cinch");
 const RUN_SRC: &str = include_str!("../../compiler/programs/Run.Manifest.cinch");
 const PACKAGE_SRC: &str = include_str!("../../seed/prelude/cinch-base.cinchpkg");
 
@@ -212,7 +212,7 @@ fn fixture(tag: &str) -> (Vec<(String, Vec<u8>)>, PathBuf, PathBuf, PathBuf, Pat
     let run_dir = common::project(
         &format!("manifest_run_{tag}"),
         &[
-            ("Bootstrap.Manifest.cinch", MANIFEST_SRC),
+            ("Cinch.Manifest.cinch", MANIFEST_SRC),
             ("cinch-base.cinchpkg", PACKAGE_SRC),
         ],
     );

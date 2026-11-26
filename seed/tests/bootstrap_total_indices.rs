@@ -4,9 +4,9 @@ mod common;
 #[test]
 fn compiled_cinch_total_indices_preserve_body_authority_and_scoped_arguments() {
     let dir = common::project("total_indices", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Kinds.cinch", include_str!("../../compiler/Bootstrap.Kinds.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Kinds.cinch", include_str!("../../compiler/Cinch.Kinds.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.TotalIndices.cinch")),
     ]);
     let source = "module Main where\n  width :: Nat -> Nat\n  width cp = if cp < 128 then 1 else 2\n  main :: Int\n  main = 0\n";

@@ -1,15 +1,15 @@
 -- Source arrives after compilation; both checker routing and retained Core
 -- must agree. No Rust frontend is used to check this source text.
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Infer
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Index
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Check (check-program)
+  import Cinch.Infer
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Index
   import Algebra.Semigroup
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Report (render-diagnostics)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

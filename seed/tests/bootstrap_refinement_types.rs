@@ -4,10 +4,10 @@ mod common;
 #[test]
 fn refinement_types_preserve_binders_and_require_evidence() {
     let dir = common::project("refinement_types", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RefinementTypes.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "refinement-types").expect("build the Cinch refinement type runner");

@@ -1,7 +1,7 @@
 //! `parMap` inside the compiler's own source set.
 //!
 //! `parMap` lowers through `Data.Array`'s `array-from-list` and
-//! `array-to-list` (`Bootstrap.Infer.par-map-array-call`), and `Data.Array` is
+//! `array-to-list` (`Cinch.Infer.par-map-array-call`), and `Data.Array` is
 //! not in the embedded base package. `tooling/bootstrap.py`'s
 //! `collect_compiler_sources` therefore bundles it under `COMPILER_PRELUDE`
 //! beside the `Text` toolkit. Without that, a `parMap` anywhere in the
@@ -11,7 +11,7 @@
 //! The source set is read from disk at run time, the way
 //! `bootstrap_ladder.rs` reads the ladder, so this cannot hold a stale copy of
 //! a module another stream is editing. The probe is a `parMap` over a
-//! compiler-owned value: `Bootstrap.Manifest.ManifestSurvey`, whose fields
+//! compiler-owned value: `Cinch.Manifest.ManifestSurvey`, whose fields
 //! are all structurally shareable. The parallel suite covers rejection of
 //! elements containing a buffer-backed `String`.
 
@@ -27,7 +27,7 @@ fn prelude_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("prelude")
 }
 
-/// Every top-level `compiler/Bootstrap.*.cinch` module plus the entry, as the bundle
+/// Every top-level `compiler/Cinch.*.cinch` module plus the entry, as the bundle
 /// `collect_compiler_sources` assembles. `Data.Array` is included, because
 /// that is the change under test; the negative control below removes it.
 fn compiler_sources(entry: &str, with_array: bool) -> Vec<(String, String)> {
@@ -36,7 +36,7 @@ fn compiler_sources(entry: &str, with_array: bool) -> Vec<(String, String)> {
     for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())) {
         let path = entry.expect("directory entry").path();
         if path.extension().and_then(|e| e.to_str()) != Some("cinch")
-            || !path.file_stem().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("Bootstrap."))
+            || !path.file_stem().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with("Cinch."))
         {
             continue;
         }
@@ -77,7 +77,7 @@ fn compiler_sources(entry: &str, with_array: bool) -> Vec<(String, String)> {
 
 /// The probe maps the manifest survey records in their defining module of the
 /// compiler, with `Data.Array` imported so the lowering's two conversions
-/// resolve by their bare names, as `Bootstrap.Infer` calls them.
+/// resolve by their bare names, as `Cinch.Infer` calls them.
 const PROBE: &str = r#"
   probe :: List ManifestSurvey -> List ManifestSurvey
   probe rows = parMap (\row -> row) rows
@@ -87,10 +87,10 @@ fn with_probe(sources: Vec<(String, String)>) -> Vec<(String, String)> {
     sources
         .into_iter()
         .map(|(name, src)| {
-            if name != "Bootstrap.Manifest.cinch" {
+            if name != "Cinch.Manifest.cinch" {
                 return (name, src);
             }
-            // `Bootstrap.Manifest` is a leaf of the ladder's data flow, so a
+            // `Cinch.Manifest` is a leaf of the ladder's data flow, so a
             // probe here cannot perturb another module's checking.
             let src = src.replacen("  import Data.Bool\n", "  import Data.Array\n  import Data.Bool\n", 1);
             let src = src.replacen(
@@ -98,7 +98,7 @@ fn with_probe(sources: Vec<(String, String)>) -> Vec<(String, String)> {
                 &format!("{PROBE}\n  export manifest-field, manifest-items, probe\n"),
                 1,
             );
-            assert!(src.contains("probe rows"), "the probe did not land in Bootstrap.Manifest");
+            assert!(src.contains("probe rows"), "the probe did not land in Cinch.Manifest");
             assert!(src.contains("import Data.Array"), "the Data.Array import did not land");
             (name, src)
         })

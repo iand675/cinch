@@ -3,9 +3,9 @@ mod common;
 #[test]
 fn instance_contracts_recheck_slots_captures_and_method_specialization() {
     let dir = common::project("source_instance_contracts", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.InstanceContracts.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "instance-contracts").expect("build typed source dictionary contracts");
@@ -51,12 +51,12 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
     ]);
     common::check_library_fixture_native(&producer, "Main.cinch").expect("produce actual defining class contracts");
     let dir = common::project("source_instance_consumer", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.SourceInstances.cinch")),
     ]);
     let mut rows = Vec::new();
@@ -127,11 +127,11 @@ fn source_instances_build_checked_dictionaries_from_defining_class_interfaces() 
 fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts() {
     use cinch::interface::Iface;
     let dir = common::project("source_class_defaults", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Export.cinch", include_str!("../../compiler/Bootstrap.Export.cinch")),
-        ("Bootstrap.ExportNominal.cinch", include_str!("../../compiler/Bootstrap.ExportNominal.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Export.cinch", include_str!("../../compiler/Cinch.Export.cinch")),
+        ("Cinch.ExportNominal.cinch", include_str!("../../compiler/Cinch.ExportNominal.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ClassDefaults.cinch")),
     ]);
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();

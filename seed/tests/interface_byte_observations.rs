@@ -46,12 +46,12 @@ fn private_observations_close_over_the_kernel_and_actual_buffer_identity() {
     assert!(a.exports.values.iter().all(|v|v.name!="bytes-len"),"private measure body does not grant a source name");
     assert_eq!(measure.total_body.get("A.bytes-len").unwrap().body,cinch::total::Expr::Local(0));
     let dir=common::project("observation_contract_consumer",&[
-        ("Bootstrap.Check.cinch",include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch",include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch",include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch",include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch",include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Inputs.cinch",include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch",include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch",include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch",include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch",include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch",include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Inputs.cinch",include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch",include_str!("../../compiler/programs/Run.ImportedPreconditions.cinch")),
     ]);
     let mut rows=Vec::new();

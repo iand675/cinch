@@ -7,20 +7,20 @@ fn value_kinds_retain_carriers_and_do_not_invent_runtime_witnesses() {
         "value_kinds",
         &[
             (
-                "Bootstrap.Ast.cinch",
-                include_str!("../../compiler/Bootstrap.Ast.cinch"),
+                "Cinch.Ast.cinch",
+                include_str!("../../compiler/Cinch.Ast.cinch"),
             ),
             (
-                "Bootstrap.Report.cinch",
-                include_str!("../../compiler/Bootstrap.Report.cinch"),
+                "Cinch.Report.cinch",
+                include_str!("../../compiler/Cinch.Report.cinch"),
             ),
             (
-                "Bootstrap.Type.cinch",
-                include_str!("../../compiler/Bootstrap.Type.cinch"),
+                "Cinch.Type.cinch",
+                include_str!("../../compiler/Cinch.Type.cinch"),
             ),
             (
-                "Bootstrap.Core.cinch",
-                include_str!("../../compiler/Bootstrap.Core.cinch"),
+                "Cinch.Core.cinch",
+                include_str!("../../compiler/Cinch.Core.cinch"),
             ),
             (
                 "Main.cinch",

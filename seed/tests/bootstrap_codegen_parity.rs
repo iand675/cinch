@@ -1,4 +1,4 @@
-//! Verifies that the self-hosted bootstrapped compiler (`Bootstrap.RuntimeIr`)
+//! Verifies that the self-hosted bootstrapped compiler (`Cinch.RuntimeIr`)
 //! emits `-O2` LLVM IR of equal quality to the Rust seed compiler across:
 //! - inline TBAA/invariant `Bytes` loops (`bytesLenI64`, `bytesGetU8At`, `bytesLoadU128At`),
 //! - portable 128-bit SIMD (`simdU8x16*`, `simdU32x4*`, `rotateLeftU128`),
@@ -218,13 +218,13 @@ const PARITY_SOURCE: &str = r#"module Main where
 #[test]
 fn bootstrapped_compiler_emits_optimized_simd_bytes_cpr_and_wide_loop_ir() {
     let dir = common::project("bootstrap_codegen_parity", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.RuntimeIr.cinch", include_str!("../../compiler/Bootstrap.RuntimeIr.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.RuntimeIr.cinch", include_str!("../../compiler/Cinch.RuntimeIr.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RuntimeIr.cinch")),
     ]);
     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
@@ -243,7 +243,7 @@ fn bootstrapped_compiler_emits_optimized_simd_bytes_cpr_and_wide_loop_ir() {
     let opt_ll = dir.join("parity_o2.ll");
     std::fs::write(&raw_ll, &ir).unwrap();
 
-    // Check unoptimized IR features emitted directly by Bootstrap.RuntimeIr.
+    // Check unoptimized IR features emitted directly by Cinch.RuntimeIr.
     assert!(ir.contains("#cpr"), "expected companion #cpr worker for Pair128:\n{ir}");
     assert!(ir.contains("{ i128, i128 }"), "expected unboxed {{ i128, i128 }} CPR return:\n{ir}");
     assert!(ir.contains("self.loop:"), "expected self.loop for self-tail-recursive workers");

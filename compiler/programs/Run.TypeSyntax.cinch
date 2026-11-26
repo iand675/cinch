@@ -3,10 +3,10 @@
 -- unmodeled count alone cannot detect a silently discarded constraint.
 module Main where
 
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program, parse-scheme)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Report (Diagnostic, diagnostic-message)
+  import Cinch.Ast
+  import Cinch.Parse (parse-program, parse-scheme)
+  import Cinch.Check (check-program)
+  import Cinch.Report (Diagnostic, diagnostic-message)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
 

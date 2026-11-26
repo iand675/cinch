@@ -3,17 +3,17 @@ mod common;
 #[test]
 fn guarded_calls_recheck_actual_body_declarations_and_stale_aliases() {
     let dir = common::project("guarded_body_association", &[
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Global.cinch", include_str!("../../compiler/Bootstrap.Global.cinch")),
-        ("Bootstrap.Typing.cinch", include_str!("../../compiler/Bootstrap.Typing.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
-        ("Bootstrap.Kinds.cinch", include_str!("../../compiler/Bootstrap.Kinds.cinch")),
-        ("Bootstrap.Guarded.cinch", include_str!("../../compiler/Bootstrap.Guarded.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Proof.cinch", include_str!("../../compiler/Bootstrap.Proof.cinch")),
-        ("Bootstrap.Nominal.cinch", include_str!("../../compiler/Bootstrap.Nominal.cinch")),
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Global.cinch", include_str!("../../compiler/Cinch.Global.cinch")),
+        ("Cinch.Typing.cinch", include_str!("../../compiler/Cinch.Typing.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
+        ("Cinch.Kinds.cinch", include_str!("../../compiler/Cinch.Kinds.cinch")),
+        ("Cinch.Guarded.cinch", include_str!("../../compiler/Cinch.Guarded.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Proof.cinch", include_str!("../../compiler/Cinch.Proof.cinch")),
+        ("Cinch.Nominal.cinch", include_str!("../../compiler/Cinch.Nominal.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.GuardedAssociation.cinch")),
     ]);
     let (_, interfaces) = cinch::driver::check_sources_ifaces("module Main where\n  main :: Int\n  main = 0\n", "guarded-kernel-base.cinch").unwrap();

@@ -3,11 +3,11 @@ mod common;
 #[test]
 fn checked_schemes_have_portable_definition_owned_syntax() {
     let dir = common::project("export_types", &[
-        ("Bootstrap.ExportType.cinch", include_str!("../../compiler/Bootstrap.ExportType.cinch")),
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Nominal.cinch", include_str!("../../compiler/Bootstrap.Nominal.cinch")),
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
+        ("Cinch.ExportType.cinch", include_str!("../../compiler/Cinch.ExportType.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Nominal.cinch", include_str!("../../compiler/Cinch.Nominal.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ExportType.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "export-types").expect("compile actual Cinch type exporter");
@@ -31,7 +31,7 @@ fn checked_schemes_have_portable_definition_owned_syntax() {
             "scope" => "probe x = x",
             "task" => "probe u = probe u",
             "source-identity" => { assert_eq!(scheme, "A.Token"); continue; }
-            "escaped-identity" => { assert_eq!(scheme, "Bootstrap.Infer.Bootstrap.Infer.add-error"); continue; }
+            "escaped-identity" => { assert_eq!(scheme, "Cinch.Infer.Cinch.Infer.add-error"); continue; }
             "spelling" => { assert_eq!(scheme, "i.Bootstrap$2eInfer$2eBootstrap$2eInfer$2eadd$2derror"); continue; }
             "escaped-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$24"); continue; }
             "scalar-spelling" => { assert_eq!(scheme, "i.Data$2eSym$2e$e2$86$92"); continue; }

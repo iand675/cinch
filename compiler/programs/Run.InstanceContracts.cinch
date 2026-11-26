@@ -1,7 +1,7 @@
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Instance
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Instance
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)

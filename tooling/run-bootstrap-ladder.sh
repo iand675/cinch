@@ -18,7 +18,7 @@
 # design document requires of every milestone: it assembles a project per
 # program and reports the program's own exit code, judging only whether the
 # program BUILT (the compiler prints `cinch: ...` on stderr when it does not).
-# A rung's exit code is its own business: `Bootstrap.Test`'s failing-suite
+# A rung's exit code is its own business: `Cinch.Test`'s failing-suite
 # program exits nonzero on purpose. Whether a rung is correct is its test's
 # claim, not this script's.
 #

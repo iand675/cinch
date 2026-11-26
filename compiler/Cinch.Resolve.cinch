@@ -1,0 +1,1907 @@
+-- Source-module scope elaboration. A resolved fragment has one global
+-- namespace, with lexical bindings left local and module-private names
+-- given distinct internal spellings. No import is discarded before its
+-- source, selection, alias and export surface have been checked.
+module Cinch.Resolve where
+
+  import Cinch.Ast
+  import Cinch.Nominal (stage-quotation-module, interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
+  import Cinch.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration, vector-declaration)
+  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
+  import Cinch.Inputs (embedded-library-home)
+  import Cinch.Contracts (public-global, interface-fixity-header, interface-declarations, overload-references, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, imported-class-references, kernel-references)
+  import Cinch.Contracts (PreparedExternals, prepare-externals, select-externals)
+  import Cinch.Parse (indexed-exported-fixities)
+  import Text.Lex (Span, span-start, span-end)
+  import Text.Scan (string-starts-with, string-drop)
+  import Cinch.Document
+  import Data.Array (array-from-list, array-get)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Algebra.Semigroup
+
+  export MacroNamespaces, macro-namespaces, lookup-macro, stage-operation-available, render-cycle
+  export source-import-closure
+  export resolve-program, resolve-program-with, resolve-signature-overlays, resolve-admitted-signature-overlays, resolve-overlay-with, unshadowed-interfaces
+  export prepare-admitted-resolution
+
+  -- Visible spelling, defining module, internal global spelling.
+  data Binding where
+    MkBinding :: String -> String -> String -> Binding
+
+  -- Imported path, visible qualifier, alias-only, selected surface.
+  data View where
+    MkView :: Span -> String -> String -> Bool -> List Binding -> View
+
+  -- An already processed module's export surface and elaborated body.
+  data Scoped where
+    MkScoped :: String -> List Binding -> List Decl -> Scoped
+
+  data PreparedDeclarations where
+    PreparedDeclarations :: PreparedExternals -> List String -> HashMap String Bool -> HashMap String Module
+      -> HashMap String Bool -> HashMap String Scoped -> PreparedDeclarations
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  cat :: List String -> String
+  cat parts = string-concat-all parts
+
+  fail :: Span -> String -> List Diagnostic
+  fail sp text = Cons (MkDiagnostic "bootstrap.resolve" sp text) Nil
+
+  has-name :: String -> List String -> Bool
+  has-name name names = case names of
+    Nil -> False
+    Cons n rest -> same name n || has-name name rest
+
+  lookup-binding :: String -> List Binding -> Option Binding
+  lookup-binding name entries = case entries of
+    Nil -> None
+    Cons b rest -> case b of
+      MkBinding visible owner symbol -> if same name visible then Some b else lookup-binding name rest
+
+  -- A module's visible surface during renaming: the ordered list the passes
+  -- carry for shadowing order, and a name index so reaching a binding is one
+  -- hash probe instead of a scan of every visible declaration. The index
+  -- keeps the front-most binding of a repeated spelling, which is the one
+  -- the scan would find.
+  data LexicalScope where
+    MkLexicalScope :: String -> Bool -> List Binding -> HashMap String Binding -> List (String, String) -> LexicalScope
+  data CallerScopes where
+    NoCaller :: CallerScopes
+    CallerScope :: LexicalScope -> List String -> CallerScopes -> CallerScopes
+  data Visible where
+    MkVisible :: LexicalScope -> List (String, LexicalScope) -> CallerScopes -> Visible
+
+  binding-index :: List Binding -> HashMap String Binding
+  binding-index entries = case entries of
+    Nil -> hash-map-empty
+    Cons binding rest -> hash-map-insert (binding-name binding) binding (binding-index rest)
+
+  visible-lookup :: String -> Visible -> Option Binding
+  visible-lookup name entries = case entries of
+    MkVisible (MkLexicalScope origin captured order index bindings) homes caller -> hash-map-lookup name index
+
+  visible-order :: Visible -> List Binding
+  visible-order entries = case entries of MkVisible (MkLexicalScope origin captured order index bindings) homes caller -> order
+
+  binding-name :: Binding -> String
+  binding-name b = case b of
+    MkBinding name owner symbol -> name
+
+  binding-owner :: Binding -> String
+  binding-owner binding = case binding of MkBinding name home symbol -> home
+
+  binding-symbol :: Binding -> String
+  binding-symbol b = case b of
+    MkBinding name owner symbol -> symbol
+
+  kernel-bindings :: List (String, String) -> List Binding
+  kernel-bindings entries = case entries of
+    Nil -> Nil
+    Cons (name, symbol) rest -> Cons (MkBinding name "<builtin>" symbol) (kernel-bindings rest)
+
+  scoped-name :: Scoped -> String
+  scoped-name s = case s of
+    MkScoped name surface body -> name
+
+  scope-index :: List Scoped -> HashMap String Scoped -> HashMap String Scoped
+  scope-index scopes indexed = case scopes of
+    Nil -> indexed
+    Cons scope rest -> scope-index rest (hash-map-insert (scoped-name scope) scope indexed)
+
+  -- The identity spelling (Cinch.Nominal.encode-identity): plain
+  -- identifier characters are themselves and everything else, including the
+  -- dot, is a `$` escape. A bare dot is therefore always the boundary
+  -- between the two components this prefix joins, which keeps `m.` globals
+  -- distinct from every lexical identifier and from each other. Every
+  -- character of the result is legal in an unquoted LLVM name.
+  global-name :: String -> String -> String
+  global-name home name = if same home "Main" && same name "main" then "main"
+    else pack (Cons 'm' (Cons '.' (encode-identity (unpack home) (Cons '.' (encode-identity (unpack name) Nil)))))
+
+  short-name :: String -> String
+  short-name text = pack (short-chars (unpack text) Nil)
+
+  short-chars :: List Char -> List Char -> List Char
+  short-chars chars acc = case chars of
+    Nil -> reverse acc
+    Cons c rest -> if char-code c == 46 then short-chars rest Nil else short-chars rest (Cons c acc)
+
+  qualify :: String -> List Binding -> List Binding
+  qualify prefix entries = case entries of
+    Nil -> Nil
+    Cons (MkBinding name owner symbol) rest -> Cons (MkBinding (cat [prefix, ".", name]) owner symbol) (qualify prefix rest)
+
+  -- A module's signature and equations name the same binding. Duplicate
+  -- declarations stay in the body for the checker to diagnose.
+  data BindingRows where
+    BindingRows :: List Binding -> HashMap String Binding -> BindingRows
+  own-bindings :: String -> List Decl -> List Binding -> List Binding
+  own-bindings home ds initial = case collect-own-bindings home ds (BindingRows initial (binding-index initial)) of
+    BindingRows rows index -> rows
+  collect-own-bindings :: String -> List Decl -> BindingRows -> BindingRows
+  collect-own-bindings home ds acc = case ds of
+    Nil -> case acc of BindingRows reversed index -> BindingRows (reverse reversed) index
+    Cons d rest -> case d of
+      DImport s path mods alias members hidden args -> collect-own-bindings home rest acc
+      DExport s text items -> collect-own-bindings home rest acc
+      DGeneratedGroup s owner macro-name template -> collect-own-bindings home rest (collect-own-bindings home (decls-of template) acc)
+      DMacroBinding s name -> collect-own-bindings home rest (add-macro home name acc)
+      DInstance s only name params class-app members -> collect-own-bindings home rest (add-own home name acc)
+      DClass s name params members -> collect-own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
+      DData s name params ctors -> collect-own-bindings home rest (own-ctors home ctors (add-own home name acc))
+      DTypeFamily s name params rk closed eqs -> collect-own-bindings home rest (add-own home name acc)
+      DDataFamily s name params -> collect-own-bindings home rest (add-own home name acc)
+      DDataInstance s fam args ctors -> collect-own-bindings home rest (own-ctors home ctors acc)
+      DEffect s name params ops -> collect-own-bindings home rest (own-ctors home ops (add-own-effect home name acc))
+      DForeign s direction abi symbol name ty -> collect-own-bindings home rest (if same direction "import" then add-own home name acc else acc)
+      other -> case decl-name other of
+        None -> collect-own-bindings home rest acc
+        Some name -> collect-own-bindings home rest (add-own home name acc)
+
+  add-declared :: String -> String -> (() -> String) -> BindingRows -> BindingRows
+  add-declared label owner symbol entries = case entries of
+    BindingRows rows index -> case hash-map-lookup label index of
+      Some binding -> entries
+      None ->
+        let binding = MkBinding label owner (symbol ()) in
+        BindingRows (Cons binding rows) (hash-map-insert label binding index)
+  add-macro :: String -> String -> BindingRows -> BindingRows
+  add-macro home name entries = add-declared name home (\unit -> "#macro." <> name) entries
+  macro-binding :: Binding -> Bool
+  macro-binding binding = string-starts-with "#macro." (binding-symbol binding)
+  -- Global symbols include their module. Stage symbols carry it in the owner.
+  same-declaration :: Binding -> Binding -> Bool
+  same-declaration left right = same (binding-symbol left) (binding-symbol right)
+    && (not (macro-binding left) || same (binding-owner left) (binding-owner right))
+
+  select-phase :: Bool -> List Binding -> List Binding
+  select-phase macros bindings = case bindings of
+    Nil -> Nil
+    Cons first rest -> if macro-binding first == macros then Cons first (select-phase macros rest) else select-phase macros rest
+
+  declares-macros :: List Decl -> Bool
+  declares-macros declarations = case declarations of
+    Nil -> False
+    Cons (DMacroBinding s name) rest -> True
+    Cons other rest -> declares-macros rest
+
+  -- A resolved method already names its binding; re-deriving the symbol from
+  -- the home would rebind it to a name the checker never registered.
+  add-own-symbol :: String -> String -> BindingRows -> BindingRows
+  add-own-symbol label symbol entries = add-declared label "<builtin>" (\unit -> symbol) entries
+  add-own :: String -> String -> BindingRows -> BindingRows
+  add-own home name entries = add-declared name home (\unit -> global-name home name) entries
+  -- Source declarations with a kernel spelling have a separate, module-owned
+  -- identity. Other source effects preserve the language's global namespace.
+  source-effect-name :: String -> String -> String
+  source-effect-name home name =
+    if has-name name ["MVar", "STM", "IO", "Mut", "Async", "Cancel", "Eval", "Foreign", "Global", "Blocking", "Diverge", "Fail", "Reentrant", "ThreadAffine"] then
+      "#effect." <> global-name home name
+    else name
+  add-own-effect :: String -> String -> BindingRows -> BindingRows
+  add-own-effect home name entries = add-declared name home (\unit -> source-effect-name home name) entries
+
+  -- A class member is visible under its label whether it is still in source
+  -- form (`DSig`, which `rename-class-members` turns into a `DMethod`) or
+  -- already resolved. The kernel's classes are declared after renaming, so
+  -- they arrive as `DMethod` and would otherwise contribute no name.
+  own-class-methods :: String -> List Decl -> BindingRows -> BindingRows
+  own-class-methods home ds acc = case ds of
+    Nil -> acc
+    Cons (DSig s name ty) rest -> own-class-methods home rest (add-own home name acc)
+    Cons (DMethod s label symbol ty) rest -> own-class-methods home rest (add-own-symbol label symbol acc)
+    Cons other rest -> own-class-methods home rest acc
+
+  own-ctors :: String -> List (String, TypeExpr) -> BindingRows -> BindingRows
+  own-ctors home ctors acc = case ctors of
+    Nil -> acc
+    Cons (name, ty) rest -> own-ctors home rest (add-own home name acc)
+
+  validate-modules :: HashMap String Bool -> HashMap String Bool -> List Module -> HashMap String Bool -> List Diagnostic
+  validate-modules sources interfaces remaining seen = case remaining of
+    Nil -> Nil
+    Cons m rest -> let home = module-name m in
+      (if referenced home seen then fail (module-span m) (cat ["duplicate module: ", home]) else Nil)
+      <> (if referenced home interfaces then fail (module-span m) "source module conflicts with a loaded interface" else Nil)
+      <> validate-imports sources interfaces (module-decls m)
+      <> validate-modules sources interfaces rest (hash-map-insert home True seen)
+
+  validate-imports :: HashMap String Bool -> HashMap String Bool -> List Decl -> List Diagnostic
+  validate-imports sources interfaces ds = case ds of
+    Nil -> Nil
+    Cons d rest -> (case d of
+      DImport s path mods alias members hidden args ->
+        (if referenced path sources || referenced path interfaces then Nil
+         else fail s (cat ["missing source module or checked interface: ", path]))
+        <> (case mods of Nil -> Nil; [mode] | same mode "stage" -> Nil; other -> fail s "modified imports require stage/module-argument elaboration")
+        <> (case args of Nil -> Nil; Cons arg more -> fail s "applied imports require module-argument elaboration")
+      other -> Nil) <> validate-imports sources interfaces rest
+
+  -- Keep the earliest ready module in source order, including when a newly
+  -- ready importer precedes a module already in the queue. The leftist heap
+  -- bounds insertion and removal by the height of its short right spine.
+  data ReadyModules where
+    ReadyEnd :: ReadyModules
+    ReadyNode :: Nat -> Nat -> Module -> ReadyModules -> ReadyModules -> ReadyModules
+  ready-rank :: ReadyModules -> Nat
+  ready-rank queue = case queue of ReadyEnd -> 0; ReadyNode rank ordinal m left right -> rank
+  ready-branch :: Nat -> Module -> ReadyModules -> ReadyModules -> ReadyModules
+  ready-branch ordinal m left right =
+    let a = ready-rank left in let b = ready-rank right in
+    if a < b then ReadyNode (a + 1) ordinal m right left else ReadyNode (b + 1) ordinal m left right
+  merge-ready :: ReadyModules -> ReadyModules -> ReadyModules
+  merge-ready a b = case (a, b) of
+    (ReadyEnd, other) -> other
+    (other, ReadyEnd) -> other
+    (ReadyNode ra ia ma la pa, ReadyNode rb ib mb lb pb) ->
+      if ia < ib then ready-branch ia ma la (merge-ready pa b)
+      else ready-branch ib mb lb (merge-ready a pb)
+  push-ready :: Nat -> Module -> ReadyModules -> ReadyModules
+  push-ready ordinal m queue = merge-ready (ReadyNode 1 ordinal m ReadyEnd ReadyEnd) queue
+
+  module-order :: List Module -> HashMap String Bool -> (List Module, List Module)
+  module-order modules available = index-module-imports (array-from-list modules) available modules 0 hash-map-empty hash-map-empty ReadyEnd
+  index-module-imports :: Array Module -> HashMap String Bool -> List Module -> Nat -> HashMap Nat Nat -> HashMap String (List Nat) -> ReadyModules -> (List Module, List Module)
+  index-module-imports modules available remaining ordinal waiting edges queue = case remaining of
+    Nil -> order-ready-modules modules waiting edges queue Nil
+    Cons m rest -> case index-import-edges available ordinal (module-decls m) 0 edges of
+      (0, dependents) -> index-module-imports modules available rest (ordinal + 1) waiting dependents (push-ready ordinal m queue)
+      (count, dependents) -> index-module-imports modules available rest (ordinal + 1)
+        (hash-map-insert ordinal count waiting) dependents queue
+  index-import-edges :: HashMap String Bool -> Nat -> List Decl -> Nat -> HashMap String (List Nat) -> (Nat, HashMap String (List Nat))
+  index-import-edges available ordinal declarations count edges = case declarations of
+    Nil -> (count, edges)
+    Cons (DImport site home mods alias members hidden args) rest | not (referenced home available) ->
+      let dependents = (case hash-map-lookup home edges of Some rows -> rows; None -> Nil) in
+      index-import-edges available ordinal rest (count + 1) (hash-map-insert home (Cons ordinal dependents) edges)
+    Cons other rest -> index-import-edges available ordinal rest count edges
+  order-ready-modules :: Array Module -> HashMap Nat Nat -> HashMap String (List Nat) -> ReadyModules -> List Module -> (List Module, List Module)
+  order-ready-modules modules waiting edges queue ordered = case queue of
+    ReadyEnd -> (reverse ordered, waiting-modules modules waiting 0)
+    ReadyNode rank ordinal m left right ->
+      let home = module-name m in
+      let rest = merge-ready left right in
+      (case hash-map-lookup home edges of
+        None -> order-ready-modules modules waiting edges rest (Cons m ordered)
+        Some dependents -> (case release-importers modules dependents waiting rest of
+          (still-waiting, ready) -> order-ready-modules modules still-waiting (hash-map-insert home Nil edges) ready (Cons m ordered)))
+  release-importers :: Array Module -> List Nat -> HashMap Nat Nat -> ReadyModules -> (HashMap Nat Nat, ReadyModules)
+  release-importers modules dependents waiting queue = case dependents of
+    Nil -> (waiting, queue)
+    Cons ordinal rest -> case hash-map-lookup ordinal waiting of
+      Some 1 -> (case array-get modules ordinal of
+        Some m -> release-importers modules rest (hash-map-insert ordinal 0 waiting) (push-ready ordinal m queue)
+        None -> release-importers modules rest waiting queue)
+      Some count | count > 1 -> release-importers modules rest (hash-map-insert ordinal (count - 1) waiting) queue
+      other -> release-importers modules rest waiting queue
+  waiting-modules :: Array Module -> HashMap Nat Nat -> Nat -> List Module
+  waiting-modules modules waiting ordinal = case array-get modules ordinal of
+    None -> Nil
+    Some m -> case hash-map-lookup ordinal waiting of
+      Some count | count > 0 -> Cons m (waiting-modules modules waiting (ordinal + 1))
+      other -> waiting-modules modules waiting (ordinal + 1)
+
+  select-members :: Span -> String -> List (String, Option String) -> HashMap String Binding -> (List Binding, List Diagnostic)
+  select-members sp path members surface = case members of
+    Nil -> (Nil, Nil)
+    Cons (name, alias) rest -> case select-members sp path rest surface of
+      (others, errors) -> case hash-map-lookup name surface of
+        None -> (others, fail sp (cat ["`", path, "` has no member `", name, "` to import (as `", (case alias of None -> name; Some renamed -> renamed), "`)"]) <> errors)
+        Some (MkBinding visible owner symbol) ->
+          (Cons (MkBinding (case alias of None -> name; Some renamed -> renamed) owner symbol) others, errors)
+
+  -- A hidden name must be a member of the source's surface: a misspelled one
+  -- would otherwise hide nothing, silently.
+  hidden-errors :: Span -> String -> List String -> HashMap String Binding -> List Diagnostic
+  hidden-errors sp path hidden surface = case hidden of
+    Nil -> Nil
+    Cons name rest -> (case hash-map-lookup name surface of
+      None -> fail sp (cat ["`", path, "` has no member `", name, "` to hide"])
+      Some b -> Nil) <> hidden-errors sp path rest surface
+
+  without-hidden :: HashMap String Bool -> List Binding -> List Binding
+  without-hidden hidden surface = case surface of
+    Nil -> Nil
+    Cons b rest -> if referenced (binding-name b) hidden then without-hidden hidden rest
+      else Cons b (without-hidden hidden rest)
+
+  -- The surface one import contributes. A hidden member is out of the
+  -- surface the view carries, so it is out of scope bare and under the
+  -- qualifier alike: `import A hiding (shared)` leaves `A.shared` unknown
+  -- in exactly the way a name A never exported is unknown, and the refusal
+  -- names the spelling the program used.
+  import-surface :: Span -> String -> List (String, Option String) -> List String -> List Binding -> (List Binding, List Diagnostic)
+  import-surface sp path members hidden surface = case (members, hidden) of
+    (Nil, Nil) -> (surface, Nil)
+    (Cons first more, Nil) -> select-members sp path members (binding-index surface)
+    (Nil, Cons first more) -> (without-hidden (reference-index hidden) surface, hidden-errors sp path hidden (binding-index surface))
+    -- The pairing is refused. The view still carries the hidden surface, the
+    -- same best-effort a failed selection returns, so the refusal is one
+    -- message about the import rather than that message plus an unknown-name
+    -- cascade from every name the line was meant to bring in.
+    (Cons first more, Cons name rest) ->
+      (without-hidden (reference-index hidden) surface,
+        fail sp "an import either selects members or hides them: `import X (a, b)` names what comes in, `import X hiding (a, b)` what stays out")
+
+  import-views :: List Decl -> HashMap String Scoped -> (List View, List Diagnostic)
+  import-views ds done = case ds of
+    Nil -> (Nil, Nil)
+    Cons d rest -> case import-views rest done of
+      (views, errors) -> case d of
+        DImport s path mods alias members hidden args -> case hash-map-lookup path done of
+          None -> (views, fail s (cat ["module was not resolved before its importer: ", path]) <> errors)
+          Some (MkScoped home surface body) -> case import-surface s path members hidden surface of
+            (selected, failures) ->
+              (Cons (MkView s path (case alias of None -> short-name path; Some qualifier -> qualifier)
+                (case alias of None -> False; Some qualifier -> case members of Nil -> True; Cons item more -> False) (case mods of [mode] | same mode "stage" -> select-phase True selected; other -> selected)) views, failures <> errors)
+        other -> (views, errors)
+
+  -- Explicit imports have an eager duplicate-name rule even when an declared
+  -- declaration shadows the name. Qualified-only aliases add no bare names.
+  bare-imports :: List View -> List Binding -> HashMap String Binding -> (List Binding, List Diagnostic)
+  bare-imports views acc indexed = case views of
+    Nil -> (reverse acc, Nil)
+    Cons (MkView s path qualifier only selected) rest -> if only then bare-imports rest acc indexed
+      else case merge-imports s selected acc indexed of
+        (entries, names, errors) -> case bare-imports rest entries names of
+          (all, more) -> (all, errors <> more)
+
+  merge-imports :: Span -> List Binding -> List Binding -> HashMap String Binding -> (List Binding, HashMap String Binding, List Diagnostic)
+  merge-imports sp incoming acc indexed = case incoming of
+    Nil -> (acc, indexed, Nil)
+    Cons b rest -> case b of
+      MkBinding name home symbol -> case hash-map-lookup name indexed of
+        None -> merge-imports sp rest (Cons b acc) (hash-map-insert name b indexed)
+        Some prior | same-declaration prior b -> merge-imports sp rest acc indexed
+        Some (MkBinding old previous symbol-before) -> case merge-imports sp rest acc indexed of
+          -- Both ways out are named, as the seed's refusal does: a selection
+          -- renames one side, and a hiding list leaves one out.
+          (entries, names, errors) -> (entries, names, fail sp (cat ["the name `", name, "` is imported from both ", previous, " and ", home
+            , ": rename one (a selection like `import ", home, " (", name, " as ...)`) or leave one out (`import ", home, " hiding (", name, ")`)"]) <> errors)
+
+  qualified-imports :: List View -> List Binding
+  qualified-imports views = case views of
+    Nil -> Nil
+    Cons (MkView s path qualifier only selected) rest -> qualify qualifier selected <> qualified-imports rest
+
+  qualified-duplicates :: Span -> List Binding -> HashMap String Binding -> List Diagnostic
+  qualified-duplicates sp incoming seen = case incoming of
+    Nil -> Nil
+    Cons b rest -> case hash-map-lookup (binding-name b) seen of
+      None -> qualified-duplicates sp rest (hash-map-insert (binding-name b) b seen)
+      Some old -> (if same-declaration old b then Nil else fail sp (cat ["ambiguous qualified import: ", binding-name b]))
+        <> qualified-duplicates sp rest seen
+
+  export-items :: List Decl -> List ExportItem
+  export-items ds = case ds of
+    Nil -> Nil
+    Cons d rest -> case d of
+      DExport s text items -> items <> export-items rest
+      other -> export-items rest
+
+  has-export-declaration :: List Decl -> Bool
+  has-export-declaration declarations = case declarations of
+    Nil -> False
+    Cons (DExport site text items) rest -> True
+    Cons other rest -> has-export-declaration rest
+
+  view-index :: List View -> HashMap String View
+  view-index views = case views of
+    Nil -> hash-map-empty
+    Cons view rest -> case view of
+      MkView s path qualifier only selected -> hash-map-insert path view (hash-map-insert qualifier view (view-index rest))
+
+  join-parts :: List String -> String
+  join-parts parts = case parts of
+    Nil -> ""
+    Cons first Nil -> first
+    Cons first rest -> cat [first, ".", join-parts rest]
+
+  last-part :: List String -> String
+  last-part parts = case parts of
+    Nil -> ""
+    Cons first Nil -> first
+    Cons first rest -> last-part rest
+
+  add-exports :: Span -> List Binding -> BindingRows -> (BindingRows, List Diagnostic)
+  add-exports sp incoming acc = case incoming of
+    Nil -> (acc, Nil)
+    Cons b rest -> case acc of
+      BindingRows rows index -> case hash-map-lookup (binding-name b) index of
+        None -> add-exports sp rest (BindingRows (Cons b rows) (hash-map-insert (binding-name b) b index))
+        Some old -> case add-exports sp rest acc of
+          (entries, errors) -> (entries, (if same-declaration old b then Nil else fail sp (cat ["duplicate export: ", binding-name b])) <> errors)
+
+  build-exports :: List ExportItem -> HashMap String Binding -> HashMap String View -> BindingRows -> (List Binding, List Diagnostic)
+  build-exports items visible views acc = case items of
+    Nil -> case acc of BindingRows rows index -> (reverse rows, Nil)
+    Cons item rest -> case item of
+      ExportName s parts -> let name = join-parts parts in case hash-map-lookup name visible of
+        None -> case build-exports rest visible views acc of
+          (entries, errors) -> (entries, fail s (cat ["`", name, "` is not a name in scope to export"]) <> errors)
+        Some (MkBinding name home symbol) -> case add-exports s (Cons (MkBinding (last-part parts) home symbol) Nil) acc of
+          (entries, errors) -> case build-exports rest visible views entries of
+            (surface, more) -> (surface, errors <> more)
+      ExportModule s name -> case hash-map-lookup name views of
+        None -> case build-exports rest visible views acc of
+          (entries, errors) -> (entries, fail s (cat ["module is not imported to export: ", name]) <> errors)
+        Some (MkView sp path qualifier only selected) -> case add-exports s selected acc of
+          (entries, errors) -> case build-exports rest visible views entries of
+            (surface, more) -> (surface, errors <> more)
+
+  -- A base source home may share a signature with its object consumers only
+  -- after the driver has rechecked its full interface against the provider.
+  -- Source methods, values and instances keep their own implementations.
+  shared-signatures :: String -> List Decl -> List LoadedInterface -> List Binding
+  shared-signatures home declarations checked = case checked of
+    Nil -> Nil
+    Cons first rest -> if same home (loaded-module first) then signature-bindings home declarations first
+      else shared-signatures home declarations rest
+  signature-bindings :: String -> List Decl -> LoadedInterface -> List Binding
+  signature-bindings home declarations checked = case declarations of
+    Nil -> Nil
+    Cons (DClass sp name params members) rest -> let identity = home <> "." <> name in
+      let more = signature-bindings home rest checked in
+      if exports-identity "signature" identity (loaded-exports checked) then
+        Cons (MkBinding name home (interface-global identity)) (signature-method-bindings home identity (decls-of members) checked more) else more
+    Cons other rest -> signature-bindings home rest checked
+
+  signature-method-bindings :: String -> String -> List Decl -> LoadedInterface -> List Binding -> List Binding
+  signature-method-bindings home owner ds checked bindings = case ds of
+    Nil -> bindings
+    Cons (DSig sp name syntax) rest -> let identity = owner <> "." <> name in
+      let more = signature-method-bindings home owner rest checked bindings in
+      if exports-identity "method" identity (loaded-exports checked) then Cons (MkBinding name home (interface-global identity)) more else more
+    Cons other rest -> signature-method-bindings home owner rest checked bindings
+  defining-symbol :: String -> String -> Visible -> String
+  defining-symbol home name visible = case visible-lookup name visible of
+    Some (MkBinding label source symbol) | same source home && string-starts-with "i." symbol -> symbol
+    other -> global-name home name
+
+  module-visibility :: Module -> HashMap String Scoped -> List Binding -> List LoadedInterface -> (List Binding, List Binding, List View, List Diagnostic)
+  module-visibility m done base checked =
+    let home = module-name m in
+    let declared = own-bindings home (module-decls m) (shared-signatures home (module-decls m) checked) in
+    let (views, errors) = import-views (module-decls m) done in
+    let (bare, clashes) = bare-imports views Nil hash-map-empty in
+    let qualified = qualified-imports views in
+    let prelude-bindings = case hash-map-lookup "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
+    let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
+    (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified hash-map-empty)
+
+  build-scope :: Module -> HashMap String Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (Scoped, List (String, LexicalScope), List Diagnostic)
+  build-scope m done base earlier checked =
+    let home = module-name m in
+    let (declared, visible, views, visibility-errors) = module-visibility m done base checked in
+    let indexed = binding-index visible in
+    let (surface, export-errors) = case export-items (module-decls m) of
+          Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
+          Cons first rest -> build-exports (Cons first rest) indexed (view-index views) (BindingRows Nil hash-map-empty) in
+    let lexical = MkLexicalScope home False visible indexed Nil in
+    let has-macro = declares-macros (module-decls m) in
+    let homes = Cons (home, lexical) earlier in
+    let (body, body-errors) = rename-decls home (MkVisible lexical homes NoCaller) (module-decls m) in
+    (MkScoped home surface body, if has-macro then homes else earlier, visibility-errors <> export-errors <> body-errors)
+
+  find-home :: String -> List (String, LexicalScope) -> Option LexicalScope
+  find-home name homes = case homes of
+    Nil -> None
+    Cons (home, scope) rest -> if same name home then Some scope else find-home name rest
+
+  -- Index the macro spelling chosen by the same imports and exports the
+  -- resolver uses for values. Source and interface validation still runs on
+  -- the complete program before any generated code can be accepted.
+  data MacroNamespaces where
+    MkMacroNamespaces :: HashMap String (List Binding) -> MacroNamespaces
+  macro-namespaces :: List Module -> List Module -> MacroNamespaces
+  macro-namespaces modules headers =
+    let imported = external-macro-headers (reference-index (map module-name modules)) headers in
+    case module-order (map macro-header modules) (reference-index (map scoped-name imported)) of
+      (ordered, blocked) -> MkMacroNamespaces (macro-scope-order ordered (scope-index (reverse imported) hash-map-empty) hash-map-empty)
+  external-macro-headers :: HashMap String Bool -> List Module -> List Scoped
+  external-macro-headers sources headers = case headers of
+    Nil -> Nil
+    Cons m rest -> let home = module-name m in
+      if referenced home sources then external-macro-headers sources rest else
+        Cons (MkScoped home (external-names home (module-decls m)) Nil) (external-macro-headers sources rest)
+  external-names :: String -> List Decl -> List Binding
+  external-names home declarations = case declarations of
+    Nil -> Nil
+    Cons (DExternal site name role declared-type metadata) rest -> Cons (MkBinding name home name) (external-names home rest)
+    Cons other rest -> external-names home rest
+  macro-header :: Module -> Module
+  macro-header m = MkModule (module-span m) (module-name m) (decl-spine (module-span m) (map macro-declaration (module-decls m)))
+  macro-declaration :: Decl -> Decl
+  macro-declaration declaration = case declaration of
+    DStage s (DDeclarationMacro at name patterns body) -> DMacroBinding s name
+    DStage s (DFun at name clauses) -> DMacroBinding s name
+    DDeclarationMacro s name patterns template -> DMacroBinding s name
+    DMacro s (DFun at name clauses) -> DMacroBinding s name
+    DMacro s (DSig at name ty) -> DMacroBinding s name
+    other -> declaration
+  macro-scope-order :: List Module -> HashMap String Scoped -> HashMap String (List Binding) -> HashMap String (List Binding)
+  macro-scope-order ordered done scopes = case ordered of
+    Nil -> scopes
+    Cons m rest -> let (declared, visible, views, diagnostics) = module-visibility m done Nil Nil in
+      let (surface, errors) = (case export-items (module-decls m) of
+        Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
+        Cons first more -> build-exports (Cons first more) (binding-index visible) (view-index views) (BindingRows Nil hash-map-empty)) in
+      let home = module-name m in
+      macro-scope-order rest (hash-map-insert home (MkScoped home surface Nil) done) (hash-map-insert home visible scopes)
+  lookup-macro :: MacroNamespaces -> String -> String -> Option (String, String)
+  lookup-macro names owner spelling = case macro-site-binding names owner spelling of
+    Some binding | macro-binding binding -> Some (binding-owner binding, string-drop 7 (binding-symbol binding))
+    other -> None
+  stage-operation-available :: MacroNamespaces -> String -> String -> Bool
+  stage-operation-available names owner spelling = case macro-site-binding names owner spelling of
+    None -> True
+    Some shadow -> False
+  macro-site-binding :: MacroNamespaces -> String -> String -> Option Binding
+  macro-site-binding (MkMacroNamespaces scopes) owner spelling = case hash-map-lookup owner scopes of
+    Some bindings -> lookup-binding spelling bindings
+    None -> None
+
+  resolve-ordered :: List Module -> List Module -> List Scoped -> HashMap String Scoped -> List Binding -> List (String, LexicalScope) -> List LoadedInterface -> (List Scoped, HashMap String Scoped, List Diagnostic)
+  resolve-ordered modules blocked done indexed base homes checked = case modules of
+    Nil -> (reverse done, indexed, case blocked of Nil -> Nil; Cons first rest -> import-cycle first blocked)
+    Cons m pending -> case build-scope m indexed base homes checked of
+      (ready, more-homes, errors) -> case resolve-ordered pending blocked (Cons ready done) (hash-map-insert (scoped-name ready) ready indexed) base more-homes checked of
+        (ordered, scopes, more) -> (ordered, scopes, errors <> more)
+
+  -- Every remaining module has an unresolved edge into the remaining
+  -- graph. Follow one edge per module until it repeats. Drop the prefix
+  -- before the repeated module, which may just be an importer of the cycle.
+  import-cycle :: Module -> List Module -> List Diagnostic
+  import-cycle first remaining = case cycle-from (module-name first) (module-name-index remaining) hash-map-empty Nil of
+    Some (site, chain) -> fail site (cat ["module import cycle: ", render-cycle chain])
+    None -> fail (module-span first) (cat ["unresolved module imports involving ", module-name first])
+  cycle-from :: String -> HashMap String Module -> HashMap String Bool -> List String -> Option (Span, List String)
+  cycle-from name remaining seen visited = case hash-map-lookup name remaining of
+    None -> None
+    Some m -> if referenced name seen then Some (module-span m, reverse (cycle-prefix name visited) <> [name])
+      else (case first-pending-import (module-decls m) remaining of
+        Some next -> cycle-from next remaining (hash-map-insert name True seen) (Cons name visited)
+        None -> None)
+  first-pending-import :: List Decl -> HashMap String Module -> Option String
+  first-pending-import declarations remaining = case declarations of
+    Nil -> None
+    Cons (DImport sp name mods alias members hidden args) rest -> case hash-map-lookup name remaining of
+      Some pending -> Some name
+      None -> first-pending-import rest remaining
+    Cons other rest -> first-pending-import rest remaining
+  cycle-prefix :: String -> List String -> List String
+  cycle-prefix name visited = case visited of
+    Nil -> Nil
+    Cons current rest -> if same name current then [current] else Cons current (cycle-prefix name rest)
+  render-cycle :: List String -> String
+  render-cycle chain = cat (cycle-pieces chain)
+  cycle-pieces :: List String -> List String
+  cycle-pieces chain = case chain of
+    Nil -> Nil
+    [last] -> [last]
+    Cons first rest -> Cons first (Cons " -> " (cycle-pieces rest))
+
+  scoped-decls :: List Scoped -> List Decl
+  scoped-decls modules = case modules of
+    Nil -> Nil
+    Cons (MkScoped home surface ds) rest -> ds <> scoped-decls rest
+
+  -- C ABI spellings denote the same machine types as in the native checker.
+  -- Pointer-sized aliases retain their target-dependent width.
+  c-scalar-name :: String -> String
+  c-scalar-name name = if same name "SizeT" then "Usize" else if not (string-starts-with "C" name) then name
+    else if same name "CInt" then "I32" else if same name "CUint" then "U32"
+    else if same name "CChar" then "I8" else if same name "CUchar" then "U8"
+    else if same name "CShort" then "I16" else if same name "CUshort" then "U16"
+    else if same name "CLong" || same name "CLongLong" then "I64"
+    else if same name "CULong" || same name "CULongLong" then "U64"
+    else if same name "CSize" then "Usize" else if same name "CSsize" then "Isize"
+    else if same name "CFloat" then "F32" else if same name "CDouble" then "F64"
+    else if same name "CVoid" then "Unit" else name
+  -- Type variables and dependent binders remain local. Only names in the
+  -- module's visible global surface are rewritten here; the checker owns
+  -- kind checking and unknown type diagnostics.
+  type-name :: Visible -> List String -> String -> String
+  type-name visible locals name = if has-name name locals then name else case visible-lookup name visible of
+    None -> if has-name (annotation-type-local name) locals then name else c-scalar-name name
+    Some b -> if has-name (annotation-type-local name) locals then name else binding-symbol b
+
+  -- A term annotation can shadow a type name while the same spelling
+  -- still resolves to a value in its body.
+  annotation-type-local :: String -> String
+  annotation-type-local name = string-concat "#type:" name
+  annotation-type-locals :: TypeExpr -> List String
+  annotation-type-locals ty = case ty of
+    TForall sp binders body -> map annotation-type-local (bound-names binders)
+    other -> Nil
+
+  bound-names :: TypeExpr -> List String
+  bound-names t = case t of
+    TBound s name kind rest -> Cons name (bound-names rest)
+    TQuantifier s name only kind rest -> Cons name (bound-names rest)
+    other -> Nil
+
+  -- A leading precondition can mention any named argument of this
+  -- function. Names belonging to a callback's own arguments stay inside
+  -- that callback and must not hide module globals in the outer context.
+  argument-names :: TypeExpr -> List String
+  argument-names t = case t of
+    TFun s domain result -> bound-names domain <> argument-names result
+    TFunEff s domain row result -> bound-names domain <> argument-names result
+    TUsageArrow s usage arrow -> argument-names arrow
+    TUsing s bounds body -> argument-names body
+    TForall s binders body -> argument-names body
+    other -> Nil
+
+  -- The closed structural predicate vocabulary is syntax in a predicate
+  -- position. A same-spelled refinement constructor in carrier position
+  -- still resolves to its real defining module.
+  rename-predicate :: Visible -> List String -> TypeExpr -> TypeExpr
+  rename-predicate visible locals syntax = case syntax of
+    TName s name -> if same name "NonZero" then syntax else rename-type visible locals syntax
+    TApp s (TName at name) (TArg arg input (TArgsEnd end)) ->
+      if has-name name ["NonZero", "NotNull", "Ascii", "Ordered"] then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
+      else rename-type visible locals syntax
+    TInfix s op first second -> TInfix s op (rename-predicate visible locals first) (rename-predicate visible locals second)
+    other -> rename-type visible locals syntax
+  rename-proof-bounds :: Visible -> List String -> TypeExpr -> TypeExpr
+  rename-proof-bounds visible locals syntax = case syntax of
+    TBound s name app rest -> TBound s name (rename-predicate visible locals app) (rename-proof-bounds visible (Cons name locals) rest)
+    other -> rename-type visible locals syntax
+
+  -- A free name of generated syntax can bind in its defining module or in
+  -- its own declaration group. A binding visible only at insertion cannot
+  -- supply the missing type or index, even if it has the expected kind.
+  insertion-only-name :: Visible -> List String -> String -> Bool
+  insertion-only-name visible locals name = case visible of
+    MkVisible definition homes (CallerScope insertion captured parent) -> (case visible-lookup name visible of
+      Some binding -> False
+      None -> case visible-lookup name (MkVisible insertion homes parent) of
+        Some binding -> not (has-name name locals || has-name (annotation-type-local name) locals || opaque-name-reserved name)
+        None -> False)
+    other -> False
+
+  scope-diagnostic :: Visible -> String -> String
+  scope-diagnostic visible message = case visible of
+    MkVisible (MkLexicalScope origin True order index aliases) homes caller -> message <> " (not bound in captured source scope " <> origin <> ")"
+    other -> message
+
+  rename-type :: Visible -> List String -> TypeExpr -> TypeExpr
+  rename-type visible locals t = case t of
+    TName s name -> if insertion-only-name visible locals name then TUnmodeled s (scope-diagnostic visible ("unknown type " <> name <> " does not resolve where this template was defined"))
+      else TName s (type-name visible locals name)
+    TIndex s digits -> t
+    TNegate s x -> TNegate s (rename-type visible locals x)
+    TIndexLambda s name body -> TIndexLambda s name (rename-type visible (Cons name locals) body)
+    TInfix s op a b -> TInfix s op (rename-type visible locals a) (rename-type visible locals b)
+    TRefined s predicate carrier -> TRefined s (rename-predicate visible locals predicate) (rename-type visible locals carrier)
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+      TApp s (TName at name) (TArg first (rename-predicate visible locals a) (TArg second (rename-predicate visible locals b) (TArgsEnd end)))
+    -- D29 reserves these spellings in value-index applications. Keep the
+    -- operand in its lexical scope, including inside captured annotations.
+    TApp s (TName at name) args | same name "length" || same name "toNat" ->
+      TApp s (TName at name) (rename-type visible locals args)
+    TApp s (TName at name) args | insertion-only-name visible locals name -> TUnmodeled s (scope-diagnostic visible (name <> " does not resolve where this template was defined"))
+    TApp s head args -> TApp s (rename-type visible locals head) (rename-type visible locals args)
+    TFun s a b -> TFun s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) b)
+    TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
+    TUsageArrow s usage arrow -> TUsageArrow s usage (rename-type visible locals arrow)
+    TEvidenceField s name ty -> TEvidenceField s name (rename-type visible locals ty)
+    TUnpackField s enabled ty -> rename-type visible locals ty
+    TRow s labels tail -> TRow s (rename-cell-effects visible locals labels) tail
+    TTuple s args -> TTuple s (rename-type visible locals args)
+    TList s args -> TList s (rename-type visible locals args)
+    TStrLit s text -> t
+    TSigma s name dom body -> TSigma s name (rename-type visible locals dom) (rename-type visible (Cons name locals) body)
+    TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)
+    TQuantifier s name only kind rest -> TQuantifier s name only (rename-type visible locals kind) (rename-type visible (Cons name locals) rest)
+    TUsing s bounds body -> TUsing s (rename-proof-bounds visible (argument-names body <> locals) bounds) (rename-type visible (bound-names bounds <> locals) body)
+    TArg s a rest -> TArg s (rename-type visible locals a) (rename-type visible locals rest)
+    TBound s name kind rest -> TBound s name (rename-type visible locals kind) (rename-type visible (Cons name locals) rest)
+    other -> t
+
+  -- | Keep kernel cell effects separate from ordinary public datatypes of the same spelling.
+  -- An actual source-effect binding retains its own identity and cannot authorize an intrinsic.
+  rename-cell-effects :: Visible -> List String -> TypeExpr -> TypeExpr
+  rename-cell-effects visible locals labels = case labels of
+    TArg sp (TName at name) rest -> TArg sp (if cell-effect-name name && not (case visible-lookup name visible of Some binding -> string-starts-with "#effect." (binding-symbol binding); None -> False) then TName at ("#kernel." <> name) else rename-type visible locals (TName at name)) (rename-cell-effects visible locals rest)
+    TArg sp label rest -> TArg sp (rename-type visible locals label) (rename-cell-effects visible locals rest)
+    other -> rename-type visible locals labels
+
+  parameter-names :: List TypeParam -> List String
+  parameter-names params = case params of
+    Nil -> Nil
+    Cons p rest -> Cons (param-name p) (parameter-names rest)
+
+  is-pattern-var-name :: String -> Bool
+  is-pattern-var-name name = case unpack name of
+    Cons c rest -> let code = char-code c in (code >= 97 && code <= 122) || code == 95
+    Nil -> False
+
+  pattern-type-vars :: TypeExpr -> List String
+  pattern-type-vars ty = case ty of
+    TName s name -> if is-pattern-var-name name then [name] else Nil
+    TApp s head args -> pattern-type-vars head <> pattern-type-vars args
+    TTuple s args -> pattern-type-vars args
+    TList s args -> pattern-type-vars args
+    TArg s first rest -> pattern-type-vars first <> pattern-type-vars rest
+    TInfix s op a b -> pattern-type-vars a <> pattern-type-vars b
+    TNegate s x -> pattern-type-vars x
+    TFun s a b -> pattern-type-vars a <> pattern-type-vars b
+    other -> Nil
+
+  rename-type-family-eqs :: String -> Visible -> List TypeFamilyEq -> List TypeFamilyEq
+  rename-type-family-eqs home visible eqs = case eqs of
+    Nil -> Nil
+    Cons (MkTypeFamilyEq s head args rhs) rest ->
+      let pvars = pattern-type-vars args in
+      Cons (MkTypeFamilyEq s (global-name home head) (rename-type visible pvars args) (rename-type visible pvars rhs))
+        (rename-type-family-eqs home visible rest)
+
+  rename-params :: Visible -> List String -> List TypeParam -> List TypeParam
+  rename-params visible locals params = case params of
+    Nil -> Nil
+    Cons (MkTypeParam s name kind only) rest ->
+      Cons (MkTypeParam s name (case kind of None -> None; Some t -> Some (rename-type visible locals t)) only)
+        (rename-params visible (Cons name locals) rest)
+
+  rename-ctors :: String -> Visible -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
+  rename-ctors home visible locals ctors = case ctors of
+    Nil -> Nil
+    Cons (name, ty) rest -> Cons (global-name home name, rename-type visible locals ty) (rename-ctors home visible locals rest)
+
+  -- Labels belong to the record. Only their field types use module names.
+  -- Only the declaring record can request a physical field layout. Keep
+  -- its label alongside the ordinary, resolved logical field type.
+  record-layout-requests :: List (String, TypeExpr) -> List (String, Bool)
+  record-layout-requests fields = case fields of
+    Nil -> Nil
+    Cons (name, TUnpackField at enabled ty) rest -> Cons (name, enabled) (record-layout-requests rest)
+    Cons field rest -> record-layout-requests rest
+
+  rename-record-fields :: Bool -> Visible -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
+  rename-record-fields dependent visible locals fields = case fields of
+    Nil -> Nil
+    Cons (name, ty) rest -> Cons (name, rename-type visible locals ty)
+      (rename-record-fields dependent visible (if dependent then Cons name locals else locals) rest)
+
+  pattern-names :: Pat -> List String
+  pattern-names p = case p of
+    PVar s name -> Cons name Nil
+    PCon s name args -> pattern-names args
+    PRecord s name fields -> pattern-names fields
+    PRecordField s name value rest -> pattern-names value <> pattern-names rest
+    PTuple s args -> pattern-names args
+    PList s args -> pattern-names args
+    PCons s head tail -> pattern-names head <> pattern-names tail
+    PAs s name inner -> Cons name (pattern-names inner)
+    PAnn s inner ty -> pattern-names inner
+    PArg s first rest -> pattern-names first <> pattern-names rest
+    other -> Nil
+
+  patterns-names :: List Pat -> List String
+  patterns-names ps = case ps of
+    Nil -> Nil
+    Cons p rest -> pattern-names p <> patterns-names rest
+
+  qualifier-tail :: List Char -> List Char
+  qualifier-tail chars = case chars of
+    Nil -> Nil
+    Cons c rest -> if char-code c == 46 then rest else qualifier-tail rest
+
+  name-qualifier :: String -> String
+  name-qualifier name = pack (reverse (qualifier-tail (reverse (unpack name))))
+
+  visible-qualifier :: String -> List Binding -> Bool
+  visible-qualifier qualifier bindings = case bindings of
+    Nil -> False
+    Cons binding rest -> same qualifier (name-qualifier (binding-name binding)) || visible-qualifier qualifier rest
+
+  captured-name :: String -> List (String, String) -> Option String
+  captured-name name aliases = case aliases of
+    Nil -> None
+    Cons (spelling, key) rest -> if same name spelling then Some key else captured-name name rest
+
+  resolve-use :: Span -> Bool -> Visible -> List String -> String -> (String, List Diagnostic)
+  resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
+    else case visible of
+      MkVisible (MkLexicalScope origin captured order index aliases) homes caller -> (case (constructor, captured-name name aliases) of
+        (False, Some key) -> (key, Nil)
+        other -> resolve-global-use sp constructor visible name)
+
+  resolve-global-use :: Span -> Bool -> Visible -> String -> (String, List Diagnostic)
+  resolve-global-use sp constructor visible name = case visible-lookup name visible of
+      Some b | macro-binding b -> (name, fail sp (cat ["compile-time macro requires an invocation: ", name]))
+      Some b -> (binding-symbol b, Nil)
+      None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.recordDeclaration", "Syntax.lambda", "Syntax.captureType"] ->
+        (name, fail sp (cat [name, " is compile-time only"]))
+      None -> if constructor && (same name "True" || same name "False" || same name "Refl") then (name, Nil)
+        else if not constructor && has-name name ["sing", "from-sing", "with-sing", "sing-eq"] then (name, Nil)
+        else let qualifier = name-qualifier name in
+          if constructor && string-length qualifier > 0 && visible-qualifier qualifier (visible-order visible) then
+            (name, fail sp (scope-diagnostic visible (cat ["unknown constructor ", name, ": not exported into this scope"])))
+          else (name, fail sp (scope-diagnostic visible (cat ["name is not in scope: ", name])))
+
+  -- Qualified and explicitly resolved constructors have one identity. Only a
+  -- bare prelude list constructor also denotes an indexed Vec constructor.
+  vector-alternative :: String -> String -> Option String
+  vector-alternative written resolved =
+    if same written "Nil" && (same resolved global-data-core-nil || same resolved "m.Data.Core.Nil") then Some "b.Vec.Nil"
+    else if same written "Cons" && (same resolved global-data-core-cons || same resolved "m.Data.Core.Cons") then Some "b.Vec.Cons"
+    else None
+
+  list-pattern :: Span -> Pat -> Pat
+  list-pattern sp fields = case fields of
+    PArgsEnd at -> PCon sp (global-data-core-nil) (PArgsEnd sp)
+    PArg at first rest -> PCon sp (global-data-core-cons) (PArg at first (PArg at (list-pattern sp rest) (PArgsEnd at)))
+    other -> PUnmodeled sp "invalid list pattern spine"
+  rename-pat :: Visible -> Pat -> (Pat, List Diagnostic)
+  rename-pat visible p = case p of
+    PRecord s name fields -> case resolve-use s True visible Nil name of
+      (symbol, errors) -> case rename-pat visible fields of
+        (renamed, more) -> (PRecord s symbol renamed, errors <> more)
+    PRecordField s name value rest -> case rename-pat visible value of
+      (renamed, errors) -> case rename-pat visible rest of
+        (more, others) -> (PRecordField s name renamed more, errors <> others)
+    PCon s name args -> case resolve-use s True visible Nil name of
+      (symbol, errors) -> case rename-pat visible args of
+        (renamed, more) -> (case vector-alternative name symbol of
+          Some candidate -> (PFamilyCon s symbol candidate renamed, errors <> more)
+          None -> (PCon s symbol renamed, errors <> more))
+    PTuple s args -> case rename-pat visible args of
+      (renamed, errors) -> (PTuple s renamed, errors)
+    PList s args -> case rename-pat visible args of
+      (renamed, errors) -> (list-pattern s renamed, errors)
+    PCons s head tail -> case rename-pat visible head of
+      (rh, e1) -> case rename-pat visible tail of
+        (rt, e2) -> (PCon s (global-data-core-cons) (PArg (pat-span rh) rh (PArg (pat-span rt) rt (PArgsEnd s))), e1 <> e2)
+    PAs s name inner -> case rename-pat visible inner of
+      (renamed, errors) -> (PAs s name renamed, errors)
+    PAnn s inner ty -> case rename-pat visible inner of
+      (renamed, errors) -> (PAnn s renamed (rename-type visible (pattern-names inner) ty), errors)
+    PArg s first rest -> case rename-pat visible first of
+      (a, errors) -> case rename-pat visible rest of
+        (b, more) -> (PArg s a b, errors <> more)
+    PUnmodeled s text -> (p, fail s (cat ["unmodeled pattern: ", text]))
+    other -> (p, Nil)
+
+  rename-pats :: Visible -> List Pat -> (List Pat, List Diagnostic)
+  rename-pats visible ps = case ps of
+    Nil -> (Nil, Nil)
+    Cons p rest -> case rename-pat visible p of
+      (renamed, errors) -> case rename-pats visible rest of
+        (others, more) -> (Cons renamed others, errors <> more)
+
+  rename-bindings :: Visible -> List String -> Expr -> (Expr, List String, List Diagnostic)
+  rename-bindings visible locals bs = case bs of
+    EBindingsEnd s -> (bs, locals, Nil)
+    EBinding s name rhs rest -> case rename-expr visible locals rhs of
+      (body, errors) -> case rename-bindings visible (Cons name locals) rest of
+        (others, names, more) -> (EBinding s name body others, names, errors <> more)
+    other -> (bs, locals, fail (expr-span bs) "malformed lexical binding spine")
+
+  group-binding-sites :: Expr -> List (Span, String)
+  group-binding-sites bindings = case bindings of
+    ELocalStrict sp pattern value rest -> group-pattern-sites sp (pattern-names pattern) (group-binding-sites rest)
+    ELocalMemo sp name value rest -> Cons (sp, name) (group-binding-sites rest)
+    ELocalSignature sp name ty rest -> group-binding-sites rest
+    other -> Nil
+  group-pattern-sites :: Span -> List String -> List (Span, String) -> List (Span, String)
+  group-pattern-sites sp names rest = case names of
+    Nil -> rest
+    Cons name more -> Cons (sp, name) (group-pattern-sites sp more rest)
+  group-site-name :: (Span, String) -> String
+  group-site-name (sp, name) = name
+  group-memo-names :: Expr -> List String
+  group-memo-names bindings = case bindings of
+    ELocalMemo sp name value rest -> Cons name (group-memo-names rest)
+    ELocalStrict sp pattern value rest -> group-memo-names rest
+    ELocalSignature sp name ty rest -> group-memo-names rest
+    other -> Nil
+  group-signature-sites :: Expr -> List (Span, String)
+  group-signature-sites bindings = case bindings of
+    ELocalSignature sp name ty rest -> Cons (sp, name) (group-signature-sites rest)
+    ELocalMemo sp name value rest -> group-signature-sites rest
+    ELocalStrict sp pattern value rest -> group-signature-sites rest
+    other -> Nil
+  duplicate-group-sites :: String -> List String -> List (Span, String) -> List Diagnostic
+  duplicate-group-sites description seen sites = case sites of
+    Nil -> Nil
+    Cons (sp, name) rest -> let more = duplicate-group-sites description (Cons name seen) rest in
+      if has-name name seen then fail sp (if same description "do binding" then cat ["duplicate binding `", name, "` in the `let` group"] else cat ["duplicate local ", description, " ", name]) <> more else more
+  orphan-group-signatures :: List String -> List (Span, String) -> List Diagnostic
+  orphan-group-signatures declared sites = case sites of
+    Nil -> Nil
+    Cons (sp, name) rest -> let more = orphan-group-signatures declared rest in
+      if has-name name declared then more else fail sp (cat ["local signature has no binding for ", name]) <> more
+  rename-group-bindings :: Visible -> List String -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-group-bindings visible strict all bindings = case bindings of
+    ELocalEnd sp -> (bindings, Nil)
+    ELocalStrict sp pattern value rest -> (case rename-pat visible pattern of
+      (renamed-pattern, errors) -> (case rename-expr visible strict value of
+        (renamed-value, more) -> (case rename-group-bindings visible (pattern-names pattern <> strict) all rest of
+          (renamed-rest, others) -> (ELocalStrict sp renamed-pattern renamed-value renamed-rest, errors <> more <> others))))
+    ELocalMemo sp name value rest -> (case rename-expr visible all value of
+      (renamed, errors) -> (case rename-group-bindings visible strict all rest of
+        (more, others) -> (ELocalMemo sp name renamed more, errors <> others)))
+    ELocalSignature sp name ty rest -> (case rename-group-bindings visible strict all rest of
+      (more, errors) -> (ELocalSignature sp name (rename-type visible all ty) more, errors))
+    other -> (bindings, fail (expr-span bindings) "malformed local group")
+  rename-local-group :: Bool -> Visible -> List String -> Span -> Expr -> Expr -> (Expr, List Diagnostic)
+  rename-local-group recursive visible locals sp bindings body =
+    let sites = group-binding-sites bindings in
+    let declared = map group-site-name sites in
+    let signatures = group-signature-sites bindings in
+    let all = declared <> locals in
+    let errors = (duplicate-group-sites "binding" Nil sites <> duplicate-group-sites "signature" Nil signatures
+      <> orphan-group-signatures declared signatures) in
+    let initial = if recursive then all else group-memo-names bindings <> locals in
+    (case rename-group-bindings visible initial all bindings of
+      (renamed, more) -> (case rename-expr visible all body of
+        (value, others) -> (if recursive then ELetRec sp renamed value else ELocalGroup sp renamed value, errors <> more <> others)))
+
+  rename-alts :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-alts visible locals alts = case alts of
+    EAltsEnd s -> (alts, Nil)
+    EAlt s pat body rest -> case rename-pat visible pat of
+      (renamed, errors) -> case rename-expr visible (pattern-names pat <> locals) body of
+        (rhs, more) -> case rename-alts visible locals rest of
+          (others, tail-errors) -> (EAlt s renamed rhs others, errors <> more <> tail-errors)
+    other -> (alts, fail (expr-span alts) "malformed case alternative spine")
+
+  builtin-decision-use :: Visible -> List String -> Expr -> Bool
+  builtin-decision-use visible locals expression = case expression of
+    EVar sp name -> not (has-name name locals) && (case visible-lookup name visible of Some binding -> same (binding-symbol binding) "b.decide"; None -> False)
+    other -> False
+  -- In a branch test, the structural former may also have the standard
+  -- refinement constructor in scope. A distinct constructor keeps its
+  -- ordinary binding and type.
+  branch-predicate-former :: Visible -> String -> Bool
+  branch-predicate-former visible name = has-name name ["NonZero", "NotNull", "Ascii", "Ordered"] && (case visible-lookup name visible of
+    Some binding -> same name "NonZero" && same (binding-symbol binding) (global-algebra-arithmetic-nonzero)
+    None -> True)
+  branch-literal :: String -> Expr -> Bool
+  branch-literal expected syntax = case syntax of
+    ECon sp name (EArgsEnd end) -> same name expected
+    other -> False
+  rename-branch-value :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-branch-value visible locals syntax = case syntax of
+    ECon sp name (EArg at input (EArgsEnd end)) | branch-predicate-former visible name ->
+      (case rename-expr visible locals input of
+        (value, errors) -> (ECon sp ("#condition." <> name) (EArg at value (EArgsEnd end)), errors))
+    EApp sp (ECon at name (EArgsEnd end)) input | branch-predicate-former visible name ->
+      rename-branch-value visible locals (ECon sp name (EArg at input (EArgsEnd end)))
+    EApp sp (EVar at name) input -> (case visible-lookup name visible of
+      Some binding | not (has-name name locals) && same (binding-symbol binding) (global-data-bool-not) ->
+        (case rename-branch-value visible locals input of
+          (value, errors) -> (EApp sp (EVar at (binding-symbol binding)) value, errors))
+      other -> rename-expr visible locals syntax)
+    other -> rename-expr visible locals syntax
+  -- Predicate operators denote logical operations here. Ordinary applications
+  -- retain their declaration-owned bindings and cannot become decision authority.
+  rename-decision-syntax :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-decision-syntax visible locals syntax = case syntax of
+    ECon sp name arguments -> if has-name name ["NonZero", "NotNull", "Ascii", "Ordered", "Not", "True", "False"] then
+      (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
+    EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Ascii", "Ordered", "Not"] then
+      (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
+    EApp sp (EVar at name) input | same name "length" -> (case rename-expr visible locals input of
+      (argument, errors) -> (EApp sp (EVar at "#kernel.length") argument, errors))
+    EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
+    EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
+      (case rename-decision-syntax visible locals first of (left, errors) -> case rename-decision-syntax visible locals second of (right, more) -> (EBin sp operation left right, errors <> more)) else rename-expr visible locals syntax
+    EIf sp condition yes no -> (case rename-decision-syntax visible locals condition of
+      (test, errors) -> case rename-decision-syntax visible locals yes of
+        (positive, more) -> case rename-decision-syntax visible locals no of
+          (negative, others) -> (EIf sp test positive negative, errors <> more <> others))
+    ENeg sp input -> (case rename-decision-syntax visible locals input of (value, errors) -> (ENeg sp value, errors))
+    EAnn sp input annotation -> (case rename-decision-syntax visible locals input of (value, errors) -> (EAnn sp value (rename-type visible locals annotation), errors))
+    EArg sp first rest -> (case rename-decision-syntax visible locals first of (value, errors) -> case rename-decision-syntax visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
+    EArgsEnd sp -> (syntax, Nil)
+    other -> rename-expr visible locals syntax
+  rename-do :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-do visible locals statements = case statements of
+    EArgsEnd sp -> (statements, Nil)
+    EArg sp (EBind at name rhs) rest -> (case rename-expr visible locals rhs of
+      (value, errors) -> case rename-do visible (if same name "_" then locals else Cons name locals) rest of
+        (more, others) -> (EArg sp (EBind at name value) more, errors <> others))
+    EArg sp (EDoLet at simple bindings) rest ->
+      let sites = group-binding-sites bindings in
+      let declared = map group-site-name sites in
+      let all = declared <> locals in
+      let signatures = group-signature-sites bindings in
+      let errors = duplicate-group-sites "do binding" Nil sites <> duplicate-group-sites "signature" Nil signatures <> orphan-group-signatures declared signatures in
+      (case rename-group-bindings visible (group-memo-names bindings <> locals) all bindings of
+        (values, first) -> case rename-do visible all rest of
+          (more, others) -> (EArg sp (EDoLet at simple values) more, errors <> first <> others))
+    EArg sp (ELet at bindings (EUnit end)) rest -> (case rename-bindings visible locals bindings of
+      (values, names, errors) -> case rename-do visible names rest of
+        (more, others) -> (EArg sp (ELet at values (EUnit end)) more, errors <> others))
+    EArg sp first rest -> (case rename-expr visible locals first of
+      (value, errors) -> case rename-do visible locals rest of (more, others) -> (EArg sp value more, errors <> others))
+    other -> (other, fail (expr-span other) "malformed do statement spine")
+  rename-expr :: Visible -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-expr visible locals e = case e of
+    ERecord s name fields -> case resolve-use s True visible Nil name of
+      (symbol, errors) -> case rename-expr visible locals fields of
+        (renamed, more) -> (ERecord s symbol renamed, errors <> more)
+    ERecordField s name value rest -> case rename-expr visible locals value of
+      (renamed, errors) -> case rename-expr visible locals rest of
+        (more, others) -> (ERecordField s name renamed more, errors <> others)
+    EProject s value name -> case rename-expr visible locals value of
+      (renamed, errors) -> (EProject s renamed name, errors)
+    EVar s name -> case resolve-use s False visible locals name of
+      (symbol, errors) -> (EVar s symbol, errors)
+    ECon s name args -> case resolve-use s True visible Nil name of
+      (symbol, errors) -> case rename-expr visible locals args of
+        (renamed, more) -> (case vector-alternative name symbol of
+          Some candidate -> (EFamilyCon s symbol candidate renamed, errors <> more)
+          None -> (ECon s symbol renamed, errors <> more))
+    ELitInt s digits -> (e, Nil)
+    ELitFloat s digits -> (e, Nil)
+    ELitStr s text -> (e, Nil)
+    ELitSym s text -> (e, Nil)
+    ELitChar s text -> (e, Nil)
+    EUnit s -> (e, Nil)
+    ETuple s args -> case rename-expr visible locals args of
+      (renamed, errors) -> (ETuple s renamed, errors)
+    EList s args -> case rename-expr visible locals args of
+      (renamed, errors) -> (EList s renamed, errors)
+    ERange s args -> case rename-expr visible locals args of
+      (renamed, errors) -> (ERange s renamed, errors)
+    EMap s args -> case rename-expr visible locals args of
+      (renamed, errors) -> (EMap s renamed, errors)
+    ESupplied s callee supplies -> case rename-expr visible locals callee of
+      (head, errors) -> case rename-expr visible locals supplies of
+        (fields, more) -> (ESupplied s head fields, errors <> more)
+    EApp s f a -> if builtin-decision-use visible locals f then
+      (case rename-expr visible locals f of (head, errors) -> case rename-decision-syntax visible locals a of (argument, more) -> (EApp s head argument, errors <> more))
+      else (case rename-expr visible locals f of
+        (head, errors) -> case rename-expr visible locals a of
+          (arg, more) -> (case head of
+            EVar at name | same name "b.ignore" -> (ELet s (EBinding s "#discard" arg (EBindingsEnd s)) (EUnit s), errors <> more)
+            other -> (EApp s head arg, errors <> more)))
+    EBin s op a b -> case rename-expr visible locals a of
+      (left, errors) -> case rename-expr visible locals b of
+        (right, more) ->
+          let rewritten = case visible-lookup op visible of
+                None -> EBin s op left right
+                Some binding -> EApp s (EApp s (EVar s (binding-symbol binding)) left) right in
+          (rewritten, errors <> more)
+    ENeg s x -> case rename-expr visible locals x of
+      (renamed, errors) -> (ENeg s renamed, errors)
+    ELam s ps body -> case rename-pats visible ps of
+      (pats, errors) -> case rename-expr visible (patterns-names ps <> locals) body of
+        (rhs, more) -> (ELam s pats rhs, errors <> more)
+    ELet s bs body -> case rename-bindings visible locals bs of
+      (bindings, names, errors) -> case rename-expr visible names body of
+        (rhs, more) -> (ELet s bindings rhs, errors <> more)
+    ELetScope sp body -> case rename-expr visible locals body of
+      (renamed, errors) -> (ELetScope sp renamed, errors)
+    ELocalGroup sp bindings body -> rename-local-group False visible locals sp bindings body
+    ELetRec sp bindings body -> rename-local-group True visible locals sp bindings body
+    EDoLet sp simple bindings -> (e, fail sp "do let outside a do statement")
+    EDo sp statements -> (case rename-do visible locals statements of (renamed, errors) -> (EDo sp renamed, errors))
+    EWith s bs body -> case rename-bindings visible locals bs of
+      (bindings, names, errors) -> case rename-expr visible names body of
+        (rhs, more) -> (EWith s bindings rhs, errors <> more)
+    EHandle s body handled-by -> case rename-expr visible locals body of
+      (renamed, errors) -> case rename-expr visible locals handled-by of
+        (renamed-handler, more) -> (EHandle s renamed renamed-handler, errors <> more)
+    EHandler s label clauses -> case rename-expr visible locals clauses of
+      (renamed, errors) -> (EHandler s (rename-type visible locals label) renamed, errors)
+    EHandlerClause s name pats continuation body rest -> case rename-pats visible pats of
+      (renamed-pats, errors) ->
+        let local-names = (case continuation of None -> Nil; Some k -> Cons k Nil) <> patterns-names pats <> locals in
+        let (operation, op-errors) = if same name "return" then (name, Nil) else resolve-use s False visible Nil name in
+        case rename-expr visible local-names body of
+          (renamed-body, more) -> case rename-expr visible locals rest of
+            (renamed-rest, tail-errors) -> (EHandlerClause s operation renamed-pats continuation renamed-body renamed-rest, errors <> op-errors <> more <> tail-errors)
+    EHandlerEnd s -> (e, Nil)
+    EIf s c a b -> case rename-branch-value visible locals c of
+      (condition, errors) ->
+        let (yes, more) = if branch-literal "False" b then rename-branch-value visible locals a else rename-expr visible locals a in
+        let (no, tail-errors) = if branch-literal "True" a then rename-branch-value visible locals b else rename-expr visible locals b in
+        (EIf s condition yes no, errors <> more <> tail-errors)
+    ECase s scrut alts -> case rename-branch-value visible locals scrut of
+      (value, errors) -> case rename-alts visible locals alts of
+        (cases, more) -> (ECase s value cases, errors <> more)
+    EGuarded s guard body -> case rename-branch-value visible locals guard of
+      (condition, errors) -> case rename-expr visible locals body of
+        (rhs, more) -> (EGuarded s condition rhs, errors <> more)
+    EForget s atoms x -> case rename-expr visible locals x of
+      (value, errors) -> (EForget s (type-arg-spine s (map (rename-predicate visible locals) (type-args-of atoms))) value, errors)
+    EAnn s x ty -> case rename-expr visible (annotation-type-locals ty <> locals) x of
+      (renamed, errors) -> (EAnn s renamed (rename-type visible locals ty), errors)
+    EArg s first rest -> case rename-expr visible locals first of
+      (a, errors) -> case rename-expr visible locals rest of
+        (b, more) -> (EArg s a b, errors <> more)
+    EArgsEnd s -> (e, Nil)
+    -- A quotation's body is renamed in its own scope, which is what makes
+    -- its free names resolve where the template is written (decision D43).
+    EQuote s body -> case rename-expr visible locals body of
+      (renamed, errors) -> (EQuote s renamed, errors)
+    -- A Name describes a spelling. Only the enclosing template's lexical
+    -- table can turn it into a definition, including privately owned names.
+    ESyntaxReference s key (LiteralSpelling name) -> if has-name key locals then (EVar s key, Nil)
+      else (e, fail s (cat ["captured local `", name, "` is not in scope"]))
+    ESyntaxCaptureUnder s key (LiteralSpelling name) body -> if not (has-name key locals) then (e, fail s (cat ["captured local `", name, "` is not in scope"])) else (case visible of
+      MkVisible lexical homes (CallerScope (MkLexicalScope origin captured order index aliases) names remaining) ->
+        let extended = MkLexicalScope origin True order index (Cons (name, key) aliases) in
+        rename-expr (MkVisible extended homes remaining) (without-spelling name names) body
+      other -> (e, fail s "Syntax.captureUnder outside its expansion"))
+    ESyntaxNamed s home spelling fields -> (e, fail s "unexpanded syntax constructor")
+    EDefinitionName s home spelling -> (case visible of
+      MkVisible lexical homes (CallerScope previous names parent) -> (case visible-lookup spelling visible of
+        Some binding | not (macro-binding binding) -> (EVar s (binding-symbol binding), Nil)
+        other -> (e, fail s (cat ["name `", spelling, "` is not bound in captured source scope ", home])))
+      other -> (e, fail s "macro definition reference outside its expansion"))
+    ETemplateScope s home body -> (case visible of
+      MkVisible lexical homes caller -> case find-home home homes of
+        Some definition -> rename-expr (MkVisible definition homes (CallerScope lexical locals caller)) Nil body
+        None -> (e, fail s (cat ["macro definition module is unavailable: ", home])))
+    EArgumentScope s body -> (case visible of
+      MkVisible lexical homes (CallerScope (MkLexicalScope origin captured order index aliases) names remaining) ->
+        rename-expr (MkVisible (MkLexicalScope origin True order index aliases) homes remaining) names body
+      other -> (e, fail s "macro argument outside its expansion"))
+    ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
+    EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
+    other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
+
+  rename-clauses :: Visible -> List (List Pat, Expr) -> (List (List Pat, Expr), List Diagnostic)
+  rename-clauses visible clauses = rename-member-clauses visible Nil clauses
+
+  rename-member-clauses :: Visible -> List String -> List (List Pat, Expr) -> (List (List Pat, Expr), List Diagnostic)
+  rename-member-clauses visible locals clauses = case clauses of
+    Nil -> (Nil, Nil)
+    Cons (ps, body) rest -> case rename-pats visible ps of
+      (pats, errors) -> case rename-expr visible (patterns-names ps <> locals) body of
+        (rhs, more) -> case rename-member-clauses visible locals rest of
+          (others, tail-errors) -> (Cons (pats, rhs) others, errors <> more <> tail-errors)
+
+  -- Member names are labels of the class contract, not new module values.
+  -- Dictionary elaboration checks them against that class after resolution.
+  instance-head-names :: TypeExpr -> List String
+  instance-head-names ty = case ty of
+    TForall sp binders body -> bound-names binders <> instance-head-names body
+    TUsing sp bounds body -> bound-names bounds <> instance-head-names body
+    other -> Nil
+  -- A signature's binders scope its equations. An earlier signature wins
+  -- even if it binds no names, as in the declaration-order lookup.
+  method-scopes :: List Decl -> HashMap String (List String)
+  method-scopes declarations = case declarations of
+    Nil -> hash-map-empty
+    Cons (DSig sp member ty) rest -> hash-map-insert member (instance-head-names ty) (method-scopes rest)
+    Cons other rest -> method-scopes rest
+  method-locals :: String -> HashMap String (List String) -> List String
+  method-locals name scopes = case hash-map-lookup name scopes of
+    Some names -> names
+    None -> Nil
+  rename-instance-members :: Visible -> List String -> Decl -> (Decl, List Diagnostic)
+  rename-instance-members visible locals members = rename-instance-members-with visible locals (method-scopes (decls-of members)) members
+  rename-instance-members-with :: Visible -> List String -> HashMap String (List String) -> Decl -> (Decl, List Diagnostic)
+  rename-instance-members-with visible locals all members = case members of
+    DDecl s member rest -> case rename-instance-members-with visible locals all member of
+      (renamed, errors) -> case rename-instance-members-with visible locals all rest of
+        (others, more) -> (DDecl s renamed others, errors <> more)
+    DDeclsEnd s -> (members, Nil)
+    DSig s name ty -> (DSig s name (rename-type visible locals ty), Nil)
+    DFun s name clauses -> case rename-member-clauses visible (method-locals name all <> locals) clauses of
+      (renamed, errors) -> (DFun s name renamed, errors)
+    other -> (members, fail (decl-span members) "instance member requires further declaration elaboration")
+
+  stage-type-name :: String -> Bool
+  stage-type-name name = has-name name ["Code", "Syntax", "SyntaxBinding", "TypeSyntax", "PackedCode", "Declarations", "Name"]
+  -- These source heads have compiler-owned runtime representations, including
+  -- the C spellings of machine scalars. An unrelated nominal cannot own one.
+  reserved-primitive-name :: String -> Bool
+  reserved-primitive-name name = reserved-scalar-name name || has-name name ["Secret", "IoCap", "FileReadCap", "FileWriteCap", "ProcCap"]
+  reserved-scalar-name :: String -> Bool
+  reserved-scalar-name name = not (same name (c-scalar-name name)) || has-name name
+    ["Int", "Nat", "Bool", "Unit", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "I128", "Isize",
+     "U8", "U16", "U32", "U64", "U128", "Usize", "F32", "F64"]
+  reserved-primitive-message :: String -> String
+  reserved-primitive-message name = if same name (c-scalar-name name) then name <> " is a builtin primitive type and cannot be redefined"
+    else "a C ABI scalar cannot be redefined (builtin type " <> name <> ")"
+  opaque-name-reserved :: String -> Bool
+  opaque-name-reserved name = kernel-type-name name || stage-type-name name || has-name name
+    ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret", "Sing", "Same"
+    , "IoCap", "FileReadCap", "FileWriteCap", "ProcCap", "Scope", "Task", "RawPtr", "Borrowed", "Retained", "Owned", "Out", "MaybeNull"
+    , "CChar", "CUchar", "CShort", "CUshort", "CInt", "CUint", "CLong", "CULong", "CLongLong", "CULongLong", "CSize", "SizeT"
+    , "CSsize", "CFloat", "CDouble", "CVoid", "SchemaSnapshot", "Database", "SchemaRead"]
+  -- The compiler owns Copy and Share, including their evidence: a source
+  -- instance would claim a structural fact the compiler cannot verify.
+  structural-class-head :: TypeExpr -> Bool
+  structural-class-head ty = case ty of
+    TName s name -> same name "Copy" || same name "Share" || same name "Kernel"
+    TApp s head args -> structural-class-head head
+    other -> False
+  -- Generated names belong to the destination module. Their templates see
+  -- each other and the macro's lexical module; argument splices see the
+  -- scope from which the declaration macro was invoked.
+  extend-generated :: List Binding -> HashMap String Binding -> HashMap String Binding
+  extend-generated bindings index = case bindings of
+    Nil -> index
+    Cons entry rest -> hash-map-insert (binding-name entry) entry (extend-generated rest index)
+
+  rename-decl :: String -> Visible -> List Decl -> HashMap String (List String) -> Decl -> (List Decl, List Diagnostic)
+  rename-decl home visible declarations methods d = case d of
+    DExternal s name category (Some ty) metadata | same home stage-quotation-module && same category "stage-primitive" ->
+      ([DExternal s (global-name home name) category (Some (rename-type visible Nil ty)) metadata], Nil)
+    DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
+    DFun s name clauses -> case rename-member-clauses visible (method-locals name methods) clauses of
+      (body, errors) -> (Cons (DFun s (global-name home name) body) Nil, errors)
+    DData s name params ctors | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
+    DRecord s name params fields | reserved-scalar-name name -> (Nil, fail s (reserved-primitive-message name))
+    DRefine s name params binder predicate | reserved-primitive-name name -> (Nil, fail s (reserved-primitive-message name))
+    DData s name params ctors | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
+    DRecord s name params fields | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
+    DRefine s name params binder predicate | stage-type-name name -> (Nil, fail s (name <> " is a compiler-owned staging type"))
+    DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
+      (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
+        (rename-type visible (parameter-names params) kind)) Nil, Nil)
+    DData s name params ctors -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined")) else if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
+      else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else (Cons (DData s (global-name home name) (rename-params visible Nil params)
+      (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
+    DTypeFamily s name params rk closed eqs ->
+      let pnames = parameter-names params in
+      let renamed-rk = case rk of None -> None; Some k -> Some (rename-type visible pnames k) in
+      (Cons (DTypeFamily s (global-name home name) (rename-params visible Nil params) renamed-rk closed
+        (rename-type-family-eqs home visible eqs)) Nil, Nil)
+    DTypeInstance s fam args rhs ->
+      let pvars = pattern-type-vars args in
+      (Cons (DTypeInstance s (type-name visible Nil fam) (rename-type visible pvars args) (rename-type visible pvars rhs)) Nil, Nil)
+    DDataFamily s name params ->
+      (Cons (DDataFamily s (global-name home name) (rename-params visible Nil params)) Nil, Nil)
+    DDataInstance s fam args ctors ->
+      let pvars = pattern-type-vars args in
+      (Cons (DDataInstance s (type-name visible Nil fam) (rename-type visible pvars args)
+        (rename-ctors home visible pvars ctors)) Nil, Nil)
+    DRecord s name params fields -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a record")) else if has-name name ["Array", "Tensor", "Columnar"] then
+      (Nil, fail s "a builtin array primitive cannot be redefined as a record")
+      else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
+        (rename-record-fields True visible (parameter-names params) fields))
+        (case record-layout-requests fields of Nil -> Nil; requests -> [DUnpackFields s (global-name home name) requests]), Nil)
+    DCodata s name params observations -> if opaque-name-reserved name then
+      (Nil, fail s "a builtin type cannot be redefined as codata")
+      else ([DCodata s (global-name home name) (rename-params visible Nil params)
+        (rename-record-fields False visible (parameter-names params) observations)], Nil)
+    DClass s name params members ->
+      if same name "Copy" || same name "Share" || same name "Kernel" then (Nil, fail s "Copy, Share and Kernel are compiler-known classes and cannot be declared") else
+        case rename-class-members home name visible (parameter-names params) (decls-of members) of
+          (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible Nil params) (decl-spine s renamed)], errors)
+    DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a refinement")) else
+      let names = parameter-names params in
+      let renamed-binder = case binder of MkTypeParam at local kind only -> MkTypeParam at local (case kind of None -> None; Some carrier -> Some (rename-type visible names carrier)) only in
+      (Cons (DRefine s (global-name home name) (rename-params visible Nil params) renamed-binder
+        (rename-predicate visible (Cons (param-name binder) names) predicate)) Nil, Nil)
+    DEffect s name params ops -> (Cons (DEffect s (source-effect-name home name) (rename-params visible Nil params)
+      (rename-ctors home visible (parameter-names params) ops)) Nil, Nil)
+    DInstance s only name params class-app members -> if structural-class-head class-app then
+        (Nil, fail s "Copy and Share are compiler-known classes and take no source instance")
+      else case rename-instance-members visible (instance-head-names class-app <> parameter-names params) members of
+        (renamed, errors) -> (Cons (DInstance s only (global-name home name) (rename-params visible Nil params)
+          (rename-type visible (parameter-names params) class-app) renamed) Nil, errors)
+    DForeign s direction abi symbol name ty ->
+      if same direction "import" then (Cons (DForeign s direction abi symbol (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
+      else case resolve-use s False visible Nil name of
+        (exported-symbol, errors) -> (Cons (DForeign s direction abi symbol exported-symbol (rename-type visible Nil ty)) Nil, errors)
+    DPrim s name ty bodies -> case rename-prim-bodies visible bodies of
+      (renamed, errors) -> ([DPrim s (global-name home name) (rename-type visible Nil ty) renamed], errors)
+    DImport s path mods alias members hidden args -> (Nil, Nil)
+    DExport s text items -> (Nil, Nil)
+    DFixity s assoc prec ops -> (Nil, Nil)
+    DRewrite s name syntax -> case rename-rewrite visible syntax of
+      (renamed, errors) -> ([DRewrite s (global-name home name) renamed], errors)
+    DProof s body -> case rename-decl home visible declarations methods body of
+      ([checked], errors) -> ([DProof s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
+    DSpec s body -> case rename-decl home visible declarations methods body of
+      ([checked], errors) -> ([DSpec s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a spec requires one signature or equation")
+    DCorec s body -> case rename-decl home visible declarations methods body of
+      ([checked], errors) -> ([DCorec s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
+    DNamedDeclaration s hole body -> (Nil, fail s "a name splice is only meaningful inside a `quoteDecls` template")
+    DGeneratedGroup s owner macro-name template -> (case visible of
+      MkVisible insertion homes caller -> case find-home owner homes of
+        None -> (Nil, fail s (cat ["macro definition module is unavailable: ", owner]))
+        Some (MkLexicalScope origin captured order index aliases) ->
+          let group = decls-of template in let declared = own-bindings home group Nil in
+          let scoped = MkLexicalScope origin captured (declared <> order) (extend-generated declared index) aliases in
+          rename-decls home (MkVisible scoped homes (CallerScope insertion Nil caller)) group)
+    DMacroBinding s name -> (Nil, Nil)
+    DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
+    DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
+    DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
+    -- A temporal contract attaches to a definition of its own module (core
+    -- specification section 10). Its formulas are specification notation
+    -- over that definition's parameters, so the contract's clauses resolve
+    -- in the scope the definition's own first clause binds: the same names
+    -- the body uses, renamed the same way. The target keeps its bare
+    -- spelling (the checker looks the definition up by it), the contract's
+    -- own name is not a global (nothing refers to it), and a contract that
+    -- names no definition of this module is refused here rather than
+    -- silently dropped.
+    DContract s keyword name subject clauses ->
+      if not (defines-value subject declarations) then
+        (Nil, fail s (cat ["the temporal contract `", name, "` names no definition `", home, ".", subject, "`: a contract attaches to a definition of its own module that the checker elaborates (core specification section 10)"]))
+      else case rename-contract-clauses visible (contract-scope subject declarations) clauses of
+        (renamed, errors) -> ([DContract s keyword name (global-name home subject) renamed], errors)
+    -- The parser could not model this declaration at all, so the text it
+    -- could not read is the only useful thing to report. Falling through to
+    -- the catch-all below would claim namespace work is missing when the
+    -- real gap is a surface form the parser does not accept yet.
+    DWrapperLayout s name repr label -> ([DWrapperLayout s (global-name home name) repr label], Nil)
+    DUnpackFields s name fields -> ([DUnpackFields s (global-name home name) fields], Nil)
+    DInlineHint s name hint -> (case hint of
+      Err message -> (Nil, fail s message)
+      Ok value -> ([DInlineHint s (global-name home name) hint], Nil))
+    DUnrollHint s name hint -> (case hint of
+      Err message -> (Nil, fail s message)
+      Ok value -> ([DUnrollHint s (global-name home name) hint], Nil))
+    DUnmodeled s text -> (Cons d Nil, fail s (string-concat "the parser cannot model this declaration: " text))
+    other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
+
+  -- Whether this module declares a value of `name` a contract can attach to:
+  -- a signature or an equation. Anything else declares a name a temporal
+  -- contract has no transitions to claim over.
+  defines-value :: String -> List Decl -> Bool
+  defines-value name declarations = case declarations of
+    Nil -> False
+    Cons (DSig s actual ty) rest -> same name actual || defines-value name rest
+    Cons (DFun s actual clauses) rest -> same name actual || defines-value name rest
+    Cons other rest -> defines-value name rest
+
+  -- The scope a contract's formulas read: the target definition's
+  -- parameters, named by the pattern variables of its first clause (core
+  -- specification section 10: the formulas are specification notation over
+  -- the definition's own parameters, so a name the body binds means the same
+  -- thing in the formula).
+  contract-scope :: String -> List Decl -> List String
+  contract-scope subject declarations = case declarations of
+    Nil -> Nil
+    Cons (DFun s name clauses) rest -> if same subject name then first-clause-names clauses else contract-scope subject rest
+    Cons other rest -> contract-scope subject rest
+
+  first-clause-names :: List (List Pat, Expr) -> List String
+  first-clause-names clauses = case clauses of
+    Nil -> Nil
+    Cons (patterns, body) rest -> patterns-names patterns
+
+  -- A liveness formula names a finite structured-concurrency obligation,
+  -- not a value: `joined` and `cleanup` are the two claim words the language
+  -- defines (core specification section 10), so they stay exactly as
+  -- written. Every other formula is specification notation over the
+  -- definition's parameters and resolves like a body.
+  claim-word :: Expr -> Bool
+  claim-word body = case body of
+    EVar s word -> same word "joined" || same word "cleanup"
+    other -> False
+
+  rename-contract-clauses :: Visible -> List String -> List ContractClause -> (List ContractClause, List Diagnostic)
+  rename-contract-clauses visible locals clauses = case clauses of
+    Nil -> (Nil, Nil)
+    Cons first rest -> case first of
+      ContractFormula s op body -> if claim-word body then
+          (case rename-contract-clauses visible locals rest of
+            (others, more) -> (Cons (ContractFormula s op body) others, more))
+        else case rename-expr visible locals body of
+          (renamed, errors) -> case rename-contract-clauses visible locals rest of
+            (others, more) -> (Cons (ContractFormula s op renamed) others, errors <> more)
+      ContractAssume s body -> case rename-expr visible locals body of
+        (renamed, errors) -> case rename-contract-clauses visible locals rest of
+          (others, more) -> (Cons (ContractAssume s renamed) others, errors <> more)
+      ContractAssumed s text -> case rename-contract-clauses visible locals rest of
+        (others, more) -> (Cons (ContractAssumed s text) others, more)
+
+  rename-prim-bodies :: Visible -> List PrimBody -> (List PrimBody, List Diagnostic)
+  rename-prim-bodies visible bodies = case bodies of
+    Nil -> (Nil, Nil)
+    Cons (MkPrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
+      let (evidence, evidence-errors) = (case justification of
+        None -> (None, Nil)
+        Some evidence -> (case rename-rewrite-evidence visible Nil evidence of (renamed, errors) -> (Some renamed, errors))) in
+      (case rename-prim-bodies visible rest of
+        (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition selected evidence
+          (rename-record-fields False visible Nil uses) immediates) more, evidence-errors <> errors))
+
+  rewrite-application :: Expr -> List Expr -> Option (Span, String, List Expr)
+  rewrite-application expression args = case expression of
+    EApp sp f x -> rewrite-application f (Cons x args)
+    EVar sp name -> Some (sp, name, args)
+    ECon sp name arguments -> Some (sp, name, exprs-of arguments <> args)
+    other -> None
+  rewrite-citation :: Visible -> Expr -> Option (Span, String, String, List Expr)
+  rewrite-citation visible expression = case rewrite-application expression Nil of
+    Some (sp, name, args) -> case visible-lookup name visible of
+      Some ordinary -> None
+      None -> let qualifier = name-qualifier name in
+        (case visible-lookup qualifier visible of
+          Some owner -> if string-length qualifier > 0 then Some (sp, binding-symbol owner, short-name name, args) else None
+          None -> None)
+    None -> None
+  rename-rewrite-evidence :: Visible -> List String -> RewriteJustification -> (RewriteJustification, List Diagnostic)
+  rename-rewrite-evidence visible locals evidence = case evidence of
+    RewriteTerm expression -> (case rewrite-citation visible expression of
+      Some (sp, owner, member, args) -> (case rename-expr visible locals (expr-spine sp args) of
+        (renamed, errors) -> (RewriteLaw sp owner member (exprs-of renamed), errors))
+      None -> (case rename-expr visible locals expression of (renamed, errors) -> (RewriteTerm renamed, errors)))
+    RewriteLaw sp owner member args -> (evidence, Nil)
+  rewrite-parameter-sites :: List TypeParam -> List (Span, String)
+  rewrite-parameter-sites params = case params of
+    Nil -> Nil
+    Cons param rest -> Cons (param-span param, param-name param) (rewrite-parameter-sites rest)
+  rewrite-requirement-sites :: TypeExpr -> List (Span, String)
+  rewrite-requirement-sites bounds = case bounds of
+    TBound sp name ty rest -> if string-length name > 0 then Cons (sp, name) (rewrite-requirement-sites rest)
+      else rewrite-requirement-sites rest
+    other -> Nil
+  rename-rewrite :: Visible -> RewriteSyntax -> (RewriteSyntax, List Diagnostic)
+  rename-rewrite visible syntax = case syntax of
+    MkRewriteSyntax targeted params bounds pattern replacement guard evidence ->
+      let names = parameter-names params in
+      let locals = names <> bound-names bounds in
+      let duplicates = duplicate-group-sites "rewrite binder" Nil (rewrite-parameter-sites params <> rewrite-requirement-sites bounds) in
+      let (left, left-errors) = rename-expr visible locals pattern in
+      let (right, right-errors) = rename-expr visible locals replacement in
+      let (condition, guard-errors) = (case guard of
+        None -> (None, Nil)
+        Some expression -> (case rename-expr visible locals expression of (renamed, errors) -> (Some renamed, errors))) in
+      let (justification, proof-errors) = rename-rewrite-evidence visible locals evidence in
+      (MkRewriteSyntax targeted (rename-params visible Nil params) (rename-type visible names bounds) left right condition justification,
+       duplicates <> left-errors <> right-errors <> guard-errors <> proof-errors)
+
+  rename-class-members :: String -> String -> Visible -> List String -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals (method-scopes ds) ds
+  rename-class-members-with :: String -> String -> Visible -> List String -> HashMap String (List String) -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members-with home owner visible locals all ds = case ds of
+    Nil -> (Nil, Nil)
+    Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
+      (more, errors) -> (Cons (DMethod s name (defining-symbol home name visible) (rename-type visible locals ty)) more, errors)
+    Cons (DLaw s name syntax) rest -> case rename-law visible locals syntax of
+      (checked, failures) -> case rename-class-members-with home owner visible locals all rest of
+        (more, errors) -> (Cons (DLaw s name checked) more, failures <> errors)
+    Cons (DFun s name clauses) rest -> case rename-class-members-with home owner visible locals all rest of
+      (more, errors) -> case hash-map-lookup name all of
+        Some binders -> case rename-member-clauses visible (binders <> locals) clauses of
+          (renamed, failures) -> (Cons (DFun s name renamed) more, failures <> errors)
+        None -> (Cons (DFun s name clauses) more, fail s (cat ["`", name, "` is not a method of ", owner]) <> errors)
+    Cons other rest -> case rename-class-members-with home owner visible locals all rest of
+      (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
+
+  rename-law :: Visible -> List String -> LawSyntax -> (LawSyntax, List Diagnostic)
+  rename-law visible locals syntax = case syntax of
+    LawForall parameters rest -> case rename-law visible (parameter-names parameters <> locals) rest of
+      (renamed, errors) -> (LawForall (rename-params visible locals parameters) renamed, errors)
+    LawArrow domain rest -> case rename-law visible (bound-names domain <> locals) rest of
+      (renamed, errors) -> (LawArrow (rename-type visible locals domain) renamed, errors)
+    LawEquation left right -> case rename-expr visible locals left of
+      (first, errors) -> case rename-expr visible locals right of
+        (second, more) -> (LawEquation first second, errors <> more)
+    LawProposition ty -> (LawProposition (rename-type visible locals ty), Nil)
+
+  rename-decls :: String -> Visible -> List Decl -> (List Decl, List Diagnostic)
+  rename-decls home visible ds = rename-decls-with home visible ds (method-scopes ds) ds
+  rename-decls-with :: String -> Visible -> List Decl -> HashMap String (List String) -> List Decl -> (List Decl, List Diagnostic)
+  rename-decls-with home visible all methods ds = case ds of
+    Nil -> (Nil, Nil)
+    Cons d rest -> case rename-decl home visible all methods d of
+      (body, errors) -> case rename-decls-with home visible all methods rest of
+        (others, more) -> (body <> others, errors <> more)
+
+  resolve-program :: Program -> (Program, List Diagnostic)
+  resolve-program p = resolve-program-with p Nil
+
+  import-target-index :: List Module -> HashMap String Bool -> HashMap String Bool
+  import-target-index modules targets = case modules of
+    Nil -> targets
+    Cons m rest -> import-target-index rest (index-import-targets (module-decls m) targets)
+
+  index-import-targets :: List Decl -> HashMap String Bool -> HashMap String Bool
+  index-import-targets declarations targets = case declarations of
+    Nil -> targets
+    Cons (DImport sp path mods alias members hidden args) rest ->
+      index-import-targets rest (hash-map-insert path True targets)
+    Cons other rest -> index-import-targets rest targets
+
+  -- Only explicit imports and the implicit Prelude look up a lexical
+  -- surface. Keep every admitted contract for defining identities and laws.
+  interface-bindings :: LoadedInterface -> List Binding
+  interface-bindings i = let home = loaded-module i in
+    map (\name -> MkBinding name home (public-global i name)) (loaded-names i)
+
+  interface-scope :: LoadedInterface -> Bool -> (Scoped, Module)
+  interface-scope i exposed =
+    (MkScoped (loaded-module i) (if exposed then interface-bindings i else Nil) (interface-declarations i), interface-fixity-header i)
+
+  interface-contexts :: HashMap String Bool -> List LoadedInterface -> (List Scoped, List Module)
+  interface-contexts targets interfaces = case interfaces of
+    Nil -> (Nil, Nil)
+    Cons i rest -> case (interface-scope i (referenced (loaded-module i) targets), interface-contexts targets rest) of
+      ((built, header), (more, headers)) -> (Cons built more, Cons header headers)
+
+  export-references :: List Scoped -> List String
+  export-references scopes = case scopes of
+    Nil -> Nil
+    Cons (MkScoped home surface body) rest -> binding-references surface <> export-references rest
+
+  binding-references :: List Binding -> List String
+  binding-references bindings = case bindings of
+    Nil -> Nil
+    Cons b rest -> Cons (binding-symbol b) (binding-references rest)
+
+  resolve-program-with :: Program -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-program-with p interfaces = resolve-signature-overlays p interfaces Nil
+
+  resolve-signature-overlays :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-signature-overlays p interfaces checked = case validate-interface-set interfaces of
+    Err message -> (p, fail (program-span p) message)
+    Ok ordered -> resolve-ordered-interfaces p ordered checked
+  resolve-admitted-signature-overlays :: Program -> Result String ValidatedInterfaces -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-admitted-signature-overlays p admitted checked = case admitted of
+    Err message -> (p, fail (program-span p) message)
+    Ok ready -> case canonical-interface-validation ready of
+      Err message -> (p, fail (program-span p) message)
+      Ok ordered -> resolve-ordered-interfaces p (validated-interfaces-members ordered) checked
+  -- The declarations and outbound names of a validated package are fixed
+  -- for the session. The result records whether the resolved program kept
+  -- the original package declarations in order.
+  prepare-admitted-resolution :: Result String ValidatedInterfaces -> (Program -> List LoadedInterface -> (Program, List Diagnostic, Bool))
+  prepare-admitted-resolution admitted = case admitted of
+    Err message -> \p checked -> (p, fail (program-span p) message, False)
+    Ok ready -> let ordered = validated-interfaces-members ready in
+      let imported = reference-index (map loaded-module ordered) in
+      case interface-contexts imported ordered of
+        (members, headers) ->
+          let scopes = scope-index members hash-map-empty in
+          let base = builtin-declarations <> scoped-decls members in
+          let records = imported-record-symbols base in
+          let prepared = PreparedDeclarations (prepare-externals base) records (reference-index records) (module-name-index headers) imported scopes in
+          \p checked -> let modules = program-modules p in
+            if shadows-admitted-interface imported modules
+              then resolve-context-with None p (unshadowed-interfaces modules ordered) Nil checked
+              else resolve-context-with (Some prepared) p ordered Nil checked
+
+  shadows-admitted-interface :: HashMap String Bool -> List Module -> Bool
+  shadows-admitted-interface imported modules = case modules of
+    Nil -> False
+    Cons source rest -> let name = module-name source in
+      if embedded-library-home name && referenced name imported
+        then True else shadows-admitted-interface imported rest
+  resolve-ordered-interfaces :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-ordered-interfaces p ordered checked =
+    let available = unshadowed-interfaces (program-modules p) ordered in
+    resolve-context p available Nil checked
+
+  -- A source module beside the entry shadows the base-package copy of the
+  -- same name: the explicit source is the program's version of that module,
+  -- so the admitted interface leaves the scope the program resolves
+  -- against. A collision outside the base package keeps its interface and
+  -- is reported by `validate-modules`.
+  unshadowed-interfaces :: List Module -> List LoadedInterface -> List LoadedInterface
+  unshadowed-interfaces modules interfaces = case interfaces of
+    Nil -> Nil
+    other -> unshadowed-indexed-interfaces (reference-index (map module-name modules)) interfaces
+  unshadowed-indexed-interfaces :: HashMap String Bool -> List LoadedInterface -> List LoadedInterface
+  unshadowed-indexed-interfaces sources interfaces = case interfaces of
+    Nil -> Nil
+    Cons i rest ->
+      if referenced (loaded-module i) sources && embedded-library-home (loaded-module i)
+        then unshadowed-indexed-interfaces sources rest
+        else Cons i (unshadowed-indexed-interfaces sources rest)
+
+  -- A library home may precede the Prelude facade that re-exports it.
+  -- Only project facade names whose defining interface is already in the
+  -- home's checked dependency closure. The facade itself is never loaded
+  -- into that closure or made available as a source import.
+  resolve-overlay-with :: Program -> List LoadedInterface -> LoadedInterface -> (Program, List Diagnostic)
+  resolve-overlay-with p dependencies facade = case validate-interface-set dependencies of
+    Err message -> (p, fail (program-span p) message)
+    Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
+      let base = overlay-base-bindings facade (loaded-exports facade) available Nil in
+      resolve-context p available base Nil
+
+  overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
+  overlay-base-bindings facade exports dependencies found = case exports of
+    Nil -> reverse found
+    Cons (name, kind, identity) rest ->
+      let symbol = interface-global identity in
+      case overlay-defining-interface (identity-owner (reverse (unpack identity))) kind identity dependencies of
+        Some owner -> overlay-base-bindings facade rest dependencies
+          (if same symbol (public-global facade name) then Cons (MkBinding name owner symbol) found else found)
+        None -> overlay-base-bindings facade rest dependencies found
+
+  identity-owner :: List Char -> String
+  identity-owner reversed = case reversed of
+    Nil -> ""
+    Cons first rest -> if first == '.' then pack (reverse rest) else identity-owner rest
+
+  overlay-defining-interface :: String -> String -> String -> List LoadedInterface -> Option String
+  overlay-defining-interface owner kind identity dependencies = case dependencies of
+    Nil -> None
+    Cons i rest -> if same owner (loaded-module i) then
+      (if exports-identity kind identity (loaded-exports i) then Some owner else None)
+      else overlay-defining-interface owner kind identity rest
+
+  exports-identity :: String -> String -> List (String, String, String) -> Bool
+  exports-identity kind identity exports = case exports of
+    Nil -> False
+    Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
+
+  resolve-context :: Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-context p available base checked = case resolve-context-with None p available base checked of
+    (resolved, errors, retained) -> (resolved, errors)
+
+  resolve-context-with :: Option PreparedDeclarations -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic, Bool)
+  resolve-context-with prepared p available base checked = case p of
+    MkProgram sp modules ->
+      let sources = reference-index (map module-name modules) in
+      let imported = (case prepared of
+        Some (PreparedDeclarations externals records indexed headers known scopes) -> known
+        None -> reference-index (map loaded-module available)) in
+      case validate-modules sources imported modules hash-map-empty of
+        Nil -> case (module-order modules imported, prepared) of
+          ((ordered, blocked), Some (PreparedDeclarations externals records indexed headers known scopes)) ->
+            -- Lexical lookup reaches package scopes only through an import
+            -- or Prelude. The ordered resolution result needs source rows
+            -- alone, since the package declarations already have a separate index.
+            finish-resolution p sp modules sources prepared
+              (resolve-ordered ordered blocked Nil scopes base Nil checked) Nil base
+          ((ordered, blocked), None) ->
+            let targets = import-target-index modules (reference-index ["Prelude"]) in
+            case interface-contexts targets available of
+              (interfaces, headers) -> finish-resolution p sp modules sources prepared
+                (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked)
+                headers base
+        errors -> (p, errors, False)
+
+  finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> Option PreparedDeclarations -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic, Bool)
+  finish-resolution p sp modules sources prepared resolution headers base = case resolution of
+    (done, indexed, Nil) ->
+      let source-surfaces = (case prepared of Some package -> done; None -> source-scopes sources done) in
+      let (select, imported-records, imported-record-index) = resolution-declarations prepared done source-surfaces in
+      let source-records = source-record-symbols modules in
+      let records = source-records <> imported-records in
+      let record-index = reference-index-from source-records imported-record-index in
+      let prelude-available = (case hash-map-lookup "Prelude" indexed of Some prelude -> True; None -> False) in
+      let header-index = (case prepared of
+        Some (PreparedDeclarations externals names indexed-records imports known scopes) -> index-module-names (reverse modules) imports
+        None -> module-name-index (modules <> headers)) in
+      let contexts = source-contexts header-index indexed source-surfaces prelude-available (records, record-index) base in
+      -- Package scopes contain only DExternal, DInterface and refusal
+      -- stubs. Their syntax contributes no source references.
+      let own-references = declaration-references builtin-declarations <> scoped-references source-surfaces in
+      let surface-references = export-references source-surfaces <> record-context-references contexts in
+      let reference-set = reference-index-from surface-references (reference-index own-references) in
+      let references = [own-references, surface-references] in
+      let candidates = select references in
+      let record-references = (case imported-records of
+        Nil -> Nil
+        other -> imported-record-references reference-set imported-record-index candidates) in
+      let additional = overload-references reference-set candidates <> kernel-references reference-set candidates <> imported-class-references candidates <> record-references in
+      let all-reference-set = reference-index-from additional reference-set in
+      let declarations = select (Cons additional references) in
+      -- The parallel interface is a kernel declaration: a program that
+      -- names `Parallelism` or one of its methods keeps it, exactly as
+      -- a source mention of a prelude family would.
+      let admitted = if referenced "b.Fin" all-reference-set then Cons finite-index-declaration declarations else declarations in
+      let families = if referenced "b.Vec" all-reference-set then Cons vector-declaration admitted else admitted in
+      case materialize-externals all-reference-set families Nil of
+        -- Source declaration resolution rejects DInterface. Positional
+        -- selection and materialization keep every package DInterface.
+        (body, errors) -> let retained = (case (prepared, errors) of
+          (Some package, Nil) -> True
+          other -> False) in
+          (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors, retained)
+    (done, indexed, errors) -> (p, errors, False)
+
+  resolution-declarations :: Option PreparedDeclarations -> List Scoped -> List Scoped -> (List (List String) -> List Decl, List String, HashMap String Bool)
+  resolution-declarations prepared done sources = case prepared of
+    -- The only external declaration source resolution can synthesize is
+    -- the staging primitive. Imported record declarations belong to the
+    -- pinned package, while source record names come from the source AST.
+    Some (PreparedDeclarations externals records indexed headers known scopes) -> let body = scoped-decls sources in
+      (\used -> select-externals used externals <> body, records, indexed)
+    None -> let declarations = builtin-declarations <> scoped-decls done in
+      let records = imported-record-symbols declarations in
+      (\used -> declarations, records, reference-index records)
+
+  -- A program that names the signature, one of its methods, or the host
+  -- instance keeps the kernel declarations. The instance is named so a
+  -- program that only spells `HostParallelism` still gets its dictionary.
+  -- The references are already resolved (the module was renamed before this
+  -- point), so the kernel's own symbols are what appear here.
+  parallelism-used :: HashMap String Bool -> Bool
+  parallelism-used references = referenced "b.Parallelism" references
+    || referenced "b.HostParallelism" references
+    || referenced "b.both" references || referenced "b.tabulate" references
+    || referenced "b.mapArray" references || referenced "b.workers" references
+
+  source-scopes :: HashMap String Bool -> List Scoped -> List Scoped
+  source-scopes sources done = case done of
+    Nil -> Nil
+    Cons s rest -> if referenced (scoped-name s) sources then Cons s (source-scopes sources rest) else source-scopes sources rest
+
+  scoped-references :: List Scoped -> List String
+  scoped-references scopes = case scopes of
+    Nil -> Nil
+    Cons (MkScoped home surface body) rest -> declaration-references body <> scoped-references rest
+
+  -- The fragment backend uses one aggregate, but checked interface output
+  -- must still know each source module's public aliases and declarations.
+  source-contexts :: HashMap String Module -> HashMap String Scoped -> List Scoped -> Bool -> (List String, HashMap String Bool) -> List Binding -> List Decl
+  source-contexts available all-scopes scopes prelude records base = case scopes of
+    Nil -> Nil
+    Cons (MkScoped name surface body) rest ->
+      let source = hash-map-lookup name available in
+      let at = (case source of Some m -> module-span m; None -> Span 0 0 1 1) in
+      let declarations = (case source of Some m -> module-decls m; None -> Nil) in
+      let begin = span-start at in
+      let finish = span-end at in
+      Cons (DSource at name
+        (record-source-context source all-scopes records base
+        (JObj "module" (JStr name)
+          (JObj "source_start" (JNum (nat-to-int begin))
+            (JObj "source_end" (JNum (nat-to-int finish))
+              (JObj "exports" (surface-json (select-phase False surface))
+                (JObj "declarations" (symbols-json body)
+                  (JObj "imports" (strings-json (module-imports name declarations prelude base surface body))
+                    (JObj "fixities" (fixity-json (indexed-exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts available all-scopes rest prelude records base)
+
+  source-record-symbols :: List Module -> List String
+  source-record-symbols modules = case modules of
+    Nil -> Nil
+    Cons m rest -> declared-record-symbols (module-name m) (module-decls m) <> source-record-symbols rest
+  declared-record-symbols :: String -> List Decl -> List String
+  declared-record-symbols home declarations = case declarations of
+    Nil -> Nil
+    Cons (DRecord sp name params fields) rest -> Cons (global-name home name) (declared-record-symbols home rest)
+    Cons (DCodata sp name params observations) rest -> Cons (global-name home name) (declared-record-symbols home rest)
+    Cons other rest -> declared-record-symbols home rest
+  imported-record-symbols :: List Decl -> List String
+  imported-record-symbols declarations = collect-imported-record-symbols (reverse declarations) hash-map-empty Nil
+  collect-imported-record-symbols :: List Decl -> HashMap String Bool -> List String -> List String
+  collect-imported-record-symbols declarations seen found = case declarations of
+    Nil -> found
+    Cons (DExternal sp name category syntax metadata) rest ->
+      if same category "type" && (case context-field "kind" metadata of JStr kind -> same kind "record" || same kind "codata"; other -> False)
+        && not (referenced name seen) then collect-imported-record-symbols rest (hash-map-insert name True seen) (Cons name found)
+      else collect-imported-record-symbols rest seen found
+    Cons other rest -> collect-imported-record-symbols rest seen found
+  context-field :: String -> Json -> Json
+  context-field wanted doc = case doc of
+    JObj key value rest -> if same wanted key then value else context-field wanted rest
+    other -> JNull
+  record-context-references :: List Decl -> List String
+  record-context-references contexts = case contexts of
+    Nil -> Nil
+    Cons (DSource sp name metadata) rest -> record-context-labels (context-field "record_scope" metadata) <> record-context-references rest
+    Cons other rest -> record-context-references rest
+  record-context-labels :: Json -> List String
+  record-context-labels rows = case rows of
+    JArr (JStr name) rest -> Cons name (record-context-labels rest)
+    other -> Nil
+  -- A known receiver can use its public defining record even when only
+  -- the function that returned it was imported. Nominal closures contain
+  -- no labels, so private carriers cannot introduce field authority here.
+  imported-record-references :: HashMap String Bool -> HashMap String Bool -> List Decl -> List String
+  imported-record-references references records declarations = case declarations of
+    Nil -> Nil
+    Cons (DExternal sp name category syntax metadata) rest ->
+      let more = imported-record-references references records rest in
+      if referenced name references then
+        record-nominal-references records (context-field "nominals" (context-field "resolved" metadata)) <> more
+      else more
+    Cons other rest -> imported-record-references references records rest
+  record-nominal-references :: HashMap String Bool -> Json -> List String
+  record-nominal-references records rows = case rows of
+    JArr nominal rest -> let more = record-nominal-references records rest in
+      (case context-field "identity" nominal of
+        JStr identity -> let symbol = interface-global identity in if referenced symbol records then Cons symbol more else more
+        other -> more)
+    other -> Nil
+  visible-record-symbols :: HashMap String Bool -> List String -> List String
+  visible-record-symbols visible records = case records of
+    Nil -> Nil
+    Cons name rest ->
+      if referenced name visible then Cons name (visible-record-symbols visible rest) else visible-record-symbols visible rest
+  visible-record-index :: HashMap String Bool -> List Binding -> HashMap String Bool -> HashMap String Bool
+  visible-record-index records bindings found = case bindings of
+    Nil -> found
+    Cons binding rest -> let symbol = binding-symbol binding in
+      visible-record-index records rest
+        (if referenced symbol records then hash-map-insert symbol True found else found)
+  record-source-context :: Option Module -> HashMap String Scoped -> (List String, HashMap String Bool) -> List Binding -> Json -> Json
+  record-source-context source scopes records base document = case records of
+    (Nil, index) -> document
+    (names, index) -> JObj "record_scope" (strings-json (module-record-scope source scopes names index base)) document
+  module-record-scope :: Option Module -> HashMap String Scoped -> List String -> HashMap String Bool -> List Binding -> List String
+  module-record-scope source scopes names records base = case source of
+    None -> Nil
+    Some m -> case module-visibility m scopes base Nil of
+      (declared, visible, views, errors) -> visible-record-symbols (visible-record-index records visible hash-map-empty) names
+
+  -- Retain consumed imports and the parser's definition-owned fixity facts
+  -- before elaboration drops source declarations. Reexport metadata carries
+  -- an inherited fact; it never introduces a new source fixity declaration.
+  declared-imports :: List Decl -> List String -> List String
+  declared-imports declarations prior = known-imports declarations (reference-index prior) prior
+  known-imports :: List Decl -> HashMap String Bool -> List String -> List String
+  known-imports declarations seen names = case declarations of
+    Nil -> reverse names
+    Cons (DImport sp name mods alias members hidden arguments) rest | not (referenced name seen) ->
+      known-imports rest (hash-map-insert name True seen) (Cons name names)
+    Cons other rest -> known-imports rest seen names
+
+  -- A compile-time evaluator sees its producer, the source Prelude when present,
+  -- and their transitive imports. Runtime clients may import names that the
+  -- producer has yet to generate. The expanded program checks those imports.
+  source-import-closure :: String -> List Module -> List String
+  source-import-closure owner modules = walk-source-imports [owner, "Prelude"] (module-name-index modules) hash-map-empty Nil
+
+  walk-source-imports :: List String -> HashMap String Module -> HashMap String Bool -> List String -> List String
+  walk-source-imports pending modules seen visited = case pending of
+    Nil -> visited
+    Cons name rest -> if referenced name seen then walk-source-imports rest modules seen visited else
+      let declarations = (case hash-map-lookup name modules of Some m -> module-decls m; None -> Nil) in
+      walk-source-imports (declared-imports declarations Nil <> rest) modules (hash-map-insert name True seen) (Cons name visited)
+
+  module-imports :: String -> List Decl -> Bool -> List Binding -> List Binding -> List Decl -> List String
+  module-imports name declarations prelude base surface body = declared-imports declarations
+    (if prelude && not (same name "Prelude") then ["Prelude"] else case base of
+      Nil -> Nil
+      other -> consumed-base-imports base (binding-references surface <> declaration-references body) Nil)
+  consumed-base-imports :: List Binding -> List String -> List String -> List String
+  consumed-base-imports bindings references found = case bindings of
+    Nil -> found
+    Cons (MkBinding name owner symbol) rest -> consumed-base-imports rest references
+      (if has-name symbol references && not (has-name owner found) then Cons owner found else found)
+  strings-json :: List String -> Json
+  strings-json values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings-json rest)
+  surface-names :: List Binding -> List String
+  surface-names bindings = case bindings of Nil -> Nil; Cons first rest -> Cons (binding-name first) (surface-names rest)
+  fixity-json :: List (String, String, Nat) -> Json
+  fixity-json facts = case facts of
+    Nil -> JArrEnd
+    Cons (name, association, precedence) rest -> JArr (JObj "op" (JStr name)
+      (JObj "assoc" (JStr association) (JObj "prec" (JNum (nat-to-int precedence)) JObjEnd))) (fixity-json rest)
+
+  surface-json :: List Binding -> Json
+  surface-json bindings = case bindings of
+    Nil -> JArrEnd
+    Cons (MkBinding name origin symbol) rest -> JArr
+      (JObj "name" (JStr name) (JObj "origin" (JStr origin) (JObj "symbol" (JStr symbol) JObjEnd))) (surface-json rest)
+
+  symbols-json :: List Decl -> Json
+  symbols-json ds = case ds of
+    Nil -> JArrEnd
+    Cons (DRewrite sp name syntax) rest -> JArr (JStr name) (symbols-json rest)
+    Cons d rest -> case decl-name d of
+      Some name -> JArr (JStr name) (symbols-json rest)
+      None -> symbols-json rest

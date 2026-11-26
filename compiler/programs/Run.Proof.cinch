@@ -1,7 +1,7 @@
 -- All arithmetic inputs are supplied after this executable is built.
 module Main where
 
-  import Bootstrap.Proof
+  import Cinch.Proof
   import Data.Path (path-from-string)
   import Data.Nat (nat-from-int)
   import Effect.Fs (fs-read, fs-write)

@@ -41,11 +41,11 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     ]);
     common::check_library_fixture_native(&source, "Main.cinch").expect("compile the contract fixture");
     let dir = common::project("load", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.Load.cinch")),
     ]);
     let mut ifaces = Vec::new();
@@ -329,7 +329,7 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
         quote(identity), quote(owner), quote(identity), quote(owner),
     )).collect::<Vec<_>>().join(" &&\n          ");
     let program = format!(r#"module Main where
-  import Bootstrap.Load
+  import Cinch.Load
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
   same :: String -> String -> Bool
@@ -347,17 +347,17 @@ fn body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities() {
     // Expose the private lookup and the index that feeds it only in this
     // test's owned module copy. Production exports and admission paths
     // retain their existing boundary.
-    let loader = include_str!("../../compiler/Bootstrap.Load.cinch").replacen(
+    let loader = include_str!("../../compiler/Cinch.Load.cinch").replacen(
         "  export ImportedValue",
         "  export body-node-owner\n  export index-interfaces\n  export ImportedValue",
         1,
     );
     let dir = common::project("owner_prefixes", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Load.cinch", &loader), ("Main.cinch", &program),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Load.cinch", &loader), ("Main.cinch", &program),
     ]);
     let exe = common::build(&dir, "Main.cinch", "owner-prefixes").expect("build owner-prefix checks");
     for size in [0, 1, 17, 129, 257] {
@@ -388,9 +388,9 @@ fn the_body_loader_prunes_stale_importers_and_keeps_dependency_order() {
     let stale = documents(&[&leaf, &middle, &independent, &root, &stale]);
     let ordered = documents(&[&child, &root, &independent]);
     let main = format!(r#"module Main where
-  import Bootstrap.Interface (iface-parse)
-  import Bootstrap.Load (load-checked-body-interface-set-from-documents, interface-set-members, loaded-module)
-  import Bootstrap.Document (Json)
+  import Cinch.Interface (iface-parse)
+  import Cinch.Load (load-checked-body-interface-set-from-documents, interface-set-members, loaded-module)
+  import Cinch.Document (Json)
   documents :: List (String, String, String) -> Option (List (String, String, Json))
   documents rows = case rows of
     Nil -> Some Nil
@@ -412,11 +412,11 @@ fn the_body_loader_prunes_stale_importers_and_keeps_dependency_order() {
   main = if admits [{stale}] ["Independent", "Root"] && admits [{ordered}] ["Root", "Child", "Independent"] then 0 else 1
 "#);
     let dir = common::project("stale_body_closure", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
         ("Main.cinch", &main),
     ]);
     let exe = common::build(&dir, "Main.cinch", "stale-body-closure").expect("build body closure checks");

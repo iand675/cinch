@@ -4,9 +4,9 @@ mod common;
 #[test]
 fn source_proofs_stay_erased_scoped_and_distinct_from_runtime_values() {
     let dir = common::project("source_proofs", &[
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Infer.cinch", include_str!("../../compiler/Bootstrap.Infer.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Infer.cinch", include_str!("../../compiler/Cinch.Infer.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.SourceProofs.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-proofs").expect("build source proof checker");

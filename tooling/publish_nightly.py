@@ -125,7 +125,7 @@ def prepare(repo, run, directory):
            "--name", name, "--dir", destination)
         checked = verify_distribution(destination, system, revision)
         files.extend(checked)
-    # Compiler bundles include a generated Bootstrap.Host module, so their
+    # Compiler bundles include a generated Cinch.Host module, so their
     # source hashes differ across systems. The run revision must match instead.
     readme = required_file(downloads / artifact_names(run)[0], "README.md")
     release = directory / "release"

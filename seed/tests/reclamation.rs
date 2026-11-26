@@ -162,7 +162,7 @@ fn a_profile_that_does_not_reclaim_emits_no_ownership_and_leaks() {
 /// emitters behind `drive_with_profile` name their helpers differently:
 /// `seed/src/codegen.rs` (the Native seed) defines
 /// `cinch.rc.{dup,drop}.{obj,tobj}` plus the `cinch.rc.unique` test a drop
-/// specialisation asks, while `compiler/Bootstrap.RuntimeIr.cinch`
+/// specialisation asks, while `compiler/Cinch.RuntimeIr.cinch`
 /// (`count-helpers`) defines the two alwaysinline helpers
 /// `cinch.typed.rc.{dup,drop}`. Both are the same decision from the same
 /// `reclaim` flag, so the assertion names the whole set: a spelling that

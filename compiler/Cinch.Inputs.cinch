@@ -1,0 +1,133 @@
+-- Read a closed interface set before lexing the source's operator chains.
+module Cinch.Inputs where
+
+  import Cinch.Load (LoadedInterface, ValidatedInterfaces, load-validated-interfaces, load-validated-package-contracts, validated-interfaces-members)
+  import Cinch.Package (PackageSnapshot, read-package-documents, read-package-snapshot)
+  import Cinch.Document
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  import Text.Scan (string-ends-with)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  export read-interfaces, embedded-library-home
+  export InterfaceInputs, read-interface-inputs, interface-input-files, load-interface-inputs
+  export load-client-interface-inputs, interface-package-file
+  export read-validated-interfaces
+
+  data InterfaceInputs where
+    InterfaceFiles :: List (String, String, String) -> InterfaceInputs
+    InterfacePackage :: String -> InterfaceInputs
+
+  -- Source replacement is reserved for defining homes in the pinned
+  -- compiler-owned base package. Ordinary interface collisions still refuse.
+  embedded-library-home :: String -> Bool
+  embedded-library-home name = embedded-home-member name embedded-homes
+  embedded-home-member :: String -> List String -> Bool
+  embedded-home-member name homes = case homes of
+    Nil -> False
+    Cons home rest -> string-compare name home == 0 || embedded-home-member name rest
+  embedded-homes :: List String
+  embedded-homes =
+    ["Data.Core", "Data.Ordering", "Relation.Eq", "Relation.Ord",
+    "Algebra.Arithmetic", "Algebra.Bits", "Function.Combinators", "Data.Nat",
+    "Data.Int", "Data.Option", "Data.Result", "Data.List",
+    "Data.Enum", "Data.Char", "Data.Bool", "Data.Machine",
+    "Data.Bytes", "Data.Map", "Data.String", "Data.Json",
+    "Data.Producer", "Data.Target", "Data.Path", "Effect.Sequencing",
+    "Effect.Concurrent", "Effect.Clock", "Effect.Fs", "Effect.Process",
+    "Effect.Io", "Data.FromList", "Data.FromMap", "Text.Show",
+    "Data.Sym", "Prelude", "Algebra.Semigroup", "Algebra.Group",
+    "Algebra.Semiring", "Algebra.Monoid", "Category.Functor", "Category.Applicative",
+    "Category.Monad", "Category.Alternative", "Category.Foldable", "Category.Traversable",
+    "Data.Identity", "Data.Const", "Data.Compose", "Data.NonEmpty",
+    "Data.Sorted", "Data.NonZero", "Data.Ascii", "Data.Set",
+    "Data.Hash", "Text.Codec", "Data.HashMap"]
+
+  field :: String -> Json -> Json
+  field name doc = case doc of
+    JObj key value rest -> if string-compare name key == 0 then value else field name rest
+    other -> JNull
+
+  rows :: Json -> Result String (List (String, String, String))
+  rows items = case items of
+    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) JArrEnd))) rest -> case rows rest of
+      Err message -> Err message
+      Ok more -> Ok (Cons (name, hash, path) more)
+    JArrEnd -> Ok Nil
+    other -> Err "malformed interface manifest rows"
+
+  read-files :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String (List (String, String, Bytes))
+  read-files inputs = case inputs of
+    Nil -> Ok Nil
+    Cons (name, hash, path) rest -> case fs-read (path-from-string path) of
+      Err error -> Err (string-concat "cannot read interface: " path)
+      Ok src -> case read-files rest of
+        Err message -> Err message
+        Ok others -> Ok (Cons (name, hash, src) others)
+
+  read-interface-references :: forall r. using (io :: Io r) => String ->{IO r} Result String (List (String, String, String))
+  read-interface-references path = case fs-read (path-from-string path) of
+    Err error -> Err (string-concat "cannot read interface manifest: " path)
+    Ok src -> case parse-json path src of
+      Parsed doc Nil -> case field "schema" doc of
+        JNum version ->
+          if version == 1 then rows (field "interfaces" doc)
+          else Err "unsupported interface manifest schema"
+        other -> Err "missing interface manifest schema"
+      other -> Err "interface manifest is not valid JSON"
+
+  load-interface-references :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String ValidatedInterfaces
+  load-interface-references inputs = case read-files inputs of
+    Err message -> Err message
+    Ok files -> load-validated-interfaces files
+
+  read-interface-inputs :: forall r. using (io :: Io r) => String ->{IO r} Result String InterfaceInputs
+  read-interface-inputs path =
+    if string-ends-with ".cpk" path then Ok (InterfacePackage path)
+    else case read-interface-references path of
+      Err message -> Err message
+      Ok inputs -> Ok (InterfaceFiles inputs)
+
+  interface-input-files :: InterfaceInputs -> List String
+  interface-input-files inputs = case inputs of
+    InterfaceFiles rows -> file-paths rows
+    InterfacePackage path -> [path]
+
+  interface-package-file :: InterfaceInputs -> Option String
+  interface-package-file inputs = case inputs of
+    InterfacePackage path -> Some path
+    other -> None
+
+  file-paths :: List (String, String, String) -> List String
+  file-paths inputs = case inputs of
+    Nil -> Nil
+    Cons (home, digest, path) rest -> Cons path (file-paths rest)
+
+  load-interface-inputs :: forall r. using (io :: Io r) => InterfaceInputs ->{IO r} Result String ValidatedInterfaces
+  load-interface-inputs inputs = case inputs of
+    InterfaceFiles rows -> load-interface-references rows
+    InterfacePackage path -> case read-package-documents path of
+      Err message -> Err message
+      Ok documents -> load-validated-package-contracts documents
+
+  load-client-interface-inputs :: forall r. using (io :: Io r) => InterfaceInputs -> Option String ->{IO r} Result String (ValidatedInterfaces, Option PackageSnapshot)
+  load-client-interface-inputs inputs metadata = case (inputs, metadata) of
+    (InterfacePackage path, Some file) | string-compare path file == 0 ->
+      (case read-package-snapshot path of
+        Err message -> Err message
+        Ok (documents, snapshot) -> (case load-validated-package-contracts documents of
+          Err message -> Err message
+          Ok checked -> Ok (checked, Some snapshot)))
+    other -> case load-interface-inputs inputs of
+      Err message -> Err message
+      Ok checked -> Ok (checked, None)
+
+  read-validated-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String ValidatedInterfaces
+  read-validated-interfaces path = case read-interface-inputs path of
+    Err message -> Err message
+    Ok inputs -> load-interface-inputs inputs
+
+  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
+  read-interfaces path = case read-validated-interfaces path of
+    Err message -> Err message
+    Ok checked -> Ok (validated-interfaces-members checked)

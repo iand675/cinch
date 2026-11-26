@@ -1,13 +1,13 @@
 -- Source arrives after this checker executable has been built.
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Check (check-program)
-  import Bootstrap.Infer
-  import Bootstrap.Core
-  import Bootstrap.Type
-  import Bootstrap.Proof (PFalsehood, PCompare, Equal, AMinus, AInteger, proposition-equal)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Check (check-program)
+  import Cinch.Infer
+  import Cinch.Core
+  import Cinch.Type
+  import Cinch.Proof (PFalsehood, PCompare, Equal, AMinus, AInteger, proposition-equal)
+  import Cinch.Report (render-diagnostics)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)

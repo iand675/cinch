@@ -1,13 +1,13 @@
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Load
-  import Bootstrap.Inputs (read-interfaces)
-  import Bootstrap.BodyContract
-  import Bootstrap.Nominal (interface-global)
-  import Bootstrap.Total
-  import Bootstrap.Proof
-  import Bootstrap.Index
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Load
+  import Cinch.Inputs (read-interfaces)
+  import Cinch.BodyContract
+  import Cinch.Nominal (interface-global)
+  import Cinch.Total
+  import Cinch.Proof
+  import Cinch.Index
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

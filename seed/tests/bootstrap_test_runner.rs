@@ -1,5 +1,5 @@
 //! The bootstrap's own test runner (the P35 prerequisite): the shared
-//! contract's `Bootstrap.Test` module compiles, and real programs run it
+//! contract's `Cinch.Test` module compiles, and real programs run it
 //! through `cinch::driver`, so the bootstrap can run its own checks
 //! instead of relying on a Rust assertion beside it.
 //!
@@ -18,9 +18,9 @@
 
 mod common;
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const TEST_SRC: &str = include_str!("../../compiler/Bootstrap.Test.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const TEST_SRC: &str = include_str!("../../compiler/Cinch.Test.cinch");
 const RUN_TEST: &str = include_str!("../../compiler/programs/Run.Test.cinch");
 const RUN_TEST_PASS: &str = include_str!("../../compiler/programs/Run.TestPass.cinch");
 
@@ -38,9 +38,9 @@ fn run_program(tag: &str, src: &str) -> (i32, String) {
     let dir = common::project(
         tag,
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
-            ("Bootstrap.Test.cinch", TEST_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
+            ("Cinch.Test.cinch", TEST_SRC),
             ("Main.cinch", src),
         ],
     );

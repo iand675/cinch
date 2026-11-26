@@ -4,9 +4,9 @@ mod common;
 #[test]
 fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
     let dir = common::project("source_intrinsics", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.Intrinsics.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "intrinsics").expect("build the Cinch intrinsic checker");

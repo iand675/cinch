@@ -32,7 +32,7 @@ LIBRARY_ARTIFACT = None
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 # Prelude source modules the compiler itself compiles, keyed by the name the
 # bundle gives them. `Data.Array` is not in the embedded base package, and
-# `parMap` lowers through its two conversions (`Bootstrap.Infer`'s
+# `parMap` lowers through its two conversions (`Cinch.Infer`'s
 # `par-map-array-call`), so a `parMap` anywhere in the compiler's own source
 # resolves only when the module is in the same source set. One entry, because
 # nothing else the compiler reaches for is outside the base package.
@@ -512,7 +512,7 @@ def library_provider_lock() -> dict:
             or not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
             or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{64}", source)):
         raise BootstrapError("unsupported or missing library producer lock")
-    source_abi = ROOT / "compiler/Bootstrap.RuntimeAbi.cinch"
+    source_abi = ROOT / "compiler/Cinch.RuntimeAbi.cinch"
     if not source_abi.is_file() or source_abi.read_bytes() != runtime_abi_source(lock["runtime_abi"]):
         raise BootstrapError("library producer runtime ABI differs from the compiler's target ABI")
     return lock
@@ -666,7 +666,7 @@ def runtime_abi_source(abi: int) -> bytes:
         raise BootstrapError(f"unsupported compiler runtime ABI: {abi!r}")
     return ("-- One exact ABI per compiler build. The pinned stage builder renders this\n"
             "-- module from the target library lock before hashing the complete sources.\n"
-            "module Bootstrap.RuntimeAbi where\n"
+            "module Cinch.RuntimeAbi where\n"
             "  export runtime-abi, runtime-abi-int\n"
             "  runtime-abi :: Nat\n"
             f"  runtime-abi = {abi}\n"
@@ -700,7 +700,7 @@ def host_source() -> bytes:
             "-- this module from the build host before hashing the complete sources,\n"
             "-- because `--target` defaults to the host and a compiled program cannot\n"
             "-- ask Rust for its own triple. Nothing derives the target from it.\n"
-            "module Bootstrap.Host where\n"
+            "module Cinch.Host where\n"
             "  export host-triple, host-os, host-arch, host-libc\n"
             "  host-triple :: String\n"
             f"  host-triple = \"{arch}-{vendor}-{family}\"\n"
@@ -718,9 +718,9 @@ def collect_compiler_sources() -> dict[str, bytes]:
     lock = library_provider_lock()
     # Reproduction clients retained next to compiler sources are not compiler
     # modules and must not become aliases or duplicate the pipeline's Main.
-    files = {p.name: p.read_bytes() for p in sorted((ROOT / "compiler").glob("Bootstrap.*.cinch"))}
-    files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
-    files["Bootstrap.Host.cinch"] = host_source()
+    files = {p.name: p.read_bytes() for p in sorted((ROOT / "compiler").glob("Cinch.*.cinch"))}
+    files["Cinch.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
+    files["Cinch.Host.cinch"] = host_source()
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "seed" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     for module in COMPILER_PRELUDE:
@@ -746,7 +746,7 @@ def collect_compiler_sources() -> dict[str, bytes]:
     if LIBRARY_ARTIFACT is not None:
         epoch_inputs.append(file_hash(LIBRARY_ARTIFACT))
     epoch = hashlib.sha256("\n".join(epoch_inputs).encode()).hexdigest()
-    files["Bootstrap.Host.cinch"] = files["Bootstrap.Host.cinch"].replace(
+    files["Cinch.Host.cinch"] = files["Cinch.Host.cinch"].replace(
         b"  export host-triple, host-os, host-arch, host-libc\n",
         b"  export host-triple, host-os, host-arch, host-libc, compiler-epoch\n",
     ) + f'  compiler-epoch :: String\n  compiler-epoch = "{epoch}"\n'.encode()
@@ -1212,9 +1212,9 @@ def check_changed_source() -> None:
     files = dict(compiler_sources())
     marker = b'  rung = "bootstrap.check"'
     changed_marker = b'  rung = "bootstrap.check.changed-source"'
-    name = "Bootstrap.Check.cinch"
+    name = "Cinch.Check.cinch"
     if files[name].count(marker) != 1:
-        raise BootstrapError("update the changed-source probe for Bootstrap.Check's diagnostic label")
+        raise BootstrapError("update the changed-source probe for Cinch.Check's diagnostic label")
     files[name] = files[name].replace(marker, changed_marker)
     directory = BUILD / "changed-source" / "stage2"
     # This executable runs once on a two-line refusal. It still compiles the

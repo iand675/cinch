@@ -234,13 +234,13 @@ fn native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them() {
 #[test]
 fn self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations() {
     let dir = common::project("arrays_self_hosted_refusal", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Builtin.cinch", include_str!("../../compiler/Bootstrap.Builtin.cinch")),
-        ("Bootstrap.Parse.cinch", include_str!("../../compiler/Bootstrap.Parse.cinch")),
-        ("Bootstrap.RuntimeAbi.cinch", "module Bootstrap.RuntimeAbi where\n  export runtime-abi, runtime-abi-int\n  runtime-abi :: Nat\n  runtime-abi = 5\n  runtime-abi-int :: Int\n  runtime-abi-int = 5\n"),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Builtin.cinch", include_str!("../../compiler/Cinch.Builtin.cinch")),
+        ("Cinch.Parse.cinch", include_str!("../../compiler/Cinch.Parse.cinch")),
+        ("Cinch.RuntimeAbi.cinch", "module Cinch.RuntimeAbi where\n  export runtime-abi, runtime-abi-int\n  runtime-abi :: Nat\n  runtime-abi = 5\n  runtime-abi-int :: Int\n  runtime-abi-int = 5\n"),
         ("Main.cinch", r#"module Main where
-  import Bootstrap.Builtin
+  import Cinch.Builtin
   main :: Int
   main = if is-none (intrinsic-contract "cinch.runtime.arrayFromList")
     && is-none (intrinsic-contract "cinch.runtime.tensorGet")
@@ -300,13 +300,13 @@ fn array_copy_evidence_depends_on_the_element_type() {
 #[test]
 fn cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership() {
     let dir = common::project("array_runtime_bootstrap", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.RuntimeIr.cinch", include_str!("../../compiler/Bootstrap.RuntimeIr.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.RuntimeIr.cinch", include_str!("../../compiler/Cinch.RuntimeIr.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.RuntimeIr.cinch")),
     ]);
     // Explicit Native fixture producer for the defining inductive contracts.

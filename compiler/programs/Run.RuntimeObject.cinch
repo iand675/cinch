@@ -3,16 +3,16 @@
 -- This kernel fixture imports no operators: arithmetic uses parse-program's
 -- kernel syntax. The actual CLI tests use checked interface fixity headers.
 module Main where
-  import Bootstrap.Check (check-and-retain)
-  import Bootstrap.RuntimeIr (emit-runtime-program-with-object)
-  import Bootstrap.Object (RuntimeObject, parse-runtime-object)
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Inputs (read-interfaces)
-  import Bootstrap.Load (LoadedInterface)
-  import Bootstrap.Resolve (resolve-program-with)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Check (check-and-retain)
+  import Cinch.RuntimeIr (emit-runtime-program-with-object)
+  import Cinch.Object (RuntimeObject, parse-runtime-object)
+  import Cinch.Parse (parse-program)
+  import Cinch.Inputs (read-interfaces)
+  import Cinch.Load (LoadedInterface)
+  import Cinch.Resolve (resolve-program-with)
+  import Cinch.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Bootstrap.Document (parse-json)
+  import Cinch.Document (parse-json)
   import Text.Show (nat-to-string, int-to-string)
   import Algebra.Semigroup
   import Data.Path (path-from-string)

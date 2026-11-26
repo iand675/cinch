@@ -2,7 +2,7 @@
 //!
 //! The Cinch driver program (`compiler/programs/Run.Ir.cinch`) builds
 //! three fragments' trees, emits each one's LLVM IR text with
-//! `Bootstrap.Ir` and writes the text into its project. This test ships
+//! `Cinch.Ir` and writes the text into its project. This test ships
 //! that program as a real project beside the shared contract, runs it
 //! through the driver, and then treats the emitted text as IR: it
 //! asserts the text's shape (a `define` per function, an `i32` `ret`),
@@ -25,9 +25,9 @@ mod common;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const IR_SRC: &str = include_str!("../../compiler/Bootstrap.Ir.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const IR_SRC: &str = include_str!("../../compiler/Cinch.Ir.cinch");
 const RUN_SRC: &str = include_str!("../../compiler/programs/Run.Ir.cinch");
 
 /// A Cinch string literal for a path: the driver program's output paths
@@ -62,10 +62,10 @@ fn the_emitted_ir_assembles_and_runs_to_the_fragments_meaning() {
     let dir = common::project(
         "ir",
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
-            ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-            ("Bootstrap.Ir.cinch", IR_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
+            ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+            ("Cinch.Ir.cinch", IR_SRC),
         ],
     );
     // The driver's output paths become absolute locations in the project.
@@ -167,10 +167,10 @@ fn a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_argumen
     let dir = common::project(
         "ir_pick",
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
-            ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-            ("Bootstrap.Ir.cinch", IR_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
+            ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+            ("Cinch.Ir.cinch", IR_SRC),
         ],
     );
     let entry = RUN_SRC

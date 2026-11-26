@@ -34,7 +34,7 @@ class LibraryProviderContract(unittest.TestCase):
         (root / "compiler").mkdir(parents=True)
         lock = {"schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64}
         bootstrap.write_json(root / "compiler/pins/library-provider.lock.json", lock)
-        (root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
+        (root / "compiler/Cinch.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
         bootstrap.write_json(root / "compiler/pins/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
         (snapshot / source_tree / "prelude").mkdir(parents=True)
@@ -62,7 +62,7 @@ class LibraryProviderContract(unittest.TestCase):
                 else:
                     self.assertEqual(args[1], "emit-object")
                     self.assertEqual(Path(args[2]).read_bytes(), bootstrap_objects.ENTRY)
-                    self.assertNotIn(b"Bootstrap.", Path(args[2]).read_bytes())
+                    self.assertNotIn(b"Cinch.", Path(args[2]).read_bytes())
                     self.assertIn("--interface-package-only", args)
                     output = Path(args[-1])
                     output.write_bytes(b"native library code")
@@ -118,7 +118,7 @@ class LibraryProviderContract(unittest.TestCase):
     def test_old_provider_cannot_change_the_compiler_target_abi(self):
         with tempfile.TemporaryDirectory() as temp:
             root, _ = self.fixture(Path(temp))
-            (root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(7))
+            (root / "compiler/Cinch.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(7))
             with patch.object(bootstrap, "ROOT", root), patch.object(bootstrap, "run") as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from the compiler's target ABI"):
                     bootstrap.collect_compiler_sources()
@@ -131,8 +131,8 @@ class LibraryProviderContract(unittest.TestCase):
             directory = Path(temp)
             package = {"modules": [{"name": "Data.Core"}]}
             for metadata in [
-                {"interfaces": [{"module": "Bootstrap.Infer", "interface": {"module": "Bootstrap.Infer"}}]},
-                {"interfaces": [], "units": [{"symbol": "Bootstrap.Infer.infer"}]},
+                {"interfaces": [{"module": "Cinch.Infer", "interface": {"module": "Cinch.Infer"}}]},
+                {"interfaces": [], "units": [{"symbol": "Cinch.Infer.infer"}]},
             ]:
                 if not metadata["interfaces"]:
                     doc = {"module": "Data.Core", "imports": []}
@@ -141,7 +141,7 @@ class LibraryProviderContract(unittest.TestCase):
                 with self.assertRaises(bootstrap.BootstrapError):
                     bootstrap_objects.admitted_interface_identities(bootstrap, metadata, package)
             with self.assertRaisesRegex(bootstrap.BootstrapError, "compiler implementation"):
-                bootstrap_objects.admitted_interface_identities(bootstrap, {}, {"modules": [{"name": "Bootstrap.Check"}]})
+                bootstrap_objects.admitted_interface_identities(bootstrap, {}, {"modules": [{"name": "Cinch.Check"}]})
 
     def test_actual_generated_primitive_and_tuple_units_are_library_dependencies(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -1,9 +1,9 @@
 -- | Exercise complete imported proof-body closures and independently damaged contracts.
 module Main where
-  import Bootstrap.Load
-  import Bootstrap.Interface (iface-parse)
-  import Bootstrap.Total (total-body)
-  import Bootstrap.Document
+  import Cinch.Load
+  import Cinch.Interface (iface-parse)
+  import Cinch.Total (total-body)
+  import Cinch.Document
   import Data.Nat (nat-to-int)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

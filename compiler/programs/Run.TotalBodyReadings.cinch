@@ -1,8 +1,8 @@
 module Main where
-  import Bootstrap.Total
-  import Bootstrap.TotalSemantics
-  import Bootstrap.Proof
-  import Bootstrap.Document (parse-json)
+  import Cinch.Total
+  import Cinch.TotalSemantics
+  import Cinch.Proof
+  import Cinch.Document (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

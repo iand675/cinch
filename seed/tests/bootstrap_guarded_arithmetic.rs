@@ -4,9 +4,9 @@ mod common;
 #[test]
 fn guarded_nat_subtraction_uses_actual_branch_facts() {
     let dir = common::project("guarded_arithmetic", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.GuardedArithmetic.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "guarded-arithmetic").expect("build the Cinch guarded-arithmetic checker");

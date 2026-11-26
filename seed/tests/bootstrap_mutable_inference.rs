@@ -8,16 +8,16 @@ fn mutable_regions_and_value_restrictions_preserve_source_authority() {
         "mutable_inference",
         &[
             (
-                "Bootstrap.Check.cinch",
-                include_str!("../../compiler/Bootstrap.Check.cinch"),
+                "Cinch.Check.cinch",
+                include_str!("../../compiler/Cinch.Check.cinch"),
             ),
             (
-                "Bootstrap.Resolve.cinch",
-                include_str!("../../compiler/Bootstrap.Resolve.cinch"),
+                "Cinch.Resolve.cinch",
+                include_str!("../../compiler/Cinch.Resolve.cinch"),
             ),
             (
-                "Bootstrap.Inputs.cinch",
-                include_str!("../../compiler/Bootstrap.Inputs.cinch"),
+                "Cinch.Inputs.cinch",
+                include_str!("../../compiler/Cinch.Inputs.cinch"),
             ),
             (
                 "Main.cinch",

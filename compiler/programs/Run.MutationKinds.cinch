@@ -1,7 +1,7 @@
 -- | Verify mutation effect labels without granting their name authority outside effect rows.
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Kinds
+  import Cinch.Type
+  import Cinch.Kinds
   import Data.List
   import Data.Option
 

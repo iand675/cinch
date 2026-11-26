@@ -1,23 +1,23 @@
 -- Interfaces and source are runtime inputs to this compiled Cinch checker.
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Document
+  import Cinch.Ast
+  import Cinch.Document
   import Text.Show (int-to-string)
-  import Bootstrap.Inputs (read-interfaces)
-  import Bootstrap.Load (LoadedInterface)
-  import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Parse (parse-program-with)
-  import Bootstrap.Resolve (resolve-program-with)
-  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
-  import Bootstrap.Core
-  import Bootstrap.Type
-  import Bootstrap.Index
-  import Bootstrap.Global
-  import Bootstrap.Typing
+  import Cinch.Inputs (read-interfaces)
+  import Cinch.Load (LoadedInterface)
+  import Cinch.Contracts (interface-headers)
+  import Cinch.Parse (parse-program-with)
+  import Cinch.Resolve (resolve-program-with)
+  import Cinch.Infer (elaborate-program, elaboration-errors, elaboration-core, elaboration-bindings, CheckedBinding, checked-body-binding)
+  import Cinch.Core
+  import Cinch.Type
+  import Cinch.Index
+  import Cinch.Global
+  import Cinch.Typing
   import Text.Lex (Span)
-  import Bootstrap.Nominal (interface-global)
-  import Bootstrap.BodyContract (BodyBinding)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Nominal (interface-global)
+  import Cinch.BodyContract (BodyBinding)
+  import Cinch.Report (render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)

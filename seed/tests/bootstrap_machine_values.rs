@@ -3,8 +3,8 @@ mod common;
 #[test]
 fn type_and_core_recheck_machine_ranges_and_actual_typed_scope() {
     let dir = common::project("machine_value_kernel", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.MachineValues.cinch")),
     ]);
     let exe = common::build_executable(&dir, "Main.cinch", "machine-values").expect("build real machine-value Type/Core checker");
@@ -18,12 +18,12 @@ fn type_and_core_recheck_machine_ranges_and_actual_typed_scope() {
 #[test]
 fn source_machine_literals_and_refinements_keep_range_and_carrier() {
     let dir = common::project("machine_value_source", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.SourceRefinements.cinch")),
     ]);
     let exe = common::build_refinement_checker(&dir, "machine-source").expect("build actual Cinch machine-value source checker");

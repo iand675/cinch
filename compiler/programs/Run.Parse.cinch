@@ -1,7 +1,7 @@
 -- The rung 1 driver program: parse the hand-checked examples and the
 -- whole prelude corpus, in Cinch, and write what it found.
 --
--- The Rust test ships this file as the entry beside Bootstrap.Parse and
+-- The Rust test ships this file as the entry beside Cinch.Parse and
 -- the toolkit, substitutes `__DIR__` with the project directory, and
 -- reads back `report.txt`. Nothing here is rung-specific state: the
 -- inputs are the corpus files and the two examples, and the report is
@@ -9,8 +9,8 @@
 -- constructor names, and the fixity facts).
 module Main where
 
-  import Bootstrap.Parse
-  import Bootstrap.Ast
+  import Cinch.Parse
+  import Cinch.Ast
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, render-bundle)
   import Data.Bool
   import Data.List

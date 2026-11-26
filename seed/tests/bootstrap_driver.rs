@@ -1,4 +1,4 @@
-//! Rung 5 of the bootstrap ladder: `Bootstrap.Driver` drives clang.
+//! Rung 5 of the bootstrap ladder: `Cinch.Driver` drives clang.
 //!
 //! The rung's program (`compiler/programs/Run.Driver.cinch`, shipped as
 //! `Main.cinch`) is compiled as a real project through the harness, then run
@@ -21,9 +21,9 @@ mod common;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const DRIVER_SRC: &str = include_str!("../../compiler/Bootstrap.Driver.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const DRIVER_SRC: &str = include_str!("../../compiler/Cinch.Driver.cinch");
 const RUN_SRC: &str = include_str!("../../compiler/programs/Run.Driver.cinch");
 
 /// The fixed, hand-written LLVM IR module the rung links: a bare `main` that
@@ -61,9 +61,9 @@ fn driver_project(tag: &str) -> std::path::PathBuf {
     common::project(
         tag,
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
-            ("Bootstrap.Driver.cinch", DRIVER_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
+            ("Cinch.Driver.cinch", DRIVER_SRC),
             ("Main.cinch", RUN_SRC),
         ],
     )

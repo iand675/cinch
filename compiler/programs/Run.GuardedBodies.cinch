@@ -1,10 +1,10 @@
 module Main where
-  import Bootstrap.Guarded
-  import Bootstrap.Type
-  import Bootstrap.Index
+  import Cinch.Guarded
+  import Cinch.Type
+  import Cinch.Index
   import Text.Lex (Span)
-  import Bootstrap.Nominal (interface-global)
-  import Bootstrap.Document
+  import Cinch.Nominal (interface-global)
+  import Cinch.Document
   import Data.Nat (nat-from-int)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Path (path-from-string)

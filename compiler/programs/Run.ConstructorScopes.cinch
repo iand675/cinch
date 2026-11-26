@@ -1,10 +1,10 @@
 -- Constructor introduction instantiates universals. Eliminating an unknown
 -- hidden type must not choose an arbitrary concrete type for its payload.
 module Main where
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Global
-  import Bootstrap.Typing
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Global
+  import Cinch.Typing
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)

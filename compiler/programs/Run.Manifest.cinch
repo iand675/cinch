@@ -21,7 +21,7 @@
 -- Both are reported so a writer that regressed to pretty-printing is visible
 -- as 1/0 rather than as a passing fixed-point test. The `reorder`,
 -- `added-key` and `hash` columns are computed on the parsed value with the
--- document really modified in Cinch (see `Bootstrap.Manifest`), so a
+-- document really modified in Cinch (see `Cinch.Manifest`), so a
 -- canonical printer that ignored key order or dropped a key fails here
 -- instead of passing vacuously.
 --
@@ -50,7 +50,7 @@
 -- read, 9 the artifact's bytes are not its canonical form.
 module Main where
 
-  import Bootstrap.Manifest
+  import Cinch.Manifest
   import Data.Bool
   import Data.Bytes
   import Data.List

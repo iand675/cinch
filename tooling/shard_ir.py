@@ -276,7 +276,7 @@ GENERATED_SUFFIX = re.compile(
 def group_of(name: str) -> str:
     """The module prefix a symbol already spells.
 
-    `Bootstrap.Infer.foo` is in `Bootstrap.Infer`, `Data.String.map` in
+    `Cinch.Infer.foo` is in `Cinch.Infer`, `Data.String.map` in
     `Data.String`. The backend's generated suffixes (`.app`, `.clo`, `.mk`,
     `.dec<N>`, `#tail`) name a unit's companions, so they are stripped first:
     a unit and its apply stub shard together. A name with no remaining dot is

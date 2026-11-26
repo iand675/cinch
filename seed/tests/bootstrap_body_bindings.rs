@@ -4,12 +4,12 @@ mod common;
 #[test]
 fn compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees() {
     let dir = common::project("body_bindings", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
-        ("Bootstrap.Global.cinch", include_str!("../../compiler/Bootstrap.Global.cinch")),
-        ("Bootstrap.Kinds.cinch", include_str!("../../compiler/Bootstrap.Kinds.cinch")),
-        ("Bootstrap.Typing.cinch", include_str!("../../compiler/Bootstrap.Typing.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
+        ("Cinch.Global.cinch", include_str!("../../compiler/Cinch.Global.cinch")),
+        ("Cinch.Kinds.cinch", include_str!("../../compiler/Cinch.Kinds.cinch")),
+        ("Cinch.Typing.cinch", include_str!("../../compiler/Cinch.Typing.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.BodyBindings.cinch")),
     ]);
     for (file, low, high) in [("bodies.json", 1, 4), ("changed.json", 5, 7)] {
@@ -30,10 +30,10 @@ fn compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees() {
 #[test]
 fn compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions() {
     let dir = common::project("source_body_bindings", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
-        ("Bootstrap.Global.cinch", include_str!("../../compiler/Bootstrap.Global.cinch")),
-        ("Bootstrap.Instance.cinch", include_str!("../../compiler/Bootstrap.Instance.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
+        ("Cinch.Global.cinch", include_str!("../../compiler/Cinch.Global.cinch")),
+        ("Cinch.Instance.cinch", include_str!("../../compiler/Cinch.Instance.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.SourceBodyBindings.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-body-bindings").expect("compile actual source-body association checker");

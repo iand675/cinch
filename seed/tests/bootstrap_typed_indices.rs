@@ -4,8 +4,8 @@ mod common;
 #[test]
 fn typed_indices_preserve_sorts_scope_and_numeric_conversion() {
     let dir = common::project("typed_indices", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.TypedIndices.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "typed-indices").expect("build typed index runner");

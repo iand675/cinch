@@ -35,7 +35,7 @@ class CurrentBaseArtifactContract(unittest.TestCase):
         (self.root / "seed/prelude/Data/String.cinch").write_bytes(source)
         bootstrap.write_json(self.root / "compiler/pins/library-provider.lock.json", {
             "schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64})
-        (self.root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
+        (self.root / "compiler/Cinch.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
         bootstrap.write_json(self.root / "compiler/pins/library-object-roots.json", {"schema": 1, "units": []})
         self.target = "x86_64-unknown-linux-gnu"
         self.host = {"machine": "x86_64", "system": "Linux"}

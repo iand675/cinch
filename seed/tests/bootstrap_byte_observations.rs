@@ -18,8 +18,8 @@ fn build_observer(dir: &std::path::Path, name: &str, cache_variable: &str) -> st
 #[test]
 fn byte_observations_recheck_typed_input_scope_and_runtime_identity() {
     let dir=common::project("byte_observations", &[
-        ("Bootstrap.Type.cinch",include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch",include_str!("../../compiler/Bootstrap.Core.cinch")),
+        ("Cinch.Type.cinch",include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch",include_str!("../../compiler/Cinch.Core.cinch")),
         ("Main.cinch",include_str!("../../compiler/programs/Run.ByteObservations.cinch")),
     ]);
     let exe=common::build(&dir,"Main.cinch","byte-observations").expect("build byte observation checker");
@@ -34,11 +34,11 @@ fn byte_observations_recheck_typed_input_scope_and_runtime_identity() {
 #[test]
 fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
     let dir=common::project("source_byte_observations", &[
-        ("Bootstrap.Check.cinch",include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch",include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch",include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch",include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch",include_str!("../../compiler/Bootstrap.Interface.cinch")),
+        ("Cinch.Check.cinch",include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch",include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch",include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch",include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch",include_str!("../../compiler/Cinch.Interface.cinch")),
         ("Main.cinch",include_str!("../../compiler/programs/Run.SourceRefinements.cinch")),
     ]);
     let exe=build_observer(&dir,"source-observations","CINCH_TEST_BYTE_SOURCE_EMITTER");
@@ -130,12 +130,12 @@ fn imported_observation_identity_survives_a_renamed_facade() {
     let foreign = bytes.exports.foreign.iter().find(|foreign| foreign.external == "cinch.runtime.bytesLen").unwrap();
     assert_eq!(foreign.ty, value.scheme, "the intrinsic and exported value use the same defining type spelling");
     let dir=common::project("imported_byte_observations",&[
-        ("Bootstrap.Check.cinch",include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch",include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Contracts.cinch",include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch",include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch",include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Inputs.cinch",include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch",include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch",include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Contracts.cinch",include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch",include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch",include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Inputs.cinch",include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch",include_str!("../../compiler/programs/Run.ImportedPreconditions.cinch")),
     ]);
     let mut rows=Vec::new();

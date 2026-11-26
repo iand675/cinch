@@ -4,8 +4,8 @@ mod common;
 #[test]
 fn structural_nonzero_types_and_core_preserve_scope_and_evidence() {
     let dir = common::project("nonzero_types", &[
-        ("Bootstrap.Type.cinch", include_str!("../../compiler/Bootstrap.Type.cinch")),
-        ("Bootstrap.Core.cinch", include_str!("../../compiler/Bootstrap.Core.cinch")),
+        ("Cinch.Type.cinch", include_str!("../../compiler/Cinch.Type.cinch")),
+        ("Cinch.Core.cinch", include_str!("../../compiler/Cinch.Core.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.NonZeroTypes.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "nonzero-types").expect("build structural NonZero type/Core runner");

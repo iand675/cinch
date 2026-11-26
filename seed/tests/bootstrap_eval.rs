@@ -1,11 +1,11 @@
-//! The ladder's differential oracle: `Bootstrap.Eval` interprets the
+//! The ladder's differential oracle: `Cinch.Eval` interprets the
 //! fragment, and `compiler/programs/Run.Eval.cinch` drives it as a whole
 //! program, so the IR rung's emitted binary can later be checked against a
 //! second implementation rather than against itself.
 //!
 //! The rung's program builds the AST of `examples/compiler/fib.cinch` the
 //! way `bootstrap_contract.rs` builds its small tree, evaluates it with
-//! `Bootstrap.Eval`, and checks that `fib 10` is 55 and that `main` is 0.
+//! `Cinch.Eval`, and checks that `fib 10` is 55 and that `main` is 0.
 //! It then asserts each named refusal (an `*Unmodeled` node, an unmodeled
 //! declaration, an operator outside the fragment, applying a non-function, a
 //! case with no matching alternative, an unbound variable, and an arity that
@@ -16,7 +16,7 @@
 //! top-level functions, string and character values, and `==` over a
 //! comparison's Bool result).
 //!
-//! Secondary acceptance: `Bootstrap.Parse` exists, so the program also
+//! Secondary acceptance: `Cinch.Parse` exists, so the program also
 //! parses the same source bytes (`examples/compiler/fib.cinch`'s text) and
 //! evaluates the tree the parser produced, asserting the parsed program has
 //! no unmodeled nodes and that `fib 10` is 55 and `main` is 0 in it too.
@@ -32,10 +32,10 @@
 
 mod common;
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const EVAL_SRC: &str = include_str!("../../compiler/Bootstrap.Eval.cinch");
-const PARSE_SRC: &str = include_str!("../../compiler/Bootstrap.Parse.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const EVAL_SRC: &str = include_str!("../../compiler/Cinch.Eval.cinch");
+const PARSE_SRC: &str = include_str!("../../compiler/Cinch.Parse.cinch");
 const RUN_EVAL: &str = include_str!("../../compiler/programs/Run.Eval.cinch");
 
 /// The report file the program writes into its project.
@@ -65,10 +65,10 @@ fn run_program(tag: &str) -> (i32, String) {
     let dir = common::project(
         tag,
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
-            ("Bootstrap.Eval.cinch", EVAL_SRC),
-            ("Bootstrap.Parse.cinch", PARSE_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
+            ("Cinch.Eval.cinch", EVAL_SRC),
+            ("Cinch.Parse.cinch", PARSE_SRC),
             ("Main.cinch", RUN_EVAL),
         ],
     );

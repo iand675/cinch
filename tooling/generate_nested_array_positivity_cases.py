@@ -10,13 +10,13 @@ FIXTURE = ROOT / "seed/tests/fixtures/nested-array-positivity-vectors.json"
 
 HELPERS = r'''-- | Recheck sealed finite-payload recursion and strict positivity authority.
 module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Resolve (resolve-program)
-  import Bootstrap.Infer
-  import Bootstrap.Core (CoreData, core-data-name, core-data-params)
-  import Bootstrap.Type (Quant, quant-kind, kind-text)
-  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Cinch.Ast
+  import Cinch.Parse (parse-program)
+  import Cinch.Resolve (resolve-program)
+  import Cinch.Infer
+  import Cinch.Core (CoreData, core-data-name, core-data-params)
+  import Cinch.Type (Quant, quant-kind, kind-text)
+  import Cinch.Report (Diagnostic, diagnostic-message, render-diagnostics)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Json
   import Data.List

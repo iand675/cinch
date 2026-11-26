@@ -36,7 +36,7 @@ def identity_encoding(symbol):
 def defining_symbol(encoded):
     """The source identity an `i.` linkage spelling names, or `None`.
 
-    The grammar is compiler/Bootstrap.Nominal.cinch's: `$` plus two lowercase
+    The grammar is compiler/Cinch.Nominal.cinch's: `$` plus two lowercase
     hex digits is one byte of a UTF-8 scalar, a plain character is itself, and
     a spelling is canonical only when re-encoding the decoded identity
     reproduces it exactly.
@@ -113,7 +113,7 @@ def source_snapshot(driver, lock):
 def admitted_interface_identities(driver, metadata, package):
     """Admit only this pin's base package and the generated trivial root."""
     allowed = {row["name"] for row in package["modules"]} | {"Prelude.Generated"}
-    if any(name == "Bootstrap" or name.startswith("Bootstrap.") for name in allowed):
+    if any(name == "Cinch" or name.startswith("Cinch.") for name in allowed):
         raise driver.BootstrapError("base package contains compiler implementation modules")
     closure = allowed | {"CinchBaseObject"}
     rows, names = [], set()

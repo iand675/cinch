@@ -5,12 +5,12 @@
 
 mod common;
 
-const AST_SRC: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT_SRC: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
+const AST_SRC: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT_SRC: &str = include_str!("../../compiler/Cinch.Report.cinch");
 
 const MAIN: &str = r#"module Main where
-  import Bootstrap.Ast
-  import Bootstrap.Report
+  import Cinch.Ast
+  import Cinch.Report
   import Text.Lex (Span, span-start, span-end, span-line, span-col)
 
   sp :: Span
@@ -84,8 +84,8 @@ fn the_shared_contract_compiles_and_answers() {
     let dir = common::project(
         "contract",
         &[
-            ("Bootstrap.Ast.cinch", AST_SRC),
-            ("Bootstrap.Report.cinch", REPORT_SRC),
+            ("Cinch.Ast.cinch", AST_SRC),
+            ("Cinch.Report.cinch", REPORT_SRC),
             ("main.cinch", MAIN),
         ],
     );

@@ -1,7 +1,7 @@
 -- Run.Eval: the differential oracle driven as a whole program. It builds
 -- the AST of `examples/compiler/fib.cinch` the way
 -- `seed/tests/bootstrap_contract.rs` builds its small tree, evaluates
--- it with `Bootstrap.Eval`, and checks that `fib 10` is 55 and that `main`
+-- it with `Cinch.Eval`, and checks that `fib 10` is 55 and that `main`
 -- is 0. It then asserts each named refusal (including an unmodeled
 -- declaration, a program-level refusal), exercises the fragment's
 -- remaining shapes (a lambda with a parameter, a constructor pattern with
@@ -12,7 +12,7 @@
 -- as its exit code (0 when every check passed).
 --
 -- See compiler/README.md for the ladder. The interpreter is
--- `Bootstrap.Eval`; this file is its entry point, so the rung is a
+-- `Cinch.Eval`; this file is its entry point, so the rung is a
 -- runnable artifact rather than a Rust string literal, and
 -- `tooling/run-bootstrap-ladder.sh programs/Run.Eval.cinch` runs it
 -- through the real `cinch` CLI. A Rust test ships this same file as its
@@ -22,10 +22,10 @@
 module Main where
 
   import Text.Lex (Span)
-  import Bootstrap.Ast
-  import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-rung)
-  import Bootstrap.Eval (Value, VInt, VStr, VChr, eval-expr-in-program, eval-main, value-equal, render-value)
-  import Bootstrap.Parse (parse-program)
+  import Cinch.Ast
+  import Cinch.Report (Diagnostic, diagnostic-message, diagnostic-rung)
+  import Cinch.Eval (Value, VInt, VStr, VChr, eval-expr-in-program, eval-main, value-equal, render-value)
+  import Cinch.Parse (parse-program)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Path (Path, path-from-string)
   import Effect.Fs (fs-write)

@@ -1,0 +1,42 @@
+-- Shared static semantics for textual and packed checked bodies.
+module Cinch.TotalRules where
+
+  export valid-sort, decimal-number, operation-type
+
+  same-rule-name :: String -> String -> Bool
+  same-rule-name first second = string-compare first second == 0
+  has-sort-name :: String -> List String -> Bool
+  has-sort-name name choices = case choices of
+    Nil -> False
+    Cons first rest -> same-rule-name name first || has-sort-name name rest
+
+  valid-sort :: String -> Bool
+  valid-sort name = has-sort-name name ["Nat", "Int", "Bool", "Bytes", "I64"]
+  decimal-digits :: List Char -> Bool
+  decimal-digits chars = case chars of Nil -> True; Cons char rest -> char-code char >= 48 && char-code char <= 57 && decimal-digits rest
+  trim-zeros :: List Char -> List Char
+  trim-zeros chars = case chars of Cons char (Cons next rest) -> if char-code char == 48 then trim-zeros (Cons next rest) else chars; other -> chars
+  i64-digits :: Bool -> List Char -> Bool
+  i64-digits negative digits = let value = pack (trim-zeros digits) in
+    string-length value < 19 || (string-length value == 19 && string-compare value (if negative then "9223372036854775808" else "9223372036854775807") <= 0)
+  decimal-number :: String -> String -> Bool
+  decimal-number sort value = case unpack value of
+    Nil -> False
+    Cons char rest -> if char-code char == 45 then
+      not (same-rule-name sort "Nat") && (same-rule-name sort "Int" || same-rule-name sort "I64") && (case rest of Nil -> False; other -> decimal-digits rest && (not (same-rule-name sort "I64") || i64-digits True rest))
+      else (same-rule-name sort "Nat" || same-rule-name sort "Int" || same-rule-name sort "I64") && decimal-digits (Cons char rest) && (not (same-rule-name sort "I64") || i64-digits False (Cons char rest))
+
+  operation-type :: String -> Option (List String, String)
+  operation-type name =
+    if has-sort-name name ["NatAdd", "NatMul"] then Some (["Nat", "Nat"], "Nat")
+    else if same-rule-name name "NatCmp" then Some (["Nat", "Nat"], "I64")
+    else if has-sort-name name ["IntAdd", "IntSub", "IntMul"] then Some (["Int", "Int"], "Int")
+    else if same-rule-name name "IntNeg" then Some (["Int"], "Int")
+    else if same-rule-name name "IntCmp" then Some (["Int", "Int"], "I64")
+    else if same-rule-name name "IntFromNat" then Some (["Nat"], "Int")
+    else if same-rule-name name "IntFromI64" then Some (["I64"], "Int")
+    else if has-sort-name name ["I64Eq", "I64Ne", "I64Lt", "I64Le", "I64Gt", "I64Ge"] then Some (["I64", "I64"], "Bool")
+    else if has-sort-name name ["BoolEq", "BoolNe", "BoolAnd", "BoolOr"] then Some (["Bool", "Bool"], "Bool")
+    else if same-rule-name name "BoolNot" then Some (["Bool"], "Bool")
+    else if same-rule-name name "BytesLen" then Some (["Bytes"], "Nat")
+    else None

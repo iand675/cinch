@@ -2,18 +2,18 @@
 -- exercises the Cinch elaborator at runtime, including its retained terms.
 module Main where
 
-  import Bootstrap.Core
-  import Bootstrap.CoreBody (dense-definition-document, dense-verbose-definition, dense-definition-of-document)
-  import Bootstrap.Infer
-  import Bootstrap.Type
-  import Bootstrap.Dictionary (resolve-dictionary-definition, resolve-dictionary-term)
-  import Bootstrap.Parse (parse-program)
-  import Bootstrap.Report (render-diagnostics)
+  import Cinch.Core
+  import Cinch.CoreBody (dense-definition-document, dense-verbose-definition, dense-definition-of-document)
+  import Cinch.Infer
+  import Cinch.Type
+  import Cinch.Dictionary (resolve-dictionary-definition, resolve-dictionary-term)
+  import Cinch.Parse (parse-program)
+  import Cinch.Report (render-diagnostics)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Lex (Span)
-  import Bootstrap.Document (canonical-bytes)
+  import Cinch.Document (canonical-bytes)
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0

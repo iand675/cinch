@@ -163,9 +163,9 @@ fn rehash(interfaces: &mut [Iface]) {
 fn compiled_native_checker_reads_source_absent_nominal_region_roles() {
     let (source, interfaces) = producer();
     let consumer = common::project("nominal_region_native_consumer", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ImportedPreconditions.cinch")),
     ]);
     let executable = common::build(&consumer, "Main.cinch", "nominal-region-checker")

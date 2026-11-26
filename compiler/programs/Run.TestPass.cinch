@@ -7,7 +7,7 @@
 
 module Main where
 
-  import Bootstrap.Test
+  import Cinch.Test
   import Data.Path (Path, path-from-string)
   import Effect.Fs (fs-write)
 

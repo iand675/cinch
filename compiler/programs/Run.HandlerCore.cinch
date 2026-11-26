@@ -1,9 +1,9 @@
 module Main where
   import Algebra.Semigroup
-  import Bootstrap.Type
-  import Bootstrap.Core
-  import Bootstrap.Global
-  import Bootstrap.Typing
+  import Cinch.Type
+  import Cinch.Core
+  import Cinch.Global
+  import Cinch.Typing
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)

@@ -350,9 +350,9 @@ fn native_checker() -> (ProjectEvidence, PathBuf) {
     static SHARED: OnceLock<SharedNativeChecker> = OnceLock::new();
     let shared = SHARED.get_or_init(|| {
     let temporary = common::project("mvar_contract_shared_compiler", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.ImportedPreconditions.cinch")),
     ]);
     // Move before compiling: generated manifests use the durable root from the outset.

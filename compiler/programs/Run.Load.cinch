@@ -2,13 +2,13 @@
 -- the loader. A JSON manifest contains paths and expected identities.
 module Main where
 
-  import Bootstrap.Load
-  import Bootstrap.Ast
-  import Bootstrap.Interface (iface-parse)
-  import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved)
+  import Cinch.Load
+  import Cinch.Ast
+  import Cinch.Interface (iface-parse)
+  import Cinch.Parse (parse-scheme)
+  import Cinch.Nominal (interface-global, resolved-text, qualify-resolved)
   import Text.Parse (ParseOutcome, Parsed, Failed)
-  import Bootstrap.Document
+  import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read, fs-write)
   import Effect.Process (process-args)

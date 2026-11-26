@@ -2,7 +2,7 @@
 //!
 //! `examples/compiler/fib.cinch` goes source -> parsed -> checked -> LLVM IR
 //! text -> native binary through a pipeline written in Cinch
-//! (`Bootstrap.Pipeline`), and the binary is run. Nothing in this test
+//! (`Cinch.Pipeline`), and the binary is run. Nothing in this test
 //! compiles the example with the Rust compiler: the pipeline program does all
 //! of it and clang is the only foreign tool involved.
 //!
@@ -17,34 +17,34 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-const AST: &str = include_str!("../../compiler/Bootstrap.Ast.cinch");
-const REPORT: &str = include_str!("../../compiler/Bootstrap.Report.cinch");
-const PARSE: &str = include_str!("../../compiler/Bootstrap.Parse.cinch");
-const RESOLVE: &str = include_str!("../../compiler/Bootstrap.Resolve.cinch");
-const CHECK: &str = include_str!("../../compiler/Bootstrap.Check.cinch");
-const IR: &str = include_str!("../../compiler/Bootstrap.Ir.cinch");
-const DRIVER: &str = include_str!("../../compiler/Bootstrap.Driver.cinch");
-const PIPELINE: &str = include_str!("../../compiler/Bootstrap.Pipeline.cinch");
+const AST: &str = include_str!("../../compiler/Cinch.Ast.cinch");
+const REPORT: &str = include_str!("../../compiler/Cinch.Report.cinch");
+const PARSE: &str = include_str!("../../compiler/Cinch.Parse.cinch");
+const RESOLVE: &str = include_str!("../../compiler/Cinch.Resolve.cinch");
+const CHECK: &str = include_str!("../../compiler/Cinch.Check.cinch");
+const IR: &str = include_str!("../../compiler/Cinch.Ir.cinch");
+const DRIVER: &str = include_str!("../../compiler/Cinch.Driver.cinch");
+const PIPELINE: &str = include_str!("../../compiler/Cinch.Pipeline.cinch");
 const RUN: &str = include_str!("../../compiler/programs/Run.Pipeline.cinch");
 const FIB: &str = include_str!("../../examples/compiler/fib.cinch");
 
 /// The ladder as one project's sources.
 fn ladder() -> Vec<(&'static str, &'static str)> {
     vec![
-        ("Bootstrap.Ast.cinch", AST),
-        ("Bootstrap.Builtin.cinch", include_str!("../../compiler/Bootstrap.Builtin.cinch")),
-        ("Bootstrap.Report.cinch", REPORT),
-        ("Bootstrap.Parse.cinch", PARSE),
-        ("Bootstrap.Expand.cinch", include_str!("../../compiler/Bootstrap.Expand.cinch")),
-        ("Bootstrap.Resolve.cinch", RESOLVE),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Check.cinch", CHECK),
-        ("Bootstrap.Ir.cinch", IR),
-        ("Bootstrap.Driver.cinch", DRIVER),
-        ("Bootstrap.Pipeline.cinch", PIPELINE),
+        ("Cinch.Ast.cinch", AST),
+        ("Cinch.Builtin.cinch", include_str!("../../compiler/Cinch.Builtin.cinch")),
+        ("Cinch.Report.cinch", REPORT),
+        ("Cinch.Parse.cinch", PARSE),
+        ("Cinch.Expand.cinch", include_str!("../../compiler/Cinch.Expand.cinch")),
+        ("Cinch.Resolve.cinch", RESOLVE),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Check.cinch", CHECK),
+        ("Cinch.Ir.cinch", IR),
+        ("Cinch.Driver.cinch", DRIVER),
+        ("Cinch.Pipeline.cinch", PIPELINE),
         ("Main.cinch", RUN),
     ]
 }
@@ -727,8 +727,8 @@ fn refused_source(dir: &Path, exe: &Path) {
 #[test]
 fn diagnostic_origins_retain_actual_bundle_labels_and_local_lines() {
     let dir = common::project("diagnostic_origins", &[
-        ("Bootstrap.Ast.cinch", include_str!("../../compiler/Bootstrap.Ast.cinch")),
-        ("Bootstrap.Report.cinch", include_str!("../../compiler/Bootstrap.Report.cinch")),
+        ("Cinch.Ast.cinch", include_str!("../../compiler/Cinch.Ast.cinch")),
+        ("Cinch.Report.cinch", include_str!("../../compiler/Cinch.Report.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.DiagnosticOrigins.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "diagnostic-origins").expect("build actual Cinch diagnostic renderer");

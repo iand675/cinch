@@ -5,16 +5,16 @@ use std::process::Command;
 #[test]
 fn compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals() {
     let dir = common::project("runtime_emit", &[
-        ("Bootstrap.Check.cinch", include_str!("../../compiler/Bootstrap.Check.cinch")),
-        ("Bootstrap.Resolve.cinch", include_str!("../../compiler/Bootstrap.Resolve.cinch")),
-        ("Bootstrap.Expand.cinch", include_str!("../../compiler/Bootstrap.Expand.cinch")),
-        ("Bootstrap.Contracts.cinch", include_str!("../../compiler/Bootstrap.Contracts.cinch")),
-        ("Bootstrap.Load.cinch", include_str!("../../compiler/Bootstrap.Load.cinch")),
-        ("Bootstrap.Inputs.cinch", include_str!("../../compiler/Bootstrap.Inputs.cinch")),
-        ("Bootstrap.Interface.cinch", include_str!("../../compiler/Bootstrap.Interface.cinch")),
-        ("Bootstrap.Ir.cinch", include_str!("../../compiler/Bootstrap.Ir.cinch")),
-        ("Bootstrap.Driver.cinch", include_str!("../../compiler/Bootstrap.Driver.cinch")),
-        ("Bootstrap.Pipeline.cinch", include_str!("../../compiler/Bootstrap.Pipeline.cinch")),
+        ("Cinch.Check.cinch", include_str!("../../compiler/Cinch.Check.cinch")),
+        ("Cinch.Resolve.cinch", include_str!("../../compiler/Cinch.Resolve.cinch")),
+        ("Cinch.Expand.cinch", include_str!("../../compiler/Cinch.Expand.cinch")),
+        ("Cinch.Contracts.cinch", include_str!("../../compiler/Cinch.Contracts.cinch")),
+        ("Cinch.Load.cinch", include_str!("../../compiler/Cinch.Load.cinch")),
+        ("Cinch.Inputs.cinch", include_str!("../../compiler/Cinch.Inputs.cinch")),
+        ("Cinch.Interface.cinch", include_str!("../../compiler/Cinch.Interface.cinch")),
+        ("Cinch.Ir.cinch", include_str!("../../compiler/Cinch.Ir.cinch")),
+        ("Cinch.Driver.cinch", include_str!("../../compiler/Cinch.Driver.cinch")),
+        ("Cinch.Pipeline.cinch", include_str!("../../compiler/Cinch.Pipeline.cinch")),
         ("Main.cinch", include_str!("../../compiler/programs/Run.Pipeline.cinch")),
     ]);
     let compiler = common::build(&dir, "Main.cinch", "compiler").expect("build the actual CLI compiler");

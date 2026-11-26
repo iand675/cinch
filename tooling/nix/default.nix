@@ -151,7 +151,7 @@ let
     (src + "/tooling/pgo.py") (src + "/tooling/shard_ir.py")
     (src + "/compiler/pins/stage0.lock.json") (src + "/compiler/pins/library-provider.lock.json")
     (src + "/compiler/pins/library-object-roots.json") (src + "/compiler/seed")
-    (src + "/compiler/Bootstrap.RuntimeAbi.cinch")
+    (src + "/compiler/Cinch.RuntimeAbi.cinch")
   ];
   pinSources = select pinSourceFiles;
 
@@ -177,7 +177,7 @@ let
   # editor grammars, and unrelated prelude modules do not invalidate Cachix.
   ladderSources = select (pinSourceFiles ++ [
     (lib.fileset.fileFilter
-      (file: lib.hasPrefix "Bootstrap." file.name && file.hasExt "cinch")
+      (file: lib.hasPrefix "Cinch." file.name && file.hasExt "cinch")
       (src + "/compiler"))
     (src + "/compiler/programs/Run.Pipeline.cinch")
     (src + "/seed/prelude/Text/Lex.cinch")

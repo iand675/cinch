@@ -80,7 +80,7 @@ fn failure_description(code: Option<i32>) -> String {
 fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
     let inference = format!(
         "{}\n{}",
-        include_str!("../../compiler/Bootstrap.Infer.cinch"),
+        include_str!("../../compiler/Cinch.Infer.cinch"),
         include_str!("fixtures/nested-array-positivity-context.cinch")
     );
     let source = include_str!("../../compiler/programs/Run.NestedArrayPositivity.cinch");
@@ -95,18 +95,18 @@ fn cinch_source_array_payload_evidence_matches_the_independent_verdicts() {
         "nested_array_positivity",
         &[
             (
-                "Bootstrap.Check.cinch",
-                include_str!("../../compiler/Bootstrap.Check.cinch"),
+                "Cinch.Check.cinch",
+                include_str!("../../compiler/Cinch.Check.cinch"),
             ),
             (
-                "Bootstrap.Resolve.cinch",
-                include_str!("../../compiler/Bootstrap.Resolve.cinch"),
+                "Cinch.Resolve.cinch",
+                include_str!("../../compiler/Cinch.Resolve.cinch"),
             ),
             (
-                "Bootstrap.Inputs.cinch",
-                include_str!("../../compiler/Bootstrap.Inputs.cinch"),
+                "Cinch.Inputs.cinch",
+                include_str!("../../compiler/Cinch.Inputs.cinch"),
             ),
-            ("Bootstrap.Infer.cinch", &inference),
+            ("Cinch.Infer.cinch", &inference),
             ("Main.cinch", &checked_source),
         ],
     );
