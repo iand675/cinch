@@ -48,34 +48,34 @@ module Prim.Machine where
     llvm {
       %r = zext i32 %0 to i64
       ret i64 %r
-    } when word-size 32
+    } when word-size 32 justify verify
     llvm {
       ret i64 %0
-    }
+    } justify verify
   prim isize-to-i64 :: (x :: Isize) -> refined (r == x) I64 where
     llvm {
       %r = sext i32 %0 to i64
       ret i64 %r
-    } when word-size 32
+    } when word-size 32 justify verify
     llvm {
       ret i64 %0
-    }
+    } justify verify
   prim u64-to-usize :: (x :: refined (InRange 0 4294967295 x) U64) -> refined (r == x) Usize where
     llvm {
       %r = trunc i64 %0 to i32
       ret i32 %r
-    } when word-size 32
+    } when word-size 32 justify verify
     llvm {
       ret i64 %0
-    }
+    } justify verify
   prim i64-to-isize :: (x :: refined (InRange (-2147483648) 2147483647 x) I64) -> refined (r == x) Isize where
     llvm {
       %r = trunc i64 %0 to i32
       ret i32 %r
-    } when word-size 32
+    } when word-size 32 justify verify
     llvm {
       ret i64 %0
-    }
+    } justify verify
   prim wrapping-u64-to-usize :: U64 -> Usize where
     llvm {
       %r = trunc i64 %0 to i32
@@ -255,12 +255,12 @@ module Prim.Machine where
     llvm {
       %r = sdiv i8 %0, %1
       ret i8 %r
-    }
+    } justify verify
   prim raw-srem-i8 :: (a :: I8) -> refined (r /= 0 && Not (a == -128 && r == -1)) I8 -> I8 where
     llvm {
       %r = srem i8 %0, %1
       ret i8 %r
-    }
+    } justify verify
   prim bit-and-i8 :: I8 -> I8 -> I8 where
     llvm {
       %r = and i8 %0, %1
@@ -287,14 +287,14 @@ module Prim.Machine where
       %s = trunc i32 %m to i8
       %r = shl i8 %0, %s
       ret i8 %r
-    }
+    } justify verify
   prim wrapping-shr-i8 :: I8 -> U32 -> I8 where
     llvm {
       %m = and i32 %1, 7
       %s = trunc i32 %m to i8
       %r = ashr i8 %0, %s
       ret i8 %r
-    }
+    } justify verify
   prim rotate-left-i8 :: I8 -> U32 -> I8 where
     llvm {
       %s = trunc i32 %1 to i8
@@ -312,19 +312,19 @@ module Prim.Machine where
       %c = call i8 @llvm.ctpop.i8(i8 %0)
       %r = zext i8 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim leading-zeros-i8 :: I8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.ctlz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim trailing-zeros-i8 :: I8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.cttz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim reverse-bits-i8 :: I8 -> I8 where
     llvm {
       %r = call i8 @llvm.bitreverse.i8(i8 %0)
@@ -433,12 +433,12 @@ module Prim.Machine where
     llvm {
       %r = sdiv i16 %0, %1
       ret i16 %r
-    }
+    } justify verify
   prim raw-srem-i16 :: (a :: I16) -> refined (r /= 0 && Not (a == -32768 && r == -1)) I16 -> I16 where
     llvm {
       %r = srem i16 %0, %1
       ret i16 %r
-    }
+    } justify verify
   prim bit-and-i16 :: I16 -> I16 -> I16 where
     llvm {
       %r = and i16 %0, %1
@@ -616,12 +616,12 @@ module Prim.Machine where
     llvm {
       %r = sdiv i32 %0, %1
       ret i32 %r
-    }
+    } justify verify
   prim raw-srem-i32 :: (a :: I32) -> refined (r /= 0 && Not (a == -2147483648 && r == -1)) I32 -> I32 where
     llvm {
       %r = srem i32 %0, %1
       ret i32 %r
-    }
+    } justify verify
   prim bit-and-i32 :: I32 -> I32 -> I32 where
     llvm {
       %r = and i32 %0, %1
@@ -792,12 +792,12 @@ module Prim.Machine where
     llvm {
       %r = sdiv i64 %0, %1
       ret i64 %r
-    }
+    } justify verify
   prim raw-srem-i64 :: (a :: I64) -> refined (r /= 0 && Not (a == -9223372036854775808 && r == -1)) I64 -> I64 where
     llvm {
       %r = srem i64 %0, %1
       ret i64 %r
-    }
+    } justify verify
   prim bit-and-i64 :: I64 -> I64 -> I64 where
     llvm {
       %r = and i64 %0, %1
@@ -973,12 +973,12 @@ module Prim.Machine where
     llvm {
       %r = udiv i8 %0, %1
       ret i8 %r
-    }
+    } justify verify
   prim raw-rem-u8 :: U8 -> refined (r /= 0) U8 -> U8 where
     llvm {
       %r = urem i8 %0, %1
       ret i8 %r
-    }
+    } justify verify
   prim bit-and-u8 :: U8 -> U8 -> U8 where
     llvm {
       %r = and i8 %0, %1
@@ -1030,19 +1030,19 @@ module Prim.Machine where
       %c = call i8 @llvm.ctpop.i8(i8 %0)
       %r = zext i8 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim leading-zeros-u8 :: U8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.ctlz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim trailing-zeros-u8 :: U8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.cttz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim reverse-bits-u8 :: U8 -> U8 where
     llvm {
       %r = call i8 @llvm.bitreverse.i8(i8 %0)
@@ -1147,12 +1147,12 @@ module Prim.Machine where
     llvm {
       %r = udiv i16 %0, %1
       ret i16 %r
-    }
+    } justify verify
   prim raw-rem-u16 :: U16 -> refined (r /= 0) U16 -> U16 where
     llvm {
       %r = urem i16 %0, %1
       ret i16 %r
-    }
+    } justify verify
   prim bit-and-u16 :: U16 -> U16 -> U16 where
     llvm {
       %r = and i16 %0, %1
@@ -1326,12 +1326,12 @@ module Prim.Machine where
     llvm {
       %r = udiv i32 %0, %1
       ret i32 %r
-    }
+    } justify verify
   prim raw-rem-u32 :: U32 -> refined (r /= 0) U32 -> U32 where
     llvm {
       %r = urem i32 %0, %1
       ret i32 %r
-    }
+    } justify verify
   prim bit-and-u32 :: U32 -> U32 -> U32 where
     llvm {
       %r = and i32 %0, %1
@@ -1498,12 +1498,12 @@ module Prim.Machine where
     llvm {
       %r = udiv i64 %0, %1
       ret i64 %r
-    }
+    } justify verify
   prim raw-rem-u64 :: U64 -> refined (r /= 0) U64 -> U64 where
     llvm {
       %r = urem i64 %0, %1
       ret i64 %r
-    }
+    } justify verify
   prim bit-and-u64 :: U64 -> U64 -> U64 where
     llvm {
       %r = and i64 %0, %1
@@ -1618,7 +1618,7 @@ module Prim.Machine where
     llvm {
       %r = and i64 %0, %1
       ret i64 %r
-    }
+    } justify verify
   prim i8-to-i16 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I16 where
     llvm {
       %r = sext i8 %0 to i16

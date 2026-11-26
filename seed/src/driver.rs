@@ -4785,6 +4785,10 @@ pub struct DriverOptions {
     /// `--prim-verify <default|strict|lax|off>` (or `--lax-prim-verify`):
     /// overrides `CINCH_PRIM_VERIFY` for formal verification of `prim` bodies.
     pub prim_verify: Option<crate::prim_verify::PrimVerifyMode>,
+    /// `--proof-cache <dir>`: persistent content-addressed LRAT proof cache directory.
+    pub proof_cache: Option<PathBuf>,
+    /// `--replay-only`: replay cached proofs through checkers only (zero provers).
+    pub replay_only: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -5473,6 +5477,12 @@ pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile
     }
     if let Some(pv) = opts.prim_verify {
         profile.prim_verify = pv;
+    }
+    if let Some(dir) = &opts.proof_cache {
+        profile.proof_cache = Some(dir.clone());
+    }
+    if opts.replay_only {
+        profile.replay_only = true;
     }
     Ok(profile)
 }

@@ -9494,6 +9494,28 @@ impl Checker {
         }
     }
 
+    fn prim_proof_cache(&self) -> Option<std::path::PathBuf> {
+        match (&self.build, &self.target) {
+            (Some(build), _) => {
+                crate::core::condition_context(build, crate::core::BuildContext::Emitted)
+                    .proof_cache
+                    .clone()
+            }
+            (None, Some(target)) => target.proof_cache.clone(),
+            (None, None) => crate::prim_verify::proof_cache_dir_from_env(),
+        }
+    }
+
+    fn prim_replay_only(&self) -> bool {
+        match (&self.build, &self.target) {
+            (Some(build), _) => {
+                crate::core::condition_context(build, crate::core::BuildContext::Emitted).replay_only
+            }
+            (None, Some(target)) => target.replay_only,
+            (None, None) => crate::prim_verify::replay_only_from_env(),
+        }
+    }
+
     fn verify_prim_body_formally(
         &self,
         module: &str,
@@ -9540,6 +9562,14 @@ impl Checker {
         if strategy == "verify-compiled-lrat" {
             engine = engine.with_compiled_lrat_checker();
         }
+        let replay_only = self.prim_replay_only();
+        let store = match self.prim_proof_cache() {
+            Some(dir) if replay_only => crate::prim_verify::EvidenceStore::with_disk_dir(dir),
+            Some(dir) => crate::prim_verify::EvidenceStore::with_disk_dir(dir).with_shared_memory(),
+            None if replay_only => crate::prim_verify::EvidenceStore::in_memory(),
+            None => crate::prim_verify::EvidenceStore::in_memory().with_shared_memory(),
+        };
+        engine = engine.with_store(store).with_replay_only(replay_only);
 
         let obligations = {
             let sems = engine.semantics_refs();

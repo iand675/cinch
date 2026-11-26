@@ -122,12 +122,12 @@ module Data.Wide where
     llvm {
       %r = sdiv i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim raw-srem-i128 :: (a :: I128) -> refined (r /= 0 && Not (a == -170141183460469231731687303715884105728 && r == -1)) I128 -> I128 where
     llvm {
       %r = srem i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-and-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = and i128 %0, %1
@@ -333,12 +333,12 @@ module Data.Wide where
     llvm {
       %r = udiv i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim raw-rem-u128 :: U128 -> refined (r /= 0) U128 -> U128 where
     llvm {
       %r = urem i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   div-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128
   div-u128 a b = raw-div-u128 a b
   rem-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128
@@ -508,7 +508,7 @@ module Data.Wide where
     llvm {
       %r = sext i8 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i8-to-i128 :: I8 -> Option I128
   checked-i8-to-i128 x = Some (i8-to-i128 x)
   saturating-i8-to-i128 :: I8 -> I128
@@ -525,7 +525,7 @@ module Data.Wide where
     llvm {
       %r = sext i16 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i16-to-i128 :: I16 -> Option I128
   checked-i16-to-i128 x = Some (i16-to-i128 x)
   saturating-i16-to-i128 :: I16 -> I128
@@ -542,7 +542,7 @@ module Data.Wide where
     llvm {
       %r = sext i32 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i32-to-i128 :: I32 -> Option I128
   checked-i32-to-i128 x = Some (i32-to-i128 x)
   saturating-i32-to-i128 :: I32 -> I128
@@ -559,7 +559,7 @@ module Data.Wide where
     llvm {
       %r = sext i64 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i64-to-i128 :: I64 -> Option I128
   checked-i64-to-i128 x = Some (i64-to-i128 x)
   saturating-i64-to-i128 :: I64 -> I128
@@ -576,7 +576,7 @@ module Data.Wide where
     llvm {
       %r = zext i8 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u8-to-i128 :: U8 -> I128
   u8-to-i128 x = wrapping-u128-to-i128 (u8-to-u128 x)
   checked-u8-to-i128 :: U8 -> Option I128
@@ -595,7 +595,7 @@ module Data.Wide where
     llvm {
       %r = zext i16 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u16-to-i128 :: U16 -> I128
   u16-to-i128 x = wrapping-u128-to-i128 (u16-to-u128 x)
   checked-u16-to-i128 :: U16 -> Option I128
@@ -614,7 +614,7 @@ module Data.Wide where
     llvm {
       %r = zext i32 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u32-to-i128 :: U32 -> I128
   u32-to-i128 x = wrapping-u128-to-i128 (u32-to-u128 x)
   checked-u32-to-i128 :: U32 -> Option I128
@@ -633,7 +633,7 @@ module Data.Wide where
     llvm {
       %r = zext i64 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u64-to-i128 :: U64 -> I128
   u64-to-i128 x = wrapping-u128-to-i128 (u64-to-u128 x)
   checked-u64-to-i128 :: U64 -> Option I128

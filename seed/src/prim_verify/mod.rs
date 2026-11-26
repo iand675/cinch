@@ -222,6 +222,36 @@ pub trait Checker: Send + Sync {
 pub struct EvidenceStore {
     memory: HashMap<(String, String), Evidence>,
     disk_dir: Option<PathBuf>,
+    use_shared_memory: bool,
+}
+
+fn shared_evidence_cache(
+) -> &'static std::sync::Mutex<HashMap<(String, String), Evidence>> {
+    static CACHE: std::sync::OnceLock<
+        std::sync::Mutex<HashMap<(String, String), Evidence>>,
+    > = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Resolve persistent proof cache directory from `CINCH_PROOF_CACHE` if configured.
+pub fn proof_cache_dir_from_env() -> Option<PathBuf> {
+    let raw = std::env::var("CINCH_PROOF_CACHE").ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("off")
+        || trimmed.eq_ignore_ascii_case("none")
+    {
+        None
+    } else {
+        Some(PathBuf::from(trimmed))
+    }
+}
+
+/// Resolve air-gapped replay-only mode from `CINCH_REPLAY_ONLY`.
+pub fn replay_only_from_env() -> bool {
+    std::env::var("CINCH_REPLAY_ONLY")
+        .ok()
+        .is_some_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
 }
 
 impl EvidenceStore {
@@ -230,10 +260,32 @@ impl EvidenceStore {
     }
 
     pub fn with_disk_dir(dir: PathBuf) -> Self {
-        Self { memory: HashMap::new(), disk_dir: Some(dir) }
+        Self {
+            memory: HashMap::new(),
+            disk_dir: Some(dir),
+            use_shared_memory: false,
+        }
     }
 
-    fn disk_path(&self, goal_hash: &str, format: &str) -> Option<PathBuf> {
+    pub fn from_env() -> Self {
+        match proof_cache_dir_from_env() {
+            Some(dir) => Self::with_disk_dir(dir),
+            None => Self::in_memory(),
+        }
+    }
+
+    /// Share verified certificates across in-process compilations (every lookup
+    /// is still re-checked by the minimal kernel checker, so TCB is unchanged).
+    pub fn with_shared_memory(mut self) -> Self {
+        self.use_shared_memory = true;
+        self
+    }
+
+    pub fn disk_dir(&self) -> Option<&std::path::Path> {
+        self.disk_dir.as_deref()
+    }
+
+    pub fn disk_path(&self, goal_hash: &str, format: &str) -> Option<PathBuf> {
         let dir = self.disk_dir.as_ref()?;
         let safe_hash = goal_hash.replace(':', "_");
         let safe_fmt = format.replace('/', "_");
@@ -241,24 +293,62 @@ impl EvidenceStore {
     }
 
     pub fn get(&mut self, goal_hash: &str, format: &str) -> Option<Evidence> {
+        self.get_checked(goal_hash, format).ok().flatten()
+    }
+
+    /// Look up cached evidence, distinguishing a cache miss (`Ok(None)`) from a
+    /// corrupted/unparseable disk entry (`Err(reason)`).
+    pub fn get_checked(&mut self, goal_hash: &str, format: &str) -> Result<Option<Evidence>, String> {
         let key = (goal_hash.to_string(), format.to_string());
         if let Some(ev) = self.memory.get(&key) {
-            return Some(ev.clone());
+            return Ok(Some(ev.clone()));
         }
-        if let Some(path) = self.disk_path(goal_hash, format) {
-            if let Ok(text) = std::fs::read_to_string(&path) {
-                if let Ok(ev) = serde_json::from_str::<Evidence>(&text) {
+        if self.use_shared_memory {
+            if let Ok(guard) = shared_evidence_cache().lock() {
+                if let Some(ev) = guard.get(&key) {
+                    let ev = ev.clone();
                     self.memory.insert(key, ev.clone());
-                    return Some(ev);
+                    if let Some(path) = self.disk_path(goal_hash, format) {
+                        if !path.exists() {
+                            if let Some(parent) = path.parent() {
+                                let _ = std::fs::create_dir_all(parent);
+                            }
+                            if let Ok(json) = serde_json::to_string(&ev) {
+                                let _ = std::fs::write(path, json);
+                            }
+                        }
+                    }
+                    return Ok(Some(ev));
                 }
             }
         }
-        None
+        if let Some(path) = self.disk_path(goal_hash, format) {
+            if path.exists() {
+                let text = std::fs::read_to_string(&path)
+                    .map_err(|e| format!("failed reading cached proof `{}`: {e}", path.display()))?;
+                let ev = serde_json::from_str::<Evidence>(&text).map_err(|e| {
+                    format!("corrupt cached proof `{}`: {e}", path.display())
+                })?;
+                self.memory.insert(key.clone(), ev.clone());
+                if self.use_shared_memory {
+                    if let Ok(mut guard) = shared_evidence_cache().lock() {
+                        guard.insert(key, ev.clone());
+                    }
+                }
+                return Ok(Some(ev));
+            }
+        }
+        Ok(None)
     }
 
     pub fn put(&mut self, goal_hash: &str, evidence: &Evidence) {
         let key = (goal_hash.to_string(), evidence.format.clone());
-        self.memory.insert(key, evidence.clone());
+        self.memory.insert(key.clone(), evidence.clone());
+        if self.use_shared_memory {
+            if let Ok(mut guard) = shared_evidence_cache().lock() {
+                guard.insert(key, evidence.clone());
+            }
+        }
         if let Some(path) = self.disk_path(goal_hash, &evidence.format) {
             if let Some(parent) = path.parent() {
                 let _ = std::fs::create_dir_all(parent);
@@ -357,6 +447,9 @@ pub struct VerifierEngine {
     pub checkers: Vec<Box<dyn Checker>>,
     pub store: EvidenceStore,
     pub policy: Policy,
+    /// When `true`, never invoke any `Prover`: replay strictly from `self.store`
+    /// through `self.checkers` and fail closed on missing or tampered proofs.
+    pub replay_only: bool,
 }
 
 impl VerifierEngine {
@@ -372,17 +465,17 @@ impl VerifierEngine {
             ],
             store: EvidenceStore::in_memory(),
             policy,
+            replay_only: false,
         };
         // Auto-register any installed external SMT solver into the portfolio as fallback
-        // (for IEEE-754 floats and wide nonlinear bit-vectors).
-        for (kind, bin) in [("bitwuzla", "bitwuzla"), ("z3", "z3"), ("cvc5", "cvc5")] {
-            if command_exists(bin) {
-                match kind {
-                    "bitwuzla" => engine.provers.push(Box::new(ExternalSmtProver::bitwuzla(bin))),
-                    "z3" => engine.provers.push(Box::new(ExternalSmtProver::z3(bin))),
-                    "cvc5" => engine.provers.push(Box::new(ExternalSmtProver::cvc5(bin))),
-                    _ => {}
-                }
+        // (for IEEE-754 floats and wide nonlinear bit-vectors). Probe PATH once per process
+        // so compiling dozens of verified prelude prims never forks `which` repeatedly.
+        for (kind, bin) in detected_external_smt_solvers() {
+            match *kind {
+                "bitwuzla" => engine.provers.push(Box::new(ExternalSmtProver::bitwuzla(*bin))),
+                "z3" => engine.provers.push(Box::new(ExternalSmtProver::z3(*bin))),
+                "cvc5" => engine.provers.push(Box::new(ExternalSmtProver::cvc5(*bin))),
+                _ => {}
             }
         }
         engine
@@ -407,6 +500,19 @@ impl VerifierEngine {
         engine
     }
 
+    pub fn with_replay_only(mut self, replay_only: bool) -> Self {
+        self.replay_only = replay_only;
+        if replay_only {
+            self.provers.clear();
+        }
+        self
+    }
+
+    pub fn with_store(mut self, store: EvidenceStore) -> Self {
+        self.store = store;
+        self
+    }
+
     pub fn add_prover(&mut self, prover: Box<dyn Prover>) {
         self.provers.push(prover);
     }
@@ -428,17 +534,61 @@ impl VerifierEngine {
         // Step 1: Check content-addressed cache first (deterministic replay without invoking solvers).
         let checker_formats: Vec<String> =
             self.checkers.iter().map(|c| c.format().to_string()).collect();
+        let mut cache_errors: Vec<String> = Vec::new();
         for fmt in checker_formats {
-            if let Some(ev) = self.store.get(&obligation.goal_hash, &fmt) {
-                if let Some(report) = self.check_and_admit(obligation, &ev, true) {
-                    return report;
+            match self.store.get_checked(&obligation.goal_hash, &fmt) {
+                Ok(Some(ev)) => match self.check_evidence(obligation, &ev) {
+                    Ok(receipt) => {
+                        let status = match self.policy.admits(&receipt) {
+                            Ok(()) => VerificationStatus::Verified {
+                                receipt,
+                                from_cache: true,
+                            },
+                            Err(reason) => {
+                                VerificationStatus::RejectedByPolicy { receipt, reason }
+                            }
+                        };
+                        return ObligationReport {
+                            name: obligation.name.clone(),
+                            kind: obligation.kind.to_string(),
+                            goal_hash: obligation.goal_hash.clone(),
+                            status,
+                        };
+                    }
+                    Err(err) => {
+                        // Fail-closed: tampered or invalid cached certificate is NEVER admitted.
+                        cache_errors.push(format!(
+                            "cached `{fmt}` certificate REJECTED ({err})"
+                        ));
+                    }
+                },
+                Ok(None) => {}
+                Err(err) => {
+                    cache_errors.push(format!("cached `{fmt}` entry REJECTED ({err})"));
                 }
             }
         }
 
+        if self.replay_only {
+            if cache_errors.is_empty() {
+                cache_errors.push(format!(
+                    "replay-only mode: no cached certificate for `{}` (provers disabled)",
+                    obligation.goal_hash
+                ));
+            }
+            return ObligationReport {
+                name: obligation.name.clone(),
+                kind: obligation.kind.to_string(),
+                goal_hash: obligation.goal_hash.clone(),
+                status: VerificationStatus::Unverified {
+                    reasons: cache_errors,
+                },
+            };
+        }
+
         // Step 2: Run pluggable prover portfolio.
         let needed = obligation.theories();
-        let mut reasons = Vec::new();
+        let mut reasons = cache_errors;
         for prover in &self.provers {
             if !prover.supported_theories().subsumes(needed) {
                 reasons.push(format!(
@@ -515,25 +665,19 @@ impl VerifierEngine {
             .ok_or_else(|| format!("no checker registered for format `{}`", ev.format))?;
         checker.check(obligation, ev).map_err(|e| e.to_string())
     }
+}
 
-    fn check_and_admit(
-        &self,
-        obligation: &Obligation,
-        ev: &Evidence,
-        from_cache: bool,
-    ) -> Option<ObligationReport> {
-        let receipt = self.check_evidence(obligation, ev).ok()?;
-        let status = match self.policy.admits(&receipt) {
-            Ok(()) => VerificationStatus::Verified { receipt, from_cache },
-            Err(reason) => VerificationStatus::RejectedByPolicy { receipt, reason },
-        };
-        Some(ObligationReport {
-            name: obligation.name.clone(),
-            kind: obligation.kind.to_string(),
-            goal_hash: obligation.goal_hash.clone(),
-            status,
+fn detected_external_smt_solvers() -> &'static [(&'static str, &'static str)] {
+    static DETECTED: std::sync::OnceLock<Vec<(&'static str, &'static str)>> =
+        std::sync::OnceLock::new();
+    DETECTED
+        .get_or_init(|| {
+            [("bitwuzla", "bitwuzla"), ("z3", "z3"), ("cvc5", "cvc5")]
+                .into_iter()
+                .filter(|(_, bin)| command_exists(bin))
+                .collect()
         })
-    }
+        .as_slice()
 }
 
 fn command_exists(bin: &str) -> bool {
@@ -571,7 +715,8 @@ pub fn cli(args: &[String]) -> i32 {
     let mut checker_mode = "kernel".to_string();
     let mut smt_bin: Option<String> = None;
     let mut cadical_bin: Option<String> = None;
-    let mut cache_dir: Option<PathBuf> = None;
+    let mut cache_dir: Option<PathBuf> = proof_cache_dir_from_env();
+    let mut replay_only = replay_only_from_env();
     let mut emit_smt_dir: Option<PathBuf> = None;
     let mut json_out = false;
     let mut verbose = false;
@@ -587,8 +732,10 @@ pub fn cli(args: &[String]) -> i32 {
             smt_bin = Some(s.to_string());
         } else if let Some(s) = a.strip_prefix("--cadical=") {
             cadical_bin = Some(s.to_string());
-        } else if let Some(d) = a.strip_prefix("--cache-dir=") {
+        } else if let Some(d) = a.strip_prefix("--cache-dir=").or_else(|| a.strip_prefix("--proof-cache=")) {
             cache_dir = Some(PathBuf::from(d));
+        } else if a == "--replay-only" {
+            replay_only = true;
         } else if let Some(d) = a.strip_prefix("--emit-smt=") {
             emit_smt_dir = Some(PathBuf::from(d));
         } else if a == "--json" {
@@ -603,7 +750,8 @@ pub fn cli(args: &[String]) -> i32 {
                  \x20 --checker=kernel|compiled LRAT checker TCB tier (default: kernel)\n\
                  \x20 --smt=<binary>            plug in external SMT-LIB 2 solver (z3/bitwuzla/cvc5)\n\
                  \x20 --cadical=<binary>        plug in external CaDiCaL LRAT solver\n\
-                 \x20 --cache-dir=<dir>         content-addressed evidence cache directory\n\
+                 \x20 --proof-cache=<dir>       content-addressed evidence cache directory (--cache-dir)\n\
+                 \x20 --replay-only             replay cached proofs only (zero provers; fail closed)\n\
                  \x20 --emit-smt=<dir>          write generated .smt2 files for unverified/all goals\n\
                  \x20 --json                    emit machine-readable JSON report\n\
                  \x20 --verbose                 print every verified obligation receipt"
@@ -644,18 +792,22 @@ pub fn cli(args: &[String]) -> i32 {
     if let Some(dir) = cache_dir {
         engine.store = EvidenceStore::with_disk_dir(dir);
     }
-    if let Some(bin) = cadical_bin {
-        engine.provers.insert(0, Box::new(ExternalSatProver::cadical(bin)));
-    }
-    if let Some(bin) = smt_bin {
-        let solver = if bin.contains("bitwuzla") {
-            ExternalSmtProver::bitwuzla(bin)
-        } else if bin.contains("cvc5") {
-            ExternalSmtProver::cvc5(bin)
-        } else {
-            ExternalSmtProver::z3(bin)
-        };
-        engine.add_prover(Box::new(solver));
+    if replay_only {
+        engine = engine.with_replay_only(true);
+    } else {
+        if let Some(bin) = cadical_bin {
+            engine.provers.insert(0, Box::new(ExternalSatProver::cadical(bin)));
+        }
+        if let Some(bin) = smt_bin {
+            let solver = if bin.contains("bitwuzla") {
+                ExternalSmtProver::bitwuzla(bin)
+            } else if bin.contains("cvc5") {
+                ExternalSmtProver::cvc5(bin)
+            } else {
+                ExternalSmtProver::z3(bin)
+            };
+            engine.add_prover(Box::new(solver));
+        }
     }
 
     if let Some(dir) = &emit_smt_dir {
@@ -774,7 +926,7 @@ pub fn cli(args: &[String]) -> i32 {
         );
     }
 
-    if summary.disproved > 0 || summary.rejected_by_policy > 0 {
+    if summary.disproved > 0 || summary.rejected_by_policy > 0 || (replay_only && summary.unverified > 0) {
         1
     } else {
         0
