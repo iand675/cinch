@@ -8,6 +8,7 @@ module Cinch.Infer where
   import Cinch.Type
   import Cinch.Promote
   import Cinch.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
+  import Cinch.PrimVerify (SpecDef, MkSpecDef)
   import Cinch.Index
   import Cinch.Total
   import Cinch.BodyContract
@@ -494,7 +495,8 @@ module Cinch.Infer where
       DData s name (p : ps) ctors -> True
       DData s name [] ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
-      DPrim s name ty bodies -> True
+      DPrim s name ty spec-opt bodies -> True
+      DModuleProfile s prof -> False
       DProof s body -> True
       DSpec s body -> True
       DRewrite s name syntax -> True
@@ -4765,20 +4767,23 @@ module Cinch.Infer where
   -- declaration's group is a property of the module, so it cannot be read
   -- from the tail being walked.
   register :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register all rows classes kinds ds env st =
+  register all rows classes kinds ds env st = register-with-verify (False, "default", []) all rows classes kinds ds env st
+
+  register-with-verify :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-with-verify vcfg all rows classes kinds ds env st =
     -- Small scopes cost less to scan than to index. Limit the size probe to
     -- the cutoff so a wide declaration list is not traversed twice.
-    if registration-wide ds 512 then register-indexed all rows classes kinds ds env (reg-trie-index env) st
-    else register-linear all rows classes kinds ds env st
+    if registration-wide ds 512 then register-indexed vcfg all rows classes kinds ds env (reg-trie-index env) st
+    else register-linear vcfg all rows classes kinds ds env st
   registration-wide :: List Decl -> Nat -> Bool
   registration-wide ds remaining = if remaining == 0 then True else case ds of
     [] -> False
     first : rest -> registration-wide rest (remaining - 1)
-  register-linear :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-linear all rows classes kinds ds env st = case ds of
+  register-linear :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-linear vcfg all rows classes kinds ds env st = case ds of
     [] -> (env, st)
-    d : rest -> case register-declaration all rows classes kinds d env st of
-      (more, checked) -> register-linear all rows classes kinds rest more checked
+    d : rest -> case register-declaration vcfg all rows classes kinds d env st of
+      (more, checked) -> register-linear vcfg all rows classes kinds rest more checked
 
   registration-index :: List CheckedBinding -> HashMap String CheckedBinding
   registration-index env = case env of
@@ -4799,22 +4804,22 @@ module Cinch.Infer where
     (MkRegistrationLookup names trie) : rest -> (rest, index)
     binding : rest -> case index-new-bindings rest index of
       (more, previous) -> (binding : more, reg-trie-add binding previous)
-  register-indexed :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
-  register-indexed all rows classes kinds ds env index st = case ds of
+  register-indexed :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
+  register-indexed vcfg all rows classes kinds ds env index st = case ds of
     [] -> (env, st)
-    (DFun sp name clauses) : rest -> register-indexed all rows classes kinds rest env index st
+    (DFun sp name clauses) : rest -> register-indexed vcfg all rows classes kinds rest env index st
     (DClass sp name parameters members) : rest ->
       -- Defining methods may replace kernel placeholders anywhere in the
       -- environment, so give this operation the actual list and reindex it.
-      (case register-declaration all rows classes kinds (DClass sp name parameters members) env st of
-        (more, checked) -> register-indexed all rows classes kinds rest more (reg-trie-index more) checked)
+      (case register-declaration vcfg all rows classes kinds (DClass sp name parameters members) env st of
+        (more, checked) -> register-indexed vcfg all rows classes kinds rest more (reg-trie-index more) checked)
     d : rest -> case index of
-      (next, names, trie) -> case register-declaration all rows classes kinds d ((MkRegistrationLookup names trie) : env) st of
+      (next, names, trie) -> case register-declaration vcfg all rows classes kinds d ((MkRegistrationLookup names trie) : env) st of
         (added, checked) -> case index-new-bindings added index of
-          (more, updated) -> register-indexed all rows classes kinds rest more updated checked
+          (more, updated) -> register-indexed vcfg all rows classes kinds rest more updated checked
 
-  register-declaration :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-declaration all rows classes kinds d env st = case d of
+  register-declaration :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-declaration vcfg all rows classes kinds d env st = case d of
     DSig s name ty -> case make-scheme False classes kinds [] ty st of
       (sc, ss) -> register-source-value s name sc kinds env ss
     DClass s name ps members -> case find-class name (kinds.source-classes) of
@@ -4837,14 +4842,16 @@ module Cinch.Infer where
     DCodata s owner ps observations -> (env, st)
     DForeign s direction abi symbol name ty | (direction == "export") -> (env, st)
     DForeign s direction abi symbol name ty -> register-intrinsic s direction abi symbol name ty classes kinds env st
-    DPrim s name ty bodies -> case make-scheme False classes kinds [] ty st of
+    DPrim s name ty spec-opt bodies -> case make-scheme False classes kinds [] ty st of
       (scheme, checked) ->
         let (use-schemes, checked-uses) = elaborate-prim-body-uses classes kinds bodies checked in
         let actual = map-scheme-types (normalize checked-uses) scheme in
-        (case (lookup-binding name env, primitive-plan name actual bodies use-schemes (primitive-law-identity (all.graph-declarations) name)) of
+        let (is-jpl, verify-mode, spec-defs) = vcfg in
+        (case (lookup-binding name env, primitive-plan name actual spec-opt bodies use-schemes (primitive-law-identity (all.graph-declarations) name) is-jpl verify-mode spec-defs) of
           (Some prior, result) -> (env, add-error s "duplicate primitive binding" checked-uses)
           (None, Err error) -> (env, add-error s error checked-uses)
           (None, Ok plan) -> ((MkForeignBinding name actual plan) : env, checked-uses))
+    DModuleProfile s prof -> (env, st)
     DExternal s name category (Some ty) metadata -> register-external s name category ty metadata rows classes kinds env st
     DExternal s name category None metadata -> if category == "builtin" then register-kernel s name metadata classes kinds env st
       else if category == "builtin-constructor" then register-decision-constructor s name metadata env st
@@ -11323,12 +11330,33 @@ module Cinch.Infer where
   finish-module :: ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module imports retain home prepared bodies = finish-module-tuned default-tuning hash-map-empty imports retain home prepared bodies
 
+  module-has-jpl-profile :: List Decl -> Bool
+  module-has-jpl-profile ds = case ds of
+    [] -> False
+    (DModuleProfile sp prof) : rest -> prof == "jpl" || module-has-jpl-profile rest
+    other : rest -> module-has-jpl-profile rest
+
+  spec-pat-names :: List Pat -> List String
+  spec-pat-names ps = case ps of
+    [] -> []
+    (PVar sp nm) : rest -> nm : (spec-pat-names rest)
+    other : rest -> "_" : (spec-pat-names rest)
+
+  collect-spec-defs :: List Decl -> List SpecDef
+  collect-spec-defs ds = case ds of
+    [] -> []
+    (DFun sp nm ((pats, body) : more)) : rest ->
+      (MkSpecDef nm (spec-pat-names pats) body) : (collect-spec-defs rest)
+    (DSpec sp inner) : rest -> collect-spec-defs (inner : rest)
+    other : rest -> collect-spec-defs rest
+
   finish-module-tuned :: CompileTuning -> HashMap String CoreDefinition -> ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module-tuned tuning cached imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =
     let (rows, ordered-classes, external-families, nominals, distinct, read-usage) = (case imports of
       ElaborationImports admitted signatures syntax ordered families (nominal-rows, unique) reader plans headers -> (signatures, ordered, families, nominal-rows, unique, reader)) in
     let (kinds, body-store) = add-source-bodies bodies method-kinds method-store in
-    let (values, sv) = register (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
+    let vcfg = (tuning.jpl || module-has-jpl-profile ds, tuning.prim-verify, collect-spec-defs (ds <> specs)) in
+    let (values, sv) = register-with-verify vcfg (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let named-proofs = proof-declarations ds in
     let (proofs, proof-store) = register-source-proofs kinds named-proofs (proof-signatures named-proofs hash-map-empty) named-proofs values sv in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs None proof-store in

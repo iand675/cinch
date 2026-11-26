@@ -1308,8 +1308,13 @@ module Cinch.Resolve where
       if direction == "import" then ([DForeign s direction abi symbol (global-name home name) (rename-type visible [] ty)], [])
       else case resolve-use s False visible [] name of
         (exported-symbol, errors) -> ([DForeign s direction abi symbol exported-symbol (rename-type visible [] ty)], errors)
-    DPrim s name ty bodies -> case rename-prim-bodies visible bodies of
-      (renamed, errors) -> ([DPrim s (global-name home name) (rename-type visible [] ty) renamed], errors)
+    DPrim s name ty spec-opt bodies ->
+      let (renamed-spec, spec-errors) = case spec-opt of
+            None -> (None, [])
+            Some expr -> (case rename-expr visible [] expr of (r, errs) -> (Some r, errs)) in
+      case rename-prim-bodies visible bodies of
+        (renamed, errors) -> ([DPrim s (global-name home name) (rename-type visible [] ty) renamed-spec renamed], spec-errors <> errors)
+    DModuleProfile s profile -> ([DModuleProfile s profile], [])
     DImport s path mods alias members hidden args -> ([], [])
     DExport s text items -> ([], [])
     DFixity s assoc prec ops -> ([], [])
@@ -1417,13 +1422,20 @@ module Cinch.Resolve where
       ContractAssumed s text -> case rename-contract-clauses visible locals rest of
         (others, more) -> ((ContractAssumed s text) : others, more)
 
+  is-verify-justification :: RewriteJustification -> Bool
+  is-verify-justification evidence = case evidence of
+    RewriteTerm (EVar sp word) -> word == "verify" || word == "verify-lrat" || word == "verify-compiled-lrat"
+    other -> False
+
   rename-prim-bodies :: Visible -> List PrimBody -> (List PrimBody, List Diagnostic)
   rename-prim-bodies visible bodies = case bodies of
     [] -> ([], [])
     (PrimBody sp family fragment unverified condition selected justification uses immediates) : rest ->
       let (evidence, evidence-errors) = (case justification of
         None -> (None, [])
-        Some evidence -> (case rename-rewrite-evidence visible [] evidence of (renamed, errors) -> (Some renamed, errors))) in
+        Some evidence ->
+          if is-verify-justification evidence then (Some evidence, [])
+          else (case rename-rewrite-evidence visible [] evidence of (renamed, errors) -> (Some renamed, errors))) in
       (case rename-prim-bodies visible rest of
         (more, errors) -> ((PrimBody sp family fragment unverified condition selected evidence
           (rename-record-fields False visible [] uses) immediates) : more, evidence-errors <> errors))

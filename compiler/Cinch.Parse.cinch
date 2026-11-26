@@ -40,7 +40,7 @@ module Cinch.Parse where
                    lex-source, lex-source-slice, bytes-slice)
   import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, Bundle,
                      ParseError, EFail)
-  import Text.Scan (string-index-of, string-take, string-drop, string-strip, string-split-on)
+  import Text.Scan (string-index-of, string-take, string-drop, string-strip, string-split-on, string-starts-with, string-ends-with)
   import Data.Array
   import Data.Bool
   import Data.Bytes
@@ -774,21 +774,45 @@ module Cinch.Parse where
         let m = Module sp "(unparsed)" (decl-spine sp ([DUnmodeled sp (slice-src src sp)])) in
         POk (reverse (m : acc)) (drop-toks toks (list-length consumed))
 
+  profile-attribute :: String -> Option String
+  profile-attribute raw =
+    let attr = string-strip raw in
+    if string-starts-with "profile(" attr && string-ends-with ")" attr then
+      let len = string-length attr in
+      if 10 <= len then
+        let inner = string-strip (string-slice attr 8 (len - 1)) in
+        let inner-len = string-length inner in
+        if 2 <= inner-len && string-starts-with "\"" inner && string-ends-with "\"" inner then
+          Some (string-slice inner 1 (inner-len - 1))
+        else Some inner
+      else None
+    else None
+
   parse-module :: List LToken -> Bytes -> HashMap String Module -> List (String, Fix) -> Ps Module
-  parse-module toks src headers fix = case toks of
-    t : rest ->
-      if is-word-t (lt-token t) "module" then parse-module-rest (sp-of t) rest src headers fix
-      else PBad
+  parse-module toks src headers fix = parse-module-attrs toks src headers fix []
+
+  parse-module-attrs :: List LToken -> Bytes -> HashMap String Module -> List (String, Fix) -> List Decl -> Ps Module
+  parse-module-attrs toks src headers fix profiles = case toks of
+    t : rest -> case lt-token t of
+      TAttr text ->
+        let next-profiles = case profile-attribute text of
+              Some prof -> (DModuleProfile (sp-of t) prof) : profiles
+              None -> profiles in
+        parse-module-attrs (field-attribute-tail rest) src headers fix next-profiles
+      TPunct ";" -> parse-module-attrs rest src headers fix profiles
+      other ->
+        if is-word-t (lt-token t) "module" then parse-module-rest (sp-of t) (reverse profiles) rest src headers fix
+        else PBad
     [] -> PBad
 
-  parse-module-rest :: Span -> List LToken -> Bytes -> HashMap String Module -> List (String, Fix) -> Ps Module
-  parse-module-rest start toks src headers fix = case parse-path toks of
+  parse-module-rest :: Span -> List Decl -> List LToken -> Bytes -> HashMap String Module -> List (String, Fix) -> Ps Module
+  parse-module-rest start profiles toks src headers fix = case parse-path toks of
     POk name rest1 -> case rest1 of
       w : rest3 ->
         if is-word-t (lt-token w) "where" then
           case parse-module-block name rest3 src headers fix of
             POk ds rest4 -> let finish = case rest4 of next : more -> span-start (sp-of next); [] -> bytes-len src in
-              POk (Module (Span (span-start start) finish (span-line start) (span-col start)) name (decl-spine start ds)) rest4
+              POk (Module (Span (span-start start) finish (span-line start) (span-col start)) name (decl-spine start (profiles <> ds))) rest4
             PBad -> PBad
         else PBad
       [] -> PBad
@@ -1200,16 +1224,38 @@ module Cinch.Parse where
       PBad -> PBad
     [] -> PBad
 
+  prim-spec-tokens :: List LToken -> Nat -> List LToken -> (List LToken, List LToken)
+  prim-spec-tokens toks depth backwards = case toks of
+    [] -> (reverse backwards, [])
+    first : rest -> let token = lt-token first in
+      if depth == 0 && (is-word-t token "where" || is-close-tok token || is-punct-t token ";" || is-eof-t token) then
+        (reverse backwards, toks)
+      else if is-open-tok token then prim-spec-tokens rest (depth + 1) (first : backwards)
+      else if is-close-tok token && 1 <= depth then prim-spec-tokens rest (depth - 1) (first : backwards)
+      else prim-spec-tokens rest depth (first : backwards)
+
+  parse-prim-spec :: List LToken -> Bytes -> List (String, Fix) -> Ps (Option Expr)
+  parse-prim-spec toks src fix = case toks of
+    first : rest | is-word-t (lt-token first) "spec" ->
+      (case prim-spec-tokens rest 0 [] of
+        ([], tail) -> PBad
+        (body, tail) -> (case parse-expr body src fix of
+          POk value [] -> POk (Some value) tail
+          other -> PBad))
+    other -> POk None toks
+
   parse-prim :: Bool -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-prim unsafe-declaration toks src fix = case toks of
     start : input -> (case parse-value-name input of
       POk name rest -> (case expect-punct-t rest "::" of
         POk at type-tokens -> (case parse-type type-tokens src of
-          POk ty after -> (case expect-word-t after "where" of
-            POk where-span block -> (case expect-punct-t block "{" of
-              POk opened bodies -> (case parse-prim-bodies unsafe-declaration bodies src fix [] of
-                POk (first : more) tail -> POk (DPrim (sp-of start) name ty (first : more)) tail
-                other -> PBad)
+          POk ty after-ty -> (case parse-prim-spec after-ty src fix of
+            POk spec-opt after -> (case expect-word-t after "where" of
+              POk where-span block -> (case expect-punct-t block "{" of
+                POk opened bodies -> (case parse-prim-bodies unsafe-declaration bodies src fix [] of
+                  POk (first : more) tail -> POk (DPrim (sp-of start) name ty spec-opt (first : more)) tail
+                  other -> PBad)
+                PBad -> PBad)
               PBad -> PBad)
             PBad -> PBad)
           PBad -> PBad)

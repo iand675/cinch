@@ -1,0 +1,203 @@
+-- End-to-end test of formal LLVM `prim` verification in the self-hosted Cinch compiler.
+--
+-- Exercises both `Bootstrap.PrimVerify` directly (LRAT kernel verifier, SAT+LRAT
+-- prover, counterexamples, SMT-LIB 2 emitter, policies, lax/off modes) and the
+-- full self-hosted frontend + exporter (`Bootstrap.Parse` -> `Bootstrap.Target`
+-- -> `Bootstrap.Resolve` -> `Bootstrap.Check` -> `Bootstrap.Export`), verifying:
+--   1. `prim ... spec ... where llvm { ... } justify verify` compiles and emits
+--      `tier: "verified"`, `checker_id: "cinch-kernel-lrat@1"`, `lrat/v1` receipts,
+--      and `.cinchif` `prim_proofs` with empty `assumptions.primitives`.
+--   2. Swapping `add i32 %0, %0` for `shl i32 %0, 1` preserves the exact `.cinchif`
+--      `interface-hash`.
+--   3. A broken LLVM body (`add i32 %0, 1`) is refused with a counterexample under
+--      both `default` and `lax` modes.
+--   4. `#[profile("jpl")]` rejects `justify verify-compiled-lrat` under `default`,
+--      admits `justify verify` under `default`, and admits `verify-compiled-lrat`
+--      under `lax`.
+--   5. An unproved float prim under `lax` downgrades honestly to `tier: "assumed"`
+--      with `cinch-lax-bypass@1` and keeps its body hash in `assumptions.primitives`
+--      (never forging `.cinchif` `prim_proofs`).
+--   6. `off` mode skips provers and records `cinch-verify-off@1` honestly as `assumed`.
+module Main where
+
+  import Cinch.Ast (Program)
+  import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces-tuned)
+  import Cinch.Document (Json, canonical-bytes)
+  import Cinch.Export (export-interfaces-aliased, interface-hash, checked-primitive-rows)
+  import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl)
+  import Cinch.Parse (parse-program)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, receipt-checker-id, receipt-tier)
+  import Cinch.Report (Diagnostic, render-diagnostics)
+  import Cinch.Resolve (resolve-program)
+  import Cinch.Target (TargetProfile, host-profile, profile-with-prim-verify, target-view-program)
+  import Data.Bool
+  import Data.List
+  import Data.Option (Option, None, Some)
+  import Data.Result (Result, Ok, Err)
+  import Data.String (string-compare, string-concat-all, string-from-bytes, string-to-bytes)
+  import Text.Parse (Parsed, Failed)
+  import Text.Scan (string-contains)
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  json-text :: Json -> String
+  json-text j = case string-from-bytes (canonical-bytes j) of
+    Some s -> s
+    None -> ""
+
+  -- Run the full self-hosted frontend: parse -> target-view -> resolve -> check.
+  self-check :: String -> String -> Result String (CheckedProgram, Bytes)
+  self-check mode src-str =
+    let src = string-to-bytes src-str in
+    let profile = profile-with-prim-verify mode host-profile in
+    let tuning = tuning-with-prim-verify mode default-tuning in
+    case parse-program "test.cinch" src of
+      Failed b -> Err "parse failed"
+      Parsed prog (Cons e rest) -> Err "recoverable parse error"
+      Parsed prog Nil -> case target-view-program profile prog of
+        Err msg -> Err msg
+        Ok view -> case resolve-program view of
+          (resolved, Cons e rest) -> Err (render-diagnostics (Cons e rest))
+          (resolved, Nil) -> case check-and-retain-with-interfaces-tuned tuning Nil resolved of
+            Err errs -> Err (render-diagnostics errs)
+            Ok checked -> Ok (checked, src)
+
+  find-main-doc :: List (String, Json) -> Option Json
+  find-main-doc rows = case rows of
+    Nil -> None
+    Cons (mname, doc) rest -> if same mname "Main" then Some doc else find-main-doc rest
+
+  self-iface-and-prims :: String -> String -> Result String (String, String, String)
+  self-iface-and-prims mode src-str =
+    case self-check mode src-str of
+      Err e -> Err e
+      Ok (checked, src) ->
+        let prims-json = json-text (checked-primitive-rows checked) in
+        case export-interfaces-aliased checked Nil src of
+          Err e -> Err e
+          Ok rows -> case find-main-doc rows of
+            Some doc -> Ok (interface-hash doc, json-text doc, prims-json)
+            None -> Err "Main module interface not found"
+
+  -- 1. Independent LRAT kernel unit check: valid proof passes, bogus hint fails.
+  test-lrat-kernel :: Result String Unit
+  test-lrat-kernel =
+    let cnf = [(1, [1]), (2, [-1, 2]), (3, [-2])] in
+    let good = [LratAdd 4 Nil [1, 2, 3]] in
+    let bad = [LratAdd 4 Nil [1, 3]] in
+    case (verify-lrat 3 cnf good, verify-lrat 3 cnf bad) of
+      (Ok done, Err e) -> Ok ()
+      other -> Err "LRAT kernel unit check failed"
+
+  -- 2. Full self-hosted verified prim + body-swap iface_hash invariance.
+  ops-prelude :: String
+  ops-prelude = "module Ops where\n  export wrapping-add-u32\n  prim wrapping-add-u32 :: U32 -> U32 -> U32 where\n    llvm {\n      %r = add i32 %0, %1\n      ret i32 %r\n    }\n"
+
+  src-twice-add :: String
+  src-twice-add = string-concat-all [ops-prelude, "module Main where\n  import Ops\n  spec twice-spec :: U32 -> U32\n  twice-spec x = wrapping-add-u32 x x\n  prim twice :: U32 -> U32 spec twice-spec where\n    llvm {\n      %s = add i32 %0, %0\n      ret i32 %s\n    } justify verify\n  main :: Int\n  main = 0\n"]
+
+  src-twice-shl :: String
+  src-twice-shl = string-concat-all [ops-prelude, "module Main where\n  import Ops\n  spec twice-spec :: U32 -> U32\n  twice-spec x = wrapping-add-u32 x x\n  prim twice :: U32 -> U32 spec twice-spec where\n    llvm {\n      %s = shl i32 %0, 1\n      ret i32 %s\n    } justify verify\n  main :: Int\n  main = 0\n"]
+
+  src-twice-broken :: String
+  src-twice-broken = string-concat-all [ops-prelude, "module Main where\n  import Ops\n  spec twice-spec :: U32 -> U32\n  twice-spec x = wrapping-add-u32 x x\n  prim twice :: U32 -> U32 spec twice-spec where\n    llvm {\n      %s = add i32 %0, 1\n      ret i32 %s\n    } justify verify\n  main :: Int\n  main = 0\n"]
+
+  src-jpl-compiled :: String
+  src-jpl-compiled = "#[profile(\"jpl\")]\nmodule Main where\n  spec id-spec :: U32 -> U32\n  id-spec x = x\n  prim id-u32 :: U32 -> U32 spec id-spec where\n    llvm {\n      ret i32 %0\n    } justify verify-compiled-lrat\n  main :: Int\n  main = 0\n"
+
+  src-jpl-kernel :: String
+  src-jpl-kernel = "#[profile(\"jpl\")]\nmodule Main where\n  spec id-spec :: U32 -> U32\n  id-spec x = x\n  prim id-u32 :: U32 -> U32 spec id-spec where\n    llvm {\n      ret i32 %0\n    } justify verify\n  main :: Int\n  main = 0\n"
+
+  src-float-prim :: String
+  src-float-prim = "module Main where\n  prim add-f64-local :: F64 -> F64 -> F64 where\n    llvm {\n      %r = fadd double %0, %1\n      ret double %r\n    } justify verify\n  main :: Int\n  main = 0\n"
+
+  test-verified-and-invariance :: Result String Unit
+  test-verified-and-invariance =
+    case self-iface-and-prims "default" src-twice-add of
+      Err e -> Err (string-concat-all ["twice-add failed: ", e])
+      Ok (h1, iface1, prims1) ->
+        case self-iface-and-prims "default" src-twice-shl of
+          Err e -> Err (string-concat-all ["twice-shl failed: ", e])
+          Ok (h2, iface2, prims2) ->
+            if not (same h1 h2) then Err (string-concat-all ["iface_hash mismatch: ", h1, " vs ", h2, "\n", iface1, "\n", iface2])
+            else if not (string-contains "\"tier\":\"verified\"" prims1) then Err (string-concat-all ["missing tier verified: ", prims1])
+            else if not (string-contains "\"checker_id\":\"cinch-kernel-lrat@1\"" prims1) then Err (string-concat-all ["missing kernel checker: ", prims1])
+            else if not (string-contains "\"evidence_format\":\"lrat/v1\"" prims1) then Err (string-concat-all ["missing lrat/v1: ", prims1])
+            else if not (string-contains "\"prim_proofs\":" iface1) then Err (string-concat-all ["missing prim_proofs: ", iface1])
+            else if not (string-contains "\"tier\":\"kernel-cert\"" iface1) then Err (string-concat-all ["missing kernel-cert: ", iface1])
+            else if not (string-contains "\"primitives\":[]" iface1) then Err (string-concat-all ["non-empty primitives assumptions: ", iface1])
+            else Ok ()
+
+  test-broken-refused-default-and-lax :: Result String Unit
+  test-broken-refused-default-and-lax =
+    case self-check "default" src-twice-broken of
+      Ok ok -> Err "broken prim unexpectedly passed in default mode"
+      Err msg1 ->
+        if not (string-contains "failed formal verification" msg1) then Err (string-concat-all ["wrong default error: ", msg1])
+        else case self-check "lax" src-twice-broken of
+          Ok ok -> Err "broken prim unexpectedly passed in lax mode"
+          Err msg2 ->
+            if not (string-contains "failed formal verification" msg2) then Err (string-concat-all ["wrong lax error: ", msg2])
+            else Ok ()
+
+  test-jpl-policy :: Result String Unit
+  test-jpl-policy =
+    case self-check "default" src-jpl-compiled of
+      Ok ok -> Err "jpl compiled-lrat unexpectedly passed in default mode"
+      Err msg1 ->
+        if not (string-contains "rejected by policy" msg1) then Err (string-concat-all ["wrong jpl policy error: ", msg1])
+        else case self-check "default" src-jpl-kernel of
+          Err msg2 -> Err (string-concat-all ["jpl kernel-lrat failed: ", msg2])
+          Ok ok -> case self-iface-and-prims "lax" src-jpl-compiled of
+            Err msg3 -> Err (string-concat-all ["jpl compiled-lrat lax failed: ", msg3])
+            Ok (h, iface, prims) ->
+              if string-contains "\"tier\":\"verified\"" prims && string-contains "\"tier\":\"compiled-cert\"" prims then Ok ()
+              else Err (string-concat-all ["unexpected jpl lax prims: ", prims])
+
+  test-lax-float-downgrade :: Result String Unit
+  test-lax-float-downgrade =
+    case self-check "default" src-float-prim of
+      Ok ok -> Err "float prim unexpectedly passed in default mode"
+      Err msg1 ->
+        if not (string-contains "verification failed" msg1) then Err (string-concat-all ["wrong float default error: ", msg1])
+        else case self-iface-and-prims "lax" src-float-prim of
+          Err msg2 -> Err (string-concat-all ["float lax failed: ", msg2])
+          Ok (h, iface, prims) ->
+            if string-contains "\"tier\":\"assumed\"" prims
+              && string-contains "cinch-lax-bypass@1" prims
+              && not (string-contains "\"prim_proofs\":" iface)
+              && string-contains "prim:Main.add-f64-local#" iface then Ok ()
+            else Err (string-concat-all ["unexpected float lax output: ", prims, "\n", iface])
+
+  test-off-mode :: Result String Unit
+  test-off-mode =
+    case self-iface-and-prims "off" src-twice-broken of
+      Err msg -> Err (string-concat-all ["off mode failed: ", msg])
+      Ok (h, iface, prims) ->
+        if string-contains "\"tier\":\"assumed\"" prims
+          && string-contains "cinch-verify-off@1" prims
+          && not (string-contains "\"prim_proofs\":" iface) then Ok ()
+        else Err (string-concat-all ["unexpected off mode output: ", prims, "\n", iface])
+
+  run-all :: Result String Unit
+  run-all =
+    case test-lrat-kernel of
+      Err e -> Err e
+      Ok u1 -> case test-verified-and-invariance of
+        Err e -> Err e
+        Ok u2 -> case test-broken-refused-default-and-lax of
+          Err e -> Err e
+          Ok u3 -> case test-jpl-policy of
+            Err e -> Err e
+            Ok u4 -> case test-lax-float-downgrade of
+              Err e -> Err e
+              Ok u5 -> test-off-mode
+
+  run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-io u = case run-all of
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 6 self-hosted verification tests PASSED\n") of _ -> 0
+    Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in run-io u

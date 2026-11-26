@@ -7,6 +7,7 @@ module Cinch.Export where
   import Cinch.Ast (Program, Module, Decl, TypeExpr, TypeParam, module-decls, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
   import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Cinch.Unpack (unpacked-abi)
+  import Cinch.Logical (specification-names)
   import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
   import Cinch.Typing (task-source-forwarder, task-forwarder-type)
   import Cinch.Core (CoreTerm, CLocal, CUse, CApply, CApplyEff, CRequire, CDischarge, CorePattern, CPVar, CPWild, CoreClause)
@@ -17,7 +18,8 @@ module Cinch.Export where
   import Cinch.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Cinch.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Cinch.ExportType
-  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op)
+  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof)
+  import Cinch.PrimVerify (PrimProofFact, prim-proof-fact-to-json)
   import Cinch.ExportNominal
   import Cinch.Load (contract-intrinsic, LoadedInterface, loaded-entry, nominal-owner)
   import Cinch.Interface (fnv-source-hash, iface-schema-version)
@@ -1288,6 +1290,16 @@ module Cinch.Export where
       if nominal-owner (f.fn-identity) == mod-name then
         JArr (promoted-fn-json f) more
       else more
+  source-prim-proof-rows :: Json -> List CheckedBinding -> Json -> Json
+  source-prim-proof-rows context bindings rows = case bindings of
+    [] -> rows
+    binding : rest -> case checked-foreign-plan binding of
+      Some plan -> (case foreign-primitive-proof plan of
+        Some fact | has-symbol (checked-name binding) (field "declarations" context) ->
+          source-prim-proof-rows context rest (insert-row "name" (prim-proof-fact-to-json fact) rows)
+        other -> source-prim-proof-rows context rest rows)
+      None -> source-prim-proof-rows context rest rows
+
   attach-optional-field :: String -> Json -> Json -> Json
   attach-optional-field key val obj = case val of JArrEnd -> obj; other -> JObj key val obj
   document :: Elaboration -> HashMap String DataLayout -> Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
@@ -1298,6 +1310,7 @@ module Cinch.Export where
     let pc-rows = export-promoted-ctors-json mod-name (elaboration-promoted-ctors typed) in
     let pk-rows = export-data-param-kinds-json context (elaboration-data-param-kinds typed) in
     let pf-rows = export-promoted-fns-json mod-name (elaboration-promoted-fns typed) in
+    let pp-rows = source-prim-proof-rows context (elaboration-bindings typed) JArrEnd in
     let base-exports = JObj "values" values (JObj "types" types (JObj "signatures" signatures
           (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))) in
     let full-exports = attach-optional-field "type_families" tf-rows
@@ -1305,16 +1318,17 @@ module Cinch.Export where
             (attach-optional-field "promoted_ctors" pc-rows
               (attach-optional-field "data_param_kinds" pk-rows
                 (attach-optional-field "promoted_fns" pf-rows base-exports)))) in
-    JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
-      (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
-        (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
-          (JObj "imports" dependencies (JObj "params" JArrEnd
-            (JObj "exports" full-exports
-              (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
-                (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts layout-index types) JObjEnd)))
-                (JObj "assumptions" checked-assumptions (JObj "assertions" JArrEnd
-                  (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" laws
-                    (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
+    attach-optional-field "prim_proofs" pp-rows
+      (JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
+        (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
+          (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
+            (JObj "imports" dependencies (JObj "params" JArrEnd
+              (JObj "exports" full-exports
+                (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
+                  (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts layout-index types) JObjEnd)))
+                  (JObj "assumptions" checked-assumptions (JObj "assertions" JArrEnd
+                    (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" laws
+                      (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd)))))))))))))))))
   source-hash :: Bytes -> Json -> Result String String
   source-hash source context = case (field "source_start" context, field "source_end" context) of
     (JNum begin, JNum end) -> if begin >= 0 && end >= begin then
@@ -1529,11 +1543,16 @@ module Cinch.Export where
   export-object-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
   export-object-interfaces = export-interfaces-for True False
 
+  erased-spec-symbols :: List Module -> List String
+  erased-spec-symbols modules = case modules of
+    [] -> []
+    m : rest -> specification-names (module-decls m) <> erased-spec-symbols rest
+
   export-interfaces-for :: Bool -> Bool -> CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
   export-interfaces-for require-worker alias-display checked interfaces source = let typed = checked.elaboration in
     case unsupported-modules (checked.surface.modules) (typed.contexts) (elaboration-bindings typed) of
       Some message -> Err message
-      None -> export-loop typed (export-index require-worker alias-display typed) interfaces source [] (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (typed.contexts))
+      None -> export-loop typed (export-index require-worker alias-display typed) interfaces source [] (interface-contexts (source-only-task-forwarders (elaboration-core typed) <> erased-spec-symbols (checked.surface.modules)) (typed.contexts))
   retained-intrinsic :: String -> String -> List Json -> Bool
   retained-intrinsic name identity rows = case rows of
     [] -> False

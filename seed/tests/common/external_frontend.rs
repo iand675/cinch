@@ -65,7 +65,7 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     // until the selector decides how the selected compiler meets it.
     let TargetProfile {
         name, triple, os, arch, libc, os_version, word_size, endian, vector_shape, features,
-        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim, no_cpr: _, prim_verify: _,
+        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim, no_cpr: _, prim_verify,
     } = profile;
     // Fuel and measure are upper bounds on driving. The selected compiler
     // performs no driving, so it meets every bound. Product results
@@ -144,6 +144,9 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     if !*reclaim {
         flags.push("--no-reclaim".to_owned());
     }
+    if *prim_verify != cinch::prim_verify::PrimVerifyMode::Default {
+        flags.push(format!("--prim-verify={}", prim_verify.as_str()));
+    }
     let link = (foreign_triple && matches!(mode, Mode::Build | Mode::Run)).then(|| DriverOptions {
         target: Some(host.triple.clone()), ..Default::default()
     });
@@ -162,6 +165,11 @@ pub fn profile_options_request(mode: Mode, stage: StageMode, profile: &TargetPro
     }
     if opts.no_reclaim && profile.reclaim {
         request.flags.push("--no-reclaim".into());
+    }
+    if let Some(pv) = opts.prim_verify {
+        if pv != profile.prim_verify {
+            request.flags.push(format!("--prim-verify={}", pv.as_str()));
+        }
     }
     request.unit_roots = options.unit_roots;
     request.program_args = options.program_args;
@@ -234,6 +242,9 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     let link = (matches!(mode, Mode::Build | Mode::Run)
         && (!target_flags.is_empty() || runtime_archive.is_some() || opt_level.is_some())).then(|| opts.clone());
     if opts.no_reclaim { target_flags.push("--no-reclaim".into()); }
+    if let Some(pv) = opts.prim_verify {
+        target_flags.push(format!("--prim-verify={}", pv.as_str()));
+    }
     Ok(Request { flags: target_flags, unit_roots, program_args, link, ..Request::default() })
 }
 

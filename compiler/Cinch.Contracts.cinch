@@ -586,7 +586,7 @@ module Cinch.Contracts where
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
     DForeign s direction abi symbol name ty -> type-references ty <> (if direction == "export" then [name] else [])
-    DPrim s name ty bodies -> type-references ty <> prim-body-references bodies
+    DPrim s name ty spec-opt bodies -> type-references ty <> (case spec-opt of Some expr -> expr-references expr; None -> []) <> prim-body-references bodies
     -- A temporal contract's formulas are checked as ordinary terms over the
     -- definition's parameters (core specification section 10), so every
     -- global they name is a name the module uses: the comparison a formula
@@ -611,11 +611,18 @@ module Cinch.Contracts where
       ContractAssume s body -> expr-references body <> contract-clause-references rest
       ContractAssumed s text -> contract-clause-references rest
 
+  prim-justification-references :: RewriteJustification -> List String
+  prim-justification-references evidence = case evidence of
+    RewriteTerm (EVar sp word) ->
+      if word == "verify" || word == "verify-lrat" || word == "verify-compiled-lrat" then []
+      else rewrite-proof-references evidence
+    other -> rewrite-proof-references evidence
+
   prim-body-references :: List PrimBody -> List String
   prim-body-references bodies = case bodies of
     [] -> []
     (PrimBody sp family fragment unverified condition selected justification uses immediates) : rest ->
-      ctor-references uses <> (case justification of Some evidence -> rewrite-proof-references evidence; None -> []) <> prim-body-references rest
+      ctor-references uses <> (case justification of Some evidence -> prim-justification-references evidence; None -> []) <> prim-body-references rest
 
   declaration-references :: List Decl -> List String
   declaration-references ds = case ds of

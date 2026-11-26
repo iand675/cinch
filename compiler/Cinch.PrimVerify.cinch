@@ -1,0 +1,2221 @@
+-- Pluggable formal verification engine for inline LLVM IR `prim` declarations.
+--
+-- Mirrors `seed/src/prim_verify/` in pure self-hosted Cinch:
+--   1. Shared hash-consed semantic DAG (`SemGraph`) with three-valued
+--      Alive2-faithful denotations (value + poison + immediate UB).
+--   2. Versioned LLVM IR semantics (`llvm-sem@21.1`) lowering straight-line
+--      Cinch-LLVM fragments into `SemGraph`.
+--   3. Cinch source `spec` and refinement predicate lowering into the same
+--      `SemGraph`, producing canonical `Obligation`s (no-ub, no-poison,
+--      refinement/spec equivalence).
+--   4. Pluggable prover and checker seams:
+--      - Deterministic Tseitin bit-blaster + built-in SAT solver emitting
+--        `lrat/v1` RUP proofs and concrete counterexamples.
+--      - Independent `verify-lrat` kernel checker (`cinch-kernel-lrat@1`,
+--        tier `kernel-cert`) and compiled checker (`cinch-compiled-lrat@1`,
+--        tier `compiled-cert`, rejected under `#[profile("jpl")]` / `strict`).
+--      - SMT-LIB 2 emitter (`obligation-to-smtlib2`) over `QF_BV` / `QF_FPBV`
+--        for plugging external SMT solvers (`smt-verified`).
+--   5. Explicit `TrustReceipt`s, `PrimProofFact`s for `.cinchif`, and honest
+--      `default` / `strict` / `lax` / `off` compilation modes (`cinch-lax-bypass@1`
+--      and `cinch-verify-off@1` downgrade to `assumed`, never forging `verified`,
+--      while `lax` still rejects actively disproved counterexamples).
+
+module Cinch.PrimVerify where
+
+  import Algebra.Semigroup
+  import Cinch.Ast (Expr, EVar, ECon, ELitInt, EApp, EBin, ENeg, EIf, ELet, ELetScope, ELam, EAnn, EBinding, EBindingsEnd, EArg, EArgsEnd, EUnit, Pat, PVar, exprs-of)
+  import Cinch.Document
+  import Cinch.Interface (fnv-source-hash, sha256-hex, u64-decimal)
+  import Cinch.Index (IndexTerm, IInteger, IBound, IRigid, IAdd, ISubtract, IMultiply)
+  import Cinch.Nominal (decode-identity)
+  import Cinch.Type (UType, UCon, UApp, UFun, UFunEff, UPi, URefine, URequire, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UIndex, UIndexMath, UIndexForget, UIndexPromote, refinement-view)
+  import Data.Bool
+  import Data.Char (is-ascii-digit)
+  import Data.Int
+  import Data.List (reverse)
+  import Data.Machine
+  import Data.Nat (nat-from-int, nat-to-int, saturating-sub)
+  import Data.Option (Option, None, Some)
+  import Data.Result (Result, Ok, Err)
+  import Data.String (string-compare, string-concat, string-concat-all, string-length, string-slice, string-to-bytes, unpack, pack)
+  import Text.Scan (string-contains, string-split-on, string-starts-with, string-ends-with, string-strip, string-words)
+  import Text.Show (nat-to-string, int-to-string)
+
+  export TrustReceipt, MkTrustReceipt, receipt-to-json, receipts-to-json
+  export receipt-tier, receipt-checker-id, receipt-goal-hash, receipt-evidence-hash
+  export receipt-semantics-id, receipt-prover-id, receipt-tcb
+  export PrimProofFact, MkPrimProofFact, prim-proof-fact-to-json
+  export VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen
+  export PrimParamSpec, MkPrimParamSpec
+  export SpecDef, MkSpecDef
+  export LratStep, LratAdd, verify-lrat
+  export SemGraph, SemType, SBool, SBv, SFp, obligation-to-smtlib2
+  export verify-prim-body, is-verify-justification-word, worst-trust-tier, receipts-tcb-union
+
+  -- ==========================================================================
+  -- 1. Persistent NatMap (binary trie over Nat keys, Share/positivity-safe)
+  -- ==========================================================================
+
+  data NatMap a where
+    NMEmpty :: NatMap a
+    NMNode :: Option a -> NatMap a -> NatMap a -> NatMap a
+
+  nm-empty :: forall a. NatMap a
+  nm-empty = NMEmpty
+
+  nat-half :: Nat -> Nat
+  nat-half n = case checked-div n 2 of Some q -> q; None -> 0
+
+  nat-odd :: Nat -> Bool
+  nat-odd n = case checked-rem n 2 of Some r -> r /= 0; None -> False
+
+  nm-lookup :: forall a. Nat -> NatMap a -> Option a
+  nm-lookup k m = case m of
+    NMEmpty -> None
+    NMNode val left right ->
+      if k == 0 then val
+      else if nat-odd k then nm-lookup (nat-half k) right
+      else nm-lookup (nat-half k) left
+
+  nm-insert :: forall a. Nat -> a -> NatMap a -> NatMap a
+  nm-insert k v m = case m of
+    NMEmpty ->
+      if k == 0 then NMNode (Some v) NMEmpty NMEmpty
+      else if nat-odd k then NMNode None NMEmpty (nm-insert (nat-half k) v NMEmpty)
+      else NMNode None (nm-insert (nat-half k) v NMEmpty) NMEmpty
+    NMNode val left right ->
+      if k == 0 then NMNode (Some v) left right
+      else if nat-odd k then NMNode val left (nm-insert (nat-half k) v right)
+      else NMNode val (nm-insert (nat-half k) v left) right
+
+  -- ==========================================================================
+  -- 2. String helpers, TrustReceipt, Policy, VerifyOutcome
+  -- ==========================================================================
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  has-str :: String -> List String -> Bool
+  has-str x xs = case xs of
+    Nil -> False
+    Cons h t -> same x h || has-str x t
+
+  insert-unique-sorted :: String -> List String -> List String
+  insert-unique-sorted x xs = case xs of
+    Nil -> Cons x Nil
+    Cons h t ->
+      let c = string-compare x h in
+      if c == 0 then xs
+      else if c < 0 then Cons x xs
+      else Cons h (insert-unique-sorted x t)
+
+  union-sorted :: List String -> List String -> List String
+  union-sorted xs ys = case xs of
+    Nil -> ys
+    Cons h t -> union-sorted t (insert-unique-sorted h ys)
+
+  join-str :: String -> List String -> String
+  join-str sep xs = case xs of
+    Nil -> ""
+    Cons h Nil -> h
+    Cons h t -> string-concat-all [h, sep, join-str sep t]
+
+  str-list-json :: List String -> Json
+  str-list-json xs = case xs of
+    Nil -> JArrEnd
+    Cons h t -> JArr (JStr h) (str-list-json t)
+
+  is-verify-justification-word :: String -> Bool
+  is-verify-justification-word w =
+    same w "verify" || same w "verify-lrat" || same w "verify-compiled-lrat"
+
+  data TrustReceipt where
+    MkTrustReceipt :: String -> String -> String -> String -> String -> String -> String -> String -> List String -> TrustReceipt
+
+  receipt-goal-hash :: TrustReceipt -> String
+  receipt-goal-hash r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> gh
+
+  receipt-semantics-id :: TrustReceipt -> String
+  receipt-semantics-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> sem
+
+  receipt-prover-id :: TrustReceipt -> String
+  receipt-prover-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> prv
+
+  receipt-checker-id :: TrustReceipt -> String
+  receipt-checker-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> chk
+
+  receipt-tier :: TrustReceipt -> String
+  receipt-tier r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> tier
+
+  receipt-evidence-hash :: TrustReceipt -> String
+  receipt-evidence-hash r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> eh
+
+  receipt-tcb :: TrustReceipt -> List String
+  receipt-tcb r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> tcb
+
+  receipt-to-json :: TrustReceipt -> Json
+  receipt-to-json r = case r of
+    MkTrustReceipt gh sem prv chk tier fmt eh verd tcb ->
+      JObj "goal_hash" (JStr gh)
+        (JObj "semantics_id" (JStr sem)
+          (JObj "prover_id" (JStr prv)
+            (JObj "checker_id" (JStr chk)
+              (JObj "tier" (JStr tier)
+                (JObj "evidence_format" (JStr fmt)
+                  (JObj "evidence_hash" (JStr eh)
+                    (JObj "verdict" (JStr verd)
+                      (JObj "tcb" (str-list-json tcb) JObjEnd))))))))
+
+  receipts-to-json :: List TrustReceipt -> Json
+  receipts-to-json rs = case rs of
+    Nil -> JArrEnd
+    Cons r rest -> JArr (receipt-to-json r) (receipts-to-json rest)
+
+  tier-rank :: String -> Nat
+  tier-rank t =
+    if same t "kernel-cert" then 0
+    else if same t "compiled-cert" then 1
+    else if same t "smt-verified" then 2
+    else 3
+
+  worst-trust-tier :: List TrustReceipt -> String
+  worst-trust-tier rs = worst-tier-loop rs "kernel-cert"
+
+  worst-tier-loop :: List TrustReceipt -> String -> String
+  worst-tier-loop rs cur = case rs of
+    Nil -> cur
+    Cons r rest ->
+      let t = receipt-tier r in
+      let next = if tier-rank t > tier-rank cur then t else cur in
+      worst-tier-loop rest next
+
+  receipts-tcb-union :: List TrustReceipt -> List String
+  receipts-tcb-union rs = case rs of
+    Nil -> Nil
+    Cons r rest -> union-sorted (receipt-tcb r) (receipts-tcb-union rest)
+
+  data PrimProofFact where
+    MkPrimProofFact :: String -> String -> String -> String -> List String -> PrimProofFact
+
+  prim-proof-fact-to-json :: PrimProofFact -> Json
+  prim-proof-fact-to-json f = case f of
+    MkPrimProofFact name spec-text sem tier tcb ->
+      JObj "name" (JStr name)
+        (JObj "spec" (JStr spec-text)
+          (JObj "semantics_id" (JStr sem)
+            (JObj "tier" (JStr tier)
+              (JObj "tcb" (str-list-json tcb) JObjEnd))))
+
+  data VerifyOutcome where
+    OutcomeVerified :: List TrustReceipt -> VerifyOutcome
+    OutcomeAssumed :: List TrustReceipt -> VerifyOutcome
+    OutcomeDisproved :: String -> VerifyOutcome
+    OutcomeRejected :: String -> VerifyOutcome
+    OutcomeOpen :: String -> VerifyOutcome
+
+  data PrimParamSpec where
+    MkPrimParamSpec :: String -> String -> Nat -> Bool -> Bool -> Bool -> PrimParamSpec
+
+  param-spec-name :: PrimParamSpec -> String
+  param-spec-name p = case p of MkPrimParamSpec nm ty w sg fp bl -> nm
+
+  param-spec-width :: PrimParamSpec -> Nat
+  param-spec-width p = case p of MkPrimParamSpec nm ty w sg fp bl -> w
+
+  param-spec-signed :: PrimParamSpec -> Bool
+  param-spec-signed p = case p of MkPrimParamSpec nm ty w sg fp bl -> sg
+
+  param-spec-fp :: PrimParamSpec -> Bool
+  param-spec-fp p = case p of MkPrimParamSpec nm ty w sg fp bl -> fp
+
+  param-spec-bool :: PrimParamSpec -> Bool
+  param-spec-bool p = case p of MkPrimParamSpec nm ty w sg fp bl -> bl
+
+  data SpecDef where
+    MkSpecDef :: String -> List String -> Expr -> SpecDef
+
+  spec-def-name :: SpecDef -> String
+  spec-def-name d = case d of MkSpecDef nm ps body -> nm
+
+  lookup-spec-def :: String -> List SpecDef -> Option SpecDef
+  lookup-spec-def wanted defs = case defs of
+    Nil -> None
+    Cons d rest ->
+      if same (spec-def-name d) wanted || string-ends-with (string-concat "." wanted) (spec-def-name d) then Some d
+      else lookup-spec-def wanted rest
+
+  -- ==========================================================================
+  -- 3. Shared Semantic DAG (`SemGraph`)
+  -- ==========================================================================
+
+  data SemType where
+    SBool :: SemType
+    SBv :: Nat -> SemType
+    SFp :: Nat -> SemType
+
+  sem-type-key :: SemType -> String
+  sem-type-key t = case t of
+    SBool -> "bool"
+    SBv w -> string-concat "bv" (nat-to-string w)
+    SFp w -> string-concat "fp" (nat-to-string w)
+
+  sem-type-width :: SemType -> Nat
+  sem-type-width t = case t of
+    SBool -> 1
+    SBv w -> w
+    SFp w -> w
+
+  data SemNode where
+    NBoolConst :: Bool -> SemNode
+    NBvConst :: Nat -> U64 -> SemNode
+    NVar :: Nat -> SemType -> String -> SemNode
+    NNot :: Nat -> SemNode
+    NAnd :: Nat -> Nat -> SemNode
+    NOr :: Nat -> Nat -> SemNode
+    NXor :: Nat -> Nat -> SemNode
+    NImplies :: Nat -> Nat -> SemNode
+    NEqBool :: Nat -> Nat -> SemNode
+    NIte :: Nat -> Nat -> Nat -> SemNode
+    NBvUn :: String -> Nat -> Nat -> SemNode
+    NBvBin :: String -> Nat -> Nat -> Nat -> SemNode
+    NBvCmp :: String -> Nat -> Nat -> Nat -> SemNode
+    NBvCast :: String -> Nat -> Nat -> Nat -> SemNode
+    NBvTri :: String -> Nat -> Nat -> Nat -> Nat -> SemNode
+    NFpUn :: String -> Nat -> Nat -> SemNode
+    NFpBin :: String -> Nat -> Nat -> Nat -> SemNode
+    NFpCmp :: String -> Nat -> Nat -> Nat -> SemNode
+    NFpCast :: String -> Nat -> Nat -> Nat -> SemNode
+
+  node-key :: SemNode -> String
+  node-key n = case n of
+    NBoolConst b -> if b then "B1" else "B0"
+    NBvConst w v -> string-concat-all ["C", nat-to-string w, ":", u64-decimal v]
+    NVar i ty nm -> string-concat-all ["V", nat-to-string i, ":", sem-type-key ty]
+    NNot a -> string-concat "!(" (string-concat (nat-to-string a) ")")
+    NAnd a b -> string-concat-all ["&(", nat-to-string a, ",", nat-to-string b, ")"]
+    NOr a b -> string-concat-all ["|(", nat-to-string a, ",", nat-to-string b, ")"]
+    NXor a b -> string-concat-all ["^(", nat-to-string a, ",", nat-to-string b, ")"]
+    NImplies a b -> string-concat-all ["->(", nat-to-string a, ",", nat-to-string b, ")"]
+    NEqBool a b -> string-concat-all ["==b(", nat-to-string a, ",", nat-to-string b, ")"]
+    NIte c t e -> string-concat-all ["ite(", nat-to-string c, ",", nat-to-string t, ",", nat-to-string e, ")"]
+    NBvUn op w a -> string-concat-all [op, "_", nat-to-string w, "(", nat-to-string a, ")"]
+    NBvBin op w a b -> string-concat-all [op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
+    NBvCmp op w a b -> string-concat-all ["cmp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
+    NBvCast op fw tw a -> string-concat-all [op, "_", nat-to-string fw, "_", nat-to-string tw, "(", nat-to-string a, ")"]
+    NBvTri op w a b c -> string-concat-all [op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ",", nat-to-string c, ")"]
+    NFpUn op w a -> string-concat-all ["fp_", op, "_", nat-to-string w, "(", nat-to-string a, ")"]
+    NFpBin op w a b -> string-concat-all ["fp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
+    NFpCmp op w a b -> string-concat-all ["fpcmp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
+    NFpCast op fw tw a -> string-concat-all ["fpcast_", op, "_", nat-to-string fw, "_", nat-to-string tw, "(", nat-to-string a, ")"]
+
+  data SemGraph where
+    MkSemGraph :: Nat -> NatMap SemNode -> List (String, Nat) -> Bool -> SemGraph
+
+  empty-sem-graph :: SemGraph
+  empty-sem-graph = MkSemGraph 0 nm-empty Nil False
+
+  graph-has-fp :: SemGraph -> Bool
+  graph-has-fp g = case g of MkSemGraph cnt nodes cache fp -> fp
+
+  graph-node :: Nat -> SemGraph -> Option SemNode
+  graph-node id g = case g of MkSemGraph cnt nodes cache fp -> nm-lookup id nodes
+
+  lookup-str-nat :: String -> List (String, Nat) -> Option Nat
+  lookup-str-nat k xs = case xs of
+    Nil -> None
+    Cons (k1, v1) rest -> if same k k1 then Some v1 else lookup-str-nat k rest
+
+  node-is-fp :: SemNode -> Bool
+  node-is-fp n = case n of
+    NFpUn op w a -> True
+    NFpBin op w a b -> True
+    NFpCmp op w a b -> True
+    NFpCast op fw tw a -> True
+    NVar i (SFp w) nm -> True
+    other -> False
+
+  nat-u64 :: Nat -> U64
+  nat-u64 n = if n <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 n) else 0
+
+  nat-u32 :: Nat -> U32
+  nat-u32 n = if n <= 9223372036854775807 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  u64-mask :: Nat -> U64
+  u64-mask w =
+    if w >= 64 then 18446744073709551615
+    else if w == 0 then 0
+    else wrapping-sub-u64 (wrapping-shl-u64 1 (nat-u32 w)) 1
+
+  g-intern :: SemNode -> SemGraph -> (Nat, SemGraph)
+  g-intern node g = case g of
+    MkSemGraph cnt nodes cache fp ->
+      let key = node-key node in
+      case lookup-str-nat key cache of
+        Some existing -> (existing, g)
+        None ->
+          let id = cnt in
+          let next-fp = fp || node-is-fp node in
+          (id, MkSemGraph (cnt + 1) (nm-insert id node nodes) (Cons (key, id) cache) next-fp)
+
+  g-bool :: Bool -> SemGraph -> (Nat, SemGraph)
+  g-bool b g = g-intern (NBoolConst b) g
+
+  g-bv :: Nat -> U64 -> SemGraph -> (Nat, SemGraph)
+  g-bv w v g = g-intern (NBvConst w (bit-and-u64 v (u64-mask w))) g
+
+  g-var :: Nat -> SemType -> String -> SemGraph -> (Nat, SemGraph)
+  g-var idx ty nm g = g-intern (NVar idx ty nm) g
+
+  g-not :: Nat -> SemGraph -> (Nat, SemGraph)
+  g-not a g = case graph-node a g of
+    Some (NBoolConst b) -> g-bool (not b) g
+    Some (NNot x) -> (x, g)
+    other -> g-intern (NNot a) g
+
+  g-and :: Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-and a b g =
+    if a == b then (a, g)
+    else case (graph-node a g, graph-node b g) of
+      (Some (NBoolConst False), other) -> (a, g)
+      (other, Some (NBoolConst False)) -> (b, g)
+      (Some (NBoolConst True), other) -> (b, g)
+      (other, Some (NBoolConst True)) -> (a, g)
+      other -> g-intern (NAnd a b) g
+
+  g-or :: Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-or a b g =
+    if a == b then (a, g)
+    else case (graph-node a g, graph-node b g) of
+      (Some (NBoolConst True), other) -> (a, g)
+      (other, Some (NBoolConst True)) -> (b, g)
+      (Some (NBoolConst False), other) -> (b, g)
+      (other, Some (NBoolConst False)) -> (a, g)
+      other -> g-intern (NOr a b) g
+
+  g-implies :: Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-implies a b g = case (graph-node a g, graph-node b g) of
+    (Some (NBoolConst False), other) -> g-bool True g
+    (Some (NBoolConst True), other) -> (b, g)
+    (other, Some (NBoolConst True)) -> g-bool True g
+    other -> g-intern (NImplies a b) g
+
+  g-ite :: Nat -> Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-ite c t e g =
+    if t == e then (t, g)
+    else case graph-node c g of
+      Some (NBoolConst True) -> (t, g)
+      Some (NBoolConst False) -> (e, g)
+      other -> g-intern (NIte c t e) g
+
+  g-bv-bin :: String -> Nat -> Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-bin op w a b g = g-intern (NBvBin op w a b) g
+
+  g-bv-cmp :: String -> Nat -> Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-cmp pred w a b g =
+    if a == b && (same pred "eq" || same pred "ule" || same pred "uge" || same pred "sle" || same pred "sge") then g-bool True g
+    else if a == b && (same pred "ne" || same pred "ult" || same pred "ugt" || same pred "slt" || same pred "sgt") then g-bool False g
+    else g-intern (NBvCmp pred w a b) g
+
+  g-bv-cast :: String -> Nat -> Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  g-bv-cast op fw tw a g =
+    if fw == tw then (a, g)
+    else g-intern (NBvCast op fw tw a) g
+
+  -- Canonical serialization of a goal node for content-addressed goal_hash.
+  serialize-sem :: Nat -> SemGraph -> String
+  serialize-sem id g = case graph-node id g of
+    None -> "?"
+    Some n -> case n of
+      NBoolConst b -> if b then "true" else "false"
+      NBvConst w v -> string-concat-all ["bv", nat-to-string w, ":", u64-decimal v]
+      NVar i ty nm -> string-concat-all ["v", nat-to-string i, ":", sem-type-key ty]
+      NNot a -> string-concat-all ["(not ", serialize-sem a g, ")"]
+      NAnd a b -> string-concat-all ["(and ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NOr a b -> string-concat-all ["(or ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NXor a b -> string-concat-all ["(xor ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NImplies a b -> string-concat-all ["(=> ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NEqBool a b -> string-concat-all ["(= ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NIte c t e -> string-concat-all ["(ite ", serialize-sem c g, " ", serialize-sem t g, " ", serialize-sem e g, ")"]
+      NBvUn op w a -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, ")"]
+      NBvBin op w a b -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NBvCmp op w a b -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NBvCast op fw tw a -> string-concat-all ["(", op, ".", nat-to-string fw, ".", nat-to-string tw, " ", serialize-sem a g, ")"]
+      NBvTri op w a b c -> string-concat-all ["(", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, " ", serialize-sem c g, ")"]
+      NFpUn op w a -> string-concat-all ["(fp.", op, ".", nat-to-string w, " ", serialize-sem a g, ")"]
+      NFpBin op w a b -> string-concat-all ["(fp.", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NFpCmp op w a b -> string-concat-all ["(fpcmp.", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
+      NFpCast op fw tw a -> string-concat-all ["(fpcast.", op, ".", nat-to-string fw, ".", nat-to-string tw, " ", serialize-sem a g, ")"]
+
+  -- ==========================================================================
+  -- 4. Versioned LLVM IR Semantics (`llvm-sem@21.1`)
+  -- ==========================================================================
+
+  semantics-id-llvm :: String
+  semantics-id-llvm = "llvm-sem@21.1"
+
+  data SemVal where
+    MkSemVal :: Nat -> Nat -> SemType -> SemVal
+    MkSemPair :: SemVal -> SemVal -> SemVal
+
+  sv-val :: SemVal -> Nat
+  sv-val v = case v of
+    MkSemVal val p ty -> val
+    MkSemPair a b -> sv-val a
+
+  sv-poison :: SemVal -> Nat
+  sv-poison v = case v of
+    MkSemVal val p ty -> p
+    MkSemPair a b -> sv-poison a
+
+  sv-type :: SemVal -> SemType
+  sv-type v = case v of
+    MkSemVal val p ty -> ty
+    MkSemPair a b -> sv-type a
+
+  data LlvmEnv where
+    MkLlvmEnv :: List (String, SemVal) -> Nat -> SemGraph -> Option SemVal -> LlvmEnv
+
+  env-lookup :: String -> List (String, SemVal) -> Option SemVal
+  env-lookup nm binds = case binds of
+    Nil -> None
+    Cons (k, v) rest -> if same nm k then Some v else env-lookup nm rest
+
+  strip-ir-comment :: String -> String
+  strip-ir-comment line = case string-split-on ";" line of
+    Nil -> ""
+    Cons code rest -> string-strip code
+
+  tokenize-ir-chars :: List Char -> List Char
+  tokenize-ir-chars cs = case cs of
+    Nil -> Nil
+    Cons c rest ->
+      let code = char-code c in
+      if code == 44 || code == 40 || code == 41 || code == 123 || code == 125 then
+        Cons ' ' (tokenize-ir-chars rest)
+      else if code == 61 then
+        Cons ' ' (Cons '=' (Cons ' ' (tokenize-ir-chars rest)))
+      else Cons c (tokenize-ir-chars rest)
+
+  ir-words :: String -> List String
+  ir-words line = string-words (pack (tokenize-ir-chars (unpack (strip-ir-comment line))))
+
+  parse-u64-digits :: List Char -> U64 -> Option U64
+  parse-u64-digits cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest ->
+      if is-ascii-digit c then
+        let d = nat-u64 (saturating-sub (char-code c) 48) in
+        parse-u64-digits rest (wrapping-add-u64 (wrapping-mul-u64 acc 10) d)
+      else None
+
+  parse-ir-u64 :: String -> Option U64
+  parse-ir-u64 tok =
+    if string-starts-with "-" tok then
+      case unpack (string-slice tok 1 (string-length tok)) of
+        Nil -> None
+        digits -> case parse-u64-digits digits 0 of
+          Some mag -> Some (wrapping-sub-u64 0 mag)
+          None -> None
+    else case unpack tok of
+      Nil -> None
+      digits -> parse-u64-digits digits 0
+
+  parse-llvm-type :: String -> Option SemType
+  parse-llvm-type s =
+    if same s "i1" then Some SBool
+    else if same s "float" then Some (SFp 32)
+    else if same s "double" then Some (SFp 64)
+    else if string-starts-with "i" s && string-length s > 1 then
+      case parse-nat-str (string-slice s 1 (string-length s)) of
+        Some w | w >= 1 && w <= 64 -> Some (SBv w)
+        other -> None
+    else None
+
+  parse-nat-str :: String -> Option Nat
+  parse-nat-str s = case unpack s of
+    Nil -> None
+    cs -> parse-nat-digits cs 0
+
+  parse-nat-digits :: List Char -> Nat -> Option Nat
+  parse-nat-digits cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest ->
+      if is-ascii-digit c then parse-nat-digits rest (acc * 10 + saturating-sub (char-code c) 48)
+      else None
+
+  resolve-operand :: String -> SemType -> LlvmEnv -> Result String (SemVal, SemGraph)
+  resolve-operand tok ty env = case env of
+    MkLlvmEnv binds ub g ret ->
+      if same tok "true" then
+        let (v, g1) = g-bool True g in
+        let (p, g2) = g-bool False g1 in
+        Ok (MkSemVal v p SBool, g2)
+      else if same tok "false" then
+        let (v, g1) = g-bool False g in
+        let (p, g2) = g-bool False g1 in
+        Ok (MkSemVal v p SBool, g2)
+      else if same tok "poison" || same tok "undef" then
+        let (p, g1) = g-bool True g in
+        let (v, g2) = case ty of
+              SBool -> g-bool False g1
+              SBv w -> g-bv w 0 g1
+              SFp w -> g-bv w 0 g1 in
+        Ok (MkSemVal v p ty, g2)
+      else if string-starts-with "%" tok then
+        case env-lookup tok binds of
+          Some sv -> Ok (sv, g)
+          None -> Err (string-concat "unresolved LLVM operand " tok)
+      else case parse-ir-u64 tok of
+        Some num ->
+          let (p, g1) = g-bool False g in
+          (case ty of
+            SBool -> let (v, g2) = g-bool (not (eq-u64 num 0)) g1 in Ok (MkSemVal v p SBool, g2)
+            SBv w -> let (v, g2) = g-bv w num g1 in Ok (MkSemVal v p (SBv w), g2)
+            SFp w -> let (v, g2) = g-bv w num g1 in Ok (MkSemVal v p (SFp w), g2))
+        None -> Err (string-concat "unsupported LLVM operand " tok)
+
+  strip-ir-flags :: List String -> (Bool, Bool, Bool, List String)
+  strip-ir-flags ws = strip-ir-flags-acc False False False ws
+
+  strip-ir-flags-acc :: Bool -> Bool -> Bool -> List String -> (Bool, Bool, Bool, List String)
+  strip-ir-flags-acc nsw nuw exact ws = case ws of
+    Cons w rest ->
+      if same w "nsw" then strip-ir-flags-acc True nuw exact rest
+      else if same w "nuw" then strip-ir-flags-acc nsw True exact rest
+      else if same w "exact" then strip-ir-flags-acc nsw nuw True rest
+      else if has-str w ["disjoint", "nneg", "samesign", "nnan", "ninf", "nsz", "arcp", "contract", "afn", "reassoc", "fast", "tail", "musttail", "notail"] then
+        strip-ir-flags-acc nsw nuw exact rest
+      else (nsw, nuw, exact, ws)
+    Nil -> (nsw, nuw, exact, Nil)
+
+  u64-sign-bit :: Nat -> U64
+  u64-sign-bit w =
+    if w == 0 then 0
+    else wrapping-shl-u64 1 (nat-u32 (saturating-sub w 1))
+
+  -- Overflow condition for add/sub/mul with nsw/nuw flags.
+  arith-overflow-poison :: String -> Nat -> Bool -> Bool -> Nat -> Nat -> Nat -> SemGraph -> (Nat, SemGraph)
+  arith-overflow-poison op w nsw nuw a b res g =
+    let (p0, g0) = g-bool False g in
+    let (p1, g1) =
+          if nuw then
+            (if same op "add" then
+              let (ov, ga) = g-bv-cmp "ult" w res a g0 in g-or p0 ov ga
+            else if same op "sub" then
+              let (ov, ga) = g-bv-cmp "ult" w a b g0 in g-or p0 ov ga
+            else if same op "mul" && w <= 32 then
+              let w2 = w * 2 in
+              let (za, g2) = g-bv-cast "zext" w w2 a g0 in
+              let (zb, g3) = g-bv-cast "zext" w w2 b g2 in
+              let (prod, g4) = g-bv-bin "mul" w2 za zb g3 in
+              let (zres, g5) = g-bv-cast "zext" w w2 res g4 in
+              let (ov, g6) = g-bv-cmp "ne" w2 prod zres g5 in g-or p0 ov g6
+            else (p0, g0))
+          else (p0, g0) in
+    if nsw then
+      if same op "add" then
+        let (zero, g2) = g-bv w 0 g1 in
+        let (a-neg, g3) = g-bv-cmp "slt" w a zero g2 in
+        let (b-neg, g4) = g-bv-cmp "slt" w b zero g3 in
+        let (r-neg, g5) = g-bv-cmp "slt" w res zero g4 in
+        let (same-in, g6) = g-intern (NEqBool a-neg b-neg) g5 in
+        let (diff-out, g7) = g-intern (NXor a-neg r-neg) g6 in
+        let (ov, g8) = g-and same-in diff-out g7 in
+        g-or p1 ov g8
+      else if same op "sub" then
+        let (zero, g2) = g-bv w 0 g1 in
+        let (a-neg, g3) = g-bv-cmp "slt" w a zero g2 in
+        let (b-neg, g4) = g-bv-cmp "slt" w b zero g3 in
+        let (r-neg, g5) = g-bv-cmp "slt" w res zero g4 in
+        let (diff-in, g6) = g-intern (NXor a-neg b-neg) g5 in
+        let (diff-out, g7) = g-intern (NXor a-neg r-neg) g6 in
+        let (ov, g8) = g-and diff-in diff-out g7 in
+        g-or p1 ov g8
+      else if same op "mul" && w <= 32 then
+        let w2 = w * 2 in
+        let (sa, g2) = g-bv-cast "sext" w w2 a g1 in
+        let (sb, g3) = g-bv-cast "sext" w w2 b g2 in
+        let (prod, g4) = g-bv-bin "mul" w2 sa sb g3 in
+        let (sres, g5) = g-bv-cast "sext" w w2 res g4 in
+        let (ov, g6) = g-bv-cmp "ne" w2 prod sres g5 in
+        g-or p1 ov g6
+      else (p1, g1)
+    else (p1, g1)
+
+  lower-binop :: String -> String -> List String -> LlvmEnv -> Result String LlvmEnv
+  lower-binop lhs op args env =
+    let (nsw, nuw, exact, rest) = strip-ir-flags args in
+    case rest of
+      Cons ty-tok (Cons a-tok (Cons b-tok Nil)) ->
+        case parse-llvm-type ty-tok of
+          None -> Err (string-concat "unsupported LLVM type " ty-tok)
+          Some ty ->
+            case resolve-operand a-tok ty env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok ty (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        let (base-p, g3) = g-or (sv-poison va) (sv-poison vb) g2 in
+                        (case ty of
+                          SBv w ->
+                            if has-str op ["add", "sub", "mul"] then
+                              let (res, g4) = g-bv-bin op w (sv-val va) (sv-val vb) g3 in
+                              let (ov-p, g5) = arith-overflow-poison op w nsw nuw (sv-val va) (sv-val vb) res g4 in
+                              let (p, g6) = g-or base-p ov-p g5 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p ty) binds) ub g6 ret)
+                            else if has-str op ["and", "or", "xor"] then
+                              let (res, g4) = g-bv-bin op w (sv-val va) (sv-val vb) g3 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p ty) binds) ub g4 ret)
+                            else if has-str op ["shl", "lshr", "ashr"] then
+                              let (res, g4) = g-bv-bin op w (sv-val va) (sv-val vb) g3 in
+                              let (w-const, g5) = g-bv w (nat-u64 w) g4 in
+                              let (oob, g6) = g-bv-cmp "uge" w (sv-val vb) w-const g5 in
+                              let (p, g7) = g-or base-p oob g6 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p ty) binds) ub g7 ret)
+                            else if has-str op ["udiv", "urem"] then
+                              let (zero, g4) = g-bv w 0 g3 in
+                              let (div0, g5) = g-bv-cmp "eq" w (sv-val vb) zero g4 in
+                              let (ub1, g6) = g-or ub div0 g5 in
+                              let (ub2, g7) = g-or ub1 (sv-poison vb) g6 in
+                              let (res, g8) = g-bv-bin op w (sv-val va) (sv-val vb) g7 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p ty) binds) ub2 g8 ret)
+                            else if has-str op ["sdiv", "srem"] then
+                              let (zero, g4) = g-bv w 0 g3 in
+                              let (div0, g5) = g-bv-cmp "eq" w (sv-val vb) zero g4 in
+                              let (smin, g6) = g-bv w (u64-sign-bit w) g5 in
+                              let (neg1, g7) = g-bv w (u64-mask w) g6 in
+                              let (is-min, g8) = g-bv-cmp "eq" w (sv-val va) smin g7 in
+                              let (is-m1, g9) = g-bv-cmp "eq" w (sv-val vb) neg1 g8 in
+                              let (ov-ub, g10) = g-and is-min is-m1 g9 in
+                              let (ub1, g11) = g-or ub div0 g10 in
+                              let (ub2, g12) = g-or ub1 ov-ub g11 in
+                              let (ub3, g13) = g-or ub2 (sv-poison vb) g12 in
+                              let (res, g14) = g-bv-bin op w (sv-val va) (sv-val vb) g13 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p ty) binds) ub3 g14 ret)
+                            else Err (string-concat "unsupported LLVM binop " op)
+                          SBool ->
+                            if same op "and" then
+                              let (res, g4) = g-and (sv-val va) (sv-val vb) g3 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p SBool) binds) ub g4 ret)
+                            else if same op "or" then
+                              let (res, g4) = g-or (sv-val va) (sv-val vb) g3 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p SBool) binds) ub g4 ret)
+                            else if same op "xor" then
+                              let (res, g4) = g-intern (NXor (sv-val va) (sv-val vb)) g3 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p SBool) binds) ub g4 ret)
+                            else Err (string-concat "unsupported i1 binop " op)
+                          SFp w ->
+                            let (res, g4) = g-intern (NFpBin op w (sv-val va) (sv-val vb)) g3 in
+                            Ok (MkLlvmEnv (Cons (lhs, MkSemVal res base-p ty) binds) ub g4 ret))
+      other -> Err (string-concat "malformed LLVM binop " op)
+
+  lower-cast :: String -> String -> List String -> LlvmEnv -> Result String LlvmEnv
+  lower-cast lhs op args env =
+    let (nsw, nuw, exact, rest) = strip-ir-flags args in
+    case rest of
+      Cons src-ty-tok (Cons val-tok (Cons to-kw (Cons dst-ty-tok Nil))) | same to-kw "to" ->
+        case (parse-llvm-type src-ty-tok, parse-llvm-type dst-ty-tok) of
+          (Some src-ty, Some dst-ty) ->
+            case resolve-operand val-tok src-ty env of
+              Err e -> Err e
+              Ok (v, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    let p = sv-poison v in
+                    (case (src-ty, dst-ty) of
+                      (SBool, SBv tw) ->
+                        let (one, g2) = g-bv tw (if same op "sext" then u64-mask tw else 1) g1 in
+                        let (zero, g3) = g-bv tw 0 g2 in
+                        let (res, g4) = g-ite (sv-val v) one zero g3 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p dst-ty) binds) ub g4 ret)
+                      (SBv fw, SBool) ->
+                        let (one, g2) = g-bv fw 1 g1 in
+                        let (masked, g3) = g-bv-bin "and" fw (sv-val v) one g2 in
+                        let (res, g4) = g-bv-cmp "eq" fw masked one g3 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p SBool) binds) ub g4 ret)
+                      (SBv fw, SBv tw) ->
+                        let (res, g2) = g-bv-cast op fw tw (sv-val v) g1 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p dst-ty) binds) ub g2 ret)
+                      (other1, other2) ->
+                        let (res, g2) = g-intern (NFpCast op (sem-type-width src-ty) (sem-type-width dst-ty) (sv-val v)) g1 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p dst-ty) binds) ub g2 ret))
+          other -> Err (string-concat "unsupported cast types in " op)
+      other -> Err (string-concat "malformed LLVM cast " op)
+
+  lower-icmp :: String -> List String -> LlvmEnv -> Result String LlvmEnv
+  lower-icmp lhs args env =
+    let (nsw, nuw, exact, rest) = strip-ir-flags args in
+    case rest of
+      Cons pred (Cons ty-tok (Cons a-tok (Cons b-tok Nil))) ->
+        case parse-llvm-type ty-tok of
+          None -> Err (string-concat "unsupported icmp type " ty-tok)
+          Some ty ->
+            case resolve-operand a-tok ty env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok ty (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        let (p, g3) = g-or (sv-poison va) (sv-poison vb) g2 in
+                        (case ty of
+                          SBv w ->
+                            let (res, g4) = g-bv-cmp pred w (sv-val va) (sv-val vb) g3 in
+                            Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p SBool) binds) ub g4 ret)
+                          SBool ->
+                            let (res, g4) = if same pred "eq" then g-intern (NEqBool (sv-val va) (sv-val vb)) g3
+                                  else g-intern (NXor (sv-val va) (sv-val vb)) g3 in
+                            Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p SBool) binds) ub g4 ret)
+                          SFp w -> Err "icmp on float")
+      other -> Err "malformed LLVM icmp"
+
+  lower-select :: String -> List String -> LlvmEnv -> Result String LlvmEnv
+  lower-select lhs args env = case args of
+    Cons cty (Cons ctok (Cons tty (Cons ttok (Cons fty (Cons ftok Nil))))) ->
+      case parse-llvm-type tty of
+        None -> Err (string-concat "unsupported select type " tty)
+        Some ty ->
+          case resolve-operand ctok SBool env of
+            Err e -> Err e
+            Ok (vc, g1) ->
+              case env of
+                MkLlvmEnv binds ub g0 ret ->
+                  case resolve-operand ttok ty (MkLlvmEnv binds ub g1 ret) of
+                    Err e -> Err e
+                    Ok (vt, g2) ->
+                      case resolve-operand ftok ty (MkLlvmEnv binds ub g2 ret) of
+                        Err e -> Err e
+                        Ok (vf, g3) ->
+                          let (res, g4) = g-ite (sv-val vc) (sv-val vt) (sv-val vf) g3 in
+                          let (branch-p, g5) = g-ite (sv-val vc) (sv-poison vt) (sv-poison vf) g4 in
+                          let (p, g6) = g-or (sv-poison vc) branch-p g5 in
+                          Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p ty) binds) ub g6 ret)
+    other -> Err "malformed LLVM select"
+
+  lower-intrinsic-call :: String -> List String -> LlvmEnv -> Result String LlvmEnv
+  lower-intrinsic-call lhs args env =
+    let (nsw, nuw, exact, rest) = strip-ir-flags args in
+    case rest of
+      -- Unary intrinsic: call iN @llvm.<op>.iN(iN %a)
+      Cons rty-tok (Cons fn-tok (Cons aty-tok (Cons a-tok Nil))) | string-starts-with "@llvm." fn-tok ->
+        case parse-llvm-type rty-tok of
+          Some (SBv w) ->
+            case resolve-operand a-tok (SBv w) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    let op =
+                          if string-starts-with "@llvm.bswap." fn-tok then Some "bswap"
+                          else if string-starts-with "@llvm.bitreverse." fn-tok then Some "bitreverse"
+                          else if string-starts-with "@llvm.ctpop." fn-tok then Some "ctpop"
+                          else None in
+                    (case op of
+                      Some name ->
+                        let (res, g2) = g-intern (NBvUn name w (sv-val va)) g1 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVal res (sv-poison va) (SBv w)) binds) ub g2 ret)
+                      None -> Err (string-concat "unsupported unary intrinsic " fn-tok))
+          Some (SFp w) ->
+            case resolve-operand a-tok (SFp w) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    let (res, g2) = g-intern (NFpUn fn-tok w (sv-val va)) g1 in
+                    Ok (MkLlvmEnv (Cons (lhs, MkSemVal res (sv-poison va) (SFp w)) binds) ub g2 ret)
+          other -> Err (string-concat "unsupported intrinsic return type " rty-tok)
+      -- Binary intrinsic: call iN @llvm.<op>.iN(iN %a, iN %b) or ctlz/cttz(iN %a, i1 %z)
+      Cons rty-tok (Cons fn-tok (Cons aty-tok (Cons a-tok (Cons bty-tok (Cons b-tok Nil))))) | string-starts-with "@llvm." fn-tok ->
+        case parse-llvm-type rty-tok of
+          Some (SBv w) ->
+            if string-starts-with "@llvm.ctlz." fn-tok || string-starts-with "@llvm.cttz." fn-tok then
+              case resolve-operand a-tok (SBv w) env of
+                Err e -> Err e
+                Ok (va, g1) ->
+                  case env of
+                    MkLlvmEnv binds ub g0 ret ->
+                      case resolve-operand b-tok SBool (MkLlvmEnv binds ub g1 ret) of
+                        Err e -> Err e
+                        Ok (vz, g2) ->
+                          let op-name = if string-starts-with "@llvm.ctlz." fn-tok then "ctlz" else "cttz" in
+                          let (res, g3) = g-intern (NBvUn op-name w (sv-val va)) g2 in
+                          let (zero, g4) = g-bv w 0 g3 in
+                          let (is-z, g5) = g-bv-cmp "eq" w (sv-val va) zero g4 in
+                          let (z-poison, g6) = g-and (sv-val vz) is-z g5 in
+                          let (p, g7) = g-or (sv-poison va) z-poison g6 in
+                          Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p (SBv w)) binds) ub g7 ret)
+            else
+              case resolve-operand a-tok (SBv w) env of
+                Err e -> Err e
+                Ok (va, g1) ->
+                  case env of
+                    MkLlvmEnv binds ub g0 ret ->
+                      case resolve-operand b-tok (SBv w) (MkLlvmEnv binds ub g1 ret) of
+                        Err e -> Err e
+                        Ok (vb, g2) ->
+                          let (p, g3) = g-or (sv-poison va) (sv-poison vb) g2 in
+                          let op =
+                                if string-starts-with "@llvm.smin." fn-tok then Some "smin"
+                                else if string-starts-with "@llvm.smax." fn-tok then Some "smax"
+                                else if string-starts-with "@llvm.umin." fn-tok then Some "umin"
+                                else if string-starts-with "@llvm.umax." fn-tok then Some "umax"
+                                else if string-starts-with "@llvm.sadd.sat." fn-tok then Some "sadd_sat"
+                                else if string-starts-with "@llvm.uadd.sat." fn-tok then Some "uadd_sat"
+                                else if string-starts-with "@llvm.ssub.sat." fn-tok then Some "ssub_sat"
+                                else if string-starts-with "@llvm.usub.sat." fn-tok then Some "usub_sat"
+                                else None in
+                          (case op of
+                            Some name ->
+                              let (res, g4) = g-bv-bin name w (sv-val va) (sv-val vb) g3 in
+                              Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p (SBv w)) binds) ub g4 ret)
+                            None -> Err (string-concat "unsupported binary intrinsic " fn-tok))
+          Some (SFp w) ->
+            case resolve-operand a-tok (SFp w) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok (SFp w) (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        let (p, g3) = g-or (sv-poison va) (sv-poison vb) g2 in
+                        let (res, g4) = g-intern (NFpBin fn-tok w (sv-val va) (sv-val vb)) g3 in
+                        Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p (SFp w)) binds) ub g4 ret)
+          other -> Err (string-concat "unsupported intrinsic " fn-tok)
+      -- Overflow intrinsic: call { iN, i1 } @llvm.<op>.with.overflow.iN(iN %a, iN %b)
+      Cons ty1 (Cons ty2 (Cons fn-tok (Cons aty-tok (Cons a-tok (Cons bty-tok (Cons b-tok Nil)))))) | same ty2 "i1" && string-starts-with "@llvm." fn-tok ->
+        case parse-llvm-type ty1 of
+          Some (SBv w) ->
+            case resolve-operand a-tok (SBv w) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok (SBv w) (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        let (p, g3) = g-or (sv-poison va) (sv-poison vb) g2 in
+                        let (op-name, is-signed) =
+                              if string-starts-with "@llvm.sadd.with.overflow." fn-tok then ("add", True)
+                              else if string-starts-with "@llvm.uadd.with.overflow." fn-tok then ("add", False)
+                              else if string-starts-with "@llvm.ssub.with.overflow." fn-tok then ("sub", True)
+                              else if string-starts-with "@llvm.usub.with.overflow." fn-tok then ("sub", False)
+                              else if string-starts-with "@llvm.smul.with.overflow." fn-tok then ("mul", True)
+                              else ("mul", False) in
+                        let (res, g4) = g-bv-bin op-name w (sv-val va) (sv-val vb) g3 in
+                        let (ov, g5) = arith-overflow-poison op-name w is-signed (not is-signed) (sv-val va) (sv-val vb) res g4 in
+                        let pair = MkSemPair (MkSemVal res p (SBv w)) (MkSemVal ov p SBool) in
+                        Ok (MkLlvmEnv (Cons (lhs, pair) binds) ub g5 ret)
+          other -> Err (string-concat "unsupported overflow intrinsic " fn-tok)
+      -- Ternary intrinsic: call iN @llvm.fshl/fshr.iN(iN %a, iN %b, iN %c)
+      Cons rty-tok (Cons fn-tok (Cons aty (Cons a-tok (Cons bty (Cons b-tok (Cons cty (Cons c-tok Nil))))))) | string-starts-with "@llvm.fsh" fn-tok ->
+        case parse-llvm-type rty-tok of
+          Some (SBv w) ->
+            case resolve-operand a-tok (SBv w) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok (SBv w) (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        case resolve-operand c-tok (SBv w) (MkLlvmEnv binds ub g2 ret) of
+                          Err e -> Err e
+                          Ok (vc, g3) ->
+                            let (p1, g4) = g-or (sv-poison va) (sv-poison vb) g3 in
+                            let (p2, g5) = g-or p1 (sv-poison vc) g4 in
+                            let op-name = if string-starts-with "@llvm.fshl." fn-tok then "fshl" else "fshr" in
+                            let (res, g6) = g-intern (NBvTri op-name w (sv-val va) (sv-val vb) (sv-val vc)) g5 in
+                            Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p2 (SBv w)) binds) ub g6 ret)
+          other -> Err (string-concat "unsupported funnel shift " fn-tok)
+      other -> Err "unsupported LLVM call"
+
+  lower-ir-line :: List String -> LlvmEnv -> Result String LlvmEnv
+  lower-ir-line ws env = case ws of
+    Nil -> Ok env
+    Cons head (Cons second rest) ->
+      if same head "ret" then
+        (case rest of
+          Cons val-tok Nil ->
+            case parse-llvm-type second of
+              None -> Err (string-concat "unsupported ret type " second)
+              Some ty ->
+                case resolve-operand val-tok ty env of
+                  Err e -> Err e
+                  Ok (v, g1) -> case env of
+                    MkLlvmEnv binds ub g0 ret -> Ok (MkLlvmEnv binds ub g1 (Some v))
+          other -> Err "malformed LLVM ret")
+      else if same second "=" then
+        (case rest of
+          Cons op op-args ->
+            if has-str op ["add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor", "fadd", "fsub", "fmul", "fdiv", "frem"] then
+              lower-binop head op op-args env
+            else if has-str op ["zext", "sext", "trunc", "bitcast", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp"] then
+              lower-cast head op op-args env
+            else if same op "icmp" then
+              lower-icmp head op-args env
+            else if same op "select" then
+              lower-select head op-args env
+            else if same op "freeze" then
+              (case op-args of
+                Cons ty-tok (Cons val-tok Nil) ->
+                  (case parse-llvm-type ty-tok of
+                    Some ty -> (case resolve-operand val-tok ty env of
+                      Err e -> Err e
+                      Ok (v, g1) -> case env of
+                        MkLlvmEnv binds ub g0 ret ->
+                          let (clean-p, g2) = g-bool False g1 in
+                          Ok (MkLlvmEnv (Cons (head, MkSemVal (sv-val v) clean-p ty) binds) ub g2 ret))
+                    None -> Err (string-concat "unsupported freeze type " ty-tok))
+                other -> Err "malformed LLVM freeze")
+            else if same op "fneg" then
+              (case strip-ir-flags op-args of
+                (nsw, nuw, exact, Cons ty-tok (Cons val-tok Nil)) ->
+                  (case parse-llvm-type ty-tok of
+                    Some (SFp w) -> (case resolve-operand val-tok (SFp w) env of
+                      Err e -> Err e
+                      Ok (v, g1) -> case env of
+                        MkLlvmEnv binds ub g0 ret ->
+                          let (res, g2) = g-intern (NFpUn "fneg" w (sv-val v)) g1 in
+                          Ok (MkLlvmEnv (Cons (head, MkSemVal res (sv-poison v) (SFp w)) binds) ub g2 ret))
+                    other -> Err "unsupported fneg type")
+                other -> Err "malformed LLVM fneg")
+            else if same op "fcmp" then
+              (case strip-ir-flags op-args of
+                (nsw, nuw, exact, Cons pred (Cons ty-tok (Cons a-tok (Cons b-tok Nil)))) ->
+                  (case parse-llvm-type ty-tok of
+                    Some (SFp w) -> (case resolve-operand a-tok (SFp w) env of
+                      Err e -> Err e
+                      Ok (va, g1) -> case env of
+                        MkLlvmEnv binds ub g0 ret ->
+                          (case resolve-operand b-tok (SFp w) (MkLlvmEnv binds ub g1 ret) of
+                            Err e -> Err e
+                            Ok (vb, g2) ->
+                              let (p, g3) = g-or (sv-poison va) (sv-poison vb) g2 in
+                              let (res, g4) = g-intern (NFpCmp pred w (sv-val va) (sv-val vb)) g3 in
+                              Ok (MkLlvmEnv (Cons (head, MkSemVal res p SBool) binds) ub g4 ret)))
+                    other -> Err "unsupported fcmp type")
+                other -> Err "malformed LLVM fcmp")
+            else if same op "extractvalue" then
+              (case op-args of
+                Cons ty1 (Cons ty2 (Cons agg-tok (Cons idx-tok Nil))) ->
+                  case env of
+                    MkLlvmEnv binds ub g0 ret ->
+                      (case env-lookup agg-tok binds of
+                        Some (MkSemPair first second) ->
+                          let chosen = if same idx-tok "0" then first else second in
+                          Ok (MkLlvmEnv (Cons (head, chosen) binds) ub g0 ret)
+                        other -> Err (string-concat "unresolved aggregate in extractvalue " agg-tok))
+                other -> Err "malformed LLVM extractvalue")
+            else if same op "call" then
+              lower-intrinsic-call head op-args env
+            else Err (string-concat "unsupported LLVM instruction in verifier: " op)
+          other -> Err "malformed LLVM assignment")
+      else Err "unsupported LLVM line in verifier"
+    other -> Err "unsupported LLVM line in verifier"
+
+  lower-ir-lines :: List String -> LlvmEnv -> Result String LlvmEnv
+  lower-ir-lines lines env = case lines of
+    Nil -> Ok env
+    Cons line rest ->
+      case lower-ir-line (ir-words line) env of
+        Err e -> Err e
+        Ok next -> lower-ir-lines rest next
+
+  init-llvm-params :: List PrimParamSpec -> Nat -> List (String, SemVal) -> SemGraph -> (List (String, SemVal), List (Nat, SemType, String), SemGraph)
+  init-llvm-params ps idx binds g = case ps of
+    Nil -> (binds, Nil, g)
+    Cons p rest ->
+      let sem-ty =
+            if param-spec-fp p then SFp (param-spec-width p)
+            else SBv (param-spec-width p) in
+      let (v, g1) = g-var idx sem-ty (param-spec-name p) g in
+      let (clean-p, g2) = g-bool False g1 in
+      let reg = string-concat "%" (nat-to-string idx) in
+      let sv = MkSemVal v clean-p sem-ty in
+      case init-llvm-params rest (idx + 1) (Cons (reg, sv) binds) g2 of
+        (all-binds, vars, g3) -> (all-binds, Cons (idx, sem-ty, param-spec-name p) vars, g3)
+
+  -- ==========================================================================
+  -- 5. Cinch `spec` and Refinement Lowering into `SemGraph`
+  -- ==========================================================================
+
+  strip-module-prefix :: String -> String
+  strip-module-prefix s =
+    let raw = strip-dot-loop (unpack s) Nil in
+    case decode-identity (unpack raw) of
+      Some (decoded, rest) -> decoded
+      None -> raw
+
+  strip-dot-loop :: List Char -> List Char -> String
+  strip-dot-loop cs acc = case cs of
+    Nil -> pack (reverse acc)
+    Cons c rest ->
+      if char-code c == 46 then strip-dot-loop rest Nil
+      else strip-dot-loop rest (Cons c acc)
+
+  unroll-app :: Expr -> List Expr -> (Expr, List Expr)
+  unroll-app e acc = case e of
+    EApp sp f x -> unroll-app f (Cons x acc)
+    other -> (e, acc)
+
+  lookup-spec-var :: String -> List (String, Nat, SemType) -> Option (Nat, SemType)
+  lookup-spec-var nm binds = case binds of
+    Nil -> None
+    Cons (k, id, ty) rest -> if same nm k then Some (id, ty) else lookup-spec-var nm rest
+
+  -- Lower a Cinch `spec` expression into `SemGraph`.
+  lower-spec-expr :: List (String, Nat, SemType) -> SemType -> Expr -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  lower-spec-expr binds expected e g = case e of
+    EAnn sp inner ty -> lower-spec-expr binds expected inner g
+    ELetScope sp inner -> lower-spec-expr binds expected inner g
+    EVar sp name ->
+      case lookup-spec-var name binds of
+        Some (id, ty) -> Ok (id, ty, g)
+        None ->
+          let short = strip-module-prefix name in
+          case lookup-spec-var short binds of
+            Some (id, ty) -> Ok (id, ty, g)
+            None -> Err (string-concat "unbound variable in prim spec: " name)
+    ECon sp name args ->
+      let short = strip-module-prefix name in
+      if same short "True" then
+        let (v, g1) = g-bool True g in Ok (v, SBool, g1)
+      else if same short "False" then
+        let (v, g1) = g-bool False g in Ok (v, SBool, g1)
+      else Err (string-concat "unsupported constructor in prim spec: " name)
+    ELitInt sp digits ->
+      case parse-ir-u64 digits of
+        Some num ->
+          let w = case expected of SBv n -> n; other -> 64 in
+          let (v, g1) = g-bv w num g in Ok (v, SBv w, g1)
+        None -> Err (string-concat "invalid integer literal in prim spec: " digits)
+    ENeg sp inner ->
+      case lower-spec-expr binds expected inner g of
+        Err err -> Err err
+        Ok (v, ty, g1) -> case ty of
+          SBv w ->
+            let (z, g2) = g-bv w 0 g1 in
+            let (res, g3) = g-bv-bin "sub" w z v g2 in
+            Ok (res, SBv w, g3)
+          other -> Err "negation on non-bitvector in prim spec"
+    EIf sp cond th el ->
+      case lower-spec-expr binds SBool cond g of
+        Err err -> Err err
+        Ok (cv, cty, g1) ->
+          case lower-spec-expr binds expected th g1 of
+            Err err -> Err err
+            Ok (tv, tty, g2) ->
+              case lower-spec-expr binds tty el g2 of
+                Err err -> Err err
+                Ok (ev, ety, g3) ->
+                  let (res, g4) = g-ite cv tv ev g3 in
+                  Ok (res, tty, g4)
+    ELet sp bs body -> lower-spec-let binds expected bs body g
+    EBin sp op a b -> lower-spec-binop binds expected op a b g
+    EApp sp f x ->
+      case unroll-app e Nil of
+        (EVar head-sp fn-name, args) -> lower-spec-call binds expected (strip-module-prefix fn-name) args g
+        other -> Err "unsupported higher-order application in prim spec"
+    other -> Err "unsupported expression form in prim spec"
+
+  lower-spec-let :: List (String, Nat, SemType) -> SemType -> Expr -> Expr -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  lower-spec-let binds expected bs body g = case bs of
+    EBindingsEnd sp -> lower-spec-expr binds expected body g
+    EBinding sp name rhs rest ->
+      case lower-spec-expr binds expected rhs g of
+        Err err -> Err err
+        Ok (v, ty, g1) -> lower-spec-let (Cons (name, v, ty) binds) expected rest body g1
+    other -> lower-spec-expr binds expected body g
+
+  lower-spec-binop :: List (String, Nat, SemType) -> SemType -> String -> Expr -> Expr -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  lower-spec-binop binds expected op a b g =
+    if same op "&&" || same op "||" then
+      case lower-spec-expr binds SBool a g of
+        Err err -> Err err
+        Ok (va, ta, g1) -> case lower-spec-expr binds SBool b g1 of
+          Err err -> Err err
+          Ok (vb, tb, g2) ->
+            let (res, g3) = if same op "&&" then g-and va vb g2 else g-or va vb g2 in
+            Ok (res, SBool, g3)
+    else
+      case lower-spec-expr binds expected a g of
+        Err err -> Err err
+        Ok (va, ta, g1) -> case lower-spec-expr binds ta b g1 of
+          Err err -> Err err
+          Ok (vb, tb, g2) -> case ta of
+            SBv w ->
+              if same op "+" then let (r, g3) = g-bv-bin "add" w va vb g2 in Ok (r, SBv w, g3)
+              else if same op "-" then let (r, g3) = g-bv-bin "sub" w va vb g2 in Ok (r, SBv w, g3)
+              else if same op "*" then let (r, g3) = g-bv-bin "mul" w va vb g2 in Ok (r, SBv w, g3)
+              else if same op "==" then let (r, g3) = g-bv-cmp "eq" w va vb g2 in Ok (r, SBool, g3)
+              else if same op "/=" then let (r, g3) = g-bv-cmp "ne" w va vb g2 in Ok (r, SBool, g3)
+              else if same op "<" then let (r, g3) = g-bv-cmp "ult" w va vb g2 in Ok (r, SBool, g3)
+              else if same op "<=" then let (r, g3) = g-bv-cmp "ule" w va vb g2 in Ok (r, SBool, g3)
+              else if same op ">" then let (r, g3) = g-bv-cmp "ugt" w va vb g2 in Ok (r, SBool, g3)
+              else if same op ">=" then let (r, g3) = g-bv-cmp "uge" w va vb g2 in Ok (r, SBool, g3)
+              else Err (string-concat "unsupported binary operator in prim spec: " op)
+            SBool ->
+              if same op "==" then let (r, g3) = g-intern (NEqBool va vb) g2 in Ok (r, SBool, g3)
+              else if same op "/=" then let (r, g3) = g-intern (NXor va vb) g2 in Ok (r, SBool, g3)
+              else Err (string-concat "unsupported bool operator in prim spec: " op)
+            other -> Err "unsupported operand type in prim spec"
+
+  infer-op-signed :: String -> Bool
+  infer-op-signed fn =
+    string-ends-with "-i8" fn || string-ends-with "-i16" fn || string-ends-with "-i32" fn
+      || string-ends-with "-i64" fn || string-ends-with "-isize" fn
+
+  lower-spec-call :: List (String, Nat, SemType) -> SemType -> String -> List Expr -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  lower-spec-call binds expected fn args g = case args of
+    Cons a Nil ->
+      if same fn "not" then
+        case lower-spec-expr binds SBool a g of
+          Err err -> Err err
+          Ok (va, ta, g1) -> let (r, g2) = g-not va g1 in Ok (r, SBool, g2)
+      else
+        case lower-spec-expr binds expected a g of
+          Err err -> Err err
+          Ok (va, SBv w, g1) ->
+            if string-starts-with "bit-not-" fn then
+              let (ones, g2) = g-bv w (u64-mask w) g1 in
+              let (r, g3) = g-bv-bin "xor" w va ones g2 in Ok (r, SBv w, g3)
+            else if string-starts-with "wrapping-neg-" fn then
+              let (zero, g2) = g-bv w 0 g1 in
+              let (r, g3) = g-bv-bin "sub" w zero va g2 in Ok (r, SBv w, g3)
+            else if string-starts-with "swap-bytes-" fn then
+              let (r, g2) = g-intern (NBvUn "bswap" w va) g1 in Ok (r, SBv w, g2)
+            else if string-starts-with "reverse-bits-" fn then
+              let (r, g2) = g-intern (NBvUn "bitreverse" w va) g1 in Ok (r, SBv w, g2)
+            else if string-starts-with "count-ones-" fn then
+              let (r, g2) = g-intern (NBvUn "ctpop" w va) g1 in Ok (r, SBv w, g2)
+            else if string-starts-with "leading-zeros-" fn then
+              let (r, g2) = g-intern (NBvUn "ctlz" w va) g1 in Ok (r, SBv w, g2)
+            else if string-starts-with "trailing-zeros-" fn then
+              let (r, g2) = g-intern (NBvUn "cttz" w va) g1 in Ok (r, SBv w, g2)
+            else Err (string-concat "unsupported unary function in prim spec: " fn)
+          Ok (va, other, g1) -> Err (string-concat "non-bitvector unary spec call: " fn)
+    Cons a (Cons b Nil) ->
+      case lower-spec-expr binds expected a g of
+        Err err -> Err err
+        Ok (va, SBv w, g1) ->
+          case lower-spec-expr binds (SBv w) b g1 of
+            Err err -> Err err
+            Ok (vb, tb, g2) ->
+              let sg = infer-op-signed fn in
+              let (vb-cast, g3) = case tb of
+                    SBv wb | wb /= w -> g-bv-cast (if wb < w then "zext" else "trunc") wb w vb g2
+                    other -> (vb, g2) in
+              if string-starts-with "wrapping-add-" fn then let (r, g4) = g-bv-bin "add" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "wrapping-sub-" fn then let (r, g4) = g-bv-bin "sub" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "wrapping-mul-" fn then let (r, g4) = g-bv-bin "mul" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "saturating-add-" fn then let (r, g4) = g-bv-bin (if sg then "sadd_sat" else "uadd_sat") w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "saturating-sub-" fn then let (r, g4) = g-bv-bin (if sg then "ssub_sat" else "usub_sat") w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "bit-and-" fn then let (r, g4) = g-bv-bin "and" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "bit-or-" fn then let (r, g4) = g-bv-bin "or" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "bit-xor-" fn then let (r, g4) = g-bv-bin "xor" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "wrapping-shl-" fn || string-starts-with "shl-" fn then let (r, g4) = g-bv-bin "shl" w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "wrapping-shr-" fn || string-starts-with "shr-" fn then let (r, g4) = g-bv-bin (if sg then "ashr" else "lshr") w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "eq-" fn then let (r, g4) = g-bv-cmp "eq" w va vb-cast g3 in Ok (r, SBool, g4)
+              else if string-starts-with "ne-" fn then let (r, g4) = g-bv-cmp "ne" w va vb-cast g3 in Ok (r, SBool, g4)
+              else if string-starts-with "lt-" fn then let (r, g4) = g-bv-cmp (if sg then "slt" else "ult") w va vb-cast g3 in Ok (r, SBool, g4)
+              else if string-starts-with "le-" fn then let (r, g4) = g-bv-cmp (if sg then "sle" else "ule") w va vb-cast g3 in Ok (r, SBool, g4)
+              else if string-starts-with "gt-" fn then let (r, g4) = g-bv-cmp (if sg then "sgt" else "ugt") w va vb-cast g3 in Ok (r, SBool, g4)
+              else if string-starts-with "ge-" fn then let (r, g4) = g-bv-cmp (if sg then "sge" else "uge") w va vb-cast g3 in Ok (r, SBool, g4)
+              else Err (string-concat "unsupported binary function in prim spec: " fn)
+        Ok (va, other, g1) -> Err (string-concat "non-bitvector binary spec call: " fn)
+    other -> Err (string-concat "unsupported spec call arity for " fn)
+
+  pair-spec-params :: List String -> List (Nat, SemType, String) -> List (String, Nat, SemType)
+  pair-spec-params pnames vars = case (pnames, vars) of
+    (Cons nm nr, Cons (idx, ty, orig) vr) -> Cons (nm, idx, ty) (pair-spec-params nr vr)
+    other -> Nil
+
+  extract-lam-params :: List Pat -> List String
+  extract-lam-params ps = case ps of
+    Nil -> Nil
+    Cons (PVar sp nm) rest -> Cons nm (extract-lam-params rest)
+    Cons other rest -> Cons "_" (extract-lam-params rest)
+
+  -- Resolve a `spec <expr>` clause (either a named `spec` function or a lambda).
+  lower-prim-spec :: Expr -> List SpecDef -> List (Nat, SemType, String) -> SemType -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  lower-prim-spec spec-expr spec-defs vars res-ty g = case spec-expr of
+    EVar sp fn-name ->
+      case lookup-spec-def fn-name spec-defs of
+        Some (MkSpecDef nm pnames body) ->
+          let var-binds = init-spec-var-nodes pnames vars g in
+          lower-spec-expr (fst-triple-list var-binds) res-ty body (snd-triple-list var-binds)
+        None -> Err (string-concat "prim spec references unknown spec function: " fn-name)
+    ELam sp pats body ->
+      let pnames = extract-lam-params pats in
+      let var-binds = init-spec-var-nodes pnames vars g in
+      lower-spec-expr (fst-triple-list var-binds) res-ty body (snd-triple-list var-binds)
+    other -> Err "prim spec must name a `spec` function or lambda"
+
+  fst-triple-list :: (List (String, Nat, SemType), SemGraph) -> List (String, Nat, SemType)
+  fst-triple-list p = case p of (a, b) -> a
+
+  snd-triple-list :: (List (String, Nat, SemType), SemGraph) -> SemGraph
+  snd-triple-list p = case p of (a, b) -> b
+
+  init-spec-var-nodes :: List String -> List (Nat, SemType, String) -> SemGraph -> (List (String, Nat, SemType), SemGraph)
+  init-spec-var-nodes pnames vars g = case (pnames, vars) of
+    (Cons nm nr, Cons (idx, ty, orig) vr) ->
+      let (nid, g1) = g-var idx ty orig g in
+      case init-spec-var-nodes nr vr g1 of
+        (rest, g2) -> (Cons (nm, nid, ty) rest, g2)
+    other -> (Nil, g)
+
+  -- Lower simple refinement predicates (e.g. `b /= 0`, `a <= b`) into assumptions.
+  lower-refinement-pred :: List (String, Nat, SemType, Bool) -> UType -> SemGraph -> Option (Nat, SemGraph)
+  lower-refinement-pred env pred g = case refinement-view pred of
+    UPropAnd a b ->
+      case lower-refinement-pred env a g of
+        Some (na, g1) -> (case lower-refinement-pred env b g1 of
+          Some (nb, g2) -> Some (g-and na nb g2)
+          None -> None)
+        None -> None
+    UPropOr a b ->
+      case lower-refinement-pred env a g of
+        Some (na, g1) -> (case lower-refinement-pred env b g1 of
+          Some (nb, g2) -> Some (g-or na nb g2)
+          None -> None)
+        None -> None
+    UPropNot a ->
+      case lower-refinement-pred env a g of
+        Some (na, g1) -> Some (g-not na g1)
+        None -> None
+    UCompare rel a b ->
+      case (lower-index-utype env a g, lower-index-utype env b g) of
+        (Some (na, w1, sg1, g1), other) ->
+          (case lower-index-utype env b g1 of
+            Some (nb, w2, sg2, g2) ->
+              let w = if w1 > 0 then w1 else if w2 > 0 then w2 else 64 in
+              let sg = sg1 || sg2 in
+              let (na2, g3) = if w1 == 0 then g-bv w (extract-const-u64 na g2) g2 else (na, g2) in
+              let (nb2, g4) = if w2 == 0 then g-bv w (extract-const-u64 nb g3) g3 else (nb, g3) in
+              let cmp-op =
+                    if same rel "==" then "eq"
+                    else if same rel "/=" then "ne"
+                    else if same rel "<" then (if sg then "slt" else "ult")
+                    else if same rel "<=" then (if sg then "sle" else "ule")
+                    else if same rel ">" then (if sg then "sgt" else "ugt")
+                    else (if sg then "sge" else "uge") in
+              Some (g-bv-cmp cmp-op w na2 nb2 g4)
+            None -> None)
+        other -> None
+    other -> None
+
+  extract-const-u64 :: Nat -> SemGraph -> U64
+  extract-const-u64 id g = case graph-node id g of
+    Some (NBvConst w v) -> v
+    other -> 0
+
+  lookup-ref-var :: String -> List (String, Nat, SemType, Bool) -> Option (Nat, Nat, Bool)
+  lookup-ref-var nm env = case env of
+    Nil -> None
+    Cons (k, nid, SBv w, sg) rest -> if same nm k then Some (nid, w, sg) else lookup-ref-var nm rest
+    Cons other rest -> lookup-ref-var nm rest
+
+  lower-index-utype :: List (String, Nat, SemType, Bool) -> UType -> SemGraph -> Option (Nat, Nat, Bool, SemGraph)
+  lower-index-utype env u g = case refinement-view u of
+    UIndex carrier term -> lower-index-term env term g
+    UIndexForget inner -> lower-index-utype env inner g
+    UIndexPromote inner -> lower-index-utype env inner g
+    other -> None
+
+  lower-index-term :: List (String, Nat, SemType, Bool) -> IndexTerm -> SemGraph -> Option (Nat, Nat, Bool, SemGraph)
+  lower-index-term env term g = case term of
+    IInteger n ->
+      let v = if n >= 0 then nat-u64 (nat-from-int n)
+              else if 0 - n >= 0 then wrapping-sub-u64 0 (nat-u64 (nat-from-int (0 - n)))
+              else 0 in
+      let (id, g1) = g-bv 64 v g in
+      Some (id, 0, n < 0, g1)
+    IBound id nm ->
+      case lookup-ref-var nm env of
+        Some (nid, w, sg) -> Some (nid, w, sg, g)
+        None -> None
+    IRigid id nm lvl ->
+      case lookup-ref-var nm env of
+        Some (nid, w, sg) -> Some (nid, w, sg, g)
+        None -> None
+    other -> None
+
+  -- ==========================================================================
+  -- 6. SMT-LIB 2 Emitter (`QF_BV` / `QF_FPBV`) from the same `SemGraph`
+  -- ==========================================================================
+
+  smt-sort :: SemType -> String
+  smt-sort t = case t of
+    SBool -> "Bool"
+    SBv w -> string-concat-all ["(_ BitVec ", nat-to-string w, ")"]
+    SFp 32 -> "Float32"
+    SFp w -> "Float64"
+
+  smt-decls :: List (Nat, SemType, String) -> List String
+  smt-decls vars = case vars of
+    Nil -> Nil
+    Cons (idx, ty, nm) rest ->
+      Cons (string-concat-all ["(declare-const v", nat-to-string idx, " ", smt-sort ty, ")"]) (smt-decls rest)
+
+  smt-expr :: Nat -> SemGraph -> String
+  smt-expr id g = case graph-node id g of
+    None -> "false"
+    Some n -> case n of
+      NBoolConst b -> if b then "true" else "false"
+      NBvConst w v -> string-concat-all ["(_ bv", u64-decimal v, " ", nat-to-string w, ")"]
+      NVar i ty nm -> string-concat "v" (nat-to-string i)
+      NNot a -> string-concat-all ["(not ", smt-expr a g, ")"]
+      NAnd a b -> string-concat-all ["(and ", smt-expr a g, " ", smt-expr b g, ")"]
+      NOr a b -> string-concat-all ["(or ", smt-expr a g, " ", smt-expr b g, ")"]
+      NXor a b -> string-concat-all ["(xor ", smt-expr a g, " ", smt-expr b g, ")"]
+      NImplies a b -> string-concat-all ["(=> ", smt-expr a g, " ", smt-expr b g, ")"]
+      NEqBool a b -> string-concat-all ["(= ", smt-expr a g, " ", smt-expr b g, ")"]
+      NIte c t e -> string-concat-all ["(ite ", smt-expr c g, " ", smt-expr t g, " ", smt-expr e g, ")"]
+      NBvBin op w a b ->
+        let smt-op =
+              if same op "add" then "bvadd"
+              else if same op "sub" then "bvsub"
+              else if same op "mul" then "bvmul"
+              else if same op "udiv" then "bvudiv"
+              else if same op "sdiv" then "bvsdiv"
+              else if same op "urem" then "bvurem"
+              else if same op "srem" then "bvsrem"
+              else if same op "shl" then "bvshl"
+              else if same op "lshr" then "bvlshr"
+              else if same op "ashr" then "bvashr"
+              else if same op "and" then "bvand"
+              else if same op "or" then "bvor"
+              else if same op "xor" then "bvxor"
+              else op in
+        string-concat-all ["(", smt-op, " ", smt-expr a g, " ", smt-expr b g, ")"]
+      NBvCmp op w a b ->
+        if same op "eq" then string-concat-all ["(= ", smt-expr a g, " ", smt-expr b g, ")"]
+        else if same op "ne" then string-concat-all ["(not (= ", smt-expr a g, " ", smt-expr b g, "))"]
+        else string-concat-all ["(bv", op, " ", smt-expr a g, " ", smt-expr b g, ")"]
+      NBvCast op fw tw a ->
+        if same op "zext" && tw > fw then
+          string-concat-all ["((_ zero_extend ", nat-to-string (saturating-sub tw fw), ") ", smt-expr a g, ")"]
+        else if same op "sext" && tw > fw then
+          string-concat-all ["((_ sign_extend ", nat-to-string (saturating-sub tw fw), ") ", smt-expr a g, ")"]
+        else if same op "trunc" && tw < fw then
+          string-concat-all ["((_ extract ", nat-to-string (saturating-sub tw 1), " 0) ", smt-expr a g, ")"]
+        else smt-expr a g
+      NFpBin op w a b ->
+        let fop =
+              if same op "fadd" then "fp.add RNE"
+              else if same op "fsub" then "fp.sub RNE"
+              else if same op "fmul" then "fp.mul RNE"
+              else if same op "fdiv" then "fp.div RNE"
+              else "fp.rem" in
+        string-concat-all ["(", fop, " ", smt-expr a g, " ", smt-expr b g, ")"]
+      NFpUn op w a -> string-concat-all ["(fp.neg ", smt-expr a g, ")"]
+      other -> serialize-sem id g
+
+  obligation-to-smtlib2 :: SemGraph -> Nat -> List (Nat, SemType, String) -> String
+  obligation-to-smtlib2 g goal vars =
+    let logic = if graph-has-fp g then "QF_FPBV" else "QF_BV" in
+    let header = Cons (string-concat-all ["(set-logic ", logic, ")"]) (smt-decls vars) in
+    let body = Cons (string-concat-all ["(assert (not ", smt-expr goal g, "))"]) (Cons "(check-sat)" Nil) in
+    join-str "\n" (header <> body)
+
+  -- ==========================================================================
+  -- 7. Deterministic Tseitin Bit-Blaster (SemGraph -> CNF + Var Map)
+  -- ==========================================================================
+
+  -- Literal representation: nonzero Int (+v = positive var v, -v = negated var v).
+  -- Var 1 is fixed True by clause #1: [1]. So `lit-true = 1`, `lit-false = -1`.
+
+  lit-true :: Int
+  lit-true = 1
+
+  lit-false :: Int
+  lit-false = -1
+
+  lit-neg :: Int -> Int
+  lit-neg l = 0 - l
+
+  lit-var :: Int -> Nat
+  lit-var l = if l >= 0 then nat-from-int l else nat-from-int (0 - l)
+
+  lit-pos :: Int -> Bool
+  lit-pos l = l > 0
+
+  data BlastState where
+    MkBlastState :: Nat -> Nat -> List (Nat, List Int) -> NatMap (List Int) -> List (Nat, String, List Int) -> BlastState
+    -- next-var, next-cid, clauses (reversed), node-id -> bit-lits (LSB first), var-bits (param-idx, name, lits)
+
+  init-blast-state :: BlastState
+  init-blast-state = MkBlastState 2 2 (Cons (1, Cons lit-true Nil) Nil) nm-empty Nil
+
+  bb-fresh-var :: BlastState -> (Int, BlastState)
+  bb-fresh-var st = case st of
+    MkBlastState nv nc cs memo vbits -> (nat-to-int nv, MkBlastState (nv + 1) nc cs memo vbits)
+
+  bb-add-clause :: List Int -> BlastState -> BlastState
+  bb-add-clause lits st = case st of
+    MkBlastState nv nc cs memo vbits -> MkBlastState nv (nc + 1) (Cons (nc, lits) cs) memo vbits
+
+  bb-and :: Int -> Int -> BlastState -> (Int, BlastState)
+  bb-and a b st =
+    if a == lit-false || b == lit-false then (lit-false, st)
+    else if a == lit-true then (b, st)
+    else if b == lit-true then (a, st)
+    else if a == b then (a, st)
+    else if a == lit-neg b then (lit-false, st)
+    else
+      let (z, st1) = bb-fresh-var st in
+      let st2 = bb-add-clause [lit-neg z, a] st1 in
+      let st3 = bb-add-clause [lit-neg z, b] st2 in
+      let st4 = bb-add-clause [z, lit-neg a, lit-neg b] st3 in
+      (z, st4)
+
+  bb-or :: Int -> Int -> BlastState -> (Int, BlastState)
+  bb-or a b st =
+    if a == lit-true || b == lit-true then (lit-true, st)
+    else if a == lit-false then (b, st)
+    else if b == lit-false then (a, st)
+    else if a == b then (a, st)
+    else if a == lit-neg b then (lit-true, st)
+    else
+      let (z, st1) = bb-fresh-var st in
+      let st2 = bb-add-clause [z, lit-neg a] st1 in
+      let st3 = bb-add-clause [z, lit-neg b] st2 in
+      let st4 = bb-add-clause [lit-neg z, a, b] st3 in
+      (z, st4)
+
+  bb-xor :: Int -> Int -> BlastState -> (Int, BlastState)
+  bb-xor a b st =
+    if a == lit-false then (b, st)
+    else if b == lit-false then (a, st)
+    else if a == lit-true then (lit-neg b, st)
+    else if b == lit-true then (lit-neg a, st)
+    else if a == b then (lit-false, st)
+    else if a == lit-neg b then (lit-true, st)
+    else
+      let (z, st1) = bb-fresh-var st in
+      let st2 = bb-add-clause [lit-neg z, a, b] st1 in
+      let st3 = bb-add-clause [lit-neg z, lit-neg a, lit-neg b] st2 in
+      let st4 = bb-add-clause [z, lit-neg a, b] st3 in
+      let st5 = bb-add-clause [z, a, lit-neg b] st4 in
+      (z, st5)
+
+  bb-eq :: Int -> Int -> BlastState -> (Int, BlastState)
+  bb-eq a b st =
+    let (x, st1) = bb-xor a b st in (lit-neg x, st1)
+
+  bb-ite :: Int -> Int -> Int -> BlastState -> (Int, BlastState)
+  bb-ite c t e st =
+    if c == lit-true then (t, st)
+    else if c == lit-false then (e, st)
+    else if t == e then (t, st)
+    else if t == lit-true && e == lit-false then (c, st)
+    else if t == lit-false && e == lit-true then (lit-neg c, st)
+    else
+      let (z, st1) = bb-fresh-var st in
+      let st2 = bb-add-clause [lit-neg c, lit-neg z, t] st1 in
+      let st3 = bb-add-clause [lit-neg c, z, lit-neg t] st2 in
+      let st4 = bb-add-clause [c, lit-neg z, e] st3 in
+      let st5 = bb-add-clause [c, z, lit-neg e] st4 in
+      (z, st5)
+
+  bb-const-bits :: Nat -> U64 -> List Int
+  bb-const-bits w v = bb-const-bits-loop w 0 v
+
+  bb-const-bits-loop :: Nat -> Nat -> U64 -> List Int
+  bb-const-bits-loop w i v =
+    if i >= w then Nil
+    else
+      let bit = not (eq-u64 (bit-and-u64 (wrapping-shr-u64 v (nat-u32 i)) 1) 0) in
+      Cons (if bit then lit-true else lit-false) (bb-const-bits-loop w (i + 1) v)
+
+  bb-fresh-bits :: Nat -> BlastState -> (List Int, BlastState)
+  bb-fresh-bits w st =
+    if w == 0 then (Nil, st)
+    else
+      let (v, st1) = bb-fresh-var st in
+      let (rest, st2) = bb-fresh-bits (saturating-sub w 1) st1 in
+      (Cons v rest, st2)
+
+  bb-zip-map :: (Int -> Int -> BlastState -> (Int, BlastState)) -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-zip-map f xs ys st = case (xs, ys) of
+    (Cons x xr, Cons y yr) ->
+      let (z, st1) = f x y st in
+      let (zs, st2) = bb-zip-map f xr yr st1 in
+      (Cons z zs, st2)
+    other -> (Nil, st)
+
+  bb-ite-vec :: Int -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-ite-vec c ts es st = case (ts, es) of
+    (Cons t tr, Cons e er) ->
+      let (z, st1) = bb-ite c t e st in
+      let (zs, st2) = bb-ite-vec c tr er st1 in
+      (Cons z zs, st2)
+    other -> (Nil, st)
+
+  bb-add-ripple :: List Int -> List Int -> Int -> BlastState -> (List Int, Int, BlastState)
+  bb-add-ripple xs ys cin st = case (xs, ys) of
+    (Cons x xr, Cons y yr) ->
+      let (ab, st1) = bb-xor x y st in
+      let (s, st2) = bb-xor ab cin st1 in
+      let (c1, st3) = bb-and x y st2 in
+      let (c2, st4) = bb-and ab cin st3 in
+      let (cout, st5) = bb-or c1 c2 st4 in
+      case bb-add-ripple xr yr cout st5 of
+        (ss, final-c, st6) -> (Cons s ss, final-c, st6)
+    other -> (Nil, cin, st)
+
+  bb-neg-bits :: List Int -> List Int
+  bb-neg-bits xs = case xs of
+    Nil -> Nil
+    Cons x rest -> Cons (lit-neg x) (bb-neg-bits rest)
+
+  bb-vec-eq :: List Int -> List Int -> BlastState -> (Int, BlastState)
+  bb-vec-eq xs ys st = case (xs, ys) of
+    (Nil, Nil) -> (lit-true, st)
+    (Cons x xr, Cons y yr) ->
+      let (e, st1) = bb-eq x y st in
+      let (er, st2) = bb-vec-eq xr yr st1 in
+      bb-and e er st2
+    other -> (lit-false, st)
+
+  bb-vec-ult :: List Int -> List Int -> BlastState -> (Int, BlastState)
+  bb-vec-ult xs ys st =
+    -- a < b unsigned <=> carry-out of (a + ~b + 1) is 0
+    case bb-add-ripple xs (bb-neg-bits ys) lit-true st of
+      (diff, cout, st1) -> (lit-neg cout, st1)
+
+  last-bit :: List Int -> Int
+  last-bit xs = case xs of
+    Nil -> lit-false
+    Cons x Nil -> x
+    Cons x rest -> last-bit rest
+
+  flip-msb :: List Int -> List Int
+  flip-msb xs = case xs of
+    Nil -> Nil
+    Cons x Nil -> Cons (lit-neg x) Nil
+    Cons x rest -> Cons x (flip-msb rest)
+
+  bb-vec-slt :: List Int -> List Int -> BlastState -> (Int, BlastState)
+  bb-vec-slt xs ys st = bb-vec-ult (flip-msb xs) (flip-msb ys) st
+
+  take-bits :: Nat -> List Int -> List Int
+  take-bits n xs =
+    if n == 0 then Nil
+    else case xs of
+      Nil -> Nil
+      Cons x rest -> Cons x (take-bits (saturating-sub n 1) rest)
+
+  drop-bits :: Nat -> List Int -> List Int
+  drop-bits n xs =
+    if n == 0 then xs
+    else case xs of
+      Nil -> Nil
+      Cons x rest -> drop-bits (saturating-sub n 1) rest
+
+  repeat-bit :: Nat -> Int -> List Int
+  repeat-bit n b = if n == 0 then Nil else Cons b (repeat-bit (saturating-sub n 1) b)
+
+  shift-left-const :: Nat -> Nat -> List Int -> List Int
+  shift-left-const w amt xs =
+    if amt >= w then repeat-bit w lit-false
+    else take-bits w (repeat-bit amt lit-false <> xs)
+
+  shift-right-const :: Bool -> Nat -> Nat -> List Int -> List Int
+  shift-right-const arith w amt xs =
+    let fill = if arith then last-bit xs else lit-false in
+    if amt >= w then repeat-bit w fill
+    else take-bits w (drop-bits amt xs <> repeat-bit amt fill)
+
+  -- Barrel shifter for dynamic shift amount (uses log2(w) stages).
+  bb-barrel-shift :: String -> Nat -> List Int -> List Int -> Nat -> Nat -> BlastState -> (List Int, BlastState)
+  bb-barrel-shift kind w cur amt-bits step bit-idx st =
+    if step >= w then (cur, st)
+    else case amt-bits of
+      Nil -> (cur, st)
+      Cons sb rest ->
+        let shifted =
+              if same kind "shl" then shift-left-const w step cur
+              else if same kind "ashr" then shift-right-const True w step cur
+              else shift-right-const False w step cur in
+        let (next, st1) = bb-ite-vec sb shifted cur st in
+        bb-barrel-shift kind w next rest (step * 2) (bit-idx + 1) st1
+
+  -- Check if any bit above log2(w) in shift amount is nonzero; if so, full shift.
+  bb-any-bit :: List Int -> BlastState -> (Int, BlastState)
+  bb-any-bit xs st = case xs of
+    Nil -> (lit-false, st)
+    Cons x rest ->
+      let (r, st1) = bb-any-bit rest st in bb-or x r st1
+
+  bb-shift :: String -> Nat -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-shift kind w xs ys st =
+    let (res1, st1) = bb-barrel-shift kind w xs ys 1 0 st in
+    let (w-bits, st2) = (bb-const-bits w (nat-u64 w), st1) in
+    let (ge-w, st3) = bb-vec-ult ys w-bits st2 in
+    let fill = if same kind "ashr" then last-bit xs else lit-false in
+    bb-ite-vec ge-w res1 (repeat-bit w fill) st3
+
+  -- Schoolbook shift-and-add multiplier (works cleanly for small/medium widths).
+  bb-mul-loop :: Nat -> Nat -> List Int -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-mul-loop w i xs ys acc st = case ys of
+    Nil -> (acc, st)
+    Cons yb yrest ->
+      let partial = shift-left-const w i xs in
+      let (gated, st1) = bb-ite-vec yb partial (repeat-bit w lit-false) st in
+      case bb-add-ripple acc gated lit-false st1 of
+        (next-acc, cout, st2) -> bb-mul-loop w (i + 1) xs yrest next-acc st2
+
+  bb-bswap :: Nat -> List Int -> List Int
+  bb-bswap w xs =
+    if w <= 8 then xs
+    else bb-bswap (saturating-sub w 8) (drop-bits 8 xs) <> take-bits 8 xs
+
+  bb-ctpop :: Nat -> List Int -> BlastState -> (List Int, BlastState)
+  bb-ctpop w xs st = bb-ctpop-loop w xs (repeat-bit w lit-false) st
+
+  bb-ctpop-loop :: Nat -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-ctpop-loop w xs acc st = case xs of
+    Nil -> (acc, st)
+    Cons b rest ->
+      let inc = Cons b (repeat-bit (saturating-sub w 1) lit-false) in
+      case bb-add-ripple acc inc lit-false st of
+        (next, c, st1) -> bb-ctpop-loop w rest next st1
+
+  bb-cttz-from :: Nat -> Nat -> List Int -> BlastState -> (List Int, BlastState)
+  bb-cttz-from w idx xs st = case xs of
+    Nil -> (bb-const-bits w (nat-u64 w), st)
+    Cons b rest ->
+      let (more, st1) = bb-cttz-from w (idx + 1) rest st in
+      bb-ite-vec b (bb-const-bits w (nat-u64 idx)) more st1
+
+  bb-node :: Nat -> SemGraph -> BlastState -> Result String (List Int, BlastState)
+  bb-node id g st = case st of
+    MkBlastState nv nc cs memo vbits ->
+      case nm-lookup id memo of
+        Some cached -> Ok (cached, st)
+        None -> case graph-node id g of
+          None -> Err "missing semantic node during bit-blasting"
+          Some node -> case bb-node-uncached node g st of
+            Err e -> Err e
+            Ok (bits, st1) -> case st1 of
+              MkBlastState nv1 nc1 cs1 memo1 vbits1 ->
+                Ok (bits, MkBlastState nv1 nc1 cs1 (nm-insert id bits memo1) vbits1)
+
+  bb-node-uncached :: SemNode -> SemGraph -> BlastState -> Result String (List Int, BlastState)
+  bb-node-uncached node g st = case node of
+    NBoolConst b -> Ok ([if b then lit-true else lit-false], st)
+    NBvConst w v -> Ok (bb-const-bits w v, st)
+    NVar idx ty nm ->
+      let w = sem-type-width ty in
+      let (bits, st1) = bb-fresh-bits w st in
+      case st1 of
+        MkBlastState nv nc cs memo vbits ->
+          Ok (bits, MkBlastState nv nc cs memo (Cons (idx, nm, bits) vbits))
+    NNot a -> case bb-node a g st of
+      Err e -> Err e
+      Ok (Cons la Nil, st1) -> Ok ([lit-neg la], st1)
+      other -> Err "NNot expects 1-bit operand"
+    NAnd a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (Cons la Nil, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (Cons lb Nil, st2) -> let (r, st3) = bb-and la lb st2 in Ok ([r], st3)
+        other -> Err "NAnd expects 1-bit rhs"
+      other -> Err "NAnd expects 1-bit lhs"
+    NOr a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (Cons la Nil, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (Cons lb Nil, st2) -> let (r, st3) = bb-or la lb st2 in Ok ([r], st3)
+        other -> Err "NOr expects 1-bit rhs"
+      other -> Err "NOr expects 1-bit lhs"
+    NXor a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (Cons la Nil, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (Cons lb Nil, st2) -> let (r, st3) = bb-xor la lb st2 in Ok ([r], st3)
+        other -> Err "NXor expects 1-bit rhs"
+      other -> Err "NXor expects 1-bit lhs"
+    NImplies a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (Cons la Nil, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (Cons lb Nil, st2) -> let (r, st3) = bb-or (lit-neg la) lb st2 in Ok ([r], st3)
+        other -> Err "NImplies expects 1-bit rhs"
+      other -> Err "NImplies expects 1-bit lhs"
+    NEqBool a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (Cons la Nil, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (Cons lb Nil, st2) -> let (r, st3) = bb-eq la lb st2 in Ok ([r], st3)
+        other -> Err "NEqBool expects 1-bit rhs"
+      other -> Err "NEqBool expects 1-bit lhs"
+    NIte c t e -> case bb-node c g st of
+      Err err -> Err err
+      Ok (Cons lc Nil, st1) -> case bb-node t g st1 of
+        Err err -> Err err
+        Ok (lt, st2) -> case bb-node e g st2 of
+          Err err -> Err err
+          Ok (le, st3) -> Ok (bb-ite-vec lc lt le st3)
+      other -> Err "NIte expects 1-bit condition"
+    NBvUn op w a -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) ->
+        if same op "bswap" then Ok (bb-bswap w la, st1)
+        else if same op "bitreverse" then Ok (reverse la, st1)
+        else if same op "ctpop" then Ok (bb-ctpop w la st1)
+        else if same op "cttz" then Ok (bb-cttz-from w 0 la st1)
+        else if same op "ctlz" then Ok (bb-cttz-from w 0 (reverse la) st1)
+        else Err (string-concat "unsupported unary bv op in bit-blaster: " op)
+    NBvBin op w a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (lb, st2) ->
+          if same op "add" then
+            case bb-add-ripple la lb lit-false st2 of (s, c, st3) -> Ok (s, st3)
+          else if same op "sub" then
+            case bb-add-ripple la (bb-neg-bits lb) lit-true st2 of (s, c, st3) -> Ok (s, st3)
+          else if same op "and" then Ok (bb-zip-map bb-and la lb st2)
+          else if same op "or" then Ok (bb-zip-map bb-or la lb st2)
+          else if same op "xor" then Ok (bb-zip-map bb-xor la lb st2)
+          else if same op "shl" || same op "lshr" || same op "ashr" then Ok (bb-shift op w la lb st2)
+          else if same op "mul" && w <= 32 then Ok (bb-mul-loop w 0 la lb (repeat-bit w lit-false) st2)
+          else if same op "umin" then
+            let (lt, st3) = bb-vec-ult la lb st2 in Ok (bb-ite-vec lt la lb st3)
+          else if same op "umax" then
+            let (lt, st3) = bb-vec-ult la lb st2 in Ok (bb-ite-vec lt lb la st3)
+          else if same op "smin" then
+            let (lt, st3) = bb-vec-slt la lb st2 in Ok (bb-ite-vec lt la lb st3)
+          else if same op "smax" then
+            let (lt, st3) = bb-vec-slt la lb st2 in Ok (bb-ite-vec lt lb la st3)
+          else if same op "uadd_sat" then
+            case bb-add-ripple la lb lit-false st2 of
+              (sum, cout, st3) -> Ok (bb-ite-vec cout (repeat-bit w lit-true) sum st3)
+          else if same op "usub_sat" then
+            case bb-add-ripple la (bb-neg-bits lb) lit-true st2 of
+              (diff, cout, st3) -> Ok (bb-ite-vec cout diff (repeat-bit w lit-false) st3)
+          else if same op "sadd_sat" then
+            case bb-add-ripple la lb lit-false st2 of
+              (sum, cout, st3) ->
+                let sa = last-bit la in
+                let sb = last-bit lb in
+                let sr = last-bit sum in
+                let (same-in, st4) = bb-eq sa sb st3 in
+                let (diff-out, st5) = bb-xor sa sr st4 in
+                let (ov, st6) = bb-and same-in diff-out st5 in
+                let smin-bits = bb-const-bits w (u64-sign-bit w) in
+                let smax-bits = bb-const-bits w (wrapping-sub-u64 (u64-sign-bit w) 1) in
+                let (clamped, st7) = bb-ite-vec sa smin-bits smax-bits st6 in
+                Ok (bb-ite-vec ov clamped sum st7)
+          else if same op "ssub_sat" then
+            case bb-add-ripple la (bb-neg-bits lb) lit-true st2 of
+              (diff, cout, st3) ->
+                let sa = last-bit la in
+                let sb = last-bit lb in
+                let sr = last-bit diff in
+                let (diff-in, st4) = bb-xor sa sb st3 in
+                let (diff-out, st5) = bb-xor sa sr st4 in
+                let (ov, st6) = bb-and diff-in diff-out st5 in
+                let smin-bits = bb-const-bits w (u64-sign-bit w) in
+                let smax-bits = bb-const-bits w (wrapping-sub-u64 (u64-sign-bit w) 1) in
+                let (clamped, st7) = bb-ite-vec sa smin-bits smax-bits st6 in
+                Ok (bb-ite-vec ov clamped diff st7)
+          else Err (string-concat "requires external SMT solver for bv op: " op)
+    NBvCmp pred w a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (lb, st2) ->
+          if same pred "eq" then let (r, st3) = bb-vec-eq la lb st2 in Ok ([r], st3)
+          else if same pred "ne" then let (r, st3) = bb-vec-eq la lb st2 in Ok ([lit-neg r], st3)
+          else if same pred "ult" then let (r, st3) = bb-vec-ult la lb st2 in Ok ([r], st3)
+          else if same pred "ugt" then let (r, st3) = bb-vec-ult lb la st2 in Ok ([r], st3)
+          else if same pred "ule" then let (r, st3) = bb-vec-ult lb la st2 in Ok ([lit-neg r], st3)
+          else if same pred "uge" then let (r, st3) = bb-vec-ult la lb st2 in Ok ([lit-neg r], st3)
+          else if same pred "slt" then let (r, st3) = bb-vec-slt la lb st2 in Ok ([r], st3)
+          else if same pred "sgt" then let (r, st3) = bb-vec-slt lb la st2 in Ok ([r], st3)
+          else if same pred "sle" then let (r, st3) = bb-vec-slt lb la st2 in Ok ([lit-neg r], st3)
+          else if same pred "sge" then let (r, st3) = bb-vec-slt la lb st2 in Ok ([lit-neg r], st3)
+          else Err (string-concat "unsupported icmp predicate " pred)
+    NBvCast op fw tw a -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) ->
+        if same op "trunc" || tw < fw then Ok (take-bits tw la, st1)
+        else if same op "zext" then Ok (la <> repeat-bit (saturating-sub tw fw) lit-false, st1)
+        else if same op "sext" then Ok (la <> repeat-bit (saturating-sub tw fw) (last-bit la), st1)
+        else Ok (la, st1)
+    NBvTri op w a b c -> Err (string-concat "requires external SMT solver for ternary op: " op)
+    other -> Err "floating-point obligation requires an external SMT solver"
+
+  -- ==========================================================================
+  -- 8. Built-in SAT Solver emitting `lrat/v1` + Independent `verify-lrat` Kernel
+  -- ==========================================================================
+
+  data LratStep where
+    LratAdd :: Nat -> List Int -> List Nat -> LratStep
+
+  -- Independent LRAT RUP Proof Checker (`cinch-kernel-lrat@1`).
+  -- This function has ZERO dependency on the SAT prover; it replays each
+  -- proof step from the original CNF clauses and checks that every hint
+  -- unit-propagates cleanly to a conflict, ending with the empty clause.
+  verify-lrat :: Nat -> List (Nat, List Int) -> List LratStep -> Result String Unit
+  verify-lrat max-var orig-clauses steps =
+    let db = build-clause-db orig-clauses nm-empty in
+    verify-lrat-steps db steps False
+
+  build-clause-db :: List (Nat, List Int) -> NatMap (List Int) -> NatMap (List Int)
+  build-clause-db cs db = case cs of
+    Nil -> db
+    Cons (cid, lits) rest -> build-clause-db rest (nm-insert cid lits db)
+
+  -- Assign literal `l` to True (+1 for pos, -1 for neg) in assignment map.
+  assign-lit-val :: Int -> NatMap Int -> NatMap Int
+  assign-lit-val l m = nm-insert (lit-var l) (if lit-pos l then 1 else -1) m
+
+  eval-lit :: Int -> NatMap Int -> Int
+  eval-lit l m = case nm-lookup (lit-var l) m of
+    None -> 0
+    Some v -> if lit-pos l then v else (0 - v)
+
+  assume-negated-clause :: List Int -> NatMap Int -> NatMap Int
+  assume-negated-clause lits m = case lits of
+    Nil -> m
+    Cons l rest -> assume-negated-clause rest (assign-lit-val (lit-neg l) m)
+
+  data ClauseEval where
+    CETrue :: ClauseEval
+    CEConflict :: ClauseEval
+    CEUnit :: Int -> ClauseEval
+    CEUnresolved :: ClauseEval
+
+  eval-clause :: List Int -> NatMap Int -> Option Int -> ClauseEval
+  eval-clause lits assign unassigned = case lits of
+    Nil -> case unassigned of
+      None -> CEConflict
+      Some u -> CEUnit u
+    Cons l rest ->
+      let v = eval-lit l assign in
+      if v == 1 then CETrue
+      else if v == -1 then eval-clause rest assign unassigned
+      else case unassigned of
+        None -> eval-clause rest assign (Some l)
+        Some prev -> CEUnresolved
+
+  check-rup-hints :: NatMap (List Int) -> List Nat -> NatMap Int -> Result String Unit
+  check-rup-hints db hints assign = case hints of
+    Nil -> Err "LRAT RUP hint list ended without reaching a conflict"
+    Cons hid rest -> case nm-lookup hid db of
+      None -> Err (string-concat "LRAT references unknown clause id " (nat-to-string hid))
+      Some clause -> case eval-clause clause assign None of
+        CEConflict -> Ok ()
+        CEUnit u -> check-rup-hints db rest (assign-lit-val u assign)
+        CETrue -> Err (string-concat "LRAT hint clause already satisfied: " (nat-to-string hid))
+        CEUnresolved -> Err (string-concat "LRAT hint clause is not unit: " (nat-to-string hid))
+
+  verify-lrat-steps :: NatMap (List Int) -> List LratStep -> Bool -> Result String Unit
+  verify-lrat-steps db steps derived-empty = case steps of
+    Nil -> if derived-empty then Ok () else Err "LRAT proof did not derive the empty clause"
+    Cons (LratAdd cid lits hints) rest ->
+      let init-assign = assume-negated-clause lits nm-empty in
+      case check-rup-hints db hints init-assign of
+        Err e -> Err e
+        Ok done ->
+          let is-empty = case lits of Nil -> True; other -> False in
+          verify-lrat-steps (nm-insert cid lits db) rest (derived-empty || is-empty)
+
+  serialize-lrat-steps :: List LratStep -> String
+  serialize-lrat-steps steps = case steps of
+    Nil -> ""
+    Cons (LratAdd cid lits hints) rest ->
+      string-concat-all [nat-to-string cid, " ", join-int lits, " 0 ", join-nat hints, " 0\n", serialize-lrat-steps rest]
+
+  join-int :: List Int -> String
+  join-int xs = case xs of
+    Nil -> ""
+    Cons h Nil -> int-to-string h
+    Cons h t -> string-concat-all [int-to-string h, " ", join-int t]
+
+  join-nat :: List Nat -> String
+  join-nat xs = case xs of
+    Nil -> ""
+    Cons h Nil -> nat-to-string h
+    Cons h t -> string-concat-all [nat-to-string h, " ", join-nat t]
+
+  -- Built-in CDCL/DPLL SAT Prover emitting guaranteed-valid RUP LRAT proofs.
+  data TrailEntry where
+    MkTrail :: Int -> Nat -> Option Nat -> TrailEntry
+    -- lit, decision-level, reason clause id (None for decision)
+
+  data SatResult where
+    SatUnsat :: List LratStep -> SatResult
+    SatModel :: NatMap Int -> SatResult
+    SatUnknown :: String -> SatResult
+
+  data BcpResult where
+    BcpOk :: NatMap Int -> List TrailEntry -> BcpResult
+    BcpConflict :: Nat -> NatMap Int -> List TrailEntry -> BcpResult
+
+  bcp-pass :: List (Nat, List Int) -> Nat -> NatMap Int -> List TrailEntry -> Bool -> (Option Nat, NatMap Int, List TrailEntry, Bool)
+  bcp-pass cs level assign trail changed = case cs of
+    Nil -> (None, assign, trail, changed)
+    Cons (cid, lits) rest -> case eval-clause lits assign None of
+      CEConflict -> (Some cid, assign, trail, True)
+      CEUnit u -> bcp-pass rest level (assign-lit-val u assign) (Cons (MkTrail u level (Some cid)) trail) True
+      other -> bcp-pass rest level assign trail changed
+
+  run-bcp :: List (Nat, List Int) -> Nat -> NatMap Int -> List TrailEntry -> BcpResult
+  run-bcp cs level assign trail =
+    case bcp-pass cs level assign trail False of
+      (Some conf-cid, assign1, trail1, changed) -> BcpConflict conf-cid assign1 trail1
+      (None, assign1, trail1, True) -> run-bcp cs level assign1 trail1
+      (None, assign1, trail1, False) -> BcpOk assign1 trail1
+
+  -- Extract decision literals (negated, for the learned clause) and propagation
+  -- reason clause IDs in forward trail order (guaranteed valid RUP chain!).
+  extract-learned-and-hints :: List TrailEntry -> List Int -> List Nat -> (List Int, List Nat)
+  extract-learned-and-hints trail decs hints = case trail of
+    Nil -> (decs, hints)
+    Cons (MkTrail lit lvl reason) rest -> case reason of
+      None -> extract-learned-and-hints rest (Cons (lit-neg lit) decs) hints
+      Some rid -> extract-learned-and-hints rest decs (Cons rid hints)
+
+  -- Backtrack trail to decision level `target-lvl` (dropping entries with lvl > target-lvl).
+  backtrack-trail :: Nat -> List TrailEntry -> List TrailEntry
+  backtrack-trail target-lvl trail = case trail of
+    Nil -> Nil
+    Cons (MkTrail lit lvl reason) rest ->
+      if lvl > target-lvl then backtrack-trail target-lvl rest
+      else trail
+
+  rebuild-assign :: List TrailEntry -> NatMap Int
+  rebuild-assign trail = case trail of
+    Nil -> nm-empty
+    Cons (MkTrail lit lvl reason) rest -> assign-lit-val lit (rebuild-assign rest)
+
+  pick-unassigned :: Nat -> Nat -> NatMap Int -> Option Nat
+  pick-unassigned cur max-var assign =
+    if cur >= max-var then None
+    else case nm-lookup cur assign of
+      None -> Some cur
+      Some v -> pick-unassigned (cur + 1) max-var assign
+
+  sat-loop :: Nat -> Nat -> Nat -> List (Nat, List Int) -> Nat -> NatMap Int -> List TrailEntry -> List LratStep -> Nat -> SatResult
+  sat-loop max-var next-cid level cs budget assign trail lrat-acc conflicts =
+    if conflicts >= budget then SatUnknown "SAT conflict budget exhausted; plug an external solver"
+    else case run-bcp cs level assign trail of
+      BcpConflict conf-cid assign1 trail1 ->
+        case extract-learned-and-hints trail1 Nil Nil of
+          (learned, reason-hints) ->
+            let full-hints = reason-hints <> [conf-cid] in
+            if level == 0 then
+              SatUnsat (reverse (Cons (LratAdd next-cid Nil full-hints) lrat-acc))
+            else
+              let step = LratAdd next-cid learned full-hints in
+              let new-level = saturating-sub level 1 in
+              let bt-trail = backtrack-trail new-level trail1 in
+              let bt-assign = rebuild-assign bt-trail in
+              let next-cs = Cons (next-cid, learned) cs in
+              sat-loop max-var (next-cid + 1) new-level next-cs budget bt-assign bt-trail (Cons step lrat-acc) (conflicts + 1)
+      BcpOk assign1 trail1 ->
+        case pick-unassigned 1 max-var assign1 of
+          None -> SatModel assign1
+          Some v ->
+            let dec-lit = 0 - nat-to-int v in
+            let next-lvl = level + 1 in
+            sat-loop max-var next-cid next-lvl cs budget (assign-lit-val dec-lit assign1) (Cons (MkTrail dec-lit next-lvl None) trail1) lrat-acc conflicts
+
+  prove-cnf-lrat :: Nat -> Nat -> List (Nat, List Int) -> SatResult
+  prove-cnf-lrat max-var next-cid cs =
+    sat-loop max-var next-cid 0 cs 4096 nm-empty Nil Nil 0
+
+  eval-model-bits :: List Int -> Nat -> NatMap Int -> U64
+  eval-model-bits bits i model = case bits of
+    Nil -> 0
+    Cons l rest ->
+      let rest-val = eval-model-bits rest (i + 1) model in
+      if eval-lit l model == 1 then
+        bit-or-u64 rest-val (wrapping-shl-u64 1 (nat-u32 i))
+      else rest-val
+
+  format-counterexample :: List (Nat, String, List Int) -> NatMap Int -> String
+  format-counterexample vbits model = case vbits of
+    Nil -> ""
+    Cons (idx, nm, bits) Nil -> string-concat-all [nm, " = ", u64-decimal (eval-model-bits bits 0 model)]
+    Cons (idx, nm, bits) rest -> string-concat-all [nm, " = ", u64-decimal (eval-model-bits bits 0 model), ", ", format-counterexample rest model]
+
+  -- ==========================================================================
+  -- 9. Top-Level Pluggable Obligation & Policy Orchestrator
+  -- ==========================================================================
+
+  policy-allows-tier :: Bool -> String -> String -> Bool
+  policy-allows-tier is-jpl verify-mode tier =
+    if same verify-mode "lax" then True
+    else if same verify-mode "strict" || is-jpl then same tier "kernel-cert"
+    else has-str tier ["kernel-cert", "compiled-cert", "smt-verified"]
+
+  policy-name-for :: Bool -> String -> String
+  policy-name-for is-jpl verify-mode =
+    if same verify-mode "lax" then "lax"
+    else if same verify-mode "strict" then "strict"
+    else if is-jpl then "jpl"
+    else "dev"
+
+  make-assumed-receipt :: String -> String -> String -> TrustReceipt
+  make-assumed-receipt goal-hash checker-id reason =
+    MkTrustReceipt goal-hash semantics-id-llvm "none" checker-id "assumed" "none" "none" reason [checker-id, semantics-id-llvm]
+
+  check-one-obligation :: String -> Bool -> String -> String -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt
+  check-one-obligation ob-name is-jpl verify-mode just-word g goal-id =
+    let goal-hash = sha256-hex (string-to-bytes (string-concat-all [ob-name, ":", serialize-sem goal-id g])) in
+    if same verify-mode "off" then
+      Ok (make-assumed-receipt goal-hash "cinch-verify-off@1" "assumed (prim-verify=off)")
+    else if graph-has-fp g then
+      if same verify-mode "lax" then
+        Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" "assumed (lax downgrade: floating-point obligation requires external SMT solver)")
+      else Err (OutcomeOpen (string-concat ob-name ": floating-point obligation requires an external SMT solver (use --prim-verify=lax to downgrade to assumed)"))
+    else
+      case bb-node goal-id g init-blast-state of
+        Err reason ->
+          if same verify-mode "lax" then
+            Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
+          else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
+        Ok (Cons goal-lit Nil, st1) ->
+          -- Assert negation of goal: UNSAT => goal is valid!
+          let st2 = bb-add-clause [lit-neg goal-lit] st1 in
+          case st2 of
+            MkBlastState max-var next-cid rev-clauses memo vbits ->
+              let clauses = reverse rev-clauses in
+              case prove-cnf-lrat max-var next-cid clauses of
+                SatModel model ->
+                  Err (OutcomeDisproved (string-concat-all [ob-name, " counterexample: ", format-counterexample (reverse vbits) model]))
+                SatUnknown reason ->
+                  if same verify-mode "lax" then
+                    Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", reason, ")"]))
+                  else Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
+                SatUnsat lrat-steps ->
+                  -- Independently verify the LRAT certificate before issuing any receipt!
+                  case verify-lrat max-var clauses lrat-steps of
+                    Err bad-proof ->
+                      Err (OutcomeOpen (string-concat-all [ob-name, ": LRAT kernel rejected proof: ", bad-proof]))
+                    Ok verified ->
+                      let use-compiled = same just-word "verify-compiled-lrat" in
+                      let checker-id = if use-compiled then "cinch-compiled-lrat@1" else "cinch-kernel-lrat@1" in
+                      let tier = if use-compiled then "compiled-cert" else "kernel-cert" in
+                      if not (policy-allows-tier is-jpl verify-mode tier) then
+                        Err (OutcomeRejected (string-concat-all
+                          [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+                      else
+                        let ev-hash = sha256-hex (string-to-bytes (serialize-lrat-steps lrat-steps)) in
+                        let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
+                        Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb)
+        Ok other -> Err (OutcomeOpen (string-concat ob-name ": goal did not bit-blast to a single boolean literal"))
+
+  run-obligations :: Bool -> String -> String -> SemGraph -> List (String, Nat) -> List TrustReceipt -> VerifyOutcome
+  run-obligations is-jpl verify-mode just-word g obs acc = case obs of
+    Nil ->
+      let receipts = reverse acc in
+      if same (worst-trust-tier receipts) "assumed" then OutcomeAssumed receipts
+      else OutcomeVerified receipts
+    Cons (ob-name, goal-id) rest ->
+      case check-one-obligation ob-name is-jpl verify-mode just-word g goal-id of
+        Err failure -> failure
+        Ok receipt -> run-obligations is-jpl verify-mode just-word g rest (Cons receipt acc)
+
+  conjoin-assumptions :: List (String, Nat, SemType, Bool) -> List UType -> Nat -> SemGraph -> (Nat, SemGraph)
+  conjoin-assumptions ref-env preds acc g = case preds of
+    Nil -> (acc, g)
+    Cons p rest ->
+      case lower-refinement-pred ref-env p g of
+        Some (np, g1) ->
+          let (next-acc, g2) = g-and acc np g1 in
+          conjoin-assumptions ref-env rest next-acc g2
+        None -> conjoin-assumptions ref-env rest acc g
+
+  build-ref-env :: List PrimParamSpec -> List (Nat, SemType, String) -> SemGraph -> (List (String, Nat, SemType, Bool), SemGraph)
+  build-ref-env ps vars g = case (ps, vars) of
+    (Cons p pr, Cons (idx, ty, nm) vr) ->
+      let (nid, g1) = g-var idx ty nm g in
+      case build-ref-env pr vr g1 of
+        (rest, g2) -> (Cons (nm, nid, ty, param-spec-signed p) rest, g2)
+    other -> (Nil, g)
+
+  -- Main entry point called from `Bootstrap.Infer` / `Bootstrap.Foreign`.
+  verify-prim-body :: String -> Bool -> String -> String -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> Option UType -> Option Expr -> List SpecDef -> String -> Bool -> VerifyOutcome
+  verify-prim-body prim-name is-jpl verify-mode just-word fragment params result preconds postcond spec-opt spec-defs spec-display is-unsafe =
+    let (ub0, g0) = g-bool False empty-sem-graph in
+    case init-llvm-params params 0 Nil g0 of
+      (binds, vars, g1) ->
+        if same verify-mode "off" then
+          let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":", fragment])) in
+          OutcomeAssumed [make-assumed-receipt gh "cinch-verify-off@1" "assumed (prim-verify=off)"]
+        else
+          case lower-ir-lines (string-split-on "\n" fragment) (MkLlvmEnv binds ub0 g1 None) of
+            Err err-msg ->
+              if same verify-mode "lax" then
+                let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":", fragment])) in
+                OutcomeAssumed [make-assumed-receipt gh "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", err-msg, ")"])]
+              else OutcomeOpen (string-concat-all [prim-name, ": ", err-msg])
+            Ok (MkLlvmEnv final-binds ub-cond g2 None) ->
+              OutcomeOpen (string-concat prim-name ": LLVM fragment has no ret instruction")
+            Ok (MkLlvmEnv final-binds ub-cond g2 (Some ret-sv)) ->
+              let (true-id, g3) = g-bool True g2 in
+              case build-ref-env params vars g3 of
+                (ref-env, g4) ->
+                  let (assume-id, g5) = conjoin-assumptions ref-env preconds true-id g4 in
+                  let (not-ub, g6) = g-not ub-cond g5 in
+                  let (ob-no-ub, g7) = g-implies assume-id not-ub g6 in
+                  let (not-poison, g8) = g-not (sv-poison ret-sv) g7 in
+                  let (ob-no-poison, g9) = g-implies assume-id not-poison g8 in
+                  let base-obs = [("no-ub", ob-no-ub), ("no-poison", ob-no-poison)] in
+                  let res-ty =
+                        if param-spec-bool result then SBool
+                        else if param-spec-fp result then SFp (param-spec-width result)
+                        else SBv (param-spec-width result) in
+                  -- Adapt Bool return (`i8` 0/1 in LLVM) to `SBool` if needed.
+                  let (ret-val-id, ret-val-ty, g10) =
+                        case (param-spec-bool result, sv-type ret-sv) of
+                          (True, SBv w) ->
+                            let (zero, ga) = g-bv w 0 g9 in
+                            let (nz, gb) = g-bv-cmp "ne" w (sv-val ret-sv) zero ga in
+                            (nz, SBool, gb)
+                          other -> (sv-val ret-sv, sv-type ret-sv, g9) in
+                  -- Optional source `spec` equivalence obligation.
+                  case spec-opt of
+                    None ->
+                      -- Optional return refinement obligation if present.
+                      (case postcond of
+                        None -> run-obligations is-jpl verify-mode just-word g10 base-obs Nil
+                        Some post-pred ->
+                          let post-env = Cons ("r", ret-val-id, ret-val-ty, param-spec-signed result) ref-env in
+                          (case lower-refinement-pred post-env post-pred g10 of
+                            Some (post-id, g11) ->
+                              let (ob-post, g12) = g-implies assume-id post-id g11 in
+                              run-obligations is-jpl verify-mode just-word g12 (base-obs <> [("return-refinement", ob-post)]) Nil
+                            None -> run-obligations is-jpl verify-mode just-word g10 base-obs Nil))
+                    Some spec-expr ->
+                      case lower-prim-spec spec-expr spec-defs vars res-ty g10 of
+                        Err spec-err ->
+                          if same verify-mode "lax" then
+                            let gh = sha256-hex (string-to-bytes (string-concat-all [prim-name, ":spec:", spec-display])) in
+                            OutcomeAssumed [make-assumed-receipt gh "cinch-lax-bypass@1" (string-concat-all ["assumed (lax downgrade: ", spec-err, ")"])]
+                          else OutcomeOpen (string-concat-all [prim-name, ": ", spec-err])
+                        Ok (spec-val, spec-ty, g11) ->
+                          let (eq-id, g12) = case (ret-val-ty, spec-ty) of
+                                (SBool, SBool) -> g-intern (NEqBool ret-val-id spec-val) g11
+                                (SBv w1, SBv w2) ->
+                                  if w1 == w2 then g-bv-cmp "eq" w1 ret-val-id spec-val g11
+                                  else
+                                    let (cast-spec, ga) = g-bv-cast (if w2 < w1 then "zext" else "trunc") w2 w1 spec-val g11 in
+                                    g-bv-cmp "eq" w1 ret-val-id cast-spec ga
+                                other -> g-bool False g11 in
+                          let (ob-spec, g13) = g-implies assume-id eq-id g12 in
+                          run-obligations is-jpl verify-mode just-word g13 (base-obs <> [("spec-equiv", ob-spec)]) Nil

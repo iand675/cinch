@@ -23,10 +23,11 @@ module Main where
   import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
   import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal)
-  import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile)
+  import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile, profile-with-prim-verify, profile-with-jpl, valid-prim-verify-mode)
   import Data.List (reverse)
   import Data.Path (path-from-string)
   import Text.Args (ArgSpec, FlagSpec, ValueSpec, OptVal, opt-name, opt-value, args-options, args-values, parse-args)
+  import Text.Scan (string-starts-with, string-drop)
 
   data RequestedPlatform where
     CompilerTarget :: Option String -> RequestedPlatform
@@ -47,6 +48,8 @@ module Main where
     rc-debug :: Bool
     reclaim :: Bool
     inlining :: Bool
+    prim-verify :: String
+    jpl :: Bool
 
   default-cli-options :: CliOptions
   default-cli-options = CliOptions
@@ -64,6 +67,8 @@ module Main where
     , rc-debug = False
     , reclaim = True
     , inlining = False
+    , prim-verify = "default"
+    , jpl = False
     }
 
   pipeline-specs :: List ArgSpec
@@ -86,6 +91,9 @@ module Main where
     , FlagSpec "throughput"
     , FlagSpec "clear-features"
     , FlagSpec "portable-isa"
+    , FlagSpec "lax-prim-verify"
+    , FlagSpec "jpl"
+    , ValueSpec "prim-verify"
     , ValueSpec "compile-profile"
     , ValueSpec "jobs"
     , ValueSpec "object-roots"
@@ -100,10 +108,12 @@ module Main where
   -- interface set even when this installation has no backend for the triple.
   resolve-platform :: CliOptions -> Result String TargetProfile
   resolve-platform opts = case opts.platform of
-    CompilerTarget requested -> configured-profile (requested, opts.portable, opts.required, opts.features)
+    CompilerTarget requested -> case configured-profile (requested, opts.portable, opts.required, opts.features) of
+      Err message -> Err message
+      Ok profile -> Ok (profile-with-jpl opts.jpl (profile-with-prim-verify opts.prim-verify profile))
     CheckPlatform platform -> case opts.mode of
-      CheckOnly -> Ok (configure-platform platform opts.portable opts.required opts.features)
-      TypesOnly -> Ok (configure-platform platform opts.portable opts.required opts.features)
+      CheckOnly -> Ok (profile-with-jpl opts.jpl (profile-with-prim-verify opts.prim-verify (configure-platform platform opts.portable opts.required opts.features)))
+      TypesOnly -> Ok (profile-with-jpl opts.jpl (profile-with-prim-verify opts.prim-verify (configure-platform platform opts.portable opts.required opts.features)))
       _ -> Err "--check-platform requires --check or --check-types"
 
   resolve-tuning :: CliOptions -> CompileTuning
@@ -116,7 +126,7 @@ module Main where
     let workers = case opts.workers of
           Some n -> n
           None -> 0 in
-    CompileTuning strategy workers
+    CompileTuning strategy workers opts.prim-verify opts.jpl
 
   -- Split leading options from the positional tail (or `run`/`build`
   -- subcommand), normalizing `-j` to `--jobs` and extracting any
@@ -140,11 +150,12 @@ module Main where
              || (endian /= "little" && endian /= "big") then None
           else
             let bits = if width == "32" then (32 :: Nat) else (64 :: Nat) in
-            let plat = TargetProfile name triple os arch libc bits endian False [] [] in
+            let plat = TargetProfile name triple os arch libc bits endian False [] [] "default" False in
             split-cli more acc (Some plat)
         _ -> None
       "run" -> Some (reverse acc, check-plat, SubLink True rest)
       "build" -> Some (reverse acc, check-plat, SubLink False rest)
+      "--prim-verify" -> take-value w rest acc check-plat
       "--compile-profile" -> take-value w rest acc check-plat
       "--jobs" -> take-value w rest acc check-plat
       "--object-roots" -> take-value w rest acc check-plat
@@ -154,7 +165,9 @@ module Main where
       "--require-capability" -> take-value w rest acc check-plat
       "--target-feature" -> take-value w rest acc check-plat
       _ ->
-        if string-length w > 2 && string-slice w 0 2 == "--" then
+        if string-starts-with "--prim-verify=" w then
+          split-cli rest ((string-drop 14 w) : "--prim-verify" : acc) check-plat
+        else if string-length w > 2 && string-slice w 0 2 == "--" then
           split-cli rest (w : acc) check-plat
         else
           Some (reverse acc, check-plat, SubNone ws)
@@ -171,7 +184,8 @@ module Main where
       { roots = opts.roots, mode = m, mode-selected = True, manifest = opts.manifest
       , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
       , required = opts.required, features = opts.features, strategy = opts.strategy
-      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
 
   set-strategy :: CompileStrategy -> CliOptions -> Option CliOptions
   set-strategy s opts = case opts.strategy of
@@ -179,7 +193,8 @@ module Main where
       { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
       , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
       , required = opts.required, features = opts.features, strategy = Some s
-      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
     Some _ -> None
 
   apply-option :: OptVal -> CliOptions -> Option CliOptions
@@ -201,21 +216,24 @@ module Main where
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = True, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = True, reclaim = opts.reclaim, inlining = opts.inlining
+        , prim-verify = opts.prim-verify, jpl = opts.jpl })
     "no-reclaim" ->
       if not opts.reclaim then None
       else Some (CliOptions
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = False, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = False, inlining = opts.inlining
+        , prim-verify = opts.prim-verify, jpl = opts.jpl })
     "inline" ->
       if opts.inlining then None
       else Some (CliOptions
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = True })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = True
+        , prim-verify = opts.prim-verify, jpl = opts.jpl })
     "latency" -> set-strategy Latency opts
     "throughput" -> set-strategy Throughput opts
     "compile-profile" -> case opt-value opt of
@@ -229,7 +247,8 @@ module Main where
           { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
           , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
           , required = opts.required, features = opts.features, strategy = opts.strategy
-          , workers = Some count, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+          , workers = Some count, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+          , prim-verify = opts.prim-verify, jpl = opts.jpl })
         _ -> None
       _ -> None
     "object-roots" -> case (opts.roots, opt-value opt) of
@@ -237,41 +256,47 @@ module Main where
         { roots = Some p, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
       _ -> None
     "interfaces" -> case (opts.manifest, opt-value opt) of
       (None, Some file) -> Some (CliOptions
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = Some file
         , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
       _ -> None
     "objects" -> case (opts.object-config, opt-value opt) of
       (None, Some file) -> Some (CliOptions
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = Some file, platform = opts.platform, portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
       _ -> None
     "target" -> case (opts.platform, opt-value opt) of
       (CompilerTarget None, Some triple) -> Some (CliOptions
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = CompilerTarget (Some triple), portable = opts.portable
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
       _ -> None
     "require-capability" -> case opt-value opt of
       Some cap | cap /= "" -> Some (CliOptions
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
         , required = cap : opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
       _ -> None
     "clear-features" -> Some (CliOptions
       { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
       , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
       , required = opts.required, features = Some [], strategy = opts.strategy
-      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
     "target-feature" -> case opt-value opt of
       Some feat | feat /= "" ->
         let chosen = case opts.features of None -> [feat]; Some prior -> feat : prior in
@@ -279,7 +304,8 @@ module Main where
           { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
           , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
           , required = opts.required, features = Some chosen, strategy = opts.strategy
-          , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+          , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = opts.jpl })
       _ -> None
     "portable-isa" ->
       if opts.portable then None
@@ -287,7 +313,28 @@ module Main where
         { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
         , object-config = opts.object-config, platform = opts.platform, portable = True
         , required = opts.required, features = opts.features, strategy = opts.strategy
-        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining })
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+        , prim-verify = opts.prim-verify, jpl = opts.jpl })
+    "lax-prim-verify" -> Some (CliOptions
+      { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
+      , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
+      , required = opts.required, features = opts.features, strategy = opts.strategy
+      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = "lax", jpl = opts.jpl })
+    "jpl" -> Some (CliOptions
+      { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
+      , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
+      , required = opts.required, features = opts.features, strategy = opts.strategy
+      , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+      , prim-verify = opts.prim-verify, jpl = True })
+    "prim-verify" -> case opt-value opt of
+      Some mode-word | valid-prim-verify-mode mode-word -> Some (CliOptions
+        { roots = opts.roots, mode = opts.mode, mode-selected = opts.mode-selected, manifest = opts.manifest
+        , object-config = opts.object-config, platform = opts.platform, portable = opts.portable
+        , required = opts.required, features = opts.features, strategy = opts.strategy
+        , workers = opts.workers, rc-debug = opts.rc-debug, reclaim = opts.reclaim, inlining = opts.inlining
+        , prim-verify = mode-word, jpl = opts.jpl })
+      _ -> None
     _ -> None
 
   apply-options :: List OptVal -> CliOptions -> Option CliOptions
@@ -311,7 +358,8 @@ module Main where
                   { roots = None, mode = CompileAndRun, mode-selected = False, manifest = None
                   , object-config = None, platform = CheckPlatform plat, portable = False
                   , required = [], features = None, strategy = None, workers = None
-                  , rc-debug = False, reclaim = True, inlining = False } in
+                  , rc-debug = False, reclaim = True, inlining = False
+                  , prim-verify = "default", jpl = False } in
           case apply-options (args-options parsed) init of
             None -> pipeline-bad-args
             Some opts ->

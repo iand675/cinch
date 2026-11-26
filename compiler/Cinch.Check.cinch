@@ -1007,7 +1007,8 @@ module Cinch.Check where
     DCorec s body -> fail s "a corec declaration requires guarded recursion checking"
     DEffect s n params ops -> fail s "effect declarations are not supported in this rung"
     DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
-    DPrim s name ty bodies -> fail s "inline primitives require checked signatures and target containment"
+    DPrim s name ty spec-opt bodies -> fail s "inline primitives require checked signatures and target containment"
+    DModuleProfile s profile -> []
     DProof s body -> fail s "a proof declaration requires erased checking"
     DSpec s body -> fail s "a spec declaration requires erased checking"
     DMacroBinding s name -> fail s "unresolved macro declaration"

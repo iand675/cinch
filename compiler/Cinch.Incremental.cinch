@@ -148,8 +148,10 @@ module Cinch.Incremental where
       JArr (JStr "DEffect") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (ctor-list-json ops) JArrEnd)))
     DForeign sp dir abi sym name ty ->
       JArr (JStr "DForeign") (JArr (JStr dir) (JArr (JStr abi) (JArr (JStr sym) (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)))))
-    DPrim sp name ty bodies ->
-      JArr (JStr "DPrim") (JArr (JStr name) (JArr (source-identity-type ty) (JArr (prim-bodies-json bodies) JArrEnd)))
+    DPrim sp name ty spec-opt bodies ->
+      JArr (JStr "DPrim") (JArr (JStr name) (JArr (source-identity-type ty) (JArr (case spec-opt of Some e -> source-identity-expr e; None -> JNull) (JArr (prim-bodies-json bodies) JArrEnd))))
+    DModuleProfile sp profile ->
+      JArr (JStr "DModuleProfile") (JArr (JStr profile) JArrEnd)
     DWrapperLayout sp name kind fields ->
       JArr (JStr "DWrapperLayout") (JArr (JStr name) (JArr (JStr kind) (JArr (str-list-json fields) JArrEnd)))
     DUnpackFields sp name fields ->

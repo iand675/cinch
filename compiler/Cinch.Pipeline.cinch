@@ -25,7 +25,7 @@ module Cinch.Pipeline where
   import Cinch.Ir (emit-checked-diagnostics, emit-checked-program)
   import Cinch.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
   import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache)
-  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
   import Cinch.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Cinch.PackageWrite (encode-interface-package, encode-object-package)
@@ -747,19 +747,24 @@ module Cinch.Pipeline where
 
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.
+  profile-tuning :: TargetProfile -> CompileTuning -> CompileTuning
+  profile-tuning profile tuning =
+    tuning-with-jpl (profile.jpl) (tuning-with-prim-verify (profile.prim-verify) tuning)
+
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-source profile program interfaces = checked-source-tuned default-tuning profile program interfaces
   checked-source-tuned :: CompileTuning -> TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
-  checked-source-tuned tuning profile program interfaces = check-source-phase-tuned tuning profile interfaces (\input -> resolve-program-with input interfaces) program
+  checked-source-tuned tuning profile program interfaces = check-source-phase-tuned (profile-tuning profile tuning) profile interfaces (\input -> resolve-program-with input interfaces) program
   checked-admitted-source :: TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
   checked-admitted-source profile checked overlays program = checked-admitted-source-tuned default-tuning profile checked overlays program
   checked-admitted-source-tuned :: CompileTuning -> TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
   checked-admitted-source-tuned tuning profile checked overlays program =
+    let ptuning = profile-tuning profile tuning in
     let interfaces = checked.interfaces-members in
     let admitted = canonical-interface-validation checked in
     let check = (case admitted of
-      Ok canonical -> check-and-retain-with-admitted-interfaces-tuned tuning canonical
-      Err message -> check-and-retain-with-interfaces-tuned tuning interfaces) in
+      Ok canonical -> check-and-retain-with-admitted-interfaces-tuned ptuning canonical
+      Err message -> check-and-retain-with-interfaces-tuned ptuning interfaces) in
     checked-admitted-source-using profile interfaces check
       (\input replacements -> resolve-admitted-signature-overlays input admitted replacements) overlays program
   checked-admitted-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> List LoadedInterface -> (Program, List Diagnostic)) -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
@@ -778,7 +783,7 @@ module Cinch.Pipeline where
     check-source-phase-tuned default-tuning profile interfaces resolve program
   check-source-phase-tuned :: CompileTuning -> TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-phase-tuned tuning profile interfaces resolve program =
-    check-source-using profile interfaces (check-and-retain-with-interfaces-tuned tuning interfaces) resolve program
+    check-source-using profile interfaces (check-and-retain-with-interfaces-tuned (profile-tuning profile tuning) interfaces) resolve program
   check-source-using :: TargetProfile -> List LoadedInterface -> (Program -> Result (List Diagnostic) CheckedProgram) -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-using profile interfaces check resolve program =
     check-expanded-source interfaces resolve (\expanded -> retain-resolved-source profile check (resolve expanded)) program
@@ -1151,7 +1156,8 @@ module Cinch.Pipeline where
     (JObj "os" (JStr (profile.os)) (JObj "arch" (JStr (selection-arch profile))
       (JObj "libc" (JStr (profile.libc)) (JObj "word_size" (JNum (nat-to-int (profile.word-size)))
         (JObj "endian" (JStr (profile.endian)) (JObj "features" (capability-array (profile.features))
-          (JObj "required" (capability-array (profile.required)) JObjEnd)))))))
+          (JObj "required" (capability-array (profile.required))
+            (JObj "prim_verify" (JStr (profile.prim-verify)) JObjEnd))))))))
 
   provider-matches-profile :: Json -> TargetProfile -> Bool
   provider-matches-profile document profile = case object-field "target" document of

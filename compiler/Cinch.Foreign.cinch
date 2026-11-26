@@ -3,7 +3,8 @@
 module Cinch.Foreign where
   import Cinch.Type
   import Cinch.Target (condition-render, primitive-target, when-vocabulary, host-profile)
-  import Cinch.Ast (PrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, Expr)
+  import Cinch.Ast (PrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, RewriteTerm, Expr, EVar, source-identity-expr)
+  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
   import Cinch.Core (contract-scheme-closed)
   import Cinch.ExportType (export-type, export-global, export-display-scheme)
   import Cinch.Interface (fnv-source-hash)
@@ -19,7 +20,7 @@ module Cinch.Foreign where
   export foreign-blocking
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, primitive-plan, foreign-inline, foreign-primitive-assumptions
-  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op
+  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof
   export PrimitiveFragment
   export PrimUseContract
   export foreign-llvm-type, primitive-layout
@@ -55,9 +56,9 @@ module Cinch.Foreign where
     scheme :: Scheme
     parameters :: List ForeignParameter
     result :: ForeignParameter
-    inline :: Option (InlinePrimitive, Option String, List String, Json)
+    inline :: Option (InlinePrimitive, Option String, List String, Json, Option PrimProofFact)
   foreign-inline :: ForeignPlan -> Option InlinePrimitive
-  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection) -> Some body; None -> None)
+  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection, proof-fact) -> Some body; None -> None)
   -- A public worker receives ordinary arguments. Immediate-only operands
   -- must still be checked at a direct call with their actual literal values.
   primitive-object-callable :: ForeignPlan -> Bool
@@ -74,10 +75,14 @@ module Cinch.Foreign where
   foreign-primitive-assumptions :: ForeignPlan -> Option (Option String, List String)
   foreign-primitive-assumptions plan = case plan of
     ForeignPlan symbol scheme params result inline ->
-      (case inline of Some (body, identity, trust, selection) -> Some (identity, trust); None -> None)
+      (case inline of Some (body, identity, trust, selection, proof-fact) -> Some (identity, trust); None -> None)
   foreign-primitive-selection :: ForeignPlan -> Option Json
   foreign-primitive-selection plan = case plan of
-    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection)) -> Some selection
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact)) -> Some selection
+    other -> None
+  foreign-primitive-proof :: ForeignPlan -> Option PrimProofFact
+  foreign-primitive-proof plan = case plan of
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact)) -> proof-fact
     other -> None
   nonempty-ir-lines :: List String -> List (List String)
   nonempty-ir-lines lines = case lines of
@@ -557,28 +562,181 @@ module Cinch.Foreign where
     if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
       Err "a prim declaration needs a monomorphic checked signature"
     else primitive-parameters (scheme-body scheme) []
+  verify-justification-word :: Option RewriteJustification -> Option String
+  verify-justification-word ev = case ev of
+    Some (RewriteTerm (EVar sp word)) | is-verify-justification-word word -> Some word
+    other -> None
+
+  bodies-use-verify :: List PrimBody -> Bool
+  bodies-use-verify bodies = case bodies of
+    [] -> False
+    (PrimBody sp family fragment unverified when selected justification uses immediates) : rest ->
+      (case verify-justification-word justification of Some w -> True; None -> False) || bodies-use-verify rest
+
+  local-symbol-name :: String -> String
+  local-symbol-name sym = local-symbol-loop (unpack sym) []
+
+  local-symbol-loop :: List Char -> List Char -> String
+  local-symbol-loop cs acc = case cs of
+    [] -> pack (reverse acc)
+    c : rest -> if char-code c == 46 then local-symbol-loop rest [] else local-symbol-loop rest (c : acc)
+
+  carrier-base-name :: UType -> String
+  carrier-base-name ty = case refinement-view ty of
+    URefine id nm base pred -> carrier-base-name base
+    UCon name KType -> name
+    other -> "I64"
+
+  param-to-verify-spec :: String -> ForeignParameter -> PrimParamSpec
+  param-to-verify-spec pname p =
+    let cname = carrier-base-name (p.parameter-type) in
+    let is-fp = cname == "F32" || cname == "F64" in
+    let is-bool = cname == "Bool" in
+    MkPrimParamSpec pname cname (p.width * 8) (p.signed) is-fp is-bool
+
+  extract-scheme-meta :: UType -> Nat -> (List String, List UType, Option UType)
+  extract-scheme-meta ty idx = case ty of
+    URequire preds rest ->
+      case extract-scheme-meta rest idx of
+        (names, ps, post) -> (names, collect-require-preds preds <> ps, post)
+    UFun domain rest ->
+      let (dpreds, dname) = domain-refinements domain (string-concat "arg" (nat-to-string idx)) in
+      case extract-scheme-meta rest (idx + 1) of
+        (names, ps, post) -> (dname : names, dpreds <> ps, post)
+    UFunEff domain row rest ->
+      let (dpreds, dname) = domain-refinements domain (string-concat "arg" (nat-to-string idx)) in
+      case extract-scheme-meta rest (idx + 1) of
+        (names, ps, post) -> (dname : names, dpreds <> ps, post)
+    UPi id name domain row rest ->
+      let pname = if string-length name > 0 then name else string-concat "arg" (nat-to-string idx) in
+      let (dpreds, dname) = domain-refinements domain pname in
+      case extract-scheme-meta rest (idx + 1) of
+        (names, ps, post) -> (dname : names, dpreds <> ps, post)
+    other ->
+      case refinement-view ty of
+        URefine id name base pred -> ([], [], Some pred)
+        other2 -> ([], [], None)
+
+  collect-require-preds :: UType -> List UType
+  collect-require-preds u = case u of
+    UArg p rest -> p : (collect-require-preds rest)
+    UEnd -> []
+    other -> [u]
+
+  domain-refinements :: UType -> String -> (List UType, String)
+  domain-refinements ty fallback = case refinement-view ty of
+    URefine id name base pred ->
+      let nm = if string-length name > 0 then name else fallback in
+      ([pred], nm)
+    other -> ([], fallback)
+
+  build-param-specs :: List String -> List ForeignParameter -> List PrimParamSpec
+  build-param-specs names params = case (names, params) of
+    (nm : nr, p : pr) -> (param-to-verify-spec nm p) : (build-param-specs nr pr)
+    ([], p : pr) -> (param-to-verify-spec "arg" p) : (build-param-specs [] pr)
+    other -> []
+
+  spec-identity-string :: Option Expr -> Option String
+  spec-identity-string spec-opt = case spec-opt of
+    None -> None
+    Some (EVar sp fn-name) ->
+      let display = case export-global fn-name of Ok g -> g; Err e -> fn-name in
+      let h = fnv-source-hash (canonical-bytes (source-identity-expr (EVar sp fn-name))) in
+      Some (string-concat-all [display, "#", h])
+    Some expr ->
+      let h = fnv-source-hash (canonical-bytes (source-identity-expr expr)) in
+      Some (string-concat "inline-spec#" h)
+
+  verify-prim-bodies-loop :: String -> Bool -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> Option UType -> Option Expr -> List SpecDef -> String -> List PrimBody -> List TrustReceipt -> Bool -> Result String (Bool, List TrustReceipt)
+  verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display bodies acc all-verified = case bodies of
+    [] -> Ok (all-verified, acc)
+    (PrimBody sp family fragment unverified when selected justification uses immediates) : rest ->
+      case verify-justification-word justification of
+        None -> verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display rest acc False
+        Some jword ->
+          if family /= "llvm" then
+            Err (string-concat-all ["prim `", symbol, "`: `justify ", jword, "` is supported only for `llvm` bodies"])
+          else
+            case verify-prim-body symbol is-jpl verify-mode jword fragment pspecs rspec preconds postcond spec-opt spec-defs spec-display unverified of
+              OutcomeDisproved detail ->
+                Err (string-concat-all ["prim `", symbol, "` failed formal verification: ", detail])
+              OutcomeRejected detail ->
+                Err (string-concat-all ["prim `", symbol, "` verification rejected by policy: ", detail])
+              OutcomeOpen detail ->
+                Err (string-concat-all ["prim `", symbol, "` verification failed (unproved): ", detail])
+              OutcomeVerified receipts ->
+                verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display rest (acc <> receipts) all-verified
+              OutcomeAssumed receipts ->
+                verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display rest (acc <> receipts) False
+
   -- | Check a declared primitive body against its validated layout and containment rules.
-  primitive-plan :: String -> Scheme -> List PrimBody -> List (List (String, Scheme)) -> (Nat -> RewriteJustification -> Result String String) -> Result String ForeignPlan
-  primitive-plan name scheme bodies body-uses check-law =
+  primitive-plan :: String -> Scheme -> Option Expr -> List PrimBody -> List (List (String, Scheme)) -> (Nat -> RewriteJustification -> Result String String) -> Bool -> String -> List SpecDef -> Result String ForeignPlan
+  primitive-plan name scheme spec-opt bodies body-uses check-law is-jpl verify-mode spec-defs =
     case (export-global name, primitive-layout scheme) of
       (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
         let pure = pure-primitive-arrows (scheme-body scheme) in
         let ptr-sized = case result.parameter-type of UCon rname KType -> has rname ["Usize", "Isize"]; other -> False in
-        (case (checked-prim-bodies symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) [],
-               primitive-laws (check-law arity) bodies True []) of
-          (Ok (body, condition), Ok (justified, laws)) ->
+        (case checked-prim-bodies symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) [] of
+          Err message -> Err message
+          Ok (body, condition) ->
             let trust = primitive-trust symbol bodies in
             let family = case body of InlinePrimitive owner chosen immediates llvm assembly -> chosen in
-            (case primitive-contract symbol scheme bodies justified laws of
-              Err message -> Err message
-              Ok identity -> let assumed = if justified then None else Some identity in
-                let declared = if justified then laws <> trust else trust in
-                Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                  (Some (body, assumed, declared, selection-document body condition identity justified trust bodies))))
-          (Err message, other) -> Err message
-          (other, Err message) -> Err message)
+            if bodies-use-verify bodies then
+              let (pnames, preconds, postcond) = extract-scheme-meta (scheme-body scheme) 0 in
+              let pspecs = build-param-specs pnames arguments in
+              let rspec = param-to-verify-spec "result" result in
+              let spec-id-opt = spec-identity-string spec-opt in
+              let spec-display = case spec-id-opt of Some s -> s; None -> "well-defined" in
+              (case verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display bodies [] True of
+                Err message -> Err message
+                Ok (all-verified, receipts) ->
+                  if all-verified then
+                    (case export-display-scheme scheme of
+                      Err message -> Err message
+                      Ok signature-text ->
+                        let identity = string-concat-all ["prim:", symbol, ":", signature-text, ":spec[", spec-display, "]"] in
+                        let proof-fact = MkPrimProofFact (local-symbol-name symbol) spec-display "llvm-sem@21.1" (worst-trust-tier receipts) (receipts-tcb-union receipts) in
+                        Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
+                          (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact))))
+                  else
+                    -- Honest downgrade (e.g. `lax` or `off` mode): keep body-hashed identity
+                    -- in `assumptions.primitives`, emit `tier: "assumed"`, and emit NO `.cinchif` `prim_proofs`.
+                    let identity = primitive-identity symbol (primitive-body-text bodies) in
+                    Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
+                      (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None))))
+            else
+              (case primitive-laws (check-law arity) bodies True [] of
+                Err message -> Err message
+                Ok (justified, laws) ->
+                  (case primitive-contract symbol scheme bodies justified laws of
+                    Err message -> Err message
+                    Ok identity -> let assumed = if justified then None else Some identity in
+                      let declared = if justified then laws <> trust else trust in
+                      Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
+                        (Some (body, assumed, declared, selection-document body condition identity justified trust bodies, None))))))
       (Err message, other) -> Err message
       (other, Err message) -> Err message
+
+  selection-document-verified :: InlinePrimitive -> Option String -> String -> String -> Option String -> List TrustReceipt -> List String -> List PrimBody -> Json
+  selection-document-verified body condition identity tier-name spec-id-opt receipts trust bodies = case body of
+    InlinePrimitive owner family immediates llvm assembly ->
+      let why = case condition of
+            None -> string-concat-all ["the baseline `", family, "` body (the fallback when no `when` condition matches)"]
+            Some clause -> string-concat-all ["the `", family, "` body's `when ", clause, "` condition holds in the target profile"] in
+      let tail-fields =
+            JObj "trust" (trust-document bodies trust)
+              (JObj "immarg" (immediate-document immediates)
+                (JObj "uses" JArrEnd
+                  (JObj "validation" (validation-document bodies)
+                    (JObj "receipts" (receipts-to-json receipts) JObjEnd)))) in
+      let with-spec = case spec-id-opt of
+            None -> tail-fields
+            Some sp -> JObj "spec" (JStr sp) tail-fields in
+      JObj "family" (JStr family)
+        (JObj "condition" (case condition of None -> JNull; Some clause -> JStr clause)
+          (JObj "identity" (JStr identity)
+            (JObj "tier" (JStr tier-name)
+              (JObj "why" (JStr why) with-spec))))
 
   primitive-laws :: (RewriteJustification -> Result String String) -> List PrimBody -> Bool -> List String -> Result String (Bool, List String)
   primitive-laws check-law bodies justified laws = case bodies of
