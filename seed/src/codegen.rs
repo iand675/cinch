@@ -540,7 +540,7 @@ fn emit_module(
         "declare i64 @cinch_int_from_decimal(ptr, i64)",
         "declare i64 @cinch_array_from_list(i64, i64)",
         "declare i64 @cinch_array_replicate(i64, i64, i64)",
-        "declare i64 @cinch_array_len(i64)",
+        "declare noundef range(i64 0, 9223372036854775807) i64 @cinch_array_len(i64)",
         "declare i64 @cinch_array_has(i64, i64)",
         "declare i64 @cinch_array_get(i64, i64)",
         "declare i64 @cinch_array_set(i64, i64, i64)",
@@ -592,9 +592,9 @@ fn emit_module(
         "declare i64 @cinch_bytes_new(i64)",
         // A `Nat` as a length or read count: bignums clamp to `i64::MAX`,
         // so a request no allocation can hold is the heap `Exhausted` exit.
-        "declare i64 @cinch_nat_to_len(i64)",
-        "declare i64 @cinch_bytes_len(i64)",
-        "declare i64 @cinch_bytes_get(i64, i64)",
+        "declare noundef range(i64 0, -9223372036854775808) i64 @cinch_nat_to_len(i64)",
+        "declare noundef range(i64 0, 9223372036854775807) i64 @cinch_bytes_len(i64)",
+        "declare noundef range(i64 0, 256) i64 @cinch_bytes_get(i64, i64)",
         "declare i64 @cinch_bytes_set(i64, i64, i64)",
         "declare i64 @cinch_bytes_copy(i64, i64, i64, i64, i64)",
         "declare i64 @cinch_bytes_compare(i64, i64)",
@@ -1980,13 +1980,13 @@ impl Registry {
         // type, primitive aliases by their intrinsic's, and checked
         // definitions by their result range (the plan note's item 3).
         for op in &reg.prims {
-            if let Some(r) = prim_sig(*op).and_then(|(_, t)| t.value_range()) {
+            if let Some(r) = prim_result_range(*op) {
                 reg.ranges.insert(op.symbol(), r);
             }
         }
         for f in &p.fns {
             let r = match f.prim {
-                Some(op) => prim_sig(op).and_then(|(_, t)| t.value_range()),
+                Some(op) => prim_result_range(op),
                 None => f.meta.contract.result_range,
             };
             if let Some(r) = r {
@@ -3392,6 +3392,16 @@ fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
         return None;
     }
     Some(op.sig())
+}
+
+/// The known result-word range of a primitive unit, combining type-level
+/// ranges (`Ty::value_range`) with non-negative runtime invariants such as
+/// `Bytes.bytes-len-i64` (`[0, i64::MAX)`).
+fn prim_result_range(op: PrimOp) -> Option<(i64, i64)> {
+    match op {
+        PrimOp::Bytes(BytesOp::LenI64) => Some((0, i64::MAX)),
+        _ => prim_sig(op).and_then(|(_, t)| t.value_range()),
+    }
 }
 
 /// The memory operand of a `load`/`store` line (the first `ptr %reg`
@@ -7127,9 +7137,10 @@ fn bytes_access_word(b: &mut Builder, cx: &LowerCx, reg: &Registry, op: BytesOp)
         payload
     };
 
+    let len_range = range_meta_i64(reg, 0, i64::MAX);
     let len = b.reg();
     b.line(&format!(
-        "{len} = load i64, ptr {payload}, align 8, !tbaa {tbaa_h}"
+        "{len} = load i64, ptr {payload}, align 8, !tbaa {tbaa_h}, !range {len_range}"
     ));
     if let Some(index) = &index {
         let inside = if width == 1 {

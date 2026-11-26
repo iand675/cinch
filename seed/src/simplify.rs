@@ -139,9 +139,11 @@
 //! generation gives the pair a block and a branch: no closure, no stack
 //! frame, no call.
 use crate::core::{
-    child_slots, child_slots_imm, alpha_eq, CAlt, CPat, Class, Core, FnDef, GlobalId, JoinId,
-    LocalId, Program, SimplifyReport, symbol_has_module_prefix,
+    child_slots, child_slots_imm, alpha_eq, ArithMode, ArithOp, BitOp, CAlt, CmpOp, CPat, Class,
+    Core, FnDef, GlobalId, JoinId, LocalId, PrimOp, Program, ShiftOp, SimplifyReport,
+    symbol_has_module_prefix,
 };
+use crate::types::Scalar;
 use std::collections::{HashMap, HashSet};
 
 /// Which inlining decision the pass makes at a call site.
@@ -341,17 +343,30 @@ struct Tables {
     instances: HashMap<String, (usize, Vec<GlobalId>)>,
     /// Units backed by inline `prim` target-IR fragments (priced like `Core::Prim`).
     prim_bodies: HashSet<String>,
+    /// Units backed by a kernel `PrimOp` (`f.prim = Some(op)`).
+    prims: HashMap<String, PrimOp>,
 }
 
 impl Tables {
     fn new(program: &Program) -> Tables {
-        let mut tables =
-            Tables { ctors: HashMap::new(), lambdas: HashMap::new(), static_records: HashMap::new(), arity: HashMap::new(), params: HashMap::new(), instances: HashMap::new(), prim_bodies: HashSet::new() };
+        let mut tables = Tables {
+            ctors: HashMap::new(),
+            lambdas: HashMap::new(),
+            static_records: HashMap::new(),
+            arity: HashMap::new(),
+            params: HashMap::new(),
+            instances: HashMap::new(),
+            prim_bodies: HashSet::new(),
+            prims: HashMap::new(),
+        };
         for f in &program.fns {
             tables.arity.insert(f.id.0.clone(), f.params.len());
             tables.params.insert(f.id.0.clone(), f.repr.params.clone());
             if f.meta.prim_body {
                 tables.prim_bodies.insert(f.id.0.clone());
+            }
+            if let Some(op) = f.prim {
+                tables.prims.insert(f.id.0.clone(), op);
             }
             if is_lambda_unit(&f.id.0) && f.prim.is_none() && f.ctor.is_none() {
                 tables.lambdas.insert(f.id.0.clone(), (f.repr.params.clone(), f.body.clone()));
@@ -391,6 +406,9 @@ impl Tables {
             self.params.insert(f.id.0.clone(), f.repr.params.clone());
             if f.meta.prim_body {
                 self.prim_bodies.insert(f.id.0.clone());
+            }
+            if let Some(op) = f.prim {
+                self.prims.insert(f.id.0.clone(), op);
             }
             if let Some((tag, fields)) = f.ctor {
                 self.ctors.insert(f.id.0.clone(), (tag, fields));
@@ -774,6 +792,9 @@ enum Rule {
     /// A binding nothing reads and whose value is harmless to discard
     /// (GHC's dead-binder drop).
     DeadBinder,
+    /// Constant folding or algebraic identity on a pure machine primitive,
+    /// or dead-branch elimination on a literal `Core::If`.
+    PrimFold,
 }
 
 /// The accumulator every pass shares: the tick total, the per-rule
@@ -796,6 +817,7 @@ struct Ticks {
     inline: usize,
     pre_inline: usize,
     dead_binder: usize,
+    prim_fold: usize,
     changed: bool,
 }
 
@@ -817,6 +839,7 @@ impl Ticks {
             Rule::Inline => self.inline += 1,
             Rule::PreInline => self.pre_inline += 1,
             Rule::DeadBinder => self.dead_binder += 1,
+            Rule::PrimFold => self.prim_fold += 1,
         }
     }
 }
@@ -918,6 +941,8 @@ fn pass(
             Some(Rule::KnownClosureCall)
         } else if opts.saturate_partial && saturate_partial(e, occ, tables, fresh) {
             Some(Rule::SaturatePartial)
+        } else if simplify_prim(e, tables) {
+            Some(Rule::PrimFold)
         } else if opts.case_of_case && case_of_case(e, classes, opts, fresh, t) {
             Some(Rule::CaseOfCase)
         } else {
@@ -969,6 +994,383 @@ fn pass(
             *e = body;
             t.fire(Rule::PreInline);
         }
+    }
+}
+
+/// Width and signedness for fixed-width machine integer scalars whose
+/// bit-level wrapping, bitwise, shift, and comparison results are target
+/// independent (`I8..I64`, `U8..U64`, `Char`). Excludes `Usize`/`Isize`
+/// (target-width dependent), wide 128-bit scalars, and floats.
+fn fixed_scalar_bits(s: Scalar) -> Option<(u32, bool)> {
+    match s {
+        Scalar::I8 => Some((8, true)),
+        Scalar::I16 => Some((16, true)),
+        Scalar::I32 => Some((32, true)),
+        Scalar::I64 => Some((64, true)),
+        Scalar::U8 => Some((8, false)),
+        Scalar::U16 => Some((16, false)),
+        Scalar::U32 => Some((32, false)),
+        Scalar::U64 => Some((64, false)),
+        Scalar::Char => Some((32, false)),
+        _ => None,
+    }
+}
+
+/// Whether `s` is a machine-word integer scalar where `0` and `1` are
+/// target-independent identities (`I8..I64`, `U8..U64`, `Isize`, `Usize`).
+fn is_word_int_scalar(s: Scalar) -> bool {
+    matches!(
+        s,
+        Scalar::I8
+            | Scalar::I16
+            | Scalar::I32
+            | Scalar::I64
+            | Scalar::U8
+            | Scalar::U16
+            | Scalar::U32
+            | Scalar::U64
+            | Scalar::Isize
+            | Scalar::Usize
+    )
+}
+
+/// Truncate an `i128` result to its stored `i64` representation, matching
+/// `crate::core::trunc_word` bit-for-bit.
+fn trunc_fixed(v: i128, bits: u32, signed: bool) -> i64 {
+    if bits >= 64 {
+        v as i64
+    } else {
+        let m = (1i128 << bits) - 1;
+        let t = v & m;
+        if signed && (t & (1i128 << (bits - 1))) != 0 {
+            (t | !m) as i64
+        } else {
+            t as i64
+        }
+    }
+}
+
+/// Interpret a stored `Core::Int(i64)` word at its fixed width and signedness.
+fn fixed_val(word: i64, bits: u32, signed: bool) -> i128 {
+    if signed {
+        trunc_fixed(word as i128, bits, true) as i128
+    } else {
+        (word as u64 as i128) & ((1i128 << bits) - 1)
+    }
+}
+
+/// Map canonical pure total `Prim.Machine.<op>-<scalar>` globals to their
+/// equivalent `PrimOp`. Trapping (`raw-sdiv`, `raw-srem`, `raw-udiv`,
+/// `raw-urem`) and overflow-flag (`ov-*`) operations are deliberately excluded.
+fn prim_machine_global_op(name: &str) -> Option<PrimOp> {
+    let rest = name.strip_prefix("Prim.Machine.")?;
+    let (op_name, ty_name) = rest.rsplit_once('-')?;
+    let ty = match ty_name {
+        "i8" => Scalar::I8,
+        "i16" => Scalar::I16,
+        "i32" => Scalar::I32,
+        "i64" => Scalar::I64,
+        "u8" => Scalar::U8,
+        "u16" => Scalar::U16,
+        "u32" => Scalar::U32,
+        "u64" => Scalar::U64,
+        _ => return None,
+    };
+    match op_name {
+        "wrapping-add" => Some(PrimOp::Arith { ty, op: ArithOp::Add, mode: ArithMode::Wrapping }),
+        "wrapping-sub" => Some(PrimOp::Arith { ty, op: ArithOp::Sub, mode: ArithMode::Wrapping }),
+        "wrapping-mul" => Some(PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping }),
+        "wrapping-neg" => Some(PrimOp::Neg { ty, mode: ArithMode::Wrapping }),
+        "bit-and" => Some(PrimOp::Bit { ty, op: BitOp::And }),
+        "bit-or" => Some(PrimOp::Bit { ty, op: BitOp::Or }),
+        "bit-xor" => Some(PrimOp::Bit { ty, op: BitOp::Xor }),
+        "bit-not" => Some(PrimOp::BitNot { ty }),
+        "wrapping-shl" => Some(PrimOp::Shift { ty, op: ShiftOp::Shl, checked: false }),
+        "wrapping-shr" => Some(PrimOp::Shift { ty, op: ShiftOp::Shr, checked: false }),
+        "eq" => Some(PrimOp::Cmp { ty, op: CmpOp::Eq }),
+        "ne" => Some(PrimOp::Cmp { ty, op: CmpOp::Ne }),
+        "lt" => Some(PrimOp::Cmp { ty, op: CmpOp::Lt }),
+        "le" => Some(PrimOp::Cmp { ty, op: CmpOp::Le }),
+        "gt" => Some(PrimOp::Cmp { ty, op: CmpOp::Gt }),
+        "ge" => Some(PrimOp::Cmp { ty, op: CmpOp::Ge }),
+        _ => None,
+    }
+}
+
+/// Resolve an application head to a `PrimOp`, covering both direct `Core::Prim`
+/// nodes and global references to kernel primops / pure `Prim.Machine` units.
+fn resolve_prim_op(head: &Core, tables: &Tables) -> Option<PrimOp> {
+    match head {
+        Core::Prim(op) => Some(*op),
+        Core::Global(id, _) => tables
+            .prims
+            .get(&id.0)
+            .copied()
+            .or_else(|| prim_machine_global_op(&id.0)),
+        _ => None,
+    }
+}
+
+/// Decompose a bitwise `And`/`Or` application where one operand is a
+/// `Core::Int(c)` literal, returning `(other_expr, c)`.
+fn split_bit_const<'a>(
+    e: &'a Core,
+    tables: &Tables,
+    expected_ty: Scalar,
+    expected_op: BitOp,
+) -> Option<(&'a Core, i64)> {
+    let Core::App(head, args) = e else { return None };
+    let Some(PrimOp::Bit { ty, op }) = resolve_prim_op(head, tables) else { return None };
+    if ty != expected_ty || op != expected_op || args.len() != 2 {
+        return None;
+    }
+    match (&args[0], &args[1]) {
+        (x, Core::Int(c)) => Some((x, *c)),
+        (Core::Int(c), x) => Some((x, *c)),
+        _ => None,
+    }
+}
+
+/// Sound constant folding and algebraic identities on pure machine-word
+/// `Core::Prim` (and `Prim.Machine.*`) applications, plus dead-branch
+/// elimination on literal `Core::If`.
+///
+/// Trapping and checked operations (`ArithMode::Checked`, `Div`, `Rem`,
+/// `CheckedDiv`, `CheckedRem`, `Shift { checked: true }`) are NEVER folded.
+/// Absorbing/self-canceling rewrites (`mul(x, 0) -> 0`, `and(x, 0) -> 0`,
+/// `sub(x, x) -> 0`, `xor(x, x) -> 0`, `and(x, x) -> x`, `or(x, x) -> x`,
+/// `cmp(x, x)`) require `speculatable(x, tables)` so no effect or trap in `x`
+/// can ever be dropped.
+fn simplify_prim(e: &mut Core, tables: &Tables) -> bool {
+    if let Core::If(cond, then_b, else_b) = &*e {
+        if let Core::Bool(b) = &**cond {
+            if !carries_quote(&then_b.body) && !carries_quote(&else_b.body) {
+                let taken = if *b { (*then_b.body).clone() } else { (*else_b.body).clone() };
+                *e = taken;
+                return true;
+            }
+        }
+        return false;
+    }
+    let Core::App(head, args) = &*e else { return false };
+    let Some(op) = resolve_prim_op(head, tables) else { return false };
+
+    let replacement: Option<Core> = match (op, args.as_slice()) {
+        // --- Boolean constant folding & identities ---
+        (PrimOp::NotBool, [Core::Bool(b)]) => Some(Core::Bool(!*b)),
+        (PrimOp::NotBool, [Core::App(inner_h, inner_a)])
+            if matches!(&**inner_h, Core::Prim(PrimOp::NotBool)) && inner_a.len() == 1 =>
+        {
+            Some(inner_a[0].clone())
+        }
+        (PrimOp::AndBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a && *b)),
+        (PrimOp::AndBool, [x, Core::Bool(true)]) | (PrimOp::AndBool, [Core::Bool(true), x]) => {
+            Some(x.clone())
+        }
+        (PrimOp::AndBool, [x, Core::Bool(false)]) | (PrimOp::AndBool, [Core::Bool(false), x])
+            if speculatable(x, tables) =>
+        {
+            Some(Core::Bool(false))
+        }
+        (PrimOp::OrBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a || *b)),
+        (PrimOp::OrBool, [x, Core::Bool(false)]) | (PrimOp::OrBool, [Core::Bool(false), x]) => {
+            Some(x.clone())
+        }
+        (PrimOp::OrBool, [x, Core::Bool(true)]) | (PrimOp::OrBool, [Core::Bool(true), x])
+            if speculatable(x, tables) =>
+        {
+            Some(Core::Bool(true))
+        }
+        (PrimOp::EqBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a == *b)),
+        (PrimOp::NeBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a != *b)),
+
+        // --- Wrapping arithmetic: constant folding, identities, absorbing 0 ---
+        (
+            PrimOp::Arith { ty, op: aop, mode: ArithMode::Wrapping },
+            [Core::Int(a), Core::Int(b)],
+        ) if fixed_scalar_bits(ty).is_some() => {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let (x, y) = (fixed_val(*a, bits, signed), fixed_val(*b, bits, signed));
+            let raw = match aop {
+                ArithOp::Add => x.wrapping_add(y),
+                ArithOp::Sub => x.wrapping_sub(y),
+                ArithOp::Mul => x.wrapping_mul(y),
+            };
+            Some(Core::Int(trunc_fixed(raw, bits, signed)))
+        }
+        (
+            PrimOp::Arith { ty, op: ArithOp::Add, mode: ArithMode::Wrapping },
+            [x, Core::Int(0)],
+        )
+        | (
+            PrimOp::Arith { ty, op: ArithOp::Add, mode: ArithMode::Wrapping },
+            [Core::Int(0), x],
+        ) if is_word_int_scalar(ty) => Some(x.clone()),
+        (
+            PrimOp::Arith { ty, op: ArithOp::Sub, mode: ArithMode::Wrapping },
+            [x, Core::Int(0)],
+        ) if is_word_int_scalar(ty) => Some(x.clone()),
+        (PrimOp::Arith { ty, op: ArithOp::Sub, mode: ArithMode::Wrapping }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(Core::Int(0))
+        }
+        (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [x, Core::Int(1)],
+        )
+        | (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [Core::Int(1), x],
+        ) if is_word_int_scalar(ty) => Some(x.clone()),
+        (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [x, Core::Int(0)],
+        )
+        | (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [Core::Int(0), x],
+        ) if is_word_int_scalar(ty) && speculatable(x, tables) => Some(Core::Int(0)),
+
+        // --- Wrapping unary negation ---
+        (PrimOp::Neg { ty, mode: ArithMode::Wrapping }, [Core::Int(a)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let raw = -fixed_val(*a, bits, signed);
+            Some(Core::Int(trunc_fixed(raw, bits, signed)))
+        }
+
+        // --- Bitwise ops: constant folding, identities, absorbing 0, mask combining ---
+        (PrimOp::Bit { ty, op: bop }, [Core::Int(a), Core::Int(b)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let raw = match bop {
+                BitOp::And => *a & *b,
+                BitOp::Or => *a | *b,
+                BitOp::Xor => *a ^ *b,
+            };
+            Some(Core::Int(trunc_fixed(raw as i128, bits, signed)))
+        }
+        (PrimOp::BitNot { ty }, [Core::Int(a)]) if fixed_scalar_bits(ty).is_some() => {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            Some(Core::Int(trunc_fixed(!(*a as i128), bits, signed)))
+        }
+        (PrimOp::Bit { ty, op: BitOp::And }, [x, Core::Int(0)])
+        | (PrimOp::Bit { ty, op: BitOp::And }, [Core::Int(0), x])
+            if is_word_int_scalar(ty) && speculatable(x, tables) =>
+        {
+            Some(Core::Int(0))
+        }
+        (PrimOp::Bit { ty, op: BitOp::And }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::And }, [inner, Core::Int(c2)])
+        | (PrimOp::Bit { ty, op: BitOp::And }, [Core::Int(c2), inner])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            if let Some((x, c1)) = split_bit_const(inner, tables, ty, BitOp::And) {
+                let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+                let combined = trunc_fixed((c1 & *c2) as i128, bits, signed);
+                Some(Core::App(
+                    head.clone(),
+                    vec![x.clone(), Core::Int(combined)],
+                ))
+            } else {
+                None
+            }
+        }
+        (PrimOp::Bit { ty, op: BitOp::Or }, [x, Core::Int(0)])
+        | (PrimOp::Bit { ty, op: BitOp::Or }, [Core::Int(0), x])
+            if is_word_int_scalar(ty) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::Or }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::Or }, [inner, Core::Int(c2)])
+        | (PrimOp::Bit { ty, op: BitOp::Or }, [Core::Int(c2), inner])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            if let Some((x, c1)) = split_bit_const(inner, tables, ty, BitOp::Or) {
+                let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+                let combined = trunc_fixed((c1 | *c2) as i128, bits, signed);
+                Some(Core::App(
+                    head.clone(),
+                    vec![x.clone(), Core::Int(combined)],
+                ))
+            } else {
+                None
+            }
+        }
+        (PrimOp::Bit { ty, op: BitOp::Xor }, [x, Core::Int(0)])
+        | (PrimOp::Bit { ty, op: BitOp::Xor }, [Core::Int(0), x])
+            if is_word_int_scalar(ty) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::Xor }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(Core::Int(0))
+        }
+
+        // --- Wrapping shifts: constant folding and shift-by-0 identity ---
+        (PrimOp::Shift { ty, op: sop, checked: false }, [Core::Int(a), Core::Int(b)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let x = fixed_val(*a, bits, signed);
+            let sh = (*b as u32) % bits;
+            let raw = match sop {
+                ShiftOp::Shl => x << sh,
+                ShiftOp::Shr => x >> sh,
+            };
+            Some(Core::Int(trunc_fixed(raw, bits, signed)))
+        }
+        (PrimOp::Shift { ty, checked: false, .. }, [x, Core::Int(0)])
+            if is_word_int_scalar(ty) =>
+        {
+            Some(x.clone())
+        }
+
+        // --- Machine integer comparisons: constant folding and reflexive ops ---
+        (PrimOp::Cmp { ty, op: cop }, [Core::Int(a), Core::Int(b)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let (x, y) = (fixed_val(*a, bits, signed), fixed_val(*b, bits, signed));
+            let res = match cop {
+                CmpOp::Eq => x == y,
+                CmpOp::Ne => x != y,
+                CmpOp::Lt => x < y,
+                CmpOp::Le => x <= y,
+                CmpOp::Gt => x > y,
+                CmpOp::Ge => x >= y,
+            };
+            Some(Core::Bool(res))
+        }
+        (PrimOp::Cmp { ty, op: cop }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            let res = matches!(cop, CmpOp::Eq | CmpOp::Le | CmpOp::Ge);
+            Some(Core::Bool(res))
+        }
+
+        _ => None,
+    };
+
+    if let Some(new_e) = replacement {
+        *e = new_e;
+        true
+    } else {
+        false
     }
 }
 
@@ -4927,5 +5329,163 @@ fn unit_mentions(e: &Core, out: &mut Vec<String>) {
     }
     for k in child_slots_imm(e) {
         unit_mentions(k, out);
+    }
+}
+
+#[cfg(test)]
+mod prim_fold_tests {
+    use super::*;
+    use crate::core::CBranch;
+
+    fn empty_tables() -> Tables {
+        Tables {
+            ctors: HashMap::new(),
+            lambdas: HashMap::new(),
+            static_records: HashMap::new(),
+            arity: HashMap::new(),
+            params: HashMap::new(),
+            instances: HashMap::new(),
+            prim_bodies: HashSet::new(),
+            prims: HashMap::new(),
+        }
+    }
+
+    fn run_pass(mut e: Core) -> Core {
+        let tables = empty_tables();
+        let mut scope = Scope::default();
+        let classes = HashMap::new();
+        let occ = HashMap::new();
+        let opts = SimplifyOptions::default();
+        let mut fresh = Fresh { local: 100, join: 0 };
+        let mut ticks = Ticks::default();
+        pass(&mut e, &mut scope, &tables, &classes, &occ, &opts, &mut fresh, &mut ticks);
+        e
+    }
+
+    fn prim_app(op: PrimOp, args: Vec<Core>) -> Core {
+        Core::App(Box::new(Core::Prim(op)), args)
+    }
+
+    #[test]
+    fn algebraic_identities_and_absorbing_elements() {
+        let x = Core::Var(LocalId(0));
+        let add = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Add, mode: ArithMode::Wrapping };
+        let sub = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Sub, mode: ArithMode::Wrapping };
+        let mul = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Mul, mode: ArithMode::Wrapping };
+        let and = PrimOp::Bit { ty: Scalar::U64, op: BitOp::And };
+        let or = PrimOp::Bit { ty: Scalar::U64, op: BitOp::Or };
+        let xor = PrimOp::Bit { ty: Scalar::U64, op: BitOp::Xor };
+        let shl = PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shl, checked: false };
+        let shr = PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shr, checked: false };
+
+        assert!(alpha_eq(&run_pass(prim_app(add, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(add, vec![Core::Int(0), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(sub, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(sub, vec![x.clone(), x.clone()])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![x.clone(), Core::Int(1)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![Core::Int(1), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![x.clone(), Core::Int(0)])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![Core::Int(0), x.clone()])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(and, vec![x.clone(), Core::Int(0)])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(and, vec![x.clone(), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(or, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(or, vec![x.clone(), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(xor, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(xor, vec![x.clone(), x.clone()])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(shl, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(shr, vec![x.clone(), Core::Int(0)])), &x));
+    }
+
+    #[test]
+    fn redundant_mask_folding() {
+        let x = Core::Var(LocalId(0));
+        let and = PrimOp::Bit { ty: Scalar::U64, op: BitOp::And };
+        let or = PrimOp::Bit { ty: Scalar::U64, op: BitOp::Or };
+
+        // bit_and(bit_and(x, 0xFF), 0x0F) -> bit_and(x, 0x0F)
+        let nested_and = prim_app(and, vec![prim_app(and, vec![x.clone(), Core::Int(0xFF)]), Core::Int(0x0F)]);
+        let expected_and = prim_app(and, vec![x.clone(), Core::Int(0x0F)]);
+        assert!(alpha_eq(&run_pass(nested_and), &expected_and));
+
+        // Disjoint masks collapse all the way to 0 when x is speculatable
+        let disjoint_and = prim_app(and, vec![prim_app(and, vec![x.clone(), Core::Int(0xF0)]), Core::Int(0x0F)]);
+        assert!(alpha_eq(&run_pass(disjoint_and), &Core::Int(0)));
+
+        // bit_or(bit_or(x, 0x10), 0x01) -> bit_or(x, 0x11)
+        let nested_or = prim_app(or, vec![prim_app(or, vec![x.clone(), Core::Int(0x10)]), Core::Int(0x01)]);
+        let expected_or = prim_app(or, vec![x.clone(), Core::Int(0x11)]);
+        assert!(alpha_eq(&run_pass(nested_or), &expected_or));
+    }
+
+    #[test]
+    fn constant_folding_and_dead_branch_elimination() {
+        let add_i64 = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Add, mode: ArithMode::Wrapping };
+        let add_u8 = PrimOp::Arith { ty: Scalar::U8, op: ArithOp::Add, mode: ArithMode::Wrapping };
+        let and_u64 = PrimOp::Bit { ty: Scalar::U64, op: BitOp::And };
+        let eq_i64 = PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Eq };
+        let lt_u8 = PrimOp::Cmp { ty: Scalar::U8, op: CmpOp::Lt };
+
+        assert!(alpha_eq(&run_pass(prim_app(add_i64, vec![Core::Int(3), Core::Int(4)])), &Core::Int(7)));
+        // U8 wrapping: 250 + 10 = 4
+        assert!(alpha_eq(&run_pass(prim_app(add_u8, vec![Core::Int(250), Core::Int(10)])), &Core::Int(4)));
+        assert!(alpha_eq(&run_pass(prim_app(and_u64, vec![Core::Int(0xAB), Core::Int(0x0F)])), &Core::Int(0x0B)));
+        assert!(alpha_eq(&run_pass(prim_app(eq_i64, vec![Core::Int(7), Core::Int(7)])), &Core::Bool(true)));
+        assert!(alpha_eq(&run_pass(prim_app(lt_u8, vec![Core::Int(200), Core::Int(10)])), &Core::Bool(false)));
+
+        // Constant comparison unlocks dead-branch elimination in Core::If
+        let cond = prim_app(eq_i64, vec![prim_app(add_i64, vec![Core::Int(3), Core::Int(4)]), Core::Int(7)]);
+        let branch = Core::If(
+            Box::new(cond),
+            CBranch { weight: None, body: Box::new(Core::Int(42)) },
+            CBranch { weight: None, body: Box::new(Core::Int(99)) },
+        );
+        assert!(alpha_eq(&run_pass(branch), &Core::Int(42)));
+    }
+
+    #[test]
+    fn never_folds_trapping_or_effectful_expressions() {
+        // Division / remainder by zero must NEVER be folded away
+        let div_u64 = PrimOp::Div { ty: Scalar::U64 };
+        let rem_u64 = PrimOp::Rem { ty: Scalar::U64 };
+        let cdiv_i64 = PrimOp::CheckedDiv { ty: Scalar::I64 };
+        let div_zero = prim_app(div_u64, vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(div_zero.clone()), &div_zero));
+        let rem_zero = prim_app(rem_u64, vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(rem_zero.clone()), &rem_zero));
+        let cdiv_zero = prim_app(cdiv_i64, vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(cdiv_zero.clone()), &cdiv_zero));
+
+        // Checked arithmetic overflow must NEVER be folded away
+        let cadd_i64 = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Add, mode: ArithMode::Checked };
+        let overflow = prim_app(cadd_i64, vec![Core::Int(i64::MAX), Core::Int(1)]);
+        assert!(alpha_eq(&run_pass(overflow.clone()), &overflow));
+
+        // Checked shift out-of-range must NEVER be folded away
+        let cshl = PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shl, checked: true };
+        let bad_shift = prim_app(cshl, vec![Core::Int(1), Core::Int(64)]);
+        assert!(alpha_eq(&run_pass(bad_shift.clone()), &bad_shift));
+
+        // Effectful / possibly-trapping operand in mul(call, 0) must NEVER be dropped
+        let call = Core::App(Box::new(Core::Global(GlobalId("side_effect".into()), vec![])), vec![Core::Int(1)]);
+        let mul = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Mul, mode: ArithMode::Wrapping };
+        let eff_mul = prim_app(mul, vec![call.clone(), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(eff_mul.clone()), &eff_mul));
+
+        // Prim.Machine global folding works, while raw-sdiv-i64 is NEVER folded
+        let g_and = Core::Global(GlobalId("Prim.Machine.bit-and-i64".into()), vec![]);
+        let x = Core::Var(LocalId(0));
+        let nested_g = Core::App(
+            Box::new(g_and.clone()),
+            vec![
+                Core::App(Box::new(g_and.clone()), vec![x.clone(), Core::Int(0xFF)]),
+                Core::Int(0x0F),
+            ],
+        );
+        let expected_g = Core::App(Box::new(g_and), vec![x, Core::Int(0x0F)]);
+        assert!(alpha_eq(&run_pass(nested_g), &expected_g));
+
+        let g_sdiv = Core::Global(GlobalId("Prim.Machine.raw-sdiv-i64".into()), vec![]);
+        let sdiv_zero = Core::App(Box::new(g_sdiv), vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(sdiv_zero.clone()), &sdiv_zero));
     }
 }
