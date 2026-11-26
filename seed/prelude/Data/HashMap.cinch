@@ -1,22 +1,18 @@
 -- Data.HashMap: the hash map over `Data.Hash`.
 --
 -- A tree-indexed bucket table: the key's hash digest indexes a
--- height-augmented AVL spine (Data.Set's balanced shape), and each
--- spine node holds the association list of the keys that hash to that
--- digest. A hash collision degrades the bucket to a scan without
--- losing either key, exactly as the bootstrap's fixed 8-bucket table
--- documented; what grows is the index: the spine rebalances as new
--- digests arrive, so the operations are O(log d) plus the bucket scan
--- for d distinct digests (the earlier family was the documented
--- fixed-size stub: "no resizing", now replaced). Keys need `Hash` and
--- `Eq`: hashing alone cannot decide a collision, and the `Hash` law
--- (Data.Hash) is what makes the bucket choice sound.
+-- height-augmented AVL spine with unboxed `I64` heights and specialized
+-- inline single-entry nodes (`SBin1`) alongside rare collision-bucket
+-- nodes (`SBinMany`). For the 99.9999% single-entry case, `SBin1` stores
+-- `(k, v)` directly inside the spine node (eliminating two heap blocks
+-- and two pointer dereferences per entry compared to `Cons (k, v) Nil`),
+-- while a hash collision promotes the node to `SBinMany` without losing
+-- any key. Operations are O(log d) plus the bucket scan for d distinct
+-- digests, using a single 3-way `nat-cmp` per tree level.
 --
 -- The map wraps its private spine (`HashMap :: Spine k v -> HashMap k
--- v`): the bootstrap's one-field node over a bucket-list spine grows
--- the balanced index behind the same constructor name (an observable
--- shape change, reported with P34; every operation's semantics is
--- unchanged and no test constructs a map by hand).
+-- v`): every operation's semantics is unchanged and no test constructs
+-- a map by hand.
 --
 -- Named refusals (boundaries this module deliberately does not
 -- cross):
@@ -31,191 +27,359 @@
 --     spine balances whatever digests arrive; only bucket scans
 --     degrade).
 --
--- Measured limits (compiler/programs/Run.Maps.cinch, asserted by
--- seed/tests/lib_hashmap_real.rs; spans are the program's own
--- monotonic clock, and the ranges below span runs on a loaded machine):
--- 32000 distinct-digest keys insert in 0.2-0.4s and look up in
--- 0.05-0.1s, where 8x the keys costs about 10x the time (n log n; an
--- 8x jump to 64x is what a quadratic index or a fixed table with
--- unbounded buckets would show). There is no growth or rehash step to
--- trigger, because the spine holds one node per digest PRESENT and its
--- height is the only thing that grows. 256 distinct keys that share ONE
--- digest insert and look up in 0.7-0.9s each, which is the whole cost of
--- the named boundary above (the bucket scan, linear in the collision
--- class: 300 keys in one bucket measure at 0.8-0.9s, and correctness
--- does not move). The key count itself has no ceiling short of memory:
--- 100000 distinct-digest keys insert in ~0.8s and look up in ~0.2s.
---
 -- Module scheme (design/base-library.md): the type's home carries its
 -- `FromMap` instance (`{k => v}` at `HashMap k v`).
 module Data.HashMap where
 
   import Data.Hash
+  import Data.Nat (nat-from-i64, nat-to-i64, nat-rem)
+  import Prim.Machine (lt-i64, le-i64, gt-i64, ge-i64, wrapping-add-i64)
 
   export HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-from-pairs
   export hash-map-delete, hash-map-union, hash-map-union-with, hash-map-size, hash-map-is-empty
   export hash-map-to-list, hash-map-keys, hash-map-values, hash-map-map, hash-map-filter, hash-map-fold
 
-  -- The private bucket spine: a height-augmented AVL tree over
-  -- digests (`SBin height digest bucket left right`).
+  -- Map any `Nat` digest deterministically to an unboxed non-negative `I64`
+  -- spine key. Every `Bytes`/`String`/`Sym`/`I64`/`U64` hash already fits in
+  -- `0 .. 2^63 - 1`, so the fast path is exact with zero collisions added;
+  -- any custom bignum `Hash` folds cleanly modulo `2^63 - 1` and still
+  -- preserves `x == y ==> digest-key (hash x) == digest-key (hash y)`.
+  digest-key :: Nat -> I64
+  digest-key d =
+    if d <= 9223372036854775807 then nat-to-i64 d
+    else nat-to-i64 (nat-rem d 9223372036854775807)
+
+  -- The private bucket spine: a height-augmented AVL tree over unboxed
+  -- `I64` digest keys with unboxed `I64` heights. `SBin1` inlines the
+  -- common single-entry bucket directly in the tree node; `SBinMany`
+  -- holds >= 2 colliding entries under one digest key.
   data Spine k v where
     STip :: Spine k v
-    SBin :: Nat -> Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+    SBin1 :: I64 -> I64 -> k -> v -> Spine k v -> Spine k v -> Spine k v
+    SBinMany :: I64 -> I64 -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
 
   data HashMap k v where
     HashMap :: Spine k v -> HashMap k v
 
-  -- One digest's bucket: an association list scanned with `Eq` (a
-  -- hash collision degrades the bucket to a scan).
+  -- -----------------------------------------------------------------
+  -- Collision-bucket association list helpers (`SBinMany` only).
+  -- -----------------------------------------------------------------
+
   bucket-lookup :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> Option v
   bucket-lookup x b = case b of
     Nil -> None
     Cons p ps -> case p of
       (k2, v2) -> if k2 == x then Some v2 else bucket-lookup x ps
 
-  -- Inserting an equal key replaces the stored value in place (like
-  -- Data.Map's `map-insert`).
   bucket-insert :: forall k v. using (eq :: Eq k) => k -> v -> List (k, v) -> List (k, v)
   bucket-insert x v b = case b of
     Nil -> Cons (x, v) Nil
     Cons p ps -> case p of
-      (k2, v2) -> if k2 == x then Cons (x, v) ps else Cons p (bucket-insert x v ps)
+      (k2, _) -> if k2 == x then Cons (x, v) ps else Cons p (bucket-insert x v ps)
 
-  -- The spine's cached height (leaves are height 0).
-  spine-height :: forall k v. Spine k v -> Nat
+  bucket-insert-if-absent :: forall k v. using (eq :: Eq k) => k -> v -> List (k, v) -> List (k, v)
+  bucket-insert-if-absent x v b = case b of
+    Nil -> Cons (x, v) Nil
+    Cons p ps -> case p of
+      (k2, _) -> if k2 == x then b else Cons p (bucket-insert-if-absent x v ps)
+
+  bucket-insert-with :: forall k v. using (eq :: Eq k) => (v -> v -> v) -> k -> v -> List (k, v) -> List (k, v)
+  bucket-insert-with f x v b = case b of
+    Nil -> Cons (x, v) Nil
+    Cons p ps -> case p of
+      (k2, v2) -> if k2 == x then Cons (x, f v v2) ps else Cons p (bucket-insert-with f x v ps)
+
+  bucket-delete :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> List (k, v)
+  bucket-delete x b = case b of
+    Nil -> Nil
+    Cons p ps -> case p of
+      (k2, _) -> if k2 == x then ps else Cons p (bucket-delete x ps)
+
+  -- -----------------------------------------------------------------
+  -- Unboxed-height AVL primitives.
+  -- -----------------------------------------------------------------
+
+  spine-height :: forall k v. Spine k v -> I64
   spine-height s = case s of
     STip -> 0
-    SBin h _ _ _ _ -> h
+    SBin1 h _ _ _ _ _ -> h
+    SBinMany h _ _ _ _ -> h
 
-  -- The node with its height computed from the subtrees (the AVL
-  -- invariant maintenance of Data.Set's `bin`).
-  sbin :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
-  sbin d b l r = case spine-height l < spine-height r of
-    True -> SBin (1 + spine-height r) d b l r
-    False -> SBin (1 + spine-height l) d b l r
-
-  spine-balance :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
-  spine-balance d b l r =
+  sbin1 :: forall k v. I64 -> k -> v -> Spine k v -> Spine k v -> Spine k v
+  sbin1 d k v l r =
     let hl = spine-height l in
     let hr = spine-height r in
-    if hr + 1 < hl then spine-rotate-right d b l r
-    else if hl + 1 < hr then spine-rotate-left d b l r
-    else sbin d b l r
+    let h = wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl) in
+    SBin1 h d k v l r
 
-  spine-rotate-right :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
-  spine-rotate-right d b l r = case l of
-    STip -> sbin d b l r
-    SBin _ d2 b2 ll lr -> case spine-height lr <= spine-height ll of
-      True -> sbin d2 b2 ll (sbin d b lr r)
-      False -> case lr of
-        STip -> sbin d b l r
-        SBin _ d3 b3 lrl lrr -> sbin d3 b3 (sbin d2 b2 ll lrl) (sbin d b lrr r)
+  sbin-many :: forall k v. I64 -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  sbin-many d b l r =
+    let hl = spine-height l in
+    let hr = spine-height r in
+    let h = wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl) in
+    SBinMany h d b l r
 
-  spine-rotate-left :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
-  spine-rotate-left d b l r = case r of
-    STip -> sbin d b l r
-    SBin _ d2 b2 rl rr -> case spine-height rl >= spine-height rr of
-      True -> sbin d2 b2 (sbin d b l rl) rr
-      False -> case rl of
-        STip -> sbin d b l r
-        SBin _ d3 b3 rll rrr -> sbin d3 b3 (sbin d b l rll) (sbin d2 b2 rrr rr)
+  -- | Rebuild a node preserving its digest and payload with new children `l` and `r`.
+  spine-rebind :: forall k v. Spine k v -> Spine k v -> Spine k v -> Spine k v
+  spine-rebind node l r = case node of
+    STip -> STip
+    SBin1 _ d k v _ _ -> sbin1 d k v l r
+    SBinMany _ d b _ _ -> sbin-many d b l r
 
-  spine-lookup :: forall k v. Nat -> Spine k v -> Option (List (k, v))
-  spine-lookup d s = case s of
-    STip -> None
-    SBin _ d2 b l r ->
-      if d < d2 then spine-lookup d l
-      else if d2 < d then spine-lookup d r
-      else Some b
+  -- | Fast-path balance for single-entry `SBin1` nodes.
+  spine-balance1 :: forall k v. I64 -> k -> v -> Spine k v -> Spine k v -> Spine k v
+  spine-balance1 d k v l r =
+    let hl = spine-height l in
+    let hr = spine-height r in
+    if lt-i64 (wrapping-add-i64 hr 1) hl then spine-rotate-right1 d k v l r
+    else if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left1 d k v l r
+    else
+      let h = wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl) in
+      SBin1 h d k v l r
 
-  spine-insert :: forall k v. using (eq :: Eq k) => Nat -> k -> v -> Spine k v -> Spine k v
+  spine-rotate-right1 :: forall k v. I64 -> k -> v -> Spine k v -> Spine k v -> Spine k v
+  spine-rotate-right1 d k v l r = case l of
+    STip -> sbin1 d k v l r
+    SBin1 _ d2 k2 v2 ll lr ->
+      if le-i64 (spine-height lr) (spine-height ll) then
+        sbin1 d2 k2 v2 ll (sbin1 d k v lr r)
+      else case lr of
+        STip -> sbin1 d k v l r
+        SBin1 _ d3 k3 v3 lrl lrr -> sbin1 d3 k3 v3 (sbin1 d2 k2 v2 ll lrl) (sbin1 d k v lrr r)
+        SBinMany _ d3 b3 lrl lrr -> sbin-many d3 b3 (sbin1 d2 k2 v2 ll lrl) (sbin1 d k v lrr r)
+    SBinMany _ d2 b2 ll lr ->
+      if le-i64 (spine-height lr) (spine-height ll) then
+        sbin-many d2 b2 ll (sbin1 d k v lr r)
+      else case lr of
+        STip -> sbin1 d k v l r
+        SBin1 _ d3 k3 v3 lrl lrr -> sbin1 d3 k3 v3 (sbin-many d2 b2 ll lrl) (sbin1 d k v lrr r)
+        SBinMany _ d3 b3 lrl lrr -> sbin-many d3 b3 (sbin-many d2 b2 ll lrl) (sbin1 d k v lrr r)
+
+  spine-rotate-left1 :: forall k v. I64 -> k -> v -> Spine k v -> Spine k v -> Spine k v
+  spine-rotate-left1 d k v l r = case r of
+    STip -> sbin1 d k v l r
+    SBin1 _ d2 k2 v2 rl rr ->
+      if le-i64 (spine-height rl) (spine-height rr) then
+        sbin1 d2 k2 v2 (sbin1 d k v l rl) rr
+      else case rl of
+        STip -> sbin1 d k v l r
+        SBin1 _ d3 k3 v3 rll rlr -> sbin1 d3 k3 v3 (sbin1 d k v l rll) (sbin1 d2 k2 v2 rlr rr)
+        SBinMany _ d3 b3 rll rlr -> sbin-many d3 b3 (sbin1 d k v l rll) (sbin1 d2 k2 v2 rlr rr)
+    SBinMany _ d2 b2 rl rr ->
+      if le-i64 (spine-height rl) (spine-height rr) then
+        sbin-many d2 b2 (sbin1 d k v l rl) rr
+      else case rl of
+        STip -> sbin1 d k v l r
+        SBin1 _ d3 k3 v3 rll rlr -> sbin1 d3 k3 v3 (sbin1 d k v l rll) (sbin-many d2 b2 rlr rr)
+        SBinMany _ d3 b3 rll rlr -> sbin-many d3 b3 (sbin1 d k v l rll) (sbin-many d2 b2 rlr rr)
+
+  -- | Balance for collision-bucket `SBinMany` nodes.
+  spine-balance-many :: forall k v. I64 -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-balance-many d b l r =
+    let hl = spine-height l in
+    let hr = spine-height r in
+    if lt-i64 (wrapping-add-i64 hr 1) hl then spine-rotate-right-many d b l r
+    else if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left-many d b l r
+    else
+      let h = wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl) in
+      SBinMany h d b l r
+
+  spine-rotate-right-many :: forall k v. I64 -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-rotate-right-many d b l r = case l of
+    STip -> sbin-many d b l r
+    SBin1 _ d2 k2 v2 ll lr ->
+      if le-i64 (spine-height lr) (spine-height ll) then
+        sbin1 d2 k2 v2 ll (sbin-many d b lr r)
+      else case lr of
+        STip -> sbin-many d b l r
+        SBin1 _ d3 k3 v3 lrl lrr -> sbin1 d3 k3 v3 (sbin1 d2 k2 v2 ll lrl) (sbin-many d b lrr r)
+        SBinMany _ d3 b3 lrl lrr -> sbin-many d3 b3 (sbin1 d2 k2 v2 ll lrl) (sbin-many d b lrr r)
+    SBinMany _ d2 b2 ll lr ->
+      if le-i64 (spine-height lr) (spine-height ll) then
+        sbin-many d2 b2 ll (sbin-many d b lr r)
+      else case lr of
+        STip -> sbin-many d b l r
+        SBin1 _ d3 k3 v3 lrl lrr -> sbin1 d3 k3 v3 (sbin-many d2 b2 ll lrl) (sbin-many d b lrr r)
+        SBinMany _ d3 b3 lrl lrr -> sbin-many d3 b3 (sbin-many d2 b2 ll lrl) (sbin-many d b lrr r)
+
+  spine-rotate-left-many :: forall k v. I64 -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-rotate-left-many d b l r = case r of
+    STip -> sbin-many d b l r
+    SBin1 _ d2 k2 v2 rl rr ->
+      if le-i64 (spine-height rl) (spine-height rr) then
+        sbin1 d2 k2 v2 (sbin-many d b l rl) rr
+      else case rl of
+        STip -> sbin-many d b l r
+        SBin1 _ d3 k3 v3 rll rlr -> sbin1 d3 k3 v3 (sbin-many d b l rll) (sbin1 d2 k2 v2 rlr rr)
+        SBinMany _ d3 b3 rll rlr -> sbin-many d3 b3 (sbin-many d b l rll) (sbin1 d2 k2 v2 rlr rr)
+    SBinMany _ d2 b2 rl rr ->
+      if le-i64 (spine-height rl) (spine-height rr) then
+        sbin-many d2 b2 (sbin-many d b l rl) rr
+      else case rl of
+        STip -> sbin-many d b l r
+        SBin1 _ d3 k3 v3 rll rlr -> sbin1 d3 k3 v3 (sbin-many d b l rll) (sbin-many d2 b2 rlr rr)
+        SBinMany _ d3 b3 rll rlr -> sbin-many d3 b3 (sbin-many d b l rll) (sbin-many d2 b2 rlr rr)
+
+  -- | Balance any preserved template node over children `l` and `r`.
+  spine-balance-node :: forall k v. Spine k v -> Spine k v -> Spine k v -> Spine k v
+  spine-balance-node node l r = case node of
+    STip -> STip
+    SBin1 _ d k v _ _ -> spine-balance1 d k v l r
+    SBinMany _ d b _ _ -> spine-balance-many d b l r
+
+  -- -----------------------------------------------------------------
+  -- Core lookup, insert, insert-if-absent, insert-with, delete.
+  -- Every level compares unboxed `I64` digest keys in registers (zero FFI,
+  -- zero digest RC), never retains the scrutinee `s` across branches (so
+  -- Perceus unique-reuse fires on every mutated path), and avoids boxing
+  -- singleton buckets.
+  -- -----------------------------------------------------------------
+
+  -- The `absent` parameter keeps the `STip` arm free of a nullary constructor
+  -- allocation so Perceus borrow inference keeps `s` borrowed (`lent`) across
+  -- the entire O(log d) descent (zero RC traffic per internal tree node).
+  spine-lookup-key :: forall k v. using (eq :: Eq k) => I64 -> k -> Option v -> Spine k v -> Option v
+  spine-lookup-key d x absent s = case s of
+    STip -> absent
+    SBin1 _ d2 k2 v2 l r ->
+      if lt-i64 d d2 then spine-lookup-key d x absent l
+      else if gt-i64 d d2 then spine-lookup-key d x absent r
+      else if k2 == x then Some v2 else absent
+    SBinMany _ d2 b l r ->
+      if gt-i64 d d2 then spine-lookup-key d x absent r
+      else if lt-i64 d d2 then spine-lookup-key d x absent l
+      else bucket-lookup x b
+
+  spine-insert :: forall k v. using (eq :: Eq k) => I64 -> k -> v -> Spine k v -> Spine k v
   spine-insert d x v s = case s of
-    STip -> sbin d (Cons (x, v) Nil) STip STip
-    SBin _ d2 b l r ->
-      if d < d2 then spine-balance d2 b (spine-insert d x v l) r
-      else if d2 < d then spine-balance d2 b l (spine-insert d x v r)
-      else sbin d2 (bucket-insert x v b) l r
+    STip -> SBin1 1 d x v STip STip
+    SBin1 h d2 k2 v2 l r ->
+      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert d x v l) r
+      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert d x v r)
+      else if k2 == x then SBin1 h d2 x v l r
+      else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
+    SBinMany h d2 b l r ->
+      if lt-i64 d d2 then spine-balance-many d2 b (spine-insert d x v l) r
+      else if gt-i64 d d2 then spine-balance-many d2 b l (spine-insert d x v r)
+      else SBinMany h d2 (bucket-insert x v b) l r
+
+  -- | Insert only if `x` is not already present (preserves earlier-pair-wins
+  -- in a single tail-recursive pass for `hash-map-from-pairs`). Rebuilds the
+  -- node instead of returning `s` so Perceus unique-reuse fires on every level.
+  spine-insert-if-absent :: forall k v. using (eq :: Eq k) => I64 -> k -> v -> Spine k v -> Spine k v
+  spine-insert-if-absent d x v s = case s of
+    STip -> SBin1 1 d x v STip STip
+    SBin1 h d2 k2 v2 l r ->
+      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert-if-absent d x v l) r
+      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert-if-absent d x v r)
+      else if k2 == x then SBin1 h d2 k2 v2 l r
+      else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
+    SBinMany h d2 b l r ->
+      if lt-i64 d d2 then spine-balance-many d2 b (spine-insert-if-absent d x v l) r
+      else if gt-i64 d d2 then spine-balance-many d2 b l (spine-insert-if-absent d x v r)
+      else SBinMany h d2 (bucket-insert-if-absent x v b) l r
+
+  -- | Insert or combine (`f new old`) on a shared key without a separate lookup.
+  spine-insert-with :: forall k v. using (eq :: Eq k) => (v -> v -> v) -> I64 -> k -> v -> Spine k v -> Spine k v
+  spine-insert-with f d x v s = case s of
+    STip -> SBin1 1 d x v STip STip
+    SBin1 h d2 k2 v2 l r ->
+      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert-with f d x v l) r
+      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert-with f d x v r)
+      else if k2 == x then SBin1 h d2 x (f v v2) l r
+      else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
+    SBinMany h d2 b l r ->
+      if lt-i64 d d2 then spine-balance-many d2 b (spine-insert-with f d x v l) r
+      else if gt-i64 d d2 then spine-balance-many d2 b l (spine-insert-with f d x v r)
+      else SBinMany h d2 (bucket-insert-with f x v b) l r
 
   hash-map-empty :: forall k v. HashMap k v
   hash-map-empty = HashMap STip
 
   hash-map-lookup :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> Option v
   hash-map-lookup x m = case m of
-    HashMap s -> case spine-lookup (hash x) s of
-      None -> None
-      Some b -> bucket-lookup x b
+    HashMap s -> spine-lookup-key (digest-key (hash x)) x None s
 
   hash-map-insert :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> v -> HashMap k v -> HashMap k v
   hash-map-insert x v m = case m of
-    HashMap s -> HashMap (spine-insert (hash x) x v s)
+    HashMap s -> HashMap (spine-insert (digest-key (hash x)) x v s)
 
   -- Pairs fold in from the head, so an EARLIER pair wins a repeated
-  -- key (the head is inserted last into the fold of the tail), like
-  -- Data.Map's `map-from-pairs`.
+  -- key, like Data.Map's `map-from-pairs`. Tail-recursive in O(1) stack.
   hash-map-from-pairs :: forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> HashMap k v
-  hash-map-from-pairs kvs = case kvs of
-    Nil -> hash-map-empty
-    Cons p ps -> case p of
-      (a, b) -> hash-map-insert a b (hash-map-from-pairs ps)
+  hash-map-from-pairs kvs = HashMap (from-pairs-loop kvs STip)
 
-  -- Removal: the bucket loses the key's entry, and a bucket left empty
-  -- drops its digest node from the spine, so deleting every key leaves
-  -- the same `STip` spine `hash-map-empty` has (nothing accumulates).
+  from-pairs-loop :: forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> Spine k v -> Spine k v
+  from-pairs-loop kvs acc = case kvs of
+    Nil -> acc
+    Cons p ps -> case p of
+      (a, b) -> from-pairs-loop ps (spine-insert-if-absent (digest-key (hash a)) a b acc)
+
+  -- Removal: the bucket loses the key's entry, a 1-element collision
+  -- bucket demotes back to `SBin1`, and an empty bucket drops its digest
+  -- node from the spine, so deleting every key leaves `STip`.
   hash-map-delete :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> HashMap k v
   hash-map-delete x m = case m of
-    HashMap s -> HashMap (spine-delete-key (hash x) x s)
+    HashMap s -> HashMap (spine-delete-key (digest-key (hash x)) x s)
 
-  bucket-delete :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> List (k, v)
-  bucket-delete x b = case b of
-    Nil -> Nil
-    Cons p ps -> case p of
-      (k2, v2) -> if k2 == x then ps else Cons p (bucket-delete x ps)
-
-  spine-delete-key :: forall k v. using (eq :: Eq k) => Nat -> k -> Spine k v -> Spine k v
+  spine-delete-key :: forall k v. using (eq :: Eq k) => I64 -> k -> Spine k v -> Spine k v
   spine-delete-key d x s = case s of
     STip -> STip
-    SBin _ d2 b l r ->
-      if d < d2 then spine-balance d2 b (spine-delete-key d x l) r
-      else if d2 < d then spine-balance d2 b l (spine-delete-key d x r)
-      else spine-drop-digest d2 (bucket-delete x b) l r
+    SBin1 h d2 k2 v2 l r ->
+      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-delete-key d x l) r
+      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-delete-key d x r)
+      else if k2 == x then spine-glue l r
+      else SBin1 h d2 k2 v2 l r
+    SBinMany h d2 b l r ->
+      if lt-i64 d d2 then spine-balance-many d2 b (spine-delete-key d x l) r
+      else if gt-i64 d d2 then spine-balance-many d2 b l (spine-delete-key d x r)
+      else spine-drop-digest h d2 (bucket-delete x b) l r
 
-  -- A digest's bucket after a key removal: an empty bucket drops the
-  -- digest node, a surviving bucket keeps the node and its (unchanged)
-  -- cached height.
-  spine-drop-digest :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
-  spine-drop-digest d b l r = case b of
+  spine-drop-digest :: forall k v. I64 -> I64 -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-drop-digest h d b l r = case b of
     Nil -> spine-glue l r
-    Cons _ _ -> sbin d b l r
+    Cons p ps -> case ps of
+      Nil -> case p of
+        (k1, v1) -> SBin1 h d k1 v1 l r
+      Cons _ _ -> SBinMany h d b l r
 
-  -- Rejoin two spines where every digest of the first is below every
-  -- digest of the second: the right spine's smallest node is raised
-  -- (the rejoin Data.Set's `set-glue` is, over digests instead of
-  -- elements).
+  -- Rejoin two spines where every digest of `l` is below every digest of `r`.
   spine-glue :: forall k v. Spine k v -> Spine k v -> Spine k v
-  spine-glue l r = case spine-min r of
-    None -> l
-    Some p -> case p of
-      (d, b) -> spine-balance d b l (spine-delete-min r)
+  spine-glue l r = case l of
+    STip -> r
+    _ -> case r of
+      STip -> l
+      _ -> case spine-min-node r of
+        STip -> l
+        SBin1 _ d k v _ _ -> spine-balance1 d k v l (spine-delete-min r)
+        SBinMany _ d b _ _ -> spine-balance-many d b l (spine-delete-min r)
 
-  -- The smallest digest and its bucket, read down the left spine.
-  spine-min :: forall k v. Spine k v -> Option (Nat, List (k, v))
-  spine-min s = case s of
-    STip -> None
-    SBin _ d b l _ -> case l of
-      STip -> Some (d, b)
-      SBin _ _ _ _ _ -> spine-min l
+  -- Return the leftmost node's payload without boxing Option/Tuple wrappers.
+  spine-min-node :: forall k v. Spine k v -> Spine k v
+  spine-min-node s = case s of
+    STip -> STip
+    SBin1 _ d k v l _ -> case l of
+      STip -> SBin1 1 d k v STip STip
+      _ -> spine-min-node l
+    SBinMany _ d b l _ -> case l of
+      STip -> SBinMany 1 d b STip STip
+      _ -> spine-min-node l
 
-  -- The same spine without its smallest node, rebalancing on the way
-  -- back up.
+  -- Delete the leftmost node with Perceus unique-reuse intact.
   spine-delete-min :: forall k v. Spine k v -> Spine k v
   spine-delete-min s = case s of
     STip -> STip
-    SBin _ d b l r -> case l of
+    SBin1 _ d k v l r -> case l of
       STip -> r
-      SBin _ _ _ _ _ -> spine-balance d b (spine-delete-min l) r
+      _ -> spine-balance1 d k v (spine-delete-min l) r
+    SBinMany _ d b l r -> case l of
+      STip -> r
+      _ -> spine-balance-many d b (spine-delete-min l) r
 
-  -- The entries in the buckets' unstable order (see the refusal in the
-  -- header): the ordered views live at Data.Map.
+  -- -----------------------------------------------------------------
+  -- Views, size, union, map, filter, fold.
+  -- -----------------------------------------------------------------
+
   hash-map-to-list :: forall k v. HashMap k v -> List (k, v)
   hash-map-to-list m = case m of
     HashMap s -> spine-to-list-into s Nil
@@ -223,7 +387,8 @@ module Data.HashMap where
   spine-to-list-into :: forall k v. Spine k v -> List (k, v) -> List (k, v)
   spine-to-list-into s acc = case s of
     STip -> acc
-    SBin _ _ b l r -> spine-to-list-into l (entry-append-into b (spine-to-list-into r acc))
+    SBin1 _ _ k v l r -> spine-to-list-into l (Cons (k, v) (spine-to-list-into r acc))
+    SBinMany _ _ b l r -> spine-to-list-into l (entry-append-into b (spine-to-list-into r acc))
 
   entry-append-into :: forall k v. List (k, v) -> List (k, v) -> List (k, v)
   entry-append-into b acc = case b of
@@ -231,77 +396,111 @@ module Data.HashMap where
     Cons e es -> Cons e (entry-append-into es acc)
 
   hash-map-keys :: forall k v. HashMap k v -> List k
-  hash-map-keys m = entry-keys (hash-map-to-list m)
+  hash-map-keys m = case m of
+    HashMap s -> spine-keys-into s Nil
+
+  spine-keys-into :: forall k v. Spine k v -> List k -> List k
+  spine-keys-into s acc = case s of
+    STip -> acc
+    SBin1 _ _ k _ l r -> spine-keys-into l (Cons k (spine-keys-into r acc))
+    SBinMany _ _ b l r -> spine-keys-into l (bucket-keys-into b (spine-keys-into r acc))
+
+  bucket-keys-into :: forall k v. List (k, v) -> List k -> List k
+  bucket-keys-into b acc = case b of
+    Nil -> acc
+    Cons e es -> case e of
+      (k, _) -> Cons k (bucket-keys-into es acc)
 
   hash-map-values :: forall k v. HashMap k v -> List v
-  hash-map-values m = entry-values (hash-map-to-list m)
+  hash-map-values m = case m of
+    HashMap s -> spine-values-into s Nil
 
-  entry-keys :: forall k v. List (k, v) -> List k
-  entry-keys es = case es of
-    Nil -> Nil
-    Cons e rest -> case e of
-      (k, _) -> Cons k (entry-keys rest)
+  spine-values-into :: forall k v. Spine k v -> List v -> List v
+  spine-values-into s acc = case s of
+    STip -> acc
+    SBin1 _ _ _ v l r -> spine-values-into l (Cons v (spine-values-into r acc))
+    SBinMany _ _ b l r -> spine-values-into l (bucket-values-into b (spine-values-into r acc))
 
-  entry-values :: forall k v. List (k, v) -> List v
-  entry-values es = case es of
-    Nil -> Nil
-    Cons e rest -> case e of
-      (_, v) -> Cons v (entry-values rest)
+  bucket-values-into :: forall k v. List (k, v) -> List v -> List v
+  bucket-values-into b acc = case b of
+    Nil -> acc
+    Cons e es -> case e of
+      (_, v) -> Cons v (bucket-values-into es acc)
 
-  -- The entry count: the buckets' lengths summed over the spine.
+  -- The entry count, accumulated in an unboxed `I64` and boxed once.
   hash-map-size :: forall k v. HashMap k v -> Nat
   hash-map-size m = case m of
-    HashMap s -> spine-size s
+    HashMap s ->
+      let n = spine-size-i64 s 0 in
+      if 0 <= n then nat-from-i64 n else 0
 
-  spine-size :: forall k v. Spine k v -> Nat
-  spine-size s = case s of
-    STip -> 0
-    SBin _ _ b l r -> list-length b + spine-size l + spine-size r
+  spine-size-i64 :: forall k v. Spine k v -> I64 -> I64
+  spine-size-i64 s acc = case s of
+    STip -> acc
+    SBin1 _ _ _ _ l r -> spine-size-i64 l (spine-size-i64 r (wrapping-add-i64 acc 1))
+    SBinMany _ _ b l r -> spine-size-i64 l (spine-size-i64 r (bucket-len-i64 b acc))
 
-  -- Named `hash-map-is-empty` because the bare `is-empty` is the
-  -- list's (`List a -> Bool`) and there is no overloading to share one
-  -- spelling; the module prefix is how the family disambiguates.
+  bucket-len-i64 :: forall a. List a -> I64 -> I64
+  bucket-len-i64 xs acc = case xs of
+    Nil -> acc
+    Cons _ rest -> bucket-len-i64 rest (wrapping-add-i64 acc 1)
+
   hash-map-is-empty :: forall k v. HashMap k v -> Bool
   hash-map-is-empty m = case m of
-    HashMap s -> spine-empty s
+    HashMap s -> case s of
+      STip -> True
+      _ -> False
 
-  spine-empty :: forall k v. Spine k v -> Bool
-  spine-empty s = case s of
-    STip -> True
-    SBin _ _ _ _ _ -> False
-
-  -- The LEFT map's value wins a shared key (Data.Map's `union`): the
-  -- left map's entries are inserted into the right, and
-  -- `hash-map-insert` replaces the stored value in place. The listing
-  -- that drives the walk is in the buckets' order, which cannot matter
-  -- here: the result is a map, and the walk visits each left entry
-  -- exactly once.
+  -- The LEFT map's value wins a shared key, reusing cached digests without
+  -- materializing an intermediate entry list or re-hashing keys.
   hash-map-union :: forall k v. using (h :: Hash k, eq :: Eq k) => HashMap k v -> HashMap k v -> HashMap k v
-  hash-map-union a b = hash-map-insert-all (hash-map-to-list a) b
+  hash-map-union a b = case a of
+    HashMap sa -> case b of
+      HashMap sb -> HashMap (spine-union-into sa sb)
 
-  -- The union of `hash-map-union` with a shared key combined instead
-  -- of chosen: `f` sees the LEFT value first and the right value
-  -- second (Data.Map's `unionWith`).
+  spine-union-into :: forall k v. using (eq :: Eq k) => Spine k v -> Spine k v -> Spine k v
+  spine-union-into s dst = case s of
+    STip -> dst
+    SBin1 _ d k v l r ->
+      let d1 = spine-union-into l dst in
+      let d2 = spine-insert d k v d1 in
+      spine-union-into r d2
+    SBinMany _ d b l r ->
+      let d1 = spine-union-into l dst in
+      let d2 = bucket-insert-all d b d1 in
+      spine-union-into r d2
+
+  bucket-insert-all :: forall k v. using (eq :: Eq k) => I64 -> List (k, v) -> Spine k v -> Spine k v
+  bucket-insert-all d es dst = case es of
+    Nil -> dst
+    Cons e rest -> case e of
+      (k, v) -> bucket-insert-all d rest (spine-insert d k v dst)
+
+  -- Combine shared keys with `f left right`, reusing cached digests.
   hash-map-union-with :: forall k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> HashMap k v -> HashMap k v -> HashMap k v
-  hash-map-union-with f a b = hash-map-combine-all f (hash-map-to-list a) b
+  hash-map-union-with f a b = case a of
+    HashMap sa -> case b of
+      HashMap sb -> HashMap (spine-union-with-into f sa sb)
 
-  hash-map-insert-all :: forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> HashMap k v -> HashMap k v
-  hash-map-insert-all es m = case es of
-    Nil -> m
+  spine-union-with-into :: forall k v. using (eq :: Eq k) => (v -> v -> v) -> Spine k v -> Spine k v -> Spine k v
+  spine-union-with-into f s dst = case s of
+    STip -> dst
+    SBin1 _ d k v l r ->
+      let d1 = spine-union-with-into f l dst in
+      let d2 = spine-insert-with f d k v d1 in
+      spine-union-with-into f r d2
+    SBinMany _ d b l r ->
+      let d1 = spine-union-with-into f l dst in
+      let d2 = bucket-insert-with-all f d b d1 in
+      spine-union-with-into f r d2
+
+  bucket-insert-with-all :: forall k v. using (eq :: Eq k) => (v -> v -> v) -> I64 -> List (k, v) -> Spine k v -> Spine k v
+  bucket-insert-with-all f d es dst = case es of
+    Nil -> dst
     Cons e rest -> case e of
-      (k, v) -> hash-map-insert-all rest (hash-map-insert k v m)
+      (k, v) -> bucket-insert-with-all f d rest (spine-insert-with f d k v dst)
 
-  hash-map-combine-all :: forall k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> List (k, v) -> HashMap k v -> HashMap k v
-  hash-map-combine-all f es m = case es of
-    Nil -> m
-    Cons e rest -> case e of
-      (k, v) -> case hash-map-lookup k m of
-        None -> hash-map-combine-all f rest (hash-map-insert k v m)
-        Some v2 -> hash-map-combine-all f rest (hash-map-insert k (f v v2) m)
-
-  -- Rewrite the values: the keys and their digests are unchanged, so
-  -- the spine's shape and cached heights carry over and no `Hash`/`Eq`
-  -- is needed (Data.Map's `map`).
+  -- Rewrite values in place without changing structure or cached heights.
   hash-map-map :: forall k v w. (v -> w) -> HashMap k v -> HashMap k w
   hash-map-map f m = case m of
     HashMap s -> HashMap (spine-map f s)
@@ -309,7 +508,8 @@ module Data.HashMap where
   spine-map :: forall k v w. (v -> w) -> Spine k v -> Spine k w
   spine-map f s = case s of
     STip -> STip
-    SBin h d b l r -> SBin h d (bucket-map f b) (spine-map f l) (spine-map f r)
+    SBin1 h d k v l r -> SBin1 h d k (f v) (spine-map f l) (spine-map f r)
+    SBinMany h d b l r -> SBinMany h d (bucket-map f b) (spine-map f l) (spine-map f r)
 
   bucket-map :: forall k v w. (v -> w) -> List (k, v) -> List (k, w)
   bucket-map f b = case b of
@@ -317,28 +517,33 @@ module Data.HashMap where
     Cons e es -> case e of
       (k, v) -> Cons (k, f v) (bucket-map f es)
 
-  -- Keep the entries the predicate accepts, rebuilt through
-  -- `hash-map-from-pairs`. The rebuild, not a structural filter, is why
-  -- the constraints are stated: an emptied bucket would leave a digest
-  -- node to drop, and dropping one is Data.Set's arbitrary-height
-  -- rejoin problem. The predicate sees the key as well as the value.
+  -- Keep entries accepted by `p`, traversing the spine directly and reusing
+  -- cached digests without allocating an intermediate list.
   hash-map-filter :: forall k v. using (h :: Hash k, eq :: Eq k) => (k -> v -> Bool) -> HashMap k v -> HashMap k v
-  hash-map-filter p m = hash-map-from-pairs (entry-keep-if p (hash-map-to-list m))
+  hash-map-filter p m = case m of
+    HashMap s -> HashMap (spine-filter-into p s STip)
 
-  entry-keep-if :: forall k v. (k -> v -> Bool) -> List (k, v) -> List (k, v)
-  entry-keep-if p es = case es of
-    Nil -> Nil
+  spine-filter-into :: forall k v. using (eq :: Eq k) => (k -> v -> Bool) -> Spine k v -> Spine k v -> Spine k v
+  spine-filter-into p s acc = case s of
+    STip -> acc
+    SBin1 _ d k v l r ->
+      let a1 = spine-filter-into p l acc in
+      let a2 = if p k v then spine-insert d k v a1 else a1 in
+      spine-filter-into p r a2
+    SBinMany _ d b l r ->
+      let a1 = spine-filter-into p l acc in
+      let a2 = bucket-filter-into p d b a1 in
+      spine-filter-into p r a2
+
+  bucket-filter-into :: forall k v. using (eq :: Eq k) => (k -> v -> Bool) -> I64 -> List (k, v) -> Spine k v -> Spine k v
+  bucket-filter-into p d es acc = case es of
+    Nil -> acc
     Cons e rest -> case e of
-      (k, v) -> case p k v of
-        True -> Cons e (entry-keep-if p rest)
-        False -> entry-keep-if p rest
+      (k, v) ->
+        let acc1 = if p k v then spine-insert d k v acc else acc in
+        bucket-filter-into p d rest acc1
 
-  -- A RIGHT fold in `hash-map-to-list`'s order: the fold visits every
-  -- entry exactly once, and that order is the buckets' unstable order,
-  -- so an order-dependent combining function must not be relied on
-  -- (folding with `Cons` rebuilds `hash-map-to-list` itself, and the
-  -- empty map is the identity). The right direction is what makes the
-  -- `Cons` rebuild agree with the view.
+  -- A RIGHT fold in `hash-map-to-list`'s order.
   hash-map-fold :: forall k v b. (k -> v -> b -> b) -> b -> HashMap k v -> b
   hash-map-fold f z m = case m of
     HashMap s -> spine-fold f z s
@@ -346,7 +551,8 @@ module Data.HashMap where
   spine-fold :: forall k v b. (k -> v -> b -> b) -> b -> Spine k v -> b
   spine-fold f z s = case s of
     STip -> z
-    SBin _ _ b l r -> spine-fold f (bucket-fold f (spine-fold f z r) b) l
+    SBin1 _ _ k v l r -> spine-fold f (f k v (spine-fold f z r)) l
+    SBinMany _ _ b l r -> spine-fold f (bucket-fold f (spine-fold f z r) b) l
 
   bucket-fold :: forall k v b. (k -> v -> b -> b) -> b -> List (k, v) -> b
   bucket-fold f z b = case b of
