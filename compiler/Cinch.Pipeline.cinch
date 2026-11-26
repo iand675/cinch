@@ -16,7 +16,7 @@
 
 module Cinch.Pipeline where
 
-  import Cinch.Ast (Program, Module, module-decls, module-name-index, Decl, DClass)
+  import Cinch.Ast (Program, Module, module-decls, module-name-index, Decl, DClass, strip-test-declarations)
   import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, check-and-retain-with-interfaces-tuned, check-and-retain-with-admitted-interfaces-tuned, prepare-admitted-check, prepare-admitted-check-tuned, prepare-admitted-check-cached, with-generated)
   import Cinch.Core (CoreDefinition)
   import Cinch.CoreBody (dense-claims-verified)
@@ -24,8 +24,9 @@ module Cinch.Pipeline where
   import Cinch.Driver (link-and-report, link-only-and-report)
   import Cinch.Ir (emit-checked-diagnostics, emit-checked-program)
   import Cinch.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
-  import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache)
-  import Cinch.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-is-latency, tuning-is-throughput, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache, discover-tests, emit-runtime-test-harness-for-profile-tuned)
+  import Cinch.Parallel (CompileStrategy, Latency, Throughput, Release, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-is-latency, tuning-is-throughput, tuning-is-release, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Cinch.TestRunner (TestCliConfig, config-list-only, config-no-run, config-leak-check, config-clang, list-tests-output, run-test-suite)
   import Cinch.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
   import Cinch.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Cinch.PackageWrite (encode-interface-package, encode-object-package)
@@ -44,6 +45,7 @@ module Cinch.Pipeline where
   import Cinch.TargetLiterals (target-literal-errors)
   import Cinch.Target (TargetProfile, selection-arch, target-ir-header, target-profile, target-view-program, host-profile)
   import Algebra.Semigroup
+  import Effect.Clock (clock-monotonic-ns)
   import Effect.Process (process-run, command)
   import Cinch.Document
   import Data.Bytes (bytes-compare, bytes-len)
@@ -166,7 +168,19 @@ module Cinch.Pipeline where
   compile-source-mode-at inlining reclaim wanted mode source ir exe report =
     compile-source-profile-mode inlining reclaim (target-profile wanted) mode source ir exe report
   effective-inlining :: CompileTuning -> Bool -> Bool
-  effective-inlining tuning requested = if tuning-is-latency tuning then False else requested
+  effective-inlining tuning requested =
+    if tuning-is-latency tuning then False
+    else if tuning-is-release tuning then True
+    else requested
+
+  -- In Release builds, eliminate all #[test], #[test_only], and #[cfg(test)]
+  -- declarations immediately after parsing so zero test code, symbols, or
+  -- literals survive into elaboration, IR emission, or native binaries.
+  parse-for-tuning :: CompileTuning -> String -> Bytes -> HashMap String Module -> ParseOutcome Program
+  parse-for-tuning tuning name src headers =
+    case parse-program-with-index-tuned tuning name src headers of
+      Parsed program [] | tuning-is-release tuning -> Parsed (strip-test-declarations program) []
+      other -> other
 
   compile-source-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-profile-mode inlining reclaim selection mode source ir exe report =
@@ -180,7 +194,7 @@ module Cinch.Pipeline where
       EmitWithInterfaces -> pipeline-bad-args
       other -> case fs-read (path-from-string source) of
         Err e -> pipeline-read-failed
-        Ok src -> after-parse-tuned tuning (effective-inlining tuning inlining) reclaim profile mode source src (parse-program-with-index-tuned tuning source src hash-map-empty) ir exe report
+        Ok src -> after-parse-tuned tuning (effective-inlining tuning inlining) reclaim profile mode source src (parse-for-tuning tuning source src hash-map-empty) ir exe report
 
   compile-source-with-manifest :: forall r. using (io :: Io r) => Bool -> Bool -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-source-with-manifest inlining reclaim manifest source ir exe report = compile-source-with-manifest-mode-at inlining reclaim None CompileAndRun manifest source ir exe report
@@ -207,7 +221,7 @@ module Cinch.Pipeline where
           EmitWithInterfaces -> pipeline-bad-args
           other -> (case fs-read (path-from-string source) of
             Err error -> pipeline-read-failed
-            Ok src -> after-parse-with-tuned tuning (effective-inlining tuning inlining) reclaim profile mode admitted source src (parse-program-with-index-tuned tuning source src (module-name-index (interface-fixity-headers interfaces))) ir exe report))
+            Ok src -> after-parse-with-tuned tuning (effective-inlining tuning inlining) reclaim profile mode admitted source src (parse-for-tuning tuning source src (module-name-index (interface-fixity-headers interfaces))) ir exe report))
 
   -- `debug` selects debug counting (`--rc-debug`): the emitted program's
   -- count operations call the runtime's checked out-of-line entries.
@@ -295,7 +309,7 @@ module Cinch.Pipeline where
     ServeEnv profile inlining debug reclaim interfaces headers provider resolve retain-cached source ->
       let next-rev = session.revision + 1 in
       let use-inline = effective-inlining tuning inlining in
-      case parse-program-with-index-tuned tuning source src headers of
+      case parse-for-tuning tuning source src headers of
         Failed bundle ->
           let msg = render-bundle bundle in
           StepFailure (failure-output msg pipeline-parse-failed) (invalidate-incremental-session session) msg pipeline-parse-failed
@@ -562,7 +576,7 @@ module Cinch.Pipeline where
     let interfaces = admitted.interfaces-members in
     let headers = module-name-index (interface-fixity-headers interfaces) in
     emit-object-client-using-tuned tuning inlining debug reclaim profile mode interfaces provider
-      (\name src -> parse-program-with-index-tuned tuning name src headers) (\bytes program -> check-object-client-tuned tuning profile bytes program admitted) source ir
+      (\name src -> parse-for-tuning tuning name src headers) (\bytes program -> check-object-client-tuned tuning profile bytes program admitted) source ir
   emit-object-client-using :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> TargetProfile -> PipelineMode -> List LoadedInterface -> RuntimeObject -> (String -> Bytes -> ParseOutcome Program) -> (Bytes -> Program -> Result String CheckedProgram) -> String -> Path ->{IO r, Diverge} Int
   emit-object-client-using inlining debug reclaim profile mode interfaces provider parse check source ir =
     emit-object-client-using-tuned default-tuning inlining debug reclaim profile mode interfaces provider parse check source ir
@@ -678,7 +692,8 @@ module Cinch.Pipeline where
               (JObj "source" (JStr source) (JObj "source_sha256" (JStr (sha256-hex src))
                 (JObj "package" (JStr package-hash) (JObj "object" (JStr object-hash)
                   (JObj "profile" (manifest-target profile) (JObj "inline" (JBool inlining)
-                    (JObj "rc_debug" (JBool debug) (JObj "reclaim" (JBool reclaim) JObjEnd)))))))))) in
+                    (JObj "rc_debug" (JBool debug) (JObj "reclaim" (JBool reclaim)
+                      (JObj "release" (JBool (tuning-is-release tuning)) JObjEnd))))))))))) in
             if cached-native-ir receipt key ir then
               (case refresh-resident-file (refusal-path ir) (string-to-bytes "") (string-to-bytes "") of
                 Err error -> pipeline-write-failed
@@ -690,7 +705,7 @@ module Cinch.Pipeline where
                 else
                   let interfaces = admitted.interfaces-members in
                   let headers = module-name-index (interface-fixity-headers interfaces) in
-                  let parse = \name input -> parse-program-with-index-tuned tuning name input headers in
+                  let parse = \name input -> parse-for-tuning tuning name input headers in
                   let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
                   let output = (case checked-object-bytes profile parse check source src of
                     Err (message, status) -> failure-output message status
@@ -946,7 +961,7 @@ module Cinch.Pipeline where
   emit-source-interfaces-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
   emit-source-interfaces-tuned tuning profile interfaces source prefix = case fs-read (path-from-string source) of
     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
-    Ok src -> case parse-program-with-index-tuned tuning source src (module-name-index (interface-fixity-headers interfaces)) of
+    Ok src -> case parse-for-tuning tuning source src (module-name-index (interface-fixity-headers interfaces)) of
       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
       Parsed program [] -> case target-view-program profile program of
         Err message -> write-failure prefix message pipeline-check-refused
@@ -1532,7 +1547,7 @@ module Cinch.Pipeline where
               if object-path-member provider-path [source, ir-name, object-name, abi-name, object-name <> ".new.o", object-name <> ".provider.o"] then write-failure ir "bootstrap.object: provider and output paths collide" pipeline-bad-args else
                 case fs-read (path-from-string source) of
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-                  Ok bytes -> case parse-program-with-index-tuned tuning source bytes (module-name-index (interface-fixity-headers interfaces)) of
+                  Ok bytes -> case parse-for-tuning tuning source bytes (module-name-index (interface-fixity-headers interfaces)) of
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
                     Parsed program [] -> case target-view-program profile program of
                       Err message -> write-failure ir message pipeline-check-refused
@@ -1603,3 +1618,149 @@ module Cinch.Pipeline where
             Ok (rows, refs) -> publish-library-package rows (object-manifest document refs units facts text code) ir abi))
         Ok (status, output) -> write-failure ir "bootstrap.object: dependency linker refused" pipeline-emit-refused)
       Ok (status, output) -> write-failure ir "bootstrap.object: object assembler refused" pipeline-emit-refused
+
+  -- ------------------------------------------------------------------
+  -- Built-in nextest-style `cinch test` pipeline driver
+  -- ------------------------------------------------------------------
+
+  report-test-failure :: forall r. using (io :: Io r) => Path -> String -> Int ->{IO r} Int
+  report-test-failure ir message status =
+    case ioWrite (string-to-bytes (message <> "\n")) of
+      _ -> write-failure ir message status
+
+  run-checked-test-harness :: forall r. using (io :: Io r) => CompileTuning -> TestCliConfig -> Bool -> Bool -> Bool -> TargetProfile -> Option RuntimeObject -> Option Bytes -> String -> Path -> String -> String -> Bytes -> CheckedProgram ->{IO r, Diverge} Int
+  run-checked-test-harness tuning cfg inlining debug reclaim profile provider object-code runtime ir executable object-copy src checked =
+    case discover-tests checked of
+      Err errors -> report-test-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+      Ok tests ->
+        if config-list-only cfg then
+          case list-tests-output cfg tests of
+            Err msg -> report-test-failure ir ("cinch test: filter error: " <> msg) pipeline-bad-args
+            Ok listing -> case ioWrite (string-to-bytes listing) of _ -> pipeline-ok
+        else
+          let use-inline = effective-inlining tuning inlining in
+          let use-debug = debug || config-leak-check cfg in
+          let clang = config-clang cfg in
+          case clock-monotonic-ns () of
+            t0 ->
+              case emit-runtime-test-harness-for-profile-tuned tuning profile use-inline use-debug reclaim checked provider of
+                Err errors -> report-test-failure ir (render-source-diagnostics src errors) pipeline-emit-refused
+                Ok (ir-text, discovered) ->
+                  case fs-write ir (string-to-bytes ir-text) of
+                    Err _ -> report-test-failure ir "bootstrap.test: cannot write test harness IR" pipeline-write-failed
+                    Ok _ ->
+                      let opt-flag = if tuning-is-latency tuning then "-O0" else "-O2" in
+                      let triple = profile.triple in
+                      let system-libs = if string-contains "-linux" triple then ["-ldl", "-lpthread", "-lm"] else [] in
+                      case (case object-code of
+                        Some code ->
+                          case refresh-resident-file (path-from-string object-copy) code code of
+                            Err _ -> Err "bootstrap.test: cannot stage runtime library object"
+                            Ok _ ->
+                              let args = [opt-flag, "-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] <> system-libs in
+                              case process-run (command (path-from-string clang) args) "" of
+                                Ok (0, _) -> Ok ()
+                                other -> Err "bootstrap.test: clang failed to link test harness binary"
+                        None ->
+                          let args = [opt-flag, "-Wno-override-module", path-to-string ir, runtime, "-o", executable] <> system-libs in
+                          case process-run (command (path-from-string clang) args) "" of
+                            Ok (0, _) -> Ok ()
+                            other -> Err "bootstrap.test: clang failed to link standalone test harness binary") of
+                        Err msg -> report-test-failure ir msg pipeline-emit-refused
+                        Ok _ -> case clock-monotonic-ns () of
+                          t1 ->
+                            let compile-ms = if t1 >= t0 then (t1 - t0) / 1000000 else 0 in
+                            if config-no-run cfg then
+                              case ioWrite (string-to-bytes ("Compiled test binary: " <> executable <> "\n")) of _ -> pipeline-ok
+                            else run-test-suite cfg executable compile-ms discovered
+
+  test-source-with-object-tuned :: forall r. using (io :: Io r) => CompileTuning -> TestCliConfig -> Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> String -> String ->{IO r, Diverge} Int
+  test-source-with-object-tuned tuning cfg inlining debug reclaim profile manifest config runtime prefix source =
+    let ir = path-from-string (prefix <> ".test.ll") in
+    let executable = prefix <> ".test.exe" in
+    let object-copy = prefix <> ".test.library.o" in
+    let test-tuning = if tuning-is-release tuning then tuning-with-strategy Throughput tuning else tuning in
+    case fs-read (path-from-string source) of
+      Err _ -> report-test-failure ir ("bootstrap.test: cannot read source: " <> source) pipeline-read-failed
+      Ok src ->
+        let references = read-interface-inputs manifest in
+        let configuration = read-runtime-object-config config in
+        case (references, configuration) of
+          (Ok inputs, Ok settings) -> (case interface-package-file inputs of
+            Some package | package == settings.object-metadata-file ->
+              (case read-packed-client settings of
+                Err msg -> report-test-failure ir msg pipeline-interface-failed
+                Ok packed -> case admit-packed-client packed reclaim of
+                  Err msg -> report-test-failure ir msg pipeline-interface-failed
+                  Ok (admitted, provider, metadata) ->
+                    if not (provider-matches-profile metadata profile) then
+                      report-test-failure ir "bootstrap.test: runtime object target mismatch" pipeline-interface-failed
+                    else
+                      let interfaces = admitted.interfaces-members in
+                      let headers = module-name-index (interface-fixity-headers interfaces) in
+                      let parse = \name input -> parse-program-with-index-tuned test-tuning name input headers in
+                      let check = \bytes program -> check-object-client-tuned test-tuning profile bytes program admitted in
+                      case checked-object-bytes profile parse check source src of
+                        Err (msg, status) -> report-test-failure ir msg status
+                        Ok (view, checked) ->
+                          run-checked-test-harness test-tuning cfg inlining debug reclaim profile (Some provider) (Some packed.client-code) runtime ir executable object-copy src checked)
+            other ->
+              case load-object-client reclaim references configuration of
+                Err msg -> report-test-failure ir msg pipeline-interface-failed
+                Ok (admitted, provider, metadata, object-path, object-bytes) ->
+                  if not (provider-matches-profile metadata profile) then
+                    report-test-failure ir "bootstrap.test: runtime object target mismatch" pipeline-interface-failed
+                  else
+                    let interfaces = admitted.interfaces-members in
+                    let headers = module-name-index (interface-fixity-headers interfaces) in
+                    let parse = \name input -> parse-program-with-index-tuned test-tuning name input headers in
+                    let check = \bytes program -> check-object-client-tuned test-tuning profile bytes program admitted in
+                    case checked-object-bytes profile parse check source src of
+                      Err (msg, status) -> report-test-failure ir msg status
+                      Ok (view, checked) ->
+                        run-checked-test-harness test-tuning cfg inlining debug reclaim profile (Some provider) (Some object-bytes) runtime ir executable object-copy src checked)
+          other ->
+            case load-object-client reclaim references configuration of
+              Err msg -> report-test-failure ir msg pipeline-interface-failed
+              Ok (admitted, provider, metadata, object-path, object-bytes) ->
+                if not (provider-matches-profile metadata profile) then
+                  report-test-failure ir "bootstrap.test: runtime object target mismatch" pipeline-interface-failed
+                else
+                  let interfaces = admitted.interfaces-members in
+                  let headers = module-name-index (interface-fixity-headers interfaces) in
+                  let parse = \name input -> parse-program-with-index-tuned test-tuning name input headers in
+                  let check = \bytes program -> check-object-client-tuned test-tuning profile bytes program admitted in
+                  case checked-object-bytes profile parse check source src of
+                    Err (msg, status) -> report-test-failure ir msg status
+                    Ok (view, checked) ->
+                      run-checked-test-harness test-tuning cfg inlining debug reclaim profile (Some provider) (Some object-bytes) runtime ir executable object-copy src checked
+
+  test-source-standalone-tuned :: forall r. using (io :: Io r) => CompileTuning -> TestCliConfig -> Bool -> Bool -> Bool -> TargetProfile -> Option String -> String -> String -> String ->{IO r, Diverge} Int
+  test-source-standalone-tuned tuning cfg inlining debug reclaim profile manifest-opt runtime prefix source =
+    let ir = path-from-string (prefix <> ".test.ll") in
+    let executable = prefix <> ".test.exe" in
+    let object-copy = prefix <> ".test.library.o" in
+    let test-tuning = if tuning-is-release tuning then tuning-with-strategy Throughput tuning else tuning in
+    case fs-read (path-from-string source) of
+      Err _ -> report-test-failure ir ("bootstrap.test: cannot read source: " <> source) pipeline-read-failed
+      Ok src -> case manifest-opt of
+        None ->
+          case parse-program-with-index-tuned test-tuning source src hash-map-empty of
+            Failed bundle -> report-test-failure ir (render-bundle bundle) pipeline-parse-failed
+            Parsed program [] -> case target-view-program profile program of
+              Err msg -> report-test-failure ir msg pipeline-check-refused
+              Ok view -> case checked-source-tuned test-tuning profile view [] of
+                Err errors -> report-test-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+                Ok checked -> run-checked-test-harness test-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked
+            Parsed program errors -> report-test-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+        Some manifest -> case read-validated-interfaces manifest of
+          Err msg -> report-test-failure ir ("bootstrap.interfaces: " <> msg) pipeline-interface-failed
+          Ok admitted ->
+            let interfaces = admitted.interfaces-members in
+            let headers = module-name-index (interface-fixity-headers interfaces) in
+            let parse = \name input -> parse-program-with-index-tuned test-tuning name input headers in
+            let check = \bytes program -> check-object-client-tuned test-tuning profile bytes program admitted in
+            case checked-object-bytes profile parse check source src of
+              Err (msg, status) -> report-test-failure ir msg status
+              Ok (view, checked) ->
+                run-checked-test-harness test-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked

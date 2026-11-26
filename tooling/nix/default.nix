@@ -176,10 +176,13 @@ let
   # Only what `bootstrap.py check` reads from the tree, so docs, repros,
   # editor grammars, and unrelated prelude modules do not invalidate Cachix.
   ladderSources = select (pinSourceFiles ++ [
+    (src + "/tooling/stdlib_closure.py")
     (lib.fileset.fileFilter
       (file: lib.hasPrefix "Cinch." file.name && file.hasExt "cinch")
       (src + "/compiler"))
     (src + "/compiler/programs/Run.Pipeline.cinch")
+    (src + "/seed/prelude/cinch-base.cinchpkg")
+    (src + "/seed/prelude/Text/Args.cinch")
     (src + "/seed/prelude/Text/Lex.cinch")
     (src + "/seed/prelude/Text/Scan.cinch")
     (src + "/seed/prelude/Text/Parse.cinch")

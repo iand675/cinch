@@ -695,6 +695,7 @@ module Cinch.Eval where
     DUnpackFields s name fields -> []
     DInlineHint s name hint -> []
     DUnrollHint s name hint -> []
+    DTestAttr s name tspec -> []
     DContract s keyword name subject clauses -> []
     DMachine s name syntax -> []
     DRefines s concrete syntax -> []

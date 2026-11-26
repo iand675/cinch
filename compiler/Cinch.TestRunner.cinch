@@ -1,0 +1,1264 @@
+-- Cinch.TestRunner: nextest-style built-in test runner for the
+-- self-hosted Cinch compiler.
+--
+-- Architecture:
+--   1. Discovers all #[test] functions across all modules from the checked
+--      program (including private tests, without requiring Main.main).
+--   2. Evaluates nextest filterset expressions (-E / --filter-expr),
+--      positional substring/exact filters, --run-ignored policy, and
+--      --partition count/hash sharding.
+--   3. Compiles and links ONE test harness binary containing all tests.
+--   4. Executes each test in its own isolated OS child process in parallel
+--      waves of up to -j N concurrent processes (with #[test(serial)] tests
+--      running exclusively), capturing stdout and stderr separately,
+--      enforcing per-test and global timeouts (ITIMER_REAL / SIGALRM),
+--      retrying flaky tests, checking #[should_fail] expectations, and
+--      supporting --leak-check (CINCH_RC_DEBUG=1 CINCH_LEAK_CHECK=1).
+--   5. Streams aligned nextest-style status output and optionally writes
+--      JUnit XML (--junit) and JSON (--json-report / --format json) reports.
+module Cinch.TestRunner where
+
+  import Algebra.Semigroup
+  import Cinch.Ast (TestSpec, test-spec-ignored, test-spec-ignore-reason, test-spec-should-fail, test-spec-fail-expected, test-spec-timeout-ms, test-spec-retries, test-spec-serial, test-spec-tags)
+  import Cinch.Document (Json, JObj, JObjEnd, JArr, JArrEnd, JStr, JNum, JBool, JNull, canonical-bytes)
+  import Cinch.Parallel (parse-nat-word)
+  import Cinch.RuntimeIr (DiscoveredTest, TestReturnKind, TRInt, TRBool, TRUnit, TRResult, TRCheck, TRCheckList, test-index, test-module-name, test-display-name, test-return-kind, test-spec)
+  import Data.Bool
+  import Data.Bytes (bytes-len)
+  import Data.Char (char-code, char-from-code)
+  import Data.List (reverse, map, split-at)
+  import Data.Nat (nat-to-int)
+  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute)
+  import Data.String (unpack, pack, string-compare, string-concat, string-concat-all, string-length, string-to-bytes, string-from-bytes)
+  import Effect.Clock (clock-monotonic-ns)
+  import Effect.Fs (fs-write)
+  import Effect.Process (Command, command, command-with-env, Child, Stream, Stdout, Stderr, process-spawn, child-close-stdin, child-read, child-wait, child-close)
+  import Text.Scan (string-contains, string-starts-with, string-ends-with, string-index-of, string-take, string-drop, string-strip, string-pad-left, string-join)
+  import Text.Show (nat-to-string, int-to-string)
+
+  export RunIgnoredMode, IgnoredDefault, IgnoredAll, IgnoredOnly
+  export OutputPolicy, OutNever, OutImmediate, OutFinal, OutImmediateFinal
+  export StatusLevel, StatusNone, StatusFail, StatusRetry, StatusSlow, StatusPass, StatusSkip, StatusAll
+  export OutputFormat, FormatHuman, FormatJson
+  export PartitionSpec, PartCount, PartHash
+  export TestCliConfig, MkTestCliConfig, default-test-config
+  export config-jobs, config-exact, config-list-only, config-list-json, config-no-run
+  export config-leak-check, config-clang, config-filter-exprs, config-pos-filters
+  export config-run-ignored, config-timeout-ms, config-slow-timeout-ms, config-retries
+  export config-max-fail, config-success-output, config-failure-output, config-status-level
+  export config-color, config-format, config-junit-path, config-json-path, config-partition
+  export parse-test-cli-args, run-test-suite, list-tests-output
+
+  -- ------------------------------------------------------------------
+  -- Configuration types
+  -- ------------------------------------------------------------------
+
+  data RunIgnoredMode where
+    IgnoredDefault :: RunIgnoredMode
+    IgnoredAll :: RunIgnoredMode
+    IgnoredOnly :: RunIgnoredMode
+
+  data OutputPolicy where
+    OutNever :: OutputPolicy
+    OutImmediate :: OutputPolicy
+    OutFinal :: OutputPolicy
+    OutImmediateFinal :: OutputPolicy
+
+  data StatusLevel where
+    StatusNone :: StatusLevel
+    StatusFail :: StatusLevel
+    StatusRetry :: StatusLevel
+    StatusSlow :: StatusLevel
+    StatusPass :: StatusLevel
+    StatusSkip :: StatusLevel
+    StatusAll :: StatusLevel
+
+  data OutputFormat where
+    FormatHuman :: OutputFormat
+    FormatJson :: OutputFormat
+
+  data PartitionSpec where
+    PartCount :: Nat -> Nat -> PartitionSpec
+    PartHash :: Nat -> Nat -> PartitionSpec
+
+  data TestCliConfig where
+    MkTestCliConfig
+      :: Nat                    -- jobs (-j / --test-threads)
+      -> Bool                   -- exact match for positional filters
+      -> Bool                   -- --list
+      -> Bool                   -- --list-json
+      -> Bool                   -- --no-run
+      -> Bool                   -- --leak-check
+      -> String                 -- --clang
+      -> List String            -- -E / --filter-expr
+      -> List String            -- positional filter words
+      -> RunIgnoredMode         -- --run-ignored
+      -> Option Nat             -- --timeout (global default ms)
+      -> Nat                    -- --slow-timeout (ms)
+      -> Nat                    -- --retries (global default)
+      -> Option Nat             -- --max-fail (Some 1 for --fail-fast)
+      -> OutputPolicy           -- --success-output
+      -> OutputPolicy           -- --failure-output
+      -> StatusLevel            -- --status-level
+      -> Bool                   -- color enabled
+      -> OutputFormat           -- --format
+      -> Option String          -- --junit
+      -> Option String          -- --json-report
+      -> Option PartitionSpec   -- --partition
+      -> TestCliConfig
+
+  default-test-config :: TestCliConfig
+  default-test-config =
+    MkTestCliConfig 4 False False False False False "clang" Nil Nil IgnoredDefault None 10000 0 None OutNever OutImmediateFinal StatusPass False FormatHuman None None None
+
+  config-jobs :: TestCliConfig -> Nat
+  config-jobs c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> j
+  config-exact :: TestCliConfig -> Bool
+  config-exact c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> ex
+  config-list-only :: TestCliConfig -> Bool
+  config-list-only c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> lo
+  config-list-json :: TestCliConfig -> Bool
+  config-list-json c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> lj
+  config-no-run :: TestCliConfig -> Bool
+  config-no-run c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> nr
+  config-leak-check :: TestCliConfig -> Bool
+  config-leak-check c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> lc
+  config-clang :: TestCliConfig -> String
+  config-clang c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> cl
+  config-filter-exprs :: TestCliConfig -> List String
+  config-filter-exprs c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> fe
+  config-pos-filters :: TestCliConfig -> List String
+  config-pos-filters c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> pf
+  config-run-ignored :: TestCliConfig -> RunIgnoredMode
+  config-run-ignored c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> ri
+  config-timeout-ms :: TestCliConfig -> Option Nat
+  config-timeout-ms c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> tmo
+  config-slow-timeout-ms :: TestCliConfig -> Nat
+  config-slow-timeout-ms c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> st
+  config-retries :: TestCliConfig -> Nat
+  config-retries c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> rt
+  config-max-fail :: TestCliConfig -> Option Nat
+  config-max-fail c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> mf
+  config-success-output :: TestCliConfig -> OutputPolicy
+  config-success-output c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> so
+  config-failure-output :: TestCliConfig -> OutputPolicy
+  config-failure-output c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> fo
+  config-status-level :: TestCliConfig -> StatusLevel
+  config-status-level c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> sl
+  config-color :: TestCliConfig -> Bool
+  config-color c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> col
+  config-format :: TestCliConfig -> OutputFormat
+  config-format c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> fm
+  config-junit-path :: TestCliConfig -> Option String
+  config-junit-path c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> ju
+  config-json-path :: TestCliConfig -> Option String
+  config-json-path c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> js
+  config-partition :: TestCliConfig -> Option PartitionSpec
+  config-partition c = case c of MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt -> pt
+
+  -- ------------------------------------------------------------------
+  -- CLI option parsing for `cinch test [OPTIONS...] RUNTIME PREFIX SOURCE [FILTER...]`
+  -- ------------------------------------------------------------------
+
+  parse-output-policy :: String -> Option OutputPolicy
+  parse-output-policy s =
+    if string-compare s "never" == 0 then Some OutNever
+    else if string-compare s "immediate" == 0 then Some OutImmediate
+    else if string-compare s "final" == 0 then Some OutFinal
+    else if string-compare s "immediate-final" == 0 then Some OutImmediateFinal
+    else None
+
+  parse-status-level :: String -> Option StatusLevel
+  parse-status-level s =
+    if string-compare s "none" == 0 then Some StatusNone
+    else if string-compare s "fail" == 0 then Some StatusFail
+    else if string-compare s "retry" == 0 then Some StatusRetry
+    else if string-compare s "slow" == 0 then Some StatusSlow
+    else if string-compare s "pass" == 0 then Some StatusPass
+    else if string-compare s "skip" == 0 then Some StatusSkip
+    else if string-compare s "all" == 0 then Some StatusAll
+    else None
+
+  parse-run-ignored :: String -> Option RunIgnoredMode
+  parse-run-ignored s =
+    if string-compare s "default" == 0 then Some IgnoredDefault
+    else if string-compare s "all" == 0 then Some IgnoredAll
+    else if string-compare s "only" == 0 then Some IgnoredOnly
+    else None
+
+  parse-partition :: String -> Option PartitionSpec
+  parse-partition s =
+    case string-index-of ":" s of
+      None -> None
+      Some colon ->
+        let kind = string-take colon s in
+        let rhs = string-drop (colon + 1) s in
+        case string-index-of "/" rhs of
+          None -> None
+          Some slash ->
+            case (parse-nat-word (string-take slash rhs), parse-nat-word (string-drop (slash + 1) rhs)) of
+              (Some idx, Some total) | idx >= 1 && idx <= total ->
+                if string-compare kind "count" == 0 then Some (PartCount idx total)
+                else if string-compare kind "hash" == 0 then Some (PartHash idx total)
+                else None
+              other -> None
+
+  -- Parse test CLI options; returns `(TestCliConfig, runtime, prefix, source)`.
+  parse-test-cli-loop :: TestCliConfig -> List String -> List String -> Result String (TestCliConfig, String, String, String)
+  parse-test-cli-loop cfg pos ws = case cfg of
+    MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt ->
+      case ws of
+        Nil -> case reverse pos of
+          Cons runtime (Cons prefix (Cons source filters)) ->
+            Ok (MkTestCliConfig j ex lo lj nr lc cl (reverse fe) (pf <> filters) ri tmo st rt mf so fo sl col fm ju js pt, runtime, prefix, source)
+          other -> Err "usage: cinch test [OPTIONS...] RUNTIME PREFIX SOURCE [FILTER...]"
+        Cons flag rest ->
+          if string-compare flag "--" == 0 then
+            parse-test-cli-loop cfg (reverse rest <> pos) Nil
+          else if string-compare flag "-j" == 0 || string-compare flag "--jobs" == 0 || string-compare flag "--test-threads" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some k | k > 0 -> parse-test-cli-loop (MkTestCliConfig k ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos more
+                other -> Err ("invalid worker count for " <> flag <> ": " <> n)
+              Nil -> Err (flag <> " requires a positive integer"))
+          else if string-compare flag "--serial" == 0 then
+            parse-test-cli-loop (MkTestCliConfig 1 ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--exact" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j True lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--list" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex True lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--list-json" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex True True nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--no-run" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj True lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--leak-check" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj nr True cl fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--clang" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc p fe pf ri tmo st rt mf so fo sl col fm ju js pt) pos more
+              other -> Err "--clang requires a path")
+          else if string-compare flag "-E" == 0 || string-compare flag "--filter-expr" == 0 then
+            (case rest of
+              Cons expr more -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl (Cons expr fe) pf ri tmo st rt mf so fo sl col fm ju js pt) pos more
+              Nil -> Err (flag <> " requires a filter expression"))
+          else if string-compare flag "--run-ignored" == 0 then
+            (case rest of
+              Cons mode more -> case parse-run-ignored mode of
+                Some m -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf m tmo st rt mf so fo sl col fm ju js pt) pos more
+                None -> Err ("--run-ignored expects default, all, or only (got `" <> mode <> "`)")
+              Nil -> Err "--run-ignored requires default, all, or only")
+          else if string-compare flag "--ignored" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf IgnoredOnly tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--include-ignored" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf IgnoredAll tmo st rt mf so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--timeout" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some ms | ms > 0 -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri (Some ms) st rt mf so fo sl col fm ju js pt) pos more
+                other -> Err ("--timeout expects a positive millisecond count (got `" <> n <> "`)")
+              Nil -> Err "--timeout requires a millisecond count")
+          else if string-compare flag "--slow-timeout" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some ms | ms > 0 -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo ms rt mf so fo sl col fm ju js pt) pos more
+                other -> Err ("--slow-timeout expects a positive millisecond count (got `" <> n <> "`)")
+              Nil -> Err "--slow-timeout requires a millisecond count")
+          else if string-compare flag "--retries" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some k -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st k mf so fo sl col fm ju js pt) pos more
+                None -> Err ("--retries expects a natural number (got `" <> n <> "`)")
+              Nil -> Err "--retries requires a count")
+          else if string-compare flag "--fail-fast" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt (Some 1) so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--no-fail-fast" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt None so fo sl col fm ju js pt) pos rest
+          else if string-compare flag "--max-fail" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some k | k > 0 -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt (Some k) so fo sl col fm ju js pt) pos more
+                other -> Err ("--max-fail expects a positive integer (got `" <> n <> "`)")
+              Nil -> Err "--max-fail requires a positive integer")
+          else if string-compare flag "--nocapture" == 0 || string-compare flag "--no-capture" == 0 then
+            parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf OutImmediate OutImmediate sl col fm ju js pt) pos rest
+          else if string-compare flag "--success-output" == 0 then
+            (case rest of
+              Cons v more -> case parse-output-policy v of
+                Some p -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf p fo sl col fm ju js pt) pos more
+                None -> Err ("--success-output expects never, immediate, final, or immediate-final (got `" <> v <> "`)")
+              Nil -> Err "--success-output requires a value")
+          else if string-compare flag "--failure-output" == 0 then
+            (case rest of
+              Cons v more -> case parse-output-policy v of
+                Some p -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so p sl col fm ju js pt) pos more
+                None -> Err ("--failure-output expects never, immediate, final, or immediate-final (got `" <> v <> "`)")
+              Nil -> Err "--failure-output requires a value")
+          else if string-compare flag "--status-level" == 0 then
+            (case rest of
+              Cons v more -> case parse-status-level v of
+                Some lv -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo lv col fm ju js pt) pos more
+                None -> Err ("--status-level expects none, fail, retry, slow, pass, skip, or all (got `" <> v <> "`)")
+              Nil -> Err "--status-level requires a value")
+          else if string-compare flag "--color" == 0 then
+            (case rest of
+              Cons v more ->
+                if string-compare v "always" == 0 || string-compare v "auto" == 0 then
+                  parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl True fm ju js pt) pos more
+                else if string-compare v "never" == 0 then
+                  parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl False fm ju js pt) pos more
+                else Err ("--color expects auto, always, or never (got `" <> v <> "`)")
+              Nil -> Err "--color requires auto, always, or never")
+          else if string-compare flag "--format" == 0 then
+            (case rest of
+              Cons v more ->
+                if string-compare v "human" == 0 then
+                  parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col FormatHuman ju js pt) pos more
+                else if string-compare v "json" == 0 then
+                  parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col FormatJson ju js pt) pos more
+                else Err ("--format expects human or json (got `" <> v <> "`)")
+              Nil -> Err "--format requires human or json")
+          else if string-compare flag "--junit" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm (Some p) js pt) pos more
+              other -> Err "--junit requires an output path")
+          else if string-compare flag "--json-report" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju (Some p) pt) pos more
+              other -> Err "--json-report requires an output path")
+          else if string-compare flag "--partition" == 0 then
+            (case rest of
+              Cons v more -> case parse-partition v of
+                Some part -> parse-test-cli-loop (MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js (Some part)) pos more
+                None -> Err ("--partition expects count:i/n or hash:i/n with 1 <= i <= n (got `" <> v <> "`)")
+              Nil -> Err "--partition requires count:i/n or hash:i/n")
+          else if string-starts-with "-" flag then
+            Err ("unknown test option: " <> flag)
+          else
+            parse-test-cli-loop cfg (Cons flag pos) rest
+
+  parse-test-cli-args :: Nat -> List String -> Result String (TestCliConfig, String, String, String)
+  parse-test-cli-args default-jobs words =
+    let base = case default-test-config of
+          MkTestCliConfig j ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt ->
+            MkTestCliConfig (if default-jobs > 0 then default-jobs else j) ex lo lj nr lc cl fe pf ri tmo st rt mf so fo sl col fm ju js pt in
+    parse-test-cli-loop base Nil words
+
+  -- ------------------------------------------------------------------
+  -- Nextest filterset expression parser & evaluator
+  -- Supports: test(pat), module(pat), tag(pat), ignored(), should_fail(),
+  -- serial(), all(), none(), not / !, and / &, or / |, - (difference), ( )
+  -- ------------------------------------------------------------------
+
+  data FilterTok where
+    FTLParen :: FilterTok
+    FTRParen :: FilterTok
+    FTNot :: FilterTok
+    FTAnd :: FilterTok
+    FTOr :: FilterTok
+    FTMinus :: FilterTok
+    FTPred :: String -> String -> FilterTok
+
+  data FilterExpr where
+    FEAll :: FilterExpr
+    FENone :: FilterExpr
+    FETest :: String -> FilterExpr
+    FEModule :: String -> FilterExpr
+    FETag :: String -> FilterExpr
+    FEIgnored :: FilterExpr
+    FEShouldFail :: FilterExpr
+    FESerial :: FilterExpr
+    FENot :: FilterExpr -> FilterExpr
+    FEAnd :: FilterExpr -> FilterExpr -> FilterExpr
+    FEOr :: FilterExpr -> FilterExpr -> FilterExpr
+
+  is-space-code :: Nat -> Bool
+  is-space-code c = c == 32 || c == 9 || c == 10 || c == 13
+
+  is-ident-code :: Nat -> Bool
+  is-ident-code c =
+    (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c == 95 || c == 45
+
+  read-ident-chars :: List Char -> List Char -> (String, List Char)
+  read-ident-chars cs acc = case cs of
+    Nil -> (pack (reverse acc), Nil)
+    Cons ch rest ->
+      if is-ident-code (char-code ch) then read-ident-chars rest (Cons ch acc)
+      else (pack (reverse acc), cs)
+
+  skip-spaces :: List Char -> List Char
+  skip-spaces cs = case cs of
+    Nil -> Nil
+    Cons ch rest -> if is-space-code (char-code ch) then skip-spaces rest else cs
+
+  read-pred-arg :: List Char -> Nat -> List Char -> Result String (String, List Char)
+  read-pred-arg cs depth acc = case cs of
+    Nil -> Err "unclosed `(` in filter expression"
+    Cons ch rest ->
+      let code = char-code ch in
+      if code == 41 && depth == 0 then Ok (string-strip (pack (reverse acc)), rest)
+      else if code == 40 then read-pred-arg rest (depth + 1) (Cons ch acc)
+      else if code == 41 && depth > 0 then read-pred-arg rest (depth - 1) (Cons ch acc)
+      else read-pred-arg rest depth (Cons ch acc)
+
+  strip-quotes :: String -> String
+  strip-quotes s =
+    let t = string-strip s in
+    let n = string-length t in
+    if n >= 2 && string-starts-with "\"" t && string-ends-with "\"" t then
+      string-take (n - 2) (string-drop 1 t)
+    else if n >= 2 && string-starts-with "'" t && string-ends-with "'" t then
+      string-take (n - 2) (string-drop 1 t)
+    else t
+
+  lex-filter-loop :: List Char -> List FilterTok -> Result String (List FilterTok)
+  lex-filter-loop cs acc = case skip-spaces cs of
+    Nil -> Ok (reverse acc)
+    Cons ch rest ->
+      let code = char-code ch in
+      if code == 40 then lex-filter-loop rest (Cons FTLParen acc)
+      else if code == 41 then lex-filter-loop rest (Cons FTRParen acc)
+      else if code == 33 then lex-filter-loop rest (Cons FTNot acc)
+      else if code == 38 then lex-filter-loop rest (Cons FTAnd acc)
+      else if code == 124 then lex-filter-loop rest (Cons FTOr acc)
+      else if code == 45 then lex-filter-loop rest (Cons FTMinus acc)
+      else if is-ident-code code then
+        case read-ident-chars (Cons ch rest) Nil of
+          (word, after-word) ->
+            let next = skip-spaces after-word in
+            case next of
+              Cons p more | char-code p == 40 ->
+                (case read-pred-arg more 0 Nil of
+                  Err msg -> Err msg
+                  Ok (arg, tail) -> lex-filter-loop tail (Cons (FTPred word (strip-quotes arg)) acc))
+              other ->
+                if string-compare word "and" == 0 then lex-filter-loop after-word (Cons FTAnd acc)
+                else if string-compare word "or" == 0 then lex-filter-loop after-word (Cons FTOr acc)
+                else if string-compare word "not" == 0 then lex-filter-loop after-word (Cons FTNot acc)
+                else if string-compare word "all" == 0 then lex-filter-loop after-word (Cons (FTPred "all" "") acc)
+                else if string-compare word "none" == 0 then lex-filter-loop after-word (Cons (FTPred "none" "") acc)
+                else if string-compare word "ignored" == 0 then lex-filter-loop after-word (Cons (FTPred "ignored" "") acc)
+                else if string-compare word "should_fail" == 0 then lex-filter-loop after-word (Cons (FTPred "should_fail" "") acc)
+                else if string-compare word "serial" == 0 then lex-filter-loop after-word (Cons (FTPred "serial" "") acc)
+                else Err ("unexpected identifier `" <> word <> "` in filter expression (expected predicate like test(...), module(...), tag(...))")
+      else Err "unexpected character in filter expression"
+
+  parse-filter-atom :: List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-atom ts = case ts of
+    Cons FTLParen rest -> case parse-filter-or rest of
+      Err msg -> Err msg
+      Ok (e, Cons FTRParen tail) -> Ok (e, tail)
+      Ok (e, other) -> Err "expected `)` in filter expression"
+    Cons (FTPred name arg) rest ->
+      if string-compare name "all" == 0 then Ok (FEAll, rest)
+      else if string-compare name "none" == 0 then Ok (FENone, rest)
+      else if string-compare name "ignored" == 0 then Ok (FEIgnored, rest)
+      else if string-compare name "should_fail" == 0 then Ok (FEShouldFail, rest)
+      else if string-compare name "serial" == 0 then Ok (FESerial, rest)
+      else if string-compare name "test" == 0 then Ok (FETest arg, rest)
+      else if string-compare name "module" == 0 || string-compare name "package" == 0 then Ok (FEModule arg, rest)
+      else if string-compare name "tag" == 0 || string-compare name "group" == 0 then Ok (FETag arg, rest)
+      else Err ("unknown filter predicate `" <> name <> "(...)`")
+    other -> Err "expected predicate or `(` in filter expression"
+
+  parse-filter-unary :: List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-unary ts = case ts of
+    Cons FTNot rest -> case parse-filter-unary rest of
+      Err msg -> Err msg
+      Ok (e, tail) -> Ok (FENot e, tail)
+    other -> parse-filter-atom ts
+
+  parse-filter-diff-tail :: FilterExpr -> List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-diff-tail lhs ts = case ts of
+    Cons FTMinus rest -> case parse-filter-unary rest of
+      Err msg -> Err msg
+      Ok (rhs, tail) -> parse-filter-diff-tail (FEAnd lhs (FENot rhs)) tail
+    other -> Ok (lhs, ts)
+
+  parse-filter-diff :: List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-diff ts = case parse-filter-unary ts of
+    Err msg -> Err msg
+    Ok (lhs, rest) -> parse-filter-diff-tail lhs rest
+
+  parse-filter-and-tail :: FilterExpr -> List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-and-tail lhs ts = case ts of
+    Cons FTAnd rest -> case parse-filter-diff rest of
+      Err msg -> Err msg
+      Ok (rhs, tail) -> parse-filter-and-tail (FEAnd lhs rhs) tail
+    other -> Ok (lhs, ts)
+
+  parse-filter-and :: List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-and ts = case parse-filter-diff ts of
+    Err msg -> Err msg
+    Ok (lhs, rest) -> parse-filter-and-tail lhs rest
+
+  parse-filter-or-tail :: FilterExpr -> List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-or-tail lhs ts = case ts of
+    Cons FTOr rest -> case parse-filter-and rest of
+      Err msg -> Err msg
+      Ok (rhs, tail) -> parse-filter-or-tail (FEOr lhs rhs) tail
+    other -> Ok (lhs, ts)
+
+  parse-filter-or :: List FilterTok -> Result String (FilterExpr, List FilterTok)
+  parse-filter-or ts = case parse-filter-and ts of
+    Err msg -> Err msg
+    Ok (lhs, rest) -> parse-filter-or-tail lhs rest
+
+  parse-filter-expr :: String -> Result String FilterExpr
+  parse-filter-expr raw = case lex-filter-loop (unpack raw) Nil of
+    Err msg -> Err msg
+    Ok Nil -> Ok FEAll
+    Ok toks -> case parse-filter-or toks of
+      Err msg -> Err msg
+      Ok (e, Nil) -> Ok e
+      Ok (e, Cons _ _) -> Err ("trailing tokens in filter expression: " <> raw)
+
+  parse-all-filter-exprs :: List String -> List FilterExpr -> Result String (List FilterExpr)
+  parse-all-filter-exprs raws acc = case raws of
+    Nil -> Ok (reverse acc)
+    Cons raw rest -> case parse-filter-expr raw of
+      Err msg -> Err msg
+      Ok e -> parse-all-filter-exprs rest (Cons e acc)
+
+  pattern-matches :: String -> String -> Bool
+  pattern-matches pat haystack =
+    let n = string-length pat in
+    if n == 0 then True
+    else if string-starts-with "=" pat then string-compare (string-drop 1 pat) haystack == 0
+    else if string-starts-with "^" pat then string-starts-with (string-drop 1 pat) haystack
+    else if n >= 1 && string-ends-with "$" pat then string-ends-with (string-take (n - 1) pat) haystack
+    else string-contains pat haystack
+
+  any-tag-matches :: String -> List String -> Bool
+  any-tag-matches pat tags = case tags of
+    Nil -> False
+    Cons tg rest -> pattern-matches pat tg || any-tag-matches pat rest
+
+  eval-filter-expr :: FilterExpr -> DiscoveredTest -> Bool
+  eval-filter-expr expr t = case expr of
+    FEAll -> True
+    FENone -> False
+    FETest pat -> if pattern-matches pat (test-display-name t) then True else False
+    FEModule pat -> if pattern-matches pat (test-module-name t) then True else False
+    FETag pat -> if any-tag-matches pat (test-spec-tags (test-spec t)) then True else False
+    FEIgnored -> if test-spec-ignored (test-spec t) then True else False
+    FEShouldFail -> if test-spec-should-fail (test-spec t) then True else False
+    FESerial -> if test-spec-serial (test-spec t) then True else False
+    FENot inner -> not (eval-filter-expr inner t)
+    FEAnd a b -> if eval-filter-expr a t then (if eval-filter-expr b t then True else False) else False
+    FEOr a b -> if eval-filter-expr a t then True else (if eval-filter-expr b t then True else False)
+
+  any-filter-expr-matches :: List FilterExpr -> DiscoveredTest -> Bool
+  any-filter-expr-matches exprs t = case exprs of
+    Nil -> True
+    Cons e rest -> eval-filter-expr e t || any-filter-expr-matches-nonempty rest t
+
+  any-filter-expr-matches-nonempty :: List FilterExpr -> DiscoveredTest -> Bool
+  any-filter-expr-matches-nonempty exprs t = case exprs of
+    Nil -> False
+    Cons e rest -> eval-filter-expr e t || any-filter-expr-matches-nonempty rest t
+
+  any-pos-filter-matches :: Bool -> List String -> DiscoveredTest -> Bool
+  any-pos-filter-matches exact filters t = case filters of
+    Nil -> True
+    Cons f rest -> pos-filter-matches exact f t || any-pos-filter-matches-nonempty exact rest t
+
+  any-pos-filter-matches-nonempty :: Bool -> List String -> DiscoveredTest -> Bool
+  any-pos-filter-matches-nonempty exact filters t = case filters of
+    Nil -> False
+    Cons f rest -> pos-filter-matches exact f t || any-pos-filter-matches-nonempty exact rest t
+
+  pos-filter-matches :: Bool -> String -> DiscoveredTest -> Bool
+  pos-filter-matches exact f t =
+    if exact then string-compare f (test-display-name t) == 0
+    else string-contains f (test-display-name t)
+
+  -- Deterministic hash for `--partition hash:i/n` (FNV-1a 32-bit in pure Nat).
+  fnv-nat-chars :: List Char -> Nat -> Nat
+  fnv-nat-chars cs h = case cs of
+    Nil -> h
+    Cons ch rest -> fnv-nat-chars rest (((h * 33) + char-code ch) % 2147483647)
+
+  partition-includes :: Option PartitionSpec -> Nat -> DiscoveredTest -> Bool
+  partition-includes part ordinal t = case part of
+    None -> True
+    Some (PartCount idx total) -> if total == 0 then True else (ordinal % total) + 1 == idx
+    Some (PartHash idx total) -> if total == 0 then True else (fnv-nat-chars (unpack (test-display-name t)) 5381 % total) + 1 == idx
+
+  filter-discovered-tests :: TestCliConfig -> List FilterExpr -> List DiscoveredTest -> Nat -> List DiscoveredTest
+  filter-discovered-tests cfg exprs ts ordinal = case ts of
+    Nil -> Nil
+    Cons t rest ->
+      let matches-expr = any-filter-expr-matches exprs t in
+      let matches-pos = any-pos-filter-matches (config-exact cfg) (config-pos-filters cfg) t in
+      let matches-ign = case config-run-ignored cfg of
+            IgnoredOnly -> test-spec-ignored (test-spec t)
+            other -> True in
+      if matches-expr && matches-pos && matches-ign then
+        if partition-includes (config-partition cfg) ordinal t then
+          Cons t (filter-discovered-tests cfg exprs rest (ordinal + 1))
+        else filter-discovered-tests cfg exprs rest (ordinal + 1)
+      else filter-discovered-tests cfg exprs rest ordinal
+
+  -- ------------------------------------------------------------------
+  -- Formatting helpers (nextest style: aligned columns, durations, ANSI)
+  -- ------------------------------------------------------------------
+
+  esc-char :: String
+  esc-char = case char-from-code 27 of
+    Some c -> pack [c]
+    None -> ""
+
+  ansi-wrap :: Bool -> String -> String -> String
+  ansi-wrap enabled code text =
+    if not enabled then text
+    else string-concat-all [esc-char, "[", code, "m", text, esc-char, "[0m"]
+
+  pad-three :: Nat -> String
+  pad-three n =
+    if n < 10 then "00" <> nat-to-string n
+    else if n < 100 then "0" <> nat-to-string n
+    else nat-to-string n
+
+  format-duration-s :: Nat -> String
+  format-duration-s ms =
+    let secs = ms / 1000 in
+    let rem = ms % 1000 in
+    string-pad-left 8 (nat-to-string secs <> "." <> pad-three rem <> "s")
+
+  format-duration-plain :: Nat -> String
+  format-duration-plain ms =
+    let secs = ms / 1000 in
+    let rem = ms % 1000 in
+    nat-to-string secs <> "." <> pad-three rem
+
+  return-kind-label :: TestReturnKind -> String
+  return-kind-label rk = case rk of
+    TRInt -> "Int"
+    TRBool -> "Bool"
+    TRUnit -> "Unit"
+    TRResult _ -> "Result"
+    TRCheck -> "Check"
+    TRCheckList -> "List Check"
+
+  signal-name :: Nat -> String
+  signal-name sig =
+    if sig == 4 then "SIGILL"
+    else if sig == 6 then "SIGABRT"
+    else if sig == 8 then "SIGFPE"
+    else if sig == 9 then "SIGKILL"
+    else if sig == 10 then "SIGBUS"
+    else if sig == 11 then "SIGSEGV"
+    else if sig == 14 then "SIGALRM"
+    else if sig == 15 then "SIGTERM"
+    else "SIG" <> nat-to-string sig
+
+  describe-exit :: Nat -> String
+  describe-exit code =
+    if code > 128 then "signal " <> signal-name (code - 128) <> " (exit " <> nat-to-string code <> ")"
+    else "exit " <> nat-to-string code
+
+  -- ------------------------------------------------------------------
+  -- Listing (--list and --list-json)
+  -- ------------------------------------------------------------------
+
+  test-badges :: TestSpec -> String
+  test-badges tspec =
+    let b1 = if test-spec-ignored tspec then
+               [case test-spec-ignore-reason tspec of Some r -> "ignored: " <> r; None -> "ignored"]
+             else Nil in
+    let b2 = if test-spec-should-fail tspec then
+               [case test-spec-fail-expected tspec of Some m -> "should_fail=\"" <> m <> "\""; None -> "should_fail"]
+             else Nil in
+    let b3 = if test-spec-serial tspec then ["serial"] else Nil in
+    let b4 = case test-spec-timeout-ms tspec of Some ms -> ["timeout=" <> nat-to-string ms <> "ms"]; None -> Nil in
+    let b5 = case test-spec-retries tspec of Some r -> ["retries=" <> nat-to-string r]; None -> Nil in
+    let b6 = case test-spec-tags tspec of Nil -> Nil; ts -> ["tags=" <> string-join "," ts] in
+    let all-b = b1 <> b2 <> b3 <> b4 <> b5 <> b6 in
+    case all-b of
+      Nil -> ""
+      other -> " [" <> string-join ", " all-b <> "]"
+
+  render-list-lines :: List DiscoveredTest -> String
+  render-list-lines ts = case ts of
+    Nil -> ""
+    Cons t rest ->
+      test-display-name t <> test-badges (test-spec t) <> "\n" <> render-list-lines rest
+
+  json-str-list :: List String -> Json
+  json-str-list xs = case xs of
+    Nil -> JArrEnd
+    Cons x rest -> JArr (JStr x) (json-str-list rest)
+
+  json-opt-str :: Option String -> Json
+  json-opt-str o = case o of
+    None -> JNull
+    Some s -> JStr s
+
+  json-opt-nat :: Option Nat -> Json
+  json-opt-nat o = case o of
+    None -> JNull
+    Some n -> JNum (nat-to-int n)
+
+  test-meta-json :: DiscoveredTest -> Json
+  test-meta-json t =
+    let sp = test-spec t in
+    JObj "index" (JNum (nat-to-int (test-index t)))
+    (JObj "module" (JStr (test-module-name t))
+    (JObj "name" (JStr (test-display-name t))
+    (JObj "return_kind" (JStr (return-kind-label (test-return-kind t)))
+    (JObj "ignored" (JBool (test-spec-ignored sp))
+    (JObj "ignore_reason" (json-opt-str (test-spec-ignore-reason sp))
+    (JObj "should_fail" (JBool (test-spec-should-fail sp))
+    (JObj "expected_failure" (json-opt-str (test-spec-fail-expected sp))
+    (JObj "serial" (JBool (test-spec-serial sp))
+    (JObj "timeout_ms" (json-opt-nat (test-spec-timeout-ms sp))
+    (JObj "retries" (json-opt-nat (test-spec-retries sp))
+    (JObj "tags" (json-str-list (test-spec-tags sp)) JObjEnd)))))))))))
+
+  test-list-json :: List DiscoveredTest -> Json
+  test-list-json ts = case ts of
+    Nil -> JArrEnd
+    Cons t rest -> JArr (test-meta-json t) (test-list-json rest)
+
+  list-tests-output :: TestCliConfig -> List DiscoveredTest -> Result String String
+  list-tests-output cfg all-tests =
+    case parse-all-filter-exprs (config-filter-exprs cfg) Nil of
+      Err msg -> Err msg
+      Ok exprs ->
+        let selected = filter-discovered-tests cfg exprs all-tests 0 in
+        if config-list-json cfg then
+          case string-from-bytes (canonical-bytes (JObj "tests" (test-list-json selected) (JObj "count" (JNum (nat-to-int (list-count selected))) JObjEnd))) of
+            Some s -> Ok (s <> "\n")
+            None -> Ok "{}\n"
+        else
+          Ok (render-list-lines selected <> nat-to-string (list-count selected) <> " tests\n")
+
+  list-count :: forall a. List a -> Nat
+  list-count xs = case xs of
+    Nil -> 0
+    Cons _ rest -> 1 + list-count rest
+
+  -- ------------------------------------------------------------------
+  -- Isolated process-per-test execution & wave-parallel scheduler
+  -- ------------------------------------------------------------------
+
+  data TestOutcomeKind where
+    OutcomePass :: TestOutcomeKind
+    OutcomeFlaky :: TestOutcomeKind
+    OutcomeFail :: String -> TestOutcomeKind
+    OutcomeTimeout :: Nat -> TestOutcomeKind
+    OutcomeSkip :: Option String -> TestOutcomeKind
+
+  data TestResult where
+    MkTestResult
+      :: DiscoveredTest
+      -> TestOutcomeKind
+      -> Nat       -- duration ms
+      -> Nat       -- attempts used (0 for skipped)
+      -> Nat       -- max attempts
+      -> Bool      -- slow
+      -> Nat       -- exit code
+      -> String    -- captured stdout
+      -> String    -- captured stderr
+      -> TestResult
+
+  result-test :: TestResult -> DiscoveredTest
+  result-test r = case r of MkTestResult t ok ms att ma sl ec so se -> t
+  result-outcome :: TestResult -> TestOutcomeKind
+  result-outcome r = case r of MkTestResult t ok ms att ma sl ec so se -> ok
+  result-ms :: TestResult -> Nat
+  result-ms r = case r of MkTestResult t ok ms att ma sl ec so se -> ms
+  result-attempts :: TestResult -> Nat
+  result-attempts r = case r of MkTestResult t ok ms att ma sl ec so se -> att
+  result-max-attempts :: TestResult -> Nat
+  result-max-attempts r = case r of MkTestResult t ok ms att ma sl ec so se -> ma
+  result-slow :: TestResult -> Bool
+  result-slow r = case r of MkTestResult t ok ms att ma sl ec so se -> sl
+  result-exit :: TestResult -> Nat
+  result-exit r = case r of MkTestResult t ok ms att ma sl ec so se -> ec
+  result-stdout :: TestResult -> String
+  result-stdout r = case r of MkTestResult t ok ms att ma sl ec so se -> so
+  result-stderr :: TestResult -> String
+  result-stderr r = case r of MkTestResult t ok ms att ma sl ec so se -> se
+
+  outcome-is-failure :: TestOutcomeKind -> Bool
+  outcome-is-failure k = case k of
+    OutcomeFail _ -> True
+    OutcomeTimeout _ -> True
+    other -> False
+
+  outcome-is-pass :: TestOutcomeKind -> Bool
+  outcome-is-pass k = case k of
+    OutcomePass -> True
+    OutcomeFlaky -> True
+    other -> False
+
+  data SpawnedTest where
+    MkSpawnedTest :: DiscoveredTest -> Option Child -> Nat -> Nat -> Nat -> Nat -> SpawnedTest
+    -- test, spawned child handle (None if spawn failed), start_ns, timeout_ms, attempt_num, max_attempts
+
+  bytes-to-lossy-string :: Bytes -> String
+  bytes-to-lossy-string b = case string-from-bytes b of
+    Some s -> s
+    None -> "<non-utf8 output: " <> nat-to-string (bytes-len b) <> " bytes>"
+
+  drain-stream :: forall r. using (io :: Io r) => Child -> Stream -> List String ->{IO r, Diverge} String
+  drain-stream c s acc = case child-read c s 8192 of
+    Err _ -> string-concat-all (reverse acc)
+    Ok chunk ->
+      if bytes-len chunk == 0 then string-concat-all (reverse acc)
+      else drain-stream c s (Cons (bytes-to-lossy-string chunk) acc)
+
+  effective-timeout-ms :: TestCliConfig -> DiscoveredTest -> Nat
+  effective-timeout-ms cfg t = case test-spec-timeout-ms (test-spec t) of
+    Some ms -> ms
+    None -> case config-timeout-ms cfg of
+      Some ms -> ms
+      None -> 0
+
+  effective-retries :: TestCliConfig -> DiscoveredTest -> Nat
+  effective-retries cfg t = case test-spec-retries (test-spec t) of
+    Some n -> n
+    None -> config-retries cfg
+
+  build-test-command :: Path -> TestCliConfig -> DiscoveredTest -> Nat -> Command
+  build-test-command exe-path cfg t timeout-ms =
+    let args = if timeout-ms > 0
+               then [nat-to-string (test-index t), nat-to-string timeout-ms]
+               else [nat-to-string (test-index t)] in
+    let env = if config-leak-check cfg
+              then [("CINCH_RC_DEBUG", "1"), ("CINCH_LEAK_CHECK", "1")]
+              else Nil in
+    command-with-env exe-path args env
+
+  spawn-one-test :: forall r. using (io :: Io r) => Path -> TestCliConfig -> DiscoveredTest -> Nat -> Nat ->{IO r} SpawnedTest
+  spawn-one-test exe-path cfg t attempt max-att =
+    let to-ms = effective-timeout-ms cfg t in
+    let cmd = build-test-command exe-path cfg t to-ms in
+    case clock-monotonic-ns () of
+      t0 -> case process-spawn None cmd of
+        Err _ -> MkSpawnedTest t None t0 to-ms attempt max-att
+        Ok child -> case child-close-stdin child of
+          _ -> MkSpawnedTest t (Some child) t0 to-ms attempt max-att
+
+  spawn-wave :: forall r. using (io :: Io r) => Path -> TestCliConfig -> List DiscoveredTest ->{IO r} List SpawnedTest
+  spawn-wave exe-path cfg ts = case ts of
+    Nil -> Nil
+    Cons t rest ->
+      let max-att = 1 + effective-retries cfg t in
+      case spawn-one-test exe-path cfg t 1 max-att of
+        sp -> case spawn-wave exe-path cfg rest of
+          more -> Cons sp more
+
+  classify-attempt :: TestCliConfig -> DiscoveredTest -> Nat -> Nat -> Nat -> Nat -> Nat -> String -> String -> TestResult
+  classify-attempt cfg t exit-code elapsed-ms to-ms attempt max-att out-s err-s =
+    let sp = test-spec t in
+    let slow = elapsed-ms >= config-slow-timeout-ms cfg in
+    let is-timeout = to-ms > 0 && exit-code == 142 in
+    let outcome = (if is-timeout then OutcomeTimeout to-ms
+      else if test-spec-should-fail sp then
+        if exit-code == 0 then OutcomeFail "expected failure, but test exited 0"
+        else case test-spec-fail-expected sp of
+          None -> if attempt > 1 then OutcomeFlaky else OutcomePass
+          Some needle ->
+            if string-contains needle err-s || string-contains needle out-s then
+              if attempt > 1 then OutcomeFlaky else OutcomePass
+            else OutcomeFail ("failure output did not contain expected substring `" <> needle <> "` (" <> describe-exit exit-code <> ")")
+      else if exit-code == 0 then
+        if attempt > 1 then OutcomeFlaky else OutcomePass
+      else OutcomeFail (describe-exit exit-code)) in
+    MkTestResult t outcome elapsed-ms attempt max-att slow exit-code out-s err-s
+
+  reap-spawned :: forall r. using (io :: Io r) => TestCliConfig -> SpawnedTest ->{IO r, Diverge} TestResult
+  reap-spawned cfg s = case s of
+    MkSpawnedTest t None t0 to-ms att max-att ->
+      MkTestResult t (OutcomeFail "failed to spawn isolated test process") 0 att max-att False 127 "" ""
+    MkSpawnedTest t (Some child) t0 to-ms att max-att ->
+      case drain-stream child Stdout Nil of
+        out-s -> case drain-stream child Stderr Nil of
+          err-s -> case child-wait child of
+            wait-res -> case child-close child of
+              _ -> case clock-monotonic-ns () of
+                t1 ->
+                  let elapsed-ms = if t1 >= t0 then (t1 - t0) / 1000000 else 0 in
+                  case wait-res of
+                    Err _ -> MkTestResult t (OutcomeFail "failed to reap test process") elapsed-ms att max-att False 127 out-s err-s
+                    Ok code -> classify-attempt cfg t code elapsed-ms to-ms att max-att out-s err-s
+
+  retry-loop :: forall r. using (io :: Io r) => Path -> TestCliConfig -> TestResult ->{IO r, Diverge} TestResult
+  retry-loop exe-path cfg res =
+    if outcome-is-failure (result-outcome res) && result-attempts res < result-max-attempts res then
+      let t = result-test res in
+      let next-att = result-attempts res + 1 in
+      let max-att = result-max-attempts res in
+      case report-retry-line cfg res of
+        _ -> case spawn-one-test exe-path cfg t next-att max-att of
+          sp -> case reap-spawned cfg sp of
+            next-res -> retry-loop exe-path cfg next-res
+    else res
+
+  -- ------------------------------------------------------------------
+  -- Streaming human output (cargo-nextest style)
+  -- ------------------------------------------------------------------
+
+  status-rank :: StatusLevel -> Nat
+  status-rank lv = case lv of
+    StatusNone -> 0
+    StatusFail -> 1
+    StatusRetry -> 2
+    StatusSlow -> 3
+    StatusPass -> 4
+    StatusSkip -> 5
+    StatusAll -> 6
+
+  should-show-status :: TestCliConfig -> Nat -> Bool
+  should-show-status cfg required-rank =
+    case config-format cfg of
+      FormatJson -> False
+      FormatHuman -> status-rank (config-status-level cfg) >= required-rank
+
+  should-print-immediate :: OutputPolicy -> Bool
+  should-print-immediate p = case p of
+    OutImmediate -> True
+    OutImmediateFinal -> True
+    other -> False
+
+  should-print-final :: OutputPolicy -> Bool
+  should-print-final p = case p of
+    OutFinal -> True
+    OutImmediateFinal -> True
+    other -> False
+
+  render-captured-block :: String -> String -> String -> String
+  render-captured-block name out-s err-s =
+    let s1 = if string-length out-s > 0 then "  --- STDOUT: " <> name <> " ---\n" <> out-s <> (if string-ends-with "\n" out-s then "" else "\n") else "" in
+    let s2 = if string-length err-s > 0 then "  --- STDERR: " <> name <> " ---\n" <> err-s <> (if string-ends-with "\n" err-s then "" else "\n") else "" in
+    s1 <> s2
+
+  report-retry-line :: forall r. using (io :: Io r) => TestCliConfig -> TestResult ->{IO r} Unit
+  report-retry-line cfg res =
+    if not (should-show-status cfg 2) then ()
+    else
+      let col = config-color cfg in
+      let tag = ansi-wrap col "1;33" "       RETRY" in
+      let line = string-concat-all [tag, " [", format-duration-s (result-ms res), "] (try ", nat-to-string (result-attempts res), "/", nat-to-string (result-max-attempts res), ") ", test-display-name (result-test res), "\n"] in
+      case ioWrite (string-to-bytes line) of _ -> ()
+
+  report-result-line :: forall r. using (io :: Io r) => TestCliConfig -> TestResult ->{IO r} Unit
+  report-result-line cfg res =
+    let col = config-color cfg in
+    let name = test-display-name (result-test res) in
+    let dur = format-duration-s (result-ms res) in
+    case result-outcome res of
+      OutcomePass ->
+        let rank = if result-slow res then (3 :: Nat) else (4 :: Nat) in
+        if not (should-show-status cfg rank) then ()
+        else
+          let badge = if result-slow res then ansi-wrap col "1;33" "        SLOW" else ansi-wrap col "1;32" "        PASS" in
+          let line = string-concat-all [badge, " [", dur, "] ", name, "\n"] in
+          let extra = if should-print-immediate (config-success-output cfg) then render-captured-block name (result-stdout res) (result-stderr res) else "" in
+          case ioWrite (string-to-bytes (line <> extra)) of _ -> ()
+      OutcomeFlaky ->
+        if not (should-show-status cfg 2) then ()
+        else
+          let badge = ansi-wrap col "1;33" "       FLAKY" in
+          let line = string-concat-all [badge, " [", dur, "] (try ", nat-to-string (result-attempts res), "/", nat-to-string (result-max-attempts res), ") ", name, "\n"] in
+          let extra = if should-print-immediate (config-success-output cfg) then render-captured-block name (result-stdout res) (result-stderr res) else "" in
+          case ioWrite (string-to-bytes (line <> extra)) of _ -> ()
+      OutcomeSkip reason ->
+        if not (should-show-status cfg 5) then ()
+        else
+          let badge = ansi-wrap col "1;36" "        SKIP" in
+          let why = case reason of Some r -> " (" <> r <> ")"; None -> "" in
+          let line = string-concat-all [badge, " [        ] ", name, why, "\n"] in
+          case ioWrite (string-to-bytes line) of _ -> ()
+      OutcomeFail detail ->
+        if not (should-show-status cfg 1) then ()
+        else
+          let badge = ansi-wrap col "1;31" "        FAIL" in
+          let line = string-concat-all [badge, " [", dur, "] ", name, " (", detail, ")\n"] in
+          let extra = if should-print-immediate (config-failure-output cfg) then render-captured-block name (result-stdout res) (result-stderr res) else "" in
+          case ioWrite (string-to-bytes (line <> extra)) of _ -> ()
+      OutcomeTimeout ms ->
+        if not (should-show-status cfg 1) then ()
+        else
+          let badge = ansi-wrap col "1;31" "     TIMEOUT" in
+          let line = string-concat-all [badge, " [", dur, "] ", name, " (timeout ", nat-to-string ms, "ms)\n"] in
+          let extra = if should-print-immediate (config-failure-output cfg) then render-captured-block name (result-stdout res) (result-stderr res) else "" in
+          case ioWrite (string-to-bytes (line <> extra)) of _ -> ()
+
+  reap-wave :: forall r. using (io :: Io r) => Path -> TestCliConfig -> List SpawnedTest -> Nat -> List TestResult ->{IO r, Diverge} (List TestResult, Nat)
+  reap-wave exe-path cfg spawned fails acc = case spawned of
+    Nil -> (reverse acc, fails)
+    Cons sp rest ->
+      case reap-spawned cfg sp of
+        first-res -> case retry-loop exe-path cfg first-res of
+          final-res -> case report-result-line cfg final-res of
+            _ ->
+              let next-fails = fails + (if outcome-is-failure (result-outcome final-res) then 1 else 0) in
+              reap-wave exe-path cfg rest next-fails (Cons final-res acc)
+
+  max-fail-reached :: TestCliConfig -> Nat -> Bool
+  max-fail-reached cfg fails = case config-max-fail cfg of
+    None -> False
+    Some limit -> fails >= limit
+
+  run-waves :: forall r. using (io :: Io r) => Path -> TestCliConfig -> Nat -> List DiscoveredTest -> Nat -> List TestResult ->{IO r, Diverge} (List TestResult, Nat)
+  run-waves exe-path cfg wave-size remaining fails acc =
+    if max-fail-reached cfg fails then (acc, fails)
+    else case remaining of
+      Nil -> (acc, fails)
+      Cons _ _ ->
+        case split-at wave-size remaining of
+          (batch, rest) ->
+            case spawn-wave exe-path cfg batch of
+              spawned -> case reap-wave exe-path cfg spawned fails Nil of
+                (wave-results, next-fails) ->
+                  run-waves exe-path cfg wave-size rest next-fails (acc <> wave-results)
+
+  partition-runnable :: RunIgnoredMode -> List DiscoveredTest -> (List DiscoveredTest, List DiscoveredTest, List TestResult)
+  partition-runnable mode ts = case ts of
+    Nil -> (Nil, Nil, Nil)
+    Cons t rest -> case partition-runnable mode rest of
+      (pars, sers, skips) ->
+        let sp = test-spec t in
+        let is-skip = case mode of
+              IgnoredDefault -> test-spec-ignored sp
+              other -> False in
+        if is-skip then
+          (pars, sers, Cons (MkTestResult t (OutcomeSkip (test-spec-ignore-reason sp)) 0 0 0 False 0 "" "") skips)
+        else if test-spec-serial sp then
+          (pars, Cons t sers, skips)
+        else
+          (Cons t pars, sers, skips)
+
+  report-skips :: forall r. using (io :: Io r) => TestCliConfig -> List TestResult ->{IO r} Unit
+  report-skips cfg skips = case skips of
+    Nil -> ()
+    Cons r rest -> case report-result-line cfg r of _ -> report-skips cfg rest
+
+  -- ------------------------------------------------------------------
+  -- Summary, JUnit XML, and JSON report generation
+  -- ------------------------------------------------------------------
+
+  data RunSummary where
+    MkRunSummary :: Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> RunSummary
+    -- total_run, passed, flaky, slow, failed, timed_out, skipped
+
+  tally-results :: List TestResult -> RunSummary -> RunSummary
+  tally-results rs acc = case rs of
+    Nil -> acc
+    Cons r rest -> case acc of
+      MkRunSummary run pass flaky slow fail tmo skip ->
+        let slow-inc = if result-slow r then (1 :: Nat) else (0 :: Nat) in
+        let next = case result-outcome r of
+              OutcomePass -> MkRunSummary (run + 1) (pass + 1) flaky (slow + slow-inc) fail tmo skip
+              OutcomeFlaky -> MkRunSummary (run + 1) (pass + 1) (flaky + 1) (slow + slow-inc) fail tmo skip
+              OutcomeFail _ -> MkRunSummary (run + 1) pass flaky (slow + slow-inc) (fail + 1) tmo skip
+              OutcomeTimeout _ -> MkRunSummary (run + 1) pass flaky (slow + slow-inc) (fail + 1) (tmo + 1) skip
+              OutcomeSkip _ -> MkRunSummary run pass flaky slow fail tmo (skip + 1) in
+        tally-results rest next
+
+  render-final-failures :: TestCliConfig -> List TestResult -> String
+  render-final-failures cfg rs =
+    if not (should-print-final (config-failure-output cfg)) then ""
+    else render-final-failures-loop rs ""
+
+  render-final-failures-loop :: List TestResult -> String -> String
+  render-final-failures-loop rs acc = case rs of
+    Nil -> acc
+    Cons r rest ->
+      let name = test-display-name (result-test r) in
+      let block = case result-outcome r of
+            OutcomeFail detail ->
+              "  FAIL " <> name <> " (" <> detail <> ")\n" <> render-captured-block name (result-stdout r) (result-stderr r)
+            OutcomeTimeout ms ->
+              "  TIMEOUT " <> name <> " (exceeded " <> nat-to-string ms <> "ms)\n" <> render-captured-block name (result-stdout r) (result-stderr r)
+            other -> "" in
+      render-final-failures-loop rest (acc <> block)
+
+  render-human-summary :: TestCliConfig -> RunSummary -> Nat -> List TestResult -> String
+  render-human-summary cfg sm total-ms results = case sm of
+    MkRunSummary run pass flaky slow fail tmo skip ->
+      let col = config-color cfg in
+      let label = if fail == 0 then ansi-wrap col "1;32" "     Summary" else ansi-wrap col "1;31" "     Summary" in
+      let pass-notes = (if flaky > 0 then [nat-to-string flaky <> " flaky"] else Nil) <> (if slow > 0 then [nat-to-string slow <> " slow"] else Nil) in
+      let pass-extra = case pass-notes of Nil -> ""; other -> " (" <> string-join ", " pass-notes <> ")" in
+      let fail-extra = if tmo > 0 then " (" <> nat-to-string tmo <> " timed out)" else "" in
+      let skip-extra = if skip > 0 then ", " <> nat-to-string skip <> " skipped" else "" in
+      let final-fails = render-final-failures cfg results in
+      let header-fails = if string-length final-fails > 0 then "------------\n" <> final-fails else "" in
+      string-concat-all [
+        header-fails,
+        "------------\n",
+        label, " [", format-duration-s total-ms, "] ",
+        nat-to-string run, " tests run: ",
+        nat-to-string pass, " passed", pass-extra, ", ",
+        nat-to-string fail, " failed", fail-extra, skip-extra, "\n"
+      ]
+
+  xml-escape-chars :: List Char -> List String -> String
+  xml-escape-chars cs acc = case cs of
+    Nil -> string-concat-all (reverse acc)
+    Cons ch rest ->
+      let code = char-code ch in
+      let piece = if code == 38 then "&amp;"
+                  else if code == 60 then "&lt;"
+                  else if code == 62 then "&gt;"
+                  else if code == 34 then "&quot;"
+                  else if code == 39 then "&apos;"
+                  else pack [ch] in
+      xml-escape-chars rest (Cons piece acc)
+
+  xml-escape :: String -> String
+  xml-escape s = xml-escape-chars (unpack s) Nil
+
+  render-junit-case :: TestResult -> String
+  render-junit-case r =
+    let t = result-test r in
+    let cls = xml-escape (test-module-name t) in
+    let nm = xml-escape (test-display-name t) in
+    let tm = format-duration-plain (result-ms r) in
+    let body = case result-outcome r of
+          OutcomePass -> ""
+          OutcomeFlaky -> ""
+          OutcomeSkip reason -> case reason of
+            Some msg -> "      <skipped message=\"" <> xml-escape msg <> "\"/>\n"
+            None -> "      <skipped/>\n"
+          OutcomeFail detail -> "      <failure message=\"" <> xml-escape detail <> "\">" <> xml-escape (result-stderr r <> result-stdout r) <> "</failure>\n"
+          OutcomeTimeout ms -> "      <failure type=\"timeout\" message=\"timed out after " <> nat-to-string ms <> "ms\"/>\n" in
+    let so = if string-length (result-stdout r) > 0 then "      <system-out>" <> xml-escape (result-stdout r) <> "</system-out>\n" else "" in
+    let se = if string-length (result-stderr r) > 0 then "      <system-err>" <> xml-escape (result-stderr r) <> "</system-err>\n" else "" in
+    let inner = body <> so <> se in
+    if string-length inner == 0 then
+      "    <testcase classname=\"" <> cls <> "\" name=\"" <> nm <> "\" time=\"" <> tm <> "\"/>\n"
+    else
+      "    <testcase classname=\"" <> cls <> "\" name=\"" <> nm <> "\" time=\"" <> tm <> "\">\n" <> inner <> "    </testcase>\n"
+
+  render-junit-cases :: List TestResult -> String
+  render-junit-cases rs = case rs of
+    Nil -> ""
+    Cons r rest -> render-junit-case r <> render-junit-cases rest
+
+  render-junit-xml :: RunSummary -> Nat -> List TestResult -> String
+  render-junit-xml sm total-ms results = case sm of
+    MkRunSummary run pass flaky slow fail tmo skip ->
+      let total = run + skip in
+      string-concat-all [
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+        "<testsuites name=\"cinch-test\" tests=\"", nat-to-string total,
+        "\" failures=\"", nat-to-string fail,
+        "\" skipped=\"", nat-to-string skip,
+        "\" time=\"", format-duration-plain total-ms, "\">\n",
+        "  <testsuite name=\"cinch\" tests=\"", nat-to-string total,
+        "\" failures=\"", nat-to-string fail,
+        "\" skipped=\"", nat-to-string skip,
+        "\" time=\"", format-duration-plain total-ms, "\">\n",
+        render-junit-cases results,
+        "  </testsuite>\n",
+        "</testsuites>\n"
+      ]
+
+  outcome-status-string :: TestOutcomeKind -> String
+  outcome-status-string k = case k of
+    OutcomePass -> "pass"
+    OutcomeFlaky -> "flaky"
+    OutcomeFail _ -> "fail"
+    OutcomeTimeout _ -> "timeout"
+    OutcomeSkip _ -> "skip"
+
+  outcome-detail-json :: TestOutcomeKind -> Json
+  outcome-detail-json k = case k of
+    OutcomeFail d -> JStr d
+    OutcomeTimeout ms -> JStr ("timeout after " <> nat-to-string ms <> "ms")
+    OutcomeSkip (Some r) -> JStr r
+    other -> JNull
+
+  result-to-json :: TestResult -> Json
+  result-to-json r =
+    let t = result-test r in
+    JObj "module" (JStr (test-module-name t))
+    (JObj "name" (JStr (test-display-name t))
+    (JObj "status" (JStr (outcome-status-string (result-outcome r)))
+    (JObj "detail" (outcome-detail-json (result-outcome r))
+    (JObj "duration_ms" (JNum (nat-to-int (result-ms r)))
+    (JObj "attempts" (JNum (nat-to-int (result-attempts r)))
+    (JObj "slow" (JBool (result-slow r))
+    (JObj "exit_code" (JNum (nat-to-int (result-exit r)))
+    (JObj "tags" (json-str-list (test-spec-tags (test-spec t)))
+    (JObj "stdout" (JStr (result-stdout r))
+    (JObj "stderr" (JStr (result-stderr r)) JObjEnd))))))))))
+
+  results-to-json :: List TestResult -> Json
+  results-to-json rs = case rs of
+    Nil -> JArrEnd
+    Cons r rest -> JArr (result-to-json r) (results-to-json rest)
+
+  render-json-report :: RunSummary -> Nat -> Nat -> List TestResult -> Bytes
+  render-json-report sm compile-ms total-ms results = case sm of
+    MkRunSummary run pass flaky slow fail tmo skip ->
+      let doc = (JObj "compile_ms" (JNum (nat-to-int compile-ms))
+            (JObj "duration_ms" (JNum (nat-to-int total-ms))
+            (JObj "summary" (
+              JObj "run" (JNum (nat-to-int run))
+              (JObj "passed" (JNum (nat-to-int pass))
+              (JObj "flaky" (JNum (nat-to-int flaky))
+              (JObj "slow" (JNum (nat-to-int slow))
+              (JObj "failed" (JNum (nat-to-int fail))
+              (JObj "timed_out" (JNum (nat-to-int tmo))
+              (JObj "skipped" (JNum (nat-to-int skip)) JObjEnd)))))))
+            (JObj "tests" (results-to-json results) JObjEnd)))) in
+      case string-from-bytes (canonical-bytes doc) of
+        Some s -> string-to-bytes (s <> "\n")
+        None -> canonical-bytes doc
+
+  write-optional-reports :: forall r. using (io :: Io r) => TestCliConfig -> RunSummary -> Nat -> Nat -> List TestResult ->{IO r} Unit
+  write-optional-reports cfg sm compile-ms total-ms results =
+    case (case config-junit-path cfg of
+      None -> ()
+      Some p -> case fs-write (path-from-string p) (string-to-bytes (render-junit-xml sm total-ms results)) of _ -> ()) of
+      _ -> case config-json-path cfg of
+        None -> ()
+        Some p -> case fs-write (path-from-string p) (render-json-report sm compile-ms total-ms results) of _ -> ()
+
+  -- ------------------------------------------------------------------
+  -- Top-level suite execution entry point
+  -- ------------------------------------------------------------------
+
+  run-test-suite :: forall r. using (io :: Io r) => TestCliConfig -> String -> Nat -> List DiscoveredTest ->{IO r, Diverge} Int
+  run-test-suite cfg executable compile-ms all-tests =
+    case parse-all-filter-exprs (config-filter-exprs cfg) Nil of
+      Err msg -> case ioWrite (string-to-bytes ("cinch test: filter error: " <> msg <> "\n")) of _ -> 2
+      Ok exprs ->
+        let selected = filter-discovered-tests cfg exprs all-tests 0 in
+        let (pars, sers, skips) = partition-runnable (config-run-ignored cfg) selected in
+        let total-selected = list-count selected in
+        let header = case config-format cfg of
+              FormatJson -> ""
+              FormatHuman ->
+                let col = config-color cfg in
+                let badge = ansi-wrap col "1;34" "    Starting" in
+                string-concat-all [badge, " ", nat-to-string total-selected, " tests across ", nat-to-string (config-jobs cfg), " worker(s) (compiled in ", format-duration-plain compile-ms, "s)\n"] in
+        case ioWrite (string-to-bytes header) of
+          _ ->
+            let prog = path-from-string executable in
+            let exe-path = if path-is-absolute prog then prog else path-from-string ("./" <> executable) in
+            case clock-monotonic-ns () of
+              t0 ->
+                case run-waves exe-path cfg (config-jobs cfg) pars 0 Nil of
+                  (par-res, fails1) ->
+                    case run-waves exe-path cfg 1 sers fails1 par-res of
+                      (all-ran, fails2) ->
+                        case report-skips cfg skips of
+                          _ -> case clock-monotonic-ns () of
+                            t1 ->
+                              let total-ms = if t1 >= t0 then (t1 - t0) / 1000000 else 0 in
+                              let all-results = all-ran <> skips in
+                              let sm = tally-results all-results (MkRunSummary 0 0 0 0 0 0 0) in
+                              case write-optional-reports cfg sm compile-ms total-ms all-results of
+                                _ ->
+                                  let final-out = case config-format cfg of
+                                        FormatJson -> render-json-report sm compile-ms total-ms all-results
+                                        FormatHuman -> string-to-bytes (render-human-summary cfg sm total-ms all-results) in
+                                  case ioWrite final-out of
+                                    _ -> if fails2 == 0 then 0 else 1

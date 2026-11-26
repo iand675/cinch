@@ -33,7 +33,7 @@ module Cinch.Ast where
   import Text.Lex (Span, span-start, span-end, span-line, span-col, LToken, Token, mk-ltoken, lt-span, lt-token, lt-virtual
     , TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF)
   import Cinch.Document (Json, JArr, JArrEnd, JStr, JBool, JNull)
-  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.String (string-from-bytes, string-to-bytes, empty-string)
   import Text.Show (nat-to-string)
   import Algebra.Semigroup
@@ -730,10 +730,44 @@ module Cinch.Ast where
     DUnpackFields :: Span -> String -> List (String, Bool) -> Decl
     DInlineHint :: Span -> String -> Result String String -> Decl
     DUnrollHint :: Span -> String -> Result String String -> Decl
+    DTestAttr :: Span -> String -> Result String TestSpec -> Decl
     DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
     DUnmodeled :: Span -> String -> Decl
+
+  data TestKind where
+    TestCaseKind :: TestKind
+    TestOnlyKind :: TestKind
+
+  -- Parsed metadata from #[test], #[test(...)], #[ignore], #[should_fail],
+  -- #[timeout(...)], #[retries(...)], #[tag(...)], #[serial], #[test_only],
+  -- and #[cfg(test)]. All fields are Share-safe immutable values.
+  data TestSpec where
+    MkTestSpec :: TestKind -> Bool -> Option String -> Bool -> Option String -> Option Nat -> Option Nat -> Bool -> List String -> TestSpec
+
+  test-spec-kind :: TestSpec -> TestKind
+  test-spec-kind s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> k
+  test-spec-is-test :: TestSpec -> Bool
+  test-spec-is-test s = case test-spec-kind s of TestCaseKind -> True; TestOnlyKind -> False
+  test-spec-is-test-only :: TestSpec -> Bool
+  test-spec-is-test-only s = case test-spec-kind s of TestOnlyKind -> True; TestCaseKind -> False
+  test-spec-ignored :: TestSpec -> Bool
+  test-spec-ignored s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> ig
+  test-spec-ignore-reason :: TestSpec -> Option String
+  test-spec-ignore-reason s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> igr
+  test-spec-should-fail :: TestSpec -> Bool
+  test-spec-should-fail s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> sf
+  test-spec-fail-expected :: TestSpec -> Option String
+  test-spec-fail-expected s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> sfe
+  test-spec-timeout-ms :: TestSpec -> Option Nat
+  test-spec-timeout-ms s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> tmo
+  test-spec-retries :: TestSpec -> Option Nat
+  test-spec-retries s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> rt
+  test-spec-serial :: TestSpec -> Bool
+  test-spec-serial s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> ser
+  test-spec-tags :: TestSpec -> List String
+  test-spec-tags s = case s of MkTestSpec k ig igr sf sfe tmo rt ser tags -> tags
 
   decl-spine :: Span -> List Decl -> Decl
   decl-spine s ds = case ds of
@@ -799,6 +833,7 @@ module Cinch.Ast where
     DUnpackFields s name fields -> s
     DInlineHint s name hint -> s
     DUnrollHint s name hint -> s
+    DTestAttr s name tspec -> s
     DUnmodeled s text -> s
 
   -- A declaration's name, where it has one a consumer registers.
@@ -836,6 +871,7 @@ module Cinch.Ast where
     DUnpackFields s name fields -> None
     DInlineHint s name hint -> None
     DUnrollHint s name hint -> None
+    DTestAttr s name tspec -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
     DSpec s body -> decl-name body
@@ -872,6 +908,77 @@ module Cinch.Ast where
     [] -> []
     (DInlineHint sp name (Ok hint)) : rest -> (name, hint) : (declaration-inline-hints rest)
     other : rest -> declaration-inline-hints rest
+
+  declaration-test-attrs :: List Decl -> List (Span, String, TestSpec)
+  declaration-test-attrs ds = case ds of
+    [] -> []
+    (DTestAttr sp name (Ok tspec)) : rest -> (sp, name, tspec) : (declaration-test-attrs rest)
+    other : rest -> declaration-test-attrs rest
+
+  collect-test-decl-names :: List Decl -> HashMap String Bool -> HashMap String Bool
+  collect-test-decl-names ds acc = case ds of
+    [] -> acc
+    (DTestAttr sp name (Ok tspec)) : rest -> collect-test-decl-names rest (hash-map-insert name True acc)
+    other : rest -> collect-test-decl-names rest acc
+
+  is-test-decl-name :: HashMap String Bool -> String -> Bool
+  is-test-decl-name names name = case hash-map-lookup name names of
+    Some True -> True
+    other -> False
+
+  export-item-last-part :: List String -> Option String
+  export-item-last-part parts = case parts of
+    [] -> None
+    [last] -> Some last
+    _ : rest -> export-item-last-part rest
+
+  strip-export-names :: HashMap String Bool -> List ExportItem -> List ExportItem
+  strip-export-names names items = case items of
+    [] -> []
+    item : rest ->
+      let more = strip-export-names names rest in
+      case item of
+        ExportName sp parts -> (case export-item-last-part parts of
+          Some n | is-test-decl-name names n -> more
+          other -> item : more)
+        ExportModule sp m -> item : more
+
+  strip-test-decl-list :: HashMap String Bool -> List Decl -> List Decl
+  strip-test-decl-list names ds = case ds of
+    [] -> []
+    d : rest ->
+      let more = strip-test-decl-list names rest in
+      case d of
+        DTestAttr sp name tspec -> more
+        DSig sp name ty -> if is-test-decl-name names name then more else d : more
+        DFun sp name clauses -> if is-test-decl-name names name then more else d : more
+        DData sp name params ctors -> if is-test-decl-name names name then more else d : more
+        DRecord sp name params fields -> if is-test-decl-name names name then more else d : more
+        DCodata sp name params obs -> if is-test-decl-name names name then more else d : more
+        DRefine sp name params b p -> if is-test-decl-name names name then more else d : more
+        DInlineHint sp name hint -> if is-test-decl-name names name then more else d : more
+        DUnrollHint sp name hint -> if is-test-decl-name names name then more else d : more
+        DExport sp text items -> (case strip-export-names names items of
+          [] -> more
+          kept -> (DExport sp text kept) : more)
+        other -> d : more
+
+  strip-test-module :: Module -> Module
+  strip-test-module m =
+    let ds = module-decls m in
+    let names = collect-test-decl-names ds hash-map-empty in
+    Module m.span m.name (decl-spine m.span (strip-test-decl-list names ds))
+
+  strip-test-modules :: List Module -> List Module
+  strip-test-modules ms = case ms of
+    [] -> []
+    m : rest -> (strip-test-module m) : (strip-test-modules rest)
+
+  -- Production release elimination: remove all #[test], #[test_only], and
+  -- #[cfg(test)] declarations, their signatures, bodies, hints, and export
+  -- mentions before elaboration/lowering/IR emission.
+  strip-test-declarations :: Program -> Program
+  strip-test-declarations p = Program p.span (strip-test-modules p.modules)
 
   module-decls :: Module -> List Decl
   module-decls m = case m of
@@ -1106,6 +1213,7 @@ module Cinch.Ast where
     DUnpackFields s name fields -> 0
     DInlineHint s name hint -> 0
     DUnrollHint s name hint -> 0
+    DTestAttr s name tspec -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
     DSpec s body -> decl-unmodeled-count body

@@ -3,7 +3,7 @@
 -- calls transfer arguments to the callee. Mathematical numbers remain
 -- runtime words throughout. Unsupported Core produces errors, never IR.
 module Cinch.RuntimeIr where
-  import Cinch.Ast (Module, module-decls, Decl, DInlineHint, DUnrollHint)
+  import Cinch.Ast (Module, module-decls, Decl, DInlineHint, DUnrollHint, DTestAttr, TestSpec, declaration-test-attrs, test-spec-is-test, test-spec-is-test-only, test-spec-ignored, test-spec-ignore-reason, test-spec-should-fail, test-spec-fail-expected, test-spec-timeout-ms, test-spec-retries, test-spec-serial, test-spec-tags)
   import Cinch.Check (CheckedProgram)
   import Cinch.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, elaboration-type-families, elaboration-promoted-fns, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
   import Cinch.Promote (PromotedFn, is-promoted-fn-name)
@@ -46,6 +46,9 @@ module Cinch.RuntimeIr where
   export emit-runtime-library-with-object-mode
   export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
   export runtime-library-default-roots, runtime-library-unit-roots, emit-runtime-library-object-with-object
+  export TestReturnKind, TRInt, TRBool, TRUnit, TRResult, TRCheck, TRCheckList
+  export DiscoveredTest, test-index, test-core-name, test-module-name, test-display-name, test-call-mode, test-needs-io, test-return-kind, test-spec
+  export check-test-boundary, discover-tests, emit-runtime-test-harness-for-profile-tuned
 
   -- The descriptions of each named family's constructors, by tag, keyed by
   -- the family's specialized name. A description is content, not identity
@@ -8000,12 +8003,14 @@ module Cinch.RuntimeIr where
       Err errors -> Err errors
       Ok chosen -> (case check-c-export-symbols (checked-c-exports bindings) (case chosen of Some entry -> ["main"]; None -> []) bindings of
         error : rest -> Err (error : rest)
-        [] -> (case chosen of
-          None -> Ok checked
-          Some d -> (case entry-mode d of
-            Some mode -> Ok checked
-            None -> (case d of
-              CoreDefinition sp name scheme openings givens private clauses -> Err [Diagnostic "bootstrap.check" sp "main must have type Int or Unit ->{e} Int, without external evidence"]))))
+        [] -> (case check-test-boundary checked of
+          error : rest -> Err (error : rest)
+          [] -> (case chosen of
+            None -> Ok checked
+            Some d -> (case entry-mode d of
+              Some mode -> Ok checked
+              None -> (case d of
+                CoreDefinition sp name scheme openings givens private clauses -> Err [Diagnostic "bootstrap.check" sp "main must have type Int or Unit ->{e} Int, without external evidence"])))))
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = empty-writer-with-plan info NoInline
   empty-writer-with-plan :: ProgramInfo -> InlinePlan -> Writer
@@ -8574,3 +8579,516 @@ module Cinch.RuntimeIr where
             (settled, next-cache, emitted-n, reused-n) ->
               let ready = case constructor name info of Some found -> workers definitions (demand-worker name [] settled); None -> settled in
               finish ready next-cache emitted-n reused-n (entry wasm32 name mode reclaim)
+
+  -- ------------------------------------------------------------------
+  -- Test pragmas: boundary enforcement, discovery, and single-binary
+  -- nextest-style test harness code generation.
+  -- ------------------------------------------------------------------
+
+  data TestReturnKind where
+    TRInt :: TestReturnKind
+    TRBool :: TestReturnKind
+    TRUnit :: TestReturnKind
+    TRResult :: Bool -> TestReturnKind
+    TRCheck :: TestReturnKind
+    TRCheckList :: TestReturnKind
+
+  data DiscoveredTest where
+    MkDiscoveredTest :: Nat -> String -> String -> String -> Nat -> Bool -> TestReturnKind -> TestSpec -> DiscoveredTest
+
+  test-index :: DiscoveredTest -> Nat
+  test-index t = case t of MkDiscoveredTest i cn md dn m io rk sp -> i
+  test-core-name :: DiscoveredTest -> String
+  test-core-name t = case t of MkDiscoveredTest i cn md dn m io rk sp -> cn
+  test-module-name :: DiscoveredTest -> String
+  test-module-name t = case t of MkDiscoveredTest i cn md dn m io rk sp -> md
+  test-display-name :: DiscoveredTest -> String
+  test-display-name t = case t of MkDiscoveredTest i cn md dn m io rk sp -> dn
+  test-call-mode :: DiscoveredTest -> Nat
+  test-call-mode t = case t of MkDiscoveredTest i cn md dn m io rk sp -> m
+  test-needs-io :: DiscoveredTest -> Bool
+  test-needs-io t = case t of MkDiscoveredTest i cn md dn m io rk sp -> io
+  test-return-kind :: DiscoveredTest -> TestReturnKind
+  test-return-kind t = case t of MkDiscoveredTest i cn md dn m io rk sp -> rk
+  test-spec :: DiscoveredTest -> TestSpec
+  test-spec t = case t of MkDiscoveredTest i cn md dn m io rk sp -> sp
+
+  collect-program-test-attrs :: List Module -> List (Span, String, TestSpec)
+  collect-program-test-attrs ms = case ms of
+    [] -> []
+    m : rest -> declaration-test-attrs (module-decls m) <> collect-program-test-attrs rest
+
+  index-test-names :: List (Span, String, TestSpec) -> HashMap String Bool -> HashMap String Bool
+  index-test-names attrs acc = case attrs of
+    [] -> acc
+    (sp, name, tspec) : rest -> index-test-names rest (hash-map-insert name True acc)
+
+  display-global-name :: String -> String
+  display-global-name name = case export-global name of
+    Ok pub -> pub
+    Err _ -> name
+
+  split-last-dot-loop :: List Char -> List Char -> Option (List Char, List Char) -> Option (String, String)
+  split-last-dot-loop cs before best = case cs of
+    [] -> case best of
+      None -> None
+      Some (lhs, rhs) -> Some (pack (reverse lhs), pack rhs)
+    ch : rest ->
+      let next-best = if char-code ch == 46 then Some (before, rest) else best in
+      split-last-dot-loop rest (ch : before) next-best
+
+  split-module-member :: String -> (String, String)
+  split-module-member full = case split-last-dot-loop (unpack full) [] None of
+    Some (m, fn) -> (m, full)
+    None -> ("Main", full)
+
+  term-test-boundary-errors :: String -> HashMap String Bool -> CoreTerm -> List Diagnostic
+  term-test-boundary-errors caller test-set term = case term of
+    CUse sp ty name role actuals -> case hash-map-lookup name test-set of
+      Some _ -> [Diagnostic "bootstrap.check" sp (cat ["production definition `", display-global-name caller, "` cannot reference test-only definition `", display-global-name name, "`"])]
+      None -> []
+    CQualifiedUse sp ty name role actuals evs -> case hash-map-lookup name test-set of
+      Some _ -> [Diagnostic "bootstrap.check" sp (cat ["production definition `", display-global-name caller, "` cannot reference test-only definition `", display-global-name name, "`"])]
+      None -> []
+    CApply sp ty f x -> term-test-boundary-errors caller test-set f <> term-test-boundary-errors caller test-set x
+    CApplyEff sp ty row f x -> term-test-boundary-errors caller test-set f <> term-test-boundary-errors caller test-set x
+    CErasedApply sp ty row f x -> term-test-boundary-errors caller test-set f <> term-test-boundary-errors caller test-set x
+    CDecision sp ty prop inner -> term-test-boundary-errors caller test-set inner
+    CScope sp ty r ev body -> term-test-boundary-errors caller test-set body
+    CMemoScope sp ty r body -> term-test-boundary-errors caller test-set body
+    CSpawn sp ty scope body -> term-test-boundary-errors caller test-set scope <> term-test-boundary-errors caller test-set body
+    CJoin sp ty scope hs -> term-test-boundary-errors caller test-set scope <> term-test-boundary-errors caller test-set hs
+    CWith sp ty g val body -> term-test-boundary-errors caller test-set val <> term-test-boundary-errors caller test-set body
+    CHandler sp ty ret ops -> term-test-boundary-errors caller test-set ret <> term-test-boundary-errors caller test-set ops
+    CHandle sp ty r eff h body -> term-test-boundary-errors caller test-set h <> term-test-boundary-errors caller test-set body
+    CHandlerOperation sp slot ps rt body rest -> term-test-boundary-errors caller test-set body <> term-test-boundary-errors caller test-set rest
+    CLambda sp ty pat body -> term-test-boundary-errors caller test-set body
+    CLet sp ty id n sc rhs body -> term-test-boundary-errors caller test-set rhs <> term-test-boundary-errors caller test-set body
+    CRecursiveFunctions sp ty binds body -> term-test-boundary-errors caller test-set binds <> term-test-boundary-errors caller test-set body
+    CRecursiveValues sp ty r binds body -> term-test-boundary-errors caller test-set binds <> term-test-boundary-errors caller test-set body
+    CRecursiveBinding id n val rest -> term-test-boundary-errors caller test-set val <> term-test-boundary-errors caller test-set rest
+    CIf sp ty cond yes no -> term-test-boundary-errors caller test-set cond <> term-test-boundary-errors caller test-set yes <> term-test-boundary-errors caller test-set no
+    CCase sp ty scrut alts -> term-test-boundary-errors caller test-set scrut <> term-test-boundary-errors caller test-set alts
+    CTuple sp ty items -> term-test-boundary-errors caller test-set items
+    CPolyIntro sp ty rs body -> term-test-boundary-errors caller test-set body
+    CPolyElim sp ty inner args -> term-test-boundary-errors caller test-set inner
+    CPrimitive sp ty op args -> term-test-boundary-errors caller test-set args
+    CProved sp ty pf inner -> term-test-boundary-errors caller test-set inner
+    CRefine sp ty pf inner -> term-test-boundary-errors caller test-set inner
+    CRefineProof sp ty pf inner -> term-test-boundary-errors caller test-set inner
+    CForget sp ty inner -> term-test-boundary-errors caller test-set inner
+    CCast sp ty inner -> term-test-boundary-errors caller test-set inner
+    CRequire sp ty inner -> term-test-boundary-errors caller test-set inner
+    CDischarge sp ty pfs flag inner -> term-test-boundary-errors caller test-set inner
+    CGuard sp ty g body -> term-test-boundary-errors caller test-set g <> term-test-boundary-errors caller test-set body
+    CArgument sp a rest -> term-test-boundary-errors caller test-set a <> term-test-boundary-errors caller test-set rest
+    CAlternative sp pat body rest -> term-test-boundary-errors caller test-set body <> term-test-boundary-errors caller test-set rest
+    other -> []
+
+  clauses-test-boundary-errors :: String -> HashMap String Bool -> List CoreClause -> List Diagnostic
+  clauses-test-boundary-errors caller test-set clauses = case clauses of
+    [] -> []
+    (CoreClause _ _ body) : rest -> term-test-boundary-errors caller test-set body <> clauses-test-boundary-errors caller test-set rest
+
+  defs-test-boundary-errors :: HashMap String Bool -> List CoreDefinition -> List Diagnostic
+  defs-test-boundary-errors test-set defs = case defs of
+    [] -> []
+    d : rest ->
+      let name = d.name in
+      let self-errs = case hash-map-lookup name test-set of
+            Some _ -> []
+            None -> clauses-test-boundary-errors name test-set d.clauses in
+      self-errs <> defs-test-boundary-errors test-set rest
+
+  check-test-boundary :: CheckedProgram -> List Diagnostic
+  check-test-boundary checked =
+    let attrs = collect-program-test-attrs checked.surface.modules in
+    case attrs of
+      [] -> []
+      _ : _ ->
+        let test-set = index-test-names attrs hash-map-empty in
+        defs-test-boundary-errors test-set (elaboration-core checked.elaboration)
+
+  -- Classify supported #[test] return types:
+  -- Int, Bool, Unit, Result e a, Effect.Test.Check, List Effect.Test.Check.
+  is-string-type :: UType -> Bool
+  is-string-type ty =
+    let b = base ty in
+    named b "String" || (case b of
+      UCon n _ -> display-global-name n == "Data.String.String" || n == "String"
+      other -> False)
+
+  is-check-type :: UType -> Bool
+  is-check-type ty = case base ty of
+    UCon n _ -> display-global-name n == "Effect.Test.Check"
+    other -> False
+
+  classify-test-return :: UType -> Option TestReturnKind
+  classify-test-return ty =
+    let b = base ty in
+    if named b "Int" then Some TRInt
+    else if named b "Bool" then Some TRBool
+    else if named b "Unit" then Some TRUnit
+    else if is-check-type b then Some TRCheck
+    else case b of
+      UApp (UApp (UCon head _) err-ty) ok-ty ->
+        if head == global-data-core-result || display-global-name head == "Data.Core.Result" || display-global-name head == "Data.Result.Result"
+          then Some (TRResult (is-string-type err-ty))
+          else None
+      UApp (UCon head _) elem-ty ->
+        if (head == global-data-core-list || display-global-name head == "Data.Core.List") && is-check-type elem-ty
+          then Some TRCheckList
+          else None
+      other -> None
+
+  is-io-given :: CoreGiven -> Bool
+  is-io-given g = case base g.ty of
+    UApp (UCon name kind) region -> name == "b.Io" && kind-equal (type-kind region) KRegion
+    other -> False
+
+  test-givens-io :: List CoreGiven -> Option Bool
+  test-givens-io gs = case gs of
+    [] -> Some False
+    [g] -> if is-io-given g then Some True else None
+    other -> None
+
+  test-entry-shape :: CoreDefinition -> Option (Nat, Bool, TestReturnKind)
+  test-entry-shape d =
+    if not (entry-parameters (scheme-params d.scheme)) then None
+    else case test-givens-io d.givens of
+      None -> None
+      Some needs-io ->
+        let body-ty = scheme-body d.scheme in
+        case classify-test-return body-ty of
+          Some rk | list-length (definition-parameters d) == 0 -> Some (0, needs-io, rk)
+          other ->
+            let function = base body-ty in
+            let ty = arrow-shape function in
+            let maybe-ret = (case ty of
+              UFun domain result -> if named domain "Unit" then classify-test-return result else None
+              UFunEff domain row result -> if named domain "Unit" then classify-test-return result else None
+              UPi id name domain row result -> if named domain "Unit" then classify-test-return result else None
+              other -> None) in
+            case maybe-ret of
+              None -> None
+              Some rk ->
+                if erased-value-arrow function then Some (3, needs-io, rk)
+                else if list-length (definition-parameters d) == 1 then Some (1, needs-io, rk)
+                else if list-length (definition-parameters d) == 0 then Some (2, needs-io, rk)
+                else None
+
+  index-core-defs :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
+  index-core-defs defs acc = case defs of
+    [] -> acc
+    d : rest -> index-core-defs rest (hash-map-insert d.name d acc)
+
+  discover-tests-loop :: List (Span, String, TestSpec) -> HashMap String CoreDefinition -> Nat -> List DiscoveredTest -> List Diagnostic -> Result (List Diagnostic) (List DiscoveredTest)
+  discover-tests-loop attrs def-map next-idx found errors = case attrs of
+    [] -> case errors of
+      [] -> Ok (reverse found)
+      _ : _ -> Err (reverse errors)
+    (sp, name, tspec) : rest ->
+      if not (test-spec-is-test tspec) then discover-tests-loop rest def-map next-idx found errors
+      else case hash-map-lookup name def-map of
+        None -> discover-tests-loop rest def-map next-idx found
+          ((Diagnostic "bootstrap.test" sp (cat ["#[test] target `", display-global-name name, "` has no definition"])) : errors)
+        Some d -> case test-entry-shape d of
+          None -> discover-tests-loop rest def-map next-idx found
+            ((Diagnostic "bootstrap.test" sp (cat ["#[test] function `", display-global-name name, "` must have type Unit -> Int|Bool|Unit|Result e a|Check|List Check (optionally with `using (io :: Io r) =>`)"])) : errors)
+          Some (mode, needs-io, rk) ->
+            let full = display-global-name name in
+            let (mod-name, disp-name) = split-module-member full in
+            let item = MkDiscoveredTest next-idx name mod-name disp-name mode needs-io rk tspec in
+            discover-tests-loop rest def-map (next-idx + 1) (item : found) errors
+
+  discover-tests :: CheckedProgram -> Result (List Diagnostic) (List DiscoveredTest)
+  discover-tests checked =
+    let attrs = collect-program-test-attrs checked.surface.modules in
+    let def-map = index-core-defs (elaboration-core checked.elaboration) hash-map-empty in
+    discover-tests-loop attrs def-map 0 [] []
+
+  test-harness-parse-ir :: Bool -> String
+  test-harness-parse-ir wasm32 = cat [
+    "@cinch.test.selected = internal global i64 -1\n",
+    "@cinch.test.str.nl = private unnamed_addr constant [1 x i8] c\"\\0A\"\n",
+    "@cinch.test.str.fail_prefix = private unnamed_addr constant [6 x i8] c\"FAIL [\"\n",
+    "@cinch.test.str.fail_mid = private unnamed_addr constant [3 x i8] c\"]: \"\n",
+    if wasm32 then "" else "declare i32 @setitimer(i32, ptr, ptr)\n",
+    "define internal i64 @cinch.test.parse_i64(ptr %s)", function-open wasm32, "\nentry:\n",
+    "  %first = load i8, ptr %s\n",
+    "  %empty = icmp eq i8 %first, 0\n",
+    "  br i1 %empty, label %bad, label %loop\n",
+    "loop:\n",
+    "  %p = phi ptr [ %s, %entry ], [ %next, %step ]\n",
+    "  %acc = phi i64 [ 0, %entry ], [ %acc2, %step ]\n",
+    "  %ch = load i8, ptr %p\n",
+    "  %done = icmp eq i8 %ch, 0\n",
+    "  br i1 %done, label %ok, label %check\n",
+    "check:\n",
+    "  %ge0 = icmp uge i8 %ch, 48\n",
+    "  %le9 = icmp ule i8 %ch, 57\n",
+    "  %dig = and i1 %ge0, %le9\n",
+    "  br i1 %dig, label %step, label %bad\n",
+    "step:\n",
+    "  %d8 = sub i8 %ch, 48\n",
+    "  %d64 = zext i8 %d8 to i64\n",
+    "  %mul = mul i64 %acc, 10\n",
+    "  %acc2 = add i64 %mul, %d64\n",
+    "  %next = getelementptr i8, ptr %p, i64 1\n",
+    "  br label %loop\n",
+    "ok:\n",
+    "  ret i64 %acc\n",
+    "bad:\n",
+    "  ret i64 -1\n}\n"
+  ]
+
+  test-harness-timeout-ir :: Bool -> String
+  test-harness-timeout-ir wasm32 =
+    let head = cat ["define internal void @cinch.test.arm_timeout(i64 %ms)", function-open wasm32, "\nentry:\n"] in
+    if wasm32 then head <> "  ret void\n}\n" else head <> cat [
+      "  %armed = icmp sgt i64 %ms, 0\n",
+      "  br i1 %armed, label %set, label %done\n",
+      "set:\n",
+      "  %itv = alloca [4 x i64], align 8\n",
+      "  store [4 x i64] zeroinitializer, ptr %itv, align 8\n",
+      "  %sec = udiv i64 %ms, 1000\n",
+      "  %rem = urem i64 %ms, 1000\n",
+      "  %usec64 = mul i64 %rem, 1000\n",
+      "  %usec32 = trunc i64 %usec64 to i32\n",
+      "  %psec = getelementptr i8, ptr %itv, i64 16\n",
+      "  store i64 %sec, ptr %psec, align 8\n",
+      "  %pusec = getelementptr i8, ptr %itv, i64 24\n",
+      "  store i32 %usec32, ptr %pusec, align 4\n",
+      "  call i32 @setitimer(i32 0, ptr %itv, ptr null)\n",
+      "  br label %done\n",
+      "done:\n",
+      "  ret void\n}\n"
+    ]
+
+  test-harness-io-ir :: Bool -> Bool -> String
+  test-harness-io-ir wasm32 reclaim =
+    let drop-line = \v -> if reclaim then cat ["  call void @cinch.typed.rc.drop(i64 ", v, ")\n"] else "" in
+    cat [
+      "define internal void @cinch.test.write_cstr(ptr %p, i64 %n)", function-open wasm32, "\nentry:\n",
+      "  %b = call i64 @cinch_bytes_from_data(ptr %p, i64 %n)\n",
+      "  call i64 @cinch_io_write(i64 %b)\n",
+      drop-line "%b",
+      "  ret void\n}\n",
+      "define internal void @cinch.test.write_str(i64 %s)", function-open wasm32, "\nentry:\n",
+      "  %sp = inttoptr i64 %s to ptr\n",
+      "  %bytes = load i64, ptr %sp, align 8\n",
+      "  call i64 @cinch_io_write(i64 %bytes)\n",
+      "  ret void\n}\n",
+      "define internal i64 @cinch.test.read_tag(i64 %w)", function-open wasm32, "\nentry:\n",
+      "  %p = inttoptr i64 %w to ptr\n",
+      "  %hp = getelementptr i64, ptr %p, i64 -1\n",
+      "  %h = load i64, ptr %hp, align 8\n",
+      "  %s = lshr i64 %h, 40\n",
+      "  %t = and i64 %s, 255\n",
+      "  ret i64 %t\n}\n"
+    ]
+
+  test-harness-result-ir :: Bool -> Bool -> String
+  test-harness-result-ir wasm32 reclaim =
+    let drop-line = \v -> if reclaim then cat ["  call void @cinch.typed.rc.drop(i64 ", v, ")\n"] else "" in
+    cat [
+      "define internal i64 @cinch.test.check_result(i64 %res, i1 %print_err)", function-open wasm32, "\nentry:\n",
+      "  %tag = call i64 @cinch.test.read_tag(i64 %res)\n",
+      "  %is_ok = icmp eq i64 %tag, 1\n",
+      "  br i1 %is_ok, label %ok, label %err\n",
+      "err:\n",
+      "  br i1 %print_err, label %show, label %done_err\n",
+      "show:\n",
+      "  %rp = inttoptr i64 %res to ptr\n",
+      "  %msg = load i64, ptr %rp, align 8\n",
+      "  call void @cinch.test.write_str(i64 %msg)\n",
+      "  call void @cinch.test.write_cstr(ptr @cinch.test.str.nl, i64 1)\n",
+      "  br label %done_err\n",
+      "done_err:\n",
+      drop-line "%res",
+      "  ret i64 1\n",
+      "ok:\n",
+      drop-line "%res",
+      "  ret i64 0\n}\n"
+    ]
+
+  test-harness-checks-ir :: Bool -> Bool -> String
+  test-harness-checks-ir wasm32 reclaim =
+    let drop-line = \v -> if reclaim then cat ["  call void @cinch.typed.rc.drop(i64 ", v, ")\n"] else "" in
+    cat [
+      "define internal i64 @cinch.test.check_one_nodrop(i64 %chk)", function-open wasm32, "\nentry:\n",
+      "  %tag = call i64 @cinch.test.read_tag(i64 %chk)\n",
+      "  %is_pass = icmp eq i64 %tag, 0\n",
+      "  br i1 %is_pass, label %pass, label %fail\n",
+      "fail:\n",
+      "  %cp = inttoptr i64 %chk to ptr\n",
+      "  %lbl = load i64, ptr %cp, align 8\n",
+      "  %mp = getelementptr i64, ptr %cp, i64 1\n",
+      "  %msg = load i64, ptr %mp, align 8\n",
+      "  call void @cinch.test.write_cstr(ptr @cinch.test.str.fail_prefix, i64 6)\n",
+      "  call void @cinch.test.write_str(i64 %lbl)\n",
+      "  call void @cinch.test.write_cstr(ptr @cinch.test.str.fail_mid, i64 3)\n",
+      "  call void @cinch.test.write_str(i64 %msg)\n",
+      "  call void @cinch.test.write_cstr(ptr @cinch.test.str.nl, i64 1)\n",
+      "  ret i64 1\n",
+      "pass:\n",
+      "  ret i64 0\n}\n",
+      "define internal i64 @cinch.test.check_one(i64 %chk)", function-open wasm32, "\nentry:\n",
+      "  %code = call i64 @cinch.test.check_one_nodrop(i64 %chk)\n",
+      drop-line "%chk",
+      "  ret i64 %code\n}\n"
+    ] <> cat [
+      "define internal i64 @cinch.test.check_list(i64 %list)", function-open wasm32, "\nentry:\n",
+      "  br label %loop\n",
+      "loop:\n",
+      "  %cur = phi i64 [ %list, %entry ], [ %tail, %next ]\n",
+      "  %tag = call i64 @cinch.test.read_tag(i64 %cur)\n",
+      "  %is_nil = icmp eq i64 %tag, 0\n",
+      "  br i1 %is_nil, label %pass, label %cons\n",
+      "cons:\n",
+      "  %lp = inttoptr i64 %cur to ptr\n",
+      "  %hd = load i64, ptr %lp, align 8\n",
+      "  %code = call i64 @cinch.test.check_one_nodrop(i64 %hd)\n",
+      "  %failed = icmp ne i64 %code, 0\n",
+      "  br i1 %failed, label %fail, label %next\n",
+      "next:\n",
+      "  %tp = getelementptr i64, ptr %lp, i64 1\n",
+      "  %tail = load i64, ptr %tp, align 8\n",
+      "  br label %loop\n",
+      "fail:\n",
+      drop-line "%list",
+      "  ret i64 1\n",
+      "pass:\n",
+      drop-line "%list",
+      "  ret i64 0\n}\n"
+    ]
+
+  test-harness-helpers :: Bool -> Bool -> String
+  test-harness-helpers wasm32 reclaim =
+    cat [
+      test-harness-parse-ir wasm32,
+      test-harness-timeout-ir wasm32,
+      test-harness-io-ir wasm32 reclaim,
+      test-harness-result-ir wasm32 reclaim,
+      test-harness-checks-ir wasm32 reclaim
+    ]
+
+  test-switch-arms :: List DiscoveredTest -> String
+  test-switch-arms ts = case ts of
+    [] -> ""
+    t : rest -> cat ["    i64 ", nat-to-string (test-index t), ", label %t", nat-to-string (test-index t), "\n", test-switch-arms rest]
+
+  test-call-block :: DiscoveredTest -> Bool -> String
+  test-call-block t reclaim =
+    let idx = nat-to-string (test-index t) in
+    let sym = symbol (test-core-name t) in
+    let mode = test-call-mode t in
+    let io = test-needs-io t in
+    let fn-call = if io then cat ["  %fn_", idx, " = call i64 ", sym, "(i64 0)\n"] else cat ["  %fn_", idx, " = call i64 ", sym, "()\n"] in
+    let call-ir = (if mode == 0 then
+        (if io then cat ["  %res_", idx, " = call i64 ", sym, "(i64 0)\n"]
+         else cat ["  %res_", idx, " = call i64 ", sym, "()\n"])
+      else if mode == 1 then
+        (if io then cat ["  %res_", idx, " = call i64 ", sym, "(i64 0, i64 0)\n"]
+         else cat ["  %res_", idx, " = call i64 ", sym, "(i64 0)\n"])
+      else if mode == 3 then
+        cat [fn-call, "  %res_", idx, " = call i64 @__apply(i64 %fn_", idx, ", i64 0, ptr null)\n"]
+      else
+        cat [fn-call, "  %argv_", idx, " = alloca i64\n  store i64 0, ptr %argv_", idx, "\n  %res_", idx, " = call i64 @__apply(i64 %fn_", idx, ", i64 1, ptr %argv_", idx, ")\n"]) in
+    let finish-ir = (case test-return-kind t of
+      TRInt -> cat [
+        "  %exit_", idx, " = call i64 @cinch_int_to_i64(i64 %res_", idx, ")\n",
+        if reclaim then cat ["  call void @cinch.typed.rc.drop(i64 %res_", idx, ")\n"] else "",
+        "  ret i64 %exit_", idx, "\n"]
+      TRBool -> cat [
+        "  %ok_", idx, " = icmp eq i64 %res_", idx, ", 1\n",
+        "  %exit_", idx, " = select i1 %ok_", idx, ", i64 0, i64 1\n",
+        "  ret i64 %exit_", idx, "\n"]
+      TRUnit -> "  ret i64 0\n"
+      TRResult is-str -> cat [
+        "  %exit_", idx, " = call i64 @cinch.test.check_result(i64 %res_", idx, ", i1 ", if is-str then "true" else "false", ")\n",
+        "  ret i64 %exit_", idx, "\n"]
+      TRCheck -> cat [
+        "  %exit_", idx, " = call i64 @cinch.test.check_one(i64 %res_", idx, ")\n",
+        "  ret i64 %exit_", idx, "\n"]
+      TRCheckList -> cat [
+        "  %exit_", idx, " = call i64 @cinch.test.check_list(i64 %res_", idx, ")\n",
+        "  ret i64 %exit_", idx, "\n"]) in
+    cat ["t", idx, ":\n", call-ir, finish-ir]
+
+  test-call-blocks :: List DiscoveredTest -> Bool -> String
+  test-call-blocks ts reclaim = case ts of
+    [] -> ""
+    t : rest -> test-call-block t reclaim <> test-call-blocks rest reclaim
+
+  test-harness-entry :: Bool -> List DiscoveredTest -> Bool -> String
+  test-harness-entry wasm32 tests reclaim = cat [
+    test-harness-helpers wasm32 reclaim,
+    "define i64 @cinch.test.dispatch()", function-open wasm32, "\nentry:\n",
+    "  %idx = load i64, ptr @cinch.test.selected, align 8\n",
+    "  switch i64 %idx, label %bad [\n",
+    test-switch-arms tests,
+    "  ]\n",
+    test-call-blocks tests reclaim,
+    "bad:\n  ret i64 2\n}\n",
+    if wasm32 then "define i32 @main()" else "define i32 @main(i32 %argc, ptr %argv)", function-open wasm32, "\nentry:\n",
+    if reclaim then "  call void @cinch_reclaim_enable()\n" else "",
+    if wasm32 then "" else cat [
+      "  %count = sext i32 %argc to i64\n",
+      "  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
+      "  %has_idx = icmp sge i32 %argc, 2\n",
+      "  br i1 %has_idx, label %parse_idx, label %bad_args\n",
+      "parse_idx:\n",
+      "  %p1 = getelementptr ptr, ptr %argv, i64 1\n",
+      "  %s1 = load ptr, ptr %p1, align 8\n",
+      "  %idx = call i64 @cinch.test.parse_i64(ptr %s1)\n",
+      "  %idx_ok = icmp sge i64 %idx, 0\n",
+      "  br i1 %idx_ok, label %check_to, label %bad_args\n",
+      "check_to:\n",
+      "  store i64 %idx, ptr @cinch.test.selected, align 8\n",
+      "  %has_to = icmp sge i32 %argc, 3\n",
+      "  br i1 %has_to, label %parse_to, label %run_test\n",
+      "parse_to:\n",
+      "  %p2 = getelementptr ptr, ptr %argv, i64 2\n",
+      "  %s2 = load ptr, ptr %p2, align 8\n",
+      "  %to_ms = call i64 @cinch.test.parse_i64(ptr %s2)\n",
+      "  call void @cinch.test.arm_timeout(i64 %to_ms)\n",
+      "  br label %run_test\n",
+      "run_test:\n",
+      "  %exit = call i64 @cinch_run_main(ptr @cinch.test.dispatch)\n",
+      "  %checked = call i64 @cinch_exit_check(i64 %exit)\n",
+      "  %code = trunc i64 %checked to i32\n",
+      "  ret i32 %code\n",
+      "bad_args:\n",
+      "  ret i32 2\n}\n"],
+    if wasm32 then "  %exit = call i64 @cinch.test.dispatch()\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n" else ""
+  ]
+
+  test-worker-roots :: List DiscoveredTest -> List (String, List Nat)
+  test-worker-roots ts = case ts of
+    [] -> []
+    t : rest -> (test-core-name t, []) : (test-worker-roots rest)
+
+  emit-runtime-test-harness-for-profile-tuned :: CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) (String, List DiscoveredTest)
+  emit-runtime-test-harness-for-profile-tuned tuning profile inlining debug reclaim checked provider =
+    case discover-tests checked of
+      Err errors -> Err errors
+      Ok tests ->
+        let header = target-ir-header profile in
+        let caps = target-caps-of-profile profile in
+        let wasm32 = caps.caps-arch == "wasm32" in
+        let typed = checked.elaboration in
+        let raw-definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
+        let datas = elaboration-data typed in
+        let binding-names = map checked-name (elaboration-bindings typed) in
+        let definitions = lower-ad-program datas (elaboration-type-families typed) (elaboration-promoted-fns typed) binding-names raw-definitions in
+        let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) [] provider None (elaboration-effects typed) hash-map-empty reclaim caps (elaboration-type-families typed) (elaboration-promoted-fns typed) in
+        let roots = test-worker-roots tests in
+        let plan = inline-plan inlining definitions info in
+        let concurrent = program-uses-concurrency definitions in
+        case settled-workers-with-plan-cached tuning plan definitions roots info empty-unit-ir-cache hash-map-empty of
+          (settled, _, _, _) ->
+            case settled of
+              Writer next globals code [] layouts context ->
+                Ok (cat [header, declarations-counting-mt wasm32 debug reclaim concurrent, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "", builder-run code, test-harness-entry wasm32 tests reclaim], tests)
+              Writer next globals code errors layouts context -> Err errors

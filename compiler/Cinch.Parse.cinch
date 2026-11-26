@@ -907,8 +907,10 @@ module Cinch.Parse where
         Some args | has-repr-item "transparent" (string-split-on "," args) -> wrapper-decl (sp-of t) "transparent" rest src fix
           ((DUnmodeled (sp-of t) "repr(transparent) combines with no other representation") : acc)
         other -> (case inline-attribute text of
-          Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] rest src fix acc
-          None -> decl-step toks src fix acc))
+          Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] [] rest src fix acc
+          None -> (case test-attribute text of
+            Some item -> function-hint-decl [] [(sp-of t, item)] rest src fix acc
+            None -> decl-step toks src fix acc)))
       TEOF -> POk (reverse acc) toks
       _ -> decl-step toks src fix acc
     [] -> POk (reverse acc) []
@@ -993,23 +995,308 @@ module Cinch.Parse where
           else value) in
       (if family == "unroll" then DUnrollHint sp name hint else DInlineHint sp name hint) : (attach-hints name rest prior)
 
+  -- ------------------------------------------------------------------
+  -- Test pragmas: #[test], #[test(...)], #[ignore], #[should_fail],
+  -- #[timeout(...)], #[retries(...)], #[tag(...)], #[serial],
+  -- #[test_only], and #[cfg(test)].
+  -- ------------------------------------------------------------------
+
+  data ParsedTestOpt where
+    PTOIgnore :: Option String -> ParsedTestOpt
+    PTOShouldFail :: Option String -> ParsedTestOpt
+    PTOTimeout :: Nat -> ParsedTestOpt
+    PTORetries :: Nat -> ParsedTestOpt
+    PTOTag :: String -> ParsedTestOpt
+    PTOSerial :: ParsedTestOpt
+
+  data ParsedTestItem where
+    PTTest :: List ParsedTestOpt -> ParsedTestItem
+    PTTestOnly :: ParsedTestItem
+    PTOpt :: ParsedTestOpt -> ParsedTestItem
+    PTErr :: String -> ParsedTestItem
+
+  parse-attr-nat-chars :: List Char -> Nat -> Option Nat
+  parse-attr-nat-chars cs acc = case cs of
+    [] -> Some acc
+    ch : rest ->
+      let code = char-code ch in
+      if code < 48 || code > 57 then None
+      else parse-attr-nat-chars rest (acc * 10 + (code - 48))
+
+  parse-attr-nat :: String -> Option Nat
+  parse-attr-nat s =
+    let t = string-strip s in
+    if string-length t == 0 then None else parse-attr-nat-chars (unpack t) 0
+
+  unescape-attr-chars :: List Char -> List Char -> Option String
+  unescape-attr-chars cs acc = case cs of
+    [] -> None
+    ch : rest ->
+      let code = char-code ch in
+      if code == 34 then (case rest of [] -> Some (pack (reverse acc)); other -> None)
+      else if code == 92 then (case rest of
+        [] -> None
+        esc : more ->
+          let ec = char-code esc in
+          let out = if ec == 110 then '\n'
+                    else if ec == 116 then '\t'
+                    else if ec == 114 then '\r'
+                    else esc in
+          unescape-attr-chars more (out : acc))
+      else unescape-attr-chars rest (ch : acc)
+
+  parse-attr-string :: String -> Option String
+  parse-attr-string s =
+    let t = string-strip s in
+    case unpack t of
+      ch : rest -> if char-code ch == 34 then unescape-attr-chars rest [] else None
+      [] -> None
+
+  split-attr-items-loop :: List Char -> Bool -> Bool -> List Char -> List String -> List String
+  split-attr-items-loop cs in-str esc cur acc = case cs of
+    [] ->
+      let last = string-strip (pack (reverse cur)) in
+      reverse (if string-length last == 0 then acc else last : acc)
+    ch : rest ->
+      let code = char-code ch in
+      if in-str then
+        if esc then split-attr-items-loop rest True False (ch : cur) acc
+        else if code == 92 then split-attr-items-loop rest True True (ch : cur) acc
+        else if code == 34 then split-attr-items-loop rest False False (ch : cur) acc
+        else split-attr-items-loop rest True False (ch : cur) acc
+      else if code == 34 then split-attr-items-loop rest True False (ch : cur) acc
+      else if code == 44 then
+        let item = string-strip (pack (reverse cur)) in
+        split-attr-items-loop rest False False [] (if string-length item == 0 then acc else item : acc)
+      else split-attr-items-loop rest False False (ch : cur) acc
+
+  split-attr-items :: String -> List String
+  split-attr-items s = split-attr-items-loop (unpack s) False False [] []
+
+  strip-attr-parens :: String -> Option (String, Option String)
+  strip-attr-parens raw =
+    let t = string-strip raw in
+    let n = string-length t in
+    case string-index-of "(" t of
+      None -> Some (t, None)
+      Some open ->
+        if open + 2 <= n && string-drop (n - 1) t == ")" then
+          Some (string-strip (string-take open t), Some (string-strip (string-take (n - open - 2) (string-drop (open + 1) t))))
+        else None
+
+  parse-test-option-item :: String -> Result String ParsedTestOpt
+  parse-test-option-item raw =
+    let t = string-strip raw in
+    case string-index-of "=" t of
+      Some eq ->
+        let key = string-strip (string-take eq t) in
+        let val = string-strip (string-drop (eq + 1) t) in
+        if key == "ignore" then
+          (case parse-attr-string val of
+            Some reason -> Ok (PTOIgnore (Some reason))
+            None -> Err "`ignore = ...` expects a quoted string reason")
+        else if key == "should_fail" || key == "expected" then
+          (case parse-attr-string val of
+            Some msg -> Ok (PTOShouldFail (Some msg))
+            None -> Err "`should_fail = ...` expects a quoted string substring")
+        else if key == "timeout" then
+          (case parse-attr-nat val of
+            Some ms | ms > 0 -> Ok (PTOTimeout ms)
+            other -> Err "`timeout = N` expects a positive millisecond count")
+        else if key == "retries" then
+          (case parse-attr-nat val of
+            Some count -> Ok (PTORetries count)
+            None -> Err "`retries = N` expects a natural number")
+        else if key == "tag" || key == "group" then
+          (case parse-attr-string val of
+            Some tag | string-length tag > 0 -> Ok (PTOTag tag)
+            other -> Err "`tag = \"...\"` expects a non-empty quoted string")
+        else Err ("unknown `#[test(...)]` option `" <> key <> "`")
+      None ->
+        if t == "ignore" then Ok (PTOIgnore None)
+        else if t == "should_fail" then Ok (PTOShouldFail None)
+        else if t == "serial" then Ok PTOSerial
+        else Err ("unknown `#[test(...)]` option `" <> t <> "`")
+
+  parse-test-options :: List String -> List ParsedTestOpt -> Result String (List ParsedTestOpt)
+  parse-test-options items acc = case items of
+    [] -> Ok (reverse acc)
+    item : rest -> case parse-test-option-item item of
+      Err msg -> Err msg
+      Ok opt -> parse-test-options rest (opt : acc)
+
+  top-level-attr-eq :: String -> Option Nat
+  top-level-attr-eq s = case string-index-of "=" s of
+    None -> None
+    Some eq -> case string-index-of "(" s of
+      Some open | open < eq -> None
+      other -> Some eq
+
+  test-attribute :: String -> Option ParsedTestItem
+  test-attribute text =
+    let trimmed = string-strip text in
+    case top-level-attr-eq trimmed of
+      Some eq ->
+        let head = string-strip (string-take eq trimmed) in
+        let rhs = string-strip (string-drop (eq + 1) trimmed) in
+        if head == "ignore" then
+          Some (case parse-attr-string rhs of Some r -> PTOpt (PTOIgnore (Some r)); None -> PTErr "`#[ignore = \"...\"]` expects a quoted string")
+        else if head == "should_fail" then
+          Some (case parse-attr-string rhs of Some m -> PTOpt (PTOShouldFail (Some m)); None -> PTErr "`#[should_fail = \"...\"]` expects a quoted string")
+        else if head == "timeout" then
+          Some (case parse-attr-nat rhs of Some ms | ms > 0 -> PTOpt (PTOTimeout ms); other -> PTErr "`#[timeout = N]` expects a positive millisecond count")
+        else if head == "retries" then
+          Some (case parse-attr-nat rhs of Some n -> PTOpt (PTORetries n); None -> PTErr "`#[retries = N]` expects a natural number")
+        else if head == "tag" then
+          Some (case parse-attr-string rhs of Some tg | string-length tg > 0 -> PTOpt (PTOTag tg); other -> PTErr "`#[tag = \"...\"]` expects a non-empty quoted string")
+        else None
+      None -> case strip-attr-parens trimmed of
+        None -> None
+        Some (head, arg-opt) ->
+          if head == "test" then
+            Some (case arg-opt of
+              None -> PTTest []
+              Some "" -> PTTest []
+              Some body -> case parse-test-options (split-attr-items body) [] of
+                Ok opts -> PTTest opts
+                Err msg -> PTErr msg)
+          else if head == "test_only" then
+            Some (case arg-opt of None -> PTTestOnly; Some _ -> PTErr "`#[test_only]` takes no arguments")
+          else if head == "cfg" then
+            Some (case arg-opt of
+              Some "test" -> PTTestOnly
+              other -> PTErr "`#[cfg(...)]` supports only `#[cfg(test)]`")
+          else if head == "ignore" then
+            Some (case arg-opt of
+              None -> PTOpt (PTOIgnore None)
+              Some "" -> PTOpt (PTOIgnore None)
+              Some body -> case parse-attr-string body of
+                Some reason -> PTOpt (PTOIgnore (Some reason))
+                None -> PTErr "`#[ignore(\"...\")]` expects a quoted string reason")
+          else if head == "should_fail" then
+            Some (case arg-opt of
+              None -> PTOpt (PTOShouldFail None)
+              Some "" -> PTOpt (PTOShouldFail None)
+              Some body -> case parse-attr-string body of
+                Some msg -> PTOpt (PTOShouldFail (Some msg))
+                None -> case parse-test-option-item body of
+                  Ok opt -> PTOpt opt
+                  Err msg -> PTErr msg)
+          else if head == "timeout" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some ms | ms > 0 -> PTOpt (PTOTimeout ms)
+                other -> PTErr "`#[timeout(N)]` expects a positive millisecond count"
+              None -> PTErr "`#[timeout(N)]` requires a positive millisecond count")
+          else if head == "retries" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some n -> PTOpt (PTORetries n)
+                None -> PTErr "`#[retries(N)]` expects a natural number"
+              None -> PTErr "`#[retries(N)]` requires a retry count")
+          else if head == "tag" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-string body of
+                Some tg | string-length tg > 0 -> PTOpt (PTOTag tg)
+                other -> PTErr "`#[tag(\"...\")]` expects a non-empty quoted string"
+              None -> PTErr "`#[tag(\"...\")]` requires a tag name")
+          else if head == "serial" then
+            Some (case arg-opt of None -> PTOpt PTOSerial; Some _ -> PTErr "`#[serial]` takes no arguments")
+          else None
+
+  apply-test-opt :: ParsedTestOpt -> TestSpec -> TestSpec
+  apply-test-opt opt tspec = case tspec of
+    MkTestSpec kind ig igr sf sfe tmo rt ser tags -> case opt of
+      PTOIgnore reason -> MkTestSpec kind True (case reason of Some _ -> reason; None -> igr) sf sfe tmo rt ser tags
+      PTOShouldFail expected -> MkTestSpec kind ig igr True (case expected of Some _ -> expected; None -> sfe) tmo rt ser tags
+      PTOTimeout ms -> MkTestSpec kind ig igr sf sfe (Some ms) rt ser tags
+      PTORetries n -> MkTestSpec kind ig igr sf sfe tmo (Some n) ser tags
+      PTOTag tag -> MkTestSpec kind ig igr sf sfe tmo rt ser (tags <> [tag])
+      PTOSerial -> MkTestSpec kind ig igr sf sfe tmo rt True tags
+
+  apply-test-opts :: List ParsedTestOpt -> TestSpec -> TestSpec
+  apply-test-opts opts tspec = case opts of
+    [] -> tspec
+    opt : rest -> apply-test-opts rest (apply-test-opt opt tspec)
+
+  combine-test-items :: List (Span, ParsedTestItem) -> Option TestKind -> List ParsedTestOpt -> Result String (TestKind, List ParsedTestOpt)
+  combine-test-items items kind opts = case items of
+    [] -> case kind of
+      Some k -> Ok (k, opts)
+      None -> Err "test modifier attributes (`#[ignore]`, `#[should_fail]`, `#[timeout]`, `#[retries]`, `#[tag]`, `#[serial]`) require `#[test]` on the same function"
+    (sp, item) : rest -> case item of
+      PTErr msg -> Err msg
+      PTTest more-opts -> case kind of
+        None -> combine-test-items rest (Some TestCaseKind) (opts <> more-opts)
+        Some TestCaseKind -> Err "duplicate `#[test]` attribute on one function"
+        Some TestOnlyKind -> Err "`#[test]` and `#[test_only]`/`#[cfg(test)]` cannot both appear on one declaration"
+      PTTestOnly -> case kind of
+        None -> combine-test-items rest (Some TestOnlyKind) opts
+        Some TestCaseKind -> Err "`#[test]` and `#[test_only]`/`#[cfg(test)]` cannot both appear on one declaration"
+        Some TestOnlyKind -> Err "duplicate `#[test_only]`/`#[cfg(test)]` attribute on one declaration"
+      PTOpt opt -> combine-test-items rest kind (opts <> [opt])
+
+  test-only-subject :: Decl -> Option String
+  test-only-subject d = case d of
+    DSig sp name ty -> Some name
+    DFun sp name clauses -> Some name
+    DData sp name params ctors -> Some name
+    DRecord sp name params fields -> Some name
+    DCodata sp name params obs -> Some name
+    DRefine sp name params b p -> Some name
+    other -> None
+
+  first-test-span :: List (Span, ParsedTestItem) -> Span -> Span
+  first-test-span items fallback = case items of
+    [] -> fallback
+    (sp, _) : _ -> sp
+
+  attach-test-attrs :: Decl -> List (Span, ParsedTestItem) -> List Decl -> List Decl
+  attach-test-attrs d raw-items prior = case reverse raw-items of
+    [] -> prior
+    items ->
+      let site = first-test-span items (decl-span d) in
+      case combine-test-items items None [] of
+        Err msg -> (DTestAttr site "" (Err msg)) : prior
+        Ok (TestCaseKind, opts) ->
+          (case inline-subject d of
+            Some name ->
+              let base = MkTestSpec TestCaseKind False None False None None None False [] in
+              (DTestAttr site name (Ok (apply-test-opts opts base))) : prior
+            None -> (DTestAttr site "" (Err "`#[test]` must annotate a function declaration")) : prior)
+        Ok (TestOnlyKind, opts) ->
+          (case opts of
+            _ : _ -> (DTestAttr site "" (Err "test modifier attributes cannot be used with `#[test_only]` or `#[cfg(test)]`")) : prior
+            [] -> case test-only-subject d of
+              Some name ->
+                let base = MkTestSpec TestOnlyKind False None False None None None False [] in
+                (DTestAttr site name (Ok base)) : prior
+              None -> (DTestAttr site "" (Err "`#[test_only]`/`#[cfg(test)]` must annotate a function or type declaration")) : prior)
+
   inline-subject :: Decl -> Option String
   inline-subject d = case d of
     DSig sp name ty -> Some name
     DFun sp name clauses -> Some name
     other -> None
 
-  function-hint-decl :: List (Span, String, Result String String) -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
-  function-hint-decl hints toks src fix acc = case toks of
-    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then function-hint-decl hints rest src fix acc else
+  function-hint-decl :: List (Span, String, Result String String) -> List (Span, ParsedTestItem) -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  function-hint-decl hints tests toks src fix acc = case toks of
+    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then function-hint-decl hints tests rest src fix acc else
       (case lt-token t of
         TAttr text -> (case inline-attribute text of
-          Some (family, value) -> function-hint-decl ((sp-of t, family, value) : hints) rest src fix acc
-          None -> decls-loop toks src fix ((DInlineHint (sp-of t) "" (Err "expected a function declaration after a function hint")) : acc))
+          Some (family, value) -> function-hint-decl ((sp-of t, family, value) : hints) tests rest src fix acc
+          None -> (case test-attribute text of
+            Some item -> function-hint-decl hints ((sp-of t, item) : tests) rest src fix acc
+            None -> decls-loop toks src fix ((DInlineHint (sp-of t) "" (Err "expected a function declaration after a function hint")) : acc)))
         other -> (case parse-decl-recover toks src fix of
-          POk d tail -> (case inline-subject d of
-            Some name -> decls-loop tail src fix (d : (attach-hints name hints acc))
-            None -> decls-loop tail src fix (d : (DInlineHint (sp-of t) "" (Err "expected a function declaration after a function hint")) : acc))
+          POk d tail ->
+            let with-hints = (case hints of
+              [] -> acc
+              _ -> case inline-subject d of
+                Some name -> attach-hints name hints acc
+                None -> (DInlineHint (sp-of t) "" (Err "expected a function declaration after a function hint")) : acc) in
+            let with-tests = attach-test-attrs d tests with-hints in
+            decls-loop tail src fix (d : with-tests)
           PBad -> PBad))
     [] -> PBad
 

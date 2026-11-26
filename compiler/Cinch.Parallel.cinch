@@ -29,22 +29,24 @@ module Cinch.Parallel where
   import Relation.Eq (Eq)
   import Text.Show (Show, show)
 
-  export CompileStrategy, Latency, Throughput, Eq_CompileStrategy, Show_CompileStrategy
+  export CompileStrategy, Latency, Throughput, Release, Eq_CompileStrategy, Show_CompileStrategy
   export CompileTuning
-  export default-tuning, latency-tuning, throughput-tuning
+  export default-tuning, latency-tuning, throughput-tuning, release-tuning
   export tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl
-  export tuning-is-latency, tuning-is-throughput
+  export tuning-is-latency, tuning-is-throughput, tuning-is-release
   export strategy-name, parse-compile-strategy, parse-nat-word
   export tuning-chunk-size, chunk-list, flatten-lists, apply-worker-budget
 
   data CompileStrategy where
     Latency :: CompileStrategy
     Throughput :: CompileStrategy
+    Release :: CompileStrategy
 
   implicit instance Eq_CompileStrategy :: Eq CompileStrategy where
     (==) a b = case (a, b) of
       (Latency, Latency) -> True
       (Throughput, Throughput) -> True
+      (Release, Release) -> True
       _ -> False
     (/=) a b = not (a == b)
 
@@ -52,6 +54,7 @@ module Cinch.Parallel where
     show s = case s of
       Latency -> "latency"
       Throughput -> "throughput"
+      Release -> "release"
 
   record CompileTuning where
     strategy :: CompileStrategy
@@ -67,6 +70,9 @@ module Cinch.Parallel where
 
   throughput-tuning :: Nat -> CompileTuning
   throughput-tuning workers = CompileTuning Throughput workers "default" False
+
+  release-tuning :: Nat -> CompileTuning
+  release-tuning workers = CompileTuning Release workers "default" False
 
   tuning-with-strategy :: CompileStrategy -> CompileTuning -> CompileTuning
   tuning-with-strategy strategy tuning = CompileTuning strategy tuning.workers tuning.prim-verify tuning.jpl
@@ -86,6 +92,9 @@ module Cinch.Parallel where
   tuning-is-throughput :: CompileTuning -> Bool
   tuning-is-throughput tuning = tuning.strategy == Throughput
 
+  tuning-is-release :: CompileTuning -> Bool
+  tuning-is-release tuning = tuning.strategy == Release
+
   strategy-name :: CompileStrategy -> String
   strategy-name strategy = show strategy
 
@@ -95,6 +104,9 @@ module Cinch.Parallel where
     "hot-reload" -> Some Latency
     "throughput" -> Some Throughput
     "batch" -> Some Throughput
+    "release" -> Some Release
+    "prod" -> Some Release
+    "production" -> Some Release
     _ -> None
 
   parse-nat-digits :: using (seq :: OptionSequencing) => List Char -> Nat -> Option Nat
@@ -111,13 +123,14 @@ module Cinch.Parallel where
 
   -- Choose a deterministic chunk size for a parallel batch of `total` items.
   -- `Latency` splits at unit granularity (1) so small hot-reload edits fan
-  -- out immediately with minimum tail latency. `Throughput` batches large
-  -- lists into chunks of up to 16 items (aiming for ~4 chunks per worker)
-  -- to amortize closure/marking overhead while preserving load balance.
+  -- out immediately with minimum tail latency. `Throughput` and `Release`
+  -- batch large lists into chunks of up to 16 items (aiming for ~4 chunks
+  -- per worker) to amortize closure/marking overhead while preserving load
+  -- balance.
   tuning-chunk-size :: CompileTuning -> Nat -> Nat
   tuning-chunk-size tuning total = case tuning.strategy of
     Latency -> 1
-    Throughput ->
+    _ ->
       if total <= 16 then 1
       else
         let workers = tuning.workers in
