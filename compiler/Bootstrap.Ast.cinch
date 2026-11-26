@@ -616,18 +616,37 @@ module Bootstrap.Ast where
   data ContractClause where
     -- `<operator> = (P)`: the temporal formula.
     ContractFormula :: Span -> String -> Expr -> ContractClause
+    -- `leads_to = (P) ~> (Q)`: stuttering-invariant TLA+ leads-to (`[](P => <>Q)`).
+    ContractLeadsTo :: Span -> String -> Expr -> Expr -> ContractClause
+    -- `deadlock_free = (True)`: every reachable state has an enabled action.
+    ContractDeadlockFree :: Span -> String -> ContractClause
     -- `assume = (P)`: a stated assumed fact (a safety contract's
     -- establishment is one).
     ContractAssume :: Span -> Expr -> ContractClause
     -- `assume = "text"`: a stated environmental assumption (scheduler,
     -- dependency, crash, network, fairness).
     ContractAssumed :: Span -> String -> ContractClause
+    -- `fair = [a, b]` / `strong_fair = [a]`: per-action fairness assumptions.
+    ContractAssumeFair :: Span -> Bool -> List String -> ContractClause
 
   contract-clause-span :: ContractClause -> Span
   contract-clause-span c = case c of
     ContractFormula s op body -> s
+    ContractLeadsTo s op lhs rhs -> s
+    ContractDeadlockFree s op -> s
     ContractAssume s body -> s
     ContractAssumed s text -> s
+    ContractAssumeFair s strong actions -> s
+
+  -- `machine Name where { state = S; init = e; actions = [...]; ... }`:
+  -- explicit-state temporal coalgebra.
+  data MachineSyntax where
+    MkMachineSyntax :: TypeExpr -> Expr -> List String -> List String -> List String -> List String -> Option Nat -> Option Expr -> MachineSyntax
+
+  -- `refines Concrete Abstract where { view = f; [measure = r] }`:
+  -- checked stuttering-aware simulation refinement.
+  data RefinesSyntax where
+    MkRefinesSyntax :: String -> Expr -> Option Expr -> RefinesSyntax
 
   data TypeFamilyEq where
     MkTypeFamilyEq :: Span -> String -> TypeExpr -> TypeExpr -> TypeFamilyEq
@@ -688,6 +707,10 @@ module Bootstrap.Ast where
     -- the kind's own, so the parser has already refused a formula whose
     -- operator disagrees with it.
     DContract :: Span -> String -> String -> String -> List ContractClause -> Decl
+    -- `machine Name where { ... }`: explicit-state temporal coalgebra.
+    DMachine :: Span -> String -> MachineSyntax -> Decl
+    -- `refines Concrete Abstract where { view = ... }`: stuttering refinement.
+    DRefines :: Span -> String -> RefinesSyntax -> Decl
     -- `when <atom> ... <declaration>`: the declaration exists only on the
     -- targets its clause list selects (modules specification section 11).
     -- The atoms are the conjunction, and an `import X when <atom>` is the
@@ -758,6 +781,8 @@ module Bootstrap.Ast where
     DStageEmit s template -> s
     DStageBranch s condition yes no -> s
     DContract s kind name subject clauses -> s
+    DMachine s name syntax -> s
+    DRefines s concrete syntax -> s
     DDecl s x rest -> s
     DDeclsEnd s -> s
     DWrapperLayout s name repr label -> s
@@ -820,6 +845,8 @@ module Bootstrap.Ast where
     -- A contract declares no name of its own: it attaches to the definition
     -- it names, and that definition declares the name.
     DContract s kind name subject clauses -> None
+    DMachine s name syntax -> None
+    DRefines s concrete syntax -> None
 
   -- -------------------------------------------------------- modules, programs
 
@@ -1097,6 +1124,12 @@ module Bootstrap.Ast where
     DStageEmit s template -> decl-unmodeled-count template
     DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no
     DContract s kind name subject clauses -> contract-clauses-unmodeled clauses
+    DMachine s name (MkMachineSyntax state-ty init-expr actions fair sf sym max-st obs) ->
+      type-unmodeled-count state-ty + expr-unmodeled-count init-expr
+        + (case obs of Some e -> expr-unmodeled-count e; None -> 0)
+    DRefines s concrete (MkRefinesSyntax abs-name view-expr measure-expr) ->
+      expr-unmodeled-count view-expr
+        + (case measure-expr of Some e -> expr-unmodeled-count e; None -> 0)
 
   type-family-eqs-unmodeled :: List TypeFamilyEq -> Nat
   type-family-eqs-unmodeled eqs = case eqs of
@@ -1111,8 +1144,11 @@ module Bootstrap.Ast where
   contract-clause-unmodeled :: ContractClause -> Nat
   contract-clause-unmodeled c = case c of
     ContractFormula s op body -> expr-unmodeled-count body
+    ContractLeadsTo s op lhs rhs -> expr-unmodeled-count lhs + expr-unmodeled-count rhs
+    ContractDeadlockFree s op -> 0
     ContractAssume s body -> expr-unmodeled-count body
     ContractAssumed s text -> 0
+    ContractAssumeFair s strong actions -> 0
 
   prim-bodies-unmodeled :: List PrimBody -> Nat
   prim-bodies-unmodeled bodies = case bodies of

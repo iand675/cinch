@@ -22,7 +22,7 @@ module Bootstrap.Temporal where
 
   import Text.Lex (Span)
   import Text.Scan (string-starts-with)
-  import Bootstrap.Ast (Decl, ContractClause, ContractFormula, ContractAssume, ContractAssumed, contract-clause-span, expr-span, Expr
+  import Bootstrap.Ast (Decl, ContractClause, ContractFormula, ContractLeadsTo, ContractDeadlockFree, ContractAssume, ContractAssumed, ContractAssumeFair, contract-clause-span, expr-span, Expr
     , EVar, ECon, ERecord, ERecordField, EProject, ELitInt, ELitFloat, ELitStr, ELitChar, EUnit, ETuple, EList, EApp, EBin, ENeg
     , ELam, ELet, ELetScope, ELocalGroup, ELetRec, ELocalStrict, ELocalSignature, ELocalMemo, ELocalEnd, EIf, ECase, EGuarded, EAnn
     , EForall, EUsing, EBind, EDo, EHandle, EHandler, EHandlerClause, EHandlerEnd, EWith, EArg, EArgsEnd, EBinding, EBindingsEnd
@@ -79,15 +79,19 @@ module Bootstrap.Temporal where
   -- The clause vocabulary, as written.
   contract-clause-word :: String -> Bool
   contract-clause-word word =
-    same word "always" || same word "eventually" || same word "recur"
-    || same word "stable" || same word "assume"
+    same word "always" || same word "eventually" || same word "leads_to"
+    || same word "deadlock_free" || same word "recur" || same word "stable"
+    || same word "fair" || same word "strong_fair" || same word "assume"
 
   -- The operator a formula clause states.
   contract-clause-operator :: ContractClause -> Option String
   contract-clause-operator clause = case clause of
     ContractFormula s op body -> Some op
+    ContractLeadsTo s op lhs rhs -> Some op
+    ContractDeadlockFree s op -> Some op
     ContractAssume s body -> None
     ContractAssumed s text -> None
+    ContractAssumeFair s strong actions -> None
 
   -- Every clause word in written order (the parser keeps them as written,
   -- so the refusal can name the second formula or the mismatched operator).
@@ -96,8 +100,11 @@ module Bootstrap.Temporal where
     Nil -> Nil
     Cons first rest -> (case first of
       ContractFormula s op body -> Cons op Nil
+      ContractLeadsTo s op lhs rhs -> Cons op Nil
+      ContractDeadlockFree s op -> Cons op Nil
       ContractAssume s body -> Cons "assume" Nil
-      ContractAssumed s text -> Cons "assume" Nil) <> contract-clause-names rest
+      ContractAssumed s text -> Cons "assume" Nil
+      ContractAssumeFair s strong actions -> Cons (if strong then "strong_fair" else "fair") Nil) <> contract-clause-names rest
 
   -- The formula clauses, in written order.
   contract-formula-clause :: List ContractClause -> Option (Span, String, Expr)
@@ -105,6 +112,8 @@ module Bootstrap.Temporal where
     Nil -> None
     Cons first rest -> case first of
       ContractFormula s op body -> Some (s, op, body)
+      ContractLeadsTo s op lhs rhs -> Some (s, op, lhs)
+      ContractDeadlockFree s op -> Some (s, op, EUnit s)
       other -> contract-formula-clause rest
 
   -- The stated assumptions as the manifest and interface rows spell them
@@ -115,8 +124,17 @@ module Bootstrap.Temporal where
     Nil -> Nil
     Cons first rest -> case first of
       ContractFormula s op body -> contract-assumption-rows rest
+      ContractLeadsTo s op lhs rhs -> contract-assumption-rows rest
+      ContractDeadlockFree s op -> contract-assumption-rows rest
       ContractAssume s body -> Cons (cat ["assume (", contract-renders-formula body, ")"]) (contract-assumption-rows rest)
       ContractAssumed s text -> Cons (cat ["assume \"", text, "\""]) (contract-assumption-rows rest)
+      ContractAssumeFair s strong actions ->
+        fair-assumption-rows strong actions <> contract-assumption-rows rest
+
+  fair-assumption-rows :: Bool -> List String -> List String
+  fair-assumption-rows strong actions = case actions of
+    Nil -> Nil
+    Cons a rest -> Cons (cat [if strong then "strong_fair " else "weak_fair ", a]) (fair-assumption-rows strong rest)
 
   -- The formula as the report and manifest rows spell it:
   -- `<operator> (<rendered formula>)`.
@@ -196,24 +214,36 @@ module Bootstrap.Temporal where
   -- section 10). Each refusal is the seed's: it names the offending word
   -- and says what the contract must state instead. A contract that passes
   -- here still has to be verified against its definition.
+  kind-accepts-operator :: ContractKind -> String -> Bool
+  kind-accepts-operator kind op = case kind of
+    Safety -> same op "always" || same op "deadlock_free"
+    Liveness -> same op "eventually" || same op "leads_to"
+    Recurrence -> same op "recur"
+    Stability -> same op "stable"
+
   check-contract-shape :: Span -> String -> List ContractClause -> Result String (ContractKind, Expr)
   check-contract-shape span keyword clauses = case contract-kind keyword of
     None -> Err (cat ["`", keyword, "` is not a temporal contract kind; expected `safety`, `liveness`, `recurrence` or `stability` (core specification section 10)"])
     Some kind -> case contract-formula-clause clauses of
       None -> Err (cat ["a `", contract-kind-keyword kind, "` temporal contract states its formula: `", contract-kind-operator kind, " = (P)` (core specification section 10)"])
-      Some (at, op, body) -> if not (contract-clause-word op) then
-        Err (cat ["`", op, "` is not a contract clause; expected `always`, `eventually`, `recur`, `stable` or `assume` (core specification section 10)"])
-        else if not (same op (contract-kind-operator kind)) then
+      Some (at, op, body) ->
+        if same op "next" then
+          Err "`next` is forbidden in public temporal contracts: public contracts must be stuttering-invariant (use `always`, `eventually`, `leads_to`, `recur` or `stable`; reserve `Later k` for internal guarded productivity)"
+        else if not (contract-clause-word op) then
+          Err (cat ["`", op, "` is not a contract clause; expected `always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair` or `assume` (core specification section 10)"])
+        else if not (kind-accepts-operator kind op) then
           Err (cat ["a `", contract-kind-keyword kind, "` temporal contract states `", contract-kind-operator kind, " = (P)`, not `", op, " = (...)` (core specification section 10: the language distinguishes safety, liveness, recurrence and stability)"])
-          else if contract-formula-count clauses > 1 then
-            Err (cat ["duplicate `", op, "` formula: a temporal contract states exactly one formula (core specification section 10)"])
-            else Ok (kind, body)
+        else if contract-formula-count clauses > 1 then
+          Err (cat ["duplicate `", op, "` formula: a temporal contract states exactly one formula (core specification section 10)"])
+        else Ok (kind, body)
 
   contract-formula-count :: List ContractClause -> Nat
   contract-formula-count clauses = case clauses of
     Nil -> 0
     Cons first rest -> (case first of
       ContractFormula s op body -> 1
+      ContractLeadsTo s op lhs rhs -> 1
+      ContractDeadlockFree s op -> 1
       other -> 0) + contract-formula-count rest
 
 

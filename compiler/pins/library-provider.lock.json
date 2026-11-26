@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 packed library provider and runtime with data-parallel multi-backend GPU/SIMD/WebGPU and AD runtime support.",
-  "revision": "f6a7b525783d4de8f9ae43776cb61f12312d9af6",
+  "description": "ABI 10 packed library provider and runtime with phase arenas, fair FIFO MVar, data-parallel arrays, and AD runtime support.",
+  "revision": "6b4714385e6e65ed40e330c8ceaee31857255bdf",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "230f0b8b089634636b8ff14ddea902ae51138a4ba1873a80c61da24c2c9544d3"
+  "source_sha256": "51cdebeed09f19a8c7b82c3fef4b2376429dc91ff0633c26797a613d9df0434b"
 }

@@ -44,7 +44,7 @@ module Bootstrap.Usage where
 
   -- | Recognize the closed scalar field vocabulary whose runtime carrier is compiler-owned.
   scalar :: String -> Bool
-  scalar name = any-name name ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
+  scalar name = any-name name ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym", "Char", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
 
   -- | Test membership in the actual complete defining identity set.
   any-name :: String -> List String -> Bool

@@ -695,6 +695,8 @@ module Bootstrap.Eval where
     DInlineHint s name hint -> Nil
     DUnrollHint s name hint -> Nil
     DContract s keyword name subject clauses -> Nil
+    DMachine s name syntax -> Nil
+    DRefines s concrete syntax -> Nil
     -- A target-selected declaration is whatever it wraps: pruning already
     -- dropped the ones the active profile does not select.
     DConditional s clauses inner -> decl-unmodeleds inner

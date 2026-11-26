@@ -185,6 +185,8 @@ module Bootstrap.Incremental where
     DLaw sp name syn -> True
     DRewrite sp name syn -> True
     DContract sp kind name def clauses -> True
+    DMachine sp name syntax -> True
+    DRefines sp concrete syntax -> True
     DStage sp inner -> True
     DGenerate sp inner -> True
     DStageLet sp e -> True

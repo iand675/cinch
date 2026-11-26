@@ -1,0 +1,1816 @@
+-- Bootstrap.TemporalMc: bounded explicit-state model checker, symmetry reducer,
+-- static field-footprint partial-order analyzer, Emerson-Lei fair-SCC liveness
+-- checker, and stuttering-aware simulation refinement checker for `machine` and
+-- `refines` declarations.
+module Bootstrap.TemporalMc where
+
+  import Algebra.Semigroup
+  import Bootstrap.Core
+  import Bootstrap.ExportType (export-global)
+  import Bootstrap.Guarded (guarded-reading)
+  import Bootstrap.Index (IndexTerm, IInteger, IBound)
+  import Bootstrap.Instance (CoreInstance, instance-scheme, instance-fields, find-instance, field-at, dictionary-field-definition)
+  import Bootstrap.Nominal (global-data-bool-not, global-data-core-some, global-data-core-none, global-data-core-cons, global-data-core-nil)
+  import Bootstrap.Proof (Arithmetic, AInteger)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Bootstrap.Total (total-decimal-value)
+  import Bootstrap.TotalSemantics (total-numeric-operation, total-numeric-comparison, arithmetic-constant)
+  import Bootstrap.Type (UType, UCon, UApp, UFun, UFunEff, UTuple, UArg, UEnd, URefine, UCompare, UPropAnd, UIndex, UIndexPromote, UIndexForget, UBound, Kind, KType, Scheme, MkScheme, scheme-body, scheme-arity, mono, type-text)
+  import Data.Char (eq-char)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-to-list)
+  import Data.Int (int-add, int-sub, int-mul, int-neg)
+  import Data.List (list-length, reverse)
+  import Data.Nat (nat-to-int, nat-from-int)
+  import Data.Option (Option, None, Some)
+  import Data.Result (Result, Ok, Err)
+  import Data.String (string-compare, string-concat, string-concat-all, string-char-at, string-length, string-slice, unpack)
+  import Text.Lex (Span)
+  import Text.Scan (string-starts-with)
+  import Text.Show (int-to-string, nat-to-string, char-string)
+
+  export McContext, MkMcContext
+  export McActionReturn, McReturnDirect, McReturnOption, McReturnList
+  export McActionInput, MkMcActionInput
+  export CheckedMachineInput, MkCheckedMachineInput
+  export McFormula, McAlways, McDeadlockFree, McEventually, McLeadsTo, McRecur, McStable
+  export CheckedMachineContract, MkCheckedMachineContract
+  export CheckedRefinesInput, MkCheckedRefinesInput
+  export McVerdictRow, MkMcVerdictRow, mc-verdict-subject, mc-verdict-name, mc-verdict-kind, mc-verdict-formula, mc-verdict-assumptions, mc-verdict-result
+  export McOutcome, MkMcOutcome, mc-outcome-verdicts, mc-outcome-errors
+  export check-temporal-machines
+
+  -- ------------------------------------------------------------------ types
+
+  data McContext where
+    MkMcContext :: String -> List CoreDefinition -> List CoreData -> List CoreInstance -> ProofScope -> HashMap String (List String) -> McContext
+
+  ctx-record-fields :: McContext -> HashMap String (List String)
+  ctx-record-fields ctx = case ctx of MkMcContext _ _ _ _ _ rfields -> rfields
+
+  data McActionReturn where
+    McReturnDirect :: McActionReturn
+    McReturnOption :: McActionReturn
+    McReturnList :: McActionReturn
+
+  -- Action symbol, param types before State, return shape.
+  data McActionInput where
+    MkMcActionInput :: String -> List UType -> McActionReturn -> McActionInput
+
+  -- Span, machine symbol, state type, init term, actions, weak fair, strong fair,
+  -- symmetry types, optional max_states, optional observe term.
+  data CheckedMachineInput where
+    MkCheckedMachineInput :: Span -> String -> UType -> CoreTerm -> List McActionInput
+      -> List String -> List String -> List String -> Option Nat -> Option CoreTerm -> CheckedMachineInput
+
+  data McFormula where
+    McAlways :: CoreTerm -> McFormula
+    McDeadlockFree :: McFormula
+    McEventually :: CoreTerm -> McFormula
+    McLeadsTo :: CoreTerm -> CoreTerm -> McFormula
+    McRecur :: CoreTerm -> McFormula
+    McStable :: CoreTerm -> McFormula
+
+  -- Span, kind keyword, contract name, machine symbol, formula text, formula,
+  -- extra weak-fair actions, extra strong-fair actions, assumption strings.
+  data CheckedMachineContract where
+    MkCheckedMachineContract :: Span -> String -> String -> String -> String -> McFormula
+      -> List String -> List String -> List String -> CheckedMachineContract
+
+  -- Span, concrete machine symbol, abstract machine symbol, view term, optional measure term.
+  data CheckedRefinesInput where
+    MkCheckedRefinesInput :: Span -> String -> String -> CoreTerm -> Option CoreTerm -> CheckedRefinesInput
+
+  data McVerdictRow where
+    MkMcVerdictRow :: String -> String -> String -> String -> List String -> String -> McVerdictRow
+
+  mc-verdict-subject :: McVerdictRow -> String
+  mc-verdict-subject row = case row of MkMcVerdictRow sub name kind form assum res -> sub
+
+  mc-verdict-name :: McVerdictRow -> String
+  mc-verdict-name row = case row of MkMcVerdictRow sub name kind form assum res -> name
+
+  mc-verdict-kind :: McVerdictRow -> String
+  mc-verdict-kind row = case row of MkMcVerdictRow sub name kind form assum res -> kind
+
+  mc-verdict-formula :: McVerdictRow -> String
+  mc-verdict-formula row = case row of MkMcVerdictRow sub name kind form assum res -> form
+
+  mc-verdict-assumptions :: McVerdictRow -> List String
+  mc-verdict-assumptions row = case row of MkMcVerdictRow sub name kind form assum res -> assum
+
+  mc-verdict-result :: McVerdictRow -> String
+  mc-verdict-result row = case row of MkMcVerdictRow sub name kind form assum res -> res
+
+  data McOutcome where
+    MkMcOutcome :: List McVerdictRow -> List Diagnostic -> McOutcome
+
+  mc-outcome-verdicts :: McOutcome -> List McVerdictRow
+  mc-outcome-verdicts out = case out of MkMcOutcome rows errs -> rows
+
+  mc-outcome-errors :: McOutcome -> List Diagnostic
+  mc-outcome-errors out = case out of MkMcOutcome rows errs -> errs
+
+  -- Runtime values for checked Core evaluation (in-type spines, no List Self).
+  data McValue where
+    McInt :: Int -> McValue
+    McBool :: Bool -> McValue
+    McString :: String -> McValue
+    McChar :: Char -> McValue
+    McUnit :: McValue
+    McTuple :: McValue -> McValue
+    McNominal :: String -> McValue -> McValue
+    McField :: McValue -> McValue -> McValue
+    McFieldsEnd :: McValue
+    McClosure :: CorePattern -> CoreTerm -> McValue -> McValue
+    McCallable :: String -> String -> UType -> McValue -> McValue
+    McEnvBind :: Nat -> McValue -> McValue -> McValue
+    McEnvEnd :: McValue
+
+  data McMatch where
+    McMatchOk :: McValue -> McMatch
+    McMatchFail :: McMatch
+    McMatchErr :: String -> McMatch
+
+  -- Static field footprint for POR analysis.
+  data Footprint where
+    FootprintOpaque :: Footprint
+    FootprintKnown :: List Nat -> List Nat -> Footprint
+
+  -- Explored finite-state graph for one machine.
+  data ExploredMachine where
+    MkExploredMachine :: String -> UType -> Nat -> Nat -> Bool -> Nat -> Nat
+      -> HashMap Nat McValue
+      -> HashMap String Nat
+      -> HashMap Nat (List (String, String, Nat))
+      -> HashMap Nat (Nat, String)
+      -> List String -> List String
+      -> HashMap String (List String)
+      -> ExploredMachine
+
+  -- ------------------------------------------------------------------ helpers
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  cat :: List String -> String
+  cat parts = string-concat-all parts
+
+  mc-diag :: Span -> String -> Diagnostic
+  mc-diag sp msg = MkDiagnostic "bootstrap.temporal.mc" sp msg
+
+  has-str :: String -> List String -> Bool
+  has-str x xs = case xs of
+    Nil -> False
+    Cons first rest -> same x first || has-str x rest
+
+  has-nat :: Nat -> List Nat -> Bool
+  has-nat x xs = case xs of
+    Nil -> False
+    Cons first rest -> x == first || has-nat x rest
+
+  add-nat-unique :: Nat -> List Nat -> List Nat
+  add-nat-unique x xs = if has-nat x xs then xs else Cons x xs
+
+  union-nats :: List Nat -> List Nat -> List Nat
+  union-nats xs ys = case xs of
+    Nil -> ys
+    Cons first rest -> union-nats rest (add-nat-unique first ys)
+
+  nats-disjoint :: List Nat -> List Nat -> Bool
+  nats-disjoint xs ys = case xs of
+    Nil -> True
+    Cons first rest -> not (has-nat first ys) && nats-disjoint rest ys
+
+  short-ident :: String -> String
+  short-ident text = short-ident-from text 0 0
+
+  short-ident-from :: String -> Nat -> Nat -> String
+  short-ident-from text idx start =
+    let len = string-length text in
+    if idx >= len then string-slice text start len
+    else
+      let rem = string-slice text idx len in
+      if string-starts-with "." rem then short-ident-from text (idx + 1) (idx + 1)
+      else if string-starts-with "$2e" rem then short-ident-from text (idx + 3) (idx + 3)
+      else short-ident-from text (idx + 1) start
+
+  ends-with-dot :: String -> String -> Bool
+  ends-with-dot text suffix = same text suffix || same (short-ident text) suffix
+
+  string-contains-at :: String -> String -> Nat -> Nat -> Bool
+  string-contains-at haystack needle idx limit =
+    if idx > limit then False
+    else if string-starts-with needle (string-slice haystack idx (string-length haystack)) then True
+    else string-contains-at haystack needle (idx + 1) limit
+
+  string-contains :: String -> String -> Bool
+  string-contains haystack needle =
+    let hlen = string-length haystack in
+    let nlen = string-length needle in
+    if nlen == 0 then True
+    else if nlen > hlen then False
+    else string-contains-at haystack needle 0 (hlen - nlen)
+
+  -- ------------------------------------------------------------------ Core evaluator
+
+  mc-fields-from-list :: List McValue -> McValue
+  mc-fields-from-list xs = case xs of
+    Nil -> McFieldsEnd
+    Cons first rest -> McField first (mc-fields-from-list rest)
+
+  mc-fields-to-list :: McValue -> List McValue
+  mc-fields-to-list fs = case fs of
+    McField first rest -> Cons first (mc-fields-to-list rest)
+    other -> Nil
+
+  mc-prepend-fields :: McValue -> List McValue -> List McValue
+  mc-prepend-fields fs tail = case fs of
+    McField first rest -> Cons first (mc-prepend-fields rest tail)
+    other -> tail
+
+  mc-env-lookup :: Nat -> McValue -> Option McValue
+  mc-env-lookup wanted env = case env of
+    McEnvBind id val rest -> if id == wanted then Some val else mc-env-lookup wanted rest
+    other -> None
+
+  mc-find-def :: String -> List CoreDefinition -> Option CoreDefinition
+  mc-find-def name defs = case defs of
+    Nil -> None
+    Cons first rest -> if same (core-name first) name then Some first else mc-find-def name rest
+
+  mc-match-pattern :: CorePattern -> McValue -> McValue -> McMatch
+  mc-match-pattern pat val env = case pat of
+    CPVar sp ty id name -> McMatchOk (McEnvBind id val env)
+    CPAs sp ty id name inner -> mc-match-pattern inner val (McEnvBind id val env)
+    CPWild sp ty -> McMatchOk env
+    CPProof sp ty id name -> McMatchOk env
+    CPErasedValue sp ty id name -> McMatchOk (McEnvBind id val env)
+    CPInt sp ty text -> case (total-decimal-value text, val) of
+      (Some expected, McInt actual) -> if expected == actual then McMatchOk env else McMatchFail
+      other -> McMatchFail
+    CPString sp ty text -> case val of
+      McString actual -> if same text actual then McMatchOk env else McMatchFail
+      other -> McMatchFail
+    CPChar sp ty text -> case val of
+      McChar c -> if same text (char-string c) then McMatchOk env else McMatchFail
+      other -> McMatchFail
+    CPTuple sp ty fields -> case val of
+      McTuple vals -> mc-match-fields fields vals env
+      other -> McMatchFail
+    CPConstructor sp res name actuals ty fields -> case val of
+      McBool flag ->
+        if (flag && ends-with-dot name "True") || (not flag && ends-with-dot name "False") then
+          mc-match-fields fields McFieldsEnd env
+        else McMatchFail
+      McNominal cname vals ->
+        if same name cname || same (short-ident name) (short-ident cname) then
+          mc-match-fields fields vals env
+        else McMatchFail
+      other -> McMatchFail
+    other -> McMatchErr "unsupported pattern in temporal model checker"
+
+  mc-match-fields :: CorePattern -> McValue -> McValue -> McMatch
+  mc-match-fields pats vals env = case (pats, vals) of
+    (CPDone sp, McFieldsEnd) -> McMatchOk env
+    (CPField sp pat more-pats, McField v more-vals) -> case mc-match-pattern pat v env of
+      McMatchOk env2 -> mc-match-fields more-pats more-vals env2
+      other -> other
+    other -> McMatchFail
+
+  mc-match-patterns :: List CorePattern -> List McValue -> McValue -> McMatch
+  mc-match-patterns pats vals env = case (pats, vals) of
+    (Nil, Nil) -> McMatchOk env
+    (Cons p ps, Cons v vs) -> case mc-match-pattern p v env of
+      McMatchOk env2 -> mc-match-patterns ps vs env2
+      other -> other
+    other -> McMatchFail
+
+  mc-eval-def :: McContext -> Option (String, CoreInstance) -> CoreDefinition -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-def ctx self def args fuel =
+    mc-eval-clauses ctx self (core-name def) (core-clauses def) args fuel
+
+  mc-eval-clauses :: McContext -> Option (String, CoreInstance) -> String -> List CoreClause -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-clauses ctx self name clauses args fuel =
+    if fuel == 0 then Err (cat ["temporal model checker exhausted evaluation fuel in `", short-ident name, "`"])
+    else case clauses of
+      Nil -> Err (cat ["no clause matched `", short-ident name, "` during temporal model checking"])
+      Cons (MkCoreClause sp pats body) rest -> case mc-match-patterns pats args McEnvEnd of
+        McMatchOk env -> mc-eval-term ctx self env body (fuel - 1)
+        McMatchFail -> mc-eval-clauses ctx self name rest args (fuel - 1)
+        McMatchErr msg -> Err msg
+
+  mc-eval-list :: McContext -> Option (String, CoreInstance) -> McValue -> List CoreTerm -> Nat -> Result String (List McValue, Nat)
+  mc-eval-list ctx self env terms fuel = case terms of
+    Nil -> Ok (Nil, fuel)
+    Cons first rest -> case mc-eval-term ctx self env first fuel of
+      Err msg -> Err msg
+      Ok (v, rem) -> case mc-eval-list ctx self env rest rem of
+        Err msg -> Err msg
+        Ok (vs, done) -> Ok (Cons v vs, done)
+
+  mc-eval-ctor :: UType -> String -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-ctor ty name vals fuel =
+    if ends-with-dot name "True" && list-length vals == 0 then Ok (McBool True, fuel)
+    else if ends-with-dot name "False" && list-length vals == 0 then Ok (McBool False, fuel)
+    else Ok (McNominal name (mc-fields-from-list vals), fuel)
+
+  mc-eval-use :: McContext -> Option (String, CoreInstance) -> UType -> String -> String -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-use ctx self ty name role args fuel =
+    if same name global-data-bool-not || ends-with-dot name "not" then
+      (case args of
+        Nil -> Ok (McCallable name role ty McFieldsEnd, fuel)
+        [McBool b] -> Ok (McBool (not b), fuel)
+        other -> Err "invalid argument to `not`")
+    else if same role "constructor" then
+      let arity = scheme-arity (mono ty) in
+      if list-length args < arity then Ok (McCallable name role ty (mc-fields-from-list args), fuel)
+      else mc-eval-ctor ty name args fuel
+    else case ctx of
+      MkMcContext home defs datas instances scope _ -> case mc-find-def name defs of
+        Some def -> case core-clauses def of
+          Cons (MkCoreClause sp pats body) rest | list-length args < list-length pats ->
+            Ok (McCallable name role ty (mc-fields-from-list args), fuel)
+          Cons (MkCoreClause sp pats body) rest | list-length args > list-length pats ->
+            let (direct, extra) = split-at-nat (list-length pats) args in
+            (case mc-eval-def ctx self def direct fuel of
+              Err msg -> Err msg
+              Ok (fn-val, rem) -> mc-apply-list ctx self fn-val extra rem)
+          other -> mc-eval-def ctx self def args fuel
+        None -> mc-eval-external-use name role ty args fuel
+
+  split-at-nat :: forall a. Nat -> List a -> (List a, List a)
+  split-at-nat n xs = if n == 0 then (Nil, xs) else case xs of
+    Nil -> (Nil, Nil)
+    Cons first rest -> case split-at-nat (n - 1) rest of
+      (taken, dropped) -> (Cons first taken, dropped)
+
+  mc-eval-external-use :: String -> String -> UType -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-external-use name role ty args fuel =
+    let short = short-ident name in
+    if same short "saturating-sub" then (case args of
+      [McInt a, McInt b] -> Ok (McInt (if a >= b then int-sub a b else 0), fuel)
+      Nil -> Ok (McCallable name role ty McFieldsEnd, fuel)
+      [x] -> Ok (McCallable name role ty (mc-fields-from-list [x]), fuel)
+      other -> Err "invalid arguments to saturating-sub")
+    else if same short "nat-to-int" || same short "nat-from-int" || same short "fin-to-nat" then (case args of
+      [McInt a] -> Ok (McInt a, fuel)
+      Nil -> Ok (McCallable name role ty McFieldsEnd, fuel)
+      other -> Err (cat ["invalid argument to `", short, "`"]))
+    else if same short "not" then (case args of
+      [McBool b] -> Ok (McBool (not b), fuel)
+      Nil -> Ok (McCallable name role ty McFieldsEnd, fuel)
+      other -> Err "invalid argument to `not`")
+    else Err (cat ["definition `", short, "` is unavailable in temporal model checking"])
+
+  mc-apply-one :: McContext -> Option (String, CoreInstance) -> McValue -> McValue -> Nat -> Result String (McValue, Nat)
+  mc-apply-one ctx self fn-val arg fuel =
+    if fuel == 0 then Err "temporal model checker exhausted evaluation fuel"
+    else case fn-val of
+      McClosure pat body captured -> case mc-match-pattern pat arg captured of
+        McMatchOk env2 -> mc-eval-term ctx self env2 body (fuel - 1)
+        McMatchFail -> Err "lambda pattern match failed during temporal model checking"
+        McMatchErr msg -> Err msg
+      McCallable name role ty captured ->
+        mc-eval-use ctx self ty name role (mc-prepend-fields captured [arg]) (fuel - 1)
+      other -> Err "attempted to apply non-function value during temporal model checking"
+
+  mc-apply-list :: McContext -> Option (String, CoreInstance) -> McValue -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-apply-list ctx self fn-val args fuel = case args of
+    Nil -> Ok (fn-val, fuel)
+    Cons first rest -> case mc-apply-one ctx self fn-val first fuel of
+      Err msg -> Err msg
+      Ok (next-val, rem) -> mc-apply-list ctx self next-val rest rem
+
+  mc-eval-num-op :: String -> Int -> Int -> Nat -> Result String (McValue, Nat)
+  mc-eval-num-op op a b fuel =
+    if same op "+" then Ok (McInt (int-add a b), fuel)
+    else if same op "-" then Ok (McInt (int-sub a b), fuel)
+    else if same op "*" then Ok (McInt (int-mul a b), fuel)
+    else if same op "==" then Ok (McBool (a == b), fuel)
+    else if same op "/=" then Ok (McBool (a /= b), fuel)
+    else if same op "<" then Ok (McBool (a < b), fuel)
+    else if same op "<=" then Ok (McBool (a <= b), fuel)
+    else if same op ">" then Ok (McBool (a > b), fuel)
+    else if same op ">=" then Ok (McBool (a >= b), fuel)
+    else Err (cat ["unsupported numeric primitive `", op, "` in temporal model checker"])
+
+  mc-eval-prim :: String -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-prim op vals fuel = case vals of
+    Nil ->
+      if same op "decision-true" then Ok (McBool True, fuel)
+      else if same op "decision-false" then Ok (McBool False, fuel)
+      else Err (cat ["unsupported nullary primitive `", op, "` in temporal model checker"])
+    [McInt a] ->
+      if same op "negate" then Ok (McInt (int-neg a), fuel)
+      else if same op "copy-out" then Ok (McInt a, fuel)
+      else Err (cat ["unsupported unary primitive `", op, "` in temporal model checker"])
+    [v] ->
+      if same op "copy-out" then Ok (v, fuel)
+      else Err (cat ["unsupported unary primitive `", op, "` in temporal model checker"])
+    [McInt a, McInt b] -> mc-eval-num-op op a b fuel
+    [McBool a, McBool b] ->
+      if same op "==" then Ok (McBool (a == b), fuel)
+      else if same op "/=" then Ok (McBool (a /= b), fuel)
+      else Err (cat ["unsupported boolean primitive `", op, "` in temporal model checker"])
+    other -> Err (cat ["unsupported primitive `", op, "` in temporal model checker"])
+
+  mc-eval-method :: McContext -> Option (String, CoreInstance) -> CoreTerm -> String -> Nat -> CoreEvidence -> List CoreTerm -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-method ctx self method-term mname slot evidence arg-terms vals fuel = case ctx of
+    MkMcContext home defs datas instances scope _ ->
+      let dict-opt = (case (evidence, self) of
+            (CEInstance sp ty iname actuals (CEArgumentsEnd end), other) -> find-instance iname instances
+            (CEGiven sp ty gname, Some (sym, dict)) | same gname sym -> Some dict
+            other -> None) in
+      case dict-opt of
+        Some dict -> case field-at slot (instance-fields dict) of
+          Some field ->
+            let def = dictionary-field-definition field in
+            (case core-givens def of
+              [given] -> mc-eval-clauses ctx (Some (given-symbol given, dict)) (core-name def) (core-clauses def) vals fuel
+              Nil -> mc-eval-clauses ctx self (core-name def) (core-clauses def) vals fuel
+              other -> mc-eval-builtin-method mname vals fuel)
+          None -> mc-eval-builtin-method mname vals fuel
+        None -> case arg-terms of
+          [first, second] -> case selected-method-function scope method-term (core-type first) (core-type second) of
+            Some fn -> case (case total-numeric-operation fn of Some op -> Some op; None -> total-numeric-comparison fn) of
+              Some op -> mc-eval-prim op vals fuel
+              None -> mc-eval-builtin-method mname vals fuel
+            None -> mc-eval-builtin-method mname vals fuel
+          other -> mc-eval-builtin-method mname vals fuel
+
+  mc-eval-builtin-method :: String -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-builtin-method mname vals fuel =
+    let short = short-ident mname in
+    case vals of
+      [McInt a, McInt b] -> mc-eval-num-op short a b fuel
+      [McBool a, McBool b] ->
+        if same short "==" then Ok (McBool (a == b), fuel)
+        else if same short "/=" then Ok (McBool (a /= b), fuel)
+        else Err (cat ["unsupported Bool method `", short, "` in temporal model checker"])
+      [a, b] ->
+        if same short "==" then Ok (McBool (mc-value-eq a b), fuel)
+        else if same short "/=" then Ok (McBool (not (mc-value-eq a b)), fuel)
+        else Err (cat ["unsupported method `", short, "` in temporal model checker"])
+      [McInt a] ->
+        if same short "negate" then Ok (McInt (int-neg a), fuel)
+        else Err (cat ["unsupported unary method `", short, "` in temporal model checker"])
+      other -> Err (cat ["unsupported method `", short, "` in temporal model checker"])
+
+  mc-eval-discharged :: McContext -> Option (String, CoreInstance) -> McValue -> CoreTerm -> Nat -> Result String (McValue, Nat)
+  mc-eval-discharged ctx self env body fuel = case ctx of
+    MkMcContext home defs datas instances scope _ -> case guarded-call-spine scope body Nil of
+      None -> mc-eval-term ctx self env body fuel
+      Some (binding, arguments) -> case mc-eval-list ctx self env arguments fuel of
+        Err msg -> Err msg
+        Ok (vals, rem) -> case mc-nat-arith-args vals of
+          Some arith-args -> case guarded-reading binding arith-args of
+            Some expr -> case arithmetic-constant expr of
+              Some result | result >= 0 -> Ok (McInt result, rem)
+              other -> mc-eval-term ctx self env body rem
+            None -> mc-eval-term ctx self env body rem
+          None -> mc-eval-term ctx self env body rem
+
+  mc-nat-arith-args :: List McValue -> Option (List Arithmetic)
+  mc-nat-arith-args vals = case vals of
+    Nil -> Some Nil
+    Cons (McInt n) rest | n >= 0 -> case mc-nat-arith-args rest of
+      Some more -> Some (Cons (AInteger n) more)
+      None -> None
+    other -> None
+
+  mc-prim-args :: CoreTerm -> List CoreTerm
+  mc-prim-args term = case term of
+    CArgument sp first rest -> Cons first (mc-prim-args rest)
+    other -> Nil
+
+  mc-eval-alts :: McContext -> Option (String, CoreInstance) -> McValue -> McValue -> CoreTerm -> Nat -> Result String (McValue, Nat)
+  mc-eval-alts ctx self env scrut arms fuel =
+    if fuel == 0 then Err "temporal model checker exhausted evaluation fuel in case"
+    else case arms of
+      CAlternative sp pat body rest -> case mc-match-pattern pat scrut env of
+        McMatchOk env2 -> mc-eval-term ctx self env2 body (fuel - 1)
+        McMatchFail -> mc-eval-alts ctx self env scrut rest (fuel - 1)
+        McMatchErr msg -> Err msg
+      other -> Err "no case branch matched during temporal model checking"
+
+  mc-eval-app :: McContext -> Option (String, CoreInstance) -> McValue -> CoreTerm -> List CoreTerm -> Nat -> Result String (McValue, Nat)
+  mc-eval-app ctx self env fn-term arg-terms fuel =
+    if fuel == 0 then Err "temporal model checker exhausted evaluation fuel in application"
+    else case fn-term of
+      CApply sp ty f x -> mc-eval-app ctx self env f (Cons x arg-terms) (fuel - 1)
+      CUse sp ty name role actuals -> case mc-eval-list ctx self env arg-terms (fuel - 1) of
+        Err msg -> Err msg
+        Ok (vals, rem) -> mc-eval-use ctx self ty name role vals rem
+      CMethod sp ty mname owner slot actuals [evidence] -> case mc-eval-list ctx self env arg-terms (fuel - 1) of
+        Err msg -> Err msg
+        Ok (vals, rem) -> mc-eval-method ctx self fn-term mname slot evidence arg-terms vals rem
+      other -> case mc-eval-term ctx self env fn-term (fuel - 1) of
+        Err msg -> Err msg
+        Ok (fn-val, rem) -> case mc-eval-list ctx self env arg-terms rem of
+          Err msg -> Err msg
+          Ok (vals, rem2) -> mc-apply-list ctx self fn-val vals rem2
+
+  mc-eval-term :: McContext -> Option (String, CoreInstance) -> McValue -> CoreTerm -> Nat -> Result String (McValue, Nat)
+  mc-eval-term ctx self env term fuel =
+    if fuel == 0 then Err "temporal model checker exhausted evaluation fuel"
+    else let rem = fuel - 1 in case term of
+      CInt sp ty text -> case total-decimal-value text of
+        Some n -> Ok (McInt n, rem)
+        None -> Err (cat ["invalid integer literal `", text, "`"])
+      CString sp ty text -> Ok (McString text, rem)
+      CChar sp ty text -> case unpack text of
+        Cons c rest -> Ok (McChar c, rem)
+        Nil -> Err "empty character literal"
+      CSymbol sp ty text -> Ok (McString text, rem)
+      CUnit sp ty -> Ok (McUnit, rem)
+      CLocal sp ty id name actuals -> case mc-env-lookup id env of
+        Some v -> Ok (v, rem)
+        None -> Err (cat ["missing local binding `", name, "` in temporal model checker"])
+      CUse sp ty name role actuals -> mc-eval-use ctx self ty name role Nil rem
+      CLambda sp ty pat body -> Ok (McClosure pat body env, rem)
+      CApply sp ty f x -> mc-eval-app ctx self env f [x] rem
+      CMethod sp ty mname owner slot actuals [evidence] ->
+        mc-eval-method ctx self term mname slot evidence Nil Nil rem
+      CLet sp ty id name sc rhs body -> case mc-eval-term ctx self env rhs rem of
+        Err msg -> Err msg
+        Ok (v, next) -> mc-eval-term ctx self (McEnvBind id v env) body next
+      CIf sp ty cond yes no -> case mc-eval-term ctx self env cond rem of
+        Err msg -> Err msg
+        Ok (McBool b, next) -> mc-eval-term ctx self env (if b then yes else no) next
+        Ok other -> Err "expected Bool condition in temporal model checker"
+      CCase sp ty scrut arms -> case mc-eval-term ctx self env scrut rem of
+        Err msg -> Err msg
+        Ok (v, next) -> mc-eval-alts ctx self env v arms next
+      CTuple sp ty fields -> case mc-eval-list ctx self env (mc-prim-args fields) rem of
+        Err msg -> Err msg
+        Ok (vals, next) -> Ok (McTuple (mc-fields-from-list vals), next)
+      CPrimitive sp ty op args -> case mc-eval-list ctx self env (mc-prim-args args) rem of
+        Err msg -> Err msg
+        Ok (vals, next) -> mc-eval-prim op vals next
+      CProved sp ty cert body -> mc-eval-term ctx self env body rem
+      CRefine sp ty cert body -> mc-eval-term ctx self env body rem
+      CRefineProof sp ty wit body -> mc-eval-term ctx self env body rem
+      CForget sp ty body -> mc-eval-term ctx self env body rem
+      CCast sp ty body -> mc-eval-term ctx self env body rem
+      CRequire sp ty body -> mc-eval-term ctx self env body rem
+      CDischarge sp ty proofs _ body -> mc-eval-discharged ctx self env body rem
+      CPolyElim sp ty inner args -> mc-eval-term ctx self env inner rem
+      CPolyIntro sp ty ids inner -> mc-eval-term ctx self env inner rem
+      CGuard sp ty cond body -> case mc-eval-term ctx self env cond rem of
+        Err msg -> Err msg
+        Ok (McBool True, next) -> mc-eval-term ctx self env body next
+        Ok other -> Err "guard failed during temporal model checking"
+      CWith sp ty given val body -> mc-eval-term ctx self env body rem
+      other -> Err "unsupported expression in temporal model checker"
+
+  -- ------------------------------------------------------------------ value equality, key, rendering
+
+  mc-value-eq :: McValue -> McValue -> Bool
+  mc-value-eq a b = case (a, b) of
+    (McInt x, McInt y) -> x == y
+    (McBool x, McBool y) -> x == y
+    (McString x, McString y) -> same x y
+    (McChar x, McChar y) -> eq-char x y
+    (McUnit, McUnit) -> True
+    (McTuple x, McTuple y) -> mc-fields-eq x y
+    (McNominal n1 f1, McNominal n2 f2) ->
+      (same n1 n2 || same (short-ident n1) (short-ident n2)) && mc-fields-eq f1 f2
+    other -> False
+
+  mc-fields-eq :: McValue -> McValue -> Bool
+  mc-fields-eq a b = case (a, b) of
+    (McFieldsEnd, McFieldsEnd) -> True
+    (McField x xs, McField y ys) -> mc-value-eq x y && mc-fields-eq xs ys
+    other -> False
+
+  mc-value-key :: McValue -> String
+  mc-value-key v = case v of
+    McInt n -> cat ["I:", int-to-string n]
+    McBool b -> if b then "B:1" else "B:0"
+    McString s -> cat ["S:", nat-to-string (string-length s), ":", s]
+    McChar c -> cat ["C:", char-string c]
+    McUnit -> "U"
+    McTuple fs -> cat ["T(", mc-fields-key fs, ")"]
+    McNominal name fs -> cat ["N:", short-ident name, "(", mc-fields-key fs, ")"]
+    other -> "?"
+
+  mc-fields-key :: McValue -> String
+  mc-fields-key fs = case fs of
+    McFieldsEnd -> ""
+    McField first McFieldsEnd -> mc-value-key first
+    McField first rest -> cat [mc-value-key first, ",", mc-fields-key rest]
+    other -> ""
+
+  render-mc-value-with :: HashMap String (List String) -> McValue -> String
+  render-mc-value-with rfields v = case v of
+    McInt n -> int-to-string n
+    McBool b -> if b then "True" else "False"
+    McString s -> cat ["\"", s, "\""]
+    McChar c -> cat ["'", char-string c, "'"]
+    McUnit -> "()"
+    McTuple fs -> cat ["(", render-mc-fields-with rfields fs, ")"]
+    McNominal name McFieldsEnd -> short-ident name
+    McNominal name fs ->
+      let short = short-ident name in
+      (case hash-map-lookup short rfields of
+        Some labels -> cat [short, " { ", render-record-fields-with rfields labels fs, " }"]
+        None -> cat [short, "(", render-mc-fields-with rfields fs, ")"])
+    other -> "<fn>"
+
+  render-record-fields-with :: HashMap String (List String) -> List String -> McValue -> String
+  render-record-fields-with rfields labels fs = case (labels, fs) of
+    (Nil, _) -> ""
+    ([lbl], McField v McFieldsEnd) -> cat [lbl, " = ", render-mc-value-with rfields v]
+    (Cons lbl more-lbls, McField v rest) -> cat [lbl, " = ", render-mc-value-with rfields v, ", ", render-record-fields-with rfields more-lbls rest]
+    other -> render-mc-fields-with rfields fs
+
+  render-mc-fields-with :: HashMap String (List String) -> McValue -> String
+  render-mc-fields-with rfields fs = case fs of
+    McFieldsEnd -> ""
+    McField first McFieldsEnd -> render-mc-value-with rfields first
+    McField first rest -> cat [render-mc-value-with rfields first, ", ", render-mc-fields-with rfields rest]
+    other -> ""
+
+  render-mc-value :: McValue -> String
+  render-mc-value v = render-mc-value-with hash-map-empty v
+
+  -- ------------------------------------------------------------------ symmetry reduction & soundness
+
+  find-core-data :: String -> List CoreData -> Option CoreData
+  find-core-data wanted datas = case datas of
+    Nil -> None
+    Cons first rest ->
+      if same (core-data-name first) wanted || same (short-ident (core-data-name first)) (short-ident wanted) then Some first
+      else find-core-data wanted rest
+
+  nullary-ctor-names :: List CoreConstructor -> Option (List String)
+  nullary-ctor-names ctors = case ctors of
+    Nil -> Some Nil
+    Cons c rest -> case core-constructor-fields c of
+      Nil -> case nullary-ctor-names rest of
+        Some more -> Some (Cons (core-constructor-name c) more)
+        None -> None
+      other -> None
+
+  -- Reject symmetry reduction if the type has an `Ord` instance (breaks permutation symmetry!).
+  has-ord-instance-for :: String -> List CoreInstance -> Bool
+  has-ord-instance-for wanted instances = case instances of
+    Nil -> False
+    Cons inst rest ->
+      if scheme-is-ord-for wanted (scheme-body (instance-scheme inst)) then True
+      else has-ord-instance-for wanted rest
+
+  scheme-is-ord-for :: String -> UType -> Bool
+  scheme-is-ord-for wanted ty = case ty of
+    UFun a b -> scheme-is-ord-for wanted b
+    UFunEff a row b -> scheme-is-ord-for wanted b
+    UApp (UCon cname _) arg ->
+      (same (short-ident cname) "Ord" || ends-with-dot cname "Ord") && utype-mentions wanted arg
+    other -> False
+
+  utype-mentions :: String -> UType -> Bool
+  utype-mentions wanted ty = case ty of
+    UCon name _ -> same name wanted || same (short-ident name) (short-ident wanted)
+    UApp f x -> utype-mentions wanted f || utype-mentions wanted x
+    other -> False
+
+  validate-symmetry-types :: Span -> List String -> List CoreData -> List CoreInstance -> HashMap String (List String) -> Result Diagnostic (HashMap String (List String))
+  validate-symmetry-types sp sym-types datas instances acc = case sym-types of
+    Nil -> Ok acc
+    Cons sym-ty rest ->
+      let display = short-ident sym-ty in
+      if has-ord-instance-for sym-ty instances then
+        Err (mc-diag sp (cat ["unsound symmetry reduction on `", display, "`: `", display, "` has an `Ord` instance, which breaks permutation symmetry (remove `Ord` or drop `", display, "` from `symmetry`)"]))
+      else case find-core-data sym-ty datas of
+        None -> Err (mc-diag sp (cat ["symmetry type `", display, "` is not a finite data type in scope"]))
+        Some dt -> case nullary-ctor-names (core-data-constructors dt) of
+          Some ctors | list-length ctors >= 2 ->
+            validate-symmetry-types sp rest datas instances (hash-map-insert (core-data-name dt) ctors acc)
+          other -> Err (mc-diag sp (cat ["symmetry type `", display, "` must be a finite enum with at least two nullary constructors"]))
+
+  -- Map each symmetric constructor name to (owner-type, canonical-ctors-list).
+  build-sym-ctor-owner :: List (String, List String) -> HashMap String (String, List String)
+  build-sym-ctor-owner entries = case entries of
+    Nil -> hash-map-empty
+    Cons (owner, ctors) rest -> insert-sym-ctors owner ctors ctors (build-sym-ctor-owner rest)
+
+  insert-sym-ctors :: String -> List String -> List String -> HashMap String (String, List String) -> HashMap String (String, List String)
+  insert-sym-ctors owner all-ctors rem acc = case rem of
+    Nil -> acc
+    Cons c rest -> insert-sym-ctors owner all-ctors rest (hash-map-insert (short-ident c) (owner, all-ctors) acc)
+
+  -- First-appearance canonicalization over symmetric constructors.
+  canonicalize-symmetry :: HashMap String (List String) -> McValue -> McValue
+  canonicalize-symmetry sym-map val =
+    let entries = hash-map-to-list sym-map in
+    case entries of
+      Nil -> val
+      other ->
+        let owners = build-sym-ctor-owner entries in
+        case canon-val owners hash-map-empty hash-map-empty val of
+          (out, _, _) -> out
+
+  nth-str :: Nat -> List String -> Option String
+  nth-str idx xs = case xs of
+    Nil -> None
+    Cons first rest -> if idx == 0 then Some first else nth-str (idx - 1) rest
+
+  canon-val :: HashMap String (String, List String) -> HashMap String String -> HashMap String Nat -> McValue -> (McValue, HashMap String String, HashMap String Nat)
+  canon-val owners renames next-idx val = case val of
+    McNominal name McFieldsEnd ->
+      let short = short-ident name in
+      (case hash-map-lookup short owners of
+        None -> (val, renames, next-idx)
+        Some (owner, all-ctors) -> case hash-map-lookup short renames of
+          Some mapped -> (McNominal mapped McFieldsEnd, renames, next-idx)
+          None ->
+            let idx = (case hash-map-lookup owner next-idx of Some n -> n; None -> 0) in
+            let mapped = (case nth-str idx all-ctors of Some c -> c; None -> name) in
+            (McNominal mapped McFieldsEnd, hash-map-insert short mapped renames, hash-map-insert owner (idx + 1) next-idx))
+    McNominal name fs -> case canon-fields owners renames next-idx fs of
+      (fs2, r2, n2) -> (McNominal name fs2, r2, n2)
+    McTuple fs -> case canon-fields owners renames next-idx fs of
+      (fs2, r2, n2) -> (McTuple fs2, r2, n2)
+    other -> (val, renames, next-idx)
+
+  canon-fields :: HashMap String (String, List String) -> HashMap String String -> HashMap String Nat -> McValue -> (McValue, HashMap String String, HashMap String Nat)
+  canon-fields owners renames next-idx fs = case fs of
+    McFieldsEnd -> (McFieldsEnd, renames, next-idx)
+    McField first rest -> case canon-val owners renames next-idx first of
+      (v2, r2, n2) -> case canon-fields owners r2 n2 rest of
+        (rest2, r3, n3) -> (McField v2 rest2, r3, n3)
+    other -> (fs, renames, next-idx)
+
+  -- ------------------------------------------------------------------ finite domain enumeration
+
+  enumerate-domain :: UType -> List CoreData -> Result String (List McValue)
+  enumerate-domain ty datas = case ty of
+    UCon name _ | same name "Bool" -> Ok [McBool False, McBool True]
+    UCon name _ | same name "Unit" -> Ok [McUnit]
+    UCon name _ -> case find-core-data name datas of
+      Some dt -> case nullary-ctor-names (core-data-constructors dt) of
+        Some ctors -> Ok (make-nullary-values ctors)
+        None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, or a bounded refinement such as `InRange 0 2 Nat`)"])
+      None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain"])
+    UApp (UCon name _) (UIndex _ (IInteger n)) | ends-with-dot name "Fin" ->
+      if n >= 0 && n <= 256 then Ok (int-range-values 0 (int-sub n 1))
+      else Err "Fin domain bound exceeds model checker limit (256)"
+    UApp (UApp (UApp (UCon name _) (UIndex _ (IInteger lo))) (UIndex _ (IInteger hi))) carrier | ends-with-dot name "InRange" ->
+      if lo <= hi && int-sub hi lo <= 256 then Ok (int-range-values lo hi)
+      else Err "InRange domain is empty or exceeds model checker limit (256)"
+    URefine id name carrier pred ->
+      let default-lo = if is-nat-type carrier then Some 0 else None in
+      case extract-int-bounds id pred default-lo None of
+        (Some lo, Some hi) | lo <= hi && int-sub hi lo <= 256 -> Ok (int-range-values lo hi)
+        other -> Err (cat ["temporal machine action parameter refinement `", type-text ty, "` has no finite integer bounds (use `InRange lo hi Nat` or `lo <= x && x <= hi`)"])
+    UTuple spine -> enumerate-tuple-spine spine datas
+    other -> Err (cat ["temporal machine action parameter type `", type-text ty, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, or a bounded refinement such as `InRange 0 2 Nat`)"])
+
+  is-nat-type :: UType -> Bool
+  is-nat-type ty = case ty of UCon name _ -> same name "Nat"; other -> False
+
+  make-nullary-values :: List String -> List McValue
+  make-nullary-values ctors = case ctors of
+    Nil -> Nil
+    Cons c rest -> Cons (McNominal c McFieldsEnd) (make-nullary-values rest)
+
+  int-range-values :: Int -> Int -> List McValue
+  int-range-values lo hi =
+    if lo > hi then Nil
+    else Cons (McInt lo) (int-range-values (int-add lo 1) hi)
+
+  extract-int-bounds :: Nat -> UType -> Option Int -> Option Int -> (Option Int, Option Int)
+  extract-int-bounds bid pred lo hi = case pred of
+    UPropAnd a b ->
+      case extract-int-bounds bid a lo hi of
+        (lo1, hi1) -> extract-int-bounds bid b lo1 hi1
+    UCompare op lhs rhs ->
+      (case (is-bound-var bid lhs, extract-index-int rhs) of
+        (True, Some k) -> apply-var-cmp op k lo hi
+        other -> case (extract-index-int lhs, is-bound-var bid rhs) of
+          (Some k, True) -> apply-const-cmp op k lo hi
+          other -> (lo, hi))
+    other -> (lo, hi)
+
+  is-bound-var :: Nat -> UType -> Bool
+  is-bound-var bid ty = case ty of
+    UBound id _ _ -> id == bid
+    UIndex _ (IBound id _) -> id == bid
+    UIndexPromote inner -> is-bound-var bid inner
+    UIndexForget inner -> is-bound-var bid inner
+    other -> False
+
+  extract-index-int :: UType -> Option Int
+  extract-index-int ty = case ty of
+    UIndex _ (IInteger n) -> Some n
+    other -> None
+
+  max-opt-int :: Option Int -> Int -> Option Int
+  max-opt-int cur v = case cur of
+    None -> Some v
+    Some old -> Some (if v > old then v else old)
+
+  min-opt-int :: Option Int -> Int -> Option Int
+  min-opt-int cur v = case cur of
+    None -> Some v
+    Some old -> Some (if v < old then v else old)
+
+  apply-var-cmp :: String -> Int -> Option Int -> Option Int -> (Option Int, Option Int)
+  apply-var-cmp op k lo hi =
+    if same op ">=" then (max-opt-int lo k, hi)
+    else if same op ">" then (max-opt-int lo (int-add k 1), hi)
+    else if same op "<=" then (lo, min-opt-int hi k)
+    else if same op "<" then (lo, min-opt-int hi (int-sub k 1))
+    else if same op "==" then (max-opt-int lo k, min-opt-int hi k)
+    else (lo, hi)
+
+  apply-const-cmp :: String -> Int -> Option Int -> Option Int -> (Option Int, Option Int)
+  apply-const-cmp op k lo hi =
+    if same op "<=" then (max-opt-int lo k, hi)
+    else if same op "<" then (max-opt-int lo (int-add k 1), hi)
+    else if same op ">=" then (lo, min-opt-int hi k)
+    else if same op ">" then (lo, min-opt-int hi (int-sub k 1))
+    else if same op "==" then (max-opt-int lo k, min-opt-int hi k)
+    else (lo, hi)
+
+  enumerate-tuple-spine :: UType -> List CoreData -> Result String (List McValue)
+  enumerate-tuple-spine spine datas = case enumerate-tuple-lists spine datas of
+    Err msg -> Err msg
+    Ok rows -> Ok (map-tuples rows)
+
+  map-tuples :: List (List McValue) -> List McValue
+  map-tuples rows = case rows of
+    Nil -> Nil
+    Cons first rest -> Cons (McTuple (mc-fields-from-list first)) (map-tuples rest)
+
+  enumerate-tuple-lists :: UType -> List CoreData -> Result String (List (List McValue))
+  enumerate-tuple-lists spine datas = case spine of
+    UEnd -> Ok [Nil]
+    UArg first rest -> case enumerate-domain first datas of
+      Err msg -> Err msg
+      Ok vs -> case enumerate-tuple-lists rest datas of
+        Err msg -> Err msg
+        Ok tails -> Ok (cartesian-prepend vs tails)
+    other -> Err "malformed tuple type in action parameter"
+
+  enumerate-param-tuples :: List UType -> List CoreData -> Result String (List (List McValue))
+  enumerate-param-tuples tys datas = case tys of
+    Nil -> Ok [Nil]
+    Cons first rest -> case enumerate-domain first datas of
+      Err msg -> Err msg
+      Ok vs -> case enumerate-param-tuples rest datas of
+        Err msg -> Err msg
+        Ok tails -> Ok (cartesian-prepend vs tails)
+
+  cartesian-prepend :: forall a. List a -> List (List a) -> List (List a)
+  cartesian-prepend heads tails = case heads of
+    Nil -> Nil
+    Cons h rest -> prepend-one h tails <> cartesian-prepend rest tails
+
+  prepend-one :: forall a. a -> List (List a) -> List (List a)
+  prepend-one h tails = case tails of
+    Nil -> Nil
+    Cons t rest -> Cons (Cons h t) (prepend-one h rest)
+
+  -- ------------------------------------------------------------------ static field-footprint POR analysis
+
+  -- Detect if a `CCase` is a record field projection on `state-id`:
+  -- `case s of { Rec _ _ x _ -> x }`, returning `Some slot-index`.
+  projection-slot-of :: Nat -> CoreTerm -> Option Nat
+  projection-slot-of state-id term = case term of
+    CCase sp ty (CLocal _ _ sid _ _) (CAlternative _ (CPConstructor _ _ _ _ _ fields) (CLocal _ _ wanted _ _) (CAlternativesEnd _)) | sid == state-id ->
+      find-var-in-fields wanted fields 0
+    other -> None
+
+  find-var-in-fields :: Nat -> CorePattern -> Nat -> Option Nat
+  find-var-in-fields wanted fields idx = case fields of
+    CPDone _ -> None
+    CPField _ (CPVar _ _ id _) rest -> if id == wanted then Some idx else find-var-in-fields wanted rest (idx + 1)
+    CPField _ _ rest -> find-var-in-fields wanted rest (idx + 1)
+    other -> None
+
+  -- Unwrap `Some (...)` or `Cons ...` constructor wrapper to inspect the state constructor.
+  record-ctor-args :: String -> CoreTerm -> Option (List CoreTerm)
+  record-ctor-args state-ctor term = case collect-app-spine term Nil of
+    (CUse _ _ cname role _, args) | same role "constructor" ->
+      if same cname state-ctor || same (short-ident cname) (short-ident state-ctor) then Some args
+      else None
+    other -> None
+
+  collect-app-spine :: CoreTerm -> List CoreTerm -> (CoreTerm, List CoreTerm)
+  collect-app-spine term acc = case term of
+    CApply _ _ f x -> collect-app-spine f (Cons x acc)
+    other -> (term, acc)
+
+  -- Analyze an action's CoreDefinition to find read/written state record slots.
+  analyze-action-footprint :: String -> CoreDefinition -> Footprint
+  analyze-action-footprint state-ctor def = case core-clauses def of
+    [MkCoreClause sp pats body] -> case last-pattern-id pats of
+      None -> FootprintOpaque
+      Some state-id -> walk-footprint state-id state-ctor hash-map-empty body (FootprintKnown Nil Nil)
+    other -> FootprintOpaque
+
+  last-pattern-id :: List CorePattern -> Option Nat
+  last-pattern-id pats = case pats of
+    Nil -> None
+    [CPVar _ _ id _] -> Some id
+    [CPAs _ _ id _ _] -> Some id
+    Cons _ rest -> last-pattern-id rest
+    other -> None
+
+  fp-add-read :: Nat -> Footprint -> Footprint
+  fp-add-read slot fp = case fp of
+    FootprintOpaque -> FootprintOpaque
+    FootprintKnown rs ws -> FootprintKnown (add-nat-unique slot rs) ws
+
+  fp-add-write :: Nat -> Footprint -> Footprint
+  fp-add-write slot fp = case fp of
+    FootprintOpaque -> FootprintOpaque
+    FootprintKnown rs ws -> FootprintKnown rs (add-nat-unique slot ws)
+
+  walk-footprint :: Nat -> String -> HashMap Nat Nat -> CoreTerm -> Footprint -> Footprint
+  walk-footprint sid sctor pass term fp = case fp of
+    FootprintOpaque -> FootprintOpaque
+    FootprintKnown _ _ ->
+      case projection-slot-of sid term of
+        Some slot -> fp-add-read slot fp
+        None -> case record-ctor-args sctor term of
+          Some args -> walk-record-ctor-fields sid sctor pass args 0 fp
+          None -> case term of
+            CLocal _ _ id _ _ ->
+              if id == sid then FootprintOpaque
+              else case hash-map-lookup id pass of
+                Some slot -> fp-add-read slot fp
+                None -> fp
+            CLet _ _ id _ _ rhs body ->
+              (case projection-slot-of sid rhs of
+                Some slot -> walk-footprint sid sctor (hash-map-insert id slot pass) body fp
+                None ->
+                  let fp1 = walk-footprint sid sctor pass rhs fp in
+                  walk-footprint sid sctor pass body fp1)
+            CIf _ _ c t e ->
+              walk-footprint sid sctor pass e
+                (walk-footprint sid sctor pass t
+                  (walk-footprint sid sctor pass c fp))
+            CCase _ _ scrut arms ->
+              let fp1 = walk-footprint sid sctor pass scrut fp in
+              walk-footprint-alts sid sctor pass arms fp1
+            CApply _ _ f x ->
+              walk-footprint sid sctor pass x (walk-footprint sid sctor pass f fp)
+            CPrimitive _ _ _ args -> walk-footprint-args sid sctor pass args fp
+            CTuple _ _ args -> walk-footprint-args sid sctor pass args fp
+            CProved _ _ _ body -> walk-footprint sid sctor pass body fp
+            CRefine _ _ _ body -> walk-footprint sid sctor pass body fp
+            CRefineProof _ _ _ body -> walk-footprint sid sctor pass body fp
+            CForget _ _ body -> walk-footprint sid sctor pass body fp
+            CCast _ _ body -> walk-footprint sid sctor pass body fp
+            CRequire _ _ body -> walk-footprint sid sctor pass body fp
+            CDischarge _ _ _ _ body -> walk-footprint sid sctor pass body fp
+            CPolyElim _ _ body _ -> walk-footprint sid sctor pass body fp
+            CGuard _ _ c body -> walk-footprint sid sctor pass body (walk-footprint sid sctor pass c fp)
+            other -> fp
+
+  walk-record-ctor-fields :: Nat -> String -> HashMap Nat Nat -> List CoreTerm -> Nat -> Footprint -> Footprint
+  walk-record-ctor-fields sid sctor pass args slot fp = case args of
+    Nil -> fp
+    Cons arg rest ->
+      let unchanged = (case projection-slot-of sid arg of
+            Some s -> s == slot
+            None -> case arg of
+              CLocal _ _ id _ _ -> (case hash-map-lookup id pass of Some s -> s == slot; None -> False)
+              other -> False) in
+      if unchanged then walk-record-ctor-fields sid sctor pass rest (slot + 1) fp
+      else
+        let fp1 = fp-add-write slot (walk-footprint sid sctor pass arg fp) in
+        walk-record-ctor-fields sid sctor pass rest (slot + 1) fp1
+
+  walk-footprint-alts :: Nat -> String -> HashMap Nat Nat -> CoreTerm -> Footprint -> Footprint
+  walk-footprint-alts sid sctor pass arms fp = case arms of
+    CAlternative _ _ body rest ->
+      walk-footprint-alts sid sctor pass rest (walk-footprint sid sctor pass body fp)
+    other -> fp
+
+  walk-footprint-args :: Nat -> String -> HashMap Nat Nat -> CoreTerm -> Footprint -> Footprint
+  walk-footprint-args sid sctor pass args fp = case args of
+    CArgument _ first rest ->
+      walk-footprint-args sid sctor pass rest (walk-footprint sid sctor pass first fp)
+    other -> fp
+
+  footprints-independent :: Footprint -> Footprint -> Bool
+  footprints-independent a b = case (a, b) of
+    (FootprintKnown r1 w1, FootprintKnown r2 w2) ->
+      nats-disjoint w1 r2 && nats-disjoint w1 w2 && nats-disjoint w2 r1
+    other -> False
+
+  count-por-pairs :: List Footprint -> Nat
+  count-por-pairs fps = case fps of
+    Nil -> 0
+    Cons first rest -> count-por-against first rest + count-por-pairs rest
+
+  count-por-against :: Footprint -> List Footprint -> Nat
+  count-por-against cur others = case others of
+    Nil -> 0
+    Cons first rest -> (if footprints-independent cur first then 1 else 0) + count-por-against cur rest
+
+  state-record-ctor :: UType -> List CoreData -> Option String
+  state-record-ctor state-ty datas = case state-ty of
+    UCon name _ -> case find-core-data name datas of
+      Some dt -> case core-data-constructors dt of
+        [ctor] -> Some (core-constructor-name ctor)
+        other -> None
+      None -> None
+    other -> None
+
+  collect-action-footprints :: Option String -> List McActionInput -> List CoreDefinition -> List Footprint
+  collect-action-footprints sctor-opt actions defs = case sctor-opt of
+    None -> Nil
+    Some sctor -> collect-action-fps-loop sctor actions defs
+
+  collect-action-fps-loop :: String -> List McActionInput -> List CoreDefinition -> List Footprint
+  collect-action-fps-loop sctor actions defs = case actions of
+    Nil -> Nil
+    Cons (MkMcActionInput sym _ _) rest ->
+      let fp = (case mc-find-def sym defs of
+            Some def -> analyze-action-footprint sctor def
+            None -> FootprintOpaque) in
+      Cons fp (collect-action-fps-loop sctor rest defs)
+
+  -- ------------------------------------------------------------------ BFS state-space explorer
+
+  data ReadyAction where
+    MkReadyAction :: String -> String -> McActionReturn -> CoreDefinition -> List (List McValue) -> ReadyAction
+
+  prepare-actions :: Span -> List McActionInput -> List CoreDefinition -> List CoreData -> Result Diagnostic (List ReadyAction)
+  prepare-actions sp actions defs datas = case actions of
+    Nil -> Ok Nil
+    Cons (MkMcActionInput sym param-tys ret-kind) rest ->
+      case mc-find-def sym defs of
+        None -> Err (mc-diag sp (cat ["machine action `", short-ident sym, "` has no checked definition"]))
+        Some def -> case enumerate-param-tuples param-tys datas of
+          Err msg -> Err (mc-diag sp msg)
+          Ok param-rows -> case prepare-actions sp rest defs datas of
+            Err diag -> Err diag
+            Ok more -> Ok (Cons (MkReadyAction sym (short-ident sym) ret-kind def param-rows) more)
+
+  action-label :: String -> List McValue -> String
+  action-label short params = case params of
+    Nil -> short
+    other -> cat [short, "(", render-param-list params, ")"]
+
+  render-param-list :: List McValue -> String
+  render-param-list vs = case vs of
+    Nil -> ""
+    [v] -> render-mc-value v
+    Cons v rest -> cat [render-mc-value v, ", ", render-param-list rest]
+
+  unpack-action-result :: McActionReturn -> McValue -> Result String (List McValue)
+  unpack-action-result ret-kind val = case ret-kind of
+    McReturnDirect -> Ok [val]
+    McReturnOption -> case val of
+      McNominal cname McFieldsEnd | ends-with-dot cname "None" -> Ok Nil
+      McNominal cname (McField inner McFieldsEnd) | ends-with-dot cname "Some" -> Ok [inner]
+      other -> Err "Option action did not return Some/None"
+    McReturnList -> unpack-list-val val
+
+  unpack-list-val :: McValue -> Result String (List McValue)
+  unpack-list-val val = case val of
+    McNominal cname McFieldsEnd | ends-with-dot cname "Nil" -> Ok Nil
+    McNominal cname (McField h (McField t McFieldsEnd)) | ends-with-dot cname "Cons" ->
+      (case unpack-list-val t of
+        Err msg -> Err msg
+        Ok more -> Ok (Cons h more))
+    other -> Err "List action did not return Cons/Nil"
+
+  -- Expand all enabled transitions from one state `cur`.
+  expand-actions :: McContext -> List ReadyAction -> McValue -> Result String (List (String, String, McValue))
+  expand-actions ctx actions cur = case actions of
+    Nil -> Ok Nil
+    Cons (MkReadyAction sym short ret-kind def param-rows) rest ->
+      case expand-action-rows ctx sym short ret-kind def param-rows cur of
+        Err msg -> Err msg
+        Ok first-edges -> case expand-actions ctx rest cur of
+          Err msg -> Err msg
+          Ok more-edges -> Ok (first-edges <> more-edges)
+
+  expand-action-rows :: McContext -> String -> String -> McActionReturn -> CoreDefinition -> List (List McValue) -> McValue -> Result String (List (String, String, McValue))
+  expand-action-rows ctx sym short ret-kind def rows cur = case rows of
+    Nil -> Ok Nil
+    Cons params rest ->
+      case mc-eval-def ctx None def (params <> [cur]) 20000 of
+        Err msg -> Err msg
+        Ok (res, _) -> case unpack-action-result ret-kind res of
+          Err msg -> Err msg
+          Ok nexts ->
+            let lbl = action-label short params in
+            let edges = label-targets sym lbl nexts in
+            case expand-action-rows ctx sym short ret-kind def rest cur of
+              Err msg -> Err msg
+              Ok more -> Ok (edges <> more)
+
+  label-targets :: String -> String -> List McValue -> List (String, String, McValue)
+  label-targets sym lbl targets = case targets of
+    Nil -> Nil
+    Cons t rest -> Cons (sym, lbl, t) (label-targets sym lbl rest)
+
+  -- BFS state-space exploration with two-list O(1) amortized queue.
+  explore-machine :: McContext -> CheckedMachineInput -> Result Diagnostic ExploredMachine
+  explore-machine ctx input = case (ctx, input) of
+    (MkMcContext home defs datas instances scope _,
+     MkCheckedMachineInput sp mname state-ty init-term actions fair sf sym max-opt obs-opt) ->
+      case validate-symmetry-types sp sym datas instances hash-map-empty of
+        Err diag -> Err diag
+        Ok sym-map ->
+          case prepare-actions sp actions defs datas of
+            Err diag -> Err diag
+            Ok ready-actions ->
+              let por-pairs = count-por-pairs (collect-action-footprints (state-record-ctor state-ty datas) actions defs) in
+              let limit = (case max-opt of Some n -> n; None -> 4096) in
+              case mc-eval-term ctx None McEnvEnd init-term 50000 of
+                Err msg -> Err (mc-diag sp (cat ["failed to evaluate initial state of machine `", short-ident mname, "`: ", msg]))
+                Ok (init-raw, _) ->
+                  let init-val = canonicalize-symmetry sym-map init-raw in
+                  let init-key = mc-value-key init-val in
+                  let states0 = hash-map-insert 0 init-val hash-map-empty in
+                  let visited0 = hash-map-insert init-key 0 hash-map-empty in
+                  let raw-seen0 = hash-map-insert (mc-value-key init-raw) 0 hash-map-empty in
+                  bfs-loop sp ctx mname state-ty ready-actions fair sf sym-map limit por-pairs
+                    [0] Nil 1 0 False 0 states0 visited0 raw-seen0 hash-map-empty hash-map-empty
+
+  bfs-loop :: Span -> McContext -> String -> UType -> List ReadyAction -> List String -> List String
+    -> HashMap String (List String) -> Nat -> Nat
+    -> List Nat -> List Nat -> Nat -> Nat -> Bool -> Nat
+    -> HashMap Nat McValue -> HashMap String Nat -> HashMap String Nat
+    -> HashMap Nat (List (String, String, Nat)) -> HashMap Nat (Nat, String)
+    -> Result Diagnostic ExploredMachine
+  bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+    q-front q-back next-id trans-count capped sym-merged states visited raw-seen adj parents =
+    case q-front of
+      Nil -> case q-back of
+        Nil -> Ok (MkExploredMachine mname state-ty next-id trans-count capped sym-merged por-pairs
+          states visited adj parents fair sf sym-map)
+        other -> bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+          (reverse q-back) Nil next-id trans-count capped sym-merged states visited raw-seen adj parents
+      Cons cur-id q-rest ->
+        case hash-map-lookup cur-id states of
+          None -> bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+            q-rest q-back next-id trans-count capped sym-merged states visited raw-seen adj parents
+          Some cur-val ->
+            case expand-actions ctx actions cur-val of
+              Err msg -> Err (mc-diag sp (cat ["error stepping machine `", short-ident mname, "`: ", msg]))
+              Ok raw-edges ->
+                case register-edges cur-id raw-edges sym-map limit
+                  q-back next-id trans-count capped sym-merged states visited raw-seen Nil parents of
+                  (q-back2, next-id2, trans2, capped2, sym2, states2, visited2, raw2, out-edges, parents2) ->
+                    bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+                      q-rest q-back2 next-id2 trans2 capped2 sym2 states2 visited2 raw2
+                      (hash-map-insert cur-id (reverse out-edges) adj) parents2
+
+  register-edges :: Nat -> List (String, String, McValue) -> HashMap String (List String) -> Nat
+    -> List Nat -> Nat -> Nat -> Bool -> Nat
+    -> HashMap Nat McValue -> HashMap String Nat -> HashMap String Nat
+    -> List (String, String, Nat) -> HashMap Nat (Nat, String)
+    -> (List Nat, Nat, Nat, Bool, Nat, HashMap Nat McValue, HashMap String Nat, HashMap String Nat, List (String, String, Nat), HashMap Nat (Nat, String))
+  register-edges cur-id edges sym-map limit q-back next-id trans capped sym-merged states visited raw-seen acc parents =
+    case edges of
+      Nil -> (q-back, next-id, trans, capped, sym-merged, states, visited, raw-seen, acc, parents)
+      Cons (sym, lbl, raw-dst) rest ->
+        let raw-key = mc-value-key raw-dst in
+        let canon-dst = canonicalize-symmetry sym-map raw-dst in
+        let canon-key = mc-value-key canon-dst in
+        case hash-map-lookup canon-key visited of
+          Some dst-id ->
+            let bumped = (case hash-map-lookup raw-key raw-seen of
+                  Some _ -> sym-merged
+                  None -> if same raw-key canon-key then sym-merged else sym-merged + 1) in
+            let raw-seen2 = hash-map-insert raw-key dst-id raw-seen in
+            register-edges cur-id rest sym-map limit q-back next-id (trans + 1) capped bumped
+              states visited raw-seen2 (Cons (sym, lbl, dst-id) acc) parents
+          None ->
+            if next-id >= limit then
+              register-edges cur-id rest sym-map limit q-back next-id trans True sym-merged
+                states visited raw-seen acc parents
+            else
+              let dst-id = next-id in
+              let states2 = hash-map-insert dst-id canon-dst states in
+              let visited2 = hash-map-insert canon-key dst-id visited in
+              let raw-seen2 = hash-map-insert raw-key dst-id raw-seen in
+              let parents2 = hash-map-insert dst-id (cur-id, lbl) parents in
+              register-edges cur-id rest sym-map limit (Cons dst-id q-back) (next-id + 1) (trans + 1) capped sym-merged
+                states2 visited2 raw-seen2 (Cons (sym, lbl, dst-id) acc) parents2
+
+  -- ------------------------------------------------------------------ shortest-path trace rendering
+
+  reconstruct-trace :: HashMap String (List String) -> Nat -> HashMap Nat McValue -> HashMap Nat (Nat, String) -> String
+  reconstruct-trace rfields goal states parents =
+    let steps = trace-back goal parents Nil in
+    render-trace-steps rfields steps states 0
+
+  trace-back :: Nat -> HashMap Nat (Nat, String) -> List (Option String, Nat) -> List (Option String, Nat)
+  trace-back node parents acc =
+    if node == 0 then Cons (None, 0) acc
+    else case hash-map-lookup node parents of
+      None -> Cons (None, node) acc
+      Some (prev, lbl) -> trace-back prev parents (Cons (Some lbl, node) acc)
+
+  render-trace-steps :: HashMap String (List String) -> List (Option String, Nat) -> HashMap Nat McValue -> Nat -> String
+  render-trace-steps rfields steps states step-idx = case steps of
+    Nil -> ""
+    Cons (lbl-opt, sid) rest ->
+      let st-text = (case hash-map-lookup sid states of Some v -> render-mc-value-with rfields v; None -> cat ["#", nat-to-string sid]) in
+      let tag = if step-idx == 0 then "State 0 (init): " else cat ["State ", nat-to-string step-idx, ": "] in
+      let prefix = (case lbl-opt of None -> cat ["  ", tag, st-text]; Some lbl -> cat ["\n  --[", lbl, "]-->\n  ", tag, st-text]) in
+      cat [prefix, render-trace-steps rfields rest states (step-idx + 1)]
+
+  -- ------------------------------------------------------------------ predicate evaluation over all states
+
+  eval-pred-on-state :: McContext -> CoreTerm -> McValue -> Result String Bool
+  eval-pred-on-state ctx pred-term st-val =
+    case mc-eval-term ctx None McEnvEnd pred-term 20000 of
+      Err msg -> Err msg
+      Ok (fn-val, rem) -> case mc-apply-one ctx None fn-val st-val rem of
+        Err msg -> Err msg
+        Ok (McBool b, _) -> Ok b
+        Ok other -> Err "temporal contract predicate did not return Bool"
+
+  flag-true :: Nat -> HashMap Nat Nat -> Bool
+  flag-true k m = case hash-map-lookup k m of
+    Some n -> n == 1
+    None -> False
+
+  flag-false :: Nat -> HashMap Nat Nat -> Bool
+  flag-false k m = case hash-map-lookup k m of
+    Some n -> n == 0
+    None -> False
+
+  eval-pred-all :: McContext -> CoreTerm -> Nat -> Nat -> HashMap Nat McValue -> HashMap Nat Nat -> Result String (HashMap Nat Nat)
+  eval-pred-all ctx pred-term idx total states acc =
+    if idx >= total then Ok acc
+    else case hash-map-lookup idx states of
+      None -> eval-pred-all ctx pred-term (idx + 1) total states acc
+      Some v -> case eval-pred-on-state ctx pred-term v of
+        Err msg -> Err msg
+        Ok b -> eval-pred-all ctx pred-term (idx + 1) total states (hash-map-insert idx (if b then 1 else 0) acc)
+
+  -- ------------------------------------------------------------------ Tarjan SCC + Emerson-Lei fair-SCC lasso finder
+
+  data TarjanState where
+    MkTarjanState :: Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat -> List Nat -> List (List Nat) -> TarjanState
+
+  tarjan-sccs :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List (List Nat)
+  tarjan-sccs nodes allowed adj =
+    let init = MkTarjanState 0 hash-map-empty hash-map-empty hash-map-empty Nil Nil in
+    case tarjan-loop nodes allowed adj init of
+      MkTarjanState _ _ _ _ _ sccs -> sccs
+
+  tarjan-loop :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> TarjanState -> TarjanState
+  tarjan-loop nodes allowed adj st = case nodes of
+    Nil -> st
+    Cons v rest -> case st of
+      MkTarjanState idx indices lowlink on-stack stack sccs ->
+        case hash-map-lookup v indices of
+          Some _ -> tarjan-loop rest allowed adj st
+          None -> tarjan-loop rest allowed adj (tarjan-visit v allowed adj st)
+
+  tarjan-visit :: Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> TarjanState -> TarjanState
+  tarjan-visit v allowed adj st = case st of
+    MkTarjanState idx indices lowlink on-stack stack sccs ->
+      let st1 = MkTarjanState (idx + 1) (hash-map-insert v idx indices) (hash-map-insert v idx lowlink) (hash-map-insert v 1 on-stack) (Cons v stack) sccs in
+      let edges = (case hash-map-lookup v adj of Some es -> es; None -> Nil) in
+      let st2 = tarjan-edges v edges allowed adj st1 in
+      case st2 of
+        MkTarjanState idx2 indices2 lowlink2 on-stack2 stack2 sccs2 ->
+          let v-idx = lookup-nat-or v indices2 0 in
+          let v-low = lookup-nat-or v lowlink2 0 in
+          if v-low == v-idx then
+            case pop-scc v stack2 on-stack2 Nil of
+              (comp, stack3, on-stack3) -> MkTarjanState idx2 indices2 lowlink2 on-stack3 stack3 (Cons comp sccs2)
+          else st2
+
+  lookup-nat-or :: Nat -> HashMap Nat Nat -> Nat -> Nat
+  lookup-nat-or k m def = case hash-map-lookup k m of Some v -> v; None -> def
+
+  min-nat :: Nat -> Nat -> Nat
+  min-nat a b = if a < b then a else b
+
+  tarjan-edges :: Nat -> List (String, String, Nat) -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> TarjanState -> TarjanState
+  tarjan-edges v edges allowed adj st = case edges of
+    Nil -> st
+    Cons (sym, lbl, w) rest ->
+      if not (flag-true w allowed) then tarjan-edges v rest allowed adj st
+      else case st of
+        MkTarjanState idx indices lowlink on-stack stack sccs ->
+          case hash-map-lookup w indices of
+            None ->
+              let st2 = tarjan-visit w allowed adj st in
+              (case st2 of
+                MkTarjanState idx2 indices2 lowlink2 on-stack2 stack2 sccs2 ->
+                  let v-low = lookup-nat-or v lowlink2 0 in
+                  let w-low = lookup-nat-or w lowlink2 0 in
+                  tarjan-edges v rest allowed adj
+                    (MkTarjanState idx2 indices2 (hash-map-insert v (min-nat v-low w-low) lowlink2) on-stack2 stack2 sccs2))
+            Some w-idx ->
+              if flag-true w on-stack then
+                let v-low = lookup-nat-or v lowlink 0 in
+                tarjan-edges v rest allowed adj
+                  (MkTarjanState idx indices (hash-map-insert v (min-nat v-low w-idx) lowlink) on-stack stack sccs)
+              else tarjan-edges v rest allowed adj st
+
+  pop-scc :: Nat -> List Nat -> HashMap Nat Nat -> List Nat -> (List Nat, List Nat, HashMap Nat Nat)
+  pop-scc root stack on-stack acc = case stack of
+    Nil -> (acc, Nil, on-stack)
+    Cons w rest ->
+      let on2 = hash-map-insert w 0 on-stack in
+      let acc2 = Cons w acc in
+      if w == root then (acc2, rest, on2) else pop-scc root rest on2 acc2
+
+  -- Emerson-Lei fair-SCC search on subgraph `allowed` reachable from `starts`.
+  -- Returns `Some (entry-node, cycle-edges)` for the first fair cycle or deadlock found.
+  find-fair-violation :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat))
+    -> List String -> List String -> Option (Nat, List (String, Nat))
+  find-fair-violation starts allowed adj wf sf =
+    let (reach-list, reach-map) = bfs-restricted starts allowed adj in
+    -- First check for a deadlocked node inside `reach-list` (stuttering forever is fair when no action is enabled).
+    case find-deadlock-in reach-list adj of
+      Some d -> Some (d, Nil)
+      None -> find-fair-scc reach-list reach-map adj wf sf
+
+  bfs-restricted :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> (List Nat, HashMap Nat Nat)
+  bfs-restricted starts allowed adj =
+    let (q0, seen0) = seed-allowed starts allowed Nil hash-map-empty in
+    bfs-rest-loop q0 Nil allowed adj seen0 Nil
+
+  seed-allowed :: List Nat -> HashMap Nat Nat -> List Nat -> HashMap Nat Nat -> (List Nat, HashMap Nat Nat)
+  seed-allowed starts allowed q seen = case starts of
+    Nil -> (reverse q, seen)
+    Cons s rest ->
+      if flag-true s allowed && not (flag-true s seen) then seed-allowed rest allowed (Cons s q) (hash-map-insert s 1 seen)
+      else seed-allowed rest allowed q seen
+
+  bfs-rest-loop :: List Nat -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat))
+    -> HashMap Nat Nat -> List Nat -> (List Nat, HashMap Nat Nat)
+  bfs-rest-loop q-front q-back allowed adj seen order = case q-front of
+    Nil -> case q-back of
+      Nil -> (reverse order, seen)
+      other -> bfs-rest-loop (reverse q-back) Nil allowed adj seen order
+    Cons u rest ->
+      let edges = (case hash-map-lookup u adj of Some es -> es; None -> Nil) in
+      case enqueue-allowed edges allowed seen q-back of
+        (q-back2, seen2) -> bfs-rest-loop rest q-back2 allowed adj seen2 (Cons u order)
+
+  enqueue-allowed :: List (String, String, Nat) -> HashMap Nat Nat -> HashMap Nat Nat -> List Nat -> (List Nat, HashMap Nat Nat)
+  enqueue-allowed edges allowed seen q-back = case edges of
+    Nil -> (q-back, seen)
+    Cons (_, _, w) rest ->
+      if flag-true w allowed && not (flag-true w seen) then enqueue-allowed rest allowed (hash-map-insert w 1 seen) (Cons w q-back)
+      else enqueue-allowed rest allowed seen q-back
+
+  find-deadlock-in :: List Nat -> HashMap Nat (List (String, String, Nat)) -> Option Nat
+  find-deadlock-in nodes adj = case nodes of
+    Nil -> None
+    Cons u rest -> case hash-map-lookup u adj of
+      None -> Some u
+      Some Nil -> Some u
+      Some _ -> find-deadlock-in rest adj
+
+  find-fair-scc :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat))
+    -> List String -> List String -> Option (Nat, List (String, Nat))
+  find-fair-scc nodes allowed adj wf sf =
+    let sccs = tarjan-sccs nodes allowed adj in
+    check-sccs-fair sccs adj wf sf
+
+  check-sccs-fair :: List (List Nat) -> HashMap Nat (List (String, String, Nat))
+    -> List String -> List String -> Option (Nat, List (String, Nat))
+  check-sccs-fair sccs adj wf sf = case sccs of
+    Nil -> None
+    Cons comp rest ->
+      let comp-map = nat-list-to-map comp hash-map-empty in
+      if not (scc-is-nontrivial comp comp-map adj) then check-sccs-fair rest adj wf sf
+      else if not (scc-satisfies-wf comp comp-map adj wf) then check-sccs-fair rest adj wf sf
+      else case scc-violated-sf comp comp-map adj sf of
+        None ->
+          -- Found a fair non-trivial SCC! Extract a concrete cycle inside `comp`.
+          (case comp of
+            Cons entry _ -> Some (entry, extract-scc-cycle entry comp-map adj)
+            Nil -> check-sccs-fair rest adj wf sf)
+        Some bad-action ->
+          -- Strong fairness: remove states in `comp` where `bad-action` is enabled, and recurse!
+          let pruned = prune-action-enabled comp bad-action adj in
+          let pruned-map = nat-list-to-map pruned hash-map-empty in
+          (case find-fair-scc pruned pruned-map adj wf sf of
+            Some hit -> Some hit
+            None -> check-sccs-fair rest adj wf sf)
+
+  nat-list-to-map :: List Nat -> HashMap Nat Nat -> HashMap Nat Nat
+  nat-list-to-map xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> nat-list-to-map rest (hash-map-insert x 1 acc)
+
+  scc-is-nontrivial :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  scc-is-nontrivial comp comp-map adj = case comp of
+    Nil -> False
+    Cons a (Cons b _) -> True
+    [u] -> has-edge-into u comp-map adj
+
+  has-edge-into :: Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  has-edge-into u comp-map adj = case hash-map-lookup u adj of
+    None -> False
+    Some es -> edges-hit-map es comp-map
+
+  edges-hit-map :: List (String, String, Nat) -> HashMap Nat Nat -> Bool
+  edges-hit-map es comp-map = case es of
+    Nil -> False
+    Cons (_, _, w) rest -> flag-true w comp-map || edges-hit-map rest comp-map
+
+  action-enabled-at :: Nat -> String -> HashMap Nat (List (String, String, Nat)) -> Bool
+  action-enabled-at u act adj = case hash-map-lookup u adj of
+    None -> False
+    Some es -> edges-have-action act es
+
+  edges-have-action :: String -> List (String, String, Nat) -> Bool
+  edges-have-action act es = case es of
+    Nil -> False
+    Cons (sym, _, _) rest -> same sym act || edges-have-action act rest
+
+  action-taken-in-scc :: String -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  action-taken-in-scc act comp comp-map adj = case comp of
+    Nil -> False
+    Cons u rest ->
+      let taken-here = (case hash-map-lookup u adj of
+            None -> False
+            Some es -> edges-have-action-in act es comp-map) in
+      taken-here || action-taken-in-scc act rest comp-map adj
+
+  edges-have-action-in :: String -> List (String, String, Nat) -> HashMap Nat Nat -> Bool
+  edges-have-action-in act es comp-map = case es of
+    Nil -> False
+    Cons (sym, _, w) rest -> (same sym act && flag-true w comp-map) || edges-have-action-in act rest comp-map
+
+  all-states-enable :: String -> List Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  all-states-enable act comp adj = case comp of
+    Nil -> True
+    Cons u rest -> action-enabled-at u act adj && all-states-enable act rest adj
+
+  any-state-enables :: String -> List Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  any-state-enables act comp adj = case comp of
+    Nil -> False
+    Cons u rest -> action-enabled-at u act adj || any-state-enables act rest adj
+
+  scc-satisfies-wf :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Bool
+  scc-satisfies-wf comp comp-map adj wf = case wf of
+    Nil -> True
+    Cons act rest ->
+      (if all-states-enable act comp adj then action-taken-in-scc act comp comp-map adj else True)
+      && scc-satisfies-wf comp comp-map adj rest
+
+  scc-violated-sf :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Option String
+  scc-violated-sf comp comp-map adj sf = case sf of
+    Nil -> None
+    Cons act rest ->
+      if any-state-enables act comp adj && not (action-taken-in-scc act comp comp-map adj) then Some act
+      else scc-violated-sf comp comp-map adj rest
+
+  prune-action-enabled :: List Nat -> String -> HashMap Nat (List (String, String, Nat)) -> List Nat
+  prune-action-enabled comp act adj = case comp of
+    Nil -> Nil
+    Cons u rest ->
+      if action-enabled-at u act adj then prune-action-enabled rest act adj
+      else Cons u (prune-action-enabled rest act adj)
+
+  -- Find a short non-empty cycle from `entry` back to `entry` inside `comp-map`.
+  extract-scc-cycle :: Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List (String, Nat)
+  extract-scc-cycle entry comp-map adj =
+    let edges = (case hash-map-lookup entry adj of Some es -> es; None -> Nil) in
+    case seed-cycle-bfs entry edges comp-map Nil hash-map-empty hash-map-empty of
+      (Some direct, _, _, _) -> [direct]
+      (None, q0, seen0, parents0) -> cycle-bfs-loop entry q0 Nil comp-map adj seen0 parents0
+
+  seed-cycle-bfs :: Nat -> List (String, String, Nat) -> HashMap Nat Nat -> List Nat -> HashMap Nat Nat -> HashMap Nat (Nat, String)
+    -> (Option (String, Nat), List Nat, HashMap Nat Nat, HashMap Nat (Nat, String))
+  seed-cycle-bfs entry edges comp-map q seen parents = case edges of
+    Nil -> (None, reverse q, seen, parents)
+    Cons (_, lbl, w) rest ->
+      if not (flag-true w comp-map) then seed-cycle-bfs entry rest comp-map q seen parents
+      else if w == entry then (Some (lbl, entry), Nil, seen, parents)
+      else if flag-true w seen then seed-cycle-bfs entry rest comp-map q seen parents
+      else seed-cycle-bfs entry rest comp-map (Cons w q) (hash-map-insert w 1 seen) (hash-map-insert w (entry, lbl) parents)
+
+  cycle-bfs-loop :: Nat -> List Nat -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat))
+    -> HashMap Nat Nat -> HashMap Nat (Nat, String) -> List (String, Nat)
+  cycle-bfs-loop entry q-front q-back comp-map adj seen parents = case q-front of
+    Nil -> case q-back of
+      Nil -> Nil
+      other -> cycle-bfs-loop entry (reverse q-back) Nil comp-map adj seen parents
+    Cons u rest ->
+      let edges = (case hash-map-lookup u adj of Some es -> es; None -> Nil) in
+      case step-cycle-edges entry u edges comp-map q-back seen parents of
+        (Some last-lbl, _, _, _) -> rebuild-cycle-path entry u parents [(last-lbl, entry)]
+        (None, q-back2, seen2, parents2) -> cycle-bfs-loop entry rest q-back2 comp-map adj seen2 parents2
+
+  step-cycle-edges :: Nat -> Nat -> List (String, String, Nat) -> HashMap Nat Nat -> List Nat -> HashMap Nat Nat -> HashMap Nat (Nat, String)
+    -> (Option String, List Nat, HashMap Nat Nat, HashMap Nat (Nat, String))
+  step-cycle-edges entry u edges comp-map q-back seen parents = case edges of
+    Nil -> (None, q-back, seen, parents)
+    Cons (_, lbl, w) rest ->
+      if not (flag-true w comp-map) then step-cycle-edges entry u rest comp-map q-back seen parents
+      else if w == entry then (Some lbl, q-back, seen, parents)
+      else if flag-true w seen then step-cycle-edges entry u rest comp-map q-back seen parents
+      else step-cycle-edges entry u rest comp-map (Cons w q-back) (hash-map-insert w 1 seen) (hash-map-insert w (u, lbl) parents)
+
+  rebuild-cycle-path :: Nat -> Nat -> HashMap Nat (Nat, String) -> List (String, Nat) -> List (String, Nat)
+  rebuild-cycle-path entry cur parents acc =
+    if cur == entry then acc
+    else case hash-map-lookup cur parents of
+      None -> acc
+      Some (prev, lbl) -> rebuild-cycle-path entry prev parents (Cons (lbl, cur) acc)
+
+  render-cycle-steps :: HashMap String (List String) -> List (String, Nat) -> HashMap Nat McValue -> String
+  render-cycle-steps rfields steps states = case steps of
+    Nil -> "\n  (stutters forever -- deadlocked)"
+    Cons (lbl, dst) rest ->
+      let st-text = (case hash-map-lookup dst states of Some v -> render-mc-value-with rfields v; None -> cat ["#", nat-to-string dst]) in
+      cat ["\n  --[", lbl, "]-->\n  ", st-text, render-cycle-steps rfields rest states]
+
+  -- ------------------------------------------------------------------ contract verification on explored machines
+
+  machine-scope-note :: ExploredMachine -> String
+  machine-scope-note m = case m of
+    MkExploredMachine _ _ nstates ntrans capped sym-merged por-pairs _ _ _ _ _ _ _ ->
+      let prefix = if capped then "bounded/capped at " else "" in
+      cat [prefix, nat-to-string nstates, " states, ", nat-to-string ntrans, " transitions, symmetry_merged: ",
+        nat-to-string sym-merged, ", por_independent_pairs: ", nat-to-string por-pairs]
+
+  all-state-ids :: Nat -> Nat -> List Nat
+  all-state-ids idx total = if idx >= total then Nil else Cons idx (all-state-ids (idx + 1) total)
+
+  invert-bool-map :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat
+  invert-bool-map idx total m acc =
+    if idx >= total then acc
+    else invert-bool-map (idx + 1) total m (hash-map-insert idx (if flag-true idx m then 0 else 1) acc)
+
+  filter-map-true :: Nat -> Nat -> HashMap Nat Nat -> List Nat
+  filter-map-true idx total m =
+    if idx >= total then Nil
+    else
+      let more = filter-map-true (idx + 1) total m in
+      if flag-true idx m then Cons idx more else more
+
+  check-machine-contract :: McContext -> ExploredMachine -> CheckedMachineContract -> Result Diagnostic McVerdictRow
+  check-machine-contract ctx machine mc-contract = case (machine, mc-contract) of
+    (MkExploredMachine mname state-ty nstates ntrans capped sym-merged por-pairs states visited adj parents m-wf m-sf sym-map,
+     MkCheckedMachineContract sp kind cname subject form-text formula c-wf c-sf assumptions) ->
+      let rfields = ctx-record-fields ctx in
+      let wf = m-wf <> c-wf in
+      let sf = m-sf <> c-sf in
+      let mshort = short-ident mname in
+      let ok-row = MkMcVerdictRow mname cname kind form-text assumptions (cat ["model-checked (Tier 1 bounded exploration: ", machine-scope-note machine, "; 0 violations)"]) in
+      case formula of
+        McAlways pred ->
+          (case eval-pred-all ctx pred 0 nstates states hash-map-empty of
+            Err msg -> Err (mc-diag sp msg)
+            Ok pmap -> case find-first-false 0 nstates pmap of
+              None -> Ok ok-row
+              Some bad-id ->
+                let trace = reconstruct-trace rfields bad-id states parents in
+                Err (mc-diag sp (cat ["temporal safety violation in contract `", cname, "` on machine `", mshort, "`:\n", trace])))
+        McDeadlockFree ->
+          (case find-deadlock-in (all-state-ids 0 nstates) adj of
+            None -> Ok ok-row
+            Some dead-id ->
+              let trace = reconstruct-trace rfields dead-id states parents in
+              Err (mc-diag sp (cat ["temporal deadlock violation in contract `", cname, "` on machine `", mshort, "` (no enabled action):\n", trace])))
+        McEventually q-pred ->
+          (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+            Err msg -> Err (mc-diag sp msg)
+            Ok qmap ->
+              let not-q = invert-bool-map 0 nstates qmap hash-map-empty in
+              (case find-fair-violation [0] not-q adj wf sf of
+                None -> Ok ok-row
+                Some (entry, cyc) ->
+                  let trace = reconstruct-trace rfields entry states parents in
+                  let loop-text = render-cycle-steps rfields cyc states in
+                  Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle never satisfies `eventually`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
+        McLeadsTo p-pred q-pred ->
+          (case eval-pred-all ctx p-pred 0 nstates states hash-map-empty of
+            Err msg -> Err (mc-diag sp msg)
+            Ok pmap -> case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+              Err msg -> Err (mc-diag sp msg)
+              Ok qmap ->
+                let not-q = invert-bool-map 0 nstates qmap hash-map-empty in
+                let p-starts = filter-p-not-q 0 nstates pmap qmap in
+                (case find-fair-violation p-starts not-q adj wf sf of
+                  None -> Ok ok-row
+                  Some (entry, cyc) ->
+                    let trace = reconstruct-trace rfields entry states parents in
+                    let loop-text = render-cycle-steps rfields cyc states in
+                    Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle violates `leads_to`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
+        McRecur q-pred ->
+          (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+            Err msg -> Err (mc-diag sp msg)
+            Ok qmap ->
+              let not-q = invert-bool-map 0 nstates qmap hash-map-empty in
+              let not-q-nodes = filter-map-true 0 nstates not-q in
+              (case find-fair-violation not-q-nodes not-q adj wf sf of
+                None -> Ok ok-row
+                Some (entry, cyc) ->
+                  let trace = reconstruct-trace rfields entry states parents in
+                  let loop-text = render-cycle-steps rfields cyc states in
+                  Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle violates `recur`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
+        McStable q-pred ->
+          (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+            Err msg -> Err (mc-diag sp msg)
+            Ok qmap ->
+              case find-stability-violation 0 nstates qmap adj of
+                None -> Ok ok-row
+                Some (src, lbl, dst) ->
+                  let trace = reconstruct-trace rfields src states parents in
+                  let dst-text = (case hash-map-lookup dst states of Some v -> render-mc-value-with rfields v; None -> "?") in
+                  Err (mc-diag sp (cat ["temporal stability violation in contract `", cname, "` on machine `", mshort, "`: predicate flipped from True to False on `--[", lbl, "]-->`:\n", trace, "\n  --[", lbl, "]-->\n  ", dst-text])))
+
+  find-first-false :: Nat -> Nat -> HashMap Nat Nat -> Option Nat
+  find-first-false idx total m =
+    if idx >= total then None
+    else if flag-false idx m then Some idx
+    else find-first-false (idx + 1) total m
+
+  filter-p-not-q :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> List Nat
+  filter-p-not-q idx total pmap qmap =
+    if idx >= total then Nil
+    else
+      let more = filter-p-not-q (idx + 1) total pmap qmap in
+      if flag-true idx pmap && not (flag-true idx qmap) then Cons idx more else more
+
+  find-stability-violation :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Option (Nat, String, Nat)
+  find-stability-violation idx total qmap adj =
+    if idx >= total then None
+    else if not (flag-true idx qmap) then find-stability-violation (idx + 1) total qmap adj
+    else case hash-map-lookup idx adj of
+      None -> find-stability-violation (idx + 1) total qmap adj
+      Some es -> case find-edge-to-false idx es qmap of
+        Some hit -> Some hit
+        None -> find-stability-violation (idx + 1) total qmap adj
+
+  find-edge-to-false :: Nat -> List (String, String, Nat) -> HashMap Nat Nat -> Option (Nat, String, Nat)
+  find-edge-to-false src es qmap = case es of
+    Nil -> None
+    Cons (_, lbl, dst) rest ->
+      if flag-false dst qmap then Some (src, lbl, dst)
+      else find-edge-to-false src rest qmap
+
+  -- ------------------------------------------------------------------ stuttering refinement verification
+
+  eval-view-all :: McContext -> CoreTerm -> HashMap String (List String) -> Nat -> Nat -> HashMap Nat McValue -> HashMap Nat McValue -> Result String (HashMap Nat McValue)
+  eval-view-all ctx view-term abs-sym idx total states acc =
+    if idx >= total then Ok acc
+    else case hash-map-lookup idx states of
+      None -> eval-view-all ctx view-term abs-sym (idx + 1) total states acc
+      Some cv -> case mc-eval-term ctx None McEnvEnd view-term 20000 of
+        Err msg -> Err msg
+        Ok (fn-val, rem) -> case mc-apply-one ctx None fn-val cv rem of
+          Err msg -> Err msg
+          Ok (av, _) ->
+            let canon = canonicalize-symmetry abs-sym av in
+            eval-view-all ctx view-term abs-sym (idx + 1) total states (hash-map-insert idx canon acc)
+
+  eval-measure-on :: McContext -> CoreTerm -> McValue -> Result String Int
+  eval-measure-on ctx m-term cv =
+    case mc-eval-term ctx None McEnvEnd m-term 20000 of
+      Err msg -> Err msg
+      Ok (fn-val, rem) -> case mc-apply-one ctx None fn-val cv rem of
+        Err msg -> Err msg
+        Ok (McInt n, _) -> Ok n
+        Ok other -> Err "refinement `measure` did not return a number"
+
+  build-abs-edge-set :: Nat -> Nat -> HashMap Nat McValue -> HashMap Nat (List (String, String, Nat)) -> HashMap String Bool -> HashMap String Bool
+  build-abs-edge-set idx total abs-states abs-adj acc =
+    if idx >= total then acc
+    else case (hash-map-lookup idx abs-states, hash-map-lookup idx abs-adj) of
+      (Some src-v, Some es) ->
+        let src-k = mc-value-key src-v in
+        let acc2 = add-abs-edges-from src-k es abs-states acc in
+        build-abs-edge-set (idx + 1) total abs-states abs-adj acc2
+      other -> build-abs-edge-set (idx + 1) total abs-states abs-adj acc
+
+  add-abs-edges-from :: String -> List (String, String, Nat) -> HashMap Nat McValue -> HashMap String Bool -> HashMap String Bool
+  add-abs-edges-from src-k es abs-states acc = case es of
+    Nil -> acc
+    Cons (_, _, dst) rest -> case hash-map-lookup dst abs-states of
+      Some dst-v -> add-abs-edges-from src-k rest abs-states (hash-map-insert (cat [src-k, "->", mc-value-key dst-v]) True acc)
+      None -> add-abs-edges-from src-k rest abs-states acc
+
+  check-refines :: McContext -> HashMap String ExploredMachine -> CheckedRefinesInput -> Result Diagnostic McVerdictRow
+  check-refines ctx explored ref = case ref of
+    MkCheckedRefinesInput sp conc-sym abs-sym view-term measure-opt ->
+      let cshort = short-ident conc-sym in
+      let ashort = short-ident abs-sym in
+      case (hash-map-lookup conc-sym explored, hash-map-lookup abs-sym explored) of
+        (Some conc-m, Some abs-m) -> case (conc-m, abs-m) of
+          (MkExploredMachine _ _ c-nstates _ _ _ _ c-states _ c-adj c-parents c-wf c-sf _,
+           MkExploredMachine _ _ a-nstates _ _ _ _ a-states _ a-adj _ _ _ a-sym) ->
+            case eval-view-all ctx view-term a-sym 0 c-nstates c-states hash-map-empty of
+              Err msg -> Err (mc-diag sp (cat ["refinement `view` failed on `", cshort, "`: ", msg]))
+              Ok vmap ->
+                -- 1. Check initial state: view(Concrete.init) == Abstract.init
+                case (hash-map-lookup 0 vmap, hash-map-lookup 0 a-states) of
+                  (Some v0, Some a0) ->
+                    if not (same (mc-value-key v0) (mc-value-key a0)) then
+                      Err (mc-diag sp (cat ["refinement violation (`refines ", cshort, " ", ashort, "`): initial state mismatch: `view Concrete.init` is `", render-mc-value v0, "`, but `Abstract.init` is `", render-mc-value a0, "`"]))
+                    else
+                      let abs-edges = build-abs-edge-set 0 a-nstates a-states a-adj hash-map-empty in
+                      case check-refines-steps sp ctx cshort ashort 0 c-nstates c-states c-adj c-parents vmap abs-edges measure-opt 0 0 of
+                        Err diag -> Err diag
+                        Ok (sim-count, stut-count) ->
+                          let measure-note = (case measure-opt of Some _ -> ", measure strictly decreasing"; None -> "") in
+                          Ok (MkMcVerdictRow conc-sym (cat ["refines ", ashort]) "refinement"
+                            (cat ["refines ", cshort, " ", ashort]) Nil
+                            (cat ["model-checked stuttering simulation (", nat-to-string c-nstates, " states, ",
+                              nat-to-string sim-count, " simulated steps, ", nat-to-string stut-count, " stuttering steps", measure-note, ")"]))
+                  other -> Err (mc-diag sp "missing initial state for refinement check")
+        other -> Err (mc-diag sp (cat ["refinement `refines ", cshort, " ", ashort, "` references an unexplored machine"]))
+
+  check-refines-steps :: Span -> McContext -> String -> String -> Nat -> Nat
+    -> HashMap Nat McValue -> HashMap Nat (List (String, String, Nat)) -> HashMap Nat (Nat, String)
+    -> HashMap Nat McValue -> HashMap String Bool -> Option CoreTerm -> Nat -> Nat
+    -> Result Diagnostic (Nat, Nat)
+  check-refines-steps sp ctx cshort ashort idx total c-states c-adj c-parents vmap abs-edges measure-opt sim-acc stut-acc =
+    if idx >= total then Ok (sim-acc, stut-acc)
+    else case hash-map-lookup idx c-adj of
+      None -> check-refines-steps sp ctx cshort ashort (idx + 1) total c-states c-adj c-parents vmap abs-edges measure-opt sim-acc stut-acc
+      Some es -> case check-refines-edges sp ctx cshort ashort idx es c-states c-parents vmap abs-edges measure-opt sim-acc stut-acc of
+        Err diag -> Err diag
+        Ok (sim2, stut2) ->
+          check-refines-steps sp ctx cshort ashort (idx + 1) total c-states c-adj c-parents vmap abs-edges measure-opt sim2 stut2
+
+  check-refines-edges :: Span -> McContext -> String -> String -> Nat -> List (String, String, Nat)
+    -> HashMap Nat McValue -> HashMap Nat (Nat, String) -> HashMap Nat McValue -> HashMap String Bool
+    -> Option CoreTerm -> Nat -> Nat -> Result Diagnostic (Nat, Nat)
+  check-refines-edges sp ctx cshort ashort src es c-states c-parents vmap abs-edges measure-opt sim-acc stut-acc = case es of
+    Nil -> Ok (sim-acc, stut-acc)
+    Cons (_, lbl, dst) rest ->
+      case (hash-map-lookup src vmap, hash-map-lookup dst vmap) of
+        (Some av1, Some av2) ->
+          let k1 = mc-value-key av1 in
+          let k2 = mc-value-key av2 in
+          if same k1 k2 then
+            -- Stuttering step: check measure strictly decreases if provided!
+            (case measure-opt of
+              None -> check-refines-edges sp ctx cshort ashort src rest c-states c-parents vmap abs-edges measure-opt sim-acc (stut-acc + 1)
+              Some m-term ->
+                case (hash-map-lookup src c-states, hash-map-lookup dst c-states) of
+                  (Some cv1, Some cv2) -> case (eval-measure-on ctx m-term cv1, eval-measure-on ctx m-term cv2) of
+                    (Ok n1, Ok n2) ->
+                      if n2 < n1 then
+                        check-refines-edges sp ctx cshort ashort src rest c-states c-parents vmap abs-edges measure-opt sim-acc (stut-acc + 1)
+                      else
+                        let trace = reconstruct-trace (ctx-record-fields ctx) src c-states c-parents in
+                        Err (mc-diag sp (cat ["refinement liveness violation (`refines ", cshort, " ", ashort, "`): stuttering step `--[", lbl, "]-->` did not decrease `measure` (", int-to-string n1, " -> ", int-to-string n2, "), allowing infinite silent stuttering:\n", trace]))
+                    (Err msg, _) -> Err (mc-diag sp msg)
+                    (_, Err msg) -> Err (mc-diag sp msg)
+                  other -> Err (mc-diag sp "missing concrete state during measure check"))
+          else
+            let edge-key = cat [k1, "->", k2] in
+            case hash-map-lookup edge-key abs-edges of
+              Some True ->
+                check-refines-edges sp ctx cshort ashort src rest c-states c-parents vmap abs-edges measure-opt (sim-acc + 1) stut-acc
+              other ->
+                let trace = reconstruct-trace (ctx-record-fields ctx) src c-states c-parents in
+                let dst-text = (case hash-map-lookup dst c-states of Some v -> render-mc-value-with (ctx-record-fields ctx) v; None -> "?") in
+                Err (mc-diag sp (cat ["refinement violation (`refines ", cshort, " ", ashort, "`): concrete transition `--[", lbl, "]-->` maps `", render-mc-value av1, "` -> `", render-mc-value av2, "`, which is NOT an allowed transition of `", ashort, "`:\n", trace, "\n  --[", lbl, "]-->\n  Concrete next: ", dst-text]))
+        other -> Err (mc-diag sp "missing projected abstract state during refinement check")
+
+  -- ------------------------------------------------------------------ top-level driver
+
+  check-temporal-machines :: McContext -> List CheckedMachineInput -> List CheckedMachineContract -> List CheckedRefinesInput -> McOutcome
+  check-temporal-machines ctx machines contracts refinements =
+    case explore-all-machines ctx machines hash-map-empty Nil of
+      (explored, exp-errs) ->
+        let (c-rows, c-errs) = check-all-machine-contracts ctx explored contracts Nil Nil in
+        let (r-rows, r-errs) = check-all-refines ctx explored refinements Nil Nil in
+        MkMcOutcome (c-rows <> r-rows) (exp-errs <> c-errs <> r-errs)
+
+  explore-all-machines :: McContext -> List CheckedMachineInput -> HashMap String ExploredMachine -> List Diagnostic -> (HashMap String ExploredMachine, List Diagnostic)
+  explore-all-machines ctx machines acc errs = case machines of
+    Nil -> (acc, reverse errs)
+    Cons m rest -> case explore-machine ctx m of
+      Err diag -> explore-all-machines ctx rest acc (Cons diag errs)
+      Ok em -> case em of
+        MkExploredMachine mname _ _ _ _ _ _ _ _ _ _ _ _ _ ->
+          explore-all-machines ctx rest (hash-map-insert mname em acc) errs
+
+  check-all-machine-contracts :: McContext -> HashMap String ExploredMachine -> List CheckedMachineContract
+    -> List McVerdictRow -> List Diagnostic -> (List McVerdictRow, List Diagnostic)
+  check-all-machine-contracts ctx explored contracts rows errs = case contracts of
+    Nil -> (reverse rows, reverse errs)
+    Cons c rest -> case c of
+      MkCheckedMachineContract sp _ _ subject _ _ _ _ _ -> case hash-map-lookup subject explored of
+        None -> check-all-machine-contracts ctx explored rest rows errs
+        Some em -> case check-machine-contract ctx em c of
+          Ok row -> check-all-machine-contracts ctx explored rest (Cons row rows) errs
+          Err diag -> check-all-machine-contracts ctx explored rest rows (Cons diag errs)
+
+  check-all-refines :: McContext -> HashMap String ExploredMachine -> List CheckedRefinesInput
+    -> List McVerdictRow -> List Diagnostic -> (List McVerdictRow, List Diagnostic)
+  check-all-refines ctx explored refs rows errs = case refs of
+    Nil -> (reverse rows, reverse errs)
+    Cons r rest -> case check-refines ctx explored r of
+      Ok row -> check-all-refines ctx explored rest (Cons row rows) errs
+      Err diag -> check-all-refines ctx explored rest rows (Cons diag errs)

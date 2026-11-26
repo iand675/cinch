@@ -597,6 +597,11 @@ module Bootstrap.Contracts where
     -- reference set left the method unbound in the environment the formula
     -- is checked in.
     DContract s keyword name subject clauses -> contract-clause-references clauses
+    DMachine s name (MkMachineSyntax state-ty init-expr actions fair sf sym max-st obs) ->
+      type-references state-ty <> expr-references init-expr <> actions <> fair <> sf <> sym
+      <> (case obs of Some e -> expr-references e; None -> Nil)
+    DRefines s concrete (MkRefinesSyntax abstract view-expr measure-opt) ->
+      expr-references view-expr <> (case measure-opt of Some e -> expr-references e; None -> Nil)
     other -> Nil
 
   type-family-eq-references :: List TypeFamilyEq -> List String
@@ -609,8 +614,11 @@ module Bootstrap.Contracts where
     Nil -> Nil
     Cons first rest -> case first of
       ContractFormula s op body -> expr-references body <> contract-clause-references rest
+      ContractLeadsTo s op lhs rhs -> expr-references lhs <> expr-references rhs <> contract-clause-references rest
+      ContractDeadlockFree s op -> contract-clause-references rest
       ContractAssume s body -> expr-references body <> contract-clause-references rest
       ContractAssumed s text -> contract-clause-references rest
+      ContractAssumeFair s strong actions -> actions <> contract-clause-references rest
 
   prim-body-references :: List PrimBody -> List String
   prim-body-references bodies = case bodies of
