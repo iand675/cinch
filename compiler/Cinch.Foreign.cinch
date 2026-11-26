@@ -426,12 +426,17 @@ module Cinch.Foreign where
     operation : actual : ([operand]) -> operation == "ret" && actual == result
     other -> False
   -- | Helper for acyclic forward-only local LLVM labels and branches.
+  valid-label-chars :: List Char -> Bool
+  valid-label-chars cs = case cs of
+    [] -> True
+    c : rest -> (is-ascii-alpha-numeric c || char-code c == 95 || char-code c == 46) && valid-label-chars rest
+
   ir-label-name :: String -> Option String
   ir-label-name raw =
     let code = case string-split-on ";" raw of [] -> ""; c : _ -> string-strip c in
     if string-length code > 1 && string-ends-with ":" code && not (string-contains " " code) then
       let name = string-slice code 0 (string-length code - 1) in
-      if all (\c -> is-ascii-alpha-numeric c || char-code c == 95 || char-code c == 46) (unpack name) then Some name
+      if valid-label-chars (unpack name) then Some name
       else None
     else None
 
