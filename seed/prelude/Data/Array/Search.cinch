@@ -1,23 +1,33 @@
--- | Comparison and lookup on immutable arrays. Linear searches stop at the
--- first match. Binary searches return the first equivalent element or its
--- insertion position. Callback variants preserve the caller's effects.
+-- | Comparison, binary search, Eytzinger static search indices, and 16-way cache-line S-Trees.
+-- Linear searches stop at the first match. Binary, Eytzinger, and S-Tree searches return
+-- the first equivalent element or its insertion position (lower bound). Static search indices
+-- construct their contiguous byte layouts strictly through `%1`-linear ownership.
 module Data.Array.Search where
   import Data.Array
+  import Data.Bool
+  import Data.Bytes
   import Data.Compare
+  import Data.List
+  import Data.Machine
   import Data.Nat
   import Data.Option
   import Data.Ordering
   import Data.Search
+  import Data.Wide (wrapping-u128-to-i64, wrapping-shr-u128)
   import Relation.Eq
 
   export array-index, array-index-by, array-contains, array-contains-by
   export array-equal, array-equal-by, array-compare, array-compare-by
   export array-binary-search, array-binary-search-by, array-is-sorted, array-is-sorted-by
+  export EytzingerIndex, array-eytzinger-from-sorted, array-eytzinger-lower-bound-by
+  export array-eytzinger-search-by, array-eytzinger-search
+  export STreeI64, stree-i64-from-sorted, stree-i64-lower-bound, stree-i64-contains, stree-i64-length
 
   -- | Locate the first element satisfying a predicate, visiting elements in order.
   array-index-by :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a ->{|e} Option Nat
   array-index-by predicate items = index-from predicate items 0
 
+  -- | Linear scan helper from an index.
   index-from :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a -> Nat ->{|e} Option Nat
   index-from predicate items at = case array-get items at of
     None -> None
@@ -40,6 +50,7 @@ module Data.Array.Search where
   array-equal-by :: forall (e :: Row) a b. (a -> b ->{|e} Bool) -> Array a -> Array b ->{|e} Bool
   array-equal-by equal left right = if array-length left == array-length right then equal-from equal left right 0 else False
 
+  -- | Elementwise equality loop from an index.
   equal-from :: forall (e :: Row) a b. (a -> b ->{|e} Bool) -> Array a -> Array b -> Nat ->{|e} Bool
   equal-from equal left right at = case (array-get left at, array-get right at) of
     (Some x, Some y) -> if equal x y then equal-from equal left right (at + 1) else False
@@ -54,6 +65,7 @@ module Data.Array.Search where
   array-compare-by :: forall (e :: Row) a b. (a -> b ->{|e} Ordering) -> Array a -> Array b ->{|e} Ordering
   array-compare-by order left right = compare-from order left right 0
 
+  -- | Elementwise lexicographic comparison loop from an index.
   compare-from :: forall (e :: Row) a b. (a -> b ->{|e} Ordering) -> Array a -> Array b -> Nat ->{|e} Ordering
   compare-from order left right at = case (array-get left at, array-get right at) of
     (Some x, Some y) -> case order x y of
@@ -84,6 +96,7 @@ module Data.Array.Search where
     None -> True
     Some first -> sorted-from order items first 1
 
+  -- | Nondecreasing adjacency check from an index.
   sorted-from :: forall (e :: Row) a. (a -> a ->{|e} Ordering) -> Array a -> a -> Nat ->{|e} Bool
   sorted-from order items previous at = case array-get items at of
     None -> True
@@ -94,3 +107,368 @@ module Data.Array.Search where
   -- | Test nondecreasing order using Compare, including its floating NaN policy.
   array-is-sorted :: forall a. using (ordered :: Compare a) => Array a -> Bool
   array-is-sorted items = array-is-sorted-by compare items
+
+  -- -----------------------------------------------------------------
+  -- Private `%1`-linear buffer primitives for static search layouts.
+  -- -----------------------------------------------------------------
+
+  -- | Private raw 64-bit signed store returning its buffer.
+  put-i64-raw :: Bytes -> I64 -> I64 -> Bytes
+  put-i64-raw b byte-pos val =
+    let n = bytes-len-i64 b in
+    if 8 <= n && 0 <= byte-pos then
+      let nn = nat-from-i64 n in
+      if 8 <= nn && nat-from-i64 byte-pos <= nn - 8 then
+        let w = bytes-store-le64-at b byte-pos (wrapping-i64-to-u64 val) in b
+      else b
+    else b
+
+  -- | Linearly store one signed 64-bit integer at a byte offset.
+  put-i64-lin :: Bytes %1 -> I64 -> I64 -> Bytes
+  put-i64-lin b byte-pos val = put-i64-raw b byte-pos val
+
+  -- | Private raw read of one signed 64-bit integer from a checked byte offset.
+  get-i64-at :: Bytes -> I64 -> I64
+  get-i64-at b byte-pos =
+    let n = bytes-len-i64 b in
+    if 8 <= n && 0 <= byte-pos then
+      let nn = nat-from-i64 n in
+      if 8 <= nn && nat-from-i64 byte-pos <= nn - 8 then
+        wrapping-u64-to-i64 (bytes-load-le64-at b byte-pos)
+      else 0
+    else 0
+
+  -- | Private raw read of two adjacent signed 64-bit integers as a 128-bit load.
+  get-u128-at :: Bytes -> I64 -> U128
+  get-u128-at b byte-pos =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= byte-pos then
+      let nn = nat-from-i64 n in
+      if 16 <= nn && nat-from-i64 byte-pos <= nn - 16 then
+        bytes-load-u128-at b byte-pos
+      else 0
+    else 0
+
+  -- | Private raw linear step copying the max element of a child block into a parent slot.
+  promote-max-raw :: Bytes -> I64 -> I64 -> Bytes
+  promote-max-raw b src-byte dst-byte =
+    let v = get-i64-at b src-byte in
+    put-i64-raw b dst-byte v
+
+  -- | Linearly copy one 64-bit separator key within the uniquely owned S-Tree buffer.
+  promote-max-lin :: Bytes %1 -> I64 -> I64 -> Bytes
+  promote-max-lin b src-byte dst-byte = promote-max-raw b src-byte dst-byte
+
+  -- -----------------------------------------------------------------
+  -- Generic Eytzinger static search index (1-indexed BFS layout).
+  -- -----------------------------------------------------------------
+
+  -- | Static cache-friendly 1-indexed BFS (Eytzinger) search index over sorted elements.
+  -- Top tree levels remain L1-resident; lower-bound queries run branchlessly and recover
+  -- exact original sorted indices via trailing-ones extraction.
+  data EytzingerIndex a where
+    -- | 1-indexed BFS element array (length n+1 when n>0), packed I64 original-index map, and length n.
+    EytzIndex :: Array a -> Bytes -> I64 -> EytzingerIndex a
+
+  -- | Convert a non-negative I64 to Nat, clamping negatives to 0.
+  i64-to-nat :: I64 -> Nat
+  i64-to-nat x = if 0 <= x then nat-from-i64 x else 0
+
+  -- | Convert a Nat fitting in I64, clamping overflow to 0.
+  nat-to-i64-safe :: Nat -> I64
+  nat-to-i64-safe n = if n <= 9223372036854775807 then nat-to-i64 n else 0
+
+  -- | Build an Eytzinger BFS search index from a sorted array in O(n) time and O(log n) stack.
+  array-eytzinger-from-sorted :: forall a. Array a -> EytzingerIndex a
+  array-eytzinger-from-sorted sorted =
+    let n-nat = array-length sorted in
+    if n-nat == 0 then EytzIndex (array-from-list Nil) (bytes-new 0) 0
+    else
+      let n = nat-to-i64-safe n-nat in
+      let map0 = bytes-new ((n-nat + 1) * 8) in
+      case eytz-fill-map 1 n 0 map0 of
+        (done, orig-map) ->
+          case array-get sorted 0 of
+            None -> EytzIndex (array-from-list Nil) (bytes-new 0) 0
+            Some dummy ->
+              let elems = array-from-list (eytz-build-list sorted orig-map n dummy Nil) in
+              EytzIndex elems orig-map n
+
+  -- | Inorder DFS filling `orig-map[k] = sorted_index` linearly (`Bytes %1`) in O(n) time, O(log n) stack.
+  eytz-fill-map :: I64 -> I64 -> I64 -> Bytes %1 -> (I64, Bytes)
+  eytz-fill-map k n i orig-map =
+    if le-i64 k n then
+      let left = wrapping-shl-i64 k 1 in
+      case eytz-fill-map left n i orig-map of
+        (i1, map1) ->
+          let map2 = put-i64-lin map1 (wrapping-shl-i64 k 3) i1 in
+          eytz-fill-map (wrapping-add-i64 left 1) n (wrapping-add-i64 i1 1) map2
+    else (i, orig-map)
+
+  -- | Build the 1-indexed BFS element list backwards from `k = n` down to `1`, prepending `dummy` at slot 0.
+  eytz-build-list :: forall a. Array a -> Bytes -> I64 -> a -> List a -> List a
+  eytz-build-list sorted orig-map k dummy acc =
+    if eq-i64 k 0 then Cons dummy acc
+    else
+      let orig-idx = get-i64-at orig-map (wrapping-shl-i64 k 3) in
+      let orig-nat = i64-to-nat orig-idx in
+      let elem = (case array-get sorted orig-nat of Some x -> x; None -> dummy) in
+      eytz-build-list sorted orig-map (wrapping-sub-i64 k 1) dummy (Cons elem acc)
+
+  -- | Traverse the 1-indexed Eytzinger tree branchlessly and return the lower-bound slot (0 if past end).
+  eytz-descend :: forall a b. (a -> b -> Ordering) -> Array a -> I64 -> b -> I64 -> I64
+  eytz-descend order elems n key k =
+    if le-i64 k n then
+      let kn = i64-to-nat k in
+      let step = (case array-get elems kn of Some item -> (case order item key of LT -> 1; _ -> 0); None -> 0) in
+      eytz-descend order elems n key (wrapping-add-i64 (wrapping-shl-i64 k 1) step)
+    else
+      let tz = trailing-zeros-u64 (bit-not-u64 (wrapping-i64-to-u64 k)) in
+      wrapping-shr-i64 k (wrapping-add-u32 tz 1)
+
+  -- | Return the lower-bound index (first element >= key, or length) in original sorted order.
+  array-eytzinger-lower-bound-by :: forall a b. (a -> b -> Ordering) -> EytzingerIndex a -> b -> Nat
+  array-eytzinger-lower-bound-by order idx key = case idx of
+    EytzIndex elems orig-map n ->
+      let slot = eytz-descend order elems n key 1 in
+      if eq-i64 slot 0 then i64-to-nat n
+      else i64-to-nat (get-i64-at orig-map (wrapping-shl-i64 slot 3))
+
+  -- | Search an Eytzinger index returning `(index, found)` matching `array-binary-search-by`.
+  array-eytzinger-search-by :: forall a b. (a -> b -> Ordering) -> EytzingerIndex a -> b -> (Nat, Bool)
+  array-eytzinger-search-by order idx key = case idx of
+    EytzIndex elems orig-map n ->
+      let slot = eytz-descend order elems n key 1 in
+      if eq-i64 slot 0 then (i64-to-nat n, False)
+      else
+        let orig-nat = i64-to-nat (get-i64-at orig-map (wrapping-shl-i64 slot 3)) in
+        let sn = i64-to-nat slot in
+        let found = (case array-get elems sn of Some item -> (case order item key of EQ -> True; _ -> False); None -> False) in
+        (orig-nat, found)
+
+  -- | Search an Eytzinger index using the element Compare instance.
+  array-eytzinger-search :: forall a. using (ordered :: Compare a) => EytzingerIndex a -> a -> (Nat, Bool)
+  array-eytzinger-search idx key = array-eytzinger-search-by compare idx key
+
+  -- -----------------------------------------------------------------
+  -- 16-Way Cache-Line Static B+ Tree / S-Tree for `I64` (`STreeI64`).
+  -- -----------------------------------------------------------------
+
+  -- | Cache-line-aligned 16-way static B+ search tree (S-Tree) for sorted `I64` keys.
+  -- Each node packs 16 sorted `I64` keys into one 128-byte block inside a single contiguous
+  -- `Bytes` buffer built linearly (`%1`). Lower-bound queries descend root-to-leaf in
+  -- `ceil(log_16(N))` branchless 16-key block scans with no index indirection table.
+  data STreeI64 where
+    -- | Backing buffer, element count, height (0..8), root child-block count, and level byte offsets o1..o7 (o0 is 0).
+    STree :: Bytes -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> STreeI64
+
+  -- | Number of elements stored in an `STreeI64`.
+  stree-i64-length :: STreeI64 -> Nat
+  stree-i64-length st = case st of
+    STree buf n h rc o1 o2 o3 o4 o5 o6 o7 -> i64-to-nat n
+
+  -- | Ceiling division by 16 for positive block counts.
+  ceil-div16 :: I64 -> I64
+  ceil-div16 x = wrapping-shr-i64 (wrapping-add-i64 x 15) 4
+
+  -- | Build a 16-way cache-line S-Tree from a sorted `Array I64` using `%1`-linear buffer fills.
+  stree-i64-from-sorted :: Array I64 -> STreeI64
+  stree-i64-from-sorted sorted =
+    let n-nat = array-length sorted in
+    if n-nat == 0 then STree (bytes-new 0) 0 0 0 0 0 0 0 0 0 0
+    else
+      let n = nat-to-i64-safe n-nat in
+      let b0 = ceil-div16 n in
+      if le-i64 b0 1 then
+        let buf0 = bytes-new 128 in
+        let buf1 = fill-leaf-lin sorted n 0 16 0 buf0 in
+        STree buf1 n 1 1 0 0 0 0 0 0 0
+      else
+        let b1 = ceil-div16 b0 in
+        if le-i64 b1 1 then
+          let o1 = 128 in
+          let total = wrapping-add-i64 o1 (wrapping-shl-i64 b0 7) in
+          let buf0 = bytes-new (i64-to-nat total) in
+          let buf1 = fill-leaf-lin sorted n 0 (wrapping-shl-i64 b0 4) o1 buf0 in
+          let buf2 = fill-internal-lin o1 b0 0 16 0 buf1 in
+          STree buf2 n 2 b0 o1 0 0 0 0 0 0
+        else
+          let b2 = ceil-div16 b1 in
+          if le-i64 b2 1 then
+            let o1 = 128 in
+            let o2 = wrapping-add-i64 o1 (wrapping-shl-i64 b1 7) in
+            let total = wrapping-add-i64 o2 (wrapping-shl-i64 b0 7) in
+            let buf0 = bytes-new (i64-to-nat total) in
+            let buf1 = fill-leaf-lin sorted n 0 (wrapping-shl-i64 b0 4) o2 buf0 in
+            let buf2 = fill-internal-lin o2 b0 o1 (wrapping-shl-i64 b1 4) 0 buf1 in
+            let buf3 = fill-internal-lin o1 b1 0 16 0 buf2 in
+            STree buf3 n 3 b1 o1 o2 0 0 0 0 0
+          else
+            let b3 = ceil-div16 b2 in
+            if le-i64 b3 1 then
+              let o1 = 128 in
+              let o2 = wrapping-add-i64 o1 (wrapping-shl-i64 b2 7) in
+              let o3 = wrapping-add-i64 o2 (wrapping-shl-i64 b1 7) in
+              let total = wrapping-add-i64 o3 (wrapping-shl-i64 b0 7) in
+              let buf0 = bytes-new (i64-to-nat total) in
+              let buf1 = fill-leaf-lin sorted n 0 (wrapping-shl-i64 b0 4) o3 buf0 in
+              let buf2 = fill-internal-lin o3 b0 o2 (wrapping-shl-i64 b1 4) 0 buf1 in
+              let buf3 = fill-internal-lin o2 b1 o1 (wrapping-shl-i64 b2 4) 0 buf2 in
+              let buf4 = fill-internal-lin o1 b2 0 16 0 buf3 in
+              STree buf4 n 4 b2 o1 o2 o3 0 0 0 0
+            else
+              let b4 = ceil-div16 b3 in
+              if le-i64 b4 1 then
+                let o1 = 128 in
+                let o2 = wrapping-add-i64 o1 (wrapping-shl-i64 b3 7) in
+                let o3 = wrapping-add-i64 o2 (wrapping-shl-i64 b2 7) in
+                let o4 = wrapping-add-i64 o3 (wrapping-shl-i64 b1 7) in
+                let total = wrapping-add-i64 o4 (wrapping-shl-i64 b0 7) in
+                let buf0 = bytes-new (i64-to-nat total) in
+                let buf1 = fill-leaf-lin sorted n 0 (wrapping-shl-i64 b0 4) o4 buf0 in
+                let buf2 = fill-internal-lin o4 b0 o3 (wrapping-shl-i64 b1 4) 0 buf1 in
+                let buf3 = fill-internal-lin o3 b1 o2 (wrapping-shl-i64 b2 4) 0 buf2 in
+                let buf4 = fill-internal-lin o2 b2 o1 (wrapping-shl-i64 b3 4) 0 buf3 in
+                let buf5 = fill-internal-lin o1 b3 0 16 0 buf4 in
+                STree buf5 n 5 b3 o1 o2 o3 o4 0 0 0
+              else
+                let b5 = ceil-div16 b4 in
+                if le-i64 b5 1 then
+                  let o1 = 128 in
+                  let o2 = wrapping-add-i64 o1 (wrapping-shl-i64 b4 7) in
+                  let o3 = wrapping-add-i64 o2 (wrapping-shl-i64 b3 7) in
+                  let o4 = wrapping-add-i64 o3 (wrapping-shl-i64 b2 7) in
+                  let o5 = wrapping-add-i64 o4 (wrapping-shl-i64 b1 7) in
+                  let total = wrapping-add-i64 o5 (wrapping-shl-i64 b0 7) in
+                  let buf0 = bytes-new (i64-to-nat total) in
+                  let buf1 = fill-leaf-lin sorted n 0 (wrapping-shl-i64 b0 4) o5 buf0 in
+                  let buf2 = fill-internal-lin o5 b0 o4 (wrapping-shl-i64 b1 4) 0 buf1 in
+                  let buf3 = fill-internal-lin o4 b1 o3 (wrapping-shl-i64 b2 4) 0 buf2 in
+                  let buf4 = fill-internal-lin o3 b2 o2 (wrapping-shl-i64 b3 4) 0 buf3 in
+                  let buf5 = fill-internal-lin o2 b3 o1 (wrapping-shl-i64 b4 4) 0 buf4 in
+                  let buf6 = fill-internal-lin o1 b4 0 16 0 buf5 in
+                  STree buf6 n 6 b4 o1 o2 o3 o4 o5 0 0
+                else
+                  let b6 = ceil-div16 b5 in
+                  let o1 = 128 in
+                  let o2 = wrapping-add-i64 o1 (wrapping-shl-i64 b5 7) in
+                  let o3 = wrapping-add-i64 o2 (wrapping-shl-i64 b4 7) in
+                  let o4 = wrapping-add-i64 o3 (wrapping-shl-i64 b3 7) in
+                  let o5 = wrapping-add-i64 o4 (wrapping-shl-i64 b2 7) in
+                  let o6 = wrapping-add-i64 o5 (wrapping-shl-i64 b1 7) in
+                  let total = wrapping-add-i64 o6 (wrapping-shl-i64 b0 7) in
+                  let buf0 = bytes-new (i64-to-nat total) in
+                  let buf1 = fill-leaf-lin sorted n 0 (wrapping-shl-i64 b0 4) o6 buf0 in
+                  let buf2 = fill-internal-lin o6 b0 o5 (wrapping-shl-i64 b1 4) 0 buf1 in
+                  let buf3 = fill-internal-lin o5 b1 o4 (wrapping-shl-i64 b2 4) 0 buf2 in
+                  let buf4 = fill-internal-lin o4 b2 o3 (wrapping-shl-i64 b3 4) 0 buf3 in
+                  let buf5 = fill-internal-lin o3 b3 o2 (wrapping-shl-i64 b4 4) 0 buf4 in
+                  let buf6 = fill-internal-lin o2 b4 o1 (wrapping-shl-i64 b5 4) 0 buf5 in
+                  let buf7 = fill-internal-lin o1 b5 0 16 0 buf6 in
+                  STree buf7 n 7 b5 o1 o2 o3 o4 o5 o6 0
+
+  -- | Linearly populate the leaf level from `sorted`, padding remaining slots with `max-bound-i64`.
+  fill-leaf-lin :: Array I64 -> I64 -> I64 -> I64 -> I64 -> Bytes %1 -> Bytes
+  fill-leaf-lin sorted n i total-slots leaf-off buf =
+    if lt-i64 i total-slots then
+      let val = if lt-i64 i n then
+                  (case array-get sorted (i64-to-nat i) of Some v -> v; None -> max-bound-i64)
+                else max-bound-i64 in
+      let buf1 = put-i64-lin buf (wrapping-add-i64 leaf-off (wrapping-shl-i64 i 3)) val in
+      fill-leaf-lin sorted n (wrapping-add-i64 i 1) total-slots leaf-off buf1
+    else buf
+
+  -- | Linearly populate one internal S-Tree level from child block maxima, padding with `max-bound-i64`.
+  fill-internal-lin :: I64 -> I64 -> I64 -> I64 -> I64 -> Bytes %1 -> Bytes
+  fill-internal-lin child-off child-blocks parent-off parent-slots j buf =
+    if lt-i64 j parent-slots then
+      let dst = wrapping-add-i64 parent-off (wrapping-shl-i64 j 3) in
+      if lt-i64 j child-blocks then
+        let src = wrapping-add-i64 child-off (wrapping-add-i64 (wrapping-shl-i64 j 7) 120) in
+        let buf1 = promote-max-lin buf src dst in
+        fill-internal-lin child-off child-blocks parent-off parent-slots (wrapping-add-i64 j 1) buf1
+      else
+        let buf1 = put-i64-lin buf dst max-bound-i64 in
+        fill-internal-lin child-off child-blocks parent-off parent-slots (wrapping-add-i64 j 1) buf1
+    else buf
+
+  -- | Branchless count of how many of the two I64 lanes in a U128 are strictly less than `key`.
+  count-pair-lt :: U128 -> I64 -> I64
+  count-pair-lt v key =
+    let c0 = if lt-i64 (wrapping-u128-to-i64 v) key then 1 else 0 in
+    let c1 = if lt-i64 (wrapping-u128-to-i64 (wrapping-shr-u128 v 64)) key then 1 else 0 in
+    wrapping-add-i64 c0 c1
+
+  -- | Branchless count of keys strictly less than `key` across one 128-byte (16-key) S-Tree block.
+  -- Uses eight 128-bit loads and a balanced reduction tree for auto-vectorized scanning.
+  scan-block16 :: Bytes -> I64 -> I64 -> I64
+  scan-block16 buf base key =
+    let p0 = count-pair-lt (get-u128-at buf base) key in
+    let p1 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 16)) key in
+    let p2 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 32)) key in
+    let p3 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 48)) key in
+    let p4 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 64)) key in
+    let p5 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 80)) key in
+    let p6 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 96)) key in
+    let p7 = count-pair-lt (get-u128-at buf (wrapping-add-i64 base 112)) key in
+    let s0 = wrapping-add-i64 (wrapping-add-i64 p0 p1) (wrapping-add-i64 p2 p3) in
+    let s1 = wrapping-add-i64 (wrapping-add-i64 p4 p5) (wrapping-add-i64 p6 p7) in
+    wrapping-add-i64 s0 s1
+
+  -- | Clamp a computed leaf index to `n`.
+  clamp-idx :: I64 -> I64 -> I64
+  clamp-idx idx n = if lt-i64 idx n then idx else n
+
+  -- | Unboxed lower-bound lookup returning `(index, leaf-level-byte-offset)`.
+  stree-search-raw :: STreeI64 -> I64 -> (I64, I64)
+  stree-search-raw st key = case st of
+    STree buf n h rc o1 o2 o3 o4 o5 o6 o7 ->
+      if eq-i64 h 0 then (0, 0)
+      else if eq-i64 h 1 then
+        let c = scan-block16 buf 0 key in
+        (clamp-idx c n, 0)
+      else
+        let r0 = scan-block16 buf 0 key in
+        if ge-i64 r0 rc then (n, 0)
+        else if eq-i64 h 2 then
+          let c1 = scan-block16 buf (wrapping-add-i64 o1 (wrapping-shl-i64 r0 7)) key in
+          (clamp-idx (wrapping-add-i64 (wrapping-shl-i64 r0 4) c1) n, o1)
+        else
+          let r1 = wrapping-add-i64 (wrapping-shl-i64 r0 4) (scan-block16 buf (wrapping-add-i64 o1 (wrapping-shl-i64 r0 7)) key) in
+          if eq-i64 h 3 then
+            let c2 = scan-block16 buf (wrapping-add-i64 o2 (wrapping-shl-i64 r1 7)) key in
+            (clamp-idx (wrapping-add-i64 (wrapping-shl-i64 r1 4) c2) n, o2)
+          else
+            let r2 = wrapping-add-i64 (wrapping-shl-i64 r1 4) (scan-block16 buf (wrapping-add-i64 o2 (wrapping-shl-i64 r1 7)) key) in
+            if eq-i64 h 4 then
+              let c3 = scan-block16 buf (wrapping-add-i64 o3 (wrapping-shl-i64 r2 7)) key in
+              (clamp-idx (wrapping-add-i64 (wrapping-shl-i64 r2 4) c3) n, o3)
+            else
+              let r3 = wrapping-add-i64 (wrapping-shl-i64 r2 4) (scan-block16 buf (wrapping-add-i64 o3 (wrapping-shl-i64 r2 7)) key) in
+              if eq-i64 h 5 then
+                let c4 = scan-block16 buf (wrapping-add-i64 o4 (wrapping-shl-i64 r3 7)) key in
+                (clamp-idx (wrapping-add-i64 (wrapping-shl-i64 r3 4) c4) n, o4)
+              else
+                let r4 = wrapping-add-i64 (wrapping-shl-i64 r3 4) (scan-block16 buf (wrapping-add-i64 o4 (wrapping-shl-i64 r3 7)) key) in
+                if eq-i64 h 6 then
+                  let c5 = scan-block16 buf (wrapping-add-i64 o5 (wrapping-shl-i64 r4 7)) key in
+                  (clamp-idx (wrapping-add-i64 (wrapping-shl-i64 r4 4) c5) n, o5)
+                else
+                  let r5 = wrapping-add-i64 (wrapping-shl-i64 r4 4) (scan-block16 buf (wrapping-add-i64 o5 (wrapping-shl-i64 r4 7)) key) in
+                  let c6 = scan-block16 buf (wrapping-add-i64 o6 (wrapping-shl-i64 r5 7)) key in
+                  (clamp-idx (wrapping-add-i64 (wrapping-shl-i64 r5 4) c6) n, o6)
+
+  -- | Return the lower-bound index (first index with value >= key, or length) in an `STreeI64`.
+  stree-i64-lower-bound :: STreeI64 -> I64 -> Nat
+  stree-i64-lower-bound st key = case stree-search-raw st key of
+    (idx, leaf-off) -> i64-to-nat idx
+
+  -- | Test whether `key` is present in an `STreeI64`.
+  stree-i64-contains :: STreeI64 -> I64 -> Bool
+  stree-i64-contains st key = case st of
+    STree buf n h rc o1 o2 o3 o4 o5 o6 o7 ->
+      case stree-search-raw st key of
+        (idx, leaf-off) ->
+          if 0 <= idx && lt-i64 idx n then
+            eq-i64 (get-i64-at buf (wrapping-add-i64 leaf-off (wrapping-shl-i64 idx 3))) key
+          else False

@@ -1,51 +1,12 @@
--- Text.Base64: Base64 text to and from `Bytes` (RFC 4648).
+-- | Text.Base64: Base64 text to and from `Bytes` (RFC 4648).
 --
--- Module scheme (design/base-library.md): `Text.*` is conversion to and
--- from String/Bytes; this module is the Base64 half of the Ruby surface
--- curated in design/stdlib-parity-ruby.md (`Base64`, the collections/
--- text-utilities bullet). The carrier split is decision D88's: the
--- encoded form is ASCII text, a `String`; the decoded form is raw bytes,
--- a `Bytes`.
---
--- The Ruby methods behind each name (the port's provenance):
---   `base64-encode`      = `Base64.strict_encode64` (the standard
---                          alphabet, no line wrapping);
---   `base64-decode`      = `Base64.strict_decode64` (named errors, not
---                          exceptions);
---   `base64-url-encode`  = `Base64.urlsafe_encode64` (default padding);
---   `base64-url-decode`  = `Base64.urlsafe_decode64`;
---   `base64-decode-lenient` = `Base64.decode64` (every non-alphabet
---                          character, line breaks included, is ignored
---                          and the result is the bytes; it never fails).
--- The `Bytes`/`String` distinction is carried entirely by the
--- signatures (encode takes `Bytes`, yields `String`; decode the
--- other way), so no duplicate spellings are needed.
---
--- DESIGN LAW SHAPE (RFC 4648 section 4; the round trip is the module's
--- contract):
---   base64-decode (base64-encode b) == Ok b         for every Bytes
---   base64-decode-lenient (base64-encode b) == b    for every Bytes
---   string-byte-length (base64-encode b) == 4 * ceil (bytes-len b / 3)
--- and the padding law: the encoding of an n-byte buffer ends in
--- `=` * ((3 - n rem 3) rem 3) pad characters, so lengths 0/3 mod 3
--- carry no pad, 2 mod 3 one pad, 1 mod 3 two. The canonical alphabet is
--- used for encoding; decoding accepts exactly it (plus `=` in the
--- padding positions).
---
--- Named refusals (the strict decoder is total over its own alphabet and
--- refuses everything else with a named error, never a fault):
---   a character outside the alphabet (`InvalidBase64Character`): the
---     standard decoder refuses `-`/`_`, the URL-safe decoder refuses
---     nothing the standard one accepts (Ruby's union behaviour);
---   a length that is not a multiple of 4 (`InvalidBase64Length`): the
---     input can never be a complete sequence of 4-character groups;
---   a misplaced or excessive pad (`InvalidBase64Padding`): `=` is legal
---     only in the last group's last one or two positions, never earlier
---     and never as a third pad.
--- Not carried (unproductions this module deliberately does not build):
---   line wrapping (Ruby's `encode64`, 60 characters plus newline) and
---   the MIME mode; the decoder's whitespace tolerance is the only nod to
---   wrapped input, through `base64-decode-lenient`.
+-- `base64-encode` and `base64-url-encode` use 128-bit SIMD 12-to-16 byte
+-- encoding with `%1`-linear output buffer threading and O(1) stack depth.
+-- `base64-decode`, `base64-url-decode`, and `base64-decode-lenient` operate
+-- directly over UTF-8 backing bytes using 128-bit SIMD 16-to-12 byte decoding
+-- with `%1`-linear output buffer threading, falling back to exact UTF-8 scalar
+-- validation only on malformed input so all `Base64Error` diagnostics match
+-- RFC 4648 and Ruby's strict/urlsafe/lenient semantics identically.
 module Text.Base64 where
 
   import Data.Bool
@@ -57,275 +18,513 @@ module Text.Base64 where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide
 
   export Base64Error, InvalidBase64Character, InvalidBase64Length, InvalidBase64Padding
   export base64-encode, base64-decode
   export base64-url-encode, base64-url-decode, base64-decode-lenient
 
-
-  -- The named decode failures (the house style: Text.Parse's named
-  -- vocabulary shape, never a fault).
+  -- | Named decode failures (total over every input, never a fault).
   data Base64Error where
-    -- A scalar value outside the alphabet the decoder accepts.
+    -- | A scalar value outside the alphabet the decoder accepts.
     InvalidBase64Character :: Char -> Base64Error
-    -- The scalar count is not a multiple of 4.
+    -- | The scalar count is not a multiple of 4.
     InvalidBase64Length :: Nat -> Base64Error
-    -- `=` appears before the last group or as a third pad.
+    -- | `=` appears before the last group or as a third pad.
     InvalidBase64Padding :: Base64Error
 
   -- -----------------------------------------------------------------
-  -- Alphabets (RFC 4648 sections 4 and 5).
+  -- Private linear buffer write primitives (`%1` unique ownership).
   -- -----------------------------------------------------------------
 
-  -- `A`-`Z` `a`-`z` `0`-`9` `+` `/`: a scalar value to its 6-bit value.
-  -- Every subtraction is guarded by its range test, so no `Nat`
-  -- underflow fault is reachable, and the same tests bound each value
-  -- below 64 (the range the byte joins below read).
-  standard-value :: Nat -> Option (InRange 0 63 Nat)
-  standard-value c =
-    if c >= 65 then
-      (if c <= 90 then Some (c - 65)
-       else if c >= 97 then (if c <= 122 then Some (c - 97 + 26) else None)
-       else None)
-    else if c >= 48 then
-      (if c <= 57 then Some (c - 48 + 52) else None)
-    else if c == 43 then Some 62
-    else if c == 47 then Some 63
-    else None
+  -- | Private raw single-byte store returning its buffer.
+  put-u8-raw :: Bytes -> I64 -> U8 -> Bytes
+  put-u8-raw b pos v =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let w = bytes-set-u8-at b pos v in b
+    else b
 
-  -- The URL-safe alphabet: `-` and `_` carry 62/63. Ruby's
-  -- `urlsafe_decode64` also accepts the standard `+`/`/` pair, so this
-  -- value function is the union (the standard table with the two
-  -- URL-safe codes overlaid); that is the documented behaviour, not a
-  -- relaxation we invented.
-  urlsafe-value :: Nat -> Option (InRange 0 63 Nat)
-  urlsafe-value c =
-    if c == 45 then Some 62
-    else if c == 95 then Some 63
-    else standard-value c
+  -- | Linearly store one byte at an I64 offset.
+  put-u8-lin :: Bytes %1 -> I64 -> U8 -> Bytes
+  put-u8-lin b pos v = put-u8-raw b pos v
 
-  -- A 6-bit value to its standard-alphabet scalar value, an ASCII byte
-  -- for every input (anything from 63 on is `/`).
-  encode-value :: Nat -> InRange 0 255 Nat
-  encode-value v =
-    if v < 26 then v + 65
-    else if v < 52 then v - 26 + 97
-    else if v < 62 then v - 52 + 48
-    else if v == 62 then 43
-    else 47
+  -- | Private raw 32-bit little-endian store returning its buffer.
+  put-le32-raw :: Bytes -> I64 -> U32 -> Bytes
+  put-le32-raw b pos v =
+    let n = bytes-len-i64 b in
+    if 4 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 4 <= nn && nat-from-i64 pos <= nn - 4 then
+        let w = bytes-store-le32-at b pos v in b
+      else b
+    else b
 
-  -- A 6-bit value to its URL-safe scalar value (`-`/`_` for 62/63).
-  urlsafe-char :: Nat -> InRange 0 255 Nat
-  urlsafe-char v =
-    if v == 62 then 45 else if v == 63 then 95 else encode-value v
+  -- | Linearly store a 32-bit little-endian word at an I64 offset.
+  put-le32-lin :: Bytes %1 -> I64 -> U32 -> Bytes
+  put-le32-lin b pos v = put-le32-raw b pos v
 
-  is-pad :: Char -> Bool
-  is-pad c = char-code c == 61
+  -- | Private raw 128-bit store returning its buffer.
+  put-u128-raw :: Bytes -> I64 -> U128 -> Bytes
+  put-u128-raw b pos v =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 16 <= nn && nat-from-i64 pos <= nn - 16 then
+        let w = bytes-store-u128-at b pos v in b
+      else b
+    else b
+
+  -- | Linearly store 16 bytes at an I64 offset.
+  put-u128-lin :: Bytes %1 -> I64 -> U128 -> Bytes
+  put-u128-lin b pos v = put-u128-raw b pos v
+
+  -- | Private raw 12-byte store (8-byte LE + 4-byte LE) returning its buffer.
+  put-twelve-raw :: Bytes -> I64 -> U64 -> U32 -> Bytes
+  put-twelve-raw b pos lo hi =
+    let n = bytes-len-i64 b in
+    if 12 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 12 <= nn && nat-from-i64 pos <= nn - 12 then
+        let s0 = bytes-store-le64-at b pos lo in
+        let p8 = wrapping-add-i64 pos 8 in
+        if 0 <= p8 && nat-from-i64 p8 <= nn - 4 then
+          let s1 = bytes-store-le32-at b p8 hi in b
+        else b
+      else b
+    else b
+
+  -- | Linearly store 12 decoded bytes at an I64 offset.
+  put-twelve-lin :: Bytes %1 -> I64 -> U64 -> U32 -> Bytes
+  put-twelve-lin b pos lo hi = put-twelve-raw b pos lo hi
+
+  -- | Private raw 3-byte store returning its buffer.
+  put-three-raw :: Bytes -> I64 -> U8 -> U8 -> U8 -> Bytes
+  put-three-raw b pos b0 b1 b2 =
+    let n = bytes-len-i64 b in
+    if 0 <= pos && pos < n then
+      let w0 = bytes-set-u8-at b pos b0 in
+      let p1 = wrapping-add-i64 pos 1 in
+      let w1 = if 0 <= p1 && p1 < n then bytes-set-u8-at b p1 b1 else () in
+      let p2 = wrapping-add-i64 pos 2 in
+      let w2 = if 0 <= p2 && p2 < n then bytes-set-u8-at b p2 b2 else () in b
+    else b
+
+  -- | Load a 128-bit vector from a checked I64 offset.
+  load-u128-safe :: Bytes -> I64 -> U128
+  load-u128-safe b pos =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 16 <= nn && nat-from-i64 pos <= nn - 16 then bytes-load-u128-at b pos else 0
+    else 0
+
+  -- | Linearly store 3 bytes at an I64 offset.
+  put-three-lin :: Bytes %1 -> I64 -> U8 -> U8 -> U8 -> Bytes
+  put-three-lin b pos b0 b1 b2 = put-three-raw b pos b0 b1 b2
+
+  -- | Private raw trim copying the first `n` bytes when shorter than capacity.
+  trim-bytes-raw :: Bytes -> I64 -> Bytes
+  trim-bytes-raw b n =
+    if 0 <= n then
+      let len = bytes-len-i64 b in
+      if eq-i64 n len then b
+      else
+        let nn = nat-from-i64 n in
+        let exact = bytes-new nn in
+        if nn <= bytes-len b && nn <= bytes-len exact then
+          let copied = bytes-copy-range exact b 0 0 nn in exact
+        else exact
+    else bytes-new 0
+
+  -- | Linearly trim a uniquely owned buffer to its exact written length.
+  trim-bytes-lin :: Bytes %1 -> I64 -> Bytes
+  trim-bytes-lin b n = trim-bytes-raw b n
+
+  -- | Private raw drop for error paths.
+  drop-bytes-raw :: Bytes -> Unit
+  drop-bytes-raw b = ()
+
+  -- | Linearly consume and discard a buffer on an error path.
+  drop-bytes-lin :: Bytes %1 -> Unit
+  drop-bytes-lin b = drop-bytes-raw b
 
   -- -----------------------------------------------------------------
-  -- Encoding.
+  -- Encoding (128-bit SIMD 12->16 + `%1`-linear tail-recursive loops).
   -- -----------------------------------------------------------------
 
+  -- | Encode raw bytes using the standard RFC 4648 alphabet with `=` padding.
   base64-encode :: Bytes -> String
-  base64-encode b = encode-with False b
+  base64-encode b = encode-with 0 b
 
+  -- | Encode raw bytes using the URL-safe RFC 4648 alphabet (`-`/`_`) with `=` padding.
   base64-url-encode :: Bytes -> String
-  base64-url-encode b = encode-with True b
+  base64-url-encode b = encode-with 1 b
 
-  -- A 6-bit value's character in the alphabet `url` selects (URL-safe
-  -- when set). The choice travels as a flag rather than as the
-  -- character function itself: a byte's range is part of the
-  -- function's result type, and a function-typed parameter does not
-  -- carry it.
-  alphabet-char :: Bool -> Nat -> InRange 0 255 Nat
-  alphabet-char url v = if url then urlsafe-char v else encode-value v
-
-  encode-with :: Bool -> Bytes -> String
-  encode-with url b =
-    case string-from-bytes (encode-groups url b 0 0) of
-      None -> empty-string
-      Some s -> s
-
-  -- The encoding of `inb` from byte `ii` on, written at `oi`: one group
-  -- of up to 3 input bytes (b0 b1 b2) becomes 4 alphabet characters,
-  -- and a trailing group of 1 or 2 bytes pads with `=`. The buffer is
-  -- made by the last group, once the whole length is known (`oi` plus
-  -- that group's 4, which is the padding law's `4 * ceil (n / 3)`), and
-  -- the earlier groups write into it on the way back; the result's
-  -- refinement is the room every write proves.
-  encode-groups :: Bool -> (inb :: Bytes) -> (ii :: Nat) -> (oi :: Nat) -> refined (oi <= bytes-len out) Bytes
-  encode-groups url inb ii oi =
-    if ii + 3 <= bytes-len inb then
-      let out = encode-groups url inb (ii + 3) (oi + 4) in
-      let b0 = bytes-get inb ii in
-      let b1 = bytes-get inb (ii + 1) in
-      let b2 = bytes-get inb (ii + 2) in
-      let u = bytes-set out oi (alphabet-char url (nat-div b0 4)) in
-      let v = bytes-set out (oi + 1) (alphabet-char url (nat-add (nat-mul (nat-rem b0 4) 16) (nat-div b1 16))) in
-      let w = bytes-set out (oi + 2) (alphabet-char url (nat-add (nat-mul (nat-rem b1 16) 4) (nat-div b2 64))) in
-      let x = bytes-set out (oi + 3) (alphabet-char url (nat-rem b2 64)) in
-      out
-    else if ii + 2 <= bytes-len inb then
-      let out = bytes-new (oi + 4) in
-      let b0 = bytes-get inb ii in
-      let b1 = bytes-get inb (ii + 1) in
-      let u = bytes-set out oi (alphabet-char url (nat-div b0 4)) in
-      let v = bytes-set out (oi + 1) (alphabet-char url (nat-add (nat-mul (nat-rem b0 4) 16) (nat-div b1 16))) in
-      let w = bytes-set out (oi + 2) (alphabet-char url (nat-mul (nat-rem b1 16) 4)) in
-      let x = bytes-set out (oi + 3) 61 in
-      out
-    else if ii + 1 <= bytes-len inb then
-      let out = bytes-new (oi + 4) in
-      let b0 = bytes-get inb ii in
-      let u = bytes-set out oi (alphabet-char url (nat-div b0 4)) in
-      let v = bytes-set out (oi + 1) (alphabet-char url (nat-mul (nat-rem b0 4) 16)) in
-      let w = bytes-set out (oi + 2) 61 in
-      let x = bytes-set out (oi + 3) 61 in
-      out
-    else bytes-new oi
-
-  -- -----------------------------------------------------------------
-  -- Strict decoding.
-  -- -----------------------------------------------------------------
-
-  base64-decode :: String -> Result Base64Error Bytes
-  base64-decode s = decode-with standard-value s
-
-  base64-url-decode :: String -> Result Base64Error Bytes
-  base64-url-decode s = decode-with urlsafe-value s
-
-  -- The decoded bytes are gathered as a list and packed once at the end
-  -- (`bytes-from-list`), so the buffer's length is the bytes' count by
-  -- construction: three bytes per whole group of 4, less one per
-  -- trailing pad (the last group of 2 data characters emits 1 byte, 3
-  -- data characters 2). No pad count can outnumber those bytes once the
-  -- length is a multiple of 4 and the pads are at most 2 (an empty input
-  -- has no pads), so no separate length check is needed.
-  decode-with :: (Nat -> Option (InRange 0 63 Nat)) -> String -> Result Base64Error Bytes
-  decode-with val s =
-    let cs = unpack s in
-    let n = list-length cs in
-    if nat-rem n 4 /= 0 then Err (InvalidBase64Length n)
+  -- | Allocate exact output storage once, fill linearly, and seal as UTF-8 `String`.
+  encode-with :: U8 -> Bytes -> String
+  encode-with mode inb =
+    let n = bytes-len inb in
+    if n == 0 then empty-string
     else
-      let p = trailing-pads cs in
-      if p > 2 then Err InvalidBase64Padding
-      else case decode-groups val cs of
-        Err e -> Err e
-        Ok xs -> Ok (bytes-from-list xs)
+      let out-len = nat-mul (nat-div (n + 2) 3) 4 in
+      let out0 = bytes-new out-len in
+      let ni = bytes-len-i64 inb in
+      let no = bytes-len-i64 out0 in
+      let filled = encode-loop12 mode inb ni 0 out0 no 0 in
+      case string-from-bytes filled of
+        None -> empty-string
+        Some s -> s
 
-  -- The number of `=` scalars at the end (the caller bounds it at 2).
-  trailing-pads :: List Char -> Nat
-  trailing-pads cs = count-pads (reverse cs)
+  -- | Split one 24-bit big-endian group into four 6-bit byte lanes inside a U32.
+  encode-group24 :: U32 -> U32
+  encode-group24 g =
+    let s0 = wrapping-shr-u32 g 18 in
+    let s1 = wrapping-shl-u32 (bit-and-u32 (wrapping-shr-u32 g 12) 63) 8 in
+    let s2 = wrapping-shl-u32 (bit-and-u32 (wrapping-shr-u32 g 6) 63) 16 in
+    let s3 = wrapping-shl-u32 (bit-and-u32 g 63) 24 in
+    bit-or-u32 (bit-or-u32 s0 s1) (bit-or-u32 s2 s3)
 
-  count-pads :: List Char -> Nat
-  count-pads cs = case cs of
-    Nil -> 0
-    Cons c rest -> if is-pad c then 1 + count-pads rest else 0
+  -- | Extract eight 6-bit lanes from six packed little-endian input bytes.
+  encode-values8 :: U64 -> U64
+  encode-values8 word =
+    let g0 = wrapping-shr-u32 (swap-bytes-u32 (wrapping-u64-to-u32 word)) 8 in
+    let g1 = bit-and-u32 (swap-bytes-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 word 16))) 16777215 in
+    bit-or-u64 (u32-to-u64 (encode-group24 g0)) (wrapping-shl-u64 (u32-to-u64 (encode-group24 g1)) 32)
 
-  -- Walk the groups of 4. Pads are legal only in the final group's last
-  -- positions; a pad anywhere earlier, or a pad with data after it, is
-  -- `InvalidBase64Padding`. A non-pad character is looked up in the
-  -- alphabet, and a miss is `InvalidBase64Character`. The length was
-  -- checked a multiple of 4 before this walk, so the short tails are
-  -- unreachable (kept total for the checker's sake).
-  decode-groups :: (Nat -> Option (InRange 0 63 Nat)) -> List Char -> Result Base64Error (List (InRange 0 255 Nat))
-  decode-groups val cs = case cs of
-    Nil -> Ok Nil
-    Cons a (Cons b (Cons c (Cons d rest))) ->
-      if is-pad a then Err InvalidBase64Padding
-      else if is-pad b then Err InvalidBase64Padding
-      else if is-pad d then
-        if not (is-empty rest) then Err InvalidBase64Padding
-        else if is-pad c then (decode-one val a b)
-        else (decode-two val a b c)
-      else if is-pad c then Err InvalidBase64Padding
-      else decode-three val a b c d rest
-    _ -> Err (InvalidBase64Length (list-length cs))
+  -- | Map 16 six-bit value lanes to ASCII Base64 bytes in 128-bit SIMD.
+  map-fixed16 :: U128 -> U8 -> U128
+  map-fixed16 v mode =
+    let upper = simd-u8x16-cmplt v (simd-u8x16-splat 26) in
+    let lower = simd-u8x16-cmplt v (simd-u8x16-splat 52) in
+    let digit = simd-u8x16-cmplt v (simd-u8x16-splat 62) in
+    let is62 = simd-u8x16-cmpeq v (simd-u8x16-splat 62) in
+    let c63 = if eq-u8 mode 0 then simd-u8x16-splat 240 else simd-u8x16-splat 32 in
+    let c62 = if eq-u8 mode 0 then simd-u8x16-splat 237 else simd-u8x16-splat 239 in
+    let b0 = simd-bitselect is62 c62 c63 in
+    let b1 = simd-bitselect digit (simd-u8x16-splat 252) b0 in
+    let b2 = simd-bitselect lower (simd-u8x16-splat 71) b1 in
+    let base = simd-bitselect upper (simd-u8x16-splat 65) b2 in
+    simd-u8x16-add v base
 
-  -- Two data characters and two pads: one byte.
-  decode-one :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Char -> Result Base64Error (List (InRange 0 255 Nat))
-  decode-one val a b = case lookup-val val a of
-    Err e -> Err e
-    Ok va -> case lookup-val val b of
-      Err e -> Err e
-      Ok vb -> Ok (Cons (join-first va vb) Nil)
+  -- | Map a single 6-bit value to its ASCII byte.
+  encode-byte :: U8 -> U8 -> U8
+  encode-byte mode v =
+    if lt-u8 v 26 then wrapping-add-u8 v 65
+    else if lt-u8 v 52 then wrapping-add-u8 v 71
+    else if lt-u8 v 62 then wrapping-sub-u8 v 4
+    else if eq-u8 v 62 then (if eq-u8 mode 0 then 43 else 45)
+    else (if eq-u8 mode 0 then 47 else 95)
 
-  -- Three data characters and one pad: two bytes.
-  decode-two :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Char -> Char -> Result Base64Error (List (InRange 0 255 Nat))
-  decode-two val a b c = case lookup-val val a of
-    Err e -> Err e
-    Ok va -> case lookup-val val b of
-      Err e -> Err e
-      Ok vb -> case lookup-val val c of
-        Err e -> Err e
-        Ok vc -> Ok (Cons (join-first va vb) (Cons (join-second vb vc) Nil))
+  -- | Tail-recursive 128-bit SIMD loop: 12 input bytes -> 16 output bytes per step.
+  encode-loop12 :: U8 -> Bytes -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> Bytes
+  encode-loop12 mode inb ni ii out no oi =
+    if 0 <= ii && wrapping-add-i64 ii 16 <= ni && 0 <= oi && wrapping-add-i64 oi 16 <= no then
+      let chunk = load-u128-safe inb ii in
+      let lo = encode-values8 (wrapping-u128-to-u64 chunk) in
+      let hi = encode-values8 (wrapping-u128-to-u64 (wrapping-shr-u128 chunk 48)) in
+      let encoded = map-fixed16 (simd-u64x2-pack lo hi) mode in
+      let out1 = put-u128-lin out oi encoded in
+      encode-loop12 mode inb ni (wrapping-add-i64 ii 12) out1 no (wrapping-add-i64 oi 16)
+    else encode-tail3 mode inb ni ii out no oi
 
-  -- Four data characters: three bytes, then the rest (a later group's
-  -- refusal is the whole decode's, after this group's own lookups).
-  decode-three :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Char -> Char -> Char -> List Char -> Result Base64Error (List (InRange 0 255 Nat))
-  decode-three val a b c d rest = case lookup-val val a of
-    Err e -> Err e
-    Ok va -> case lookup-val val b of
-      Err e -> Err e
-      Ok vb -> case lookup-val val c of
-        Err e -> Err e
-        Ok vc -> case lookup-val val d of
-          Err e -> Err e
-          Ok vd -> case decode-groups val rest of
-            Err e -> Err e
-            Ok xs -> Ok (Cons (join-first va vb) (Cons (join-second vb vc) (Cons (join-third vc vd) xs)))
-
-  -- A scalar's 6-bit value, or the named miss.
-  lookup-val :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Result Base64Error (InRange 0 63 Nat)
-  lookup-val val c = case val (char-code c) of
-    None -> Err (InvalidBase64Character c)
-    Some v -> Ok v
-
-  -- The three bytes four 6-bit values pack into (RFC 4648 section 4):
-  -- `a`'s six bits and `b`'s top two; `b`'s low four and `c`'s top
-  -- four; `c`'s low two and all of `d`. Each operand is below 64, so
-  -- `b / 16` is already below 4 and `c / 4` below 16: the `rem` on each
-  -- leaves the value unchanged and is the range the byte's bound reads.
-  join-first :: InRange 0 63 Nat -> InRange 0 63 Nat -> InRange 0 255 Nat
-  join-first a b =
-    let lo = nat-rem (nat-div b 16) 4 in
-    a * 4 + lo
-
-  join-second :: InRange 0 63 Nat -> InRange 0 63 Nat -> InRange 0 255 Nat
-  join-second b c =
-    let hi = nat-rem b 16 in
-    let lo = nat-rem (nat-div c 4) 16 in
-    hi * 16 + lo
-
-  join-third :: InRange 0 63 Nat -> InRange 0 63 Nat -> InRange 0 255 Nat
-  join-third c d =
-    let hi = nat-rem c 4 in
-    hi * 64 + d
+  -- | Tail-recursive 3-byte scalar loop + final 1- or 2-byte padded group.
+  encode-tail3 :: U8 -> Bytes -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> Bytes
+  encode-tail3 mode inb ni ii out no oi =
+    if 0 <= ii && wrapping-add-i64 ii 3 <= ni then
+      let b0 = u8-to-u32 (if ii < bytes-len-i64 inb then bytes-get-u8-at inb ii else 0) in
+      let i1 = wrapping-add-i64 ii 1 in
+      let b1 = u8-to-u32 (if 0 <= i1 && i1 < bytes-len-i64 inb then bytes-get-u8-at inb i1 else 0) in
+      let i2 = wrapping-add-i64 ii 2 in
+      let b2 = u8-to-u32 (if 0 <= i2 && i2 < bytes-len-i64 inb then bytes-get-u8-at inb i2 else 0) in
+      let g = bit-or-u32 (bit-or-u32 (wrapping-shl-u32 b0 16) (wrapping-shl-u32 b1 8)) b2 in
+      let lanes = encode-group24 g in
+      let word = wrapping-u128-to-u32 (map-fixed16 (u32-to-u128 lanes) mode) in
+      let out1 = put-le32-lin out oi word in
+      encode-tail3 mode inb ni (wrapping-add-i64 ii 3) out1 no (wrapping-add-i64 oi 4)
+    else
+      let rem = wrapping-sub-i64 ni ii in
+      if eq-i64 rem 2 && 0 <= ii then
+        let b0 = if ii < bytes-len-i64 inb then bytes-get-u8-at inb ii else 0 in
+        let i1 = wrapping-add-i64 ii 1 in
+        let b1 = if 0 <= i1 && i1 < bytes-len-i64 inb then bytes-get-u8-at inb i1 else 0 in
+        let c0 = encode-byte mode (wrapping-shr-u8 b0 2) in
+        let c1 = encode-byte mode (bit-or-u8 (wrapping-shl-u8 (bit-and-u8 b0 3) 4) (wrapping-shr-u8 b1 4)) in
+        let c2 = encode-byte mode (wrapping-shl-u8 (bit-and-u8 b1 15) 2) in
+        let w = bit-or-u32 (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+                           (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 61 24)) in
+        put-le32-lin out oi w
+      else if eq-i64 rem 1 && 0 <= ii then
+        let b0 = if ii < bytes-len-i64 inb then bytes-get-u8-at inb ii else 0 in
+        let c0 = encode-byte mode (wrapping-shr-u8 b0 2) in
+        let c1 = encode-byte mode (wrapping-shl-u8 (bit-and-u8 b0 3) 4) in
+        let w = bit-or-u32 (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+                           (bit-or-u32 (wrapping-shl-u32 61 16) (wrapping-shl-u32 61 24)) in
+        put-le32-lin out oi w
+      else out
 
   -- -----------------------------------------------------------------
-  -- Lenient decoding (Ruby's `decode64`): drop every non-alphabet
-  -- scalar and pack what remains, never failing.
+  -- Strict decoding (128-bit SIMD fast path + exact UTF-8 error path).
   -- -----------------------------------------------------------------
 
+  -- | Decode standard Base64 text strictly.
+  base64-decode :: String -> Result Base64Error Bytes
+  base64-decode s = decode-strict False s
+
+  -- | Decode URL-safe Base64 text strictly (also accepting standard `+`/`/`).
+  base64-url-decode :: String -> Result Base64Error Bytes
+  base64-url-decode s = decode-strict True s
+
+  -- | Decode one ASCII byte to its 6-bit value (0..63), or 255 if outside alphabet.
+  decode-ascii-val :: Bool -> U8 -> U8
+  decode-ascii-val url b =
+    if ge-u8 b 65 && le-u8 b 90 then wrapping-sub-u8 b 65
+    else if ge-u8 b 97 && le-u8 b 122 then wrapping-sub-u8 b 71
+    else if ge-u8 b 48 && le-u8 b 57 then wrapping-add-u8 b 4
+    else if eq-u8 b 43 then 62
+    else if eq-u8 b 47 then 63
+    else if url && eq-u8 b 45 then 62
+    else if url && eq-u8 b 95 then 63
+    else 255
+
+  -- | Compact 16 validated 6-bit SIMD lanes into 12 little-endian decoded bytes.
+  pack-values16 :: U128 -> (U64, U32)
+  pack-values16 vals =
+    let b0s = bit-or-u128 (simd-u32x4-shl (bit-and-u128 vals (simd-u32x4-splat 63)) 2)
+                          (bit-and-u128 (simd-u32x4-shr vals 12) (simd-u32x4-splat 3)) in
+    let b1s = bit-or-u128 (bit-and-u128 (simd-u32x4-shl vals 4) (simd-u32x4-splat 61440))
+                          (bit-and-u128 (simd-u32x4-shr vals 10) (simd-u32x4-splat 3840)) in
+    let b2s = bit-or-u128 (bit-and-u128 (simd-u32x4-shl vals 6) (simd-u32x4-splat 12582912))
+                          (bit-and-u128 (simd-u32x4-shr vals 8) (simd-u32x4-splat 4128768)) in
+    let packed = bit-or-u128 (bit-or-u128 b0s b1s) b2s in
+    let lo = wrapping-u128-to-u64 packed in
+    let hi = wrapping-u128-to-u64 (wrapping-shr-u128 packed 64) in
+    let g01 = bit-or-u64 (bit-and-u64 lo 16777215) (wrapping-shl-u64 (wrapping-shr-u64 lo 32) 24) in
+    let g23 = bit-or-u64 (bit-and-u64 hi 16777215) (wrapping-shl-u64 (wrapping-shr-u64 hi 32) 24) in
+    let out-lo = bit-or-u64 g01 (wrapping-shl-u64 g23 48) in
+    let out-hi = wrapping-u64-to-u32 (wrapping-shr-u64 g23 16) in
+    (out-lo, out-hi)
+
+  -- | Validate and decode 16 bytes in 128-bit SIMD; returns (True, lo, hi) when all 16 are valid.
+  simd-decode16 :: Bool -> U128 -> (Bool, U64, U32)
+  simd-decode16 url v =
+    let u = simd-u8x16-sub v (simd-u8x16-splat 65) in
+    let is-upper = simd-u8x16-cmplt u (simd-u8x16-splat 26) in
+    let l = simd-u8x16-sub v (simd-u8x16-splat 97) in
+    let is-lower = simd-u8x16-cmplt l (simd-u8x16-splat 26) in
+    let d = simd-u8x16-sub v (simd-u8x16-splat 48) in
+    let is-digit = simd-u8x16-cmplt d (simd-u8x16-splat 10) in
+    let is62 = if url then bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 43))
+                                       (simd-u8x16-cmpeq v (simd-u8x16-splat 45))
+               else simd-u8x16-cmpeq v (simd-u8x16-splat 43) in
+    let is63 = if url then bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 47))
+                                       (simd-u8x16-cmpeq v (simd-u8x16-splat 95))
+               else simd-u8x16-cmpeq v (simd-u8x16-splat 47) in
+    let valid = bit-or-u128 (bit-or-u128 (bit-or-u128 is-upper is-lower) is-digit) (bit-or-u128 is62 is63) in
+    if eq-u32 (simd-u8x16-movemask valid) 65535 then
+      let v0 = simd-bitselect is62 (simd-u8x16-splat 62) (simd-u8x16-splat 63) in
+      let v1 = simd-bitselect is-digit (simd-u8x16-add v (simd-u8x16-splat 4)) v0 in
+      let v2 = simd-bitselect is-lower (simd-u8x16-sub v (simd-u8x16-splat 71)) v1 in
+      let vals = simd-bitselect is-upper u v2 in
+      case pack-values16 vals of
+        (lo, hi) -> (True, lo, hi)
+    else (False, 0, 0)
+
+  -- | Read a byte from `raw` at `pos` or 0 when out of bounds.
+  get-u8-safe :: Bytes -> I64 -> U8
+  get-u8-safe raw pos = if 0 <= pos && pos < bytes-len-i64 raw then bytes-get-u8-at raw pos else 0
+
+  -- | Convert a non-negative I64 to Nat, clamping negatives to 0.
+  i64-to-nat :: I64 -> Nat
+  i64-to-nat x = if 0 <= x then nat-from-i64 x else 0
+
+  -- | Strict decode dispatcher: SIMD fast path for ASCII multiples of 4, exact UTF-8 fallback on error.
+  decode-strict :: Bool -> String -> Result Base64Error Bytes
+  decode-strict url s =
+    let raw = string-to-bytes s in
+    let blen = bytes-len-i64 raw in
+    if eq-i64 blen 0 then Ok (bytes-new 0)
+    else if ne-i64 (bit-and-i64 blen 3) 0 then decode-slow-error url s raw
+    else
+      let last1 = get-u8-safe raw (wrapping-sub-i64 blen 1) in
+      let last2 = get-u8-safe raw (wrapping-sub-i64 blen 2) in
+      let pads = if eq-u8 last1 61 then (if eq-u8 last2 61 then 2 else 1) else 0 in
+      let data-end = if gt-i64 pads 0 then wrapping-sub-i64 blen 4 else blen in
+      let out-len-i64 = wrapping-sub-i64 (wrapping-mul-i64 (wrapping-shr-i64 blen 2) 3) pads in
+      let out-len = i64-to-nat out-len-i64 in
+      let out0 = bytes-new out-len in
+      decode-fast16-strict url s raw blen data-end pads 0 out0 0
+
+  -- | Tight 16-byte SIMD strict decode loop threading `out` linearly (`%1`).
+  decode-fast16-strict :: Bool -> String -> Bytes -> I64 -> I64 -> I64 -> I64 -> Bytes %1 -> I64 -> Result Base64Error Bytes
+  decode-fast16-strict url s raw blen data-end pads ii out oi =
+    if 0 <= ii && wrapping-add-i64 ii 16 <= data-end then
+      let v = load-u128-safe raw ii in
+      case simd-decode16 url v of
+        (ok, lo, hi) ->
+          if ok then
+            let out1 = put-twelve-lin out oi lo hi in
+            decode-fast16-strict url s raw blen data-end pads (wrapping-add-i64 ii 16) out1 (wrapping-add-i64 oi 12)
+          else
+            let gone = drop-bytes-lin out in
+            decode-slow-error url s raw
+    else decode-tail4-strict url s raw blen data-end pads ii out oi
+
+  -- | Decode remaining full 4-byte groups and optional final padded group linearly.
+  decode-tail4-strict :: Bool -> String -> Bytes -> I64 -> I64 -> I64 -> I64 -> Bytes %1 -> I64 -> Result Base64Error Bytes
+  decode-tail4-strict url s raw blen data-end pads ii out oi =
+    if 0 <= ii && wrapping-add-i64 ii 4 <= data-end then
+      let v0 = decode-ascii-val url (get-u8-safe raw ii) in
+      let v1 = decode-ascii-val url (get-u8-safe raw (wrapping-add-i64 ii 1)) in
+      let v2 = decode-ascii-val url (get-u8-safe raw (wrapping-add-i64 ii 2)) in
+      let v3 = decode-ascii-val url (get-u8-safe raw (wrapping-add-i64 ii 3)) in
+      if ne-u8 (bit-and-u8 (bit-or-u8 (bit-or-u8 v0 v1) (bit-or-u8 v2 v3)) 192) 0 then
+        let gone = drop-bytes-lin out in
+        decode-slow-error url s raw
+      else
+        let b0 = bit-or-u8 (wrapping-shl-u8 v0 2) (wrapping-shr-u8 v1 4) in
+        let b1 = bit-or-u8 (wrapping-shl-u8 v1 4) (wrapping-shr-u8 v2 2) in
+        let b2 = bit-or-u8 (wrapping-shl-u8 v2 6) v3 in
+        let out1 = put-three-lin out oi b0 b1 b2 in
+        decode-tail4-strict url s raw blen data-end pads (wrapping-add-i64 ii 4) out1 (wrapping-add-i64 oi 3)
+    else if eq-i64 pads 0 then Ok out
+    else if eq-i64 pads 1 then
+      let v0 = decode-ascii-val url (get-u8-safe raw ii) in
+      let v1 = decode-ascii-val url (get-u8-safe raw (wrapping-add-i64 ii 1)) in
+      let v2 = decode-ascii-val url (get-u8-safe raw (wrapping-add-i64 ii 2)) in
+      if ne-u8 (bit-and-u8 (bit-or-u8 (bit-or-u8 v0 v1) v2) 192) 0 then
+        let gone = drop-bytes-lin out in
+        decode-slow-error url s raw
+      else
+        let b0 = bit-or-u8 (wrapping-shl-u8 v0 2) (wrapping-shr-u8 v1 4) in
+        let b1 = bit-or-u8 (wrapping-shl-u8 v1 4) (wrapping-shr-u8 v2 2) in
+        let out1 = put-u8-lin out oi b0 in
+        Ok (put-u8-lin out1 (wrapping-add-i64 oi 1) b1)
+    else
+      let v0 = decode-ascii-val url (get-u8-safe raw ii) in
+      let v1 = decode-ascii-val url (get-u8-safe raw (wrapping-add-i64 ii 1)) in
+      if ne-u8 (bit-and-u8 (bit-or-u8 v0 v1) 192) 0 then
+        let gone = drop-bytes-lin out in
+        decode-slow-error url s raw
+      else
+        let b0 = bit-or-u8 (wrapping-shl-u8 v0 2) (wrapping-shr-u8 v1 4) in
+        Ok (put-u8-lin out oi b0)
+
+  -- | Cold exact UTF-8 scalar diagnostic path (O(1) stack, exact precedence of length, padding, char).
+  decode-slow-error :: Bool -> String -> Bytes -> Result Base64Error Bytes
+  decode-slow-error url s raw =
+    let slen = string-length s in
+    if nat-rem slen 4 /= 0 then Err (InvalidBase64Length slen)
+    else if count-trailing-pads raw (bytes-len raw) 0 > 2 then Err InvalidBase64Padding
+    else scan-utf8-error url raw 0
+
+  -- | Count trailing `=` bytes from the end of `raw`.
+  count-trailing-pads :: Bytes -> Nat -> Nat -> Nat
+  count-trailing-pads raw pos acc =
+    if pos == 0 then acc
+    else
+      let prev = pos - 1 in
+      if prev < bytes-len raw && bytes-get raw prev == 61 then count-trailing-pads raw prev (acc + 1)
+      else acc
+
+  -- | Decode one UTF-8 scalar at byte offset `pos` (returns the scalar and next byte offset).
+  next-scalar :: Bytes -> Nat -> Option (Char, Nat)
+  next-scalar raw pos = case utf8-at raw pos of
+    None -> None
+    Some (c, w) -> Some (c, pos + w)
+
+  -- | Test whether a decoded scalar is valid in the chosen Base64 alphabet.
+  scalar-valid :: Bool -> Char -> Bool
+  scalar-valid url c =
+    let code = char-code c in
+    if code < 128 then
+      let b = wrapping-i64-to-u8 (nat-to-i64 code) in
+      lt-u8 (decode-ascii-val url b) 64
+    else False
+
+  -- | Tail-recursively walk 4-scalar groups to report the exact first padding or character error.
+  scan-utf8-error :: Bool -> Bytes -> Nat -> Result Base64Error Bytes
+  scan-utf8-error url raw pos =
+    if pos >= bytes-len raw then Err InvalidBase64Padding
+    else case next-scalar raw pos of
+      None -> Err InvalidBase64Padding
+      Some (a, p1) -> case next-scalar raw p1 of
+        None -> Err InvalidBase64Padding
+        Some (b, p2) -> case next-scalar raw p2 of
+          None -> Err InvalidBase64Padding
+          Some (c, p3) -> case next-scalar raw p3 of
+            None -> Err InvalidBase64Padding
+            Some (d, p4) ->
+              let at-end = p4 >= bytes-len raw in
+              if char-code a == 61 then Err InvalidBase64Padding
+              else if char-code b == 61 then Err InvalidBase64Padding
+              else if char-code d == 61 then
+                if not at-end then Err InvalidBase64Padding
+                else if not (scalar-valid url a) then Err (InvalidBase64Character a)
+                else if not (scalar-valid url b) then Err (InvalidBase64Character b)
+                else if char-code c == 61 then Err InvalidBase64Padding
+                else if not (scalar-valid url c) then Err (InvalidBase64Character c)
+                else Err InvalidBase64Padding
+              else if char-code c == 61 then Err InvalidBase64Padding
+              else if not (scalar-valid url a) then Err (InvalidBase64Character a)
+              else if not (scalar-valid url b) then Err (InvalidBase64Character b)
+              else if not (scalar-valid url c) then Err (InvalidBase64Character c)
+              else if not (scalar-valid url d) then Err (InvalidBase64Character d)
+              else scan-utf8-error url raw p4
+
+  -- -----------------------------------------------------------------
+  -- Lenient decoding (Ruby's `decode64` shape, SIMD fast path + `%1`).
+  -- -----------------------------------------------------------------
+
+  -- | Decode standard Base64 ignoring all non-alphabet scalars, never failing.
   base64-decode-lenient :: String -> Bytes
-  base64-decode-lenient s = bytes-from-list (lenient-bytes (alphabet-values (unpack s)))
+  base64-decode-lenient s =
+    let raw = string-to-bytes s in
+    let blen = bytes-len-i64 raw in
+    if eq-i64 blen 0 then bytes-new 0
+    else
+      let max-out = nat-add (nat-mul (nat-div (bytes-len raw) 4) 3) 3 in
+      let out0 = bytes-new max-out in
+      lenient-loop raw blen 0 0 0 out0 0
 
-  -- Keep only the standard-alphabet scalars' 6-bit values (whitespace,
-  -- line breaks, `=`, the URL-safe pair and every other stray scalar
-  -- drop, exactly Ruby's `decode64` shape).
-  alphabet-values :: List Char -> List (InRange 0 63 Nat)
-  alphabet-values cs = case cs of
-    Nil -> Nil
-    Cons c rest -> case standard-value (char-code c) of
-      None -> alphabet-values rest
-      Some v -> Cons v (alphabet-values rest)
+  -- | Lenient decode loop: 16-byte SIMD blocks when aligned and clean, scalar skip otherwise.
+  lenient-loop :: Bytes -> I64 -> I64 -> U32 -> I64 -> Bytes %1 -> I64 -> Bytes
+  lenient-loop raw blen ii acc cnt out oi =
+    if eq-i64 cnt 0 && 0 <= ii && wrapping-add-i64 ii 16 <= blen then
+      let v = load-u128-safe raw ii in
+      case simd-decode16 False v of
+        (ok, lo, hi) ->
+          if ok then
+            let out1 = put-twelve-lin out oi lo hi in
+            lenient-loop raw blen (wrapping-add-i64 ii 16) 0 0 out1 (wrapping-add-i64 oi 12)
+          else lenient-scalar raw blen ii acc cnt out oi
+    else lenient-scalar raw blen ii acc cnt out oi
 
-  -- Whole groups of 4 give 3 bytes; a trailing 2 or 3 values give 1 or
-  -- 2 bytes; a lone trailing value is discarded.
-  lenient-bytes :: List (InRange 0 63 Nat) -> List (InRange 0 255 Nat)
-  lenient-bytes vs = case vs of
-    Cons v0 (Cons v1 (Cons v2 (Cons v3 rest))) ->
-      Cons (join-first v0 v1) (Cons (join-second v1 v2) (Cons (join-third v2 v3) (lenient-bytes rest)))
-    Cons v0 (Cons v1 (Cons v2 _)) -> Cons (join-first v0 v1) (Cons (join-second v1 v2) Nil)
-    Cons v0 (Cons v1 _) -> Cons (join-first v0 v1) Nil
-    _ -> Nil
+  -- | Scalar lenient step: skip non-alphabet bytes, emit 3 bytes per 4 valid symbols, finish tail.
+  lenient-scalar :: Bytes -> I64 -> I64 -> U32 -> I64 -> Bytes %1 -> I64 -> Bytes
+  lenient-scalar raw blen ii acc cnt out oi =
+    if 0 <= ii && lt-i64 ii blen then
+      let b = get-u8-safe raw ii in
+      let v = decode-ascii-val False b in
+      let next-ii = wrapping-add-i64 ii 1 in
+      if lt-u8 v 64 then
+        let acc1 = bit-or-u32 (wrapping-shl-u32 acc 6) (u8-to-u32 v) in
+        let cnt1 = wrapping-add-i64 cnt 1 in
+        if eq-i64 cnt1 4 then
+          let b0 = wrapping-u32-to-u8 (wrapping-shr-u32 acc1 16) in
+          let b1 = wrapping-u32-to-u8 (wrapping-shr-u32 acc1 8) in
+          let b2 = wrapping-u32-to-u8 acc1 in
+          let out1 = put-three-lin out oi b0 b1 b2 in
+          lenient-loop raw blen next-ii 0 0 out1 (wrapping-add-i64 oi 3)
+        else lenient-scalar raw blen next-ii acc1 cnt1 out oi
+      else lenient-scalar raw blen next-ii acc cnt out oi
+    else if eq-i64 cnt 3 then
+      let b0 = wrapping-u32-to-u8 (wrapping-shr-u32 acc 10) in
+      let b1 = wrapping-u32-to-u8 (wrapping-shr-u32 acc 2) in
+      let out1 = put-u8-lin out oi b0 in
+      let out2 = put-u8-lin out1 (wrapping-add-i64 oi 1) b1 in
+      trim-bytes-lin out2 (wrapping-add-i64 oi 2)
+    else if eq-i64 cnt 2 then
+      let b0 = wrapping-u32-to-u8 (wrapping-shr-u32 acc 4) in
+      let out1 = put-u8-lin out oi b0 in
+      trim-bytes-lin out1 (wrapping-add-i64 oi 1)
+    else trim-bytes-lin out oi
