@@ -8,6 +8,7 @@ module Text.Crc32 where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide (clmul-u64, cpu-has-clmul, bit-xor-u128, wrapping-shr-u128, wrapping-u128-to-u64, wrapping-u128-to-u32, u64-to-u128)
   import Text.Binary
 
   export crc32-size
@@ -23,19 +24,21 @@ module Text.Crc32 where
   crc32-size :: Nat
   crc32-size = 4
 
-  -- | Private little-endian base entries and their IEEE fingerprint.
+  -- | Private little-endian Slice-by-8 tables (8 x 256 U32 = 8192 bytes),
+  -- IEEE checkpoint fingerprint of table 0, and reflected polynomial.
   data Crc32Table where
-    -- | Private owned base entries and their checkpoint fingerprint.
-    CrcTable :: Bytes -> U32 -> Crc32Table
+    -- | Private owned Slice-by-8 storage, table-0 fingerprint, and reflected polynomial.
+    CrcTable :: Bytes -> U32 -> U32 -> Crc32Table
 
-  -- | Prepare all 256 entries for any reflected polynomial.
+  -- | Prepare all 8 x 256 Slice-by-8 entries for any reflected polynomial.
   crc32-table :: U32 -> Crc32Table
   crc32-table poly =
-    let storage = bytes-new 1024 in
+    let storage = bytes-new 8192 in
     let checksum = fill-table storage poly 0 (bit-not-u32 0) in
-    CrcTable storage (bit-not-u32 checksum)
+    let _slices = fill-slices storage 1 0 in
+    CrcTable storage (bit-not-u32 checksum) poly
 
-  -- | The checkpoint fingerprint covers each entry's four big-endian bytes.
+  -- | Populate base table 0 (entries 0..255) and compute its IEEE checkpoint fingerprint.
   fill-table :: Bytes -> U32 -> Nat -> U32 -> U32
   fill-table storage poly index acc =
     let pos = index * 4 in
@@ -44,6 +47,20 @@ module Text.Crc32 where
       let written = bytes-write-le32 storage pos word in
       fill-table storage poly (index + 1) (fingerprint-word acc word)
     else acc
+
+  -- | Populate Slice-by-8 tables 1..7 from table 0 using T[s][i] = (T[s-1][i] >> 8) ^ T[0][T[s-1][i] & 0xFF].
+  fill-slices :: Bytes -> Nat -> Nat -> Unit
+  fill-slices storage slice index =
+    if slice == 0 || slice >= 8 then ()
+    else if index >= 256 then fill-slices storage (slice + 1) 0
+    else
+      let prev-off = (slice - 1) * 1024 + index * 4 in
+      let cur-off = slice * 1024 + index * 4 in
+      let prev = table-word storage prev-off in
+      let low = u8-to-nat (wrapping-u32-to-u8 prev) in
+      let next = bit-xor-u32 (wrapping-shr-u32 prev 8) (table-word storage (low * 4)) in
+      let written = if cur-off + 4 <= bytes-len storage then bytes-write-le32 storage cur-off next else () in
+      fill-slices storage slice (index + 1)
 
   -- | Apply a reflected polynomial for the requested number of bits.
   advance :: U32 -> U32 -> Nat -> U32
@@ -71,7 +88,7 @@ module Text.Crc32 where
   crc32-table-entry :: Crc32Table -> Nat -> Option U32
   crc32-table-entry table index =
     if index < 256 then case table of
-      CrcTable storage sum -> Some (table-word storage (index * 4))
+      CrcTable storage sum _ -> Some (table-word storage (index * 4))
     else None
 
   -- | Return all 256 base entries in index order without exposing the owned backing bytes.
@@ -93,11 +110,115 @@ module Text.Crc32 where
   -- | Continue any finished checksum using a prepared polynomial table.
   -- Empty input preserves every supplied bit; inputs and table storage are never modified.
   crc32-table-update :: Crc32Table -> U32 -> Bytes -> U32
-
   crc32-table-update table previous input = case table of
-    CrcTable storage sum -> bit-not-u32 (update-from storage input 0 (bit-not-u32 previous))
+    CrcTable storage _ poly ->
+      let acc0 = bit-not-u32 previous in
+      let n = bytes-len input in
+      if bytes-len-i64 storage == 8192 then
+        if 64 <= n && ne-u32 (cpu-has-clmul 0) 0 && eq-u32 poly 0xEDB88320 then
+          bit-not-u32 (clmul-crc32 storage input acc0 0x154442BD4 0x1C6E41596 0x1751997D0 0xCCAA009E 0x163CD6124 0x1F7011641 0x1DB710641)
+        else if 64 <= n && ne-u32 (cpu-has-clmul 0) 0 && eq-u32 poly 0x82F63B78 then
+          bit-not-u32 (clmul-crc32 storage input acc0 0x740EEF02 0x9E4ADDF8 0xF20C0DFE 0x14CD00BD6 0xDD45AAB8 0xDEA713F1 0x105EC76F1)
+        else if 8 <= n then
+          bit-not-u32 (update-slice8 storage input (n - 8) 0 acc0)
+        else
+          bit-not-u32 (update-tail storage input 0 acc0)
+      else bit-not-u32 (update-from storage input 0 acc0)
 
-  -- | Fold each remaining byte using a prepared table and a complemented accumulator.
+  -- | Zero-branch table lookup into an 8192-byte Slice-by-8 table at (slice-base | byte-index*4).
+  slice-load :: using (bytes-len-i64 storage == 8192) => (storage :: Bytes) -> I64 -> I64 -> U32
+  slice-load storage base idx4 =
+    bytes-load-le32-at storage (mask-i64 (bit-or-i64 base idx4) 8188)
+
+  -- | Fold 8 bytes per iteration using Slice-by-8 and unboxed I64 offsets, then finish the <8-byte tail.
+  update-slice8 :: using (bytes-len-i64 storage == 8192, lim8 + 8 <= bytes-len input) => (storage :: Bytes) -> (input :: Bytes) -> (lim8 :: Nat) -> I64 -> U32 -> U32
+  update-slice8 storage input lim8 pos acc =
+    if 0 <= pos && nat-from-i64 pos <= lim8 then
+      let w = bytes-load-le64-at input pos in
+      let lo = bit-xor-u32 (wrapping-u64-to-u32 w) acc in
+      let hi = wrapping-u64-to-u32 (wrapping-shr-u64 w 32) in
+      let lo-i = u32-to-i64 lo in
+      let hi-i = u32-to-i64 hi in
+      let t7 = slice-load storage 7168 (mask-i64 (wrapping-shl-i64 lo-i 2) 1020) in
+      let t6 = slice-load storage 6144 (mask-i64 (wrapping-shr-i64 lo-i 6) 1020) in
+      let t5 = slice-load storage 5120 (mask-i64 (wrapping-shr-i64 lo-i 14) 1020) in
+      let t4 = slice-load storage 4096 (mask-i64 (wrapping-shr-i64 lo-i 22) 1020) in
+      let t3 = slice-load storage 3072 (mask-i64 (wrapping-shl-i64 hi-i 2) 1020) in
+      let t2 = slice-load storage 2048 (mask-i64 (wrapping-shr-i64 hi-i 6) 1020) in
+      let t1 = slice-load storage 1024 (mask-i64 (wrapping-shr-i64 hi-i 14) 1020) in
+      let t0 = slice-load storage 0 (mask-i64 (wrapping-shr-i64 hi-i 22) 1020) in
+      let next = bit-xor-u32 (bit-xor-u32 (bit-xor-u32 t7 t6) (bit-xor-u32 t5 t4)) (bit-xor-u32 (bit-xor-u32 t3 t2) (bit-xor-u32 t1 t0)) in
+      update-slice8 storage input lim8 (wrapping-add-i64 pos 8) next
+    else update-tail storage input pos acc
+
+  -- | Fold remaining tail bytes (< 8 bytes) using table 0 and unboxed I64 indexing.
+  update-tail :: using (bytes-len-i64 storage == 8192) => (storage :: Bytes) -> (input :: Bytes) -> I64 -> U32 -> U32
+  update-tail storage input pos acc =
+    if 0 <= pos && pos < bytes-len-i64 input then
+      let b = u8-to-u32 (bytes-get-u8-at input pos) in
+      let idx4 = mask-i64 (wrapping-shl-i64 (u32-to-i64 (bit-xor-u32 b acc)) 2) 1020 in
+      let entry = bytes-load-le32-at storage idx4 in
+      update-tail storage input (wrapping-add-i64 pos 1) (bit-xor-u32 entry (wrapping-shr-u32 acc 8))
+    else acc
+
+  -- | Carry-less fold one 128-bit lane forward by a fixed bit distance using reflected constants (k-lo, k-hi).
+  clmul-fold128 :: U128 -> U64 -> U64 -> U128
+  clmul-fold128 lane k-lo k-hi =
+    let lo = wrapping-u128-to-u64 lane in
+    let hi = wrapping-u128-to-u64 (wrapping-shr-u128 lane 64) in
+    bit-xor-u128 (clmul-u64 lo k-lo) (clmul-u64 hi k-hi)
+
+  -- | Hardware carry-less multiply CRC-32 for inputs >= 64 bytes: 4-way 64-byte folding,
+  -- 16-byte folding, Barrett reduction to 32 bits, and Slice-by-8/byte tail.
+  clmul-crc32 :: using (bytes-len-i64 storage == 8192, 64 <= bytes-len input) => (storage :: Bytes) -> (input :: Bytes) -> U32 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U32
+  clmul-crc32 storage input acc0 k544 k480 k160 k96 k64 mu p-prime =
+    let x0 = bit-xor-u128 (bytes-load-u128-at input 0) (u64-to-u128 (u32-to-u64 acc0)) in
+    let x1 = bytes-load-u128-at input 16 in
+    let x2 = bytes-load-u128-at input 32 in
+    let x3 = bytes-load-u128-at input 48 in
+    let n = bytes-len input in
+    let lim16 = n - 16 in
+    clmul-loop64 storage input lim16 64 x0 x1 x2 x3 k544 k480 k160 k96 k64 mu p-prime
+
+  -- | Fold 64 bytes per iteration across four independent 128-bit lanes.
+  clmul-loop64 :: using (bytes-len-i64 storage == 8192, lim16 + 16 <= bytes-len input) => (storage :: Bytes) -> (input :: Bytes) -> (lim16 :: Nat) -> I64 -> U128 -> U128 -> U128 -> U128 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U32
+  clmul-loop64 storage input lim16 pos x0 x1 x2 x3 k544 k480 k160 k96 k64 mu p-prime =
+    let p1 = wrapping-add-i64 pos 16 in
+    let p2 = wrapping-add-i64 pos 32 in
+    let p3 = wrapping-add-i64 pos 48 in
+    if 0 <= pos && 0 <= p1 && 0 <= p2 && 0 <= p3 && nat-from-i64 pos <= lim16 && nat-from-i64 p1 <= lim16 && nat-from-i64 p2 <= lim16 && nat-from-i64 p3 <= lim16 then
+      let y0 = bit-xor-u128 (clmul-fold128 x0 k544 k480) (bytes-load-u128-at input pos) in
+      let y1 = bit-xor-u128 (clmul-fold128 x1 k544 k480) (bytes-load-u128-at input p1) in
+      let y2 = bit-xor-u128 (clmul-fold128 x2 k544 k480) (bytes-load-u128-at input p2) in
+      let y3 = bit-xor-u128 (clmul-fold128 x3 k544 k480) (bytes-load-u128-at input p3) in
+      clmul-loop64 storage input lim16 (wrapping-add-i64 pos 64) y0 y1 y2 y3 k544 k480 k160 k96 k64 mu p-prime
+    else
+      let f1 = bit-xor-u128 x1 (clmul-fold128 x0 k160 k96) in
+      let f2 = bit-xor-u128 x2 (clmul-fold128 f1 k160 k96) in
+      let f3 = bit-xor-u128 x3 (clmul-fold128 f2 k160 k96) in
+      clmul-loop16 storage input lim16 pos f3 k160 k96 k64 mu p-prime
+
+  -- | Fold remaining 16-byte chunks, reduce 128 -> 32 via Barrett reduction, and finish any <16-byte tail.
+  clmul-loop16 :: using (bytes-len-i64 storage == 8192, lim16 + 16 <= bytes-len input) => (storage :: Bytes) -> (input :: Bytes) -> (lim16 :: Nat) -> I64 -> U128 -> U64 -> U64 -> U64 -> U64 -> U64 -> U32
+  clmul-loop16 storage input lim16 pos lane k160 k96 k64 mu p-prime =
+    if 0 <= pos && nat-from-i64 pos <= lim16 then
+      let next = bit-xor-u128 (clmul-fold128 lane k160 k96) (bytes-load-u128-at input pos) in
+      clmul-loop16 storage input lim16 (wrapping-add-i64 pos 16) next k160 k96 k64 mu p-prime
+    else
+      let lo64 = wrapping-u128-to-u64 lane in
+      let hi64 = wrapping-u128-to-u64 (wrapping-shr-u128 lane 64) in
+      let a = bit-xor-u128 (clmul-u64 lo64 k96) (u64-to-u128 hi64) in
+      let alo = u32-to-u64 (wrapping-u128-to-u32 a) in
+      let b = bit-xor-u128 (clmul-u64 alo k64) (wrapping-shr-u128 a 32) in
+      let blo = u32-to-u64 (wrapping-u128-to-u32 b) in
+      let t1 = u32-to-u64 (wrapping-u128-to-u32 (clmul-u64 blo mu)) in
+      let t2 = clmul-u64 t1 p-prime in
+      let acc = wrapping-u128-to-u32 (wrapping-shr-u128 (bit-xor-u128 b t2) 32) in
+      let n = bytes-len input in
+      if 8 <= n then update-slice8 storage input (n - 8) pos acc
+      else update-tail storage input pos acc
+
+  -- | Fallback byte-by-byte fold using a prepared table and a complemented accumulator.
   update-from :: Bytes -> Bytes -> Nat -> U32 -> U32
   update-from storage input pos acc =
     if pos < bytes-len input then
@@ -155,7 +276,7 @@ module Text.Crc32 where
   crc32-state-save :: Crc32State -> Bytes
   crc32-state-save state = case state of
     CrcState table word -> case table of
-      CrcTable storage sum -> join (bytes-from-u8s [99, 114, 99, 1]) (join (binary-u32 BigEndian sum) (binary-u32 BigEndian word))
+      CrcTable storage sum _ -> join (bytes-from-u8s [99, 114, 99, 1]) (join (binary-u32 BigEndian sum) (binary-u32 BigEndian word))
 
   -- | Append a complete checkpoint to a copied prefix, preserving the state.
   crc32-state-append-save :: Bytes -> Crc32State -> Bytes
@@ -185,7 +306,7 @@ module Text.Crc32 where
       if bytes-get input 0 == 99 && bytes-get input 1 == 114 && bytes-get input 2 == 99 && bytes-get input 3 == 1 then
         if bytes-len input == 12 then case binary-read-u32 BigEndian input 4 of
           Ok actual -> case table of
-            CrcTable storage expected ->
+            CrcTable storage expected _ ->
               if eq-u32 actual expected then case binary-read-u32 BigEndian input 8 of
                 Ok word -> Ok (CrcState table word)
                 Err error -> Err (InvalidCrc32StateSize 12 (bytes-len input))
