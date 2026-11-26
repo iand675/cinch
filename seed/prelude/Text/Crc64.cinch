@@ -1,7 +1,8 @@
--- | CRC-64 polynomial tables, persistent accumulators and binary checkpoints.
--- Tables own immutable slicing-by-eight storage; construction generates pairs
--- of entries with 128-bit SIMD lanes. Updates combine eight packed input bytes per
--- step and handle exact tails. Digest and checkpoint words use network order.
+-- | CRC-64 polynomial tables, hardware CLMUL folding, persistent accumulators and binary checkpoints.
+-- Standard ISO and ECMA polynomials use 4-way hardware carry-less multiplication
+-- (PCLMULQDQ / PMULL) when supported by the target processor with zero table allocation.
+-- Arbitrary reflected polynomials build slicing-by-eight storage using linear `%1` ownership
+-- and SIMD lane generation. Digest and checkpoint words use network order.
 -- Retaining a state branches the computation. This checksum does not authenticate data.
 module Text.Crc64 where
 
@@ -12,7 +13,7 @@ module Text.Crc64 where
   import Data.Option
   import Data.Result
   import Data.String
-  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128, bit-and-u128, bit-xor-u128, simd-u64x2-splat, simd-u64x2-pack, simd-u64x2-sub, simd-u64x2-shr)
+  import Data.Wide (ArmAes, u64-to-u128, wrapping-u128-to-u64, wrapping-shr-u128, bit-and-u128, bit-xor-u128, simd-u64x2-splat, simd-u64x2-pack, simd-u64x2-sub, simd-u64x2-shr)
   import Text.Binary
 
   export crc64-iso, crc64-ecma, crc64-size, crc64-sum, crc64-update
@@ -27,44 +28,151 @@ module Text.Crc64 where
   crc64-size :: Nat
   crc64-size = 8
 
-  -- | An immutable polynomial table with eight derived slices and a checkpoint fingerprint.
+  -- | Report non-zero when hardware 64x64 carry-less multiplication may execute on this target.
+  prim crc64-has-clmul :: U32 -> U32 where
+    unsafe llvm {
+      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
+      %ecx = extractvalue { i32, i32, i32, i32 } %regs, 2
+      %bit = and i32 %ecx, 2
+      ret i32 %bit
+    } when arch x86_64
+    llvm {
+      ret i32 1
+    } when arch aarch64 when os darwin
+    llvm {
+      ret i32 1
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i32 0
+    }
+
+  -- | Hardware 64x64-bit carry-less multiplication into U128; callers guard with crc64-has-clmul.
+  prim crc64-clmul :: U64 -> U64 -> U128 where
+    unsafe llvm {
+      %va = insertelement <2 x i64> zeroinitializer, i64 %0, i64 0
+      %vb = insertelement <2 x i64> zeroinitializer, i64 %1, i64 0
+      %vr = call <2 x i64> asm "pclmulqdq $$0, $2, $0", "=x,0,x"(<2 x i64> %va, <2 x i64> %vb)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    } when arch x86_64
+    unsafe llvm {
+      %va = insertelement <1 x i64> poison, i64 %0, i64 0
+      %vb = insertelement <1 x i64> poison, i64 %1, i64 0
+      %vr = call <16 x i8> asm ".arch_extension aes\0Apmull $0.1q, $1.1d, $2.1d", "=w,w,w"(<1 x i64> %va, <1 x i64> %vb)
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when os darwin
+    unsafe llvm {
+      %va = insertelement <1 x i64> poison, i64 %0, i64 0
+      %vb = insertelement <1 x i64> poison, i64 %1, i64 0
+      %vr = call <16 x i8> asm ".arch_extension aes\0Apmull $0.1q, $1.1d, $2.1d", "=w,w,w"(<1 x i64> %va, <1 x i64> %vb)
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i128 0
+    }
+
+  -- | Private raw 64-bit store returning its storage buffer.
+  store-le64-raw :: Bytes -> I64 -> U64 -> Bytes
+  store-le64-raw b pos v =
+    let n = bytes-len-i64 b in
+    if 8 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 8 <= nn && nat-from-i64 pos <= nn - 8 then
+        let w = bytes-store-le64-at b pos v in b
+      else b
+    else b
+
+  -- | Linearly store one 64-bit little-endian word into owned table storage.
+  store-le64-lin :: Bytes %1 -> I64 -> U64 -> Bytes
+  store-le64-lin b pos v = store-le64-raw b pos v
+
+  -- | Private raw pair of 64-bit stores returning the storage buffer.
+  store-pair64-raw :: Bytes -> I64 -> U64 -> U64 -> Bytes
+  store-pair64-raw b pos lo hi =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 16 <= nn && nat-from-i64 pos <= nn - 16 then
+        let w0 = bytes-store-le64-at b pos lo in
+        let p8 = wrapping-add-i64 pos 8 in
+        if 0 <= p8 && nat-from-i64 p8 <= nn - 8 then
+          let w1 = bytes-store-le64-at b p8 hi in b
+        else b
+      else b
+    else b
+
+  -- | Linearly store two adjacent 64-bit words into owned table storage.
+  store-pair64-lin :: Bytes %1 -> I64 -> U64 -> U64 -> Bytes
+  store-pair64-lin b pos lo hi = store-pair64-raw b pos lo hi
+
+  -- | Private raw slice step reading the prior row and base row and writing the derived entry.
+  slice-step-raw :: Bytes -> I64 -> Bytes
+  slice-step-raw b pos =
+    let n = bytes-len-i64 b in
+    if 8 <= n && 2048 <= pos then
+      let nn = nat-from-i64 n in
+      let prev-pos = wrapping-sub-i64 pos 2048 in
+      if 8 <= nn && 0 <= prev-pos && nat-from-i64 pos <= nn - 8 && nat-from-i64 prev-pos <= nn - 8 then
+        let prev = bytes-load-le64-at b prev-pos in
+        let idx = wrapping-shl-i64 (u8-to-i64 (wrapping-u64-to-u8 prev)) 3 in
+        let base-word = if 0 <= idx && nat-from-i64 idx <= nn - 8 then bytes-load-le64-at b idx else 0 in
+        let val = bit-xor-u64 base-word (wrapping-shr-u64 prev 8) in
+        let w = bytes-store-le64-at b pos val in b
+      else b
+    else b
+
+  -- | Linearly derive and store one slice-table entry in owned storage.
+  slice-step-lin :: Bytes %1 -> I64 -> Bytes
+  slice-step-lin b pos = slice-step-raw b pos
+
+  -- | Private raw copy range returning the destination buffer.
+  copy-range-raw :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Bytes
+  copy-range-raw dst src di si n =
+    if di + n <= bytes-len dst && si + n <= bytes-len src then
+      let c = bytes-copy-range dst src di si n in dst
+    else dst
+
+  -- | Linearly copy `n` bytes from `src` into a uniquely owned destination buffer.
+  copy-range-lin :: Bytes %1 -> Bytes -> Nat -> Nat -> Nat -> Bytes
+  copy-range-lin dst src di si n = copy-range-raw dst src di si n
+
+  -- | An immutable polynomial table with eight derived slices, checkpoint fingerprint, and polynomial.
   -- Retain and reuse a prepared table across updates to amortize its construction.
   data Crc64Table where
-    -- | Private 16384-byte little-endian table storage and its network-order base-table checksum.
-    CrcTable :: Bytes -> U64 -> Crc64Table
+    -- | Private 16384-byte little-endian table storage, network-order base fingerprint, and reflected polynomial.
+    CrcTable :: Bytes -> U64 -> U64 -> Crc64Table
 
-  -- | Prepare all 256 polynomial entries and seven derived slices in fresh owned storage.
+  -- | Prepare all 256 polynomial entries and seven derived slices in fresh linearly owned storage.
   -- The argument is a reflected polynomial; every U64 value is supported.
   crc64-table :: U64 -> Crc64Table
   crc64-table poly =
-    let storage = bytes-new 16384 in
-    let base = fill-base storage poly 0 0 in
-    let slices = fill-slices storage 2048 in
-    CrcTable storage (bit-not-u64 (fingerprint storage 0 (bit-not-u64 0)))
+    let storage0 = bytes-new 16384 in
+    let storage1 = fill-base storage0 poly 0 0 in
+    let storage2 = fill-slices storage1 2048 in
+    CrcTable storage2 (bit-not-u64 (fingerprint storage2 0 (bit-not-u64 0))) poly
 
-  -- | Write pairs of independent base entries into an exactly bounded table interval.
-  fill-base :: Bytes -> U64 -> Nat -> U64 -> Unit
+  -- | Linearly write pairs of independent base entries into the owned table interval.
+  fill-base :: Bytes %1 -> U64 -> I64 -> U64 -> Bytes
   fill-base storage poly pos index =
-    if pos + 16 <= 2048 && pos + 16 <= bytes-len storage then
+    if lt-i64 pos 2048 then
       let pair = table-pair poly index in
-      let first = bytes-store-le64 storage pos (pair-low pair) in
-      let last = bytes-store-le64 storage (pos + 8) (pair-high pair) in
-      fill-base storage poly (pos + 16) (wrapping-add-u64 index 2)
-    else ()
+      let next-storage = store-pair64-lin storage pos (pair-low pair) (pair-high pair) in
+      fill-base next-storage poly (wrapping-add-i64 pos 16) (wrapping-add-u64 index 2)
+    else storage
 
   -- | Read one private table word only after checking its complete byte interval.
   table-word :: Bytes -> Nat -> U64
   table-word storage pos = if pos + 8 <= bytes-len storage then bytes-load-le64 storage pos else 0
 
-  -- | Derive successive byte-shift slices from the previous row and the base row.
-  fill-slices :: Bytes -> Nat -> Unit
+  -- | Linearly derive successive byte-shift slices from the previous row and the base row.
+  fill-slices :: Bytes %1 -> I64 -> Bytes
   fill-slices storage pos =
-    if 2048 <= pos && pos + 8 <= 16384 && pos + 8 <= bytes-len storage then
-      let previous = table-word storage (pos - 2048) in
-      let index = u8-to-nat (wrapping-u64-to-u8 previous) in
-      let value = bit-xor-u64 (table-word storage (index * 8)) (wrapping-shr-u64 previous 8) in
-      let written = bytes-store-le64 storage pos value in fill-slices storage (pos + 8)
-    else ()
+    if lt-i64 pos 16384 then
+      let next-storage = slice-step-lin storage pos in
+      fill-slices next-storage (wrapping-add-i64 pos 8)
+    else storage
 
   -- | Checksum the base entries as 2048 network-order bytes using the fixed ISO polynomial.
   fingerprint :: Bytes -> Nat -> U64 -> U64
@@ -81,7 +189,7 @@ module Text.Crc64 where
   crc64-table-entry :: Crc64Table -> Nat -> Option U64
   crc64-table-entry table index =
     if index < 256 then case table of
-      CrcTable storage sum -> Some (table-word storage (index * 8))
+      CrcTable storage sum poly -> Some (table-word storage (index * 8))
     else None
 
   -- | Return all 256 base entries in index order without exposing the owned backing bytes.
@@ -101,11 +209,18 @@ module Text.Crc64 where
   crc64-table-sum table input = crc64-table-update table 0 input
 
   -- | Continue any finished checksum using a prepared polynomial table.
+  -- Standard ISO and ECMA tables dispatch to 4-way hardware CLMUL when available.
   -- Empty input preserves every supplied bit; inputs and table storage are never modified.
   crc64-table-update :: Crc64Table -> U64 -> Bytes -> U64
   crc64-table-update table previous input = case table of
-    CrcTable storage sum ->
-      if 16384 <= bytes-len-i64 storage then
+    CrcTable storage sum poly ->
+      if ne-u32 (crc64-has-clmul 0) 0 && 16 <= bytes-len-i64 input then
+        if eq-u64 poly crc64-ecma then crc64-clmul-ecma previous input
+        else if eq-u64 poly crc64-iso then crc64-clmul-iso previous input
+        else if 16384 <= bytes-len-i64 storage then
+          bit-not-u64 (word-from-blocks storage input 0 (bit-not-u64 previous))
+        else previous
+      else if 16384 <= bytes-len-i64 storage then
         bit-not-u64 (word-from-blocks storage input 0 (bit-not-u64 previous))
       else previous
 
@@ -165,12 +280,13 @@ module Text.Crc64 where
   crc64-state-sum :: Crc64State -> Bytes
   crc64-state-sum state = binary-u64 BigEndian (crc64-state-word state)
 
-  -- | Join two byte intervals in fresh storage without retaining mutable aliases.
+  -- | Join two byte intervals in fresh linearly owned storage without retaining mutable aliases.
   join :: Bytes -> Bytes -> Bytes
   join first last =
-    let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
-    let a = bytes-copy-range out first 0 0 n in
-    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+    let n = bytes-len first in
+    let out0 = bytes-new (n + bytes-len last) in
+    let out1 = copy-range-lin out0 first 0 0 n in
+    copy-range-lin out1 last n 0 (bytes-len last)
 
   -- | Append the network-order digest to a copied prefix without changing either argument.
   crc64-state-append :: Bytes -> Crc64State -> Bytes
@@ -181,7 +297,7 @@ module Text.Crc64 where
   crc64-state-save :: Crc64State -> Bytes
   crc64-state-save state = case state of
     CrcState table word -> case table of
-      CrcTable storage sum -> join (bytes-from-u8s [99, 114, 99, 2]) (join (binary-u64 BigEndian sum) (binary-u64 BigEndian word))
+      CrcTable storage sum poly -> join (bytes-from-u8s [99, 114, 99, 2]) (join (binary-u64 BigEndian sum) (binary-u64 BigEndian word))
 
   -- | Append a complete checkpoint to a copied prefix, preserving the state.
   crc64-state-append-save :: Bytes -> Crc64State -> Bytes
@@ -211,7 +327,7 @@ module Text.Crc64 where
       if bytes-get input 0 == 99 && bytes-get input 1 == 114 && bytes-get input 2 == 99 && bytes-get input 3 == 2 then
         if bytes-len input == 20 then case binary-read-u64 BigEndian input 4 of
           Ok actual -> case table of
-            CrcTable storage expected ->
+            CrcTable storage expected poly ->
               if eq-u64 actual expected then case binary-read-u64 BigEndian input 12 of
                 Ok word -> Ok (CrcState table word)
                 Err error -> Err (InvalidCrc64StateSize 20 (bytes-len input))
@@ -234,12 +350,137 @@ module Text.Crc64 where
   crc64-sum poly b = crc64-update poly 0 b
 
   -- | Continue a finished CRC-64 with a reflected polynomial, preserving empty updates.
-  -- Chunks of at least 16384 bytes prepare a slicing table; shorter chunks use
-  -- the direct shift register. Reuse crc64-table-update to amortize table setup.
+  -- Standard ISO and ECMA inputs of at least 16 bytes use 4-way hardware CLMUL with zero
+  -- table allocation; other polynomials use slicing tables for large inputs or shift registers.
   crc64-update :: U64 -> U64 -> Bytes -> U64
   crc64-update poly previous b =
-    if 16384 <= bytes-len b then crc64-table-update (crc64-table poly) previous b
+    if ne-u32 (crc64-has-clmul 0) 0 && 16 <= bytes-len-i64 b then
+      if eq-u64 poly crc64-ecma then crc64-clmul-ecma previous b
+      else if eq-u64 poly crc64-iso then crc64-clmul-iso previous b
+      else if 16384 <= bytes-len b then crc64-table-update (crc64-table poly) previous b
+      else bit-not-u64 (crc64-blocks poly b 0 (bit-not-u64 previous))
+    else if 16384 <= bytes-len b then crc64-table-update (crc64-table poly) previous b
     else bit-not-u64 (crc64-blocks poly b 0 (bit-not-u64 previous))
+
+  -- -----------------------------------------------------------------
+  -- 4-way hardware CLMUL folding for reflected CRC-64 (ISO and ECMA).
+  -- -----------------------------------------------------------------
+
+  -- | Fold a 128-bit accumulator (lo, hi) forward using reflected GF(2) constants (klo, khi).
+  clmul-fold-pair :: U64 -> U64 -> U64 -> U64 -> U128
+  clmul-fold-pair lo hi klo khi =
+    bit-xor-u128 (crc64-clmul lo klo) (crc64-clmul hi khi)
+
+  -- | Barrett-reduce a 128-bit reflected polynomial (lo, hi) modulo P to a 64-bit CRC register.
+  clmul-reduce128 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  clmul-reduce128 lo hi k64 mu-lo poly =
+    let t = bit-xor-u128 (crc64-clmul lo k64) (u64-to-u128 hi) in
+    let t-lo = wrapping-u128-to-u64 t in
+    let t-hi = wrapping-u128-to-u64 (wrapping-shr-u128 t 64) in
+    let q = bit-xor-u64 t-lo (wrapping-shl-u64 (wrapping-u128-to-u64 (crc64-clmul t-lo mu-lo)) 1) in
+    let p = wrapping-u128-to-u64 (wrapping-shr-u128 (crc64-clmul q poly) 63) in
+    bit-xor-u64 t-hi p
+
+  -- | Load one 64-bit little-endian word from a checked input buffer.
+  load-le64-safe :: Bytes -> I64 -> U64
+  load-le64-safe b pos =
+    let n = bytes-len-i64 b in
+    if 8 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 8 <= nn && nat-from-i64 pos <= nn - 8 then bytes-load-le64-at b pos else 0
+    else 0
+
+  -- | Load one 128-bit word from a checked input buffer.
+  load-u128-safe :: Bytes -> I64 -> U128
+  load-u128-safe b pos =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 16 <= nn && nat-from-i64 pos <= nn - 16 then bytes-load-u128-at b pos else 0
+    else 0
+
+  -- | Four-way 64-byte hardware CLMUL loop with unboxed accumulators and hoisted bound.
+  clmul-loop64 :: Bytes -> I64 -> I64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  clmul-loop64 b n pos x0l x0h x1l x1h x2l x2h x3l x3h k512l k512h k128l k128h mu-lo poly =
+    if 0 <= pos && wrapping-add-i64 pos 64 <= n then
+      let p0 = clmul-fold-pair x0l x0h k512l k512h in
+      let p1 = clmul-fold-pair x1l x1h k512l k512h in
+      let p2 = clmul-fold-pair x2l x2h k512l k512h in
+      let p3 = clmul-fold-pair x3l x3h k512l k512h in
+      let d0 = bit-xor-u128 p0 (load-u128-safe b pos) in
+      let d1 = bit-xor-u128 p1 (load-u128-safe b (wrapping-add-i64 pos 16)) in
+      let d2 = bit-xor-u128 p2 (load-u128-safe b (wrapping-add-i64 pos 32)) in
+      let d3 = bit-xor-u128 p3 (load-u128-safe b (wrapping-add-i64 pos 48)) in
+      let nx0l = wrapping-u128-to-u64 d0 in
+      let nx0h = wrapping-u128-to-u64 (wrapping-shr-u128 d0 64) in
+      let nx1l = wrapping-u128-to-u64 d1 in
+      let nx1h = wrapping-u128-to-u64 (wrapping-shr-u128 d1 64) in
+      let nx2l = wrapping-u128-to-u64 d2 in
+      let nx2h = wrapping-u128-to-u64 (wrapping-shr-u128 d2 64) in
+      let nx3l = wrapping-u128-to-u64 d3 in
+      let nx3h = wrapping-u128-to-u64 (wrapping-shr-u128 d3 64) in
+      clmul-loop64 b n (wrapping-add-i64 pos 64) nx0l nx0h nx1l nx1h nx2l nx2h nx3l nx3h k512l k512h k128l k128h mu-lo poly
+    else clmul-finish4 b n pos x0l x0h x1l x1h x2l x2h x3l x3h k128l k128h mu-lo poly
+
+  -- | Collapse four 128-bit lanes down to one and fold any remaining 16-byte blocks.
+  clmul-finish4 :: Bytes -> I64 -> I64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  clmul-finish4 b n pos x0l x0h x1l x1h x2l x2h x3l x3h k128l k128h mu-lo poly =
+    let f0 = clmul-fold-pair x0l x0h k128l k128h in
+    let y1l = bit-xor-u64 x1l (wrapping-u128-to-u64 f0) in
+    let y1h = bit-xor-u64 x1h (wrapping-u128-to-u64 (wrapping-shr-u128 f0 64)) in
+    let f1 = clmul-fold-pair y1l y1h k128l k128h in
+    let y2l = bit-xor-u64 x2l (wrapping-u128-to-u64 f1) in
+    let y2h = bit-xor-u64 x2h (wrapping-u128-to-u64 (wrapping-shr-u128 f1 64)) in
+    let f2 = clmul-fold-pair y2l y2h k128l k128h in
+    let y3l = bit-xor-u64 x3l (wrapping-u128-to-u64 f2) in
+    let y3h = bit-xor-u64 x3h (wrapping-u128-to-u64 (wrapping-shr-u128 f2 64)) in
+    clmul-loop16 b n pos y3l y3h k128l k128h mu-lo poly
+
+  -- | Single-lane 16-byte CLMUL fold loop followed by Barrett reduction and byte tail.
+  clmul-loop16 :: Bytes -> I64 -> I64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  clmul-loop16 b n pos xl xh k128l k128h mu-lo poly =
+    if 0 <= pos && wrapping-add-i64 pos 16 <= n then
+      let f = clmul-fold-pair xl xh k128l k128h in
+      let nxl = bit-xor-u64 (wrapping-u128-to-u64 f) (load-le64-safe b pos) in
+      let nxh = bit-xor-u64 (wrapping-u128-to-u64 (wrapping-shr-u128 f 64)) (load-le64-safe b (wrapping-add-i64 pos 8)) in
+      clmul-loop16 b n (wrapping-add-i64 pos 16) nxl nxh k128l k128h mu-lo poly
+    else
+      let reduced = clmul-reduce128 xl xh k128h mu-lo poly in
+      bit-not-u64 (crc64-tail poly b pos reduced)
+
+  -- | Run 4-way CLMUL folding with caller-supplied GF(2) constants for an input of at least 16 bytes.
+  crc64-clmul-run :: U64 -> Bytes -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  crc64-clmul-run previous b k512l k512h k128l k128h mu-lo poly =
+    let n = bytes-len-i64 b in
+    let acc = bit-not-u64 previous in
+    if ge-i64 n 64 then
+      let x0l = bit-xor-u64 (load-le64-safe b 0) acc in
+      let x0h = load-le64-safe b 8 in
+      let x1l = load-le64-safe b 16 in
+      let x1h = load-le64-safe b 24 in
+      let x2l = load-le64-safe b 32 in
+      let x2h = load-le64-safe b 40 in
+      let x3l = load-le64-safe b 48 in
+      let x3h = load-le64-safe b 56 in
+      clmul-loop64 b n 64 x0l x0h x1l x1h x2l x2h x3l x3h k512l k512h k128l k128h mu-lo poly
+    else
+      let xl = bit-xor-u64 (load-le64-safe b 0) acc in
+      let xh = load-le64-safe b 8 in
+      clmul-loop16 b n 16 xl xh k128l k128h mu-lo poly
+
+  -- | Hardware CLMUL CRC-64 for the reflected ECMA polynomial (0xC96C5795D7870F42).
+  crc64-clmul-ecma :: U64 -> Bytes -> U64
+  crc64-clmul-ecma previous b =
+    crc64-clmul-run previous b 0x6AE3EFBB9DD441F3 0x081F6054A7842DF4 0xE05DD497CA393AE4 0xDABE95AFC7875F40 0x4E1F23360B94B1EA crc64-ecma
+
+  -- | Hardware CLMUL CRC-64 for the reflected ISO polynomial (0xD800000000000000).
+  crc64-clmul-iso :: U64 -> Bytes -> U64
+  crc64-clmul-iso previous b =
+    crc64-clmul-run previous b 0x01B001B1B0000001 0xB100010100000001 0x6B70000000000001 0xF500000000000001 0xD800000000000000 crc64-iso
+
+  -- -----------------------------------------------------------------
+  -- Portable shift-register and slice-by-eight fallback kernels.
+  -- -----------------------------------------------------------------
 
   -- | Consume complete eight-byte shift-register blocks without per-iteration Nat boxing.
   crc64-blocks :: U64 -> Bytes -> I64 -> U64 -> U64
