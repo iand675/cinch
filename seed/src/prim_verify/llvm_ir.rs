@@ -85,7 +85,11 @@ fn strip_comment(line: &str) -> &str {
     }
 }
 
-/// Lower a straight-line LLVM IR fragment into `SemProgram`.
+/// Lower a straight-line or acyclic multi-block LLVM IR fragment into `SemProgram`.
+///
+/// Supports forward-only basic blocks (`label:`, `br i1`, `br label`, `phi`),
+/// guarding instruction-local UB by each block's exact path reachability condition
+/// and enforcing strict acyclicity (rejecting any backward branch or loop).
 pub fn lower_llvm_fragment(
     fragment: &str,
     params: &[SemParam],
@@ -111,225 +115,405 @@ pub fn lower_llvm_fragment(
         );
     }
 
-    let mut ub_cond = g.bool_const(false);
-    let mut ret_val: Option<SemVal> = None;
-
+    // Partition lines into basic blocks. If the fragment starts with instructions
+    // rather than an explicit label, they belong to implicit block `"entry"`.
+    struct RawBlock {
+        name: String,
+        lines: Vec<(usize, String)>,
+    }
+    let mut blocks: Vec<RawBlock> = Vec::new();
     for (line_no, raw) in fragment.lines().enumerate() {
         let line = strip_comment(raw).trim();
         if line.is_empty() {
             continue;
         }
-        if line.ends_with(':') {
-            return Err(SemError::Unsupported(format!(
-                "line {}: basic block labels/CFG are outside straight-line llvm-sem",
-                line_no + 1
-            )));
-        }
-
-        // Optional `%dst = ...`
-        let (dst, rhs) = if line.starts_with('%') {
-            let eq = line.find('=').ok_or_else(|| {
-                SemError::Parse(format!("line {}: expected `=` after register", line_no + 1))
-            })?;
-            (Some(line[..eq].trim().to_string()), line[eq + 1..].trim())
+        if let Some(lbl) = line.strip_suffix(':') {
+            let lbl = lbl.trim();
+            if lbl.is_empty() || lbl.contains(char::is_whitespace) {
+                return Err(SemError::Parse(format!(
+                    "line {}: invalid basic block label `{line}`",
+                    line_no + 1
+                )));
+            }
+            if blocks.iter().any(|b| b.name == lbl) {
+                return Err(SemError::Parse(format!(
+                    "line {}: duplicate basic block label `{lbl}`",
+                    line_no + 1
+                )));
+            }
+            blocks.push(RawBlock { name: lbl.to_string(), lines: Vec::new() });
         } else {
-            (None, line)
-        };
-
-        let (op, rest) = split_head_word(rhs);
-        match op {
-            "ret" => {
-                let (ty, rest) = parse_ty(rest)?;
-                let operand = parse_operand(rest.trim())?;
-                let val = eval_operand(&mut g, &env, &ty, &operand)?;
-                ret_val = Some(val);
+            if blocks.is_empty() {
+                blocks.push(RawBlock { name: "entry".to_string(), lines: Vec::new() });
             }
-            "load" | "store" | "inttoptr" | "ptrtoint" | "getelementptr" | "alloca"
-            | "cmpxchg" | "atomicrmw" | "fence" => {
-                return Err(SemError::Unsupported(format!(
-                    "memory/pointer instruction `{op}` requires a memory-model semantics plugin"
-                )));
-            }
-            "br" | "switch" | "indirectbr" | "phi" | "invoke" | "unreachable" => {
-                return Err(SemError::Unsupported(format!(
-                    "control-flow instruction `{op}` is outside straight-line llvm-sem"
-                )));
-            }
-            "add" | "sub" | "mul" | "udiv" | "urem" | "sdiv" | "srem" | "and" | "or" | "xor"
-            | "shl" | "lshr" | "ashr" => {
-                let (flags, rest) = parse_arith_flags(rest);
-                let (ty, rest) = parse_ty(rest)?;
-                let (op1, op2) = parse_two_operands(rest)?;
-                let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
-                let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
-                let res = lower_int_binop(&mut g, &mut ub_cond, op, flags, &ty, &v1, &v2)?;
-                bind_dst(&mut env, dst, ty, res)?;
-            }
-            "fadd" | "fsub" | "fmul" | "fdiv" => {
-                let rest = skip_fast_math_flags(rest);
-                let (ty, rest) = parse_ty(rest)?;
-                let (op1, op2) = parse_two_operands(rest)?;
-                let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
-                let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
-                let res = lower_fp_binop(&mut g, op, &v1, &v2)?;
-                bind_dst(&mut env, dst, ty, res)?;
-            }
-            "fneg" => {
-                let rest = skip_fast_math_flags(rest);
-                let (ty, rest) = parse_ty(rest)?;
-                let op1 = parse_operand(rest.trim())?;
-                let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
-                let (val, poison) = v1.as_scalar().ok_or_else(|| {
-                    SemError::Unsupported("vector fneg not yet modeled".to_string())
-                })?;
-                let r = g.fp_neg(val);
-                bind_dst(&mut env, dst, ty, SemVal::Scalar { val: r, poison })?;
-            }
-            "icmp" => {
-                let (pred, rest) = split_head_word(rest);
-                let (ty, rest) = parse_ty(rest)?;
-                let (op1, op2) = parse_two_operands(rest)?;
-                let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
-                let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
-                let (out_ty, res) = lower_icmp(&mut g, pred, &ty, &v1, &v2)?;
-                bind_dst(&mut env, dst, out_ty, res)?;
-            }
-            "fcmp" => {
-                let rest = skip_fast_math_flags(rest);
-                let (pred, rest) = split_head_word(rest);
-                let (ty, rest) = parse_ty(rest)?;
-                let (op1, op2) = parse_two_operands(rest)?;
-                let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
-                let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
-                let (a, pa) = v1.as_scalar().ok_or_else(|| {
-                    SemError::Unsupported("vector fcmp not yet modeled".to_string())
-                })?;
-                let (b, pb) = v2.as_scalar().ok_or_else(|| {
-                    SemError::Unsupported("vector fcmp not yet modeled".to_string())
-                })?;
-                let fp_pred = parse_fp_pred(pred)?;
-                let cmp = g.fp_cmp(fp_pred, a, b);
-                let val = g.bool_to_bv1(cmp);
-                let poison = g.or(pa, pb);
-                bind_dst(&mut env, dst, LlvmTy::Int(1), SemVal::Scalar { val, poison })?;
-            }
-            "zext" | "sext" | "trunc" | "bitcast" | "sitofp" | "uitofp" | "fptosi" | "fptoui"
-            | "fpext" | "fptrunc" => {
-                let (src_ty, rest) = parse_ty(rest)?;
-                let (op_str, dst_str) = split_on_keyword_to(rest)?;
-                let op1 = parse_operand(op_str.trim())?;
-                let (dst_ty, _) = parse_ty(dst_str.trim())?;
-                let v1 = eval_operand(&mut g, &env, &src_ty, &op1)?;
-                let res = lower_cast(&mut g, op, &src_ty, &dst_ty, &v1)?;
-                bind_dst(&mut env, dst, dst_ty, res)?;
-            }
-            "select" => {
-                let rest = skip_fast_math_flags(rest);
-                let (c_ty, rest) = parse_ty(rest)?;
-                let (c_op, rest) = parse_operand_until_comma(rest)?;
-                let (t_ty, rest) = parse_ty(rest)?;
-                let (t_op, rest) = parse_operand_until_comma(rest)?;
-                let (f_ty, rest) = parse_ty(rest)?;
-                let f_op = parse_operand(rest.trim())?;
-                if t_ty != f_ty {
-                    return Err(SemError::Parse(format!(
-                        "select branch type mismatch: {t_ty:?} vs {f_ty:?}"
-                    )));
-                }
-                let vc = eval_operand(&mut g, &env, &c_ty, &c_op)?;
-                let vt = eval_operand(&mut g, &env, &t_ty, &t_op)?;
-                let vf = eval_operand(&mut g, &env, &f_ty, &f_op)?;
-                let res = lower_select(&mut g, &vc, &vt, &vf)?;
-                bind_dst(&mut env, dst, t_ty, res)?;
-            }
-            "insertelement" => {
-                let (v_ty, rest) = parse_ty(rest)?;
-                let (v_op, rest) = parse_operand_until_comma(rest)?;
-                let (e_ty, rest) = parse_ty(rest)?;
-                let (e_op, rest) = parse_operand_until_comma(rest)?;
-                let (i_ty, rest) = parse_ty(rest)?;
-                let i_op = parse_operand(rest.trim())?;
-                let vv = eval_operand(&mut g, &env, &v_ty, &v_op)?;
-                let ve = eval_operand(&mut g, &env, &e_ty, &e_op)?;
-                let res = lower_insertelement(&mut g, &v_ty, &vv, &ve, &i_ty, &i_op)?;
-                bind_dst(&mut env, dst, v_ty, res)?;
-            }
-            "extractelement" => {
-                let (v_ty, rest) = parse_ty(rest)?;
-                let (v_op, rest) = parse_operand_until_comma(rest)?;
-                let (_i_ty, rest) = parse_ty(rest)?;
-                let i_op = parse_operand(rest.trim())?;
-                let vv = eval_operand(&mut g, &env, &v_ty, &v_op)?;
-                let (elem_ty, res) = lower_extractelement(&mut g, &v_ty, &vv, &i_op)?;
-                bind_dst(&mut env, dst, elem_ty, res)?;
-            }
-            "shufflevector" => {
-                let (v1_ty, rest) = parse_ty(rest)?;
-                let (v1_op, rest) = parse_operand_until_comma(rest)?;
-                let (v2_ty, rest) = parse_ty(rest)?;
-                let (v2_op, rest) = parse_operand_until_comma(rest)?;
-                let (m_ty, rest) = parse_ty(rest)?;
-                let m_op = parse_operand(rest.trim())?;
-                let v1 = eval_operand(&mut g, &env, &v1_ty, &v1_op)?;
-                let v2 = eval_operand(&mut g, &env, &v2_ty, &v2_op)?;
-                let (out_ty, res) = lower_shufflevector(&mut g, &v1_ty, &v1, &v2, &m_ty, &m_op)?;
-                bind_dst(&mut env, dst, out_ty, res)?;
-            }
-            "extractvalue" => {
-                let (agg_ty, rest) = parse_ty(rest)?;
-                let (agg_op, rest) = parse_operand_until_comma(rest)?;
-                let idx: usize = rest.trim().parse().map_err(|_| {
-                    SemError::Parse(format!("invalid extractvalue index: `{rest}`"))
-                })?;
-                let agg = eval_operand(&mut g, &env, &agg_ty, &agg_op)?;
-                match (&agg_ty, agg) {
-                    (LlvmTy::Struct(tys), SemVal::Tuple(vals)) if idx < tys.len() => {
-                        bind_dst(&mut env, dst, tys[idx].clone(), vals[idx].clone())?;
-                    }
-                    _ => {
-                        return Err(SemError::Parse(format!(
-                            "invalid extractvalue index {idx} on {agg_ty:?}"
-                        )));
-                    }
-                }
-            }
-            "call" => {
-                if rest.contains(" asm ") || rest.starts_with("asm ") {
-                    return Err(SemError::Unsupported(
-                        "inline `asm` call requires an ISA semantics plugin (e.g. Sail)".to_string(),
-                    ));
-                }
-                let (ret_t, rest) = parse_ty(rest)?;
-                let rest = rest.trim();
-                let at = rest.find('@').ok_or_else(|| {
-                    SemError::Unsupported("indirect or non-intrinsic call".to_string())
-                })?;
-                let lparen = rest[at..].find('(').ok_or_else(|| {
-                    SemError::Parse(format!("missing `(` in call `{rest}`"))
-                })? + at;
-                let rparen = rest.rfind(')').ok_or_else(|| {
-                    SemError::Parse(format!("missing `)` in call `{rest}`"))
-                })?;
-                let sym = rest[at + 1..lparen].trim();
-                let args_str = &rest[lparen + 1..rparen];
-                let call_args = parse_call_args(args_str)?;
-                let mut eval_args = Vec::with_capacity(call_args.len());
-                for (aty, aop) in call_args {
-                    let av = eval_operand(&mut g, &env, &aty, &aop)?;
-                    eval_args.push((aty, aop, av));
-                }
-                let res = lower_intrinsic(&mut g, sym, &ret_t, &eval_args)?;
-                bind_dst(&mut env, dst, ret_t, res)?;
-            }
-            other => {
-                return Err(SemError::Unsupported(format!(
-                    "LLVM instruction `{other}` is not modeled in {LLVM_SEMANTICS_ID}"
-                )));
-            }
+            blocks.last_mut().unwrap().lines.push((line_no + 1, line.to_string()));
         }
     }
 
-    let result = ret_val.ok_or_else(|| SemError::Parse("LLVM fragment has no `ret`".to_string()))?;
+    if blocks.is_empty() {
+        return Err(SemError::Parse("LLVM fragment has no instructions".to_string()));
+    }
+
+    let block_index: HashMap<String, usize> = blocks
+        .iter()
+        .enumerate()
+        .map(|(i, b)| (b.name.clone(), i))
+        .collect();
+
+    let mut reach: Vec<NodeId> = vec![g.bool_const(false); blocks.len()];
+    reach[0] = g.bool_const(true);
+    let mut edge_conds: HashMap<(usize, usize), NodeId> = HashMap::new();
+    let mut ub_cond = g.bool_const(false);
+    let mut returns: Vec<(NodeId, SemVal)> = Vec::new();
+
+    for b_idx in 0..blocks.len() {
+        // Compute reachability of block `b_idx` as OR of all incoming edges (block 0 is always reachable).
+        if b_idx > 0 {
+            let mut r = g.bool_const(false);
+            for pred in 0..b_idx {
+                if let Some(&ec) = edge_conds.get(&(pred, b_idx)) {
+                    r = g.or(r, ec);
+                }
+            }
+            reach[b_idx] = r;
+        }
+        let cur_reach = reach[b_idx];
+        let mut block_ub = g.bool_const(false);
+        let mut terminated = false;
+
+        for (line_no, line) in &blocks[b_idx].lines {
+            if terminated {
+                return Err(SemError::Parse(format!(
+                    "line {line_no}: instruction after block terminator in `{}`",
+                    blocks[b_idx].name
+                )));
+            }
+            // Optional `%dst = ...`
+            let (dst, rhs) = if line.starts_with('%') {
+                let eq = line.find('=').ok_or_else(|| {
+                    SemError::Parse(format!("line {line_no}: expected `=` after register"))
+                })?;
+                (Some(line[..eq].trim().to_string()), line[eq + 1..].trim())
+            } else {
+                (None, line.as_str())
+            };
+
+            let (op, rest) = split_head_word(rhs);
+            match op {
+                "ret" => {
+                    let (ty, rest) = parse_ty(rest)?;
+                    let operand = parse_operand(rest.trim())?;
+                    let val = eval_operand(&mut g, &env, &ty, &operand)?;
+                    returns.push((cur_reach, val));
+                    terminated = true;
+                }
+                "br" => {
+                    let rest = rest.trim();
+                    if let Some(lbl_rest) = rest.strip_prefix("label ") {
+                        let target_name = lbl_rest.trim().trim_start_matches('%');
+                        let &t_idx = block_index.get(target_name).ok_or_else(|| {
+                            SemError::Parse(format!(
+                                "line {line_no}: undefined branch target `%{target_name}`"
+                            ))
+                        })?;
+                        if t_idx <= b_idx {
+                            return Err(SemError::Unsupported(format!(
+                                "line {line_no}: cyclic CFG (backward branch from `{}` to `{target_name}`)",
+                                blocks[b_idx].name
+                            )));
+                        }
+                        let entry = edge_conds
+                            .entry((b_idx, t_idx))
+                            .or_insert_with(|| g.bool_const(false));
+                        *entry = g.or(*entry, cur_reach);
+                    } else if let Some(cond_rest) = rest.strip_prefix("i1 ") {
+                        let (cond_op, after_cond) = parse_operand_until_comma(cond_rest)?;
+                        let (true_lbl, after_t) = parse_label_until_comma(after_cond)?;
+                        let false_lbl = parse_label_end(after_t)?;
+                        let &t_idx = block_index.get(true_lbl).ok_or_else(|| {
+                            SemError::Parse(format!(
+                                "line {line_no}: undefined branch target `%{true_lbl}`"
+                            ))
+                        })?;
+                        let &f_idx = block_index.get(false_lbl).ok_or_else(|| {
+                            SemError::Parse(format!(
+                                "line {line_no}: undefined branch target `%{false_lbl}`"
+                            ))
+                        })?;
+                        if t_idx <= b_idx || f_idx <= b_idx {
+                            return Err(SemError::Unsupported(format!(
+                                "line {line_no}: cyclic CFG (backward branch from `{}`)",
+                                blocks[b_idx].name
+                            )));
+                        }
+                        let cond_val = eval_operand(&mut g, &env, &LlvmTy::Int(1), &cond_op)?;
+                        let (cv, cp) = cond_val.as_scalar().ok_or_else(|| {
+                            SemError::Parse(format!("line {line_no}: br condition must be i1"))
+                        })?;
+                        // Branching on poison `i1` is immediate UB in LLVM!
+                        block_ub = g.or(block_ub, cp);
+                        let c_bool = g.bv1_to_bool(cv);
+                        let not_c = g.not(c_bool);
+                        let t_edge = g.and(cur_reach, c_bool);
+                        let f_edge = g.and(cur_reach, not_c);
+                        let te = edge_conds
+                            .entry((b_idx, t_idx))
+                            .or_insert_with(|| g.bool_const(false));
+                        *te = g.or(*te, t_edge);
+                        let fe = edge_conds
+                            .entry((b_idx, f_idx))
+                            .or_insert_with(|| g.bool_const(false));
+                        *fe = g.or(*fe, f_edge);
+                    } else {
+                        return Err(SemError::Parse(format!(
+                            "line {line_no}: malformed `br`: `{rhs}`"
+                        )));
+                    }
+                    terminated = true;
+                }
+                "phi" => {
+                    let (ty, pairs_str) = parse_ty(rest)?;
+                    let pairs = parse_phi_incoming(pairs_str)?;
+                    if pairs.is_empty() {
+                        return Err(SemError::Parse(format!(
+                            "line {line_no}: phi has no incoming edges"
+                        )));
+                    }
+                    let mut incoming_vals: Vec<(NodeId, SemVal)> = Vec::new();
+                    for (val_str, pred_lbl) in pairs {
+                        let &p_idx = block_index.get(pred_lbl.as_str()).ok_or_else(|| {
+                            SemError::Parse(format!(
+                                "line {line_no}: phi references unknown label `%{pred_lbl}`"
+                            ))
+                        })?;
+                        if p_idx >= b_idx {
+                            return Err(SemError::Unsupported(format!(
+                                "line {line_no}: cyclic phi incoming from `{pred_lbl}` into `{}`",
+                                blocks[b_idx].name
+                            )));
+                        }
+                        let ec = edge_conds
+                            .get(&(p_idx, b_idx))
+                            .copied()
+                            .unwrap_or_else(|| g.bool_const(false));
+                        let op_parsed = parse_operand(val_str.trim())?;
+                        let v = eval_operand(&mut g, &env, &ty, &op_parsed)?;
+                        incoming_vals.push((ec, v));
+                    }
+                    let merged = merge_guarded_semvals(&mut g, &incoming_vals)?;
+                    bind_dst(&mut env, dst, ty, merged)?;
+                }
+                "freeze" => {
+                    let (ty, rest) = parse_ty(rest)?;
+                    let op1 = parse_operand(rest.trim())?;
+                    let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
+                    let f = g.bool_const(false);
+                    let frozen = match v1 {
+                        SemVal::Scalar { val, .. } => SemVal::Scalar { val, poison: f },
+                        SemVal::Vector { elem_ty, lanes } => SemVal::Vector {
+                            elem_ty,
+                            lanes: lanes.into_iter().map(|(v, _)| (v, f)).collect(),
+                        },
+                        SemVal::Tuple(_) => {
+                            return Err(SemError::Unsupported("aggregate freeze".to_string()))
+                        }
+                    };
+                    bind_dst(&mut env, dst, ty, frozen)?;
+                }
+                "load" | "store" | "inttoptr" | "ptrtoint" | "getelementptr" | "alloca"
+                | "cmpxchg" | "atomicrmw" | "fence" => {
+                    return Err(SemError::Unsupported(format!(
+                        "memory/pointer instruction `{op}` requires a memory-model semantics plugin"
+                    )));
+                }
+                "switch" | "indirectbr" | "invoke" | "unreachable" => {
+                    return Err(SemError::Unsupported(format!(
+                        "control-flow instruction `{op}` is not modeled in {LLVM_SEMANTICS_ID}"
+                    )));
+                }
+                "add" | "sub" | "mul" | "udiv" | "urem" | "sdiv" | "srem" | "and" | "or" | "xor"
+                | "shl" | "lshr" | "ashr" => {
+                    let (flags, rest) = parse_arith_flags(rest);
+                    let (ty, rest) = parse_ty(rest)?;
+                    let (op1, op2) = parse_two_operands(rest)?;
+                    let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
+                    let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
+                    let res = lower_int_binop(&mut g, &mut block_ub, op, flags, &ty, &v1, &v2)?;
+                    bind_dst(&mut env, dst, ty, res)?;
+                }
+                "fadd" | "fsub" | "fmul" | "fdiv" => {
+                    let rest = skip_fast_math_flags(rest);
+                    let (ty, rest) = parse_ty(rest)?;
+                    let (op1, op2) = parse_two_operands(rest)?;
+                    let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
+                    let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
+                    let res = lower_fp_binop(&mut g, op, &v1, &v2)?;
+                    bind_dst(&mut env, dst, ty, res)?;
+                }
+                "fneg" => {
+                    let rest = skip_fast_math_flags(rest);
+                    let (ty, rest) = parse_ty(rest)?;
+                    let op1 = parse_operand(rest.trim())?;
+                    let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
+                    let (val, poison) = v1.as_scalar().ok_or_else(|| {
+                        SemError::Unsupported("vector fneg not yet modeled".to_string())
+                    })?;
+                    let r = g.fp_neg(val);
+                    bind_dst(&mut env, dst, ty, SemVal::Scalar { val: r, poison })?;
+                }
+                "icmp" => {
+                    let (pred, rest) = split_head_word(rest);
+                    let (ty, rest) = parse_ty(rest)?;
+                    let (op1, op2) = parse_two_operands(rest)?;
+                    let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
+                    let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
+                    let (out_ty, res) = lower_icmp(&mut g, pred, &ty, &v1, &v2)?;
+                    bind_dst(&mut env, dst, out_ty, res)?;
+                }
+                "fcmp" => {
+                    let rest = skip_fast_math_flags(rest);
+                    let (pred, rest) = split_head_word(rest);
+                    let (ty, rest) = parse_ty(rest)?;
+                    let (op1, op2) = parse_two_operands(rest)?;
+                    let v1 = eval_operand(&mut g, &env, &ty, &op1)?;
+                    let v2 = eval_operand(&mut g, &env, &ty, &op2)?;
+                    let (a, pa) = v1.as_scalar().ok_or_else(|| {
+                        SemError::Unsupported("vector fcmp not yet modeled".to_string())
+                    })?;
+                    let (b, pb) = v2.as_scalar().ok_or_else(|| {
+                        SemError::Unsupported("vector fcmp not yet modeled".to_string())
+                    })?;
+                    let fp_pred = parse_fp_pred(pred)?;
+                    let cmp = g.fp_cmp(fp_pred, a, b);
+                    let val = g.bool_to_bv1(cmp);
+                    let poison = g.or(pa, pb);
+                    bind_dst(&mut env, dst, LlvmTy::Int(1), SemVal::Scalar { val, poison })?;
+                }
+                "zext" | "sext" | "trunc" | "bitcast" | "sitofp" | "uitofp" | "fptosi" | "fptoui"
+                | "fpext" | "fptrunc" => {
+                    let (src_ty, rest) = parse_ty(rest)?;
+                    let (op_str, dst_str) = split_on_keyword_to(rest)?;
+                    let op1 = parse_operand(op_str.trim())?;
+                    let (dst_ty, _) = parse_ty(dst_str.trim())?;
+                    let v1 = eval_operand(&mut g, &env, &src_ty, &op1)?;
+                    let res = lower_cast(&mut g, op, &src_ty, &dst_ty, &v1)?;
+                    bind_dst(&mut env, dst, dst_ty, res)?;
+                }
+                "select" => {
+                    let rest = skip_fast_math_flags(rest);
+                    let (c_ty, rest) = parse_ty(rest)?;
+                    let (c_op, rest) = parse_operand_until_comma(rest)?;
+                    let (t_ty, rest) = parse_ty(rest)?;
+                    let (t_op, rest) = parse_operand_until_comma(rest)?;
+                    let (f_ty, rest) = parse_ty(rest)?;
+                    let f_op = parse_operand(rest.trim())?;
+                    if t_ty != f_ty {
+                        return Err(SemError::Parse(format!(
+                            "select branch type mismatch: {t_ty:?} vs {f_ty:?}"
+                        )));
+                    }
+                    let vc = eval_operand(&mut g, &env, &c_ty, &c_op)?;
+                    let vt = eval_operand(&mut g, &env, &t_ty, &t_op)?;
+                    let vf = eval_operand(&mut g, &env, &f_ty, &f_op)?;
+                    let res = lower_select(&mut g, &vc, &vt, &vf)?;
+                    bind_dst(&mut env, dst, t_ty, res)?;
+                }
+                "insertelement" => {
+                    let (v_ty, rest) = parse_ty(rest)?;
+                    let (v_op, rest) = parse_operand_until_comma(rest)?;
+                    let (e_ty, rest) = parse_ty(rest)?;
+                    let (e_op, rest) = parse_operand_until_comma(rest)?;
+                    let (i_ty, rest) = parse_ty(rest)?;
+                    let i_op = parse_operand(rest.trim())?;
+                    let vv = eval_operand(&mut g, &env, &v_ty, &v_op)?;
+                    let ve = eval_operand(&mut g, &env, &e_ty, &e_op)?;
+                    let res = lower_insertelement(&mut g, &v_ty, &vv, &ve, &i_ty, &i_op)?;
+                    bind_dst(&mut env, dst, v_ty, res)?;
+                }
+                "extractelement" => {
+                    let (v_ty, rest) = parse_ty(rest)?;
+                    let (v_op, rest) = parse_operand_until_comma(rest)?;
+                    let (_i_ty, rest) = parse_ty(rest)?;
+                    let i_op = parse_operand(rest.trim())?;
+                    let vv = eval_operand(&mut g, &env, &v_ty, &v_op)?;
+                    let (elem_ty, res) = lower_extractelement(&mut g, &v_ty, &vv, &i_op)?;
+                    bind_dst(&mut env, dst, elem_ty, res)?;
+                }
+                "shufflevector" => {
+                    let (v1_ty, rest) = parse_ty(rest)?;
+                    let (v1_op, rest) = parse_operand_until_comma(rest)?;
+                    let (v2_ty, rest) = parse_ty(rest)?;
+                    let (v2_op, rest) = parse_operand_until_comma(rest)?;
+                    let (m_ty, rest) = parse_ty(rest)?;
+                    let m_op = parse_operand(rest.trim())?;
+                    let v1 = eval_operand(&mut g, &env, &v1_ty, &v1_op)?;
+                    let v2 = eval_operand(&mut g, &env, &v2_ty, &v2_op)?;
+                    let (out_ty, res) = lower_shufflevector(&mut g, &v1_ty, &v1, &v2, &m_ty, &m_op)?;
+                    bind_dst(&mut env, dst, out_ty, res)?;
+                }
+                "extractvalue" => {
+                    let (agg_ty, rest) = parse_ty(rest)?;
+                    let (agg_op, rest) = parse_operand_until_comma(rest)?;
+                    let idx: usize = rest.trim().parse().map_err(|_| {
+                        SemError::Parse(format!("invalid extractvalue index: `{rest}`"))
+                    })?;
+                    let agg = eval_operand(&mut g, &env, &agg_ty, &agg_op)?;
+                    match (&agg_ty, agg) {
+                        (LlvmTy::Struct(tys), SemVal::Tuple(vals)) if idx < tys.len() => {
+                            bind_dst(&mut env, dst, tys[idx].clone(), vals[idx].clone())?;
+                        }
+                        _ => {
+                            return Err(SemError::Parse(format!(
+                                "invalid extractvalue index {idx} on {agg_ty:?}"
+                            )));
+                        }
+                    }
+                }
+                "call" => {
+                    if rest.contains(" asm ") || rest.starts_with("asm ") {
+                        return Err(SemError::Unsupported(
+                            "inline `asm` call requires an ISA semantics plugin (e.g. Sail)".to_string(),
+                        ));
+                    }
+                    let (ret_t, rest) = parse_ty(rest)?;
+                    let rest = rest.trim();
+                    let at = rest.find('@').ok_or_else(|| {
+                        SemError::Unsupported("indirect or non-intrinsic call".to_string())
+                    })?;
+                    let lparen = rest[at..].find('(').ok_or_else(|| {
+                        SemError::Parse(format!("missing `(` in call `{rest}`"))
+                    })? + at;
+                    let rparen = rest.rfind(')').ok_or_else(|| {
+                        SemError::Parse(format!("missing `)` in call `{rest}`"))
+                    })?;
+                    let sym = rest[at + 1..lparen].trim();
+                    let args_str = &rest[lparen + 1..rparen];
+                    let call_args = parse_call_args(args_str)?;
+                    let mut eval_args = Vec::with_capacity(call_args.len());
+                    for (aty, aop) in call_args {
+                        let av = eval_operand(&mut g, &env, &aty, &aop)?;
+                        eval_args.push((aty, aop, av));
+                    }
+                    let res = lower_intrinsic(&mut g, sym, &ret_t, &eval_args)?;
+                    bind_dst(&mut env, dst, ret_t, res)?;
+                }
+                other => {
+                    return Err(SemError::Unsupported(format!(
+                        "LLVM instruction `{other}` is not modeled in {LLVM_SEMANTICS_ID}"
+                    )));
+                }
+            }
+        }
+
+        // Guard this block's UB by its reachability condition!
+        let guarded_ub = g.and(cur_reach, block_ub);
+        ub_cond = g.or(ub_cond, guarded_ub);
+    }
+
+    if returns.is_empty() {
+        return Err(SemError::Parse("LLVM fragment has no `ret`".to_string()));
+    }
+    let result = merge_guarded_semvals(&mut g, &returns)?;
     Ok(SemProgram {
         semantics_id: LLVM_SEMANTICS_ID.to_string(),
         graph: g,
@@ -337,6 +521,93 @@ pub fn lower_llvm_fragment(
         result,
         ub_cond,
     })
+}
+
+fn parse_label_until_comma(s: &str) -> Result<(&str, &str), SemError> {
+    let s = s.trim_start();
+    let rest = s
+        .strip_prefix("label")
+        .ok_or_else(|| SemError::Parse(format!("expected `label` in `br`, got `{s}`")))?
+        .trim_start();
+    let comma = rest
+        .find(',')
+        .ok_or_else(|| SemError::Parse(format!("expected `,` after branch label in `{s}`")))?;
+    let lbl = rest[..comma].trim().trim_start_matches('%');
+    Ok((lbl, &rest[comma + 1..]))
+}
+
+fn parse_label_end(s: &str) -> Result<&str, SemError> {
+    let s = s.trim();
+    let rest = s
+        .strip_prefix("label")
+        .ok_or_else(|| SemError::Parse(format!("expected `label` in `br`, got `{s}`")))?
+        .trim();
+    Ok(rest.trim_start_matches('%'))
+}
+
+fn parse_phi_incoming(s: &str) -> Result<Vec<(String, String)>, SemError> {
+    let mut out = Vec::new();
+    let mut rest = s.trim();
+    while !rest.is_empty() {
+        let lb = rest
+            .find('[')
+            .ok_or_else(|| SemError::Parse(format!("expected `[` in phi incoming `{rest}`")))?;
+        let rb = rest[lb + 1..]
+            .find(']')
+            .ok_or_else(|| SemError::Parse(format!("unclosed `[` in phi incoming `{rest}`")))?
+            + lb
+            + 1;
+        let inner = &rest[lb + 1..rb];
+        let comma = inner
+            .rfind(',')
+            .ok_or_else(|| SemError::Parse(format!("expected `,` in phi pair `[{inner}]`")))?;
+        let val = inner[..comma].trim().to_string();
+        let lbl = inner[comma + 1..].trim().trim_start_matches('%').to_string();
+        out.push((val, lbl));
+        rest = rest[rb + 1..].trim_start();
+        if let Some(after_comma) = rest.strip_prefix(',') {
+            rest = after_comma.trim_start();
+        }
+    }
+    Ok(out)
+}
+
+fn merge_guarded_semvals(
+    g: &mut SemGraph,
+    items: &[(NodeId, SemVal)],
+) -> Result<SemVal, SemError> {
+    if items.len() == 1 {
+        return Ok(items[0].1.clone());
+    }
+    let mut acc = items.last().unwrap().1.clone();
+    for (cond, val) in items[..items.len() - 1].iter().rev() {
+        acc = match (val, &acc) {
+            (
+                SemVal::Scalar { val: tv, poison: tp },
+                SemVal::Scalar { val: ev, poison: ep },
+            ) => SemVal::Scalar {
+                val: g.ite(*cond, *tv, *ev),
+                poison: g.ite(*cond, *tp, *ep),
+            },
+            (
+                SemVal::Vector { elem_ty, lanes: tl },
+                SemVal::Vector { lanes: el, .. },
+            ) if tl.len() == el.len() => {
+                let lanes = tl
+                    .iter()
+                    .zip(el.iter())
+                    .map(|(&(tv, tp), &(ev, ep))| (g.ite(*cond, tv, ev), g.ite(*cond, tp, ep)))
+                    .collect();
+                SemVal::Vector { elem_ty: *elem_ty, lanes }
+            }
+            _ => {
+                return Err(SemError::Parse(
+                    "mismatched value shapes across CFG merge/return".to_string(),
+                ))
+            }
+        };
+    }
+    Ok(acc)
 }
 
 fn bind_dst(

@@ -35,7 +35,7 @@ module Prim.Wide where
       %c = and i128 %notm, %2
       %r = or i128 %a, %c
       ret i128 %r
-    }
+    } justify verify
 
   -- | Broadcast one U8 into all 16 byte lanes of a U128.
   prim simd-u8x16-splat :: U8 -> U128 where
@@ -44,7 +44,7 @@ module Prim.Wide where
       %v = shufflevector <16 x i8> %v0, <16 x i8> poison, <16 x i32> zeroinitializer
       %r = bitcast <16 x i8> %v to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping addition on 16 U8 lanes.
   prim simd-u8x16-add :: U128 -> U128 -> U128 where
@@ -54,7 +54,7 @@ module Prim.Wide where
       %vr = add <16 x i8> %va, %vb
       %r = bitcast <16 x i8> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping subtraction on 16 U8 lanes.
   prim simd-u8x16-sub :: U128 -> U128 -> U128 where
@@ -64,7 +64,7 @@ module Prim.Wide where
       %vr = sub <16 x i8> %va, %vb
       %r = bitcast <16 x i8> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise equality mask (0xFF per matching lane, 0x00 otherwise) on 16 U8 lanes.
   prim simd-u8x16-cmpeq :: U128 -> U128 -> U128 where
@@ -75,7 +75,7 @@ module Prim.Wide where
       %vm = sext <16 x i1> %vc to <16 x i8>
       %r = bitcast <16 x i8> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise unsigned less-than mask on 16 U8 lanes.
   prim simd-u8x16-cmplt :: U128 -> U128 -> U128 where
@@ -86,7 +86,7 @@ module Prim.Wide where
       %vm = sext <16 x i1> %vc to <16 x i8>
       %r = bitcast <16 x i8> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise unsigned greater-than mask on 16 U8 lanes.
   prim simd-u8x16-cmpgt :: U128 -> U128 -> U128 where
@@ -97,7 +97,7 @@ module Prim.Wide where
       %vm = sext <16 x i1> %vc to <16 x i8>
       %r = bitcast <16 x i8> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Extract the sign bit of each of the 16 byte lanes into the low 16 bits of a U32.
   prim simd-u8x16-movemask :: U128 -> U32 where
@@ -107,7 +107,7 @@ module Prim.Wide where
       %b16 = bitcast <16 x i1> %m to i16
       %r = zext i16 %b16 to i32
       ret i32 %r
-    }
+    } justify verify
 
   -- | Broadcast one U16 into all 8 16-bit lanes of a U128.
   prim simd-u16x8-splat :: U16 -> U128 where

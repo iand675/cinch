@@ -1602,3 +1602,71 @@ module Main where
         other => panic!("expected fail-closed Unverified on tampered cache, got {other:?}"),
     }
 }
+
+#[test]
+fn acyclic_cfg_and_cross_target_equiv_work_end_to_end() {
+    // 1. Acyclic multi-block `br`/`phi` prim compiles, verifies with LRAT, and executes!
+    let cfg_src = r#"
+module Main where
+  prim guarded-div-u32 :: U32 -> U32 -> U32 where
+    llvm {
+      %z = icmp eq i32 %1, 0
+      br i1 %z, label %iszero, label %nonzero
+    iszero:
+      br label %join
+    nonzero:
+      %q = udiv i32 %0, %1
+      br label %join
+    join:
+      %r = phi i32 [ 0, %iszero ], [ %q, %nonzero ]
+      ret i32 %r
+    } justify verify
+
+  main :: Int
+  main =
+    if guarded-div-u32 42 0 == 0 && guarded-div-u32 42 6 == 7 then 0 else 1
+"#;
+    let code = run_source(cfg_src).expect("acyclic CFG prim should compile and run");
+    assert_eq!(code, 0);
+
+    // 2. Cyclic backward `br` is rejected by containment!
+    let cyclic_src = r#"
+module Main where
+  prim spin :: U32 -> U32 where
+    llvm {
+    loop:
+      br label %loop
+    }
+
+  main :: Int
+  main = 0
+"#;
+    expect_err("cyclic-br-rejected", cyclic_src, "no-escape");
+
+    // 3. Cross-target equivalence across `when arch x86_64`, `when arch aarch64`, and baseline
+    //    succeeds when bodies agree, and fails compilation when they disagree!
+    let ct_good = r#"
+module Main where
+  prim dbl :: U32 -> U32 where
+    llvm {
+      %r = shl i32 %0, 1
+      ret i32 %r
+    } when arch x86_64 justify verify
+    llvm {
+      %r = add i32 %0, %0
+      ret i32 %r
+    } when arch aarch64 justify verify
+    llvm {
+      %r = mul i32 %0, 2
+      ret i32 %r
+    } justify verify
+
+  main :: Int
+  main = if dbl 21 == 42 then 0 else 1
+"#;
+    let code2 = run_source(ct_good).expect("agreeing cross-target prim should run");
+    assert_eq!(code2, 0);
+
+    let ct_bad = ct_good.replace("add i32 %0, %0", "add i32 %0, 3");
+    expect_err("cross-target-mismatch", &ct_bad, "cross-target equivalence");
+}

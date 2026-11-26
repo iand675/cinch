@@ -225,6 +225,138 @@ pub fn build_prim_body_obligations(
     Ok(obligations)
 }
 
+fn body_is_big_endian(body: &PrimBody) -> bool {
+    for clause in &body.when {
+        if let Term::App(head, args, _) = clause {
+            if let Term::Var(vp) = head.as_ref() {
+                if vp.name.text == "endian" {
+                    if let Some(Term::Var(arg)) = args.first() {
+                        if arg.name.text == "big" {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn body_is_arch_or_baseline(body: &PrimBody) -> bool {
+    body.when.iter().all(|clause| match clause {
+        Term::App(head, _, _) => matches!(
+            head.as_ref(),
+            Term::Var(vp) if matches!(vp.name.text.as_str(), "arch" | "feature" | "word-size")
+        ),
+        _ => false,
+    })
+}
+
+/// Build `ObligationKind::CrossTargetEquiv` obligations across pairs of safe `llvm`
+/// bodies on a multi-body `prim` that target the same `word_bits` and endianness
+/// (e.g. `when arch x86_64` vs `when arch aarch64` vs portable baseline).
+pub fn build_cross_target_obligations(
+    module: &str,
+    p: &PrimDecl,
+    semantics: &[&dyn IrSemantics],
+) -> Result<Vec<Obligation>, String> {
+    let Some(sem_plugin) = semantics.iter().find(|s| s.family() == "llvm") else {
+        return Ok(Vec::new());
+    };
+    let candidates: Vec<(usize, &PrimBody, u16, bool)> = p
+        .bodies
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| {
+            !b.unverified && b.family.text == "llvm" && body_is_arch_or_baseline(b)
+        })
+        .map(|(idx, b)| (idx, b, body_word_bits(b), body_is_big_endian(b)))
+        .collect();
+    if candidates.len() < 2 {
+        return Ok(Vec::new());
+    }
+
+    let mut out = Vec::new();
+    for i in 0..candidates.len() {
+        for j in (i + 1)..candidates.len() {
+            let (idx_a, body_a, wb_a, be_a) = candidates[i];
+            let (idx_b, body_b, wb_b, be_b) = candidates[j];
+            if wb_a != wb_b || be_a != be_b {
+                continue;
+            }
+            let Ok((param_specs, ret_info, _)) = parse_prim_sig(&p.ty, wb_a) else {
+                continue;
+            };
+            let sem_params: Vec<SemParam> = param_specs
+                .iter()
+                .enumerate()
+                .map(|(k, (name, info, _))| SemParam {
+                    index: k,
+                    name: name.clone(),
+                    ty: info.llvm_param_ty,
+                    signed: info.signed,
+                })
+                .collect();
+            let prog_a = match sem_plugin.lower(&body_a.fragment, &sem_params, ret_info.llvm_param_ty) {
+                Ok(pr) => pr,
+                Err(_) => continue,
+            };
+            let prog_b = match sem_plugin.lower(&body_b.fragment, &sem_params, ret_info.llvm_param_ty) {
+                Ok(pr) => pr,
+                Err(_) => continue,
+            };
+            let (Some((va, pa)), Some((vb, pb))) =
+                (prog_a.result.as_scalar(), prog_b.result.as_scalar())
+            else {
+                continue;
+            };
+
+            let mut g = prog_a.graph.clone();
+            let param_nodes: Vec<NodeId> = prog_a.params.iter().map(|(_, n)| *n).collect();
+            let map_b = g.import_graph(&prog_b.graph, &param_nodes);
+            let ub_a = prog_a.ub_cond;
+            let ub_b = map_b[prog_b.ub_cond.0 as usize];
+            let vb_m = map_b[vb.0 as usize];
+            let pb_m = map_b[pb.0 as usize];
+
+            let precond = build_param_precond(&mut g, &param_specs, &prog_a.params);
+            let same_ub = g.iff(ub_a, ub_b);
+            let same_poison = g.iff(pa, pb_m);
+            let not_ub = g.not(ub_a);
+            let not_p = g.not(pa);
+            let defined = g.and(not_ub, not_p);
+            let same_val = match g.ty(va) {
+                SemTy::Bool => g.iff(va, vb_m),
+                SemTy::Bv(_) => g.bv_eq(va, vb_m),
+                SemTy::Fp(_) => {
+                    let ba = g.fp_to_bv_bits(va);
+                    let bb = g.fp_to_bv_bits(vb_m);
+                    g.bv_eq(ba, bb)
+                }
+            };
+            let val_when_def = g.implies(defined, same_val);
+            let same_err = g.and(same_ub, same_poison);
+            let equiv = g.and(same_err, val_when_def);
+            let goal = g.implies(precond, equiv);
+
+            let desc_a = format!("body{idx_a}({})", render_when(&body_a.when));
+            let desc_b = format!("body{idx_b}({})", render_when(&body_b.when));
+            out.push(Obligation::new(
+                format!("{module}.{}::cross-target({desc_a}=={desc_b})", p.name.text),
+                prog_a.semantics_id.clone(),
+                ObligationKind::CrossTargetEquiv {
+                    body_a: desc_a,
+                    body_b: desc_b,
+                },
+                sem_params,
+                g,
+                goal,
+            ));
+        }
+    }
+    Ok(out)
+}
+
 fn extract_prim(
     module: &str,
     p: &PrimDecl,
@@ -271,6 +403,20 @@ fn extract_prim(
                 obligations: vec![],
                 skip_reason: Some(reason),
             }),
+        }
+    }
+    if let Ok(cross_obs) = build_cross_target_obligations(module, p, semantics) {
+        if !cross_obs.is_empty() {
+            out.push(ExtractedPrimBody {
+                module: module.to_string(),
+                prim_name: p.name.text.clone(),
+                body_index: p.bodies.len(),
+                family: "llvm".to_string(),
+                is_unsafe: false,
+                when_desc: "cross-target".to_string(),
+                obligations: cross_obs,
+                skip_reason: None,
+            });
         }
     }
 }
@@ -1125,6 +1271,83 @@ fn build_builtin_spec_obligation(
                 acc = g.bv_concat(acc, byte);
             }
             ("repeat_u8_x16(b)", g.bv_eq(res_node, acc))
+        }
+        "simd-u16x8-splat" => {
+            let lane = lowered.params[0].1;
+            let mut acc = lane;
+            for _ in 1..8 {
+                acc = g.bv_concat(acc, lane);
+            }
+            ("repeat_u16_x8(v)", g.bv_eq(res_node, acc))
+        }
+        "simd-u32x4-splat" => {
+            let lane = lowered.params[0].1;
+            let mut acc = lane;
+            for _ in 1..4 {
+                acc = g.bv_concat(acc, lane);
+            }
+            ("repeat_u32_x4(v)", g.bv_eq(res_node, acc))
+        }
+        "simd-u64x2-splat" => {
+            let lane = lowered.params[0].1;
+            let acc = g.bv_concat(lane, lane);
+            ("repeat_u64_x2(v)", g.bv_eq(res_node, acc))
+        }
+        "simd-u8x16-add" | "simd-u8x16-sub" | "simd-u8x16-cmpeq" | "simd-u8x16-cmplt"
+        | "simd-u8x16-cmpgt" | "simd-u16x8-add" | "simd-u16x8-sub" | "simd-u16x8-cmpeq"
+        | "simd-u16x8-cmplt" | "simd-i16x8-cmplt" | "simd-i16x8-smin" | "simd-i16x8-smax"
+        | "simd-u32x4-add" | "simd-u32x4-sub" | "simd-u32x4-cmpeq" | "simd-u32x4-cmplt"
+        | "simd-i32x4-smin" | "simd-i32x4-smax" | "simd-u64x2-add" | "simd-u64x2-sub" => {
+            let (lanes, ew): (u16, u16) = if prim_name.contains("x16-") {
+                (16, 8)
+            } else if prim_name.contains("x8-") {
+                (8, 16)
+            } else if prim_name.contains("x4-") {
+                (4, 32)
+            } else {
+                (2, 64)
+            };
+            let va = lowered.params[0].1;
+            let vb = lowered.params[1].1;
+            let all_ones = g.bv_const(ew, SemGraph::mask(ew));
+            let zeros = g.bv_const(ew, 0);
+            let mut lane_vals = Vec::with_capacity(lanes as usize);
+            for lane in 0..lanes {
+                let lo = lane * ew;
+                let hi = lo + ew - 1;
+                let la = g.bv_extract(va, hi, lo);
+                let lb = g.bv_extract(vb, hi, lo);
+                let out = if prim_name.ends_with("-add") {
+                    g.bv_add(la, lb)
+                } else if prim_name.ends_with("-sub") {
+                    g.bv_sub(la, lb)
+                } else if prim_name.ends_with("-cmpeq") {
+                    let c = g.bv_eq(la, lb);
+                    g.ite(c, all_ones, zeros)
+                } else if prim_name.ends_with("-cmplt") {
+                    let c = if prim_name.contains("-i") {
+                        g.bv_slt(la, lb)
+                    } else {
+                        g.bv_ult(la, lb)
+                    };
+                    g.ite(c, all_ones, zeros)
+                } else if prim_name.ends_with("-cmpgt") {
+                    let c = g.bv_ult(lb, la);
+                    g.ite(c, all_ones, zeros)
+                } else if prim_name.ends_with("-smin") {
+                    let c = g.bv_slt(la, lb);
+                    g.ite(c, la, lb)
+                } else {
+                    let c = g.bv_slt(lb, la);
+                    g.ite(c, la, lb)
+                };
+                lane_vals.push(out);
+            }
+            let mut acc = *lane_vals.last().unwrap();
+            for &lv in lane_vals.iter().rev().skip(1) {
+                acc = g.bv_concat(acc, lv);
+            }
+            (prim_name, g.bv_eq(res_node, acc))
         }
         "simd-u8x16-movemask" => {
             let v = lowered.params[0].1;
