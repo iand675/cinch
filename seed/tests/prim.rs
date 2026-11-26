@@ -1412,3 +1412,87 @@ module Main where
     assert!(m_off.contains("\"tier\":\"assumed\""), "{m_off}");
     assert!(m_off.contains("cinch-verify-off@1"), "{m_off}");
 }
+
+#[test]
+fn verified_prim_return_refinements_flow_to_solver_and_prelude_has_zero_scalar_unsafe() {
+    // 1. Return refinements declared on `prim` (such as `count-ones-u8 :: U8 -> refined (0 <= r && r <= 8) U32`
+    //    and `u8-to-u128 :: (x :: U8) -> refined (0 <= r && r <= 255 && r == x) U128`) flow directly into
+    //    Cinch's refinement solver without any hand-coded `prim_result_promise` entry!
+    let src = r#"
+module Main where
+  import Data.Wide
+
+  take-bit-count :: refined (0 <= r && r <= 8) U32 -> U32
+  take-bit-count n = n
+
+  take-byte-wide :: refined (0 <= r && r <= 255) U128 -> U128
+  take-byte-wide n = n
+
+  main :: Int
+  main =
+    let c = take-bit-count (count-ones-u8 170) in
+    let w = take-byte-wide (u8-to-u128 42) in
+    if c == 4 && w == 42 then 0 else 1
+"#;
+    let code = run_source(src).expect("prim-return-refinements should run");
+    assert_eq!(code, 0);
+
+    // 2. Calling `raw-sdiv-i64` without discharging `b /= 0 && Not (a == MIN && b == -1)` is rejected,
+    //    while guarding via `decide` discharges it cleanly (and `checked-div-i64` / `checked-div-i128` work).
+    let bad_sdiv = r#"
+module Main where
+  import Prim.Machine
+
+  bad :: I64 -> I64 -> I64
+  bad a b = raw-sdiv-i64 a b
+
+  main :: Int
+  main = 0
+"#;
+    expect_err("raw-sdiv-unguarded", bad_sdiv, "refinement");
+
+    let good_sdiv = r#"
+module Main where
+  import Data.Wide
+
+  check-i128 :: Int
+  check-i128 = case checked-div-i128 (-170141183460469231731687303715884105728) (-1) of
+    Some _ -> 1
+    None -> case checked-div-i128 100 (-4) of
+      Some q128 -> if q128 == -25 then 0 else 1
+      None -> 1
+
+  main :: Int
+  main =
+    case checked-div-i64 (-9223372036854775808) (-1) of
+      Some _ -> 1
+      None -> case checked-div-i64 42 (-6) of
+        Some q -> if q == -7 then check-i128 else 1
+        None -> 1
+"#;
+    let code2 = run_source(good_sdiv).expect("checked-sdiv-i64-and-i128 should run");
+    assert_eq!(code2, 0);
+
+    // 3. Zero `unsafe llvm` prim bodies remain in `Prim/Machine.cinch` or `Data/Wide.cinch`.
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let engine = cinch::prim_verify::VerifierEngine::default_engine(
+        cinch::prim_verify::Policy::jpl_strict(),
+    );
+    let sems = engine.semantics_refs();
+    for rel in ["prelude/Prim/Machine.cinch", "prelude/Data/Wide.cinch"] {
+        let bodies = cinch::prim_verify::prelude_bridge::extract_file_obligations(
+            &root.join(rel),
+            &sems,
+        )
+        .expect("prelude file should parse");
+        let unsafe_names: Vec<_> = bodies
+            .iter()
+            .filter(|b| b.is_unsafe)
+            .map(|b| b.prim_name.clone())
+            .collect();
+        assert!(
+            unsafe_names.is_empty(),
+            "{rel} should have 0 unsafe llvm prims, found: {unsafe_names:?}"
+        );
+    }
+}

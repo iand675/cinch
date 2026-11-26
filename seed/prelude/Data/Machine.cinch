@@ -57,9 +57,13 @@ module Data.Machine where
   saturating-neg-i8 :: I8 -> I8
   saturating-neg-i8 x = if eq-i8 x min-bound-i8 then max-bound-i8 else wrapping-neg-i8 x
   checked-div-i8 :: I8 -> I8 -> Option I8
-  checked-div-i8 x y = if eq-i8 y 0 || (eq-i8 x min-bound-i8 && eq-i8 y (-1)) then None else Some (raw-sdiv-i8 x y)
+  checked-div-i8 x y = case decide (y /= 0 && Not (x == -128 && y == -1)) of
+    Yes _ -> Some (raw-sdiv-i8 x y)
+    No _ -> None
   checked-rem-i8 :: I8 -> I8 -> Option I8
-  checked-rem-i8 x y = if eq-i8 y 0 || (eq-i8 x min-bound-i8 && eq-i8 y (-1)) then None else Some (raw-srem-i8 x y)
+  checked-rem-i8 x y = case decide (y /= 0 && Not (x == -128 && y == -1)) of
+    Yes _ -> Some (raw-srem-i8 x y)
+    No _ -> None
   checked-shl-i8 :: I8 -> U32 -> Option I8
   checked-shl-i8 x n = if lt-u32 n 8 then Some (wrapping-shl-i8 x n) else None
   checked-shr-i8 :: I8 -> U32 -> Option I8
@@ -81,9 +85,13 @@ module Data.Machine where
   saturating-neg-i16 :: I16 -> I16
   saturating-neg-i16 x = if eq-i16 x min-bound-i16 then max-bound-i16 else wrapping-neg-i16 x
   checked-div-i16 :: I16 -> I16 -> Option I16
-  checked-div-i16 x y = if eq-i16 y 0 || (eq-i16 x min-bound-i16 && eq-i16 y (-1)) then None else Some (raw-sdiv-i16 x y)
+  checked-div-i16 x y = case decide (y /= 0 && Not (x == -32768 && y == -1)) of
+    Yes _ -> Some (raw-sdiv-i16 x y)
+    No _ -> None
   checked-rem-i16 :: I16 -> I16 -> Option I16
-  checked-rem-i16 x y = if eq-i16 y 0 || (eq-i16 x min-bound-i16 && eq-i16 y (-1)) then None else Some (raw-srem-i16 x y)
+  checked-rem-i16 x y = case decide (y /= 0 && Not (x == -32768 && y == -1)) of
+    Yes _ -> Some (raw-srem-i16 x y)
+    No _ -> None
   checked-shl-i16 :: I16 -> U32 -> Option I16
   checked-shl-i16 x n = if lt-u32 n 16 then Some (wrapping-shl-i16 x n) else None
   checked-shr-i16 :: I16 -> U32 -> Option I16
@@ -103,9 +111,13 @@ module Data.Machine where
   saturating-neg-i32 :: I32 -> I32
   saturating-neg-i32 x = if eq-i32 x min-bound-i32 then max-bound-i32 else wrapping-neg-i32 x
   checked-div-i32 :: I32 -> I32 -> Option I32
-  checked-div-i32 x y = if eq-i32 y 0 || (eq-i32 x min-bound-i32 && eq-i32 y (-1)) then None else Some (raw-sdiv-i32 x y)
+  checked-div-i32 x y = case decide (y /= 0 && Not (x == -2147483648 && y == -1)) of
+    Yes _ -> Some (raw-sdiv-i32 x y)
+    No _ -> None
   checked-rem-i32 :: I32 -> I32 -> Option I32
-  checked-rem-i32 x y = if eq-i32 y 0 || (eq-i32 x min-bound-i32 && eq-i32 y (-1)) then None else Some (raw-srem-i32 x y)
+  checked-rem-i32 x y = case decide (y /= 0 && Not (x == -2147483648 && y == -1)) of
+    Yes _ -> Some (raw-srem-i32 x y)
+    No _ -> None
   checked-shl-i32 :: I32 -> U32 -> Option I32
   checked-shl-i32 x n = if lt-u32 n 32 then Some (wrapping-shl-i32 x n) else None
   checked-shr-i32 :: I32 -> U32 -> Option I32
@@ -125,9 +137,13 @@ module Data.Machine where
   saturating-neg-i64 :: I64 -> I64
   saturating-neg-i64 x = if eq-i64 x min-bound-i64 then max-bound-i64 else wrapping-neg-i64 x
   checked-div-i64 :: I64 -> I64 -> Option I64
-  checked-div-i64 x y = if eq-i64 y 0 || (eq-i64 x min-bound-i64 && eq-i64 y (-1)) then None else Some (raw-sdiv-i64 x y)
+  checked-div-i64 x y = case decide (y /= 0 && Not (x == -9223372036854775808 && y == -1)) of
+    Yes _ -> Some (raw-sdiv-i64 x y)
+    No _ -> None
   checked-rem-i64 :: I64 -> I64 -> Option I64
-  checked-rem-i64 x y = if eq-i64 y 0 || (eq-i64 x min-bound-i64 && eq-i64 y (-1)) then None else Some (raw-srem-i64 x y)
+  checked-rem-i64 x y = case decide (y /= 0 && Not (x == -9223372036854775808 && y == -1)) of
+    Yes _ -> Some (raw-srem-i64 x y)
+    No _ -> None
   checked-shl-i64 :: I64 -> U32 -> Option I64
   checked-shl-i64 x n = if lt-u32 n 64 then Some (wrapping-shl-i64 x n) else None
   checked-shr-i64 :: I64 -> U32 -> Option I64
@@ -147,9 +163,13 @@ module Data.Machine where
   saturating-neg-u8 :: U8 -> U8
   saturating-neg-u8 x = 0
   checked-div-u8 :: U8 -> U8 -> Option U8
-  checked-div-u8 x y = if eq-u8 y 0 then None else Some (raw-div-u8 x y)
+  checked-div-u8 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-div-u8 x y)
+    No _ -> None
   checked-rem-u8 :: U8 -> U8 -> Option U8
-  checked-rem-u8 x y = if eq-u8 y 0 then None else Some (raw-rem-u8 x y)
+  checked-rem-u8 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-rem-u8 x y)
+    No _ -> None
   div-u8 :: using (b /= 0) => U8 -> (b :: U8) -> U8
   div-u8 a b = raw-div-u8 a b
   rem-u8 :: using (b /= 0) => U8 -> (b :: U8) -> U8
@@ -175,9 +195,13 @@ module Data.Machine where
   saturating-neg-u16 :: U16 -> U16
   saturating-neg-u16 x = 0
   checked-div-u16 :: U16 -> U16 -> Option U16
-  checked-div-u16 x y = if eq-u16 y 0 then None else Some (raw-div-u16 x y)
+  checked-div-u16 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-div-u16 x y)
+    No _ -> None
   checked-rem-u16 :: U16 -> U16 -> Option U16
-  checked-rem-u16 x y = if eq-u16 y 0 then None else Some (raw-rem-u16 x y)
+  checked-rem-u16 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-rem-u16 x y)
+    No _ -> None
   div-u16 :: using (b /= 0) => U16 -> (b :: U16) -> U16
   div-u16 a b = raw-div-u16 a b
   rem-u16 :: using (b /= 0) => U16 -> (b :: U16) -> U16
@@ -201,9 +225,13 @@ module Data.Machine where
   saturating-neg-u32 :: U32 -> U32
   saturating-neg-u32 x = 0
   checked-div-u32 :: U32 -> U32 -> Option U32
-  checked-div-u32 x y = if eq-u32 y 0 then None else Some (raw-div-u32 x y)
+  checked-div-u32 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-div-u32 x y)
+    No _ -> None
   checked-rem-u32 :: U32 -> U32 -> Option U32
-  checked-rem-u32 x y = if eq-u32 y 0 then None else Some (raw-rem-u32 x y)
+  checked-rem-u32 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-rem-u32 x y)
+    No _ -> None
   div-u32 :: using (b /= 0) => U32 -> (b :: U32) -> U32
   div-u32 a b = raw-div-u32 a b
   rem-u32 :: using (b /= 0) => U32 -> (b :: U32) -> U32
@@ -227,9 +255,13 @@ module Data.Machine where
   saturating-neg-u64 :: U64 -> U64
   saturating-neg-u64 x = 0
   checked-div-u64 :: U64 -> U64 -> Option U64
-  checked-div-u64 x y = if eq-u64 y 0 then None else Some (raw-div-u64 x y)
+  checked-div-u64 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-div-u64 x y)
+    No _ -> None
   checked-rem-u64 :: U64 -> U64 -> Option U64
-  checked-rem-u64 x y = if eq-u64 y 0 then None else Some (raw-rem-u64 x y)
+  checked-rem-u64 x y = case decide (y /= 0) of
+    Yes _ -> Some (raw-rem-u64 x y)
+    No _ -> None
   div-u64 :: using (b /= 0) => U64 -> (b :: U64) -> U64
   div-u64 a b = raw-div-u64 a b
   rem-u64 :: using (b /= 0) => U64 -> (b :: U64) -> U64
@@ -389,9 +421,9 @@ module Data.Machine where
   ge-isize :: Isize -> Isize -> Bool
   ge-isize x y = if word-size32 0 then ge-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else ge-i64 (isize-to-i64 x) (isize-to-i64 y)
   div-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
-  div-usize a b = if word-size32 0 then u32-to-usize (raw-div-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b)) else wrapping-u64-to-usize (raw-div-u64 (usize-to-u64 a) (usize-to-u64 b))
+  div-usize a b = if word-size32 0 then (let d = wrapping-usize-to-u32 b in case decide (d /= 0) of Yes _ -> u32-to-usize (raw-div-u32 (wrapping-usize-to-u32 a) d); No _ -> 0) else wrapping-u64-to-usize (raw-div-u64 (usize-to-u64 a) (usize-to-u64 b))
   rem-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
-  rem-usize a b = if word-size32 0 then u32-to-usize (raw-rem-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b)) else wrapping-u64-to-usize (raw-rem-u64 (usize-to-u64 a) (usize-to-u64 b))
+  rem-usize a b = if word-size32 0 then (let d = wrapping-usize-to-u32 b in case decide (d /= 0) of Yes _ -> u32-to-usize (raw-rem-u32 (wrapping-usize-to-u32 a) d); No _ -> 0) else wrapping-u64-to-usize (raw-rem-u64 (usize-to-u64 a) (usize-to-u64 b))
 
   prim f32-bits :: F32 -> U32 where
     llvm {

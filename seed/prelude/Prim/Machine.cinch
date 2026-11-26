@@ -249,15 +249,15 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  -- Unchecked signed division/remainder: LLVM immediate UB when %1 == 0 or (%0 == MIN && %1 == -1).
-  -- Callers in Data.Machine guard these with checked-div-i8 / checked-rem-i8.
-  prim raw-sdiv-i8 :: I8 -> I8 -> I8 where
-    unsafe llvm {
+  -- Signed division/remainder: precondition rules out LLVM immediate UB
+  -- (`%1 == 0` or `%0 == MIN && %1 == -1`), so no `unsafe` trust boundary is needed.
+  prim raw-sdiv-i8 :: (a :: I8) -> refined (r /= 0 && Not (a == -128 && r == -1)) I8 -> I8 where
+    llvm {
       %r = sdiv i8 %0, %1
       ret i8 %r
     }
-  prim raw-srem-i8 :: I8 -> I8 -> I8 where
-    unsafe llvm {
+  prim raw-srem-i8 :: (a :: I8) -> refined (r /= 0 && Not (a == -128 && r == -1)) I8 -> I8 where
+    llvm {
       %r = srem i8 %0, %1
       ret i8 %r
     }
@@ -307,19 +307,19 @@ module Prim.Machine where
       %r = call i8 @llvm.fshr.i8(i8 %0, i8 %0, i8 %s)
       ret i8 %r
     }
-  prim count-ones-i8 :: I8 -> U32 where
+  prim count-ones-i8 :: I8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.ctpop.i8(i8 %0)
       %r = zext i8 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-i8 :: I8 -> U32 where
+  prim leading-zeros-i8 :: I8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.ctlz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-i8 :: I8 -> U32 where
+  prim trailing-zeros-i8 :: I8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.cttz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
@@ -429,13 +429,13 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-sdiv-i16 :: I16 -> I16 -> I16 where
-    unsafe llvm {
+  prim raw-sdiv-i16 :: (a :: I16) -> refined (r /= 0 && Not (a == -32768 && r == -1)) I16 -> I16 where
+    llvm {
       %r = sdiv i16 %0, %1
       ret i16 %r
     }
-  prim raw-srem-i16 :: I16 -> I16 -> I16 where
-    unsafe llvm {
+  prim raw-srem-i16 :: (a :: I16) -> refined (r /= 0 && Not (a == -32768 && r == -1)) I16 -> I16 where
+    llvm {
       %r = srem i16 %0, %1
       ret i16 %r
     }
@@ -485,19 +485,19 @@ module Prim.Machine where
       %r = call i16 @llvm.fshr.i16(i16 %0, i16 %0, i16 %s)
       ret i16 %r
     }
-  prim count-ones-i16 :: I16 -> U32 where
+  prim count-ones-i16 :: I16 -> refined (0 <= r && r <= 16) U32 where
     llvm {
       %c = call i16 @llvm.ctpop.i16(i16 %0)
       %r = zext i16 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-i16 :: I16 -> U32 where
+  prim leading-zeros-i16 :: I16 -> refined (0 <= r && r <= 16) U32 where
     llvm {
       %c = call i16 @llvm.ctlz.i16(i16 %0, i1 false)
       %r = zext i16 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-i16 :: I16 -> U32 where
+  prim trailing-zeros-i16 :: I16 -> refined (0 <= r && r <= 16) U32 where
     llvm {
       %c = call i16 @llvm.cttz.i16(i16 %0, i1 false)
       %r = zext i16 %c to i32
@@ -612,13 +612,13 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-sdiv-i32 :: I32 -> I32 -> I32 where
-    unsafe llvm {
+  prim raw-sdiv-i32 :: (a :: I32) -> refined (r /= 0 && Not (a == -2147483648 && r == -1)) I32 -> I32 where
+    llvm {
       %r = sdiv i32 %0, %1
       ret i32 %r
     }
-  prim raw-srem-i32 :: I32 -> I32 -> I32 where
-    unsafe llvm {
+  prim raw-srem-i32 :: (a :: I32) -> refined (r /= 0 && Not (a == -2147483648 && r == -1)) I32 -> I32 where
+    llvm {
       %r = srem i32 %0, %1
       ret i32 %r
     }
@@ -664,17 +664,17 @@ module Prim.Machine where
       %r = call i32 @llvm.fshr.i32(i32 %0, i32 %0, i32 %1)
       ret i32 %r
     }
-  prim count-ones-i32 :: I32 -> U32 where
+  prim count-ones-i32 :: I32 -> refined (0 <= r && r <= 32) U32 where
     llvm {
       %r = call i32 @llvm.ctpop.i32(i32 %0)
       ret i32 %r
     }
-  prim leading-zeros-i32 :: I32 -> U32 where
+  prim leading-zeros-i32 :: I32 -> refined (0 <= r && r <= 32) U32 where
     llvm {
       %r = call i32 @llvm.ctlz.i32(i32 %0, i1 false)
       ret i32 %r
     }
-  prim trailing-zeros-i32 :: I32 -> U32 where
+  prim trailing-zeros-i32 :: I32 -> refined (0 <= r && r <= 32) U32 where
     llvm {
       %r = call i32 @llvm.cttz.i32(i32 %0, i1 false)
       ret i32 %r
@@ -788,13 +788,13 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-sdiv-i64 :: I64 -> I64 -> I64 where
-    unsafe llvm {
+  prim raw-sdiv-i64 :: (a :: I64) -> refined (r /= 0 && Not (a == -9223372036854775808 && r == -1)) I64 -> I64 where
+    llvm {
       %r = sdiv i64 %0, %1
       ret i64 %r
     }
-  prim raw-srem-i64 :: I64 -> I64 -> I64 where
-    unsafe llvm {
+  prim raw-srem-i64 :: (a :: I64) -> refined (r /= 0 && Not (a == -9223372036854775808 && r == -1)) I64 -> I64 where
+    llvm {
       %r = srem i64 %0, %1
       ret i64 %r
     }
@@ -844,19 +844,19 @@ module Prim.Machine where
       %r = call i64 @llvm.fshr.i64(i64 %0, i64 %0, i64 %s)
       ret i64 %r
     }
-  prim count-ones-i64 :: I64 -> U32 where
+  prim count-ones-i64 :: I64 -> refined (0 <= r && r <= 64) U32 where
     llvm {
       %c = call i64 @llvm.ctpop.i64(i64 %0)
       %r = trunc i64 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-i64 :: I64 -> U32 where
+  prim leading-zeros-i64 :: I64 -> refined (0 <= r && r <= 64) U32 where
     llvm {
       %c = call i64 @llvm.ctlz.i64(i64 %0, i1 false)
       %r = trunc i64 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-i64 :: I64 -> U32 where
+  prim trailing-zeros-i64 :: I64 -> refined (0 <= r && r <= 64) U32 where
     llvm {
       %c = call i64 @llvm.cttz.i64(i64 %0, i1 false)
       %r = trunc i64 %c to i32
@@ -967,15 +967,15 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  -- Unchecked unsigned division/remainder: LLVM immediate UB when %1 == 0.
-  -- Callers in Data.Machine guard these with checked-div-u* / div-u* (using b /= 0).
-  prim raw-div-u8 :: U8 -> U8 -> U8 where
-    unsafe llvm {
+  -- Unsigned division/remainder: `refined (r /= 0)` rules out LLVM immediate UB
+  -- (`%1 == 0`), so no `unsafe` trust boundary is needed.
+  prim raw-div-u8 :: U8 -> refined (r /= 0) U8 -> U8 where
+    llvm {
       %r = udiv i8 %0, %1
       ret i8 %r
     }
-  prim raw-rem-u8 :: U8 -> U8 -> U8 where
-    unsafe llvm {
+  prim raw-rem-u8 :: U8 -> refined (r /= 0) U8 -> U8 where
+    llvm {
       %r = urem i8 %0, %1
       ret i8 %r
     }
@@ -1025,19 +1025,19 @@ module Prim.Machine where
       %r = call i8 @llvm.fshr.i8(i8 %0, i8 %0, i8 %s)
       ret i8 %r
     }
-  prim count-ones-u8 :: U8 -> U32 where
+  prim count-ones-u8 :: U8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.ctpop.i8(i8 %0)
       %r = zext i8 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-u8 :: U8 -> U32 where
+  prim leading-zeros-u8 :: U8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.ctlz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-u8 :: U8 -> U32 where
+  prim trailing-zeros-u8 :: U8 -> refined (0 <= r && r <= 8) U32 where
     llvm {
       %c = call i8 @llvm.cttz.i8(i8 %0, i1 false)
       %r = zext i8 %c to i32
@@ -1143,13 +1143,13 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-div-u16 :: U16 -> U16 -> U16 where
-    unsafe llvm {
+  prim raw-div-u16 :: U16 -> refined (r /= 0) U16 -> U16 where
+    llvm {
       %r = udiv i16 %0, %1
       ret i16 %r
     }
-  prim raw-rem-u16 :: U16 -> U16 -> U16 where
-    unsafe llvm {
+  prim raw-rem-u16 :: U16 -> refined (r /= 0) U16 -> U16 where
+    llvm {
       %r = urem i16 %0, %1
       ret i16 %r
     }
@@ -1199,19 +1199,19 @@ module Prim.Machine where
       %r = call i16 @llvm.fshr.i16(i16 %0, i16 %0, i16 %s)
       ret i16 %r
     }
-  prim count-ones-u16 :: U16 -> U32 where
+  prim count-ones-u16 :: U16 -> refined (0 <= r && r <= 16) U32 where
     llvm {
       %c = call i16 @llvm.ctpop.i16(i16 %0)
       %r = zext i16 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-u16 :: U16 -> U32 where
+  prim leading-zeros-u16 :: U16 -> refined (0 <= r && r <= 16) U32 where
     llvm {
       %c = call i16 @llvm.ctlz.i16(i16 %0, i1 false)
       %r = zext i16 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-u16 :: U16 -> U32 where
+  prim trailing-zeros-u16 :: U16 -> refined (0 <= r && r <= 16) U32 where
     llvm {
       %c = call i16 @llvm.cttz.i16(i16 %0, i1 false)
       %r = zext i16 %c to i32
@@ -1322,13 +1322,13 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-div-u32 :: U32 -> U32 -> U32 where
-    unsafe llvm {
+  prim raw-div-u32 :: U32 -> refined (r /= 0) U32 -> U32 where
+    llvm {
       %r = udiv i32 %0, %1
       ret i32 %r
     }
-  prim raw-rem-u32 :: U32 -> U32 -> U32 where
-    unsafe llvm {
+  prim raw-rem-u32 :: U32 -> refined (r /= 0) U32 -> U32 where
+    llvm {
       %r = urem i32 %0, %1
       ret i32 %r
     }
@@ -1374,17 +1374,17 @@ module Prim.Machine where
       %r = call i32 @llvm.fshr.i32(i32 %0, i32 %0, i32 %1)
       ret i32 %r
     }
-  prim count-ones-u32 :: U32 -> U32 where
+  prim count-ones-u32 :: U32 -> refined (0 <= r && r <= 32) U32 where
     llvm {
       %r = call i32 @llvm.ctpop.i32(i32 %0)
       ret i32 %r
     }
-  prim leading-zeros-u32 :: U32 -> U32 where
+  prim leading-zeros-u32 :: U32 -> refined (0 <= r && r <= 32) U32 where
     llvm {
       %r = call i32 @llvm.ctlz.i32(i32 %0, i1 false)
       ret i32 %r
     }
-  prim trailing-zeros-u32 :: U32 -> U32 where
+  prim trailing-zeros-u32 :: U32 -> refined (0 <= r && r <= 32) U32 where
     llvm {
       %r = call i32 @llvm.cttz.i32(i32 %0, i1 false)
       ret i32 %r
@@ -1494,13 +1494,13 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-div-u64 :: U64 -> U64 -> U64 where
-    unsafe llvm {
+  prim raw-div-u64 :: U64 -> refined (r /= 0) U64 -> U64 where
+    llvm {
       %r = udiv i64 %0, %1
       ret i64 %r
     }
-  prim raw-rem-u64 :: U64 -> U64 -> U64 where
-    unsafe llvm {
+  prim raw-rem-u64 :: U64 -> refined (r /= 0) U64 -> U64 where
+    llvm {
       %r = urem i64 %0, %1
       ret i64 %r
     }
@@ -1550,19 +1550,19 @@ module Prim.Machine where
       %r = call i64 @llvm.fshr.i64(i64 %0, i64 %0, i64 %s)
       ret i64 %r
     }
-  prim count-ones-u64 :: U64 -> U32 where
+  prim count-ones-u64 :: U64 -> refined (0 <= r && r <= 64) U32 where
     llvm {
       %c = call i64 @llvm.ctpop.i64(i64 %0)
       %r = trunc i64 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-u64 :: U64 -> U32 where
+  prim leading-zeros-u64 :: U64 -> refined (0 <= r && r <= 64) U32 where
     llvm {
       %c = call i64 @llvm.ctlz.i64(i64 %0, i1 false)
       %r = trunc i64 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-u64 :: U64 -> U32 where
+  prim trailing-zeros-u64 :: U64 -> refined (0 <= r && r <= 64) U32 where
     llvm {
       %c = call i64 @llvm.cttz.i64(i64 %0, i1 false)
       %r = trunc i64 %c to i32
