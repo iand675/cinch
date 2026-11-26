@@ -727,6 +727,12 @@ impl<'a> Parser<'a> {
             }
             Tok::Upgrade => self.parse_upgrade(),
             Tok::Contract => self.parse_contract(),
+            Tok::VarId(s) if s == "machine" && matches!(self.peek_tok_at(1), Some(Tok::ConId(_))) => {
+                self.parse_machine()
+            }
+            Tok::VarId(s) if s == "refines" && matches!(self.peek_tok_at(1), Some(Tok::ConId(_))) => {
+                self.parse_refines()
+            }
             Tok::QuoteDecls => Err(self.err(
                 "`quoteDecls where ...` is an expression; use `generate do ... emit (quoteDecls where ...)` to emit declarations",
             )),
@@ -1193,7 +1199,13 @@ impl<'a> Parser<'a> {
                 )))
             }
         }
-        let target = self.parse_value_name()?;
+        let target = match self.peek_tok().clone() {
+            Tok::ConId(s) => {
+                let sp = self.bump().span;
+                Name::new(s, sp)
+            }
+            _ => self.parse_value_name()?,
+        };
         self.expect(&Tok::Where, "`where` opening the contract's clauses")?;
         let mut formula: Option<ContractClause> = None;
         let mut assumes: Vec<ContractClause> = Vec::new();
@@ -1206,18 +1218,60 @@ impl<'a> Parser<'a> {
                 }
                 t => {
                     return Err(p.err(format!(
-                        "expected a contract clause (`always`, `eventually`, `recur`, `stable` or `assume`), found {}",
+                        "expected a contract clause (`always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair` or `assume`), found {}",
                         describe(&t)
                     )))
                 }
             };
             p.expect(&Tok::Equals, "`=` after a contract clause name")?;
             match name.as_str() {
+                "next" => Err(Error::at(
+                    name_span,
+                    "`next` is forbidden in public temporal contracts: public contracts must be stuttering-invariant (use `always`, `eventually`, `leads_to`, `recur` or `stable`; reserve `Later k` for internal guarded productivity)",
+                )),
                 "always" | "eventually" | "recur" | "stable" => {
                     let body = p.parse_paren_term("the contract's formula")?;
                     Ok(ContractClause::Formula {
                         op: Name::new(name, name_span),
                         body,
+                    })
+                }
+                "leads_to" => {
+                    let from = p.parse_paren_term("the antecedent of `leads_to`")?;
+                    match p.peek_tok() {
+                        Tok::Op(op) if op == "~>" => {
+                            p.bump();
+                        }
+                        Tok::VarId(w) if w == "to" => {
+                            p.bump();
+                        }
+                        t => {
+                            return Err(p.err(format!(
+                                "expected `~>` between the antecedent and consequent of `leads_to = (P) ~> (Q)`, found {}",
+                                describe(t)
+                            )))
+                        }
+                    }
+                    let to = p.parse_paren_term("the consequent of `leads_to`")?;
+                    Ok(ContractClause::LeadsTo {
+                        op: Name::new(name, name_span),
+                        from,
+                        to,
+                    })
+                }
+                "deadlock_free" => {
+                    let _ = p.parse_paren_term("`deadlock_free` (write `deadlock_free = (True)`)")?;
+                    Ok(ContractClause::DeadlockFree {
+                        op: Name::new(name, name_span),
+                    })
+                }
+                "fair" | "strong_fair" => {
+                    let strong = name == "strong_fair";
+                    let actions = p.parse_name_list("fair action names")?;
+                    Ok(ContractClause::AssumeFair {
+                        strong,
+                        actions,
+                        span: name_span,
                     })
                 }
                 "assume" => match p.peek_tok().clone() {
@@ -1233,14 +1287,18 @@ impl<'a> Parser<'a> {
                 other => Err(Error::at(
                     name_span,
                     format!(
-                        "`{other}` is not a contract clause; expected `always`, `eventually`, `recur`, `stable` or `assume` (core specification section 10)"
+                        "`{other}` is not a contract clause; expected `always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair` or `assume` (core specification section 10)"
                     ),
                 )),
             }
         })?;
         for item in items {
             match item {
-                ContractClause::Formula { ref op, .. } if formula.is_some() => {
+                ContractClause::Formula { ref op, .. }
+                | ContractClause::LeadsTo { ref op, .. }
+                | ContractClause::DeadlockFree { ref op }
+                    if formula.is_some() =>
+                {
                     return Err(Error::at(
                         op.span,
                         format!(
@@ -1249,21 +1307,34 @@ impl<'a> Parser<'a> {
                         ),
                     ))
                 }
-                f @ ContractClause::Formula { .. } => formula = Some(f),
+                f @ (ContractClause::Formula { .. }
+                | ContractClause::LeadsTo { .. }
+                | ContractClause::DeadlockFree { .. }) => formula = Some(f),
                 assume => assumes.push(assume),
             }
         }
-        let Some(ContractClause::Formula { ref op, .. }) = formula else {
-            return Err(Error::at(
-                span,
-                format!(
-                    "a `{}` temporal contract states its formula: `{} = (P)` (core specification section 10)",
-                    kind.keyword(),
-                    kind.operator()
-                ),
-            ));
+        let op = match &formula {
+            Some(ContractClause::Formula { op, .. })
+            | Some(ContractClause::LeadsTo { op, .. })
+            | Some(ContractClause::DeadlockFree { op }) => op,
+            _ => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "a `{}` temporal contract states its formula: `{} = (P)` (core specification section 10)",
+                        kind.keyword(),
+                        kind.operator()
+                    ),
+                ));
+            }
         };
-        if op.text != kind.operator() {
+        let valid_op = match kind {
+            ContractKind::Safety => op.text == "always" || op.text == "deadlock_free",
+            ContractKind::Liveness => op.text == "eventually" || op.text == "leads_to",
+            ContractKind::Recurrence => op.text == "recur",
+            ContractKind::Stability => op.text == "stable",
+        };
+        if !valid_op {
             return Err(Error::at(
                 op.span,
                 format!(
@@ -1282,6 +1353,259 @@ impl<'a> Parser<'a> {
             name,
             target,
             clauses,
+            span,
+        }))
+    }
+
+    /// Parse `[a, b, c]` of value names (used in `machine` and `contract` fairness clauses).
+    fn parse_name_list(&mut self, what: &str) -> Result<Vec<Name>> {
+        self.expect(&Tok::LBracket, &format!("`[` opening {what}"))?;
+        let mut names = Vec::new();
+        if !self.at(&Tok::RBracket) {
+            loop {
+                names.push(self.parse_value_name()?);
+                if self.at(&Tok::Comma) {
+                    self.bump();
+                    if self.at(&Tok::RBracket) {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect(&Tok::RBracket, &format!("`]` closing {what}"))?;
+        Ok(names)
+    }
+
+    /// Parse `[T1, T2]` of constructor/type paths (used in `symmetry = [...]`).
+    fn parse_con_path_list(&mut self, what: &str) -> Result<Vec<ConPath>> {
+        self.expect(&Tok::LBracket, &format!("`[` opening {what}"))?;
+        let mut paths = Vec::new();
+        if !self.at(&Tok::RBracket) {
+            loop {
+                paths.push(self.parse_con_path()?);
+                if self.at(&Tok::Comma) {
+                    self.bump();
+                    if self.at(&Tok::RBracket) {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect(&Tok::RBracket, &format!("`]` closing {what}"))?;
+        Ok(paths)
+    }
+
+    /// `machine Name where { state = StateTy; init = initExpr; actions = [a1, ...]; ... }`:
+    /// an explicit-state temporal coalgebra (TLA+-like transition system).
+    fn parse_machine(&mut self) -> Result<Decl> {
+        let span = self.bump().span; // contextual `machine`
+        let name = match self.peek_tok().clone() {
+            Tok::ConId(s) => {
+                let sp = self.bump().span;
+                Name::new(s, sp)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected a machine name (uppercase identifier), found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        self.expect(&Tok::Where, "`where` opening the machine's clauses")?;
+        let mut state: Option<Type> = None;
+        let mut init: Option<Term> = None;
+        let mut actions: Option<Vec<Name>> = None;
+        let mut fair: Vec<Name> = Vec::new();
+        let mut strong_fair: Vec<Name> = Vec::new();
+        let mut symmetry: Vec<ConPath> = Vec::new();
+        let mut max_states: Option<usize> = None;
+        let mut observe: Option<Term> = None;
+
+        enum MachineItem {
+            State(Type, Span),
+            Init(Term, Span),
+            Actions(Vec<Name>, Span),
+            Fair(Vec<Name>),
+            StrongFair(Vec<Name>),
+            Symmetry(Vec<ConPath>),
+            MaxStates(usize),
+            Observe(Term, Span),
+        }
+
+        let items = self.parse_block_items("the machine's clauses", |p| {
+            let name_span = p.peek().span;
+            let key = match p.peek_tok().clone() {
+                Tok::VarId(s) => {
+                    p.bump();
+                    s
+                }
+                t => {
+                    return Err(p.err(format!(
+                        "expected a machine clause (`state`, `init`, `actions`, `fair`, `strong_fair`, `symmetry`, `max_states` or `observe`), found {}",
+                        describe(&t)
+                    )))
+                }
+            };
+            p.expect(&Tok::Equals, "`=` after a machine clause name")?;
+            match key.as_str() {
+                "state" => Ok(MachineItem::State(p.parse_type()?, name_span)),
+                "init" => Ok(MachineItem::Init(p.parse_term()?, name_span)),
+                "actions" => Ok(MachineItem::Actions(p.parse_name_list("machine actions")?, name_span)),
+                "fair" => Ok(MachineItem::Fair(p.parse_name_list("weakly fair actions")?)),
+                "strong_fair" => Ok(MachineItem::StrongFair(p.parse_name_list("strongly fair actions")?)),
+                "symmetry" => Ok(MachineItem::Symmetry(p.parse_con_path_list("symmetric types")?)),
+                "max_states" => match p.peek_tok().clone() {
+                    Tok::Int(s) => {
+                        let sp = p.bump().span;
+                        let n = s.parse::<usize>().map_err(|_| {
+                            Error::at(sp, "`max_states` expects a non-negative integer bound")
+                        })?;
+                        Ok(MachineItem::MaxStates(n))
+                    }
+                    t => Err(p.err(format!(
+                        "expected an integer for `max_states`, found {}",
+                        describe(&t)
+                    ))),
+                },
+                "observe" => Ok(MachineItem::Observe(p.parse_term()?, name_span)),
+                other => Err(Error::at(
+                    name_span,
+                    format!(
+                        "`{other}` is not a machine clause; expected `state`, `init`, `actions`, `fair`, `strong_fair`, `symmetry`, `max_states` or `observe`"
+                    ),
+                )),
+            }
+        })?;
+        for item in items {
+            match item {
+                MachineItem::State(t, sp) => {
+                    if state.is_some() {
+                        return Err(Error::at(sp, "duplicate `state` clause in machine declaration"));
+                    }
+                    state = Some(t);
+                }
+                MachineItem::Init(t, sp) => {
+                    if init.is_some() {
+                        return Err(Error::at(sp, "duplicate `init` clause in machine declaration"));
+                    }
+                    init = Some(t);
+                }
+                MachineItem::Actions(a, sp) => {
+                    if actions.is_some() {
+                        return Err(Error::at(sp, "duplicate `actions` clause in machine declaration"));
+                    }
+                    actions = Some(a);
+                }
+                MachineItem::Fair(mut f) => fair.append(&mut f),
+                MachineItem::StrongFair(mut f) => strong_fair.append(&mut f),
+                MachineItem::Symmetry(mut s) => symmetry.append(&mut s),
+                MachineItem::MaxStates(n) => max_states = Some(n),
+                MachineItem::Observe(t, sp) => {
+                    if observe.is_some() {
+                        return Err(Error::at(sp, "duplicate `observe` clause in machine declaration"));
+                    }
+                    observe = Some(t);
+                }
+            }
+        }
+        let state = state.ok_or_else(|| Error::at(span, "machine declaration requires a `state = StateType` clause"))?;
+        let init = init.ok_or_else(|| Error::at(span, "machine declaration requires an `init = expr` clause"))?;
+        let actions = actions.ok_or_else(|| Error::at(span, "machine declaration requires an `actions = [a1, ...]` clause"))?;
+        Ok(Decl::Machine(MachineDecl {
+            name,
+            state,
+            init,
+            actions,
+            fair,
+            strong_fair,
+            symmetry,
+            max_states,
+            observe,
+            span,
+        }))
+    }
+
+    /// `refines Concrete Abstract where { view = f; [measure = rank] }`:
+    /// checked stuttering-aware refinement between two machines.
+    fn parse_refines(&mut self) -> Result<Decl> {
+        let span = self.bump().span; // contextual `refines`
+        let concrete = match self.peek_tok().clone() {
+            Tok::ConId(s) => {
+                let sp = self.bump().span;
+                Name::new(s, sp)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the concrete machine name after `refines`, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        let abstract_target = match self.peek_tok().clone() {
+            Tok::ConId(s) => {
+                let sp = self.bump().span;
+                Name::new(s, sp)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the abstract machine name in `refines Concrete Abstract`, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        self.expect(&Tok::Where, "`where` opening the refinement clauses")?;
+        let mut view: Option<Term> = None;
+        let mut measure: Option<Term> = None;
+        let items = self.parse_block_items("the refinement clauses", |p| {
+            let name_span = p.peek().span;
+            let key = match p.peek_tok().clone() {
+                Tok::VarId(s) => {
+                    p.bump();
+                    s
+                }
+                t => {
+                    return Err(p.err(format!(
+                        "expected a refinement clause (`view` or `measure`), found {}",
+                        describe(&t)
+                    )))
+                }
+            };
+            p.expect(&Tok::Equals, "`=` after a refinement clause name")?;
+            let tm = p.parse_term()?;
+            Ok((key, name_span, tm))
+        })?;
+        for (key, sp, tm) in items {
+            match key.as_str() {
+                "view" => {
+                    if view.is_some() {
+                        return Err(Error::at(sp, "duplicate `view` clause in `refines` declaration"));
+                    }
+                    view = Some(tm);
+                }
+                "measure" => {
+                    if measure.is_some() {
+                        return Err(Error::at(sp, "duplicate `measure` clause in `refines` declaration"));
+                    }
+                    measure = Some(tm);
+                }
+                other => {
+                    return Err(Error::at(
+                        sp,
+                        format!("`{other}` is not a refinement clause; expected `view` or `measure`"),
+                    ))
+                }
+            }
+        }
+        let view = view.ok_or_else(|| Error::at(span, "`refines` declaration requires a `view = fn` clause"))?;
+        Ok(Decl::Refines(RefinesDecl {
+            concrete,
+            abstract_target,
+            view,
+            measure,
             span,
         }))
     }
@@ -4288,12 +4612,31 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
                 resolve_term(r, fix)?;
             }
         }
+        Decl::Machine(m) => {
+            resolve_type(&mut m.state, fix)?;
+            resolve_term(&mut m.init, fix)?;
+            if let Some(obs) = &mut m.observe {
+                resolve_term(obs, fix)?;
+            }
+        }
+        Decl::Refines(r) => {
+            resolve_term(&mut r.view, fix)?;
+            if let Some(m) = &mut r.measure {
+                resolve_term(m, fix)?;
+            }
+        }
         Decl::Contract(c) => {
             for cl in &mut c.clauses {
                 match cl {
                     ContractClause::Formula { body, .. }
                     | ContractClause::AssumeProp { body } => resolve_term(body, fix)?,
-                    ContractClause::AssumeNamed { .. } => {}
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        resolve_term(from, fix)?;
+                        resolve_term(to, fix)?;
+                    }
+                    ContractClause::DeadlockFree { .. }
+                    | ContractClause::AssumeNamed { .. }
+                    | ContractClause::AssumeFair { .. } => {}
                 }
             }
         }

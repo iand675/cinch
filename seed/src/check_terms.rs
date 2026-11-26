@@ -2467,8 +2467,24 @@ impl Checker {
                         && args.len() == 1
                         && self.is_builtin_form(env, &p.name)
                     {
-                        if let Ty::Later(inner) = self.uni.zonk(expected) {
+                        if let Ty::Later { inner, .. } = self.uni.zonk(expected) {
                             return self.check_later_delay(env, args, *span, *inner);
+                        }
+                    }
+                    if p.quals.is_empty()
+                        && p.name.source_spelling() == "laterPure"
+                        && args.len() == 1
+                        && self.is_builtin_form(env, &p.name)
+                    {
+                        if let Ty::Later { inner, .. } = self.uni.zonk(expected) {
+                            let val = self.check(env, &args[0], &inner)?;
+                            let unit_param = self.fresh_local();
+                            self.note_local_ty(unit_param, &Ty::Unit);
+                            let lam = ECore::Lam {
+                                params: vec![unit_param],
+                                body: Box::new(val),
+                            };
+                            return Ok(app_spine(ECore::Prim(PrimOp::Delay), vec![lam]));
                         }
                     }
                 }
@@ -3086,6 +3102,51 @@ impl Checker {
         if name == "refSet" {
             return self.infer_refset_app(env, args, span);
         }
+        if name == "laterAp" {
+            if args.len() != 2 {
+                return Err(Error::at(
+                    span,
+                    "laterAp takes exactly two arguments: `laterAp lf lx`",
+                ));
+            }
+            let (lf, lf_ty) = self.infer(env, &args[0])?;
+            let (lx, lx_ty) = self.infer(env, &args[1])?;
+            let clock: crate::intern::Interned = self.fresh_region().into();
+            self.uni.note_flex_region(clock);
+            let a = self.uni.fresh();
+            let b = self.uni.fresh();
+            let expect_f = Ty::Later {
+                clock: Some(clock),
+                inner: Box::new(Ty::fun_eff(a.clone(), EffRow::pure(), b.clone())),
+            };
+            let expect_x = Ty::Later {
+                clock: Some(clock),
+                inner: Box::new(a),
+            };
+            self.uni.unify(&lf_ty, &expect_f).map_err(|m| {
+                Error::at(args[0].span(), format!("{m} (laterAp expects a clocked `Later k (a -> b)`)"))
+            })?;
+            self.uni.unify(&lx_ty, &expect_x).map_err(|m| {
+                Error::at(args[1].span(), format!("{m} (laterAp requires both operands to share the same clock `k`)"))
+            })?;
+            let unit_param = self.fresh_local();
+            self.note_local_ty(unit_param, &Ty::Unit);
+            let forced_f = app_spine(ECore::Prim(PrimOp::Force), vec![lf]);
+            let forced_x = app_spine(ECore::Prim(PrimOp::Force), vec![lx]);
+            let body = app_spine(forced_f, vec![forced_x]);
+            let lam = ECore::Lam {
+                params: vec![unit_param],
+                body: Box::new(body),
+            };
+            let out_clock = self.uni.resolve_region(clock);
+            return Ok((
+                app_spine(ECore::Prim(PrimOp::Delay), vec![lam]),
+                Ty::Later {
+                    clock: Some(out_clock),
+                    inner: Box::new(self.uni.zonk(&b)),
+                },
+            ));
+        }
         if args.len() != 1 {
             return Err(Error::at(
                 span,
@@ -3093,6 +3154,107 @@ impl Checker {
             ));
         }
         match name {
+            "laterPure" => {
+                let (val, ty) = self.infer(env, &args[0])?;
+                let clock: crate::intern::Interned = self.fresh_region().into();
+            self.uni.note_flex_region(clock);
+                let unit_param = self.fresh_local();
+                self.note_local_ty(unit_param, &Ty::Unit);
+                let lam = ECore::Lam {
+                    params: vec![unit_param],
+                    body: Box::new(val),
+                };
+                Ok((
+                    app_spine(ECore::Prim(PrimOp::Delay), vec![lam]),
+                    Ty::Later {
+                        clock: Some(clock),
+                        inner: Box::new(ty),
+                    },
+                ))
+            }
+            "laterFix" => {
+                // Guarded fixed point (Löb induction): `(Later k a -> a) -> a`.
+                // Ties the knot through `BoxAlloc`/`BoxInit`/`BoxGet` guarded under `Delay`.
+                let clock: crate::intern::Interned = self.fresh_region().into();
+            self.uni.note_flex_region(clock);
+                let a = self.uni.fresh();
+                let fty = Ty::fun_eff(
+                    Ty::Later {
+                        clock: Some(clock),
+                        inner: Box::new(a.clone()),
+                    },
+                    EffRow::pure(),
+                    a.clone(),
+                );
+                let f_core = self.check(env, &args[0], &fty)?;
+                let a_zonked = self.uni.zonk(&a);
+                let box_l = self.fresh_local();
+                self.note_local_ty(box_l, &a_zonked);
+                let unit_l = self.fresh_local();
+                self.note_local_ty(unit_l, &Ty::Unit);
+                let delayed_self = app_spine(
+                    ECore::Prim(PrimOp::Delay),
+                    vec![ECore::Lam {
+                        params: vec![unit_l],
+                        body: Box::new(ECore::BoxGet(Box::new(ECore::Var(box_l)), a_zonked.clone())),
+                    }],
+                );
+                let body = ECore::Let(
+                    box_l,
+                    Box::new(ECore::BoxAlloc),
+                    Box::new(ECore::BoxInit(
+                        box_l,
+                        Box::new(app_spine(f_core, vec![delayed_self])),
+                        a_zonked.clone(),
+                    )),
+                );
+                Ok((body, a_zonked))
+            }
+            "forceClock" => {
+                // Safe clock elimination: `(forall k. Later k a) -> a` when `k` is not free in `a`.
+                let (core, raw_ty) = self.infer_inner(env, &args[0])?;
+                let raw_ty = self.uni.zonk(&raw_ty);
+                let Ty::Forall(scheme) = raw_ty else {
+                    return Err(Error::at(
+                        args[0].span(),
+                        format!(
+                            "forceClock requires a clock-polymorphic `(forall k. Later k a)`, found `{raw_ty}` (cannot eliminate a clock bound in an outer scope)"
+                        ),
+                    ));
+                };
+                let Ty::Later { clock: Some(k), ref inner } = scheme.ty else {
+                    return Err(Error::at(
+                        args[0].span(),
+                        format!(
+                            "forceClock requires `(forall k. Later k a)`, found `{}`",
+                            Ty::Forall(scheme)
+                        ),
+                    ));
+                };
+                if !scheme.region_params.iter().any(|r| r.as_str() == k.as_str()) {
+                    return Err(Error::at(
+                        args[0].span(),
+                        format!(
+                            "forceClock cannot eliminate clock `{k}`: `{k}` is not universally quantified here"
+                        ),
+                    ));
+                }
+                let mut inner_regions = Vec::new();
+                all_regions(inner, &mut inner_regions);
+                if inner_regions.iter().any(|r| r == k.as_str()) {
+                    return Err(Error::at(
+                        args[0].span(),
+                        format!(
+                            "clock escape in forceClock: clock `{k}` escapes into result type `{inner}`"
+                        ),
+                    ));
+                }
+                let (inst_core, inst_ty) = self.poly_elim(core, &scheme);
+                let Ty::Later { inner: res_inner, .. } = self.uni.zonk(&inst_ty) else {
+                    unreachable!("checked above");
+                };
+                Ok((app_spine(ECore::Prim(PrimOp::Force), vec![inst_core]), *res_inner))
+            }
             "ignore" => {
                 // `ignore e`: the explicit discard of the return-value
                 // discipline (attribute annotations specification
@@ -3121,7 +3283,7 @@ impl Checker {
             }
             "force" => {
                 let (arg, ty) = self.infer(env, &args[0])?;
-                if let Ty::Later(inner) = self.uni.zonk(&ty) {
+                if let Ty::Later { inner, .. } = self.uni.zonk(&ty) {
                     // Forcing a `Later` is the next tick of the guarded
                     // observation: it runs the guard body and performs no
                     // effects beyond what the body does (core language
@@ -9966,7 +10128,7 @@ impl Checker {
                 ctx_span,
                 crate::diagnostic!("cannot pattern match on a thunk (Thunk _ {}); force it first", inner),
             )),
-            Ty::Later(inner) => Err(Error::at(
+            Ty::Later { inner, .. } => Err(Error::at(
                 ctx_span,
                 crate::diagnostic!("cannot pattern match on a Later ({}); force it first", inner),
             )),
@@ -13645,7 +13807,7 @@ impl KnotFlow<'_> {
     fn force_result(&mut self, captured: Option<usize>, args: &[ECore]) -> Result<Option<usize>> {
         let [thunk] = args else { return Ok(captured) };
         match self.term_type(thunk) {
-            Some(Ty::Thunk { inner, .. } | Ty::Later(inner)) => return Ok(self.in_type(captured, &inner)),
+            Some(Ty::Thunk { inner, .. } | Ty::Later { inner, .. }) => return Ok(self.in_type(captured, &inner)),
             _ => {}
         }
         if let ECore::App(head, args) = thunk {

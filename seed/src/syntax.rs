@@ -508,12 +508,30 @@ fn walk_decl(decl: &Decl, visit: &mut impl FnMut(&Term) -> Result<()>) -> Result
                 walk_term(related, visit)?;
             }
         }
+        Decl::Machine(machine) => {
+            walk_term(&machine.init, visit)?;
+            if let Some(obs) = &machine.observe {
+                walk_term(obs, visit)?;
+            }
+        }
+        Decl::Refines(refines) => {
+            walk_term(&refines.view, visit)?;
+            if let Some(m) = &refines.measure {
+                walk_term(m, visit)?;
+            }
+        }
         Decl::Contract(contract) => {
             for clause in &contract.clauses {
                 match clause {
                     ast::ContractClause::Formula { body, .. }
                     | ast::ContractClause::AssumeProp { body } => walk_term(body, visit)?,
-                    ast::ContractClause::AssumeNamed { .. } => {}
+                    ast::ContractClause::LeadsTo { from, to, .. } => {
+                        walk_term(from, visit)?;
+                        walk_term(to, visit)?;
+                    }
+                    ast::ContractClause::DeadlockFree { .. }
+                    | ast::ContractClause::AssumeNamed { .. }
+                    | ast::ContractClause::AssumeFair { .. } => {}
                 }
             }
         }

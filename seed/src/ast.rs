@@ -1009,10 +1009,25 @@ impl Decl {
                 if let Some(migration) = &mut upgrade.migrate { migration.visit_types_mut(visit); }
                 if let Some(relation) = &mut upgrade.related { relation.visit_types_mut(visit); }
             }
+            Decl::Machine(machine) => {
+                visit(&mut machine.state);
+                machine.init.visit_types_mut(visit);
+                if let Some(obs) = &mut machine.observe { obs.visit_types_mut(visit); }
+            }
+            Decl::Refines(refines) => {
+                refines.view.visit_types_mut(visit);
+                if let Some(m) = &mut refines.measure { m.visit_types_mut(visit); }
+            }
             Decl::Contract(contract) => for clause in &mut contract.clauses {
                 match clause {
                     ContractClause::Formula { body, .. } | ContractClause::AssumeProp { body } => body.visit_types_mut(visit),
-                    ContractClause::AssumeNamed { .. } => {}
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        from.visit_types_mut(visit);
+                        to.visit_types_mut(visit);
+                    }
+                    ContractClause::DeadlockFree { .. }
+                    | ContractClause::AssumeNamed { .. }
+                    | ContractClause::AssumeFair { .. } => {}
                 }
             },
             Decl::Import(..) | Decl::ImportData(..) | Decl::Export(..) | Decl::Fixity(..) => {}
@@ -1517,12 +1532,48 @@ impl ContractKind {
 pub enum ContractClause {
     /// The temporal formula: `<operator> = (P)`.
     Formula { op: Name, body: Term },
+    /// `leads_to = (P) ~> (Q)`: TLA+ leads-to (`[](P => <>Q)`), stuttering-invariant.
+    LeadsTo { op: Name, from: Term, to: Term },
+    /// `deadlock_free = (True)`: every reachable state has at least one enabled transition.
+    DeadlockFree { op: Name },
     /// `assume = (P)`: a stated assumed fact (a safety contract's
     /// establishment is one).
     AssumeProp { body: Term },
     /// `assume = "text"`: a stated environmental assumption (scheduler,
     /// dependency, crash, network, fairness).
     AssumeNamed { text: String, span: Span },
+    /// `fair = [a, b]` / `strong_fair = [a]`: per-action weak or strong fairness assumptions.
+    AssumeFair { strong: bool, actions: Vec<Name>, span: Span },
+}
+
+/// `machine Name where { state = StateTy; init = initExpr; actions = [a1, ...]; ... }`:
+/// An explicit-state coalgebra (TLA+-like transition system) embedded in Cinch.
+/// Its state is ordinary Cinch data (with refinements and `erased` ghost fields),
+/// its transitions are ordinary Cinch functions, and it unfolds into a guarded `codata` process.
+#[derive(Clone, Debug)]
+pub struct MachineDecl {
+    pub name: Name,
+    pub state: Type,
+    pub init: Term,
+    pub actions: Vec<Name>,
+    pub fair: Vec<Name>,
+    pub strong_fair: Vec<Name>,
+    pub symmetry: Vec<ConPath>,
+    pub max_states: Option<usize>,
+    pub observe: Option<Term>,
+    pub span: Span,
+}
+
+/// `refines Concrete Abstract where { view = f; [measure = rankFn] }`:
+/// Checked stuttering-aware simulation refinement linking a concrete machine
+/// to an abstract specification machine so implementation and model cannot drift.
+#[derive(Clone, Debug)]
+pub struct RefinesDecl {
+    pub concrete: Name,
+    pub abstract_target: Name,
+    pub view: Term,
+    pub measure: Option<Term>,
+    pub span: Span,
 }
 
 /// `contract <kind> <name> for <def> where { ... }`: a temporal contract
@@ -1625,6 +1676,10 @@ pub enum Decl {
     /// without a migration, whose added fields stay distinguishable from
     /// missing under the view (runtime evolution section 2; core rule).
     Upgrade(UpgradeDecl),
+    /// `machine Name where { ... }`: explicit-state temporal coalgebra.
+    Machine(MachineDecl),
+    /// `refines Concrete Abstract where { view = ... }`: checked stuttering refinement.
+    Refines(RefinesDecl),
     /// `contract <kind> <name> for <def> where { ... }`: a temporal
     /// contract over a definition (core specification section 10), one
     /// of safety, liveness, recurrence or stability.
@@ -1922,6 +1977,25 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 collect_term_refs(r, out);
             }
         }
+        Decl::Machine(m) => {
+            collect_type_refs(&m.state, out);
+            collect_term_refs(&m.init, out);
+            for a in &m.actions {
+                out.push(RefSite { kind: RefKind::Value, quals: Vec::new(), name: a.text.clone(), span: a.span });
+            }
+            for s in &m.symmetry {
+                out.push(ref_of_path(RefKind::Type, &s.segments, s.span()));
+            }
+            if let Some(obs) = &m.observe {
+                collect_term_refs(obs, out);
+            }
+        }
+        Decl::Refines(r) => {
+            collect_term_refs(&r.view, out);
+            if let Some(m) = &r.measure {
+                collect_term_refs(m, out);
+            }
+        }
         Decl::Signature(s) => {
             for (_, ty) in &s.methods {
                 collect_type_refs(ty, out);
@@ -2200,7 +2274,11 @@ fn owned_declaration_name(cx: &HygCx, kind: RefKind, source: &Name) -> Option<Na
 }
 
 pub(crate) fn builtin_syntax_form(name: &str) -> bool {
-    matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore" | "unrefine")
+    matches!(
+        name,
+        "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore" | "unrefine"
+            | "laterPure" | "laterAp" | "laterFix" | "forceClock"
+    )
 }
 
 fn qualify_value(cx: &HygCx, path: &VarPath, span: Span) -> Result<VarPath> {
@@ -3227,13 +3305,35 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
             }
             Decl::Upgrade(u)
         }
+        Decl::Machine(m) => {
+            let mut m = m.clone();
+            m.init = hyg_term(&m.init, cx, sc)?;
+            if let Some(obs) = &m.observe {
+                m.observe = Some(hyg_term(obs, cx, sc)?);
+            }
+            Decl::Machine(m)
+        }
+        Decl::Refines(r) => {
+            let mut r = r.clone();
+            r.view = hyg_term(&r.view, cx, sc)?;
+            if let Some(m) = &r.measure {
+                r.measure = Some(hyg_term(m, cx, sc)?);
+            }
+            Decl::Refines(r)
+        }
         Decl::Contract(c) => {
             let mut c = c.clone();
             for cl in &mut c.clauses {
                 match cl {
                     ContractClause::Formula { body, .. }
                     | ContractClause::AssumeProp { body } => *body = hyg_term(body, cx, sc)?,
-                    ContractClause::AssumeNamed { .. } => {}
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        *from = hyg_term(from, cx, sc)?;
+                        *to = hyg_term(to, cx, sc)?;
+                    }
+                    ContractClause::DeadlockFree { .. }
+                    | ContractClause::AssumeNamed { .. }
+                    | ContractClause::AssumeFair { .. } => {}
                 }
             }
             Decl::Contract(c)
@@ -3703,6 +3803,18 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             u.related = u.related.as_ref().map(|t| subst_holes(t, vals));
             Decl::Upgrade(u)
         }
+        Decl::Machine(m) => {
+            let mut m = m.clone();
+            m.init = subst_holes(&m.init, vals);
+            m.observe = m.observe.as_ref().map(|t| subst_holes(t, vals));
+            Decl::Machine(m)
+        }
+        Decl::Refines(r) => {
+            let mut r = r.clone();
+            r.view = subst_holes(&r.view, vals);
+            r.measure = r.measure.as_ref().map(|t| subst_holes(t, vals));
+            Decl::Refines(r)
+        }
         Decl::Prim(p) => {
             let mut p = p.clone();
             p.spec = p.spec.as_ref().map(|t| subst_holes(t, vals));
@@ -3718,7 +3830,13 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
                 match cl {
                     ContractClause::Formula { body, .. }
                     | ContractClause::AssumeProp { body } => *body = subst_holes(body, vals),
-                    ContractClause::AssumeNamed { .. } => {}
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        *from = subst_holes(from, vals);
+                        *to = subst_holes(to, vals);
+                    }
+                    ContractClause::DeadlockFree { .. }
+                    | ContractClause::AssumeNamed { .. }
+                    | ContractClause::AssumeFair { .. } => {}
                 }
             }
             Decl::Contract(c)
@@ -3972,12 +4090,30 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
                 collect_template_holes_with_macros(r, holes, false);
             }
         }
+        Decl::Machine(m) => {
+            collect_template_holes_with_macros(&mut m.init, holes, false);
+            if let Some(obs) = &mut m.observe {
+                collect_template_holes_with_macros(obs, holes, false);
+            }
+        }
+        Decl::Refines(r) => {
+            collect_template_holes_with_macros(&mut r.view, holes, false);
+            if let Some(m) = &mut r.measure {
+                collect_template_holes_with_macros(m, holes, false);
+            }
+        }
         Decl::Contract(c) => {
             for cl in &mut c.clauses {
                 match cl {
                     ContractClause::Formula { body, .. }
                     | ContractClause::AssumeProp { body } => collect_template_holes_with_macros(body, holes, false),
-                    ContractClause::AssumeNamed { .. } => {}
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        collect_template_holes_with_macros(from, holes, false);
+                        collect_template_holes_with_macros(to, holes, false);
+                    }
+                    ContractClause::DeadlockFree { .. }
+                    | ContractClause::AssumeNamed { .. }
+                    | ContractClause::AssumeFair { .. } => {}
                 }
             }
         }

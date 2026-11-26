@@ -2478,7 +2478,7 @@ fn stored_code_metas(ty: &Ty, out: &mut Vec<EitherMeta>) {
         }
         Ty::Forall(scheme) => stored_code_metas(&scheme.ty, out),
         Ty::Ptr { pointee: inner, .. } | Ty::Thunk { inner, .. }
-        | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner)
+        | Ty::Lazy { inner, .. } | Ty::Later { inner, .. } | Ty::Ref(_, inner)
         | Ty::Mut(_, inner) => stored_code_metas(inner, out),
         Ty::App(head, arguments) => {
             stored_code_metas(head, out);
@@ -2747,7 +2747,7 @@ fn borrow_regions(ty: &Ty, out: &mut Vec<(String, bool)>) {
                 borrow_regions(a, out);
             }
         }
-        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => borrow_regions(inner, out),
+        Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => borrow_regions(inner, out),
         _ => {}
     }
 }
@@ -2792,7 +2792,10 @@ fn escape_regions(ty: &Ty, out: &mut Vec<String>) {
             }
             escape_regions(inner, out);
         }
-        Ty::Later(inner) => {
+        Ty::Later { clock, inner } => {
+            if let Some(k) = clock {
+                note(k, out);
+            }
             escape_regions(inner, out);
         }
         Ty::Adt(_, args) | Ty::Tuple(args) => {
@@ -2968,7 +2971,12 @@ fn all_regions(ty: &Ty, out: &mut Vec<String>) {
             }
             all_regions(inner, out);
         }
-        Ty::Later(inner) => all_regions(inner, out),
+        Ty::Later { clock, inner } => {
+            if let Some(k) = clock {
+                note(k, out);
+            }
+            all_regions(inner, out);
+        }
         Ty::Adt(_, args) | Ty::Tuple(args) => {
             for a in args {
                 all_regions(a, out);
@@ -3689,6 +3697,10 @@ struct Checker {
     /// evolution specification section 3): the migration field checking
     /// runs after every module's records and functions are known.
     pending_upgrades: Vec<(String, ast::UpgradeDecl)>,
+    /// Explicit-state temporal machines (`machine Name where ...`) awaiting exploration.
+    pending_machines: Vec<(String, ast::MachineDecl)>,
+    /// Checked stuttering refinements (`refines Concrete Abstract where ...`).
+    pending_refines: Vec<(String, ast::RefinesDecl)>,
     /// Schema compatibility evidence from checked upgrades, for the
     /// module's interface (runtime evolution specification section 11),
     /// keyed by module.
@@ -4227,6 +4239,8 @@ impl Checker {
             pres_obligations: Vec::new(),
             law_rows: Vec::new(),
             pending_upgrades: Vec::new(),
+            pending_machines: Vec::new(),
+            pending_refines: Vec::new(),
             upgrade_evidence: Vec::new(),
             rewrites: Vec::new(),
             ev_writes: Vec::new(),
@@ -5603,7 +5617,7 @@ impl Checker {
         if seen.contains(&ty) { return false; }
         match &ty {
             Ty::Fun(..) | Ty::Pi { .. } | Ty::Handler { .. }
-            | Ty::Thunk { .. } | Ty::Later(_) | Ty::Lazy { .. }
+            | Ty::Thunk { .. } | Ty::Later { .. } | Ty::Lazy { .. }
             | Ty::Meta(_) | Ty::Param(_) | Ty::App(..) | Ty::Former(_) => true,
             // A polymorphic value is a block of closures.
             Ty::Forall(_) => true,
@@ -5686,7 +5700,7 @@ impl Checker {
             // `Later` keeps the thunk representation at runtime (codata
             // and guardedness design, section 6), so like a thunk it is
             // not duplicable evidence.
-            Ty::Later(_) => transferring,
+            Ty::Later { .. } => transferring,
             Ty::Fun(_, _, _, _) => {
                 transferring
                     || (usage == StructuralUsage::Share
@@ -7812,7 +7826,7 @@ impl Checker {
     /// `Later` value is consumed by `force` and may not be bound `%many`,
     /// which would make it a duplicable thunk in disguise.
     fn check_later_mult(&self, arg_ty: &Ty, m: Mult, span: ast::Span) -> Result<()> {
-        if matches!(arg_ty, Ty::Later(_)) && m == Mult::Many {
+        if matches!(arg_ty, Ty::Later { .. }) && m == Mult::Many {
             return Err(Error::at(
                 span,
                 "a Later-typed parameter must be used at most once: %many would give Later unrestricted-thunk semantics, which the laziness specification forbids (annotate %aff or %1)",
@@ -9736,7 +9750,7 @@ impl Checker {
                 .ty_refine_mention(dom)
                 .or_else(|| self.ty_refine_mention(cod)),
             Ty::Forall(scheme) => self.ty_refine_mention(&scheme.ty),
-            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
+            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => {
                 self.ty_refine_mention(inner)
             }
             Ty::Ref(_, i) | Ty::Mut(_, i) => self.ty_refine_mention(i),
@@ -9992,15 +10006,44 @@ impl Checker {
                     ));
                 }
                 (["Later"], [Arg::Ty(a)]) => {
-                    // `Later a`: the guarded observation modality (core
-                    // language specification section 9). One type argument,
-                    // no effect row: it carries no effects to hide.
-                    return Ok(Ty::Later(Box::new(self.conv_type(a, vars)?)));
+                    // `Later a`: unclocked guarded observation modality (core
+                    // language specification section 9).
+                    return Ok(Ty::Later {
+                        clock: None,
+                        inner: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (["Later"], [Arg::Ty(k), Arg::Ty(a)]) => {
+                    // `Later k a`: clocked guarded observation modality (guarded
+                    // temporal type theory). `k` is a clock variable following
+                    // the same rigid-scope discipline as regions (`Ref r a`).
+                    let clock = match k {
+                        ast::Type::Var(n, _) => {
+                            if !vars.contains(&n.text) {
+                                return Err(Error::at(
+                                    n.span,
+                                    format!("unknown clock variable {}", n.text),
+                                ));
+                            }
+                            n.text.clone()
+                        }
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "the clock argument of `Later k a` must be a clock variable",
+                            ));
+                        }
+                    };
+                    self.check_declared_region_role(&clock, k.span())?;
+                    return Ok(Ty::Later {
+                        clock: Some(clock.into()),
+                        inner: Box::new(self.conv_type(a, vars)?),
+                    });
                 }
                 (["Later"], _) => {
                     return Err(Error::at(
                         head_span,
-                        "Later must be applied to exactly one type (`Later a`): it is a logical modality and takes no effect row; effectful deferral is `Thunk {e} a`",
+                        "Later must be applied to exactly one type (`Later a`) or a clock and type (`Later k a`): it is a logical modality and takes no effect row; effectful deferral is `Thunk {e} a`",
                     ));
                 }
                 (["Ref"] | ["Mut"], [Arg::Ty(r), Arg::Ty(a)]) => {
@@ -11708,7 +11751,7 @@ impl Checker {
                 self.check_length_type(f, env, 0, span)?;
                 for a in args { self.check_length_type(a, env, 0, span)?; }
             }
-            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. }
+            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. }
             | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => self.check_length_type(inner, env, 0, span)?,
             Ty::Handler { input, output, .. } => {
                 self.check_length_type(input, env, 0, span)?;
@@ -12066,9 +12109,10 @@ impl Checker {
                 eff: subst_row(eff, rows, regions),
                 inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
-            Ty::Later(inner) => {
-                Ty::Later(Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)))
-            }
+            Ty::Later { clock, inner } => Ty::Later {
+                clock: clock.map(|k| regions.get(k.as_str()).cloned().unwrap_or_else(|| k.to_string()).into()),
+                inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
+            },
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: subst_row(eff, rows, regions),
                 region: regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
@@ -13430,6 +13474,7 @@ include!("check_terms.rs");
 include!("check_code.rs");
 include!("check_dictionary.rs");
 include!("check_decls.rs");
+include!("check_temporal_mc.rs");
 include!("check_default_wire.rs");
 include!("check_interface.rs");
 include!("check_total.rs");

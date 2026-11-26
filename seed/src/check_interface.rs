@@ -485,7 +485,7 @@ impl Checker {
                 || args.iter().any(Self::interface_type_mentions_cell_effect),
             Ty::Thunk { eff, inner } | Ty::Lazy { eff, inner, .. } =>
                 row(eff) || Self::interface_type_mentions_cell_effect(inner),
-            Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner)
+            Ty::Later { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner)
             | Ty::Ptr { pointee: inner, .. } => Self::interface_type_mentions_cell_effect(inner),
             Ty::Sigma { dom, cod, .. } => Self::interface_type_mentions_cell_effect(dom)
                 || Self::interface_type_mentions_cell_effect(cod),

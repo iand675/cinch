@@ -2881,12 +2881,13 @@ pub enum Ty {
     Fun(Box<Ty>, Mult, EffRow, Box<Ty>),
     /// `Thunk {e} a`.
     Thunk { eff: EffRow, inner: Box<Ty> },
-    /// `Later a`: the guarded observation modality (core language
-    /// specification section 9). A logical modality with no effect row and
-    /// no reclamation obligation; at runtime it keeps the thunk
-    /// representation (codata and guardedness design, section 1). It is
-    /// never interchangeable with `Thunk`.
-    Later(Box<Ty>),
+    /// `Later a` or clocked `Later k a`: the guarded observation modality
+    /// (core language specification section 9). When `clock` is `Some(k)`,
+    /// `k` is a rigid/quantified clock variable preventing guarded values
+    /// from escaping their clock scope while enabling applicative guarded
+    /// composition (`laterPure`, `laterAp`), Löb induction (`laterFix`),
+    /// and safe clock elimination (`forceClock`).
+    Later { clock: Option<Interned>, inner: Box<Ty> },
     /// `Lazy {e} r a`: a memo cell in region `r`.
     Lazy { eff: EffRow, region: Interned, inner: Box<Ty> },
     /// `Ref r a`: a shared borrow of `a` in region `r`.
@@ -2985,7 +2986,7 @@ impl Ty {
             Self::Fun(domain, _, _, result) | Self::Pi { dom: domain, cod: result, .. }
             | Self::Sigma { dom: domain, cod: result, .. } => domain.has_declaration_pending() || result.has_declaration_pending(),
             Self::Ptr { pointee: inner, .. } | Self::Thunk { inner, .. } | Self::Lazy { inner, .. }
-            | Self::Later(inner) | Self::Ref(_, inner) | Self::Mut(_, inner) => inner.has_declaration_pending(),
+            | Self::Later { inner, .. } | Self::Ref(_, inner) | Self::Mut(_, inner) => inner.has_declaration_pending(),
             Self::Handler { input, output, .. } => input.has_declaration_pending() || output.has_declaration_pending(),
             _ => false,
         }
@@ -3012,7 +3013,7 @@ impl Ty {
                     if name != *var && !out.contains(&name) { out.push(name); }
                 }
             }
-            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later(inner)
+            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later { inner, .. }
                 | Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_index_vars(out),
             Ty::Forall(scheme) => scheme.ty.free_index_vars(out),
             Ty::Ptr { pointee, .. } => pointee.free_index_vars(out),
@@ -3207,7 +3208,7 @@ impl Ty {
             Self::Fun(dom, _, _, cod) | Self::Pi { dom, cod, .. } | Self::Sigma { dom, cod, .. } => {
                 dom.local_values(out); cod.local_values(out);
             }
-            Self::Thunk { inner, .. } | Self::Lazy { inner, .. } | Self::Later(inner)
+            Self::Thunk { inner, .. } | Self::Lazy { inner, .. } | Self::Later { inner, .. }
                 | Self::Ref(_, inner) | Self::Mut(_, inner) => inner.local_values(out),
             Self::Ptr { pointee, .. } => pointee.local_values(out),
             Self::Handler { input, output, .. } => { input.local_values(out); output.local_values(out); }
@@ -3258,7 +3259,10 @@ impl Ty {
                 eff: eff.clone(),
                 inner: Box::new(inner.substitute_index(substitution)),
             },
-            Ty::Later(inner) => Ty::Later(Box::new(inner.substitute_index(substitution))),
+            Ty::Later { clock, inner } => Ty::Later {
+                clock: *clock,
+                inner: Box::new(inner.substitute_index(substitution)),
+            },
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: eff.clone(),
                 region: region.clone(),
@@ -3304,7 +3308,7 @@ impl Ty {
                 cod.free_idx_metas(out);
             }
             Ty::Forall(scheme) => scheme.ty.free_idx_metas(out),
-            Ty::Thunk { inner, .. } | Ty::Later(inner) => inner.free_idx_metas(out),
+            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } => inner.free_idx_metas(out),
             Ty::Lazy { inner, .. } => inner.free_idx_metas(out),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_idx_metas(out),
             Ty::Ptr { pointee, .. } => pointee.free_idx_metas(out),
@@ -3352,7 +3356,7 @@ impl Ty {
                 eff.free_metas(out);
                 inner.free_metas(out);
             }
-            Ty::Later(inner) => {
+            Ty::Later { inner, .. } => {
                 inner.free_metas(out);
             }
             Ty::Lazy { eff, inner, .. } => {
@@ -3389,7 +3393,7 @@ pub fn default_mult(ty: &Ty) -> Mult {
         // A thunk is consumed by `force`; a `Later` observation likewise
         // (the usage-multiplicity rule keeping `Later` from unrestricted
         // thunk semantics).
-        Ty::Thunk { .. } | Ty::Later(_) => Mult::Aff,
+        Ty::Thunk { .. } | Ty::Later { .. } => Mult::Aff,
         _ => {
             if mentions_task(ty) {
                 Mult::One
@@ -3412,7 +3416,7 @@ pub fn mentions_task(ty: &Ty) -> bool {
         }
         Ty::Sigma { dom, cod, .. } => mentions_task(dom) || mentions_task(cod),
         Ty::Forall(scheme) => mentions_task(&scheme.ty),
-        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
+        Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => {
             mentions_task(inner)
         }
         Ty::Ref(_, i) | Ty::Mut(_, i) => mentions_task(i),
@@ -3437,7 +3441,7 @@ pub fn mentions_memo(ty: &Ty) -> bool {
         }
         Ty::Sigma { dom, cod, .. } => mentions_memo(dom) || mentions_memo(cod),
         Ty::Forall(scheme) => mentions_memo(&scheme.ty),
-        Ty::Thunk { inner, .. } | Ty::Later(inner) => mentions_memo(inner),
+        Ty::Thunk { inner, .. } | Ty::Later { inner, .. } => mentions_memo(inner),
         Ty::Ref(_, i) | Ty::Mut(_, i) => mentions_memo(i),
         Ty::Ptr { pointee, .. } => mentions_memo(pointee),
         Ty::Handler { input, output, .. } => {
@@ -3502,7 +3506,7 @@ fn needs_parens_as_argument(t: &Ty) -> bool {
         }
         Ty::App(..)
         | Ty::Thunk { .. }
-        | Ty::Later(_)
+        | Ty::Later { .. }
         | Ty::Lazy { .. }
         | Ty::Ref(..)
         | Ty::Mut(..)
@@ -3636,7 +3640,8 @@ impl Spell for Ty {
                 (_, false) => write!(f, "({} {m} ->{e} {})", s.of(a), s.of(b)),
             },
             Ty::Thunk { eff, inner } => write!(f, "Thunk {eff} {}", s.of(inner)),
-            Ty::Later(inner) => write!(f, "Later {}", s.of(inner)),
+            Ty::Later { clock: None, inner } => write!(f, "Later {}", s.of(inner)),
+            Ty::Later { clock: Some(k), inner } => write!(f, "Later {k} {}", s.of(inner)),
             Ty::Lazy { eff, region, inner } => write!(f, "Lazy {eff} {region} {}", s.of(inner)),
             Ty::Ref(region, inner) => write!(f, "Ref {region} {}", s.of(inner)),
             Ty::Mut(region, inner) => write!(f, "Mut {region} {}", s.of(inner)),
@@ -3767,7 +3772,7 @@ impl Ty {
             Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().for_each(|a| f(a)),
             Ty::App(h, args) => { f(h); args.iter().for_each(|a| f(a)); }
             Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } | Ty::Sigma { dom: a, cod: b, .. } => { f(a); f(b); }
-            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => f(inner),
+            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => f(inner),
             Ty::Ptr { pointee, .. } => f(pointee),
             Ty::Handler { input, output, .. } => { f(input); f(output); }
             Ty::Forall(scheme) => f(&scheme.ty),
@@ -3790,7 +3795,10 @@ impl Ty {
             Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi { var: var.clone(), dom: Box::new(go(dom)), mult: *mult, eff: r.row(eff), cod: Box::new(go(cod)) },
             Ty::Sigma { var, dom, cod } => Ty::Sigma { var: var.clone(), dom: Box::new(go(dom)), cod: Box::new(go(cod)) },
             Ty::Thunk { eff, inner } => Ty::Thunk { eff: r.row(eff), inner: Box::new(go(inner)) },
-            Ty::Later(inner) => Ty::Later(Box::new(go(inner))),
+            Ty::Later { clock, inner } => Ty::Later {
+                clock: clock.map(|k| r.region(&k)),
+                inner: Box::new(go(inner)),
+            },
             Ty::Lazy { eff, region, inner } => Ty::Lazy { eff: r.row(eff), region: r.region(region), inner: Box::new(go(inner)) },
             Ty::Ref(x, inner) => Ty::Ref(r.region(x), Box::new(go(inner))),
             Ty::Mut(x, inner) => Ty::Mut(r.region(x), Box::new(go(inner))),
@@ -3999,7 +4007,10 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
             eff: eff.clone(),
             inner: Box::new(regionize(inner, regions)),
         },
-        Ty::Later(inner) => Ty::Later(Box::new(regionize(inner, regions))),
+        Ty::Later { clock, inner } => Ty::Later {
+            clock: *clock,
+            inner: Box::new(regionize(inner, regions)),
+        },
         Ty::Lazy { eff, region, inner } => Ty::Lazy {
             eff: eff.clone(),
             region: region.clone(),
@@ -4076,7 +4087,12 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
             note_row(eff, rows, regions);
             collect_row_names(inner, rows, regions);
         }
-        Ty::Later(inner) => {
+        Ty::Later { clock, inner } => {
+            if let Some(k) = clock {
+                if !regions.iter().any(|present| present.as_str() == k.as_str()) {
+                    regions.push(k.to_string());
+                }
+            }
             collect_row_names(inner, rows, regions);
         }
         Ty::Lazy { eff, region, inner } => {
@@ -4464,7 +4480,10 @@ fn subst_family_ty(ty: &Ty, ty_env: &HashMap<String, Ty>, idx_env: &HashMap<Stri
             eff: eff.clone(),
             inner: Box::new(subst_family_ty(inner, ty_env, idx_env)),
         },
-        Ty::Later(inner) => Ty::Later(Box::new(subst_family_ty(inner, ty_env, idx_env))),
+        Ty::Later { clock, inner } => Ty::Later {
+            clock: *clock,
+            inner: Box::new(subst_family_ty(inner, ty_env, idx_env)),
+        },
         Ty::Lazy { eff, region, inner } => Ty::Lazy {
             eff: eff.clone(),
             region: *region,
@@ -5171,7 +5190,7 @@ impl Unifier {
             Ty::App(head, args) => self.prop_occurs_type(id, &head) || args.iter().any(|ty| self.prop_occurs_type(id, ty)),
             Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. } | Ty::Sigma { dom, cod, .. } => self.prop_occurs_type(id, &dom) || self.prop_occurs_type(id, &cod),
             Ty::Forall(scheme) => self.prop_occurs_type(id, &scheme.ty),
-            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.prop_occurs_type(id, &inner),
+            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.prop_occurs_type(id, &inner),
             Ty::Ptr { pointee, .. } => self.prop_occurs_type(id, &pointee),
             Ty::Handler { input, output, .. } => self.prop_occurs_type(id, &input) || self.prop_occurs_type(id, &output),
             _ => false,
@@ -5423,7 +5442,7 @@ impl Unifier {
             Ty::App(head, args) => self.owns_value_metas_in_type(head) && args.iter().all(|ty| self.owns_value_metas_in_type(ty)),
             Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. } | Ty::Sigma { dom, cod, .. } => self.owns_value_metas_in_type(dom) && self.owns_value_metas_in_type(cod),
             Ty::Forall(scheme) => self.owns_value_metas_in_type(&scheme.ty),
-            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later(inner) | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.owns_value_metas_in_type(inner),
+            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.owns_value_metas_in_type(inner),
             Ty::Ptr { pointee, .. } => self.owns_value_metas_in_type(pointee),
             Ty::Handler { input, output, .. } => self.owns_value_metas_in_type(input) && self.owns_value_metas_in_type(output),
             _ => true,
@@ -5542,7 +5561,10 @@ impl Unifier {
                 eff: self.resolve_row(&eff),
                 inner: Box::new(z(&inner)),
             },
-            Ty::Later(inner) => Ty::Later(Box::new(z(&inner))),
+            Ty::Later { clock, inner } => Ty::Later {
+                clock: clock.map(|k| self.resolve_region(k)),
+                inner: Box::new(z(&inner)),
+            },
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.resolve_row(&eff),
                 region: self.resolve_region(*region),
@@ -5670,7 +5692,10 @@ impl Unifier {
                 eff: self.gen_row(&eff, names),
                 inner: Box::new(self.gen_ty(&inner, names)),
             },
-            Ty::Later(inner) => Ty::Later(Box::new(self.gen_ty(&inner, names))),
+            Ty::Later { clock, inner } => Ty::Later {
+                clock: *clock,
+                inner: Box::new(self.gen_ty(&inner, names)),
+            },
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.gen_row(&eff, names),
                 region: region.clone(),
@@ -5729,7 +5754,7 @@ impl Unifier {
             Ty::Pi { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Sigma { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Forall(scheme) => self.occurs(id, &scheme.ty),
-            Ty::Thunk { inner, .. } | Ty::Later(inner) => self.occurs(id, &inner),
+            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
             Ty::Ptr { pointee, .. } => self.occurs(id, &pointee),
@@ -6206,12 +6231,25 @@ impl Unifier {
                 self.unify_rows(e1, e2)?;
                 self.unify(i1, i2)
             }
-            (Ty::Later(i1), Ty::Later(i2)) => self.unify(i1, i2),
+            (Ty::Later { clock: c1, inner: i1 }, Ty::Later { clock: c2, inner: i2 }) => {
+                match (c1, c2) {
+                    (Some(k1), Some(k2)) => self.unify_regions(k1, k2)?,
+                    (None, None) => {}
+                    _ => {
+                        return Err(crate::diagnostic!(
+                            "clock mismatch: expected {}, got {} (a clocked `Later k a` cannot unify with an unclocked `Later a`)",
+                            self.zonk(&a),
+                            self.zonk(&b)
+                        ));
+                    }
+                }
+                self.unify(i1, i2)
+            }
             // `Later` and `Thunk` are kept apart by design (laziness and
             // reclamation specification, section 2): a `Later` is a
             // guarded observation modality, a `Thunk` an affine deferred
             // computation, and neither converts to the other.
-            (Ty::Later(_), Ty::Thunk { .. }) | (Ty::Thunk { .. }, Ty::Later(_)) => Err(crate::diagnostic!(
+            (Ty::Later { .. }, Ty::Thunk { .. }) | (Ty::Thunk { .. }, Ty::Later { .. }) => Err(crate::diagnostic!(
                 "type mismatch: expected {}, got {} (Later and Thunk are distinct types; a Later is a guarded observation, not a deferred computation)",
                 self.zonk(&a),
                 self.zonk(&b)
@@ -6533,7 +6571,9 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
             Ty::Thunk { eff: e1, inner: i1 },
             Ty::Thunk { eff: e2, inner: i2 },
         ) => e1 == e2 && ty_eq(i1, i2),
-        (Ty::Later(i1), Ty::Later(i2)) => ty_eq(i1, i2),
+        (Ty::Later { clock: c1, inner: i1 }, Ty::Later { clock: c2, inner: i2 }) => {
+            c1 == c2 && ty_eq(i1, i2)
+        }
         (
             Ty::Lazy { eff: e1, region: r1, inner: i1 },
             Ty::Lazy { eff: e2, region: r2, inner: i2 },
