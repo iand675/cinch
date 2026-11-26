@@ -1406,9 +1406,9 @@ fn interval_atom(a: &PTerm) -> Option<(ITerm, Interval)> {
         (None, None) => return None,
     };
     let iv = match op {
-        IdxCmp::Lt => Interval { lo: None, hi: Some(bound - 1) },
+        IdxCmp::Lt => Interval { lo: None, hi: Some(bound.checked_sub(1)?) },
         IdxCmp::Le => Interval { lo: None, hi: Some(bound) },
-        IdxCmp::Gt => Interval { lo: Some(bound + 1), hi: None },
+        IdxCmp::Gt => Interval { lo: Some(bound.checked_add(1)?), hi: None },
         IdxCmp::Ge => Interval { lo: Some(bound), hi: None },
         IdxCmp::Eq => Interval { lo: Some(bound), hi: Some(bound) },
         IdxCmp::Ne => return None,
@@ -1553,6 +1553,14 @@ pub enum IntSort {
     /// A machine integer or `Char`: an exact value in `[lo, hi]`, with
     /// opaque arithmetic.
     Bounded(i128, i128),
+    /// `U128`: non-negative 128-bit unsigned scalar with opaque arithmetic.
+    /// Its upper bound `2^128 - 1` exceeds `i128`, so the difference solver
+    /// adds `0 <= t` without overflowing `i128`.
+    WideUnsigned,
+    /// `I128`: 128-bit signed scalar with opaque arithmetic. Its bounds
+    /// `[-2^127, 2^127 - 1]` cannot be safely negated or summed in `i128`,
+    /// so the difference solver omits implicit range bounds.
+    WideSigned,
 }
 
 impl IntSort {
@@ -1566,14 +1574,11 @@ impl IntSort {
         if s == Scalar::Char {
             return Some(IntSort::Bounded(0, 0x10FFFF));
         }
-        // The sorts are `i128` ranges whose bounds the difference-constraint
-        // solver negates and sums: `U128`'s maximum, 2^128 - 1, is beyond
-        // every `i128`, and `I128`'s bounds are `i128`'s own, which those
-        // operations overflow. So neither wide scalar has an integer sort,
-        // like a float: the solver draws no facts about them, which only
-        // ever proves less (design/wide-scalars.md section 4).
-        if s.is_wide() {
-            return None;
+        if s == Scalar::U128 {
+            return Some(IntSort::WideUnsigned);
+        }
+        if s == Scalar::I128 {
+            return Some(IntSort::WideSigned);
         }
         let w = s.width();
         Some(if s.is_signed() {
@@ -1584,7 +1589,7 @@ impl IntSort {
     }
 
     fn exact(self) -> bool {
-        !matches!(self, IntSort::Bounded(..))
+        matches!(self, IntSort::Nat | IntSort::Int)
     }
 }
 
@@ -1944,7 +1949,7 @@ fn sort_domain(t: &ITerm, sorts: &Sorts) -> Vec<DiffLe> {
         }
     }
     match sorts.term(t) {
-        Some(IntSort::Nat) if !has_sub(t) => vec![DiffLe { x: None, y: Some(t.clone()), c: 0 }],
+        Some(IntSort::Nat | IntSort::WideUnsigned) if !has_sub(t) => vec![DiffLe { x: None, y: Some(t.clone()), c: 0 }],
         Some(IntSort::Bounded(lo, hi)) => vec![
             DiffLe { x: Some(t.clone()), y: None, c: hi },
             DiffLe { x: None, y: Some(t.clone()), c: -lo },

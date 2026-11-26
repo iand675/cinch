@@ -5940,7 +5940,26 @@ impl Checker {
                         }
                     }
                     (Stuck::Timeout, _) | (_, Stuck::Timeout) => ObligStatus::Timeout,
-                    _ => ObligStatus::Unresolved,
+                    _ => {
+                        if let (ITerm::Num(da), ITerm::Num(db)) = (&a, &b) {
+                            if let Some(ord) = cmp_decimal_str(da, db) {
+                                let holds = match op {
+                                    IdxCmp::Eq => ord == std::cmp::Ordering::Equal,
+                                    IdxCmp::Ne => ord != std::cmp::Ordering::Equal,
+                                    IdxCmp::Lt => ord == std::cmp::Ordering::Less,
+                                    IdxCmp::Le => ord != std::cmp::Ordering::Greater,
+                                    IdxCmp::Gt => ord == std::cmp::Ordering::Greater,
+                                    IdxCmp::Ge => ord != std::cmp::Ordering::Less,
+                                };
+                                return Ok(if holds {
+                                    ObligStatus::Checked
+                                } else {
+                                    ObligStatus::Disproved
+                                });
+                            }
+                        }
+                        ObligStatus::Unresolved
+                    }
                 }
             }
             PTerm::Eq(a, b) => {
@@ -5950,7 +5969,18 @@ impl Checker {
                     match (self.eval_idx(&a, 32), self.eval_idx(&b, 32)) {
                         (Stuck::Val(x), Stuck::Val(y)) if x != y => ObligStatus::Disproved,
                         (Stuck::Timeout, _) | (_, Stuck::Timeout) => ObligStatus::Timeout,
-                        _ => ObligStatus::Unresolved,
+                        _ => {
+                            if let (ITerm::Num(da), ITerm::Num(db)) = (&*a, &*b) {
+                                if let Some(ord) = cmp_decimal_str(da, db) {
+                                    return Ok(if ord == std::cmp::Ordering::Equal {
+                                        ObligStatus::Checked
+                                    } else {
+                                        ObligStatus::Disproved
+                                    });
+                                }
+                            }
+                            ObligStatus::Unresolved
+                        }
                     }
                 }
             }
@@ -6037,7 +6067,18 @@ impl Checker {
                     }
                 }
                 Stuck::Timeout => ObligStatus::Timeout,
-                Stuck::Stuck => ObligStatus::Unresolved,
+                Stuck::Stuck => {
+                    if let ITerm::Num(d) = &it {
+                        if let Some(ord) = cmp_decimal_str(d, "0") {
+                            return Ok(if ord != std::cmp::Ordering::Equal {
+                                ObligStatus::Checked
+                            } else {
+                                ObligStatus::Disproved
+                            });
+                        }
+                    }
+                    ObligStatus::Unresolved
+                }
             },
             PredFn::NotNull => match self.ctor_form(&it) {
                 Some((runtime_arity, _)) => {
@@ -6188,12 +6229,17 @@ impl Checker {
                         ],
                     ),
                     Ty::Prim(s) if s.is_int_like() => {
+                        let zero = if s.is_wide() {
+                            ECore::Wide(0)
+                        } else {
+                            ECore::Int(0)
+                        };
                         return Ok(ECore::App(
                             Box::new(ECore::Prim(PrimOp::Cmp {
                                 ty: *s,
                                 op: CmpOp::Ne,
                             })),
-                            vec![operand, ECore::Int(0)],
+                            vec![operand, zero],
                         ))
                     }
                     other => {
@@ -7136,12 +7182,21 @@ impl Checker {
                 let word = self.uni.fresh();
                 let ac = self.check(env, arg, &word)?;
                 let zw = self.uni.zonk(&word);
-                if matches!(zw, Ty::Prim(s) if s.is_int_like()) {
+                if matches!(zw, Ty::Prim(s) if s.is_int_like() && !s.is_wide()) {
                     self.uni.unify(expected, &Ty::Nat).map_err(|m| {
                         Error::at(t.span(), m)
                     })?;
                     return Ok(app_spine(
                         ECore::Prim(PrimOp::Nat(NatOp::FromI64)),
+                        vec![ac],
+                    ));
+                }
+                if matches!(zw, Ty::Prim(Scalar::U128)) {
+                    self.uni.unify(expected, &Ty::Nat).map_err(|m| {
+                        Error::at(t.span(), m)
+                    })?;
+                    return Ok(app_spine(
+                        ECore::Prim(PrimOp::Nat(NatOp::FromU128)),
                         vec![ac],
                     ));
                 }
@@ -9425,7 +9480,30 @@ impl Checker {
                             for (i, sp) in args.iter().enumerate() {
                                 if parts.fields[i].2 {
                                     match sp {
-                                        ast::Pat::Wild(_) => {}
+                                        ast::Pat::Wild(wspan) => {
+                                            // Matching a constructor with an erased proof field
+                                            // (such as `Yes _` or `No _`) still establishes the
+                                            // proposition in this branch; bind it under an
+                                            // unreferenceable internal name so ambient discharge
+                                            // can use the fact without forcing a dummy binder.
+                                            let field_ty = subst_idx_names(&parts.fields[i].1, map);
+                                            if matches!(field_ty, Ty::Prp(_)) {
+                                                let l = self.fresh_local();
+                                                erased_bindings.insert(l, i);
+                                                let anon = ast::Name::new(
+                                                    format!("#wildcard-proof.{}", l.0),
+                                                    *wspan,
+                                                );
+                                                self.bind_syntax_local(
+                                                    &mut r.env,
+                                                    &anon,
+                                                    l,
+                                                    Scheme::mono(field_ty),
+                                                    Some(Mult::Zero),
+                                                    *wspan,
+                                                )?;
+                                            }
+                                        }
                                         ast::Pat::Var(n, _) => {
                                             let l = self.fresh_local();
                                             erased_bindings.insert(l, i);
@@ -13112,6 +13190,34 @@ fn neg_fold_float(t: &ast::Term) -> Option<String> {
 /// `None` when it does not fit (then no machine scalar can hold it).
 fn literal_i128(digits: &str) -> Option<i128> {
     digits.parse::<i128>().ok()
+}
+
+/// Exact comparison of two signed base-10 integer strings (including values
+/// outside `i128`, such as `U128::MAX` or big `Nat`/`Int` literals).
+fn cmp_decimal_str(a: &str, b: &str) -> Option<std::cmp::Ordering> {
+    fn parse(s: &str) -> Option<(bool, &str)> {
+        let (neg, rest) = match s.strip_prefix('-') {
+            Some(r) => (true, r),
+            None => (false, s),
+        };
+        if rest.is_empty() || !rest.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        let mag = rest.trim_start_matches('0');
+        if mag.is_empty() {
+            Some((false, "0"))
+        } else {
+            Some((neg, mag))
+        }
+    }
+    let (na, ma) = parse(a)?;
+    let (nb, mb) = parse(b)?;
+    Some(match (na, nb) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => ma.len().cmp(&mb.len()).then_with(|| ma.cmp(mb)),
+        (true, true) => mb.len().cmp(&ma.len()).then_with(|| mb.cmp(ma)),
+    })
 }
 
 /// `dec = dec / d` on a canonical decimal numeral, exactly (the caller

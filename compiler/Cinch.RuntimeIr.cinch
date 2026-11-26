@@ -3866,7 +3866,7 @@ module Cinch.RuntimeIr where
     other -> (case (value-carrier (type-kind value), index-of-type value) of
       (Some carrier, Some (IRigid id name level)) -> read-index-local locals w sp id carrier
       (Some carrier, Some (ICharacter c)) -> if named carrier "Char" then (w, nat-to-string (char-code c)) else unsupported w sp "character index needs its Char carrier"
-      (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else unsupported w sp "index literal needs a runtime integer carrier"
+      (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else if wide-scalar carrier then (w, wide-literal carrier (int-to-string n)) else unsupported w sp "index literal needs a runtime integer carrier"
       (Some carrier, Some (IAdd first second)) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
       (Some carrier, Some (ISubtract first second)) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
       (Some carrier, Some (IMultiply first second)) -> index-math-expression locals w sp carrier "*" (UIndex carrier first) (UIndex carrier second)

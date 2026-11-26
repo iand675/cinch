@@ -528,7 +528,7 @@ module Cinch.PrimVerify where
     else if same s "double" then Some (SFp 64)
     else if string-starts-with "i" s && string-length s > 1 then
       case parse-nat-str (string-slice s 1 (string-length s)) of
-        Some w | w >= 1 && w <= 64 -> Some (SBv w)
+        Some w | w >= 1 && w <= 128 -> Some (SBv w)
         other -> None
     else None
 
@@ -1290,6 +1290,13 @@ module Cinch.PrimVerify where
       case lower-refinement-pred env a g of
         Some (na, g1) -> Some (g-not na g1)
         None -> None
+    UPropNonZero a ->
+      case lower-index-utype env a g of
+        Some (na, w1, sg1, g1) ->
+          let w = if w1 > 0 then w1 else 64 in
+          let (zero, g2) = g-bv w 0 g1 in
+          Some (g-bv-cmp "ne" w na zero g2)
+        None -> None
     UCompare rel a b ->
       case (lower-index-utype env a g, lower-index-utype env b g) of
         (Some (na, w1, sg1, g1), other) ->
@@ -1532,7 +1539,7 @@ module Cinch.PrimVerify where
   bb-const-bits-loop w i v =
     if i >= w then Nil
     else
-      let bit = not (eq-u64 (bit-and-u64 (wrapping-shr-u64 v (nat-u32 i)) 1) 0) in
+      let bit = if i < 64 then not (eq-u64 (bit-and-u64 (wrapping-shr-u64 v (nat-u32 i)) 1) 0) else False in
       Cons (if bit then lit-true else lit-false) (bb-const-bits-loop w (i + 1) v)
 
   bb-fresh-bits :: Nat -> BlastState -> (List Int, BlastState)

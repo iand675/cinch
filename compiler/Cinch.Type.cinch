@@ -2645,7 +2645,7 @@ module Cinch.Type where
     UIndex carrier (IRigid id name level) -> borrow-type-parts carrier
     other -> None
   promotable-carrier :: UType -> Bool
-  promotable-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "I8" || same-tag name "I16" || same-tag name "I32" || same-tag name "I64" || same-tag name "U8" || same-tag name "U16" || same-tag name "U32" || same-tag name "U64" || same-tag name "Isize" || same-tag name "Usize"; other -> False
+  promotable-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "I8" || same-tag name "I16" || same-tag name "I32" || same-tag name "I64" || same-tag name "I128" || same-tag name "U8" || same-tag name "U16" || same-tag name "U32" || same-tag name "U64" || same-tag name "U128" || same-tag name "Isize" || same-tag name "Usize"; other -> False
 
   -- | Promote checked character values only at the proof boundary; runtime integer admission remains separate.
   index-promotable-carrier :: UType -> Bool

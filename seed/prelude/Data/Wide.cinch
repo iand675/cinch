@@ -320,18 +320,24 @@ module Data.Wide where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  -- Unchecked unsigned 128-bit division/remainder: LLVM immediate UB when %1 == 0.
-  -- Callers should use `checked-div-u128` / `checked-rem-u128` unless %1 /= 0 is ensured.
-  prim div-u128 :: U128 -> U128 -> U128 where
-    unsafe llvm {
+  -- Unsigned 128-bit division/remainder: `udiv`/`urem` have immediate LLVM UB
+  -- when `%1 == 0`, so the underlying prims require a `refined (r /= 0) U128`
+  -- divisor (verifiable without `unsafe`) and `div-u128`/`rem-u128` expose
+  -- the same `using (b /= 0)` interface as `Data.Machine.div-u64`.
+  prim raw-div-u128 :: U128 -> refined (r /= 0) U128 -> U128 where
+    llvm {
       %r = udiv i128 %0, %1
       ret i128 %r
     }
-  prim rem-u128 :: U128 -> U128 -> U128 where
-    unsafe llvm {
+  prim raw-rem-u128 :: U128 -> refined (r /= 0) U128 -> U128 where
+    llvm {
       %r = urem i128 %0, %1
       ret i128 %r
     }
+  div-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128
+  div-u128 a b = raw-div-u128 a b
+  rem-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128
+  rem-u128 a b = raw-rem-u128 a b
   prim bit-or-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = or i128 %0, %1
@@ -448,9 +454,13 @@ module Data.Wide where
   saturating-neg-u128 :: U128 -> U128
   saturating-neg-u128 x = 0
   checked-div-u128 :: U128 -> U128 -> Option U128
-  checked-div-u128 x y = if eq-u128 y 0 then None else Some (div-u128 x y)
+  checked-div-u128 x y = case decide (y /= 0) of
+    Yes _ -> Some (div-u128 x y)
+    No _ -> None
   checked-rem-u128 :: U128 -> U128 -> Option U128
-  checked-rem-u128 x y = if eq-u128 y 0 then None else Some (rem-u128 x y)
+  checked-rem-u128 x y = case decide (y /= 0) of
+    Yes _ -> Some (rem-u128 x y)
+    No _ -> None
   checked-shl-u128 :: U128 -> U32 -> Option U128
   checked-shl-u128 x n = if lt-u32 n 128 then Some (wrapping-shl-u128 x n) else None
   checked-shr-u128 :: U128 -> U32 -> Option U128
@@ -614,7 +624,7 @@ module Data.Wide where
   saturating-u32-to-u128 x = u32-to-u128 x
   wrapping-u32-to-u128 :: U32 -> U128
   wrapping-u32-to-u128 x = u32-to-u128 x
-  prim u64-to-u128 :: U64 -> U128 where
+  prim u64-to-u128 :: (x :: U64) -> refined (0 <= r && r <= 18446744073709551615 && r == x) U128 where
     llvm {
       %r = zext i64 %0 to i128
       ret i128 %r

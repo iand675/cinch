@@ -8619,7 +8619,7 @@ module Cinch.Infer where
   patterns-names ps = case ps of [] -> []; p : rest -> pattern-names p <> patterns-names rest
   bind-proof-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
   bind-proof-pattern kinds env locals pattern predicate st = case pattern of
-    PWild sp -> (case fresh-id st of (id, fresh) -> (env, CPProof sp predicate id "_", fresh))
+    PWild sp -> (case fresh-id st of (id, fresh) -> ((MkErasedBinding (string-concat "#wildcard-proof." (nat-to-string id)) predicate id sp None) : env, CPProof sp predicate id "_", fresh))
     PVar sp name -> (case fresh-id st of (id, fresh) -> ((MkErasedBinding name predicate id sp None) : env, CPProof sp predicate id name, fresh))
     PAnn sp inner annotation -> (case convert-predicate False kinds (value-locals env locals) annotation st of (actual, checked) -> bind-proof-pattern kinds env locals inner predicate (unify sp predicate actual checked))
     other -> (env, CPWild (pat-span pattern) UError, add-error (pat-span pattern) "erased proof pattern cannot inspect evidence" st)
@@ -12572,7 +12572,7 @@ module Cinch.Infer where
   -- | Read checked scalar values mathematically inside predicates without changing their runtime carrier.
   predicate-math-carrier :: UType -> Bool
   predicate-math-carrier carrier = case predicate-base-carrier carrier of
-    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "Char"]
+    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "Isize", "I128", "U8", "U16", "U32", "U64", "Usize", "U128", "Char"]
     other -> False
   merge-predicate-carriers :: Option UType -> Option UType -> Option UType
   merge-predicate-carriers first second = case (first, second) of

@@ -180,6 +180,51 @@ module Main where
           && not (string-contains "\"prim_proofs\":" iface) then Ok ()
         else Err (string-concat-all ["unexpected off mode output: ", prims, "\n", iface])
 
+  src-u128-index :: String
+  src-u128-index = string-concat-all [
+    "module Main where\n",
+    "  prim raw-div-u128 :: U128 -> refined (r /= 0) U128 -> U128 where\n",
+    "    llvm {\n",
+    "      %r = udiv i128 %0, %1\n",
+    "      ret i128 %r\n",
+    "    } justify verify\n",
+    "  div-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128\n",
+    "  div-u128 a b = raw-div-u128 a b\n",
+    "  safe-div :: U128 -> U128 -> U128\n",
+    "  safe-div a b = case decide (b /= 0) of\n",
+    "    Yes _ -> div-u128 a b\n",
+    "    No _ -> 0\n",
+    "  main :: U128\n",
+    "  main = safe-div 42 6\n"
+  ]
+
+  src-u128-index-bad :: String
+  src-u128-index-bad = string-concat-all [
+    "module Main where\n",
+    "  prim raw-div-u128 :: U128 -> refined (r /= 0) U128 -> U128 where\n",
+    "    llvm {\n",
+    "      %r = udiv i128 %0, %1\n",
+    "      ret i128 %r\n",
+    "    } justify verify\n",
+    "  div-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128\n",
+    "  div-u128 a b = raw-div-u128 a b\n",
+    "  bad :: U128 -> U128 -> U128\n",
+    "  bad a b = div-u128 a b\n",
+    "  main :: U128\n",
+    "  main = bad 42 6\n"
+  ]
+
+  test-u128-numeric-index :: Result String Unit
+  test-u128-numeric-index =
+    case self-iface-and-prims "default" src-u128-index of
+      Err msg -> Err (string-concat-all ["U128 numeric index + 128-bit prim verify failed: ", msg])
+      Ok (h, iface, prims) ->
+        if not (string-contains "\"tier\":\"kernel-cert\"" prims && string-contains "\"prim_proofs\":" iface) then
+          Err (string-concat-all ["U128 prim missing kernel-cert receipt: ", prims])
+        else case self-check "default" src-u128-index-bad of
+          Ok ok -> Err "unguarded U128 divisor unexpectedly passed"
+          Err msg2 -> Ok ()
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -192,11 +237,13 @@ module Main where
             Err e -> Err e
             Ok u4 -> case test-lax-float-downgrade of
               Err e -> Err e
-              Ok u5 -> test-off-mode
+              Ok u5 -> case test-off-mode of
+                Err e -> Err e
+                Ok u6 -> test-u128-numeric-index
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 6 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 7 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

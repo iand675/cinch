@@ -657,3 +657,103 @@ fn extracted_wide_returns_keep_a_constant_stack() {
         "direct wide returns must stay unboxed"
     );
 }
+
+#[test]
+fn u128_and_i128_work_as_numeric_index_carriers() {
+    run_ok(
+        "wide-numeric-index",
+        r#"
+module Main where
+  import Data.Wide
+
+  #[inline(never)]
+  nonneg-u128 :: U128 -> refined (r >= 0) U128
+  nonneg-u128 x = x
+
+  #[inline(never)]
+  safe-div-u128 :: U128 -> U128 -> U128
+  safe-div-u128 a b = case decide (b /= 0) of
+    Yes _ -> div-u128 a b
+    No _ -> 0
+
+  #[inline(never)]
+  safe-rem-nonzero :: U128 -> U128 -> U128
+  safe-rem-nonzero a b = case decide (NonZero b) of
+    Yes _ -> rem-u128 a b
+    No _ -> 0
+
+  #[inline(never)]
+  branch-div-u128 :: U128 -> U128 -> U128
+  branch-div-u128 a b = if b == 0 then 0 else div-u128 a b
+
+  #[inline(never)]
+  guard-i128 :: using (b /= 0) => I128 -> (b :: I128) -> I128
+  guard-i128 a b = wrapping-add-i128 a b
+
+  #[inline(never)]
+  check-i128 :: I128 -> I128 -> I128
+  check-i128 a b = case decide (NonZero b) of
+    Yes _ -> guard-i128 a b
+    No _ -> 0
+
+  #[inline(never)]
+  check-tonat :: U128 -> Bool
+  check-tonat x = case decide (toNat x > 0) of
+    Yes _ -> True
+    No _ -> False
+
+  main :: Int
+  main =
+    let big = (340282366920938463463374607431768211455 :: U128) in
+    let nn = nonneg-u128 big in
+    let nz = (340282366920938463463374607431768211455 :: refined (r /= 0) U128) in
+    if eq-u128 (div-u128 100 7) 14 then
+      (if eq-u128 (div-u128 big 340282366920938463463374607431768211455) 1 then
+        (if eq-u128 (div-u128 big (unrefine nz)) 1 then
+          (if eq-u128 (safe-div-u128 42 6) 7 then
+            (if eq-u128 (safe-div-u128 42 0) 0 then
+              (if eq-u128 (safe-rem-nonzero 17 5) 2 then
+                (if eq-u128 (branch-div-u128 99 9) 11 then
+                  (if eq-i128 (check-i128 10 (-3)) 7 then
+                    (if check-tonat big && not (check-tonat 0) && eq-u128 (unrefine nn) big then 0 else 9)
+                  else 8)
+                else 7)
+              else 6)
+            else 5)
+          else 4)
+        else 3)
+      else 2)
+    else 1
+"#,
+    );
+}
+
+#[test]
+fn u128_refinement_rejects_unproved_divisor_and_zero_literal() {
+    let bad_zero = r#"
+module Main where
+  import Data.Wide
+
+  main :: Int
+  main = if eq-u128 (div-u128 10 0) 0 then 0 else 1
+"#;
+    assert!(
+        check_sources(bad_zero, "wide-div-zero").is_err(),
+        "div-u128 by literal 0 must be rejected"
+    );
+
+    let bad_unguarded = r#"
+module Main where
+  import Data.Wide
+
+  bad :: U128 -> U128 -> U128
+  bad a b = div-u128 a b
+
+  main :: Int
+  main = if eq-u128 (bad 10 2) 5 then 0 else 1
+"#;
+    assert!(
+        check_sources(bad_unguarded, "wide-div-unguarded").is_err(),
+        "div-u128 with unproved divisor must be rejected"
+    );
+}

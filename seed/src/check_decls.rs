@@ -102,11 +102,10 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         ),
         PrimOp::Nat(NatOp::FromI64 | NatOp::ToI64)
         | PrimOp::Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::FromNat | IntOp::ToNat) => (same(), None),
-        // `I128`'s `Int` conversions keep the value as the `I64` ones do
-        // (a true fact the solver may combine with others, though a wide
-        // scalar has no sort of its own to bound it); a `U128`'s `Nat`
-        // conversions promise nothing.
-        PrimOp::Int(IntOp::FromI128 | IntOp::ToI128) => (same(), None),
+        // `I128`'s `Int` conversions and `U128`'s `Nat` conversions keep the
+        // mathematical value.
+        PrimOp::Int(IntOp::FromI128 | IntOp::ToI128)
+        | PrimOp::Nat(NatOp::FromU128 | NatOp::ToU128) => (same(), None),
         PrimOp::Nat(NatOp::Rem) => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
         PrimOp::Nat(NatOp::Div) => (le(it(), arg(0)), None),
         PrimOp::Rem { ty } if !ty.is_wide() => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
