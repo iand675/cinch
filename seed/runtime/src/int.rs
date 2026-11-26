@@ -173,6 +173,7 @@ impl Int {
     ///
     /// Faults with [`Error::BufferTooSmall`] when `buf` is shorter than
     /// [`Int::decimal_len`] bytes; the buffer is then left untouched.
+    #[inline]
     pub fn to_decimal(&self, buf: &mut [u8]) -> Result<usize> {
         write_decimal(&self.limbs, self.negative, buf)
     }
