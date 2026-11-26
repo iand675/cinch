@@ -912,6 +912,8 @@ fn completion_json(c: &Completion) -> Json {
         SymKind::Instance => 3,
         SymKind::Effect => 25,
         SymKind::EffectOp => 3,
+        SymKind::Machine => 7,
+        SymKind::Contract => 3,
     };
     Json::obj(vec![
         ("label", Json::Str(c.label.clone())),

@@ -71,10 +71,11 @@ module Cinch.TemporalMc where
     McStable :: CoreTerm -> McFormula
 
   -- Span, kind keyword, contract name, machine symbol, formula text, formula,
-  -- extra weak-fair actions, extra strong-fair actions, assumption strings.
+  -- extra weak-fair actions, extra strong-fair actions, assumption strings,
+  -- and assume-guarantee environment predicate terms (`assume = (\s -> Env s)`).
   data CheckedMachineContract where
     MkCheckedMachineContract :: Span -> String -> String -> String -> String -> McFormula
-      -> List String -> List String -> List String -> CheckedMachineContract
+      -> List String -> List String -> List String -> List CoreTerm -> CheckedMachineContract
 
   -- Span, concrete machine symbol, abstract machine symbol, view term, optional measure term.
   data CheckedRefinesInput where
@@ -752,6 +753,12 @@ module Cinch.TemporalMc where
         Some ctors -> Ok (make-nullary-values ctors)
         None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, or a bounded refinement such as `InRange 0 2 Nat`)"])
       None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain"])
+    UApp (UCon name _) inner | ends-with-dot name "Option" || same (short-ident name) "Option" ->
+      (case enumerate-domain inner datas of
+        Err msg -> Err msg
+        Ok vals ->
+          if list-length vals >= 256 then Err "Option domain exceeds model checker limit (256)"
+          else Ok (Cons (McNominal global-data-core-none McFieldsEnd) (wrap-some-values vals)))
     UApp (UCon name _) (UIndex _ (IInteger n)) | ends-with-dot name "Fin" ->
       if n >= 0 && n <= 256 then Ok (int-range-values 0 (int-sub n 1))
       else Err "Fin domain bound exceeds model checker limit (256)"
@@ -773,6 +780,11 @@ module Cinch.TemporalMc where
   make-nullary-values ctors = case ctors of
     Nil -> Nil
     Cons c rest -> Cons (McNominal c McFieldsEnd) (make-nullary-values rest)
+
+  wrap-some-values :: List McValue -> List McValue
+  wrap-some-values vals = case vals of
+    Nil -> Nil
+    Cons v rest -> Cons (McNominal global-data-core-some (McField v McFieldsEnd)) (wrap-some-values rest)
 
   int-range-values :: Int -> Int -> List McValue
   int-range-values lo hi =
@@ -1203,7 +1215,7 @@ module Cinch.TemporalMc where
   reconstruct-trace :: HashMap String (List String) -> Nat -> HashMap Nat McValue -> HashMap Nat (Nat, String) -> String
   reconstruct-trace rfields goal states parents =
     let steps = trace-back goal parents Nil in
-    render-trace-steps rfields steps states 0
+    render-trace-steps rfields steps states None 0
 
   trace-back :: Nat -> HashMap Nat (Nat, String) -> List (Option String, Nat) -> List (Option String, Nat)
   trace-back node parents acc =
@@ -1212,14 +1224,45 @@ module Cinch.TemporalMc where
       None -> Cons (None, node) acc
       Some (prev, lbl) -> trace-back prev parents (Cons (Some lbl, node) acc)
 
-  render-trace-steps :: HashMap String (List String) -> List (Option String, Nat) -> HashMap Nat McValue -> Nat -> String
-  render-trace-steps rfields steps states step-idx = case steps of
+  render-trace-steps :: HashMap String (List String) -> List (Option String, Nat) -> HashMap Nat McValue -> Option McValue -> Nat -> String
+  render-trace-steps rfields steps states prev-val step-idx = case steps of
     Nil -> ""
     Cons (lbl-opt, sid) rest ->
-      let st-text = (case hash-map-lookup sid states of Some v -> render-mc-value-with rfields v; None -> cat ["#", nat-to-string sid]) in
+      let cur-opt = hash-map-lookup sid states in
+      let st-text = (case cur-opt of Some v -> render-mc-value-with rfields v; None -> cat ["#", nat-to-string sid]) in
       let tag = if step-idx == 0 then "State 0 (init): " else cat ["State ", nat-to-string step-idx, ": "] in
-      let prefix = (case lbl-opt of None -> cat ["  ", tag, st-text]; Some lbl -> cat ["\n  --[", lbl, "]-->\n  ", tag, st-text]) in
-      cat [prefix, render-trace-steps rfields rest states (step-idx + 1)]
+      let diff-note = (case (prev-val, cur-opt) of
+            (Some pv, Some cv) -> (case diff-mc-records rfields pv cv of Some d -> cat ["  ", d]; None -> "")
+            other -> "") in
+      let prefix = (case lbl-opt of None -> cat ["  ", tag, st-text]; Some lbl -> cat ["\n  --[", lbl, "]-->", diff-note, "\n  ", tag, st-text]) in
+      cat [prefix, render-trace-steps rfields rest states cur-opt (step-idx + 1)]
+
+  diff-mc-records :: HashMap String (List String) -> McValue -> McValue -> Option String
+  diff-mc-records rfields v1 v2 = case (v1, v2) of
+    (McNominal c1 f1, McNominal c2 f2) | same (short-ident c1) (short-ident c2) ->
+      (case hash-map-lookup (short-ident c1) rfields of
+        Some names ->
+          let diffs = collect-field-diffs rfields names f1 f2 in
+          (case diffs of
+            Nil -> Some "(no fields changed)"
+            other -> Some (cat ["(changed: ", join-comma-strs diffs, ")"]))
+        None -> None)
+    other -> None
+
+  collect-field-diffs :: HashMap String (List String) -> List String -> McValue -> McValue -> List String
+  collect-field-diffs rfields names f1 f2 = case (names, f1, f2) of
+    (Cons n nr, McField a ar, McField b br) ->
+      let s1 = render-mc-value-with rfields a in
+      let s2 = render-mc-value-with rfields b in
+      let more = collect-field-diffs rfields nr ar br in
+      if same s1 s2 then more else Cons (cat [n, ": ", s1, " -> ", s2]) more
+    other -> Nil
+
+  join-comma-strs :: List String -> String
+  join-comma-strs xs = case xs of
+    Nil -> ""
+    [x] -> x
+    Cons x rest -> cat [x, ", ", join-comma-strs rest]
 
   -- ------------------------------------------------------------------ predicate evaluation over all states
 
@@ -1554,77 +1597,138 @@ module Cinch.TemporalMc where
       let more = filter-map-true (idx + 1) total m in
       if flag-true idx m then Cons idx more else more
 
+  all-true-map :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat
+  all-true-map idx total acc =
+    if idx >= total then acc
+    else all-true-map (idx + 1) total (hash-map-insert idx 1 acc)
+
+  and-bool-maps :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat
+  and-bool-maps idx total a b acc =
+    if idx >= total then acc
+    else
+      let v = if flag-true idx a && flag-true idx b then 1 else 0 in
+      and-bool-maps (idx + 1) total a b (hash-map-insert idx v acc)
+
+  eval-env-assumptions :: McContext -> List CoreTerm -> Nat -> HashMap Nat McValue -> HashMap Nat Nat -> Result String (HashMap Nat Nat)
+  eval-env-assumptions ctx preds nstates states cur = case preds of
+    Nil -> Ok cur
+    Cons pred rest -> case eval-pred-all ctx pred 0 nstates states hash-map-empty of
+      Err msg -> Err msg
+      Ok pmap -> eval-env-assumptions ctx rest nstates states (and-bool-maps 0 nstates cur pmap hash-map-empty)
+
+  find-first-false-in :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> Option Nat
+  find-first-false-in idx total allowed m =
+    if idx >= total then None
+    else if flag-true idx allowed && flag-false idx m then Some idx
+    else find-first-false-in (idx + 1) total allowed m
+
+  find-deadlock-in-env :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Option Nat
+  find-deadlock-in-env nodes env-ok adj = case nodes of
+    Nil -> None
+    Cons u rest ->
+      if not (flag-true u env-ok) then find-deadlock-in-env rest env-ok adj
+      else case hash-map-lookup u adj of
+        None -> Some u
+        Some es -> if has-edge-into u env-ok adj then find-deadlock-in-env rest env-ok adj else Some u
+
   check-machine-contract :: McContext -> ExploredMachine -> CheckedMachineContract -> Result Diagnostic McVerdictRow
   check-machine-contract ctx machine mc-contract = case (machine, mc-contract) of
     (MkExploredMachine mname state-ty nstates ntrans capped sym-merged por-pairs states visited adj parents m-wf m-sf sym-map,
-     MkCheckedMachineContract sp kind cname subject form-text formula c-wf c-sf assumptions) ->
+     MkCheckedMachineContract sp kind cname subject form-text formula c-wf c-sf assumptions env-preds) ->
       let rfields = ctx-record-fields ctx in
       let wf = m-wf <> c-wf in
       let sf = m-sf <> c-sf in
       let mshort = short-ident mname in
       let ok-row = MkMcVerdictRow mname cname kind form-text assumptions (cat ["model-checked (Tier 1 bounded exploration: ", machine-scope-note machine, "; 0 violations)"]) in
-      case formula of
-        McAlways pred ->
-          (case eval-pred-all ctx pred 0 nstates states hash-map-empty of
-            Err msg -> Err (mc-diag sp msg)
-            Ok pmap -> case find-first-false 0 nstates pmap of
-              None -> Ok ok-row
-              Some bad-id ->
-                let trace = reconstruct-trace rfields bad-id states parents in
-                Err (mc-diag sp (cat ["temporal safety violation in contract `", cname, "` on machine `", mshort, "`:\n", trace])))
-        McDeadlockFree ->
-          (case find-deadlock-in (all-state-ids 0 nstates) adj of
-            None -> Ok ok-row
-            Some dead-id ->
-              let trace = reconstruct-trace rfields dead-id states parents in
-              Err (mc-diag sp (cat ["temporal deadlock violation in contract `", cname, "` on machine `", mshort, "` (no enabled action):\n", trace])))
-        McEventually q-pred ->
-          (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
-            Err msg -> Err (mc-diag sp msg)
-            Ok qmap ->
-              let not-q = invert-bool-map 0 nstates qmap hash-map-empty in
-              (case find-fair-violation [0] not-q adj wf sf of
-                None -> Ok ok-row
-                Some (entry, cyc) ->
-                  let trace = reconstruct-trace rfields entry states parents in
-                  let loop-text = render-cycle-steps rfields cyc states in
-                  Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle never satisfies `eventually`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
-        McLeadsTo p-pred q-pred ->
-          (case eval-pred-all ctx p-pred 0 nstates states hash-map-empty of
-            Err msg -> Err (mc-diag sp msg)
-            Ok pmap -> case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
-              Err msg -> Err (mc-diag sp msg)
-              Ok qmap ->
-                let not-q = invert-bool-map 0 nstates qmap hash-map-empty in
-                let p-starts = filter-p-not-q 0 nstates pmap qmap in
-                (case find-fair-violation p-starts not-q adj wf sf of
+      let all-ok = all-true-map 0 nstates hash-map-empty in
+      case eval-env-assumptions ctx env-preds nstates states all-ok of
+        Err msg -> Err (mc-diag sp msg)
+        Ok env-ok ->
+          let (env-nodes, env-reach) = (case env-preds of
+                Nil -> (all-state-ids 0 nstates, all-ok)
+                other -> bfs-restricted [0] env-ok adj) in
+          case formula of
+            McAlways pred ->
+              (case eval-pred-all ctx pred 0 nstates states hash-map-empty of
+                Err msg -> Err (mc-diag sp msg)
+                Ok pmap -> case find-first-false-in 0 nstates env-reach pmap of
                   None -> Ok ok-row
-                  Some (entry, cyc) ->
-                    let trace = reconstruct-trace rfields entry states parents in
-                    let loop-text = render-cycle-steps rfields cyc states in
-                    Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle violates `leads_to`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
-        McRecur q-pred ->
-          (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
-            Err msg -> Err (mc-diag sp msg)
-            Ok qmap ->
-              let not-q = invert-bool-map 0 nstates qmap hash-map-empty in
-              let not-q-nodes = filter-map-true 0 nstates not-q in
-              (case find-fair-violation not-q-nodes not-q adj wf sf of
+                  Some bad-id ->
+                    let trace = reconstruct-trace rfields bad-id states parents in
+                    Err (mc-diag sp (cat ["temporal safety violation in contract `", cname, "` on machine `", mshort, "`:\n", trace])))
+            McDeadlockFree ->
+              (case find-deadlock-in-env env-nodes env-ok adj of
                 None -> Ok ok-row
-                Some (entry, cyc) ->
-                  let trace = reconstruct-trace rfields entry states parents in
-                  let loop-text = render-cycle-steps rfields cyc states in
-                  Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle violates `recur`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
-        McStable q-pred ->
-          (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
-            Err msg -> Err (mc-diag sp msg)
-            Ok qmap ->
-              case find-stability-violation 0 nstates qmap adj of
-                None -> Ok ok-row
-                Some (src, lbl, dst) ->
-                  let trace = reconstruct-trace rfields src states parents in
-                  let dst-text = (case hash-map-lookup dst states of Some v -> render-mc-value-with rfields v; None -> "?") in
-                  Err (mc-diag sp (cat ["temporal stability violation in contract `", cname, "` on machine `", mshort, "`: predicate flipped from True to False on `--[", lbl, "]-->`:\n", trace, "\n  --[", lbl, "]-->\n  ", dst-text])))
+                Some dead-id ->
+                  let trace = reconstruct-trace rfields dead-id states parents in
+                  Err (mc-diag sp (cat ["temporal deadlock violation in contract `", cname, "` on machine `", mshort, "` (no enabled action):\n", trace])))
+            McEventually q-pred ->
+              (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+                Err msg -> Err (mc-diag sp msg)
+                Ok qmap ->
+                  let not-q = and-bool-maps 0 nstates env-reach (invert-bool-map 0 nstates qmap hash-map-empty) hash-map-empty in
+                  let starts = if flag-true 0 not-q then [0] else Nil in
+                  (case find-fair-violation starts not-q adj wf sf of
+                    None -> Ok ok-row
+                    Some (entry, cyc) ->
+                      let trace = reconstruct-trace rfields entry states parents in
+                      let loop-text = render-cycle-steps rfields cyc states in
+                      Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle never satisfies `eventually`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
+            McLeadsTo p-pred q-pred ->
+              (case eval-pred-all ctx p-pred 0 nstates states hash-map-empty of
+                Err msg -> Err (mc-diag sp msg)
+                Ok pmap -> case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+                  Err msg -> Err (mc-diag sp msg)
+                  Ok qmap ->
+                    let not-q = and-bool-maps 0 nstates env-reach (invert-bool-map 0 nstates qmap hash-map-empty) hash-map-empty in
+                    let p-in-env = and-bool-maps 0 nstates env-reach pmap hash-map-empty in
+                    let p-starts = filter-p-not-q 0 nstates p-in-env qmap in
+                    (case find-fair-violation p-starts not-q adj wf sf of
+                      None -> Ok ok-row
+                      Some (entry, cyc) ->
+                        let trace = reconstruct-trace rfields entry states parents in
+                        let loop-text = render-cycle-steps rfields cyc states in
+                        Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle violates `leads_to`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
+            McRecur q-pred ->
+              (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+                Err msg -> Err (mc-diag sp msg)
+                Ok qmap ->
+                  let not-q = and-bool-maps 0 nstates env-reach (invert-bool-map 0 nstates qmap hash-map-empty) hash-map-empty in
+                  let not-q-nodes = filter-map-true 0 nstates not-q in
+                  (case find-fair-violation not-q-nodes not-q adj wf sf of
+                    None -> Ok ok-row
+                    Some (entry, cyc) ->
+                      let trace = reconstruct-trace rfields entry states parents in
+                      let loop-text = render-cycle-steps rfields cyc states in
+                      Err (mc-diag sp (cat ["temporal liveness violation in contract `", cname, "` on machine `", mshort, "`: fair cycle violates `recur`:\n", trace, "\n  --- fair cycle ---", loop-text]))))
+            McStable q-pred ->
+              (case eval-pred-all ctx q-pred 0 nstates states hash-map-empty of
+                Err msg -> Err (mc-diag sp msg)
+                Ok qmap ->
+                  let q-in-env = and-bool-maps 0 nstates env-reach qmap hash-map-empty in
+                  case find-stability-violation-in 0 nstates env-reach q-in-env qmap adj of
+                    None -> Ok ok-row
+                    Some (src, lbl, dst) ->
+                      let trace = reconstruct-trace rfields src states parents in
+                      let dst-text = (case hash-map-lookup dst states of Some v -> render-mc-value-with rfields v; None -> "?") in
+                      Err (mc-diag sp (cat ["temporal stability violation in contract `", cname, "` on machine `", mshort, "`: predicate flipped from True to False on `--[", lbl, "]-->`:\n", trace, "\n  --[", lbl, "]-->\n  ", dst-text])))
+
+  find-stability-violation-in :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Option (Nat, String, Nat)
+  find-stability-violation-in idx total env-reach q-in-env qmap adj =
+    if idx >= total then None
+    else if not (flag-true idx q-in-env) then find-stability-violation-in (idx + 1) total env-reach q-in-env qmap adj
+    else case hash-map-lookup idx adj of
+      None -> find-stability-violation-in (idx + 1) total env-reach q-in-env qmap adj
+      Some es -> case find-edge-to-false-in idx es env-reach qmap of
+        Some hit -> Some hit
+        None -> find-stability-violation-in (idx + 1) total env-reach q-in-env qmap adj
+
+  find-edge-to-false-in :: Nat -> List (String, String, Nat) -> HashMap Nat Nat -> HashMap Nat Nat -> Option (Nat, String, Nat)
+  find-edge-to-false-in src es env-reach qmap = case es of
+    Nil -> None
+    Cons (_, lbl, dst) rest ->
+      if flag-true dst env-reach && flag-false dst qmap then Some (src, lbl, dst)
+      else find-edge-to-false-in src rest env-reach qmap
 
   find-first-false :: Nat -> Nat -> HashMap Nat Nat -> Option Nat
   find-first-false idx total m =
@@ -1801,7 +1905,7 @@ module Cinch.TemporalMc where
   check-all-machine-contracts ctx explored contracts rows errs = case contracts of
     Nil -> (reverse rows, reverse errs)
     Cons c rest -> case c of
-      MkCheckedMachineContract sp _ _ subject _ _ _ _ _ -> case hash-map-lookup subject explored of
+      MkCheckedMachineContract sp _ _ subject _ _ _ _ _ _ -> case hash-map-lookup subject explored of
         None -> check-all-machine-contracts ctx explored rest rows errs
         Some em -> case check-machine-contract ctx em c of
           Ok row -> check-all-machine-contracts ctx explored rest (Cons row rows) errs

@@ -1770,6 +1770,8 @@ impl Session {
             workdir: self.root.clone(),
             entry_modules: self.entry_modules.clone(),
             schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
+            machine_inspect_only: false,
+            machine_trace_query: None,
         };
         let (program, ifaces, report, _diags, searches) =
             crate::check::check_program_multi_full_recorded(
@@ -2325,6 +2327,8 @@ impl Session {
                 jpl: None,
             },
             temporal,
+            machines: Vec::new(),
+            machine_trace_result: None,
         }
     }
 

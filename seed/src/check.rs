@@ -3652,6 +3652,11 @@ struct Checker {
     /// The verified temporal contract rows for the artifact manifest
     /// (core specification section 10).
     temporal_rows: Vec<TemporalRow>,
+    /// Explored state-machine summaries retained for CLI (`cinch model`),
+    /// REPL (`:machines`/`:explore`/`:trace`), and LSP hover.
+    machine_reports: Vec<MachineReport>,
+    /// Optional predicate trace result for `cinch model trace --where`.
+    machine_trace_result: Option<(usize, String)>,
     /// The temporal contracts pending on the definition being elaborated:
     /// prepared before its body checks (the parameter scope) and verified
     /// after constraint solving (the write log's regions resolve there).
@@ -4224,6 +4229,8 @@ impl Checker {
             pending_contracts: HashMap::new(),
             contract_facts: HashMap::new(),
             temporal_rows: Vec::new(),
+            machine_reports: Vec::new(),
+            machine_trace_result: None,
             cur_temporal: None,
             cur_runtime_decides: Vec::new(),
             cur_def_deny: false,

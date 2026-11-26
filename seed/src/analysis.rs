@@ -60,6 +60,8 @@ pub enum SymKind {
     Instance,
     Effect,
     EffectOp,
+    Machine,
+    Contract,
 }
 
 impl SymKind {
@@ -76,6 +78,8 @@ impl SymKind {
             SymKind::Instance => "instance",
             SymKind::Effect => "effect",
             SymKind::EffectOp => "effect operation",
+            SymKind::Machine => "machine",
+            SymKind::Contract => "contract",
         }
     }
 }
@@ -211,6 +215,8 @@ pub struct Analysis {
     /// The checked prelude and session, retained for expression probes.
     /// Invalidated by any accepted declaration or workspace edit.
     prepared: Option<check::PreparedCheck>,
+    /// Explored state-machine inspection snapshots keyed by `(module, machine_name)`.
+    machines: BTreeMap<(String, String), check::MachineReport>,
 }
 
 /// The band width per file: a file larger than this cannot be analyzed.
@@ -258,7 +264,20 @@ impl Analysis {
             prelude: None,
             prelude_index: None,
             prepared: None,
+            machines: BTreeMap::new(),
         }
+    }
+
+    /// All explored state-machine reports in the current workspace/session.
+    pub fn machines(&self) -> Vec<&check::MachineReport> {
+        self.machines.values().collect()
+    }
+
+    /// Look up one explored state machine by short or `Module.Name` name.
+    pub fn find_machine(&self, name: &str) -> Option<&check::MachineReport> {
+        self.machines
+            .values()
+            .find(|r| r.name == name || format!("{}.{}", r.module, r.name) == name)
     }
 
     /// The workspace-relative key of a disk path.
@@ -758,6 +777,8 @@ impl Analysis {
             workdir: self.root.clone(),
             entry_modules: modules.iter().map(|m| m.name.text.clone()).collect(),
             schema_tool: None,
+            machine_inspect_only: false,
+            machine_trace_query: None,
         };
         let adapters = driver::wit_for_source(&self.root.join("_.cinch")).unwrap_or_default();
         // The probe expression, parsed in its module's fixity context.
@@ -863,6 +884,11 @@ impl Analysis {
                 for m in &slice {
                     let file = self.module_file(m).unwrap_or_default();
                     self.diags.entry(file).or_default();
+                    self.machines.retain(|(owner, _), _| owner != m);
+                }
+                for mrep in stage.machines {
+                    self.machines
+                        .insert((mrep.module.clone(), mrep.name.clone()), mrep);
                 }
                 if let Some(p) = probe_out {
                     outcome = outcome_from_probe(p);
@@ -870,9 +896,30 @@ impl Analysis {
                 self.prepared = prepared;
             }
             Err(e) => {
+                let has_machine = modules.iter().any(|m| {
+                    m.decls.iter().any(|d| matches!(d, ast::Decl::Machine(_)))
+                });
+                let inspected = if has_machine {
+                    check::inspect_machines_multi(
+                        &prelude.modules,
+                        &modules,
+                        &scx,
+                        &crate::core::TargetProfile::native(),
+                    )
+                    .ok()
+                } else {
+                    None
+                };
                 self.prepared = None;
                 for m in &slice {
                     self.ifaces.remove(m);
+                    self.machines.retain(|(owner, _), _| owner != m);
+                }
+                if let Some(mreps) = inspected {
+                    for mrep in mreps {
+                        self.machines
+                            .insert((mrep.module.clone(), mrep.name.clone()), mrep);
+                    }
                 }
                 let (file, line, col) = match e.span {
                     Some(s) => self.unband(s),
@@ -1129,6 +1176,8 @@ impl Analysis {
                     | SymKind::Method
                     | SymKind::Law
                     | SymKind::EffectOp
+                    | SymKind::Machine
+                    | SymKind::Contract
             ),
             RefKind::Type => matches!(k, SymKind::Type | SymKind::Class),
             RefKind::Effect => matches!(k, SymKind::Effect),
@@ -1212,6 +1261,17 @@ impl Analysis {
                     .find(|i| i.id == name)
                     .map(|i| format!("instance {} :: {}", i.id, i.class)),
                 SymKind::Effect => None,
+                SymKind::Machine => self
+                    .machines
+                    .get(&(module.to_string(), name.to_string()))
+                    .map(|m| format!("machine ({}, {} states)", m.state_type, m.states.len())),
+                SymKind::Contract => self
+                    .machines
+                    .values()
+                    .filter(|m| m.module == module)
+                    .flat_map(|m| m.contracts.iter())
+                    .find(|c| c.name == name)
+                    .map(|c| format!("{} contract ({})", c.kind, c.formula)),
             };
             if text.is_some() {
                 return text;
@@ -1225,24 +1285,71 @@ impl Analysis {
         st.sig_text.get(name).cloned()
     }
 
-    /// Hover at a position: the name's scheme in a code block.
+    /// Hover at a position: the name's scheme in a code block, or rich
+    /// model-checking report markdown for `machine` and `contract` symbols.
     pub fn hover(&self, file: &str, line: u32, col: u32) -> Option<String> {
         let (module, site) = self.site_at(file, line, col)?;
         let (rkind, quals, name) = match &site {
             Site::Def(name, kind) => {
+                if *kind == SymKind::Machine {
+                    if let Some(rep) = self.machines.get(&(module.clone(), name.clone())) {
+                        return Some(rep.format_hover_markdown());
+                    }
+                }
+                if *kind == SymKind::Contract {
+                    if let Some(md) = self.contract_hover_markdown(&module, name) {
+                        return Some(md);
+                    }
+                }
                 let text = self.scheme_of(&module, name, *kind)?;
                 return Some(format!("```cinch\n{name} :: {text}\n```"));
             }
             Site::Ref(kind, quals, name) => (*kind, quals.clone(), name.clone()),
             Site::BoundRef(kind, owner, name) => {
                 let (_, symbol_kind, target) = self.def_in(owner, *kind, name)?;
+                if symbol_kind == SymKind::Machine {
+                    if let Some(rep) = self.machines.get(&(owner.to_string(), target.clone())) {
+                        return Some(rep.format_hover_markdown());
+                    }
+                }
                 let text = self.scheme_of(owner, &target, symbol_kind)?;
                 return Some(format!("```cinch\n{name} :: {text}\n```"));
             }
         };
         let (owner, kind, _) = self.resolve(&module, rkind, &quals, &name)?;
+        if kind == SymKind::Machine {
+            if let Some(rep) = self.machines.get(&(owner.clone(), name.clone())) {
+                return Some(rep.format_hover_markdown());
+            }
+        }
+        if kind == SymKind::Contract {
+            if let Some(md) = self.contract_hover_markdown(&owner, &name) {
+                return Some(md);
+            }
+        }
         let text = self.scheme_of(&owner, &name, kind)?;
         Some(format!("```cinch\n{name} :: {text}\n```"))
+    }
+
+    fn contract_hover_markdown(&self, module: &str, name: &str) -> Option<String> {
+        for m in self.machines.values().filter(|m| m.module == module) {
+            if let Some(c) = m.contracts.iter().find(|c| c.name == name) {
+                let status = if c.passed { "✓ verified" } else { "✗ violated" };
+                let mut lines = vec![
+                    format!("```cinch\ncontract {} {} for {}\n```", c.kind, c.name, m.name),
+                    format!("- **Status:** {status}"),
+                    format!("- **Formula:** `{}`", c.formula),
+                ];
+                if !c.assumptions.is_empty() {
+                    lines.push(format!("- **Assumptions:** {}", c.assumptions.join(", ")));
+                }
+                if !c.passed {
+                    lines.push(format!("\n```text\n{}\n```", c.detail));
+                }
+                return Some(lines.join("\n"));
+            }
+        }
+        None
     }
 
     /// Go to a name's definition: `(file, line, col)` in workspace
@@ -1761,6 +1868,14 @@ fn index_defs(
                 sig_text.insert(op.text.clone(), render_ast_type(ty));
             }
         }
+        Decl::Machine(m) => {
+            add(&m.name, SymKind::Machine, defs);
+            sig_text.insert(m.name.text.clone(), format!("machine (state :: {})", render_ast_type(&m.state)));
+        }
+        Decl::Contract(c) => {
+            add(&c.name, SymKind::Contract, defs);
+            sig_text.insert(c.name.text.clone(), format!("{} contract for {}", c.kind.keyword(), c.target.text));
+        }
         Decl::Attributed { inner, .. } => index_defs(inner, defs, sig_text, conv),
         _ => {}
     }
@@ -2039,6 +2154,8 @@ fn token_kind_of_def(k: Option<SymKind>) -> &'static str {
         Some(SymKind::Effect) => "type",
         Some(SymKind::Law) => "function",
         Some(SymKind::Instance) => "class",
+        Some(SymKind::Machine) => "class",
+        Some(SymKind::Contract) => "function",
         None => "variable",
     }
 }

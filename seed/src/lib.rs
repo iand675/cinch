@@ -35,6 +35,7 @@ pub mod layout;
 pub mod lexer;
 pub mod loopmeta;
 pub mod lsp;
+pub mod model_cli;
 pub mod parser;
 pub mod mvar;
 pub mod pkg;

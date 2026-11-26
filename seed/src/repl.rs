@@ -249,7 +249,21 @@ impl Repl {
     /// command names after `:`).
     pub fn complete(&self, partial: &str) -> Vec<String> {
         if let Some(cmd) = partial.strip_prefix(':') {
-            return [":type", ":kind", ":browse", ":load", ":reload", ":history", ":help", ":quit"]
+            return [
+                ":type",
+                ":kind",
+                ":browse",
+                ":machines",
+                ":machine",
+                ":explore",
+                ":trace",
+                ":dot",
+                ":load",
+                ":reload",
+                ":history",
+                ":help",
+                ":quit",
+            ]
                 .iter()
                 .filter(|c| c.starts_with(&format!(":{cmd}")) || **c == partial)
                 .map(|c| c.to_string())
@@ -870,6 +884,122 @@ impl Repl {
                 }
                 ReplOutcome::Output(out.join("\n"))
             }
+            ":machines" | ":m" => {
+                let ms = self.analysis.machines();
+                if ms.is_empty() {
+                    return ReplOutcome::Output("no `machine` declarations loaded".to_string());
+                }
+                let lines: Vec<String> = ms
+                    .iter()
+                    .map(|m| {
+                        let pass = m.contracts.iter().filter(|c| c.passed).count();
+                        let total = m.contracts.len();
+                        let cap = if m.capped { " [CAPPED]" } else { "" };
+                        format!(
+                            "{}.{} ({} states, {} edges, {} deadlocks, {}/{} contracts ok){cap}",
+                            m.module,
+                            m.name,
+                            m.states.len(),
+                            m.edge_count(),
+                            m.deadlocks.len(),
+                            pass,
+                            total
+                        )
+                    })
+                    .collect();
+                ReplOutcome::Output(lines.join("\n"))
+            }
+            ":machine" => {
+                if arg.is_empty() {
+                    return ReplOutcome::Output("usage: :machine <MachineName>".to_string());
+                }
+                match self.analysis.find_machine(arg) {
+                    Some(m) => ReplOutcome::Output(m.format_summary()),
+                    None => ReplOutcome::Output(format!("error: no machine named {arg}")),
+                }
+            }
+            ":explore" => {
+                let mut parts = arg.split_whitespace();
+                let Some(mname) = parts.next() else {
+                    return ReplOutcome::Output("usage: :explore <MachineName> [stateId]".to_string());
+                };
+                let state_id = match parts.next() {
+                    None => 0usize,
+                    Some(s) => match s.parse::<usize>() {
+                        Ok(n) => n,
+                        Err(_) => {
+                            return ReplOutcome::Output(format!(
+                                "error: invalid state index `{s}` (expected non-negative integer)"
+                            ));
+                        }
+                    },
+                };
+                let Some(m) = self.analysis.find_machine(mname) else {
+                    return ReplOutcome::Output(format!("error: no machine named {mname}"));
+                };
+                match m.format_state(state_id) {
+                    Some(out) => ReplOutcome::Output(out),
+                    None => ReplOutcome::Output(format!(
+                        "error: state #{state_id} out of range (0..{})",
+                        m.states.len()
+                    )),
+                }
+            }
+            ":trace" => {
+                let mut parts = arg.split_whitespace();
+                let Some(mname) = parts.next() else {
+                    return ReplOutcome::Output(
+                        "usage: :trace <MachineName> <stateId | deadlock>".to_string(),
+                    );
+                };
+                let Some(target_arg) = parts.next() else {
+                    return ReplOutcome::Output(
+                        "usage: :trace <MachineName> <stateId | deadlock>".to_string(),
+                    );
+                };
+                let Some(m) = self.analysis.find_machine(mname) else {
+                    return ReplOutcome::Output(format!("error: no machine named {mname}"));
+                };
+                let target = if target_arg == "deadlock" {
+                    match m.deadlocks.first().copied() {
+                        Some(d) => d,
+                        None => {
+                            return ReplOutcome::Output(format!(
+                                "machine `{}` has no reachable deadlocks",
+                                m.name
+                            ));
+                        }
+                    }
+                } else {
+                    match target_arg.parse::<usize>() {
+                        Ok(n) => n,
+                        Err(_) => {
+                            return ReplOutcome::Output(format!(
+                                "error: expected state index or `deadlock`, got `{target_arg}`"
+                            ));
+                        }
+                    }
+                };
+                match m.format_trace_to(target) {
+                    Some(trace) => ReplOutcome::Output(format!(
+                        "Shortest trace in `{}` to state #{target}:\n{trace}",
+                        m.name
+                    )),
+                    None => ReplOutcome::Output(format!(
+                        "error: state #{target} out of range (0..{})",
+                        m.states.len()
+                    )),
+                }
+            }
+            ":dot" => {
+                if arg.is_empty() {
+                    return ReplOutcome::Output("usage: :dot <MachineName>".to_string());
+                }
+                match self.analysis.find_machine(arg) {
+                    Some(m) => ReplOutcome::Output(m.to_dot()),
+                    None => ReplOutcome::Output(format!("error: no machine named {arg}")),
+                }
+            }
             ":load" | ":l" => self.load(arg),
             ":reload" | ":r" => self.reload(),
             ":history" | ":hist" => {
@@ -882,7 +1012,7 @@ impl Repl {
                 ReplOutcome::Output(out.join("\n"))
             }
             ":help" | ":h" | "?" => ReplOutcome::Output(
-                ":type <expr>, :kind <type>, :browse [module], :load <file>, :reload, :history, :quit"
+                ":type <expr>, :kind <type>, :browse [module], :machines, :machine <Name>, :explore <Name> [id], :trace <Name> <id|deadlock>, :dot <Name>, :load <file>, :reload, :history, :quit"
                     .to_string(),
             ),
             ":quit" | ":q" => ReplOutcome::Quit,

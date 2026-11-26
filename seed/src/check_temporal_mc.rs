@@ -191,6 +191,415 @@ fn format_mc_value(v: &Value, record_fields: &HashMap<String, Vec<String>>) -> S
     }
 }
 
+/// Compute a concise field-by-field diff when both values are records of the same type.
+fn format_state_diff(
+    prev: &Value,
+    next: &Value,
+    record_fields: &HashMap<String, Vec<String>>,
+) -> Option<String> {
+    if let (
+        Value::Adt { ctor: c1, fields: f1, .. },
+        Value::Adt { ctor: c2, fields: f2, .. },
+    ) = (prev, next)
+    {
+        if c1 == c2 && f1.len() == f2.len() {
+            let short = c1.rsplit('.').next().unwrap_or(c1);
+            if let Some(names) = record_fields.get(c1).or_else(|| record_fields.get(short)) {
+                if names.len() == f1.len() && !names.is_empty() {
+                    let mut diffs = Vec::new();
+                    for ((n, v1), v2) in names.iter().zip(f1).zip(f2) {
+                        let s1 = format_mc_value(v1, record_fields);
+                        let s2 = format_mc_value(v2, record_fields);
+                        if s1 != s2 {
+                            diffs.push(format!("{n}: {s1} -> {s2}"));
+                        }
+                    }
+                    if diffs.is_empty() {
+                        return Some("(no fields changed)".into());
+                    }
+                    return Some(format!("(changed: {})", diffs.join(", ")));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Summary of one action on an explored state machine (for CLI, REPL, and LSP).
+#[derive(Clone, Debug)]
+pub struct MachineActionReport {
+    pub name: String,
+    pub result_kind: String,
+    pub param_domains: Vec<Vec<String>>,
+    pub fair: bool,
+    pub strong_fair: bool,
+}
+
+/// Summary of one temporal contract evaluated on an explored state machine.
+#[derive(Clone, Debug)]
+pub struct MachineContractReport {
+    pub name: String,
+    pub kind: String,
+    pub formula: String,
+    pub assumptions: Vec<String>,
+    pub passed: bool,
+    pub detail: String,
+    pub span: ast::Span,
+}
+
+/// Summary of one `refines` declaration evaluated on an explored state machine.
+#[derive(Clone, Debug)]
+pub struct MachineRefinesReport {
+    pub concrete: String,
+    pub abstract_target: String,
+    pub has_measure: bool,
+    pub passed: bool,
+    pub detail: String,
+    pub span: ast::Span,
+}
+
+/// Full inspection snapshot of an explored `machine` declaration, retained for
+/// CLI (`cinch model`), REPL (`:machines`/`:machine`/`:explore`/`:trace`/`:dot`),
+/// and LSP hover/diagnostics.
+#[derive(Clone, Debug)]
+pub struct MachineReport {
+    pub module: String,
+    pub name: String,
+    pub span: ast::Span,
+    pub state_type: String,
+    pub max_states: usize,
+    pub capped: bool,
+    pub states: Vec<String>,
+    pub edges: Vec<Vec<(String, usize)>>,
+    pub edge_diffs: Vec<Vec<Option<String>>>,
+    pub parent: Vec<Option<(usize, String)>>,
+    pub diameter: usize,
+    pub deadlocks: Vec<usize>,
+    pub actions: Vec<MachineActionReport>,
+    pub fair: Vec<String>,
+    pub strong_fair: Vec<String>,
+    pub symmetry_types: Vec<String>,
+    pub symmetry_merged: usize,
+    pub por_independent_pairs: Vec<(String, String)>,
+    pub contracts: Vec<MachineContractReport>,
+    pub refinements: Vec<MachineRefinesReport>,
+}
+
+impl MachineReport {
+    pub fn edge_count(&self) -> usize {
+        self.edges.iter().map(|e| e.len()).sum()
+    }
+
+    pub fn format_trace_to(&self, target: usize) -> Option<String> {
+        if target >= self.states.len() {
+            return None;
+        }
+        let mut chain = Vec::new();
+        let mut cur = target;
+        while let Some((prev, label)) = &self.parent[cur] {
+            chain.push((*prev, label.clone(), cur));
+            cur = *prev;
+        }
+        chain.reverse();
+        let mut lines = vec![format!("  State 0 (init): {}", self.states[0])];
+        for (step, (prev_idx, label, s_idx)) in chain.into_iter().enumerate() {
+            let diff = self
+                .edges
+                .get(prev_idx)
+                .and_then(|es| es.iter().position(|(l, dst)| l == &label && *dst == s_idx))
+                .and_then(|pos| self.edge_diffs.get(prev_idx).and_then(|ds| ds.get(pos)))
+                .and_then(|d| d.as_deref());
+            match diff {
+                Some(d) => lines.push(format!("  --[{label}]-->  {d}")),
+                None => lines.push(format!("  --[{label}]-->")),
+            }
+            lines.push(format!("  State {} (#{s_idx}): {}", step + 1, self.states[s_idx]));
+        }
+        Some(lines.join("\n"))
+    }
+
+    pub fn format_state(&self, idx: usize) -> Option<String> {
+        let state_str = self.states.get(idx)?;
+        let mut lines = Vec::new();
+        let tag = if idx == 0 { " (init)" } else { "" };
+        lines.push(format!("State #{idx}{tag}: {state_str}"));
+        let es = &self.edges[idx];
+        if es.is_empty() {
+            lines.push("  (deadlock: no enabled actions)".to_string());
+        } else {
+            lines.push(format!("  enabled transitions ({}):", es.len()));
+            for (pos, (lbl, dst)) in es.iter().enumerate() {
+                let diff = self
+                    .edge_diffs
+                    .get(idx)
+                    .and_then(|ds| ds.get(pos))
+                    .and_then(|d| d.as_deref());
+                match diff {
+                    Some(d) => lines.push(format!("    --[{lbl}]--> #{dst}: {}  {d}", self.states[*dst])),
+                    None => lines.push(format!("    --[{lbl}]--> #{dst}: {}", self.states[*dst])),
+                }
+            }
+        }
+        Some(lines.join("\n"))
+    }
+
+    pub fn format_summary(&self) -> String {
+        let mut out = Vec::new();
+        let cap_note = if self.capped {
+            format!(" [CAPPED at max_states={}]", self.max_states)
+        } else {
+            String::new()
+        };
+        out.push(format!(
+            "machine {}.{} (state :: {}){cap_note}",
+            self.module, self.name, self.state_type
+        ));
+        out.push(format!(
+            "  explored: {} state(s), {} transition(s), max depth {}, {} deadlock(s)",
+            self.states.len(),
+            self.edge_count(),
+            self.diameter,
+            self.deadlocks.len()
+        ));
+        if !self.symmetry_types.is_empty() {
+            out.push(format!(
+                "  symmetry: [{}] ({} symmetric state(s) merged)",
+                self.symmetry_types.join(", "),
+                self.symmetry_merged
+            ));
+        }
+        if !self.por_independent_pairs.is_empty() {
+            let pairs: Vec<String> = self
+                .por_independent_pairs
+                .iter()
+                .map(|(a, b)| format!("{a} || {b}"))
+                .collect();
+            out.push(format!(
+                "  POR independent pairs ({}): {}",
+                pairs.len(),
+                pairs.join(", ")
+            ));
+        }
+        out.push(format!("  init: {}", self.states.first().cloned().unwrap_or_default()));
+        out.push("  actions:".to_string());
+        for a in &self.actions {
+            let fair_tag = if a.strong_fair {
+                " [strong_fair]"
+            } else if a.fair {
+                " [fair]"
+            } else {
+                ""
+            };
+            if a.param_domains.is_empty() {
+                out.push(format!("    - {} ({}){fair_tag}", a.name, a.result_kind));
+            } else {
+                let doms: Vec<String> = a
+                    .param_domains
+                    .iter()
+                    .map(|d| format!("[{}]", d.join(", ")))
+                    .collect();
+                out.push(format!(
+                    "    - {} ({}) params: {}{fair_tag}",
+                    a.name,
+                    a.result_kind,
+                    doms.join(" x ")
+                ));
+            }
+        }
+        if !self.deadlocks.is_empty() {
+            let ids: Vec<String> = self.deadlocks.iter().take(5).map(|i| format!("#{i}")).collect();
+            out.push(format!("  deadlock states: {}", ids.join(", ")));
+        }
+        if !self.contracts.is_empty() {
+            out.push("  contracts:".to_string());
+            for c in &self.contracts {
+                let status = if c.passed { "PASS" } else { "FAIL" };
+                let assm = if c.assumptions.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [{}]", c.assumptions.join("; "))
+                };
+                out.push(format!("    - [{status}] {} {} ({}){assm}", c.kind, c.name, c.formula));
+                if !c.passed {
+                    for line in c.detail.lines() {
+                        out.push(format!("      {line}"));
+                    }
+                }
+            }
+        }
+        if !self.refinements.is_empty() {
+            out.push("  refinements:".to_string());
+            for r in &self.refinements {
+                let status = if r.passed { "PASS" } else { "FAIL" };
+                let m = if r.has_measure { " (with measure)" } else { "" };
+                out.push(format!("    - [{status}] refines {} {}{m}", r.concrete, r.abstract_target));
+                if !r.passed {
+                    for line in r.detail.lines() {
+                        out.push(format!("      {line}"));
+                    }
+                }
+            }
+        }
+        out.join("\n")
+    }
+
+    pub fn format_hover_markdown(&self) -> String {
+        let mut lines = Vec::new();
+        lines.push(format!("```cinch\nmachine {} where\n  state = {}\n```", self.name, self.state_type));
+        let cap = if self.capped {
+            format!(" (**capped** at `max_states = {}`)", self.max_states)
+        } else {
+            String::new()
+        };
+        lines.push(format!(
+            "- **Explored:** {} states, {} transitions, depth {}{cap}",
+            self.states.len(),
+            self.edge_count(),
+            self.diameter
+        ));
+        if !self.symmetry_types.is_empty() || !self.por_independent_pairs.is_empty() {
+            lines.push(format!(
+                "- **Reductions:** {} symmetry-merged, {} POR independent pair(s)",
+                self.symmetry_merged,
+                self.por_independent_pairs.len()
+            ));
+        }
+        if self.deadlocks.is_empty() {
+            lines.push("- **Deadlocks:** none".to_string());
+        } else {
+            lines.push(format!("- **Deadlocks:** {} state(s) (first: `#{}`)", self.deadlocks.len(), self.deadlocks[0]));
+        }
+        if !self.contracts.is_empty() {
+            lines.push("\n**Contracts**".to_string());
+            for c in &self.contracts {
+                let icon = if c.passed { "✓" } else { "✗" };
+                lines.push(format!("- {icon} `{}` (`{}`): `{}`", c.name, c.kind, c.formula));
+            }
+        }
+        if !self.refinements.is_empty() {
+            lines.push("\n**Refinements**".to_string());
+            for r in &self.refinements {
+                let icon = if r.passed { "✓" } else { "✗" };
+                lines.push(format!("- {icon} `refines {} {}`", r.concrete, r.abstract_target));
+            }
+        }
+        lines.join("\n")
+    }
+
+    pub fn to_dot(&self) -> String {
+        let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+        let mut out = Vec::new();
+        out.push(format!("digraph \"{}\" {{", esc(&self.name)));
+        out.push("  rankdir=LR;".to_string());
+        out.push("  node [shape=box, fontname=\"monospace\"];".to_string());
+        for (i, st) in self.states.iter().enumerate() {
+            let is_dead = self.edges[i].is_empty();
+            let style = if i == 0 && is_dead {
+                ", style=\"bold,filled\", fillcolor=\"#ffd6d6\""
+            } else if i == 0 {
+                ", style=\"bold,filled\", fillcolor=\"#e8f5e9\""
+            } else if is_dead {
+                ", style=\"filled\", fillcolor=\"#ffd6d6\""
+            } else {
+                ""
+            };
+            let prefix = if i == 0 { "init: " } else { "" };
+            out.push(format!("  s{i} [label=\"#{i} {prefix}{}\"{style}];", esc(st)));
+        }
+        for (u, es) in self.edges.iter().enumerate() {
+            for (lbl, v) in es {
+                out.push(format!("  s{u} -> s{v} [label=\"{}\"];", esc(lbl)));
+            }
+        }
+        out.push("}".to_string());
+        out.join("\n")
+    }
+
+    pub fn to_json(&self) -> String {
+        use crate::lsp::Json;
+        let actions: Vec<Json> = self
+            .actions
+            .iter()
+            .map(|a| {
+                Json::obj(vec![
+                    ("name", Json::Str(a.name.clone())),
+                    ("result_kind", Json::Str(a.result_kind.clone())),
+                    (
+                        "param_domains",
+                        Json::Arr(
+                            a.param_domains
+                                .iter()
+                                .map(|d| Json::Arr(d.iter().map(|v| Json::Str(v.clone())).collect()))
+                                .collect(),
+                        ),
+                    ),
+                    ("fair", Json::Bool(a.fair)),
+                    ("strong_fair", Json::Bool(a.strong_fair)),
+                ])
+            })
+            .collect();
+        let contracts: Vec<Json> = self
+            .contracts
+            .iter()
+            .map(|c| {
+                Json::obj(vec![
+                    ("name", Json::Str(c.name.clone())),
+                    ("kind", Json::Str(c.kind.clone())),
+                    ("formula", Json::Str(c.formula.clone())),
+                    (
+                        "assumptions",
+                        Json::Arr(c.assumptions.iter().map(|a| Json::Str(a.clone())).collect()),
+                    ),
+                    ("passed", Json::Bool(c.passed)),
+                    ("detail", Json::Str(c.detail.clone())),
+                ])
+            })
+            .collect();
+        let refinements: Vec<Json> = self
+            .refinements
+            .iter()
+            .map(|r| {
+                Json::obj(vec![
+                    ("concrete", Json::Str(r.concrete.clone())),
+                    ("abstract", Json::Str(r.abstract_target.clone())),
+                    ("has_measure", Json::Bool(r.has_measure)),
+                    ("passed", Json::Bool(r.passed)),
+                    ("detail", Json::Str(r.detail.clone())),
+                ])
+            })
+            .collect();
+        let por: Vec<Json> = self
+            .por_independent_pairs
+            .iter()
+            .map(|(a, b)| Json::Arr(vec![Json::Str(a.clone()), Json::Str(b.clone())]))
+            .collect();
+        Json::obj(vec![
+            ("module", Json::Str(self.module.clone())),
+            ("name", Json::Str(self.name.clone())),
+            ("state_type", Json::Str(self.state_type.clone())),
+            ("max_states", Json::Num(self.max_states as f64)),
+            ("capped", Json::Bool(self.capped)),
+            ("state_count", Json::Num(self.states.len() as f64)),
+            ("edge_count", Json::Num(self.edge_count() as f64)),
+            ("diameter", Json::Num(self.diameter as f64)),
+            (
+                "deadlocks",
+                Json::Arr(self.deadlocks.iter().map(|&d| Json::Num(d as f64)).collect()),
+            ),
+            ("symmetry_merged", Json::Num(self.symmetry_merged as f64)),
+            (
+                "symmetry_types",
+                Json::Arr(self.symmetry_types.iter().map(|s| Json::Str(s.clone())).collect()),
+            ),
+            ("por_independent_pairs", Json::Arr(por)),
+            ("actions", Json::Arr(actions)),
+            ("contracts", Json::Arr(contracts)),
+            ("refinements", Json::Arr(refinements)),
+        ])
+        .to_text()
+    }
+}
+
 /// Static field-access footprint of a machine action over the state record
 /// (used to compute action independence for Partial Order Reduction).
 #[derive(Clone, Debug, Default)]
@@ -228,8 +637,8 @@ enum ActionResultKind {
 struct CompiledAction {
     name: String,
     fn_id: GlobalId,
-    /// Optional finite argument domain for parameterized actions (`Arg -> State -> ...`).
-    arg_domain: Option<Vec<(String, Value)>>,
+    /// Finite argument domains for parameterized actions (`P1 -> ... -> Pk -> State -> ...`).
+    arg_domains: Vec<Vec<(String, Value)>>,
     result_kind: ActionResultKind,
     footprint: ActionFootprint,
 }
@@ -237,11 +646,14 @@ struct CompiledAction {
 struct ExploredMachine {
     module: String,
     name: String,
+    span: ast::Span,
     state_ty: Ty,
+    max_states: usize,
     init_val: Value,
     actions: Vec<CompiledAction>,
     fair: HashSet<usize>,
     strong_fair: HashSet<usize>,
+    sym_types: Vec<String>,
     sym_ctors: HashMap<String, Vec<String>>,
     /// Concrete representative `Value` for each explored state index (0 = init).
     states: Vec<Value>,
@@ -255,6 +667,8 @@ struct ExploredMachine {
     parent: Vec<Option<(usize, String)>>,
     /// Number of states deduplicated specifically by symmetry canonicalization.
     symmetry_merged: usize,
+    /// Pairs of action names proven independent by static field-footprint analysis (POR).
+    por_independent_pairs: Vec<(String, String)>,
     /// Number of transitions that POR could commute (reported in verification receipt).
     por_commuting_pairs: usize,
     /// Whether exploration hit `max_states`.
@@ -263,6 +677,10 @@ struct ExploredMachine {
     record_fields: HashMap<String, Vec<String>>,
     /// Whether any liveness contract was declared on this machine.
     has_liveness: bool,
+    /// Collected contract reports for CLI/REPL/LSP inspection.
+    contract_reports: Vec<MachineContractReport>,
+    /// Collected refinement reports for CLI/REPL/LSP inspection.
+    refines_reports: Vec<MachineRefinesReport>,
 }
 
 impl ExploredMachine {
@@ -270,7 +688,7 @@ impl ExploredMachine {
         let mut chain = Vec::new();
         let mut cur = target;
         while let Some((prev, label)) = &self.parent[cur] {
-            chain.push((label.clone(), cur));
+            chain.push((*prev, label.clone(), cur));
             cur = *prev;
         }
         chain.reverse();
@@ -278,8 +696,11 @@ impl ExploredMachine {
             "  State 0 (init): {}",
             format_mc_value(&self.states[0], &self.record_fields)
         )];
-        for (step, (label, s_idx)) in chain.into_iter().enumerate() {
-            lines.push(format!("  --[{label}]-->"));
+        for (step, (prev_idx, label, s_idx)) in chain.into_iter().enumerate() {
+            match format_state_diff(&self.states[prev_idx], &self.states[s_idx], &self.record_fields) {
+                Some(diff) => lines.push(format!("  --[{label}]-->  {diff}")),
+                None => lines.push(format!("  --[{label}]-->")),
+            }
             lines.push(format!(
                 "  State {}: {}",
                 step + 1,
@@ -291,6 +712,87 @@ impl ExploredMachine {
 
     fn enabled_actions(&self, s: usize) -> HashSet<usize> {
         self.edges[s].iter().map(|(a, _, _)| *a).collect()
+    }
+
+    fn to_report(&self) -> MachineReport {
+        let states: Vec<String> = self
+            .states
+            .iter()
+            .map(|v| format_mc_value(v, &self.record_fields))
+            .collect();
+        let mut edges_out = Vec::with_capacity(self.edges.len());
+        let mut edge_diffs = Vec::with_capacity(self.edges.len());
+        let mut deadlocks = Vec::new();
+        for (u, es) in self.edges.iter().enumerate() {
+            if es.is_empty() {
+                deadlocks.push(u);
+            }
+            let mut row = Vec::with_capacity(es.len());
+            let mut drow = Vec::with_capacity(es.len());
+            for (_, lbl, v) in es {
+                row.push((lbl.clone(), *v));
+                drow.push(format_state_diff(&self.states[u], &self.states[*v], &self.record_fields));
+            }
+            edges_out.push(row);
+            edge_diffs.push(drow);
+        }
+        let mut diameter = 0usize;
+        for s in 0..self.states.len() {
+            let mut depth = 0usize;
+            let mut cur = s;
+            while let Some((prev, _)) = &self.parent[cur] {
+                depth += 1;
+                cur = *prev;
+            }
+            diameter = diameter.max(depth);
+        }
+        let actions: Vec<MachineActionReport> = self
+            .actions
+            .iter()
+            .enumerate()
+            .map(|(idx, a)| MachineActionReport {
+                name: a.name.clone(),
+                result_kind: match a.result_kind {
+                    ActionResultKind::Direct => "State".into(),
+                    ActionResultKind::Option => "Option State".into(),
+                    ActionResultKind::List => "List State".into(),
+                },
+                param_domains: a
+                    .arg_domains
+                    .iter()
+                    .map(|dom| dom.iter().map(|(s, _)| s.clone()).collect())
+                    .collect(),
+                fair: self.fair.contains(&idx),
+                strong_fair: self.strong_fair.contains(&idx),
+            })
+            .collect();
+        let mut fair: Vec<String> = self.fair.iter().map(|&i| self.actions[i].name.clone()).collect();
+        fair.sort();
+        let mut strong_fair: Vec<String> =
+            self.strong_fair.iter().map(|&i| self.actions[i].name.clone()).collect();
+        strong_fair.sort();
+        MachineReport {
+            module: self.module.clone(),
+            name: self.name.clone(),
+            span: self.span,
+            state_type: format!("{}", self.state_ty),
+            max_states: self.max_states,
+            capped: self.capped,
+            states,
+            edges: edges_out,
+            edge_diffs,
+            parent: self.parent.clone(),
+            diameter,
+            deadlocks,
+            actions,
+            fair,
+            strong_fair,
+            symmetry_types: self.sym_types.clone(),
+            symmetry_merged: self.symmetry_merged,
+            por_independent_pairs: self.por_independent_pairs.clone(),
+            contracts: self.contract_reports.clone(),
+            refinements: self.refines_reports.clone(),
+        }
     }
 }
 
@@ -608,6 +1110,19 @@ impl Checker {
     /// Check all declared `machine`s, their temporal `contract`s, and `refines`
     /// simulation witnesses after module bodies have been elaborated.
     fn check_machines_and_refines(&mut self) -> Result<()> {
+        self.check_machines_and_refines_mode(true, None)
+    }
+
+    /// Run machine exploration, contract verification, and refinement verification.
+    /// When `fail_fast` is `true`, returns the first error (normal `cinch check` mode).
+    /// When `fail_fast` is `false`, records every pass/fail verdict on `self.machine_reports`
+    /// so CLI (`cinch model`), REPL (`:machines`/`:explore`/`:trace`), and LSP hover can
+    /// inspect broken models without aborting on the first violation.
+    fn check_machines_and_refines_mode(
+        &mut self,
+        fail_fast: bool,
+        trace_query: Option<&(String, ast::Term)>,
+    ) -> Result<()> {
         let pending_machines = std::mem::take(&mut self.pending_machines);
         let pending_refines = std::mem::take(&mut self.pending_refines);
         if pending_machines.is_empty() && pending_refines.is_empty() {
@@ -617,17 +1132,31 @@ impl Checker {
         let saved_visible = self.visible.clone();
         self.visible = self.module_names.iter().cloned().collect();
 
+        let mut order: Vec<(String, String)> = Vec::new();
         let mut explored: HashMap<(String, String), ExploredMachine> = HashMap::new();
         for (module, decl) in &pending_machines {
             self.current_module = module.clone();
-            let m = self.check_and_explore_machine(module, decl)?;
-            explored.insert((module.clone(), decl.name.text.clone()), m);
+            match self.check_and_explore_machine(module, decl) {
+                Ok(m) => {
+                    let key = (module.clone(), decl.name.text.clone());
+                    order.push(key.clone());
+                    explored.insert(key, m);
+                }
+                Err(e) => {
+                    if fail_fast {
+                        self.current_module = saved_module;
+                        self.visible = saved_visible;
+                        return Err(e);
+                    }
+                }
+            }
         }
 
         // Verify all temporal `contract` declarations targeting machines.
-        for ((module, name), machine) in &mut explored {
-            self.current_module = module.clone();
-            if let Some(contracts) = self.pending_contracts.remove(&(module.clone(), name.clone())) {
+        for key in &order {
+            let Some(mut machine) = explored.remove(key) else { continue };
+            self.current_module = key.0.clone();
+            if let Some(contracts) = self.pending_contracts.remove(key) {
                 for contract in &contracts {
                     if contract.kind == ast::ContractKind::Liveness
                         || contract.kind == ast::ContractKind::Recurrence
@@ -635,15 +1164,73 @@ impl Checker {
                     {
                         machine.has_liveness = true;
                     }
-                    self.check_machine_contract(machine, contract)?;
+                    let res = self.check_machine_contract(&mut machine, contract);
+                    if let Err(e) = res {
+                        if fail_fast {
+                            explored.insert(key.clone(), machine);
+                            self.current_module = saved_module;
+                            self.visible = saved_visible;
+                            return Err(e);
+                        }
+                    }
                 }
             }
+            explored.insert(key.clone(), machine);
         }
 
         // Verify all `refines Concrete Abstract` declarations.
         for (module, decl) in &pending_refines {
             self.current_module = module.clone();
-            self.check_refines_decl(module, decl, &explored)?;
+            match self.check_refines_decl(module, decl, &explored) {
+                Ok(rep) => {
+                    if let Some(m) = explored.get_mut(&(module.clone(), decl.concrete.text.clone())) {
+                        m.refines_reports.push(rep);
+                    }
+                }
+                Err(e) => {
+                    if let Some(m) = explored.get_mut(&(module.clone(), decl.concrete.text.clone())) {
+                        m.refines_reports.push(MachineRefinesReport {
+                            concrete: decl.concrete.text.clone(),
+                            abstract_target: decl.abstract_target.text.clone(),
+                            has_measure: decl.measure.is_some(),
+                            passed: false,
+                            detail: e.message.clone(),
+                            span: decl.span,
+                        });
+                    }
+                    if fail_fast {
+                        self.current_module = saved_module;
+                        self.visible = saved_visible;
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        if let Some((qname, pred_term)) = trace_query {
+            if let Some(m) = explored
+                .values()
+                .find(|m| &m.name == qname || &format!("{}.{}", m.module, m.name) == qname)
+            {
+                self.current_module = m.module.clone();
+                let dummy = ast::ContractDecl {
+                    kind: ast::ContractKind::Safety,
+                    name: ast::Name::new("trace", pred_term.span()),
+                    target: ast::Name::new(m.name.clone(), m.span),
+                    clauses: Vec::new(),
+                    span: pred_term.span(),
+                };
+                let preds = self.eval_machine_predicate(m, pred_term, &dummy)?;
+                if let Some(idx) = preds.iter().position(|&ok| ok) {
+                    self.machine_trace_result = Some((idx, m.trace_to(idx).join("\n")));
+                }
+            }
+        }
+
+        for key in &order {
+            if let Some(m) = explored.get(key) {
+                self.machine_reports.push(m.to_report());
+            }
         }
 
         self.current_module = saved_module;
@@ -737,8 +1324,9 @@ impl Checker {
 
     /// Enumerate the finite domain of an action parameter type using Cinch's own type
     /// and refinement information (`Bool`, finite nullary ADT enums, `InRange lo hi Nat`,
-    /// bounded refined integers, `Fin n`).
+    /// bounded refined integers, `Fin n`, `Option T`, and finite tuples).
     fn enumerate_finite_domain(&self, ty: &Ty, span: ast::Span) -> Result<Vec<(String, Value)>> {
+        const MAX_DOMAIN: usize = 256;
         let ty = self.uni.zonk(ty);
         match &ty {
             Ty::Bool => Ok(vec![
@@ -746,14 +1334,97 @@ impl Checker {
                 ("True".into(), Value::Bool(true)),
             ]),
             Ty::Unit => Ok(vec![("()".into(), Value::Unit)]),
+            Ty::Tuple(elems) => {
+                let mut acc: Vec<(Vec<String>, Vec<Value>)> = vec![(Vec::new(), Vec::new())];
+                for elem in elems {
+                    let dom = self.enumerate_finite_domain(elem, span)?;
+                    let mut next = Vec::new();
+                    for (ls, vs) in &acc {
+                        for (l, v) in &dom {
+                            if next.len() >= MAX_DOMAIN {
+                                return Err(Error::at(
+                                    span,
+                                    crate::diagnostic!(
+                                        "temporal machine tuple action parameter `{}` exceeds finite domain limit ({})",
+                                        ty, MAX_DOMAIN
+                                    ),
+                                ));
+                            }
+                            let mut ls2 = ls.clone();
+                            ls2.push(l.clone());
+                            let mut vs2 = vs.clone();
+                            vs2.push(v.clone());
+                            next.push((ls2, vs2));
+                        }
+                    }
+                    acc = next;
+                }
+                Ok(acc
+                    .into_iter()
+                    .map(|(ls, vs)| {
+                        (
+                            format!("({})", ls.join(", ")),
+                            Value::Adt {
+                                ctor: "Tuple".into(),
+                                tag: 0,
+                                fields: vs,
+                            },
+                        )
+                    })
+                    .collect())
+            }
             Ty::Adt(id, args) => {
                 let short = id.rsplit('.').next().unwrap_or(id);
+                // `Option T` when `T` is finite
+                if short == "Option" && args.len() == 1 {
+                    let inner = self.enumerate_finite_domain(&args[0], span)?;
+                    if inner.len() + 1 > MAX_DOMAIN {
+                        return Err(Error::at(
+                            span,
+                            crate::diagnostic!(
+                                "temporal machine action parameter `{}` exceeds finite domain limit ({})",
+                                ty, MAX_DOMAIN
+                            ),
+                        ));
+                    }
+                    let none_ctor = self
+                        .values
+                        .get("None")
+                        .and_then(|vs| vs.first())
+                        .map(|v| format!("{}.{}", v.module, v.name))
+                        .unwrap_or_else(|| "Data.Core.None".into());
+                    let some_ctor = self
+                        .values
+                        .get("Some")
+                        .and_then(|vs| vs.first())
+                        .map(|v| format!("{}.{}", v.module, v.name))
+                        .unwrap_or_else(|| "Data.Core.Some".into());
+                    let mut out = vec![(
+                        "None".into(),
+                        Value::Adt {
+                            ctor: none_ctor,
+                            tag: 0,
+                            fields: Vec::new(),
+                        },
+                    )];
+                    for (lbl, val) in inner {
+                        out.push((
+                            format!("Some {lbl}"),
+                            Value::Adt {
+                                ctor: some_ctor.clone(),
+                                tag: 1,
+                                fields: vec![val],
+                            },
+                        ));
+                    }
+                    return Ok(out);
+                }
                 // `Fin n` with concrete numeral `n`
                 if short == "Fin" && args.len() == 1 {
                     if let Ty::Idx(it) = &args[0] {
                         if let ITerm::Num(d) = it.normalize() {
                             if let Ok(n) = d.parse::<i64>() {
-                                if n <= 64 {
+                                if n >= 0 && (n as usize) <= MAX_DOMAIN {
                                     let fin_ctor = self
                                         .values
                                         .get("Fin")
@@ -786,7 +1457,7 @@ impl Checker {
                         if let Some((lo, hi, is_nat, is_word)) =
                             self.extract_finite_int_range(&base, &rv.pred, &rv.binder)
                         {
-                            if hi >= lo && (hi - lo) <= 64 {
+                            if hi >= lo && (hi - lo) <= (MAX_DOMAIN as i128) {
                                 let mut vals = Vec::new();
                                 for v in lo..=hi {
                                     let val = if is_word {
@@ -847,7 +1518,7 @@ impl Checker {
                 Err(Error::at(
                     span,
                     crate::diagnostic!(
-                        "temporal machine action parameter type `{}` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, or a bounded refinement such as `InRange 0 2 Nat`)",
+                        "temporal machine action parameter type `{}` has no finite enumerable domain (use `Bool`, `Unit`, a finite enum `data`, `Fin n`, `Option T`, finite tuples, or a bounded refinement such as `InRange 0 2 Nat`)",
                         ty
                     ),
                 ))
@@ -1046,6 +1717,7 @@ impl Checker {
         }
 
         // Validate symmetry types: sound by parametricity ONLY when no `Ord` instance exists.
+        let mut sym_types: Vec<String> = Vec::new();
         let mut sym_ctors: HashMap<String, Vec<String>> = HashMap::new();
         for sym_path in &decl.symmetry {
             let tk = self.lookup_type_path(sym_path)?;
@@ -1059,10 +1731,12 @@ impl Checker {
                 ));
             }
             let ctors = self.type_ctor_units(&tk.identity);
+            sym_types.push(sym_path.parts().join("."));
             sym_ctors.insert(tk.identity.clone(), ctors);
         }
 
         // Validate and compile every action in `actions = [...]`.
+        // Supports arbitrary finite prefix parameters `P1 -> ... -> Pk -> State -> Option State | List State | State`.
         let mut compiled_actions: Vec<CompiledAction> = Vec::new();
         for act_name in &decl.actions {
             let info = self.lookup_value(Some(module), &act_name.text).or_else(|_| {
@@ -1076,64 +1750,56 @@ impl Checker {
             let action_id = fn_id(&info.module, &info.name);
             let (ty, _, _) = self.instantiate(&info.scheme);
             let ty = self.uni.zonk(&ty);
-            let (arg_domain, result_kind) = match &ty {
-                Ty::Fun(dom, _, eff, cod) => {
-                    if !eff.is_pure() {
-                        return Err(Error::at(
-                            act_name.span,
-                            crate::diagnostic!(
-                                "machine `{}`: action `{}` must be pure for model checking, found effect row `{}`",
-                                decl.name.text, act_name.text, eff
-                            ),
-                        ));
-                    }
-                    let dom_z = self.uni.zonk(dom);
-                    if crate::types::ty_eq(&dom_z, &state_ty) {
-                        let rk = self.classify_action_result(cod, &state_ty, act_name.span, &act_name.text)?;
-                        (None, rk)
-                    } else if let Ty::Fun(dom2, _, eff2, cod2) = self.uni.zonk(cod) {
-                        if !eff2.is_pure() {
-                            return Err(Error::at(
-                                act_name.span,
-                                crate::diagnostic!(
-                                    "machine `{}`: action `{}` must be pure, found effect row `{}`",
-                                    decl.name.text, act_name.text, eff2
-                                ),
-                            ));
-                        }
-                        let dom2_z = self.uni.zonk(&dom2);
-                        if !crate::types::ty_eq(&dom2_z, &state_ty) {
-                            return Err(Error::at(
-                                act_name.span,
-                                crate::diagnostic!(
-                                    "machine `{}`: parameterized action `{}` must take `{}` as its state argument, found `{}`",
-                                    decl.name.text, act_name.text, state_ty, dom2_z
-                                ),
-                            ));
-                        }
-                        let domain = self.enumerate_finite_domain(&dom_z, act_name.span)?;
-                        let rk = self.classify_action_result(&cod2, &state_ty, act_name.span, &act_name.text)?;
-                        (Some(domain), rk)
-                    } else {
-                        return Err(Error::at(
-                            act_name.span,
-                            crate::diagnostic!(
-                                "machine `{}`: action `{}` must have type `{} -> Option {}` (or `List {}` / `{}` / `Arg -> {} -> ...`), found `{}`",
-                                decl.name.text, act_name.text, state_ty, state_ty, state_ty, state_ty, state_ty, ty
-                            ),
-                        ));
-                    }
-                }
-                _ => {
+            let mut param_tys: Vec<Ty> = Vec::new();
+            let mut cur_ty = ty.clone();
+            while let Ty::Fun(dom, _, eff, cod) = cur_ty {
+                if !eff.is_pure() {
                     return Err(Error::at(
                         act_name.span,
                         crate::diagnostic!(
-                            "machine `{}`: action `{}` must be a function over `{}`, found `{}`",
-                            decl.name.text, act_name.text, state_ty, ty
+                            "machine `{}`: action `{}` must be pure for model checking, found effect row `{}`",
+                            decl.name.text, act_name.text, eff
                         ),
                     ));
                 }
+                param_tys.push(self.uni.zonk(&dom));
+                cur_ty = self.uni.zonk(&cod);
+            }
+            let Some(last_param) = param_tys.pop() else {
+                return Err(Error::at(
+                    act_name.span,
+                    crate::diagnostic!(
+                        "machine `{}`: action `{}` must be a function over `{}`, found `{}`",
+                        decl.name.text, act_name.text, state_ty, ty
+                    ),
+                ));
             };
+            if !crate::types::ty_eq(&last_param, &state_ty) {
+                return Err(Error::at(
+                    act_name.span,
+                    crate::diagnostic!(
+                        "machine `{}`: action `{}` must take `{}` as its last argument, found `{}`",
+                        decl.name.text, act_name.text, state_ty, last_param
+                    ),
+                ));
+            }
+            let mut arg_domains = Vec::with_capacity(param_tys.len());
+            let mut total_combos = 1usize;
+            for pty in &param_tys {
+                let dom = self.enumerate_finite_domain(pty, act_name.span)?;
+                total_combos = total_combos.saturating_mul(dom.len());
+                if total_combos > 1024 {
+                    return Err(Error::at(
+                        act_name.span,
+                        format!(
+                            "machine `{}`: action `{}` parameter Cartesian product exceeds 1024 combinations per state",
+                            decl.name.text, act_name.text
+                        ),
+                    ));
+                }
+                arg_domains.push(dom);
+            }
+            let result_kind = self.classify_action_result(&cur_ty, &state_ty, act_name.span, &act_name.text)?;
 
             // Compute static field footprint for POR analysis.
             self.ensure_fn(&mut cx, &action_id.0)?;
@@ -1153,7 +1819,7 @@ impl Checker {
             compiled_actions.push(CompiledAction {
                 name: act_name.text.clone(),
                 fn_id: action_id,
-                arg_domain,
+                arg_domains,
                 result_kind,
                 footprint,
             });
@@ -1188,14 +1854,18 @@ impl Checker {
         }
 
         // Count independent action pairs discovered by static field-footprint analysis (POR).
-        let mut por_commuting_pairs = 0usize;
+        let mut por_independent_pairs = Vec::new();
         for i in 0..compiled_actions.len() {
             for j in (i + 1)..compiled_actions.len() {
                 if compiled_actions[i].footprint.independent_of(&compiled_actions[j].footprint) {
-                    por_commuting_pairs += 1;
+                    por_independent_pairs.push((
+                        compiled_actions[i].name.clone(),
+                        compiled_actions[j].name.clone(),
+                    ));
                 }
             }
         }
+        let por_commuting_pairs = por_independent_pairs.len();
 
         // BFS state-space exploration with symmetry canonicalization.
         let max_states = decl.max_states.unwrap_or(4096);
@@ -1216,19 +1886,27 @@ impl Checker {
             let state_u = states[u].clone();
             let mut out_edges = Vec::new();
             for (act_idx, act) in compiled_actions.iter().enumerate() {
-                let invocations: Vec<(String, Vec<Value>)> = match &act.arg_domain {
-                    None => vec![(act.name.clone(), vec![state_u.clone()])],
-                    Some(dom) => dom
-                        .iter()
-                        .map(|(arg_str, arg_val)| {
-                            (
-                                format!("{}({arg_str})", act.name),
-                                vec![arg_val.clone(), state_u.clone()],
-                            )
-                        })
-                        .collect(),
-                };
-                for (label, call_args) in invocations {
+                let mut rows: Vec<(Vec<String>, Vec<Value>)> = vec![(Vec::new(), Vec::new())];
+                for dom in &act.arg_domains {
+                    let mut next = Vec::with_capacity(rows.len() * dom.len());
+                    for (ls, vs) in &rows {
+                        for (l, v) in dom {
+                            let mut ls2 = ls.clone();
+                            ls2.push(l.clone());
+                            let mut vs2 = vs.clone();
+                            vs2.push(v.clone());
+                            next.push((ls2, vs2));
+                        }
+                    }
+                    rows = next;
+                }
+                for (arg_labels, mut call_args) in rows {
+                    let label = if arg_labels.is_empty() {
+                        act.name.clone()
+                    } else {
+                        format!("{}({})", act.name, arg_labels.join(", "))
+                    };
+                    call_args.push(state_u.clone());
                     let res = self.eval_fn(&mut cx, &act.fn_id, call_args).map_err(|e| {
                         Error::at(
                             decl.span,
@@ -1273,11 +1951,14 @@ impl Checker {
         Ok(ExploredMachine {
             module: module.to_string(),
             name: decl.name.text.clone(),
+            span: decl.span,
             state_ty,
+            max_states,
             init_val,
             actions: compiled_actions,
             fair,
             strong_fair,
+            sym_types,
             sym_ctors,
             states,
             keys,
@@ -1285,10 +1966,13 @@ impl Checker {
             edges,
             parent,
             symmetry_merged,
+            por_independent_pairs,
             por_commuting_pairs,
             capped,
             record_fields,
             has_liveness: false,
+            contract_reports: Vec::new(),
+            refines_reports: Vec::new(),
         })
     }
 
@@ -1337,12 +2021,13 @@ impl Checker {
     /// Verify one temporal `contract` attached to an explored `machine`.
     fn check_machine_contract(
         &mut self,
-        machine: &ExploredMachine,
+        machine: &mut ExploredMachine,
         contract: &ast::ContractDecl,
     ) -> Result<()> {
         let mut weak_fair = machine.fair.clone();
         let mut strong_fair = machine.strong_fair.clone();
         let mut assumption_rows: Vec<String> = Vec::new();
+        let mut assume_preds: Vec<&ast::Term> = Vec::new();
         for &a in &machine.fair {
             assumption_rows.push(format!("weak_fair {}", machine.actions[a].name));
         }
@@ -1362,6 +2047,7 @@ impl Checker {
                 }
                 ast::ContractClause::AssumeProp { body } => {
                     assumption_rows.push(format!("assume ({})", render_formula_term(body)));
+                    assume_preds.push(body);
                 }
                 ast::ContractClause::AssumeFair { strong, actions, .. } => {
                     for a in actions {
@@ -1386,6 +2072,36 @@ impl Checker {
             }
         }
         let main_clause = main_clause.expect("parser guarantees one main formula clause");
+
+        // Evaluate assume-guarantee environment predicate(s) (`assume = (\s -> Env s)`).
+        // When present, safety/deadlock/liveness checks restrict to states reachable along
+        // paths where every environment assumption holds.
+        let mut env_ok = vec![true; machine.states.len()];
+        for ap in &assume_preds {
+            let vals = self.eval_machine_predicate(machine, ap, contract)?;
+            for (slot, ok) in env_ok.iter_mut().zip(vals) {
+                *slot = *slot && ok;
+            }
+        }
+        let env_reachable: Vec<bool> = if assume_preds.is_empty() {
+            vec![true; machine.states.len()]
+        } else {
+            let mut reach = vec![false; machine.states.len()];
+            if !env_ok.is_empty() && env_ok[0] {
+                let mut q = std::collections::VecDeque::from([0usize]);
+                reach[0] = true;
+                while let Some(u) = q.pop_front() {
+                    for &(_, _, v) in &machine.edges[u] {
+                        if env_ok[v] && !reach[v] {
+                            reach[v] = true;
+                            q.push_back(v);
+                        }
+                    }
+                }
+            }
+            reach
+        };
+
         let display = format!("{}.{}", machine.module, machine.name);
         let total_edges: usize = machine.edges.iter().map(|e| e.len()).sum();
         let scope_note = if machine.capped {
@@ -1406,18 +2122,33 @@ impl Checker {
             )
         };
 
+        let record_fail = |machine: &mut ExploredMachine, formula_str: String, msg: String| -> Error {
+            machine.contract_reports.push(MachineContractReport {
+                name: contract.name.text.clone(),
+                kind: contract.kind.keyword().to_string(),
+                formula: formula_str,
+                assumptions: assumption_rows.clone(),
+                passed: false,
+                detail: msg.clone(),
+                span: contract.span,
+            });
+            Error::at(contract.span, msg)
+        };
+
         let formula_str = match main_clause {
             ast::ContractClause::DeadlockFree { .. } => {
                 for s in 0..machine.states.len() {
-                    if machine.edges[s].is_empty() {
+                    if !env_reachable[s] {
+                        continue;
+                    }
+                    let has_env_edge = machine.edges[s].iter().any(|&(_, _, v)| env_ok[v]);
+                    if !has_env_edge {
                         let trace = machine.trace_to(s).join("\n");
-                        return Err(Error::at(
-                            contract.span,
-                            format!(
-                                "temporal safety (deadlock): contract `{}` on `{display}` found a deadlocked state (no enabled actions):\n{trace}",
-                                contract.name.text
-                            ),
-                        ));
+                        let msg = format!(
+                            "temporal safety (deadlock): contract `{}` on `{display}` found a deadlocked state (no enabled actions):\n{trace}",
+                            contract.name.text
+                        );
+                        return Err(record_fail(machine, "deadlock_free (True)".to_string(), msg));
                     }
                 }
                 "deadlock_free (True)".to_string()
@@ -1428,55 +2159,53 @@ impl Checker {
                 match contract.kind {
                     ast::ContractKind::Safety => {
                         for (s, &ok) in preds.iter().enumerate() {
-                            if !ok {
+                            if env_reachable[s] && !ok {
                                 let trace = machine.trace_to(s).join("\n");
-                                return Err(Error::at(
-                                    contract.span,
-                                    format!(
-                                        "temporal safety violation in `{display}` (contract `{}`): `{rendered}` is falsified at State {s}:\n{trace}",
-                                        contract.name.text
-                                    ),
-                                ));
+                                let msg = format!(
+                                    "temporal safety violation in `{display}` (contract `{}`): `{rendered}` is falsified at State {s}:\n{trace}",
+                                    contract.name.text
+                                );
+                                return Err(record_fail(machine, rendered, msg));
                             }
                         }
                     }
                     ast::ContractKind::Liveness => {
-                        // `eventually (Q)` from init: search for a fair cycle/deadlock in `!Q`.
-                        let not_q: Vec<bool> = preds.iter().map(|&b| !b).collect();
+                        // `eventually (Q)` from init: search for a fair cycle/deadlock in `!Q && env_ok`.
+                        let allowed: Vec<bool> = (0..machine.states.len())
+                            .map(|s| env_reachable[s] && !preds[s])
+                            .collect();
+                        let starts: Vec<usize> = if !allowed.is_empty() && allowed[0] { vec![0] } else { Vec::new() };
                         if let Some((entry, cycle)) =
-                            find_fair_violating_lasso(machine, &[0], &not_q, &weak_fair, &strong_fair)
+                            find_fair_violating_lasso(machine, &starts, &allowed, &weak_fair, &strong_fair)
                         {
                             let trace = self.format_lasso_trace(machine, entry, &cycle);
-                            return Err(Error::at(
-                                contract.span,
-                                format!(
-                                    "temporal liveness violation in `{display}` (contract `{}`): `{rendered}` fails along a fair execution:\n{trace}",
-                                    contract.name.text
-                                ),
-                            ));
+                            let msg = format!(
+                                "temporal liveness violation in `{display}` (contract `{}`): `{rendered}` fails along a fair execution:\n{trace}",
+                                contract.name.text
+                            );
+                            return Err(record_fail(machine, rendered, msg));
                         }
                     }
                     ast::ContractKind::Recurrence => {
-                        // `recur (P)` (`[]<> P`): no reachable fair cycle/deadlock stays in `!P`.
-                        let not_p: Vec<bool> = preds.iter().map(|&b| !b).collect();
-                        let starts: Vec<usize> = (0..machine.states.len()).filter(|&s| not_p[s]).collect();
+                        // `recur (P)` (`[]<> P`): no reachable fair cycle/deadlock stays in `!P && env_ok`.
+                        let allowed: Vec<bool> = (0..machine.states.len())
+                            .map(|s| env_reachable[s] && !preds[s])
+                            .collect();
+                        let starts: Vec<usize> = (0..machine.states.len()).filter(|&s| allowed[s]).collect();
                         if let Some((entry, cycle)) =
-                            find_fair_violating_lasso(machine, &starts, &not_p, &weak_fair, &strong_fair)
+                            find_fair_violating_lasso(machine, &starts, &allowed, &weak_fair, &strong_fair)
                         {
                             let trace = self.format_lasso_trace(machine, entry, &cycle);
-                            return Err(Error::at(
-                                contract.span,
-                                format!(
-                                    "temporal recurrence violation in `{display}` (contract `{}`): `{rendered}` fails along a fair cycle that never re-establishes P:\n{trace}",
-                                    contract.name.text
-                                ),
-                            ));
+                            let msg = format!(
+                                "temporal recurrence violation in `{display}` (contract `{}`): `{rendered}` fails along a fair cycle that never re-establishes P:\n{trace}",
+                                contract.name.text
+                            );
+                            return Err(record_fail(machine, rendered, msg));
                         }
                     }
                     ast::ContractKind::Stability => {
-                        // `stable (P)` (`<>[] P`): no reachable fair cycle visits `!P`.
-                        let all = vec![true; machine.states.len()];
-                        let sccs = tarjan_sccs(machine.states.len(), &machine.edges, &all);
+                        // `stable (P)` (`<>[] P`): no reachable fair cycle in `env_ok` visits `!P`.
+                        let sccs = tarjan_sccs(machine.states.len(), &machine.edges, &env_reachable);
                         for scc in sccs {
                             let has_bad = scc.iter().any(|&s| !preds[s]);
                             if !has_bad {
@@ -1494,13 +2223,11 @@ impl Checker {
                                 &strong_fair,
                             ) {
                                 let trace = self.format_lasso_trace(machine, entry, &cycle);
-                                return Err(Error::at(
-                                    contract.span,
-                                    format!(
-                                        "temporal stability violation in `{display}` (contract `{}`): `{rendered}` fails because `!P` recurs along a fair execution:\n{trace}",
-                                        contract.name.text
-                                    ),
-                                ));
+                                let msg = format!(
+                                    "temporal stability violation in `{display}` (contract `{}`): `{rendered}` fails because `!P` recurs along a fair execution:\n{trace}",
+                                    contract.name.text
+                                );
+                                return Err(record_fail(machine, rendered, msg));
                             }
                         }
                     }
@@ -1515,21 +2242,21 @@ impl Checker {
                     render_formula_term(from),
                     render_formula_term(to)
                 );
-                let not_q: Vec<bool> = q_vals.iter().map(|&b| !b).collect();
+                let allowed: Vec<bool> = (0..machine.states.len())
+                    .map(|s| env_reachable[s] && !q_vals[s])
+                    .collect();
                 let starts: Vec<usize> = (0..machine.states.len())
-                    .filter(|&s| p_vals[s] && !q_vals[s])
+                    .filter(|&s| env_reachable[s] && p_vals[s] && !q_vals[s])
                     .collect();
                 if let Some((entry, cycle)) =
-                    find_fair_violating_lasso(machine, &starts, &not_q, &weak_fair, &strong_fair)
+                    find_fair_violating_lasso(machine, &starts, &allowed, &weak_fair, &strong_fair)
                 {
                     let trace = self.format_lasso_trace(machine, entry, &cycle);
-                    return Err(Error::at(
-                        contract.span,
-                        format!(
-                            "temporal liveness violation in `{display}` (contract `{}`): `{rendered}` fails along a fair execution where P holds without ever reaching Q:\n{trace}",
-                            contract.name.text
-                        ),
-                    ));
+                    let msg = format!(
+                        "temporal liveness violation in `{display}` (contract `{}`): `{rendered}` fails along a fair execution where P holds without ever reaching Q:\n{trace}",
+                        contract.name.text
+                    );
+                    return Err(record_fail(machine, rendered, msg));
                 }
                 rendered
             }
@@ -1540,6 +2267,15 @@ impl Checker {
         let mut sorted_assumptions = assumption_rows.clone();
         sorted_assumptions.sort();
         sorted_assumptions.dedup();
+        machine.contract_reports.push(MachineContractReport {
+            name: contract.name.text.clone(),
+            kind: contract.kind.keyword().to_string(),
+            formula: formula_str.clone(),
+            assumptions: assumption_rows.clone(),
+            passed: true,
+            detail: result.clone(),
+            span: contract.span,
+        });
         self.temporal_rows.push(TemporalRow {
             definition: display.clone(),
             contract: contract.name.text.clone(),
@@ -1571,12 +2307,17 @@ impl Checker {
             lines.push("  (deadlock / stuttering forever at this state)".into());
         } else {
             lines.push("  --- fair cycle (repeats forever) ---".into());
+            let mut prev = entry;
             for (lbl, next) in cycle {
-                lines.push(format!("  --[{lbl}]-->"));
+                match format_state_diff(&machine.states[prev], &machine.states[*next], &machine.record_fields) {
+                    Some(diff) => lines.push(format!("  --[{lbl}]-->  {diff}")),
+                    None => lines.push(format!("  --[{lbl}]-->")),
+                }
                 lines.push(format!(
                     "  State: {}",
                     format_mc_value(&machine.states[*next], &machine.record_fields)
                 ));
+                prev = *next;
             }
         }
         lines.join("\n")
@@ -1595,7 +2336,7 @@ impl Checker {
         module: &str,
         decl: &ast::RefinesDecl,
         explored: &HashMap<(String, String), ExploredMachine>,
-    ) -> Result<()> {
+    ) -> Result<MachineRefinesReport> {
         let concrete = explored
             .get(&(module.to_string(), decl.concrete.text.clone()))
             .ok_or_else(|| {
@@ -1609,6 +2350,12 @@ impl Checker {
             })?;
         let abs = explored
             .get(&(module.to_string(), decl.abstract_target.text.clone()))
+            .or_else(|| {
+                explored
+                    .iter()
+                    .find(|((_, n), _)| n == &decl.abstract_target.text)
+                    .map(|(_, m)| m)
+            })
             .ok_or_else(|| {
                 Error::at(
                     decl.abstract_target.span,
@@ -1801,20 +2548,71 @@ impl Checker {
         }
 
         let display = format!("{module}.{}", concrete.name);
+        let detail = format!(
+            "model-checked stuttering simulation ({} states, {} simulated steps, {} stuttering steps{})",
+            concrete.states.len(),
+            simulated_steps,
+            stuttering_steps,
+            if measure_val.is_some() { ", measure strictly decreasing" } else { "" }
+        );
         self.temporal_rows.push(TemporalRow {
             definition: display,
             contract: format!("refines_{}", abs.name),
             kind: "refinement".to_string(),
             formula: format!("refines {} {}", concrete.name, abs.name),
-            result: format!(
-                "model-checked stuttering simulation ({} states, {} simulated steps, {} stuttering steps{})",
-                concrete.states.len(),
-                simulated_steps,
-                stuttering_steps,
-                if measure_val.is_some() { ", measure strictly decreasing" } else { "" }
-            ),
+            result: detail.clone(),
             assumptions: Vec::new(),
         });
-        Ok(())
+        Ok(MachineRefinesReport {
+            concrete: concrete.name.clone(),
+            abstract_target: abs.name.clone(),
+            has_measure: measure_val.is_some(),
+            passed: true,
+            detail,
+            span: decl.span,
+        })
     }
+}
+
+/// Non-aborting model inspection across a multi-module program: explores every
+/// declared `machine`, checks every `contract` and `refines` without stopping on
+/// the first temporal violation, and returns all `MachineReport`s for CLI/REPL/LSP.
+pub fn inspect_machines_multi(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    scx: &StagingCx,
+    target: &crate::core::TargetProfile,
+) -> Result<Vec<MachineReport>> {
+    let mut inspect_scx = scx.clone();
+    inspect_scx.machine_inspect_only = true;
+    let hashes = HashMap::new();
+    let (_prog, _ifaces, report, _diags) =
+        check_program_multi_full(prelude, modules, &hashes, &inspect_scx, &[], target)?;
+    Ok(report.machines)
+}
+
+/// Evaluate a predicate expression (`\s -> ... :: State -> Bool`) over an explored
+/// machine and return the shortest BFS trace from `init` to the first matching state.
+pub fn trace_machine_where(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    scx: &StagingCx,
+    target: &crate::core::TargetProfile,
+    machine_name: &str,
+    pred_term: &ast::Term,
+) -> Result<Option<(usize, String)>> {
+    let mut trace_scx = scx.clone();
+    trace_scx.machine_inspect_only = true;
+    trace_scx.machine_trace_query = Some((machine_name.to_string(), pred_term.clone()));
+    let hashes = HashMap::new();
+    let (_prog, _ifaces, report, _diags) =
+        check_program_multi_full(prelude, modules, &hashes, &trace_scx, &[], target)?;
+    if !report
+        .machines
+        .iter()
+        .any(|m| m.name == machine_name || format!("{}.{}", m.module, m.name) == machine_name)
+    {
+        return Err(Error::plain(format!("no machine named `{machine_name}`")));
+    }
+    Ok(report.machine_trace_result)
 }

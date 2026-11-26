@@ -5942,6 +5942,8 @@ pub fn driver_with_profile_opts(
         workdir: dir.clone(),
         entry_modules: project.entry_modules.clone(),
         schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
+        machine_inspect_only: false,
+        machine_trace_query: None,
     };
     trace_driver_phase(phase_trace, "check.begin");
     let (program, ifaces, hashes, report) = check::check_program_with_interface_hashes(

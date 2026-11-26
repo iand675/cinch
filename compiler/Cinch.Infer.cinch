@@ -13664,11 +13664,24 @@ module Cinch.Infer where
           Some state-u ->
             let (wf, sf) = collect-contract-fairness clauses Nil Nil in
             let assumptions = contract-assumption-rows clauses in
-            case elaborate-machine-formula classes kinds families env sp state-u clauses st of
-              (None, s1) -> elaborate-machine-contracts classes kinds families env rest state-map acc s1
-              (Some (form-text, mc-form), s1) ->
-                let item = MkCheckedMachineContract sp (contract-kind-keyword kind) cname subject form-text mc-form wf sf assumptions in
-                elaborate-machine-contracts classes kinds families env rest state-map (Cons item acc) s1
+            case elaborate-machine-assumptions classes kinds families env state-u clauses Nil st of
+              (env-preds, s0) ->
+                case elaborate-machine-formula classes kinds families env sp state-u clauses s0 of
+                  (None, s1) -> elaborate-machine-contracts classes kinds families env rest state-map acc s1
+                  (Some (form-text, mc-form), s1) ->
+                    let item = MkCheckedMachineContract sp (contract-kind-keyword kind) cname subject form-text mc-form wf sf assumptions env-preds in
+                    elaborate-machine-contracts classes kinds families env rest state-map (Cons item acc) s1
+
+  elaborate-machine-assumptions :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding
+    -> UType -> List ContractClause -> List CoreTerm -> Store -> (List CoreTerm, Store)
+  elaborate-machine-assumptions classes kinds families env state-u clauses acc st = case clauses of
+    Nil -> (reverse acc, st)
+    Cons (ContractAssume _ body) rest ->
+      let pred-ty = UFun state-u (primitive-type "Bool") in
+      case check classes kinds families env Nil body pred-ty st of
+        (p0, s1) -> case resolve-mc-term classes env p0 s1 of
+          (p, s2) -> elaborate-machine-assumptions classes kinds families env state-u rest (Cons p acc) s2
+    Cons other rest -> elaborate-machine-assumptions classes kinds families env state-u rest acc st
 
   collect-contract-fairness :: List ContractClause -> List String -> List String -> (List String, List String)
   collect-contract-fairness clauses wf sf = case clauses of
