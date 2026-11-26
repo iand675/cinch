@@ -116,13 +116,14 @@ module Data.Wide where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
+  -- Unchecked signed 128-bit division/remainder: LLVM immediate UB when %1 == 0 or (%0 == MIN && %1 == -1).
   prim raw-sdiv-i128 :: I128 -> I128 -> I128 where
-    llvm {
+    unsafe llvm {
       %r = sdiv i128 %0, %1
       ret i128 %r
     }
   prim raw-srem-i128 :: I128 -> I128 -> I128 where
-    llvm {
+    unsafe llvm {
       %r = srem i128 %0, %1
       ret i128 %r
     }
@@ -319,13 +320,15 @@ module Data.Wide where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
+  -- Unchecked unsigned 128-bit division/remainder: LLVM immediate UB when %1 == 0.
+  -- Callers should use `checked-div-u128` / `checked-rem-u128` unless %1 /= 0 is ensured.
   prim div-u128 :: U128 -> U128 -> U128 where
-    llvm {
+    unsafe llvm {
       %r = udiv i128 %0, %1
       ret i128 %r
     }
   prim rem-u128 :: U128 -> U128 -> U128 where
-    llvm {
+    unsafe llvm {
       %r = urem i128 %0, %1
       ret i128 %r
     }

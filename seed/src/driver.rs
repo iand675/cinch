@@ -2870,23 +2870,44 @@ fn write_artifacts<'a>(
                 )
             })
             .collect();
+        let receipts = J::arr(
+            &p.bodies
+                .iter()
+                .flat_map(|b| b.receipts.iter())
+                .cloned()
+                .collect::<Vec<_>>(),
+            |r| {
+                J::obj([
+                    ("goal_hash", (&r.goal_hash).into()),
+                    ("semantics_id", (&r.semantics_id).into()),
+                    ("evidence_format", (&r.evidence_format).into()),
+                    ("checker_id", (&r.checker_id).into()),
+                    ("tier", r.tier.to_string().into()),
+                    ("tcb", (&r.tcb).into()),
+                    ("details", (&r.details).into()),
+                ])
+            },
+        );
         J::obj([
             ("name", (&p.name).into()),
             ("module", (&p.module).into()),
             (
                 "tier",
                 match p.tier {
+                    crate::core::PrimTier::Verified => "verified",
                     crate::core::PrimTier::Justified => "justified",
                     crate::core::PrimTier::Assumed => "assumed",
                 }
                 .into(),
             ),
+            ("spec", p.spec.as_ref().into()),
             ("family", (&body.family).into()),
             ("condition", body.when.as_ref().into()),
             ("why", (&p.selected_why).into()),
             ("uses", uses.into()),
             ("immarg", (&body.immarg).into()),
             ("validation", validations.into()),
+            ("receipts", receipts),
             ("trust", trust.into()),
             ("identity", (&p.identity).into()),
         ])

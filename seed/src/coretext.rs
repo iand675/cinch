@@ -541,6 +541,7 @@ impl<'a> Printer<'a> {
         if f.meta.prim_body {
             if let Some(plan) = self.program.prims.iter().find(|p| p.unit == f.id.0) {
                 let tier = match plan.tier {
+                    PrimTier::Verified => "verified",
                     PrimTier::Justified => "justified",
                     PrimTier::Assumed => "assumed",
                 };

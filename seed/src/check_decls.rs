@@ -3734,6 +3734,8 @@ impl Checker {
                     }
                 }
                 ast::Decl::Equation { modifier, eq } => {
+                    self.spec_equations
+                        .insert((module.clone(), eq.name.text.clone()), eq.clone());
                     // Function declarations carry the hint attributes of
                     // attribute annotations specification section 5 and
                     // the safety assertions of section 10; a weight on a
@@ -9095,7 +9097,12 @@ impl Checker {
             let mut conds: Vec<Option<WhenCond>> = Vec::new();
             let mut laws: Vec<String> = Vec::new();
             let mut all_justified = true;
-            for b in &p.bodies {
+            let mut all_verified = !p.bodies.is_empty();
+            let spec_id = match &p.spec {
+                Some(spec_term) => Some(self.resolve_prim_spec(&module, spec_term)?),
+                None => None,
+            };
+            for (body_idx, b) in p.bodies.iter().enumerate() {
                 let (validation, uses) =
                     self.validate_prim_body(&module, &p, b, &arg_tys, &res_ty, pure)?;
                 // The clauses are a conjunction, so every clause of
@@ -9109,10 +9116,28 @@ impl Checker {
                 } else {
                     Some(conjunction)
                 };
+                let mut receipts = Vec::new();
                 let assumptions = match &b.justify {
-                    Some(j) => self.check_prim_justify(j, &unit, arity, b.span)?,
+                    Some(j) if Self::prim_verify_strategy(j).is_some() => {
+                        let strategy = Self::prim_verify_strategy(j).unwrap();
+                        if b.unverified {
+                            return Err(Error::at(
+                                b.span,
+                                "an `unsafe` prim body cannot be discharged with `justify verify`",
+                            ));
+                        }
+                        receipts = self.verify_prim_body_formally(
+                            &module, &p, body_idx, b, strategy,
+                        )?;
+                        Vec::new()
+                    }
+                    Some(j) => {
+                        all_verified = false;
+                        self.check_prim_justify(j, &unit, arity, b.span)?
+                    }
                     None => {
                         all_justified = false;
+                        all_verified = false;
                         Vec::new()
                     }
                 };
@@ -9126,6 +9151,9 @@ impl Checker {
                 // verified, and the trust is a recorded assumption with
                 // a per-body identity (body edits stale dependents).
                 let trusted = b.unverified;
+                if trusted {
+                    all_verified = false;
+                }
                 let trust_id = if trusted {
                     format!(
                         "prim:{unit}#{}",
@@ -9152,6 +9180,7 @@ impl Checker {
                     trusted,
                     trust_id,
                     validation,
+                    receipts,
                 });
             }
             // Selection (section 6, with section 13's target predicates):
@@ -9279,16 +9308,32 @@ impl Checker {
                     ));
                 }
             };
-            // The tier and the identity rules (section 5): a justified
-            // prim's contract is its signature plus the law identity and
-            // bodies are representation; an assumed prim's body content
-            // is contract, so editing it stales dependents.
-            let tier = if all_justified {
+            // The tier and the identity rules (section 5): a formally
+            // verified prim's contract is its signature, spec identity, and
+            // verification tier (bodies are representation-only); a law-
+            // justified prim's contract is its signature plus the law
+            // identity; an assumed prim's body content is contract.
+            let tier = if all_verified {
+                crate::core::PrimTier::Verified
+            } else if all_justified {
                 crate::core::PrimTier::Justified
             } else {
                 crate::core::PrimTier::Assumed
             };
             let identity = match tier {
+                crate::core::PrimTier::Verified => {
+                    let worst_tier = bodies
+                        .iter()
+                        .flat_map(|b| b.receipts.iter())
+                        .map(|r| r.tier)
+                        .max()
+                        .unwrap_or(crate::prim_verify::TrustTier::KernelCert);
+                    format!(
+                        "prim:{unit}:{}:spec[{}]:tier[{worst_tier}]",
+                        render_scheme(&s),
+                        spec_id.as_deref().unwrap_or("well-defined")
+                    )
+                }
                 crate::core::PrimTier::Justified => {
                     format!("prim:{unit}:{}:laws[{}]", render_scheme(&s), laws.join(","))
                 }
@@ -9321,6 +9366,7 @@ impl Checker {
                 pure,
                 tier,
                 laws,
+                spec: spec_id,
                 selected,
                 selected_why,
                 family_units,
@@ -9368,6 +9414,128 @@ impl Checker {
             self.prims.push(plan);
         }
         Ok(())
+    }
+
+    fn prim_verify_strategy(tm: &ast::Term) -> Option<&str> {
+        match tm {
+            ast::Term::Var(vp)
+                if vp.quals.is_empty()
+                    && matches!(
+                        vp.name.text.as_str(),
+                        "verify" | "verify-lrat" | "verify-compiled-lrat"
+                    ) =>
+            {
+                Some(vp.name.text.as_str())
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_prim_spec(&self, _module: &str, spec_term: &ast::Term) -> Result<String> {
+        match spec_term {
+            ast::Term::Var(vp) => {
+                let v = self.resolve_var(vp, vp.span())?;
+                let target_mod = if vp.quals.is_empty() {
+                    v.module.clone()
+                } else {
+                    vp.quals.iter().map(|q| q.text.as_str()).collect::<Vec<_>>().join(".")
+                };
+                let key = (target_mod.clone(), vp.name.text.clone());
+                let eq_hash = self
+                    .spec_equations
+                    .get(&key)
+                    .map(|eq| crate::interface::content_hash(&format!("{:?}", eq.body)))
+                    .unwrap_or_else(|| "external".to_string());
+                Ok(format!("{target_mod}.{}#{eq_hash}", vp.name.text))
+            }
+            ast::Term::Lam(_, body, _) => Ok(format!(
+                "inline#{}",
+                crate::interface::content_hash(&format!("{:?}", body))
+            )),
+            other => Err(Error::at(
+                other.span(),
+                "prim `spec` must name a spec function or inline lambda `\\x ... -> ...`",
+            )),
+        }
+    }
+
+    fn verify_prim_body_formally(
+        &self,
+        module: &str,
+        p: &ast::PrimDecl,
+        body_idx: usize,
+        body: &ast::PrimBody,
+        strategy: &str,
+    ) -> Result<Vec<crate::prim_verify::TrustReceipt>> {
+        use crate::prim_verify::prelude_bridge::build_prim_body_obligations;
+        use crate::prim_verify::{Policy, VerificationStatus, VerifierEngine};
+
+        let policy = if self.jpl_target || self.jpl_user_modules.contains(module) {
+            Policy::jpl_strict()
+        } else {
+            Policy::dev_default()
+        };
+        let mut engine = VerifierEngine::default_engine(policy);
+        if strategy == "verify-compiled-lrat" {
+            engine = engine.with_compiled_lrat_checker();
+        }
+        let obligations = {
+            let sems = engine.semantics_refs();
+            build_prim_body_obligations(module, p, body_idx, body, &self.spec_equations, &sems)
+                .map_err(|msg| {
+                    Error::at(
+                        body.span,
+                        format!(
+                            "prim `{}.{}` failed formal verification setup: {msg}",
+                            module, p.name.text
+                        ),
+                    )
+                })?
+        };
+        let mut receipts = Vec::with_capacity(obligations.len());
+        for ob in &obligations {
+            let report = engine.verify(ob);
+            match report.status {
+                VerificationStatus::Verified { receipt, .. } => receipts.push(receipt),
+                VerificationStatus::Disproved { prover_id, counterexample } => {
+                    let inputs = counterexample
+                        .inputs
+                        .iter()
+                        .map(|(k, v)| format!("{k} = {v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(Error::at(
+                        body.span,
+                        format!(
+                            "prim `{}.{}` failed formal verification ({}): {} [{}] (prover: {})",
+                            module, p.name.text, report.kind, counterexample.summary, inputs, prover_id
+                        ),
+                    ));
+                }
+                VerificationStatus::RejectedByPolicy { reason, .. } => {
+                    return Err(Error::at(
+                        body.span,
+                        format!(
+                            "prim `{}.{}` verification rejected by policy ({}): {reason}",
+                            module, p.name.text, report.kind
+                        ),
+                    ));
+                }
+                VerificationStatus::Unverified { reasons } => {
+                    return Err(Error::at(
+                        body.span,
+                        format!(
+                            "prim `{}.{}` could not be formally verified ({}): {}",
+                            module,
+                            p.name.text,
+                            report.kind,
+                            reasons.join("; ")
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(receipts)
     }
 
     /// A `prim` body's `justify` evidence (primitive operations and
@@ -18799,6 +18967,37 @@ impl Checker {
         // contract projection (section 6).
         for p in members.primitives.get(module).into_iter().flatten() {
             match p.tier {
+                crate::core::PrimTier::Verified => {
+                    let worst_tier = p
+                        .bodies
+                        .iter()
+                        .flat_map(|b| b.receipts.iter())
+                        .map(|r| r.tier)
+                        .max()
+                        .unwrap_or(crate::prim_verify::TrustTier::KernelCert);
+                    let semantics_id = p
+                        .bodies
+                        .iter()
+                        .flat_map(|b| b.receipts.iter())
+                        .map(|r| r.semantics_id.clone())
+                        .next()
+                        .unwrap_or_else(|| crate::prim_verify::llvm_ir::LLVM_SEMANTICS_ID.to_string());
+                    let mut tcb: Vec<String> = p
+                        .bodies
+                        .iter()
+                        .flat_map(|b| b.receipts.iter())
+                        .flat_map(|r| r.tcb.iter().cloned())
+                        .collect();
+                    tcb.sort();
+                    tcb.dedup();
+                    iface.prim_proofs.push(crate::interface::PrimProofFact {
+                        name: p.name.clone(),
+                        spec: p.spec.clone().unwrap_or_else(|| "well-defined".to_string()),
+                        semantics_id,
+                        tier: worst_tier.to_string(),
+                        tcb,
+                    });
+                }
                 crate::core::PrimTier::Justified => {
                     for l in &p.laws {
                         iface.assumptions.declared.push(l.clone());

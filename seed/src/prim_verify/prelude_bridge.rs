@@ -3,11 +3,12 @@
 //!
 //! Uses Cinch's own lexer, layout pass, and parser so real prelude files
 //! (`seed/prelude/Prim/Machine.cinch`, `seed/prelude/Prim/Wide.cinch`, etc.)
-//! are audited directly without hand-transcribing IR bodies.
+//! and compiler-checked `prim ... spec <fn> where ... justify verify` declarations
+//! are verified directly against the shared `SemGraph`.
 
 use super::sem::{FpFmt, NodeId, Obligation, ObligationKind, SemGraph, SemParam, SemProgram, SemTy};
 use super::{IrSemantics, SemError};
-use crate::ast::{Assoc, Decl, PrimBody, PrimDecl, Term, Type};
+use crate::ast::{Assoc, Decl, Equation, LocalDecl, Pat, PrimBody, PrimDecl, Term, Type};
 use crate::parser::FixityTable;
 use std::collections::HashMap;
 use std::path::Path;
@@ -30,6 +31,7 @@ struct ScalarInfo {
     /// LLVM ABI type width for `Bool` (which crosses Cinch `prim` ABI as `i8`).
     llvm_param_ty: SemTy,
     signed: bool,
+    is_bool: bool,
 }
 
 fn default_fixities() -> FixityTable {
@@ -66,41 +68,173 @@ pub fn extract_source_obligations(
     let parsed = crate::parser::parse_modules(&tokens, &base, &HashMap::new())
         .map_err(|e| format!("parse error: {e}"))?;
 
+    let mut eqs: HashMap<(String, String), Equation> = HashMap::new();
+    for m in &parsed.modules {
+        collect_equations(&m.name.text, &m.decls, &mut eqs);
+    }
+
     let mut out = Vec::new();
     for m in &parsed.modules {
         let mname = m.name.text.clone();
-        collect_decls(&mname, &m.decls, semantics, &mut out);
+        collect_decls(&mname, &m.decls, &eqs, semantics, &mut out);
     }
     Ok(out)
 }
 
-fn collect_decls(
+fn collect_equations(
     module: &str,
     decls: &[Decl],
-    semantics: &[&dyn IrSemantics],
-    out: &mut Vec<ExtractedPrimBody>,
+    out: &mut HashMap<(String, String), Equation>,
 ) {
     for decl in decls {
         match decl {
-            Decl::Prim(p) => extract_prim(module, p, semantics, out),
+            Decl::Equation { eq, .. } => {
+                out.insert((module.to_string(), eq.name.text.clone()), eq.clone());
+            }
             Decl::Attributed { inner, .. } | Decl::Conditional { inner, .. } => {
-                collect_decls(module, std::slice::from_ref(inner.as_ref()), semantics, out);
+                collect_equations(module, std::slice::from_ref(inner.as_ref()), out);
             }
             _ => {}
         }
     }
 }
 
+fn collect_decls(
+    module: &str,
+    decls: &[Decl],
+    eqs: &HashMap<(String, String), Equation>,
+    semantics: &[&dyn IrSemantics],
+    out: &mut Vec<ExtractedPrimBody>,
+) {
+    for decl in decls {
+        match decl {
+            Decl::Prim(p) => extract_prim(module, p, eqs, semantics, out),
+            Decl::Attributed { inner, .. } | Decl::Conditional { inner, .. } => {
+                collect_decls(module, std::slice::from_ref(inner.as_ref()), eqs, semantics, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Build all verification obligations for a single `PrimBody` (used by both the
+/// standalone `cinch verify-prims` CLI and the compiler's `check_prims_for` pass).
+pub fn build_prim_body_obligations(
+    module: &str,
+    p: &PrimDecl,
+    body_idx: usize,
+    body: &PrimBody,
+    eqs: &HashMap<(String, String), Equation>,
+    semantics: &[&dyn IrSemantics],
+) -> Result<Vec<Obligation>, String> {
+    let family = body.family.text.as_str();
+    let word_bits = body_word_bits(body);
+
+    let sem_plugin = semantics
+        .iter()
+        .find(|s| s.family() == family)
+        .ok_or_else(|| format!("no IrSemantics plugin registered for `{family}`"))?;
+
+    let (param_specs, ret_info, ret_refinement) = parse_prim_sig(&p.ty, word_bits)?;
+
+    let sem_params: Vec<SemParam> = param_specs
+        .iter()
+        .enumerate()
+        .map(|(i, (name, info, _))| SemParam {
+            index: i,
+            name: name.clone(),
+            ty: info.llvm_param_ty,
+            signed: info.signed,
+        })
+        .collect();
+
+    let lowered = match sem_plugin.lower(&body.fragment, &sem_params, ret_info.llvm_param_ty) {
+        Ok(prog) => prog,
+        Err(SemError::Unsupported(reason)) => {
+            return Err(format!("unsupported in {}: {reason}", sem_plugin.id()));
+        }
+        Err(SemError::Parse(err)) => {
+            return Err(format!("IR parse error: {err}"));
+        }
+    };
+
+    let full_name = if p.bodies.len() > 1 {
+        format!("{module}.{}#body{body_idx}", p.name.text)
+    } else {
+        format!("{module}.{}", p.name.text)
+    };
+
+    let mut obligations = Vec::new();
+
+    // 1. Well-definedness obligation (`precond => !ub && !poison`).
+    {
+        let mut g = lowered.graph.clone();
+        let precond = build_param_precond(&mut g, &param_specs, &lowered.params);
+        let not_ub = g.not(lowered.ub_cond);
+        let any_p = lowered.result.any_poison(&mut g);
+        let not_p = g.not(any_p);
+        let wd = g.and(not_ub, not_p);
+        let goal = g.implies(precond, wd);
+        obligations.push(Obligation::new(
+            format!("{full_name}::well-defined"),
+            lowered.semantics_id.clone(),
+            ObligationKind::WellDefined,
+            sem_params.clone(),
+            g,
+            goal,
+        ));
+    }
+
+    // 2. Return refinement obligation (`precond => !ub && !poison && postcond`).
+    if let Some(ref_pred) = ret_refinement {
+        if let Some(ob) = build_refinement_obligation(
+            &full_name,
+            &lowered,
+            &param_specs,
+            ret_info,
+            &ref_pred,
+        ) {
+            obligations.push(ob);
+        }
+    }
+
+    // 3. Source-level `spec <expr>` functional equivalence obligation, if declared.
+    if let Some(spec_term) = &p.spec {
+        let ob = build_source_spec_obligation(
+            module,
+            &full_name,
+            spec_term,
+            &lowered,
+            &param_specs,
+            ret_info,
+            eqs,
+        )?;
+        obligations.push(ob);
+    } else if let Some(ob) = build_builtin_spec_obligation(
+        &full_name,
+        &p.name.text,
+        &lowered,
+        &sem_params,
+        word_bits,
+    ) {
+        // Fallback curated functional specs for existing prelude prims that do not
+        // yet carry an inline `spec` clause.
+        obligations.push(ob);
+    }
+
+    Ok(obligations)
+}
+
 fn extract_prim(
     module: &str,
     p: &PrimDecl,
+    eqs: &HashMap<(String, String), Equation>,
     semantics: &[&dyn IrSemantics],
     out: &mut Vec<ExtractedPrimBody>,
 ) {
     for (body_idx, body) in p.bodies.iter().enumerate() {
         let family = body.family.text.clone();
         let when_desc = render_when(&body.when);
-        let word_bits = body_word_bits(body);
 
         if body.unverified {
             out.push(ExtractedPrimBody {
@@ -116,137 +250,28 @@ fn extract_prim(
             continue;
         }
 
-        let Some(sem_plugin) = semantics.iter().find(|s| s.family() == family) else {
-            out.push(ExtractedPrimBody {
+        match build_prim_body_obligations(module, p, body_idx, body, eqs, semantics) {
+            Ok(obligations) => out.push(ExtractedPrimBody {
                 module: module.to_string(),
                 prim_name: p.name.text.clone(),
                 body_index: body_idx,
-                family: family.clone(),
+                family,
+                is_unsafe: false,
+                when_desc,
+                obligations,
+                skip_reason: None,
+            }),
+            Err(reason) => out.push(ExtractedPrimBody {
+                module: module.to_string(),
+                prim_name: p.name.text.clone(),
+                body_index: body_idx,
+                family,
                 is_unsafe: false,
                 when_desc,
                 obligations: vec![],
-                skip_reason: Some(format!("no IrSemantics plugin registered for `{family}`")),
-            });
-            continue;
-        };
-
-        let (param_specs, ret_info, ret_refinement) = match parse_prim_sig(&p.ty, word_bits) {
-            Ok(sig) => sig,
-            Err(reason) => {
-                out.push(ExtractedPrimBody {
-                    module: module.to_string(),
-                    prim_name: p.name.text.clone(),
-                    body_index: body_idx,
-                    family,
-                    is_unsafe: false,
-                    when_desc,
-                    obligations: vec![],
-                    skip_reason: Some(reason),
-                });
-                continue;
-            }
-        };
-
-        let sem_params: Vec<SemParam> = param_specs
-            .iter()
-            .enumerate()
-            .map(|(i, (name, info))| SemParam {
-                index: i,
-                name: name.clone(),
-                ty: info.llvm_param_ty,
-                signed: info.signed,
-            })
-            .collect();
-
-        let lowered = match sem_plugin.lower(&body.fragment, &sem_params, ret_info.llvm_param_ty) {
-            Ok(prog) => prog,
-            Err(SemError::Unsupported(reason)) => {
-                out.push(ExtractedPrimBody {
-                    module: module.to_string(),
-                    prim_name: p.name.text.clone(),
-                    body_index: body_idx,
-                    family,
-                    is_unsafe: false,
-                    when_desc,
-                    obligations: vec![],
-                    skip_reason: Some(format!("unsupported in {}: {reason}", sem_plugin.id())),
-                });
-                continue;
-            }
-            Err(SemError::Parse(err)) => {
-                out.push(ExtractedPrimBody {
-                    module: module.to_string(),
-                    prim_name: p.name.text.clone(),
-                    body_index: body_idx,
-                    family,
-                    is_unsafe: false,
-                    when_desc,
-                    obligations: vec![],
-                    skip_reason: Some(format!("IR parse error: {err}")),
-                });
-                continue;
-            }
-        };
-
-        let full_name = if p.bodies.len() > 1 {
-            format!("{module}.{}#body{body_idx}", p.name.text)
-        } else {
-            format!("{module}.{}", p.name.text)
-        };
-
-        let mut obligations = Vec::new();
-
-        // 1. Well-definedness obligation (`!ub && !poison`).
-        {
-            let mut g = lowered.graph.clone();
-            let not_ub = g.not(lowered.ub_cond);
-            let any_p = lowered.result.any_poison(&mut g);
-            let not_p = g.not(any_p);
-            let goal = g.and(not_ub, not_p);
-            obligations.push(Obligation::new(
-                format!("{full_name}::well-defined"),
-                lowered.semantics_id.clone(),
-                ObligationKind::WellDefined,
-                sem_params.clone(),
-                g,
-                goal,
-            ));
+                skip_reason: Some(reason),
+            }),
         }
-
-        // 2. Return refinement obligation (when the Cinch signature specifies `refined (...)`).
-        if let Some(ref_pred) = ret_refinement {
-            if let Some(ob) = build_refinement_obligation(
-                &full_name,
-                &lowered,
-                &param_specs,
-                ret_info,
-                &ref_pred,
-            ) {
-                obligations.push(ob);
-            }
-        }
-
-        // 3. Curated mathematical `spec` equivalence obligations for iconic prelude prims.
-        if let Some(ob) = build_builtin_spec_obligation(
-            &full_name,
-            &p.name.text,
-            &lowered,
-            &sem_params,
-            word_bits,
-        ) {
-            obligations.push(ob);
-        }
-
-        out.push(ExtractedPrimBody {
-            module: module.to_string(),
-            prim_name: p.name.text.clone(),
-            body_index: body_idx,
-            family,
-            is_unsafe: false,
-            when_desc,
-            obligations,
-            skip_reason: None,
-        });
     }
 }
 
@@ -296,24 +321,28 @@ fn render_when(when: &[Term]) -> String {
         .join(" ")
 }
 
+type ParamSpec = (String, ScalarInfo, Option<Type>);
+
 fn parse_prim_sig(
     ty: &Type,
     word_bits: u16,
-) -> Result<(Vec<(String, ScalarInfo)>, ScalarInfo, Option<Type>), String> {
+) -> Result<(Vec<ParamSpec>, ScalarInfo, Option<Type>), String> {
     let mut params = Vec::new();
     let mut cur = ty;
     let mut idx = 0usize;
     loop {
         match cur {
             Type::Fun { arg, res, .. } => {
-                let info = parse_scalar_type(arg, word_bits)?;
-                params.push((format!("%{idx}"), info));
+                let (base, pred) = unwrap_refined(arg);
+                let info = parse_scalar_type(base, word_bits)?;
+                params.push((format!("%{idx}"), info, pred.cloned()));
                 idx += 1;
                 cur = res;
             }
             Type::DepFun(name, arg, _, _, res, _) => {
-                let info = parse_scalar_type(arg, word_bits)?;
-                params.push((name.text.clone(), info));
+                let (base, pred) = unwrap_refined(arg);
+                let info = parse_scalar_type(base, word_bits)?;
+                params.push((name.text.clone(), info, pred.cloned()));
                 idx += 1;
                 cur = res;
             }
@@ -346,34 +375,39 @@ fn parse_scalar_type(ty: &Type, word_bits: u16) -> Result<ScalarInfo, String> {
                 "Bool" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(8),
                     signed: false,
+                    is_bool: true,
                 }),
-                "I8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: true }),
-                "I16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: true }),
-                "I32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: true }),
-                "I64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: true }),
-                "I128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: true }),
-                "U8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: false }),
-                "U16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: false }),
-                "U32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false }),
-                "U64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: false }),
-                "U128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: false }),
+                "I8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: true, is_bool: false }),
+                "I16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: true, is_bool: false }),
+                "I32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: true, is_bool: false }),
+                "I64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: true, is_bool: false }),
+                "I128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: true, is_bool: false }),
+                "U8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: false, is_bool: false }),
+                "U16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: false, is_bool: false }),
+                "U32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false }),
+                "U64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: false, is_bool: false }),
+                "U128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: false, is_bool: false }),
                 "Usize" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(word_bits),
                     signed: false,
+                    is_bool: false,
                 }),
                 "Isize" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(word_bits),
                     signed: true,
+                    is_bool: false,
                 }),
                 "F32" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Fp(FpFmt::F32),
                     signed: true,
+                    is_bool: false,
                 }),
                 "F64" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Fp(FpFmt::F64),
                     signed: true,
+                    is_bool: false,
                 }),
-                "Char" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false }),
+                "Char" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false }),
                 other => Err(format!("non-scalar prim ABI type `{other}`")),
             }
         }
@@ -381,24 +415,67 @@ fn parse_scalar_type(ty: &Type, word_bits: u16) -> Result<ScalarInfo, String> {
     }
 }
 
-/// Lower a Cinch return refinement predicate (like `r == x` or `InRange (-128) 127 r && r == x`)
-/// into a `SemGraph` boolean goal over exact mathematical integer bit-widths.
+/// Build the conjunction of all parameter refinement preconditions (`refined (P) T`).
+fn build_param_precond(
+    g: &mut SemGraph,
+    param_specs: &[ParamSpec],
+    lowered_params: &[(SemParam, NodeId)],
+) -> NodeId {
+    let mut exact_w: u16 = 66;
+    for (_, info, _) in param_specs {
+        if let SemTy::Bv(w) = info.llvm_param_ty {
+            exact_w = exact_w.max((w + 2).min(128));
+        }
+    }
+    let mut vars: HashMap<String, NodeId> = HashMap::new();
+    for ((name, info, _), (_, pnode)) in param_specs.iter().zip(lowered_params.iter()) {
+        if let SemTy::Bv(w) = info.llvm_param_ty {
+            let widened = widen_to(g, *pnode, w, info.signed, exact_w);
+            vars.insert(name.clone(), widened);
+        }
+    }
+    let mut acc = g.bool_const(true);
+    for (name, _, pred_opt) in param_specs {
+        if let Some(pred) = pred_opt {
+            // In Cinch parameter refinements, `r` (or the parameter's own name) refers to the parameter.
+            if let Some(&v) = vars.get(name) {
+                let mut local_vars = vars.clone();
+                local_vars.insert("r".to_string(), v);
+                if let Some(p_bool) = lower_refinement_pred(g, pred, &local_vars, exact_w) {
+                    acc = g.and(acc, p_bool);
+                }
+            }
+        }
+    }
+    acc
+}
+
+fn widen_to(g: &mut SemGraph, node: NodeId, from_w: u16, signed: bool, to_w: u16) -> NodeId {
+    if from_w == to_w {
+        node
+    } else if signed {
+        g.bv_sext(node, to_w)
+    } else {
+        g.bv_zext(node, to_w)
+    }
+}
+
+/// Lower a Cinch return refinement predicate (`refined (P) T`) under parameter preconditions.
 fn build_refinement_obligation(
     full_name: &str,
     lowered: &SemProgram,
-    param_specs: &[(String, ScalarInfo)],
+    param_specs: &[ParamSpec],
     ret_info: ScalarInfo,
     pred: &Type,
 ) -> Option<Obligation> {
     let (res_node, res_poison) = lowered.result.as_scalar()?;
     let mut g = lowered.graph.clone();
 
-    // Common exact signed width wide enough for every scalar parameter and return value.
     let mut max_w = match ret_info.llvm_param_ty {
         SemTy::Bv(w) => w,
         _ => return None,
     };
-    for (_, info) in param_specs {
+    for (_, info, _) in param_specs {
         if let SemTy::Bv(w) = info.llvm_param_ty {
             max_w = max_w.max(w);
         }
@@ -406,33 +483,23 @@ fn build_refinement_obligation(
     let exact_w = (max_w + 2).min(128);
 
     let mut vars: HashMap<String, NodeId> = HashMap::new();
-    for ((name, info), (_, pnode)) in param_specs.iter().zip(lowered.params.iter()) {
+    for ((name, info, _), (_, pnode)) in param_specs.iter().zip(lowered.params.iter()) {
         if let SemTy::Bv(w) = info.llvm_param_ty {
-            let widened = if w == exact_w {
-                *pnode
-            } else if info.signed {
-                g.bv_sext(*pnode, exact_w)
-            } else {
-                g.bv_zext(*pnode, exact_w)
-            };
+            let widened = widen_to(&mut g, *pnode, w, info.signed, exact_w);
             vars.insert(name.clone(), widened);
         }
     }
     let ret_w = g.bv_width(res_node);
-    let r_widened = if ret_w == exact_w {
-        res_node
-    } else if ret_info.signed {
-        g.bv_sext(res_node, exact_w)
-    } else {
-        g.bv_zext(res_node, exact_w)
-    };
+    let r_widened = widen_to(&mut g, res_node, ret_w, ret_info.signed, exact_w);
     vars.insert("r".to_string(), r_widened);
 
+    let precond = build_param_precond(&mut g, param_specs, &lowered.params);
     let pred_bool = lower_refinement_pred(&mut g, pred, &vars, exact_w)?;
     let not_ub = g.not(lowered.ub_cond);
     let not_p = g.not(res_poison);
     let wd = g.and(not_ub, not_p);
-    let goal = g.and(wd, pred_bool);
+    let body_ok = g.and(wd, pred_bool);
+    let goal = g.implies(precond, body_ok);
 
     let desc = render_type_pred(pred);
     let params: Vec<SemParam> = lowered.params.iter().map(|(p, _)| p.clone()).collect();
@@ -452,7 +519,6 @@ fn lower_refinement_pred(
     vars: &HashMap<String, NodeId>,
     exact_w: u16,
 ) -> Option<NodeId> {
-    // Handle binary app `App(App(op, lhs), rhs)`
     if let Type::App(f, rhs, _) = pred {
         if let Type::App(op, lhs, _) = f.as_ref() {
             if let Type::Var(op_name, _) = op.as_ref() {
@@ -502,7 +568,14 @@ fn lower_refinement_pred(
                 }
             }
         }
-        // Handle `InRange lo hi x`: `App(App(App(Con("InRange"), lo), hi), x)`
+        // `Not p`
+        if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "Not"))
+            || matches!(f.as_ref(), Type::Var(n, _) if n.text == "not")
+        {
+            let inner = lower_refinement_pred(g, rhs, vars, exact_w)?;
+            return Some(g.not(inner));
+        }
+        // `InRange lo hi x`: `App(App(App(Con("InRange"), lo), hi), x)`
         if let Type::App(f2, hi, _) = f.as_ref() {
             if let Type::App(head, lo, _) = f2.as_ref() {
                 if matches!(head.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "InRange")) {
@@ -561,6 +634,420 @@ fn render_type_pred(ty: &Type) -> String {
     }
 }
 
+// =========================================================================
+// Source-Level `spec <expr>` Lowering into `SemGraph`
+// =========================================================================
+
+#[derive(Clone, Copy, Debug)]
+struct SpecVal {
+    node: NodeId,
+    signed: bool,
+}
+
+fn build_source_spec_obligation(
+    module: &str,
+    full_name: &str,
+    spec_term: &Term,
+    lowered: &SemProgram,
+    param_specs: &[ParamSpec],
+    ret_info: ScalarInfo,
+    eqs: &HashMap<(String, String), Equation>,
+) -> Result<Obligation, String> {
+    let (res_node, res_poison) = lowered
+        .result
+        .as_scalar()
+        .ok_or_else(|| "source spec lowering requires a scalar prim return".to_string())?;
+    let mut g = lowered.graph.clone();
+
+    let (spec_name, spec_pat_names, spec_body): (String, Vec<String>, &Term) = match spec_term {
+        Term::Var(vp) => {
+            let target_mod = if vp.quals.is_empty() {
+                module.to_string()
+            } else {
+                vp.quals.iter().map(|q| q.text.as_str()).collect::<Vec<_>>().join(".")
+            };
+            let key = (target_mod.clone(), vp.name.text.clone());
+            let eq = eqs.get(&key).ok_or_else(|| {
+                format!(
+                    "spec `{}.{}` has no lowerable source equation in scope",
+                    target_mod, vp.name.text
+                )
+            })?;
+            let mut pnames = Vec::with_capacity(eq.pats.len());
+            for pat in &eq.pats {
+                match pat {
+                    Pat::Var(n, _) => pnames.push(n.text.clone()),
+                    Pat::Wild(_) => pnames.push("_".to_string()),
+                    _ => {
+                        return Err(format!(
+                            "spec `{}` uses a non-variable parameter pattern",
+                            vp.name.text
+                        ))
+                    }
+                }
+            }
+            (format!("{target_mod}.{}", vp.name.text), pnames, &eq.body)
+        }
+        Term::Lam(pats, body, _) => {
+            let mut pnames = Vec::with_capacity(pats.len());
+            for pat in pats {
+                match pat {
+                    Pat::Var(n, _) => pnames.push(n.text.clone()),
+                    Pat::Wild(_) => pnames.push("_".to_string()),
+                    _ => return Err("inline spec lambda uses non-variable pattern".to_string()),
+                }
+            }
+            ("inline-spec".to_string(), pnames, body.as_ref())
+        }
+        _ => {
+            return Err(
+                "prim `spec` must name a spec function or an inline lambda `\\x ... -> ...`"
+                    .to_string(),
+            )
+        }
+    };
+
+    if spec_pat_names.len() != lowered.params.len() {
+        return Err(format!(
+            "spec `{spec_name}` expects {} parameter(s), but prim takes {}",
+            spec_pat_names.len(),
+            lowered.params.len()
+        ));
+    }
+
+    let mut env: HashMap<String, SpecVal> = HashMap::new();
+    for ((pname, (_, info, _)), (_, pnode)) in
+        spec_pat_names.iter().zip(param_specs.iter()).zip(lowered.params.iter())
+    {
+        let node = if info.is_bool {
+            let zero = g.bv_const(8, 0);
+            let eq0 = g.bv_eq(*pnode, zero);
+            g.not(eq0)
+        } else {
+            *pnode
+        };
+        env.insert(pname.clone(), SpecVal { node, signed: info.signed });
+    }
+
+    let expected_ty = if ret_info.is_bool {
+        SemTy::Bool
+    } else {
+        ret_info.llvm_param_ty
+    };
+    let spec_val = lower_spec_term(&mut g, spec_body, &env, Some((expected_ty, ret_info.signed)))?;
+
+    let eq_node = if ret_info.is_bool {
+        let one = g.bv_const(8, 1);
+        let zero = g.bv_const(8, 0);
+        let expected_i8 = match g.ty(spec_val.node) {
+            SemTy::Bool => g.ite(spec_val.node, one, zero),
+            SemTy::Bv(8) => spec_val.node,
+            other => {
+                return Err(format!(
+                    "spec `{spec_name}` returned {other}, expected Bool"
+                ))
+            }
+        };
+        g.bv_eq(res_node, expected_i8)
+    } else {
+        if g.ty(spec_val.node) != g.ty(res_node) {
+            return Err(format!(
+                "spec `{spec_name}` type mismatch: spec produced {}, prim returns {}",
+                g.ty(spec_val.node),
+                g.ty(res_node)
+            ));
+        }
+        g.bv_eq(res_node, spec_val.node)
+    };
+
+    let precond = build_param_precond(&mut g, param_specs, &lowered.params);
+    let not_ub = g.not(lowered.ub_cond);
+    let not_p = g.not(res_poison);
+    let wd = g.and(not_ub, not_p);
+    let body_ok = g.and(wd, eq_node);
+    let goal = g.implies(precond, body_ok);
+
+    let params: Vec<SemParam> = lowered.params.iter().map(|(p, _)| p.clone()).collect();
+    Ok(Obligation::new(
+        format!("{full_name}::spec({spec_name})"),
+        lowered.semantics_id.clone(),
+        ObligationKind::FunctionalEquiv { spec_name },
+        params,
+        g,
+        goal,
+    ))
+}
+
+fn lower_spec_term(
+    g: &mut SemGraph,
+    term: &Term,
+    env: &HashMap<String, SpecVal>,
+    hint: Option<(SemTy, bool)>,
+) -> Result<SpecVal, String> {
+    match term {
+        Term::Var(vp) => {
+            if let Some(&v) = env.get(&vp.name.text) {
+                return Ok(v);
+            }
+            match vp.name.text.as_str() {
+                "true" => Ok(SpecVal { node: g.bool_const(true), signed: false }),
+                "false" => Ok(SpecVal { node: g.bool_const(false), signed: false }),
+                other => Err(format!("unbound variable `{other}` in prim spec")),
+            }
+        }
+        Term::Con(cp) => match cp.segments.last().map(|s| s.text.as_str()).unwrap_or("") {
+            "True" => Ok(SpecVal { node: g.bool_const(true), signed: false }),
+            "False" => Ok(SpecVal { node: g.bool_const(false), signed: false }),
+            other => Err(format!("unsupported constructor `{other}` in prim spec")),
+        },
+        Term::Int(s, _) => {
+            let v: i128 = s.parse().map_err(|_| format!("invalid integer `{s}` in spec"))?;
+            let (w, signed) = match hint {
+                Some((SemTy::Bv(w), sgn)) => (w, sgn),
+                _ => (64, v < 0),
+            };
+            Ok(SpecVal { node: g.bv_const(w, v as u128), signed })
+        }
+        Term::Neg(inner, _) => {
+            let v = lower_spec_term(g, inner, env, hint)?;
+            Ok(SpecVal { node: g.bv_neg(v.node), signed: v.signed })
+        }
+        Term::If { cond, then, els, .. } => {
+            let vc = lower_spec_term(g, cond, env, Some((SemTy::Bool, false)))?;
+            let vt = lower_spec_term(g, then, env, hint)?;
+            let ve = lower_spec_term(g, els, env, Some((g.ty(vt.node), vt.signed)))?;
+            Ok(SpecVal { node: g.ite(vc.node, vt.node, ve.node), signed: vt.signed })
+        }
+        Term::Let(locals, body, _) => {
+            let mut local_env = env.clone();
+            for l in locals {
+                match l {
+                    LocalDecl::Bind { pat: Pat::Var(name, _), body: rhs, .. }
+                    | LocalDecl::Eq { name, body: rhs, .. } => {
+                        let v = lower_spec_term(g, rhs, &local_env, None)?;
+                        local_env.insert(name.text.clone(), v);
+                    }
+                    _ => return Err("unsupported `let` binding in prim spec".to_string()),
+                }
+            }
+            lower_spec_term(g, body, &local_env, hint)
+        }
+        Term::Ann(inner, _, _) => lower_spec_term(g, inner, env, hint),
+        Term::App(head, args, _) => {
+            // Flatten curried applications `((f a) b)` into `(f, [a, b])`.
+            let mut flat_args: Vec<&Term> = Vec::new();
+            let mut cur_head = head.as_ref();
+            let mut stack: Vec<&[Term]> = vec![args.as_slice()];
+            while let Term::App(h2, a2, _) = cur_head {
+                stack.push(a2.as_slice());
+                cur_head = h2.as_ref();
+            }
+            for slice in stack.into_iter().rev() {
+                flat_args.extend(slice.iter());
+            }
+            let op_name = match cur_head {
+                Term::Var(vp) => vp.name.text.as_str(),
+                other => return Err(format!("unsupported application head {other:?} in prim spec")),
+            };
+            lower_spec_app(g, op_name, &flat_args, env, hint)
+        }
+        other => Err(format!("unsupported term in prim spec: {other:?}")),
+    }
+}
+
+fn lower_spec_app(
+    g: &mut SemGraph,
+    op: &str,
+    args: &[&Term],
+    env: &HashMap<String, SpecVal>,
+    hint: Option<(SemTy, bool)>,
+) -> Result<SpecVal, String> {
+    // Unary helpers
+    if args.len() == 1 {
+        if op == "not" {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)))?;
+            return Ok(SpecVal { node: g.not(a.node), signed: false });
+        }
+        if let Some((w, signed)) = suffix_width(op, "bit-not-") {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+            return Ok(SpecVal { node: g.bv_not(a.node), signed });
+        }
+        if let Some((w, signed)) = suffix_width(op, "wrapping-neg-") {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+            return Ok(SpecVal { node: g.bv_neg(a.node), signed });
+        }
+        if let Some((w, signed)) = suffix_width(op, "reverse-bits-") {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+            return Ok(SpecVal { node: g.bv_bitreverse(a.node), signed });
+        }
+        if let Some((w, signed)) = suffix_width(op, "swap-bytes-") {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+            return Ok(SpecVal { node: g.bv_bswap(a.node), signed });
+        }
+        if let Some((from_w, from_s, to_w, to_s)) = parse_conv_name(op) {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(from_w), from_s)))?;
+            let node = if to_w == from_w {
+                a.node
+            } else if to_w < from_w {
+                g.bv_trunc(a.node, to_w)
+            } else if from_s {
+                g.bv_sext(a.node, to_w)
+            } else {
+                g.bv_zext(a.node, to_w)
+            };
+            return Ok(SpecVal { node, signed: to_s });
+        }
+    }
+
+    // Binary helpers & operators
+    if args.len() == 2 {
+        match op {
+            "&&" => {
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)))?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bool, false)))?;
+                return Ok(SpecVal { node: g.and(a.node, b.node), signed: false });
+            }
+            "||" => {
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)))?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bool, false)))?;
+                return Ok(SpecVal { node: g.or(a.node, b.node), signed: false });
+            }
+            "+" | "-" | "*" => {
+                let a = lower_spec_term(g, args[0], env, hint)?;
+                let b = lower_spec_term(g, args[1], env, Some((g.ty(a.node), a.signed)))?;
+                let node = match op {
+                    "+" => g.bv_add(a.node, b.node),
+                    "-" => g.bv_sub(a.node, b.node),
+                    "*" => g.bv_mul(a.node, b.node),
+                    _ => unreachable!(),
+                };
+                return Ok(SpecVal { node, signed: a.signed });
+            }
+            "==" | "/=" | "<" | "<=" | ">" | ">=" => {
+                let a = lower_spec_term(g, args[0], env, None)?;
+                let b = lower_spec_term(g, args[1], env, Some((g.ty(a.node), a.signed)))?;
+                let node = match op {
+                    "==" => g.bv_eq(a.node, b.node),
+                    "/=" => {
+                        let e = g.bv_eq(a.node, b.node);
+                        g.not(e)
+                    }
+                    "<" => if a.signed { g.bv_slt(a.node, b.node) } else { g.bv_ult(a.node, b.node) },
+                    "<=" => if a.signed { g.bv_sle(a.node, b.node) } else { g.bv_ule(a.node, b.node) },
+                    ">" => if a.signed { g.bv_slt(b.node, a.node) } else { g.bv_ult(b.node, a.node) },
+                    ">=" => if a.signed { g.bv_sle(b.node, a.node) } else { g.bv_ule(b.node, a.node) },
+                    _ => unreachable!(),
+                };
+                return Ok(SpecVal { node, signed: false });
+            }
+            _ => {}
+        }
+
+        for (prefix, kind) in [
+            ("wrapping-add-", "add"),
+            ("wrapping-sub-", "sub"),
+            ("wrapping-mul-", "mul"),
+            ("bit-and-", "and"),
+            ("bit-or-", "or"),
+            ("bit-xor-", "xor"),
+            ("eq-", "eq"),
+            ("ne-", "ne"),
+            ("lt-", "lt"),
+            ("le-", "le"),
+            ("gt-", "gt"),
+            ("ge-", "ge"),
+        ] {
+            if let Some((w, signed)) = suffix_width(op, prefix) {
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bv(w), signed)))?;
+                let (node, out_signed) = match kind {
+                    "add" => (g.bv_add(a.node, b.node), signed),
+                    "sub" => (g.bv_sub(a.node, b.node), signed),
+                    "mul" => (g.bv_mul(a.node, b.node), signed),
+                    "and" => (g.bv_and(a.node, b.node), signed),
+                    "or" => (g.bv_or(a.node, b.node), signed),
+                    "xor" => (g.bv_xor(a.node, b.node), signed),
+                    "eq" => (g.bv_eq(a.node, b.node), false),
+                    "ne" => {
+                        let e = g.bv_eq(a.node, b.node);
+                        (g.not(e), false)
+                    }
+                    "lt" => (if signed { g.bv_slt(a.node, b.node) } else { g.bv_ult(a.node, b.node) }, false),
+                    "le" => (if signed { g.bv_sle(a.node, b.node) } else { g.bv_ule(a.node, b.node) }, false),
+                    "gt" => (if signed { g.bv_slt(b.node, a.node) } else { g.bv_ult(b.node, a.node) }, false),
+                    "ge" => (if signed { g.bv_sle(b.node, a.node) } else { g.bv_ule(b.node, a.node) }, false),
+                    _ => unreachable!(),
+                };
+                return Ok(SpecVal { node, signed: out_signed });
+            }
+        }
+
+        for (prefix, kind) in [
+            ("wrapping-shl-", "shl"),
+            ("wrapping-shr-", "shr"),
+            ("rotate-left-", "rotl"),
+            ("rotate-right-", "rotr"),
+        ] {
+            if let Some((w, signed)) = suffix_width(op, prefix) {
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bv(32), false)))?;
+                let bw = g.bv_width(b.node);
+                let mask = g.bv_const(bw, (w - 1) as u128);
+                let masked = g.bv_and(b.node, mask);
+                let sh = if bw > w {
+                    g.bv_trunc(masked, w)
+                } else if bw < w {
+                    g.bv_zext(masked, w)
+                } else {
+                    masked
+                };
+                let node = match kind {
+                    "shl" => g.bv_shl(a.node, sh),
+                    "shr" => if signed { g.bv_ashr(a.node, sh) } else { g.bv_lshr(a.node, sh) },
+                    "rotl" => g.bv_fshl(a.node, a.node, sh),
+                    "rotr" => g.bv_fshr(a.node, a.node, sh),
+                    _ => unreachable!(),
+                };
+                return Ok(SpecVal { node, signed });
+            }
+        }
+    }
+
+    Err(format!(
+        "unsupported operation `{op}` ({} arg(s)) in prim spec lowering",
+        args.len()
+    ))
+}
+
+fn suffix_width(name: &str, prefix: &str) -> Option<(u16, bool)> {
+    let rest = name.strip_prefix(prefix)?;
+    parse_width_tag(rest)
+}
+
+fn parse_width_tag(tag: &str) -> Option<(u16, bool)> {
+    match tag {
+        "i8" => Some((8, true)),
+        "i16" => Some((16, true)),
+        "i32" => Some((32, true)),
+        "i64" => Some((64, true)),
+        "i128" => Some((128, true)),
+        "u8" => Some((8, false)),
+        "u16" => Some((16, false)),
+        "u32" => Some((32, false)),
+        "u64" => Some((64, false)),
+        "u128" => Some((128, false)),
+        _ => None,
+    }
+}
+
+fn parse_conv_name(name: &str) -> Option<(u16, bool, u16, bool)> {
+    let trimmed = name.strip_prefix("wrapping-").unwrap_or(name);
+    let (lhs, rhs) = trimmed.split_once("-to-")?;
+    let (fw, fs) = parse_width_tag(lhs)?;
+    let (tw, ts) = parse_width_tag(rhs)?;
+    Some((fw, fs, tw, ts))
+}
+
 /// Curated mathematical `spec` equivalence obligations for representative prelude prims,
 /// demonstrating end-to-end functional correctness proofs (`llvm body == mathematical spec`).
 fn build_builtin_spec_obligation(
@@ -574,8 +1061,6 @@ fn build_builtin_spec_obligation(
     let mut g = lowered.graph.clone();
 
     let (spec_name, eq_node) = match prim_name {
-        // Proof that `saturating-mul-i8`'s 9-instruction LLVM overflow+select sequence
-        // equals exact 16-bit multiplication clamped to [-128, 127].
         "saturating-mul-i8" => {
             let a = lowered.params[0].1;
             let b = lowered.params[1].1;
@@ -593,7 +1078,6 @@ fn build_builtin_spec_obligation(
             let expected = g.ite(too_lo, min8, c1);
             ("clamp_i8(sext16(a) * sext16(b))", g.bv_eq(res_node, expected))
         }
-        // Proof that `wrapping-shl-i8` shifts left by `s mod 8`.
         "wrapping-shl-i8" => {
             let a = lowered.params[0].1;
             let s = lowered.params[1].1;
@@ -603,18 +1087,15 @@ fn build_builtin_spec_obligation(
             let expected = g.bv_shl(a, smod8);
             ("shl_i8(a, s mod 8)", g.bv_eq(res_node, expected))
         }
-        // Proof that `simd-bitselect(m, a, b)` equals bitwise `ite(m_i, a_i, b_i)` across all 128 bits.
         "simd-bitselect" => {
             let m = lowered.params[0].1;
             let a = lowered.params[1].1;
             let b = lowered.params[2].1;
-            // Independent spec: `(a ^ b) & m ^ b` (standard mux identity!)
             let x = g.bv_xor(a, b);
             let y = g.bv_and(x, m);
             let expected = g.bv_xor(y, b);
             ("mux128(m, a, b) == ((a ^ b) & m) ^ b", g.bv_eq(res_node, expected))
         }
-        // Proof that `simd-u8x16-splat(b)` replicates byte `b` into all 16 lanes of `U128` with zero poison.
         "simd-u8x16-splat" => {
             let byte = lowered.params[0].1;
             let mut acc = byte;
@@ -623,7 +1104,6 @@ fn build_builtin_spec_obligation(
             }
             ("repeat_u8_x16(b)", g.bv_eq(res_node, acc))
         }
-        // Proof that `simd-u8x16-movemask(v)` extracts the MSB (bit 7) of each of the 16 byte lanes into low 16 bits of U32.
         "simd-u8x16-movemask" => {
             let v = lowered.params[0].1;
             let mut acc = g.bv_extract(v, 7, 7);
@@ -634,7 +1114,6 @@ fn build_builtin_spec_obligation(
             let expected = g.bv_zext(acc, 32);
             ("pack_sign_bits_16x8(v)", g.bv_eq(res_node, expected))
         }
-        // Proof that `ov-add-i8` returns 1 iff exact 16-bit sum is outside [-128, 127].
         "ov-add-i8" => {
             let a = lowered.params[0].1;
             let b = lowered.params[1].1;

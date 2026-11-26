@@ -811,6 +811,19 @@ pub struct LawFact {
     pub status: String,
 }
 
+/// Formal verification contract fact for a verified `prim` declaration:
+/// records the prim's name, spec identity, semantics version, trust tier,
+/// and TCB—deliberately omitting the raw LLVM body hash and body-specific
+/// `goal_hash` so equivalent verified implementations preserve `iface_hash`.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PrimProofFact {
+    pub name: String,
+    pub spec: String,
+    pub semantics_id: String,
+    pub tier: String,
+    pub tcb: Vec<String>,
+}
+
 /// Schema compatibility evidence for one checked `upgrade` (runtime
 /// evolution specification sections 2, 3 and 11): the record evolution
 /// from `old` to `new`, whether a migration checked its field mapping,
@@ -866,6 +879,10 @@ pub struct Iface {
     /// The law and preservation check rows of the module's instances
     /// (contract facts hashed into `iface_hash`).
     pub laws: Vec<LawFact>,
+    /// Formally verified `prim` contract facts (hashed into `iface_hash`
+    /// without raw LLVM body hashes, so equivalent verified bodies do not
+    /// stale dependents).
+    pub prim_proofs: Vec<PrimProofFact>,
     /// Schema compatibility evidence from the module's checked `upgrade`
     /// declarations (runtime evolution specification section 11).
     pub upgrades: Vec<UpgradeEvidence>,
@@ -897,6 +914,7 @@ impl Iface {
             contracts: Vec::new(),
             must_use: Vec::new(),
             laws: Vec::new(),
+            prim_proofs: Vec::new(),
             upgrades: Vec::new(),
             units: Vec::new(),
         }
@@ -948,6 +966,7 @@ impl Iface {
         let assertions = ordered(&self.assertions);
         let contracts = ordered(&self.contracts);
         let laws = ordered(&self.laws);
+        let prim_proofs = ordered(&self.prim_proofs);
 
         let exports = JsonValue::obj([
             (
@@ -1124,7 +1143,7 @@ impl Iface {
             ),
         ]);
 
-        JsonValue::obj([
+        let mut doc_fields: Vec<(&str, JsonValue)> = vec![
             ("schema", self.schema.into()),
             ("language", (&self.language).into()),
             ("runtime_abi", self.runtime_abi.into()),
@@ -1232,7 +1251,27 @@ impl Iface {
                     ])
                 }),
             ),
-        ])
+        ];
+        if !prim_proofs.is_empty() {
+            doc_fields.push((
+                "prim_proofs",
+                JsonValue::arr(&prim_proofs, |p| {
+                    JsonValue::obj([
+                        ("name", (&p.name).into()),
+                        ("spec", (&p.spec).into()),
+                        ("semantics_id", (&p.semantics_id).into()),
+                        ("tier", (&p.tier).into()),
+                        ("tcb", sorted(&p.tcb).into()),
+                    ])
+                }),
+            ));
+        }
+        JsonValue::Obj(
+            doc_fields
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        )
     }
 
     fn unit_document(&self) -> JsonValue {
@@ -1655,6 +1694,19 @@ impl Iface {
                 assumptions: field_list(o, "assumptions")?,
             });
         }
+        let mut prim_proofs = Vec::new();
+        if let Some(items) = obj.get("prim_proofs") {
+            for item in items.as_array()? {
+                let o = item.as_object().map_err(|_| ParseError("prim_proof entry".into()))?;
+                prim_proofs.push(PrimProofFact {
+                    name: field_str(o, "name")?,
+                    spec: field_str(o, "spec")?,
+                    semantics_id: field_str(o, "semantics_id")?,
+                    tier: field_str(o, "tier")?,
+                    tcb: field_list(o, "tcb")?,
+                });
+            }
+        }
         Ok(Iface {
             schema: schema as u32,
             language: get("language")?.as_str()?.to_string(),
@@ -1675,6 +1727,7 @@ impl Iface {
             contracts,
             must_use,
             laws,
+            prim_proofs,
             upgrades,
             units,
         })

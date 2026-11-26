@@ -967,19 +967,66 @@ module CacheTest where
     }
 
     #[test]
-    fn audits_real_prelude_prim_machine_and_prim_wide() {
+    fn source_spec_clause_proves_equivalent_llvm_body_and_rejects_wrong_body() {
+        let good = r#"
+module SpecTest where
+  spec twice-spec :: U32 -> U32
+  twice-spec x = wrapping-add-u32 x x
+
+  prim twice :: U32 -> U32 spec twice-spec where
+    llvm {
+      %r = shl i32 %0, 1
+      ret i32 %r
+    }
+"#;
+        let reports = verify_snippet(good, Policy::jpl_strict());
+        let spec_rep = reports
+            .iter()
+            .find(|r| r.name.contains("::spec("))
+            .expect("source spec obligation");
+        assert!(
+            matches!(
+                &spec_rep.status,
+                VerificationStatus::Verified {
+                    receipt: TrustReceipt { tier: TrustTier::KernelCert, .. },
+                    ..
+                }
+            ),
+            "expected shl 1 == wrapping-add-u32 x x to verify, got {spec_rep:?}"
+        );
+
+        let bad = good.replace("shl i32 %0, 1", "add i32 %0, 1");
+        let bad_reports = verify_snippet(&bad, Policy::jpl_strict());
+        let bad_spec = bad_reports
+            .iter()
+            .find(|r| r.name.contains("::spec("))
+            .expect("source spec obligation");
+        match &bad_spec.status {
+            VerificationStatus::Disproved { counterexample, .. } => {
+                assert!(counterexample.validated);
+            }
+            other => panic!("expected broken body to be disproved, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn audits_real_prelude_with_zero_disproved_obligations() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let machine = manifest_dir.join("prelude/Prim/Machine.cinch");
-        let wide = manifest_dir.join("prelude/Prim/Wide.cinch");
+        let files = [
+            manifest_dir.join("prelude/Prim/Machine.cinch"),
+            manifest_dir.join("prelude/Prim/Wide.cinch"),
+            manifest_dir.join("prelude/Data/Machine.cinch"),
+            manifest_dir.join("prelude/Data/Wide.cinch"),
+        ];
 
         let mut engine = VerifierEngine::default_engine(Policy::jpl_strict());
         let mut verified = 0usize;
         let mut disproved_names = Vec::new();
 
-        for path in [machine, wide] {
+        for path in &files {
             let bodies = {
                 let sems = engine.semantics_refs();
-                extract_file_obligations(&path, &sems).expect("prelude file should parse")
+                extract_file_obligations(path, &sems).expect("prelude file should parse")
             };
             for b in bodies {
                 for ob in b.obligations {
@@ -992,19 +1039,16 @@ module CacheTest where
             }
         }
 
-        // Hundreds of real prelude LLVM bodies are mathematically proved with LRAT!
+        // Hundreds of real prelude LLVM bodies are mathematically proved with LRAT,
+        // and after fixing the 32-bit refinement preconditions and marking raw unchecked
+        // division prims `unsafe`, zero obligations are disproved!
         assert!(
-            verified >= 300,
-            "expected >= 300 kernel-LRAT verified obligations across Prim.Machine + Prim.Wide, got {verified}"
-        );
-        // Real unguarded UB and refinement mismatches are caught automatically!
-        assert!(
-            disproved_names.iter().any(|n| n.contains("raw-sdiv-i8")),
-            "expected raw-sdiv-i8 UB to be caught, disproved={disproved_names:?}"
+            verified >= 500,
+            "expected >= 500 kernel-LRAT verified obligations across prelude prims, got {verified}"
         );
         assert!(
-            disproved_names.iter().any(|n| n.contains("u64-to-usize") && n.contains("refinement")),
-            "expected u64-to-usize 32-bit refinement violation to be caught, disproved={disproved_names:?}"
+            disproved_names.is_empty(),
+            "expected zero disproved prelude obligations, got {disproved_names:?}"
         );
     }
 }

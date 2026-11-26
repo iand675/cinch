@@ -945,6 +945,7 @@ impl Decl {
             Decl::Foreign(foreign) => foreign.ty.visit_mut(visit),
             Decl::Prim(primitive) => {
                 primitive.ty.visit_mut(visit);
+                if let Some(spec) = &mut primitive.spec { spec.visit_types_mut(visit); }
                 for body in &mut primitive.bodies {
                     for condition in &mut body.when { condition.visit_types_mut(visit); }
                     if let Some(evidence) = &mut body.justify { evidence.visit_types_mut(visit); }
@@ -1319,6 +1320,9 @@ pub struct PrimBody {
 pub struct PrimDecl {
     pub name: Name,
     pub ty: Type,
+    /// Optional mathematical specification (`spec <expr>` before `where`),
+    /// stating the pure functional meaning every target-IR body must refine.
+    pub spec: Option<Term>,
     pub bodies: Vec<PrimBody>,
     pub span: Span,
 }
@@ -1934,6 +1938,9 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         }
         Decl::Prim(p) => {
             collect_type_refs(&p.ty, out);
+            if let Some(s) = &p.spec {
+                collect_term_refs(s, out);
+            }
             for b in &p.bodies {
                 for w in &b.when {
                     collect_term_refs(w, out);
@@ -3273,6 +3280,9 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
         Decl::Prim(p) => {
             let mut p = p.clone();
             p.ty = hyg_type(&p.ty, cx, sc)?;
+            if let Some(s) = &p.spec {
+                p.spec = Some(hyg_term(s, cx, sc)?);
+            }
             for b in &mut p.bodies {
                 b.when = b
                     .when
@@ -3695,6 +3705,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         }
         Decl::Prim(p) => {
             let mut p = p.clone();
+            p.spec = p.spec.as_ref().map(|t| subst_holes(t, vals));
             for b in &mut p.bodies {
                 b.when = b.when.iter().map(|t| subst_holes(t, vals)).collect();
                 b.justify = b.justify.as_ref().map(|t| subst_holes(t, vals));
@@ -3999,6 +4010,9 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         }
         Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_) => {}
         Decl::Prim(p) => {
+            if let Some(s) = &mut p.spec {
+                collect_template_holes_with_macros(s, holes, false);
+            }
             for b in &mut p.bodies {
                 for w in &mut b.when {
                     collect_template_holes_with_macros(w, holes, false);

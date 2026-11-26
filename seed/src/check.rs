@@ -3656,6 +3656,9 @@ struct Checker {
     /// capability conditions, justifications and body selection need
     /// the whole program's names and the target profile.
     pending_prims: Vec<(String, ast::PrimDecl, Scheme)>,
+    /// Source equations captured per `(module, name)` so `prim ... spec <fn>`
+    /// can lower source specifications directly into `prim_verify::sem::SemGraph`.
+    spec_equations: HashMap<(String, String), ast::Equation>,
     /// Checked `prim` plans in declaration order (core specification
     /// section 11's manifest).
     prims: Vec<crate::core::PrimPlan>,
@@ -4216,6 +4219,7 @@ impl Checker {
             jpl_user_modules: HashSet::new(),
             pending_rewrites: Vec::new(),
             pending_prims: Vec::new(),
+            spec_equations: HashMap::new(),
             prims: Vec::new(),
             target: None,
             build: None,

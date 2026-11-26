@@ -3747,6 +3747,9 @@ pub enum RequireCond {
 /// body content is contract: editing it stales dependents).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PrimTier {
+    /// Every target-IR body was formally verified by `prim_verify` with
+    /// checked `TrustReceipt`s (bodies are representation-only in `iface_hash`).
+    Verified,
     Justified,
     Assumed,
 }
@@ -3781,6 +3784,9 @@ pub struct PrimBodyPlan {
     pub trust_id: String,
     /// The containment validation result (specification section 4).
     pub validation: String,
+    /// Formal verification receipts emitted when `justify verify*` discharges
+    /// this body's obligations through `prim_verify`.
+    pub receipts: Vec<crate::prim_verify::TrustReceipt>,
 }
 
 /// One `uses` contract of a `prim` body (primitive operations and
@@ -3838,6 +3844,9 @@ pub struct PrimPlan {
     /// The law identities the contract is stated over (the justified
     /// tier's contract identity).
     pub laws: Vec<String>,
+    /// Optional resolved specification identity (`Module.spec#<hash>`) from
+    /// a `prim ... spec <expr> where` declaration.
+    pub spec: Option<String>,
     /// The selected body's index into `bodies`, and why (section 6).
     pub selected: usize,
     pub selected_why: String,

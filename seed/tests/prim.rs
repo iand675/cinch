@@ -1234,3 +1234,83 @@ module Main where
     assert!(body_of(&irtriple, "Main.probe.asm").contains("exacttriplemarker"), "{irtriple}");
     assert!(!body_of(&irtriple, "Main.probe.asm").contains("nottriplemarker"), "{irtriple}");
 }
+
+#[test]
+fn verified_prim_with_source_spec_emits_receipts_and_preserves_iface_hash() {
+    let src = r#"
+module Main where
+  spec twice-spec :: U32 -> U32
+  twice-spec x = wrapping-add-u32 x x
+
+  prim twice :: U32 -> U32 spec twice-spec where
+    llvm {
+      %s = add i32 %0, %0
+      ret i32 %s
+    } justify verify
+
+  main :: Int
+  main =
+    if twice 21 == 42 then 0 else 1
+"#;
+    let code = run_source(src).expect("the formally verified prim compiles and runs");
+    assert_eq!(code, 0);
+
+    let m = manifest_of("tier-verified", src, &TargetProfile::native());
+    assert!(m.contains("\"tier\":\"verified\""), "{m}");
+    assert!(m.contains("\"evidence_format\":\"lrat/v1\""), "{m}");
+    assert!(m.contains("\"checker_id\":\"cinch-kernel-lrat@1\""), "{m}");
+    assert!(m.contains("Main.twice-spec#"), "{m}");
+
+    let interface = |source: &str| {
+        common::source_frontend::check_source_interfaces(source, "verified-prim.cinch")
+            .unwrap()
+            .into_iter()
+            .find(|iface| iface.module == "Main")
+            .unwrap()
+    };
+    let original = interface(src);
+    // Formally verified prims carry zero assumed body hashes or unproved laws.
+    assert!(original.assumptions.primitives.is_empty(), "{:?}", original.assumptions);
+    assert!(original.assumptions.declared.is_empty(), "{:?}", original.assumptions);
+    assert_eq!(original.prim_proofs.len(), 1);
+    assert_eq!(original.prim_proofs[0].name, "twice");
+    assert_eq!(original.prim_proofs[0].tier, "kernel-cert");
+
+    // Replacing the LLVM body with a different, formally equivalent implementation
+    // (`shl i32 %0, 1`) keeps the exact same `.cinchif` contract `iface_hash`!
+    let equivalent = src.replace("add i32 %0, %0", "shl i32 %0, 1");
+    assert_eq!(original.iface_hash(), interface(&equivalent).iface_hash());
+
+    // Replacing the LLVM body with a non-equivalent implementation fails at compile
+    // time with a concrete counterexample!
+    let broken = src.replace("add i32 %0, %0", "add i32 %0, 1");
+    expect_err("broken-verified-prim", &broken, "failed formal verification");
+}
+
+#[test]
+fn verified_prim_jpl_profile_rejects_compiled_lrat_tier() {
+    let compiled_in_jpl = r#"
+#[profile("jpl")]
+module Main where
+  spec id-spec :: U32 -> U32
+  id-spec x = x
+
+  prim id-u32 :: U32 -> U32 spec id-spec where
+    llvm {
+      ret i32 %0
+    } justify verify-compiled-lrat
+
+  main :: Int
+  main = case 2 + 2 of
+    n -> case decide (n < 5) of
+      Yes _ -> case decide (n < 3) of
+        Yes _ -> 1
+        No _ -> if id-u32 7 == 7 then 0 else 1
+      No _ -> 1
+"#;
+    expect_err("jpl-rejects-compiled-cert", compiled_in_jpl, "rejected by policy");
+
+    let kernel_in_jpl = compiled_in_jpl.replace("verify-compiled-lrat", "verify");
+    let code = run_source(&kernel_in_jpl).expect("kernel-cert is admitted under #[profile(\"jpl\")]");
+    assert_eq!(code, 0);
+}

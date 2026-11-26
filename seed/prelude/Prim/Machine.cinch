@@ -60,7 +60,7 @@ module Prim.Machine where
     llvm {
       ret i64 %0
     }
-  prim u64-to-usize :: (x :: U64) -> refined (r == x) Usize where
+  prim u64-to-usize :: (x :: refined (InRange 0 4294967295 x) U64) -> refined (r == x) Usize where
     llvm {
       %r = trunc i64 %0 to i32
       ret i32 %r
@@ -68,7 +68,7 @@ module Prim.Machine where
     llvm {
       ret i64 %0
     }
-  prim i64-to-isize :: (x :: I64) -> refined (r == x) Isize where
+  prim i64-to-isize :: (x :: refined (InRange (-2147483648) 2147483647 x) I64) -> refined (r == x) Isize where
     llvm {
       %r = trunc i64 %0 to i32
       ret i32 %r
@@ -178,7 +178,7 @@ module Prim.Machine where
       %r = zext i32 %0 to i64
       ret i64 %r
     }
-  prim u32-to-isize :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) Isize where
+  prim u32-to-isize :: (x :: refined (InRange 0 2147483647 x) U32) -> refined (InRange 0 2147483647 r && r == x) Isize where
     llvm {
       ret i32 %0
     } when word-size 32
@@ -249,13 +249,15 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
+  -- Unchecked signed division/remainder: LLVM immediate UB when %1 == 0 or (%0 == MIN && %1 == -1).
+  -- Callers in Data.Machine guard these with checked-div-i8 / checked-rem-i8.
   prim raw-sdiv-i8 :: I8 -> I8 -> I8 where
-    llvm {
+    unsafe llvm {
       %r = sdiv i8 %0, %1
       ret i8 %r
     }
   prim raw-srem-i8 :: I8 -> I8 -> I8 where
-    llvm {
+    unsafe llvm {
       %r = srem i8 %0, %1
       ret i8 %r
     }
@@ -428,12 +430,12 @@ module Prim.Machine where
       ret i8 %r
     }
   prim raw-sdiv-i16 :: I16 -> I16 -> I16 where
-    llvm {
+    unsafe llvm {
       %r = sdiv i16 %0, %1
       ret i16 %r
     }
   prim raw-srem-i16 :: I16 -> I16 -> I16 where
-    llvm {
+    unsafe llvm {
       %r = srem i16 %0, %1
       ret i16 %r
     }
@@ -611,12 +613,12 @@ module Prim.Machine where
       ret i8 %r
     }
   prim raw-sdiv-i32 :: I32 -> I32 -> I32 where
-    llvm {
+    unsafe llvm {
       %r = sdiv i32 %0, %1
       ret i32 %r
     }
   prim raw-srem-i32 :: I32 -> I32 -> I32 where
-    llvm {
+    unsafe llvm {
       %r = srem i32 %0, %1
       ret i32 %r
     }
@@ -787,12 +789,12 @@ module Prim.Machine where
       ret i8 %r
     }
   prim raw-sdiv-i64 :: I64 -> I64 -> I64 where
-    llvm {
+    unsafe llvm {
       %r = sdiv i64 %0, %1
       ret i64 %r
     }
   prim raw-srem-i64 :: I64 -> I64 -> I64 where
-    llvm {
+    unsafe llvm {
       %r = srem i64 %0, %1
       ret i64 %r
     }
@@ -965,13 +967,15 @@ module Prim.Machine where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
+  -- Unchecked unsigned division/remainder: LLVM immediate UB when %1 == 0.
+  -- Callers in Data.Machine guard these with checked-div-u* / div-u* (using b /= 0).
   prim raw-div-u8 :: U8 -> U8 -> U8 where
-    llvm {
+    unsafe llvm {
       %r = udiv i8 %0, %1
       ret i8 %r
     }
   prim raw-rem-u8 :: U8 -> U8 -> U8 where
-    llvm {
+    unsafe llvm {
       %r = urem i8 %0, %1
       ret i8 %r
     }
@@ -1140,12 +1144,12 @@ module Prim.Machine where
       ret i8 %r
     }
   prim raw-div-u16 :: U16 -> U16 -> U16 where
-    llvm {
+    unsafe llvm {
       %r = udiv i16 %0, %1
       ret i16 %r
     }
   prim raw-rem-u16 :: U16 -> U16 -> U16 where
-    llvm {
+    unsafe llvm {
       %r = urem i16 %0, %1
       ret i16 %r
     }
@@ -1319,12 +1323,12 @@ module Prim.Machine where
       ret i8 %r
     }
   prim raw-div-u32 :: U32 -> U32 -> U32 where
-    llvm {
+    unsafe llvm {
       %r = udiv i32 %0, %1
       ret i32 %r
     }
   prim raw-rem-u32 :: U32 -> U32 -> U32 where
-    llvm {
+    unsafe llvm {
       %r = urem i32 %0, %1
       ret i32 %r
     }
@@ -1491,12 +1495,12 @@ module Prim.Machine where
       ret i8 %r
     }
   prim raw-div-u64 :: U64 -> U64 -> U64 where
-    llvm {
+    unsafe llvm {
       %r = udiv i64 %0, %1
       ret i64 %r
     }
   prim raw-rem-u64 :: U64 -> U64 -> U64 where
-    llvm {
+    unsafe llvm {
       %r = urem i64 %0, %1
       ret i64 %r
     }

@@ -836,6 +836,12 @@ impl<'a> Parser<'a> {
         let name = self.parse_value_name()?;
         self.expect(&Tok::ColonColon, "`::` after the prim's name")?;
         let ty = self.parse_type()?;
+        let spec = if self.at(&Tok::Spec) {
+            self.bump();
+            Some(self.parse_term()?)
+        } else {
+            None
+        };
         self.expect(&Tok::Where, "`where` opening the prim's target-IR bodies")?;
         let mut bodies =
             self.parse_block_items("the prim's target-IR bodies", |p| p.parse_prim_body())?;
@@ -855,7 +861,7 @@ impl<'a> Parser<'a> {
                 "a prim declaration needs at least one target-IR body",
             ));
         }
-        Ok(Decl::Prim(PrimDecl { name, ty, bodies, span }))
+        Ok(Decl::Prim(PrimDecl { name, ty, spec, bodies, span }))
     }
 
     /// One target-IR body: `family { fragment }` followed by its
@@ -4188,6 +4194,9 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
         Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
         Decl::Prim(p) => {
             resolve_type(&mut p.ty, fix)?;
+            if let Some(s) = &mut p.spec {
+                resolve_term(s, fix)?;
+            }
             for b in &mut p.bodies {
                 for w in &mut b.when {
                     resolve_term(w, fix)?;
