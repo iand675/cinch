@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 packed library provider with string literal patterns, list cons (:), data-parallel arrays, and AD runtime support.",
-  "revision": "d63c0e18cc71249ebc7ab43361b22240d5bd35c9",
+  "description": "ABI 10 packed library provider with Keiser-Lemire SIMD UTF-8, sharded sym/SIMD compare/Karatsuba limbs runtime, Flate/CRC32/Strconv optimizations, and strengthened Fourier-Motzkin solver.",
+  "revision": "9e63de30559a910cac1af8f3f62b9dd85818b9e5",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "6c71228ee3a79f0c7f0263788294d0346a755707eef8ef1b268842e1e9666b02"
+  "source_sha256": "e7e9336cea0ffdbfbf5af6b2582d979bca88a6fafd4f0afa69c33bda8276da78"
 }

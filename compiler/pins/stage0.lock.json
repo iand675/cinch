@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 seed with string literal patterns, list cons (:), concurrency primitives, and tail_conv disabled.",
+  "description": "ABI 10 seed with Keiser-Lemire SIMD UTF-8, sharded sym/SIMD compare/Karatsuba limbs runtime, strengthened Fourier-Motzkin solver, and tail_conv disabled.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "d63c0e18cc71249ebc7ab43361b22240d5bd35c9",
+  "revision": "9e63de30559a910cac1af8f3f62b9dd85818b9e5",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "4a9cf624aa96f97d7b57fc30534922f1c8e7f9f12e56e3420c1c6486fa5c10ab"
+  "source_sha256": "b47e9abbc757f8deea764fb45abaac5723ef9726921ab11a34d41f3de05e7e88"
 }
