@@ -1642,10 +1642,10 @@ module Cinch.PrimVerify where
 
   strip-module-prefix :: String -> String
   strip-module-prefix s =
-    let without-m = if string-starts-with "m." s && string-length s > 2 then string-slice s 2 (string-length s) else s in
-    let decoded = case decode-identity (unpack without-m) of
+    let raw = strip-dot-loop (unpack s) Nil in
+    let decoded = case decode-identity (unpack raw) of
           Some (d, rest) -> d
-          None -> without-m in
+          None -> raw in
     strip-dot-loop (unpack decoded) Nil
 
   strip-dot-loop :: List Char -> List Char -> String
