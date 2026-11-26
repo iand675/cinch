@@ -135,8 +135,18 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
     fields = {"schema", "runtime_abi", "language", "compiler", "module", "source_hash",
               "imports", "params", "exports", "abi", "assumptions", "assertions",
               "contracts", "laws", "must_use", "upgrades", "units"}
-    if set(doc) != fields:
+    optional = {"prim_proofs"}
+    keys = set(doc)
+    if not (fields <= keys <= (fields | optional)):
         raise ValueError("incomplete or unknown interface fields")
+    if "prim_proofs" in doc:
+        for proof in _list(doc["prim_proofs"]):
+            if not isinstance(proof, dict):
+                raise ValueError("invalid prim_proofs entry")
+            for pkey in ("name", "spec", "semantics_id", "tier"):
+                _text(proof.get(pkey))
+            for tcb_item in _list(proof.get("tcb")):
+                _text(tcb_item)
     if type(doc["schema"]) is not int or doc["schema"] != 10:
         raise ValueError("wrong interface schema")
     if type(doc["runtime_abi"]) is not int or doc["runtime_abi"] != runtime_abi:
