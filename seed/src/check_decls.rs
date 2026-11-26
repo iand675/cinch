@@ -23809,6 +23809,39 @@ impl Checker {
                     }
                 })
             }
+            PrimOp::Utf8(uop) => {
+                use crate::core::Utf8Op;
+                match uop {
+                    Utf8Op::Validate => {
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        Ok(Value::Bool(std::str::from_utf8(&b.borrow()).is_ok()))
+                    }
+                    Utf8Op::CountChars => {
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let buf = b.borrow();
+                        let s = std::str::from_utf8(&buf).map_err(|_| {
+                            Error::plain(
+                                "`utf8CountChars` on invalid UTF-8 faults at compile time (the runtime fault path is exit 71)",
+                            )
+                        })?;
+                        Ok(big_value(Big::from_i64(s.chars().count() as i64), true))
+                    }
+                    _ => Err(Error::plain(format!(
+                        "primitive `{}` is not available at compile time in this slice",
+                        op.symbol()
+                    ))),
+                }
+            }
             PrimOp::BitScan { .. } => Err(Error::plain(
                 "bit-scan primitives are not available at compile time in this slice",
             )),
