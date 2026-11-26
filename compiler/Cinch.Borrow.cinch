@@ -145,6 +145,8 @@ module Cinch.Borrow where
     || same-text name "cinch.runtime.bytesLoadLe64At"
     || same-text name "cinch.runtime.bytesCompare"
     || same-text name "cinch.runtime.bytesData"
+    || same-text name "cinch.runtime.utf8Validate"
+    || same-text name "cinch.runtime.utf8CountChars"
     || same-text name "cinch.runtime.natAdd"
     || same-text name "cinch.runtime.natSub"
     || same-text name "cinch.runtime.natMul"

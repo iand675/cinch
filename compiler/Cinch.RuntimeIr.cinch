@@ -2702,7 +2702,7 @@ module Cinch.RuntimeIr where
     other -> refuse w (Span 0 0 1 1) "MVar worker needs an available canonical operation and one checked payload class"
 
   builtin-known :: String -> Bool
-  builtin-known name = machine-integer-builtin name || fast-bytes-builtin name || nat-arithmetic-builtin name || name == "b.newIO" || name == "b.ioWrite" || name == "b.ioRead" || name == "b.ioSleep" || name == "b.pollCancel" || name == "cinch.runtime.bytesNew" || name == "cinch.runtime.bytesLen" || name == "cinch.runtime.bytesGet" || name == "cinch.runtime.textF64FromDecimal" || name == "cinch.runtime.textF64ToDecimal" || name == "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
+  builtin-known name = machine-integer-builtin name || fast-bytes-builtin name || nat-arithmetic-builtin name || name == "b.newIO" || name == "b.ioWrite" || name == "b.ioRead" || name == "b.ioSleep" || name == "b.pollCancel" || name == "cinch.runtime.bytesNew" || name == "cinch.runtime.bytesLen" || name == "cinch.runtime.bytesGet" || name == "cinch.runtime.utf8Validate" || name == "cinch.runtime.utf8CountChars" || name == "cinch.runtime.textF64FromDecimal" || name == "cinch.runtime.textF64ToDecimal" || name == "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
   -- | Recognize only the closed scalar registry.
   machine-integer-builtin :: String -> Bool
   machine-integer-builtin name = (case scalar-intrinsic name of Some operation -> True; None -> False)
@@ -2837,6 +2837,7 @@ module Cinch.RuntimeIr where
   builtin-borrow-mask name count =
     if bytes-borrowable-builtin name && count >= 1 then Some (True : (false-flags (count - 1)))
     else if name == "cinch.runtime.bytesCompare" && count == 2 then Some [True, True]
+    else if (name == "cinch.runtime.utf8Validate" || name == "cinch.runtime.utf8CountChars") && count == 1 then Some [True]
     else if name == "cinch.runtime.natToI64" && count == 1 then Some [True]
     else case nat-arithmetic-extern name of
       Some ext | count == 2 -> Some [True, True]
@@ -3042,6 +3043,30 @@ module Cinch.RuntimeIr where
     else if op == "get" then nat-from-i64-fast dropped2 result True
     else (dropped2, result)
   -- | Emit a private alwaysinline borrowed builtin worker without RC traffic on borrowed args.
+  utf8-validate-worker-ex :: Writer -> Bool -> (Writer, String)
+  utf8-validate-worker-ex w drop-arg =
+    case call w "@cinch_bytes_data" ["%arg0"] of
+      (w1, ptr) -> case call w1 "@cinch_bytes_len" ["%arg0"] of
+        (w2, len) -> case call w2 "@cinch_utf8_validate" [ptr, len] of
+          (w3, res) -> (if drop-arg then count-line False "%arg0" w3 else w3, res)
+  utf8-count-chars-worker-ex :: Writer -> Bool -> (Writer, String)
+  utf8-count-chars-worker-ex w drop-arg =
+    case call w "@cinch_bytes_data" ["%arg0"] of
+      (w1, ptr) -> case call w1 "@cinch_bytes_len" ["%arg0"] of
+        (w2, len) -> case call w2 "@cinch_utf8_count_chars" [ptr, len] of
+          (w3, count) ->
+            let w4 = if drop-arg then count-line False "%arg0" w3 else w3 in
+            let (w5, bad) = fresh w4 "%v" in
+            let (w6, ok-l) = fresh w5 "u8ok" in
+            let (w7, err-l) = fresh w6 "u8err" in
+            let branched = emit-lines w7 [
+              cat ["  ", bad, " = icmp slt i64 ", count, ", 0"],
+              cat ["  br i1 ", bad, ", label %", err-l, ", label %", ok-l, ", !prof !7"],
+              cat [err-l, ":"],
+              "  call void @cinch_blackhole()",
+              "  unreachable",
+              cat [ok-l, ":"]] in
+            call branched "@cinch_nat_from_i64" [count]
   builtin-borrow-worker :: String -> Writer -> Writer
   builtin-borrow-worker name w =
     let classes = builtin-classes name in
@@ -3052,6 +3077,8 @@ module Cinch.RuntimeIr where
         None -> unsupported started (Span 0 0 1 1) "checked borrowed Bytes worker has no operation")
       else if name == "cinch.runtime.bytesLen" then bytes-access-worker-ex started "len" False
       else if name == "cinch.runtime.bytesGet" then bytes-access-worker-ex started "get" False
+      else if name == "cinch.runtime.utf8Validate" then utf8-validate-worker-ex started False
+      else if name == "cinch.runtime.utf8CountChars" then utf8-count-chars-worker-ex started False
       else case platform-intrinsic name of
         Some (scheme, external, arguments, result) -> platform-worker-ex started external arguments result False
         None -> case nat-arithmetic-extern name of
@@ -3089,6 +3116,8 @@ module Cinch.RuntimeIr where
         (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (count-line False "%arg0" done, result))
       else if name == "cinch.runtime.bytesLen" then bytes-access-worker started "len"
       else if name == "cinch.runtime.bytesGet" then bytes-access-worker started "get"
+      else if name == "cinch.runtime.utf8Validate" then utf8-validate-worker-ex started True
+      else if name == "cinch.runtime.utf8CountChars" then utf8-count-chars-worker-ex started True
       else if name == "cinch.runtime.textF64ToDecimal" then
         (let (one, value) = fresh started "%float" in
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
@@ -7850,7 +7879,7 @@ module Cinch.RuntimeIr where
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_free(i64)\ndeclare void @cinch_frame_release(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers-mt wasm32 concurrent,
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_data(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_utf8_validate(i64, i64)\ndeclare i64 @cinch_utf8_count_chars(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_array_tabulate_packed(i64, i64, i64)\ndeclare i64 @cinch_array_map_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_with_packed(i64, i64, i64, i64)\ndeclare i64 @cinch_array_foldl_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f32(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f64(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_i32(i64, i64, i64)\ndeclare i64 @cinch_array_map_unary_f32(i64, i64, i64)\ndeclare i64 @cinch_array_reduce_f32(i64, i64)\ndeclare i64 @cinch_array_reduce_f64(i64, i64)\ndeclare i64 @cinch_array_reduce_i32(i64, i64)\ndeclare i64 @cinch_array_reduce_u32(i64, i64)\ndeclare i64 @cinch_array_reduce_i64(i64, i64)\ndeclare i64 @cinch_array_dot_f32(i64, i64, i64)\ndeclare i64 @cinch_array_dot_f64(i64, i64, i64)\ndeclare i64 @cinch_array_dot_i32(i64, i64)\ndeclare i64 @cinch_array_strided_dot_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_fused_map_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_scan_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scan_u32(i64, i64, i64)\ndeclare i64 @cinch_array_filter_i32_gt(i64, i64)\ndeclare i64 @cinch_array_filter_packed(i64, i64)\ndeclare i64 @cinch_array_gather_f32(i64, i64, i64)\ndeclare i64 @cinch_array_gather_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_unique_u32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_combine_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_histogram_u8(i64, i64)\ndeclare i64 @cinch_array_histogram_u32(i64, i64)\ndeclare i64 @cinch_array_histogram_batch_u8(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_u8(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_segmented_reduce_f32(i64, i64, i64)\ndeclare i64 @cinch_array_spmv_csr_f32(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_1d(i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_2d(i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_set_exec_mode(i64)\ndeclare i64 @cinch_array_last_report_bytes()\ndeclare i64 @cinch_array_fill_f32(i64, i64)\ndeclare i64 @cinch_array_fill_f64(i64, i64)\ndeclare i64 @cinch_array_scale_f64(i64, i64)\ndeclare i64 @cinch_array_row_broadcast_f32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_add_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_adjoint_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_open(i64)\ndeclare i64 @cinch_device_close(i64)\ndeclare i64 @cinch_device_reset_telemetry(i64)\ndeclare i64 @cinch_device_upload_array(i64, i64)\ndeclare i64 @cinch_device_download_array(i64, i64, i64)\ndeclare i64 @cinch_device_buffer_free(i64)\ndeclare i64 @cinch_device_buffer_bytes(i64)\ndeclare i64 @cinch_device_dot_f32_bits(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_scan_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_filter_i32_gt_handle(i64, i64, i64, i64)\ndeclare i64 @cinch_device_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil_histogram_u8_arr(i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil2d_f32_arr(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_spmv_csr_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_report_bytes(i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_stm_state(i64)\ndeclare i64 @cinch_stm_publish(i64, i64)\ndeclare i64 @cinch_stm_wait_begin(i64)\ndeclare i64 @cinch_stm_wait_park(i64)\ndeclare i64 @cinch_stm_wait_cancel(i64)\ndeclare i64 @cinch_stm_wake(i64)\ndeclare i64 @cinch_stm_yield(i64)\n",
