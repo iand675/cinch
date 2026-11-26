@@ -345,6 +345,8 @@ module Cinch.Ownership where
     || same-str name "cinch.runtime.bytesLoadLe64At"
     || same-str name "cinch.runtime.bytesCompare"
     || same-str name "cinch.runtime.bytesData"
+    || same-str name "cinch.runtime.utf8Validate"
+    || same-str name "cinch.runtime.utf8CountChars"
     || same-str name "cinch.runtime.natAdd"
     || same-str name "cinch.runtime.natSub"
     || same-str name "cinch.runtime.natMul"
