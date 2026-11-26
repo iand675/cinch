@@ -593,7 +593,7 @@ module Bootstrap.Load where
   type-row-valid bodies row =
     let kind = text (field "kind" row) in
     string-length (text (field "identity" row)) > 0
-    && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
+    && member kind ["data", "record", "codata", "opaque", "refinement", "signature", "type_family"]
     && parameters-valid (field "parameters" row) (field "params" row) Nil
     && ctors-valid bodies (field "ctors" row) Nil && strings-p (field "fields" row)
     && ownership-header-valid row

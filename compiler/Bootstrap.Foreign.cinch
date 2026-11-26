@@ -309,6 +309,10 @@ module Bootstrap.Foreign where
       || string-starts-with "@llvm.umax." symbol
       || string-starts-with "@llvm.fabs." symbol
       || string-starts-with "@llvm.sqrt." symbol
+      || string-starts-with "@llvm.sin." symbol
+      || string-starts-with "@llvm.cos." symbol
+      || string-starts-with "@llvm.exp." symbol
+      || string-starts-with "@llvm.log." symbol
       || string-starts-with "@llvm.floor." symbol
       || string-starts-with "@llvm.ceil." symbol
       || string-starts-with "@llvm.trunc." symbol

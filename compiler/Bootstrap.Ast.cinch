@@ -173,6 +173,9 @@ module Bootstrap.Ast where
     TUsageArrow :: Span -> String -> TypeExpr -> TypeExpr
     TRow :: Span -> TypeExpr -> Option String -> TypeExpr
     TTuple :: Span -> TypeExpr -> TypeExpr
+    TList :: Span -> TypeExpr -> TypeExpr
+    TStrLit :: Span -> String -> TypeExpr
+    TSigma :: Span -> String -> TypeExpr -> TypeExpr -> TypeExpr
     TForall :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TQuantifier :: Span -> String -> Bool -> TypeExpr -> TypeExpr -> TypeExpr
     TQuantifiersEnd :: Span -> TypeExpr
@@ -223,6 +226,9 @@ module Bootstrap.Ast where
     TUsageArrow s usage arrow -> s
     TRow s labels tail -> s
     TTuple s xs -> s
+    TList s xs -> s
+    TStrLit s text -> s
+    TSigma s name dom body -> s
     TForall s vs body -> s
     TQuantifier s name is-implicit kind rest -> s
     TQuantifiersEnd s -> s
@@ -623,6 +629,9 @@ module Bootstrap.Ast where
     ContractAssume s body -> s
     ContractAssumed s text -> s
 
+  data TypeFamilyEq where
+    MkTypeFamilyEq :: Span -> String -> TypeExpr -> TypeExpr -> TypeFamilyEq
+
   data Decl where
     DSource :: Span -> String -> Json -> Decl
     DInterface :: Span -> String -> String -> Json -> Decl
@@ -634,6 +643,10 @@ module Bootstrap.Ast where
     DRewrite :: Span -> String -> RewriteSyntax -> Decl
     DFun :: Span -> String -> List (List Pat, Expr) -> Decl
     DData :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+    DTypeFamily :: Span -> String -> List TypeParam -> Option TypeExpr -> Bool -> List TypeFamilyEq -> Decl
+    DTypeInstance :: Span -> String -> TypeExpr -> TypeExpr -> Decl
+    DDataFamily :: Span -> String -> List TypeParam -> Decl
+    DDataInstance :: Span -> String -> TypeExpr -> List (String, TypeExpr) -> Decl
     DOpaque :: Span -> String -> List TypeParam -> TypeExpr -> Decl
     DRefine :: Span -> String -> List TypeParam -> TypeParam -> TypeExpr -> Decl
     DClass :: Span -> String -> List TypeParam -> Decl -> Decl
@@ -712,6 +725,10 @@ module Bootstrap.Ast where
     DRewrite s name syntax -> s
     DFun s n clauses -> s
     DData s n params ctors -> s
+    DTypeFamily s n params rk closed eqs -> s
+    DTypeInstance s fam args rhs -> s
+    DDataFamily s n params -> s
+    DDataInstance s fam args ctors -> s
     DOpaque s n params kind -> s
     DRefine s n params binder predicate -> s
     DClass s n params members -> s
@@ -761,6 +778,10 @@ module Bootstrap.Ast where
     DRewrite s name syntax -> None
     DFun s n clauses -> Some n
     DData s n params ctors -> Some n
+    DTypeFamily s n params rk closed eqs -> Some n
+    DTypeInstance s fam args rhs -> None
+    DDataFamily s n params -> Some n
+    DDataInstance s fam args ctors -> None
     DOpaque s n params kind -> Some n
     DRefine s n params binder predicate -> Some n
     DClass s n params members -> Some n
@@ -860,6 +881,9 @@ module Bootstrap.Ast where
     TUsageArrow s usage arrow -> type-unmodeled-count arrow
     TRow s labels tail -> type-unmodeled-count labels
     TTuple s xs -> type-unmodeleds (type-args-of xs)
+    TList s xs -> type-unmodeleds (type-args-of xs)
+    TStrLit s text -> 0
+    TSigma s name dom body -> type-unmodeled-count dom + type-unmodeled-count body
     TForall s vs body -> type-unmodeled-count vs + type-unmodeled-count body
     TQuantifier s name is-implicit kind rest -> type-unmodeled-count kind + type-unmodeled-count rest
     TQuantifiersEnd s -> 0
@@ -1033,6 +1057,10 @@ module Bootstrap.Ast where
       + (case evidence of RewriteTerm expression -> expr-unmodeled-count expression; RewriteLaw sp owner member args -> exprs-unmodeled args)
     DFun s n clauses -> clauses-unmodeled clauses
     DData s n params ctors -> params-unmodeled params + ctors-unmodeled ctors
+    DTypeFamily s n params rk closed eqs -> params-unmodeled params + (case rk of None -> 0; Some k -> type-unmodeled-count k) + type-family-eqs-unmodeled eqs
+    DTypeInstance s fam args rhs -> type-unmodeled-count args + type-unmodeled-count rhs
+    DDataFamily s n params -> params-unmodeled params
+    DDataInstance s fam args ctors -> type-unmodeled-count args + ctors-unmodeled ctors
     DOpaque s n params kind -> params-unmodeled params + type-unmodeled-count kind
     DRefine s n params binder predicate -> params-unmodeled (Cons binder params) + type-unmodeled-count predicate
     DClass s n params members -> params-unmodeled params + decls-unmodeled (decls-of members)
@@ -1069,6 +1097,11 @@ module Bootstrap.Ast where
     DStageEmit s template -> decl-unmodeled-count template
     DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no
     DContract s kind name subject clauses -> contract-clauses-unmodeled clauses
+
+  type-family-eqs-unmodeled :: List TypeFamilyEq -> Nat
+  type-family-eqs-unmodeled eqs = case eqs of
+    Nil -> 0
+    Cons (MkTypeFamilyEq s head args rhs) rest -> type-unmodeled-count args + type-unmodeled-count rhs + type-family-eqs-unmodeled rest
 
   contract-clauses-unmodeled :: List ContractClause -> Nat
   contract-clauses-unmodeled clauses = case clauses of
@@ -1131,6 +1164,9 @@ module Bootstrap.Ast where
     TUsageArrow sp usage arrow -> JArr (JStr "TUsageArrow") (JArr (JStr usage) (JArr (source-identity-type arrow) JArrEnd))
     TRow part0 part1 part2 -> JArr (JStr "TRow") (JArr (source-identity-type part1) (JArr (source-identity-optional part2) (JArrEnd)))
     TTuple part0 part1 -> JArr (JStr "TTuple") (JArr (source-identity-type part1) (JArrEnd))
+    TList part0 part1 -> JArr (JStr "TList") (JArr (source-identity-type part1) (JArrEnd))
+    TStrLit part0 part1 -> JArr (JStr "TStrLit") (JArr (JStr part1) (JArrEnd))
+    TSigma sp name dom body -> JArr (JStr "TSigma") (JArr (JStr name) (JArr (source-identity-type dom) (JArr (source-identity-type body) JArrEnd)))
     TForall part0 part1 part2 -> JArr (JStr "TForall") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
     TQuantifier part0 part1 part2 part3 part4 -> JArr (JStr "TQuantifier") (JArr (JStr part1) (JArr (JBool part2) (JArr (source-identity-type part3) (JArr (source-identity-type part4) (JArrEnd)))))
     TQuantifiersEnd part0 -> JArr (JStr "TQuantifiersEnd") (JArrEnd)

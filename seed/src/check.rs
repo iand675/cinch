@@ -1424,6 +1424,13 @@ impl<'a> LowerCx<'a> {
 
 impl crate::repr::TypeReprs for Checker {
     fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
+        if self.uni.is_type_family(name) {
+            let reduced = self.uni.zonk(&Ty::Adt(name.into(), args.to_vec()));
+            if !matches!(&reduced, Ty::Adt(n, _) if n.as_str() == name) {
+                return crate::repr::AdtRepr::Base(reduced);
+            }
+            return crate::repr::AdtRepr::Obj;
+        }
         let kind = match self.known_type(name) {
             Some(k) => k,
             _ => return crate::repr::AdtRepr::Obj,
@@ -1678,6 +1685,10 @@ pub enum ParamKind {
     /// A scoped runtime identity, erased from value and representation arguments.
     Region,
     Val(Ty),
+    /// A promoted data kind (`List (Nat, Type)`, `List Nat`, `Layout`, `String`,
+    /// `(Nat, Type)`, ...): erased at runtime like `Type`, inhabited by promoted
+    /// data constructors, type-level lists `[...]`, tuples `(...)`, and literals.
+    Data(Ty),
     Prop,
     /// `Type -> ... -> Type` with `n >= 1` arrows: a higher-kinded type
     /// constructor parameter (modules and compilation specification
@@ -1693,6 +1704,18 @@ impl ParamKind {
             _ => 0,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct PromotedCtorInfo {
+    module: String,
+    name: String,
+    identity: String,
+    parent_identity: String,
+    parent_args: Vec<Ty>,
+    #[allow(dead_code)]
+    ty_params: Vec<String>,
+    field_tys: Vec<Ty>,
 }
 
 #[derive(Clone)]
@@ -2146,16 +2169,25 @@ struct Want {
     evidence_index: Option<ITerm>,
 }
 
-/// A deferred integer literal (primitive types specification, section 7):
-/// it elaborates against its expected type, which may only become known
-/// after unification and instance resolution, so the constant is fixed by
-/// [`Checker::resolved_literals`] once the definition is complete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LitKind {
+    Int,
+    Float,
+}
+
+/// A deferred numeric literal (primitive types specification, section 7):
+/// it elaborates against its expected/inferred type, which may only become
+/// known after unification and instance resolution, so the constant is fixed
+/// by [`Checker::resolved_literals`] once the definition is complete.
+/// Unconstrained integer literals default to `Int`, and unconstrained float
+/// literals default to `F64` (Haskell-style `default (Int, F64)`).
 struct PendLit {
-    /// The literal's type metavariable.
+    /// The literal's type metavariable (or refinement over one).
     ty: Ty,
-    /// The decimal digit string, with an optional leading `-`.
+    /// The decimal/float string, with an optional leading `-`.
     value: String,
     span: ast::Span,
+    kind: LitKind,
 }
 
 /// A deferred implicit index argument (insert-and-solve, dependent core
@@ -2398,6 +2430,7 @@ fn is_syntactic_value(t: &ast::Term) -> bool {
         | ast::Term::Var(_)
         | ast::Term::Con(_)
         | ast::Term::Int(_, _)
+        | ast::Term::Float(_, _)
         | ast::Term::Unit(_) => true,
         ast::Term::Tuple(items, _) | ast::Term::List(items, _) => {
             items.iter().all(is_syntactic_value)
@@ -2787,7 +2820,7 @@ fn measure_covers(t: &ITerm, binder: &str, byte_length: bool) -> bool {
     match t {
         ITerm::Var(n) => n != binder,
         ITerm::Inst(_) => !t.mentions(binder),
-        ITerm::LocalValue(_) | ITerm::Num(_) | ITerm::Evidence(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
+        ITerm::LocalValue(_) | ITerm::Num(_) | ITerm::Evidence(_) | ITerm::Fn(_) | ITerm::MVar(_) | ITerm::TyFamily(..) => true,
         ITerm::Lam(_, body) => measure_covers(body, binder, byte_length),
         ITerm::Bin(_, a, b) => measure_covers(a, binder, byte_length) && measure_covers(b, binder, byte_length),
         ITerm::App(f, args) => {
@@ -3120,6 +3153,26 @@ struct Checker {
     /// covers, by `(module, name)` (core specification section 2, mutual
     /// inductive groups). A non-recursive declaration's group is itself.
     data_groups: HashMap<(String, String), Vec<String>>,
+    /// Open `data family` nominal identities (can be extended by `data instance`).
+    open_data_families: std::collections::HashSet<String>,
+    /// Index-returning (`:: Nat`, etc.) type family nominal identities.
+    idx_type_families: std::collections::HashSet<String>,
+    /// Data-kinded (`:: List Nat`, `:: Layout`, ...) type family return kinds.
+    data_type_family_returns: HashMap<String, Ty>,
+    /// Functions rejected from type-level promotion (`Module.name -> reason`).
+    promoted_rejections: HashMap<String, String>,
+    /// Carrier types of branch-local / `with-sing` singleton skolems.
+    sing_skolem_carriers: HashMap<String, Ty>,
+    /// Defining module for each `data instance` constructor `(family_identity, ctor_name) -> defining_module`.
+    data_family_ctor_modules: HashMap<(String, String), String>,
+    /// Registered `data instance` LHS patterns per data family identity (for non-overlap checks).
+    data_instance_patterns: HashMap<String, Vec<(Vec<String>, Vec<Ty>)>>,
+    /// Constructors defined by `data instance` per defining module: `module -> Vec<(family_identity, ctor_name, tag)>`.
+    data_instance_ctors: HashMap<String, Vec<(String, String, usize)>>,
+    /// Constructor-local type parameters for `data instance` constructors: `(ctor_module, ctor_name) -> Vec<String>`.
+    ctor_local_ty_params: HashMap<(String, String), Vec<String>>,
+    /// Counter for fresh branch-local rigid type/index parameters introduced by GADT / data-family pattern refinement.
+    gadt_skolem_counter: usize,
     provisional_declarations: bool,
     declaration_needs_headers: Cell<bool>,
     declaration_pending: Cell<usize>,
@@ -3235,6 +3288,10 @@ struct Checker {
     kind_constraints: RefCell<Vec<(String, ParamKind)>>,
     /// Explicit Type/Region annotations while converting their lexical telescope.
     declared_parameter_kinds: RefCell<Vec<(String, ParamKind)>>,
+    /// True while converting a kind annotation (`:: List (Nat, Type)`), where
+    /// `Type` may appear inside a promoted data kind without violating runtime
+    /// `Type : Type` universe safety.
+    in_kind_annotation: Cell<bool>,
     /// Logical definitions (`spec` and `proof` declarations): the erased
     /// total fragment, checked for termination and never emitted
     /// (core specification sections 3 and 8).
@@ -3910,7 +3967,7 @@ fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
                 term(b, out);
             }
             ITerm::Lam(_, b) => term(b, out),
-            ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+            ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) | ITerm::TyFamily(..) => {}
         }
     }
     match p {
@@ -3973,6 +4030,16 @@ impl Checker {
             deferred_headers: HashMap::new(),
             declaration_bindings: HashMap::new(),
             data_groups: HashMap::new(),
+            open_data_families: std::collections::HashSet::new(),
+            idx_type_families: std::collections::HashSet::new(),
+            data_type_family_returns: HashMap::new(),
+            promoted_rejections: HashMap::new(),
+            sing_skolem_carriers: HashMap::new(),
+            data_family_ctor_modules: HashMap::new(),
+            data_instance_patterns: HashMap::new(),
+            data_instance_ctors: HashMap::new(),
+            ctor_local_ty_params: HashMap::new(),
+            gadt_skolem_counter: 0,
             provisional_declarations: false,
             declaration_needs_headers: Cell::new(false),
             declaration_pending: Cell::new(0),
@@ -4016,6 +4083,7 @@ impl Checker {
             idx_pends: Vec::new(),
             kind_constraints: RefCell::new(Vec::new()),
             declared_parameter_kinds: RefCell::new(Vec::new()),
+            in_kind_annotation: Cell::new(false),
             logical: std::collections::HashSet::new(),
             corec: std::collections::HashSet::new(),
             allow_eval: true,
@@ -4666,7 +4734,7 @@ impl Checker {
                     // before exporting result facts; do not use a bare scheme.
                     for argument in call.terms() { terms(argument, out); }
                 }
-                ITerm::Lam(..) | ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+                ITerm::Lam(..) | ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) | ITerm::TyFamily(..) => {}
             }
         }
         fn preds<'a>(p: &'a PTerm, out: &mut Vec<(&'a str, &'a [ITerm], &'a ITerm)>) {
@@ -4960,7 +5028,7 @@ impl Checker {
     /// runtime evidence words and the `Copy` marker is the unit word;
     /// every other dictionary is a counted block.
     pub(crate) fn dict_class(class: &str) -> crate::repr::Class {
-        if is_capability_class(class) || class == "Copy" {
+        if is_capability_class(class) || class == "Copy" || class == "Kernel" {
             crate::repr::Class::Raw
         } else {
             crate::repr::Class::Obj
@@ -5540,7 +5608,7 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
                 || self.value_may_hide_scope(cod, seen, fuel - 1),
             Ty::Adt(name, args) => {
-                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" { return false; }
+                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" { return false; }
                 if name == "Task" { return true; }
                 if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
@@ -5615,7 +5683,14 @@ impl Checker {
             // and guardedness design, section 6), so like a thunk it is
             // not duplicable evidence.
             Ty::Later(_) => transferring,
-            Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => transferring,
+            Ty::Fun(_, _, _, _) => {
+                transferring
+                    || (usage == StructuralUsage::Share
+                        && scope.iter().any(|(_, c)| {
+                            c.class == "Kernel" && c.args.iter().any(|a| a == ty)
+                        }))
+            }
+            Ty::Pi { .. } | Ty::Handler { .. } => transferring,
             // A polymorphic value is a dictionary of closures: like a
             // function, it is not duplicable evidence.
             Ty::Forall(_) => transferring,
@@ -5749,10 +5824,97 @@ impl Checker {
         };
         if open {
             let idx = self.literal_pends.len();
-            self.literal_pends.push(PendLit { ty: t, value: digits.to_string(), span });
+            self.literal_pends.push(PendLit {
+                ty: t,
+                value: digits.to_string(),
+                span,
+                kind: LitKind::Int,
+            });
             return Ok(ECore::Lit(idx));
         }
         self.literal_const(&t, digits, span)
+    }
+
+    fn float_lit_check(&mut self, expected: &Ty, raw: &str, span: ast::Span) -> Result<ECore> {
+        let t = self.uni.zonk(expected);
+        let open = match &t {
+            Ty::Meta(_) => true,
+            _ => self
+                .refine_view(&t)
+                .and_then(|v| v.base)
+                .is_some_and(|b| matches!(self.uni.zonk(&b), Ty::Meta(_))),
+        };
+        if open {
+            let idx = self.literal_pends.len();
+            self.literal_pends.push(PendLit {
+                ty: t,
+                value: raw.to_string(),
+                span,
+                kind: LitKind::Float,
+            });
+            return Ok(ECore::Lit(idx));
+        }
+        self.float_literal_const(&t, raw, span)
+    }
+
+    fn literal_const_kind(
+        &self,
+        ty: &Ty,
+        value: &str,
+        kind: LitKind,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        match kind {
+            LitKind::Int => self.literal_const(ty, value, span),
+            LitKind::Float => self.float_literal_const(ty, value, span),
+        }
+    }
+
+    fn float_literal_const(&self, ty: &Ty, raw: &str, span: ast::Span) -> Result<ECore> {
+        let cleaned = raw.replace('_', "");
+        match ty {
+            Ty::Prim(Scalar::F32) => {
+                let f: f32 = cleaned.parse().map_err(|_| {
+                    Error::at(span, format!("float literal {raw} is not a valid F32 number"))
+                })?;
+                if !f.is_finite() {
+                    return Err(Error::at(
+                        span,
+                        format!("float literal {raw} overflows F32"),
+                    ));
+                }
+                Ok(ECore::Int(f.to_bits() as i64))
+            }
+            Ty::Prim(Scalar::F64) => {
+                let f: f64 = cleaned.parse().map_err(|_| {
+                    Error::at(span, format!("float literal {raw} is not a valid F64 number"))
+                })?;
+                if !f.is_finite() {
+                    return Err(Error::at(
+                        span,
+                        format!("float literal {raw} overflows F64"),
+                    ));
+                }
+                Ok(ECore::Int(f.to_bits() as i64))
+            }
+            Ty::Adt(..) if self.refine_view(ty).is_some() => {
+                let Some(RefineView { base: Some(base), .. }) = self.refine_view(ty) else {
+                    return Err(Error::at(
+                        span,
+                        crate::diagnostic!("float literal {} cannot have type {}", raw, ty),
+                    ));
+                };
+                self.float_literal_const(&self.uni.zonk(&base), raw, span)
+            }
+            other => Err(Error::at(
+                span,
+                crate::diagnostic!(
+                    "float literal {} cannot have type {} (float literals have type F32 or F64)",
+                    raw,
+                    other
+                ),
+            )),
+        }
     }
 
     /// The constant of literal `digits` at type `ty`. `Nat` and `Int` are
@@ -5920,11 +6082,50 @@ impl Checker {
         out
     }
 
-    /// The resolved constant words of one definition's deferred literals
-    /// (section 7: a literal whose type is not determined by context is
-    /// an error in this draft), positional against the `ECore::Lit`
-    /// indices shared by the body and its `letrec` member units.
+    /// Choose the Haskell-style default type for a deferred literal
+    /// metavariable: `F64` if any pending literal tied to `meta` is a float
+    /// literal (`1.5`, `0.0`, `1e-4`), otherwise `Int`.
+    fn literal_default_ty(&self, meta: EitherMeta) -> Ty {
+        for p in &self.literal_pends {
+            if p.kind == LitKind::Float {
+                let t = self.uni.zonk(&p.ty);
+                if self.uni.free_metas(&t).contains(&meta) {
+                    return Ty::Prim(Scalar::F64);
+                }
+            }
+        }
+        Ty::Int
+    }
+
+    /// Default any remaining open literal metavariables (`Int` for integer
+    /// literals, `F64` for float literals) before zonking or lowering.
+    fn default_open_literals(&mut self) {
+        let len = self.literal_pends.len();
+        for i in 0..len {
+            let t = self.uni.zonk(&self.literal_pends[i].ty);
+            let open_meta = match &t {
+                Ty::Meta(id) => Some(*id),
+                _ => self
+                    .refine_view(&t)
+                    .and_then(|v| v.base)
+                    .and_then(|b| match self.uni.zonk(&b) {
+                        Ty::Meta(id) => Some(id),
+                        _ => None,
+                    }),
+            };
+            if let Some(id) = open_meta {
+                let def = self.literal_default_ty(EitherMeta::Type(id));
+                let _ = self.uni.unify(&Ty::Meta(id), &def);
+            }
+        }
+    }
+
+    /// The resolved constant words of one definition's deferred literals,
+    /// positional against the `ECore::Lit` indices shared by the body and
+    /// its `letrec` member units. Unconstrained numeric literals default
+    /// like Haskell (`Int` for integer literals, `F64` for float literals).
     fn resolved_literals(&mut self) -> Result<Vec<ECore>> {
+        self.default_open_literals();
         let pends = std::mem::take(&mut self.literal_pends);
         let mut lits: Vec<ECore> = Vec::with_capacity(pends.len());
         for p in &pends {
@@ -5932,10 +6133,10 @@ impl Checker {
             if matches!(t, Ty::Meta(_)) {
                 return Err(Error::at(
                     p.span,
-                    "the type of this integer literal is not determined by context; add a type annotation",
+                    "the type of this numeric literal is not determined by context; add a type annotation",
                 ));
             }
-            lits.push(self.literal_const(&t, &p.value, p.span)?);
+            lits.push(self.literal_const_kind(&t, &p.value, p.kind, p.span)?);
         }
         Ok(lits)
     }
@@ -6092,7 +6293,7 @@ impl Checker {
                 let parts = self.ctor_parts(&defining, &args).ok()?;
                 if !parts.local_idx.is_empty() { return None; }
                 let inst = args.iter().zip(&info.param_kinds).filter_map(|(a, kind)|
-                    matches!(kind, ParamKind::Type | ParamKind::Con(_)).then(|| a.clone())).collect();
+                    matches!(kind, ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_)).then(|| a.clone())).collect();
                 (inst, parts.fields.into_iter().filter_map(|(_, ty, erased)| (!erased).then_some(ty)).collect())
             }
             _ => return None,
@@ -6356,6 +6557,14 @@ impl Checker {
                         self.reify_idx(&b, names, nat, span)?,
                     ],
                 )
+            }
+            ITerm::TyFamily(name, _) => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "type family application `{name}` is not yet reduced to a runtime value; pass a concrete shape or witness"
+                    ),
+                ))
             }
             ITerm::MVar(m) => {
                 return Err(Error::at(
@@ -6828,7 +7037,9 @@ impl Checker {
     }
 
     fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {
-        if self.unboxed_ctors.is_empty() { return None; }
+        if self.unboxed_ctors.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
         let (ctor, _) = kind.ctors.first()?;
         self.unboxed_ctors.get(&fn_id(&kind.module, ctor))
     }
@@ -6857,9 +7068,63 @@ impl Checker {
         None
     }
 
+    /// Structural `Kernel` evidence for callback forwarding into reusable
+    /// parallel/device functions: accepts function types whose effect row is
+    /// parallel-safe (`{}` or `{Diverge}`) and whose parameter/result types
+    /// carry no `Mut` borrow or `Lazy` memo cell.
+    pub(crate) fn kernel_structural<B>(
+        &self,
+        ty: &Ty,
+        scope: &[(B, ClassApp)],
+    ) -> std::result::Result<(), String> {
+        if scope
+            .iter()
+            .any(|(_, c)| c.class == "Kernel" && c.args.iter().any(|a| a == ty))
+        {
+            return Ok(());
+        }
+        match ty {
+            Ty::Fun(dom, _, row, cod) => {
+                if let Some(bad) = row.labels.iter().find(|l| l.head.as_str() != "Diverge") {
+                    return Err(format!(
+                        "effect `{bad}` in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                if !matches!(row.tail, RowTail::Closed) {
+                    return Err(format!(
+                        "open effect row in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                if crate::types::mentions_memo(dom) || crate::types::mentions_memo(cod) {
+                    return Err(format!(
+                        "`Lazy` memo cell in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                let mut borrows = Vec::new();
+                borrow_regions(dom, &mut borrows);
+                borrow_regions(cod, &mut borrows);
+                if borrows.iter().any(|(_, is_mut)| *is_mut) {
+                    return Err(format!(
+                        "exclusive `Mut` borrow in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                Ok(())
+            }
+            _ => Err(format!(
+                "Kernel evidence requires a function type (a -> b), got `{ty}`"
+            )),
+        }
+    }
+
     fn signature_at(&self, owner: &str, name: &str) -> Option<SigInfo> {
-        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Io") {
-            let (name, parameter) = if name == "Io" { ("Io", "r") } else { ("Copy", "a") };
+        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Kernel" | "Io") {
+            let (name, parameter) = if name == "Io" {
+                ("Io", "r")
+            } else if name == "Kernel" {
+                ("Kernel", "a")
+            } else {
+                ("Copy", "a")
+            };
             return Some(SigInfo {
                 module: "<builtin>".into(), name: name.into(),
                 params: vec![parameter.into()], param_kinds: vec![ParamKind::Type],
@@ -6910,7 +7175,7 @@ impl Checker {
                 // section 3). It is not user-extensible. `Io` is the
                 // runtime capability head (decision D21): its instances
                 // are runtime objects supplied lexically, never declared.
-                if matches!(*name, "Copy" | "Share" | "Io") {
+                if matches!(*name, "Copy" | "Share" | "Kernel" | "Io") {
                     return Ok(self.signature_at("<builtin>", name).unwrap());
                 }
                 self.sigs
@@ -7420,6 +7685,46 @@ impl Checker {
                 let _ = args;
                 ParamKind::Type
             }
+            Ty::Adt(name, _) if name == "Sing" || name == "Same" => ParamKind::Type,
+            Ty::Adt(name, _)
+                if name.starts_with(crate::promote::PROMOTED_FN_PREFIX)
+                    || name.starts_with(crate::promote::PROMOTED_FNREF_PREFIX) =>
+            {
+                ParamKind::Type
+            }
+            Ty::Adt(name, args) if name.starts_with("\"") && args.is_empty() => ParamKind::Type,
+            Ty::Adt(name, args) if name.starts_with("ctor:") => {
+                if let Some((mod_name, ctor_name)) = name[5..].rsplit_once('.') {
+                    if let Some(v) = self
+                        .qualified
+                        .get(&(mod_name.to_string(), ctor_name.to_string()))
+                    {
+                        if let ValueKind::Ctor { arity, .. } = &v.kind {
+                            if args.len() > *arity {
+                                return Err(Error::at(
+                                    span,
+                                    format!(
+                                        "promoted constructor {ctor_name} expects at most {arity} arguments, got {}",
+                                        args.len()
+                                    ),
+                                ));
+                            }
+                            let missing = *arity - args.len();
+                            if missing == 0 {
+                                ParamKind::Type
+                            } else {
+                                ParamKind::Con(missing)
+                            }
+                        } else {
+                            ParamKind::Type
+                        }
+                    } else {
+                        ParamKind::Type
+                    }
+                } else {
+                    ParamKind::Type
+                }
+            }
             Ty::Adt(name, args) => {
                 let info = self.lookup_known_type(name)?;
                 if args.len() > info.arity {
@@ -7449,7 +7754,9 @@ impl Checker {
             Ty::Param(_) | Ty::Meta(_) => return Ok(()),
             _ => ParamKind::Type,
         };
-        if kind == *expect {
+        if kind == *expect
+            || (matches!(kind, ParamKind::Type) && matches!(expect, ParamKind::Data(_)))
+        {
             return Ok(());
         }
         match (&kind, expect) {
@@ -7621,6 +7928,27 @@ impl Checker {
                     if matches!(n.source_spelling(), "length" | "toNat")
                         && (!vars.contains(&n.text) || n.local_binding().is_some() || n.scoped_reference().is_some() || n.resolved_binding().is_some())
                     {
+                        if n.source_spelling() == "length" && args.len() == 1 {
+                            let pfn_opt = self
+                                .lookup_promoted_fn(None, "length", n.span)
+                                .ok()
+                                .flatten()
+                                .or_else(|| self.uni.promoted_fn("Data.List.length").cloned());
+                            if let Some(pfn) = pfn_opt {
+                                if let Ok(res) = self.conv_promoted_fn_call(&pfn, &[args[0].clone()], vars, n.span) {
+                                    if let Ty::Idx(it) = self.uni.zonk(&res) {
+                                        let stuck = matches!(
+                                            it.as_ref(),
+                                            ITerm::TyFamily(h, _)
+                                                if h.as_str().starts_with(crate::promote::PROMOTED_FN_PREFIX)
+                                        );
+                                        if !stuck {
+                                            return Ok(*it);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         return self.idx_app(n.source_spelling(), Some(n), &args, vars, expected, n.span);
                     }
                 }
@@ -7692,6 +8020,33 @@ impl Checker {
                     }
                     return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone().into())), out));
                 }
+                if let Some(pfn) = self.lookup_promoted_fn(None, &n.text, n.span).ok().flatten() {
+                    let has_non_scalar_param = pfn
+                        .param_tys
+                        .iter()
+                        .any(|pt| !Self::is_scalar_idx_ty(pt));
+                    if pfn.returns_idx || has_non_scalar_param {
+                        let arg_owned: Vec<ast::Type> = args.iter().map(|a| (*a).clone()).collect();
+                        if has_non_scalar_param {
+                            let res = self.conv_promoted_fn_call(&pfn, &arg_owned, vars, n.span)?;
+                            if let Ty::Idx(it) = self.uni.zonk(&res) {
+                                return Ok(*it);
+                            }
+                        } else if let Ok(res) = self.conv_promoted_fn_call(&pfn, &arg_owned, vars, n.span) {
+                            let z = self.uni.zonk(&res);
+                            if let Ty::Idx(it) = z {
+                                let is_stuck_fn = matches!(
+                                    it.as_ref(),
+                                    ITerm::TyFamily(head, _)
+                                        if head.as_str().starts_with(crate::promote::PROMOTED_FN_PREFIX)
+                                );
+                                if !is_stuck_fn {
+                                    return Ok(*it);
+                                }
+                            }
+                        }
+                    }
+                }
                 self.idx_app(&n.text, Some(n), &args, vars, expected, n.span)
             }
             ast::Type::Con(p, cspan) => {
@@ -7701,6 +8056,46 @@ impl Checker {
                         *cspan,
                         "a universe is not an index value (it classifies types)",
                     ));
+                }
+                if let Ok(info) = self.lookup_type_path(p) {
+                    if self.idx_type_families.contains(&info.identity) {
+                        if args.len() != info.arity {
+                            return Err(Error::at(
+                                *cspan,
+                                format!(
+                                    "type family {} expects {} argument{}, got {}",
+                                    parts.join("."),
+                                    info.arity,
+                                    if info.arity == 1 { "" } else { "s" },
+                                    args.len()
+                                ),
+                            ));
+                        }
+                        let mut conv_args = Vec::with_capacity(args.len());
+                        for (i, a) in args.iter().enumerate() {
+                            let arg = match info.param_kinds.get(i) {
+                                Some(ParamKind::Val(vty)) => {
+                                    Ty::Idx(Box::new(self.conv_idx(a, vars, vty)?))
+                                }
+                                Some(ParamKind::Data(dty)) => {
+                                    self.conv_promoted(a, vars, Some(dty))?
+                                }
+                                Some(ParamKind::Prop) => {
+                                    Ty::Prp(Box::new(self.conv_prop(a, vars)?))
+                                }
+                                Some(ParamKind::Region) => {
+                                    self.conv_kind(a, vars, Some(&ParamKind::Region))?
+                                }
+                                Some(k @ ParamKind::Con(_)) => {
+                                    self.conv_kind(a, vars, Some(k))?
+                                }
+                                _ => self.conv_kind(a, vars, None)?,
+                            };
+                            conv_args.push(arg);
+                        }
+                        let raw = ITerm::TyFamily(info.identity.clone().into(), conv_args);
+                        return Ok(self.uni.resolve_idx(&raw));
+                    }
                 }
                 let name = parts.join(".");
                 self.idx_app(&name, p.segments.last(), &args, vars, expected, *cspan)
@@ -8133,7 +8528,7 @@ impl Checker {
                 } else {
                     let class = resolver.uni.zonk_class(&request.class);
                     if self.collecting_declarations && !self.provisional_declarations && self.declaration_seed.is_none()
-                        && class.class != "Copy" && !is_capability_class(&class.class) {
+                        && class.class != "Copy" && class.class != "Kernel" && !is_capability_class(&class.class) {
                         self.declaration_needs_headers.set(true);
                         return Err(Error::at(request.span, "index declaration evidence needs the complete instance headers"));
                     }
@@ -8344,6 +8739,13 @@ impl Checker {
             _ => return Ok(None),
         };
         if matches!(head, ast::Type::Var(..)) {
+            if !args.is_empty() && !vars.contains(&name.text) {
+                if let Ok(Some(pfn)) = self.lookup_promoted_fn(None, &name.text, name.span) {
+                    if pfn.returns_idx {
+                        return Ok(Some(pfn.ret_ty.clone()));
+                    }
+                }
+            }
             if let Some(binding) = self.index_lambda_binding(name) {
                 let Some(carrier) = binding.carrier else { return Ok(None) };
                 if args.is_empty() { return Ok(Some(inference.uni.zonk(&carrier))); }
@@ -9473,6 +9875,12 @@ impl Checker {
             Some("Eq" | "Not" | "&&" | "||") => {
                 return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
             }
+            Some("+" | "-" | "*")
+                if args.len() == 2
+                    && (expect.is_none() || matches!(expect, Some(ParamKind::Data(_)))) =>
+            {
+                return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+            }
             Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered"))
                 if args.len() == 1
                     && !matches!(&args[0], Arg::Ty(a) if self.refinement_type_app(pred, a)) =>
@@ -9743,7 +10151,50 @@ impl Checker {
                         "RawPtr and the ownership roles must be fully applied (`RawPtr t`, `Borrowed t`, `Retained t`, `Owned Alloc t`, `Out t`, `MaybeNull t`)",
                     ));
                 }
+                (["Sing"], [Arg::Ty(val_ast)]) => {
+                    let val_ty = self.conv_promoted(val_ast, vars, None)?;
+                    let carrier = self.infer_sing_carrier(&val_ty, head_span)?;
+                    return Ok(Ty::Adt("Sing".into(), vec![carrier, self.uni.zonk(&val_ty)]));
+                }
+                (["Sing"], _) => {
+                    return Err(Error::at(
+                        head_span,
+                        "Sing expects one promoted value argument (`Sing x`, `Sing [10, 20]`, `Sing RowMajor`)",
+                    ));
+                }
+                (["Same"], [Arg::Ty(a_ast), Arg::Ty(b_ast)]) => {
+                    let a_ty = self.conv_promoted(a_ast, vars, None)?;
+                    let b_ty = self.conv_promoted(b_ast, vars, None)?;
+                    return Ok(Ty::Adt(
+                        "Same".into(),
+                        vec![self.uni.zonk(&a_ty), self.uni.zonk(&b_ty)],
+                    ));
+                }
+                (["Same"], _) => {
+                    return Err(Error::at(head_span, "Same expects two arguments (`Same a b`)"));
+                }
                 _ => {}
+            }
+        }
+        // Promoted pure function application in type position (e.g.
+        // `append-shape [2, 3] [4]`, `map double [2, 3, 4]`, `reverse xs`).
+        if let ast::Type::Var(n, vspan) = cur {
+            if !vars.contains(&n.text) {
+                if let Some(pfn) = self.lookup_promoted_fn(None, &n.text, *vspan)? {
+                    let mut arg_tys = Vec::with_capacity(args.len());
+                    for a in args {
+                        match a {
+                            Arg::Ty(t) => arg_tys.push(t),
+                            Arg::Row(r) => {
+                                return Err(Error::at(
+                                    r.span,
+                                    "effect rows cannot be passed to a promoted function",
+                                ));
+                            }
+                        }
+                    }
+                    return self.conv_promoted_fn_call(&pfn, &arg_tys, vars, *vspan);
+                }
             }
         }
         // Var-headed application (`f a`, and `F a` for a capitalized
@@ -9796,11 +10247,61 @@ impl Checker {
         // type (dependent core kernel design, section 5). A type slot
         // carries no kind information for an un-annotated binder, so its
         // bare variables are not noted.
+        let expected_data = match expect {
+            Some(ParamKind::Data(d)) => Some(d),
+            _ => None,
+        };
         let info = match cur {
             ast::Type::Con(p, span) => {
-                Some(self.lookup_type_path(p).map_err(|_| {
+                let ty_res = self.lookup_type_path(p);
+                let ctor_opt = self.lookup_promoted_ctor_path(p);
+                let use_promoted = match (&ty_res, &ctor_opt) {
+                    (Err(_), Some(_)) => true,
+                    (Ok(ti), Some(ci)) => {
+                        let expect_parent = matches!(
+                            expected_data,
+                            Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
+                        );
+                        let expect_con = matches!(expect, Some(ParamKind::Con(_)));
+                        expect_parent
+                            || (!expect_con
+                                && args.len() == ci.field_tys.len()
+                                && args.len() != ti.arity)
+                    }
+                    _ => false,
+                };
+                if use_promoted {
+                    let ci = ctor_opt.unwrap();
+                    let mut arg_tys = Vec::with_capacity(args.len());
+                    for a in args {
+                        match a {
+                            Arg::Ty(t) => arg_tys.push(t),
+                            Arg::Row(r) => {
+                                return Err(Error::at(
+                                    r.span,
+                                    "effect rows cannot be passed to a promoted data constructor",
+                                ));
+                            }
+                        }
+                    }
+                    return self.conv_promoted_ctor(&ci, &arg_tys, vars, expected_data, *span);
+                }
+                let ti = ty_res.map_err(|_| {
                     Error::at(*span, format!("unknown type {}", p.parts().join(".")))
-                })?)
+                })?;
+                if self.idx_type_families.contains(&ti.identity) {
+                    if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                        return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+                    }
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                            p.parts().join(".")
+                        ),
+                    ));
+                }
+                Some(ti)
             }
             _ => None,
         };
@@ -9811,8 +10312,14 @@ impl Checker {
                     let slot = info.as_ref().and_then(|ik| ik.param_kinds.get(i).cloned());
                     let arg = match &slot {
                         Some(ParamKind::Region) => self.conv_kind(&t, vars, Some(&ParamKind::Region))?,
+                        Some(ParamKind::Val(Ty::Bool)) => {
+                            self.conv_promoted(&t, vars, Some(&Ty::Bool))?
+                        }
                         Some(ParamKind::Val(vty)) => {
                             Ty::Idx(Box::new(self.conv_idx(&t, vars, vty)?))
+                        }
+                        Some(ParamKind::Data(dty)) => {
+                            self.conv_promoted(&t, vars, Some(dty))?
                         }
                         Some(ParamKind::Prop) => Ty::Prp(Box::new(self.conv_prop(&t, vars)?)),
                         Some(k @ ParamKind::Con(_)) => {
@@ -9832,14 +10339,18 @@ impl Checker {
                     // A universe argument claims `Type : Type`: `Type n`
                     // has kind `Type (n + 1)` (core specification
                     // section 2), so it cannot fill a `Type 0` slot.
-                    if let Ty::Sort(Sort::Type(n)) = &arg {
-                        return Err(Error::at(
-                            t.span(),
-                            format!(
-                                "the universe `Type {n}` has kind `Type {}`: `Type : Type` is not admitted",
-                                n + 1
-                            ),
-                        ));
+                    // Inside a kind annotation (`List (Nat, Type)` / `List Type`),
+                    // `Type` is a valid kind component.
+                    if !self.in_kind_annotation.get() {
+                        if let Ty::Sort(Sort::Type(n)) = &arg {
+                            return Err(Error::at(
+                                t.span(),
+                                format!(
+                                    "the universe `Type {n}` has kind `Type {}`: `Type : Type` is not admitted",
+                                    n + 1
+                                ),
+                            ));
+                        }
                     }
                     result = self.type_app(result, arg, head_span)?;
                 }
@@ -9898,6 +10409,14 @@ impl Checker {
                         *span,
                         "RawPtr, Borrowed, Retained, Owned, Out and MaybeNull must be fully applied (`RawPtr t`, `Owned Alloc t`, ...; foreign function interface specification section 3)",
                     )),
+                    ["Sing"] => Err(Error::at(
+                        *span,
+                        "Sing must be applied to a promoted value (`Sing x`, `Sing [10, 20]`, `Sing RowMajor`)",
+                    )),
+                    ["Same"] => Err(Error::at(
+                        *span,
+                        "Same must be applied to two arguments (`Same a b`)",
+                    )),
                     [name] => {
                         // A capitalized parameter name (`signature
                         // Functor F`): a type variable in a constructor's
@@ -9926,20 +10445,82 @@ impl Checker {
                         if let Some(s) = c_abi_scalar(name) {
                             return Ok(Ty::Prim(s));
                         }
-                        let info = self.lookup_type_path(p).map_err(|_| {
-                            Error::at(*span, format!("unknown type {}", parts.join(".")))
-                        })?;
-                        // Full application is enforced by `conv_type`; here a
-                        // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
+                        let expected_data = match expect {
+                            Some(ParamKind::Data(d)) => Some(d),
+                            _ => None,
+                        };
+                        match self.lookup_type_path(p) {
+                            Ok(info) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    let expect_parent = matches!(
+                                        expected_data,
+                                        Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
+                                    );
+                                    if expect_parent {
+                                        return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                    }
+                                }
+                                if self.idx_type_families.contains(&info.identity) {
+                                    if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                                        return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+                                    }
+                                    return Err(Error::at(
+                                        *span,
+                                        format!(
+                                            "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                                            parts.join(".")
+                                        ),
+                                    ));
+                                }
+                                // Full application is enforced by `conv_type`; here a
+                                // bare constructor may still collect arguments.
+                                Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
+                            }
+                            Err(_) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                }
+                                Err(Error::at(*span, format!("unknown type {}", parts.join("."))))
+                            }
+                        }
                     }
                     _ => {
-                        let info = self.lookup_type_path(p).map_err(|_| {
-                            Error::at(*span, format!("unknown type {}", parts.join(".")))
-                        })?;
-                        // Full application is enforced by `conv_type`; here a
-                        // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
+                        let expected_data = match expect {
+                            Some(ParamKind::Data(d)) => Some(d),
+                            _ => None,
+                        };
+                        match self.lookup_type_path(p) {
+                            Ok(info) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    let expect_parent = matches!(
+                                        expected_data,
+                                        Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
+                                    );
+                                    if expect_parent {
+                                        return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                    }
+                                }
+                                if self.idx_type_families.contains(&info.identity) {
+                                    if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                                        return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+                                    }
+                                    return Err(Error::at(
+                                        *span,
+                                        format!(
+                                            "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                                            parts.join(".")
+                                        ),
+                                    ));
+                                }
+                                Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
+                            }
+                            Err(_) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                }
+                                Err(Error::at(*span, format!("unknown type {}", parts.join("."))))
+                            }
+                        }
                     }
                 }
             }
@@ -9964,6 +10545,15 @@ impl Checker {
                     }
                     Ok(Ty::Param(n.text.clone().into()))
                 } else {
+                    if let Some(pfn) = self.lookup_promoted_fn(None, &n.text, n.span)? {
+                        if pfn.arity() == 0 {
+                            return self.conv_promoted_fn_call(&pfn, &[], vars, n.span);
+                        }
+                        return Ok(Ty::Adt(
+                            format!("{}{}", crate::promote::PROMOTED_FNREF_PREFIX, pfn.identity).into(),
+                            Vec::new(),
+                        ));
+                    }
                     Err(Error::at(n.span, format!("unknown type variable {}", n.text)))
                 }
             }
@@ -10048,10 +10638,24 @@ impl Checker {
                     Ok(Ty::Tuple(vec![dom, cod]))
                 }
             }
-            ast::Type::Num(_, span) => Err(Error::at(
-                *span,
-                "a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)",
-            )),
+            ast::Type::Num(s, span) => {
+                if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                    Ok(Ty::Idx(Box::new(ITerm::Num(s.clone().into()))))
+                } else {
+                    Err(Error::at(
+                        *span,
+                        "a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)",
+                    ))
+                }
+            }
+            ast::Type::StrLit(s, _) => Ok(Ty::Adt(format!("\"{s}\"").into(), Vec::new())),
+            ast::Type::List(_, _) => {
+                let expected_data = match expect {
+                    Some(ParamKind::Data(d)) => Some(d),
+                    _ => None,
+                };
+                self.conv_promoted(ty, vars, expected_data)
+            }
             ast::Type::Infix(_, _, span) => Err(Error::at(
                 *span,
                 "internal error: unresolved infix chain in a type",
@@ -10060,6 +10664,13 @@ impl Checker {
             ast::Type::Tuple(items, span) => {
                 if items.len() < 2 {
                     return Err(Error::at(*span, "a tuple type needs at least two components"));
+                }
+                if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                    let expected_data = match expect {
+                        Some(ParamKind::Data(d)) => Some(d),
+                        _ => None,
+                    };
+                    return self.conv_promoted(ty, vars, expected_data);
                 }
                 Ok(Ty::Tuple(
                     items
@@ -10073,8 +10684,9 @@ impl Checker {
 
     /// What a binder's annotation binds: a universe binds a type
     /// parameter, `Prop` binds a proposition, `Type -> ... -> Type` binds
-    /// a type constructor parameter of that arity, and any other
-    /// annotation is the type of an index value (`(n :: Nat)`).
+    /// a type constructor parameter of that arity, a nominal data/tuple type
+    /// (`List (Nat, Type)`, `Layout`, `String`, ...) binds a promoted data
+    /// kind, and scalar/function carriers bind index values (`(n :: Nat)`).
     fn binder_kind(&self, ann: &ast::Type, vars: &[String]) -> Result<ParamKind> {
         if let ast::Type::Con(p, _) = ann {
             match p.parts().as_slice() {
@@ -10111,7 +10723,402 @@ impl Checker {
             // An arrow chain ending anywhere else keeps its index-value
             // reading (`(h :: Int -> Int)` is a value binder).
         }
-        Ok(ParamKind::Val(self.conv_type(ann, vars)?))
+        let prev = self.in_kind_annotation.replace(true);
+        let converted = self.conv_type(ann, vars);
+        self.in_kind_annotation.set(prev);
+        let t = converted?;
+        if matches!(t, Ty::Adt(..) | Ty::Tuple(..) | Ty::Bool) {
+            Ok(ParamKind::Data(t))
+        } else {
+            Ok(ParamKind::Val(t))
+        }
+    }
+
+    fn is_scalar_idx_ty(ty: &Ty) -> bool {
+        matches!(ty, Ty::Nat | Ty::Int | Ty::Prim(_) | Ty::Bytes | Ty::Sym)
+    }
+
+    fn lookup_promoted_ctor_path(&self, path: &ast::ConPath) -> Option<PromotedCtorInfo> {
+        let parts = path.parts();
+        let val = if parts.len() == 1 {
+            self.lookup_value(None, parts[0]).ok()?
+        } else {
+            let qual = parts[..parts.len() - 1].join(".");
+            self.lookup_value(Some(&qual), parts[parts.len() - 1]).ok()?
+        };
+        let ValueKind::Ctor { field_tys, ty_params, .. } = &val.kind else {
+            return None;
+        };
+        let mut cur = &val.scheme.ty;
+        loop {
+            match cur {
+                Ty::Fun(_, _, _, res) | Ty::Pi { cod: res, .. } => cur = res,
+                _ => break,
+            }
+        }
+        let Ty::Adt(parent_id, parent_args) = cur else {
+            return None;
+        };
+        Some(PromotedCtorInfo {
+            module: val.module.clone(),
+            name: val.name.clone(),
+            identity: format!("ctor:{}.{}", val.module, val.name),
+            parent_identity: parent_id.to_string(),
+            parent_args: parent_args.clone(),
+            ty_params: ty_params.clone(),
+            field_tys: field_tys.clone(),
+        })
+    }
+
+    fn subst_promoted_params(ty: &Ty, env: &HashMap<String, Ty>) -> Ty {
+        if env.is_empty() {
+            return ty.clone();
+        }
+        match ty {
+            Ty::Param(p) => env.get(p.as_str()).cloned().unwrap_or_else(|| ty.clone()),
+            Ty::Adt(n, args) => Ty::Adt(
+                n.clone(),
+                args.iter().map(|a| Self::subst_promoted_params(a, env)).collect(),
+            ),
+            Ty::Tuple(args) => {
+                Ty::Tuple(args.iter().map(|a| Self::subst_promoted_params(a, env)).collect())
+            }
+            Ty::Fun(a, m, e, b) => Ty::fun_mult(
+                Self::subst_promoted_params(a, env),
+                *m,
+                e.clone(),
+                Self::subst_promoted_params(b, env),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    fn conv_promoted_ctor(
+        &self,
+        ci: &PromotedCtorInfo,
+        args: &[ast::Type],
+        vars: &[String],
+        expected_kind: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<Ty> {
+        if args.len() > ci.field_tys.len() {
+            return Err(Error::at(
+                span,
+                format!(
+                    "promoted constructor {} expects {} argument{}, got {}",
+                    ci.name,
+                    ci.field_tys.len(),
+                    if ci.field_tys.len() == 1 { "" } else { "s" },
+                    args.len()
+                ),
+            ));
+        }
+        let mut param_env: HashMap<String, Ty> = HashMap::new();
+        if let Some(ek) = expected_kind {
+            let zek = self.uni.zonk(ek);
+            match &zek {
+                Ty::Adt(ek_id, ek_args) => {
+                    if ek_id.as_str() != ci.parent_identity.as_str()
+                        && !self.uni.is_type_family(ek_id.as_str())
+                    {
+                        return Err(Error::at(
+                            span,
+                            crate::diagnostic!(
+                                "promoted constructor {} has kind {}, expected {}",
+                                ci.name,
+                                Ty::Adt(ci.parent_identity.clone().into(), Vec::new()),
+                                zek
+                            ),
+                        ));
+                    }
+                    for (pa, ea) in ci.parent_args.iter().zip(ek_args.iter()) {
+                        if let Ty::Param(p) = pa {
+                            param_env.insert(p.to_string(), ea.clone());
+                        }
+                    }
+                }
+                Ty::Param(_) | Ty::Meta(_) | Ty::Sort(_) => {}
+                other => {
+                    return Err(Error::at(
+                        span,
+                        crate::diagnostic!(
+                            "promoted constructor {} belongs to data type {}, expected {}",
+                            ci.name,
+                            Ty::Adt(ci.parent_identity.clone().into(), Vec::new()),
+                            other
+                        ),
+                    ));
+                }
+            }
+        }
+        let mut conv_args = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let field_ty = Self::subst_promoted_params(&ci.field_tys[i], &param_env);
+            let elem_expected = match &field_ty {
+                Ty::Param(_) => None,
+                other => Some(other),
+            };
+            conv_args.push(self.conv_promoted_elem(arg, vars, elem_expected)?);
+        }
+        Ok(Ty::Adt(ci.identity.clone().into(), conv_args))
+    }
+
+    fn conv_promoted_elem(
+        &self,
+        arg: &ast::Type,
+        vars: &[String],
+        expected_ty: Option<&Ty>,
+    ) -> Result<Ty> {
+        match expected_ty {
+            Some(Ty::Sort(Sort::Type(_))) => self.conv_type(arg, vars),
+            Some(Ty::Sort(Sort::Prop)) => Ok(Ty::Prp(Box::new(self.conv_prop(arg, vars)?))),
+            Some(Ty::Bool) => self.conv_promoted(arg, vars, Some(&Ty::Bool)),
+            Some(ek) if Self::is_scalar_idx_ty(ek) => {
+                Ok(Ty::Idx(Box::new(self.conv_idx(arg, vars, ek)?)))
+            }
+            Some(ek @ (Ty::Adt(..) | Ty::Tuple(..))) => self.conv_promoted(arg, vars, Some(ek)),
+            _ => {
+                if let ast::Type::Var(n, _) = arg {
+                    if let Some((_, carrier)) = self
+                        .index_carriers
+                        .borrow()
+                        .iter()
+                        .rev()
+                        .find(|(b, _)| b == &n.text)
+                    {
+                        if Self::is_scalar_idx_ty(carrier) {
+                            return Ok(Ty::Idx(Box::new(ITerm::Var(n.text.clone().into()))));
+                        }
+                    }
+                }
+                self.conv_promoted(arg, vars, None)
+            }
+        }
+    }
+
+    fn conv_promoted(
+        &self,
+        ty: &ast::Type,
+        vars: &[String],
+        expected_kind: Option<&Ty>,
+    ) -> Result<Ty> {
+        let expected_zonked = expected_kind.map(|k| self.uni.zonk(k));
+        let ek_ref = expected_zonked.as_ref();
+        match ty {
+            ast::Type::List(items, span) => {
+                let elem_kind = match ek_ref {
+                    None | Some(Ty::Param(_)) | Some(Ty::Meta(_)) => None,
+                    Some(Ty::Adt(id, args))
+                        if id.as_str() == crate::known::LIST || id.as_str() == "List" =>
+                    {
+                        args.first()
+                    }
+                    Some(Ty::Adt(id, _)) if self.uni.is_type_family(id.as_str()) => None,
+                    Some(other) => {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "type-level list has kind `List _`, expected {}",
+                                other
+                            ),
+                        ));
+                    }
+                };
+                let mut acc = Ty::Adt(crate::types::PROMOTED_NIL.into(), Vec::new());
+                for item in items.iter().rev() {
+                    let elem = self.conv_promoted_elem(item, vars, elem_kind)?;
+                    acc = Ty::Adt(crate::types::PROMOTED_CONS.into(), vec![elem, acc]);
+                }
+                Ok(acc)
+            }
+            ast::Type::Tuple(items, span) => {
+                if items.len() < 2 {
+                    return Err(Error::at(*span, "a tuple type needs at least two components"));
+                }
+                match ek_ref {
+                    Some(Ty::Tuple(eks)) => {
+                        if eks.len() != items.len() {
+                            return Err(Error::at(
+                                *span,
+                                crate::diagnostic!(
+                                    "type-level tuple has {} components, expected {}",
+                                    items.len(),
+                                    Ty::Tuple(eks.clone())
+                                ),
+                            ));
+                        }
+                        let mut out = Vec::with_capacity(items.len());
+                        for (item, ek) in items.iter().zip(eks.iter()) {
+                            out.push(self.conv_promoted_elem(item, vars, Some(ek))?);
+                        }
+                        Ok(Ty::Tuple(out))
+                    }
+                    None | Some(Ty::Param(_)) | Some(Ty::Meta(_)) => {
+                        let mut out = Vec::with_capacity(items.len());
+                        for item in items {
+                            out.push(self.conv_promoted_elem(item, vars, None)?);
+                        }
+                        Ok(Ty::Tuple(out))
+                    }
+                    Some(Ty::Adt(id, _)) if self.uni.is_type_family(id.as_str()) => {
+                        let mut out = Vec::with_capacity(items.len());
+                        for item in items {
+                            out.push(self.conv_promoted_elem(item, vars, None)?);
+                        }
+                        Ok(Ty::Tuple(out))
+                    }
+                    Some(other) => Err(Error::at(
+                        *span,
+                        crate::diagnostic!(
+                            "type-level tuple is not a promoted value of kind {}",
+                            other
+                        ),
+                    )),
+                }
+            }
+            ast::Type::StrLit(s, span) => {
+                if let Some(other) = ek_ref {
+                    let is_string = matches!(
+                        other,
+                        Ty::Param(_) | Ty::Meta(_)
+                    ) || matches!(
+                        other,
+                        Ty::Adt(id, _) if id.as_str() == crate::known::STRING
+                            || id.as_str() == "String"
+                            || self.uni.is_type_family(id.as_str())
+                    );
+                    if !is_string {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "type-level string literal \"{}\" has kind `String`, expected {}",
+                                s,
+                                other
+                            ),
+                        ));
+                    }
+                }
+                Ok(Ty::Adt(format!("\"{s}\"").into(), Vec::new()))
+            }
+            ast::Type::Num(s, span) => {
+                if let Some(other) = ek_ref {
+                    let is_num = matches!(
+                        other,
+                        Ty::Nat | Ty::Int | Ty::Prim(_) | Ty::Param(_) | Ty::Meta(_)
+                    );
+                    if !is_num {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "type-level numeral `{}` has kind `Nat`, expected {}",
+                                s,
+                                other
+                            ),
+                        ));
+                    }
+                }
+                Ok(Ty::Idx(Box::new(ITerm::Num(s.clone().into()))))
+            }
+            ast::Type::Var(n, _) => {
+                if vars.contains(&n.text) {
+                    if let Some(ek) = ek_ref {
+                        if Self::is_scalar_idx_ty(ek) {
+                            self.note_kind(&n.text, ParamKind::Val(ek.clone()));
+                            return Ok(Ty::Idx(Box::new(ITerm::Var(n.text.clone().into()))));
+                        }
+                        if matches!(ek, Ty::Sort(Sort::Type(_))) {
+                            self.note_kind(&n.text, ParamKind::Type);
+                            return Ok(Ty::Param(n.text.clone().into()));
+                        }
+                        self.note_kind(&n.text, ParamKind::Data(ek.clone()));
+                        return Ok(Ty::Param(n.text.clone().into()));
+                    }
+                    if let Some((_, carrier)) = self
+                        .index_carriers
+                        .borrow()
+                        .iter()
+                        .rev()
+                        .find(|(b, _)| b == &n.text)
+                    {
+                        if Self::is_scalar_idx_ty(carrier) {
+                            return Ok(Ty::Idx(Box::new(ITerm::Var(n.text.clone().into()))));
+                        }
+                    }
+                    Ok(Ty::Param(n.text.clone().into()))
+                } else {
+                    if let Some(pfn) = self.lookup_promoted_fn(None, &n.text, n.span)? {
+                        if pfn.arity() == 0 {
+                            return self.conv_promoted_fn_call(&pfn, &[], vars, n.span);
+                        }
+                        return Ok(Ty::Adt(
+                            format!("{}{}", crate::promote::PROMOTED_FNREF_PREFIX, pfn.identity).into(),
+                            Vec::new(),
+                        ));
+                    }
+                    Err(Error::at(n.span, format!("unknown type variable {}", n.text)))
+                }
+            }
+            ast::Type::Con(p, span)
+                if matches!(p.parts().as_slice(), ["True"] | ["False"]) =>
+            {
+                let is_true = p.parts().as_slice() == ["True"];
+                if let Some(other) = ek_ref {
+                    let ok = matches!(other, Ty::Bool | Ty::Param(_) | Ty::Meta(_))
+                        || matches!(other, Ty::Adt(id, _) if self.uni.is_type_family(id.as_str()));
+                    if !ok {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "promoted boolean `{}` has kind `Bool`, expected {}",
+                                if is_true { "True" } else { "False" },
+                                other
+                            ),
+                        ));
+                    }
+                }
+                let id = if is_true {
+                    crate::promote::PROMOTED_TRUE
+                } else {
+                    crate::promote::PROMOTED_FALSE
+                };
+                Ok(Ty::Adt(id.into(), Vec::new()))
+            }
+            _ => {
+                let expect_pk = ek_ref.map(|d| ParamKind::Data(d.clone()));
+                let res = self.conv_raw(ty, vars, expect_pk.as_ref())?;
+                if let Some(ek @ (Ty::Adt(..) | Ty::Tuple(..))) = ek_ref {
+                    let zres = self.uni.zonk(&res);
+                    let ok = match &zres {
+                        Ty::Param(_) | Ty::Meta(_) | Ty::App(..) => true,
+                        Ty::Adt(id, _)
+                            if id.starts_with("ctor:")
+                                || id.starts_with(crate::promote::PROMOTED_FN_PREFIX)
+                                || id.starts_with(crate::promote::PROMOTED_FNREF_PREFIX)
+                                || self.uni.is_type_family(id.as_str()) =>
+                        {
+                            true
+                        }
+                        Ty::Adt(id, _) if id.starts_with("\"") => matches!(
+                            ek,
+                            Ty::Adt(eid, _) if eid.as_str() == crate::known::STRING || eid.as_str() == "String"
+                        ),
+                        Ty::Tuple(_) => matches!(ek, Ty::Tuple(_)),
+                        _ => false,
+                    };
+                    if !ok {
+                        return Err(Error::at(
+                            ty.span(),
+                            crate::diagnostic!(
+                                "type {} is not a promoted value of kind {}",
+                                zres,
+                                ek
+                            ),
+                        ));
+                    }
+                }
+                Ok(res)
+            }
+        }
     }
 
     /// Resolve one binder's kind from its annotation and its recorded
@@ -10165,12 +11172,20 @@ impl Checker {
             // The classification axis must be consistent: a binder used
             // both as a type and as an index value needs an annotation.
             let axis = |k: &ParamKind| match k {
-                ParamKind::Type => 0u8,
+                ParamKind::Type | ParamKind::Data(_) => 0u8,
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
                 ParamKind::Region => 4,
             };
+            // A binder annotated with a data type (`forall (xs :: List U32)`)
+            // may be used either as a promoted type-level data parameter OR
+            // (in equations/laws) as a value-level index parameter.
+            if let ParamKind::Data(carrier) = hint {
+                if !uses.is_empty() && uses.iter().all(|k| matches!(k, ParamKind::Val(_))) {
+                    return Ok(ParamKind::Val(carrier.clone()));
+                }
+            }
             if let Some(k) = uses.iter().find(|k| axis(k) != axis(hint)) {
                 let _ = k;
                 return Err(Error::at(
@@ -10204,7 +11219,7 @@ impl Checker {
         // value uses only fix the axis, not the index type (the
         // annotation, or the first value use, supplies the type).
         let axis = |k: &ParamKind| match k {
-            ParamKind::Type => 0u8,
+            ParamKind::Type | ParamKind::Data(_) => 0u8,
             ParamKind::Val(_) => 1,
             ParamKind::Prop => 2,
             ParamKind::Con(_) => 3,
@@ -10322,7 +11337,7 @@ impl Checker {
             }
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match self.resolve_binder_kind(&name, hint.as_ref(), &constraints, binder_span)? {
-                ParamKind::Type => params.push(name),
+                ParamKind::Type | ParamKind::Data(_) => params.push(name),
                 ParamKind::Con(n) => { con_params.push((name.clone(), n)); params.push(name); }
                 ParamKind::Region | ParamKind::Val(_) | ParamKind::Prop => return Err(Error::at(binder_span, format!(
                     "the nested forall binder `{name}` is used as a value or proposition; a nested quantifier binds only types, effect rows and regions"))),
@@ -10428,7 +11443,9 @@ impl Checker {
                     let carriers_start = self.index_carriers.borrow().len();
                     self.index_carriers.borrow_mut().extend(binders.iter().filter_map(|(name, kind, _)| {
                         match kind {
-                            Some(ParamKind::Val(carrier)) => Some((name.clone(), carrier.clone())),
+                            Some(ParamKind::Val(carrier)) | Some(ParamKind::Data(carrier)) => {
+                                Some((name.clone(), carrier.clone()))
+                            }
                             Some(ParamKind::Prop) => Some((name.clone(), Ty::Sort(Sort::Prop))),
                             _ => None,
                         }
@@ -10550,7 +11567,7 @@ impl Checker {
                         let kind =
                             self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                         match kind {
-                            ParamKind::Type => type_params.push(name),
+                            ParamKind::Type | ParamKind::Data(_) => type_params.push(name),
                             ParamKind::Con(n) => {
                                 con_params.push((name.clone(), n));
                                 type_params.push(name);
@@ -10798,6 +11815,7 @@ impl Checker {
                 self.length_index_unify(&actual, &cod, uni, span)?;
                 Ok(Ty::fun_mult(*dom, mult, eff, *cod))
             }
+            ITerm::TyFamily(..) => Ok(Ty::Nat),
             ITerm::Inst(call) => {
                 let IndexHead::Function(head) = &call.head else {
                     return Err(Error::at(span, "dictionary evidence is not a numeric index operand"));
@@ -10993,7 +12011,16 @@ impl Checker {
     ) -> Ty {
         match t {
             Ty::Param(p) => types.get(p.as_str()).cloned().unwrap_or_else(|| t.clone()),
-            Ty::Idx(it) => Ty::Idx(Box::new(Checker::subst_index_namespaces(it, types, rows, regions, evidence))),
+            Ty::Idx(it) => {
+                if let ITerm::Var(v) = it.as_ref() {
+                    if let Some(rep) = types.get(v.as_str()) {
+                        if !matches!(rep, Ty::Idx(_)) {
+                            return rep.clone();
+                        }
+                    }
+                }
+                Ty::Idx(Box::new(Checker::subst_index_namespaces(it, types, rows, regions, evidence)))
+            }
             Ty::Prp(p) => Ty::Prp(Box::new(Checker::subst_prop_namespaces(p, types, rows, regions, evidence))),
             Ty::Pi { var, dom, mult, eff, cod } => {
                 let (var, cod) = Self::subst_bound_type(var, cod, types, rows, regions, evidence);
@@ -11179,6 +12206,12 @@ impl Checker {
                 *op,
                 Box::new(Checker::subst_index_namespaces(a, map, rows, regions, evidence)),
                 Box::new(Checker::subst_index_namespaces(b, map, rows, regions, evidence)),
+            ),
+            ITerm::TyFamily(name, args) => ITerm::TyFamily(
+                name.clone(),
+                args.iter()
+                    .map(|a| Checker::subst_namespaces(a, map, rows, regions, evidence))
+                    .collect(),
             ),
             other => other.clone(),
         }
@@ -11657,10 +12690,11 @@ impl Checker {
                                     EitherMeta::Type(id) => Ty::Meta(id),
                                     EitherMeta::Row(_) => continue,
                                 };
+                                let def = self.literal_default_ty(m);
                                 self.uni
-                                    .unify(&ty, &Ty::Int)
+                                    .unify(&ty, &def)
                                     .unwrap_or_else(|_| {
-                                        panic!("literal defaulting to Int must succeed")
+                                        panic!("literal defaulting must succeed")
                                     });
                                 defaulted = true;
                             }
@@ -12396,6 +13430,8 @@ include!("check_default_wire.rs");
 include!("check_interface.rs");
 include!("check_total.rs");
 include!("check_erasure.rs");
+include!("check_promote.rs");
+include!("check_sing.rs");
 
 #[cfg(test)]
 mod proof_value_scope_tests {

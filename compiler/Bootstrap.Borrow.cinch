@@ -197,6 +197,7 @@ module Bootstrap.Borrow where
   local-var-id term = case term of
     CLocal sp ty id name Nil -> Some id
     CForget sp ty inner -> local-var-id inner
+    CCast sp ty inner -> local-var-id inner
     other -> None
 
   -- Collect all binder ids introduced by a pattern (for borrowed-field tracking).
@@ -231,6 +232,7 @@ module Bootstrap.Borrow where
   is-safe-loop-arg term borrowed-vars = case term of
     CLocal sp ty id name Nil -> has-nat id borrowed-vars
     CForget sp ty inner -> is-safe-loop-arg inner borrowed-vars
+    CCast sp ty inner -> is-safe-loop-arg inner borrowed-vars
     CUnit sp ty -> True
     CChar sp ty txt -> True
     CSymbol sp ty txt -> True
@@ -261,6 +263,7 @@ module Bootstrap.Borrow where
       Some idx -> add-nat idx owned
       None -> owned)
     CForget sp ty inner -> analyze-term self arity self-mask modes in-tail pids bvars inner owned
+    CCast sp ty inner -> analyze-term self arity self-mask modes in-tail pids bvars inner owned
     CRequire sp ty body -> analyze-term self arity self-mask modes in-tail pids bvars body owned
     CProved sp ty ev body -> analyze-term self arity self-mask modes in-tail pids bvars body owned
     CRefine sp ty ev body -> analyze-term self arity self-mask modes in-tail pids bvars body owned

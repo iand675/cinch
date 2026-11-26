@@ -152,6 +152,9 @@ module Bootstrap.Resolve where
       DInstance s only name params class-app members -> collect-own-bindings home rest (add-own home name acc)
       DClass s name params members -> collect-own-bindings home rest (own-class-methods home (decls-of members) (add-own home name acc))
       DData s name params ctors -> collect-own-bindings home rest (own-ctors home ctors (add-own home name acc))
+      DTypeFamily s name params rk closed eqs -> collect-own-bindings home rest (add-own home name acc)
+      DDataFamily s name params -> collect-own-bindings home rest (add-own home name acc)
+      DDataInstance s fam args ctors -> collect-own-bindings home rest (own-ctors home ctors acc)
       DEffect s name params ops -> collect-own-bindings home rest (own-ctors home ops (add-own-effect home name acc))
       DForeign s direction abi symbol name ty -> collect-own-bindings home rest (if same direction "import" then add-own home name acc else acc)
       other -> case decl-name other of
@@ -710,6 +713,9 @@ module Bootstrap.Resolve where
     TUnpackField s enabled ty -> rename-type visible locals ty
     TRow s labels tail -> TRow s (rename-cell-effects visible locals labels) tail
     TTuple s args -> TTuple s (rename-type visible locals args)
+    TList s args -> TList s (rename-type visible locals args)
+    TStrLit s text -> t
+    TSigma s name dom body -> TSigma s name (rename-type visible locals dom) (rename-type visible (Cons name locals) body)
     TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)
     TQuantifier s name only kind rest -> TQuantifier s name only (rename-type visible locals kind) (rename-type visible (Cons name locals) rest)
     TUsing s bounds body -> TUsing s (rename-proof-bounds visible (argument-names body <> locals) bounds) (rename-type visible (bound-names bounds <> locals) body)
@@ -729,6 +735,31 @@ module Bootstrap.Resolve where
   parameter-names params = case params of
     Nil -> Nil
     Cons p rest -> Cons (param-name p) (parameter-names rest)
+
+  is-pattern-var-name :: String -> Bool
+  is-pattern-var-name name = case unpack name of
+    Cons c rest -> let code = char-code c in (code >= 97 && code <= 122) || code == 95
+    Nil -> False
+
+  pattern-type-vars :: TypeExpr -> List String
+  pattern-type-vars ty = case ty of
+    TName s name -> if is-pattern-var-name name then [name] else Nil
+    TApp s head args -> pattern-type-vars head <> pattern-type-vars args
+    TTuple s args -> pattern-type-vars args
+    TList s args -> pattern-type-vars args
+    TArg s first rest -> pattern-type-vars first <> pattern-type-vars rest
+    TInfix s op a b -> pattern-type-vars a <> pattern-type-vars b
+    TNegate s x -> pattern-type-vars x
+    TFun s a b -> pattern-type-vars a <> pattern-type-vars b
+    other -> Nil
+
+  rename-type-family-eqs :: String -> Visible -> List TypeFamilyEq -> List TypeFamilyEq
+  rename-type-family-eqs home visible eqs = case eqs of
+    Nil -> Nil
+    Cons (MkTypeFamilyEq s head args rhs) rest ->
+      let pvars = pattern-type-vars args in
+      Cons (MkTypeFamilyEq s (global-name home head) (rename-type visible pvars args) (rename-type visible pvars rhs))
+        (rename-type-family-eqs home visible rest)
 
   rename-params :: Visible -> List String -> List TypeParam -> List TypeParam
   rename-params visible locals params = case params of
@@ -806,7 +837,8 @@ module Bootstrap.Resolve where
       Some b -> (binding-symbol b, Nil)
       None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.recordDeclaration", "Syntax.lambda", "Syntax.captureType"] ->
         (name, fail sp (cat [name, " is compile-time only"]))
-      None -> if constructor && (same name "True" || same name "False") then (name, Nil)
+      None -> if constructor && (same name "True" || same name "False" || same name "Refl") then (name, Nil)
+        else if not constructor && has-name name ["sing", "from-sing", "with-sing", "sing-eq"] then (name, Nil)
         else let qualifier = name-qualifier name in
           if constructor && string-length qualifier > 0 && visible-qualifier qualifier (visible-order visible) then
             (name, fail sp (scope-diagnostic visible (cat ["unknown constructor ", name, ": not exported into this scope"])))
@@ -1192,7 +1224,7 @@ module Bootstrap.Resolve where
     else "a C ABI scalar cannot be redefined (builtin type " <> name <> ")"
   opaque-name-reserved :: String -> Bool
   opaque-name-reserved name = kernel-type-name name || stage-type-name name || has-name name
-    ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret"
+    ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret", "Sing", "Same"
     , "IoCap", "FileReadCap", "FileWriteCap", "ProcCap", "Scope", "Task", "RawPtr", "Borrowed", "Retained", "Owned", "Out", "MaybeNull"
     , "CChar", "CUchar", "CShort", "CUshort", "CInt", "CUint", "CLong", "CULong", "CLongLong", "CULongLong", "CSize", "SizeT"
     , "CSsize", "CFloat", "CDouble", "CVoid", "SchemaSnapshot", "Database", "SchemaRead"]
@@ -1200,7 +1232,7 @@ module Bootstrap.Resolve where
   -- instance would claim a structural fact the compiler cannot verify.
   structural-class-head :: TypeExpr -> Bool
   structural-class-head ty = case ty of
-    TName s name -> same name "Copy" || same name "Share"
+    TName s name -> same name "Copy" || same name "Share" || same name "Kernel"
     TApp s head args -> structural-class-head head
     other -> False
   -- Generated names belong to the destination module. Their templates see
@@ -1231,6 +1263,20 @@ module Bootstrap.Resolve where
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
+    DTypeFamily s name params rk closed eqs ->
+      let pnames = parameter-names params in
+      let renamed-rk = case rk of None -> None; Some k -> Some (rename-type visible pnames k) in
+      (Cons (DTypeFamily s (global-name home name) (rename-params visible Nil params) renamed-rk closed
+        (rename-type-family-eqs home visible eqs)) Nil, Nil)
+    DTypeInstance s fam args rhs ->
+      let pvars = pattern-type-vars args in
+      (Cons (DTypeInstance s (type-name visible Nil fam) (rename-type visible pvars args) (rename-type visible pvars rhs)) Nil, Nil)
+    DDataFamily s name params ->
+      (Cons (DDataFamily s (global-name home name) (rename-params visible Nil params)) Nil, Nil)
+    DDataInstance s fam args ctors ->
+      let pvars = pattern-type-vars args in
+      (Cons (DDataInstance s (type-name visible Nil fam) (rename-type visible pvars args)
+        (rename-ctors home visible pvars ctors)) Nil, Nil)
     DRecord s name params fields -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a record")) else if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
@@ -1242,7 +1288,7 @@ module Bootstrap.Resolve where
       else ([DCodata s (global-name home name) (rename-params visible Nil params)
         (rename-record-fields False visible (parameter-names params) observations)], Nil)
     DClass s name params members ->
-      if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-known classes and cannot be declared") else
+      if same name "Copy" || same name "Share" || same name "Kernel" then (Nil, fail s "Copy, Share and Kernel are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a refinement")) else

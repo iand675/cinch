@@ -102,6 +102,24 @@ impl DictionaryResolver<'_> {
                 crate::diagnostic!("Copy expects exactly one type argument, got {}", wanted_z),
             ));
         }
+        if class == "Kernel" {
+            if let [t] = wanted_z.args.as_slice() {
+                if !self.uni.free_metas(t).is_empty() {
+                    return Ok(Ambiguous);
+                }
+                return match self.checker.kernel_structural(t, scope) {
+                    Ok(()) => Ok(Solved(DictExpr::Marker)),
+                    Err(reason) => Err(Error::at(
+                        span,
+                        crate::diagnostic!("no Kernel evidence for {}: {}", t, reason),
+                    )),
+                };
+            }
+            return Err(Error::at(
+                span,
+                crate::diagnostic!("Kernel expects exactly one type argument, got {}", wanted_z),
+            ));
+        }
         // Collection literals default their container when nothing else
         // determines it (surface grammar local amendments section 10):
         // `[..]` unconstrained is a `List`, `{..}` a `Map`.

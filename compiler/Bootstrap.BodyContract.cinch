@@ -313,6 +313,7 @@ module Bootstrap.BodyContract where
     URow labels -> body-type-authorized bindings labels
     URowJoin a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UTuple fields -> body-type-authorized bindings fields
+    USigma id name domain body -> body-type-authorized bindings domain && body-type-authorized bindings body
     UArg a b -> body-type-authorized bindings a && body-type-authorized bindings b
     other -> True
 

@@ -28,6 +28,8 @@ fn prim_scheme(op: PrimOp) -> Scheme {
     let mut scheme = Scheme::mono(ty);
     match op {
         PrimOp::Array { op, packed, .. } => scheme.params = op.params(packed),
+        PrimOp::Ad { op, .. } => scheme.params = op.params(),
+        PrimOp::ArrayCompute { op, .. } => scheme.params = op.params(),
         PrimOp::Stm { op, .. } => scheme.params = op.params(),
         PrimOp::MVar { op, .. } => scheme.params = op.params(),
         PrimOp::RwLock { op, .. } => scheme.params = op.params(),
@@ -538,6 +540,7 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
         ast::Term::Var(_)
         | ast::Term::Con(_)
         | ast::Term::Int(_, _)
+        | ast::Term::Float(_, _)
         | ast::Term::Str(_, _)
         | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
         | ast::Term::Unit(_)
@@ -744,7 +747,7 @@ impl Checker {
         for (name, kind, runtime) in binders {
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match kind {
-                ParamKind::Type => scheme.params.push(name.into()),
+                ParamKind::Type | ParamKind::Data(_) => scheme.params.push(name.into()),
                 ParamKind::Region => { if !region_params.contains(&name) { region_params.push(name); } },
                 ParamKind::Con(arity) => { scheme.con_params.push((name.clone().into(), arity)); scheme.params.push(name.into()); }
                 ParamKind::Val(carrier) => {
@@ -2318,6 +2321,27 @@ impl Checker {
                 ),
             ],
         );
+        // `data Same a b where Refl :: Same a a`: built-in poly-kinded
+        // propositional equality witness (returned by `sing-eq`). `Refl` is a
+        // static nullary block (zero runtime allocation) and matching it
+        // refines `a ~ b`.
+        self.register_family(
+            "Same",
+            vec![
+                ("a".to_string(), ParamKind::Type),
+                ("b".to_string(), ParamKind::Type),
+            ],
+            vec![(
+                "Refl".to_string(),
+                0,
+                Vec::new(),
+                Vec::new(),
+                vec![
+                    Ty::Param("a".to_string().into()),
+                    Ty::Param("a".to_string().into()),
+                ],
+            )],
+        );
         self.install_index_values();
     }
 
@@ -2345,7 +2369,7 @@ impl Checker {
                     continue;
                 }
                 match k {
-                    ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                     ParamKind::Region => {},
                     ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone().into(), t.clone())),
                     ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
@@ -3105,6 +3129,90 @@ impl Checker {
             .unwrap_or_else(|| vec![nominal_identity(module, name)])
     }
 
+    /// Convert a type/data family LHS argument spine, desugaring `_` wildcards
+    /// into fresh pattern variables and inferring each pattern variable's kind
+    /// from the family and constructor parameter kinds.
+    fn compile_family_lhs_args(
+        &self,
+        param_kinds: &[ParamKind],
+        lhs_args: &[ast::Type],
+    ) -> Result<(Vec<String>, Vec<Ty>, HashMap<String, ParamKind>)> {
+        let mut rewritten: Vec<ast::Type> = lhs_args.to_vec();
+        let mut pat_vars: Vec<String> = Vec::new();
+        let mut wild_counter: usize = 0;
+        for arg in &mut rewritten {
+            desugar_family_pat_vars(arg, &mut pat_vars, &mut wild_counter);
+        }
+        self.kind_constraints.borrow_mut().clear();
+        let mut lhs_tys = Vec::with_capacity(rewritten.len());
+        for (i, arg) in rewritten.iter().enumerate() {
+            let ty = match param_kinds.get(i) {
+                Some(ParamKind::Val(Ty::Bool)) => self.conv_promoted(arg, &pat_vars, Some(&Ty::Bool))?,
+                Some(ParamKind::Val(vty)) => {
+                    Ty::Idx(Box::new(self.conv_idx(arg, &pat_vars, vty)?))
+                }
+                Some(ParamKind::Data(dty)) => self.conv_promoted(arg, &pat_vars, Some(dty))?,
+                Some(ParamKind::Prop) => Ty::Prp(Box::new(self.conv_prop(arg, &pat_vars)?)),
+                Some(ParamKind::Region) => {
+                    self.conv_kind(arg, &pat_vars, Some(&ParamKind::Region))?
+                }
+                Some(k @ ParamKind::Con(_)) => self.conv_kind(arg, &pat_vars, Some(k))?,
+                _ => self.conv_kind(arg, &pat_vars, None)?,
+            };
+            lhs_tys.push(self.uni.zonk(&ty));
+        }
+        let notes = self.kind_constraints.borrow().clone();
+        let mut inferred_kinds: HashMap<String, ParamKind> = HashMap::new();
+        for v in &pat_vars {
+            let k = notes
+                .iter()
+                .rev()
+                .find(|(n, _)| n == v)
+                .map(|(_, k)| k.clone())
+                .unwrap_or(ParamKind::Type);
+            inferred_kinds.insert(v.clone(), k);
+        }
+        Ok((pat_vars, lhs_tys, inferred_kinds))
+    }
+
+    fn compile_type_family_rule(
+        &self,
+        param_kinds: &[ParamKind],
+        idx_carrier: Option<&Ty>,
+        data_return_kind: Option<&Ty>,
+        lhs_args: &[ast::Type],
+        rhs_ast: &ast::Type,
+    ) -> Result<crate::types::TypeFamilyRule> {
+        let (pat_vars, lhs_tys, inferred_kinds) =
+            self.compile_family_lhs_args(param_kinds, lhs_args)?;
+        let carrier_start = self.index_carriers.borrow().len();
+        for (v, k) in &inferred_kinds {
+            if let ParamKind::Val(carrier) = k {
+                self.index_carriers
+                    .borrow_mut()
+                    .push((v.clone(), carrier.clone()));
+            }
+        }
+        let rhs_res = match (idx_carrier, data_return_kind) {
+            (Some(carrier), _) => self
+                .conv_idx(rhs_ast, &pat_vars, carrier)
+                .map(crate::types::TypeFamilyRhs::Idx),
+            (None, Some(dty)) => self
+                .conv_promoted(rhs_ast, &pat_vars, Some(dty))
+                .map(crate::types::TypeFamilyRhs::Type),
+            (None, None) => self
+                .conv_kind(rhs_ast, &pat_vars, None)
+                .map(crate::types::TypeFamilyRhs::Type),
+        };
+        self.index_carriers.borrow_mut().truncate(carrier_start);
+        let rhs = rhs_res?;
+        Ok(crate::types::TypeFamilyRule {
+            pat_vars,
+            lhs_args: lhs_tys,
+            rhs,
+        })
+    }
+
     /// Register every data and record declaration head of this module
     /// before any constructor or field type converts, and record each
     /// declaration's strongly connected group.
@@ -3150,6 +3258,43 @@ impl Checker {
                         references,
                         data_family: true,
                         reserved: reserved_data_type_name(&data.name.text),
+                        fields: None,
+                        field_erased: Vec::new(),
+                    });
+                }
+                ast::Decl::DataFamily(df) => {
+                    let identity = nominal_identity(module, &df.name);
+                    self.open_data_families.insert(identity);
+                    heads.push(Head {
+                        name: &df.name,
+                        params: &df.params,
+                        references: Vec::new(),
+                        data_family: true,
+                        reserved: reserved_data_type_name(&df.name.text),
+                        fields: None,
+                        field_erased: Vec::new(),
+                    });
+                }
+                ast::Decl::TypeFamily(tf) => {
+                    let identity = nominal_identity(module, &tf.name);
+                    if let Some(rk) = &tf.return_kind {
+                        if let ast::Type::Con(p, _) = rk {
+                            let is_scalar = match p.parts().as_slice() {
+                                ["Nat"] | ["Int"] | ["Bool"] | ["Bytes"] | ["Sym"] => true,
+                                [s] => Scalar::parse(s).is_some(),
+                                _ => false,
+                            };
+                            if is_scalar {
+                                self.idx_type_families.insert(identity);
+                            }
+                        }
+                    }
+                    heads.push(Head {
+                        name: &tf.name,
+                        params: &tf.params,
+                        references: Vec::new(),
+                        data_family: false,
+                        reserved: reserved_data_type_name(&tf.name.text),
                         fields: None,
                         field_erased: Vec::new(),
                     });
@@ -3410,6 +3555,20 @@ impl Checker {
         // core specification section 2).
         self.predeclare_nominal_heads(&module, &flat)?;
 
+        // Pre-index ordinary equations by function name so pure functions can
+        // be compiled into the native compile-time evaluator as soon as their
+        // signature is checked (allowing later signatures in the same module to
+        // call them at the type level).
+        let mut module_eqs_by_name: HashMap<String, Vec<ast::Equation>> = HashMap::new();
+        for (_, decl) in &flat {
+            if let ast::Decl::Equation { modifier: None, eq } = decl {
+                module_eqs_by_name
+                    .entry(eq.name.text.clone())
+                    .or_default()
+                    .push(eq.clone());
+            }
+        }
+
         for (decl_attrs, d) in &flat {
             // A parameterized module carries its parameters into every
             // definition, which the compile-time and evidence fragments do
@@ -3478,6 +3637,8 @@ impl Checker {
             }
             let binders = match d {
                 ast::Decl::Data(x) => Some((&x.name, &x.params)),
+                ast::Decl::DataFamily(x) => Some((&x.name, &x.params)),
+                ast::Decl::TypeFamily(x) => Some((&x.name, &x.params)),
                 ast::Decl::Record(x) | ast::Decl::Codata(x) => Some((&x.name, &x.params)),
                 ast::Decl::Refine(x) => Some((&x.name, &x.params)),
                 ast::Decl::OpaqueType(x) => Some((&x.name, &x.params)),
@@ -3560,6 +3721,11 @@ impl Checker {
                         self.deferred_headers.insert(key, (d.clone(), decl_attrs.clone()));
                     } else {
                         let scheme = self.collect_value_header(&module, d, decl_attrs)?;
+                        if ordinary {
+                            if let Some(fn_eqs) = module_eqs_by_name.get(&name.text) {
+                                self.try_register_promoted_fn(&module, &name.text, &scheme, fn_eqs);
+                            }
+                        }
                         schemes.insert(name.text.clone(), scheme);
                     }
                 }
@@ -3643,6 +3809,12 @@ impl Checker {
                     eqs.push((eq.name.text.clone(), eq.clone()));
                 }
                 ast::Decl::Foreign(f) => {
+                    if PrimOp::from_symbol(&f.symbol).is_none() {
+                        self.promoted_rejections.insert(
+                            format!("{module}.{}", f.name.text),
+                            "foreign function cannot be promoted to the type level".into(),
+                        );
+                    }
                     let set = self.validate_attr_site(decl_attrs, AttrSite::ForeignDecl)?;
                     if f.abi != "ccall" {
                         return Err(Error::at(
@@ -3697,13 +3869,13 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
-                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. }) {
+                        let kind = if matches!(op, PrimOp::Ad { .. } | PrimOp::Array { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. }) {
                             let (args, result) = op.sig();
                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
                             // A cell read answers the value's own class,
                             // which the unit's copies resolve per vector;
                             // every array operation answers a block.
-                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. })
+                            let repr_result = matches!(op, PrimOp::Ad { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. })
                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
                             self.fns.push(FnDef {
                                 id: fn_id(&module, &f.name.text),
@@ -3997,7 +4169,7 @@ impl Checker {
                                 };
                                 vars.push(b.name.text.clone());
                                 match k {
-                                    ParamKind::Region | ParamKind::Type | ParamKind::Con(_) => {
+                                    ParamKind::Region | ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => {
                                         return Err(Error::at(
                                             b.name.span,
                                             "constructor-local type parameters are not supported in this slice; move the parameter to the family",
@@ -4081,7 +4253,7 @@ impl Checker {
                                             Ty::Param(params[i].clone().into())
                                         }
                                         ParamKind::Region => Ty::Region(params[i].clone().into()),
-                                        ParamKind::Val(_) => continue,
+                                        ParamKind::Val(_) | ParamKind::Data(_) => continue,
                                         ParamKind::Prop => {
                                             Ty::Prp(Box::new(PTerm::Var(params[i].clone())))
                                         }
@@ -4138,7 +4310,7 @@ impl Checker {
                                 continue;
                             }
                             match k {
-                                ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                                ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                                 ParamKind::Region => {},
                                 ParamKind::Val(t) => {
                                     idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -4254,6 +4426,412 @@ impl Checker {
                         .and_then(|ts| ts.iter_mut().find(|t| t.module == module))
                         .expect("type registered above");
                     entry.ctors = ctors;
+                }
+                ast::Decl::TypeFamily(tf) => {
+                    if reserved_data_type_name(&tf.name.text) {
+                        return Err(Error::at(
+                            tf.name.span,
+                            format!("{} is a builtin primitive type and cannot be redefined", tf.name.text),
+                        ));
+                    }
+                    let (params, param_kinds) = self.nominal_params(&tf.params)?;
+                    let identity = nominal_identity(&module, &tf.name);
+                    let (idx_carrier, data_return_kind) = match &tf.return_kind {
+                        None => (None, None),
+                        Some(rk) => match self.binder_kind(rk, &params)? {
+                            ParamKind::Type => (None, None),
+                            ParamKind::Val(carrier) => (Some(carrier), None),
+                            ParamKind::Data(dty) => (None, Some(dty)),
+                            _ => {
+                                return Err(Error::at(
+                                    rk.span(),
+                                    "a `type family` return kind must be `Type`, a promoted data kind, or an index carrier such as `Nat`",
+                                ))
+                            }
+                        },
+                    };
+                    if idx_carrier.is_some() {
+                        self.idx_type_families.insert(identity.clone());
+                    }
+                    if let Some(dty) = &data_return_kind {
+                        self.data_type_family_returns.insert(identity.clone(), dty.clone());
+                    }
+                    // Register the empty rule set first so recursive equations
+                    // know this head is a type family during overlap/conversion.
+                    self.uni.register_type_family(crate::types::TypeFamilyRuleSet {
+                        identity: identity.clone(),
+                        arity: param_kinds.len(),
+                        closed: tf.closed,
+                        returns_idx: idx_carrier.is_some(),
+                        rules: Vec::new(),
+                    });
+                    let mut rules = Vec::with_capacity(tf.eqs.len());
+                    for eq in &tf.eqs {
+                        if eq.head.text != tf.name.text {
+                            return Err(Error::at(
+                                eq.head.span,
+                                format!(
+                                    "equation head {} does not match type family {}",
+                                    eq.head.text, tf.name.text
+                                ),
+                            ));
+                        }
+                        if eq.lhs_args.len() != param_kinds.len() {
+                            return Err(Error::at(
+                                eq.span,
+                                format!(
+                                    "type family {} expects {} argument{}, got {}",
+                                    tf.name.text,
+                                    param_kinds.len(),
+                                    if param_kinds.len() == 1 { "" } else { "s" },
+                                    eq.lhs_args.len()
+                                ),
+                            ));
+                        }
+                        let rule = self.compile_type_family_rule(
+                            &param_kinds,
+                            idx_carrier.as_ref(),
+                            data_return_kind.as_ref(),
+                            &eq.lhs_args,
+                            &eq.rhs,
+                        )?;
+                        rules.push(rule);
+                    }
+                    self.uni.register_type_family(crate::types::TypeFamilyRuleSet {
+                        identity: identity.clone(),
+                        arity: param_kinds.len(),
+                        closed: tf.closed,
+                        returns_idx: idx_carrier.is_some(),
+                        rules,
+                    });
+                    if let Some(tk) = self
+                        .types
+                        .get(&tf.name.text)
+                        .and_then(|ts| ts.iter().find(|t| t.module == module))
+                        .cloned()
+                    {
+                        self.qualified_types
+                            .insert((module.clone(), tf.name.text.clone()), tk);
+                    }
+                }
+                ast::Decl::TypeInstance(ti) => {
+                    let info = self.lookup_type_path(&ti.family).map_err(|_| {
+                        Error::at(
+                            ti.family.span(),
+                            format!("unknown type family {}", ti.family.parts().join(".")),
+                        )
+                    })?;
+                    if !self.uni.is_type_family(&info.identity) {
+                        return Err(Error::at(
+                            ti.family.span(),
+                            format!("{} is not a type family", ti.family.parts().join(".")),
+                        ));
+                    }
+                    if ti.lhs_args.len() != info.arity {
+                        return Err(Error::at(
+                            ti.span,
+                            format!(
+                                "type family {} expects {} argument{}, got {}",
+                                info.name,
+                                info.arity,
+                                if info.arity == 1 { "" } else { "s" },
+                                ti.lhs_args.len()
+                            ),
+                        ));
+                    }
+                    let idx_carrier = if self.idx_type_families.contains(&info.identity) {
+                        Some(Ty::Nat)
+                    } else {
+                        None
+                    };
+                    let rule = self.compile_type_family_rule(
+                        &info.param_kinds,
+                        idx_carrier.as_ref(),
+                        None,
+                        &ti.lhs_args,
+                        &ti.rhs,
+                    )?;
+                    self.uni
+                        .add_type_family_rule(&info.identity, rule)
+                        .map_err(|msg| Error::at(ti.span, msg))?;
+                }
+                ast::Decl::DataFamily(df) => {
+                    if reserved_data_type_name(&df.name.text) {
+                        return Err(Error::at(
+                            df.name.span,
+                            format!("{} is a builtin primitive type and cannot be redefined", df.name.text),
+                        ));
+                    }
+                    let identity = nominal_identity(&module, &df.name);
+                    self.open_data_families.insert(identity);
+                    if let Some(tk) = self
+                        .types
+                        .get(&df.name.text)
+                        .and_then(|ts| ts.iter().find(|t| t.module == module))
+                        .cloned()
+                    {
+                        self.qualified_types
+                            .insert((module.clone(), df.name.text.clone()), tk);
+                    }
+                }
+                ast::Decl::DataInstance(di) => {
+                    let info = self.lookup_type_path(&di.family).map_err(|_| {
+                        Error::at(
+                            di.family.span(),
+                            format!("unknown data family {}", di.family.parts().join(".")),
+                        )
+                    })?;
+                    if !self.open_data_families.contains(&info.identity) {
+                        return Err(Error::at(
+                            di.family.span(),
+                            format!("{} is not an open `data family`", ti_or_di_name(&di.family)),
+                        ));
+                    }
+                    if di.lhs_args.len() != info.arity {
+                        return Err(Error::at(
+                            di.span,
+                            format!(
+                                "data family {} expects {} argument{}, got {}",
+                                info.name,
+                                info.arity,
+                                if info.arity == 1 { "" } else { "s" },
+                                di.lhs_args.len()
+                            ),
+                        ));
+                    }
+                    let (pat_vars, lhs_tys, inferred_kinds) =
+                        self.compile_family_lhs_args(&info.param_kinds, &di.lhs_args)?;
+                    let existing = self
+                        .data_instance_patterns
+                        .entry(info.identity.clone())
+                        .or_default();
+                    let families_empty = HashMap::new();
+                    if existing.iter().any(|(prev_vars, prev_tys)| {
+                        crate::types::type_family_patterns_overlap(
+                            prev_tys,
+                            prev_vars,
+                            &lhs_tys,
+                            &pat_vars,
+                            &families_empty,
+                        )
+                    }) {
+                        return Err(Error::at(
+                            di.span,
+                            format!("overlapping `data instance` for data family {}", info.name),
+                        ));
+                    }
+                    existing.push((pat_vars.clone(), lhs_tys.clone()));
+                    let mut next_tag = self
+                        .qualified_types
+                        .get(&(info.module.clone(), info.name.clone()))
+                        .map(|t| t.ctors.len())
+                        .or_else(|| {
+                            self.types
+                                .get(&info.name)
+                                .and_then(|ts| ts.iter().find(|t| t.identity == info.identity))
+                                .map(|t| t.ctors.len())
+                        })
+                        .unwrap_or(0);
+                    let mut added_ctors: Vec<(String, usize)> = Vec::new();
+                    for c in &di.ctors {
+                        self.validate_attr_site(&c.attrs, AttrSite::Ctor)?;
+                        let tag = next_tag;
+                        next_tag += 1;
+                        let mut var_kinds: Vec<(String, ParamKind)> = pat_vars
+                            .iter()
+                            .map(|v| {
+                                let k = inferred_kinds
+                                    .get(v)
+                                    .cloned()
+                                    .unwrap_or(ParamKind::Type);
+                                (v.clone(), k)
+                            })
+                            .collect();
+                        let mut rest = &c.ty;
+                        while let ast::Type::Forall(binders, body, _) = rest {
+                            for b in binders {
+                                let vars_now: Vec<String> =
+                                    var_kinds.iter().map(|(n, _)| n.clone()).collect();
+                                let k = match &b.ann {
+                                    Some(ann) => self.binder_kind(ann, &vars_now)?,
+                                    None => var_kinds
+                                        .iter()
+                                        .find(|(n, _)| n == &b.name.text)
+                                        .map(|(_, k)| k.clone())
+                                        .unwrap_or(ParamKind::Type),
+                                };
+                                if let Some((_, existing_k)) =
+                                    var_kinds.iter_mut().find(|(n, _)| n == &b.name.text)
+                                {
+                                    *existing_k = k;
+                                } else {
+                                    var_kinds.push((b.name.text.clone(), k));
+                                }
+                            }
+                            rest = body;
+                        }
+                        let mut vars: Vec<String> =
+                            var_kinds.iter().map(|(n, _)| n.clone()).collect();
+                        let carrier_start = self.index_carriers.borrow().len();
+                        for (v, k) in &var_kinds {
+                            if let ParamKind::Val(carrier) = k {
+                                self.index_carriers
+                                    .borrow_mut()
+                                    .push((v.clone(), carrier.clone()));
+                            }
+                        }
+                        let mut fields: Vec<(String, Ty, Mult)> = Vec::new();
+                        let mut cur = rest;
+                        let res_res: Result<Ty> = (|| {
+                            let result = loop {
+                                match cur {
+                                    ast::Type::Fun { arg, res, mult, eff, .. } => {
+                                        if let Some(e) = eff {
+                                            return Err(Error::at(
+                                                e.span,
+                                                "effect rows on constructor arguments are not supported",
+                                            ));
+                                        }
+                                        let t = self.conv_type(arg, &vars)?;
+                                        let m = match mult {
+                                            Some(n) => Mult::parse(&n.text).ok_or_else(|| {
+                                                Error::at(n.span, format!("unknown multiplicity {}", n.text))
+                                            })?,
+                                            None => default_mult(&t),
+                                        };
+                                        let bname = format!("$f{}", fields.len());
+                                        fields.push((bname, t, m));
+                                        cur = res;
+                                    }
+                                    ast::Type::DepFun(name, ann, mult, eff, res, ..) => {
+                                        if let Some(e) = eff {
+                                            return Err(Error::at(
+                                                e.span,
+                                                "effect rows on constructor arguments are not supported",
+                                            ));
+                                        }
+                                        let t = self.conv_type(ann, &vars)?;
+                                        let m = match mult {
+                                            Some(n) => Mult::parse(&n.text).ok_or_else(|| {
+                                                Error::at(n.span, format!("unknown multiplicity {}", n.text))
+                                            })?,
+                                            None => default_mult(&t),
+                                        };
+                                        fields.push((name.text.clone(), t.clone(), m));
+                                        vars.push(name.text.clone());
+                                        self.index_carriers
+                                            .borrow_mut()
+                                            .push((name.text.clone(), t));
+                                        cur = res;
+                                    }
+                                    other => break other,
+                                }
+                            };
+                            self.conv_type(result, &vars)
+                        })();
+                        self.index_carriers.borrow_mut().truncate(carrier_start);
+                        let res_ty = self.uni.zonk(&res_res?);
+                        let res_args = match &res_ty {
+                            Ty::Adt(n, args) if n.as_str() == info.identity.as_str() && args.len() == info.arity => {
+                                args.clone()
+                            }
+                            other => {
+                                return Err(Error::at(
+                                    c.name.span,
+                                    crate::diagnostic!(
+                                        "constructor {} in `data instance` must return {} applied to {} argument(s), got {}",
+                                        c.name.text, info.name, info.arity, other
+                                    ),
+                                ));
+                            }
+                        };
+                        let field_tys: Vec<Ty> = fields.iter().map(|(_, t, _)| self.uni.zonk(t)).collect();
+                        let field_erased: Vec<bool> = field_tys.iter().map(|t| erased_ty(t)).collect();
+                        let runtime_arity = field_erased.iter().filter(|e| !**e).count();
+                        let mut local_ty_params: Vec<String> = Vec::new();
+                        let mut local_idx: Vec<IxParam> = Vec::new();
+                        let mut all_tys = field_tys.clone();
+                        all_tys.extend(res_args.iter().cloned());
+                        for (v, k) in &var_kinds {
+                            if !all_tys.iter().any(|t| ty_mentions(t, v)) {
+                                continue;
+                            }
+                            match k {
+                                ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => local_ty_params.push(v.clone()),
+                                ParamKind::Val(carrier) => local_idx.push(IxParam::Val(v.clone().into(), carrier.clone())),
+                                ParamKind::Prop => local_idx.push(IxParam::Prop(v.clone().into())),
+                                ParamKind::Region => {}
+                            }
+                        }
+                        let mut scheme_ty = Ty::Adt(info.identity.clone().into(), res_args.clone());
+                        for (b, t, m) in fields.iter().rev() {
+                            let rest = scheme_ty;
+                            scheme_ty = if rest.mentions_idx(b) {
+                                Ty::pi(b.clone(), self.uni.zonk(t), *m, EffRow::pure(), rest)
+                            } else {
+                                Ty::fun_mult(self.uni.zonk(t), *m, EffRow::pure(), rest)
+                            };
+                        }
+                        let scheme = Scheme {
+                            evidence_params: Vec::new(),
+                            con_params: Vec::new(),
+                            obligs: Vec::new(),
+                            params: local_ty_params.clone(),
+                            idx_params: local_idx.clone(),
+                            val_params: Vec::new(),
+                            prop_params: Vec::new(),
+                            row_params: Vec::new(),
+                            region_params: Vec::new(),
+                            ctx: Vec::new(),
+                            ty: scheme_ty,
+                        };
+                        self.ctor_local_ty_params.insert(
+                            (module.clone(), c.name.text.clone()),
+                            local_ty_params,
+                        );
+                        self.data_family_ctor_modules.insert(
+                            (info.identity.clone(), c.name.text.clone()),
+                            module.clone(),
+                        );
+                        self.data_instance_ctors
+                            .entry(module.clone())
+                            .or_default()
+                            .push((info.identity.clone(), c.name.text.clone(), tag));
+                        self.add_value(
+                            ValueInfo {
+                                module: module.clone(),
+                                name: c.name.text.clone(),
+                                scheme,
+                                kind: ValueKind::Ctor {
+                                    tag,
+                                    arity: fields.len(),
+                                    runtime_arity,
+                                    field_tys,
+                                    field_erased,
+                                    field_binders: fields.iter().map(|(b, _, _)| b.clone()).collect(),
+                                    ty_params: Vec::new(),
+                                    local_idx,
+                                    res_args,
+                                    refine: None,
+                                },
+                            },
+                            c.name.span,
+                        )?;
+                        added_ctors.push((c.name.text.clone(), tag));
+                    }
+                    if let Some(entry) = self
+                        .types
+                        .get_mut(&info.name)
+                        .and_then(|ts| ts.iter_mut().find(|t| t.identity == info.identity))
+                    {
+                        entry.ctors.extend(added_ctors.iter().cloned());
+                    }
+                    if let Some(entry) = self
+                        .qualified_types
+                        .get_mut(&(info.module.clone(), info.name.clone()))
+                    {
+                        entry.ctors.extend(added_ctors);
+                    }
                 }
                 ast::Decl::Refine(r) => {
                     // `type R params = refine (x :: T) with p` (refinement
@@ -4405,7 +4983,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -4609,7 +5187,7 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => Ty::Param(p.clone().into()),
                             ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
@@ -4624,7 +5202,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -4792,7 +5370,7 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => Ty::Param(p.clone().into()),
                             ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
@@ -4807,7 +5385,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -5384,6 +5962,11 @@ impl Checker {
                 return Err(Error::plain(format!("missing defining equation for {name}")));
             }
         }
+        for (name, scheme) in &schemes {
+            if let Some(fn_eqs) = module_eqs_by_name.get(name) {
+                self.try_register_promoted_fn(&module, name, scheme, fn_eqs);
+            }
+        }
         for (name, scheme) in schemes {
             self.top_schemes.insert((module.clone(), name), scheme);
         }
@@ -5894,6 +6477,9 @@ impl Checker {
         // non-erased fields only (core specification section 3). The
         // type order is fixed so the emitted units are reproducible.
         for t in &headers.types {
+            if self.open_data_families.contains(&t.identity) {
+                continue;
+            }
             for (cname, tag) in &t.ctors {
                 let v = self
                     .qualified
@@ -5952,6 +6538,45 @@ impl Checker {
                         data: Some(format!("{}.{}", t.module, t.name)),
                         result: Some(Class::Obj),
                     dictionary_values: Vec::new(),
+                    },
+                });
+            }
+        }
+        if let Some(di_ctors) = self.data_instance_ctors.get(module).cloned() {
+            for (family_identity, cname, tag) in di_ctors {
+                let Some(v) = self.qualified.get(&(module.to_string(), cname.clone())).cloned() else {
+                    continue;
+                };
+                let (runtime_arity, fields) = match &v.kind {
+                    ValueKind::Ctor { runtime_arity, field_tys, field_erased, .. } => {
+                        let fields: Vec<Class> = field_tys
+                            .iter()
+                            .zip(field_erased)
+                            .filter(|(_, e)| !**e)
+                            .map(|(t, _)| {
+                                let zt = self.uni.zonk(t);
+                                crate::repr::repr_of(&zt, &v.scheme.params, self, &mut |_| {})
+                            })
+                            .collect();
+                        (*runtime_arity, (fields, v.scheme.params.len()))
+                    }
+                    _ => continue,
+                };
+                self.fns.push(FnDef {
+                    id: fn_id(module, &cname),
+                    params: (0..runtime_arity).map(|i| format!("f{i}")).collect(),
+                    body: crate::core::Core::Unit,
+                    prim: None,
+                    ctor: Some((tag, runtime_arity)),
+                    hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
+                    repr: crate::core::UnitRepr {
+                        tparams: fields.1,
+                        params: fields.0.clone(),
+                        fields: fields.0,
+                        data: Some(family_identity),
+                        result: Some(Class::Obj),
+                        dictionary_values: Vec::new(),
                     },
                 });
             }
@@ -7239,6 +7864,7 @@ impl Checker {
             }
             ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -9989,6 +10615,11 @@ impl Checker {
                     "internal error: unsolved variable in a law equation",
                 ))
             }
+            ITerm::TyFamily(name, _) => {
+                return Err(Error::plain(format!(
+                    "unreduced type family `{name}` cannot be evaluated in a law equation"
+                )))
+            }
             ITerm::Lam(_, _) => {
                 return Err(Error::plain(
                     "an index-level lambda is not a law argument (the law layer samples values, not functions)",
@@ -10403,7 +11034,7 @@ impl Checker {
                 .map(|(_, k)| k.clone())
                 .collect();
             let axis = |k: &ParamKind| match k {
-                ParamKind::Type => 0u8,
+                ParamKind::Type | ParamKind::Data(_) => 0u8,
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
@@ -10439,13 +11070,16 @@ impl Checker {
             let l = self.fresh_local();
             lids.insert(name.clone(), l);
             let ty = match kinds.get(name) {
-                Some(ParamKind::Val(t)) => t.clone(),
+                Some(ParamKind::Val(t)) | Some(ParamKind::Data(t)) => t.clone(),
                 Some(ParamKind::Prop) => {
                     Ty::Prp(Box::new(PTerm::Var(name.clone())))
                 }
                 _ => Ty::Param(name.clone().into()),
             };
-            if matches!(kinds.get(name), Some(ParamKind::Val(_)) | Some(ParamKind::Prop)) {
+            if matches!(
+                kinds.get(name),
+                Some(ParamKind::Val(_)) | Some(ParamKind::Data(_)) | Some(ParamKind::Prop)
+            ) {
                 self.bind_local(&mut env, name, l, Scheme::mono(ty), None, span)?;
             }
             let _ = hint;
@@ -10554,7 +11188,7 @@ impl Checker {
                 // These identities remain part of the checked equation, but
                 // implicit telescope metadata does not declare source patterns.
                 ITerm::Inst(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::Fn(_)
-                | ITerm::MVar(_) | ITerm::Var(_) => {},
+                | ITerm::MVar(_) | ITerm::Var(_) | ITerm::TyFamily(..) => {},
             }
             Ok(())
         }
@@ -10654,18 +11288,7 @@ impl Checker {
         if let Some(req) = &mut req_ec {
             Self::fill_holes(req, &sol)?;
         }
-        let lit_pends = std::mem::take(&mut self.literal_pends);
-        let mut lits: Vec<ECore> = Vec::with_capacity(lit_pends.len());
-        for p in &lit_pends {
-            let t = self.uni.zonk(&p.ty);
-            if matches!(t, Ty::Meta(_)) {
-                return Err(Error::at(
-                    p.span,
-                    "the type of this integer literal is not determined by context; add a type annotation",
-                ));
-            }
-            lits.push(self.literal_const(&t, &p.value, p.span)?);
-        }
+        let lits = self.resolved_literals()?;
         let idx_pends = std::mem::take(&mut self.idx_pends);
         let mut vals: Vec<ECore> = Vec::with_capacity(idx_pends.len());
         for p in &idx_pends {
@@ -13484,7 +14107,7 @@ impl<'a> FactWalk<'a> {
                     closure: self.closure,
                 });
             }
-            ast::Term::Int(..) | ast::Term::Char(..) | ast::Term::Sym(..) | ast::Term::Unit(_)
+            ast::Term::Int(..) | ast::Term::Float(..) | ast::Term::Char(..) | ast::Term::Sym(..) | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. } | ast::Term::SeqOp(..) => {}
             ast::Term::Str(_, s) => {
@@ -15450,6 +16073,7 @@ impl Checker {
         let mut flag = established;
         match t {
             ast::Term::Int(..)
+            | ast::Term::Float(..)
             | ast::Term::Str(..)
             | ast::Term::Char(..)
             | ast::Term::Sym(..)
@@ -15661,6 +16285,7 @@ impl Checker {
             ast::Term::Var(p) => f(&p.span()),
             ast::Term::Con(p) => f(&p.span()),
             ast::Term::Int(_, s)
+            | ast::Term::Float(_, s)
             | ast::Term::Str(_, s)
             | ast::Term::Char(_, s) | ast::Term::Sym(_, s)
             | ast::Term::Unit(s)
@@ -17085,6 +17710,40 @@ fn prune_decl(d: &ast::Decl, profile: &crate::core::TargetProfile) -> Result<Opt
 /// The name a declaration defines, and whether it defines one at all. A
 /// signature is not a definition: `f :: T` declares the name its equation
 /// defines, so the pair is one definition, not two.
+fn ti_or_di_name(path: &ast::ConPath) -> String {
+    path.parts().join(".")
+}
+
+fn desugar_family_pat_vars(ty: &mut ast::Type, pat_vars: &mut Vec<String>, wild_counter: &mut usize) {
+    match ty {
+        ast::Type::Var(n, _) => {
+            if n.text == "_" {
+                let fresh = format!("$w{}", *wild_counter);
+                *wild_counter += 1;
+                n.text = fresh.clone();
+                pat_vars.push(fresh);
+            } else if !pat_vars.contains(&n.text) {
+                pat_vars.push(n.text.clone());
+            }
+        }
+        ast::Type::App(f, a, _) | ast::Type::IndexAnnotated(f, a, _) => {
+            desugar_family_pat_vars(f, pat_vars, wild_counter);
+            desugar_family_pat_vars(a, pat_vars, wild_counter);
+        }
+        ast::Type::Tuple(items, _) | ast::Type::List(items, _) | ast::Type::Infix(items, _, _) => {
+            for item in items {
+                desugar_family_pat_vars(item, pat_vars, wild_counter);
+            }
+        }
+        ast::Type::Fun { arg, res, .. } => {
+            desugar_family_pat_vars(arg, pat_vars, wild_counter);
+            desugar_family_pat_vars(res, pat_vars, wild_counter);
+        }
+        ast::Type::AppRow(body, _, _) => desugar_family_pat_vars(body, pat_vars, wild_counter),
+        _ => {}
+    }
+}
+
 fn definition_name(d: &ast::Decl) -> Option<&ast::Name> {
     match d {
         ast::Decl::Equation { eq, .. } => Some(&eq.name),
@@ -17098,6 +17757,8 @@ fn definition_name(d: &ast::Decl) -> Option<&ast::Name> {
         ast::Decl::Record(r) | ast::Decl::Codata(r) => Some(&r.name),
         ast::Decl::OpaqueType(o) => Some(&o.name),
         ast::Decl::Refine(r) => Some(&r.name),
+        ast::Decl::TypeFamily(tf) => Some(&tf.name),
+        ast::Decl::DataFamily(df) => Some(&df.name),
         _ => None,
     }
 }
@@ -17665,7 +18326,7 @@ impl Checker {
                 kind: match kind {
                     ParamKind::Type => "Type".to_string(),
                     ParamKind::Region => "Region".to_string(),
-                    ParamKind::Val(ty) => ty.to_string(),
+                    ParamKind::Val(ty) | ParamKind::Data(ty) => ty.to_string(),
                     ParamKind::Prop => "Prop".to_string(),
                     ParamKind::Con(n) => vec!["Type"; n + 1].join(" -> "),
                 },
@@ -17842,10 +18503,31 @@ impl Checker {
                         let scheme = resolved.as_ref().and_then(|_| self.interface_source_schemes
                             .get(&(d.module.clone(), d.name.clone())).and_then(|source| source.display.clone()))
                             .unwrap_or_else(|| render_scheme(&v.scheme));
+                        let is_array_or_kernel_export = !matches!(
+                            module,
+                            "Prelude" | "Data.Core" | "Data.Array" | "Data.Array.Packed" | "Data.Tensor" | "Data.Columnar"
+                        ) && (scheme.contains("Kernel ")
+                            || scheme.contains("View1 ")
+                            || scheme.contains("View2 ")
+                            || scheme.contains("View3 ")
+                            || scheme.contains("NDView ")
+                            || scheme.contains("Device")
+                            || (scheme.contains("Array ") && !module.starts_with("Data.")));
+                        let kernel = if is_array_or_kernel_export {
+                            let info = crate::array_ir::analyze_scheme_kernel_eligibility(&scheme, None, None);
+                            Some(crate::interface::KernelEligibilityExport {
+                                cpu_parallel: info.cpu_parallel,
+                                gpu_metal: info.gpu_metal,
+                                blocker: info.blocker,
+                            })
+                        } else {
+                            None
+                        };
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             total_body: self.interface_value_body(v),
                             keyed_ordering: resolved.as_ref().and_then(|resolved| self.interface_keyed_ordering(v, resolved)),
+                            kernel,
                             scheme,
                             resolved,
                             symbol: format!("{}.{}", d.module, d.name),
@@ -20950,6 +21632,7 @@ impl Checker {
             ast::Term::Var(_)
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -21391,6 +22074,7 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
             | ast::Term::Var(_)
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -21471,6 +22155,11 @@ fn declaration_binding_names(declaration: &ast::Decl, names: &mut Vec<String>) {
         }
         ast::Decl::Record(record) | ast::Decl::Codata(record) => names.push(record.name.text.clone()),
         ast::Decl::Refine(refinement) => names.push(refinement.name.text.clone()),
+        ast::Decl::TypeFamily(tf) => names.push(tf.name.text.clone()),
+        ast::Decl::DataFamily(df) => names.push(df.name.text.clone()),
+        ast::Decl::DataInstance(di) => {
+            names.extend(di.ctors.iter().map(|ctor| ctor.name.text.clone()));
+        }
         ast::Decl::Signature(signature) => {
             names.push(signature.name.text.clone());
             names.extend(signature.methods.iter().map(|(name, _)| name.text.clone()));
@@ -21520,6 +22209,7 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
             }
         }
         ast::Term::Int(_, s)
+        | ast::Term::Float(_, s)
         | ast::Term::Str(_, s)
         | ast::Term::Char(_, s) | ast::Term::Sym(_, s)
         | ast::Term::Unit(s)
@@ -24275,6 +24965,11 @@ impl Checker {
                 ast::Decl::Foreign(foreign) => values.push(foreign.name.text.clone()),
                 ast::Decl::Prim(primitive) => values.push(primitive.name.text.clone()),
                 ast::Decl::OpaqueType(opaque) => types.push(opaque.name.text.clone()),
+                ast::Decl::TypeFamily(tf) => types.push(tf.name.text.clone()),
+                ast::Decl::DataFamily(df) => types.push(df.name.text.clone()),
+                ast::Decl::DataInstance(di) => {
+                    values.extend(di.ctors.iter().map(|ctor| ctor.name.text.clone()));
+                }
                 ast::Decl::Attributed { inner, .. } => names(inner, values, types),
                 _ => {}
             }
@@ -25442,8 +26137,9 @@ impl Checker {
                                     EitherMeta::Type(id) => Ty::Meta(id),
                                     EitherMeta::Row(_) => continue,
                                 };
-                                self.uni.unify(&ty, &Ty::Int).unwrap_or_else(|_| {
-                                    panic!("literal defaulting to Int must succeed")
+                                let def = self.literal_default_ty(m);
+                                self.uni.unify(&ty, &def).unwrap_or_else(|_| {
+                                    panic!("literal defaulting must succeed")
                                 });
                                 defaulted = true;
                             }
@@ -25503,6 +26199,9 @@ impl Checker {
             .partition(|w| w.id >= want_base);
         self.wants = rest;
         let (sol, residual) = self.solve_wants_residual(probe_wants)?;
+        if residual.is_empty() {
+            self.default_open_literals();
+        }
         // The scheme: generalized like a let binding (the value
         // restriction), with the residual constraints as its context,
         // rendered against the same quantified names.

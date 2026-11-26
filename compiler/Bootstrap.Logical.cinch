@@ -54,6 +54,7 @@ module Bootstrap.Logical where
   argument-origin argument locals = case argument of
     CLocal sp ty id name actuals -> origin id locals
     CForget sp ty value -> argument-origin value locals
+    CCast sp ty value -> argument-origin value locals
     other -> None
   -- A fully saturated recursive call keeps each argument inside its own
   -- parameter's tree and strictly decreases at least one of them.

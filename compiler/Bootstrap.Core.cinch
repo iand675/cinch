@@ -6,6 +6,7 @@ module Bootstrap.Core where
 
   import Bootstrap.Index
   import Bootstrap.Type
+  import Bootstrap.Promote (PromotedFn)
   import Bootstrap.Nominal (global-data-string-length, global-data-string-string, interface-global, global-data-core-cons, global-data-core-nil, global-data-core-result, global-data-ordering-eq, global-data-ordering-gt, global-data-ordering-lt, global-data-ordering-ordering)
   import Bootstrap.Proof
   import Bootstrap.Total
@@ -17,11 +18,12 @@ module Bootstrap.Core where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
+  import Text.Scan (string-starts-with)
   import Algebra.Semigroup
 
   export scoped-core-case-facts, scoped-core-case-rest-facts, normalized-case-rest-facts, case-pattern-may-prove, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPSymbol, CPTuple, CPField, CPDone
-  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CSymbol, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
+  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CSymbol, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard, CCast
   export CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd
   export recursive-functions, recursive-function-ids, map-recursive-functions, recursive-proof-scope, recursive-value-writes
   export recursive-box-slots, recursive-member-use, recursive-captures
@@ -57,19 +59,19 @@ module Bootstrap.Core where
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
-  export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
+  export with-checked-body-bindings, core-definition-checked-contracts-closed, core-definition-checked-contracts-closed-with-families, core-definition-checked-contracts-closed-with, seal-definition-with-checked-contracts
   export TotalCoreSources, total-core-sources, indexed-source-function
   export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
-  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEInstance
+  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEKernel, CEInstance
   export CEArgument, CEArgumentsEnd
   export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
   export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
   export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
-  export core-definition-refusal
+  export core-definition-refusal, core-definition-refusal-with-families, core-definition-refusal-with
 
-  export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types
+  export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
   export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, with-data-layout
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
@@ -172,6 +174,7 @@ module Bootstrap.Core where
     URow labels -> effect-type-scope qs labels
     URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
     UTuple fields -> effect-type-scope qs fields
+    USigma id name domain body -> effect-binder qs id name domain body
     UForall inner body -> effect-type-scope (qs <> quants-list inner) body
     UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
     UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -307,11 +310,12 @@ module Bootstrap.Core where
     CENeeded :: Span -> UType -> List CoreGiven -> CoreEvidence
     CEGiven :: Span -> UType -> String -> CoreEvidence
     CECopy :: Span -> UType -> CoreEvidence
+    CEKernel :: Span -> UType -> CoreEvidence
     CEInstance :: Span -> UType -> String -> List UType -> CoreEvidence -> CoreEvidence
     CEArgument :: Span -> CoreEvidence -> CoreEvidence -> CoreEvidence
     CEArgumentsEnd :: Span -> CoreEvidence
   evidence-type :: CoreEvidence -> UType
-  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
+  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEKernel s carrier -> UApp (UCon "Kernel" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
   map-givens :: (UType -> UType) -> List CoreGiven -> List CoreGiven
   map-givens f givens = case givens of Nil -> Nil; Cons (CGiven s name ty) rest -> Cons (CGiven s name (f ty)) (map-givens f rest)
   map-evidence :: (UType -> UType) -> CoreEvidence -> CoreEvidence
@@ -319,6 +323,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> CENeeded s (f ty) (map-givens f scope)
     CEGiven s ty name -> CEGiven s (f ty) name
     CECopy s carrier -> CECopy s (f carrier)
+    CEKernel s carrier -> CEKernel s (f carrier)
     CEInstance s ty name actuals args -> CEInstance s (f ty) name (map-types f actuals) (map-evidence f args)
     CEArgument s arg rest -> CEArgument s (map-evidence f arg) (map-evidence f rest)
     CEArgumentsEnd s -> evidence
@@ -380,6 +385,7 @@ module Bootstrap.Core where
     -- Explicit erased evidence is retained and checked in its lexical scope.
     CRefineProof :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CForget :: Span -> UType -> CoreTerm -> CoreTerm
+    CCast :: Span -> UType -> CoreTerm -> CoreTerm
     CRequire :: Span -> UType -> CoreTerm -> CoreTerm
     -- True only on an inference-created call whose subtree contains
     -- no dictionary work. Never used as proof evidence or serialized.
@@ -553,6 +559,7 @@ module Bootstrap.Core where
     CRefine sp ty evidence body -> handler-body-direct label names body
     CRefineProof sp ty witness body -> handler-body-direct label names witness && handler-body-direct label names body
     CForget sp ty body -> handler-body-direct label names body
+    CCast sp ty body -> handler-body-direct label names body
     CRequire sp ty body -> handler-body-direct label names body
     CDischarge sp ty evidence _ body -> handler-body-direct label names body
     CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
@@ -596,6 +603,7 @@ module Bootstrap.Core where
     CRefine sp ty evidence body -> resume-uses choose id body
     CRefineProof sp ty witness body -> resume-uses choose id witness + resume-uses choose id body
     CForget sp ty body -> resume-uses choose id body
+    CCast sp ty body -> resume-uses choose id body
     CRequire sp ty body -> resume-uses choose id body
     CDischarge sp ty evidence _ body -> resume-uses choose id body
     CGuard sp ty condition body -> resume-uses choose id condition + resume-uses choose id body
@@ -635,6 +643,7 @@ module Bootstrap.Core where
     CProved sp ty evidence value -> resume-alternative-uses choose id value later
     CRefine sp ty evidence value -> resume-alternative-uses choose id value later
     CForget sp ty value -> resume-alternative-uses choose id value later
+    CCast sp ty value -> resume-alternative-uses choose id value later
     other -> resume-uses choose id body
   handler-resumption-safe :: UType -> CoreTerm -> Bool
   handler-resumption-safe operation closure = handler-resumption-count False operation closure
@@ -716,6 +725,7 @@ module Bootstrap.Core where
     CRefine sp ty certificate body -> [body]
     CRefineProof sp ty witness body -> [witness, body]
     CForget sp ty body -> [body]
+    CCast sp ty body -> [body]
     CRequire sp ty body -> [body]
     CDischarge sp ty proofs _ body -> [body]
     CGuard sp ty guard body -> [guard, body]
@@ -880,6 +890,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> ty
     CRefineProof s ty witness body -> ty
     CForget s ty body -> ty
+    CCast s ty body -> ty
     CRequire s ty body -> ty
     CDischarge s ty evidence _ body -> ty
     CGuard s ty guard rhs -> ty
@@ -906,6 +917,7 @@ module Bootstrap.Core where
   rewrite-evidence-equal :: CoreEvidence -> CoreEvidence -> Bool
   rewrite-evidence-equal first second = case (first, second) of
     (CECopy sp carrier, CECopy at other) -> same-shape carrier other
+    (CEKernel sp carrier, CEKernel at other) -> same-shape carrier other
     (CEGiven sp ty name, CEGiven at other symbol) ->
       string-compare name symbol == 0 && rewrite-type-equal ty other
     (CEInstance sp ty name types arguments, CEInstance at other symbol actuals supplied) ->
@@ -1033,6 +1045,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> core-effects body
     CRefineProof s ty witness body -> core-effects body
     CForget s ty body -> core-effects body
+    CCast s ty body -> core-effects body
     CRequire s ty body -> core-effects body
     CDischarge s ty evidence _ body -> core-effects body
     CGuard s ty condition body -> union-effects (core-effects condition) (core-effects body)
@@ -1255,6 +1268,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> CRefine s (f ty) evidence (map-term-types f body)
     CRefineProof s ty witness body -> CRefineProof s (f ty) (map-term-types f witness) (map-term-types f body)
     CForget s ty body -> CForget s (f ty) (map-term-types f body)
+    CCast s ty body -> CCast s (f ty) (map-term-types f body)
     CRequire s ty body -> CRequire s (f ty) (map-term-types f body)
     CDischarge s ty evidence dictionary-free body -> CDischarge s (f ty) evidence dictionary-free (map-term-types f body)
     CGuard s ty guard rhs -> CGuard s (f ty) (map-term-types f guard) (map-term-types f rhs)
@@ -1314,6 +1328,7 @@ module Bootstrap.Core where
     URow labels -> URow (freeze labels)
     URowJoin a b -> union-effects (freeze a) (freeze b)
     UTuple fields -> UTuple (freeze fields)
+    USigma id name domain body -> USigma id name (freeze domain) (freeze body)
     UForall qs body -> UForall (quants-of (map-quant-kinds freeze (quants-list qs))) (freeze body)
     UArg x rest -> UArg (freeze x) (freeze rest)
     other -> ty
@@ -1364,6 +1379,7 @@ module Bootstrap.Core where
     URow labels -> collect-type-metas st labels tail
     URowJoin a b -> collect-type-metas st a (collect-type-metas st b tail)
     UTuple fields -> collect-type-metas st fields tail
+    USigma id name domain body -> collect-type-metas st domain (collect-type-metas st body tail)
     UForall qs body -> collect-type-metas st body tail
     UArg x rest -> collect-type-metas st x (collect-type-metas st rest tail)
     other -> tail
@@ -1385,6 +1401,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> type-metas st ty <> given-metas st scope
     CEGiven s ty name -> type-metas st ty
     CECopy s carrier -> type-metas st carrier
+    CEKernel s carrier -> type-metas st carrier
     CEInstance s ty name actuals args -> type-metas st ty <> types-metas st actuals <> evidence-metas st args
     CEArgument s arg rest -> evidence-metas st arg <> evidence-metas st rest
     CEArgumentsEnd s -> Nil
@@ -1447,6 +1464,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> type-metas st ty <> term-metas st body
     CRefineProof s ty witness body -> type-metas st ty <> term-metas st witness <> term-metas st body
     CForget s ty body -> type-metas st ty <> term-metas st body
+    CCast s ty body -> type-metas st ty <> term-metas st body
     CRequire s ty body -> type-metas st ty <> term-metas st body
     CDischarge s ty evidence _ body -> type-metas st ty <> term-metas st body
     CGuard s ty guard rhs -> type-metas st ty <> term-metas st guard <> term-metas st rhs
@@ -1463,15 +1481,15 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
-  seal-clauses bodies guards st earlier clauses = case clauses of
+  seal-clauses :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards values st earlier clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope) in
+      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil)) in
       let gamma = proof-patterns patterns scope in
       let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
-      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards st (extend-equation-prefix patterns checked earlier) rest)
+      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards values st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -1486,7 +1504,7 @@ module Bootstrap.Core where
   seal-definition-with-checked-contracts bodies guards st definition = case definition of
     MkCoreDefinition s name sc openings givens private clauses ->
       MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
-        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st Nil clauses)
+        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards (opening-value-types openings) st Nil clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
@@ -1528,6 +1546,7 @@ module Bootstrap.Core where
     URow labels -> closed-type labels
     URowJoin a b -> closed-type a && closed-type b
     UTuple fields -> closed-type fields
+    USigma id name domain body -> closed-type domain && closed-type body
     UForall qs body -> valid-type ty && closed-type body
     UArg x rest -> closed-type x && closed-type rest
     other -> True
@@ -1562,6 +1581,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> False
     CEGiven s ty name -> closed-type ty
     CECopy s carrier -> copy-marker-carrier carrier
+    CEKernel s carrier -> kernel-marker-carrier carrier
     CEInstance s ty name actuals args -> closed-type ty && closed-types actuals && evidence-arguments-closed args
     other -> False
   evidence-arguments-closed :: CoreEvidence -> Bool
@@ -1657,6 +1677,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> closed-runtime-type ty && valid-term body
     CRefineProof s ty witness body -> closed-runtime-type ty && valid-proof-reference witness && valid-term body
     CForget s ty body -> closed-runtime-type ty && valid-term body
+    CCast s ty body -> closed-runtime-type ty && valid-term body
     CRequire s ty body -> closed-type ty && valid-term body
     CDischarge s ty evidence _ body -> closed-runtime-type ty && valid-required-call body
     CGuard s ty guard rhs -> closed-runtime-type ty && valid-term guard && valid-term rhs
@@ -1733,7 +1754,7 @@ module Bootstrap.Core where
     UIndex carrier value -> type-index-scope bound rigid carrier && index-scoped bound rigid Nil value
     UPi id name domain row result -> type-index-scope bound rigid domain && type-index-scope (Cons id bound) rigid row && type-index-scope (Cons id bound) rigid result
     UBound id name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id bound; None -> True)
-    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid; None -> True)
+    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid || string-starts-with "$sing_" name; None -> True)
     UMeta id kind -> False
     UCon name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> False; None -> True)
     UApp a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
@@ -1744,6 +1765,7 @@ module Bootstrap.Core where
     URow labels -> type-index-scope bound rigid labels
     URowJoin a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UTuple fields -> type-index-scope bound rigid fields
+    USigma id name domain body -> type-index-scope bound rigid domain && type-index-scope (Cons id bound) rigid body
     UForall qs body -> type-index-scope bound rigid body
     UArg a rest -> type-index-scope bound rigid a && type-index-scope bound rigid rest
     UEnd -> True
@@ -1804,6 +1826,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> False
     CEGiven s ty name -> type-index-scope universals rigid ty
     CECopy s carrier -> copy-marker-carrier carrier
+    CEKernel s carrier -> kernel-marker-carrier carrier
     CEInstance s ty name actuals args -> type-index-scope universals rigid ty && types-index-scope universals rigid actuals && evidence-index-scope-with universals rigid args
     CEArgument s arg rest -> evidence-index-scope-with universals rigid arg && evidence-index-scope-with universals rigid rest
     CEArgumentsEnd s -> True
@@ -1870,6 +1893,7 @@ module Bootstrap.Core where
       CRefine s ty evidence body -> scoped-term-with universals values scope body
       CRefineProof s ty witness body -> scoped-term-with universals values scope witness && scoped-term-with universals values scope body
       CForget s ty body -> scoped-term-with universals values scope body
+      CCast s ty body -> scoped-term-with universals values scope body
       CRequire s ty body -> scoped-term-with universals values scope body
       CDischarge s ty evidence _ body -> scoped-term-with universals values scope body
       CGuard s ty condition body -> scoped-term-with universals values scope condition && scoped-term-with universals values scope body
@@ -1891,18 +1915,34 @@ module Bootstrap.Core where
     Some checked -> core-definition-checked-contracts-closed checked guards definition
     None -> False
   core-definition-checked-contracts-closed :: BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
-  core-definition-checked-contracts-closed checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
+  core-definition-checked-contracts-closed checked guards definition =
+    core-definition-checked-contracts-closed-with-families Nil checked guards definition
+
+  core-definition-checked-contracts-closed-with-families :: List TypeFamilyRuleSet -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
+  core-definition-checked-contracts-closed-with-families fams checked guards definition =
+    core-definition-checked-contracts-closed-with fams Nil checked guards definition
+
+  core-definition-checked-contracts-closed-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
+  core-definition-checked-contracts-closed-with fams proms checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
     -- A definition's scheme is a DECLARATION contract, so its body may be a
     -- proposition: `same v = refl` defines a proof former. `scheme-closed`
     -- would demand a value kind and refuse every proof former here.
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      declaration-scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
+      declaration-scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
   -- The definition conjunction above folds nine tests into one `Bool`. This
   -- reports the first that refused, so a refusal names a clause instead of
   -- the whole definition.
   core-definition-refusal :: BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
-  core-definition-refusal checked guards definition = let bodies = body-bindings-members checked in
+  core-definition-refusal checked guards definition =
+    core-definition-refusal-with-families Nil checked guards definition
+
+  core-definition-refusal-with-families :: List TypeFamilyRuleSet -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
+  core-definition-refusal-with-families fams checked guards definition =
+    core-definition-refusal-with fams Nil checked guards definition
+
+  core-definition-refusal-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
+  core-definition-refusal-with fams proms checked guards definition = let bodies = body-bindings-members checked in
     if not (guarded-bindings-closed guards) then Some "a guarded binding is not closed"
     else case definition of
       MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
@@ -1913,7 +1953,7 @@ module Bootstrap.Core where
         else if not (valid-clauses clauses) then Some "a clause pattern or term is invalid"
         else if not (scoped-clauses values clauses) then Some "a clause body is not scoped"
         else if not (body-scheme-authorized bodies sc) then Some "the scheme names a body it is not authorized to"
-        else if not (proof-contract-clauses-checked checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
+        else if not (proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
         else None
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -1982,6 +2022,7 @@ module Bootstrap.Core where
     CRefine sp ty certificate body -> stable-index-source body
     CRefineProof sp ty witness body -> stable-index-source body
     CForget sp ty body -> stable-index-source body
+    CCast sp ty body -> stable-index-source body
     CProved sp ty certificate body -> stable-index-source body
     CDischarge sp ty certificates _ body -> (case core-mutable-writes body of Nil -> True; other -> False)
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
@@ -2080,6 +2121,7 @@ module Bootstrap.Core where
     URow labels -> borrow-index-regions labels
     URowJoin a b -> borrow-index-regions a <> borrow-index-regions b
     UTuple fields -> borrow-index-regions fields
+    USigma id name domain body -> borrow-index-regions domain <> borrow-index-regions body
     UForall qs body -> borrow-index-regions body
     other -> Nil
   volatile-borrow-index :: UType -> Bool
@@ -2231,11 +2273,13 @@ module Bootstrap.Core where
   valid-integer-literal :: UType -> String -> Bool
   valid-integer-literal carrier text = case decimal-value text of Some value -> integer-literal-valid carrier value; None -> False
   valid-number-literal :: UType -> String -> Bool
-  valid-number-literal carrier text = case decimal-value text of Some value -> number-literal-valid carrier value; None -> False
+  valid-number-literal carrier text = case decimal-value text of
+    Some value -> number-literal-valid carrier value
+    None -> float-string-valid carrier text
   core-float-literal-word :: UType -> String -> Option Int
   core-float-literal-word carrier text = case decimal-value text of
     Some value -> float-literal-bits carrier value (string-compare text "-0" == 0)
-    None -> None
+    None -> float-string-bits carrier text
   same-integer-carrier :: UType -> UType -> Bool
   same-integer-carrier first second = integer-carrier first && contract-equal first second
   ordered-id :: Nat -> List Nat -> List Nat
@@ -2287,13 +2331,11 @@ module Bootstrap.Core where
   byte-length-function :: UType -> UType -> String -> String -> Bool
   byte-length-function result function symbol role =
     let carrier = numeric-carrier-view result in
-    let ok-symbol = (string-compare symbol "cinch.runtime.bytesLen" == 0 && nat-type carrier)
-          || (string-compare symbol "cinch.runtime.bytesLenI64" == 0 && contract-equal carrier (UCon "I64" KType)) in
-    let ok-arrow = (case function of
+    (string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type carrier && (case function of
       UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result
       UPi id binder domain (URow UEnd) output -> contract-equal domain (UCon "Bytes" KType) && contract-equal (numeric-carrier-view output) carrier
-      other -> False) in
-    ok-symbol && string-compare role "intrinsic" == 0 && ok-arrow
+      other -> False))
+    || ((string-compare symbol "cinch.runtime.bytesLenI64" == 0 || string-compare symbol (interface-global "Data.Bytes.bytes-len-i64") == 0) && (case carrier of UCon name KType -> string-compare name "I64" == 0; other -> False))
   -- The length of immutable text is opaque to arithmetic. The independent
   -- Core check compares only observations of the same scoped String value.
   string-length-function :: UType -> UType -> String -> String -> Bool
@@ -2770,6 +2812,7 @@ module Bootstrap.Core where
     CInt sp ty digits -> True
     CLocal sp ty id name Nil -> True
     CForget sp ty body -> scalar-copy body
+    CCast sp ty body -> scalar-copy body
     CRefine sp ty certificate body -> scalar-copy body
     CRefineProof sp ty witness body -> scalar-copy body
     other -> False
@@ -2835,6 +2878,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
     CForget s ty body -> forgotten gamma facts ty body
+    CCast s ty body -> proof-term gamma facts body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
     CInt s ty text -> valid-number-literal ty text
@@ -3031,6 +3075,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
     CForget s ty body -> forgotten gamma facts ty body
+    CCast s ty body -> proof-term gamma facts body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
     CApply s ty f x -> checked-proof-application gamma facts ty (URow UEnd) f x
@@ -3094,6 +3139,7 @@ module Bootstrap.Core where
       if certified-refinement gamma facts ty evidence out then CRefine s ty evidence out
       else case scoped-prove-refinement gamma facts ty out of Some fresh -> CRefine s ty fresh out; None -> CError s
     CForget s ty body -> CForget s ty (refresh-certificates gamma facts body)
+    CCast s ty body -> CCast s ty (refresh-certificates gamma facts body)
     CRequire s ty body -> case ty of
       URequire predicates result -> case scoped-core-predicates gamma predicates of Some ps -> CRequire s ty (refresh-certificates gamma (ps <> facts) body); None -> CError s
       other -> CError s
@@ -3183,6 +3229,10 @@ module Bootstrap.Core where
   -- CDischarge checks it; CRequire is permitted only at a declared boundary.
   contract-equal :: UType -> UType -> Bool
   contract-equal a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core contract")) of Nil -> True; other -> False
+  contract-equal-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> UType -> Bool
+  contract-equal-in fams proms a b = case (fams, proms) of
+    (Nil, Nil) -> contract-equal a b
+    other -> case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted fams proms (empty-store "Core contract"))) of Nil -> True; other -> False
   index-arithmetic :: ProofScope -> UType -> IndexTerm -> Option Arithmetic
   index-arithmetic gamma carrier value = if not (same-number-sort carrier carrier && index-runtime-admissible carrier value) then None else case value of
     IInteger n -> Some (AInteger n)
@@ -3215,6 +3265,9 @@ module Bootstrap.Core where
     UIndexPromote input -> typed-index-arithmetic gamma input
     UIndexMath op left right -> case (typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
       (Some a, Some b) -> Some (if string-compare op "+" == 0 then APlus a b else if string-compare op "*" == 0 then ATimes a b else AMinus a b)
+      other -> None
+    UApp f x -> case typed-index-carrier value of
+      Some carrier | integer-index-carrier carrier -> Some (AVariable (string-concat "#tf:" (type-text value)))
       other -> None
     other -> None
   ascii-predicate :: ProofScope -> UType -> Option Proposition
@@ -3487,22 +3540,26 @@ module Bootstrap.Core where
     CPInt s ty text -> case decimal-value text of Some n -> Some (UIndex ty (IInteger n)); None -> None
     other -> None
   pattern-result :: UType -> CorePattern -> Option UType
-  pattern-result fun pattern = case (fun, pattern) of
-    (UUsageArrow UsageZero arrow, CPErasedValue sp ty id name) -> if valid-type fun then pattern-result arrow (CPVar sp ty id name) else None
+  pattern-result fun pattern = pattern-result-in Nil Nil fun pattern
+  pattern-result-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> CorePattern -> Option UType
+  pattern-result-in fams proms fun pattern = case (reduce-types fams proms fun, pattern) of
+    (UUsageArrow UsageZero arrow, CPErasedValue sp ty id name) -> if valid-type fun then pattern-result-in fams proms arrow (CPVar sp ty id name) else None
     (UUsageArrow UsageZero arrow, other) -> None
     (other, CPErasedValue sp ty id name) -> None
-    other -> pattern-result-runtime fun pattern
-  pattern-result-runtime :: UType -> CorePattern -> Option UType
-  pattern-result-runtime fun pattern = case fun of
-    UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal predicate actual then Some result else None; other -> None
-    UPi id name domain row result -> if not (contract-equal domain (pattern-type pattern)) then None
+    (reduced, other) -> pattern-result-runtime-in fams proms reduced pattern
+  pattern-result-runtime-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> CorePattern -> Option UType
+  pattern-result-runtime-in fams proms fun pattern = case fun of
+    UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal-in fams proms predicate actual then Some result else None; other -> None
+    UPi id name domain row result -> if not (contract-equal-in fams proms domain (pattern-type pattern)) then None
       else if pi-dependent fun then (case pattern-index pattern of Some index -> Some (substitute-bound [(id, index)] result); None -> None) else Some result
-    UFun domain result -> if contract-equal domain (pattern-type pattern) then Some result else None
-    UFunEff domain row result -> if contract-equal domain (pattern-type pattern) then Some result else None
-    UUsageArrow usage arrow -> if valid-type fun then pattern-result arrow pattern else None
+    UFun domain result -> if contract-equal-in fams proms domain (pattern-type pattern) then Some result else None
+    UFunEff domain row result -> if contract-equal-in fams proms domain (pattern-type pattern) then Some result else None
+    UUsageArrow usage arrow -> if valid-type fun then pattern-result-in fams proms arrow pattern else None
     other -> None
   patterns-result :: UType -> List CorePattern -> Option UType
-  patterns-result expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result expected p of Some result -> patterns-result result rest; None -> None
+  patterns-result expected patterns = patterns-result-in Nil Nil expected patterns
+  patterns-result-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> List CorePattern -> Option UType
+  patterns-result-in fams proms expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result-in fams proms expected p of Some result -> patterns-result-in fams proms result rest; None -> None
   -- Shared declaration closure checks. Global term typing and primitive
   -- semantics remain separate from these retained contract invariants.
   contract-quants-closed :: List Quant -> Bool
@@ -3525,24 +3582,34 @@ module Bootstrap.Core where
     && effect-type-scope (scheme-params sc) (scheme-body sc)
     && effect-requirements (scheme-params sc) (scheme-requirements sc)
   definition-clause-types :: UType -> List CoreClause -> Bool
-  definition-clause-types ty clauses = case clauses of
+  definition-clause-types ty clauses = definition-clause-types-in Nil Nil ty clauses
+  definition-clause-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> List CoreClause -> Bool
+  definition-clause-types-in fams proms ty clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-result ty patterns of Some expected -> contract-equal expected (core-type body); None -> False) && definition-clause-types ty rest
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams proms ty patterns of Some expected -> contract-equal-in fams proms expected (core-type body); None -> False) && definition-clause-types-in fams proms ty rest
   definition-given-types :: List Requirement -> List CoreGiven -> Bool
-  definition-given-types requirements givens = case (requirements, givens) of
+  definition-given-types requirements givens = definition-given-types-in Nil Nil requirements givens
+  definition-given-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> List Requirement -> List CoreGiven -> Bool
+  definition-given-types-in fams proms requirements givens = case (requirements, givens) of
     (Nil, Nil) -> True
-    (Cons r rest, Cons g more) -> contract-equal (requirement-type r) (given-type g) && definition-given-types rest more
+    (Cons r rest, Cons g more) -> contract-equal-in fams proms (requirement-type r) (given-type g) && definition-given-types-in fams proms rest more
     other -> False
   core-definition-result-types :: CoreDefinition -> Bool
-  core-definition-result-types definition = let sc = core-scheme definition in let pairs = core-openings definition in
-    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
-      && definition-clause-types (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
+  core-definition-result-types definition = core-definition-result-types-with Nil Nil definition
+  core-definition-result-types-with-families :: List TypeFamilyRuleSet -> CoreDefinition -> Bool
+  core-definition-result-types-with-families fams definition = core-definition-result-types-with fams Nil definition
+  core-definition-result-types-with :: List TypeFamilyRuleSet -> List PromotedFn -> CoreDefinition -> Bool
+  core-definition-result-types-with fams proms definition = let sc = core-scheme definition in let pairs = core-openings definition in
+    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types-in fams proms (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
+      && definition-clause-types-in fams proms (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
 
   proof-expected :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
-  proof-expected gamma facts expected term = case refinement-view expected of
-    URefine id name carrier predicate -> contract-equal expected (core-type term) && proof-refined-term gamma facts term
+  proof-expected gamma facts expected term = proof-expected-in Nil Nil gamma facts expected term
+  proof-expected-in :: List TypeFamilyRuleSet -> List PromotedFn -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  proof-expected-in fams proms gamma facts expected term = let reduced = reduce-types fams proms expected in case refinement-view reduced of
+    URefine id name carrier predicate -> contract-equal-in fams proms reduced (core-type term) && proof-refined-term gamma facts term
     URequire predicates result -> case term of
-      CRequire s ty body -> contract-equal expected ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected gamma (introduced <> facts) result body; None -> False)
+      CRequire s ty body -> contract-equal-in fams proms reduced ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected-in fams proms gamma (introduced <> facts) result body; None -> False)
       other -> False
     other -> proof-term gamma facts term
   proof-contract-clauses :: List BodyBinding -> List GuardedBinding -> UType -> List CoreClause -> Bool
@@ -3553,14 +3620,17 @@ module Bootstrap.Core where
     None -> False
   proof-contract-clauses-checked :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
   proof-contract-clauses-checked bodies guards values expected clauses =
-    proof-equations (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil))) expected Nil clauses
-  proof-equations :: ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
-  proof-equations scope expected earlier clauses = case clauses of
+    proof-contract-clauses-checked-in Nil Nil bodies guards values expected clauses
+  proof-contract-clauses-checked-in :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
+  proof-contract-clauses-checked-in fams proms bodies guards values expected clauses =
+    proof-equations-in fams proms (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil))) expected Nil clauses
+  proof-equations-in :: List TypeFamilyRuleSet -> List PromotedFn -> ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
+  proof-equations-in fams proms scope expected earlier clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams proms expected patterns of
       Some result -> let gamma = proof-patterns patterns scope in
-        proof-expected gamma (scoped-core-equation-facts gamma earlier patterns) result body
-      None -> False) && proof-equations scope expected (extend-equation-prefix patterns body earlier) rest
+        proof-expected-in fams proms gamma (scoped-core-equation-facts gamma earlier patterns) result body
+      None -> False) && proof-equations-in fams proms scope expected (extend-equation-prefix patterns body earlier) rest
 
   selected-method-function :: ProofScope -> CoreTerm -> UType -> UType -> Option TotalFunction
   selected-method-function gamma method first second = case method of
@@ -3930,6 +4000,7 @@ module Bootstrap.Core where
         other -> None) else None
     CRefine sp ty evidence body -> total-core-expression bindings index scope body
     CForget sp ty body -> total-core-expression bindings index scope body
+    CCast sp ty body -> total-core-expression bindings index scope body
     CPrimitive sp ty operation fields -> (case total-core-term-list fields of
       Some terms -> (case total-core-expressions bindings index scope terms of
         Some (values, references) -> (case total-core-operation operation terms values of Some value -> Some (value, references); None -> None)
@@ -4232,6 +4303,7 @@ module Bootstrap.Core where
       other -> None)
     CRefine sp ty certificate body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CRefine sp ty certificate out); None -> None)
     CForget sp ty body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CForget sp ty out); None -> None)
+    CCast sp ty body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CCast sp ty out); None -> None)
     CPrimitive sp ty operation arguments -> (case total-method-term given dictionary owner factory members arguments of Some out -> Some (CPrimitive sp ty operation out); None -> None)
     CArgument sp first rest -> (case (total-method-term given dictionary owner factory members first, total-method-term given dictionary owner factory members rest) of
       (Some a, Some b) -> Some (CArgument sp a b)

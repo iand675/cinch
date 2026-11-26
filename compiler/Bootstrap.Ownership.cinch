@@ -110,6 +110,7 @@ module Bootstrap.Ownership where
   unwrap-var-id term = case term of
     CLocal sp ty id name Nil -> Some id
     CForget sp ty inner -> unwrap-var-id inner
+    CCast sp ty inner -> unwrap-var-id inner
     other -> None
 
   -- =========================================================================
@@ -196,6 +197,7 @@ module Bootstrap.Ownership where
     CRefine sp ty ev body -> term-uses-id needle body
     CRefineProof sp ty w body -> term-uses-id needle body
     CForget sp ty body -> term-uses-id needle body
+    CCast sp ty body -> term-uses-id needle body
     CRequire sp ty body -> term-uses-id needle body
     CDischarge sp ty ev _ body -> term-uses-id needle body
     other -> False
@@ -224,6 +226,7 @@ module Bootstrap.Ownership where
       CRefine sp ty ev body -> arm-has-reuse-alloc arity body
       CRefineProof sp ty w body -> arm-has-reuse-alloc arity body
       CForget sp ty body -> arm-has-reuse-alloc arity body
+      CCast sp ty body -> arm-has-reuse-alloc arity body
       CRequire sp ty body -> arm-has-reuse-alloc arity body
       CDischarge sp ty ev _ body -> arm-has-reuse-alloc arity body
       other -> case call-head term of
@@ -285,6 +288,7 @@ module Bootstrap.Ownership where
     CRefine sp ty ev body -> collect-reuse-params-term ret-ty pids body acc
     CRefineProof sp ty w body -> collect-reuse-params-term ret-ty pids body acc
     CForget sp ty body -> collect-reuse-params-term ret-ty pids body acc
+    CCast sp ty body -> collect-reuse-params-term ret-ty pids body acc
     CRequire sp ty body -> collect-reuse-params-term ret-ty pids body acc
     CDischarge sp ty ev _ body -> collect-reuse-params-term ret-ty pids body acc
     other -> acc
@@ -368,6 +372,7 @@ module Bootstrap.Ownership where
       Some idx -> add-id idx escaped
       None -> escaped)
     CForget sp ty inner -> escape-term pids borrows consumed in-tail inner escaped
+    CCast sp ty inner -> escape-term pids borrows consumed in-tail inner escaped
     CRequire sp ty body -> escape-term pids borrows consumed in-tail body escaped
     CProved sp ty ev body -> escape-term pids borrows consumed in-tail body escaped
     CRefine sp ty ev body -> escape-term pids borrows consumed in-tail body escaped
@@ -566,6 +571,7 @@ module Bootstrap.Ownership where
   frame-use-term needle borrows consumed in-tail term = case term of
     CLocal sp ty id name actuals -> if id == needle then 0 else 1
     CForget sp ty inner -> frame-use-term needle borrows consumed in-tail inner
+    CCast sp ty inner -> frame-use-term needle borrows consumed in-tail inner
     CRequire sp ty body -> frame-use-term needle borrows consumed in-tail body
     CProved sp ty ev body -> frame-use-term needle borrows consumed in-tail body
     CRefine sp ty ev body -> frame-use-term needle borrows consumed in-tail body
@@ -689,6 +695,7 @@ module Bootstrap.Ownership where
     CRefine sp ty ev b -> term-use-count needle b
     CRefineProof sp ty w b -> term-use-count needle b
     CForget sp ty b -> term-use-count needle b
+    CCast sp ty b -> term-use-count needle b
     CRequire sp ty b -> term-use-count needle b
     CDischarge sp ty ev _ b -> term-use-count needle b
     other -> if term-uses-id needle term then 2 else 0
@@ -826,6 +833,7 @@ module Bootstrap.Ownership where
     CRefine sp ty ev b -> term-non-escaping safe b
     CRefineProof sp ty w b -> term-non-escaping safe b
     CForget sp ty b -> term-non-escaping safe b
+    CCast sp ty b -> term-non-escaping safe b
     CRequire sp ty b -> term-non-escaping safe b
     CDischarge sp ty ev _ b -> term-non-escaping safe b
     CDecision sp ty pred c -> term-non-escaping safe c

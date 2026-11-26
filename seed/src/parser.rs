@@ -81,6 +81,8 @@ fn sig_member_name(d: &Decl) -> Name {
     match d {
         Decl::OpaqueType(o) => o.name.clone(),
         Decl::Data(t) => t.name.clone(),
+        Decl::TypeFamily(tf) => tf.name.clone(),
+        Decl::DataFamily(df) => df.name.clone(),
         Decl::Record(r) | Decl::Codata(r) => r.name.clone(),
         Decl::Signature(s) => s.name.clone(),
         Decl::Attributed { inner, .. } => sig_member_name(inner),
@@ -688,7 +690,15 @@ impl<'a> Parser<'a> {
             Tok::Export => Ok(Decl::Export(self.parse_export()?)),
             Tok::Signature => Ok(Decl::Signature(self.parse_signature()?)),
             Tok::Instance | Tok::Implicit => Ok(Decl::Instance(self.parse_instance()?)),
-            Tok::Data => Ok(Decl::Data(self.parse_data()?)),
+            Tok::Data => {
+                if matches!(self.peek_tok_at(1), Some(Tok::VarId(s)) if s == "family") {
+                    Ok(Decl::DataFamily(self.parse_data_family()?))
+                } else if matches!(self.peek_tok_at(1), Some(Tok::Instance)) {
+                    Ok(Decl::DataInstance(self.parse_data_instance()?))
+                } else {
+                    Ok(Decl::Data(self.parse_data()?))
+                }
+            }
             Tok::Foreign => Ok(Decl::Foreign(self.parse_foreign()?)),
             Tok::Infix | Tok::Infixl | Tok::Infixr => Ok(Decl::Fixity(self.parse_fixity()?)),
             Tok::Record => Ok(Decl::Record(self.parse_record()?)),
@@ -696,7 +706,15 @@ impl<'a> Parser<'a> {
             Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
             Tok::Generate => self.parse_generate(),
             Tok::Opaque => Ok(Decl::OpaqueType(self.parse_opaque_type()?)),
-            Tok::TypeKw => Ok(Decl::Refine(self.parse_refine()?)),
+            Tok::TypeKw => {
+                if matches!(self.peek_tok_at(1), Some(Tok::VarId(s)) if s == "family") {
+                    Ok(Decl::TypeFamily(self.parse_type_family()?))
+                } else if matches!(self.peek_tok_at(1), Some(Tok::Instance)) {
+                    Ok(Decl::TypeInstance(self.parse_type_instance()?))
+                } else {
+                    Ok(Decl::Refine(self.parse_refine()?))
+                }
+            }
             Tok::Rewrite => self.parse_rewrite(false),
             Tok::Prim => self.parse_prim(false),
             Tok::VarId(s) if s == "unsafe" && matches!(self.peek_tok_at(1), Some(Tok::Prim)) => {
@@ -1950,6 +1968,146 @@ impl<'a> Parser<'a> {
         Ok(RefineDecl { name, params, binder, base, pred, span })
     }
 
+    /// `type family Name params [:: Kind] [where { Name pats = rhs; ... } | = rhs]`
+    fn parse_type_family(&mut self) -> Result<TypeFamilyDecl> {
+        let span = self.expect(&Tok::TypeKw, "`type`")?.span;
+        match self.peek_tok().clone() {
+            Tok::VarId(s) if s == "family" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `family` after `type`, found {}",
+                    describe(&t)
+                )));
+            }
+        }
+        let name = self.parse_ctor_name("a type family name")?;
+        let params = self.parse_params()?;
+        let return_kind = if self.at(&Tok::ColonColon) {
+            self.bump();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        if self.at(&Tok::Where) {
+            self.bump();
+            let eqs = self.parse_block_items("the type family equations", |p| {
+                let eq_span = p.peek().span;
+                let head = p.parse_ctor_name("the type family name")?;
+                let mut lhs_args = Vec::new();
+                while p.starts_type_atom() {
+                    lhs_args.push(p.parse_type_atom()?);
+                }
+                p.expect(&Tok::Equals, "`=` in type family equation")?;
+                let rhs = p.parse_type()?;
+                Ok(TypeFamilyEq { head, lhs_args, rhs, span: eq_span })
+            })?;
+            Ok(TypeFamilyDecl {
+                name,
+                params,
+                return_kind,
+                closed: true,
+                eqs,
+                span,
+            })
+        } else if self.at(&Tok::Equals) {
+            self.bump();
+            let rhs = self.parse_type()?;
+            let lhs_args = params
+                .iter()
+                .map(|b| Type::Var(b.name.clone(), b.name.span))
+                .collect();
+            let eq = TypeFamilyEq {
+                head: name.clone(),
+                lhs_args,
+                rhs,
+                span,
+            };
+            Ok(TypeFamilyDecl {
+                name,
+                params,
+                return_kind,
+                closed: true,
+                eqs: vec![eq],
+                span,
+            })
+        } else {
+            Ok(TypeFamilyDecl {
+                name,
+                params,
+                return_kind,
+                closed: false,
+                eqs: Vec::new(),
+                span,
+            })
+        }
+    }
+
+    /// `type instance Family pat1 ... = rhs`
+    fn parse_type_instance(&mut self) -> Result<TypeInstanceDecl> {
+        let span = self.expect(&Tok::TypeKw, "`type`")?.span;
+        self.expect(&Tok::Instance, "`instance` after `type`")?;
+        let family = self.parse_con_path()?;
+        let mut lhs_args = Vec::new();
+        while self.starts_type_atom() {
+            lhs_args.push(self.parse_type_atom()?);
+        }
+        self.expect(&Tok::Equals, "`=` in `type instance`")?;
+        let rhs = self.parse_type()?;
+        Ok(TypeInstanceDecl { family, lhs_args, rhs, span })
+    }
+
+    /// `data family Name params [:: Type]`
+    fn parse_data_family(&mut self) -> Result<DataFamilyDecl> {
+        let span = self.expect(&Tok::Data, "`data`")?.span;
+        match self.peek_tok().clone() {
+            Tok::VarId(s) if s == "family" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `family` after `data`, found {}",
+                    describe(&t)
+                )));
+            }
+        }
+        let name = self.parse_ctor_name("a data family name")?;
+        let params = self.parse_params()?;
+        if self.at(&Tok::ColonColon) {
+            self.bump();
+            let rk = self.parse_type()?;
+            if !matches!(&rk, Type::Con(p, _) if p.parts().as_slice() == ["Type"]) {
+                return Err(Error::at(
+                    rk.span(),
+                    "a `data family` result kind must be `Type`",
+                ));
+            }
+        }
+        Ok(DataFamilyDecl { name, params, span })
+    }
+
+    /// `data instance Family pat1 ... where { Ctor :: ... }`
+    fn parse_data_instance(&mut self) -> Result<DataInstanceDecl> {
+        let span = self.expect(&Tok::Data, "`data`")?.span;
+        self.expect(&Tok::Instance, "`instance` after `data`")?;
+        let family = self.parse_con_path()?;
+        let mut lhs_args = Vec::new();
+        while self.starts_type_atom() {
+            lhs_args.push(self.parse_type_atom()?);
+        }
+        self.expect(&Tok::Where, "`where` in `data instance`")?;
+        let ctors = self.parse_block_items("the constructor block", |p| {
+            let attrs = p.parse_attr_list()?;
+            let name = p.parse_ctor_name("a constructor name")?;
+            p.expect(&Tok::ColonColon, "`::`")?;
+            let ty = p.parse_type()?;
+            let span = name.span;
+            Ok(CtorDecl { attrs, name, ty, span })
+        })?;
+        Ok(DataInstanceDecl { family, lhs_args, ctors, span })
+    }
+
     fn parse_opaque_type(&mut self) -> Result<OpaqueTypeDecl> {
         let span = self.expect(&Tok::Opaque, "`opaque`")?.span;
         self.expect(&Tok::TypeKw, "`type` after `opaque`")?;
@@ -2968,9 +3126,10 @@ impl<'a> Parser<'a> {
             Tok::TypeNameLit(s) => Err(self.err(format!(
                 "the type name quote `''{s}` belongs to a staging or macro name position (surface grammar local amendments section 12); type-level symbols are deferred (the spelling is reserved)"
             ))),
-            Tok::FloatLit(_) => Err(self.err(
-                "float literals are not supported in the bootstrap slice (there is no AST node for them)",
-            )),
+            Tok::FloatLit(v) => {
+                self.bump();
+                Ok(Term::Float(v, span))
+            }
             Tok::LParen => {
                 self.bump();
                 if self.at(&Tok::RParen) {
@@ -3618,7 +3777,15 @@ impl<'a> Parser<'a> {
         // `from` in `forget p from e` is the contextual form's
         // separator, never a juxtaposed type atom.
         !matches!(self.peek_tok(), Tok::VarId(s) if s == "from")
-            && matches!(self.peek_tok(), Tok::VarId(_) | Tok::ConId(_) | Tok::LParen | Tok::Int(_))
+            && matches!(
+                self.peek_tok(),
+                Tok::VarId(_)
+                    | Tok::ConId(_)
+                    | Tok::LParen
+                    | Tok::LBracket
+                    | Tok::Int(_)
+                    | Tok::StrLit(_)
+            )
     }
 
     fn parse_type_atom(&mut self) -> Result<Type> {
@@ -3675,6 +3842,29 @@ impl<'a> Parser<'a> {
             Tok::Int(s) => {
                 self.bump();
                 Ok(Type::Num(s, span))
+            }
+            Tok::StrLit(s) => {
+                self.bump();
+                Ok(Type::StrLit(s, span))
+            }
+            Tok::LBracket => {
+                self.bump();
+                let mut items = Vec::new();
+                if !self.at(&Tok::RBracket) {
+                    loop {
+                        items.push(self.parse_type()?);
+                        if self.at(&Tok::Comma) {
+                            self.bump();
+                            if self.at(&Tok::RBracket) {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                self.expect(&Tok::RBracket, "`]` closing the type-level list")?;
+                Ok(Type::List(items, span))
             }
             Tok::SymLit(s) => Err(self.err(format!(
                 "the symbol `'{s}` is not a type: type-level symbols are deferred (the `'` spelling is reserved at the type level)"
@@ -4000,6 +4190,43 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             resolve_type(&mut r.base, fix)?;
             resolve_type(&mut r.pred, fix)?;
         }
+        Decl::TypeFamily(tf) => {
+            for b in &mut tf.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+            if let Some(rk) = &mut tf.return_kind {
+                resolve_type(rk, fix)?;
+            }
+            for eq in &mut tf.eqs {
+                for arg in &mut eq.lhs_args {
+                    resolve_type(arg, fix)?;
+                }
+                resolve_type(&mut eq.rhs, fix)?;
+            }
+        }
+        Decl::TypeInstance(ti) => {
+            for arg in &mut ti.lhs_args {
+                resolve_type(arg, fix)?;
+            }
+            resolve_type(&mut ti.rhs, fix)?;
+        }
+        Decl::DataFamily(df) => {
+            for b in &mut df.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+        }
+        Decl::DataInstance(di) => {
+            for arg in &mut di.lhs_args {
+                resolve_type(arg, fix)?;
+            }
+            for c in &mut di.ctors {
+                resolve_type(&mut c.ty, fix)?;
+            }
+        }
         Decl::Rewrite(r) => {
             for b in &mut r.binders {
                 if let Some(ann) = &mut b.ann {
@@ -4306,7 +4533,7 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
         }
         Term::Splice { body, .. } => resolve_term(body, fix)?,
         Term::MacroCall { .. } | Term::SpliceHole { .. } | Term::Str(_, _) | Term::Char(_, _)
-        | Term::Unit(_) | Term::Hole(_) | Term::Var(_) | Term::Con(_) | Term::Int(_, _) => {}
+        | Term::Unit(_) | Term::Hole(_) | Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Float(_, _) => {}
         Term::Infix(_, _, _) => {
             let (terms, ops, span) = match std::mem::replace(t, Term::Unit(Span::new(0, 0))) {
                 Term::Infix(terms, ops, span) => (terms, ops, span),
@@ -4556,7 +4783,7 @@ fn resolve_type_chain(
 /// are walked.
 fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
     match t {
-        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) | Type::StrLit(_, _) => {}
         Type::Lam(_, b, _) => resolve_type(b, fix)?,
         Type::App(f, a, _) | Type::IndexAnnotated(f, a, _) => {
             resolve_type(f, fix)?;
@@ -4597,7 +4824,7 @@ fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
             resolve_type(ann, fix)?;
             resolve_type(body, fix)?;
         }
-        Type::Tuple(items, _) => {
+        Type::Tuple(items, _) | Type::List(items, _) => {
             for i in items {
                 resolve_type(i, fix)?;
             }
@@ -5158,8 +5385,12 @@ mod tests {
 
     #[test]
     fn not_supported_terms_are_named() {
-        let e = err("module T where\n  f = 1.5\n");
-        assert!(e.contains("float literals are not supported"), "{e}");
+        // Float literals now parse as `Term::Float`.
+        let p = ok("module T where\n  f = 1.5\n");
+        match eq_body(&p.module, "f") {
+            Term::Float(v, _) => assert_eq!(v, "1.5"),
+            other => panic!("expected a float literal, got {other:?}"),
+        }
         // A macro invocation needs a balanced token tree. A spaced `!` is
         // the bang operator, so nothing is absorbed into the name.
         let e = err("module T where\n  f = m ! x\n");

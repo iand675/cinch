@@ -3542,7 +3542,8 @@ pub fn package_variants(
         // The variant's residual program: the same specialization path
         // the build takes (supercompilation and JIT specification
         // section 5: the driving bounds are profile parameters).
-        let (program, _opt) = crate::specialize::optimize(&program, profile)?;
+        let (mut program, _opt) = crate::specialize::optimize(&program, profile)?;
+        crate::ad::lower_program(&mut program)?;
         let program = crate::rc::insert(program, profile)?;
         let program = stack_alloc(program, profile, &DriverOptions::default());
         let ir = crate::codegen::emit_for(profile, &program)?;
@@ -4741,6 +4742,19 @@ pub struct DriverOptions {
     /// its percentage and the payload bytes the refused allocations carry
     /// (design/stack-allocation.md section 8).
     pub escape_report: bool,
+    /// `--array-report` (`CINCH_ARRAY_REPORT=1`): print the Typed Array IR
+    /// optimization report (fusions, eliminated allocations, schedules,
+    /// storage plans, GPU diagnostics).
+    pub array_report: bool,
+    /// `--array-report-json`: emit the Typed Array IR report as JSON on stderr.
+    pub array_report_json: bool,
+    /// `--array-target <seq|c|cpu|multicore|ispc|metal|metal-required|opencl|opencl-required|cuda|cuda-required|hip|hip-required|python|pyopencl|wasm|wasm-multicore|webgpu|webgpu-required|wasm-webgpu|wasm-webgpu-required>`:
+    /// target execution model for Typed Array IR planning, kernel emission, and compile-time GPU diagnostics.
+    pub array_target: Option<String>,
+    /// Optional path to write the Array IR JSON report for automated inspection.
+    pub array_report_out: Option<PathBuf>,
+    /// Optional path to write emitted backend kernel/binding source (MSL, OpenCL C, CUDA, HIP, ISPC, Python, Wasm, WebGPU WGSL / `.webgpu.mjs`).
+    pub array_kernels_out: Option<PathBuf>,
     /// `--no-reclaim`: build the leak-everything baseline, the same profile
     /// `CINCH_RECLAIM=0` selects, as a command-line word. Nothing is
     /// counted, so no ownership operation is emitted and every block the
@@ -4773,6 +4787,20 @@ impl DriverOptions {
     /// `CINCH_ESCAPE_REPORT=1` (design/stack-allocation.md section 8).
     pub fn escape_report(&self) -> bool {
         self.escape_report || std::env::var_os("CINCH_ESCAPE_REPORT").is_some()
+    }
+
+    pub fn array_report(&self) -> bool {
+        self.array_report || std::env::var_os("CINCH_ARRAY_REPORT").is_some()
+    }
+
+    pub fn resolved_array_target(&self) -> crate::array_ir::ArrayTarget {
+        let raw = self
+            .array_target
+            .clone()
+            .or_else(|| std::env::var("CINCH_ARRAY_TARGET").ok());
+        raw.as_deref()
+            .and_then(crate::array_ir::ArrayTarget::from_str)
+            .unwrap_or(crate::array_ir::ArrayTarget::Cpu)
     }
 
     /// The simplifier budget these flags select: the pass cap, whether
@@ -6055,6 +6083,35 @@ pub fn driver_with_profile_opts(
         (program, opt, Vec::new())
     };
     trace_driver_phase(phase_trace, "optimization.end");
+    // Core-IR forward-mode (JVP) and reverse-mode (VJP) automatic differentiation
+    // (`seed/src/ad.rs`). Runs before Typed Array IR optimization so differentiated
+    // array programs participate in fusion, scheduling, and storage planning.
+    crate::ad::lower_program(&mut program)?;
+    // Typed Array IR optimization, schedule planning, storage planning, and
+    // compile-time GPU target diagnostics (`seed/src/array_ir.rs`).
+    let array_target = opts.resolved_array_target();
+    let array_report = crate::array_ir::optimize_program(&mut program, array_target)?;
+    if let Some(ref report_path) = opts.array_report_out {
+        let _ = std::fs::write(report_path, array_report.format_json());
+    }
+    if let Some(ref kernels_path) = opts.array_kernels_out {
+        let is_js_bridge = array_target.is_webgpu()
+            && matches!(
+                kernels_path.extension().and_then(|e| e.to_str()),
+                Some("mjs" | "js")
+            );
+        let content = if is_js_bridge {
+            array_report.format_webgpu_js_bridge()
+        } else {
+            array_report.format_kernels_source()
+        };
+        let _ = std::fs::write(kernels_path, content);
+    }
+    if opts.array_report_json && !array_report.is_empty() {
+        eprintln!("{}", array_report.format_json());
+    } else if opts.array_report() && !array_report.is_empty() {
+        eprint!("{}", array_report.format_text());
+    }
     // Dead-unit elimination (design/stack-allocation.md section 7.4): after
     // inlining, whose copies leave a callee with no call site, and before
     // reference counting, so the removal is not paid for. `check` prunes
@@ -6271,6 +6328,14 @@ pub fn driver_with_profile_opts(
             objects.extend(opts.native_objects.iter().map(|p| p.to_string_lossy().into_owned()));
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
             link_for(&ir_path, &out, &refs, &link_plan, &link_target(profile, opts))?;
+            if array_target.is_webgpu()
+                && (is_freestanding(profile)
+                    || out.extension().and_then(|e| e.to_str()) == Some("wasm"))
+            {
+                let bridge_path = out.with_extension("webgpu.mjs");
+                std::fs::write(&bridge_path, array_report.format_webgpu_js_bridge())
+                    .map_err(|e| Error::plain(format!("{}: {e}", bridge_path.display())))?;
+            }
             Ok(0)
         }
         Mode::Run => {
@@ -6484,7 +6549,8 @@ pub fn run_program_objects(
     profile: &crate::core::TargetProfile,
     objects: &[&str],
 ) -> Result<i32> {
-    let (program, _opt) = crate::specialize::optimize(program, profile)?;
+    let (mut program, _opt) = crate::specialize::optimize(program, profile)?;
+    crate::ad::lower_program(&mut program)?;
     let program = crate::rc::insert_closed(program, profile)?;
     let program = stack_alloc(program, profile, &DriverOptions::default());
     let ir = codegen::emit_for(profile, &program)?;
@@ -6588,7 +6654,8 @@ pub fn run_source_objects(src: &str, objects: &[&str]) -> Result<i32> {
 pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<()> {
     let profile = crate::core::TargetProfile::native();
     let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
-    let (program, _opt) = crate::specialize::optimize(&program, &profile)?;
+    let (mut program, _opt) = crate::specialize::optimize(&program, &profile)?;
+    crate::ad::lower_program(&mut program)?;
     let program = crate::rc::insert_closed(program, &profile)?;
     let program = stack_alloc(program, &profile, &DriverOptions::default());
     let ir = codegen::emit_for(&profile, &program)?;
@@ -6612,7 +6679,8 @@ pub fn run_program_io(
     profile: &crate::core::TargetProfile,
     input: &[u8],
 ) -> Result<(i32, String)> {
-    let (program, _opt) = crate::specialize::optimize(program, profile)?;
+    let (mut program, _opt) = crate::specialize::optimize(program, profile)?;
+    crate::ad::lower_program(&mut program)?;
     let program = crate::rc::insert_closed(program, profile)?;
     let program = stack_alloc(program, profile, &DriverOptions::default());
     let ir = codegen::emit_for(profile, &program)?;

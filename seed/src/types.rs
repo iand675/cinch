@@ -556,6 +556,9 @@ pub enum ITerm {
     Lam(Interned, Box<ITerm>),
     App(Box<ITerm>, Vec<ITerm>),
     Bin(IdxOp, Box<ITerm>, Box<ITerm>),
+    /// Application of a `Nat`/index-returning type family (e.g. `Rank sh`, `Size sh`).
+    /// Reduces via `Unifier::resolve_idx` once its type/index arguments match an equation.
+    TyFamily(Interned, Vec<Ty>),
     MVar(usize),
 }
 
@@ -730,6 +733,7 @@ impl ITerm {
             }
             ITerm::Lam(_, body) => body.visit_types(visit),
             ITerm::Bin(_, a, b) => { a.visit_types(visit); b.visit_types(visit); }
+            ITerm::TyFamily(_, args) => { for ty in args { visit(ty); } }
             _ => {}
         }
     }
@@ -745,6 +749,7 @@ impl ITerm {
             ITerm::App(head, args) => ITerm::App(Box::new(head.map_types(map)), args.iter().map(|arg| arg.map_types(map)).collect()),
             ITerm::Lam(name, body) => ITerm::Lam(name.clone(), Box::new(body.map_types(map))),
             ITerm::Bin(op, a, b) => ITerm::Bin(*op, Box::new(a.map_types(map)), Box::new(b.map_types(map))),
+            ITerm::TyFamily(name, args) => ITerm::TyFamily(name.clone(), args.iter().map(&mut *map).collect()),
             _ => self.clone(),
         }
     }
@@ -798,6 +803,11 @@ impl ITerm {
                 a.free_vars(out);
                 b.free_vars(out);
             }
+            ITerm::TyFamily(_, args) => {
+                for ty in args {
+                    ty.free_index_vars(out);
+                }
+            }
         }
     }
 
@@ -830,6 +840,11 @@ impl ITerm {
                 a.free_mvars(out);
                 b.free_mvars(out);
             }
+            ITerm::TyFamily(_, args) => {
+                for ty in args {
+                    ty.free_idx_metas(out);
+                }
+            }
         }
     }
 
@@ -858,6 +873,7 @@ impl ITerm {
             Self::Lam(_, body) => body.local_values(out),
             Self::App(head, args) => { head.local_values(out); for arg in args { arg.local_values(out); } }
             Self::Bin(_, left, right) => { left.local_values(out); right.local_values(out); }
+            Self::TyFamily(_, args) => { for ty in args { ty.local_values(out); } }
             _ => {}
         }
     }
@@ -885,6 +901,10 @@ impl ITerm {
             }
             ITerm::App(head, args) => ITerm::App(Box::new(head.substitute(substitution)), args.iter().map(|arg| arg.substitute(substitution)).collect()),
             ITerm::Bin(op, a, b) => ITerm::Bin(*op, Box::new(a.substitute(substitution)), Box::new(b.substitute(substitution))),
+            ITerm::TyFamily(name, args) => ITerm::TyFamily(
+                name.clone(),
+                args.iter().map(|ty| ty.substitute_index(substitution)).collect(),
+            ),
         }
     }
 
@@ -979,6 +999,9 @@ impl ITerm {
             (ITerm::Bin(op, a, b), ITerm::Bin(op2, c, d)) => {
                 op == op2 && a.eq(&c) && b.eq(&d)
             }
+            (ITerm::TyFamily(f1, a1), ITerm::TyFamily(f2, a2)) => {
+                f1 == f2 && a1.len() == a2.len() && a1.iter().zip(a2.iter()).all(|(x, y)| ty_eq(x, y))
+            }
             _ => false,
         }
     }
@@ -1035,6 +1058,21 @@ impl Spell for ITerm {
                 write!(f, ")")
             }
             ITerm::Bin(op, a, b) => write!(f, "({} {op} {})", s.of(&**a), s.of(&**b)),
+            ITerm::TyFamily(name, args) => {
+                let display = name
+                    .as_str()
+                    .strip_prefix(crate::promote::PROMOTED_FN_PREFIX)
+                    .unwrap_or(name.as_str());
+                if args.is_empty() {
+                    write!(f, "{display}")
+                } else {
+                    write!(f, "({display}")?;
+                    for a in args {
+                        write!(f, " {}", s.of(a))?;
+                    }
+                    write!(f, ")")
+                }
+            }
         }
     }
 }
@@ -1582,6 +1620,7 @@ impl Sorts {
                 _ => None,
             },
             ITerm::Bin(_, a, b) => self.term(a).or_else(|| self.term(b)),
+            ITerm::TyFamily(h, args) => self.fun(h, args.len()).or(Some(IntSort::Nat)),
             ITerm::Num(_) | ITerm::Evidence(_) | ITerm::Lam(..) | ITerm::MVar(_) => None,
         }
     }
@@ -3419,16 +3458,43 @@ impl EffRow {
     }
 }
 
+/// Canonical promoted type identities for `Data.Core.Nil` and `Data.Core.Cons`
+/// used when desugaring type-level list literals (`[]`, `[a, b, c]`).
+pub const PROMOTED_NIL: &str = "ctor:Data.Core.Nil";
+pub const PROMOTED_CONS: &str = "ctor:Data.Core.Cons";
+
+/// If `ty` is a proper promoted type-level list (`Nil` or right-nested `Cons`
+/// ending in `Nil`), return its element slice in order.
+pub fn extract_promoted_list<'a>(mut ty: &'a Ty) -> Option<Vec<&'a Ty>> {
+    let mut elems = Vec::new();
+    loop {
+        match ty {
+            Ty::Adt(t, args) if t == PROMOTED_NIL && args.is_empty() => return Some(elems),
+            Ty::Adt(t, args) if t == PROMOTED_CONS && args.len() == 2 => {
+                elems.push(&args[0]);
+                ty = &args[1];
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// Whether a type needs parentheses when it appears as an ARGUMENT of an
 /// applied type constructor (`List (List a)`, `Option (List a)`,
 /// `List (a -> b)` in the arrows it emits itself). Types that already
-/// print their own delimiters (tuples, arrows, Pis, Sigmas, handlers) do
+/// print their own delimiters (tuples, lists, arrows, Pis, Sigmas, handlers) do
 /// not; a nullary constructor or a variable is atomic. Without this the
 /// rendered contract text is not re-parseable, which matters because an
 /// interface's rendered scheme is the contract a consumer reads.
 fn needs_parens_as_argument(t: &Ty) -> bool {
     match t {
-        Ty::Adt(_, args) => !args.is_empty(),
+        Ty::Adt(_, args) => {
+            if extract_promoted_list(t).is_some() {
+                false
+            } else {
+                !args.is_empty()
+            }
+        }
         Ty::App(..)
         | Ty::Thunk { .. }
         | Ty::Later(_)
@@ -3464,6 +3530,21 @@ impl Spell for Ty {
             Ty::Region(r) => write!(f, "{r}"),
             Ty::Meta(MetaId(m)) => write!(f, "?m{m}"),
             Ty::Adt(t, args) => {
+                // Proper promoted type-level lists print as `[t1, t2, ...]`.
+                if let Some(elems) = extract_promoted_list(self) {
+                    write!(f, "[")?;
+                    for (i, a) in elems.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", s.of(*a))?;
+                    }
+                    return write!(f, "]");
+                }
+                // Promoted type-level string literals (`"batch"`).
+                if t.starts_with("\"") && args.is_empty() {
+                    return write!(f, "{t}");
+                }
                 // The anonymous former prints as it is written: the
                 // predicate parenthesized and a renamed binder (`$it`)
                 // back to a plain name, so an interface's rendering reads
@@ -3480,7 +3561,27 @@ impl Spell for Ty {
                         write!(f, "refined ({}) {}", s.of(&p), s.of(base))
                     };
                 }
-                s.nominal(f, t)?;
+                // Zero-cost runtime singleton prints as `Sing <val>` (hiding the internal carrier).
+                if let (true, [_, val]) = (t == "Sing", args.as_slice()) {
+                    return if needs_parens_as_argument(val) {
+                        write!(f, "Sing ({})", s.of(val))
+                    } else {
+                        write!(f, "Sing {}", s.of(val))
+                    };
+                }
+                // Promoted `Bool` literals.
+                if t == crate::promote::PROMOTED_TRUE && args.is_empty() {
+                    return write!(f, "True");
+                }
+                if t == crate::promote::PROMOTED_FALSE && args.is_empty() {
+                    return write!(f, "False");
+                }
+                let display_head = t
+                    .strip_prefix("ctor:")
+                    .or_else(|| t.strip_prefix(crate::promote::PROMOTED_FN_PREFIX))
+                    .or_else(|| t.strip_prefix(crate::promote::PROMOTED_FNREF_PREFIX))
+                    .unwrap_or(t.as_str());
+                s.nominal(f, display_head)?;
                 for a in args {
                     if needs_parens_as_argument(a) {
                         write!(f, " ({})", s.of(a))?;
@@ -4089,6 +4190,339 @@ pub struct Unifier {
     /// as old as the outer, so it cannot later carry a skolem out by the
     /// back door (level adjustment, as in OCaml's generalisation).
     level_floor: HashMap<usize, usize>,
+    /// Compiled rewrite rules for closed and open type families (both
+    /// `Type`-returning and `Nat`/index-returning). Shared by `Arc` so
+    /// cloning a `Unifier` is O(1).
+    type_families: std::sync::Arc<HashMap<String, TypeFamilyRuleSet>>,
+    /// Native compile-time evaluator for promoted pure functions.
+    promoted: crate::promote::PromotedEnv,
+}
+
+/// The right-hand side of a compiled type family equation.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TypeFamilyRhs {
+    Type(Ty),
+    Idx(ITerm),
+}
+
+/// One compiled equation of a type family.
+/// Pattern variables in `lhs_args` appear as `Ty::Param(name)` (for type-kinded
+/// variables) or `ITerm::Var(name)` (for index-kinded variables).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypeFamilyRule {
+    pub pat_vars: Vec<String>,
+    pub lhs_args: Vec<Ty>,
+    pub rhs: TypeFamilyRhs,
+}
+
+/// Reduction rules for a single type family head.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypeFamilyRuleSet {
+    pub identity: String,
+    pub arity: usize,
+    pub closed: bool,
+    pub returns_idx: bool,
+    pub rules: Vec<TypeFamilyRule>,
+}
+
+const TYPE_FAMILY_FUEL: u32 = 64;
+
+/// Check whether two open-family LHS argument patterns can overlap (i.e. are not
+/// definitely disjoint at some position).
+pub fn type_family_patterns_overlap(
+    lhs1: &[Ty],
+    pv1: &[String],
+    lhs2: &[Ty],
+    pv2: &[String],
+    families: &HashMap<String, TypeFamilyRuleSet>,
+) -> bool {
+    if lhs1.len() != lhs2.len() {
+        return false;
+    }
+    for (a, b) in lhs1.iter().zip(lhs2.iter()) {
+        if tys_disjoint_patterns(a, pv1, b, pv2, families) {
+            return false;
+        }
+    }
+    true
+}
+
+fn tys_disjoint_patterns(
+    a: &Ty,
+    pv1: &[String],
+    b: &Ty,
+    pv2: &[String],
+    families: &HashMap<String, TypeFamilyRuleSet>,
+) -> bool {
+    match (a, b) {
+        (Ty::Param(v), _) if pv1.iter().any(|p| p == v.as_str()) => false,
+        (_, Ty::Param(v)) if pv2.iter().any(|p| p == v.as_str()) => false,
+        (Ty::Adt(n1, _), _) if families.contains_key(n1.as_str()) => false,
+        (_, Ty::Adt(n2, _)) if families.contains_key(n2.as_str()) => false,
+        (Ty::Adt(n1, a1), Ty::Adt(n2, a2)) => {
+            if n1 != n2 || a1.len() != a2.len() {
+                true
+            } else {
+                a1.iter().zip(a2.iter()).any(|(x, y)| tys_disjoint_patterns(x, pv1, y, pv2, families))
+            }
+        }
+        (Ty::Idx(i1), Ty::Idx(i2)) => idxs_disjoint_patterns(&i1.normalize(), pv1, &i2.normalize(), pv2),
+        (Ty::Tuple(a1), Ty::Tuple(a2)) => {
+            if a1.len() != a2.len() {
+                true
+            } else {
+                a1.iter().zip(a2.iter()).any(|(x, y)| tys_disjoint_patterns(x, pv1, y, pv2, families))
+            }
+        }
+        (Ty::Prim(s1), Ty::Prim(s2)) => s1 != s2,
+        (Ty::Int, Ty::Int) | (Ty::Nat, Ty::Nat) | (Ty::Bool, Ty::Bool)
+        | (Ty::Unit, Ty::Unit) | (Ty::Bytes, Ty::Bytes) | (Ty::Sym, Ty::Sym) => false,
+        (Ty::Fun(a1, _, _, r1), Ty::Fun(a2, _, _, r2)) => {
+            tys_disjoint_patterns(a1, pv1, a2, pv2, families)
+                || tys_disjoint_patterns(r1, pv1, r2, pv2, families)
+        }
+        (Ty::Meta(_), _) | (_, Ty::Meta(_)) => false,
+        _ => true,
+    }
+}
+
+fn idxs_disjoint_patterns(a: &ITerm, pv1: &[String], b: &ITerm, pv2: &[String]) -> bool {
+    match (a, b) {
+        (ITerm::Var(v), _) if pv1.iter().any(|p| p == v.as_str()) => false,
+        (_, ITerm::Var(v)) if pv2.iter().any(|p| p == v.as_str()) => false,
+        (ITerm::Num(n1), ITerm::Num(n2)) => n1 != n2,
+        _ => false,
+    }
+}
+
+fn match_ty_pat(
+    pat: &Ty,
+    arg: &Ty,
+    pat_vars: &[String],
+    ty_env: &mut HashMap<String, Ty>,
+    idx_env: &mut HashMap<String, ITerm>,
+) -> bool {
+    match (pat, arg) {
+        (Ty::Param(v), _) if pat_vars.iter().any(|p| p == v.as_str()) => {
+            if let Some(prev) = ty_env.get(v.as_str()) {
+                ty_eq(prev, arg)
+            } else {
+                ty_env.insert(v.to_string(), arg.clone());
+                if let Ty::Idx(it) = arg {
+                    idx_env.insert(v.to_string(), it.normalize());
+                }
+                true
+            }
+        }
+        (Ty::Idx(p), Ty::Idx(a)) => match_idx_pat(p, a, pat_vars, ty_env, idx_env),
+        (Ty::Adt(n1, a1), Ty::Adt(n2, a2)) if n1 == n2 && a1.len() == a2.len() => a1
+            .iter()
+            .zip(a2.iter())
+            .all(|(x, y)| match_ty_pat(x, y, pat_vars, ty_env, idx_env)),
+        (Ty::Tuple(a1), Ty::Tuple(a2)) if a1.len() == a2.len() => a1
+            .iter()
+            .zip(a2.iter())
+            .all(|(x, y)| match_ty_pat(x, y, pat_vars, ty_env, idx_env)),
+        (Ty::Fun(a1, m1, _, r1), Ty::Fun(a2, m2, _, r2)) if m1 == m2 => {
+            match_ty_pat(a1, a2, pat_vars, ty_env, idx_env)
+                && match_ty_pat(r1, r2, pat_vars, ty_env, idx_env)
+        }
+        (Ty::Prim(s1), Ty::Prim(s2)) => s1 == s2,
+        (Ty::Int, Ty::Int) | (Ty::Nat, Ty::Nat) | (Ty::Bool, Ty::Bool)
+        | (Ty::Unit, Ty::Unit) | (Ty::Bytes, Ty::Bytes) | (Ty::Sym, Ty::Sym) => true,
+        (Ty::Param(x), Ty::Param(y)) => x == y,
+        _ => false,
+    }
+}
+
+fn match_idx_pat(
+    pat: &ITerm,
+    arg: &ITerm,
+    pat_vars: &[String],
+    ty_env: &mut HashMap<String, Ty>,
+    idx_env: &mut HashMap<String, ITerm>,
+) -> bool {
+    let p = pat.normalize();
+    let a = arg.normalize();
+    match (&p, &a) {
+        (ITerm::Var(v), _) if pat_vars.iter().any(|pv| pv == v.as_str()) => {
+            if let Some(prev) = idx_env.get(v.as_str()) {
+                prev.eq(&a)
+            } else {
+                idx_env.insert(v.to_string(), a);
+                true
+            }
+        }
+        (ITerm::Num(n1), ITerm::Num(n2)) => n1 == n2,
+        (ITerm::Bin(op1, l1, r1), ITerm::Bin(op2, l2, r2)) if op1 == op2 => {
+            match_idx_pat(l1, l2, pat_vars, ty_env, idx_env)
+                && match_idx_pat(r1, r2, pat_vars, ty_env, idx_env)
+        }
+        (ITerm::TyFamily(f1, a1), ITerm::TyFamily(f2, a2)) if f1 == f2 && a1.len() == a2.len() => a1
+            .iter()
+            .zip(a2.iter())
+            .all(|(x, y)| match_ty_pat(x, y, pat_vars, ty_env, idx_env)),
+        _ => p.eq(&a),
+    }
+}
+
+/// Apartness check for closed type families: returns `true` iff `actual` can
+/// NEVER match `pat` under any instantiation of free parameters or metavariables.
+fn ty_apart(
+    pat: &Ty,
+    actual: &Ty,
+    pat_vars: &[String],
+    families: &HashMap<String, TypeFamilyRuleSet>,
+) -> bool {
+    match (pat, actual) {
+        (Ty::Param(v), _) if pat_vars.iter().any(|p| p == v.as_str()) => false,
+        (_, Ty::Meta(_)) | (_, Ty::Param(_)) => false,
+        (_, Ty::Adt(n2, _)) if families.contains_key(n2.as_str()) => false,
+        (Ty::Adt(n1, _), _) if families.contains_key(n1.as_str()) => false,
+        (Ty::Adt(n1, a1), Ty::Adt(n2, a2)) => {
+            if n1 != n2 || a1.len() != a2.len() {
+                true
+            } else {
+                a1.iter().zip(a2.iter()).any(|(x, y)| ty_apart(x, y, pat_vars, families))
+            }
+        }
+        (Ty::Idx(p), Ty::Idx(a)) => idx_apart(&p.normalize(), &a.normalize(), pat_vars),
+        (Ty::Tuple(a1), Ty::Tuple(a2)) => {
+            if a1.len() != a2.len() {
+                true
+            } else {
+                a1.iter().zip(a2.iter()).any(|(x, y)| ty_apart(x, y, pat_vars, families))
+            }
+        }
+        (Ty::Prim(s1), Ty::Prim(s2)) => s1 != s2,
+        (Ty::Int, Ty::Int) | (Ty::Nat, Ty::Nat) | (Ty::Bool, Ty::Bool)
+        | (Ty::Unit, Ty::Unit) | (Ty::Bytes, Ty::Bytes) | (Ty::Sym, Ty::Sym) => false,
+        (Ty::Fun(a1, _, _, r1), Ty::Fun(a2, _, _, r2)) => {
+            ty_apart(a1, a2, pat_vars, families) || ty_apart(r1, r2, pat_vars, families)
+        }
+        (Ty::App(..), _) | (_, Ty::App(..)) => false,
+        _ => true,
+    }
+}
+
+fn idx_apart(pat: &ITerm, actual: &ITerm, pat_vars: &[String]) -> bool {
+    match (pat, actual) {
+        (ITerm::Var(v), _) if pat_vars.iter().any(|p| p == v.as_str()) => false,
+        (ITerm::Num(n1), ITerm::Num(n2)) => n1 != n2,
+        _ => false,
+    }
+}
+
+fn subst_family_ty(ty: &Ty, ty_env: &HashMap<String, Ty>, idx_env: &HashMap<String, ITerm>) -> Ty {
+    match ty {
+        Ty::Param(v) => ty_env.get(v.as_str()).cloned().unwrap_or_else(|| ty.clone()),
+        Ty::Adt(n, args) => Ty::Adt(
+            n.clone(),
+            args.iter().map(|a| subst_family_ty(a, ty_env, idx_env)).collect(),
+        ),
+        Ty::App(h, args) => Ty::apply_spine(
+            subst_family_ty(h, ty_env, idx_env),
+            args.iter().map(|a| subst_family_ty(a, ty_env, idx_env)).collect::<Vec<_>>(),
+        ),
+        Ty::Tuple(args) => Ty::Tuple(
+            args.iter().map(|a| subst_family_ty(a, ty_env, idx_env)).collect(),
+        ),
+        Ty::Fun(a, m, e, b) => Ty::fun_mult(
+            subst_family_ty(a, ty_env, idx_env),
+            *m,
+            e.clone(),
+            subst_family_ty(b, ty_env, idx_env),
+        ),
+        Ty::Pi { var, dom, mult, eff, cod } => {
+            let mut next_idx = idx_env.clone();
+            next_idx.remove(var.as_str());
+            Ty::Pi {
+                var: var.clone(),
+                dom: Box::new(subst_family_ty(dom, ty_env, idx_env)),
+                mult: *mult,
+                eff: eff.clone(),
+                cod: Box::new(subst_family_ty(cod, ty_env, &next_idx)),
+            }
+        }
+        Ty::Sigma { var, dom, cod } => {
+            let mut next_idx = idx_env.clone();
+            next_idx.remove(var.as_str());
+            Ty::Sigma {
+                var: var.clone(),
+                dom: Box::new(subst_family_ty(dom, ty_env, idx_env)),
+                cod: Box::new(subst_family_ty(cod, ty_env, &next_idx)),
+            }
+        }
+        Ty::Idx(t) => Ty::Idx(Box::new(subst_family_idx(t, ty_env, idx_env))),
+        Ty::Prp(p) => Ty::Prp(Box::new(subst_family_prop(p, ty_env, idx_env))),
+        Ty::Thunk { eff, inner } => Ty::Thunk {
+            eff: eff.clone(),
+            inner: Box::new(subst_family_ty(inner, ty_env, idx_env)),
+        },
+        Ty::Later(inner) => Ty::Later(Box::new(subst_family_ty(inner, ty_env, idx_env))),
+        Ty::Lazy { eff, region, inner } => Ty::Lazy {
+            eff: eff.clone(),
+            region: *region,
+            inner: Box::new(subst_family_ty(inner, ty_env, idx_env)),
+        },
+        Ty::Ref(r, inner) => Ty::Ref(*r, Box::new(subst_family_ty(inner, ty_env, idx_env))),
+        Ty::Mut(r, inner) => Ty::Mut(*r, Box::new(subst_family_ty(inner, ty_env, idx_env))),
+        Ty::Ptr { role, pointee } => Ty::Ptr {
+            role: role.clone(),
+            pointee: Box::new(subst_family_ty(pointee, ty_env, idx_env)),
+        },
+        _ => ty.clone(),
+    }
+}
+
+fn subst_family_idx(term: &ITerm, ty_env: &HashMap<String, Ty>, idx_env: &HashMap<String, ITerm>) -> ITerm {
+    match term {
+        ITerm::Var(v) => idx_env.get(v.as_str()).cloned().unwrap_or_else(|| term.clone()),
+        ITerm::Bin(op, a, b) => ITerm::Bin(
+            *op,
+            Box::new(subst_family_idx(a, ty_env, idx_env)),
+            Box::new(subst_family_idx(b, ty_env, idx_env)),
+        ),
+        ITerm::App(f, args) => ITerm::App(
+            Box::new(subst_family_idx(f, ty_env, idx_env)),
+            args.iter().map(|a| subst_family_idx(a, ty_env, idx_env)).collect(),
+        ),
+        ITerm::Lam(x, body) => {
+            let mut next_idx = idx_env.clone();
+            next_idx.remove(x.as_str());
+            ITerm::Lam(x.clone(), Box::new(subst_family_idx(body, ty_env, &next_idx)))
+        }
+        ITerm::TyFamily(name, args) => ITerm::TyFamily(
+            name.clone(),
+            args.iter().map(|a| subst_family_ty(a, ty_env, idx_env)).collect(),
+        ),
+        _ => term.clone(),
+    }
+}
+
+fn subst_family_prop(prop: &PTerm, ty_env: &HashMap<String, Ty>, idx_env: &HashMap<String, ITerm>) -> PTerm {
+    match prop {
+        PTerm::Cmp(op, a, b) => PTerm::Cmp(
+            *op,
+            Box::new(subst_family_idx(a, ty_env, idx_env)),
+            Box::new(subst_family_idx(b, ty_env, idx_env)),
+        ),
+        PTerm::Eq(a, b) => PTerm::Eq(
+            Box::new(subst_family_idx(a, ty_env, idx_env)),
+            Box::new(subst_family_idx(b, ty_env, idx_env)),
+        ),
+        PTerm::Not(q) => PTerm::Not(Box::new(subst_family_prop(q, ty_env, idx_env))),
+        PTerm::And(a, b) => PTerm::And(
+            Box::new(subst_family_prop(a, ty_env, idx_env)),
+            Box::new(subst_family_prop(b, ty_env, idx_env)),
+        ),
+        PTerm::Or(a, b) => PTerm::Or(
+            Box::new(subst_family_prop(a, ty_env, idx_env)),
+            Box::new(subst_family_prop(b, ty_env, idx_env)),
+        ),
+        PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(subst_family_idx(a, ty_env, idx_env))),
+        _ => prop.clone(),
+    }
 }
 
 /// Entries per `ChunkVec` chunk.
@@ -4390,9 +4824,150 @@ impl Unifier {
         }
     }
 
-    /// Follow metavar bindings one level.
+    /// Register a closed or open type family rule set.
+    pub fn register_type_family(&mut self, set: TypeFamilyRuleSet) {
+        std::sync::Arc::make_mut(&mut self.type_families).insert(set.identity.clone(), set);
+    }
+
+    /// Add one equation to an open type family, checking for overlapping patterns.
+    pub fn add_type_family_rule(
+        &mut self,
+        identity: &str,
+        rule: TypeFamilyRule,
+    ) -> std::result::Result<(), String> {
+        let families = std::sync::Arc::make_mut(&mut self.type_families);
+        let Some(existing_closed) = families.get(identity).map(|s| s.closed) else {
+            return Err(format!("unknown type family {identity}"));
+        };
+        if existing_closed {
+            return Err(format!(
+                "cannot add `type instance` for closed type family {identity}"
+            ));
+        }
+        // Check overlap against every existing rule for this family.
+        let overlap = families
+            .get(identity)
+            .map(|set| {
+                set.rules.iter().any(|prev| {
+                    type_family_patterns_overlap(
+                        &prev.lhs_args,
+                        &prev.pat_vars,
+                        &rule.lhs_args,
+                        &rule.pat_vars,
+                        families,
+                    )
+                })
+            })
+            .unwrap_or(false);
+        if overlap {
+            return Err(format!(
+                "overlapping `type instance` for open type family {identity}"
+            ));
+        }
+        if let Some(set) = families.get_mut(identity) {
+            set.rules.push(rule);
+        }
+        Ok(())
+    }
+
+    pub fn is_type_family(&self, identity: &str) -> bool {
+        self.type_families.contains_key(identity)
+    }
+
+    pub fn type_family_rules(&self, identity: &str) -> Option<&TypeFamilyRuleSet> {
+        self.type_families.get(identity)
+    }
+
+    /// Register a promoted pure function for native compile-time evaluation.
+    pub fn register_promoted_fn(&mut self, func: crate::promote::PromotedFn) {
+        self.promoted.register(func);
+    }
+
+    pub fn promoted_fn(&self, identity: &str) -> Option<&crate::promote::PromotedFn> {
+        self.promoted.get(identity)
+    }
+
+    pub fn promoted_env(&self) -> &crate::promote::PromotedEnv {
+        &self.promoted
+    }
+
+    fn match_family_rule(&self, identity: &str, args: &[Ty]) -> Option<TypeFamilyRhs> {
+        let set = self.type_families.get(identity)?;
+        if args.len() != set.arity {
+            return None;
+        }
+        for rule in &set.rules {
+            let mut ty_env = HashMap::new();
+            let mut idx_env = HashMap::new();
+            let matched = rule
+                .lhs_args
+                .iter()
+                .zip(args.iter())
+                .all(|(p, a)| match_ty_pat(p, a, &rule.pat_vars, &mut ty_env, &mut idx_env));
+            if matched {
+                return Some(match &rule.rhs {
+                    TypeFamilyRhs::Type(t) => TypeFamilyRhs::Type(subst_family_ty(t, &ty_env, &idx_env)),
+                    TypeFamilyRhs::Idx(i) => TypeFamilyRhs::Idx(subst_family_idx(i, &ty_env, &idx_env)),
+                });
+            }
+            if set.closed {
+                // In a closed type family, we may only fall through to later
+                // equations if the current equation is definitely apart from `args`.
+                let apart = rule
+                    .lhs_args
+                    .iter()
+                    .zip(args.iter())
+                    .any(|(p, a)| ty_apart(p, a, &rule.pat_vars, &self.type_families));
+                if !apart {
+                    return None;
+                }
+            }
+        }
+        None
+    }
+
+    fn reduce_type_family_head(&self, mut ty: Ty) -> Ty {
+        if self.type_families.is_empty() && self.promoted.is_empty() {
+            return ty;
+        }
+        let mut fuel = TYPE_FAMILY_FUEL;
+        while fuel > 0 {
+            let cur = self.shallow_ref(&ty).clone();
+            match cur {
+                Ty::Adt(ref head, ref args) if self.type_families.contains_key(head.as_str()) => {
+                    let zargs: Vec<Ty> = args.iter().map(|a| self.zonk(a)).collect();
+                    if let Some(TypeFamilyRhs::Type(next)) = self.match_family_rule(head.as_str(), &zargs) {
+                        ty = next;
+                        fuel -= 1;
+                        continue;
+                    }
+                    return Ty::Adt(head.clone(), zargs);
+                }
+                Ty::Adt(ref head, ref args) => {
+                    if let Some(fn_id) = head.as_str().strip_prefix(crate::promote::PROMOTED_FN_PREFIX) {
+                        let zargs: Vec<Ty> = args.iter().map(|a| self.zonk(a)).collect();
+                        let unchanged = Ty::Adt(head.clone(), zargs.clone());
+                        if let Some(next) = self.promoted.eval_to_ty(fn_id, &zargs) {
+                            if next != unchanged {
+                                ty = next;
+                                fuel -= 1;
+                                continue;
+                            }
+                        }
+                        return unchanged;
+                    }
+                    return cur;
+                }
+                other => return other,
+            }
+        }
+        ty
+    }
+
+    /// Follow metavar bindings one level and reduce any top-level type family application.
     fn shallow(&self, ty: &Ty) -> Ty {
-        self.shallow_ref(ty).clone()
+        let base = self.shallow_ref(ty).clone();
+        self.reduce_type_family_head(base)
     }
 
     /// Follow metavar bindings one level without copying the result.
@@ -4442,7 +5017,66 @@ impl Unifier {
                 Box::new(self.resolve_idx_types(a, map)),
                 Box::new(self.resolve_idx_types(b, map)),
             ),
+            ITerm::TyFamily(name, args) => {
+                let zargs: Vec<Ty> = args.iter().map(&mut *map).collect();
+                self.reduce_idx_family_fuel(name, zargs, map, TYPE_FAMILY_FUEL)
+            }
             other => other.clone(),
+        }
+    }
+
+    fn reduce_idx_family_fuel(
+        &self,
+        name: &Interned,
+        zargs: Vec<Ty>,
+        map: &mut dyn FnMut(&Ty) -> Ty,
+        fuel: u32,
+    ) -> ITerm {
+        if fuel == 0 {
+            return ITerm::TyFamily(name.clone(), zargs);
+        }
+        if let Some(fn_id) = name.as_str().strip_prefix(crate::promote::PROMOTED_FN_PREFIX) {
+            if let Some(next) = self.promoted.eval_to_iterm(fn_id, &zargs) {
+                let unchanged = ITerm::TyFamily(name.clone(), zargs.clone());
+                if next != unchanged {
+                    return self.resolve_idx_types_fuel(&next, map, fuel - 1).normalize();
+                }
+            }
+            return ITerm::TyFamily(name.clone(), zargs);
+        }
+        if self.type_families.is_empty() {
+            return ITerm::TyFamily(name.clone(), zargs);
+        }
+        if let Some(TypeFamilyRhs::Idx(next)) = self.match_family_rule(name.as_str(), &zargs) {
+            return self.resolve_idx_types_fuel(&next, map, fuel - 1).normalize();
+        }
+        ITerm::TyFamily(name.clone(), zargs)
+    }
+
+    fn resolve_idx_types_fuel(
+        &self,
+        t: &ITerm,
+        map: &mut dyn FnMut(&Ty) -> Ty,
+        fuel: u32,
+    ) -> ITerm {
+        if fuel == 0 {
+            return t.clone();
+        }
+        match t {
+            ITerm::TyFamily(name, args) => {
+                let zargs: Vec<Ty> = args.iter().map(&mut *map).collect();
+                self.reduce_idx_family_fuel(name, zargs, map, fuel)
+            }
+            ITerm::Bin(op, a, b) => ITerm::Bin(
+                *op,
+                Box::new(self.resolve_idx_types_fuel(a, map, fuel)),
+                Box::new(self.resolve_idx_types_fuel(b, map, fuel)),
+            ),
+            ITerm::App(f, args) => ITerm::App(
+                Box::new(self.resolve_idx_types_fuel(f, map, fuel)),
+                args.iter().map(|a| self.resolve_idx_types_fuel(a, map, fuel)).collect(),
+            ),
+            _ => self.resolve_idx_types(t, map),
         }
     }
 
@@ -4492,6 +5126,13 @@ impl Unifier {
                 self.idx_occurs(id, &f) || args.iter().any(|a| self.idx_occurs(id, a))
             }
             ITerm::Bin(_, a, b) => self.idx_occurs(id, &a) || self.idx_occurs(id, &b),
+            ITerm::TyFamily(_, args) => {
+                let mut metas = Vec::new();
+                for ty in args {
+                    ty.free_idx_metas(&mut metas);
+                }
+                metas.contains(&id)
+            }
             _ => false,
         }
     }
@@ -4622,6 +5263,12 @@ impl Unifier {
             (ITerm::Bin(op, x, y), ITerm::Bin(op2, u, v)) if op == op2 => {
                 self.unify_idx_raw(x, u)?;
                 self.unify_idx_raw(y, v)
+            }
+            (ITerm::TyFamily(f1, a1), ITerm::TyFamily(f2, a2)) if f1 == f2 && a1.len() == a2.len() => {
+                for (x, y) in a1.iter().zip(a2.iter()) {
+                    self.unify(x, y)?;
+                }
+                Ok(())
             }
             _ => {
                 // Inversion heuristics: arithmetic with one unknown
@@ -4785,6 +5432,7 @@ impl Unifier {
             ITerm::App(head, args) => self.owns_index_metas(head) && args.iter().all(|term| self.owns_index_metas(term)),
             ITerm::Lam(_, body) => self.owns_index_metas(body),
             ITerm::Bin(_, a, b) => self.owns_index_metas(a) && self.owns_index_metas(b),
+            ITerm::TyFamily(_, args) => args.iter().all(|ty| self.owns_value_metas_in_type(ty)),
             _ => true,
         }
     }
@@ -4802,7 +5450,7 @@ impl Unifier {
 
     /// Resolve all metavar bindings.
     pub fn zonk(&self, ty: &Ty) -> Ty {
-        self.zonk_in(ty, None)
+        self.zonk_in(ty, None, TYPE_FAMILY_FUEL)
     }
 
     /// Resolve the ordinary arrow being consumed and leave its result for
@@ -4823,17 +5471,50 @@ impl Unifier {
     /// one instantiation of a let-generalized local's quantified
     /// metavariables.
     pub fn subst_metas(&self, ty: &Ty, map: &HashMap<MetaId, Ty>) -> Ty {
-        self.zonk_in(ty, Some(map))
+        self.zonk_in(ty, Some(map), TYPE_FAMILY_FUEL)
     }
 
-    fn zonk_in(&self, ty: &Ty, map: Option<&HashMap<MetaId, Ty>>) -> Ty {
-        let z = |t: &Ty| self.zonk_in(t, map);
+    fn zonk_family_fuel(
+        &self,
+        head: &Interned,
+        zargs: Vec<Ty>,
+        map: Option<&HashMap<MetaId, Ty>>,
+        fuel: u32,
+    ) -> Ty {
+        if fuel == 0 {
+            return Ty::Adt(head.clone(), zargs);
+        }
+        if let Some(TypeFamilyRhs::Type(next)) = self.match_family_rule(head.as_str(), &zargs) {
+            return self.zonk_in(&next, map, fuel - 1);
+        }
+        Ty::Adt(head.clone(), zargs)
+    }
+
+    fn zonk_in(&self, ty: &Ty, map: Option<&HashMap<MetaId, Ty>>, fuel: u32) -> Ty {
+        let z = |t: &Ty| self.zonk_in(t, map, fuel);
         match self.shallow_ref(ty) {
             Ty::Meta(m) => match map.and_then(|mp| mp.get(m)) {
-                Some(t) => self.zonk(t),
+                Some(t) => self.zonk_in(t, None, fuel),
                 None => Ty::Meta(*m),
             },
-            Ty::Adt(t, args) => Ty::Adt(t.clone(), args.iter().map(z).collect()),
+            Ty::Adt(t, args) => {
+                let zargs: Vec<Ty> = args.iter().map(z).collect();
+                if fuel > 0 && !self.type_families.is_empty() && self.type_families.contains_key(t.as_str()) {
+                    return self.zonk_family_fuel(t, zargs, map, fuel);
+                }
+                if fuel > 0 {
+                    if let Some(fn_id) = t.as_str().strip_prefix(crate::promote::PROMOTED_FN_PREFIX) {
+                        let unchanged = Ty::Adt(t.clone(), zargs.clone());
+                        if let Some(next) = self.promoted.eval_to_ty(fn_id, &zargs) {
+                            if next != unchanged {
+                                return self.zonk_in(&next, map, fuel - 1);
+                            }
+                        }
+                        return unchanged;
+                    }
+                }
+                Ty::Adt(t.clone(), zargs)
+            }
             Ty::App(h, args) => Ty::apply_spine(z(h), args.iter().map(z).collect::<Vec<_>>()),
             Ty::Tuple(args) => Ty::Tuple(args.iter().map(z).collect()),
             Ty::Fun(a, m, e, b) => Ty::fun_mult(z(a), *m, self.resolve_row(e), z(b)),
@@ -4850,8 +5531,8 @@ impl Unifier {
                 cod: Box::new(z(&cod)),
             },
             Ty::Forall(scheme) => scheme.map_forall_body(|body| z(body)),
-            Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx_types(&t, &mut |ty| self.zonk_in(ty, map)))),
-            Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop_types(&p, &mut |ty| self.zonk_in(ty, map)))),
+            Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx_types(&t, &mut |ty| self.zonk_in(ty, map, fuel)))),
+            Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop_types(&p, &mut |ty| self.zonk_in(ty, map, fuel)))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: self.resolve_row(&eff),
                 inner: Box::new(z(&inner)),

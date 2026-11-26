@@ -376,6 +376,55 @@ fn main() {
             "--emit-interface-optimisations" => opts.emit_interface_optimisations = true,
             "--no-reclaim" => opts.no_reclaim = true,
             "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--array-report" => opts.array_report = true,
+            "--array-report-json" => opts.array_report_json = true,
+            "--array-target" => {
+                i += 1;
+                match rest.get(i).map(String::as_str) {
+                    Some(v) if cinch::array_ir::ArrayTarget::from_str(v).is_some() => {
+                        opts.array_target = Some(v.to_string());
+                    }
+                    _ => {
+                        eprintln!(
+                            "cinch: --array-target takes one of {}",
+                            cinch::array_ir::ArrayTarget::all_names()
+                        );
+                        exit(2);
+                    }
+                }
+            }
+            other if other.starts_with("--array-target=") => {
+                let v = &other["--array-target=".len()..];
+                if cinch::array_ir::ArrayTarget::from_str(v).is_some() {
+                    opts.array_target = Some(v.to_string());
+                } else {
+                    eprintln!(
+                        "cinch: --array-target takes one of {}",
+                        cinch::array_ir::ArrayTarget::all_names()
+                    );
+                    exit(2);
+                }
+            }
+            "--array-report-out" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(p) => opts.array_report_out = Some(PathBuf::from(p)),
+                    None => {
+                        eprintln!("cinch: --array-report-out needs a path");
+                        exit(2);
+                    }
+                }
+            }
+            "--array-kernels-out" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(p) => opts.array_kernels_out = Some(PathBuf::from(p)),
+                    None => {
+                        eprintln!("cinch: --array-kernels-out needs a path");
+                        exit(2);
+                    }
+                }
+            }
             "--stack-frame-limit" => {
                 i += 1;
                 match rest.get(i).and_then(|n| n.parse::<u64>().ok()) {

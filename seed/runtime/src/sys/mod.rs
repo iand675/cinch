@@ -423,6 +423,14 @@ pub(crate) fn ioctl(fd: i64, request: u64, arg: *const u8) -> (i64, i64) {
     back::ioctl(fd, request, arg)
 }
 
+pub(crate) fn dlopen(path: &[u8]) -> *mut std::ffi::c_void {
+    with_name(path, back::dlopen).unwrap_or(std::ptr::null_mut())
+}
+
+pub(crate) fn dlsym(handle: *mut std::ffi::c_void, sym: &[u8]) -> *mut std::ffi::c_void {
+    with_name(sym, |s| back::dlsym(handle, s)).unwrap_or(std::ptr::null_mut())
+}
+
 // ---------------------------------------------------------------------------
 // Names
 // ---------------------------------------------------------------------------

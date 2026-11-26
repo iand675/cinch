@@ -9,6 +9,7 @@ module Bootstrap.Type where
   import Data.Int (int-div, int-rem)
   import Bootstrap.Index
   import Bootstrap.Nominal (interface-global, decode-identity, global-data-core-list, global-data-string-string, global-data-string-length)
+  import Bootstrap.Promote
   import Bootstrap.Total (TotalFunction, read-total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
   import Algebra.Semigroup
@@ -18,8 +19,8 @@ module Bootstrap.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
-  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UForall, UArg, UEnd, UError
-  export copy-marker-carrier
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
+  export copy-marker-carrier, kernel-marker-carrier
   export foreign-pointer
   export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier
   export shared-pattern-carrier, pattern-constructor-type
@@ -27,7 +28,7 @@ module Bootstrap.Type where
   export thunk-kind, thunk-type, thunk-parts
   export later-kind, later-type, later-parts, deferral-parts, later-unrestricted
   export lazy-kind, lazy-type, lazy-parts
-  export without-index-levels, index-of-type, typed-index-carrier, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
+  export without-index-levels, index-of-type, typed-index-carrier, index-runtime-admissible, typed-index-admissible, open-pi, open-sigma, open-refinement
   export type-free-bound
   export include-effects, union-effects
   export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
@@ -36,17 +37,20 @@ module Bootstrap.Type where
   export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
   export map-scheme-types, open-qualified
   export instantiate-params, map-quant-kinds, has-forall, quant-id-list, quant-names-text, same-quant-kinds, rename-quants, remove-ids
-  export pending-number, pending-comparison, default-numbers-for, finish-numbers
+  export pending-number, pending-float, pending-comparison, default-numbers-for, finish-numbers
   export Store, empty-store, store-errors, store-error-count, store-level, enter-level, restore-level
   export store-law-scope, with-law-scope
   export store-let-depth, with-let-depth
-  export add-error, add-diagnostics, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
+  export add-error, add-diagnostics, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type, valid-app-arg-kind
   export type-kind, type-text, display-type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
   export index-value-bounds
-  export number-literal-carrier, wide-carrier, number-literal-valid, number-literal-error, float-literal-bits
+  export number-literal-carrier, wide-carrier, number-literal-valid, number-literal-error, float-literal-bits, float-string-bits, float-string-valid, float-string-error
+  export TypeFamilyRule, MkTypeFamilyRule, rule-vars, rule-lhs, rule-rhs, TypeFamilyRuleSet, MkTypeFamilyRuleSet, family-identity, family-arity, family-closed, family-returns-idx, family-rules, store-type-families, with-type-families, reduce-type-families, type-family-patterns-overlap, types-apart
+  export store-promoted, with-promoted, add-promoted-fn, with-families-and-promoted, reduce-types, strip-str-prefix, sing-type-parts, make-sing-type, same-type-parts, make-same-type, promoted-fn-kind, unwrap-app-spine, apply-app-spine, make-index-math
+  export promoted-ctor-name, promoted-str-name, promoted-nil-name, promoted-cons-name, extract-promoted-list, strip-ctor-prefix
 
   export IndexMeasure, WordToNat, BufferLength, index-measure-name
 
@@ -158,6 +162,7 @@ module Bootstrap.Type where
     URow :: UType -> UType
     URowJoin :: UType -> UType -> UType
     UTuple :: UType -> UType
+    USigma :: Nat -> String -> UType -> UType -> UType
     -- A nested polymorphic type (design/rank-n-polymorphism.md): its
     -- binders are `UBound` ids unique in the store, exactly as a scheme's,
     -- so substitution never captures one. No metavariable is ever bound
@@ -305,6 +310,7 @@ module Bootstrap.Type where
     URow labels -> tree "row" [carrier-tree labels]
     URowJoin a b -> tree "row-join" [carrier-tree a, carrier-tree b]
     UTuple fields -> tree "tuple" [carrier-tree fields]
+    USigma id name domain body -> tree "sigma" [JNum (nat-to-int id), JStr name, carrier-tree domain, carrier-tree body]
     UForall qs body -> tree "forall" [quant-trees (quants-list qs), carrier-tree body]
     UArg a rest -> tree "arg" [carrier-tree a, carrier-tree rest]
     UEnd -> JStr "end"
@@ -387,6 +393,9 @@ module Bootstrap.Type where
       (case (tree-natural a, b, tree-natural c, read-kind-tree d) of (Some id, JStr name, Some level, Some kind) -> Some (URigid id name level kind); other -> None)
       else if same-tag tag "refined" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d) of
         (Some id, JStr name, Some carrier, Some predicate) -> Some (URefine id name carrier predicate)
+        other -> None)
+      else if same-tag tag "sigma" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d) of
+        (Some id, JStr name, Some domain, Some body) -> Some (USigma id name domain body)
         other -> None) else None
     JArr (JStr tag) (JArr a (JArr b (JArr c (JArr d (JArr e JArrEnd))))) ->
       if same-tag tag "pi" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d, read-carrier-tree e) of
@@ -448,6 +457,7 @@ module Bootstrap.Type where
     URow labels -> URow (opaque-carrier labels)
     URowJoin a b -> URowJoin (opaque-carrier a) (opaque-carrier b)
     UTuple fields -> UTuple (opaque-carrier fields)
+    USigma id name domain body -> USigma id name (opaque-carrier domain) (opaque-carrier body)
     UForall qs body -> UForall qs (opaque-carrier body)
     UArg first rest -> UArg (opaque-carrier first) (opaque-carrier rest)
     other -> ty
@@ -519,7 +529,7 @@ module Bootstrap.Type where
   carrier-spine :: UType -> Bool -> Bool
   carrier-spine fields values = case fields of
     UEnd -> True
-    UArg first rest -> (if values then carrier-type first else carrier-node first) && carrier-spine rest values
+    UArg first rest -> (if values then (carrier-type first || (carrier-node first && (case type-kind first of KValue c -> True; other -> False))) else carrier-node first) && carrier-spine rest values
     other -> False
 
   quant-id :: Quant -> Nat
@@ -586,6 +596,7 @@ module Bootstrap.Type where
     CellRun :: Nat -> CellTree -> CellStore -> CellStore
   data PendingNumber where
     PendingNumber :: Span -> UType -> Int -> PendingNumber
+    PendingFloat :: Span -> UType -> String -> PendingNumber
     PendingComparison :: Span -> UType -> List String -> PendingNumber
   -- Trial unification compares the sizes of immutable diagnostic snapshots.
   -- Retain the count with the reversed list so trial checks need no traversal.
@@ -595,23 +606,119 @@ module Bootstrap.Type where
   data StoreError where
     PlainError :: Diagnostic -> StoreError
     MismatchError :: String -> Span -> UType -> UType -> StoreError
+  data TypeFamilyRule where
+    MkTypeFamilyRule :: List Nat -> UType -> UType -> TypeFamilyRule
+  rule-vars :: TypeFamilyRule -> List Nat
+  rule-vars r = case r of MkTypeFamilyRule pvars lhs rhs -> pvars
+  rule-lhs :: TypeFamilyRule -> UType
+  rule-lhs r = case r of MkTypeFamilyRule pvars lhs rhs -> lhs
+  rule-rhs :: TypeFamilyRule -> UType
+  rule-rhs r = case r of MkTypeFamilyRule pvars lhs rhs -> rhs
+  data TypeFamilyRuleSet where
+    MkTypeFamilyRuleSet :: String -> Nat -> Bool -> Bool -> List TypeFamilyRule -> TypeFamilyRuleSet
+  family-identity :: TypeFamilyRuleSet -> String
+  family-identity f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> id
+  family-arity :: TypeFamilyRuleSet -> Nat
+  family-arity f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> arity
+  family-closed :: TypeFamilyRuleSet -> Bool
+  family-closed f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> closed
+  family-returns-idx :: TypeFamilyRuleSet -> Bool
+  family-returns-idx f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> returns-idx
+  family-rules :: TypeFamilyRuleSet -> List TypeFamilyRule
+  family-rules f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> rules
+
+  promoted-nil-name :: String
+  promoted-nil-name = "ctor:Data.Core.Nil"
+  promoted-cons-name :: String
+  promoted-cons-name = "ctor:Data.Core.Cons"
+  promoted-ctor-name :: String -> Bool
+  promoted-ctor-name name = case unpack name of
+    Cons c1 (Cons c2 (Cons c3 (Cons c4 (Cons c5 rest)))) ->
+      char-code c1 == 99 && char-code c2 == 116 && char-code c3 == 111 && char-code c4 == 114 && char-code c5 == 58
+    other -> False
+  strip-ctor-prefix :: String -> String
+  strip-ctor-prefix name = case unpack name of
+    Cons c1 (Cons c2 (Cons c3 (Cons c4 (Cons c5 rest)))) ->
+      if char-code c1 == 99 && char-code c2 == 116 && char-code c3 == 111 && char-code c4 == 114 && char-code c5 == 58
+      then pack rest
+      else name
+    other -> name
+  promoted-str-name :: String -> Bool
+  promoted-str-name name = case unpack name of
+    Cons c1 rest -> char-code c1 == 34
+    Nil -> False
+  extract-promoted-list :: UType -> Option (List UType)
+  extract-promoted-list ty = case ty of
+    UCon name k | same-tag name promoted-nil-name -> Some Nil
+    UApp (UApp (UCon name k) h) t | same-tag name promoted-cons-name ->
+      (case extract-promoted-list t of Some rest -> Some (Cons h rest); None -> None)
+    other -> None
+
+  strip-trailing-quote :: List Char -> List Char
+  strip-trailing-quote cs = case cs of
+    Nil -> Nil
+    Cons c Nil -> if char-code c == 34 then Nil else Cons c Nil
+    Cons c rest -> Cons c (strip-trailing-quote rest)
+
+  strip-str-prefix :: String -> String
+  strip-str-prefix name = case unpack name of
+    Cons c1 rest -> if char-code c1 == 34 then pack (strip-trailing-quote rest) else name
+    other -> name
+
+  sing-type-parts :: UType -> Option (UType, UType)
+  sing-type-parts ty = case ty of
+    UApp (UApp (UCon name k) carrier) val | same-tag name "Sing" -> Some (carrier, val)
+    other -> None
+
+  make-sing-type :: UType -> UType -> UType
+  make-sing-type carrier val = UApp (UApp (UCon "Sing" (KFun KType (KFun KType KType))) carrier) val
+
+  same-type-parts :: UType -> Option (UType, UType)
+  same-type-parts ty = case ty of
+    UApp (UApp (UCon name k) a) b | same-tag name "Same" -> Some (a, b)
+    other -> None
+
+  make-same-type :: UType -> UType -> UType
+  make-same-type a b = UApp (UApp (UCon "Same" (KFun KType (KFun KType KType))) a) b
+
+  promoted-fn-kind :: Nat -> Bool -> Kind
+  promoted-fn-kind arity returns-idx =
+    if arity == 0 then (if returns-idx then KValue (UCon "Nat" KType) else KType)
+    else KFun KType (promoted-fn-kind (arity - 1) returns-idx)
+
   data ErrorLog where
     MkErrorLog :: Nat -> List StoreError -> ErrorLog
   data Store where
-    MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> Store
+    MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> List TypeFamilyRuleSet -> List PromotedFn -> Store
 
   empty-store :: String -> Store
-  empty-store label = MkStore label 0 0 EmptyCells (MkErrorLog 0 Nil) Nil False 0
+  empty-store label = MkStore label 0 0 EmptyCells (MkErrorLog 0 Nil) Nil False 0 Nil Nil
+  store-type-families :: Store -> List TypeFamilyRuleSet
+  store-type-families st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> fams
+  with-type-families :: List TypeFamilyRuleSet -> Store -> Store
+  with-type-families fams st = case st of
+    MkStore label next level cells errors numbers in-law depth old proms -> MkStore label next level cells errors numbers in-law depth fams proms
+  store-promoted :: Store -> List PromotedFn
+  store-promoted st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> proms
+  with-promoted :: List PromotedFn -> Store -> Store
+  with-promoted proms st = case st of
+    MkStore label next level cells errors numbers in-law depth fams old -> MkStore label next level cells errors numbers in-law depth fams proms
+  add-promoted-fn :: PromotedFn -> Store -> Store
+  add-promoted-fn fn st = case st of
+    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors numbers in-law depth fams (Cons fn proms)
+  with-families-and-promoted :: List TypeFamilyRuleSet -> List PromotedFn -> Store -> Store
+  with-families-and-promoted fams proms st = case st of
+    MkStore label next level cells errors numbers in-law depth old-f old-p -> MkStore label next level cells errors numbers in-law depth fams proms
   store-let-depth :: Store -> Nat
-  store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth -> depth
+  store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> depth
   with-let-depth :: Nat -> Store -> Store
   with-let-depth depth st = case st of
-    MkStore label next level cells errors numbers in-law previous -> MkStore label next level cells errors numbers in-law depth
+    MkStore label next level cells errors numbers in-law previous fams proms -> MkStore label next level cells errors numbers in-law depth fams proms
   store-law-scope :: Store -> Bool
-  store-law-scope st = case st of MkStore label next level cells errors numbers in-law depth -> in-law
+  store-law-scope st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> in-law
   with-law-scope :: Bool -> Store -> Store
   with-law-scope active st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors numbers active depth
+    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors numbers active depth fams proms
   render-store-error :: StoreError -> Diagnostic
   render-store-error entry = case entry of
     PlainError diagnostic -> diagnostic
@@ -621,29 +728,29 @@ module Bootstrap.Type where
     Nil -> Nil
     Cons entry rest -> Cons (render-store-error entry) (render-store-errors rest)
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> render-store-errors (reverse errors)
+  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth fams proms -> render-store-errors (reverse errors)
   store-error-count :: Store -> Nat
-  store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> count
+  store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth fams proms -> count
   prepend-error :: StoreError -> ErrorLog -> ErrorLog
   prepend-error diagnostic log = case log of MkErrorLog count errors -> MkErrorLog (count + 1) (Cons diagnostic errors)
   store-level :: Store -> Nat
-  store-level st = case st of MkStore label next level cells errors numbers in-law depth -> level
+  store-level st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> level
   enter-level :: Store -> Store
-  enter-level st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next (level + 1) cells errors numbers in-law depth
+  enter-level st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next (level + 1) cells errors numbers in-law depth fams proms
   restore-level :: Nat -> Store -> Store
-  restore-level level st = case st of MkStore label next old cells errors numbers in-law depth -> MkStore label next level cells errors numbers in-law depth
+  restore-level level st = case st of MkStore label next old cells errors numbers in-law depth fams proms -> MkStore label next level cells errors numbers in-law depth fams proms
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (PlainError (MkDiagnostic label sp message)) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells (prepend-error (PlainError (MkDiagnostic label sp message)) errors) numbers in-law depth fams proms
   add-diagnostics :: List Diagnostic -> Store -> Store
   add-diagnostics diagnostics st = case diagnostics of
     Nil -> st
     Cons d rest -> case st of
-      MkStore label next level cells errors numbers in-law depth ->
-        add-diagnostics rest (MkStore label next level cells (prepend-error (PlainError d) errors) numbers in-law depth)
+      MkStore label next level cells errors numbers in-law depth fams proms ->
+        add-diagnostics rest (MkStore label next level cells (prepend-error (PlainError d) errors) numbers in-law depth fams proms)
   add-mismatch-error :: Span -> UType -> UType -> Store -> Store
   add-mismatch-error sp a b st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth fams proms
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
@@ -652,7 +759,7 @@ module Bootstrap.Type where
     else fresh-meta-checked k checked
   fresh-meta-checked :: Kind -> Store -> (UType, Store)
   fresh-meta-checked k st = case st of
-    MkStore label next level cells errors numbers in-law depth ->
+    MkStore label next level cells errors numbers in-law depth fams proms ->
       let kind = normalize-kind st k in
       let dependencies = kind-metas st kind in
       if not (valid-kind kind) then (UError, add-error (Span 0 0 1 1) "invalid inference variable kind" st)
@@ -660,11 +767,11 @@ module Bootstrap.Type where
       else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
       else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
       else case lower level dependencies st of
-        MkStore label next level lowered errors numbers in-law depth -> (UMeta next kind, MkStore label (next + 1) level (push-cell (MkCell next level kind None) lowered) errors numbers in-law depth)
+        MkStore label next level lowered errors numbers in-law depth fams2 proms2 -> (UMeta next kind, MkStore label (next + 1) level (push-cell (MkCell next level kind None) lowered) errors numbers in-law depth fams2 proms2)
   known-metas :: List Nat -> Store -> Bool
   known-metas ids st = case ids of Nil -> True; Cons id rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
   fresh-id :: Store -> (Nat, Store)
-  fresh-id st = case st of MkStore label next level cells errors numbers in-law depth -> (next, MkStore label (next + 1) level cells errors numbers in-law depth)
+  fresh-id st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> (next, MkStore label (next + 1) level cells errors numbers in-law depth fams proms)
 
   cell-tree-first :: CellTree -> Nat
   cell-tree-first tree = case tree of
@@ -696,7 +803,7 @@ module Bootstrap.Type where
     EmptyCells -> None
     CellRun size tree rest -> if id < cell-tree-first tree then cell id rest else cell-in-tree id tree
   find-cell :: Nat -> Store -> Option Cell
-  find-cell id st = case st of MkStore label next level cells errors numbers in-law depth -> cell id cells
+  find-cell id st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> cell id cells
   replace-cell-in-tree :: Nat -> Cell -> CellTree -> CellTree
   replace-cell-in-tree id replacement tree = case tree of
     CellLeaf current -> CellLeaf replacement
@@ -714,8 +821,8 @@ module Bootstrap.Type where
   -- it. Only fresh-meta inserts, and its new ID exceeds all existing IDs.
   put-cell :: Cell -> Store -> Store
   put-cell c st = case (c, st) of
-    (MkCell id lev kind solution, MkStore label next level cells errors numbers in-law depth) ->
-      MkStore label next level (replace-cell id c cells) errors numbers in-law depth
+    (MkCell id lev kind solution, MkStore label next level cells errors numbers in-law depth fams proms) ->
+      MkStore label next level (replace-cell id c cells) errors numbers in-law depth fams proms
 
   arrow-constructor-kind :: Kind
   arrow-constructor-kind = KFun KType (KFun KType KType)
@@ -753,49 +860,335 @@ module Bootstrap.Type where
       if list-length ids == list-length args then substitute (former-substitution ids args) body else ty
     other -> ty
   normalize :: Store -> UType -> UType
-  normalize st ty = case ty of
+  normalize st ty = normalize-with 64 st ty
+
+  normalize-with :: Nat -> Store -> UType -> UType
+  normalize-with fuel st ty = case ty of
     UPropLit value -> UPropLit value
-    UCompare relation left right -> UCompare relation (normalize st left) (normalize st right)
-    UPropAnd left right -> UPropAnd (normalize st left) (normalize st right)
-    UPropOr left right -> UPropOr (normalize st left) (normalize st right)
-    UPropNot body -> UPropNot (normalize st body)
-    UPropNonZero body -> UPropNonZero (normalize st body)
-    UPropNotNull body -> UPropNotNull (normalize st body)
-    UPropAscii body -> UPropAscii (normalize st body)
-    UPropOrdered body -> UPropOrdered (normalize st body)
-    UPropNonZeroPending body -> normalize-pending-nonzero (normalize st body)
-    URequire predicates body -> URequire (normalize st predicates) (normalize st body)
-    URefine id name carrier predicate -> URefine id name (normalize st carrier) (normalize st predicate)
-    UIndexForget value -> UIndexForget (normalize st value)
-    UIndexByteLength value -> UIndexByteLength (normalize st value)
-    UIndexMeasure measure value -> UIndexMeasure measure (normalize st value)
-    UIndexStringLength value -> UIndexStringLength (normalize st value)
-    UIndexBorrowRead value -> UIndexBorrowRead (normalize st value)
-    UIndexConstructor name arrow input -> UIndexConstructor name (normalize st arrow) (normalize st input)
-    UIndexList element fields -> UIndexList (normalize st element) (normalize st fields)
-    UIndexCall function args -> UIndexCall function (normalize st args)
-    UIndexPromote value -> normalize-promoted-index (normalize st value)
-    UIndexMath op left right -> make-index-math op (normalize st left) (normalize st right)
+    UCompare relation left right -> UCompare relation (normalize-with fuel st left) (normalize-with fuel st right)
+    UPropAnd left right -> UPropAnd (normalize-with fuel st left) (normalize-with fuel st right)
+    UPropOr left right -> UPropOr (normalize-with fuel st left) (normalize-with fuel st right)
+    UPropNot body -> UPropNot (normalize-with fuel st body)
+    UPropNonZero body -> UPropNonZero (normalize-with fuel st body)
+    UPropNotNull body -> UPropNotNull (normalize-with fuel st body)
+    UPropAscii body -> UPropAscii (normalize-with fuel st body)
+    UPropOrdered body -> UPropOrdered (normalize-with fuel st body)
+    UPropNonZeroPending body -> normalize-pending-nonzero (normalize-with fuel st body)
+    URequire predicates body -> URequire (normalize-with fuel st predicates) (normalize-with fuel st body)
+    URefine id name carrier predicate -> URefine id name (normalize-with fuel st carrier) (normalize-with fuel st predicate)
+    UIndexForget value -> UIndexForget (normalize-with fuel st value)
+    UIndexByteLength value -> UIndexByteLength (normalize-with fuel st value)
+    UIndexMeasure measure value -> UIndexMeasure measure (normalize-with fuel st value)
+    UIndexStringLength value -> UIndexStringLength (normalize-with fuel st value)
+    UIndexBorrowRead value -> UIndexBorrowRead (normalize-with fuel st value)
+    UIndexConstructor name arrow input -> UIndexConstructor name (normalize-with fuel st arrow) (normalize-with fuel st input)
+    UIndexList element fields -> UIndexList (normalize-with fuel st element) (normalize-with fuel st fields)
+    UIndexCall function args -> UIndexCall function (normalize-with fuel st args)
+    UIndexPromote value -> normalize-promoted-index (normalize-with fuel st value)
+    UIndexMath op left right -> make-index-math op (normalize-with fuel st left) (normalize-with fuel st right)
     UMeta id k -> case find-cell id st of
-      Some (MkCell n lev kind (Some solved)) -> normalize st solved
+      Some (MkCell n lev kind (Some solved)) -> normalize-with fuel st solved
       Some (MkCell n lev kind None) -> normalized-variable st (UMeta id kind)
       None -> normalized-variable st ty
-    UCon name k -> normalized-variable st ty
+    UCon name k ->
+      let fams = store-type-families st in
+      if fuel > 0 then
+        (case reduce-nullary-family fams name of
+          Some reduced -> normalize-with (fuel - 1) st reduced
+          None -> normalized-variable st ty)
+      else normalized-variable st ty
     UBound id name k -> normalized-variable st ty
     URigid id name level k -> normalized-variable st ty
-    UIndex carrier value -> normalize-value-index st (normalize st carrier) value
-    UPi id name domain row result -> UPi id name (normalize st domain) (normalize st row) (normalize st result)
-    UApp f x -> type-application (normalize st f) (normalize st x)
-    UFun a b -> UFun (normalize st a) (normalize st b)
-    UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
-    UUsageArrow usage arrow -> UUsageArrow usage (normalize st arrow)
-    UProofFun a row b -> UProofFun (normalize st a) (normalize st row) (normalize st b)
-    URow labels -> URow (unique-effects (normalize st labels))
-    URowJoin a b -> union-effects (normalize st a) (normalize st b)
-    UTuple xs -> UTuple (normalize st xs)
-    UForall qs body -> UForall qs (normalize st body)
-    UArg x rest -> UArg (normalize st x) (normalize st rest)
+    UIndex carrier value -> normalize-value-index st (normalize-with fuel st carrier) value
+    UPi id name domain row result -> UPi id name (normalize-with fuel st domain) (normalize-with fuel st row) (normalize-with fuel st result)
+    UApp f x ->
+      let applied = type-application (normalize-with fuel st f) (normalize-with fuel st x) in
+      let fams = store-type-families st in
+      let proms = store-promoted st in
+      if fuel > 0 then
+        (case reduce-type-family-app fams applied of
+          Some reduced -> normalize-with (fuel - 1) st reduced
+          None -> case reduce-promoted-app proms applied of
+            Some reduced -> if same-shape reduced applied then applied else normalize-with (fuel - 1) st reduced
+            None -> applied)
+      else applied
+    UFun a b -> UFun (normalize-with fuel st a) (normalize-with fuel st b)
+    UFunEff a row b -> UFunEff (normalize-with fuel st a) (normalize-with fuel st row) (normalize-with fuel st b)
+    UUsageArrow usage arrow -> UUsageArrow usage (normalize-with fuel st arrow)
+    UProofFun a row b -> UProofFun (normalize-with fuel st a) (normalize-with fuel st row) (normalize-with fuel st b)
+    URow labels -> URow (unique-effects (normalize-with fuel st labels))
+    URowJoin a b -> union-effects (normalize-with fuel st a) (normalize-with fuel st b)
+    UTuple xs -> UTuple (normalize-with fuel st xs)
+    USigma id name domain body -> USigma id name (normalize-with fuel st domain) (normalize-with fuel st body)
+    UForall qs body -> UForall qs (normalize-with fuel st body)
+    UArg x rest -> UArg (normalize-with fuel st x) (normalize-with fuel st rest)
     other -> ty
+
+  reduce-type-families :: List TypeFamilyRuleSet -> UType -> UType
+  reduce-type-families fams ty = case fams of
+    Nil -> ty
+    other -> normalize (with-type-families fams (empty-store "type-family")) ty
+
+  reduce-types :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> UType
+  reduce-types fams proms ty = case (fams, proms) of
+    (Nil, Nil) -> ty
+    other -> normalize (with-families-and-promoted fams proms (empty-store "type-family")) ty
+
+  promoted-arity-of :: List PromotedFn -> String -> Option Nat
+  promoted-arity-of proms id = case lookup-promoted-fn id proms of
+    Some f -> Some (promoted-fn-arity f)
+    None -> promoted-builtin-arity id
+
+  utype-to-pval :: List PromotedFn -> UType -> PVal UType
+  utype-to-pval proms ty = case ty of
+    UIndex carrier (IInteger n) -> PVNat n
+    UIndex carrier (IAdd a b) -> PVSymAdd (utype-to-pval proms (UIndex carrier a)) (utype-to-pval proms (UIndex carrier b))
+    UIndex carrier (ISubtract a b) -> PVSymSub (utype-to-pval proms (UIndex carrier a)) (utype-to-pval proms (UIndex carrier b))
+    UIndex carrier (IMultiply a b) -> PVSymMul (utype-to-pval proms (UIndex carrier a)) (utype-to-pval proms (UIndex carrier b))
+    UIndexMath op l r ->
+      if same-tag op "+" then PVSymAdd (utype-to-pval proms l) (utype-to-pval proms r)
+      else if same-tag op "-" then PVSymSub (utype-to-pval proms l) (utype-to-pval proms r)
+      else if same-tag op "*" then PVSymMul (utype-to-pval proms l) (utype-to-pval proms r)
+      else PVOpaque ty
+    UCon name k ->
+      if same-tag name "ctor:True" then PVBool True
+      else if same-tag name "ctor:False" then PVBool False
+      else if promoted-str-name name then PVStr (strip-str-prefix name)
+      else if promoted-ctor-name name then PVCon name PVEnd
+      else if is-promoted-fn-name name then
+        let id = strip-promoted-fn-name name in
+        case promoted-arity-of proms id of
+          Some arity -> PVPartial id arity PVEnd
+          None -> PVOpaque ty
+      else PVOpaque ty
+    UTuple fields -> PVTuple (uarg-to-pvals proms fields)
+    UApp _ _ -> case unwrap-app-spine ty Nil of
+      (UCon name k, args) ->
+        if promoted-ctor-name name then PVCon name (utypes-to-pvals proms args)
+        else if is-promoted-fn-name name then
+          let id = strip-promoted-fn-name name in
+          case promoted-arity-of proms id of
+            Some arity -> PVPartial id arity (utypes-to-pvals proms args)
+            None -> PVOpaque ty
+        else PVOpaque ty
+      other -> PVOpaque ty
+    other -> PVOpaque ty
+
+  uarg-to-pvals :: List PromotedFn -> UType -> PValList UType
+  uarg-to-pvals proms spine = case spine of
+    UEnd -> PVEnd
+    UArg h rest -> PVArg (utype-to-pval proms h) (uarg-to-pvals proms rest)
+    other -> PVEnd
+
+  utypes-to-pvals :: List PromotedFn -> List UType -> PValList UType
+  utypes-to-pvals proms xs = case xs of
+    Nil -> PVEnd
+    Cons h rest -> PVArg (utype-to-pval proms h) (utypes-to-pvals proms rest)
+
+  pvals-ctor-kind :: PValList UType -> Kind
+  pvals-ctor-kind xs = case xs of
+    PVEnd -> KType
+    PVArg v rest -> KFun (case pval-to-utype v of UIndex c _ -> KValue c; UIndexMath _ _ _ -> KValue (UCon "Nat" KType); other -> KType) (pvals-ctor-kind rest)
+
+  pvals-to-uarg :: PValList UType -> UType
+  pvals-to-uarg xs = case xs of
+    PVEnd -> UEnd
+    PVArg v rest -> UArg (pval-to-utype v) (pvals-to-uarg rest)
+
+  pvals-to-utype-list :: PValList UType -> List UType
+  pvals-to-utype-list xs = case xs of
+    PVEnd -> Nil
+    PVArg v rest -> Cons (pval-to-utype v) (pvals-to-utype-list rest)
+
+  pval-to-utype :: PVal UType -> UType
+  pval-to-utype v = case v of
+    PVNat n -> UIndex (UCon "Nat" KType) (IInteger n)
+    PVBool True -> UCon "ctor:True" KType
+    PVBool False -> UCon "ctor:False" KType
+    PVStr s -> UCon ("\"" <> s <> "\"") KType
+    PVCon name fields -> apply-app-spine (UCon name (pvals-ctor-kind fields)) (pvals-to-utype-list fields)
+    PVTuple fields -> UTuple (pvals-to-uarg fields)
+    PVPartial id arity args -> apply-app-spine (UCon ("fn:" <> id) (promoted-fn-kind arity False)) (pvals-to-utype-list args)
+    PVSymAdd l r -> make-index-math "+" (pval-to-utype l) (pval-to-utype r)
+    PVSymSub l r -> make-index-math "-" (pval-to-utype l) (pval-to-utype r)
+    PVSymMul l r -> make-index-math "*" (pval-to-utype l) (pval-to-utype r)
+    PVOpaque orig -> orig
+    PVClosure _ _ _ -> UError
+
+  reduce-promoted-app :: List PromotedFn -> UType -> Option UType
+  reduce-promoted-app proms ty = case unwrap-app-spine ty Nil of
+    (UCon name k, args) | is-promoted-fn-name name ->
+      let id = strip-promoted-fn-name name in
+      case promoted-arity-of proms id of
+        Some arity ->
+          if list-length args >= arity then
+            case eval-promoted-call proms id (utypes-to-pvals proms args) of
+              Some res -> case res of
+                PVClosure _ _ _ -> None
+                PVPartial _ _ _ -> None
+                other -> Some (pval-to-utype res)
+              None -> None
+          else None
+        None -> None
+    other -> None
+
+  lookup-type-family :: String -> List TypeFamilyRuleSet -> Option TypeFamilyRuleSet
+  lookup-type-family name fams = case fams of
+    Nil -> None
+    Cons first rest -> if same-tag name (family-identity first) then Some first else lookup-type-family name rest
+
+  is-type-family-head :: List TypeFamilyRuleSet -> UType -> Bool
+  is-type-family-head fams ty = case ty of
+    UCon name k -> is-promoted-fn-name name || (case lookup-type-family name fams of Some r -> True; None -> False)
+    UApp f x -> is-type-family-head fams f
+    other -> False
+
+  reduce-nullary-family :: List TypeFamilyRuleSet -> String -> Option UType
+  reduce-nullary-family fams name = case fams of
+    Nil -> None
+    other -> case lookup-type-family name fams of
+      Some (MkTypeFamilyRuleSet id arity closed returns-idx rules) ->
+        if arity == 0 then try-family-rules fams closed rules UEnd else None
+      None -> None
+
+  unwrap-app-spine :: UType -> List UType -> (UType, List UType)
+  unwrap-app-spine ty acc = case ty of
+    UApp f x -> unwrap-app-spine f (Cons x acc)
+    other -> (ty, acc)
+
+  apply-app-spine :: UType -> List UType -> UType
+  apply-app-spine head args = case args of
+    Nil -> head
+    Cons x rest -> apply-app-spine (type-application head x) rest
+
+  split-args-at :: Nat -> List UType -> (UType, List UType)
+  split-args-at n args =
+    if n == 0 then (UEnd, args)
+    else case args of
+      Nil -> (UEnd, Nil)
+      Cons x rest -> case split-args-at (n - 1) rest of
+        (spine, tail) -> (UArg x spine, tail)
+
+  reduce-type-family-app :: List TypeFamilyRuleSet -> UType -> Option UType
+  reduce-type-family-app fams ty = case fams of
+    Nil -> None
+    other -> case unwrap-app-spine ty Nil of
+      (UCon name k, args) -> case lookup-type-family name fams of
+        Some (MkTypeFamilyRuleSet id arity closed returns-idx rules) ->
+          if list-length args >= arity then
+            case split-args-at arity args of
+              (matched-args, excess) -> case try-family-rules fams closed rules matched-args of
+                Some reduced -> Some (apply-app-spine reduced excess)
+                None -> None
+          else None
+        None -> None
+      other -> None
+
+  try-family-rules :: List TypeFamilyRuleSet -> Bool -> List TypeFamilyRule -> UType -> Option UType
+  try-family-rules fams closed rules args = case rules of
+    Nil -> None
+    Cons (MkTypeFamilyRule pvars lhs rhs) rest ->
+      case match-type-pattern pvars lhs args Nil of
+        Some env -> Some (substitute env rhs)
+        None ->
+          if closed && not (patterns-apart fams pvars lhs Nil args) then None
+          else try-family-rules fams closed rest args
+
+  match-type-pattern :: List Nat -> UType -> UType -> List (Nat, UType) -> Option (List (Nat, UType))
+  match-type-pattern pvars pat arg env = case pat of
+    UBound id name k | contains-id id pvars ->
+      (case mapped id env of
+        Some prev -> if same-shape prev arg then Some env else None
+        None -> Some (Cons (id, arg) env))
+    UIndex carrier (IBound id name) | contains-id id pvars ->
+      (case mapped id env of
+        Some prev -> if same-shape prev arg then Some env else None
+        None -> Some (Cons (id, arg) env))
+    UCon n1 k1 -> case arg of
+      UCon n2 k2 -> if same-tag n1 n2 then Some env else None
+      other -> None
+    UApp f1 x1 -> case arg of
+      UApp f2 x2 -> case match-type-pattern pvars f1 f2 env of
+        Some env2 -> match-type-pattern pvars x1 x2 env2
+        None -> None
+      other -> None
+    UTuple xs -> case arg of
+      UTuple ys -> match-type-pattern pvars xs ys env
+      other -> None
+    UArg a1 r1 -> case arg of
+      UArg a2 r2 -> case match-type-pattern pvars a1 a2 env of
+        Some env2 -> match-type-pattern pvars r1 r2 env2
+        None -> None
+      other -> None
+    UEnd -> case arg of UEnd -> Some env; other -> None
+    UIndex c1 (IInteger n1) -> case arg of
+      UIndex c2 (IInteger n2) -> if n1 == n2 then Some env else None
+      other -> None
+    UFun a1 b1 -> case arg of
+      UFun a2 b2 -> case match-type-pattern pvars a1 a2 env of
+        Some env2 -> match-type-pattern pvars b1 b2 env2
+        None -> None
+      other -> None
+    other -> if same-shape pat arg then Some env else None
+
+  is-pat-var :: List Nat -> UType -> Bool
+  is-pat-var pvars ty = case ty of
+    UBound id name k -> contains-id id pvars
+    UIndex carrier (IBound id name) -> contains-id id pvars
+    other -> False
+
+  patterns-apart :: List TypeFamilyRuleSet -> List Nat -> UType -> List Nat -> UType -> Bool
+  patterns-apart fams pv1 a pv2 b =
+    if is-pat-var pv1 a || is-pat-var pv2 b then False
+    else if is-type-family-head fams a || is-type-family-head fams b then False
+    else case (a, b) of
+      (UMeta id k, other) -> False
+      (other, UMeta id k) -> False
+      (URigid id n l k, other) -> False
+      (other, URigid id n l k) -> False
+      (UIndex c1 (IRigid id n l), other) -> False
+      (other, UIndex c2 (IRigid id n l)) -> False
+      (UIndex c1 (IMeta id), other) -> False
+      (other, UIndex c2 (IMeta id)) -> False
+      (UIndex c1 (IInteger n1), UIndex c2 (IInteger n2)) -> n1 /= n2
+      (UIndex c1 t1, UIndex c2 t2) -> False
+      (UIndexMath op1 x1 y1, other) -> False
+      (other, UIndexMath op2 x2 y2) -> False
+      (UCon n1 k1, UCon n2 k2) -> not (same-tag n1 n2)
+      (UCon n1 k1, UApp f2 x2) -> True
+      (UApp f1 x1, UCon n2 k2) -> True
+      (UApp f1 x1, UApp f2 x2) ->
+        case (unwrap-app-spine a Nil, unwrap-app-spine b Nil) of
+          ((h1, args1), (h2, args2)) ->
+            if patterns-apart fams pv1 h1 pv2 h2 then True
+            else if list-length args1 /= list-length args2 then True
+            else lists-apart fams pv1 args1 pv2 args2
+      (UTuple xs, UTuple ys) -> patterns-apart fams pv1 xs pv2 ys
+      (UArg a1 r1, UArg a2 r2) -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 r1 pv2 r2
+      (UEnd, UEnd) -> False
+      (UFun a1 b1, UFun a2 b2) -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 b1 pv2 b2
+      (UCon n1 k1, UTuple ys) -> True
+      (UTuple xs, UCon n2 k2) -> True
+      (UApp f1 x1, UTuple ys) -> True
+      (UTuple xs, UApp f2 x2) -> True
+      (UCon n1 k1, UIndex c2 t2) -> True
+      (UIndex c1 t1, UCon n2 k2) -> True
+      (UApp f1 x1, UIndex c2 t2) -> True
+      (UIndex c1 t1, UApp f2 x2) -> True
+      (UTuple xs, UIndex c2 t2) -> True
+      (UIndex c1 t1, UTuple ys) -> True
+      other -> False
+
+  lists-apart :: List TypeFamilyRuleSet -> List Nat -> List UType -> List Nat -> List UType -> Bool
+  lists-apart fams pv1 xs pv2 ys = case (xs, ys) of
+    (Cons a ra, Cons b rb) -> patterns-apart fams pv1 a pv2 b || lists-apart fams pv1 ra pv2 rb
+    other -> False
+
+  type-family-patterns-overlap :: List TypeFamilyRuleSet -> List Nat -> UType -> List Nat -> UType -> Bool
+  type-family-patterns-overlap fams pv1 lhs1 pv2 lhs2 = not (patterns-apart fams pv1 lhs1 pv2 lhs2)
+
+  types-apart :: List TypeFamilyRuleSet -> UType -> UType -> Bool
+  types-apart fams a b = patterns-apart fams Nil a Nil b
 
   normalized-variable :: Store -> UType -> UType
   normalized-variable st ty = case ty of
@@ -971,7 +1364,9 @@ module Bootstrap.Type where
     -- carrier here refused every dependent function whose result is a goal.
     UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow
       && (carrier-type result || proposition-type result)
-    UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
+    UApp f x -> valid-type f && valid-type x && (case type-kind f of
+      KFun a b -> is-promoted-fn-head f || valid-app-arg-kind a x
+      other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UForall qs body -> quants-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
@@ -980,8 +1375,28 @@ module Bootstrap.Type where
     URow labels -> valid-effects labels
     URowJoin a b -> valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow
     UTuple xs -> valid-value-fields xs
+    USigma id name domain body -> not (contains-id id (type-free-bound domain)) && carrier-type domain && carrier-type body
     UArg x rest -> valid-type x && valid-type rest
     other -> True
+
+  is-promoted-fn-head :: UType -> Bool
+  is-promoted-fn-head ty = case ty of
+    UCon name _ -> is-promoted-fn-name name
+    UApp f _ -> is-promoted-fn-head f
+    other -> False
+
+  is-promoted-value-type :: UType -> Bool
+  is-promoted-value-type ty = case ty of
+    UCon name _ -> promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name
+    UApp f _ -> is-promoted-value-type f
+    other -> False
+
+  -- The same check as valid-type's UApp arm, allowing promoted functions and promoted values.
+  valid-app-arg-kind :: Kind -> UType -> Bool
+  valid-app-arg-kind expected actual =
+    kind-equal expected (type-kind actual)
+    || (kind-equal expected KType && (case type-kind actual of KValue _ -> True; other -> False))
+    || ((case expected of KValue _ -> True; other -> False) && is-promoted-value-type actual)
 
   distinct-former-ids :: List Nat -> Bool
   distinct-former-ids ids = case ids of Nil -> True; Cons id rest -> not (contains-id id rest) && distinct-former-ids rest
@@ -1010,7 +1425,7 @@ module Bootstrap.Type where
   valid-value-fields :: UType -> Bool
   valid-value-fields fields = case fields of
     UEnd -> True
-    UArg value rest -> valid-type value && kind-equal (type-kind value) KType && valid-value-fields rest
+    UArg value rest -> valid-type value && (kind-equal (type-kind value) KType || (case type-kind value of KValue c -> True; other -> False)) && valid-value-fields rest
     other -> False
 
   type-text :: UType -> String
@@ -1030,7 +1445,7 @@ module Bootstrap.Type where
     URequire predicates body -> string-concat-all ["required ", type-text predicates, " => ", type-text body]
     URefine id name carrier predicate -> string-concat-all ["refine (", name, " :: ", type-text carrier, ") with ", type-text predicate]
     URefineFormer name ids body -> name
-    UCon name k -> name
+    UCon name k -> if same-tag name promoted-nil-name then "[]" else strip-ctor-prefix name
     UBound id name k -> name
     URigid id name lev k -> name
     UMeta id k -> string-concat "?" (nat-to-string id)
@@ -1050,7 +1465,9 @@ module Bootstrap.Type where
     UIndexPromote value -> string-concat "integer-index " (type-text value)
     UIndexMath op left right -> string-concat-all ["(", type-text left, " ", op, " ", type-text right, ")"]
     UPi id name domain row result -> string-concat-all ["((", name, " :: ", type-text domain, ") ->", type-text row, " ", type-text result, ")"]
-    UApp f x -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
+    UApp f x -> case extract-promoted-list ty of
+      Some elems -> string-concat-all ["[", promoted-list-text elems, "]"]
+      None -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
     UFun a b -> string-concat-all ["(", type-text a, " -> ", type-text b, ")"]
     UFunEff a row b -> string-concat-all ["(", type-text a, " ->", type-text row, " ", type-text b, ")"]
     UUsageArrow usage arrow -> let marker = arrow-usage-text usage in case arrow of
@@ -1062,11 +1479,17 @@ module Bootstrap.Type where
     URow labels -> string-concat-all ["{", type-text labels, "}"]
     URowJoin a b -> string-concat-all ["(", type-text a, " union ", type-text b, ")"]
     UTuple xs -> string-concat-all ["(", type-text xs, ")"]
+    USigma id name domain body -> string-concat-all ["(Sigma (", name, " :: ", type-text domain, "). ", type-text body, ")"]
     UForall qs body -> string-concat-all ["(forall", quant-names-text (quants-list qs), ". ", type-text body, ")"]
     UArg x UEnd -> type-text x
     UArg x rest -> string-concat-all [type-text x, ", ", type-text rest]
     UEnd -> ""
     UError -> "_"
+  promoted-list-text :: List UType -> String
+  promoted-list-text elems = case elems of
+    Nil -> ""
+    Cons x Nil -> type-text x
+    Cons x rest -> string-concat-all [type-text x, ", ", promoted-list-text rest]
 
   contains-id :: Nat -> List Nat -> Bool
   contains-id id ids = case ids of Nil -> False; Cons n rest -> id == n || contains-id id rest
@@ -1116,6 +1539,7 @@ module Bootstrap.Type where
     URow labels -> normalized-free-metas st labels
     URowJoin a b -> merge-ids (normalized-free-metas st a) (normalized-free-metas st b)
     UTuple xs -> normalized-free-metas st xs
+    USigma id name domain body -> merge-ids (normalized-free-metas st domain) (normalized-free-metas st body)
     UForall qs body -> merge-ids (quant-metas st (quants-list qs)) (normalized-free-metas st body)
     UArg x rest -> merge-ids (normalized-free-metas st x) (normalized-free-metas st rest)
     other -> Nil
@@ -1148,6 +1572,7 @@ module Bootstrap.Type where
     UUsageArrow usage arrow -> has-forall arrow
     UPi id name domain row result -> has-forall domain || has-forall result
     UTuple xs -> has-forall xs
+    USigma id name domain body -> has-forall domain || has-forall body
     UArg x rest -> has-forall x || has-forall rest
     URequire predicates body -> has-forall body
     URefine id name carrier predicate -> has-forall carrier
@@ -1193,6 +1618,7 @@ module Bootstrap.Type where
     URow labels -> escapes level labels
     URowJoin a b -> escapes level a || escapes level b
     UTuple xs -> escapes level xs
+    USigma id name domain body -> escapes level domain || escapes level body
     UForall qs body -> escapes level body
     UArg x rest -> escapes level x || escapes level rest
     other -> False
@@ -1219,7 +1645,7 @@ module Bootstrap.Type where
   bind-other sp id k ty st = case find-cell id st of
     None -> add-error sp "unknown inference variable" st
     Some (MkCell n lev kind solution) ->
-      let checked = unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
+      let checked = if valid-app-arg-kind (normalize-kind st k) ty then unify-kind sp k kind st else unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
       if store-error-count checked > store-error-count st then checked
       else let solution-type = normalize checked ty in
         if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
@@ -1385,7 +1811,7 @@ module Bootstrap.Type where
         else unify-index sp (normalize checked carrier) (resolve-index checked value) (resolve-index checked right) checked
       UIndexConstructor name arrow input -> add-error sp (string-concat (mismatch-message a b) " (index mismatch)") st
       other -> mismatch sp a b st
-    UCon n k -> case b of UCon m l -> if string-compare n m == 0 then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
+    UCon n k -> case b of UCon m l -> if string-compare n m == 0 then (if promoted-ctor-name n || is-promoted-fn-name n then st else unify-kind sp k l st) else mismatch sp a b st; other -> mismatch sp a b st
     UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
     URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
     UApp f x -> if distinct-deferrals a b then
@@ -1425,6 +1851,9 @@ module Bootstrap.Type where
       unify-open-rows sp a b st
       else add-error sp "malformed open effect row" st
     UTuple xs -> case b of UTuple ys -> unify sp xs ys st; other -> mismatch sp a b st
+    USigma id name domain body -> case b of
+      USigma key other input output -> unify-pi sp (sigma-pi id name domain body) (sigma-pi key other input output) st
+      other -> mismatch sp a b st
     UForall qs x -> case b of UForall rs y -> unify-forall sp a b st; other -> mismatch sp a b st
     UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
@@ -1503,7 +1932,7 @@ module Bootstrap.Type where
               same-shape (substitute (former-substitution ids actuals) body)
                          (substitute (former-substitution keys actuals) template))
       other -> False
-    UCon n k -> case second of UCon m l -> string-compare n m == 0 && kind-equal k l; other -> False
+    UCon n k -> case second of UCon m l -> string-compare n m == 0 && (promoted-ctor-name n || kind-equal k l); other -> False
     UBound n name k -> case second of UBound m other l -> n == m && kind-equal k l; other -> False
     URigid n name level k -> case second of URigid m other outer l -> n == m && kind-equal k l; other -> False
     UMeta n k -> case second of UMeta m l -> n == m && kind-equal k l; other -> False
@@ -1527,6 +1956,9 @@ module Bootstrap.Type where
     URow a -> case second of URow b -> same-shape a b; other -> False
     URowJoin a b -> case second of URowJoin c d -> same-shape a c && same-shape b d; other -> False
     UTuple a -> case second of UTuple b -> same-shape a b; other -> False
+    USigma id name domain body -> case second of
+      USigma key other input output -> same-pi (sigma-pi id name domain body) (sigma-pi key other input output)
+      other -> False
     UForall qs a -> case second of
       UForall rs b -> quants-length qs == quants-length rs
         && same-quant-kinds (quants-list qs) (quants-list rs)
@@ -1670,6 +2102,7 @@ module Bootstrap.Type where
     URow labels -> URow (transform-type mode pairs labels)
     URowJoin a b -> union-effects (transform-type mode pairs a) (transform-type mode pairs b)
     UTuple xs -> UTuple (transform-type mode pairs xs)
+    USigma id name domain body -> substitute-sigma mode pairs id name domain body
     -- A polytype's own binders shadow a bound-variable substitution.
     UForall qs body -> UForall (quants-of (map-quant-kinds (transform-type mode pairs) (quants-list qs)))
       (transform-type mode (case mode of ReplaceBound -> without-type-pairs (quant-id-list (quants-list qs)) pairs; other -> pairs) body)
@@ -1691,9 +2124,9 @@ module Bootstrap.Type where
   instantiate-ordered rigid qs earlier st = case qs of
     Nil -> (Nil, st)
     Cons q rest -> case st of
-      MkStore label next level cells errors numbers in-law depth ->
+      MkStore label next level cells errors numbers in-law depth fams proms ->
         let kind = map-kind-types (substitute earlier) (quant-kind q) in
-        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law depth) else fresh-meta kind st in
+        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law depth fams proms) else fresh-meta kind st in
         case instantiate-ordered rigid rest (Cons (quant-id q, ty) earlier) next-store of
           (pairs, final-store) -> (Cons (quant-id q, ty) pairs, final-store)
   instantiate :: Scheme -> Store -> (UType, Store)
@@ -1851,11 +2284,29 @@ module Bootstrap.Type where
   copy-marker-carrier ty = case ty of
     UCon name KType -> number-literal-carrier ty || same-tag name "Char" || same-tag name "Bool" || same-tag name "Unit"
     UTuple fields -> copy-marker-fields fields
+    USigma id name domain body -> copy-marker-carrier domain && copy-marker-carrier body
     other -> False
   copy-marker-fields :: UType -> Bool
   copy-marker-fields fields = case fields of
     UEnd -> True
     UArg first rest -> copy-marker-carrier first && copy-marker-fields rest
+    other -> False
+  -- Ground scalar, tuple, array and pure-function Kernel marker evidence
+  -- carries no runtime payload.
+  kernel-marker-carrier :: UType -> Bool
+  kernel-marker-carrier ty = case ty of
+    UCon name KType -> number-literal-carrier ty || same-tag name "Char" || same-tag name "Bool" || same-tag name "Unit"
+    UTuple fields -> kernel-marker-fields fields
+    USigma id name domain body -> kernel-marker-carrier domain && kernel-marker-carrier body
+    UFun a b -> kernel-marker-carrier a && kernel-marker-carrier b
+    UFunEff a (URow UEnd) b -> kernel-marker-carrier a && kernel-marker-carrier b
+    UApp (UCon name k) elem | same-tag name "Array" -> kernel-marker-carrier elem
+    UUsageArrow u inner -> kernel-marker-carrier inner
+    other -> False
+  kernel-marker-fields :: UType -> Bool
+  kernel-marker-fields fields = case fields of
+    UEnd -> True
+    UArg first rest -> kernel-marker-carrier first && kernel-marker-fields rest
     other -> False
   integer-carrier :: UType -> Bool
   integer-carrier carrier = mathematical-carrier carrier || promotable-carrier carrier
@@ -1936,6 +2387,110 @@ module Bootstrap.Type where
               let mantissa = (odd - float-power-of-two (width - 1)) * float-power-of-two (precision - width) in
               let word = (bias + exponent) * float-power-of-two (precision - 1) + mantissa in
               Some (if value < 0 then word + sign else word))
+  -- Exact IEEE-754 round-to-nearest-even conversion of decimal/scientific
+  -- float literals using arbitrary-precision Int arithmetic.
+  int-pow2 :: Int -> Int
+  int-pow2 e = if e <= 0 then 1
+    else let h = int-pow2 (int-div e 2) in
+      if int-rem e 2 == 0 then h * h else h * h * 2
+  int-pow10 :: Int -> Int
+  int-pow10 e = if e <= 0 then 1
+    else let h = int-pow10 (int-div e 2) in
+      if int-rem e 2 == 0 then h * h else h * h * 10
+  int-bit-length :: Int -> Int
+  int-bit-length n = if n <= 0 then 0
+    else if n >= 1073741824 then 30 + int-bit-length (int-div n 1073741824)
+    else 1 + int-bit-length (int-div n 2)
+  int-dec-digits :: Int -> Int
+  int-dec-digits n = if n < 10 then 1 else 1 + int-dec-digits (int-div n 10)
+  parse-dec-run :: List Char -> Int -> Int -> Bool -> (Int, Int, Bool, List Char)
+  parse-dec-run cs acc count seen = case cs of
+    Cons c rest -> let code = char-code c in
+      if code >= 48 && code <= 57 then
+        parse-dec-run rest (acc * 10 + nat-to-int (code - 48)) (count + 1) True
+      else if code == 95 then parse-dec-run rest acc count seen
+      else (acc, count, seen, cs)
+    Nil -> (acc, count, seen, Nil)
+  parse-exp-part :: List Char -> Option Int
+  parse-exp-part cs = case cs of
+    Nil -> Some 0
+    Cons c rest -> let code = char-code c in
+      if code == 101 || code == 69 then
+        (case rest of
+          Cons s tail ->
+            let neg = char-code s == 45 in
+            let digits = if neg || char-code s == 43 then tail else rest in
+            (case parse-dec-run digits 0 0 False of
+              (ev, cnt, seen, left) -> case left of
+                Nil -> if seen then Some (if neg then 0 - ev else ev) else None
+                other -> None)
+          Nil -> None)
+      else None
+  parse-float-string :: String -> Option (Bool, Int, Int)
+  parse-float-string text = case unpack text of
+    Nil -> None
+    Cons s rest ->
+      let neg = char-code s == 45 in
+      let body = if neg || char-code s == 43 then rest else Cons s rest in
+      case parse-dec-run body 0 0 False of
+        (int-val, int-cnt, int-seen, after-int) ->
+          case (case after-int of
+            Cons d tail | char-code d == 46 ->
+              (case parse-dec-run tail int-val 0 False of
+                (fv, fcnt, fseen, more) -> (fv, fcnt, int-seen || fseen, more))
+            other -> (int-val, 0, int-seen, after-int)) of
+            (sig, frac-cnt, any-digit, after-frac) ->
+              if not any-digit then None
+              else case parse-exp-part after-frac of
+                None -> None
+                Some exp-val -> Some (neg, sig, exp-val - frac-cnt)
+  adjust-bin-exp :: Int -> Int -> Int -> Int
+  adjust-bin-exp num den e =
+    let (lhs, rhs) = if e >= 0 then (num, den * int-pow2 e) else (num * int-pow2 (0 - e), den) in
+    if lhs < rhs then adjust-bin-exp num den (e - 1)
+    else if lhs >= rhs * 2 then adjust-bin-exp num den (e + 1)
+    else e
+  float-string-bits :: UType -> String -> Option Int
+  float-string-bits carrier text = case float-literal-format carrier of
+    None -> None
+    Some (precision, bias, sign) -> case parse-float-string text of
+      None -> None
+      Some (neg, sig, dec-exp) ->
+        if sig == 0 then Some (if neg then sign else 0)
+        else
+          let digits = int-dec-digits sig in
+          let max-dec = if precision == 24 then 40 else 310 in
+          let min-dec = if precision == 24 then -50 else -330 in
+          if digits - 1 + dec-exp > max-dec then None
+          else if digits + dec-exp < min-dec then Some (if neg then sign else 0)
+          else
+            let (num, den) = if dec-exp >= 0 then (sig * int-pow10 dec-exp, 1) else (sig, int-pow10 (0 - dec-exp)) in
+            let e = adjust-bin-exp num den (int-bit-length num - int-bit-length den) in
+            let emin = 1 - bias in
+            let shift = if e >= emin then e - (precision - 1) else emin - (precision - 1) in
+            let (snum, sden) = if shift >= 0 then (num, den * int-pow2 shift) else (num * int-pow2 (0 - shift), den) in
+            if sden == 0 then None else
+            let q = int-div snum sden in
+            let r = int-rem snum sden in
+            let twice-r = r * 2 in
+            let rounded = if twice-r > sden || (twice-r == sden && int-rem q 2 == 1) then q + 1 else q in
+            let hidden = int-pow2 (precision - 1) in
+            let top = hidden * 2 in
+            if e >= emin then
+              let (mant-q, exp-final) = if rounded >= top then (hidden, e + 1) else (rounded, e) in
+              if exp-final > bias then None
+              else
+                let word = (exp-final + bias) * hidden + (mant-q - hidden) in
+                Some (if neg then word + sign else word)
+            else
+              let word = if rounded >= hidden then hidden else rounded in
+              Some (if neg then word + sign else word)
+  float-string-valid :: UType -> String -> Bool
+  float-string-valid carrier text = case float-string-bits carrier text of Some word -> True; None -> False
+  float-string-error :: UType -> String -> String
+  float-string-error carrier text = case float-literal-format carrier of
+    Some format -> string-concat-all ["float literal ", text, " overflows ", type-text carrier]
+    None -> string-concat-all ["float literal ", text, " cannot have type ", type-text carrier, " (float literals have type F32 or F64)"]
   index-shape :: UType -> IndexTerm -> Bool
   index-shape carrier value = case value of
     ICharacter c -> same-shape carrier (UCon "Char" KType)
@@ -2055,6 +2610,7 @@ module Bootstrap.Type where
       URequire predicates result -> borrow-regions result
       URefine id name carrier predicate -> borrow-regions carrier
       UTuple fields -> borrow-regions fields
+      USigma id name domain body -> borrow-regions domain <> borrow-regions body
       UForall qs body -> borrow-regions body
       UArg first rest -> borrow-regions first <> borrow-regions rest
       other -> Nil)
@@ -2137,6 +2693,7 @@ module Bootstrap.Type where
     UIndexCall function args -> total-call-runtime-arguments args
     UIndexPromote input -> typed-index-admissible input
     UIndexMath op left right -> typed-index-admissible left && typed-index-admissible right
+    UApp f x -> (case typed-index-carrier value of Some carrier -> True; None -> False)
     other -> case (typed-index-carrier value, index-of-type value) of (Some carrier, Some term) -> index-runtime-admissible carrier term; other -> False)
   typed-index-solutions :: Store -> List Nat -> List (Nat, UType)
   typed-index-solutions st ids = case ids of
@@ -2229,6 +2786,7 @@ module Bootstrap.Type where
     URow labels -> validate-type-indices sp labels st
     URowJoin a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UTuple fields -> validate-type-indices sp fields st
+    USigma id name domain body -> validate-type-indices sp body (validate-type-indices sp domain st)
     UForall qs body -> validate-type-indices sp body st
     UArg a b -> validate-type-indices sp b (validate-type-indices sp a st)
     other -> st
@@ -2287,7 +2845,7 @@ module Bootstrap.Type where
   insert-typed-index :: Nat -> List (Nat, UType) -> UType -> IndexTerm -> UType
   insert-typed-index id pairs carrier original = case mapped id pairs of
     None -> UIndex carrier original
-    Some value -> if valid-type value && (case typed-index-carrier value of Some actual -> carrier-equal carrier actual; None -> False) then value else UError
+    Some value -> if valid-type value && (is-promoted-value-type value || (case typed-index-carrier value of Some actual -> carrier-equal carrier actual; None -> False)) then value else UError
 
   -- Pi binders scope the effect row and codomain, never their own domain.
   -- Id scans include carrier kinds and every Index namespace, so externally
@@ -2347,6 +2905,7 @@ module Bootstrap.Type where
     URow labels -> type-all-ids labels
     URowJoin a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UTuple fields -> type-all-ids fields
+    USigma id name domain body -> merge-ids [id] (merge-ids (type-all-ids domain) (type-all-ids body))
     UForall qs body -> merge-ids (quant-id-list (quants-list qs)) (type-all-ids body)
     UArg a rest -> merge-ids (type-all-ids a) (type-all-ids rest)
     other -> Nil
@@ -2396,6 +2955,7 @@ module Bootstrap.Type where
     URow labels -> type-free-bound labels
     URowJoin a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UTuple fields -> type-free-bound fields
+    USigma id name domain body -> merge-ids (type-free-bound domain) (remove-id id (type-free-bound body))
     UForall qs body -> remove-ids (quant-id-list (quants-list qs)) (type-free-bound body)
     UArg a rest -> merge-ids (type-free-bound a) (type-free-bound rest)
     other -> Nil
@@ -2418,6 +2978,19 @@ module Bootstrap.Type where
 
   -- Reuse the checked binder machinery without identifying refinements
   -- with functions. The encoding is private and never an exported type.
+  sigma-pi :: Nat -> String -> UType -> UType -> UType
+  sigma-pi id name domain body = UPi id name domain (URow UEnd) body
+  substitute-sigma :: TypeSubstitution -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType
+  substitute-sigma mode pairs id name domain body = case substitute-pi mode pairs id name domain (URow UEnd) body of
+    UPi fresh display d row b -> USigma fresh display d b
+    other -> UError
+  open-sigma :: Span -> UType -> UType -> Store -> (UType, Store)
+  open-sigma sp sigma argument st = case normalize st sigma of
+    USigma id name domain body -> if valid-type sigma then
+      (case open-pi sp (sigma-pi id name domain body) argument st of
+        (opened, row, checked) -> (opened, checked))
+      else (UError, add-error sp "ill-formed dependent pair type" st)
+    other -> (UError, add-error sp "dependent pair opening requires a Sigma type" st)
   refinement-pi :: Nat -> String -> UType -> UType -> UType
   refinement-pi id name carrier predicate = UPi id name carrier (URow UEnd) (URequire (UArg predicate UEnd) carrier)
   substitute-refinement :: TypeSubstitution -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType
@@ -2451,15 +3024,15 @@ module Bootstrap.Type where
     other -> ty
   reserve-type-ids :: UType -> UType -> Store -> Store
   reserve-type-ids first second st = case st of
-    MkStore label next level cells errors numbers in-law depth ->
+    MkStore label next level cells errors numbers in-law depth fams proms ->
       let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
-      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth
+      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth fams proms
   cells-level :: CellStore -> Nat
   cells-level cells = case cells of
     EmptyCells -> 0
     CellRun size tree rest -> max-cell-level (cell-tree-level tree) (cells-level rest)
   pi-level :: Store -> Nat
-  pi-level st = case st of MkStore label next level cells errors numbers in-law depth -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  pi-level st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> let highest = cells-level cells in (if level > highest then level else highest) + 1
   -- Two polytypes are equal when their binders agree in number and kind
   -- and their bodies unify over one shared set of rigid variables, opened
   -- one level deeper than every existing metavariable: `bind-other`'s
@@ -2579,6 +3152,7 @@ module Bootstrap.Type where
     URow labels -> type-pi-ids labels
     URowJoin a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UTuple fields -> type-pi-ids fields
+    USigma id name domain body -> merge-ids [id] (merge-ids (type-pi-ids domain) (type-pi-ids body))
     UForall qs body -> type-pi-ids body
     UArg a rest -> merge-ids (type-pi-ids a) (type-pi-ids rest)
     other -> Nil
@@ -2637,6 +3211,7 @@ module Bootstrap.Type where
     URow labels -> URow (without-index-levels labels)
     URowJoin a b -> URowJoin (without-index-levels a) (without-index-levels b)
     UTuple fields -> UTuple (without-index-levels fields)
+    USigma id name domain body -> USigma id name (without-index-levels domain) (without-index-levels body)
     UForall qs body -> UForall qs (without-index-levels body)
     UArg x rest -> UArg (without-index-levels x) (without-index-levels rest)
     UIndex carrier value -> UIndex (without-index-levels carrier) (index-without-levels value)
@@ -2659,47 +3234,69 @@ module Bootstrap.Type where
     other -> term
 
   pending-number :: Span -> UType -> Int -> Store -> Store
-  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth
+  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth fams proms
+  pending-float :: Span -> UType -> String -> Store -> Store
+  pending-float sp ty raw st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors (Cons (PendingFloat sp ty raw) numbers) in-law depth fams proms
   -- Primitive equality may see a literal's still-unsolved carrier through
   -- a generic call or constructor. Check it after ordinary constraints and
   -- numeric defaulting; never invent an Eq dictionary or default a skolem.
   pending-comparison :: Span -> UType -> List String -> Store -> Store
   pending-comparison sp ty allowed st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth
+    MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth fams proms
   pending-numbers :: Store -> List PendingNumber
-  pending-numbers st = case st of MkStore label next level cells errors numbers in-law depth -> numbers
+  pending-numbers st = case st of MkStore label next level cells errors numbers in-law depth fams proms -> numbers
   number-meta-ids :: List PendingNumber -> Store -> List Nat
   number-meta-ids checks st = case checks of
     Nil -> Nil
     Cons (PendingNumber sp ty value) rest -> merge-ids (free-metas st ty) (number-meta-ids rest st)
+    Cons (PendingFloat sp ty raw) rest -> merge-ids (free-metas st ty) (number-meta-ids rest st)
     Cons (PendingComparison sp ty allowed) rest -> number-meta-ids rest st
-  default-number-checks :: List Nat -> List PendingNumber -> Store -> Store
-  default-number-checks wanted checks st = case checks of
+  float-meta-ids :: List PendingNumber -> Store -> List Nat
+  float-meta-ids checks st = case checks of
+    Nil -> Nil
+    Cons (PendingFloat sp ty raw) rest -> merge-ids (free-metas st ty) (float-meta-ids rest st)
+    Cons (PendingNumber sp ty value) rest -> float-meta-ids rest st
+    Cons (PendingComparison sp ty allowed) rest -> float-meta-ids rest st
+  default-number-checks :: List Nat -> List Nat -> List PendingNumber -> Store -> Store
+  default-number-checks wanted floats checks st = case checks of
     Nil -> st
-    Cons (PendingComparison sp ty allowed) rest -> default-number-checks wanted rest st
+    Cons (PendingComparison sp ty allowed) rest -> default-number-checks wanted floats rest st
     Cons (PendingNumber sp ty value) rest -> (case normalize st ty of
-      UMeta id KType -> default-number-checks wanted rest (if contains-id id wanted then unify sp ty (UCon "Int" KType) st else st)
-      other -> default-number-checks wanted rest st)
+      UMeta id KType -> let def = if contains-id id floats then UCon "F64" KType else UCon "Int" KType in
+        default-number-checks wanted floats rest (if contains-id id wanted then unify sp ty def st else st)
+      other -> default-number-checks wanted floats rest st)
+    Cons (PendingFloat sp ty raw) rest -> (case normalize st ty of
+      UMeta id KType -> default-number-checks wanted floats rest (if contains-id id wanted then unify sp ty (UCon "F64" KType) st else st)
+      other -> default-number-checks wanted floats rest st)
   default-numbers-for :: UType -> Store -> Store
-  default-numbers-for wanted st = default-number-checks (free-metas st wanted) (pending-numbers st) st
+  default-numbers-for wanted st = let checks = pending-numbers st in
+    default-number-checks (free-metas st wanted) (float-meta-ids checks st) checks st
   number-carrier :: UType -> UType
   number-carrier ty = case refinement-view ty of URefine id name carrier predicate -> number-carrier carrier; other -> ty
-  check-number-checks :: List PendingNumber -> Store -> Store
-  check-number-checks checks st = case checks of
+  check-number-checks :: List Nat -> List PendingNumber -> Store -> Store
+  check-number-checks floats checks st = case checks of
     Nil -> st
     Cons (PendingComparison sp ty allowed) rest ->
       let defaulted = case normalize st ty of
-            UMeta id KType -> if contains-id id (number-meta-ids checks st) then unify sp ty (UCon "Int" KType) st else st
+            UMeta id KType -> if contains-id id (number-meta-ids checks st) then
+              unify sp ty (if contains-id id floats then UCon "F64" KType else UCon "Int" KType) st
+              else st
             other -> st in
       let valid = case normalize defaulted ty of UCon name KType -> comparison-name name allowed; other -> False in
-      check-number-checks rest (if valid then defaulted else add-error sp "equality needs an Eq dictionary for this type" defaulted)
+      check-number-checks floats rest (if valid then defaulted else add-error sp "equality needs an Eq dictionary for this type" defaulted)
     Cons (PendingNumber sp ty value) rest -> let carrier = number-carrier (normalize st ty) in
-      check-number-checks rest (case carrier of
-        UMeta id KType -> unify sp ty (UCon "Int" KType) st
+      check-number-checks floats rest (case carrier of
+        UMeta id KType -> unify sp ty (if contains-id id floats then UCon "F64" KType else UCon "Int" KType) st
         other -> if number-literal-valid carrier value then st else add-error sp (number-literal-error carrier value "literal is outside its resolved integer carrier") st)
+    Cons (PendingFloat sp ty raw) rest -> let carrier = number-carrier (normalize st ty) in
+      check-number-checks floats rest (case carrier of
+        UMeta id KType -> let resolved = unify sp ty (UCon "F64" KType) st in
+          if float-string-valid (UCon "F64" KType) raw then resolved else add-error sp (float-string-error (UCon "F64" KType) raw) resolved
+        other -> if float-string-valid carrier raw then st else add-error sp (float-string-error carrier raw) st)
   comparison-name :: String -> List String -> Bool
   comparison-name name allowed = case allowed of Nil -> False; Cons first rest -> same-tag name first || comparison-name name rest
   finish-numbers :: Store -> Store
   finish-numbers st = let checks = pending-numbers st in
-    let checked = check-number-checks checks st in
-    case checked of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors Nil in-law depth
+    let floats = float-meta-ids checks st in
+    let checked = check-number-checks floats checks st in
+    case checked of MkStore label next level cells errors numbers in-law depth fams proms -> MkStore label next level cells errors Nil in-law depth fams proms

@@ -342,6 +342,9 @@ module Bootstrap.Check where
     TRow s labels tail -> (TyHole, fail s "unsupported type: effect row")
     TTuple s xs -> case ty-spine-to-ty xs of
       (args, ds) -> (TyTuple args, ds)
+    TList s xs -> (TyHole, fail s "unsupported type: type-level list")
+    TStrLit s text -> (TyHole, fail s "unsupported type: type-level string literal")
+    TSigma s name dom body -> (TyHole, fail s "unsupported type: sigma")
     TForall s vs body -> (TyHole, fail s "unsupported type: forall")
     TQuantifier s name is-implicit kind rest -> (TyHole, fail s "unsupported type: quantifier binder")
     TQuantifiersEnd s -> (TyHole, fail s "unsupported type: quantifier end")
@@ -989,6 +992,10 @@ module Bootstrap.Check where
       Cons p rest -> fail s "parameterized data declarations are not supported in this rung"
     DOpaque s name params kind -> fail s "opaque declarations require checked kind and nominal elaboration"
     DRefine s n params binder predicate -> fail s "named refinement declarations need proof checking, which is not supported in this rung"
+    DTypeFamily s n params rkind closed eqs -> fail s "type family declarations require typed elaboration"
+    DTypeInstance s n args rhs -> fail s "type instance declarations require typed elaboration"
+    DDataFamily s n params -> fail s "data family declarations require typed elaboration"
+    DDataInstance s n args ctors -> fail s "data instance declarations require typed elaboration"
     DClass s n params members -> fail s "class declarations are not supported in this rung"
     DInstance s is-implicit name params class-app members -> fail s "instance declarations are not supported in this rung"
     DFixity s assoc prec ops -> fail s "fixity declarations are not supported in this rung"

@@ -193,3 +193,77 @@ pub(super) fn unlockpt(_fd: i64) -> (i64, i64) {
 pub(super) fn ptsname(_fd: i64, _buf: &mut [u8]) -> (i64, i64) {
     unsupported()
 }
+
+pub(super) fn dlopen(_path_nul: &[u8]) -> *mut c_void {
+    std::ptr::null_mut()
+}
+
+pub(super) fn dlsym(_handle: *mut c_void, _sym_nul: &[u8]) -> *mut c_void {
+    std::ptr::null_mut()
+}
+
+/// WebAssembly host imports for the `cinch_webgpu` WebGPU bridge
+/// (`seed/runtime/src/webgpu.rs` + emitted `<out>.webgpu.mjs`).
+/// Declared here so every foreign import in the runtime stays auditable in `src/sys/`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod webgpu_host {
+    #[link(wasm_import_module = "cinch_webgpu")]
+    extern "C" {
+        pub(crate) fn cinch_webgpu_available() -> i32;
+        pub(crate) fn cinch_webgpu_open() -> i32;
+        pub(crate) fn cinch_webgpu_close(ctx: i32);
+        pub(crate) fn cinch_webgpu_alloc(ctx: i32, bytes: u32) -> i32;
+        pub(crate) fn cinch_webgpu_upload(ctx: i32, ptr: *const u8, bytes: u32) -> i32;
+        pub(crate) fn cinch_webgpu_download(ctx: i32, buf: i32, dst: *mut u8, bytes: u32) -> i32;
+        pub(crate) fn cinch_webgpu_free(ctx: i32, buf: i32);
+        pub(crate) fn cinch_webgpu_dot_f32(
+            ctx: i32,
+            a: i32,
+            b: i32,
+            n: u32,
+            exact: i32,
+            out_val: *mut f32,
+        ) -> i32;
+        pub(crate) fn cinch_webgpu_scan_i32(ctx: i32, in_buf: i32, n: u32, inclusive: i32) -> i32;
+        pub(crate) fn cinch_webgpu_filter_i32_gt(
+            ctx: i32,
+            in_buf: i32,
+            n: u32,
+            threshold: i32,
+            out_len: *mut u32,
+        ) -> i32;
+        pub(crate) fn cinch_webgpu_stencil_hist_u8(
+            ctx: i32,
+            in_buf: i32,
+            f: u32,
+            h: u32,
+            w: u32,
+            ws_ptr: *const i32,
+            divisor: i32,
+            edge_policy: u32,
+            nsteps: u32,
+            bins: u32,
+        ) -> i32;
+        pub(crate) fn cinch_webgpu_stencil2d_f32(
+            ctx: i32,
+            in_buf: i32,
+            f: u32,
+            h: u32,
+            w: u32,
+            ws_ptr: *const f32,
+            edge_policy: u32,
+            nsteps: u32,
+        ) -> i32;
+        pub(crate) fn cinch_webgpu_spmv_csr_f32(
+            ctx: i32,
+            vals: i32,
+            cols: i32,
+            row_ptr: i32,
+            x: i32,
+            r: u32,
+            nz: u32,
+            exact: i32,
+        ) -> i32;
+        pub(crate) fn cinch_webgpu_row_reduce_f32(ctx: i32, in_buf: i32, r: u32, c: u32) -> i32;
+    }
+}

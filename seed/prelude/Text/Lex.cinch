@@ -865,9 +865,26 @@ module Text.Lex where
           if eq-char c '_' then scan-dec-digits (skip-char s) acc rev
           else NumScan s acc rev
 
-  -- The float fraction and exponent when present: `.` immediately
-  -- followed by a digit. The scanned text keeps the digits, the dot
-  -- and the exponent spelled out (underscores dropped).
+  -- The float fraction and/or exponent when present: `.` immediately
+  -- followed by a digit, OR `e`/`E` followed by optional `+`/`-` and a digit.
+  -- The scanned text keeps the digits, the dot and the exponent spelled out
+  -- (underscores dropped).
+  scan-float-exp :: Scan -> List Char -> Option PairScan
+  scan-float-exp s rev = case peek-char s of
+    Some e | eq-char e 'e' || eq-char e 'E' ->
+      case peek-at s 1 of
+        Some f | eq-char f '+' || eq-char f '-' ->
+          case peek-at s 2 of
+            Some d | is-ascii-digit d ->
+              case scan-decimals-rev (skip-char (skip-char s)) (Cons f (Cons e rev)) of
+                Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
+            _ -> None
+        Some d | is-ascii-digit d ->
+          case scan-decimals-rev (skip-char s) (Cons e rev) of
+            Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
+        _ -> None
+    _ -> None
+
   scan-float-frac :: Scan -> List Char -> Option PairScan
   scan-float-frac s rev = case peek-char s of
     Some c | eq-char c '.' ->
@@ -875,18 +892,11 @@ module Text.Lex where
         Some d | is-ascii-digit d ->
           case scan-decimals-rev (skip-char s) (Cons '.' rev) of
             Pair s2 cs ->
-              case peek-char s2 of
-                Some e | eq-char e 'e' || eq-char e 'E' ->
-                  case peek-at s2 1 of
-                    Some f | eq-char f '+' || eq-char f '-' ->
-                      case scan-decimals-rev (skip-char (skip-char s2)) (Cons f (Cons e cs)) of
-                        Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
-                    _ ->
-                      case scan-decimals-rev (skip-char s2) (Cons e cs) of
-                        Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
-                _ -> Some (Pair s2 (reverse cs))
+              case scan-float-exp s2 cs of
+                Some p -> Some p
+                None -> Some (Pair s2 (reverse cs))
         _ -> None
-    _ -> None
+    _ -> scan-float-exp s rev
 
   scan-decimals-rev :: Scan -> List Char -> PairScan
   scan-decimals-rev s acc = case peek-char s of

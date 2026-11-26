@@ -5,9 +5,11 @@
 //!
 //! Scope of this bootstrap slice is documented in `seed/README.md`.
 
+pub mod ad;
 pub mod analysis;
 mod applications;
 pub mod arrays;
+pub mod array_ir;
 pub mod ast;
 pub mod cabi;
 pub mod check;
@@ -36,6 +38,7 @@ pub mod lsp;
 pub mod parser;
 pub mod mvar;
 pub mod pkg;
+pub mod promote;
 pub mod provenance;
 pub mod rc;
 pub mod repl;

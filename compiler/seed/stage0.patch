@@ -1263,7 +1263,7 @@ index 99c05f4..1019035 100644
                      [element] => Some(format!("({name} {})", self.interface_usage_field(element, parameters)?)),
                      _ => None,
 diff --git a/seed/src/codegen.rs b/seed/src/codegen.rs
-index 84439ff..e524cdb 100644
+index 84439ff..8f911eb 100644
 --- a/seed/src/codegen.rs
 +++ b/seed/src/codegen.rs
 @@ -80,6 +80,8 @@ mod arrays_codegen;
@@ -1275,7 +1275,17 @@ index 84439ff..e524cdb 100644
  
  use crate::core::{
      AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
-@@ -555,6 +557,19 @@ fn emit_module(
+@@ -345,8 +347,7 @@ fn emit_module(
+     // word size alone does not establish support. In particular, PowerPC64
+     // refuses required tailcc calls with stack arguments. Other targets
+     // retain the C convention and its widened tail workers.
+-    let tail_conv = profile.word_size == 64
+-        && matches!(profile.arch.as_str(), "x86_64" | "aarch64");
++    let tail_conv = false;
+     let tail_groups = OnceCell::new();
+     let mut reg = Registry::build(program, (profile.word_size / 8) as usize, tail_conv, &tail_groups)?;
+     // An apply stub's prefix data holds the tail twin's address as an
+@@ -555,6 +556,19 @@ fn emit_module(
          "declare i64 @cinch_stm_yield(i64)",
          "declare i64 @cinch_mvar_new(i64, i64, i64)",
          "declare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)",
@@ -1295,7 +1305,7 @@ index 84439ff..e524cdb 100644
          crate::slots::DECLARES[0],
          crate::slots::DECLARES[1],
          crate::slots::DECLARES[2],
-@@ -624,6 +639,8 @@ fn emit_module(
+@@ -624,6 +638,8 @@ fn emit_module(
          // leaves it, which frees the chunks wholesale.
          "declare i64 @cinch_arena_new(i64)",
          "declare i64 @cinch_arena_leave(i64)",
@@ -1304,7 +1314,7 @@ index 84439ff..e524cdb 100644
          // The networking family (`seed/runtime/src/net.rs`): TCP
          // sockets by handle and platform name resolution.
          "declare i64 @cinch_net_tcp_connect(i64, i64)",
-@@ -2359,6 +2376,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
+@@ -2359,6 +2375,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
          PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
          PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
          PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
@@ -1312,7 +1322,7 @@ index 84439ff..e524cdb 100644
          PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
          _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
      }
-@@ -2408,6 +2426,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
+@@ -2408,6 +2425,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                  .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                  .collect()
          }
@@ -1327,7 +1337,7 @@ index 84439ff..e524cdb 100644
          PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
          // The parallel units' parameters: two closures, or the callback and
          // the count / input array, or a participant count alone. The element classes are immediates in
-@@ -2444,6 +2470,8 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
+@@ -2444,6 +2469,8 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
          PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
          PrimOp::Stm { op, .. } => op.consumes(i),
          PrimOp::MVar { op, .. } => op.consumes(i),
@@ -1336,7 +1346,7 @@ index 84439ff..e524cdb 100644
          PrimOp::Slots { op, .. } => op.consumes(i),
          PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
          _ => false,
-@@ -2464,6 +2492,9 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
+@@ -2464,6 +2491,9 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
      if let PrimOp::MVar { op, classes } = op {
          return if op.returns_option() { vec![classes[0]] } else { vec![] };
      }
@@ -1346,7 +1356,7 @@ index 84439ff..e524cdb 100644
      if matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
          return vec![];
      }
-@@ -4517,7 +4548,7 @@ fn build_unit(
+@@ -4517,7 +4547,7 @@ fn build_unit(
      };
      match &body {
          UnitBody::Prim(op) => {
@@ -1355,7 +1365,7 @@ index 84439ff..e524cdb 100644
              // Always inline pure single-instruction scalar/wide/float/bit/cmp/
              // conversion primitives and direct Bytes/Nat fast paths so LLVM
              // never hits its inline budget inside large crypto/math kernels.
-@@ -5013,7 +5044,7 @@ impl NarrowSig {
+@@ -5013,7 +5043,7 @@ impl NarrowSig {
          if !op.touches_wide() {
              return None;
          }
@@ -1364,7 +1374,7 @@ index 84439ff..e524cdb 100644
              let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
              return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
                  ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
-@@ -6294,6 +6325,10 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
+@@ -6294,6 +6324,10 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
          mvar_codegen::emit(b, reg, name, op, mvar_op, classes);
          return Ok(());
      }
@@ -1375,7 +1385,25 @@ index 84439ff..e524cdb 100644
      if let Slots { op: slot_op, classes } = op {
          slots_codegen::emit(b, reg, slot_op, classes);
          return Ok(());
-@@ -7529,6 +7564,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
+@@ -7046,7 +7080,7 @@ fn bytes_access_word(b: &mut Builder, cx: &LowerCx, reg: &Registry, op: BytesOp)
+ 
+     let len = b.reg();
+     b.line(&format!(
+-        "{len} = load i64, ptr {payload}, align 8, !invariant.load {inv}, !tbaa {tbaa_h}"
++        "{len} = load i64, ptr {payload}, align 8, !tbaa {tbaa_h}"
+     ));
+     if let Some(index) = &index {
+         let inside = if width == 1 {
+@@ -7090,7 +7124,7 @@ fn bytes_access_word(b: &mut Builder, cx: &LowerCx, reg: &Registry, op: BytesOp)
+         ));
+         let data = b.reg();
+         b.line(&format!(
+-            "{data} = load ptr, ptr {data_at}, align {}, !invariant.load {inv}, !tbaa {tbaa_h}",
++            "{data} = load ptr, ptr {data_at}, align {}, !tbaa {tbaa_h}",
+             b.pointer_bytes
+         ));
+         if let Some(index) = &index {
+@@ -7529,6 +7563,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
          } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
          Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
          MVar { op: mvar_op, classes } => mvar_codegen::emit(b, reg, name, op, mvar_op, classes),
@@ -1384,7 +1412,7 @@ index 84439ff..e524cdb 100644
          Stm { op: stm_op, classes } => {
              use crate::stm::StmOp::*;
              match stm_op {
-@@ -7957,7 +7994,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
+@@ -7957,7 +7993,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                  }
                  // The arena entries take and answer one machine word: the
                  // size or the handle, both never blocks.

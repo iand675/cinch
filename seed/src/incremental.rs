@@ -543,6 +543,45 @@ fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
             ast::collect_type_refs(&r.base, out);
             ast::collect_type_refs(&r.pred, out);
         }
+        Decl::TypeFamily(tf) => {
+            for b in &tf.params {
+                if let Some(ann) = &b.ann {
+                    ast::collect_type_refs(ann, out);
+                }
+            }
+            if let Some(rk) = &tf.return_kind {
+                ast::collect_type_refs(rk, out);
+            }
+            for eq in &tf.eqs {
+                for arg in &eq.lhs_args {
+                    ast::collect_type_refs(arg, out);
+                }
+                ast::collect_type_refs(&eq.rhs, out);
+            }
+        }
+        Decl::TypeInstance(ti) => {
+            out.push(path_ref(RefKind::Type, &ti.family.segments, ti.family.span()));
+            for arg in &ti.lhs_args {
+                ast::collect_type_refs(arg, out);
+            }
+            ast::collect_type_refs(&ti.rhs, out);
+        }
+        Decl::DataFamily(df) => {
+            for b in &df.params {
+                if let Some(ann) = &b.ann {
+                    ast::collect_type_refs(ann, out);
+                }
+            }
+        }
+        Decl::DataInstance(di) => {
+            out.push(path_ref(RefKind::Type, &di.family.segments, di.family.span()));
+            for arg in &di.lhs_args {
+                ast::collect_type_refs(arg, out);
+            }
+            for c in &di.ctors {
+                ast::collect_type_refs(&c.ty, out);
+            }
+        }
         Decl::Prim(p) => {
             ast::collect_type_refs(&p.ty, out);
             for b in &p.bodies {
@@ -661,6 +700,10 @@ fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::Codata(_)
         | Decl::Signature(_)
         | Decl::Refine(_)
+        | Decl::TypeFamily(_)
+        | Decl::TypeInstance(_)
+        | Decl::DataFamily(_)
+        | Decl::DataInstance(_)
         | Decl::Foreign(_)
         | Decl::OpaqueType(_)
         | Decl::Effect(_)
@@ -2786,6 +2829,8 @@ fn decl_item_of(d: &Decl, module: &str) -> Option<String> {
         Decl::Record(r) | Decl::Codata(r) => Some(item_id(ItemKind::Type, module, &r.name.text)),
         Decl::Signature(s) => Some(item_id(ItemKind::Class, module, &s.name.text)),
         Decl::Refine(r) => Some(item_id(ItemKind::Type, module, &r.name.text)),
+        Decl::TypeFamily(tf) => Some(item_id(ItemKind::Type, module, &tf.name.text)),
+        Decl::DataFamily(df) => Some(item_id(ItemKind::Type, module, &df.name.text)),
         Decl::Prim(p) => Some(item_id(ItemKind::Value, module, &p.name.text)),
         Decl::OpaqueType(o) => Some(item_id(ItemKind::Type, module, &o.name.text)),
         Decl::Contract(c) => Some(item_id(ItemKind::Value, module, &c.target.text)),

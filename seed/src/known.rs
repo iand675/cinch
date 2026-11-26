@@ -119,6 +119,17 @@ mod tests {
             Decl::OpaqueType(opaque) => {
                 out.types.insert(qualify(&opaque.name.text));
             }
+            Decl::TypeFamily(tf) => {
+                out.types.insert(qualify(&tf.name.text));
+            }
+            Decl::DataFamily(df) => {
+                out.types.insert(qualify(&df.name.text));
+            }
+            Decl::DataInstance(di) => {
+                for constructor in &di.ctors {
+                    out.constructors.insert(qualify(&constructor.name.text));
+                }
+            }
             Decl::Signature(signature) => {
                 out.classes.insert(qualify(&signature.name.text));
             }

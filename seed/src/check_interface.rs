@@ -424,6 +424,7 @@ impl Checker {
             // Literal index syntax is retained; the consumer checks its
             // actual argument kind and numerical carrier.
             ast::Type::Num(number, _) => number.clone(),
+            ast::Type::StrLit(s, _) => format!("{s:?}"),
             ast::Type::App(f, x, _) if !display => format!("({} {})",
                 self.resolved_source_type(f, scheme, vars, references, display)?,
                 self.resolved_source_type(x, scheme, vars, references, display)?),
@@ -460,6 +461,9 @@ impl Checker {
             }
             ast::Type::Unit(_) => "()".to_string(),
             ast::Type::Tuple(items, _) => format!("({})", items.iter()
+                .map(|t| self.resolved_source_type(t, scheme, vars, references, display))
+                .collect::<Option<Vec<_>>>()?.join(", ")),
+            ast::Type::List(items, _) => format!("[{}]", items.iter()
                 .map(|t| self.resolved_source_type(t, scheme, vars, references, display))
                 .collect::<Option<Vec<_>>>()?.join(", ")),
             // Preserve the display contract, with an explicit refusal in

@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 seed at base revision with Share Sym/String, zero-contention LocalClosure + phase arenas, and Atomic/RwLock concurrency primitives.",
+  "description": "ABI 10 seed at base revision with Share Sym/String, zero-contention LocalClosure + phase arenas, Atomic/RwLock concurrency primitives, tail_conv disabled, and unsound Bytes !invariant.load removed.",
   "patch": "compiler/seed/stage0.patch",
-  "patch_sha256": "ae576bbdab14e9d59c764f8f38e94eec326757bcccd7108c803388e75b6629ad",
+  "patch_sha256": "bc4cf2778bb6b6179a9ca8e939ce06a250801b7c123334de7b6647d0b19530a7",
   "revision": "897d845c5fa839c89131b581d89d8d78e5738280",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "3e82e443ae2dac539f420cca6a0cbc07fc8032756d96cfc5475c09f331333ad1"
+  "source_sha256": "839a525a2625038896ec36034a6ae6734a1ac27e28e93775d7bf7c5ca7ee31aa"
 }

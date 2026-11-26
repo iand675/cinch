@@ -1178,6 +1178,18 @@
     {
       "classes": "TO",
       "symbol": "Data.List.map"
+    },
+    {
+      "classes": "T",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "O",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "R",
+      "symbol": "Function.Combinators.identity"
     }
   ]
 }

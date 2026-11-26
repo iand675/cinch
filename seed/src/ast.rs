@@ -314,12 +314,17 @@ pub enum Type {
     /// grammar, which has tuple expressions but no tuple types (decision D1
     /// in `compiler/CONFORMANCE.md`).
     Tuple(Vec<Type>, Span),
+    /// Type-level list literal `[T1, ..., Tn]` or `[]`, desugared to promoted
+    /// `Cons` / `Nil` data constructors (e.g. `NDArray [(10, I32), (20, I32)]`).
+    List(Vec<Type>, Span),
     /// Infix chain awaiting fixity resolution (`n + 1` in an index
     /// position, `length bytes <= limit` in a proposition), resolved by the
     /// fixity pass into nested `App` spines over the operator names.
     Infix(Vec<Type>, Vec<Name>, Span),
-    /// A numeral in index position (`Vec 0 a`).
+    /// A numeral in index or promoted-literal position (`Vec 0 a`, `(10, I32)`).
     Num(String, Span),
+    /// A type-level string literal (`"batch"`, `"height"`).
+    StrLit(String, Span),
 }
 
 impl Type {
@@ -340,8 +345,10 @@ impl Type {
             | Type::Lam(_, _, s)
             | Type::Unit(s)
             | Type::Tuple(_, s)
+            | Type::List(_, s)
             | Type::Infix(_, _, s)
-            | Type::Num(_, s) => *s,
+            | Type::Num(_, s)
+            | Type::StrLit(_, s) => *s,
         }
     }
 }
@@ -396,6 +403,15 @@ pub fn negate_literal(digits: &str) -> String {
         "0".to_string()
     } else {
         format!("-{digits}")
+    }
+}
+
+/// Toggle the sign of a float literal's text, preserving IEEE `-0.0`.
+pub fn negate_float_literal(raw: &str) -> String {
+    if let Some(rest) = raw.strip_prefix('-') {
+        rest.to_string()
+    } else {
+        format!("-{raw}")
     }
 }
 
@@ -580,6 +596,9 @@ pub enum Term {
     /// a signed literal (`-42`) or a folded pattern negation (same form
     /// as [`Pat::Int`]).
     Int(String, Span),
+    /// Floating-point literal: decimal/scientific string, with an optional
+    /// leading `-`; elaborated polymorphically to `F32` or `F64` (default `F64`).
+    Float(String, Span),
     Str(String, Span),
     Char(String, Span),
     /// `'name` in expression position: the interned `Sym` constant of
@@ -696,6 +715,7 @@ impl Term {
             Term::Var(p) => p.span(),
             Term::Con(p) => p.span(),
             Term::Int(_, s)
+            | Term::Float(_, s)
             | Term::Str(_, s)
             | Term::Char(_, s) | Term::Sym(_, s)
             | Term::Unit(s)
@@ -756,11 +776,11 @@ impl Type {
                 visit_obligation_types(obligations, visit);
                 body.visit_mut(visit);
             }
-            Type::Tuple(types, _) | Type::Infix(types, _, _) => {
+            Type::Tuple(types, _) | Type::List(types, _) | Type::Infix(types, _, _) => {
                 for ty in types { ty.visit_mut(visit); }
             }
             Type::Elaborated(..) | Type::IndexOperand(..) | Type::Con(..)
-            | Type::Var(..) | Type::Unit(..) | Type::Num(..) => {}
+            | Type::Var(..) | Type::Unit(..) | Type::Num(..) | Type::StrLit(..) => {}
         }
         visit(self);
     }
@@ -866,7 +886,7 @@ impl Term {
                 target.visit_mut(visit);
                 witness.visit_types_mut(visit);
             }
-            Term::Var(..) | Term::Con(..) | Term::Int(..) | Term::Str(..) | Term::Char(..)
+            Term::Var(..) | Term::Con(..) | Term::Int(..) | Term::Float(..) | Term::Str(..) | Term::Char(..)
             | Term::Sym(..) | Term::Unit(..) | Term::Hole(..) | Term::SeqOp(..)
             | Term::MacroCall { .. } | Term::SpliceHole { .. } => {}
         }
@@ -930,6 +950,35 @@ impl Decl {
                 visit_binder_types(&mut refinement.params, visit);
                 refinement.base.visit_mut(visit);
                 refinement.pred.visit_mut(visit);
+            }
+            Decl::TypeFamily(tf) => {
+                visit_binder_types(&mut tf.params, visit);
+                if let Some(rk) = &mut tf.return_kind {
+                    rk.visit_mut(visit);
+                }
+                for eq in &mut tf.eqs {
+                    for arg in &mut eq.lhs_args {
+                        arg.visit_mut(visit);
+                    }
+                    eq.rhs.visit_mut(visit);
+                }
+            }
+            Decl::TypeInstance(ti) => {
+                for arg in &mut ti.lhs_args {
+                    arg.visit_mut(visit);
+                }
+                ti.rhs.visit_mut(visit);
+            }
+            Decl::DataFamily(df) => {
+                visit_binder_types(&mut df.params, visit);
+            }
+            Decl::DataInstance(di) => {
+                for arg in &mut di.lhs_args {
+                    arg.visit_mut(visit);
+                }
+                for ctor in &mut di.ctors {
+                    ctor.ty.visit_mut(visit);
+                }
             }
             Decl::OpaqueType(opaque) => {
                 visit_binder_types(&mut opaque.params, visit);
@@ -1303,6 +1352,58 @@ pub struct RefineDecl {
     pub span: Span,
 }
 
+/// One equation of a closed type family: `Family pat1 ... patN = rhs`.
+#[derive(Clone, Debug)]
+pub struct TypeFamilyEq {
+    pub head: Name,
+    pub lhs_args: Vec<Type>,
+    pub rhs: Type,
+    pub span: Span,
+}
+
+/// `type family Name params [:: Kind] [where { ... } | = rhs]`.
+/// When `closed` is true, equations are tried in declaration order with
+/// apartness checks; when false, the family is open and extended by
+/// `type instance` declarations.
+#[derive(Clone, Debug)]
+pub struct TypeFamilyDecl {
+    pub name: Name,
+    pub params: Vec<TypeBinder>,
+    pub return_kind: Option<Type>,
+    pub closed: bool,
+    pub eqs: Vec<TypeFamilyEq>,
+    pub span: Span,
+}
+
+/// `type instance Family pat1 ... patN = rhs`: one equation for an open
+/// type family.
+#[derive(Clone, Debug)]
+pub struct TypeInstanceDecl {
+    pub family: ConPath,
+    pub lhs_args: Vec<Type>,
+    pub rhs: Type,
+    pub span: Span,
+}
+
+/// `data family Name params [:: Type]`: an open indexed data family whose
+/// constructors are populated by `data instance` declarations.
+#[derive(Clone, Debug)]
+pub struct DataFamilyDecl {
+    pub name: Name,
+    pub params: Vec<TypeBinder>,
+    pub span: Span,
+}
+
+/// `data instance Family pat1 ... patN where { Ctor :: ... }`: one
+/// constructor block extending an open `data family`.
+#[derive(Clone, Debug)]
+pub struct DataInstanceDecl {
+    pub family: ConPath,
+    pub lhs_args: Vec<Type>,
+    pub ctors: Vec<CtorDecl>,
+    pub span: Span,
+}
+
 /// `effect L params where { op :: ty, ... }`: a user-declared effect whose
 /// operations are ordinary functions performing the label (design section
 /// 2). `params` holds the effect's region parameter, if any.
@@ -1476,6 +1577,14 @@ pub enum Decl {
     /// `type R params = refine (x :: T) with p` (refinement types
     /// design): a refinement of a container by a decidable predicate.
     Refine(RefineDecl),
+    /// `type family F params [:: Kind] [where { ... } | = rhs]`.
+    TypeFamily(TypeFamilyDecl),
+    /// `type instance F pat1 ... = rhs`.
+    TypeInstance(TypeInstanceDecl),
+    /// `data family D params`.
+    DataFamily(DataFamilyDecl),
+    /// `data instance D pat1 ... where { Ctor :: ... }`.
+    DataInstance(DataInstanceDecl),
     /// `opaque type T [params] :: Type` (foreign function interface
     /// specification section 2).
     OpaqueType(OpaqueTypeDecl),
@@ -1579,6 +1688,7 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
         }),
         Term::Con(p) => out.push(ref_of_path(RefKind::Value, &p.segments, p.span())),
         Term::Int(_, _)
+        | Term::Float(_, _)
         | Term::Str(_, _)
         | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_)
@@ -1868,6 +1978,45 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
             collect_type_refs(&r.base, out);
             collect_type_refs(&r.pred, out);
         }
+        Decl::TypeFamily(tf) => {
+            for b in &tf.params {
+                if let Some(ann) = &b.ann {
+                    collect_type_refs(ann, out);
+                }
+            }
+            if let Some(rk) = &tf.return_kind {
+                collect_type_refs(rk, out);
+            }
+            for eq in &tf.eqs {
+                for arg in &eq.lhs_args {
+                    collect_type_refs(arg, out);
+                }
+                collect_type_refs(&eq.rhs, out);
+            }
+        }
+        Decl::TypeInstance(ti) => {
+            out.push(ref_of_path(RefKind::Type, &ti.family.segments, ti.family.span()));
+            for arg in &ti.lhs_args {
+                collect_type_refs(arg, out);
+            }
+            collect_type_refs(&ti.rhs, out);
+        }
+        Decl::DataFamily(df) => {
+            for b in &df.params {
+                if let Some(ann) = &b.ann {
+                    collect_type_refs(ann, out);
+                }
+            }
+        }
+        Decl::DataInstance(di) => {
+            out.push(ref_of_path(RefKind::Type, &di.family.segments, di.family.span()));
+            for arg in &di.lhs_args {
+                collect_type_refs(arg, out);
+            }
+            for c in &di.ctors {
+                collect_type_refs(&c.ty, out);
+            }
+        }
         Decl::Record(r) | Decl::Codata(r) => {
             for f in &r.fields {
                 collect_type_refs(&f.ty, out);
@@ -1904,7 +2053,7 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
     }
     match t {
         Type::Con(p, span) => out.push(ref_of_path(RefKind::Type, &p.segments, *span)),
-        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) | Type::StrLit(_, _) => {}
         Type::App(a, b, _) | Type::IndexAnnotated(a, b, _) => {
             collect_type_refs(a, out);
             collect_type_refs(b, out);
@@ -1939,7 +2088,7 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
             collect_type_refs(a, out);
             collect_type_refs(b, out);
         }
-        Type::Tuple(ts, _) => {
+        Type::Tuple(ts, _) | Type::List(ts, _) => {
             for x in ts {
                 collect_type_refs(x, out);
             }
@@ -2417,6 +2566,13 @@ fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> 
             }
             Type::Tuple(out, *s)
         }
+        Type::List(ts, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_type(x, cx, sc)?);
+            }
+            Type::List(out, *s)
+        }
         Type::Infix(ts, ops, s) => {
             let mut out = Vec::new();
             for x in ts {
@@ -2425,6 +2581,7 @@ fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> 
             Type::Infix(out, ops.clone(), *s)
         }
         Type::Num(v, s) => Type::Num(v.clone(), *s),
+        Type::StrLit(v, s) => Type::StrLit(v.clone(), *s),
     })
 }
 
@@ -2701,6 +2858,7 @@ fn hyg_term_scoped(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> 
         }
         Term::Con(p) => Term::Con(if sc.capture { capture_con(p, RefKind::Value, sc, cx) } else { qualify_con(cx, p, p.span())? }),
         Term::Int(v, s) => Term::Int(v.clone(), *s),
+        Term::Float(v, s) => Term::Float(v.clone(), *s),
         Term::Str(v, s) => Term::Str(v.clone(), *s),
         Term::Char(v, s) => Term::Char(v.clone(), *s),
         Term::Sym(v, s) => Term::Sym(v.clone(), *s),
@@ -3181,6 +3339,49 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
             r.params = params;
             Decl::Refine(r)
         }
+        Decl::TypeFamily(tf) => {
+            let mut tf = tf.clone();
+            let mut params = Vec::new();
+            for b in &tf.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            if let Some(rk) = &tf.return_kind {
+                tf.return_kind = Some(hyg_type(rk, cx, sc)?);
+            }
+            for _ in &params {
+                sc.types.pop();
+            }
+            tf.params = params;
+            Decl::TypeFamily(tf)
+        }
+        Decl::TypeInstance(ti) => Decl::TypeInstance(ti.clone()),
+        Decl::DataFamily(df) => {
+            let mut df = df.clone();
+            let mut params = Vec::new();
+            for b in &df.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            for _ in &params {
+                sc.types.pop();
+            }
+            df.params = params;
+            Decl::DataFamily(df)
+        }
+        Decl::DataInstance(di) => Decl::DataInstance(di.clone()),
         Decl::Record(r) | Decl::Codata(r) => {
             let is_codata = matches!(d, Decl::Codata(_));
             let mut r = r.clone();
@@ -3261,7 +3462,7 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
 pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
     match t {
         Term::SpliceHole { idx, .. } => vals[*idx].clone(),
-        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Str(_, _) | Term::Char(_, _) | Term::Sym(_, _)
+        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Float(_, _) | Term::Str(_, _) | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_) | Term::Hole(_) | Term::SeqOp(_, _) => t.clone(),
         Term::App(f, args, s) => Term::App(
             Box::new(subst_holes(f, vals)),
@@ -3448,7 +3649,8 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         }
         Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_)
         | Decl::Foreign(_) | Decl::OpaqueType(_)
-        | Decl::Data(_) | Decl::Refine(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
+        | Decl::Data(_) | Decl::Refine(_) | Decl::TypeFamily(_) | Decl::TypeInstance(_)
+        | Decl::DataFamily(_) | Decl::DataInstance(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
         Decl::Attributed { attrs, inner } => Decl::Attributed {
             attrs: attrs.clone(),
@@ -3544,6 +3746,7 @@ fn collect_template_holes_with_macros(t: &mut Term, holes: &mut Vec<HoleExpr>, m
         Term::Var(_)
         | Term::Con(_)
         | Term::Int(_, _)
+        | Term::Float(_, _)
         | Term::Str(_, _)
         | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_)
@@ -3700,6 +3903,10 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         | Decl::Foreign(_)
         | Decl::OpaqueType(_)
         | Decl::Refine(_)
+        | Decl::TypeFamily(_)
+        | Decl::TypeInstance(_)
+        | Decl::DataFamily(_)
+        | Decl::DataInstance(_)
         | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
         Decl::Conditional { when, inner } => {

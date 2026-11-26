@@ -29,6 +29,7 @@ module Bootstrap.Dictionary where
     UFunEff a row b -> valid-type ty
     UProofFun predicate row result -> valid-type ty
     UTuple xs -> valid-type ty
+    USigma id name domain body -> valid-type ty
     UArg x rest -> applications-valid x && kind-equal (type-kind x) KType && applications-valid rest
     UError -> False
     other -> True
@@ -102,6 +103,11 @@ module Bootstrap.Dictionary where
             UMeta id KType -> let defaulted = default-numbers-for carrier st in
               checked-copy-marker sp (normalize defaulted carrier) defaulted
             other -> checked-copy-marker sp carrier st)
+        UApp (UCon name (KFun KType KType)) carrier | same name "Kernel" ->
+          (case carrier of
+            UMeta id KType -> let defaulted = default-numbers-for carrier st in
+              checked-kernel-marker sp (normalize defaulted carrier) defaulted
+            other -> checked-kernel-marker sp carrier st)
         other -> choose-instance context allowed sp wanted st)
     Cons candidate rest -> case find-given (given-symbol candidate) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st
@@ -114,6 +120,10 @@ module Bootstrap.Dictionary where
   checked-copy-marker sp carrier st = if copy-marker-carrier carrier then (CECopy sp carrier, st)
     else fail-evidence sp (UApp (UCon "Copy" (KFun KType KType)) carrier)
       (string-concat "no Copy evidence for " (type-text carrier)) st
+  checked-kernel-marker :: Span -> UType -> Store -> (CoreEvidence, Store)
+  checked-kernel-marker sp carrier st = if kernel-marker-carrier carrier then (CEKernel sp carrier, st)
+    else fail-evidence sp (UApp (UCon "Kernel" (KFun KType KType)) carrier)
+      (string-concat "no Kernel evidence for " (type-text carrier)) st
   resolve-evidence :: Resolution -> List CoreGiven -> CoreEvidence -> Store -> (CoreEvidence, Store)
   resolve-evidence context allowed evidence st = case evidence of
     CENeeded sp ty candidates -> if valid-goal (resolution-classes context) (normalize st ty) then
@@ -127,6 +137,7 @@ module Bootstrap.Dictionary where
         if clean trial then (CEGiven sp (normalize trial ty) name, trial) else fail-evidence sp ty "dictionary binder does not prove the requested constraint" st
         else fail-evidence sp ty "dictionary evidence has no checked signature type" st
     CECopy sp carrier -> checked-copy-marker sp (normalize st carrier) st
+    CEKernel sp carrier -> checked-kernel-marker sp (normalize st carrier) st
     CEInstance sp ty name actuals args -> check-instance context allowed sp ty name actuals args st
     other -> fail-evidence (Span 0 0 1 1) UError "dictionary argument spine is not an evidence value" st
   resolve-evidences :: Resolution -> List CoreGiven -> List CoreEvidence -> Store -> (List CoreEvidence, Store)
@@ -214,6 +225,7 @@ module Bootstrap.Dictionary where
     CRefine sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CRefine sp ty evidence out, checked)
     CRefineProof sp ty witness body -> case resolve-term context scope body st of (out, checked) -> (CRefineProof sp ty witness out, checked)
     CForget sp ty body -> case resolve-term context scope body st of (out, checked) -> (CForget sp ty out, checked)
+    CCast sp ty body -> case resolve-term context scope body st of (out, checked) -> (CCast sp ty out, checked)
     CRequire sp ty body -> case resolve-term context scope body st of (out, checked) -> (CRequire sp ty out, checked)
     CDischarge sp ty evidence dictionary-free body ->
       if dictionary-free && resolution-deferred context then (term, st)

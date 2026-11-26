@@ -91,7 +91,7 @@ def run_in_slot(target, env, out, cargo_target):
     cmd = ['cargo', 'test', '--target-dir', str(cargo_target), '--test', target, '--',
            '--include-ignored', '--test-threads=1']
     with log.open('wb') as f:
-        code = subprocess.run(cmd, cwd=TREE / 'compiler', env=e, stdout=f, stderr=subprocess.STDOUT).returncode
+        code = subprocess.run(cmd, cwd=TREE / 'seed', env=e, stdout=f, stderr=subprocess.STDOUT).returncode
     text = log.read_text(errors='replace')
     # Child output can split a test's status line. Cargo's final libtest
     # summary still counts that test, so prefer it over per-test lines.
@@ -122,7 +122,7 @@ def prebuild(targets, env, out, cargo_target):
     for target in targets:
         command += ['--test', target]
     with (out / 'prebuild.log').open('wb') as log:
-        subprocess.run(command, cwd=TREE / 'compiler', env=env, stdout=log, stderr=subprocess.STDOUT)
+        subprocess.run(command, cwd=TREE / 'seed', env=env, stdout=log, stderr=subprocess.STDOUT)
 
 
 TOOLING_TARGETS = {'lsp', 'jit', 'repl', 'package_store', 'package_manifest', 'package_link', 'incremental'}
