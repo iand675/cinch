@@ -1,0 +1,92 @@
+-- | Exact finite domain enumeration for algebraic data, records, and compile-time
+-- state-machine action parameters.
+--
+-- Built-in finite types (`Bool`, `Unit`, nullary enums, `Fin n`, `InRange lo hi Nat`,
+-- `Option T`, and finite tuples) are enumerated automatically by `machine` actions.
+-- Defining an `implicit instance Finite MyType` lets user records and payload-carrying
+-- algebraic data types plug directly into the compiler's model checker without adding
+-- special cases to the compiler, and also feeds `Effect.Test.Hegel.gen-finite`.
+--
+-- Symmetry soundness: listing a type `T` in `symmetry = [T]` is rejected when a
+-- `Finite T` instance is in scope, because `enumerate` exposes a deterministic element
+-- order that could break permutation symmetry (the same rule as `Ord T`).
+module Data.Finite where
+
+  import Data.Bool
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+
+  export Finite, enumerate
+  export finite-map, finite-product, finite-product3, finite-sum, finite-range, finite-count
+
+  -- | Exhaustive finite list of every value of type `a`.
+  signature Finite a where
+    -- | Produce all inhabitants of `a` on demand in a finite list.
+    enumerate :: Unit -> List a
+
+  append-list :: forall a. List a -> List a -> List a
+  append-list xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (append-list rest ys)
+
+  -- | Map a pure constructor or function across a finite domain.
+  finite-map :: forall a b. (a -> b) -> List a -> List b
+  finite-map f xs = case xs of
+    Nil -> Nil
+    Cons x rest -> Cons (f x) (finite-map f rest)
+
+  -- | Cartesian product of two finite domains combined by `f`.
+  finite-product :: forall a b c. (a -> b -> c) -> List a -> List b -> List c
+  finite-product f xs ys = case xs of
+    Nil -> Nil
+    Cons x rest -> append-list (finite-map (f x) ys) (finite-product f rest ys)
+
+  -- | Cartesian product of three finite domains combined by `f`.
+  finite-product3 :: forall a b c d. (a -> b -> c -> d) -> List a -> List b -> List c -> List d
+  finite-product3 f xs ys zs = case xs of
+    Nil -> Nil
+    Cons x rest -> append-list (finite-product (f x) ys zs) (finite-product3 f rest ys zs)
+
+  -- | Concatenate a list of finite branch domains (one per ADT constructor).
+  finite-sum :: forall a. List (List a) -> List a
+  finite-sum xss = case xss of
+    Nil -> Nil
+    Cons xs rest -> append-list xs (finite-sum rest)
+
+  -- | Inclusive finite range of natural numbers `[lo .. hi]`.
+  finite-range :: Nat -> Nat -> List Nat
+  finite-range lo hi =
+    if lo > hi then Nil
+    else Cons lo (finite-range (lo + 1) hi)
+
+  -- | Count the number of elements in a finite domain list.
+  finite-count :: forall a. List a -> Nat
+  finite-count xs = case xs of
+    Nil -> 0
+    Cons _ rest -> 1 + finite-count rest
+
+  -- | Finite domain of booleans: `[False, True]`.
+  implicit instance Finite_Bool :: Finite Bool where
+    enumerate _ = [False, True]
+
+  -- | Finite domain of unit: `[()]`.
+  implicit instance Finite_Unit :: Finite Unit where
+    enumerate _ = [()]
+
+  -- | Finite domain of `Option a`: `None` followed by `Some x` for every `x` in `a`.
+  implicit instance Finite_Option a :: using (fa :: Finite a) => Finite (Option a) where
+    enumerate _ = Cons None (finite-map Some (enumerate ()))
+
+  -- | Finite domain of `Result e a`: every `Err e` followed by every `Ok a`.
+  implicit instance Finite_Result e a :: using (fe :: Finite e, fa :: Finite a) => Finite (Result e a) where
+    enumerate _ = append-list (finite-map Err (enumerate ())) (finite-map Ok (enumerate ()))
+
+  -- | Finite domain of pairs `(a, b)`.
+  implicit instance Finite_Pair a b :: using (fa :: Finite a, fb :: Finite b) => Finite (a, b) where
+    enumerate _ = finite-product (\x -> \y -> (x, y)) (enumerate ()) (enumerate ())
+
+  -- | Finite domain of triples `(a, b, c)`.
+  implicit instance Finite_Triple a b c :: using (fa :: Finite a, fb :: Finite b, fc :: Finite c) => Finite (a, b, c) where
+    enumerate _ = finite-product3 (\x -> \y -> \z -> (x, y, z)) (enumerate ()) (enumerate ()) (enumerate ())

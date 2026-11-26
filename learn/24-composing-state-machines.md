@@ -58,7 +58,54 @@ module Main where
 
 Cinch automatically enumerates `(Alice, Alice)`, `(Alice, Bob)`, `(Bob, Alice)`, `(Bob, Bob)` paired with `amt = 1`, skips the self-transfer cases that return `None`, and verifies that total money `alice + bob == 3` is conserved in every reachable state.
 
-See [Reference Chapter 30](../reference/30-tla-plus-guide-and-value-domains.md#part-ii-what-values-and-expressions-machines-can-and-cannot-check) for the full table of enumerable and rejected parameter types.
+For payload-carrying ADTs or records (such as `data Msg = Req Client Nat | Ack Client`), implement `Data.Finite.Finite` (`enumerate :: Unit -> List a`) and the model checker automatically evaluates `enumerate ()` at check time. See [Reference Chapter 30](../reference/30-tla-plus-guide-and-value-domains.md#extensible-domains-with-datafinite) for a full example and the table of enumerable and rejected parameter types.
+
+## Native-speed randomized simulation with `Effect.Test.Hegel`
+
+Compile-time `machine` checking excels at **exhaustive small-scope verification** (typically hundreds to a few thousand states, with type-checked `symmetry`, static POR, `refines`, and manifest provenance). When a model has unbounded inputs or millions of reachable states, reuse the **exact same pure transition functions** at native LLVM speed with the standard-library choice-stream simulator `Effect.Test.Hegel`:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Data.Finite
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Effect.Test.Hegel
+
+  record Vault where
+    balance :: Nat
+
+  deposit :: Nat -> Vault -> Option Vault
+  deposit amt s =
+    if s.balance + amt <= 10
+    then Some (Vault { balance = s.balance + amt })
+    else None
+
+  withdraw :: Vault -> Option Vault
+  withdraw s =
+    let b = s.balance in
+    if b > 0 then Some (Vault { balance = b - 1 }) else None
+
+  main :: Int
+  main =
+    let actions = [
+          step-action-gen "deposit" (gen-range 1 5) deposit,
+          step-action "withdraw" withdraw
+        ] in
+    -- Passes all 200 simulated traces when invariant holds:
+    case hegel-check-machine (Vault { balance = 0 }) actions (\s -> s.balance <= 10) of
+      Err _ -> 1
+      Ok _ ->
+        -- When an invariant fails, Hegel automatically shrinks both trace length and arguments:
+        case hegel-check-machine (Vault { balance = 0 }) actions (\s -> s.balance < 5) of
+          Ok _ -> 2
+          Err fail ->
+            let fin = machine-failure-final-state fail in
+            if fin.balance >= 5 then 0 else 3
+```
+
+Because `Effect.Test.Hegel` records every `Gen` draw as a finite sequence of discrete choices (`List Nat`), shrinking deletes steps and binary-searches draws toward `0` automatically—giving you minimal counterexample traces and minimal action arguments without writing separate `shrink` instances.
 
 # Product-record composition and automatic POR
 

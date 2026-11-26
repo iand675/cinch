@@ -1209,6 +1209,14 @@
       "path": "Effect/Test/Quick.cinch"
     },
     {
+      "name": "Data.Finite",
+      "path": "Data/Finite.cinch"
+    },
+    {
+      "name": "Effect.Test.Hegel",
+      "path": "Effect/Test/Hegel.cinch"
+    },
+    {
       "name": "Effect.Tls",
       "path": "Effect/Tls.cinch"
     },
@@ -1603,6 +1611,8 @@
     "Effect.Test.Fs",
     "Effect.Test.Io",
     "Effect.Test.Quick",
+    "Data.Finite",
+    "Effect.Test.Hegel",
     "Effect.Tls",
     "Effect.Http",
     "Effect.Smtp",

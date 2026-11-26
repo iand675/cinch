@@ -1238,14 +1238,15 @@ impl Checker {
         Ok(())
     }
 
-    /// Check whether a type identity has an `Ord` instance anywhere in scope.
-    /// Used to enforce soundness of automatic symmetry reduction: a symmetric
-    /// nominal type must not be ordered.
-    fn type_has_ord_instance(&self, ty_identity: &str) -> bool {
+    /// Check whether a type identity has an instance of `class_short` (e.g. `Ord`
+    /// or `Finite`) anywhere in scope. Used to enforce soundness of automatic
+    /// symmetry reduction: a symmetric nominal type must not expose a fixed
+    /// ordering or deterministic enumeration order.
+    fn type_has_class_instance(&self, class_short: &str, ty_identity: &str) -> bool {
         let short = ty_identity.rsplit('.').next().unwrap_or(ty_identity);
         for inst in &self.instance_list {
             let cls = inst.target.class.rsplit('.').next().unwrap_or(&inst.target.class);
-            if cls != "Ord" {
+            if cls != class_short {
                 continue;
             }
             for arg in &inst.target.args {
@@ -1258,6 +1259,14 @@ impl Checker {
             }
         }
         false
+    }
+
+    fn type_has_ord_instance(&self, ty_identity: &str) -> bool {
+        self.type_has_class_instance("Ord", ty_identity)
+    }
+
+    fn type_has_finite_instance(&self, ty_identity: &str) -> bool {
+        self.type_has_class_instance("Finite", ty_identity)
     }
 
     /// Return the owning `Ty::Adt` identity of a constructor `ValueInfo`.
@@ -1322,10 +1331,84 @@ impl Checker {
         out
     }
 
+    /// Speculatively resolve `Data.Finite.enumerate :: List ty` via Cinch's own
+    /// typeclass solver and evaluate the finite list at compile time.
+    fn try_enumerate_via_finite_class(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        ty: &Ty,
+        span: ast::Span,
+        max_domain: usize,
+    ) -> Result<Option<Vec<(String, Value)>>> {
+        let has_enum = self
+            .lookup_value(Some(module), "enumerate")
+            .or_else(|_| self.lookup_value(None, "enumerate"))
+            .is_ok();
+        if !has_enum {
+            return Ok(None);
+        }
+        let list_ty = Ty::Adt(crate::known::LIST.into(), vec![ty.clone()]);
+        let enum_term = ast::Term::App(
+            Box::new(ast::Term::Var(ast::VarPath {
+                quals: Vec::new(),
+                name: ast::Name::new("enumerate", span),
+            })),
+            vec![ast::Term::Unit(span)],
+            span,
+        );
+        let saved_wants = std::mem::take(&mut self.wants);
+        let saved_idx = std::mem::take(&mut self.idx_pends);
+        let mut env = Env::default();
+        let checked = self.check(&mut env, &enum_term, &list_ty);
+        let ec = match checked {
+            Ok(ec) => ec,
+            Err(_) => {
+                self.wants = saved_wants;
+                self.idx_pends = saved_idx;
+                return Ok(None);
+            }
+        };
+        let prefix = format!("{module}.machine.finite_enum");
+        let eval_res = self.eval_checked_ecore(cx, &prefix, ec);
+        self.wants = saved_wants;
+        self.idx_pends = saved_idx;
+        let list_val = match eval_res {
+            Ok(v) => v,
+            Err(_) => return Ok(None),
+        };
+        let vals = Self::unpack_action_successors(&ActionResultKind::List, list_val)?;
+        if vals.len() > max_domain {
+            return Err(Error::at(
+                span,
+                crate::diagnostic!(
+                    "temporal machine action parameter `{}` `Finite.enumerate` exceeds finite domain limit ({})",
+                    ty, max_domain
+                ),
+            ));
+        }
+        let record_fields = self.collect_record_field_names();
+        let mut out = Vec::with_capacity(vals.len());
+        for v in vals {
+            // Verify every enumerated domain value is inspectable/hashable data.
+            StateKey::from_value(&v)?;
+            let label = format_mc_value(&v, &record_fields);
+            out.push((label, v));
+        }
+        Ok(Some(out))
+    }
+
     /// Enumerate the finite domain of an action parameter type using Cinch's own type
     /// and refinement information (`Bool`, finite nullary ADT enums, `InRange lo hi Nat`,
-    /// bounded refined integers, `Fin n`, `Option T`, and finite tuples).
-    fn enumerate_finite_domain(&self, ty: &Ty, span: ast::Span) -> Result<Vec<(String, Value)>> {
+    /// bounded refined integers, `Fin n`, `Option T`, finite tuples, or any type with
+    /// an in-scope `Data.Finite.Finite` instance).
+    fn enumerate_finite_domain(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        ty: &Ty,
+        span: ast::Span,
+    ) -> Result<Vec<(String, Value)>> {
         const MAX_DOMAIN: usize = 256;
         let ty = self.uni.zonk(ty);
         match &ty {
@@ -1337,7 +1420,7 @@ impl Checker {
             Ty::Tuple(elems) => {
                 let mut acc: Vec<(Vec<String>, Vec<Value>)> = vec![(Vec::new(), Vec::new())];
                 for elem in elems {
-                    let dom = self.enumerate_finite_domain(elem, span)?;
+                    let dom = self.enumerate_finite_domain(cx, module, elem, span)?;
                     let mut next = Vec::new();
                     for (ls, vs) in &acc {
                         for (l, v) in &dom {
@@ -1377,7 +1460,7 @@ impl Checker {
                 let short = id.rsplit('.').next().unwrap_or(id);
                 // `Option T` when `T` is finite
                 if short == "Option" && args.len() == 1 {
-                    let inner = self.enumerate_finite_domain(&args[0], span)?;
+                    let inner = self.enumerate_finite_domain(cx, module, &args[0], span)?;
                     if inner.len() + 1 > MAX_DOMAIN {
                         return Err(Error::at(
                             span,
@@ -1515,21 +1598,33 @@ impl Checker {
                         })
                         .collect());
                 }
+                if let Some(via_class) =
+                    self.try_enumerate_via_finite_class(cx, module, &ty, span, MAX_DOMAIN)?
+                {
+                    return Ok(via_class);
+                }
                 Err(Error::at(
                     span,
                     crate::diagnostic!(
-                        "temporal machine action parameter type `{}` has no finite enumerable domain (use `Bool`, `Unit`, a finite enum `data`, `Fin n`, `Option T`, finite tuples, or a bounded refinement such as `InRange 0 2 Nat`)",
+                        "temporal machine action parameter type `{}` has no finite enumerable domain (use `Bool`, `Unit`, a finite enum `data`, `Fin n`, `Option T`, finite tuples, `InRange 0 2 Nat`, or implement `Data.Finite.Finite`)",
                         ty
                     ),
                 ))
             }
-            _ => Err(Error::at(
-                span,
-                crate::diagnostic!(
-                    "temporal machine action parameter type `{}` has no finite enumerable domain",
-                    ty
-                ),
-            )),
+            _ => {
+                if let Some(via_class) =
+                    self.try_enumerate_via_finite_class(cx, module, &ty, span, MAX_DOMAIN)?
+                {
+                    return Ok(via_class);
+                }
+                Err(Error::at(
+                    span,
+                    crate::diagnostic!(
+                        "temporal machine action parameter type `{}` has no finite enumerable domain",
+                        ty
+                    ),
+                ))
+            }
         }
     }
 
@@ -1730,6 +1825,15 @@ impl Checker {
                     ),
                 ));
             }
+            if self.type_has_finite_instance(&tk.identity) {
+                return Err(Error::at(
+                    sym_path.span(),
+                    format!(
+                        "unsound symmetry reduction on `{}`: `{}` has a `Finite` instance, which exposes a fixed enumeration order and breaks permutation symmetry (remove `Finite` or drop `{}` from `symmetry`)",
+                        tk.identity, tk.identity, sym_path.parts().join(".")
+                    ),
+                ));
+            }
             let ctors = self.type_ctor_units(&tk.identity);
             sym_types.push(sym_path.parts().join("."));
             sym_ctors.insert(tk.identity.clone(), ctors);
@@ -1786,7 +1890,7 @@ impl Checker {
             let mut arg_domains = Vec::with_capacity(param_tys.len());
             let mut total_combos = 1usize;
             for pty in &param_tys {
-                let dom = self.enumerate_finite_domain(pty, act_name.span)?;
+                let dom = self.enumerate_finite_domain(&mut cx, module, pty, act_name.span)?;
                 total_combos = total_combos.saturating_mul(dom.len());
                 if total_combos > 1024 {
                     return Err(Error::at(

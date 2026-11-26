@@ -269,8 +269,9 @@ Any parameters before `StateType` are automatically enumerated by the model chec
 | `InRange lo hi Nat` (and refined integer ranges, `hi - lo <= 256`) | `lo .. hi` |
 | `Option T` (finite `T`) | `None`, then `Some v` for every `v` in `T` |
 | Tuples `(A, B, ...)` of finite types | Lexicographic Cartesian product |
+| User records / payload ADTs with `Data.Finite.Finite` | Evaluates `enumerate () :: List P` at check time (up to 256 values) |
 
-Unbounded parameter types (such as bare `Nat`, `String`, or `List a`) and unhashable state field types (closures, thunks, `codata`, `Mut`, `MVar`) are rejected rather than silently truncated. See [Chapter 30](30-tla-plus-guide-and-value-domains.md) for the complete value-domain matrix and TLA+ comparison.
+Unbounded parameter types (such as bare `Nat`, `String`, or `List a`) and unhashable state field types (closures, thunks, `codata`, `Mut`, `MVar`) are rejected rather than silently truncated. For large-state randomized simulation with integrated shrinking over the same pure actions, use `Effect.Test.Hegel`. See [Chapter 30](30-tla-plus-guide-and-value-domains.md) for the complete value-domain matrix and TLA+ comparison.
 
 ## Machine contracts, fairness, and stuttering invariance
 

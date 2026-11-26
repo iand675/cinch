@@ -337,7 +337,7 @@ module Cinch.TemporalMc where
               Err msg -> Err msg
               Ok (fn-val, rem) -> mc-apply-list ctx self fn-val extra rem)
           other -> mc-eval-def ctx self def args fuel
-        None -> mc-eval-external-use name role ty args fuel
+        None -> mc-eval-external-use ctx self name role ty args fuel
 
   split-at-nat :: forall a. Nat -> List a -> (List a, List a)
   split-at-nat n xs = if n == 0 then (Nil, xs) else case xs of
@@ -345,8 +345,53 @@ module Cinch.TemporalMc where
     Cons first rest -> case split-at-nat (n - 1) rest of
       (taken, dropped) -> (Cons first taken, dropped)
 
-  mc-eval-external-use :: String -> String -> UType -> List McValue -> Nat -> Result String (McValue, Nat)
-  mc-eval-external-use name role ty args fuel =
+  pack-list-val :: List McValue -> McValue
+  pack-list-val xs = case xs of
+    Nil -> McNominal global-data-core-nil McFieldsEnd
+    Cons h t -> McNominal global-data-core-cons (McField h (McField (pack-list-val t) McFieldsEnd))
+
+  mc-finite-map :: McContext -> Option (String, CoreInstance) -> McValue -> List McValue -> Nat -> Result String (List McValue, Nat)
+  mc-finite-map ctx self f xs fuel = case xs of
+    Nil -> Ok (Nil, fuel)
+    Cons x rest -> case mc-apply-one ctx self f x fuel of
+      Err msg -> Err msg
+      Ok (y, rem) -> case mc-finite-map ctx self f rest rem of
+        Err msg -> Err msg
+        Ok (ys, rem2) -> Ok (Cons y ys, rem2)
+
+  mc-finite-product :: McContext -> Option (String, CoreInstance) -> McValue -> List McValue -> List McValue -> Nat -> Result String (List McValue, Nat)
+  mc-finite-product ctx self f xs ys fuel = case xs of
+    Nil -> Ok (Nil, fuel)
+    Cons x rest -> case mc-apply-one ctx self f x fuel of
+      Err msg -> Err msg
+      Ok (fx, rem) -> case mc-finite-map ctx self fx ys rem of
+        Err msg -> Err msg
+        Ok (row, rem2) -> case mc-finite-product ctx self f rest ys rem2 of
+          Err msg -> Err msg
+          Ok (more, rem3) -> Ok (row <> more, rem3)
+
+  mc-finite-product3 :: McContext -> Option (String, CoreInstance) -> McValue -> List McValue -> List McValue -> List McValue -> Nat -> Result String (List McValue, Nat)
+  mc-finite-product3 ctx self f xs ys zs fuel = case xs of
+    Nil -> Ok (Nil, fuel)
+    Cons x rest -> case mc-apply-one ctx self f x fuel of
+      Err msg -> Err msg
+      Ok (fx, rem) -> case mc-finite-product ctx self fx ys zs rem of
+        Err msg -> Err msg
+        Ok (row, rem2) -> case mc-finite-product3 ctx self f rest ys zs rem2 of
+          Err msg -> Err msg
+          Ok (more, rem3) -> Ok (row <> more, rem3)
+
+  mc-finite-sum :: List McValue -> Result String (List McValue)
+  mc-finite-sum xss = case xss of
+    Nil -> Ok Nil
+    Cons first rest -> case unpack-list-val first of
+      Err msg -> Err msg
+      Ok elems -> case mc-finite-sum rest of
+        Err msg -> Err msg
+        Ok more -> Ok (elems <> more)
+
+  mc-eval-external-use :: McContext -> Option (String, CoreInstance) -> String -> String -> UType -> List McValue -> Nat -> Result String (McValue, Nat)
+  mc-eval-external-use ctx self name role ty args fuel =
     let short = short-ident name in
     if same short "saturating-sub" then (case args of
       [McInt a, McInt b] -> Ok (McInt (if a >= b then int-sub a b else 0), fuel)
@@ -361,6 +406,42 @@ module Cinch.TemporalMc where
       [McBool b] -> Ok (McBool (not b), fuel)
       Nil -> Ok (McCallable name role ty McFieldsEnd, fuel)
       other -> Err "invalid argument to `not`")
+    else if same short "finite-map" || same short "finite$2dmap" then (case args of
+      [f, xs-val] -> case unpack-list-val xs-val of
+        Err msg -> Err msg
+        Ok xs -> case mc-finite-map ctx self f xs fuel of
+          Err msg -> Err msg
+          Ok (ys, rem) -> Ok (pack-list-val ys, rem)
+      other | list-length args < 2 -> Ok (McCallable name role ty (mc-fields-from-list args), fuel)
+      other -> Err "invalid arguments to `finite-map`")
+    else if same short "finite-product" || same short "finite$2dproduct" then (case args of
+      [f, xs-val, ys-val] -> case (unpack-list-val xs-val, unpack-list-val ys-val) of
+        (Ok xs, Ok ys) -> case mc-finite-product ctx self f xs ys fuel of
+          Err msg -> Err msg
+          Ok (out, rem) -> Ok (pack-list-val out, rem)
+        other -> Err "invalid list argument to `finite-product`"
+      other | list-length args < 3 -> Ok (McCallable name role ty (mc-fields-from-list args), fuel)
+      other -> Err "invalid arguments to `finite-product`")
+    else if same short "finite-product3" || same short "finite$2dproduct3" then (case args of
+      [f, xs-val, ys-val, zs-val] -> case (unpack-list-val xs-val, unpack-list-val ys-val, unpack-list-val zs-val) of
+        (Ok xs, Ok ys, Ok zs) -> case mc-finite-product3 ctx self f xs ys zs fuel of
+          Err msg -> Err msg
+          Ok (out, rem) -> Ok (pack-list-val out, rem)
+        other -> Err "invalid list argument to `finite-product3`"
+      other | list-length args < 4 -> Ok (McCallable name role ty (mc-fields-from-list args), fuel)
+      other -> Err "invalid arguments to `finite-product3`")
+    else if same short "finite-sum" || same short "finite$2dsum" then (case args of
+      [xss-val] -> case unpack-list-val xss-val of
+        Err msg -> Err msg
+        Ok xss -> case mc-finite-sum xss of
+          Err msg -> Err msg
+          Ok flat -> Ok (pack-list-val flat, fuel)
+      Nil -> Ok (McCallable name role ty McFieldsEnd, fuel)
+      other -> Err "invalid arguments to `finite-sum`")
+    else if same short "finite-range" || same short "finite$2drange" then (case args of
+      [McInt lo, McInt hi] -> Ok (pack-list-val (int-range-values lo hi), fuel)
+      other | list-length args < 2 -> Ok (McCallable name role ty (mc-fields-from-list args), fuel)
+      other -> Err "invalid arguments to `finite-range`")
     else Err (cat ["definition `", short, "` is unavailable in temporal model checking"])
 
   mc-apply-one :: McContext -> Option (String, CoreInstance) -> McValue -> McValue -> Nat -> Result String (McValue, Nat)
@@ -454,6 +535,10 @@ module Cinch.TemporalMc where
         else Err (cat ["unsupported method `", short, "` in temporal model checker"])
       [McInt a] ->
         if same short "negate" then Ok (McInt (int-neg a), fuel)
+        else if same short "from-list" || same short "from$2dlist" then Ok (McInt a, fuel)
+        else Err (cat ["unsupported unary method `", short, "` in temporal model checker"])
+      [v] ->
+        if same short "from-list" || same short "from$2dlist" then Ok (v, fuel)
         else Err (cat ["unsupported unary method `", short, "` in temporal model checker"])
       other -> Err (cat ["unsupported method `", short, "` in temporal model checker"])
 
@@ -653,20 +738,20 @@ module Cinch.TemporalMc where
         None -> None
       other -> None
 
-  -- Reject symmetry reduction if the type has an `Ord` instance (breaks permutation symmetry!).
-  has-ord-instance-for :: String -> List CoreInstance -> Bool
-  has-ord-instance-for wanted instances = case instances of
+  -- Reject symmetry reduction if the type has an `Ord` or `Finite` instance (breaks permutation symmetry!).
+  has-class-instance-for :: String -> String -> List CoreInstance -> Bool
+  has-class-instance-for cls wanted instances = case instances of
     Nil -> False
     Cons inst rest ->
-      if scheme-is-ord-for wanted (scheme-body (inst.scheme)) then True
-      else has-ord-instance-for wanted rest
+      if scheme-is-class-for cls wanted (scheme-body (inst.scheme)) then True
+      else has-class-instance-for cls wanted rest
 
-  scheme-is-ord-for :: String -> UType -> Bool
-  scheme-is-ord-for wanted ty = case ty of
-    UFun a b -> scheme-is-ord-for wanted b
-    UFunEff a row b -> scheme-is-ord-for wanted b
+  scheme-is-class-for :: String -> String -> UType -> Bool
+  scheme-is-class-for cls wanted ty = case ty of
+    UFun a b -> scheme-is-class-for cls wanted b
+    UFunEff a row b -> scheme-is-class-for cls wanted b
     UApp (UCon cname _) arg ->
-      (same (short-ident cname) "Ord" || ends-with-dot cname "Ord") && utype-mentions wanted arg
+      (same (short-ident cname) cls || ends-with-dot cname cls) && utype-mentions wanted arg
     other -> False
 
   utype-mentions :: String -> UType -> Bool
@@ -680,8 +765,10 @@ module Cinch.TemporalMc where
     Nil -> Ok acc
     Cons sym-ty rest ->
       let display = short-ident sym-ty in
-      if has-ord-instance-for sym-ty instances then
+      if has-class-instance-for "Ord" sym-ty instances then
         Err (mc-diag sp (cat ["unsound symmetry reduction on `", display, "`: `", display, "` has an `Ord` instance, which breaks permutation symmetry (remove `Ord` or drop `", display, "` from `symmetry`)"]))
+      else if has-class-instance-for "Finite" sym-ty instances then
+        Err (mc-diag sp (cat ["unsound symmetry reduction on `", display, "`: `", display, "` has a `Finite` instance, which exposes a fixed enumeration order and breaks permutation symmetry (remove `Finite` or drop `", display, "` from `symmetry`)"]))
       else case find-core-data sym-ty datas of
         None -> Err (mc-diag sp (cat ["symmetry type `", display, "` is not a finite data type in scope"]))
         Some dt -> case nullary-ctor-names (core-data-constructors dt) of
@@ -744,17 +831,67 @@ module Cinch.TemporalMc where
 
   -- ------------------------------------------------------------------ finite domain enumeration
 
-  enumerate-domain :: UType -> List CoreData -> Result String (List McValue)
-  enumerate-domain ty datas = case ty of
+  utype-head-name :: UType -> Option String
+  utype-head-name ty = case ty of
+    UCon name _ -> Some name
+    UApp f _ -> utype-head-name f
+    other -> None
+
+  utype-same-head :: UType -> UType -> Bool
+  utype-same-head a b = case (utype-head-name a, utype-head-name b) of
+    (Some n1, Some n2) -> same n1 n2 || same (short-ident n1) (short-ident n2)
+    other -> False
+
+  find-finite-instance :: UType -> List CoreInstance -> Option CoreInstance
+  find-finite-instance wanted instances = case instances of
+    Nil -> None
+    Cons inst rest ->
+      if scheme-matches-finite wanted (scheme-body (inst.scheme)) then Some inst
+      else find-finite-instance wanted rest
+
+  scheme-matches-finite :: UType -> UType -> Bool
+  scheme-matches-finite wanted ty = case ty of
+    UApp (UCon cname _) arg ->
+      (same (short-ident cname) "Finite" || ends-with-dot cname "Finite") && utype-same-head wanted arg
+    other -> False
+
+  try-enumerate-finite-instance :: McContext -> UType -> Result String (Option (List McValue))
+  try-enumerate-finite-instance ctx ty = case ctx of
+    MkMcContext _ _ _ instances _ _ ->
+      case find-finite-instance ty instances of
+        None -> Ok None
+        Some inst -> case field-at 0 (inst.fields) of
+          None -> Err (cat ["`Finite` instance for `", type-text ty, "` has no `enumerate` method"])
+          Some field ->
+            let def = field.field-definition in
+            case mc-eval-clauses ctx None (def.name) (def.clauses) [McUnit] 50000 of
+              Err emsg -> Err (cat ["failed to evaluate `Finite.enumerate` for `", type-text ty, "`: ", emsg])
+              Ok (list-val, _) -> case unpack-list-val list-val of
+                Err umsg -> Err umsg
+                Ok vals ->
+                  if list-length vals > 256 then Err "Finite.enumerate domain exceeds model checker limit (256)"
+                  else Ok (Some vals)
+
+  enumerate-domain :: McContext -> UType -> List CoreData -> Result String (List McValue)
+  enumerate-domain ctx ty datas =
+    case enumerate-builtin-domain ctx ty datas of
+      Ok vs -> Ok vs
+      Err msg -> case try-enumerate-finite-instance ctx ty of
+        Err fmsg -> Err fmsg
+        Ok (Some vals) -> Ok vals
+        Ok None -> Err msg
+
+  enumerate-builtin-domain :: McContext -> UType -> List CoreData -> Result String (List McValue)
+  enumerate-builtin-domain ctx ty datas = case ty of
     UCon name _ | same name "Bool" -> Ok [McBool False, McBool True]
     UCon name _ | same name "Unit" -> Ok [McUnit]
     UCon name _ -> case find-core-data name datas of
       Some dt -> case nullary-ctor-names (core-data-constructors dt) of
         Some ctors -> Ok (make-nullary-values ctors)
-        None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, or a bounded refinement such as `InRange 0 2 Nat`)"])
+        None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, `InRange 0 2 Nat`, or implement `Data.Finite.Finite`)"])
       None -> Err (cat ["temporal machine action parameter type `", short-ident name, "` has no finite enumerable domain"])
     UApp (UCon name _) inner | ends-with-dot name "Option" || same (short-ident name) "Option" ->
-      (case enumerate-domain inner datas of
+      (case enumerate-domain ctx inner datas of
         Err msg -> Err msg
         Ok vals ->
           if list-length vals >= 256 then Err "Option domain exceeds model checker limit (256)"
@@ -770,8 +907,8 @@ module Cinch.TemporalMc where
       case extract-int-bounds id pred default-lo None of
         (Some lo, Some hi) | lo <= hi && int-sub hi lo <= 256 -> Ok (int-range-values lo hi)
         other -> Err (cat ["temporal machine action parameter refinement `", type-text ty, "` has no finite integer bounds (use `InRange lo hi Nat` or `lo <= x && x <= hi`)"])
-    UTuple spine -> enumerate-tuple-spine spine datas
-    other -> Err (cat ["temporal machine action parameter type `", type-text ty, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, or a bounded refinement such as `InRange 0 2 Nat`)"])
+    UTuple spine -> enumerate-tuple-spine ctx spine datas
+    other -> Err (cat ["temporal machine action parameter type `", type-text ty, "` has no finite enumerable domain (use `Bool`, a finite enum `data`, `Fin n`, `InRange 0 2 Nat`, or implement `Data.Finite.Finite`)"])
 
   is-nat-type :: UType -> Bool
   is-nat-type ty = case ty of UCon name _ -> same name "Nat"; other -> False
@@ -845,8 +982,8 @@ module Cinch.TemporalMc where
     else if same op "==" then (max-opt-int lo k, min-opt-int hi k)
     else (lo, hi)
 
-  enumerate-tuple-spine :: UType -> List CoreData -> Result String (List McValue)
-  enumerate-tuple-spine spine datas = case enumerate-tuple-lists spine datas of
+  enumerate-tuple-spine :: McContext -> UType -> List CoreData -> Result String (List McValue)
+  enumerate-tuple-spine ctx spine datas = case enumerate-tuple-lists ctx spine datas of
     Err msg -> Err msg
     Ok rows -> Ok (map-tuples rows)
 
@@ -855,24 +992,25 @@ module Cinch.TemporalMc where
     Nil -> Nil
     Cons first rest -> Cons (McTuple (mc-fields-from-list first)) (map-tuples rest)
 
-  enumerate-tuple-lists :: UType -> List CoreData -> Result String (List (List McValue))
-  enumerate-tuple-lists spine datas = case spine of
+  enumerate-tuple-lists :: McContext -> UType -> List CoreData -> Result String (List (List McValue))
+  enumerate-tuple-lists ctx spine datas = case spine of
     UEnd -> Ok [Nil]
-    UArg first rest -> case enumerate-domain first datas of
+    UArg first rest -> case enumerate-domain ctx first datas of
       Err msg -> Err msg
-      Ok vs -> case enumerate-tuple-lists rest datas of
+      Ok vs -> case enumerate-tuple-lists ctx rest datas of
         Err msg -> Err msg
         Ok tails -> Ok (cartesian-prepend vs tails)
     other -> Err "malformed tuple type in action parameter"
 
-  enumerate-param-tuples :: List UType -> List CoreData -> Result String (List (List McValue))
-  enumerate-param-tuples tys datas = case tys of
+  enumerate-param-tuples :: McContext -> List UType -> List CoreData -> Result String (List (List McValue))
+  enumerate-param-tuples ctx tys datas = case tys of
     Nil -> Ok [Nil]
-    Cons first rest -> case enumerate-domain first datas of
-      Err msg -> Err msg
-      Ok vs -> case enumerate-param-tuples rest datas of
+    Cons first rest ->
+      case enumerate-domain ctx first datas of
         Err msg -> Err msg
-        Ok tails -> Ok (cartesian-prepend vs tails)
+        Ok vs -> case enumerate-param-tuples ctx rest datas of
+          Err msg -> Err msg
+          Ok tails -> Ok (cartesian-prepend vs tails)
 
   cartesian-prepend :: forall a. List a -> List (List a) -> List (List a)
   cartesian-prepend heads tails = case heads of
@@ -1052,15 +1190,15 @@ module Cinch.TemporalMc where
   data ReadyAction where
     MkReadyAction :: String -> String -> McActionReturn -> CoreDefinition -> List (List McValue) -> ReadyAction
 
-  prepare-actions :: Span -> List McActionInput -> List CoreDefinition -> List CoreData -> Result Diagnostic (List ReadyAction)
-  prepare-actions sp actions defs datas = case actions of
+  prepare-actions :: Span -> McContext -> List McActionInput -> List CoreDefinition -> List CoreData -> Result Diagnostic (List ReadyAction)
+  prepare-actions sp ctx actions defs datas = case actions of
     Nil -> Ok Nil
     Cons (MkMcActionInput sym param-tys ret-kind) rest ->
       case mc-find-def sym defs of
         None -> Err (mc-diag sp (cat ["machine action `", short-ident sym, "` has no checked definition"]))
-        Some def -> case enumerate-param-tuples param-tys datas of
+        Some def -> case enumerate-param-tuples ctx param-tys datas of
           Err msg -> Err (mc-diag sp msg)
-          Ok param-rows -> case prepare-actions sp rest defs datas of
+          Ok param-rows -> case prepare-actions sp ctx rest defs datas of
             Err diag -> Err diag
             Ok more -> Ok (Cons (MkReadyAction sym (short-ident sym) ret-kind def param-rows) more)
 
@@ -1132,7 +1270,7 @@ module Cinch.TemporalMc where
       case validate-symmetry-types sp sym datas instances hash-map-empty of
         Err diag -> Err diag
         Ok sym-map ->
-          case prepare-actions sp actions defs datas of
+          case prepare-actions sp ctx actions defs datas of
             Err diag -> Err diag
             Ok ready-actions ->
               let por-pairs = count-por-pairs (collect-action-footprints (state-record-ctor state-ty datas) actions defs) in
