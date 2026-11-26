@@ -1,7 +1,7 @@
 {
   "description": "ABI 10 packed library provider with fair FIFO MVar, verified Data.Wide div/rem-u128, U128/I128 numeric indices, string literal patterns, list cons (:), data-parallel arrays, and AD runtime support.",
-  "revision": "2adc30173fec470af66bb09640d543c537403331",
+  "revision": "f749d76a685942edb20eb1eaba82479af4237b90",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "fa515030280e9398031f39077179fdb191eef876887a07bcb9acb7114972a9d1"
+  "source_sha256": "3438c49ed9c369af0c0cf79eec50f5cf87a2b6e5092ddcb0276d91ad73b27f67"
 }

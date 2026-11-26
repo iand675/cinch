@@ -2,8 +2,8 @@
   "description": "ABI 10 seed with pluggable LLVM prim verification, U128/I128 numeric indices, wildcard Dec proof retention, string literal patterns, list cons (:), concurrency primitives, and tail_conv disabled.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "0106c0858f91c127f2b47cbd533092118e79260f",
+  "revision": "f749d76a685942edb20eb1eaba82479af4237b90",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "c4a9c0160f273b2a37ac7a4cddccaa0de309306e893ef3a3b83591e2c1081e0b"
+  "source_sha256": "61fb1f7898f0d88448693dcbac7334418e28df8639d354e461df0343c8021358"
 }
