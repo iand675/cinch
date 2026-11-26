@@ -9235,6 +9235,28 @@ impl Checker {
                     receipts,
                 });
             }
+            // Cross-target equivalence: when a multi-body `prim` formally verifies >= 2
+            // safe `llvm` bodies on the same word-size/endianness (e.g. `when arch x86_64`
+            // vs `when arch aarch64` vs baseline), prove they agree semantically!
+            let verified_llvm_bodies = p
+                .bodies
+                .iter()
+                .filter(|b| {
+                    !b.unverified
+                        && b.family.text == "llvm"
+                        && b.justify.as_ref().and_then(|j| Self::prim_verify_strategy(j)).is_some()
+                })
+                .count();
+            if verified_llvm_bodies >= 2 && self.prim_verify_mode() != crate::prim_verify::PrimVerifyMode::Off {
+                let (ct_receipts, ct_ok) = self.verify_prim_cross_target(&module, &p)?;
+                if !ct_ok {
+                    all_verified = false;
+                    all_justified = false;
+                }
+                if let Some(first) = bodies.first_mut() {
+                    first.receipts.extend(ct_receipts);
+                }
+            }
             // Selection (section 6, with section 13's target predicates):
             // a body applies when every atom of its `when` condition holds
             // in the target profile and its family lowers through this
@@ -9686,6 +9708,109 @@ impl Checker {
                                 p.name.text,
                                 report.kind,
                                 reasons.join("; ")
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok((receipts, all_discharged))
+    }
+
+    fn verify_prim_cross_target(
+        &self,
+        module: &str,
+        p: &ast::PrimDecl,
+    ) -> Result<(Vec<crate::prim_verify::TrustReceipt>, bool)> {
+        use crate::prim_verify::prelude_bridge::build_cross_target_obligations;
+        use crate::prim_verify::{
+            Policy, PrimVerifyMode, TrustReceipt, TrustTier, VerificationStatus, VerifierEngine,
+        };
+
+        let mode = self.prim_verify_mode();
+        let mut engine = match mode {
+            PrimVerifyMode::Lax => VerifierEngine::lax_engine(),
+            PrimVerifyMode::Strict => VerifierEngine::default_engine(Policy::jpl_strict()),
+            PrimVerifyMode::Default => {
+                let policy = if self.jpl_target || self.jpl_user_modules.contains(module) {
+                    Policy::jpl_strict()
+                } else {
+                    Policy::dev_default()
+                };
+                VerifierEngine::default_engine(policy)
+            }
+            PrimVerifyMode::Off => return Ok((Vec::new(), false)),
+        };
+        let replay_only = self.prim_replay_only();
+        let store = match self.prim_proof_cache() {
+            Some(dir) if replay_only => crate::prim_verify::EvidenceStore::with_disk_dir(dir),
+            Some(dir) => crate::prim_verify::EvidenceStore::with_disk_dir(dir).with_shared_memory(),
+            None if replay_only => crate::prim_verify::EvidenceStore::in_memory(),
+            None => crate::prim_verify::EvidenceStore::in_memory().with_shared_memory(),
+        };
+        engine = engine.with_store(store).with_replay_only(replay_only);
+
+        let obligations = {
+            let sems = engine.semantics_refs();
+            build_cross_target_obligations(module, p, &sems).unwrap_or_default()
+        };
+        let mut receipts = Vec::with_capacity(obligations.len());
+        let mut all_discharged = true;
+        for ob in &obligations {
+            let report = engine.verify(ob);
+            match report.status {
+                VerificationStatus::Verified { receipt, .. } => {
+                    if receipt.tier == TrustTier::Assumed {
+                        all_discharged = false;
+                    }
+                    receipts.push(receipt);
+                }
+                VerificationStatus::Disproved { prover_id, counterexample } => {
+                    let inputs = counterexample
+                        .inputs
+                        .iter()
+                        .map(|(k, v)| format!("{k} = {v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(Error::at(
+                        p.span,
+                        format!(
+                            "prim `{}.{}` failed cross-target equivalence ({}): {} [{}] (prover: {})",
+                            module, p.name.text, report.kind, counterexample.summary, inputs, prover_id
+                        ),
+                    ));
+                }
+                VerificationStatus::RejectedByPolicy { reason, .. } => {
+                    return Err(Error::at(
+                        p.span,
+                        format!(
+                            "prim `{}.{}` cross-target verification rejected by policy ({}): {reason}",
+                            module, p.name.text, report.kind
+                        ),
+                    ));
+                }
+                VerificationStatus::Unverified { reasons } => {
+                    if mode == PrimVerifyMode::Lax {
+                        all_discharged = false;
+                        receipts.push(TrustReceipt {
+                            goal_hash: ob.goal_hash.clone(),
+                            semantics_id: ob.semantics_id.clone(),
+                            evidence_format: "assumed/v1".to_string(),
+                            checker_id: "cinch-lax-bypass@1".to_string(),
+                            tcb: vec!["lax-mode-unverified".to_string()],
+                            tier: TrustTier::Assumed,
+                            details: format!(
+                                "lax mode accepted unverified cross-target obligation `{}`: {}",
+                                report.kind,
+                                reasons.join("; ")
+                            ),
+                        });
+                    } else {
+                        return Err(Error::at(
+                            p.span,
+                            format!(
+                                "prim `{}.{}` cross-target equivalence could not be verified ({}): {}",
+                                module, p.name.text, report.kind, reasons.join("; ")
                             ),
                         ));
                     }
@@ -12393,6 +12518,44 @@ impl Checker {
             self.prim_abi_word(res_ty)?
         };
         let _ = arg_tys;
+        // Pre-scan local basic block labels to permit forward-only acyclic CFGs
+        // (`label:`, `br label %target`, `br i1 %c, label %t, label %f`, `phi`)
+        // while refusing backward branches, cycles, and jumps to external labels.
+        let mut block_order: HashMap<String, usize> = HashMap::new();
+        let mut next_block_idx: usize = 0;
+        let mut saw_any_inst_before_label = false;
+        for raw in frag.lines() {
+            let stripped = strip_llvm_comment(raw);
+            let line = stripped.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Some(lbl) = line.strip_suffix(':') {
+                let lbl = lbl.trim();
+                if lbl.is_empty() || lbl.contains(char::is_whitespace) {
+                    return Err(Error::at(
+                        b.fragment_span,
+                        format!("containment (grammar): invalid local label `{line}`"),
+                    ));
+                }
+                if block_order.contains_key(lbl) {
+                    return Err(Error::at(
+                        b.fragment_span,
+                        format!("containment (grammar): duplicate local label `{lbl}`"),
+                    ));
+                }
+                if saw_any_inst_before_label && !block_order.contains_key("entry") {
+                    block_order.insert("entry".to_string(), 0);
+                    next_block_idx = 1;
+                }
+                block_order.insert(lbl.to_string(), next_block_idx);
+                next_block_idx += 1;
+            } else if block_order.is_empty() {
+                saw_any_inst_before_label = true;
+            }
+        }
+        let mut cur_block_idx: usize = 0;
+        let mut seen_first_label = false;
         for raw in frag.lines() {
             let line = strip_llvm_comment(raw).trim().to_string();
             if line.is_empty() {
@@ -12422,11 +12585,14 @@ impl Checker {
                         .to_string(),
                 ));
             }
-            if line.ends_with(':') {
-                return Err(at(
-                    "containment (no-escape): a body is straight-line; a label introduces a jump target (specification section 4: the body contains no jumps)"
-                        .to_string(),
-                ));
+            if let Some(lbl) = line.strip_suffix(':') {
+                let lbl = lbl.trim();
+                cur_block_idx = *block_order.get(lbl).unwrap_or(&0);
+                seen_first_label = true;
+                continue;
+            }
+            if !seen_first_label {
+                cur_block_idx = 0;
             }
             // The instruction: an optional result binding, then the
             // opcode (the family grammar's structural face).
@@ -12447,7 +12613,41 @@ impl Checker {
                 .next()
                 .unwrap_or("");
             match op {
-                "br" | "switch" | "indirectbr" => {
+                "br" => {
+                    // Validate every `label %target` in `br` points strictly forward
+                    // to a declared local block (acyclic CFG; no loops or escape).
+                    let words: Vec<&str> = stmt.split_whitespace().collect();
+                    let mut saw_label = false;
+                    for wi in 0..words.len() {
+                        if words[wi] == "label" {
+                            saw_label = true;
+                            let tgt = words
+                                .get(wi + 1)
+                                .map(|w| w.trim_end_matches(',').trim_start_matches('%'))
+                                .unwrap_or("");
+                            match block_order.get(tgt) {
+                                Some(&t_idx) if t_idx > cur_block_idx => {}
+                                Some(_) => {
+                                    return Err(at(format!(
+                                        "containment (no-escape): backward/cyclic `br` to `%{tgt}` is not permitted (only forward-only acyclic local branches are allowed)"
+                                    )));
+                                }
+                                None => {
+                                    return Err(at(format!(
+                                        "containment (no-escape): `br` targets unknown/external label `%{tgt}` (specification section 4)"
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                    if !saw_label {
+                        return Err(at(
+                            "containment (grammar): malformed `br` missing `label` target"
+                                .to_string(),
+                        ));
+                    }
+                }
+                "switch" | "indirectbr" => {
                     return Err(at(format!(
                         "containment (no-escape): `{op}` is a jump (specification section 4: the body contains no jumps)"
                     )))

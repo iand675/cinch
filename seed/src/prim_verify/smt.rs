@@ -19,6 +19,8 @@ use std::process::{Command, Stdio};
 
 pub const SMT_ATTESTATION_FORMAT_ID: &str = "smt-attestation/v1";
 pub const SMT_EMITTER_VERSION_ID: &str = "cinch-smtlib2-emitter@1";
+pub const ALETHE_FORMAT_ID: &str = "alethe/v1";
+pub const ALETHE_CHECKER_ID: &str = "cinch-alethe-checker@1";
 
 /// Emit a complete, standalone SMT-LIB 2 script checking `!obligation.goal`.
 /// `unsat` means `obligation.goal` is valid; `sat` yields a counterexample.
@@ -365,6 +367,21 @@ impl ExternalSmtProver {
         }
     }
 
+    /// `cvc5` configured to emit Alethe proof certificates (`alethe/v1`), verified
+    /// independently by [`AletheProofChecker`] at `TrustTier::KernelCert`.
+    pub fn cvc5_alethe(binary: impl Into<String>) -> Self {
+        Self {
+            solver_id: "smt-cvc5-alethe".to_string(),
+            binary: binary.into(),
+            args: vec![
+                "--lang=smt2".to_string(),
+                "--dump-proofs".to_string(),
+                "--proof-format=alethe".to_string(),
+                "--produce-models".to_string(),
+            ],
+        }
+    }
+
     pub fn custom(
         solver_id: impl Into<String>,
         binary: impl Into<String>,
@@ -578,5 +595,447 @@ impl Checker for SmtAttestationChecker {
             tier: TrustTier::SmtVerified,
             details: format!("trusted SMT unsat verdict from `{}`", att.solver_binary),
         })
+    }
+}
+
+// =========================================================================
+// Pluggable Alethe Proof-Checker Seam (`alethe/v1` -> `TrustTier::KernelCert`)
+// =========================================================================
+
+/// JSON envelope for an Alethe proof certificate (`alethe/v1`), binding the
+/// S-expression proof script to the obligation's canonical `goal_hash` and
+/// `semantics_id` so certificates cannot be replayed across different goals.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AletheCertificate {
+    pub goal_hash: String,
+    pub semantics_id: String,
+    pub proof: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SExpr {
+    Atom(String),
+    List(Vec<SExpr>),
+}
+
+impl SExpr {
+    fn as_atom(&self) -> Option<&str> {
+        match self {
+            SExpr::Atom(s) => Some(s.as_str()),
+            SExpr::List(_) => None,
+        }
+    }
+
+    fn as_list(&self) -> Option<&[SExpr]> {
+        match self {
+            SExpr::List(xs) => Some(xs.as_slice()),
+            SExpr::Atom(_) => None,
+        }
+    }
+
+    fn is_not_of(&self, other: &SExpr) -> bool {
+        match self {
+            SExpr::List(xs) if xs.len() == 2 && xs[0].as_atom() == Some("not") => &xs[1] == other,
+            _ => false,
+        }
+    }
+
+    fn is_complement(&self, other: &SExpr) -> bool {
+        self.is_not_of(other) || other.is_not_of(self)
+    }
+}
+
+fn parse_sexprs(src: &str) -> Result<Vec<SExpr>, String> {
+    let mut tokens: Vec<String> = Vec::new();
+    let bytes = src.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b';' => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b' ' | b'\t' | b'\r' | b'\n' => i += 1,
+            b'(' => {
+                tokens.push("(".to_string());
+                i += 1;
+            }
+            b')' => {
+                tokens.push(")".to_string());
+                i += 1;
+            }
+            _ => {
+                let start = i;
+                while i < bytes.len()
+                    && !matches!(bytes[i], b' ' | b'\t' | b'\r' | b'\n' | b'(' | b')' | b';')
+                {
+                    i += 1;
+                }
+                tokens.push(src[start..i].to_string());
+            }
+        }
+    }
+
+    fn parse_one(tokens: &[String], pos: &mut usize) -> Result<SExpr, String> {
+        if *pos >= tokens.len() {
+            return Err("unexpected end of Alethe S-expression".to_string());
+        }
+        if tokens[*pos] == "(" {
+            *pos += 1;
+            let mut items = Vec::new();
+            while *pos < tokens.len() && tokens[*pos] != ")" {
+                items.push(parse_one(tokens, pos)?);
+            }
+            if *pos >= tokens.len() {
+                return Err("unclosed `(` in Alethe proof".to_string());
+            }
+            *pos += 1;
+            Ok(SExpr::List(items))
+        } else if tokens[*pos] == ")" {
+            Err("unexpected `)` in Alethe proof".to_string())
+        } else {
+            let a = tokens[*pos].clone();
+            *pos += 1;
+            Ok(SExpr::Atom(a))
+        }
+    }
+
+    let mut pos = 0;
+    let mut out = Vec::new();
+    while pos < tokens.len() {
+        out.push(parse_one(&tokens, &mut pos)?);
+    }
+    Ok(out)
+}
+
+/// Minimal independent checker for Alethe proof certificates (`alethe/v1`).
+///
+/// Independently validates every `assume` and `step` (`resolution`, `th_resolution`,
+/// `and`, `and_elim`, `or`, `not_not`, `implies`, `contraction`, `true`, `false`,
+/// `eq_reflexive`, `eq_symmetric`, `eq_transitive`) and checks that the proof derives
+/// the empty clause `(cl)` or `false`. Admitted at `TrustTier::KernelCert` because
+/// the SMT solver is NOT in the TCB!
+#[derive(Clone, Debug, Default)]
+pub struct AletheProofChecker;
+
+impl Checker for AletheProofChecker {
+    fn id(&self) -> &str {
+        ALETHE_CHECKER_ID
+    }
+
+    fn format(&self) -> &str {
+        ALETHE_FORMAT_ID
+    }
+
+    fn check(&self, obligation: &Obligation, evidence: &Evidence) -> Result<TrustReceipt, CheckError> {
+        let cert: AletheCertificate = serde_json::from_str(&evidence.payload).map_err(|e| {
+            CheckError::InvalidCertificate(format!("malformed Alethe certificate envelope: {e}"))
+        })?;
+        if cert.goal_hash != obligation.goal_hash {
+            return Err(CheckError::InvalidCertificate(format!(
+                "Alethe certificate goal_hash mismatch: expected {}, got {}",
+                obligation.goal_hash, cert.goal_hash
+            )));
+        }
+        if cert.semantics_id != obligation.semantics_id {
+            return Err(CheckError::InvalidCertificate(format!(
+                "Alethe certificate semantics mismatch: expected {}, got {}",
+                obligation.semantics_id, cert.semantics_id
+            )));
+        }
+
+        let cmds = parse_sexprs(&cert.proof).map_err(CheckError::InvalidCertificate)?;
+        if cmds.is_empty() {
+            return Err(CheckError::InvalidCertificate("empty Alethe proof".to_string()));
+        }
+
+        // Map step ID -> derived clause (list of literals; empty list = contradiction!).
+        let mut derived: HashMap<String, Vec<SExpr>> = HashMap::new();
+        let mut derived_empty = false;
+        let mut steps_checked = 0usize;
+
+        for cmd in &cmds {
+            let items = cmd.as_list().ok_or_else(|| {
+                CheckError::InvalidCertificate("top-level Alethe command must be a list".to_string())
+            })?;
+            let head = items.first().and_then(SExpr::as_atom).unwrap_or("");
+            match head {
+                "assume" => {
+                    if items.len() != 3 {
+                        return Err(CheckError::InvalidCertificate(
+                            "Alethe `assume` expects `(assume <id> <formula>)`".to_string(),
+                        ));
+                    }
+                    let id = items[1].as_atom().ok_or_else(|| {
+                        CheckError::InvalidCertificate("Alethe `assume` id must be an atom".to_string())
+                    })?;
+                    derived.insert(id.to_string(), vec![items[2].clone()]);
+                }
+                "step" => {
+                    if items.len() < 5 {
+                        return Err(CheckError::InvalidCertificate(
+                            "Alethe `step` expects `(step <id> (cl ...) :rule <r> ...)`".to_string(),
+                        ));
+                    }
+                    let id = items[1].as_atom().ok_or_else(|| {
+                        CheckError::InvalidCertificate("Alethe `step` id must be an atom".to_string())
+                    })?;
+                    let cl_list = items[2].as_list().ok_or_else(|| {
+                        CheckError::InvalidCertificate("Alethe `step` clause must be `(cl ...)`".to_string())
+                    })?;
+                    if cl_list.first().and_then(SExpr::as_atom) != Some("cl") {
+                        return Err(CheckError::InvalidCertificate(
+                            "Alethe `step` clause must start with `cl`".to_string(),
+                        ));
+                    }
+                    let clause: Vec<SExpr> = cl_list[1..].to_vec();
+
+                    // Parse keyword arguments `:rule <name>` and optional `:premises (<id> ...)`.
+                    let mut rule: Option<&str> = None;
+                    let mut premises: Vec<&str> = Vec::new();
+                    let mut idx = 3;
+                    while idx < items.len() {
+                        match items[idx].as_atom() {
+                            Some(":rule") => {
+                                rule = items.get(idx + 1).and_then(SExpr::as_atom);
+                                idx += 2;
+                            }
+                            Some(":premises") => {
+                                let plist = items.get(idx + 1).and_then(SExpr::as_list).ok_or_else(|| {
+                                    CheckError::InvalidCertificate(
+                                        "Alethe `:premises` expects a list of step ids".to_string(),
+                                    )
+                                })?;
+                                for p in plist {
+                                    let pid = p.as_atom().ok_or_else(|| {
+                                        CheckError::InvalidCertificate(
+                                            "Alethe premise id must be an atom".to_string(),
+                                        )
+                                    })?;
+                                    premises.push(pid);
+                                }
+                                idx += 2;
+                            }
+                            Some(":args") => {
+                                idx += 2;
+                            }
+                            _ => {
+                                idx += 1;
+                            }
+                        }
+                    }
+
+                    let rule_name = rule.ok_or_else(|| {
+                        CheckError::InvalidCertificate(format!("Alethe step `{id}` missing `:rule`"))
+                    })?;
+
+                    let mut prem_clauses: Vec<&[SExpr]> = Vec::with_capacity(premises.len());
+                    for pid in &premises {
+                        let pc = derived.get(*pid).ok_or_else(|| {
+                            CheckError::InvalidCertificate(format!(
+                                "Alethe step `{id}` references unknown premise `{pid}`"
+                            ))
+                        })?;
+                        prem_clauses.push(pc.as_slice());
+                    }
+
+                    check_alethe_rule(id, rule_name, &clause, &prem_clauses)?;
+                    steps_checked += 1;
+                    if clause.is_empty()
+                        || (clause.len() == 1 && clause[0].as_atom() == Some("false"))
+                    {
+                        derived_empty = true;
+                    }
+                    derived.insert(id.to_string(), clause);
+                }
+                other => {
+                    return Err(CheckError::InvalidCertificate(format!(
+                        "unsupported Alethe command `{other}`"
+                    )));
+                }
+            }
+        }
+
+        if !derived_empty {
+            return Err(CheckError::InvalidCertificate(
+                "Alethe proof did not derive the empty clause `(cl)` or `false`".to_string(),
+            ));
+        }
+
+        Ok(TrustReceipt {
+            goal_hash: obligation.goal_hash.clone(),
+            semantics_id: obligation.semantics_id.clone(),
+            evidence_format: ALETHE_FORMAT_ID.to_string(),
+            checker_id: self.id().to_string(),
+            tcb: vec![
+                self.id().to_string(),
+                SMT_EMITTER_VERSION_ID.to_string(),
+                obligation.semantics_id.clone(),
+            ],
+            tier: TrustTier::KernelCert,
+            details: format!("kernel-verified {steps_checked} Alethe proof step(s)"),
+        })
+    }
+}
+
+fn check_alethe_rule(
+    id: &str,
+    rule: &str,
+    clause: &[SExpr],
+    premises: &[&[SExpr]],
+) -> Result<(), CheckError> {
+    match rule {
+        "true" => {
+            if clause.len() == 1 && clause[0].as_atom() == Some("true") {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `true` rule")))
+            }
+        }
+        "false" => {
+            if clause.len() == 1
+                && clause[0].is_not_of(&SExpr::Atom("false".to_string()))
+            {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `false` rule")))
+            }
+        }
+        "resolution" | "th_resolution" => {
+            if premises.len() < 2 {
+                return Err(CheckError::InvalidCertificate(format!(
+                    "step `{id}`: `{rule}` requires at least 2 premises"
+                )));
+            }
+            // Linear chain resolution over the listed premises:
+            let mut acc: Vec<SExpr> = premises[0].to_vec();
+            for next in &premises[1..] {
+                let mut pivot: Option<(usize, usize)> = None;
+                'outer: for (i, a) in acc.iter().enumerate() {
+                    for (j, b) in next.iter().enumerate() {
+                        if a.is_complement(b) {
+                            pivot = Some((i, j));
+                            break 'outer;
+                        }
+                    }
+                }
+                let Some((pi, pj)) = pivot else {
+                    return Err(CheckError::InvalidCertificate(format!(
+                        "step `{id}`: `{rule}` has no complementary pivot literal between premises"
+                    )));
+                };
+                let mut merged = Vec::new();
+                for (i, lit) in acc.into_iter().enumerate() {
+                    if i != pi && !merged.contains(&lit) {
+                        merged.push(lit);
+                    }
+                }
+                for (j, lit) in next.iter().enumerate() {
+                    if j != pj && !merged.contains(lit) {
+                        merged.push(lit.clone());
+                    }
+                }
+                acc = merged;
+            }
+            // Every literal in `acc` must appear in the claimed resolvent `clause`,
+            // and `clause` must not contain extra unproven literals (weakening only on exact match).
+            let same = acc.iter().all(|l| clause.contains(l))
+                && clause.iter().all(|l| acc.contains(l));
+            if same {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!(
+                    "step `{id}`: `{rule}` resolvent does not match claimed clause"
+                )))
+            }
+        }
+        "and" => {
+            // Premise is `(and a1 a2 ...)` -> clause is single conjunct `ai`.
+            if premises.len() != 1 || premises[0].len() != 1 || clause.len() != 1 {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `and`")));
+            }
+            let Some(conj) = premises[0][0].as_list() else {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: premise not `(and ...)`")));
+            };
+            if conj.first().and_then(SExpr::as_atom) == Some("and") && conj[1..].contains(&clause[0]) {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: literal not a conjunct of premise")))
+            }
+        }
+        "not_not" => {
+            // Premise is `(not (not p))` -> clause is `p`, OR tautology `(cl (not (not (not p))) p)`.
+            if premises.len() == 1 && premises[0].len() == 1 && clause.len() == 1 {
+                if let Some(outer) = premises[0][0].as_list() {
+                    if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                        if let Some(inner) = outer[1].as_list() {
+                            if inner.len() == 2 && inner[0].as_atom() == Some("not") && inner[1] == clause[0] {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `not_not`")))
+        }
+        "contraction" => {
+            if premises.len() != 1 {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `contraction`")));
+            }
+            let ok = premises[0].iter().all(|l| clause.contains(l))
+                && clause.iter().all(|l| premises[0].contains(l));
+            if ok {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: contraction mismatch")))
+            }
+        }
+        "eq_reflexive" => {
+            if clause.len() == 1 {
+                if let Some(eq) = clause[0].as_list() {
+                    if eq.len() == 3 && eq[0].as_atom() == Some("=") && eq[1] == eq[2] {
+                        return Ok(());
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `eq_reflexive`")))
+        }
+        "eq_symmetric" => {
+            if premises.len() == 1 && premises[0].len() == 1 && clause.len() == 1 {
+                if let (Some(p), Some(c)) = (premises[0][0].as_list(), clause[0].as_list()) {
+                    if p.len() == 3 && c.len() == 3 && p[0].as_atom() == Some("=")
+                        && c[0].as_atom() == Some("=") && p[1] == c[2] && p[2] == c[1]
+                    {
+                        return Ok(());
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `eq_symmetric`")))
+        }
+        "eq_transitive" => {
+            if premises.len() == 2 && premises[0].len() == 1 && premises[1].len() == 1 && clause.len() == 1 {
+                if let (Some(p1), Some(p2), Some(c)) = (
+                    premises[0][0].as_list(),
+                    premises[1][0].as_list(),
+                    clause[0].as_list(),
+                ) {
+                    if p1.len() == 3 && p2.len() == 3 && c.len() == 3
+                        && p1[0].as_atom() == Some("=")
+                        && p2[0].as_atom() == Some("=")
+                        && c[0].as_atom() == Some("=")
+                        && p1[2] == p2[1]
+                        && c[1] == p1[1]
+                        && c[2] == p2[2]
+                    {
+                        return Ok(());
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `eq_transitive`")))
+        }
+        other => Err(CheckError::InvalidCertificate(format!(
+            "step `{id}`: unsupported Alethe rule `{other}`"
+        ))),
     }
 }

@@ -285,6 +285,23 @@ impl SemGraph {
         self.push(SemOp::Param { index, name: name.into(), ty }, ty)
     }
 
+    /// Import all nodes from `other` into `self`, remapping `SemOp::Param { index, .. }`
+    /// to `param_map[index]` so two independently lowered `SemProgram`s share parameters.
+    pub fn import_graph(&mut self, other: &SemGraph, param_map: &[NodeId]) -> Vec<NodeId> {
+        let mut map: Vec<NodeId> = Vec::with_capacity(other.nodes.len());
+        for (op, ty) in &other.nodes {
+            let new_id = match op {
+                SemOp::Param { index, .. } if *index < param_map.len() => param_map[*index],
+                _ => {
+                    let remapped = remap_op_slice(op, &map);
+                    self.push(remapped, *ty)
+                }
+            };
+            map.push(new_id);
+        }
+        map
+    }
+
     pub fn not(&mut self, a: NodeId) -> NodeId {
         match self.op(a) {
             SemOp::BoolConst(b) => return self.bool_const(!b),
@@ -819,6 +836,12 @@ pub enum ObligationKind {
     Refinement { description: String },
     /// Body matches a pure mathematical specification (and is well-defined).
     FunctionalEquiv { spec_name: String },
+    /// Two target-specialized bodies of the same `prim` are semantically equivalent.
+    CrossTargetEquiv { body_a: String, body_b: String },
+    /// A `rewrite` rule's LHS and RHS are semantically equivalent under its precondition.
+    RewriteEquiv { rule_name: String },
+    /// Core function and emitted LLVM IR (or pre/post optimization Core) agree semantically.
+    TranslationVal { fn_name: String, stage: String },
 }
 
 impl fmt::Display for ObligationKind {
@@ -829,6 +852,13 @@ impl fmt::Display for ObligationKind {
             ObligationKind::WellDefined => write!(f, "well-defined"),
             ObligationKind::Refinement { description } => write!(f, "refinement({description})"),
             ObligationKind::FunctionalEquiv { spec_name } => write!(f, "equiv({spec_name})"),
+            ObligationKind::CrossTargetEquiv { body_a, body_b } => {
+                write!(f, "cross-target-equiv({body_a} == {body_b})")
+            }
+            ObligationKind::RewriteEquiv { rule_name } => write!(f, "rewrite-equiv({rule_name})"),
+            ObligationKind::TranslationVal { fn_name, stage } => {
+                write!(f, "translation-val({fn_name}:{stage})")
+            }
         }
     }
 }
@@ -917,6 +947,71 @@ fn compute_goal_hash(
     }
     let digest = hasher.finalize();
     format!("sha256:{:x}", digest)
+}
+
+fn remap_op_slice(op: &SemOp, map: &[NodeId]) -> SemOp {
+    let r = |id: NodeId| map[id.0 as usize];
+    match op.clone() {
+        SemOp::BoolConst(b) => SemOp::BoolConst(b),
+        SemOp::BvConst { width, bits } => SemOp::BvConst { width, bits },
+        SemOp::FpConst { fmt, bits } => SemOp::FpConst { fmt, bits },
+        SemOp::Param { index, name, ty } => SemOp::Param { index, name, ty },
+        SemOp::Not(a) => SemOp::Not(r(a)),
+        SemOp::And(a, b) => SemOp::And(r(a), r(b)),
+        SemOp::Or(a, b) => SemOp::Or(r(a), r(b)),
+        SemOp::Xor(a, b) => SemOp::Xor(r(a), r(b)),
+        SemOp::Iff(a, b) => SemOp::Iff(r(a), r(b)),
+        SemOp::Implies(a, b) => SemOp::Implies(r(a), r(b)),
+        SemOp::Ite(c, t, e) => SemOp::Ite(r(c), r(t), r(e)),
+        SemOp::BvNot(a) => SemOp::BvNot(r(a)),
+        SemOp::BvNeg(a) => SemOp::BvNeg(r(a)),
+        SemOp::BvExtract { x, hi, lo } => SemOp::BvExtract { x: r(x), hi, lo },
+        SemOp::BvConcat(a, b) => SemOp::BvConcat(r(a), r(b)),
+        SemOp::BvZExt { x, to } => SemOp::BvZExt { x: r(x), to },
+        SemOp::BvSExt { x, to } => SemOp::BvSExt { x: r(x), to },
+        SemOp::BvBitReverse(a) => SemOp::BvBitReverse(r(a)),
+        SemOp::BvBSwap(a) => SemOp::BvBSwap(r(a)),
+        SemOp::BvCtPop(a) => SemOp::BvCtPop(r(a)),
+        SemOp::BvCtlz(a) => SemOp::BvCtlz(r(a)),
+        SemOp::BvCttz(a) => SemOp::BvCttz(r(a)),
+        SemOp::BvAdd(a, b) => SemOp::BvAdd(r(a), r(b)),
+        SemOp::BvSub(a, b) => SemOp::BvSub(r(a), r(b)),
+        SemOp::BvMul(a, b) => SemOp::BvMul(r(a), r(b)),
+        SemOp::BvUDiv(a, b) => SemOp::BvUDiv(r(a), r(b)),
+        SemOp::BvURem(a, b) => SemOp::BvURem(r(a), r(b)),
+        SemOp::BvSDiv(a, b) => SemOp::BvSDiv(r(a), r(b)),
+        SemOp::BvSRem(a, b) => SemOp::BvSRem(r(a), r(b)),
+        SemOp::BvAnd(a, b) => SemOp::BvAnd(r(a), r(b)),
+        SemOp::BvOr(a, b) => SemOp::BvOr(r(a), r(b)),
+        SemOp::BvXor(a, b) => SemOp::BvXor(r(a), r(b)),
+        SemOp::BvShl(a, b) => SemOp::BvShl(r(a), r(b)),
+        SemOp::BvLShr(a, b) => SemOp::BvLShr(r(a), r(b)),
+        SemOp::BvAShr(a, b) => SemOp::BvAShr(r(a), r(b)),
+        SemOp::BvFshl(a, b, c) => SemOp::BvFshl(r(a), r(b), r(c)),
+        SemOp::BvFshr(a, b, c) => SemOp::BvFshr(r(a), r(b), r(c)),
+        SemOp::BvEq(a, b) => SemOp::BvEq(r(a), r(b)),
+        SemOp::BvULt(a, b) => SemOp::BvULt(r(a), r(b)),
+        SemOp::BvULe(a, b) => SemOp::BvULe(r(a), r(b)),
+        SemOp::BvSLt(a, b) => SemOp::BvSLt(r(a), r(b)),
+        SemOp::BvSLe(a, b) => SemOp::BvSLe(r(a), r(b)),
+        SemOp::FpNeg(a) => SemOp::FpNeg(r(a)),
+        SemOp::FpAdd(a, b) => SemOp::FpAdd(r(a), r(b)),
+        SemOp::FpSub(a, b) => SemOp::FpSub(r(a), r(b)),
+        SemOp::FpMul(a, b) => SemOp::FpMul(r(a), r(b)),
+        SemOp::FpDiv(a, b) => SemOp::FpDiv(r(a), r(b)),
+        SemOp::FpCmp(p, a, b) => SemOp::FpCmp(p, r(a), r(b)),
+        SemOp::FpToBvBits(a) => SemOp::FpToBvBits(r(a)),
+        SemOp::BvBitsToFp(f, a) => SemOp::BvBitsToFp(f, r(a)),
+        SemOp::BvToFpSigned(f, a) => SemOp::BvToFpSigned(f, r(a)),
+        SemOp::BvToFpUnsigned(f, a) => SemOp::BvToFpUnsigned(f, r(a)),
+        SemOp::FpToBvSigned(w, a) => SemOp::FpToBvSigned(w, r(a)),
+        SemOp::FpToBvUnsigned(w, a) => SemOp::FpToBvUnsigned(w, r(a)),
+        SemOp::FpToFp(f, a) => SemOp::FpToFp(f, r(a)),
+        SemOp::FpUnary(u, a) => SemOp::FpUnary(u, r(a)),
+        SemOp::FpCopySign(a, b) => SemOp::FpCopySign(r(a), r(b)),
+        SemOp::FpFitsSigned(w, a) => SemOp::FpFitsSigned(w, r(a)),
+        SemOp::FpFitsUnsigned(w, a) => SemOp::FpFitsUnsigned(w, r(a)),
+    }
 }
 
 fn remap_op(op: &SemOp, map: &HashMap<NodeId, u32>) -> SemOp {

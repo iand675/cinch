@@ -23,7 +23,7 @@ use llvm_ir::LlvmSemantics;
 use prelude_bridge::{extract_file_obligations, ExtractedPrimBody};
 use sem::{Obligation, SemParam, SemProgram, SemTy, TheorySet};
 use serde::{Deserialize, Serialize};
-use smt::{emit_smtlib2, ExternalSmtProver, SmtAttestationChecker};
+use smt::{emit_smtlib2, AletheProofChecker, ExternalSmtProver, SmtAttestationChecker};
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
@@ -461,6 +461,7 @@ impl VerifierEngine {
             provers: vec![Box::new(CdclLratProver::default())],
             checkers: vec![
                 Box::new(KernelLratChecker::default()),
+                Box::new(AletheProofChecker),
                 Box::new(SmtAttestationChecker),
             ],
             store: EvidenceStore::in_memory(),
@@ -1279,5 +1280,174 @@ module SpecTest where
             disproved_names.is_empty(),
             "expected zero disproved prelude obligations, got {disproved_names:?}"
         );
+    }
+
+    #[test]
+    fn acyclic_cfg_br_phi_guards_ub_and_rejects_cycles() {
+        // Guarded udiv via acyclic `br i1` + `phi`: well-defined for ALL U8 inputs
+        // because the `udiv` in `nonzero:` is guarded by `reach[nonzero] = (%1 != 0)`!
+        let src = r#"
+module Test where
+  prim safe-div-u8 :: U8 -> U8 -> U8 where
+    llvm {
+      %z = icmp eq i8 %1, 0
+      br i1 %z, label %zero, label %nonzero
+    zero:
+      br label %done
+    nonzero:
+      %q = udiv i8 %0, %1
+      br label %done
+    done:
+      %r = phi i8 [ 0, %zero ], [ %q, %nonzero ]
+      ret i8 %r
+    }
+"#;
+        let reports = verify_snippet(src, Policy::jpl_strict());
+        assert_eq!(reports.len(), 1);
+        assert!(
+            matches!(
+                &reports[0].status,
+                VerificationStatus::Verified {
+                    receipt: TrustReceipt { tier: TrustTier::KernelCert, .. },
+                    ..
+                }
+            ),
+            "expected guarded acyclic CFG udiv to verify with LRAT, got {:?}",
+            reports[0]
+        );
+
+        // Backward branch (cycle) MUST be rejected!
+        let cyclic = r#"
+module Test where
+  prim loop-u8 :: U8 -> U8 where
+    llvm {
+    head:
+      br label %head
+    }
+"#;
+        let engine = VerifierEngine::default_engine(Policy::jpl_strict());
+        let sems = engine.semantics_refs();
+        let bodies = extract_source_obligations(cyclic, &sems).expect("parse");
+        assert!(
+            bodies[0].skip_reason.as_deref().unwrap_or("").contains("cyclic"),
+            "expected cyclic CFG rejection, got {:?}",
+            bodies[0].skip_reason
+        );
+    }
+
+    #[test]
+    fn cross_target_equivalence_proves_agreeing_bodies_and_catches_mismatch() {
+        let good = r#"
+module Test where
+  prim fast-double :: U32 -> U32 where
+    llvm {
+      %r = shl i32 %0, 1
+      ret i32 %r
+    } when arch x86_64
+    llvm {
+      %r = add i32 %0, %0
+      ret i32 %r
+    } when arch aarch64
+    llvm {
+      %r = mul i32 %0, 2
+      ret i32 %r
+    }
+"#;
+        let reports = verify_snippet(good, Policy::jpl_strict());
+        let ct: Vec<_> = reports
+            .iter()
+            .filter(|r| r.name.contains("::cross-target("))
+            .collect();
+        assert_eq!(ct.len(), 3, "expected 3 pairwise cross-target obligations, got {ct:?}");
+        for r in &ct {
+            assert!(
+                matches!(
+                    &r.status,
+                    VerificationStatus::Verified {
+                        receipt: TrustReceipt { tier: TrustTier::KernelCert, .. },
+                        ..
+                    }
+                ),
+                "expected cross-target equivalence to verify, got {r:?}"
+            );
+        }
+
+        let bad = good.replace("add i32 %0, %0", "add i32 %0, 1");
+        let bad_reports = verify_snippet(&bad, Policy::jpl_strict());
+        assert!(
+            bad_reports
+                .iter()
+                .any(|r| r.name.contains("::cross-target(") && matches!(r.status, VerificationStatus::Disproved { .. })),
+            "expected mismatching cross-target body to be disproved, got {bad_reports:?}"
+        );
+    }
+
+    #[test]
+    fn alethe_proof_checker_admits_valid_refutation_at_kernel_cert_and_rejects_bogus() {
+        use crate::prim_verify::smt::{AletheCertificate, AletheProofChecker, ALETHE_FORMAT_ID};
+
+        let mut g = sem::SemGraph::new();
+        let a = g.param(0, "a", SemTy::Bv(8));
+        let goal = g.bv_eq(a, a);
+        let ob = Obligation::new(
+            "alethe::refl",
+            "llvm-sem@21.1",
+            sem::ObligationKind::WellDefined,
+            vec![SemParam { index: 0, name: "a".to_string(), ty: SemTy::Bv(8), signed: false }],
+            g,
+            goal,
+        );
+
+        let valid_proof = r#"
+(assume h1 (not (= p0 p0)))
+(step t1 (cl (= p0 p0)) :rule eq_reflexive)
+(step t2 (cl) :rule resolution :premises (h1 t1))
+"#;
+        let cert = AletheCertificate {
+            goal_hash: ob.goal_hash.clone(),
+            semantics_id: ob.semantics_id.clone(),
+            proof: valid_proof.to_string(),
+        };
+        let ev = Evidence {
+            format: ALETHE_FORMAT_ID.to_string(),
+            prover_id: "smt-cvc5-alethe".to_string(),
+            payload: serde_json::to_string(&cert).unwrap(),
+        };
+        let checker = AletheProofChecker;
+        let receipt = checker.check(&ob, &ev).expect("valid Alethe proof should pass");
+        assert_eq!(receipt.tier, TrustTier::KernelCert);
+        assert_eq!(receipt.checker_id, "cinch-alethe-checker@1");
+        assert!(Policy::jpl_strict().admits(&receipt).is_ok());
+
+        // Bogus resolution (no complementary pivot) MUST fail!
+        let bad_proof = r#"
+(assume h1 (= p0 p0))
+(step t1 (cl (= p0 p0)) :rule eq_reflexive)
+(step t2 (cl) :rule resolution :premises (h1 t1))
+"#;
+        let bad_ev = Evidence {
+            format: ALETHE_FORMAT_ID.to_string(),
+            prover_id: "malicious".to_string(),
+            payload: serde_json::to_string(&AletheCertificate {
+                goal_hash: ob.goal_hash.clone(),
+                semantics_id: ob.semantics_id.clone(),
+                proof: bad_proof.to_string(),
+            })
+            .unwrap(),
+        };
+        assert!(checker.check(&ob, &bad_ev).is_err());
+
+        // Goal-hash mismatch MUST fail!
+        let wrong_hash_ev = Evidence {
+            format: ALETHE_FORMAT_ID.to_string(),
+            prover_id: "malicious".to_string(),
+            payload: serde_json::to_string(&AletheCertificate {
+                goal_hash: "sha256:0000".to_string(),
+                semantics_id: ob.semantics_id.clone(),
+                proof: valid_proof.to_string(),
+            })
+            .unwrap(),
+        };
+        assert!(checker.check(&ob, &wrong_hash_ev).is_err());
     }
 }
