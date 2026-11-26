@@ -237,7 +237,7 @@ module Cinch.Interface where
   value-start :: Bytes -> String -> Option Nat
   value-start hay key =
     let needle = string-to-bytes (key-needle key) in
-    let position = if string-compare key "compiler" == 0 then forward-key hay needle 0 0
+    let position = if key == "compiler" then forward-key hay needle 0 0
           else backward-key hay needle (bytes-len hay) 0 in
     case position of
       None -> None
@@ -404,14 +404,14 @@ module Cinch.Interface where
   -- has unique keys (`Text.Json` refuses duplicates), so there is at most one.
   json-field :: String -> Json -> Option Json
   json-field key v = case v of
-    JObj kk vv rest -> if string-compare key kk == 0 then Some vv else json-field key rest
+    JObj kk vv rest -> if key == kk then Some vv else json-field key rest
     other -> None
 
   -- The items of an array spine. Anything that is not an array yields `Nil`.
   json-items :: Json -> List Json
   json-items v = case v of
-    JArr h t -> Cons h (json-items t)
-    other -> Nil
+    JArr h t -> h : (json-items t)
+    other -> []
 
   -- A string-valued field, or `None` when it is absent or not a string.
   string-field :: String -> Json -> Option String
@@ -436,8 +436,8 @@ module Cinch.Interface where
   -- value is not here".
   field-strings-of :: String -> List Json -> List String
   field-strings-of key items = case items of
-    Nil -> Nil
-    Cons item rest -> Cons (item-field-string key item) (field-strings-of key rest)
+    [] -> []
+    item : rest -> (item-field-string key item) : (field-strings-of key rest)
 
   item-field-string :: String -> Json -> String
   item-field-string key item = case string-field key item of
@@ -492,8 +492,8 @@ module Cinch.Interface where
 
   fixity-rows-of :: List Json -> List String
   fixity-rows-of items = case items of
-    Nil -> Nil
-    Cons item rest -> Cons (fixity-row item) (fixity-rows-of rest)
+    [] -> []
+    item : rest -> (fixity-row item) : (fixity-rows-of rest)
 
   -- The recorded fixity rows, or `None` when the interface carries no
   -- `fixities` table at all. An interface that carries the table but no rows
@@ -534,13 +534,13 @@ module Cinch.Interface where
 
   string-elem :: String -> List String -> Bool
   string-elem k xs = case xs of
-    Nil -> False
-    Cons y rest -> if string-compare k y == 0 then True else string-elem k rest
+    [] -> False
+    y : rest -> if k == y then True else string-elem k rest
 
   all-elem :: List String -> List String -> Bool
   all-elem xs ys = case xs of
-    Nil -> True
-    Cons x rest -> if string-elem x ys then all-elem rest ys else False
+    [] -> True
+    x : rest -> if string-elem x ys then all-elem rest ys else False
 
   -- Equal lengths plus containment both ways: a multiset comparison that does
   -- not build a second structure. Order-insensitive on purpose: a consumer
@@ -553,17 +553,17 @@ module Cinch.Interface where
 
   strings-equal :: List String -> List String -> Bool
   strings-equal xs ys = case xs of
-    Nil -> case ys of
-      Nil -> True
-      Cons y rest -> False
-    Cons x rest -> case ys of
-      Nil -> False
-      Cons y yrest -> if string-compare x y == 0 then strings-equal rest yrest else False
+    [] -> case ys of
+      [] -> True
+      y : rest -> False
+    x : rest -> case ys of
+      [] -> False
+      y : yrest -> if x == y then strings-equal rest yrest else False
 
   all-non-empty :: List String -> Bool
   all-non-empty xs = case xs of
-    Nil -> True
-    Cons x rest -> if string-compare x empty-string == 0 then False else all-non-empty rest
+    [] -> True
+    x : rest -> if x == empty-string then False else all-non-empty rest
 
   -- ----------------------------------------------------- the answers as data
 
@@ -629,17 +629,16 @@ module Cinch.Interface where
   -- `string-concat-all` the whole report goes through.
   prefixed-lines :: String -> List String -> List String
   prefixed-lines prefix xs = case xs of
-    Nil -> Nil
-    Cons x rest -> Cons (line-of prefix x) (prefixed-lines prefix rest)
+    [] -> []
+    x : rest -> (line-of prefix x) : (prefixed-lines prefix rest)
 
   value-lines :: List String -> List String -> List String
   value-lines names schemes = case names of
-    Nil -> Nil
-    Cons n rest -> case schemes of
-      Nil -> Nil
-      Cons s srest ->
-        Cons (line-of "value" (string-concat n (string-concat " :: " s)))
-          (value-lines rest srest)
+    [] -> []
+    n : rest -> case schemes of
+      [] -> []
+      s : srest ->
+        (line-of "value" (string-concat n (string-concat " :: " s))) : (value-lines rest srest)
 
   option-text :: Option String -> String
   option-text o = case o of
@@ -673,20 +672,7 @@ module Cinch.Interface where
   -- already newline-terminated by their own renderers), so the report is one
   -- concatenation of a list rather than a hand-balanced nest of calls.
   report-lines :: Bytes -> Bytes -> Bytes -> Json -> List String
-  report-lines src source copy doc = Cons (fact-module doc)
-    (Cons (fact-schema doc)
-    (Cons (fact-recorded-hash doc)
-    (Cons (fact-fnv-hash source)
-    (Cons (fact-sha256 source)
-    (Cons (fact-imports-line doc)
-    (Cons (fact-imports doc)
-    (Cons (fact-values-line doc)
-    (Cons (fact-values doc)
-    (Cons (fact-fixities-line doc)
-    (Cons (fact-fixities doc)
-    (Cons (fact-iface-hash src doc)
-    (Cons (fact-stable src copy)
-    Nil))))))))))))
+  report-lines src source copy doc = (fact-module doc) : (fact-schema doc) : (fact-recorded-hash doc) : (fact-fnv-hash source) : (fact-sha256 source) : (fact-imports-line doc) : (fact-imports doc) : (fact-values-line doc) : (fact-values doc) : (fact-fixities-line doc) : (fact-fixities doc) : (fact-iface-hash src doc) : ([fact-stable src copy])
 
   fact-module :: Json -> String
   fact-module doc = line-of "module" (option-text (iface-module doc))
@@ -731,7 +717,7 @@ module Cinch.Interface where
   option-list :: Option (List String) -> List String
   option-list o = case o of
     Some xs -> xs
-    None -> Nil
+    None -> []
 
   yes-no :: Bool -> String
   yes-no b = if b then "yes" else "no"

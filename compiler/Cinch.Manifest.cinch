@@ -133,15 +133,15 @@ module Cinch.Manifest where
   -- has unique keys (`Text.Json` refuses duplicates), so there is at most one.
   manifest-field :: String -> Json -> Option Json
   manifest-field k v = case v of
-    JObj kk vv rest -> if string-compare k kk == 0 then Some vv else manifest-field k rest
+    JObj kk vv rest -> if k == kk then Some vv else manifest-field k rest
     other -> None
 
   -- The items of an array spine. Anything that is not an array yields `Nil`,
   -- the convention `Cinch.Ast`'s spine walkers use for a malformed tail.
   manifest-items :: Json -> List Json
   manifest-items v = case v of
-    JArr h t -> Cons h (manifest-items t)
-    other -> Nil
+    JArr h t -> h : (manifest-items t)
+    other -> []
 
   -- The items of a string array. `None` when the value is not an array or an
   -- item is not a string, so a caller can tell "absent" from "empty".
@@ -149,10 +149,10 @@ module Cinch.Manifest where
   string-items-of v = case v of
     JArr h t -> case h of
       JStr s -> case string-items-of t of
-        Some ss -> Some (Cons s ss)
+        Some ss -> Some (s : ss)
         None -> None
       other -> None
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     other -> None
 
   name-of-item :: Json -> Option String
@@ -164,17 +164,17 @@ module Cinch.Manifest where
 
   module-names-of :: List Json -> Option (List String)
   module-names-of items = case items of
-    Nil -> Some Nil
-    Cons item rest -> case name-of-item item of
+    [] -> Some []
+    item : rest -> case name-of-item item of
       Some n -> case module-names-of rest of
-        Some ns -> Some (Cons n ns)
+        Some ns -> Some (n : ns)
         None -> None
       None -> None
 
   facade-of :: List Json -> Option String
   facade-of items = case items of
-    Nil -> None
-    Cons item rest -> case manifest-field "facade" item of
+    [] -> None
+    item : rest -> case manifest-field "facade" item of
       Some f -> case f of
         JBool b -> if b then name-of-item item else facade-of rest
         other -> facade-of rest
@@ -182,18 +182,18 @@ module Cinch.Manifest where
 
   string-index :: String -> List String -> Nat -> Option Nat
   string-index k xs i = case xs of
-    Nil -> None
-    Cons y rest -> if string-compare k y == 0 then Some i else string-index k rest (i + 1)
+    [] -> None
+    y : rest -> if k == y then Some i else string-index k rest (i + 1)
 
   string-elem :: String -> List String -> Bool
   string-elem k xs = case xs of
-    Nil -> False
-    Cons y rest -> if string-compare k y == 0 then True else string-elem k rest
+    [] -> False
+    y : rest -> if k == y then True else string-elem k rest
 
   all-elem :: List String -> List String -> Bool
   all-elem xs ys = case xs of
-    Nil -> True
-    Cons x rest -> if string-elem x ys then all-elem rest ys else False
+    [] -> True
+    x : rest -> if string-elem x ys then all-elem rest ys else False
 
   -- Equal lengths plus containment both ways: a multiset comparison that
   -- does not build a second structure.
@@ -207,24 +207,24 @@ module Cinch.Manifest where
   -- The entry list of an object spine, values untouched.
   entries-of-spine :: Json -> List (String, Json)
   entries-of-spine t = case t of
-    JObj k x rest -> Cons (k, x) (entries-of-spine rest)
-    other -> Nil
+    JObj k x rest -> (k, x) : (entries-of-spine rest)
+    other -> []
 
   -- The object spine an entry list denotes.
   object-spine :: List (String, Json) -> Json
   object-spine es = case es of
-    Nil -> JObjEnd
-    Cons e rest -> case e of
+    [] -> JObjEnd
+    e : rest -> case e of
       (k, v) -> JObj k v (object-spine rest)
 
   reverse-entries :: List (String, Json) -> List (String, Json)
-  reverse-entries es = reverse-entries-into es Nil
+  reverse-entries es = reverse-entries-into es []
 
   reverse-entries-into :: List (String, Json) -> List (String, Json) -> List (String, Json)
   reverse-entries-into es acc = case es of
-    Nil -> acc
-    Cons e rest -> case e of
-      (k, v) -> reverse-entries-into rest (Cons (k, manifest-reorder v) acc)
+    [] -> acc
+    e : rest -> case e of
+      (k, v) -> reverse-entries-into rest ((k, manifest-reorder v) : acc)
 
   -- Every object in the document with its entries in reverse order, member
   -- values visited too. The canonical form sorts entries, so this changes
@@ -232,7 +232,7 @@ module Cinch.Manifest where
   manifest-reorder :: Json -> Json
   manifest-reorder v = case v of
     JArr h t -> JArr (manifest-reorder h) (manifest-reorder t)
-    JObj k x t -> object-spine (reverse-entries (Cons (k, manifest-reorder x) (entries-of-spine t)))
+    JObj k x t -> object-spine (reverse-entries ((k, manifest-reorder x) : (entries-of-spine t)))
     JObjEnd -> JObjEnd
     JArrEnd -> JArrEnd
     JNull -> JNull
@@ -254,14 +254,14 @@ module Cinch.Manifest where
   -- addition made no difference" rather than silently.
   manifest-add-key :: Json -> Json
   manifest-add-key v = case v of
-    JObj k x t -> object-spine (Cons (probe-key, JStr probe-value) (Cons (k, x) (entries-of-spine t)))
+    JObj k x t -> object-spine ((probe-key, JStr probe-value) : (k, x) : (entries-of-spine t))
     other -> other
 
   -- ------------------------------------------------------------ the survey
 
   hash-stable-of :: Bytes -> Bytes -> Bytes -> Bool
   hash-stable-of c rc dc =
-    (string-compare (content-identity c) (content-identity rc) == 0) && (not (string-compare (content-identity c) (content-identity dc) == 0))
+    (content-identity c == content-identity rc) && (content-identity c /= content-identity dc)
 
   canonical-or-empty :: Bytes -> Bytes
   canonical-or-empty c = case manifest-canonical c of
@@ -281,7 +281,7 @@ module Cinch.Manifest where
       (round-trip-code-of c c2)
       (manifest-bytes-equal c rc)
       (not (manifest-bytes-equal c dc))
-      (not (string-compare (print-json v) (print-json r) == 0))
+      (print-json v /= print-json r)
       (hash-stable-of c rc dc)
 
   manifest-survey :: Bytes -> ManifestSurvey
@@ -313,7 +313,7 @@ module Cinch.Manifest where
   module-items-of :: Json -> List Json
   module-items-of v = case manifest-field "modules" v of
     Some ms -> manifest-items ms
-    None -> Nil
+    None -> []
 
   order-of :: Json -> Option (List String)
   order-of v = case manifest-field "order" v of

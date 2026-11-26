@@ -57,9 +57,6 @@ module Cinch.Incremental where
   export plan-incremental-build, record-incremental-success, invalidate-incremental-session
   export render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
-
   -- ------------------------------------------------------------- REAPER
 
   -- Whole-program item index built from a resolved Program:
@@ -83,18 +80,18 @@ module Cinch.Incremental where
 
   str-list-json :: List String -> Json
   str-list-json xs = case xs of
-    Nil -> JArrEnd
-    Cons first rest -> JArr (JStr first) (str-list-json rest)
+    [] -> JArrEnd
+    first : rest -> JArr (JStr first) (str-list-json rest)
 
   ctor-list-json :: List (String, TypeExpr) -> Json
   ctor-list-json cs = case cs of
-    Nil -> JArrEnd
-    Cons (name, ty) rest -> JArr (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)) (ctor-list-json rest)
+    [] -> JArrEnd
+    (name, ty) : rest -> JArr (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)) (ctor-list-json rest)
 
   bool-pair-list-json :: List (String, Bool) -> Json
   bool-pair-list-json pairs = case pairs of
-    Nil -> JArrEnd
-    Cons (name, flag) rest -> JArr (JArr (JStr name) (JArr (JBool flag) JArrEnd)) (bool-pair-list-json rest)
+    [] -> JArrEnd
+    (name, flag) : rest -> JArr (JArr (JStr name) (JArr (JBool flag) JArrEnd)) (bool-pair-list-json rest)
 
   result-str-json :: Result String String -> Json
   result-str-json r = case r of
@@ -103,8 +100,8 @@ module Cinch.Incremental where
 
   prim-bodies-json :: List PrimBody -> Json
   prim-bodies-json bodies = case bodies of
-    Nil -> JArrEnd
-    Cons b rest -> JArr (JStr (prim-body-tag b)) (prim-bodies-json rest)
+    [] -> JArrEnd
+    b : rest -> JArr (JStr (prim-body-tag b)) (prim-bodies-json rest)
 
   prim-body-tag :: PrimBody -> String
   prim-body-tag body = case body of
@@ -114,7 +111,7 @@ module Cinch.Incremental where
   strip-source-spans :: Json -> Json
   strip-source-spans doc = case doc of
     JObj key val rest ->
-      if same key "source_start" || same key "source_end" then strip-source-spans rest
+      if key == "source_start" || key == "source_end" then strip-source-spans rest
       else JObj key val (strip-source-spans rest)
     other -> other
 
@@ -166,8 +163,8 @@ module Cinch.Incremental where
 
   decls-surface-json :: List Decl -> Json
   decls-surface-json ds = case ds of
-    Nil -> JArrEnd
-    Cons d rest -> JArr (decl-surface-json d) (decls-surface-json rest)
+    [] -> JArrEnd
+    d : rest -> JArr (decl-surface-json d) (decls-surface-json rest)
 
   decl-is-sensitive :: Decl -> Bool
   decl-is-sensitive d = case d of
@@ -190,63 +187,63 @@ module Cinch.Incremental where
 
   decls-have-sensitive :: List Decl -> Bool
   decls-have-sensitive ds = case ds of
-    Nil -> False
-    Cons d rest -> decl-is-sensitive d || decls-have-sensitive rest
+    [] -> False
+    d : rest -> decl-is-sensitive d || decls-have-sensitive rest
 
   json-has-str :: String -> Json -> Bool
   json-has-str wanted doc = case doc of
-    JStr s -> same s wanted
+    JStr s -> s == wanted
     JArr first rest -> json-has-str wanted first || json-has-str wanted rest
     JObj key val rest -> json-has-str wanted val || json-has-str wanted rest
     other -> False
 
   collect-clauses-map :: List Decl -> HashMap String (List (List Pat, Expr)) -> List String -> (HashMap String (List (List Pat, Expr)), List String)
   collect-clauses-map ds acc names-rev = case ds of
-    Nil -> (acc, reverse names-rev)
-    Cons d rest -> case d of
+    [] -> (acc, reverse names-rev)
+    d : rest -> case d of
       DFun sp name clauses -> case hash-map-lookup name acc of
         Some prior -> collect-clauses-map rest (hash-map-insert name (prior <> clauses) acc) names-rev
-        None -> collect-clauses-map rest (hash-map-insert name clauses acc) (Cons name names-rev)
+        None -> collect-clauses-map rest (hash-map-insert name clauses acc) (name : names-rev)
       other -> collect-clauses-map rest acc names-rev
 
   clauses-refs :: List (List Pat, Expr) -> List String -> List String
   clauses-refs cs acc = case cs of
-    Nil -> acc
-    Cons (pats, body) rest -> clauses-refs rest (expr-references body <> acc)
+    [] -> acc
+    (pats, body) : rest -> clauses-refs rest (expr-references body <> acc)
 
   dedup-names :: List String -> HashMap String Nat -> List String -> List String
   dedup-names xs seen acc = case xs of
-    Nil -> reverse acc
-    Cons name rest -> case hash-map-lookup name seen of
+    [] -> reverse acc
+    name : rest -> case hash-map-lookup name seen of
       Some present -> dedup-names rest seen acc
-      None -> dedup-names rest (hash-map-insert name 1 seen) (Cons name acc)
+      None -> dedup-names rest (hash-map-insert name 1 seen) (name : acc)
 
   add-reverse-edges :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
   add-reverse-edges caller callees rev = case callees of
-    Nil -> rev
-    Cons callee rest ->
-      let existing = case hash-map-lookup callee rev of Some xs -> xs; None -> Nil in
-      add-reverse-edges caller rest (hash-map-insert callee (Cons caller existing) rev)
+    [] -> rev
+    callee : rest ->
+      let existing = case hash-map-lookup callee rev of Some xs -> xs; None -> [] in
+      add-reverse-edges caller rest (hash-map-insert callee (caller : existing) rev)
 
   build-body-tables :: List String -> HashMap String (List (List Pat, Expr)) -> HashMap String String -> HashMap String (List String) -> HashMap String (List String) -> (HashMap String String, HashMap String (List String), HashMap String (List String))
   build-body-tables names clause-map hashes deps rev = case names of
-    Nil -> (hashes, deps, rev)
-    Cons name rest ->
-      let cs = case hash-map-lookup name clause-map of Some found -> found; None -> Nil in
+    [] -> (hashes, deps, rev)
+    name : rest ->
+      let cs = case hash-map-lookup name clause-map of Some found -> found; None -> [] in
       let h = fnv-ordered-json (source-clauses-document cs) in
-      let refs = dedup-names (clauses-refs cs Nil) hash-map-empty Nil in
+      let refs = dedup-names (clauses-refs cs []) hash-map-empty [] in
       build-body-tables rest clause-map (hash-map-insert name h hashes) (hash-map-insert name refs deps) (add-reverse-edges name refs rev)
 
   modules-surface-json :: List Module -> Json
   modules-surface-json ms = case ms of
-    Nil -> JArrEnd
-    Cons m rest ->
+    [] -> JArrEnd
+    m : rest ->
       JArr (JArr (JStr (m.name)) (JArr (decls-surface-json (module-decls m)) JArrEnd)) (modules-surface-json rest)
 
   all-module-decls :: List Module -> List Decl
   all-module-decls ms = case ms of
-    Nil -> Nil
-    Cons m rest -> module-decls m <> all-module-decls rest
+    [] -> []
+    m : rest -> module-decls m <> all-module-decls rest
 
   index-resolved-program :: Program -> ProgramIndex
   index-resolved-program program =
@@ -255,7 +252,7 @@ module Cinch.Incremental where
     let surface-doc = modules-surface-json ms in
     let surface = fnv-ordered-json surface-doc in
     let sensitive = decls-have-sensitive ds || json-has-str "TRefined" surface-doc in
-    let (clause-map, names) = collect-clauses-map ds hash-map-empty Nil in
+    let (clause-map, names) = collect-clauses-map ds hash-map-empty [] in
     let (hashes, deps, rev) = build-body-tables names clause-map hash-map-empty hash-map-empty hash-map-empty in
     ProgramIndex surface sensitive hashes names deps rev
 
@@ -290,13 +287,13 @@ module Cinch.Incremental where
 
   index-core-defs :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
   index-core-defs defs acc = case defs of
-    Nil -> acc
-    Cons d rest -> index-core-defs rest (hash-map-insert (d.name) d acc)
+    [] -> acc
+    d : rest -> index-core-defs rest (hash-map-insert (d.name) d acc)
 
   collect-total-body-names :: List CheckedBinding -> HashMap String Nat -> HashMap String Nat
   collect-total-body-names bindings acc = case bindings of
-    Nil -> acc
-    Cons b rest -> case checked-body-binding b of
+    [] -> acc
+    b : rest -> case checked-body-binding b of
       Some body -> collect-total-body-names rest (hash-map-insert (binding-name body) 1 acc)
       None -> collect-total-body-names rest acc
 
@@ -309,25 +306,25 @@ module Cinch.Incremental where
 
   find-dirty-bodies :: List String -> HashMap String String -> HashMap String String -> List String -> HashMap String Nat -> Nat -> (List String, HashMap String Nat, Nat, Nat)
   find-dirty-bodies names old-hashes new-hashes dirty-rev dirty-set reused = case names of
-    Nil -> (reverse dirty-rev, dirty-set, list-length dirty-rev, reused)
-    Cons name rest ->
+    [] -> (reverse dirty-rev, dirty-set, list-length dirty-rev, reused)
+    name : rest ->
       let unchanged = case (hash-map-lookup name old-hashes, hash-map-lookup name new-hashes) of
-            (Some a, Some b) -> same a b
+            (Some a, Some b) -> a == b
             other -> False in
       if unchanged then find-dirty-bodies rest old-hashes new-hashes dirty-rev dirty-set (reused + 1)
-      else find-dirty-bodies rest old-hashes new-hashes (Cons name dirty-rev) (hash-map-insert name 1 dirty-set) reused
+      else find-dirty-bodies rest old-hashes new-hashes (name : dirty-rev) (hash-map-insert name 1 dirty-set) reused
 
   any-in-set :: List String -> HashMap String Nat -> Bool
   any-in-set names table = case names of
-    Nil -> False
-    Cons name rest -> case hash-map-lookup name table of
+    [] -> False
+    name : rest -> case hash-map-lookup name table of
       Some present -> True
       None -> any-in-set rest table
 
   build-reusable-core :: List String -> HashMap String Nat -> HashMap String CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
   build-reusable-core names dirty-set last-core acc = case names of
-    Nil -> acc
-    Cons name rest -> case hash-map-lookup name dirty-set of
+    [] -> acc
+    name : rest -> case hash-map-lookup name dirty-set of
       Some dirty -> build-reusable-core rest dirty-set last-core acc
       None -> case hash-map-lookup name last-core of
         Some def -> build-reusable-core rest dirty-set last-core (hash-map-insert name def acc)
@@ -335,8 +332,8 @@ module Cinch.Incremental where
 
   mark-name-list :: List String -> HashMap String Nat -> HashMap String Nat
   mark-name-list names table = case names of
-    Nil -> table
-    Cons name rest -> mark-name-list rest (hash-map-insert name 1 table)
+    [] -> table
+    name : rest -> mark-name-list rest (hash-map-insert name 1 table)
 
   -- Direct callers of an edited function may have inlined its small total
   -- primitive body during RuntimeIr lowering (`imported-total-body`).
@@ -345,10 +342,10 @@ module Cinch.Incremental where
   -- edited body itself.
   expand-ir-dirty :: List String -> HashMap String (List String) -> HashMap String (List String) -> HashMap String Nat -> HashMap String Nat
   expand-ir-dirty dirty old-rev new-rev acc = case dirty of
-    Nil -> acc
-    Cons name rest ->
-      let callers1 = case hash-map-lookup name old-rev of Some xs -> xs; None -> Nil in
-      let callers2 = case hash-map-lookup name new-rev of Some xs -> xs; None -> Nil in
+    [] -> acc
+    name : rest ->
+      let callers1 = case hash-map-lookup name old-rev of Some xs -> xs; None -> [] in
+      let callers2 = case hash-map-lookup name new-rev of Some xs -> xs; None -> [] in
       expand-ir-dirty rest old-rev new-rev (mark-name-list callers2 (mark-name-list callers1 acc))
 
   plan-incremental-build :: IncrementalSession -> Program -> IncrementalPlan
@@ -360,8 +357,8 @@ module Cinch.Incremental where
         Some (ProgramIndex old-surface old-sens old-hashes old-names old-deps old-rev) ->
           case new-idx of
             ProgramIndex new-surface new-sens new-hashes new-names new-deps new-rev ->
-              if old-sens || new-sens || not (same old-surface new-surface) then PlanFullRebuild new-idx
-              else case find-dirty-bodies new-names old-hashes new-hashes Nil hash-map-empty 0 of
+              if old-sens || new-sens || old-surface /= new-surface then PlanFullRebuild new-idx
+              else case find-dirty-bodies new-names old-hashes new-hashes [] hash-map-empty 0 of
                 (dirty-list, dirty-set, dirty-n, reused-n) ->
                   if dirty-n == 0 then
                     (case last-ir of

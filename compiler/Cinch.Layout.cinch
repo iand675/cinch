@@ -20,49 +20,47 @@ module Cinch.Layout where
     field3 :: List String
     field4 :: Option Json
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
   field :: String -> Json -> Json
   field name doc = case doc of
-    JObj key value more -> if same key name then value else field name more
+    JObj key value more -> if key == name then value else field name more
     other -> JNull
   named-row :: String -> Json -> Option Json
   named-row name rows = case rows of
     JArr row more -> (case field "name" row of
-      JStr n | same n name -> Some row
+      JStr n | (n == name) -> Some row
       other -> named-row name more)
     other -> None
 
   requests :: List Decl -> List Request
   requests ds = case ds of
-    Nil -> Nil
-    Cons (DWrapperLayout site name repr label) rest -> Cons (Request site name repr label None) (requests rest)
-    Cons (DInterface site home hash doc) rest ->
+    [] -> []
+    (DWrapperLayout site name repr label) : rest -> (Request site name repr label None) : (requests rest)
+    (DInterface site home hash doc) : rest ->
       abi-requests site home (field "types" (field "exports" doc)) (field "layouts" (field "abi" doc)) (requests rest)
-    Cons other rest -> requests rest
+    other : rest -> requests rest
 
   abi-requests :: Span -> String -> Json -> Json -> List Request -> List Request
   abi-requests site home types layouts tail = case layouts of
     JArr row more -> let rest = abi-requests site home types more tail in
       (case (field "repr" row, field "type" row) of
-        (JStr repr, JStr name) | same repr "unboxed" || same repr "transparent" -> (case named-row name types of
+        (JStr repr, JStr name) | (repr == "unboxed") || repr == "transparent" -> (case named-row name types of
           Some ty -> (case field "identity" ty of
-            JStr identity | same identity (home <> "." <> name) ->
-              Cons (Request site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) rest
+            JStr identity | (identity == home <> "." <> name) ->
+              (Request site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) : rest
             other -> rest)
           None -> rest)
         other -> rest)
     other -> tail
 
   field-labels :: Json -> List String
-  field-labels rows = case rows of JArr (JStr label) rest -> Cons label (field-labels rest); other -> Nil
+  field-labels rows = case rows of JArr (JStr label) rest -> label : (field-labels rest); other -> []
 
   -- Field names count erased parameters in source order. A private imported
   -- constructor can only disclose its slot through the checked ABI row.
   payload-label :: List String -> Nat -> UType -> String
   payload-label labels ordinal ty = case ty of
-    UProofFun predicate effects result -> payload-label (case labels of Cons first rest -> rest; Nil -> Nil) (ordinal + 1) result
-    other -> (case labels of Cons label rest -> label; Nil -> (case other of
+    UProofFun predicate effects result -> payload-label (case labels of first : rest -> rest; [] -> []) (ordinal + 1) result
+    other -> (case labels of label : rest -> label; [] -> (case other of
       UPi id name domain effects result -> name
       other -> "$f" <> nat-to-string ordinal))
   layout-label :: List String -> Option Json -> CoreData -> String
@@ -74,34 +72,34 @@ module Cinch.Layout where
 
   requested :: String -> List Request -> Option Request
   requested name layouts = case layouts of
-    Nil -> None
-    Cons (Request site owner repr label published) rest -> if same name owner then Some (Request site owner repr label published) else requested name rest
+    [] -> None
+    (Request site owner repr label published) : rest -> if name == owner then Some (Request site owner repr label published) else requested name rest
   data-for :: String -> List CoreData -> Option CoreData
   data-for name datas = case datas of
-    Nil -> None
-    Cons d rest -> if same name (core-data-name d) then Some d else data-for name rest
+    [] -> None
+    d : rest -> if name == core-data-name d then Some d else data-for name rest
   private-payload :: String -> List UsageShape -> Option UType
   private-payload owner shapes = case shapes of
-    Nil -> None
-    Cons shape rest -> if same owner (shape.name) then usage-single-field shape else private-payload owner rest
+    [] -> None
+    shape : rest -> if owner == shape.name then usage-single-field shape else private-payload owner rest
   represented-field :: CoreData -> List UsageShape -> Option UType
   represented-field d shapes = case core-data-constructors d of
     [constructor] -> (case core-constructor-fields constructor of [payload] -> Some payload; other -> None)
-    Nil -> private-payload (core-data-name d) shapes
+    [] -> private-payload (core-data-name d) shapes
     other -> None
   member :: String -> List String -> Bool
-  member name names = case names of Nil -> False; Cons first rest -> same name first || member name rest
+  member name names = case names of [] -> False; first : rest -> name == first || member name rest
   head-name :: UType -> Option String
   head-name ty = case ty of UCon name kind -> Some name; UApp f a -> head-name f; other -> None
 
   scalar-layout :: String -> Option (Nat, Nat, Nat)
-  scalar-layout name = if same name "Unit" then Some (0, 0, 1)
+  scalar-layout name = if name == "Unit" then Some (0, 0, 1)
     else if member name ["Bool", "I8", "U8"] then Some (0, 1, 1)
     else if member name ["I16", "U16"] then Some (0, 2, 2)
     else if member name ["I32", "U32", "F32", "Char"] then Some (0, 4, 4)
     else if member name ["I64", "U64", "F64", "Usize", "Isize", "Sym"] then Some (0, 8, 8)
     else if member name ["Int", "Nat"] then Some (2, 8, 8)
-    else if same name "Bytes" then Some (1, 8, 8)
+    else if name == "Bytes" then Some (1, 8, 8)
     else None
 
   physical-layout :: List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, Nat, Nat)
@@ -112,7 +110,7 @@ module Cinch.Layout where
         Some name -> (case scalar-layout name of
           Some physical -> Ok physical
           None -> (case (requested name layouts, data-for name datas) of
-            (Some (Request at wrapper repr labels row), Some nested) | same repr "unboxed" -> physical-layout layouts datas shapes (Cons owner seen) nested
+            (Some (Request at wrapper repr labels row), Some nested) | (repr == "unboxed") -> physical-layout layouts datas shapes (owner : seen) nested
             other -> Err "repr(unboxed) requires a fixed single-word payload"))
         None -> Err "repr(unboxed) requires a fixed single-word payload")
 
@@ -132,23 +130,23 @@ module Cinch.Layout where
   matches-published row label size alignment = case (field "size" row, field "align" row, field "fields" row) of
     (JNum bytes, JNum align, JArr entry JArrEnd) -> bytes == nat-to-int size && align == nat-to-int alignment &&
       (case (field "name" entry, field "offset" entry, field "size" entry, field "align" entry) of
-        (JStr name, JNum offset, JNum width, JNum natural) -> same name label && offset == 0 && width == bytes && natural == align
+        (JStr name, JNum offset, JNum width, JNum natural) -> name == label && offset == 0 && width == bytes && natural == align
         other -> False)
     other -> False
 
   check-layouts :: List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
   check-layouts ds datas shapes st = case requests ds of
-    Nil -> (datas, st)
+    [] -> (datas, st)
     layouts -> attach-layouts layouts datas shapes datas st
 
   attach-layouts :: List Request -> List CoreData -> List UsageShape -> List CoreData -> Store -> (List CoreData, Store)
   attach-layouts layouts all shapes todo st = case todo of
-    Nil -> (Nil, st)
-    Cons d rest -> case attach-layouts layouts all shapes rest st of
+    [] -> ([], st)
+    d : rest -> case attach-layouts layouts all shapes rest st of
       (more, checked) -> (case requested (core-data-name d) layouts of
-        None -> (Cons d more, checked)
-        Some (Request site owner repr labels published) -> let label = layout-label labels published d in (case (if same repr "transparent" then transparent-layout d shapes else physical-layout layouts all shapes Nil d) of
-          Err message -> (Cons d more, add-error site message checked)
+        None -> (d : more, checked)
+        Some (Request site owner repr labels published) -> let label = layout-label labels published d in (case (if repr == "transparent" then transparent-layout d shapes else physical-layout layouts all shapes [] d) of
+          Err message -> (d : more, add-error site message checked)
           Ok (word, bytes, align) -> (case published of
-            Some row | not (matches-published row label bytes align) -> (Cons d more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
-            other -> (Cons (with-data-layout (if same repr "transparent" then TransparentData label bytes align else UnboxedData label word bytes align) d) more, checked))))
+            Some row | not (matches-published row label bytes align) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
+            other -> ((with-data-layout (if repr == "transparent" then TransparentData label bytes align else UnboxedData label word bytes align) d) : more, checked))))

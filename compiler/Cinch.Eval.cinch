@@ -93,7 +93,7 @@ module Cinch.Eval where
 
   -- A refusal: one diagnostic at `s`, in this rung's name.
   fail :: forall a. Span -> String -> Result (List Diagnostic) a
-  fail s msg = Err (Cons (Diagnostic rung s msg) Nil)
+  fail s msg = Err ([Diagnostic rung s msg])
 
   -- ------------------------------------------------------ spine and env helpers
 
@@ -101,24 +101,24 @@ module Cinch.Eval where
   -- yields the empty list, the `Cinch.Ast` walkers' documented answer.
   args-from-list :: List Value -> Value
   args-from-list vs = case vs of
-    Nil -> VArgsEnd
-    Cons v rest -> VArg v (args-from-list rest)
+    [] -> VArgsEnd
+    v : rest -> VArg v (args-from-list rest)
 
   args-to-list :: Value -> List Value
   args-to-list a = case a of
-    VArgsEnd -> Nil
-    VArg v rest -> Cons v (args-to-list rest)
-    other -> Nil
+    VArgsEnd -> []
+    VArg v rest -> v : (args-to-list rest)
+    other -> []
 
   values-append :: List Value -> List Value -> List Value
   values-append xs ys = case xs of
-    Nil -> ys
-    Cons x rest -> Cons x (values-append rest ys)
+    [] -> ys
+    x : rest -> x : (values-append rest ys)
 
   -- Append one argument to a collected spine (a function under
   -- application gains one argument at a time).
   arg-push :: Value -> Value -> Value
-  arg-push a v = args-from-list (values-append (args-to-list a) (Cons v Nil))
+  arg-push a v = args-from-list (values-append (args-to-list a) ([v]))
 
   -- The environment: a spine of bindings, searched from the front, so a
   -- later binding shadows an earlier one. `env-merge` splices a spine of
@@ -131,7 +131,7 @@ module Cinch.Eval where
   env-lookup :: String -> Value -> Option Value
   env-lookup name env = case env of
     VEnvEnd -> None
-    VBind n v rest -> if string-compare n name == 0 then Some v else env-lookup name rest
+    VBind n v rest -> if n == name then Some v else env-lookup name rest
     other -> None
 
   env-merge :: Value -> Value -> Value
@@ -207,9 +207,9 @@ module Cinch.Eval where
       VUnit -> Some True
       other -> None
     VStr a -> case r of
-      VStr b -> Some (string-compare a b == 0)
+      VStr b -> Some (a == b)
       other -> None
-    VSymbol a -> (case r of VSymbol b -> Some (string-compare a b == 0); other -> None)
+    VSymbol a -> (case r of VSymbol b -> Some (a == b); other -> None)
     VChr a -> case r of
       VChr b -> Some (eq-char a b)
       other -> None
@@ -222,18 +222,18 @@ module Cinch.Eval where
     other -> None
 
   value-args-equal :: String -> String -> Value -> Value -> Option Bool
-  value-args-equal n n2 a b = case string-compare n n2 == 0 of
+  value-args-equal n n2 a b = case n == n2 of
     False -> Some False
     True -> value-list-equal (args-to-list a) (args-to-list b)
 
   value-list-equal :: List Value -> List Value -> Option Bool
   value-list-equal xs ys = case xs of
-    Nil -> case ys of
-      Nil -> Some True
+    [] -> case ys of
+      [] -> Some True
       other -> Some False
-    Cons x rest -> case ys of
-      Nil -> Some False
-      Cons y yrest -> case value-equal x y of
+    x : rest -> case ys of
+      [] -> Some False
+      y : yrest -> case value-equal x y of
         None -> None
         Some b -> if b then value-list-equal rest yrest else Some False
 
@@ -255,9 +255,9 @@ module Cinch.Eval where
       VInt n -> if n == lit-int-value text then MHit VEnvEnd else MMiss
       other -> MMiss
     PLitStr s text -> case v of
-      VStr s2 -> if string-compare s2 text == 0 then MHit VEnvEnd else MMiss
+      VStr s2 -> if s2 == text then MHit VEnvEnd else MMiss
       other -> MMiss
-    PLitSym s text -> (case v of VSymbol other -> if string-compare text other == 0 then MHit VEnvEnd else MMiss; different -> MMiss)
+    PLitSym s text -> (case v of VSymbol other -> if text == other then MHit VEnvEnd else MMiss; different -> MMiss)
     PLitChar s text -> case v of
       VChr c -> case string-first-char text of
         None -> MBad s (string-concat "bad character literal pattern: " text)
@@ -266,9 +266,9 @@ module Cinch.Eval where
     PFamilyCon s fallback candidate args -> pat-match (PCon s fallback args) v
     PCon s n args -> case v of
       VBool b -> case pats-of args of
-        Nil -> if (string-compare n "True" == 0 && b) || (string-compare n "False" == 0 && not b) then MHit VEnvEnd else MMiss
-        Cons first rest -> MMiss
-      VCon n2 vargs -> case string-compare n n2 == 0 of
+        [] -> if (n == "True" && b) || (n == "False" && not b) then MHit VEnvEnd else MMiss
+        first : rest -> MMiss
+      VCon n2 vargs -> case n == n2 of
         False -> MMiss
         True -> pat-match-spine (pats-of args) (args-to-list vargs)
       other -> MMiss
@@ -279,12 +279,12 @@ module Cinch.Eval where
 
   pat-match-spine :: List Pat -> List Value -> Matched
   pat-match-spine ps vs = case ps of
-    Nil -> case vs of
-      Nil -> MHit VEnvEnd
+    [] -> case vs of
+      [] -> MHit VEnvEnd
       other -> MMiss
-    Cons p rest -> case vs of
-      Nil -> MMiss
-      Cons v vrest -> case pat-match p v of
+    p : rest -> case vs of
+      [] -> MMiss
+      v : vrest -> case pat-match p v of
         MMiss -> MMiss
         MBad s msg -> MBad s msg
         MHit bs -> case pat-match-spine rest vrest of
@@ -348,17 +348,18 @@ module Cinch.Eval where
 
   apply-op :: Span -> String -> Value -> Value -> Result (List Diagnostic) Value
   apply-op s op l r =
-    if string-compare op "+" == 0 then int-arith s op 0 l r
-    else if string-compare op "-" == 0 then int-arith s op 1 l r
-    else if string-compare op "*" == 0 then int-arith s op 2 l r
-    else if string-compare op "/" == 0 then int-arith s op 3 l r
-    else if string-compare op "<" == 0 then int-rel s op 0 l r
-    else if string-compare op "<=" == 0 then int-rel s op 1 l r
-    else if string-compare op ">" == 0 then int-rel s op 2 l r
-    else if string-compare op ">=" == 0 then int-rel s op 3 l r
-    else if string-compare op "==" == 0 then eq-op s op True l r
-    else if string-compare op "/=" == 0 then eq-op s op False l r
-    else fail s (string-concat "unsupported operator: " op)
+    case op of
+    "+" -> int-arith s op 0 l r
+    "-" -> int-arith s op 1 l r
+    "*" -> int-arith s op 2 l r
+    "/" -> int-arith s op 3 l r
+    "<" -> int-rel s op 0 l r
+    "<=" -> int-rel s op 1 l r
+    ">" -> int-rel s op 2 l r
+    ">=" -> int-rel s op 3 l r
+    "==" -> eq-op s op True l r
+    "/=" -> eq-op s op False l r
+    _ -> fail s (string-concat "unsupported operator: " op)
 
   -- ------------------------------------------------------------- application
 
@@ -389,13 +390,13 @@ module Cinch.Eval where
   apply-value :: Value -> Span -> Value -> Value -> Result (List Diagnostic) Value
   apply-value globals s f arg = case f of
     VClosure ps body cenv -> case ps of
-      Nil -> fail s "cannot apply a non-function"
-      Cons p rest -> case pat-match p arg of
+      [] -> fail s "cannot apply a non-function"
+      p : rest -> case pat-match p arg of
         MHit bs -> case rest of
-          Nil -> eval-expr globals (env-merge bs cenv) body
-          Cons p2 more -> Ok (VClosure rest body (env-merge bs cenv))
+          [] -> eval-expr globals (env-merge bs cenv) body
+          p2 : more -> Ok (VClosure rest body (env-merge bs cenv))
         MMiss -> fail s "the pattern of this lambda parameter did not match the argument"
-        MBad sp msg -> Err (Cons (Diagnostic rung sp msg) Nil)
+        MBad sp msg -> Err ([Diagnostic rung sp msg])
     VFun name arity clauses collected -> apply-fun globals s name arity clauses (arg-push collected arg)
     VCon n cargs -> Ok (VCon n (arg-push cargs arg))
     other -> fail s "cannot apply a non-function"
@@ -417,25 +418,25 @@ module Cinch.Eval where
   -- call with no matching clause.
   run-clauses :: Value -> Span -> String -> Nat -> List (List Pat, Expr) -> List Value -> Result (List Diagnostic) Value
   run-clauses globals s name arity clauses args = case clauses of
-    Nil -> fail s (string-concat "no clause of " (string-concat name " matches these arguments"))
-    Cons c rest -> case c of
+    [] -> fail s (string-concat "no clause of " (string-concat name " matches these arguments"))
+    c : rest -> case c of
       (pats, body) -> case list-length pats == arity of
         False -> fail s (clause-arity-message name (list-length pats) arity)
         True -> case pat-match-spine pats args of
           MHit bs -> eval-expr globals (env-merge bs globals) body
           MMiss -> run-clauses globals s name arity rest args
-          MBad sp msg -> Err (Cons (Diagnostic rung sp msg) Nil)
+          MBad sp msg -> Err ([Diagnostic rung sp msg])
 
   -- ------------------------------------------------------------- the evaluator
 
   eval-args :: Value -> Value -> List Expr -> Result (List Diagnostic) (List Value)
   eval-args globals env es = case es of
-    Nil -> Ok Nil
-    Cons e rest -> case eval-expr globals env e of
+    [] -> Ok []
+    e : rest -> case eval-expr globals env e of
       Err ds -> Err ds
       Ok v -> case eval-args globals env rest of
         Err ds -> Err ds
-        Ok vs -> Ok (Cons v vs)
+        Ok vs -> Ok (v : vs)
 
   eval-con :: Value -> Value -> Span -> String -> Expr -> Result (List Diagnostic) Value
   eval-con globals env s n args = case spine-ok-exprs args of
@@ -443,10 +444,10 @@ module Cinch.Eval where
     True -> case eval-args globals env (exprs-of args) of
       Err ds -> Err ds
       Ok vs ->
-        if string-compare n "True" == 0 || string-compare n "False" == 0 then
+        if n == "True" || n == "False" then
           case vs of
-            Nil -> Ok (VBool (string-compare n "True" == 0))
-            Cons first rest -> fail s "Boolean constructors take no arguments"
+            [] -> Ok (VBool (n == "True"))
+            first : rest -> fail s "Boolean constructors take no arguments"
         else Ok (VCon n (args-from-list vs))
 
   eval-tuple :: Value -> Value -> Span -> Expr -> Result (List Diagnostic) Value
@@ -486,8 +487,8 @@ module Cinch.Eval where
 
   eval-bindings :: Value -> Value -> List (String, Expr) -> Result (List Diagnostic) Value
   eval-bindings globals env bs = case bs of
-    Nil -> Ok env
-    Cons b rest -> case b of
+    [] -> Ok env
+    b : rest -> case b of
       (n, rhs) -> case eval-expr globals env rhs of
         Err ds -> Err ds
         Ok v -> eval-bindings globals (env-bind n v env) rest
@@ -501,12 +502,12 @@ module Cinch.Eval where
 
   run-alts :: Value -> Value -> Span -> Value -> List (Pat, Expr) -> Result (List Diagnostic) Value
   run-alts globals env s sv alts = case alts of
-    Nil -> fail s "case expression has no matching alternative"
-    Cons a rest -> case a of
+    [] -> fail s "case expression has no matching alternative"
+    a : rest -> case a of
       (p, body) -> case pat-match p sv of
         MHit bs -> run-alt-body globals env (env-merge bs env) s sv rest body
         MMiss -> run-alts globals env s sv rest
-        MBad sp msg -> Err (Cons (Diagnostic rung sp msg) Nil)
+        MBad sp msg -> Err ([Diagnostic rung sp msg])
 
   run-alt-body :: Value -> Value -> Value -> Span -> Value -> List (Pat, Expr) -> Expr -> Result (List Diagnostic) Value
   run-alt-body globals env bound s sv rest body = case body of
@@ -603,14 +604,14 @@ module Cinch.Eval where
 
   arities-append :: List (String, Nat) -> List (String, Nat) -> List (String, Nat)
   arities-append xs ys = case xs of
-    Nil -> ys
-    Cons x rest -> Cons x (arities-append rest ys)
+    [] -> ys
+    x : rest -> x : (arities-append rest ys)
 
   decl-sig-arities :: List Decl -> List (String, Nat)
   decl-sig-arities ds = case ds of
-    Nil -> Nil
-    Cons d rest -> case d of
-      DSig s n t -> Cons (n, ty-arity t) (decl-sig-arities rest)
+    [] -> []
+    d : rest -> case d of
+      DSig s n t -> (n, ty-arity t) : (decl-sig-arities rest)
       other -> decl-sig-arities rest
 
   -- Every signature's arity in the program, collected before any body runs
@@ -618,14 +619,14 @@ module Cinch.Eval where
   -- way).
   sig-arities :: List Module -> List (String, Nat)
   sig-arities ms = case ms of
-    Nil -> Nil
-    Cons m rest -> arities-append (decl-sig-arities (module-decls m)) (sig-arities rest)
+    [] -> []
+    m : rest -> arities-append (decl-sig-arities (module-decls m)) (sig-arities rest)
 
   arity-lookup :: String -> List (String, Nat) -> Option Nat
   arity-lookup name arities = case arities of
-    Nil -> None
-    Cons a rest -> case a of
-      (n, k) -> if string-compare n name == 0 then Some k else arity-lookup name rest
+    [] -> None
+    a : rest -> case a of
+      (n, k) -> if n == name then Some k else arity-lookup name rest
 
   -- A function's declared arity: its signature's arrow count, or, absent a
   -- signature, the parameter count of its first clause.
@@ -633,28 +634,28 @@ module Cinch.Eval where
   fun-arity name clauses arities = case arity-lookup name arities of
     Some n -> n
     None -> case clauses of
-      Nil -> 0
-      Cons c rest -> case c of
+      [] -> 0
+      c : rest -> case c of
         (pats, body) -> list-length pats
 
   ctor-binds :: List (String, TypeExpr) -> Value -> Value
   ctor-binds cs env = case cs of
-    Nil -> env
-    Cons c rest -> case c of
+    [] -> env
+    c : rest -> case c of
       (name, t) -> ctor-binds rest (VBind name (VCon name VArgsEnd) env)
 
   globals-decls :: List Decl -> List (String, Nat) -> Value -> Value
   globals-decls ds arities env = case ds of
-    Nil -> env
-    Cons d rest -> case d of
+    [] -> env
+    d : rest -> case d of
       DFun s n clauses -> globals-decls rest arities (VBind n (VFun n (fun-arity n clauses arities) clauses VArgsEnd) env)
       DData s n params ctors -> globals-decls rest arities (ctor-binds ctors env)
       other -> globals-decls rest arities env
 
   globals-modules :: List Module -> List (String, Nat) -> Value -> Value
   globals-modules ms arities env = case ms of
-    Nil -> env
-    Cons m rest -> globals-modules rest arities (globals-decls (module-decls m) arities env)
+    [] -> env
+    m : rest -> globals-modules rest arities (globals-decls (module-decls m) arities env)
 
   -- The program-wide value environment: every top-level function as a
   -- value (so recursion, including mutual recursion, resolves) and every
@@ -674,54 +675,54 @@ module Cinch.Eval where
   -- use site instead of at the declaration.
   diags-append :: List Diagnostic -> List Diagnostic -> List Diagnostic
   diags-append xs ys = case xs of
-    Nil -> ys
-    Cons x rest -> Cons x (diags-append rest ys)
+    [] -> ys
+    x : rest -> x : (diags-append rest ys)
 
   decl-unmodeleds :: Decl -> List Diagnostic
   decl-unmodeleds d = case d of
-    DOpaque s name params kind -> Cons (Diagnostic rung s "opaque declarations require checked nominal elaboration") Nil
-    DRefine s n params binder predicate -> Cons (Diagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
-    DLaw s name syntax -> Cons (Diagnostic rung s "class laws require checked proposition elaboration") Nil
-    DProof s body -> Cons (Diagnostic rung s "a proof declaration requires erased checking") Nil
-    DSpec s body -> Cons (Diagnostic rung s "a spec declaration requires erased checking") Nil
-    DMacroBinding s name -> Cons (Diagnostic rung s "unresolved macro declaration") Nil
-    DMacro s body -> Cons (Diagnostic rung s "a macro declaration requires compile-time expansion") Nil
-    DStage s body -> Cons (Diagnostic rung s "a stage declaration requires compile-time checking") Nil
-    DGenerate s actions -> Cons (Diagnostic rung s "a generate block requires compile-time expansion") Nil
+    DOpaque s name params kind -> [Diagnostic rung s "opaque declarations require checked nominal elaboration"]
+    DRefine s n params binder predicate -> [(Diagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung")]
+    DLaw s name syntax -> [Diagnostic rung s "class laws require checked proposition elaboration"]
+    DProof s body -> [Diagnostic rung s "a proof declaration requires erased checking"]
+    DSpec s body -> [Diagnostic rung s "a spec declaration requires erased checking"]
+    DMacroBinding s name -> [Diagnostic rung s "unresolved macro declaration"]
+    DMacro s body -> [Diagnostic rung s "a macro declaration requires compile-time expansion"]
+    DStage s body -> [Diagnostic rung s "a stage declaration requires compile-time checking"]
+    DGenerate s actions -> [Diagnostic rung s "a generate block requires compile-time expansion"]
     -- A contract declares no value the interpreter binds, so it needs no
     -- evaluation. It is checked where its definition is elaborated.
-    DWrapperLayout s name repr label -> Nil
-    DUnpackFields s name fields -> Nil
-    DInlineHint s name hint -> Nil
-    DUnrollHint s name hint -> Nil
-    DContract s keyword name subject clauses -> Nil
+    DWrapperLayout s name repr label -> []
+    DUnpackFields s name fields -> []
+    DInlineHint s name hint -> []
+    DUnrollHint s name hint -> []
+    DContract s keyword name subject clauses -> []
     -- A target-selected declaration is whatever it wraps: pruning already
     -- dropped the ones the active profile does not select.
     DConditional s clauses inner -> decl-unmodeleds inner
-    DUnmodeled s text -> Cons (Diagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
-    other -> Nil
+    DUnmodeled s text -> [Diagnostic rung s (string-concat "unmodeled declaration: " text)]
+    other -> []
 
   decls-unmodeleds :: List Decl -> List Diagnostic
   decls-unmodeleds ds = case ds of
-    Nil -> Nil
-    Cons d rest -> diags-append (decl-unmodeleds d) (decls-unmodeleds rest)
+    [] -> []
+    d : rest -> diags-append (decl-unmodeleds d) (decls-unmodeleds rest)
 
   modules-unmodeleds :: List Module -> List Diagnostic
   modules-unmodeleds ms = case ms of
-    Nil -> Nil
-    Cons m rest -> diags-append (decls-unmodeleds (module-decls m)) (modules-unmodeleds rest)
+    [] -> []
+    m : rest -> diags-append (decls-unmodeleds (module-decls m)) (modules-unmodeleds rest)
 
   find-fun-in-decls :: List Decl -> String -> Option (String, List (List Pat, Expr))
   find-fun-in-decls ds name = case ds of
-    Nil -> None
-    Cons d rest -> case d of
-      DFun s n clauses -> if string-compare n name == 0 then Some (n, clauses) else find-fun-in-decls rest name
+    [] -> None
+    d : rest -> case d of
+      DFun s n clauses -> if n == name then Some (n, clauses) else find-fun-in-decls rest name
       other -> find-fun-in-decls rest name
 
   main-fun :: List Module -> Option (String, List (List Pat, Expr))
   main-fun ms = case ms of
-    Nil -> None
-    Cons m rest -> case find-fun-in-decls (module-decls m) "main" of
+    [] -> None
+    m : rest -> case find-fun-in-decls (module-decls m) "main" of
       None -> main-fun rest
       Some f -> Some f
 
@@ -731,13 +732,13 @@ module Cinch.Eval where
   eval-program :: Program -> Result (List Diagnostic) Value
   eval-program p = case p of
     Program s ms -> case modules-unmodeleds ms of
-      Cons d rest -> Err (Cons d rest)
-      Nil -> case main-fun ms of
+      d : rest -> Err (d : rest)
+      [] -> case main-fun ms of
         None -> fail zero-span "no main declaration in this program"
         Some mf -> let g = globals-of p in case mf of
           (name, clauses) -> case clauses of
-            Nil -> fail zero-span "main has no clauses"
-            Cons first rest -> case first of
+            [] -> fail zero-span "main has no clauses"
+            first : rest -> case first of
               (pats, body) -> case list-length pats == 0 of
                 True -> eval-expr g g body
                 False -> fail zero-span "main must take no parameters"
@@ -761,15 +762,15 @@ module Cinch.Eval where
   eval-expr-in-program :: Program -> Expr -> Result (List Diagnostic) Value
   eval-expr-in-program p e = case p of
     Program s ms -> case modules-unmodeleds ms of
-      Cons d rest -> Err (Cons d rest)
-      Nil -> let g = globals-of p in eval-expr g g e
+      d : rest -> Err (d : rest)
+      [] -> let g = globals-of p in eval-expr g g e
 
   -- ------------------------------------------------------------- rendering
 
   render-args :: List Value -> String
   render-args vs = case vs of
-    Nil -> empty-string
-    Cons v rest -> string-concat " " (string-concat (render-value v) (render-args rest))
+    [] -> empty-string
+    v : rest -> string-concat " " (string-concat (render-value v) (render-args rest))
 
   -- A value as text, for a report file rather than for the language (the
   -- interpreter's answer is the value itself).

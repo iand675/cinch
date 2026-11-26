@@ -14,8 +14,10 @@ module Main where
   -- An all-passing suite: every check holds, so every code is 0.
   pass-suite :: Suite
   pass-suite = Suite "bootstrap.test.pass"
-    (check-spine (Cons ("one-plus-one", if (1 :: Int) + 1 == 2 then 0 else 1)
-      (Cons ("list-length", if length (Cons (1 :: Int) (Cons (2 :: Int) Nil)) == 2 then 0 else 2) Nil)))
+    (check-spine
+      [ ("one-plus-one", if (1 :: Int) + 1 == 2 then 0 else 1)
+      , ("list-length", if length [1 :: Int, 2] == 2 then 0 else 2)
+      ])
 
   report-path :: Path
   report-path = path-from-string "bootstrap-test-report.txt"

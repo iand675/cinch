@@ -15,21 +15,13 @@ module Cinch.Test where
   import Data.List
   import Data.String
   import Text.Lex (Span)
-  import Text.Show (int-to-string)
+  import Text.Show (Show, show, int-to-string)
   import Cinch.Report (Diagnostic, render-diagnostic)
 
-  -- The result type is named `Result`, the surface the ladder's tests
-  -- name, but it is deliberately NOT exported: the prelude already
-  -- carries `Data.Result`'s `Result`, and a program that imports this
-  -- module unqualified would otherwise have its own `Result` (and its
-  -- `Ok`/`Err`) shadowed by this module's, which the checker refuses at
-  -- the first `Err`/`Ok` pattern. Importers reach a result through the
-  -- accessors and `render-result`, never by naming the type, so the
-  -- name stays a private detail and the public surface stays clean.
   export Check, CheckCons, CheckEnd, check-spine, checks-of
   export Suite
   export Failure, FailureCons, FailureEnd, failure-spine, failures-of
-  export TestResult, run-suite
+  export TestResult, Show_TestResult, run-suite
   export render-result
 
   -- ------------------------------------------------------------------
@@ -47,8 +39,8 @@ module Cinch.Test where
   -- Build a check spine from the list a caller already has.
   check-spine :: List (String, Int) -> Check
   check-spine xs = case xs of
-    Nil -> CheckEnd
-    Cons x rest -> case x of
+    [] -> CheckEnd
+    x : rest -> case x of
       (name, code) -> CheckCons name code (check-spine rest)
 
   -- Take the list back from a check spine. A malformed spine (one
@@ -56,8 +48,8 @@ module Cinch.Test where
   -- than faulting, as `Cinch.Ast`'s walkers do.
   checks-of :: Check -> List (String, Int)
   checks-of c = case c of
-    CheckEnd -> Nil
-    CheckCons name code rest -> Cons (name, code) (checks-of rest)
+    CheckEnd -> []
+    CheckCons name code rest -> (name, code) : (checks-of rest)
 
   -- A suite: its name and its checks.
   record Suite where
@@ -77,13 +69,13 @@ module Cinch.Test where
 
   failure-spine :: List String -> Failure
   failure-spine xs = case xs of
-    Nil -> FailureEnd
-    Cons x rest -> FailureCons x (failure-spine rest)
+    [] -> FailureEnd
+    x : rest -> FailureCons x (failure-spine rest)
 
   failures-of :: Failure -> List String
   failures-of f = case f of
-    FailureEnd -> Nil
-    FailureCons x rest -> Cons x (failures-of rest)
+    FailureEnd -> []
+    FailureCons x rest -> x : (failures-of rest)
 
   -- A run of a suite: the passed count, the failed count, and the
   -- failing checks' names in run order.
@@ -102,7 +94,7 @@ module Cinch.Test where
   -- collecting the failing names in run order.
   run-suite :: Suite -> TestResult
   run-suite s = case s of
-    Suite name checks -> tally checks 0 0 Nil
+    Suite name checks -> tally checks 0 0 []
 
   -- The walk: passed, failed, and the failing names collected
   -- backwards (prepended, so the tail is the latest), reversed to run
@@ -112,7 +104,7 @@ module Cinch.Test where
     CheckEnd -> TestResult passed failed (failure-spine (reverse names))
     CheckCons name code rest -> case code == 0 of
       True -> tally rest (passed + 1) failed names
-      False -> tally rest passed (failed + 1) (Cons name names)
+      False -> tally rest passed (failed + 1) (name : names)
 
   -- ------------------------------------------------------------------
   -- Rendering the result.
@@ -135,8 +127,8 @@ module Cinch.Test where
 
   render-failures :: List String -> String
   render-failures names = case names of
-    Nil -> empty-string
-    Cons name rest -> string-concat (render-failure name) (render-failures rest)
+    [] -> empty-string
+    name : rest -> string-concat (render-failure name) (render-failures rest)
 
   -- The summary line: `passed N, failed M`, newline terminated like
   -- the failure lines.
@@ -150,6 +142,8 @@ module Cinch.Test where
   -- The whole report: one line per failure, then the summary line.
   -- A run with no failures is the summary line alone.
   render-result :: TestResult -> String
-  render-result r = case r of
-    TestResult passed failed names ->
-      string-concat (render-failures (failures-of names)) (summary-line passed failed)
+  render-result r =
+    string-concat (render-failures (failures-of r.failures)) (summary-line r.passed r.failed)
+
+  implicit instance Show_TestResult :: Show TestResult where
+    show r = render-result r

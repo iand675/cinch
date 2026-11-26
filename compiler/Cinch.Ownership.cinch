@@ -30,49 +30,49 @@ module Cinch.Ownership where
   export program-uses-concurrency, is-immortal-enum-data, is-non-arena-leaf-type
 
   same-str :: String -> String -> Bool
-  same-str a b = string-compare a b == 0
+  same-str a b = a == b
 
   has-id :: Nat -> List Nat -> Bool
   has-id needle xs = case xs of
-    Nil -> False
-    Cons x rest -> if x == needle then True else has-id needle rest
+    [] -> False
+    x : rest -> if x == needle then True else has-id needle rest
 
   add-id :: Nat -> List Nat -> List Nat
-  add-id x xs = if has-id x xs then xs else Cons x xs
+  add-id x xs = if has-id x xs then xs else x : xs
 
   lookup-pair :: Nat -> List (Nat, Nat) -> Option Nat
   lookup-pair needle pairs = case pairs of
-    Nil -> None
-    Cons (k, v) rest -> if k == needle then Some v else lookup-pair needle rest
+    [] -> None
+    (k, v) : rest -> if k == needle then Some v else lookup-pair needle rest
 
   rep-bool :: Nat -> Bool -> List Bool
-  rep-bool n v = if n == 0 then Nil else Cons v (rep-bool (n - 1) v)
+  rep-bool n v = if n == 0 then [] else v : (rep-bool (n - 1) v)
 
   any-true :: List Bool -> Bool
   any-true xs = case xs of
-    Nil -> False
-    Cons b rest -> b || any-true rest
+    [] -> False
+    b : rest -> b || any-true rest
 
   same-bools :: List Bool -> List Bool -> Bool
   same-bools left right = case (left, right) of
-    (Nil, Nil) -> True
-    (Cons a arest, Cons b brest) -> (if a then b else not b) && same-bools arest brest
+    ([], []) -> True
+    (a : arest, b : brest) -> (if a then b else not b) && same-bools arest brest
     other -> False
 
   clear-at :: List Bool -> Nat -> List Bool
   clear-at mask idx = case mask of
-    Nil -> Nil
-    Cons b rest -> if idx == 0 then Cons False rest else Cons b (clear-at rest (idx - 1))
+    [] -> []
+    b : rest -> if idx == 0 then False : rest else b : (clear-at rest (idx - 1))
 
   clear-indices :: List Bool -> List Nat -> List Bool
   clear-indices mask idxs = case idxs of
-    Nil -> mask
-    Cons idx rest -> clear-indices (clear-at mask idx) rest
+    [] -> mask
+    idx : rest -> clear-indices (clear-at mask idx) rest
 
   same-bool-maps :: List CoreDefinition -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool
   same-bool-maps definitions left right = case definitions of
-    Nil -> True
-    Cons d rest ->
+    [] -> True
+    d : rest ->
       let name = d.name in
       let ok = (case (hash-map-lookup name left, hash-map-lookup name right) of
             (None, None) -> True
@@ -82,8 +82,8 @@ module Cinch.Ownership where
 
   same-arena-phases :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool -> Bool
   same-arena-phases definitions left right = case definitions of
-    Nil -> True
-    Cons d rest ->
+    [] -> True
+    d : rest ->
       let name = d.name in
       let ok = (case (hash-map-lookup name left, hash-map-lookup name right) of
             (None, None) -> True
@@ -101,14 +101,14 @@ module Cinch.Ownership where
 
   call-args :: CoreTerm -> List CoreTerm -> List CoreTerm
   call-args term acc = case term of
-    CApply sp ty f x -> call-args f (Cons x acc)
-    CApplyEff sp ty row f x -> call-args f (Cons x acc)
+    CApply sp ty f x -> call-args f (x : acc)
+    CApplyEff sp ty row f x -> call-args f (x : acc)
     CErasedApply sp ty row f x -> call-args f acc
     other -> acc
 
   unwrap-var-id :: CoreTerm -> Option Nat
   unwrap-var-id term = case term of
-    CLocal sp ty id name Nil -> Some id
+    CLocal sp ty id name [] -> Some id
     CForget sp ty inner -> unwrap-var-id inner
     CCast sp ty inner -> unwrap-var-id inner
     other -> None
@@ -150,8 +150,8 @@ module Cinch.Ownership where
 
   terms-use-id :: Nat -> List CoreTerm -> Bool
   terms-use-id needle terms = case terms of
-    Nil -> False
-    Cons t rest -> term-uses-id needle t || terms-use-id needle rest
+    [] -> False
+    t : rest -> term-uses-id needle t || terms-use-id needle rest
 
   args-chain-uses-id :: Nat -> CoreTerm -> Bool
   args-chain-uses-id needle chain = case chain of
@@ -231,7 +231,7 @@ module Cinch.Ownership where
       CDischarge sp ty ev _ body -> arm-has-reuse-alloc arity body
       other -> case call-head term of
         CUse sp ty name role actuals | same-str role "constructor" ->
-          list-length (call-args term Nil) == arity
+          list-length (call-args term []) == arity
         other -> False
 
   type-head-name :: UType -> Option String
@@ -274,7 +274,7 @@ module Cinch.Ownership where
       let acc1 = collect-reuse-params-term ret-ty pids rhs acc in
       let pids2 = (case unwrap-var-id rhs of
             Some src -> (case lookup-pair src pids of
-              Some idx -> Cons (id, idx) pids
+              Some idx -> (id, idx) : pids
               None -> pids)
             None -> pids) in
       collect-reuse-params-term ret-ty pids2 body acc1
@@ -301,16 +301,16 @@ module Cinch.Ownership where
 
   own-runtime-params :: List CorePattern -> List CorePattern
   own-runtime-params pats = case pats of
-    Nil -> Nil
-    Cons p rest -> if erased-pattern p then own-runtime-params rest else Cons p (own-runtime-params rest)
+    [] -> []
+    p : rest -> if erased-pattern p then own-runtime-params rest else p : (own-runtime-params rest)
 
   param-var-pairs :: List CorePattern -> Nat -> List (Nat, Nat) -> List (Nat, Nat)
   param-var-pairs pats idx acc = case pats of
-    Nil -> acc
-    Cons p rest ->
+    [] -> acc
+    p : rest ->
       let next = (case p of
-            CPVar sp ty id name -> Cons (id, idx) acc
-            CPAs sp ty id name inner -> Cons (id, idx) acc
+            CPVar sp ty id name -> (id, idx) : acc
+            CPAs sp ty id name inner -> (id, idx) : acc
             other -> acc) in
       param-var-pairs rest (idx + 1) next
 
@@ -319,13 +319,13 @@ module Cinch.Ownership where
   -- parameters owned (`False`) so Perceus reset/reuse fires without stripping
   -- `#b` borrowing from read-only AST/environment traversals.
   reuse-scrutinee-params :: CoreDefinition -> List Nat
-  reuse-scrutinee-params d = collect-reuse-clauses (d.clauses) Nil
+  reuse-scrutinee-params d = collect-reuse-clauses (d.clauses) []
 
   collect-reuse-clauses :: List CoreClause -> List Nat -> List Nat
   collect-reuse-clauses clauses acc = case clauses of
-    Nil -> acc
-    Cons (CoreClause sp pats body) rest ->
-      let pids = param-var-pairs (own-runtime-params pats) 0 Nil in
+    [] -> acc
+    (CoreClause sp pats body) : rest ->
+      let pids = param-var-pairs (own-runtime-params pats) 0 [] in
       collect-reuse-clauses rest (collect-reuse-params-term (core-type body) pids body acc)
 
   -- =========================================================================
@@ -388,7 +388,7 @@ module Cinch.Ownership where
     CLet sp ty lid lname sc rhs body -> case unwrap-var-id rhs of
       Some src ->
         let pids2 = (case lookup-pair src pids of
-              Some idx -> Cons (lid, idx) pids
+              Some idx -> (lid, idx) : pids
               None -> pids) in
         escape-term pids2 borrows consumed in-tail body escaped
       None ->
@@ -411,8 +411,8 @@ module Cinch.Ownership where
   escape-alts pids borrows consumed in-tail scrut-p alts escaped = case alts of
     CAlternative sp pat body rest ->
       let pids2 = (case (pat, scrut-p) of
-            (CPVar at pty id pname, Some idx) -> Cons (id, idx) pids
-            (CPAs at pty id pname inner, Some idx) -> Cons (id, idx) pids
+            (CPVar at pty id pname, Some idx) -> (id, idx) : pids
+            (CPAs at pty id pname inner, Some idx) -> (id, idx) : pids
             other -> pids) in
       let e1 = escape-term pids2 borrows consumed in-tail body escaped in
       escape-alts pids borrows consumed in-tail scrut-p rest e1
@@ -421,7 +421,7 @@ module Cinch.Ownership where
   escape-app :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
   escape-app pids borrows consumed in-tail term escaped =
     let h = call-head term in
-    let args = call-args term Nil in
+    let args = call-args term [] in
     case h of
       CUse sp ty name role actuals | not (same-str role "foreign") && not (same-str role "constructor") ->
         if is-readonly-builtin-name name then
@@ -442,8 +442,8 @@ module Cinch.Ownership where
 
   escape-readonly-args :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> List Nat -> List Nat
   escape-readonly-args pids borrows consumed args escaped = case args of
-    Nil -> escaped
-    Cons a rest ->
+    [] -> escaped
+    a : rest ->
       let e1 = (case unwrap-var-id a of
             Some id -> escaped
             None -> escape-term pids borrows consumed False a escaped) in
@@ -456,8 +456,8 @@ module Cinch.Ownership where
 
   nth-bool :: List Bool -> Nat -> Bool
   nth-bool xs idx = case xs of
-    Nil -> False
-    Cons b rest -> if idx == 0 then b else nth-bool rest (idx - 1)
+    [] -> False
+    b : rest -> if idx == 0 then b else nth-bool rest (idx - 1)
 
   escape-call-args :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> List Nat -> List Nat
   escape-call-args pids borrows consumed args bmask cmask escaped =
@@ -465,8 +465,8 @@ module Cinch.Ownership where
 
   escape-call-args-at :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> Nat -> List Nat -> List Nat
   escape-call-args-at pids borrows consumed args bmask cmask idx escaped = case args of
-    Nil -> escaped
-    Cons a rest ->
+    [] -> escaped
+    a : rest ->
       let safe = mask-flag bmask idx || mask-flag cmask idx in
       let e1 = (if safe then
             (case unwrap-var-id a of
@@ -477,15 +477,15 @@ module Cinch.Ownership where
 
   escape-list :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> List CoreTerm -> List Nat -> List Nat
   escape-list pids borrows consumed in-tail terms escaped = case terms of
-    Nil -> escaped
-    Cons t rest ->
+    [] -> escaped
+    t : rest ->
       escape-list pids borrows consumed in-tail rest (escape-term pids borrows consumed in-tail t escaped)
 
   escape-clauses :: List CoreClause -> HashMap String (List Bool) -> HashMap String (List Bool) -> List Nat -> List Nat
   escape-clauses clauses borrows consumed escaped = case clauses of
-    Nil -> escaped
-    Cons (CoreClause sp pats body) rest ->
-      let pids = param-var-pairs (own-runtime-params pats) 0 Nil in
+    [] -> escaped
+    (CoreClause sp pats body) : rest ->
+      let pids = param-var-pairs (own-runtime-params pats) 0 [] in
       escape-clauses rest borrows consumed (escape-term pids borrows consumed True body escaped)
 
   consumed-eligible :: CoreDefinition -> Option Nat
@@ -493,28 +493,28 @@ module Cinch.Ownership where
     let name = d.name in
     if same-str name "main" || same-str name "Main.main" then None
     else case (d.givens, d.openings, d.clauses) of
-      (Nil, Nil, Cons (CoreClause sp pats body) rest) ->
+      ([], [], (CoreClause sp pats body) : rest) ->
         let n = list-length (own-runtime-params pats) in
         if n == 0 then None else Some n
       other -> None
 
   init-consumed :: List CoreDefinition -> HashMap String (List Bool) -> (List (CoreDefinition, Nat), HashMap String (List Bool))
   init-consumed defs acc = case defs of
-    Nil -> (Nil, acc)
-    Cons d rest -> case init-consumed rest acc of
+    [] -> ([], acc)
+    d : rest -> case init-consumed rest acc of
       (elig, m) -> case consumed-eligible d of
-        Some arity -> (Cons (d, arity) elig, hash-map-insert (d.name) (rep-bool arity True) m)
+        Some arity -> ((d, arity) : elig, hash-map-insert (d.name) (rep-bool arity True) m)
         None -> (elig, m)
 
   consumed-sweep :: List (CoreDefinition, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> (HashMap String (List Bool), Bool)
   consumed-sweep elig borrows consumed changed = case elig of
-    Nil -> (consumed, changed)
-    Cons (d, arity) rest ->
+    [] -> (consumed, changed)
+    (d, arity) : rest ->
       let name = d.name in
-      let cur = (case hash-map-lookup name consumed of Some m -> m; None -> Nil) in
+      let cur = (case hash-map-lookup name consumed of Some m -> m; None -> []) in
       if not (any-true cur) then consumed-sweep rest borrows consumed changed
       else
-        let esc = escape-clauses (d.clauses) borrows consumed Nil in
+        let esc = escape-clauses (d.clauses) borrows consumed [] in
         let next = clear-indices cur esc in
         let diff = not (same-bools cur next) in
         let m2 = if diff then hash-map-insert name next consumed else consumed in
@@ -529,8 +529,8 @@ module Cinch.Ownership where
 
   prune-bool-map :: List (CoreDefinition, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> HashMap String (List Bool)
   prune-bool-map elig m out = case elig of
-    Nil -> out
-    Cons (d, arity) rest ->
+    [] -> out
+    (d, arity) : rest ->
       let name = d.name in
       let next = (case hash-map-lookup name m of
             Some mask | any-true mask -> hash-map-insert name mask out
@@ -617,8 +617,8 @@ module Cinch.Ownership where
 
   frame-use-list :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Nat
   frame-use-list needle borrows consumed terms = case terms of
-    Nil -> 1
-    Cons t rest ->
+    [] -> 1
+    t : rest ->
       combine-frame-mode (frame-use-term needle borrows consumed False t) (frame-use-list needle borrows consumed rest)
 
   frame-use-alts :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> Nat
@@ -631,7 +631,7 @@ module Cinch.Ownership where
   frame-use-app :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> Nat
   frame-use-app needle borrows consumed in-tail term =
     let h = call-head term in
-    let args = call-args term Nil in
+    let args = call-args term [] in
     let n-args = list-length args in
     case h of
       CUse sp ty name role actuals | not (same-str role "foreign") && not (same-str role "constructor") ->
@@ -654,8 +654,8 @@ module Cinch.Ownership where
 
   frame-use-readonly-args :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Nat
   frame-use-readonly-args needle borrows consumed args = case args of
-    Nil -> 1
-    Cons a rest ->
+    [] -> 1
+    a : rest ->
       let m1 = (case unwrap-var-id a of
             Some id | id == needle -> (1 :: Nat)
             other -> frame-use-term needle borrows consumed False a) in
@@ -663,8 +663,8 @@ module Cinch.Ownership where
 
   frame-use-call-args :: Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> Nat -> Nat
   frame-use-call-args needle borrows consumed args bmask cmask idx = case args of
-    Nil -> 1
-    Cons a rest ->
+    [] -> 1
+    a : rest ->
       let m1 = (case unwrap-var-id a of
             Some id | id == needle ->
               if mask-flag bmask idx then (1 :: Nat)
@@ -787,7 +787,7 @@ module Cinch.Ownership where
 
   is-pure-closed-method :: UType -> List CoreEvidence -> Bool
   is-pure-closed-method ty ev = case ev of
-    [CEInstance sp receiver factory Nil (CEArgumentsEnd end)] ->
+    [CEInstance sp receiver factory [] (CEArgumentsEnd end)] ->
       is-leaf-instance-type receiver && is-pure-leaf-fn-type ty
     other -> False
 
@@ -842,7 +842,7 @@ module Cinch.Ownership where
   app-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
   app-non-escaping safe term =
     let h = call-head term in
-    let args = call-args term Nil in
+    let args = call-args term [] in
     (case h of
       CUse sp ty name role actuals ->
         if same-str role "constructor" then True
@@ -857,8 +857,8 @@ module Cinch.Ownership where
 
   terms-non-escaping :: HashMap String Bool -> List CoreTerm -> Bool
   terms-non-escaping safe terms = case terms of
-    Nil -> True
-    Cons t rest -> term-non-escaping safe t && terms-non-escaping safe rest
+    [] -> True
+    t : rest -> term-non-escaping safe t && terms-non-escaping safe rest
 
   alts-non-escaping :: HashMap String Bool -> CoreTerm -> Bool
   alts-non-escaping safe alts = case alts of
@@ -877,18 +877,18 @@ module Cinch.Ownership where
 
   clauses-non-escaping :: HashMap String Bool -> List CoreClause -> Bool
   clauses-non-escaping safe clauses = case clauses of
-    Nil -> True
-    Cons (CoreClause sp pats body) rest -> term-non-escaping safe body && clauses-non-escaping safe rest
+    [] -> True
+    (CoreClause sp pats body) : rest -> term-non-escaping safe body && clauses-non-escaping safe rest
 
   init-non-escaping :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool
   init-non-escaping defs acc = case defs of
-    Nil -> acc
-    Cons d rest -> init-non-escaping rest (hash-map-insert (d.name) True acc)
+    [] -> acc
+    d : rest -> init-non-escaping rest (hash-map-insert (d.name) True acc)
 
   non-escaping-sweep :: List CoreDefinition -> HashMap String Bool -> Bool -> (HashMap String Bool, Bool)
   non-escaping-sweep defs safe changed = case defs of
-    Nil -> (safe, changed)
-    Cons d rest ->
+    [] -> (safe, changed)
+    d : rest ->
       let name = d.name in
       let cur = (case hash-map-lookup name safe of Some True -> True; other -> False) in
       if not cur then non-escaping-sweep rest safe changed
@@ -913,13 +913,13 @@ module Cinch.Ownership where
 
   terms-call-alloc-loop :: HashMap String Bool -> List CoreTerm -> Bool
   terms-call-alloc-loop alloc-loops terms = case terms of
-    Nil -> False
-    Cons t rest -> term-calls-alloc-loop alloc-loops t || terms-call-alloc-loop alloc-loops rest
+    [] -> False
+    t : rest -> term-calls-alloc-loop alloc-loops t || terms-call-alloc-loop alloc-loops rest
 
   clauses-call-alloc-loop :: HashMap String Bool -> List CoreClause -> Bool
   clauses-call-alloc-loop alloc-loops clauses = case clauses of
-    Nil -> False
-    Cons (CoreClause sp pats body) rest -> term-calls-alloc-loop alloc-loops body || clauses-call-alloc-loop alloc-loops rest
+    [] -> False
+    (CoreClause sp pats body) : rest -> term-calls-alloc-loop alloc-loops body || clauses-call-alloc-loop alloc-loops rest
 
   term-allocates-ctor :: CoreTerm -> Bool
   term-allocates-ctor term = case term of
@@ -931,18 +931,18 @@ module Cinch.Ownership where
 
   terms-allocate-ctor :: List CoreTerm -> Bool
   terms-allocate-ctor terms = case terms of
-    Nil -> False
-    Cons t rest -> term-allocates-ctor t || terms-allocate-ctor rest
+    [] -> False
+    t : rest -> term-allocates-ctor t || terms-allocate-ctor rest
 
   clauses-allocate-ctor :: List CoreClause -> Bool
   clauses-allocate-ctor clauses = case clauses of
-    Nil -> False
-    Cons (CoreClause sp pats body) rest -> term-allocates-ctor body || clauses-allocate-ctor rest
+    [] -> False
+    (CoreClause sp pats body) : rest -> term-allocates-ctor body || clauses-allocate-ctor rest
 
   collect-allocating-loops :: List CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Bool -> HashMap String Bool
   collect-allocating-loops defs tail-groups acc = case defs of
-    Nil -> acc
-    Cons d rest ->
+    [] -> acc
+    d : rest ->
       let name = d.name in
       let next = case hash-map-lookup name tail-groups of
             Some g -> if clauses-allocate-ctor (d.clauses) then hash-map-insert name True acc else acc
@@ -965,8 +965,8 @@ module Cinch.Ownership where
   -- Check that a function has no higher-order function parameters.
   has-function-param :: List CorePattern -> Bool
   has-function-param pats = case pats of
-    Nil -> False
-    Cons p rest ->
+    [] -> False
+    p : rest ->
       let is-fn = (case base-type (own-pattern-type p) of
             UFun a b -> True
             UFunEff a r b -> True
@@ -982,13 +982,13 @@ module Cinch.Ownership where
 
   terms-call-self :: String -> List CoreTerm -> Bool
   terms-call-self self terms = case terms of
-    Nil -> False
-    Cons t rest -> term-calls-self self t || terms-call-self self rest
+    [] -> False
+    t : rest -> term-calls-self self t || terms-call-self self rest
 
   clauses-call-self :: String -> List CoreClause -> Bool
   clauses-call-self self clauses = case clauses of
-    Nil -> False
-    Cons (CoreClause sp pats body) rest -> term-calls-self self body || clauses-call-self self rest
+    [] -> False
+    (CoreClause sp pats body) : rest -> term-calls-self self body || clauses-call-self self rest
 
   -- | Identify non-recursive, side-effect-free functions that return a
   -- non-arena leaf (`Int`, `Nat`, `Bool`, `String`, `Bytes`, etc.), never
@@ -1003,8 +1003,8 @@ module Cinch.Ownership where
 
   select-arena-phases :: List CoreDefinition -> HashMap String (Nat, Nat) -> HashMap String Bool -> HashMap String Bool -> HashMap String Bool -> HashMap String Bool
   select-arena-phases defs tail-groups safe alloc-loops out = case defs of
-    Nil -> out
-    Cons d rest ->
+    [] -> out
+    d : rest ->
       let name = d.name in
       let in-tail-group = (case hash-map-lookup name tail-groups of Some g -> True; None -> False) in
       let is-safe = (case hash-map-lookup name safe of Some True -> True; other -> False) in
@@ -1012,7 +1012,7 @@ module Cinch.Ownership where
             && not in-tail-group
             && is-safe
             && (case (d.givens, d.openings, d.clauses) of
-                  (Nil, Nil, Cons (CoreClause sp pats body) more) ->
+                  ([], [], (CoreClause sp pats body) : more) ->
                     is-non-arena-leaf-type (core-type body)
                     && not (has-function-param (own-runtime-params pats))
                     && not (clauses-call-self name (d.clauses))
@@ -1055,26 +1055,26 @@ module Cinch.Ownership where
 
   terms-use-concurrency :: List CoreTerm -> Bool
   terms-use-concurrency terms = case terms of
-    Nil -> False
-    Cons t rest -> term-uses-concurrency t || terms-use-concurrency rest
+    [] -> False
+    t : rest -> term-uses-concurrency t || terms-use-concurrency rest
 
   clauses-use-concurrency :: List CoreClause -> Bool
   clauses-use-concurrency clauses = case clauses of
-    Nil -> False
-    Cons (CoreClause sp pats body) rest -> term-uses-concurrency body || clauses-use-concurrency rest
+    [] -> False
+    (CoreClause sp pats body) : rest -> term-uses-concurrency body || clauses-use-concurrency rest
 
   -- | True if any definition in the program uses parallel or concurrent primitives.
   -- When False, every reference count in the module is statically thread-local
   -- (never shared/negative), so RC helpers skip atomic loads and MT branches.
   program-uses-concurrency :: List CoreDefinition -> Bool
   program-uses-concurrency defs = case defs of
-    Nil -> False
-    Cons d rest -> clauses-use-concurrency (d.clauses) || program-uses-concurrency rest
+    [] -> False
+    d : rest -> clauses-use-concurrency (d.clauses) || program-uses-concurrency rest
 
   all-nullary-ctors :: List CoreConstructor -> Bool
   all-nullary-ctors cs = case cs of
-    Nil -> True
-    Cons c rest -> (case core-constructor-fields c of Nil -> all-nullary-ctors rest; other -> False)
+    [] -> True
+    c : rest -> (case core-constructor-fields c of [] -> all-nullary-ctors rest; other -> False)
 
   -- | True when a `CoreData` has only 0-arity constructors (uniform layout),
   -- meaning every runtime value of this type is a static `RC_IMMORTAL` nullary
@@ -1082,6 +1082,6 @@ module Cinch.Ownership where
   is-immortal-enum-data :: CoreData -> Bool
   is-immortal-enum-data d = case core-data-layout d of
     UniformData -> (case core-data-constructors d of
-      Nil -> False
-      Cons first rest -> all-nullary-ctors (Cons first rest))
+      [] -> False
+      first : rest -> all-nullary-ctors (first : rest))
     other -> False

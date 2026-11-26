@@ -98,13 +98,13 @@ module Cinch.Ast where
 
   freeze-macro-tokens :: List LToken -> List MacroToken
   freeze-macro-tokens toks = case toks of
-    Nil -> Nil
-    Cons t rest -> Cons (MacroToken (lt-span t) (lt-virtual t) (freeze-macro-tok (lt-token t))) (freeze-macro-tokens rest)
+    [] -> []
+    t : rest -> (MacroToken (lt-span t) (lt-virtual t) (freeze-macro-tok (lt-token t))) : (freeze-macro-tokens rest)
 
   thaw-macro-tokens :: List MacroToken -> List LToken
   thaw-macro-tokens toks = case toks of
-    Nil -> Nil
-    Cons (MacroToken sp v t) rest -> Cons (mk-ltoken sp v (thaw-macro-tok t)) (thaw-macro-tokens rest)
+    [] -> []
+    (MacroToken sp v t) : rest -> (mk-ltoken sp v (thaw-macro-tok t)) : (thaw-macro-tokens rest)
 
   -- ------------------------------------------------------------------ spans
 
@@ -119,8 +119,8 @@ module Cinch.Ast where
   -- Shadow one source spelling while retaining every other local name.
   without-spelling :: String -> List String -> List String
   without-spelling name names = case names of
-    Nil -> Nil
-    Cons first rest -> if string-compare first name == 0 then without-spelling name rest else Cons first (without-spelling name rest)
+    [] -> []
+    first : rest -> if first == name then without-spelling name rest else first : (without-spelling name rest)
 
   -- Whether a declaration name is an operator (surface syntax and grammar,
   -- `operator`): the parser keeps the operator text as the name and the first
@@ -193,26 +193,26 @@ module Cinch.Ast where
 
   type-arg-spine :: Span -> List TypeExpr -> TypeExpr
   type-arg-spine s xs = case xs of
-    Nil -> TArgsEnd s
-    Cons x rest -> TArg s x (type-arg-spine s rest)
+    [] -> TArgsEnd s
+    x : rest -> TArg s x (type-arg-spine s rest)
 
   type-args-of :: TypeExpr -> List TypeExpr
   type-args-of t = case t of
-    TArgsEnd s -> Nil
-    TArg s x rest -> Cons x (type-args-of rest)
-    other -> Nil
+    TArgsEnd s -> []
+    TArg s x rest -> x : (type-args-of rest)
+    other -> []
 
   type-bound-spine :: Span -> List (String, TypeExpr) -> TypeExpr
   type-bound-spine s xs = case xs of
-    Nil -> TBoundsEnd s
-    Cons x rest -> case x of
+    [] -> TBoundsEnd s
+    x : rest -> case x of
       (name, t) -> TBound s name t (type-bound-spine s rest)
 
   type-bounds-of :: TypeExpr -> List (String, TypeExpr)
   type-bounds-of t = case t of
-    TBoundsEnd s -> Nil
-    TBound s name ty rest -> Cons (name, ty) (type-bounds-of rest)
-    other -> Nil
+    TBoundsEnd s -> []
+    TBound s name ty rest -> (name, ty) : (type-bounds-of rest)
+    other -> []
 
   type-expr-span :: TypeExpr -> Span
   type-expr-span t = case t of
@@ -256,23 +256,23 @@ module Cinch.Ast where
   -- The temporary parameter list must not appear nested in TypeExpr.
   forall-param-spine :: Span -> List TypeParam -> TypeExpr
   forall-param-spine sp params = case params of
-    Nil -> TQuantifiersEnd sp
-    Cons (TypeParam s name kind is-implicit) rest -> TQuantifier s name is-implicit (case kind of
+    [] -> TQuantifiersEnd sp
+    (TypeParam s name kind is-implicit) : rest -> TQuantifier s name is-implicit (case kind of
       None -> TNoKind s
       Some annotation -> annotation) (forall-param-spine sp rest)
 
   forall-params-of :: TypeExpr -> List TypeParam
   forall-params-of binders = case binders of
-    TQuantifiersEnd s -> Nil
-    TQuantifier s name is-implicit kind rest -> Cons (TypeParam s name (case kind of
+    TQuantifiersEnd s -> []
+    TQuantifier s name is-implicit kind rest -> (TypeParam s name (case kind of
       TNoKind k -> None
-      annotation -> Some annotation) is-implicit) (forall-params-of rest)
-    other -> Nil
+      annotation -> Some annotation) is-implicit) : (forall-params-of rest)
+    other -> []
 
   params-unmodeled :: List TypeParam -> Nat
   params-unmodeled ps = case ps of
-    Nil -> 0
-    Cons p rest -> case p.kind of
+    [] -> 0
+    p : rest -> case p.kind of
       None -> params-unmodeled rest
       Some ty -> type-unmodeled-count ty + params-unmodeled rest
 
@@ -300,14 +300,14 @@ module Cinch.Ast where
 
   pat-spine :: Span -> List Pat -> Pat
   pat-spine s ps = case ps of
-    Nil -> PArgsEnd s
-    Cons p rest -> PArg s p (pat-spine s rest)
+    [] -> PArgsEnd s
+    p : rest -> PArg s p (pat-spine s rest)
 
   pats-of :: Pat -> List Pat
   pats-of p = case p of
-    PArgsEnd s -> Nil
-    PArg s x rest -> Cons x (pats-of rest)
-    other -> Nil
+    PArgsEnd s -> []
+    PArg s x rest -> x : (pats-of rest)
+    other -> []
 
   pat-span :: Pat -> Span
   pat-span p = case p of
@@ -428,38 +428,38 @@ module Cinch.Ast where
 
   expr-spine :: Span -> List Expr -> Expr
   expr-spine s xs = case xs of
-    Nil -> EArgsEnd s
-    Cons x rest -> EArg s x (expr-spine s rest)
+    [] -> EArgsEnd s
+    x : rest -> EArg s x (expr-spine s rest)
 
   exprs-of :: Expr -> List Expr
   exprs-of e = case e of
-    EArgsEnd s -> Nil
-    EArg s x rest -> Cons x (exprs-of rest)
-    other -> Nil
+    EArgsEnd s -> []
+    EArg s x rest -> x : (exprs-of rest)
+    other -> []
 
   binding-spine :: Span -> List (String, Expr) -> Expr
   binding-spine s bs = case bs of
-    Nil -> EBindingsEnd s
-    Cons b rest -> case b of
+    [] -> EBindingsEnd s
+    b : rest -> case b of
       (name, rhs) -> EBinding s name rhs (binding-spine s rest)
 
   bindings-of :: Expr -> List (String, Expr)
   bindings-of e = case e of
-    EBindingsEnd s -> Nil
-    EBinding s name rhs rest -> Cons (name, rhs) (bindings-of rest)
-    other -> Nil
+    EBindingsEnd s -> []
+    EBinding s name rhs rest -> (name, rhs) : (bindings-of rest)
+    other -> []
 
   alt-spine :: Span -> List (Pat, Expr) -> Expr
   alt-spine s alts = case alts of
-    Nil -> EAltsEnd s
-    Cons a rest -> case a of
+    [] -> EAltsEnd s
+    a : rest -> case a of
       (p, body) -> EAlt s p body (alt-spine s rest)
 
   alts-of :: Expr -> List (Pat, Expr)
   alts-of e = case e of
-    EAltsEnd s -> Nil
-    EAlt s p body rest -> Cons (p, body) (alts-of rest)
-    other -> Nil
+    EAltsEnd s -> []
+    EAlt s p body rest -> (p, body) : (alts-of rest)
+    other -> []
 
   expr-span :: Expr -> Span
   expr-span e = case e of
@@ -572,7 +572,7 @@ module Cinch.Ast where
       Some equation -> Some (LawArrow domain equation)
       None -> None
     TApp sp (TName head name) (TArg first left (TArg second right (TArgsEnd end))) ->
-      if string-compare name "Eq" /= 0 then None else
+      if name /= "Eq" then None else
         (case (index-syntax-expression left, index-syntax-expression right) of
           (Some a, Some b) -> Some (LawEquation a b)
           other -> None)
@@ -580,7 +580,7 @@ module Cinch.Ast where
 
   index-syntax-expression :: TypeExpr -> Option Expr
   index-syntax-expression ty = case ty of
-    TName sp name -> Some (if string-compare name "()" == 0 then EUnit sp else EVar sp name)
+    TName sp name -> Some (if name == "()" then EUnit sp else EVar sp name)
     TIndex sp digits -> Some (ELitInt sp digits)
     TNegate sp body -> case index-syntax-expression body of
       Some expression -> Some (ENeg sp expression)
@@ -713,14 +713,14 @@ module Cinch.Ast where
 
   decl-spine :: Span -> List Decl -> Decl
   decl-spine s ds = case ds of
-    Nil -> DDeclsEnd s
-    Cons d rest -> DDecl s d (decl-spine s rest)
+    [] -> DDeclsEnd s
+    d : rest -> DDecl s d (decl-spine s rest)
 
   decls-of :: Decl -> List Decl
   decls-of d = case d of
-    DDeclsEnd s -> Nil
-    DDecl s x rest -> Cons x (decls-of rest)
-    other -> Nil
+    DDeclsEnd s -> []
+    DDecl s x rest -> x : (decls-of rest)
+    other -> []
 
   decl-span :: Decl -> Span
   decl-span d = case d of
@@ -839,9 +839,9 @@ module Cinch.Ast where
   -- The module's declarations, flattened out of its spine.
   declaration-inline-hints :: List Decl -> List (String, String)
   declaration-inline-hints ds = case ds of
-    Nil -> Nil
-    Cons (DInlineHint sp name (Ok hint)) rest -> Cons (name, hint) (declaration-inline-hints rest)
-    Cons other rest -> declaration-inline-hints rest
+    [] -> []
+    (DInlineHint sp name (Ok hint)) : rest -> (name, hint) : (declaration-inline-hints rest)
+    other : rest -> declaration-inline-hints rest
 
   module-decls :: Module -> List Decl
   module-decls m = case m of
@@ -853,8 +853,8 @@ module Cinch.Ast where
   module-name-index modules = index-module-names (reverse modules) hash-map-empty
   index-module-names :: List Module -> HashMap String Module -> HashMap String Module
   index-module-names modules indexed = case modules of
-    Nil -> indexed
-    Cons m rest -> index-module-names rest (hash-map-insert (m.name) m indexed)
+    [] -> indexed
+    m : rest -> index-module-names rest (hash-map-insert (m.name) m indexed)
 
   record Program where
     span :: Span
@@ -894,13 +894,13 @@ module Cinch.Ast where
 
   type-unmodeleds :: List TypeExpr -> Nat
   type-unmodeleds ts = case ts of
-    Nil -> 0
-    Cons t rest -> type-unmodeled-count t + type-unmodeleds rest
+    [] -> 0
+    t : rest -> type-unmodeled-count t + type-unmodeleds rest
 
   bounds-unmodeled :: List (String, TypeExpr) -> Nat
   bounds-unmodeled bs = case bs of
-    Nil -> 0
-    Cons b rest -> bound-unmodeled b + bounds-unmodeled rest
+    [] -> 0
+    b : rest -> bound-unmodeled b + bounds-unmodeled rest
 
   bound-unmodeled :: (String, TypeExpr) -> Nat
   bound-unmodeled b = case b of
@@ -929,8 +929,8 @@ module Cinch.Ast where
 
   pats-unmodeled :: List Pat -> Nat
   pats-unmodeled ps = case ps of
-    Nil -> 0
-    Cons p rest -> pat-unmodeled-count p + pats-unmodeled rest
+    [] -> 0
+    p : rest -> pat-unmodeled-count p + pats-unmodeled rest
 
   expr-unmodeled-count :: Expr -> Nat
   expr-unmodeled-count e = case e of
@@ -1000,13 +1000,13 @@ module Cinch.Ast where
 
   exprs-unmodeled :: List Expr -> Nat
   exprs-unmodeled es = case es of
-    Nil -> 0
-    Cons e rest -> expr-unmodeled-count e + exprs-unmodeled rest
+    [] -> 0
+    e : rest -> expr-unmodeled-count e + exprs-unmodeled rest
 
   bindings-unmodeled :: List (String, Expr) -> Nat
   bindings-unmodeled bs = case bs of
-    Nil -> 0
-    Cons b rest -> binding-unmodeled b + bindings-unmodeled rest
+    [] -> 0
+    b : rest -> binding-unmodeled b + bindings-unmodeled rest
 
   binding-unmodeled :: (String, Expr) -> Nat
   binding-unmodeled b = case b of
@@ -1014,8 +1014,8 @@ module Cinch.Ast where
 
   alts-unmodeled :: List (Pat, Expr) -> Nat
   alts-unmodeled alts = case alts of
-    Nil -> 0
-    Cons a rest -> alt-unmodeled a + alts-unmodeled rest
+    [] -> 0
+    a : rest -> alt-unmodeled a + alts-unmodeled rest
 
   alt-unmodeled :: (Pat, Expr) -> Nat
   alt-unmodeled a = case a of
@@ -1023,8 +1023,8 @@ module Cinch.Ast where
 
   clauses-unmodeled :: List (List Pat, Expr) -> Nat
   clauses-unmodeled cs = case cs of
-    Nil -> 0
-    Cons c rest -> clause-unmodeled c + clauses-unmodeled rest
+    [] -> 0
+    c : rest -> clause-unmodeled c + clauses-unmodeled rest
 
   clause-unmodeled :: (List Pat, Expr) -> Nat
   clause-unmodeled c = case c of
@@ -1032,8 +1032,8 @@ module Cinch.Ast where
 
   ctors-unmodeled :: List (String, TypeExpr) -> Nat
   ctors-unmodeled cs = case cs of
-    Nil -> 0
-    Cons c rest -> ctor-unmodeled c + ctors-unmodeled rest
+    [] -> 0
+    c : rest -> ctor-unmodeled c + ctors-unmodeled rest
 
   ctor-unmodeled :: (String, TypeExpr) -> Nat
   ctor-unmodeled c = case c of
@@ -1058,7 +1058,7 @@ module Cinch.Ast where
     DDataFamily s n params -> params-unmodeled params
     DDataInstance s fam args ctors -> type-unmodeled-count args + ctors-unmodeled ctors
     DOpaque s n params kind -> params-unmodeled params + type-unmodeled-count kind
-    DRefine s n params binder predicate -> params-unmodeled (Cons binder params) + type-unmodeled-count predicate
+    DRefine s n params binder predicate -> params-unmodeled (binder : params) + type-unmodeled-count predicate
     DClass s n params members -> params-unmodeled params + decls-unmodeled (decls-of members)
     DInstance s is-implicit name params class-app members -> params-unmodeled params + type-unmodeled-count class-app + decls-unmodeled (decls-of members)
     DFixity s assoc prec ops -> 0
@@ -1096,13 +1096,13 @@ module Cinch.Ast where
 
   type-family-eqs-unmodeled :: List TypeFamilyEq -> Nat
   type-family-eqs-unmodeled eqs = case eqs of
-    Nil -> 0
-    Cons (TypeFamilyEq s head args rhs) rest -> type-unmodeled-count args + type-unmodeled-count rhs + type-family-eqs-unmodeled rest
+    [] -> 0
+    (TypeFamilyEq s head args rhs) : rest -> type-unmodeled-count args + type-unmodeled-count rhs + type-family-eqs-unmodeled rest
 
   contract-clauses-unmodeled :: List ContractClause -> Nat
   contract-clauses-unmodeled clauses = case clauses of
-    Nil -> 0
-    Cons c rest -> contract-clause-unmodeled c + contract-clauses-unmodeled rest
+    [] -> 0
+    c : rest -> contract-clause-unmodeled c + contract-clauses-unmodeled rest
 
   contract-clause-unmodeled :: ContractClause -> Nat
   contract-clause-unmodeled c = case c of
@@ -1112,8 +1112,8 @@ module Cinch.Ast where
 
   prim-bodies-unmodeled :: List PrimBody -> Nat
   prim-bodies-unmodeled bodies = case bodies of
-    Nil -> 0
-    Cons (PrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
+    [] -> 0
+    (PrimBody sp family fragment unverified condition selected justification uses immediates) : rest ->
       exprs-unmodeled condition
         + (case justification of Some (RewriteTerm value) -> expr-unmodeled-count value; Some (RewriteLaw site owner member args) -> exprs-unmodeled args; None -> 0)
         + ctors-unmodeled uses + prim-bodies-unmodeled rest
@@ -1127,8 +1127,8 @@ module Cinch.Ast where
 
   decls-unmodeled :: List Decl -> Nat
   decls-unmodeled ds = case ds of
-    Nil -> 0
-    Cons d rest -> decl-unmodeled-count d + decls-unmodeled rest
+    [] -> 0
+    d : rest -> decl-unmodeled-count d + decls-unmodeled rest
 
   module-unmodeled-count :: Module -> Nat
   module-unmodeled-count m = case m of
@@ -1140,8 +1140,8 @@ module Cinch.Ast where
 
   modules-unmodeled :: List Module -> Nat
   modules-unmodeled ms = case ms of
-    Nil -> 0
-    Cons m rest -> module-unmodeled-count m + modules-unmodeled rest
+    [] -> 0
+    m : rest -> module-unmodeled-count m + modules-unmodeled rest
 
   -- Span-free constructor-tagged identity of resolved source syntax.
   -- Used only after type checking; this grants no typing or proof authority.
@@ -1264,15 +1264,15 @@ module Cinch.Ast where
     ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)
 
   source-identity-pats :: List Pat -> Json
-  source-identity-pats values = case values of Nil -> JArrEnd; Cons first rest -> JArr (source-identity-pat first) (source-identity-pats rest)
+  source-identity-pats values = case values of [] -> JArrEnd; first : rest -> JArr (source-identity-pat first) (source-identity-pats rest)
   source-identity-names :: List String -> Json
-  source-identity-names values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (source-identity-names rest)
+  source-identity-names values = case values of [] -> JArrEnd; first : rest -> JArr (JStr first) (source-identity-names rest)
   -- A token tree's identity is the tokens' own spelling. A layout-inserted
   -- token is not in the source, so it cannot distinguish two spellings.
   source-identity-tokens :: List MacroToken -> Json
   source-identity-tokens values = case values of
-    Nil -> JArrEnd
-    Cons (MacroToken sp virt tok) rest -> if virt then source-identity-tokens rest
+    [] -> JArrEnd
+    (MacroToken sp virt tok) : rest -> if virt then source-identity-tokens rest
       else JArr (JStr (macro-token-identity-spelling tok)) (source-identity-tokens rest)
 
   macro-token-identity-spelling :: MacroTok -> String
@@ -1295,8 +1295,8 @@ module Cinch.Ast where
   source-identity-optional value = case value of None -> JNull; Some name -> JStr name
   source-clauses-document :: List (List Pat, Expr) -> Json
   source-clauses-document clauses = case clauses of
-    Nil -> JArrEnd
-    Cons (patterns, body) rest -> JArr (JArr (source-identity-pats patterns) (JArr (source-identity-expr body) JArrEnd)) (source-clauses-document rest)
+    [] -> JArrEnd
+    (patterns, body) : rest -> JArr (JArr (source-identity-pats patterns) (JArr (source-identity-expr body) JArrEnd)) (source-clauses-document rest)
 
   source-law-document :: LawSyntax -> Json
   source-law-document declaration = case declaration of
@@ -1315,8 +1315,8 @@ module Cinch.Ast where
 
   source-law-parameters :: List TypeParam -> Json
   source-law-parameters parameters = case parameters of
-    Nil -> JArrEnd
-    Cons p rest -> JArr (JArr (JStr (p.name)) (JArr (JBool (p.is-implicit))
+    [] -> JArrEnd
+    p : rest -> JArr (JArr (JStr (p.name)) (JArr (JBool (p.is-implicit))
       (JArr (case p.kind of Some kind -> source-identity-type kind; None -> JNull) JArrEnd)))
       (source-law-parameters rest)
 
@@ -1336,19 +1336,19 @@ module Cinch.Ast where
   -- The interface body is syntax, never checked Core. Decode only the
   -- portable forms and rebuild their lexical scopes before elaboration.
   default-tag :: String -> String -> Bool
-  default-tag a b = string-compare a b == 0
+  default-tag a b = a == b
   default-bound :: String -> List String -> Bool
   default-bound name bound = case bound of
-    Nil -> False
-    Cons first rest -> default-tag name first || default-bound name rest
+    [] -> False
+    first : rest -> default-tag name first || default-bound name rest
   default-local :: String -> Bool
   default-local name = case unpack name of
-    Nil -> False
-    Cons first rest -> default-local-chars (Cons first rest)
+    [] -> False
+    first : rest -> default-local-chars (first : rest)
   default-local-chars :: List Char -> Bool
   default-local-chars chars = case chars of
-    Nil -> True
-    Cons c rest -> char-code c /= 46 && default-local-chars rest
+    [] -> True
+    c : rest -> char-code c /= 46 && default-local-chars rest
   default-reference :: (String -> Option String) -> List String -> String -> Option String
   default-reference globals bound name = if default-bound name bound then Some name else globals name
 
@@ -1362,14 +1362,14 @@ module Cinch.Ast where
   default-pattern :: Span -> (String -> Option String) -> Json -> Option (Pat, List String)
   default-pattern sp globals syntax = case syntax of
     JArr (JStr tag) JArrEnd ->
-      if default-tag tag "PWild" then Some (PWild sp, Nil)
-      else if default-tag tag "PArgsEnd" then Some (PArgsEnd sp, Nil) else None
+      if default-tag tag "PWild" then Some (PWild sp, [])
+      else if default-tag tag "PArgsEnd" then Some (PArgsEnd sp, []) else None
     JArr (JStr tag) (JArr (JStr name) JArrEnd) ->
       if default-tag tag "PVar" && default-local name then Some (PVar sp name, [name])
-      else if default-tag tag "PLitInt" then Some (PLitInt sp name, Nil)
-      else if default-tag tag "PLitSym" then Some (PLitSym sp name, Nil)
-      else if default-tag tag "PLitChar" then Some (PLitChar sp name, Nil)
-      else if default-tag tag "PLitStr" then Some (PLitStr sp name, Nil)
+      else if default-tag tag "PLitInt" then Some (PLitInt sp name, [])
+      else if default-tag tag "PLitSym" then Some (PLitSym sp name, [])
+      else if default-tag tag "PLitChar" then Some (PLitChar sp name, [])
+      else if default-tag tag "PLitStr" then Some (PLitStr sp name, [])
       else None
     JArr (JStr tag) (JArr body JArrEnd) -> case default-pattern sp globals body of
       Some (pattern, bound) -> if default-tag tag "PTuple" then Some (PTuple sp pattern, bound)
@@ -1381,7 +1381,7 @@ module Cinch.Ast where
         other -> None)
     JArr (JStr tag) (JArr (JStr name) (JArr body JArrEnd)) -> case default-pattern sp globals body of
       Some (pattern, bound) ->
-        if default-tag tag "PAs" && default-local name then Some (PAs sp name pattern, Cons name bound)
+        if default-tag tag "PAs" && default-local name then Some (PAs sp name pattern, name : bound)
         else if default-tag tag "PCon" then
           (case globals name of Some identity -> Some (PCon sp identity pattern, bound); None -> None)
         else None
@@ -1400,9 +1400,9 @@ module Cinch.Ast where
 
   default-patterns :: Span -> (String -> Option String) -> Json -> Option (List Pat, List String)
   default-patterns sp globals syntax = case syntax of
-    JArrEnd -> Some (Nil, Nil)
+    JArrEnd -> Some ([], [])
     JArr first rest -> case (default-pattern sp globals first, default-patterns sp globals rest) of
-      (Some (pattern, bound), Some (more, bindings)) -> Some (Cons pattern more, bound <> bindings)
+      (Some (pattern, bound), Some (more, bindings)) -> Some (pattern : more, bound <> bindings)
       other -> None
     other -> None
 
@@ -1505,21 +1505,21 @@ module Cinch.Ast where
     JArr (JStr tag) JArrEnd -> if default-tag tag "EBindingsEnd" then Some (EBindingsEnd sp, bound) else None
     JArr (JStr tag) (JArr (JStr name) (JArr value (JArr rest JArrEnd))) ->
       if not (default-tag tag "EBinding" && default-local name) then None else
-        (case (default-expression sp globals bound value, default-bindings sp globals (Cons name bound) rest) of
+        (case (default-expression sp globals bound value, default-bindings sp globals (name : bound) rest) of
           (Some rhs, Some (more, locals)) -> Some (EBinding sp name rhs more, locals)
           other -> None)
     other -> None
 
   portable-law-syntax :: Span -> (String -> Option String) -> Json -> Option LawSyntax
-  portable-law-syntax sp globals syntax = decode-law-syntax sp globals Nil syntax
+  portable-law-syntax sp globals syntax = decode-law-syntax sp globals [] syntax
 
   decode-law-syntax :: Span -> (String -> Option String) -> List String -> Json -> Option LawSyntax
   decode-law-syntax sp globals locals syntax = case syntax of
     JArr (JStr tag) (JArr first (JArr second JArrEnd)) ->
       if default-tag tag "LawForall" then
         (case decode-law-parameters sp globals first of
-          Some (Cons first-param more, names) -> (case decode-law-syntax sp globals (names <> locals) second of
-            Some body -> Some (LawForall (Cons first-param more) body)
+          Some (first-param : more, names) -> (case decode-law-syntax sp globals (names <> locals) second of
+            Some body -> Some (LawForall (first-param : more) body)
             None -> None)
           other -> None)
       else if default-tag tag "LawEquation" then
@@ -1533,7 +1533,7 @@ module Cinch.Ast where
           None -> None
           Some ty -> (case name of
             JStr local -> if not (default-local local) then None else
-              (case decode-law-syntax sp globals (Cons local locals) body of
+              (case decode-law-syntax sp globals (local : locals) body of
                 Some more -> Some (LawArrow (TBound sp local ty (TBoundsEnd sp)) more)
                 None -> None)
             JNull -> (case decode-law-syntax sp globals locals body of
@@ -1548,9 +1548,9 @@ module Cinch.Ast where
       if not (default-local name) then None else
         (case (decode-law-kind sp globals kind, decode-law-parameters sp globals rest) of
           (Some ann, Some (params, names)) ->
-            if default-bound name names then None else Some (Cons (TypeParam sp name ann flag) params, Cons name names)
+            if default-bound name names then None else Some ((TypeParam sp name ann flag) : params, name : names)
           other -> None)
-    JArrEnd -> Some (Nil, Nil)
+    JArrEnd -> Some ([], [])
     other -> None
 
   decode-law-kind :: Span -> (String -> Option String) -> Json -> Option (Option TypeExpr)
@@ -1560,11 +1560,11 @@ module Cinch.Ast where
 
   portable-default-clauses :: Span -> (String -> Option String) -> Json -> Option (List (List Pat, Expr))
   portable-default-clauses sp globals syntax = case syntax of
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     JArr (JArr patterns (JArr expression JArrEnd)) rest ->
       (case (default-patterns sp globals patterns, portable-default-clauses sp globals rest) of
         (Some (arguments, bound), Some more) -> (case default-expression sp globals bound expression of
-          Some body -> Some (Cons (arguments, body) more)
+          Some body -> Some ((arguments, body) : more)
           None -> None)
         other -> None)
     other -> None

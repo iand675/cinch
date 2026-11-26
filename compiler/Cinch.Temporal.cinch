@@ -40,20 +40,18 @@ module Cinch.Temporal where
     Recurrence :: ContractKind
     Stability :: ContractKind
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
-
   cat :: List String -> String
   cat parts = string-concat-all parts
 
   -- The kind a written keyword names, or none.
   contract-kind :: String -> Option ContractKind
   contract-kind word =
-    if same word "safety" then Some Safety
-    else if same word "liveness" then Some Liveness
-    else if same word "recurrence" then Some Recurrence
-    else if same word "stability" then Some Stability
-    else None
+    case word of
+    "safety" -> Some Safety
+    "liveness" -> Some Liveness
+    "recurrence" -> Some Recurrence
+    "stability" -> Some Stability
+    _ -> None
 
   contract-kind-keyword :: ContractKind -> String
   contract-kind-keyword k = case k of
@@ -75,8 +73,8 @@ module Cinch.Temporal where
   -- The clause vocabulary, as written.
   contract-clause-word :: String -> Bool
   contract-clause-word word =
-    same word "always" || same word "eventually" || same word "recur"
-    || same word "stable" || same word "assume"
+    word == "always" || word == "eventually" || word == "recur"
+    || word == "stable" || word == "assume"
 
   -- The operator a formula clause states.
   contract-clause-operator :: ContractClause -> Option String
@@ -89,17 +87,17 @@ module Cinch.Temporal where
   -- so the refusal can name the second formula or the mismatched operator).
   contract-clause-names :: List ContractClause -> List String
   contract-clause-names clauses = case clauses of
-    Nil -> Nil
-    Cons first rest -> (case first of
-      ContractFormula s op body -> Cons op Nil
-      ContractAssume s body -> Cons "assume" Nil
-      ContractAssumed s text -> Cons "assume" Nil) <> contract-clause-names rest
+    [] -> []
+    first : rest -> (case first of
+      ContractFormula s op body -> [op]
+      ContractAssume s body -> ["assume"]
+      ContractAssumed s text -> ["assume"]) <> contract-clause-names rest
 
   -- The formula clauses, in written order.
   contract-formula-clause :: List ContractClause -> Option (Span, String, Expr)
   contract-formula-clause clauses = case clauses of
-    Nil -> None
-    Cons first rest -> case first of
+    [] -> None
+    first : rest -> case first of
       ContractFormula s op body -> Some (s, op, body)
       other -> contract-formula-clause rest
 
@@ -108,11 +106,11 @@ module Cinch.Temporal where
   -- written order.
   contract-assumption-rows :: List ContractClause -> List String
   contract-assumption-rows clauses = case clauses of
-    Nil -> Nil
-    Cons first rest -> case first of
+    [] -> []
+    first : rest -> case first of
       ContractFormula s op body -> contract-assumption-rows rest
-      ContractAssume s body -> Cons (cat ["assume (", contract-renders-formula body, ")"]) (contract-assumption-rows rest)
-      ContractAssumed s text -> Cons (cat ["assume \"", text, "\""]) (contract-assumption-rows rest)
+      ContractAssume s body -> (cat ["assume (", contract-renders-formula body, ")"]) : (contract-assumption-rows rest)
+      ContractAssumed s text -> (cat ["assume \"", text, "\""]) : (contract-assumption-rows rest)
 
   -- The formula as the report and manifest rows spell it:
   -- `<operator> (<rendered formula>)`.
@@ -169,11 +167,11 @@ module Cinch.Temporal where
     else if string-starts-with "i.Algebra$2eArithmetic$2eAdd$2e$2b" name then "+"
     else if string-starts-with "i.Algebra$2eArithmetic$2eSub$2e$2d" name then "-"
     else if string-starts-with "i.Algebra$2eArithmetic$2eMul$2e$2a" name then "*"
-    else if same name "b.copyOut" then "copyOut"
-    else if same name "b.refSet" then "refSet"
-    else if same name "b.borrow" then "borrow"
-    else if same name "b.mutBorrow" then "mutBorrow"
-    else if same name "b.unrefine" then "unrefine"
+    else if name == "b.copyOut" then "copyOut"
+    else if name == "b.refSet" then "refSet"
+    else if name == "b.borrow" then "borrow"
+    else if name == "b.mutBorrow" then "mutBorrow"
+    else if name == "b.unrefine" then "unrefine"
     else name
 
   contract-renders-argument :: Expr -> String
@@ -199,7 +197,7 @@ module Cinch.Temporal where
       None -> Err (cat ["a `", contract-kind-keyword kind, "` temporal contract states its formula: `", contract-kind-operator kind, " = (P)` (core specification section 10)"])
       Some (at, op, body) -> if not (contract-clause-word op) then
         Err (cat ["`", op, "` is not a contract clause; expected `always`, `eventually`, `recur`, `stable` or `assume` (core specification section 10)"])
-        else if not (same op (contract-kind-operator kind)) then
+        else if op /= contract-kind-operator kind then
           Err (cat ["a `", contract-kind-keyword kind, "` temporal contract states `", contract-kind-operator kind, " = (P)`, not `", op, " = (...)` (core specification section 10: the language distinguishes safety, liveness, recurrence and stability)"])
           else if contract-formula-count clauses > 1 then
             Err (cat ["duplicate `", op, "` formula: a temporal contract states exactly one formula (core specification section 10)"])
@@ -207,8 +205,8 @@ module Cinch.Temporal where
 
   contract-formula-count :: List ContractClause -> Nat
   contract-formula-count clauses = case clauses of
-    Nil -> 0
-    Cons first rest -> (case first of
+    [] -> 0
+    first : rest -> (case first of
       ContractFormula s op body -> 1
       other -> 0) + contract-formula-count rest
 

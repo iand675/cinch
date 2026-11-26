@@ -21,6 +21,7 @@ module Cinch.Object where
   import Algebra.Semigroup
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
+  import Effect.Sequencing (ResultSequencing, OptionSequencing)
 
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export read-runtime-object-document, read-runtime-object-mode, admit-runtime-object-mode
@@ -49,24 +50,21 @@ module Cinch.Object where
     constructors :: Json
   -- Keep output collision checks separate from source export authorization.
   object-has-unit-symbol :: String -> RuntimeObject -> Bool
-  object-has-unit-symbol symbol value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> case hash-map-lookup symbol units of
-      Some unit -> True
-      None -> False
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
+  object-has-unit-symbol symbol value = case hash-map-lookup symbol value.units of
+    Some _ -> True
+    None -> False
   field :: String -> Json -> Json
-  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  field name doc = case doc of JObj key value rest -> if name == key then value else field name rest; other -> JNull
   has :: String -> HashMap String () -> Bool
   has name names = case hash-map-lookup name names of Some present -> True; None -> False
   -- Inventory membership is insufficient: require an actual loaded value
   -- export as well. Private helpers and dictionary workers do not bind names.
   object-unit :: String -> RuntimeObject -> Option RuntimeUnit
-  object-unit name value = object-variant name Nil value
+  object-unit name value = object-variant name [] value
   variant-classes :: List Nat -> String
-  variant-classes codes = case codes of Nil -> ""; Cons code rest -> (if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else "W") <> variant-classes rest
+  variant-classes codes = case codes of [] -> ""; code : rest -> (if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else "W") <> variant-classes rest
   variant-name :: String -> List Nat -> String
-  variant-name name codes = case codes of Nil -> name; other -> name <> "@" <> variant-classes codes
+  variant-name name codes = case codes of [] -> name; other -> name <> "@" <> variant-classes codes
   object-variant :: String -> List Nat -> RuntimeObject -> Option RuntimeUnit
   object-variant name codes value = case (raw-interface-global name, value) of
     (Some raw, RuntimeObject units exports instances dictionaries families constructors) ->
@@ -80,8 +78,8 @@ module Cinch.Object where
     other -> symbols
   exported-instances :: List LoadedInterface -> HashMap String () -> HashMap String ()
   exported-instances interfaces symbols = case interfaces of
-    Nil -> symbols
-    Cons first rest -> exported-instances rest (instance-symbols (field "instances" (field "exports" (first.doc))) symbols)
+    [] -> symbols
+    first : rest -> exported-instances rest (instance-symbols (field "instances" (field "exports" (first.doc))) symbols)
   -- Factory workers do not bind ordinary source values. Their authority is
   -- a checked instance export and its actual selected native inventory row.
   object-dictionary :: String -> List Nat -> RuntimeObject -> Option (RuntimeUnit, String, Nat, List Nat)
@@ -101,10 +99,10 @@ module Cinch.Object where
   -- instance and checked declaring slot, never through ordinary value scope.
   object-conditional-unit :: String -> String -> Nat -> String -> List Nat -> RuntimeObject -> Option RuntimeUnit
   object-conditional-unit owner dictionary slot name codes value = case (codes, raw-interface-global dictionary, value) of
-    (Nil, Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
+    ([], Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
       (case hash-map-lookup raw dictionaries of
         Some row -> (case (field "class" row, field "context_arity" row, conditional-method-at slot (field "methods" row)) of
-          (JStr actual-owner, JNum 0, Some method) -> if same owner (interface-global actual-owner) && same name (interface-global method) then hash-map-lookup method units else None
+          (JStr actual-owner, JNum 0, Some method) -> if owner == interface-global actual-owner && name == interface-global method then hash-map-lookup method units else None
           other -> None)
         None -> None)
     other -> None
@@ -115,9 +113,9 @@ module Cinch.Object where
   -- keeps the normal dictionary construction path.
   closed-function-fields :: HashMap String RuntimeUnit -> List Nat -> Json -> Bool
   closed-function-fields units fields methods = case (fields, methods) of
-    (Nil, JArrEnd) -> True
-    (Cons 1 rest, JArr (JStr name) more) -> (case hash-map-lookup name units of
-      Some unit -> (case unit.params of Nil -> False; other -> True) && closed-function-fields units rest more
+    ([], JArrEnd) -> True
+    (1 : rest, JArr (JStr name) more) -> (case hash-map-lookup name units of
+      Some unit -> (case unit.params of [] -> False; other -> True) && closed-function-fields units rest more
       None -> False)
     other -> False
   object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
@@ -125,7 +123,7 @@ module Cinch.Object where
     (Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
       (case hash-map-lookup raw dictionaries of
         Some row -> (case (field "class" row, field "context_arity" row, classes (field "fields" row)) of
-          (JStr actual-owner, JNum 0, Some fields) -> if not (same owner (interface-global actual-owner) && closed-function-fields units fields (field "methods" row)) then None else
+          (JStr actual-owner, JNum 0, Some fields) -> if not (owner == interface-global actual-owner && closed-function-fields units fields (field "methods" row)) then None else
             (case conditional-method-at slot (field "methods" row) of
               Some method -> hash-map-lookup method units
               None -> None)
@@ -135,32 +133,32 @@ module Cinch.Object where
   own-classes :: String -> Nat -> Option (List Nat)
   own-classes text index = let bytes = string-to-bytes text in if index < bytes-len bytes then
     (let byte = bytes-get bytes index in if byte /= 82 && byte /= 79 && byte /= 84 && byte /= 87 then None else
-      case own-classes text (index + 1) of Some rest -> Some (Cons (if byte == 82 then 0 else if byte == 79 then 1 else if byte == 84 then 2 else 3) rest); None -> None)
-    else if index == bytes-len bytes then Some Nil else None
+      case own-classes text (index + 1) of Some rest -> Some ((if byte == 82 then 0 else if byte == 79 then 1 else if byte == 84 then 2 else 3) : rest); None -> None)
+    else if index == bytes-len bytes then Some [] else None
   root-row-fields :: Json -> Bool
   root-row-fields row = case row of
     JObjEnd -> True
-    JObj key value rest -> (same key "symbol" || same key "classes") && root-row-fields rest
+    JObj key value rest -> (key == "symbol" || key == "classes") && root-row-fields rest
     other -> False
   unit-root-rows :: Json -> Result String (List (String, List Nat))
   unit-root-rows rows = case rows of
-    JArrEnd -> Ok Nil
+    JArrEnd -> Ok []
     JArr row rest -> (case (field "symbol" row, field "classes" row) of
       (JStr name, JStr letters) -> if not (root-row-fields row) then Err "unknown object root field" else
         (case (own-classes letters 0, unit-root-rows rest) of
-          (Some codes, Ok more) -> Ok (Cons (name, codes) more)
+          (Some codes, Ok more) -> Ok ((name, codes) : more)
           (None, other) -> Err "object root vectors contain only R/O/T/W"
           (other, Err message) -> Err message)
       other -> Err "object unit root requires a symbol and classes")
     other -> Err "object unit roots must be an array"
   unit-root-fields :: Json -> Result String (List (String, List Nat))
   unit-root-fields doc = case doc of
-    JObjEnd -> Ok Nil
+    JObjEnd -> Ok []
     JObj key value rest -> case unit-root-fields rest of
       Err message -> Err message
-      Ok more -> if same key "schema" then Ok more
-        else if same key "units" then (case unit-root-rows value of Ok rows -> Ok (rows <> more); Err message -> Err message)
-        else if same key "dictionaries" || same key "methods" then
+      Ok more -> if key == "schema" then Ok more
+        else if key == "units" then (case unit-root-rows value of Ok rows -> Ok (rows <> more); Err message -> Err message)
+        else if key == "dictionaries" || key == "methods" then
           (case value of JArrEnd -> Ok more; other -> Err "explicit dictionary and method specialization roots are not implemented")
         else Err "unknown object roots field"
     other -> Err "object roots must be a JSON object"
@@ -168,7 +166,7 @@ module Cinch.Object where
   read-object-unit-roots path = case fs-read (path-from-string path) of
     Err error -> Err "cannot read object roots"
     Ok bytes -> case parse-json path bytes of
-      Parsed doc Nil -> (case field "schema" doc of JNum 1 -> unit-root-fields doc; other -> Err "object roots require schema 1")
+      Parsed doc [] -> (case field "schema" doc of JNum 1 -> unit-root-fields doc; other -> Err "object roots require schema 1")
       other -> Err "object roots are not valid JSON"
 
   family-slots :: Json -> Nat -> Nat -> Option (List (Nat, Nat, List Nat))
@@ -176,10 +174,10 @@ module Cinch.Object where
     JArr row rest -> (case (field "logical" row, field "physical" row, field "own" row) of
       (JNum logical, JNum physical, JStr text) -> if logical < 0 || nat-from-int logical >= declared || physical /= nat-to-int next then None else
         (case (own-classes text 0, family-slots rest declared (next + 1)) of
-          (Some codes, Some more) -> Some (Cons (nat-from-int logical, next, codes) more)
+          (Some codes, Some more) -> Some ((nat-from-int logical, next, codes) : more)
           other -> None)
       other -> None)
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     other -> None
   object-family :: String -> RuntimeObject -> Option (Nat, List (Nat, Nat, List Nat))
   object-family owner value = case (raw-interface-global owner, value) of
@@ -197,7 +195,7 @@ module Cinch.Object where
   -- in source.
   object-string-layout :: String -> RuntimeObject -> Option Nat
   object-string-layout name value = case value of
-    RuntimeObject units exports instances dictionaries families constructors -> if not (same name (global-data-string-string)) then None else
+    RuntimeObject units exports instances dictionaries families constructors -> if name /= global-data-string-string then None else
       (case (field "descriptor" (field "Data.String.StrBuf" constructors), field "escaped" (field "Data.String.StrBuf" constructors), field "arity" (field "Data.String.StrBuf" constructors), field "tag" (field "Data.String.StrBuf" constructors)) of
         (JNum descriptor, JBool False, JNum 1, JNum 0) -> if descriptor == 256 then Some (nat-from-int descriptor) else None
         other -> None)
@@ -205,20 +203,20 @@ module Cinch.Object where
   class-code doc = case doc of
     -- `W` is the wide scalars' class (design/wide-scalars.md): never counted,
     -- two payload words, an `i128` at a call.
-    JStr name -> if same name "R" then Some 0 else if same name "O" then Some 1 else if same name "T" then Some 2 else if same name "W" then Some 3 else None
+    JStr name -> if name == "R" then Some 0 else if name == "O" then Some 1 else if name == "T" then Some 2 else if name == "W" then Some 3 else None
 
     other -> None
   classes :: Json -> Option (List Nat)
   classes doc = case doc of
-    JArr first rest -> (case (class-code first, classes rest) of (Some code, Some more) -> Some (Cons code more); other -> None)
-    JArrEnd -> Some Nil
+    JArr first rest -> (case (class-code first, classes rest) of (Some code, Some more) -> Some (code : more); other -> None)
+    JArrEnd -> Some []
     other -> None
   -- Packed objects put keys in byte order. Recognize both common unit
   -- shapes in one pass and use ordinary field lookup for legacy rows.
   unit-fields :: Json -> (Json, Json, Json, Json, Json)
   unit-fields row =
     let fields = (case row of
-      JObj a arity (JObj c closure tail) | same a "arity" && same c "closure_entry" ->
+      JObj a arity (JObj c closure tail) | (a == "arity") && c == "closure_entry" ->
         (case unit-body-fields (skip-lent-fields tail) of
           Some (name, params, result) -> Some (name, closure, arity, params, result)
           None -> None)
@@ -229,12 +227,12 @@ module Cinch.Object where
   skip-lent-fields :: Json -> Json
   skip-lent-fields row = case row of
     JObj key lent (JObj entry name (JObj width count rest))
-      | same key "lent" && same entry "lent_entry" && same width "lent_width" -> rest
+      | (key == "lent") && entry == "lent_entry" && width == "lent_width" -> rest
     other -> row
   unit-body-fields :: Json -> Option (Json, Json, Json)
   unit-body-fields row = case row of
     JObj p params (JObj r result (JObj s name JObjEnd))
-      | same p "params" && same r "result" && same s "symbol" -> Some (name, params, result)
+      | (p == "params") && r == "result" && s == "symbol" -> Some (name, params, result)
     other -> None
 
   units :: Json -> HashMap String RuntimeUnit -> Result String (HashMap String RuntimeUnit)
@@ -244,7 +242,7 @@ module Cinch.Object where
         (case classes arguments of
           None -> Err "malformed runtime object unit"
           Some params ->
-            if string-byte-length name == 0 || not (same closure (name <> ".object-closure")) || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
+            if string-byte-length name == 0 || closure /= name <> ".object-closure" || arity < 0 || nat-from-int arity /= list-length params then Err "invalid or duplicate runtime object unit" else
             (case hash-map-lookup name table of
               Some prior -> Err "invalid or duplicate runtime object unit"
               None -> (case result of
@@ -275,9 +273,9 @@ module Cinch.Object where
     JArr row rest -> (case (field "module" row, field "iface_hash" row, field "interface" row) of
       (JStr name, JStr hash, JObj key value tail) -> (case interface-files rest of
         Err message -> Err message
-        Ok more -> Ok (Cons (name, hash, field "interface" row) more))
+        Ok more -> Ok ((name, hash, field "interface" row) : more))
       other -> Err "malformed object interface closure")
-    JArrEnd -> Ok Nil
+    JArrEnd -> Ok []
     other -> Err "missing object interface closure"
   -- A C import has no implementation in the Cinch provider object. Permit
   -- separately admitted foreign-only contracts, including facade aliases,
@@ -288,13 +286,13 @@ module Cinch.Object where
   foreign-symbol-row symbol owner rows = case rows of
     JArr row rest -> (case (field "symbol" row, field "kind" row, field "abi" row, field "external" row) of
       (JStr name, JStr direction, JStr abi, JStr external) ->
-        (same symbol (owner <> "." <> name) && same direction "import" && same abi "ccall" && string-length external > 0) || foreign-symbol-row symbol owner rest
+        (symbol == owner <> "." <> name && direction == "import" && abi == "ccall" && string-length external > 0) || foreign-symbol-row symbol owner rest
       other -> foreign-symbol-row symbol owner rest)
     other -> False
   foreign-symbol :: String -> List LoadedInterface -> Bool
   foreign-symbol symbol interfaces = case interfaces of
-    Nil -> False
-    Cons first rest -> foreign-symbol-row symbol (first.name) (field "foreign" (field "exports" (first.doc))) || foreign-symbol symbol rest
+    [] -> False
+    first : rest -> foreign-symbol-row symbol (first.name) (field "foreign" (field "exports" (first.doc))) || foreign-symbol symbol rest
   foreign-values-only :: Json -> List LoadedInterface -> Bool
   foreign-values-only rows interfaces = case rows of
     JArr row rest -> (case (field "symbol" row, field "resolved" row, field "total_body" row) of
@@ -305,7 +303,7 @@ module Cinch.Object where
   opaque-types-only :: Json -> Bool
   opaque-types-only rows = case rows of
     JArr row rest -> (case (field "kind" row, field "ctors" row, field "fields" row, field "refinement" row) of
-      (JStr kind, JArrEnd, JArrEnd, JNull) -> same kind "opaque" && opaque-types-only rest
+      (JStr kind, JArrEnd, JArrEnd, JNull) -> kind == "opaque" && opaque-types-only rest
       other -> False)
     JArrEnd -> True
     other -> False
@@ -317,7 +315,7 @@ module Cinch.Object where
   -- | Ignore only the local alias spelling when comparing an exact represented value contract.
   scalar-reexport-contract :: Json -> Json
   scalar-reexport-contract row = case row of
-    JObj key value rest -> if same key "name" then scalar-reexport-contract rest
+    JObj key value rest -> if key == "name" then scalar-reexport-contract rest
       else JObj key value (scalar-reexport-contract rest)
     other -> other
   -- | Find a pure supported scalar declaration under its exact represented defining identity.
@@ -325,7 +323,7 @@ module Cinch.Object where
   scalar-reexport-foreign identity value owner rows = case rows of
     JArr row rest -> (case (field "symbol" row, field "kind" row, field "abi" row, field "effects" row, field "type" row, field "external" row) of
       (JStr local, JStr category, JStr abi, JStr effects, JStr actual, JStr opcode) ->
-        (same identity (owner <> "." <> local) && same category "intrinsic" && same abi "ccall" && same effects ""
+        (identity == owner <> "." <> local && category == "intrinsic" && abi == "ccall" && effects == ""
           && scalar-interface-contract-matches value row && (case scalar-intrinsic opcode of Some operation -> True; None -> False))
           || scalar-reexport-foreign identity value owner rest
       other -> scalar-reexport-foreign identity value owner rest)
@@ -343,8 +341,8 @@ module Cinch.Object where
   -- | Resolve a scalar alias only through the provider's already checked interface inventory.
   scalar-reexport-value :: Json -> List LoadedInterface -> Bool
   scalar-reexport-value wanted represented = case represented of
-    Nil -> False
-    Cons defining rest -> scalar-reexport-row wanted defining (field "values" (field "exports" (defining.doc)))
+    [] -> False
+    defining : rest -> scalar-reexport-row wanted defining (field "values" (field "exports" (defining.doc)))
       || scalar-reexport-value wanted rest
   -- | Require exact represented contracts for every scalar exported by a code-free facade.
   scalar-reexport-values :: Json -> List LoadedInterface -> Bool
@@ -364,24 +362,24 @@ module Cinch.Object where
     matching-interface-list wanted (index-object-interfaces (reverse actual) hash-map-empty) wanted actual
   index-object-interfaces :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
   index-object-interfaces actual indexed = case actual of
-    Nil -> indexed
-    Cons first rest -> index-object-interfaces rest (hash-map-insert (first.name) first indexed)
+    [] -> indexed
+    first : rest -> index-object-interfaces rest (hash-map-insert (first.name) first indexed)
   matching-interface-list :: List LoadedInterface -> HashMap String LoadedInterface -> List LoadedInterface -> List LoadedInterface -> Bool
   matching-interface-list remaining indexed wanted actual = case remaining of
-    Nil -> True
-    Cons first rest ->
+    [] -> True
+    first : rest ->
       (case hash-map-lookup (first.name) indexed of
-        Some represented -> same (first.hash) (represented.hash)
+        Some represented -> first.hash == represented.hash
         None -> foreign-interface-only first wanted || scalar-reexport-only first actual)
       && matching-interface-list rest indexed wanted actual
   exported-symbols :: List LoadedInterface -> HashMap String () -> HashMap String ()
   exported-symbols interfaces symbols = case interfaces of
-    Nil -> symbols
-    Cons first rest -> exported-symbols rest (value-symbols (first.values) symbols)
+    [] -> symbols
+    first : rest -> exported-symbols rest (value-symbols (first.values) symbols)
   value-symbols :: List ImportedValue -> HashMap String () -> HashMap String ()
   value-symbols values symbols = case values of
-    Nil -> symbols
-    Cons first rest -> value-symbols rest (hash-map-insert (first.symbol) () symbols)
+    [] -> symbols
+    first : rest -> value-symbols rest (hash-map-insert (first.symbol) () symbols)
   -- The runtime object a manifest document states. The caller parses the
   -- manifest once and passes the document on, because the same bytes are also
   -- the artifact it returns: parsing them a second time to recover them was
@@ -397,13 +395,13 @@ module Cinch.Object where
   parse-runtime-object-contracts :: Bool -> String -> List LoadedInterface -> Bytes -> Json -> ObjectContracts -> Result String RuntimeObject
   parse-runtime-object-contracts reclaim expected-triple interfaces code doc contracts =
     if not (case (field "schema" doc, field "runtime_abi" doc, field "word_size" doc, field "endian" doc, field "reclaim" doc, field "target" doc, field "self_describing" doc) of
-      (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool counted, JStr actual, JBool True) -> counted == reclaim && actual-abi == runtime-abi-int && same expected-triple actual
+      (JNum 1, JNum actual-abi, JNum bits, JStr endian, JBool counted, JStr actual, JBool True) -> counted == reclaim && actual-abi == runtime-abi-int && expected-triple == actual
         && (case profile-of-triple actual of
-          Ok profile -> same endian (profile.endian) && bits == nat-to-int (profile.word-size)
+          Ok profile -> endian == profile.endian && bits == nat-to-int (profile.word-size)
           Err message -> False)
       other -> False) then Err "runtime object target, ownership or block ABI mismatch" else
       (case field "object_content_hash" doc of
-        JStr hash -> if not (same hash (fnv-source-hash code)) then Err "runtime object code identity mismatch" else
+        JStr hash -> if hash /= fnv-source-hash code then Err "runtime object code identity mismatch" else
           (case (units (field "units" doc) hash-map-empty, object-contracts-match interfaces doc contracts) of
             (Ok functions, Ok matches) -> if matches then Ok (RuntimeObject functions (exported-symbols interfaces hash-map-empty) (exported-instances interfaces hash-map-empty) (index-dictionaries (field "dictionaries" doc)) (index-families (field "method_families" doc)) (field "constructors" doc)) else Err "runtime object checked interface identity mismatch"
             (Err message, other-files) -> Err message
@@ -438,7 +436,7 @@ module Cinch.Object where
   referenced-interface-rows refs private = case private of
     JNull -> read-interface-references refs None
     other -> (case interface-files private of
-      Ok Nil -> read-interface-references refs None
+      Ok [] -> read-interface-references refs None
       Ok [entry] -> read-interface-references refs (Some entry)
       Err message -> Err message
       other -> Err "runtime object has multiple private interface contracts")
@@ -447,18 +445,18 @@ module Cinch.Object where
   read-interface-references refs private = case refs of
     JArr row rest -> (case (field "module" row, field "iface_hash" row, field "interface" row) of
       (JStr name, JStr hash, JNull) -> (case private of
-        Some (owner, identity, doc) | same name owner ->
-          if same hash identity then prepend-interface-reference name hash (Some doc) (read-interface-references rest None)
+        Some (owner, identity, doc) | (name == owner) ->
+          if hash == identity then prepend-interface-reference name hash (Some doc) (read-interface-references rest None)
           else Err "runtime object private interface identity mismatch"
         other -> prepend-interface-reference name hash None (read-interface-references rest private))
       other -> Err "malformed runtime object interface reference")
-    JArrEnd -> (case private of None -> Ok Nil; other -> Err "runtime object private interface has no reference")
+    JArrEnd -> (case private of None -> Ok []; other -> Err "runtime object private interface has no reference")
     other -> Err "missing runtime object interface references"
 
   prepend-interface-reference :: String -> String -> Option Json -> Result String (List (String, String, Option Json)) -> Result String (List (String, String, Option Json))
   prepend-interface-reference name hash doc rest = case rest of
     Err message -> Err message
-    Ok refs -> Ok (Cons (name, hash, doc) refs)
+    Ok refs -> Ok ((name, hash, doc) : refs)
   -- Each row of a carved manifest with the bytes of the contract it held.
   -- A row and a span belong together by the row's position, so a row whose
   -- contract was not carved (it was not an object) is a mismatch here and
@@ -466,12 +464,12 @@ module Cinch.Object where
   interface-sources :: Bytes -> Json -> Nat -> List (Nat, Nat, Nat) -> Result String (List (String, String, Bytes))
   interface-sources src rows ordinal spans = case rows of
     JArr row rest -> (case (field "module" row, field "iface_hash" row, field "interface" row, spans) of
-      (JStr name, JStr hash, JNull, Cons (at, start, end) more) | at == ordinal && end <= bytes-len src ->
+      (JStr name, JStr hash, JNull, (at, start, end) : more) | at == ordinal && end <= bytes-len src ->
         (case interface-sources src rest (ordinal + 1) more of
           Err message -> Err message
-          Ok others -> Ok (Cons (name, hash, bytes-slice src start end) others))
+          Ok others -> Ok ((name, hash, bytes-slice src start end) : others))
       other -> Err "carved contract does not match its row")
-    JArrEnd -> (case spans of Nil -> Ok Nil; other -> Err "carved contract has no row")
+    JArrEnd -> (case spans of [] -> Ok []; other -> Err "carved contract has no row")
     other -> Err "missing object interface closure"
 
   -- The manifest embeds, beside each interface's hash, the whole interface
@@ -563,49 +561,50 @@ module Cinch.Object where
   carve-span src value after ordinal carved = case carved of
     Carved pieces copied spans ->
       if value <= bytes-len src then
-        Carved (builder-add-string "null" (builder-add-bytes (bytes-slice src copied value) pieces)) after (Cons (ordinal, value, after) spans)
+        Carved (builder-add-string "null" (builder-add-bytes (bytes-slice src copied value) pieces)) after ((ordinal, value, after) : spans)
       else carved
   carve-contracts :: ValidatedInterfaces -> Bytes -> Option (Bytes, List (Nat, Nat, Nat))
   carve-contracts validated src = let table = contract-table src in
     if table == 0 then None else
-      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (known-contract-end validated) (Carved builder-new 0 Nil) of
+      (case carve-rows src (json-space-end src (table + 1)) 0 (string-to-bytes "\"interface\"") (known-contract-end validated) (Carved builder-new 0 []) of
         (after, Carved pieces copied spans) -> if after == 0 then None else
           (case spans of
-            Nil -> None
+            [] -> None
             other -> let end = bytes-len src in
               if end <= bytes-len src then Some (builder-bytes (builder-add-bytes (bytes-slice src copied end) pieces), reverse spans)
               else None))
 
   -- The build driver supplies cryptographic identities for both artifacts.
   -- Paths remain individual words; no shell expansion participates in loading.
-  read-runtime-object :: forall r. using (io :: Io r) => List LoadedInterface -> String ->{IO r} Result String RuntimeObject
-  read-runtime-object interfaces path = case read-runtime-object-document interfaces path of
-    Err message -> Err message
-    Ok (provider, doc, object-file, code) -> Ok provider
+  read-runtime-object :: forall r. using (io :: Io r, seq :: ResultSequencing String) => List LoadedInterface -> String ->{IO r} Result String RuntimeObject
+  read-runtime-object interfaces path = do
+    loaded <- read-runtime-object-document interfaces path
+    case loaded of
+      (provider, _, _, _) -> Ok provider
 
   -- Keep the manifest and object bytes from the same authenticated read.
   -- Object production must not reopen unchecked metadata after admission.
   read-runtime-object-document :: forall r. using (io :: Io r) => List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   read-runtime-object-document = read-runtime-object-mode True
-  read-runtime-object-mode :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  read-runtime-object-mode reclaim interfaces path = case read-runtime-object-config path of
-    Err message -> Err message
-    Ok configuration -> admit-runtime-object-mode reclaim interfaces configuration
+  read-runtime-object-mode :: forall r. using (io :: Io r, seq :: ResultSequencing String) => Bool -> List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-mode reclaim interfaces path = do
+    configuration <- read-runtime-object-config path
+    admit-runtime-object-mode reclaim interfaces configuration
 
   -- A client compile's read. The manifest it returns has `null` for each
   -- embedded contract when the read was carved, which is all a client asks
   -- of it (its target). A library build, which writes the closure back out,
   -- uses `read-runtime-object-document`.
-  read-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  read-runtime-object-client-mode reclaim interfaces path = case read-runtime-object-config path of
-    Err message -> Err message
-    Ok configuration -> admit-runtime-object-client-mode reclaim interfaces configuration
+  read-runtime-object-client-mode :: forall r. using (io :: Io r, seq :: ResultSequencing String) => Bool -> ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-client-mode reclaim interfaces path = do
+    configuration <- read-runtime-object-config path
+    admit-runtime-object-client-mode reclaim interfaces configuration
 
   -- Object publication needs the original rows, including the private root.
-  read-runtime-object-publication :: forall r. using (io :: Io r) => ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  read-runtime-object-publication validated path = case read-runtime-object-config path of
-    Err message -> Err message
-    Ok configuration -> admit-runtime-object-artifacts (Some validated) False True (validated.interfaces-members) configuration
+  read-runtime-object-publication :: forall r. using (io :: Io r, seq :: ResultSequencing String) => ValidatedInterfaces -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  read-runtime-object-publication validated path = do
+    configuration <- read-runtime-object-config path
+    admit-runtime-object-artifacts (Some validated) False True validated.interfaces-members configuration
 
   record RuntimeObjectConfig where
     triple :: String
@@ -614,13 +613,12 @@ module Cinch.Object where
     object-hash :: String
     metadata-hash :: String
   runtime-object-input-files :: RuntimeObjectConfig -> List String
-  runtime-object-input-files configuration = case configuration of
-    RuntimeObjectConfig triple object-file metadata-file object-hash metadata-hash -> [object-file, metadata-file]
+  runtime-object-input-files configuration = [configuration.object-file, configuration.object-metadata-file]
   read-runtime-object-config :: forall r. using (io :: Io r) => String ->{IO r} Result String RuntimeObjectConfig
   read-runtime-object-config path = case fs-read (path-from-string path) of
     Err error -> Err "cannot read runtime object configuration"
     Ok bytes -> case parse-json path bytes of
-      Parsed doc Nil -> (case (field "schema" doc, field "target" doc, field "object" doc, field "metadata" doc, field "object_sha256" doc, field "metadata_sha256" doc) of
+      Parsed doc [] -> (case (field "schema" doc, field "target" doc, field "object" doc, field "metadata" doc, field "object_sha256" doc, field "metadata_sha256" doc) of
         (JNum 1, JStr expected-triple, JStr object-file, JStr metadata-file, JStr object-hash, JStr metadata-hash) ->
           Ok (RuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash)
         other -> Err "malformed runtime object configuration")
@@ -643,13 +641,12 @@ module Cinch.Object where
         Err message -> Err ("bootstrap.interfaces: " <> message)
         Ok package -> case fs-read (path-from-string object-file) of
           Err error -> Err "bootstrap.object: cannot read runtime object artifacts"
-          Ok code -> if same (sha256-hex package) package-hash && same (sha256-hex code) object-hash then
+          Ok code -> if sha256-hex package == package-hash && sha256-hex code == object-hash then
             Ok (PackedClient triple object-file object-hash package-hash code package)
             else Err "bootstrap.object: runtime object artifact digest mismatch"
 
   packed-client-key :: PackedClient -> (String, String, String)
-  packed-client-key packed = case packed of
-    PackedClient triple file object-hash package-hash code package -> (triple, object-hash, package-hash)
+  packed-client-key packed = (packed.triple, packed.object-hash, packed.package-hash)
 
   admit-packed-client :: forall r. PackedClient -> Bool ->{IO r} Result String (ValidatedInterfaces, RuntimeObject, Json)
   admit-packed-client packed reclaim = case packed of
@@ -673,7 +670,7 @@ module Cinch.Object where
   admit-runtime-object-artifacts validated carve reclaim interfaces configuration = case configuration of
     RuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
-        (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
+        (Ok code, Ok metadata) -> if sha256-hex code == object-hash && sha256-hex metadata == metadata-hash then
           parse-runtime-object-bytes validated carve reclaim expected-triple interfaces object-file metadata-file code metadata
           else Err "runtime object artifact digest mismatch"
         other -> Err "cannot read runtime object artifacts")
@@ -692,7 +689,7 @@ module Cinch.Object where
   parse-runtime-abi-json :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> String -> Bytes -> Bytes -> Result String (RuntimeObject, Json, String, Bytes)
   parse-runtime-abi-json validated reclaim expected-triple interfaces object-file metadata-file code abi =
     case parse-json metadata-file abi of
-      Parsed artifact Nil -> parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact
+      Parsed artifact [] -> parse-runtime-abi validated reclaim expected-triple interfaces object-file code artifact
       other -> Err "runtime object manifest is not valid JSON"
 
   parse-runtime-abi :: Option ValidatedInterfaces -> Bool -> String -> List LoadedInterface -> String -> Bytes -> Json -> Result String (RuntimeObject, Json, String, Bytes)
@@ -702,11 +699,10 @@ module Cinch.Object where
       (refs, Some checked) -> parsed-runtime-interface reclaim expected-triple interfaces object-file code artifact (ReferencedContracts checked)
       other -> Err "runtime object interface references require a checked interface set"
 
-  parsed-runtime-interface :: Bool -> String -> List LoadedInterface -> String -> Bytes -> Json -> ObjectContracts -> Result String (RuntimeObject, Json, String, Bytes)
-  parsed-runtime-interface reclaim triple interfaces object-file code artifact contracts =
-    case parse-runtime-object-contracts reclaim triple interfaces code artifact contracts of
-      Err message -> Err message
-      Ok provider -> Ok (provider, artifact, object-file, code)
+  parsed-runtime-interface :: using (seq :: ResultSequencing String) => Bool -> String -> List LoadedInterface -> String -> Bytes -> Json -> ObjectContracts -> Result String (RuntimeObject, Json, String, Bytes)
+  parsed-runtime-interface reclaim triple interfaces object-file code artifact contracts = do
+    provider <- parse-runtime-object-contracts reclaim triple interfaces code artifact contracts
+    Ok (provider, artifact, object-file, code)
 
   admit-runtime-object-client-mode :: forall r. using (io :: Io r) => Bool -> ValidatedInterfaces -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
   admit-runtime-object-client-mode reclaim validated configuration =
@@ -717,7 +713,7 @@ module Cinch.Object where
     RuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
       (case fs-read (path-from-string object-file) of
         Err error -> Err "cannot read runtime object artifacts"
-        Ok code -> if not (same (sha256-hex code) object-hash) then Err "runtime object artifact digest mismatch" else
+        Ok code -> if sha256-hex code /= object-hash then Err "runtime object artifact digest mismatch" else
           (case authenticated-snapshot-abi metadata-hash snapshot of
             Err message -> Err message
             Ok artifact -> parse-runtime-abi (Some validated) reclaim expected-triple
@@ -727,7 +723,7 @@ module Cinch.Object where
   admit-carved reclaim expected-triple validated code metadata-file metadata = case carve-contracts validated metadata of
     None -> None
     Some (reduced, spans) -> (case parse-json metadata-file reduced of
-      Parsed artifact Nil -> (case parse-runtime-object-contracts reclaim expected-triple (validated.interfaces-members) code artifact (CarvedContracts validated metadata spans) of
+      Parsed artifact [] -> (case parse-runtime-object-contracts reclaim expected-triple (validated.interfaces-members) code artifact (CarvedContracts validated metadata spans) of
         Ok provider -> Some (provider, artifact)
         Err message -> None)
       other -> None)

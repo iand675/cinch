@@ -17,15 +17,13 @@ module Cinch.Unpack where
     ObservationType :: String -> RecordRequest
     Fields :: Span -> String -> List String -> List (String, Bool) -> Option Json -> RecordRequest
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
   field :: String -> Json -> Json
-  field key doc = case doc of JObj k v more -> if same key k then v else field key more; other -> JNull
+  field key doc = case doc of JObj k v more -> if key == k then v else field key more; other -> JNull
   labels :: Json -> List String
-  labels rows = case rows of JArr (JStr name) more -> Cons name (labels more); other -> Nil
+  labels rows = case rows of JArr (JStr name) more -> name : (labels more); other -> []
   exported :: String -> Json -> Option Json
   exported name rows = case rows of
-    JArr row more -> (case field "name" row of JStr key | same key name -> Some row; other -> exported name more)
+    JArr row more -> (case field "name" row of JStr key | (key == name) -> Some row; other -> exported name more)
     other -> None
 
   unpacked-labels :: String -> Option (List String)
@@ -41,87 +39,87 @@ module Cinch.Unpack where
         (JStr repr, JStr name) ->
           (case (unpacked-labels repr, exported name types) of
             (Some wanted, Some ty) -> (case field "identity" ty of
-              JStr identity | same identity (home <> "." <> name) ->
-                Cons (Fields sp (interface-global identity) (labels (field "fields" ty)) (map (\label -> (label, True)) wanted) (Some row)) rest
+              JStr identity | (identity == home <> "." <> name) ->
+                (Fields sp (interface-global identity) (labels (field "fields" ty)) (map (\label -> (label, True)) wanted) (Some row)) : rest
               other -> rest)
             other -> rest)
         other -> rest)
     other -> tail
   source-labels :: String -> List Decl -> List String
   source-labels name ds = case ds of
-    Cons (DRecord sp owner params fields) rest | same name owner -> map (\pair -> case pair of (label, ty) -> label) fields
-    Cons other rest -> source-labels name rest
-    Nil -> Nil
+    (DRecord sp owner params fields) : rest | (name == owner) -> map (\pair -> case pair of (label, ty) -> label) fields
+    other : rest -> source-labels name rest
+    [] -> []
   requests :: List Decl -> List Decl -> List RecordRequest
   requests all ds = case ds of
-    Nil -> Nil
-    Cons (DExternal sp name category syntax metadata) rest | same category "type" -> (case field "kind" metadata of
-      JStr kind | same kind "codata" -> Cons (ObservationType name) (requests all rest)
+    [] -> []
+    (DExternal sp name category syntax metadata) : rest | (category == "type") -> (case field "kind" metadata of
+      JStr kind | (kind == "codata") -> (ObservationType name) : (requests all rest)
       other -> requests all rest)
-    Cons (DCodata sp name params fields) rest -> Cons (ObservationType name) (requests all rest)
-    Cons (DUnpackFields sp name wanted) rest -> Cons (Fields sp name (source-labels name all) wanted None) (requests all rest)
-    Cons (DInterface sp home hash doc) rest -> imported sp home (field "types" (field "exports" doc)) (field "layouts" (field "abi" doc)) (requests all rest)
-    Cons other rest -> requests all rest
+    (DCodata sp name params fields) : rest -> (ObservationType name) : (requests all rest)
+    (DUnpackFields sp name wanted) : rest -> (Fields sp name (source-labels name all) wanted None) : (requests all rest)
+    (DInterface sp home hash doc) : rest -> imported sp home (field "types" (field "exports" doc)) (field "layouts" (field "abi" doc)) (requests all rest)
+    other : rest -> requests all rest
   lookup-request :: String -> List RecordRequest -> Option RecordRequest
   lookup-request name rows = case rows of
-    Nil -> None
-    Cons (ObservationType owner) rest -> if same name owner then Some (ObservationType owner) else lookup-request name rest
-    Cons (Fields sp n names wanted abi) rest -> if same name n then Some (Fields sp n names wanted abi) else lookup-request name rest
+    [] -> None
+    (ObservationType owner) : rest -> if name == owner then Some (ObservationType owner) else lookup-request name rest
+    (Fields sp n names wanted abi) : rest -> if name == n then Some (Fields sp n names wanted abi) else lookup-request name rest
   enabled :: String -> List (String, Bool) -> Bool
-  enabled label wanted = case wanted of Nil -> False; Cons (name, flag) rest -> if same label name then flag else enabled label rest
+  enabled label wanted = case wanted of [] -> False; (name, flag) : rest -> if label == name then flag else enabled label rest
   needs-storage :: List (String, Bool) -> Bool
-  needs-storage wanted = case wanted of Nil -> False; Cons (name, flag) rest -> flag || needs-storage rest
+  needs-storage wanted = case wanted of [] -> False; (name, flag) : rest -> flag || needs-storage rest
 
   product-type :: UType -> List UType -> Option (String, List UType)
-  product-type ty args = case ty of UCon name kind -> Some (name, args); UApp fn arg -> product-type fn (Cons arg args); other -> None
+  product-type ty args = case ty of UCon name kind -> Some (name, args); UApp fn arg -> product-type fn (arg : args); other -> None
   find-data :: String -> List CoreData -> Option CoreData
-  find-data name ds = case ds of Nil -> None; Cons d rest -> if same name (core-data-name d) then Some d else find-data name rest
+  find-data name ds = case ds of [] -> None; d : rest -> if name == core-data-name d then Some d else find-data name rest
   parameters :: List Quant -> List UType -> Option (List (Nat, UType))
   parameters qs args = case (qs, args) of
-    (Nil, Nil) -> Some Nil
-    (Cons q more, Cons arg rest) | kind-equal (q.kind) KType -> (case parameters more rest of
-      Some pairs -> Some (Cons (q.id, arg) pairs)
+    ([], []) -> Some []
+    (q : more, arg : rest) | kind-equal (q.kind) KType -> (case parameters more rest of
+      Some pairs -> Some ((q.id, arg) : pairs)
       None -> None)
     other -> None
   storage-requested :: String -> List RecordRequest -> Bool
   storage-requested name rs = case lookup-request name rs of Some (Fields sp n names wanted abi) -> needs-storage wanted; Some (ObservationType owner) -> True; None -> False
   product-slot :: String -> UType -> List CoreData -> List RecordRequest -> Option RecordSlot
-  product-slot label ty ds rs = case product-type ty Nil of
+  product-slot label ty ds rs = case product-type ty [] of
     Some (name, args) -> (case find-data name ds of
       Some d -> (case (core-data-layout d, core-data-constructors d) of
         (UniformData, [c]) | not (storage-requested name rs) -> (case (parameters (scheme-params (c.constructor-scheme)) args, core-constructor-fields c) of
-          (Some pairs, Cons first more) -> Some (ProductSlot label ty c args (map (substitute-bound pairs) (Cons first more)))
+          (Some pairs, first : more) -> Some (ProductSlot label ty c args (map (substitute-bound pairs) (first : more)))
           other -> None)
         other -> None)
       None -> None)
     None -> None
   record-slots :: List String -> List (String, Bool) -> UType -> List CoreData -> List RecordRequest -> Result String (List RecordSlot)
   record-slots names wanted arrow ds rs = case (names, arrow) of
-    (Cons name rest, UProofFun predicate effects result) -> if enabled name wanted then Err ("cannot unpack erased field " <> name) else record-slots rest wanted result ds rs
-    (Cons name rest, UPi id binder ty effects result) -> checked-slot name ty rest wanted result ds rs
-    (Cons name rest, UFun ty result) -> checked-slot name ty rest wanted result ds rs
-    (Nil, UCon owner kind) -> Ok Nil
+    (name : rest, UProofFun predicate effects result) -> if enabled name wanted then Err ("cannot unpack erased field " <> name) else record-slots rest wanted result ds rs
+    (name : rest, UPi id binder ty effects result) -> checked-slot name ty rest wanted result ds rs
+    (name : rest, UFun ty result) -> checked-slot name ty rest wanted result ds rs
+    ([], UCon owner kind) -> Ok []
     other -> Err "unpack layout disagrees with its record constructor"
   checked-slot :: String -> UType -> List String -> List (String, Bool) -> UType -> List CoreData -> List RecordRequest -> Result String (List RecordSlot)
   checked-slot label ty names wanted result ds rs = case (if enabled label wanted then product-slot label ty ds rs else Some (OrdinarySlot label ty)) of
     None -> Err ("unpack on " <> label <> " requires a monomorphic single-constructor native product")
-    Some slot -> (case record-slots names wanted result ds rs of Ok more -> Ok (Cons slot more); Err msg -> Err msg)
+    Some slot -> (case record-slots names wanted result ds rs of Ok more -> Ok (slot : more); Err msg -> Err msg)
 
   slot-name :: RecordSlot -> String
   slot-name slot = case slot of OrdinarySlot name ty -> name; ProductSlot name ty c args fields -> name
   unpacked-names :: List RecordSlot -> String -> String
   unpacked-names slots separator = case slots of
-    Nil -> ""
-    Cons (ProductSlot name ty c args fields) rest -> separator <> name <> unpacked-names rest ","
-    Cons other rest -> unpacked-names rest separator
+    [] -> ""
+    (ProductSlot name ty c args fields) : rest -> separator <> name <> unpacked-names rest ","
+    other : rest -> unpacked-names rest separator
   field-bytes :: List UType -> Nat
   field-bytes fields = case fields of
-    Nil -> 0
-    Cons ty rest -> (case ty of UCon name kind | same name "I128" || same name "U128" -> 16; other -> 8) + field-bytes rest
+    [] -> 0
+    ty : rest -> (case ty of UCon name kind | (name == "I128") || name == "U128" -> 16; other -> 8) + field-bytes rest
   abi-fields :: List RecordSlot -> Nat -> (Nat, Json)
   abi-fields slots offset = case slots of
-    Nil -> (offset, JArrEnd)
-    Cons slot rest -> let size = field-bytes (slot-types slot) in
+    [] -> (offset, JArrEnd)
+    slot : rest -> let size = field-bytes (slot-types slot) in
       case abi-fields rest (offset + size) of
         (total, fields) -> (total, JArr (JObj "name" (JStr (slot-name slot)) (JObj "offset" (JNum (nat-to-int offset))
           (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum 8) JObjEnd)))) fields)
@@ -140,22 +138,22 @@ module Cinch.Unpack where
     Fields sp owner names wanted abi -> (case core-data-layout d of
       UniformData -> if not (needs-storage wanted) then Ok d else
         (case (core-data-params d, core-data-constructors d) of
-          (Nil, [ctor]) -> (case record-slots names wanted (scheme-body (ctor.constructor-scheme)) ds rs of
+          ([], [ctor]) -> (case record-slots names wanted (scheme-body (ctor.constructor-scheme)) ds rs of
             Err msg -> Err msg
             Ok slots -> (case abi of Some row | not (abi-agrees row (unpacked-abi slots)) -> Err "unpack ABI layout disagrees with its represented fields"; other -> Ok (with-data-layout (UnpackedRecord slots) d)))
           other -> Err "unpack requires a monomorphic record with native layout")
       other -> Err "field unpacking requires a native record layout")
   attach :: List RecordRequest -> List CoreData -> List CoreData -> Store -> (List CoreData, Store)
   attach rs ds remaining st = case remaining of
-    Nil -> (Nil, st)
-    Cons d rest -> case attach rs ds rest st of
+    [] -> ([], st)
+    d : rest -> case attach rs ds rest st of
       (more, done) -> (case lookup-request (core-data-name d) rs of
-        None -> (Cons d more, done)
-        Some (ObservationType owner) -> (Cons d more, done)
+        None -> (d : more, done)
+        Some (ObservationType owner) -> (d : more, done)
         Some (Fields sp owner labels wanted abi) -> (case checked-layout (Fields sp owner labels wanted abi) d ds rs of
-          Err msg -> (Cons d more, add-error sp msg done)
-          Ok laid-out -> (Cons laid-out more, done)))
+          Err msg -> (d : more, add-error sp msg done)
+          Ok laid-out -> (laid-out : more, done)))
   check-unpacked-records :: List Decl -> (List CoreData, Store) -> (List CoreData, Store)
   check-unpacked-records ds checked = case requests ds ds of
-    Nil -> checked
+    [] -> checked
     rs -> (case checked of (datas, st) -> attach rs datas datas st)

@@ -25,9 +25,6 @@ module Cinch.Expand where
   export DeclarationProducer, QuotedDeclarations, ConstructDeclarations, declaration-spelling, declaration-macro, macro-parameters, template-of, syntax-template-of
   export expand-error
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
-
   expand-error :: forall a. Span -> String -> Result (List Diagnostic) a
   expand-error site message = Err [Diagnostic "bootstrap.expand" site message]
 
@@ -96,8 +93,8 @@ module Cinch.Expand where
 
   clauses-have-macro-call :: List (List Pat, Expr) -> Bool
   clauses-have-macro-call clauses = case clauses of
-    Nil -> False
-    Cons (patterns, body) rest -> term-has-macro-call body || clauses-have-macro-call rest
+    [] -> False
+    (patterns, body) : rest -> term-has-macro-call body || clauses-have-macro-call rest
 
   -- ------------------------------------------------------- macro declarations
 
@@ -113,9 +110,9 @@ module Cinch.Expand where
   -- definition behind the signature is what answers.
   macro-parameters :: String -> List Decl -> List String
   macro-parameters name declarations = case declarations of
-    Nil -> Nil
-    Cons first rest -> case first of
-      DMacro s body -> if same (definition-name-of body) name then
+    [] -> []
+    first : rest -> case first of
+      DMacro s body -> if definition-name-of body == name then
         (case body of
           DFun at n clauses -> first-clause-parameters clauses
           other -> macro-parameters name rest)
@@ -124,20 +121,20 @@ module Cinch.Expand where
 
   first-clause-parameters :: List (List Pat, Expr) -> List String
   first-clause-parameters clauses = case clauses of
-    Nil -> Nil
-    Cons (patterns, body) rest -> pattern-names-of patterns
+    [] -> []
+    (patterns, body) : rest -> pattern-names-of patterns
 
   pattern-names-of :: List Pat -> List String
   pattern-names-of ps = case ps of
-    Nil -> Nil
-    Cons p rest -> pat-name-list p <> pattern-names-of rest
+    [] -> []
+    p : rest -> pat-name-list p <> pattern-names-of rest
 
   pat-name-list :: Pat -> List String
   pat-name-list p = case p of
-    PVar s name -> Cons name Nil
-    PWild s -> Cons "#wild" Nil
-    PAs s name inner -> Cons name (pat-name-list inner)
-    other -> Cons "#pattern" Nil
+    PVar s name -> [name]
+    PWild s -> ["#wild"]
+    PAs s name inner -> name : (pat-name-list inner)
+    other -> ["#pattern"]
 
   template-of :: String -> List Decl -> Option Expr
   template-of name declarations = syntax-template-of "" (\op -> False) name declarations
@@ -147,16 +144,16 @@ module Cinch.Expand where
 
   macro-signature :: String -> List Decl -> Option TypeExpr
   macro-signature name declarations = case declarations of
-    Nil -> None
-    Cons (DMacro site (DSig at declared ty)) rest -> if same declared name then Some ty else macro-signature name rest
-    Cons other rest -> macro-signature name rest
+    [] -> None
+    (DMacro site (DSig at declared ty)) : rest -> if declared == name then Some ty else macro-signature name rest
+    other : rest -> macro-signature name rest
 
   stage-parameters :: String -> TypeExpr -> List Pat -> Option (List (String, String))
   stage-parameters expected ty patterns = case (ty, patterns) of
-    (TFun site (TName at domain) tail, Cons (PVar arg param) rest) | same domain "Syntax" || same domain "Name" -> (case stage-parameters expected tail rest of
-      Some names -> if syntax-input param (map (\entry -> case entry of (name, sort) -> name) names) then None else Some (Cons (param, domain) names)
+    (TFun site (TName at domain) tail, (PVar arg param) : rest) | (domain == "Syntax") || domain == "Name" -> (case stage-parameters expected tail rest of
+      Some names -> if syntax-input param (map (\entry -> case entry of (name, sort) -> name) names) then None else Some ((param, domain) : names)
       None -> None)
-    (TName at result, Nil) | same result expected -> Some Nil
+    (TName at result, []) | (result == expected) -> Some []
     other -> None
 
   data DeclarationProducer where
@@ -170,14 +167,14 @@ module Cinch.Expand where
 
   declaration-template :: String -> TypeExpr -> List Decl -> Option (List (String, String), DeclarationProducer)
   declaration-template name ty declarations = case declarations of
-    Cons (DDeclarationMacro site declared patterns template) rest | same declared name -> (case stage-parameters "Declarations" ty patterns of
+    (DDeclarationMacro site declared patterns template) : rest | (declared == name) -> (case stage-parameters "Declarations" ty patterns of
       Some params -> Some (params, QuotedDeclarations template)
       None -> None)
-    Cons (DMacro site (DFun at declared [(patterns, rhs)])) rest | same name declared -> (case stage-parameters "Declarations" ty patterns of
+    (DMacro site (DFun at declared [(patterns, rhs)])) : rest | (name == declared) -> (case stage-parameters "Declarations" ty patterns of
       Some params -> Some (params, ConstructDeclarations rhs)
       None -> None)
-    Cons other rest -> declaration-template name ty rest
-    Nil -> None
+    other : rest -> declaration-template name ty rest
+    [] -> None
 
   name-macro :: String -> List Decl -> Option (List (String, String), Expr)
   name-macro = value-macro "Name"
@@ -188,25 +185,25 @@ module Cinch.Expand where
     None -> None
   value-macro-body :: String -> String -> TypeExpr -> List Decl -> Option (List (String, String), Expr)
   value-macro-body sort name ty declarations = case declarations of
-    Cons (DMacro site (DFun at declared [(patterns, rhs)])) rest | same name declared -> (case stage-parameters sort ty patterns of
+    (DMacro site (DFun at declared [(patterns, rhs)])) : rest | (name == declared) -> (case stage-parameters sort ty patterns of
       Some params -> Some (params, rhs)
       None -> None)
-    Cons other rest -> value-macro-body sort name ty rest
-    Nil -> None
+    other : rest -> value-macro-body sort name ty rest
+    [] -> None
 
   macro-body :: String -> (String -> Bool) -> String -> Option TypeExpr -> List Decl -> Option Expr
   macro-body home available name declared-type declarations = case declarations of
-    Nil -> None
-    Cons (DMacro site (DFun at defined [(patterns, rhs)])) rest -> if same defined name then
-      let inputs = (case declared-type of Some ty -> syntax-inputs "Syntax" ty patterns; None -> Nil) in
-      let names = (case declared-type of Some ty -> syntax-inputs "Name" ty patterns; None -> Nil) in
+    [] -> None
+    (DMacro site (DFun at defined [(patterns, rhs)])) : rest -> if defined == name then
+      let inputs = (case declared-type of Some ty -> syntax-inputs "Syntax" ty patterns; None -> []) in
+      let names = (case declared-type of Some ty -> syntax-inputs "Name" ty patterns; None -> []) in
       (case (code-template home available names inputs rhs, declared-type) of
         (Some body, Some ty) -> (case fixed-code-carrier ty of
           Some carrier -> Some (EAnn (expr-span body) body carrier)
           None -> Some body)
         (result, other) -> result)
       else macro-body home available name declared-type rest
-    Cons other rest -> macro-body home available name declared-type rest
+    other : rest -> macro-body home available name declared-type rest
 
   -- A monomorphic quotation carries its declared type into ordinary checking
   -- in the defining scope. Explicitly quantified macros are instantiated at
@@ -214,23 +211,23 @@ module Cinch.Expand where
   fixed-code-carrier :: TypeExpr -> Option TypeExpr
   fixed-code-carrier ty = case ty of
     TFun at domain result -> fixed-code-carrier result
-    TApp at (TName head name) (TArg slot carrier (TArgsEnd end)) | same name "Code" -> Some carrier
+    TApp at (TName head name) (TArg slot carrier (TArgsEnd end)) | (name == "Code") -> Some carrier
     other -> None
 
   syntax-inputs :: String -> TypeExpr -> List Pat -> List String
   syntax-inputs wanted ty patterns = case ty of
     TForall at binders body -> syntax-inputs wanted body patterns
     TFun at domain result -> (case patterns of
-      Nil -> Nil
-      Cons pattern rest -> let more = syntax-inputs wanted result rest in case (domain, pattern) of
-        (TName s sort, PVar site param) | same sort wanted -> Cons param more
+      [] -> []
+      pattern : rest -> let more = syntax-inputs wanted result rest in case (domain, pattern) of
+        (TName s sort, PVar site param) | (sort == wanted) -> param : more
         other -> more)
-    other -> Nil
+    other -> []
 
   syntax-input :: String -> List String -> Bool
   syntax-input name inputs = case inputs of
-    Nil -> False
-    Cons first rest -> same name first || syntax-input name rest
+    [] -> False
+    first : rest -> name == first || syntax-input name rest
 
   -- These stage operations construct scoped code directly. Their result is
   -- an ordinary term which the resolver and type checker visit at insertion.
@@ -241,8 +238,8 @@ module Cinch.Expand where
     SyntaxCode :: Expr -> SyntaxHandle
   find-syntax-local :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
   find-syntax-local name bindings = case bindings of
-    Nil -> None
-    Cons (local, binding-value) rest -> if same local name then Some binding-value else find-syntax-local name rest
+    [] -> None
+    (local, binding-value) : rest -> if local == name then Some binding-value else find-syntax-local name rest
 
   find-handle :: String -> List (String, SyntaxHandle) -> Option SyntaxHandle
   find-handle name bindings = case find-syntax-local name bindings of
@@ -252,29 +249,29 @@ module Cinch.Expand where
   syntax-handle :: (String -> Bool) -> List String -> List (String, SyntaxHandle) -> Expr -> Option SyntaxHandle
   syntax-handle available names handles value = case value of
     EVar at local -> find-handle local handles
-    EApp at (EVar site op) (EVar arg param) | same op "Syntax.newBinding" && available op && syntax-input param names ->
+    EApp at (EVar site op) (EVar arg param) | (op == "Syntax.newBinding") && available op && syntax-input param names ->
       Some (SyntaxHandle (cat ["#syntax-binding:", nat-to-string (span-start at)]) (ParameterSpelling param))
-    EApp at (EVar site op) (EApp arg (EVar ref-site convert) (ELitSym lit name)) | same op "Syntax.newBinding" && available op && same convert "sym-to-name" && available convert ->
+    EApp at (EVar site op) (EApp arg (EVar ref-site convert) (ELitSym lit name)) | (op == "Syntax.newBinding") && available op && convert == "sym-to-name" && available convert ->
       Some (SyntaxHandle (cat ["#syntax-binding:", nat-to-string (span-start at)]) (LiteralSpelling name))
     other -> None
 
   code-template :: String -> (String -> Bool) -> List String -> List String -> Expr -> Option Expr
-  code-template home available names inputs = scoped-template home available (\name -> False) names inputs Nil Nil
+  code-template home available names inputs = scoped-template home available (\name -> False) names inputs [] []
 
   -- Closed code is checked against its declared carrier when it is spliced.
   -- Keep references to other stage values until their defining scope is known.
   closed-code-template :: String -> (String -> Bool) -> (String -> Bool) -> Expr -> Option Expr
   closed-code-template home available stage-value term = case term of
     EQuote at body -> None
-    other -> scoped-template home available stage-value Nil Nil Nil Nil term
+    other -> scoped-template home available stage-value [] [] [] [] term
 
   template-name :: (String -> Bool) -> List String -> Expr -> Option TemplateName
   template-name available inputs expr = case expr of
     EVar at param | syntax-input param inputs -> Some (NameInput param)
-    EApp at (EVar s op) (ELitSym lit spelling) | same op "sym-to-name" && available op -> Some (NameText spelling)
-    EApp at (EApp inner (EVar s op) (ELitStr lit prefix)) rest | same op "Name.prefix" && available op ->
+    EApp at (EVar s op) (ELitSym lit spelling) | (op == "sym-to-name") && available op -> Some (NameText spelling)
+    EApp at (EApp inner (EVar s op) (ELitStr lit prefix)) rest | (op == "Name.prefix") && available op ->
       (case template-name available inputs rest of Some name -> Some (NameJoin (NameText prefix) name); None -> None)
-    EApp at (EApp inner (EVar s op) a) b | same op "Name.append" && available op ->
+    EApp at (EApp inner (EVar s op) a) b | (op == "Name.append") && available op ->
       (case (template-name available inputs a, template-name available inputs b) of
         (Some first, Some second) -> Some (NameJoin first second)
         other -> None)
@@ -286,13 +283,13 @@ module Cinch.Expand where
     let handle-of = syntax-handle available names handles in case rhs of
       ELetScope at body -> code body
       ELet at (EBinding site local value (EBindingsEnd end)) body ->
-        let within = \bound -> scoped-template home available stage-value (without-spelling local names) (without-spelling local inputs) (Cons (local, bound) handles) introduced body in
+        let within = \bound -> scoped-template home available stage-value (without-spelling local names) (without-spelling local inputs) ((local, bound) : handles) introduced body in
         (case handle-of value of
           Some binding-value -> within binding-value
           None -> (case code value of Some fragment -> within (SyntaxCode fragment); None -> None))
       EQuote at (ESplice site (EVar occurrence name)) | (case find-handle name handles of Some binding-value -> True; None -> False) ->
         Some (EUnmodeled site "SyntaxBinding cannot be spliced as Code")
-      EQuote at body -> (case fill-splices-with (quotation-hole code handles) body Nil Nil of
+      EQuote at body -> (case fill-splices-with (quotation-hole code handles) body [] [] of
         Ok filled -> Some filled
         Err errors -> None)
       EVar at name -> (case find-syntax-local name handles of
@@ -300,31 +297,31 @@ module Cinch.Expand where
         None -> if stage-value name then Some (ESplice at rhs) else None
         other -> None)
       EMacroCall at path tokens -> Some rhs
-      EApp at (EVar sp op) requested | same op "Syntax.definition" && available op ->
+      EApp at (EVar sp op) requested | (op == "Syntax.definition") && available op ->
         (case template-name available names requested of Some name -> Some (ESyntaxNamed at home name None); None -> None)
-      EApp at (EApp inner (EVar sp op) requested) (EVar fs fields) | same op "Syntax.recordValue" && available op && syntax-input fields inputs ->
+      EApp at (EApp inner (EVar sp op) requested) (EVar fs fields) | (op == "Syntax.recordValue") && available op && syntax-input fields inputs ->
         (case template-name available names requested of Some name -> Some (ESyntaxNamed at home name (Some fields)); None -> None)
-      EApp at (EVar sp op) (EVar arg param) | same op "Syntax.capture" && available op && syntax-input param inputs ->
+      EApp at (EVar sp op) (EVar arg param) | (op == "Syntax.capture") && available op && syntax-input param inputs ->
         Some (ESplice at (EVar arg param))
-      EApp at (EVar site op) arg | same op "Syntax.reference" && available op -> (case handle-of arg of
+      EApp at (EVar site op) arg | (op == "Syntax.reference") && available op -> (case handle-of arg of
         Some (SyntaxHandle key name) -> Some (ESyntaxReference at key name)
         other -> None)
-      EApp at (EApp inner (EVar sp op) binding-value) (EVar arg param) | same op "Syntax.captureUnder" && available op && syntax-input param inputs -> (case handle-of binding-value of
+      EApp at (EApp inner (EVar sp op) binding-value) (EVar arg param) | (op == "Syntax.captureUnder") && available op && syntax-input param inputs -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> Some (ESyntaxCaptureUnder at key name (EVar arg param))
         other -> None)
-      EApp at (EApp inner (EVar sp op) binding-value) body | same op "Syntax.lambda" && available op -> (case handle-of binding-value of
+      EApp at (EApp inner (EVar sp op) binding-value) body | (op == "Syntax.lambda") && available op -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
-          (case scoped-template home available stage-value names inputs handles (Cons key introduced) body of
+          (case scoped-template home available stage-value names inputs handles (key : introduced) body of
             Some result -> Some (ELam at [PVar at key] result)
             None -> None)
         other -> None)
-      EApp at (EApp inner (EApp head (EVar sp op) binding-value) value) body | same op "Syntax.letIn" && available op -> (case handle-of binding-value of
+      EApp at (EApp inner (EApp head (EVar sp op) binding-value) value) body | (op == "Syntax.letIn") && available op -> (case handle-of binding-value of
         Some (SyntaxHandle key name) -> if syntax-input key introduced then Some (EUnmodeled at "a syntax binding was introduced twice in the same lexical scope") else
-          (case (code value, scoped-template home available stage-value names inputs handles (Cons key introduced) body) of
+          (case (code value, scoped-template home available stage-value names inputs handles (key : introduced) body) of
             (Some bound, Some result) -> Some (ELet at (EBinding at key bound (EBindingsEnd at)) result)
             other -> None)
         other -> None)
-      EApp at (EApp inner (EVar sp op) function) argument | same op "Syntax.apply" && available op ->
+      EApp at (EApp inner (EVar sp op) function) argument | (op == "Syntax.apply") && available op ->
         (case (code function, code argument) of
           (Some head, Some value) -> Some (EApp at head value)
           other -> None)
@@ -348,30 +345,30 @@ module Cinch.Expand where
 
   lookup-rename :: String -> List (String, String) -> Option String
   lookup-rename name renames = case renames of
-    Nil -> None
-    Cons (spelling, renamed) rest -> if same spelling name then Some renamed else lookup-rename name rest
+    [] -> None
+    (spelling, renamed) : rest -> if spelling == name then Some renamed else lookup-rename name rest
 
   -- Rename every binder this template introduces. `serial` threads the
   -- fresh counter so two binders of one spelling never share an internal
   -- name; `renames` maps the caller-visible spelling to the internal one
   -- inside the binder's scope.
   hygienic-term :: Expr -> Nat -> (Expr, Nat)
-  hygienic-term e serial = hygiene e Nil serial
+  hygienic-term e serial = hygiene e [] serial
 
   hygienic-patterns :: List Pat -> List (String, String) -> Nat -> (List Pat, List (String, String), Nat)
   hygienic-patterns ps renames serial = case ps of
-    Nil -> (Nil, renames, serial)
-    Cons p rest -> case hygienic-pattern p renames serial of
+    [] -> ([], renames, serial)
+    p : rest -> case hygienic-pattern p renames serial of
       (renamed, inner, after) -> case hygienic-patterns rest inner after of
-        (more, final, done) -> (Cons renamed more, final, done)
+        (more, final, done) -> (renamed : more, final, done)
 
   hygienic-pattern :: Pat -> List (String, String) -> Nat -> (Pat, List (String, String), Nat)
   hygienic-pattern p renames serial = case p of
     PVar s name -> let internal = internal-name name serial in
-      (PVar s internal, Cons (name, internal) renames, serial + 1)
+      (PVar s internal, (name, internal) : renames, serial + 1)
     PWild s -> (p, renames, serial)
     PAs s name inner -> let internal = internal-name name serial in
-      case hygienic-pattern inner (Cons (name, internal) renames) (serial + 1) of
+      case hygienic-pattern inner ((name, internal) : renames) (serial + 1) of
         (renamed, more, after) -> (PAs s internal renamed, more, after)
     PCon s name args -> case hygienic-pattern args renames serial of
       (renamed, more, after) -> (PCon s name renamed, more, after)
@@ -510,7 +507,7 @@ module Cinch.Expand where
   hygiene-bindings bs renames serial = case bs of
     EBinding s name rhs rest -> let internal = internal-name name serial in
       case hygiene rhs renames (serial + 1) of
-        (renamed-rhs, more) -> case hygiene-bindings rest (Cons (name, internal) renames) more of
+        (renamed-rhs, more) -> case hygiene-bindings rest ((name, internal) : renames) more of
           (renamed-rest, inner, after) -> (EBinding s internal renamed-rhs renamed-rest, inner, after)
     EBindingsEnd s -> (bs, renames, serial)
     other -> (bs, renames, serial)
@@ -524,7 +521,7 @@ module Cinch.Expand where
 
   prebind :: Expr -> List (String, String) -> Nat -> (List (String, String), Nat)
   prebind bs renames serial = case bs of
-    EBinding s name rhs rest -> prebind rest (Cons (name, internal-name name serial) renames) (serial + 1)
+    EBinding s name rhs rest -> prebind rest ((name, internal-name name serial) : renames) (serial + 1)
     EBindingsEnd s -> (renames, serial)
     other -> (renames, serial)
 
@@ -553,14 +550,14 @@ module Cinch.Expand where
   parse-group-term :: List LToken -> List (String, Fix) -> Result (List Diagnostic) Expr
   parse-group-term tokens fix = case parse-tree-term tokens (string-to-bytes "") fix of
     POk e rest -> case rest of
-      Nil -> Ok e
-      Cons extra more -> expand-error (lt-span extra) (cat ["a macro argument is not one expression: trailing `", token-text (lt-token extra), "`"])
+      [] -> Ok e
+      extra : more -> expand-error (lt-span extra) (cat ["a macro argument is not one expression: trailing `", token-text (lt-token extra), "`"])
     PBad -> expand-error (group-span tokens) "a macro argument does not parse as an expression"
 
   group-span :: List LToken -> Span
   group-span tokens = case tokens of
-    Cons first rest -> lt-span first
-    Nil -> Span 0 0 1 1
+    first : rest -> lt-span first
+    [] -> Span 0 0 1 1
 
   token-text :: Token -> String
   token-text tok = case tok of
@@ -639,7 +636,7 @@ module Cinch.Expand where
       (Ok definition, None) -> Ok (EDefinitionName site home definition)
       (Ok constructor, Some param) -> (case take-group param groups of
         Some tokens -> (case parse-tree-value-fields tokens fix of
-          POk fields Nil -> Ok (ERecord site constructor (caller-fields fields))
+          POk fields [] -> Ok (ERecord site constructor (caller-fields fields))
           other -> expand-error site "Syntax.recordValue requires a record field group")
         None -> expand-error site "missing Syntax argument for record fields"))
     ESyntaxReference s key param -> (case binding-spelling s param groups of
@@ -759,5 +756,5 @@ module Cinch.Expand where
 
   take-group :: String -> List (String, List LToken) -> Option (List LToken)
   take-group name groups = case groups of
-    Nil -> None
-    Cons (spelling, tokens) rest -> if same spelling name then Some tokens else take-group name rest
+    [] -> None
+    (spelling, tokens) : rest -> if spelling == name then Some tokens else take-group name rest

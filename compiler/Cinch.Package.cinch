@@ -153,14 +153,14 @@ module Cinch.Package where
 
   sections :: I64 -> Nat -> Nat -> Nat -> Nat -> Option (List Region)
   sections address size end at previous =
-    if at == end then (if previous == size then Some Nil else None) else
+    if at == end then (if previous == size then Some [] else None) else
       let start = word address at in
       let length = word address (at + 4) in
       let limit = start + length in
       if start /= previous || limit > size then None else
         (case sections address size end (at + 8) limit of
           None -> None
-          Some rest -> Some (Cons (Region start length) rest))
+          Some rest -> Some ((Region start length) : rest))
 
   package-header :: I64 -> Nat -> Result String Package
   package-header address size =
@@ -209,7 +209,7 @@ module Cinch.Package where
   authenticated-snapshot-abi :: forall r. String -> PackageSnapshot ->{IO r} Result String Json
   authenticated-snapshot-abi sha snapshot = case snapshot of
     PackageSnapshot source table texts abi ->
-      if string-compare (sha256-hex source) sha /= 0 then Err "runtime object artifact digest mismatch"
+      if sha256-hex source /= sha then Err "runtime object artifact digest mismatch"
       else hold-package-source source (decode-package-abi source abi (Ok table) (Some texts))
 
   text-at :: Bytes -> I64 -> Region -> Nat -> Result String String
@@ -351,7 +351,7 @@ module Cinch.Package where
               None -> Err "text outside package string table"
               Some value -> Ok (JStr value, cursor + 4, digest-string address table hash id value, definitions))
         5 -> if cursor + 4 > limit then Err "truncated array header" else
-          read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) Nil table (digest-token table hash 91)
+          read-array address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) [] table (digest-token table hash 91)
         6 -> if cursor + 4 > limit then Err "truncated object header" else
           read-object address strings definitions (word address cursor) (cursor + 4) limit (depth - 1) None JObjEnd table (digest-token table hash 123)
         8 -> read-number address definitions cursor limit True table hash
@@ -395,8 +395,8 @@ module Cinch.Package where
 
   array-from-reverse :: List Json -> Json -> Json
   array-from-reverse items out = case items of
-    Nil -> out
-    Cons item rest -> array-from-reverse rest (JArr item out)
+    [] -> out
+    item : rest -> array-from-reverse rest (JArr item out)
 
   object-from-reverse :: Json -> Json -> Json
   object-from-reverse items out = case items of
@@ -408,7 +408,7 @@ module Cinch.Package where
     if left == 0 then Ok (array-from-reverse items JArrEnd, at, digest-token table hash 93, definitions) else
       (case read-value address strings definitions at limit depth table hash of
         Err message -> Err message
-        Ok (item, end, digest, decoded) -> read-array address strings decoded (left - 1) end limit depth (Cons item items)
+        Ok (item, end, digest, decoded) -> read-array address strings decoded (left - 1) end limit depth (item : items)
           table (if left == 1 then digest else digest-token table digest 44))
 
   out-of-order :: Option String -> String -> Bool
@@ -418,8 +418,8 @@ module Cinch.Package where
 
   contract-field-projection :: String -> Option Json
   contract-field-projection name =
-    if string-compare name "compiler" == 0 || string-compare name "source_hash" == 0 then Some (JStr "")
-    else if string-compare name "units" == 0 then Some JArrEnd
+    if name == "compiler" || name == "source_hash" then Some (JStr "")
+    else if name == "units" then Some JArrEnd
     else None
 
   read-object :: forall r. I64 -> Array String -> Definitions -> Nat -> Nat -> Nat -> Nat -> Option String -> Json -> Option StringTable -> U64 ->{IO r} Result String (Json, Nat, U64, Definitions)
@@ -445,7 +445,7 @@ module Cinch.Package where
 
   reversed-words :: I64 -> Nat -> Nat -> List Nat -> List Nat
   reversed-words address at end tail =
-    if at == end then tail else reversed-words address (at + 4) end (Cons (word address at) tail)
+    if at == end then tail else reversed-words address (at + 4) end ((word address at) : tail)
 
   read-parameters :: I64 -> Array String -> Nat -> Nat -> List String -> Result String (List String)
   read-parameters address strings start end tail =
@@ -453,7 +453,7 @@ module Cinch.Package where
     else if end < 4 then Err "truncated packed body parameter" else
       let previous = end - 4 in
       case array-get strings (word address previous) of
-        Some sort -> if valid-sort sort then read-parameters address strings start previous (Cons sort tail)
+        Some sort -> if valid-sort sort then read-parameters address strings start previous (sort : tail)
           else Err "invalid packed body parameter sort"
         None -> Err "packed body parameter outside package string table"
 
@@ -472,11 +472,11 @@ module Cinch.Package where
               (case (operand-region operands (word address (at + 8)) (word address (at + 12)),
                      operand-region edges (word address (at + 20)) (word address (at + 24))) of
                 (Ok (Region parameter-start parameter-size), Ok calls) ->
-                  (case read-parameters address strings parameter-start (parameter-start + parameter-size) Nil of
+                  (case read-parameters address strings parameter-start (parameter-start + parameter-size) [] of
                     Err message -> Err message
                     Ok parameters ->
                       let row = PackedSignature identity parameters result (word address (at + 16)) calls in
-                      read-flat-signatures address strings flat (index + 1) (Some identity) (Cons row rows))
+                      read-flat-signatures address strings flat (index + 1) (Some identity) (row : rows))
                 other -> Err "packed body span outside its section")
           other -> Err "packed body definition outside package string table"
 
@@ -518,7 +518,7 @@ module Cinch.Package where
             None -> Err "packed body primitive outside package string table")
           4 -> (case array-get signatures a of
             Some (PackedSignature callee parameters result root edges) ->
-              check-flat-application table scope cursor id left parameters result b c (Cons a targets)
+              check-flat-application table scope cursor id left parameters result b c (a : targets)
             None -> Err "packed body definition outside its section")
           5 | c == 0 -> (case check-flat-term table scope cursor id a left targets of
             Err message -> Err message
@@ -529,26 +529,26 @@ module Cinch.Package where
           6 -> (case check-flat-term table scope cursor id a left targets of
             Err message -> Err message
             Ok (sort, next, calls) ->
-              if string-compare sort "Bool" /= 0 then Err "packed body condition is not Bool" else
+              if sort /= "Bool" then Err "packed body condition is not Bool" else
                 (case check-flat-term table scope next id b left calls of
                   Err message -> Err message
                   Ok (yes-sort, following, used) -> (case check-flat-term table scope following id c left used of
                     Err message -> Err message
                     Ok (no-sort, final, all) ->
-                      if string-compare yes-sort no-sort /= 0 then Err "packed body branch sorts disagree"
+                      if yes-sort /= no-sort then Err "packed body branch sorts disagree"
                       else finish-flat-term yes-sort final id all)))
           other -> Err "invalid packed body node")
 
   check-flat-arguments :: PackedTable -> BodyScope String -> Nat -> Nat -> Nat -> Nat -> Nat -> List String -> List Nat -> Result String (Nat, List Nat)
   check-flat-arguments table scope cursor parent depth at end parameters targets =
     case (at == end, parameters) of
-      (True, Nil) -> Ok (cursor, targets)
-      (False, Cons expected rest) -> (case table of
+      (True, []) -> Ok (cursor, targets)
+      (False, expected : rest) -> (case table of
         PackedTable address strings nodes operands signatures ->
           (case check-flat-term table scope cursor parent (word address at) depth targets of
             Err message -> Err message
             Ok (sort, next, calls) ->
-              if string-compare sort expected /= 0 then Err "packed body argument sort mismatch"
+              if sort /= expected then Err "packed body argument sort mismatch"
               else check-flat-arguments table scope next parent depth (at + 4) end rest calls))
       other -> Err "packed body argument arity mismatch"
 
@@ -566,13 +566,13 @@ module Cinch.Package where
 
   skip-target :: Nat -> List Nat -> List Nat
   skip-target callee calls = case calls of
-    Cons first rest | first == callee -> skip-target callee rest
+    first : rest | first == callee -> skip-target callee rest
     other -> calls
 
   edges-agree :: I64 -> Nat -> Nat -> List Nat -> Bool
   edges-agree address at end calls = case calls of
-    Nil -> at == end
-    Cons first rest -> at < end && word address at == first &&
+    [] -> at == end
+    first : rest -> at < end && word address at == first &&
       edges-agree address (at + 4) end (skip-target first rest)
 
   -- An explicit stack keeps a valid long chain of compact calls off the
@@ -585,43 +585,43 @@ module Cinch.Package where
   stack-body-edges :: I64 -> Nat -> Nat -> List PackedVisit -> List PackedVisit
   stack-body-edges address at end rest =
     if at == end then rest
-    else stack-body-edges address (at + 4) end (Cons (EnterBody (word address at)) rest)
+    else stack-body-edges address (at + 4) end ((EnterBody (word address at)) : rest)
 
   check-body-cycles :: I64 -> Array PackedSignature -> Nat -> List PackedVisit -> HashMap Nat Nat -> Bool
   check-body-cycles address signatures next pending visited = case pending of
-    Nil -> if next == array-length signatures then True
+    [] -> if next == array-length signatures then True
       else check-body-cycles address signatures (next + 1) [EnterBody next] visited
-    Cons (EnterBody id) rest -> (case array-get signatures id of
+    (EnterBody id) : rest -> (case array-get signatures id of
       None -> False
       Some (PackedSignature identity parameters result root (Region start length)) ->
         if length == 0 then check-body-cycles address signatures next rest visited else
         (case hash-map-lookup id visited of
           Some done -> done == 1 && check-body-cycles address signatures next rest visited
           None -> check-body-cycles address signatures next
-            (stack-body-edges address start (start + length) (Cons (LeaveBody id) rest))
+            (stack-body-edges address start (start + length) ((LeaveBody id) : rest))
             (hash-map-insert id 0 visited)))
-    Cons (LeaveBody id) rest -> check-body-cycles address signatures next rest (hash-map-insert id 1 visited)
+    (LeaveBody id) : rest -> check-body-cycles address signatures next rest (hash-map-insert id 1 visited)
 
   parameter-document :: List String -> Json -> Json
   parameter-document backwards tail = case backwards of
-    Nil -> tail
-    Cons sort rest -> parameter-document rest (JArr (JStr sort) tail)
+    [] -> tail
+    sort : rest -> parameter-document rest (JArr (JStr sort) tail)
 
   check-flat-rows :: PackedTable -> Nat -> Nat -> Result String Unit
   check-flat-rows table index first = case table of
     PackedTable address strings nodes operands signatures ->
       if index == array-length signatures then
         (if first /= region-size nodes / 16 then Err "unreferenced packed body node"
-         else if not (check-body-cycles address signatures 0 Nil hash-map-empty) then Err "cyclic packed total-body graph"
+         else if not (check-body-cycles address signatures 0 [] hash-map-empty) then Err "cyclic packed total-body graph"
          else Ok ())
       else
         (case array-get signatures index of
           None -> Err "packed body definition outside its section"
           Some (PackedSignature identity parameters result root (Region edge-start edge-size)) ->
-            (case check-flat-term table (body-scope-from-list parameters) first (region-size nodes / 16) root 256 Nil of
+            (case check-flat-term table (body-scope-from-list parameters) first (region-size nodes / 16) root 256 [] of
               Err message -> Err message
               Ok (actual, next, calls) ->
-                if string-compare actual result /= 0 then Err "packed body result sort disagrees with its declaration"
+                if actual /= result then Err "packed body result sort disagrees with its declaration"
                 else if not (edges-agree address edge-start (edge-start + edge-size) (sort calls)) then Err "packed body dependencies disagree with its expression"
                 else check-flat-rows table (index + 1) next))
 
@@ -632,15 +632,15 @@ module Cinch.Package where
   -- Closure walks reuse those spans and never reread a definition header.
   reachable-bodies :: PackedTable -> List Nat -> HashMap Nat Nat -> List Nat -> Result String (List Nat)
   reachable-bodies packed pending seen selected = case (packed, pending) of
-    (PackedTable address strings nodes operands signatures, Cons first rest) ->
+    (PackedTable address strings nodes operands signatures, first : rest) ->
       (case hash-map-lookup first seen of
         Some known -> reachable-bodies packed rest seen selected
         None -> (case array-get signatures first of
           None -> Err "packed body definition outside its section"
           Some (PackedSignature identity parameters result root (Region start length)) ->
             reachable-bodies packed (reversed-words address start (start + length) rest)
-              (hash-map-insert first 0 seen) (Cons first selected)))
-    (PackedTable address strings nodes operands signatures, Nil) -> Ok selected
+              (hash-map-insert first 0 seen) (first : selected)))
+    (PackedTable address strings nodes operands signatures, []) -> Ok selected
 
   hash-node-text :: I64 -> StringTable -> Array String -> U64 -> Nat -> Result String U64
   hash-node-text address table strings hash id = case array-get strings id of
@@ -708,9 +708,9 @@ module Cinch.Package where
 
   hash-parameter-list :: U64 -> List String -> U64
   hash-parameter-list hash parameters = case parameters of
-    Nil -> fnv-byte hash 93
-    Cons sort Nil -> fnv-byte (fnv-json-string hash sort) 93
-    Cons sort rest -> hash-parameter-list (fnv-byte (fnv-json-string hash sort) 44) rest
+    [] -> fnv-byte hash 93
+    [sort] -> fnv-byte (fnv-json-string hash sort) 93
+    sort : rest -> hash-parameter-list (fnv-byte (fnv-json-string hash sort) 44) rest
 
   hash-wire-row :: WireSyntax -> PackedTable -> StringTable -> Nat -> U64 -> Result String U64
   hash-wire-row syntax packed table id hash = case packed of
@@ -726,10 +726,10 @@ module Cinch.Package where
 
   hash-wire-rows :: WireSyntax -> PackedTable -> StringTable -> List Nat -> U64 -> Result String U64
   hash-wire-rows syntax packed table indices hash = case indices of
-    Nil -> Ok (fnv64a-update hash (syntax.endGraph))
-    Cons first rest -> (case hash-wire-row syntax packed table first hash of
+    [] -> Ok (fnv64a-update hash (syntax.endGraph))
+    first : rest -> (case hash-wire-row syntax packed table first hash of
       Err message -> Err message
-      Ok digest -> hash-wire-rows syntax packed table rest (case rest of Nil -> digest; other -> fnv-byte digest 44))
+      Ok digest -> hash-wire-rows syntax packed table rest (case rest of [] -> digest; other -> fnv-byte digest 44))
 
   -- Cache complete nodes of a binary tree over the sorted body IDs.
   -- A graph hashes the largest covered nodes in order. Leaves are built
@@ -774,7 +774,7 @@ module Cinch.Package where
   -- straight from the wire unless another graph has cached their node.
   hash-contiguous-rows :: WireSyntax -> PackedTable -> StringTable -> HashMap Nat Json -> Nat -> Nat -> Nat -> List Nat -> U64 -> HashMap Nat HashSummary -> Result String (U64, HashMap Nat HashSummary)
   hash-contiguous-rows syntax packed table rows size low high remaining hash cached = case remaining of
-    Cons next rest | next == high ->
+    next : rest | next == high ->
       hash-contiguous-rows syntax packed table rows size low (high + 1) rest hash cached
     other ->
       let next = (if high == low + 1 then
@@ -787,13 +787,13 @@ module Cinch.Package where
       (case next of
         Err message -> Err message
         Ok (digest, prepared) -> (case remaining of
-          Nil -> Ok (fnv64a-update digest (syntax.endGraph), prepared)
-          Cons first rest -> hash-contiguous-rows syntax packed table rows size first (first + 1) rest digest prepared))
+          [] -> Ok (fnv64a-update digest (syntax.endGraph), prepared)
+          first : rest -> hash-contiguous-rows syntax packed table rows size first (first + 1) rest digest prepared))
 
   reference-body-rows :: CheckedBodyTable -> Array PackedSignature -> List Nat -> HashMap Nat Json -> Json -> Result String (Json, HashMap Nat Json)
   reference-body-rows checked signatures indices rows tail = case indices of
-    Nil -> Ok (body-document tail, rows)
-    Cons first rest -> (case hash-map-lookup first rows of
+    [] -> Ok (body-document tail, rows)
+    first : rest -> (case hash-map-lookup first rows of
       Some row -> reference-body-rows checked signatures rest rows (JArr row tail)
       None -> (case array-get signatures first of
         None -> Err "packed body definition outside its section"
@@ -815,7 +815,7 @@ module Cinch.Package where
         -- Small bodies stay on the direct path. A one-off large closure
         -- needn't build a hash tree either, unless this package revisits rows.
         let next = (case selected of
-          Cons first (Cons second rest) | count >= 8 && visits >= total * 4 ->
+          first : second : rest | count >= 8 && visits >= total * 4 ->
             (case hash-wire-row syntax packed spans first prefix of
               Err message -> Err message
               Ok initial -> hash-contiguous-rows syntax packed spans rows (grow-power-of-two total 1) second (second + 1) rest initial cached)
@@ -835,7 +835,7 @@ module Cinch.Package where
         (case array-get signatures root of
           None -> Err "packed body definition outside its section"
           Some (PackedSignature name parameters result node (Region start length)) ->
-            let closure = (if length == 0 then Ok [root] else reachable-bodies packed [root] hash-map-empty Nil) in
+            let closure = (if length == 0 then Ok [root] else reachable-bodies packed [root] hash-map-empty []) in
             (case closure of
               Err message -> Err message
               Ok reachable ->
@@ -850,7 +850,7 @@ module Cinch.Package where
   read-package-definitions source strings flat = case flat of
     FlatBodies bodies edges nodes operands ->
       let address = bytes-data source in
-      (case read-flat-signatures address strings flat 0 None Nil of
+      (case read-flat-signatures address strings flat 0 None [] of
         Err message -> Err message
         Ok signatures ->
           let packed = PackedTable address strings nodes operands signatures in
@@ -863,7 +863,7 @@ module Cinch.Package where
     if at == limit then Ok (array-from-list (reverse items)) else
       (case text-at source address raw at of
         Err message -> Err message
-        Ok value -> read-strings source address raw (at + 8) limit (Cons value items))
+        Ok value -> read-strings source address raw (at + 8) limit (value : items))
 
   string-table :: I64 -> Region -> Result String StringTable
   string-table address (Region base length) =
@@ -878,15 +878,15 @@ module Cinch.Package where
     if length > 0 && length < 4 then Err "truncated structured ABI header" else
       let needed = if length == 0 then count else word address abi in
       if needed > count then Err "invalid structured ABI string boundary" else
-        read-strings source address raw start (start + needed * 8) Nil
+        read-strings source address raw start (start + needed * 8) []
 
   abi-texts :: Bytes -> I64 -> StringTable -> Option (Array String) -> Result String (Array String)
   abi-texts source address (StringTable start count raw) prefix = case prefix of
-    None -> read-strings source address raw start (start + count * 8) Nil
+    None -> read-strings source address raw start (start + count * 8) []
     Some texts ->
       let used = array-length texts in
       if used == count then Ok texts else
-        (case read-strings source address raw (start + used * 8) (start + count * 8) Nil of
+        (case read-strings source address raw (start + used * 8) (start + count * 8) [] of
           Err message -> Err message
           Ok suffix -> Ok (array-append texts suffix))
 
@@ -924,7 +924,7 @@ module Cinch.Package where
               Ok region -> case read-hashed-document address strings definitions region (Some table) of
                 Err message -> Err message
                 Ok (document, computed, decoded) -> read-rows source address raw table strings documents decoded base count (index + 1)
-                  (Cons (PackageContract name digest document (u64-decimal computed) None) items))
+                  ((PackageContract name digest document (u64-decimal computed) None) : items))
 
   decode-package :: forall r. Bytes ->{IO r} Result String (List PackageContract, StringTable, Array String, Region)
   decode-package source =
@@ -940,7 +940,7 @@ module Cinch.Package where
               Err message -> Err message
               Ok texts -> case read-package-definitions source texts format of
                 Err message -> Err message
-                Ok definitions -> case read-rows source address raw table texts documents definitions modules (module-size / 36) 0 Nil of
+                Ok definitions -> case read-rows source address raw table texts documents definitions modules (module-size / 36) 0 [] of
                   Err message -> Err message
                   Ok (rows, decoded) ->
                     let bodies = retain-body-table decoded in

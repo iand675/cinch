@@ -74,22 +74,19 @@ module Cinch.StageEval where
     NoMatch :: StageMatch
     UnavailablePattern :: Span -> StageMatch
 
-  same :: String -> String -> Bool
-  same left right = string-compare left right == 0
-
   stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
   stage-error site message = Err [Diagnostic "bootstrap.stage" site message]
 
   definition-for :: String -> List CoreDefinition -> Option CoreDefinition
   definition-for name definitions = case definitions of
-    Nil -> None
-    Cons definition rest -> if same (definition.name) name then Some definition else definition-for name rest
+    [] -> None
+    definition : rest -> if definition.name == name then Some definition else definition-for name rest
 
   exported-definition :: String -> List CoreDefinition -> Option CoreDefinition
   exported-definition name definitions = case definitions of
-    Nil -> None
-    Cons definition rest -> case export-global (definition.name) of
-      Ok identity -> if same identity name then Some definition else exported-definition name rest
+    [] -> None
+    definition : rest -> case export-global (definition.name) of
+      Ok identity -> if identity == name then Some definition else exported-definition name rest
       Err message -> exported-definition name rest
 
   evaluate-stage :: CheckedProgram -> Span -> String -> Nat -> Result (List Diagnostic) (StageValue, Nat)
@@ -97,23 +94,23 @@ module Cinch.StageEval where
     let definitions = elaboration-core typed in
     let scope = elaboration-method-scope typed in
     case exported-definition name definitions of
-      Some definition -> evaluate-definition (StageEnvironment definitions (elaboration-declarations typed) scope (elaboration-instances typed) None) site definition Nil fuel
+      Some definition -> evaluate-definition (StageEnvironment definitions (elaboration-declarations typed) scope (elaboration-instances typed) None) site definition [] fuel
       None -> stage-error site (string-concat "missing checked compile-time definition: " name)
 
   match-stage-pattern :: CorePattern -> StageValue -> List (Nat, StageValue) -> StageMatch
   match-stage-pattern pattern value locals = case pattern of
-    CPVar site ty id name -> Match (Cons (id, value) locals)
-    CPAs site ty id name nested -> match-stage-pattern nested value (Cons (id, value) locals)
+    CPVar site ty id name -> Match ((id, value) : locals)
+    CPAs site ty id name nested -> match-stage-pattern nested value ((id, value) : locals)
     CPWild site ty -> Match locals
     CPInt site ty text -> case (total-decimal-value text, value) of
       (Some expected, StageInteger actual) -> if expected == actual then Match locals else NoMatch
       other -> NoMatch
     CPString site ty text -> case value of
-      StageString actual -> if same text actual then Match locals else NoMatch
+      StageString actual -> if text == actual then Match locals else NoMatch
       other -> NoMatch
     CPConstructor site result name actuals ty fields -> case value of
-      StageBoolean actual -> if same name (if actual then "True" else "False") then match-stage-fields fields StageFieldsEnd locals else NoMatch
-      StageNominal constructor values -> if same name constructor then match-stage-fields fields values locals else NoMatch
+      StageBoolean actual -> if name == (if actual then "True" else "False") then match-stage-fields fields StageFieldsEnd locals else NoMatch
+      StageNominal constructor values -> if name == constructor then match-stage-fields fields values locals else NoMatch
       other -> NoMatch
     other -> UnavailablePattern (Span 0 0 0 0)
 
@@ -127,8 +124,8 @@ module Cinch.StageEval where
 
   match-stage-patterns :: List CorePattern -> List StageValue -> List (Nat, StageValue) -> StageMatch
   match-stage-patterns patterns values locals = case (patterns, values) of
-    (Nil, Nil) -> Match locals
-    (Cons pattern rest, Cons value more) -> case match-stage-pattern pattern value locals of
+    ([], []) -> Match locals
+    (pattern : rest, value : more) -> case match-stage-pattern pattern value locals of
       Match found -> match-stage-patterns rest more found
       NoMatch -> NoMatch
       UnavailablePattern site -> UnavailablePattern site
@@ -136,19 +133,19 @@ module Cinch.StageEval where
 
   stage-local :: Nat -> List (Nat, StageValue) -> Option StageValue
   stage-local id locals = case locals of
-    Nil -> None
-    Cons (key, value) rest -> if id == key then Some value else stage-local id rest
+    [] -> None
+    (key, value) : rest -> if id == key then Some value else stage-local id rest
 
   evaluate-definition :: StageEnvironment -> Span -> CoreDefinition -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-definition definitions site definition values fuel = case definition.givens of
-    Nil -> evaluate-clauses definitions site (definition.name) (definition.clauses) values fuel
+    [] -> evaluate-clauses definitions site (definition.name) (definition.clauses) values fuel
     other -> stage-error site "dictionary arguments are unavailable in compile-time evaluation"
 
   evaluate-clauses :: StageEnvironment -> Span -> String -> List CoreClause -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-clauses definitions site name clauses values fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     case clauses of
-      Nil -> stage-error site (string-concat-all ["no checked compile-time clause matches ", name, " with ", nat-to-string (list-length values), " arguments"])
-      Cons (CoreClause clause-site patterns body) rest -> case match-stage-patterns patterns values Nil of
+      [] -> stage-error site (string-concat-all ["no checked compile-time clause matches ", name, " with ", nat-to-string (list-length values), " arguments"])
+      (CoreClause clause-site patterns body) : rest -> case match-stage-patterns patterns values [] of
         Match locals -> evaluate-term definitions locals clause-site body (fuel - 1)
         NoMatch -> evaluate-clauses definitions site name rest values (fuel - 1)
         UnavailablePattern pattern-site -> stage-error pattern-site "pattern is unavailable in compile-time evaluation"
@@ -157,35 +154,35 @@ module Cinch.StageEval where
   -- inner intrinsic is reported even when the outer call is also unavailable.
   evaluate-terms :: StageEnvironment -> List (Nat, StageValue) -> Span -> List CoreTerm -> Nat -> Result (List Diagnostic) (List StageValue, Nat)
   evaluate-terms definitions locals site arguments fuel = case arguments of
-    Nil -> Ok (Nil, fuel)
-    Cons first rest -> case evaluate-term definitions locals site first fuel of
+    [] -> Ok ([], fuel)
+    first : rest -> case evaluate-term definitions locals site first fuel of
       Err errors -> Err errors
       Ok (value, remaining) -> case evaluate-terms definitions locals site rest remaining of
         Err errors -> Err errors
-        Ok (values, done) -> Ok (Cons value values, done)
+        Ok (values, done) -> Ok (value : values, done)
 
   evaluate-use :: StageEnvironment -> Span -> UType -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-use definitions site ty name role values fuel =
-    if same role "intrinsic" || same role "foreign" then
-      (case (if same role "intrinsic" then conversion-shape name else None) of
+    if role == "intrinsic" || role == "foreign" then
+      (case (if role == "intrinsic" then conversion-shape name else None) of
         Some (source, result) -> apply-conversion site source result values fuel
         None -> stage-error site (string-concat-all ["primitive `", name, "` is not available at compile time"]))
-    else if same role "external" && same name global-stage-str-nat then (case values of
+    else if role == "external" && name == global-stage-str-nat then (case values of
       [StageString text] -> case parse-decimal-value (string-strip text) of
         Some value | value >= 0 -> Ok (StageInteger value, fuel)
         Some negative -> stage-error site "`strNat` rejects a negative `Nat`"
         None -> stage-error site (string-concat-all ["`strNat` needs decimal digits, got `", text, "`"])
       other -> stage-error site "`strNat` requires one string")
-    else if same role "constructor" then
+    else if role == "constructor" then
       (if list-length values < scheme-arity (mono ty) then Ok (StageCallable name role ty (stage-fields values), fuel)
        else evaluate-constructor site ty name values fuel)
     else case definition-for name (definitions.definitions) of
       Some definition -> (case definition.clauses of
-        Cons (CoreClause at patterns body) rest | list-length values < list-length patterns ->
+        (CoreClause at patterns body) : rest | list-length values < list-length patterns ->
           Ok (StageCallable name role ty (stage-fields values), fuel)
         other -> evaluate-definition definitions site definition values fuel)
       None -> case (definitions, export-global name) of
-        (StageEnvironment core declarations scope instances self, Ok identity) | same role "external" ->
+        (StageEnvironment core declarations scope instances self, Ok identity) | (role == "external") ->
           (case imported-conversion identity declarations of
             Some (source, result) -> apply-conversion site source result values fuel
             None -> stage-error site (string-concat "definition is not available at compile time: " name))
@@ -196,44 +193,44 @@ module Cinch.StageEval where
   conversion-shape :: String -> Option (String, String)
   conversion-shape symbol = case scalar-intrinsic symbol of
     Some operation -> (case operation.operation-arguments of
-      [source] | same (operation.operation-code) "widen" ->
+      [source] | (operation.operation-code == "widen") ->
         Some (source.shape-name, operation.operation-result.shape-name)
       other -> None)
-    None -> if same symbol "cinch.runtime.intFromI64" then Some ("I64", "Int")
-      else if same symbol "cinch.runtime.natFromI64" then Some ("I64", "Nat") else None
+    None -> if symbol == "cinch.runtime.intFromI64" then Some ("I64", "Int")
+      else if symbol == "cinch.runtime.natFromI64" then Some ("I64", "Nat") else None
 
   apply-conversion :: Span -> String -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   apply-conversion site source result values fuel = case values of
-    Nil -> Ok (StageConversion source result, fuel)
-    [StageMachine carrier value] | same source carrier && integer-literal-valid (UCon result KType) value ->
-      Ok (if same result "Nat" || same result "Int" then StageInteger value else StageMachine result value, fuel)
+    [] -> Ok (StageConversion source result, fuel)
+    [StageMachine carrier value] | (source == carrier) && integer-literal-valid (UCon result KType) value ->
+      Ok (if result == "Nat" || result == "Int" then StageInteger value else StageMachine result value, fuel)
     other -> stage-error site "invalid compile-time integer conversion"
 
   imported-conversion :: String -> List Decl -> Option (String, String)
   imported-conversion identity declarations = case declarations of
-    Nil -> None
-    Cons (DInterface sp owner hash metadata) rest -> (case contract-intrinsic identity owner metadata of
+    [] -> None
+    (DInterface sp owner hash metadata) : rest -> (case contract-intrinsic identity owner metadata of
       Some symbol -> conversion-shape symbol
       None -> imported-conversion identity rest)
-    Cons other rest -> imported-conversion identity rest
+    other : rest -> imported-conversion identity rest
 
   stage-fields :: List StageValue -> StageValue
   stage-fields values = case values of
-    Nil -> StageFieldsEnd
-    Cons first rest -> StageField first (stage-fields rest)
+    [] -> StageFieldsEnd
+    first : rest -> StageField first (stage-fields rest)
 
   prepend-stage-fields :: StageValue -> List StageValue -> List StageValue
   prepend-stage-fields fields values = case fields of
-    StageField first rest -> Cons first (prepend-stage-fields rest values)
+    StageField first rest -> first : (prepend-stage-fields rest values)
     other -> values
 
   evaluate-constructor :: Span -> UType -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-constructor site ty name values fuel =
     if not (scheme-arity (mono ty) == list-length values) then stage-error site "unsaturated compile-time constructor"
     else case (ty, values) of
-      (UCon carrier KType, Nil) | same carrier "Bool" && (same name "True" || same name "False") -> Ok (StageBoolean (same name "True"), fuel)
+      (UCon carrier KType, []) | (carrier == "Bool") && (name == "True" || name == "False") -> Ok (StageBoolean (name == "True"), fuel)
       (other, [value]) -> (case export-global name of
-        Ok identity | same identity (string-concat-all [stage-quotation-module, ".", stage-quotation-constructor]) -> Ok (StageQuoted value, fuel)
+        Ok identity | (identity == string-concat-all [stage-quotation-module, ".", stage-quotation-constructor]) -> Ok (StageQuoted value, fuel)
         other -> Ok (StageNominal name (stage-fields values), fuel))
       other -> Ok (StageNominal name (stage-fields values), fuel)
 
@@ -249,7 +246,7 @@ module Cinch.StageEval where
   evaluate-application :: StageEnvironment -> List (Nat, StageValue) -> Span -> CoreTerm -> List CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-application definitions locals site term arguments fuel = if fuel == 0 then stage-error site "compile-time evaluation exhausted its work budget" else
     case term of
-      CApply at ty f x -> evaluate-application definitions locals at f (Cons x arguments) (fuel - 1)
+      CApply at ty f x -> evaluate-application definitions locals at f (x : arguments) (fuel - 1)
       CUse at ty name role actuals -> case evaluate-terms definitions locals site arguments (fuel - 1) of
         Err errors -> Err errors
         Ok (values, remaining) -> evaluate-use definitions at ty name role values remaining
@@ -273,7 +270,7 @@ module Cinch.StageEval where
     StageEnvironment core declarations scope instances self ->
       let source = (case (evidence, self) of
         (CEInstance at ty name actuals (CEArgumentsEnd end), other) -> find-instance name instances
-        (CEGiven at ty name, Some (symbol, dictionary)) | same name symbol -> Some dictionary
+        (CEGiven at ty name, Some (symbol, dictionary)) | (name == symbol) -> Some dictionary
         other -> None) in
       (case source of
         Some dictionary -> (case field-at slot (dictionary.fields) of
@@ -292,36 +289,37 @@ module Cinch.StageEval where
 
   primitive-arguments :: CoreTerm -> List CoreTerm
   primitive-arguments term = case term of
-    CArgument site first rest -> Cons first (primitive-arguments rest)
-    other -> Nil
+    CArgument site first rest -> first : (primitive-arguments rest)
+    other -> []
 
   evaluate-numeric-primitive :: Span -> String -> Int -> Int -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-numeric-primitive site operation left right fuel =
-    if same operation "+" then Ok (StageInteger (int-add left right), fuel)
-    else if same operation "-" then Ok (StageInteger (int-sub left right), fuel)
-    else if same operation "*" then Ok (StageInteger (int-mul left right), fuel)
-    else if same operation "==" then Ok (StageBoolean (left == right), fuel)
-    else if same operation "/=" then Ok (StageBoolean (left /= right), fuel)
-    else if same operation "<" then Ok (StageBoolean (left < right), fuel)
-    else if same operation "<=" then Ok (StageBoolean (left <= right), fuel)
-    else if same operation ">" then Ok (StageBoolean (left > right), fuel)
-    else if same operation ">=" then Ok (StageBoolean (left >= right), fuel)
-    else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
+    case operation of
+    "+" -> Ok (StageInteger (int-add left right), fuel)
+    "-" -> Ok (StageInteger (int-sub left right), fuel)
+    "*" -> Ok (StageInteger (int-mul left right), fuel)
+    "==" -> Ok (StageBoolean (left == right), fuel)
+    "/=" -> Ok (StageBoolean (left /= right), fuel)
+    "<" -> Ok (StageBoolean (left < right), fuel)
+    "<=" -> Ok (StageBoolean (left <= right), fuel)
+    ">" -> Ok (StageBoolean (left > right), fuel)
+    ">=" -> Ok (StageBoolean (left >= right), fuel)
+    _ -> stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
 
   evaluate-primitive :: Span -> String -> List StageValue -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-primitive site operation values fuel = case values of
-    Nil -> if same operation "decision-true" || same operation "decision-false" then Ok (StageBoolean (same operation "decision-true"), fuel)
+    [] -> if operation == "decision-true" || operation == "decision-false" then Ok (StageBoolean (operation == "decision-true"), fuel)
       else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
-    Cons (StageInteger value) Nil -> if same operation "negate" then Ok (StageInteger (int-neg value), fuel)
+    [StageInteger value] -> if operation == "negate" then Ok (StageInteger (int-neg value), fuel)
       else stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
-    Cons (StageInteger left) (Cons (StageInteger right) Nil) -> evaluate-numeric-primitive site operation left right fuel
+    (StageInteger left) : ([StageInteger right]) -> evaluate-numeric-primitive site operation left right fuel
     other -> stage-error site (string-concat "operation is unavailable in compile-time evaluation: " operation)
 
   natural-arguments :: List StageValue -> Option (List Arithmetic)
   natural-arguments values = case values of
-    Nil -> Some Nil
-    Cons (StageInteger n) rest | n >= 0 -> (case natural-arguments rest of
-      Some more -> Some (Cons (AInteger n) more)
+    [] -> Some []
+    (StageInteger n) : rest | n >= 0 -> (case natural-arguments rest of
+      Some more -> Some ((AInteger n) : more)
       None -> None)
     other -> None
 
@@ -329,7 +327,7 @@ module Cinch.StageEval where
   -- defining expression with the actual values from this call.
   evaluate-discharged :: StageEnvironment -> List (Nat, StageValue) -> Span -> CoreTerm -> Nat -> Result (List Diagnostic) (StageValue, Nat)
   evaluate-discharged environment locals site body fuel = case environment of
-    StageEnvironment core declarations scope instances self -> (case guarded-call-spine scope body Nil of
+    StageEnvironment core declarations scope instances self -> (case guarded-call-spine scope body [] of
       None -> evaluate-term environment locals site body fuel
       Some (binding, arguments) -> (case evaluate-terms environment locals site arguments fuel of
         Err errors -> Err errors
@@ -346,19 +344,19 @@ module Cinch.StageEval where
     let remaining = fuel - 1 in case term of
       CInt at (UCon carrier KType) text -> (case total-decimal-value text of
         Some value | integer-literal-valid (UCon carrier KType) value ->
-          Ok (if same carrier "Nat" || same carrier "Int" then StageInteger value else StageMachine carrier value, remaining)
+          Ok (if carrier == "Nat" || carrier == "Int" then StageInteger value else StageMachine carrier value, remaining)
         other -> stage-error at "invalid checked compile-time integer")
       CString at ty text -> Ok (StageString text, remaining)
       CUnit at ty -> Ok (StageUnit, remaining)
       CLocal at ty id name actuals -> case stage-local id locals of
         Some value -> Ok (value, remaining)
         None -> stage-error at "missing checked compile-time local binding"
-      CUse at ty name role actuals -> evaluate-use definitions at ty name role Nil remaining
+      CUse at ty name role actuals -> evaluate-use definitions at ty name role [] remaining
       CApply at ty f x -> evaluate-application definitions locals at f [x] remaining
       CApplyEff at ty row f x -> stage-error at "effectful call is unavailable in compile-time evaluation"
       CLet at ty id name sc rhs body -> case evaluate-term definitions locals at rhs remaining of
         Err errors -> Err errors
-        Ok (value, next) -> evaluate-term definitions (Cons (id, value) locals) at body next
+        Ok (value, next) -> evaluate-term definitions ((id, value) : locals) at body next
       CCase at ty subject arms -> (case evaluate-term definitions locals at subject remaining of
         Ok (value, next) -> evaluate-alternatives definitions locals at value arms next
         Err errors -> Err errors)

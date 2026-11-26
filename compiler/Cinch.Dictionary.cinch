@@ -16,10 +16,8 @@ module Cinch.Dictionary where
   export law-context-resolves
   export check-law-term-evidence
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
   find-kind :: String -> List (String, Kind) -> Option Kind
-  find-kind name classes = case classes of Nil -> None; Cons (id, kind) rest -> if same name id then Some kind else find-kind name rest
+  find-kind name classes = case classes of [] -> None; (id, kind) : rest -> if name == id then Some kind else find-kind name rest
   class-root :: UType -> Option (String, Kind)
   class-root ty = case ty of UCon name kind -> Some (name, kind); UApp f x -> class-root f; other -> None
   applications-valid :: UType -> Bool
@@ -38,11 +36,11 @@ module Cinch.Dictionary where
     Some (name, kind) -> (case find-kind name classes of Some expected -> kind-equal kind expected; None -> False)
     None -> False)
   find-given :: String -> List CoreGiven -> Option CoreGiven
-  find-given name givens = case givens of Nil -> None; Cons given rest -> if same name (given.symbol) then Some given else find-given name rest
+  find-given name givens = case givens of [] -> None; given : rest -> if name == given.symbol then Some given else find-given name rest
   clean :: Store -> Bool
   clean st = store-error-count st == 0
   fail-evidence :: Span -> UType -> String -> Store -> (CoreEvidence, Store)
-  fail-evidence sp ty message st = (CENeeded sp ty Nil, add-error sp message st)
+  fail-evidence sp ty message st = (CENeeded sp ty [], add-error sp message st)
 
   -- Conditional heads describe why a dictionary cannot escape. Only
   -- ordinary factories participate in evidence search or construction.
@@ -60,22 +58,22 @@ module Cinch.Dictionary where
   descend-resolution :: Resolution -> Resolution
   descend-resolution context = case context of Resolution kinds instances deferred fuel -> Resolution kinds instances deferred (if fuel > 0 then fuel - 1 else 0)
   resolve-dictionary-term :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory Nil Nil) False 64) scope term st
+  resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory [] []) False 64) scope term st
   resolve-dictionary-term-with :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-dictionary-term-with kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances Nil) False 64) scope term st
+  resolve-dictionary-term-with kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances []) False 64) scope term st
   resolve-ready-term :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances Nil) True 64) scope term st
+  resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances []) True 64) scope term st
   resolve-inventory-term :: Bool -> List (String, Kind) -> InstanceInventory -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-inventory-term deferred kinds inventory scope term st = resolve-dictionary-term-in (Resolution kinds inventory deferred 64) scope term st
   -- Generic laws may assume a dictionary determined by their binders.
   -- No evidence from this pass is used by the sampler or emitted as Core.
   check-law-term-evidence :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> Store
-  check-law-term-evidence kinds scope term st = case resolve-dictionary-term-in (Resolution kinds (InstanceInventory Nil Nil) False 64) scope term st of
+  check-law-term-evidence kinds scope term st = case resolve-dictionary-term-in (Resolution kinds (InstanceInventory [] []) False 64) scope term st of
     (checked, done) -> done
   resolve-dictionary-definition :: List (String, Kind) -> CoreDefinition -> Store -> (CoreDefinition, Store)
-  resolve-dictionary-definition kinds definition st = resolve-dictionary-definition-with kinds Nil definition st
+  resolve-dictionary-definition kinds definition st = resolve-dictionary-definition-with kinds [] definition st
   resolve-dictionary-definition-with :: List (String, Kind) -> List (String, Scheme) -> CoreDefinition -> Store -> (CoreDefinition, Store)
-  resolve-dictionary-definition-with kinds instances definition st = resolve-inventory-definition kinds (InstanceInventory instances Nil) definition st
+  resolve-dictionary-definition-with kinds instances definition st = resolve-inventory-definition kinds (InstanceInventory instances []) definition st
   resolve-inventory-definition :: List (String, Kind) -> InstanceInventory -> CoreDefinition -> Store -> (CoreDefinition, Store)
   resolve-inventory-definition kinds inventory definition st =
     let level = st.level in
@@ -88,24 +86,24 @@ module Cinch.Dictionary where
   -- scope rather than from a copied annotation on a request.
   choose-given :: Resolution -> List CoreGiven -> Span -> UType -> List CoreGiven -> Store -> (CoreEvidence, Store)
   choose-given context allowed sp wanted candidates st = case candidates of
-    Nil -> if st.law-scope then
+    [] -> if st.law-scope then
       (case free-metas st wanted of
-        Nil -> (CENeeded sp (normalize st wanted) allowed, st)
+        [] -> (CENeeded sp (normalize st wanted) allowed, st)
         other -> fail-evidence sp wanted "a law's dictionary arguments must be determined by its binders" st)
       else if capability-type (normalize st wanted) then fail-evidence sp wanted (string-concat-all ["no ", diagnostic-dictionary (normalize st wanted), " capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"]) st
       else (case normalize st wanted of
-        UApp (UCon name (KFun KType KType)) carrier | same name "Copy" ->
+        UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") ->
           (case carrier of
             UMeta id KType -> let defaulted = default-numbers-for carrier st in
               checked-copy-marker sp (normalize defaulted carrier) defaulted
             other -> checked-copy-marker sp carrier st)
-        UApp (UCon name (KFun KType KType)) carrier | same name "Kernel" ->
+        UApp (UCon name (KFun KType KType)) carrier | (name == "Kernel") ->
           (case carrier of
             UMeta id KType -> let defaulted = default-numbers-for carrier st in
               checked-kernel-marker sp (normalize defaulted carrier) defaulted
             other -> checked-kernel-marker sp carrier st)
         other -> choose-instance context allowed sp wanted st)
-    Cons candidate rest -> case find-given (candidate.symbol) allowed of
+    candidate : rest -> case find-given (candidate.symbol) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st
       Some given ->
         if not (valid-goal (context.classes) (normalize st (given.ty))) then fail-evidence sp wanted "dictionary binder has no checked signature type" st
@@ -138,10 +136,10 @@ module Cinch.Dictionary where
     other -> fail-evidence (Span 0 0 1 1) UError "dictionary argument spine is not an evidence value" st
   resolve-evidences :: Resolution -> List CoreGiven -> List CoreEvidence -> Store -> (List CoreEvidence, Store)
   resolve-evidences context scope evidence st = case evidence of
-    Nil -> (Nil, st)
-    Cons first rest -> case resolve-evidence context scope first st of
+    [] -> ([], st)
+    first : rest -> case resolve-evidence context scope first st of
       (resolved, checked) -> case resolve-evidences context scope rest checked of
-        (more, done) -> (Cons resolved more, done)
+        (more, done) -> (resolved : more, done)
 
   resolve-dictionary-term-in :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-dictionary-term-in context scope term st = if not (clean st) then (term, st) else resolve-term context scope term st
@@ -165,9 +163,9 @@ module Cinch.Dictionary where
     CQualifiedUse sp ty name role actuals evidence -> case resolve-evidences context scope evidence st of
       (resolved, checked) -> (CQualifiedUse sp ty name role actuals resolved, checked)
     CMethod sp ty name owner slot actuals evidence -> case evidence of
-      Nil -> (CError sp, add-error sp "method projection has no class dictionary" st)
-      Cons first rest -> case class-root (normalize st (evidence-type first)) of
-        Some (class, kind) -> if same class owner then
+      [] -> (CError sp, add-error sp "method projection has no class dictionary" st)
+      first : rest -> case class-root (normalize st (evidence-type first)) of
+        Some (class, kind) -> if class == owner then
           (case resolve-evidences context scope evidence st of
             (resolved, checked) -> (CMethod sp ty name owner slot actuals resolved, checked))
           else (CError sp, add-error sp "method dictionary belongs to a different signature" st)
@@ -190,14 +188,14 @@ module Cinch.Dictionary where
         (CError sp, add-error sp "dictionary scope needs a checked signature value" st)
       else let supplied = unify sp (given.ty) (core-type value) st in
         case resolve-term context scope value supplied of
-          (out, checked) -> if clean supplied && not (clean checked) && (case free-metas supplied (given.ty) of Nil -> False; Cons first rest -> True) then
+          (out, checked) -> if clean supplied && not (clean checked) && (case free-metas supplied (given.ty) of [] -> False; first : rest -> True) then
             -- A polymorphic factory may need the carrier of a method used
             -- inside the scope. Retry its prerequisites in the outer scope
             -- after those method uses constrain the binder.
-            (case resolve-term context (Cons given scope) body supplied of
+            (case resolve-term context (given : scope) body supplied of
               (result, constrained) -> case resolve-term context scope value constrained of
                 (factory, done) -> (CWith sp ty given factory result, unify sp ty (core-type result) done))
-            else (case resolve-term context (Cons given scope) body checked of
+            else (case resolve-term context (given : scope) body checked of
               (result, done) -> (CWith sp ty given out result, unify sp ty (core-type result) done))
     CLambda sp ty pattern body -> case resolve-term context scope body st of (out, checked) -> (CLambda sp ty pattern out, checked)
     CLet sp ty id name scheme rhs body -> case resolve-term context scope rhs st of
@@ -235,62 +233,62 @@ module Cinch.Dictionary where
     other -> (term, st)
 
   capability-type :: UType -> Bool
-  capability-type ty = case ty of UApp (UCon name kind) region -> same name "b.Io" && kind-equal (type-kind region) KRegion; other -> False
+  capability-type ty = case ty of UApp (UCon name kind) region -> name == "b.Io" && kind-equal (type-kind region) KRegion; other -> False
 
   check-givens :: Resolution -> List Requirement -> List CoreGiven -> List String -> Store -> Store
   check-givens context requirements givens seen st = case (requirements, givens) of
-    (Nil, Nil) -> st
-    (Cons requirement rest, Cons (CoreGiven sp name ty) more) ->
+    ([], []) -> st
+    (requirement : rest, (CoreGiven sp name ty) : more) ->
       if string-length name == 0 || symbol-seen name seen then add-error sp "dictionary definition has duplicate binder symbols" st
       else if not (valid-goal (context.classes) (normalize st ty)) || not (valid-goal (context.classes) (normalize st (requirement.ty))) then add-error sp "dictionary definition has an invalid signature constraint" st
-      else check-givens context rest more (Cons name seen) (unify sp ty (requirement.ty) st)
+      else check-givens context rest more (name : seen) (unify sp ty (requirement.ty) st)
     other -> add-error (Span 0 0 1 1) "dictionary definition does not bind its declared constraints" st
   symbol-seen :: String -> List String -> Bool
-  symbol-seen name names = case names of Nil -> False; Cons first rest -> same name first || symbol-seen name rest
+  symbol-seen name names = case names of [] -> False; first : rest -> name == first || symbol-seen name rest
   resolve-clauses :: Resolution -> List CoreGiven -> List CoreClause -> Store -> (List CoreClause, Store)
   resolve-clauses context scope clauses st = case clauses of
-    Nil -> (Nil, st)
-    Cons (CoreClause sp patterns body) rest -> case resolve-dictionary-term-in context scope body st of
-      (out, checked) -> case resolve-clauses context scope rest checked of (more, done) -> (Cons (CoreClause sp patterns out) more, done)
+    [] -> ([], st)
+    (CoreClause sp patterns body) : rest -> case resolve-dictionary-term-in context scope body st of
+      (out, checked) -> case resolve-clauses context scope rest checked of (more, done) -> ((CoreClause sp patterns out) : more, done)
   resolve-dictionary-definition-in :: Resolution -> CoreDefinition -> Store -> (CoreDefinition, Store)
   resolve-dictionary-definition-in context definition st = case definition of
     CoreDefinition sp name scheme openings givens private clauses ->
       let requirements = map-requirements (substitute-bound openings) (scheme-requirements scheme) in
-      let checked = check-givens context requirements givens Nil st in
+      let checked = check-givens context requirements givens [] st in
       case resolve-clauses context givens clauses checked of
         (out, done) -> (CoreDefinition sp name scheme openings givens private out, done)
 
   find-instance :: String -> List (String, Scheme) -> Option Scheme
-  find-instance name instances = case instances of Nil -> None; Cons (symbol, sc) rest -> if same name symbol then Some sc else find-instance name rest
+  find-instance name instances = case instances of [] -> None; (symbol, sc) : rest -> if name == symbol then Some sc else find-instance name rest
   instance-types :: List (Nat, UType) -> Store -> List UType
-  instance-types pairs st = case pairs of Nil -> Nil; Cons (id, ty) rest -> Cons (normalize st ty) (instance-types rest st)
+  instance-types pairs st = case pairs of [] -> []; (id, ty) : rest -> (normalize st ty) : (instance-types rest st)
   instance-arguments :: Resolution -> List CoreGiven -> Span -> List Requirement -> Store -> (CoreEvidence, Store)
   instance-arguments context allowed sp requirements st = case requirements of
-    Nil -> (CEArgumentsEnd sp, st)
-    Cons requirement rest -> case resolve-evidence context allowed (CENeeded sp (requirement.ty) allowed) st of
+    [] -> (CEArgumentsEnd sp, st)
+    requirement : rest -> case resolve-evidence context allowed (CENeeded sp (requirement.ty) allowed) st of
       (first, sf) -> if not (clean sf) then (first, sf) else case instance-arguments context allowed sp rest sf of
         (more, done) -> (CEArgument sp first more, done)
   law-context-resolves :: List (String, Kind) -> List (String, Scheme) -> Span -> List Requirement -> Store -> Bool
   law-context-resolves kinds instances sp requirements st =
-    case instance-arguments (Resolution kinds (InstanceInventory instances Nil) False 64) Nil sp requirements st of
+    case instance-arguments (Resolution kinds (InstanceInventory instances []) False 64) [] sp requirements st of
       (evidence, checked) -> clean checked
   -- A factory may retain a type variable already present in the wanted
   -- head. It cannot introduce an unaccounted existential type argument.
   meta-in :: Nat -> List Nat -> Bool
-  meta-in id ids = case ids of Nil -> False; Cons first rest -> id == first || meta-in id rest
+  meta-in id ids = case ids of [] -> False; first : rest -> id == first || meta-in id rest
   metas-in :: List Nat -> List Nat -> Bool
-  metas-in first second = case first of Nil -> True; Cons id rest -> meta-in id second && metas-in rest second
+  metas-in first second = case first of [] -> True; id : rest -> meta-in id second && metas-in rest second
   instance-parameters-scoped :: List UType -> UType -> Store -> Bool
   instance-parameters-scoped parameters wanted st = case parameters of
-    Nil -> True
-    Cons ty rest -> valid-type (normalize st ty) && metas-in (free-metas st ty) (free-metas st wanted) && instance-parameters-scoped rest wanted st
+    [] -> True
+    ty : rest -> valid-type (normalize st ty) && metas-in (free-metas st ty) (free-metas st wanted) && instance-parameters-scoped rest wanted st
   -- A winning factory can leave one of its own type parameters at an
   -- undetermined literal. Default that parameter before solving its context.
   -- A literal passed only to an unconstrained function still needs a type.
   default-instance-literals :: List UType -> Store -> Store
   default-instance-literals parameters st = case parameters of
-    Nil -> st
-    Cons ty rest -> (case normalize st ty of
+    [] -> st
+    ty : rest -> (case normalize st ty of
       UMeta id KType -> default-instance-literals rest (default-numbers-for ty st)
       other -> default-instance-literals rest st)
   -- Every candidate is tried from the same immutable caller store. Only
@@ -298,44 +296,44 @@ module Cinch.Dictionary where
   -- parameters must already occur in the wanted head.
   instance-matches :: Resolution -> List CoreGiven -> Span -> UType -> List (String, Scheme) -> Store -> List (CoreEvidence, Store)
   instance-matches context allowed sp wanted instances st = case instances of
-    Nil -> Nil
-    Cons (name, sc) rest ->
+    [] -> []
+    (name, sc) : rest ->
       let more = instance-matches context allowed sp wanted rest st in
       case open-qualified False sc st of
         (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
           if not (clean trial && valid-goal (context.classes) (normalize trial head) && instance-parameters-scoped (instance-types pairs trial) wanted trial) then more
           else let resolved = default-instance-literals (instance-types pairs trial) trial in
             case instance-arguments (descend-resolution context) allowed sp (map-requirements (normalize resolved) requirements) resolved of
-              (args, done) -> if clean done then Cons (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) more else more
+              (args, done) -> if clean done then (CEInstance sp (normalize done wanted) name (instance-types pairs done) args, done) : more else more
   -- Only factories for the requested nominal signature can unify with it.
   -- Keep non-constructor heads for the full checker to resolve.
   class-candidates :: String -> List (String, Scheme) -> List (String, Scheme)
   class-candidates owner instances = case instances of
-    Nil -> Nil
-    Cons (symbol, sc) rest -> let more = class-candidates owner rest in
+    [] -> []
+    (symbol, sc) : rest -> let more = class-candidates owner rest in
       case class-root (scheme-body sc) of
-        Some (name, kind) | not (same name owner) -> more
-        other -> Cons (symbol, sc) more
+        Some (name, kind) | name /= owner -> more
+        other -> (symbol, sc) : more
   matching-heads :: Resolution -> Span -> UType -> List (String, Scheme) -> Store -> List (String, Scheme)
   matching-heads context sp wanted instances st = case instances of
-    Nil -> Nil
-    Cons (name, sc) rest -> let more = matching-heads context sp wanted rest st in
+    [] -> []
+    (name, sc) : rest -> let more = matching-heads context sp wanted rest st in
       case open-qualified False sc st of
         (head, requirements, pairs, opened) -> let trial = unify sp wanted head opened in
           if clean trial && valid-goal (context.classes) (normalize trial head)
             && valid-instance-context (context.classes) requirements trial
-            && instance-parameters-scoped (instance-types pairs trial) wanted trial then Cons (name, sc) more else more
+            && instance-parameters-scoped (instance-types pairs trial) wanted trial then (name, sc) : more else more
   valid-instance-context :: List (String, Kind) -> List Requirement -> Store -> Bool
   valid-instance-context classes requirements st = case requirements of
-    Nil -> True
-    Cons first rest -> valid-goal classes (normalize st (first.ty)) && valid-instance-context classes rest st
+    [] -> True
+    first : rest -> valid-goal classes (normalize st (first.ty)) && valid-instance-context classes rest st
   collection-default :: UType -> Store -> Store
   collection-default wanted st = case normalize st wanted of
-    UApp (UApp (UApp (UCon name kind) container) key) value | same name (interface-global "Data.FromMap.FromMap") -> (case container of
+    UApp (UApp (UApp (UCon name kind) container) key) value | (name == interface-global "Data.FromMap.FromMap") -> (case container of
       UMeta id KType -> let map-type = UCon (interface-global "Data.Map.Map") (KFun KType (KFun KType KType)) in
         unify (Span 0 0 1 1) container (UApp (UApp map-type key) value) st
       other -> st)
-    UApp (UApp (UCon name kind) container) element -> if same name (global-data-fromlist-fromlist) then (case container of
+    UApp (UApp (UCon name kind) container) element -> if name == global-data-fromlist-fromlist then (case container of
       UMeta id KType -> unify (Span 0 0 1 1) container (UApp (UCon (global-data-core-list) (KFun KType KType)) element) st
       other -> st) else st
     other -> st
@@ -350,17 +348,17 @@ module Cinch.Dictionary where
     other -> diagnostic-dictionary ty
   missing-instance :: UType -> List (String, UType) -> String
   missing-instance wanted heads = case heads of
-    Nil -> string-concat "dictionary instance resolution failed: no instance for " (diagnostic-dictionary wanted)
-    Cons (name, head) rest -> if scheme-equivalent (mono wanted) (mono head) then
+    [] -> string-concat "dictionary instance resolution failed: no instance for " (diagnostic-dictionary wanted)
+    (name, head) : rest -> if scheme-equivalent (mono wanted) (mono head) then
       string-concat-all ["instance `", diagnostic-member-name name, "` serves ", diagnostic-dictionary wanted,
         " only when its method is applied directly to arguments that establish its obligations"]
       else missing-instance wanted rest
   select-instance-head :: Resolution -> List CoreGiven -> Span -> UType -> List (String, Scheme) -> Store -> (CoreEvidence, Store)
   select-instance-head context allowed sp wanted heads st = case heads of
-    Cons first Nil -> case instance-matches context allowed sp wanted heads st of
-      Cons (evidence, done) Nil -> (evidence, done)
+    [first] -> case instance-matches context allowed sp wanted heads st of
+      [(evidence, done)] -> (evidence, done)
       other -> fail-evidence sp wanted (string-concat "dictionary instance resolution failed: no applicable instance for " (diagnostic-dictionary (normalize st wanted))) st
-    Nil -> (case context of Resolution kinds (InstanceInventory factories guarded) deferred fuel -> fail-evidence sp wanted (missing-instance (normalize st wanted) guarded) st)
+    [] -> (case context of Resolution kinds (InstanceInventory factories guarded) deferred fuel -> fail-evidence sp wanted (missing-instance (normalize st wanted) guarded) st)
     other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" st
   choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
   choose-instance context allowed sp wanted st =
@@ -371,21 +369,21 @@ module Cinch.Dictionary where
             None -> resolution-instances context in
       let heads = matching-heads context sp wanted candidates defaulted in
       case heads of
-        Cons first (Cons second rest) -> let numeric = default-numbers-for wanted defaulted in
+        first : second : rest -> let numeric = default-numbers-for wanted defaulted in
           select-instance-head context allowed sp wanted (matching-heads context sp wanted candidates numeric) numeric
         other -> select-instance-head context allowed sp wanted heads defaulted
   instance-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
   instance-actuals sp parameters actuals earlier st = case (parameters, actuals) of
-    (Nil, Nil) -> (earlier, st)
-    (Cons q rest, Cons actual more) -> if valid-type actual then
+    ([], []) -> (earlier, st)
+    (q : rest, actual : more) -> if valid-type actual then
       (let expected = map-kind-types (substitute-bound earlier) (q.kind) in
-       instance-actuals sp rest more (Cons (q.id, actual) earlier) (unify-kind sp expected (type-kind actual) st))
+       instance-actuals sp rest more ((q.id, actual) : earlier) (unify-kind sp expected (type-kind actual) st))
       else (earlier, add-error sp "invalid instance type argument" st)
     other -> (earlier, add-error sp "instance type argument arity mismatch" st)
   check-instance-arguments :: Resolution -> List CoreGiven -> Span -> List Requirement -> CoreEvidence -> Store -> (CoreEvidence, Store)
   check-instance-arguments context allowed sp requirements arguments st = case (requirements, arguments) of
-    (Nil, CEArgumentsEnd end) -> (arguments, st)
-    (Cons requirement rest, CEArgument at first more) -> let sorted = unify at (requirement.ty) (evidence-type first) st in
+    ([], CEArgumentsEnd end) -> (arguments, st)
+    (requirement : rest, CEArgument at first more) -> let sorted = unify at (requirement.ty) (evidence-type first) st in
       case resolve-evidence context allowed first sorted of
         (checked, sf) -> case check-instance-arguments context allowed sp rest more sf of
           (others, done) -> (CEArgument at checked others, done)
@@ -393,7 +391,7 @@ module Cinch.Dictionary where
   check-instance :: Resolution -> List CoreGiven -> Span -> UType -> String -> List UType -> CoreEvidence -> Store -> (CoreEvidence, Store)
   check-instance context allowed sp wanted name actuals args st = case find-instance name (resolution-instances context) of
     None -> fail-evidence sp wanted "instance evidence requires a checked instance environment" st
-    Some sc -> case instance-actuals sp (scheme-params sc) actuals Nil st of
+    Some sc -> case instance-actuals sp (scheme-params sc) actuals [] st of
       (pairs, opened) ->
         let head = substitute-bound pairs (scheme-body sc) in
         let requirements = map-requirements (substitute-bound pairs) (scheme-requirements sc) in
@@ -404,7 +402,7 @@ module Cinch.Dictionary where
 
   same-head-class :: Scheme -> Scheme -> Bool
   same-head-class left right = case (class-root (scheme-body left), class-root (scheme-body right)) of
-    (Some (a, ka), Some (b, kb)) -> same a b && kind-equal ka kb
+    (Some (a, ka), Some (b, kb)) -> a == b && kind-equal ka kb
     other -> False
   overlapping-heads :: Scheme -> Scheme -> Store -> Bool
   overlapping-heads left right st = if not (same-head-class left right) then False else case open-qualified False left st of
@@ -433,7 +431,7 @@ module Cinch.Dictionary where
   coherence-bucket :: String -> HashMap String (List CoherenceCandidate) -> List CoherenceCandidate
   coherence-bucket key indexed = case hash-map-lookup key indexed of
     Some entries -> entries
-    None -> Nil
+    None -> []
 
   -- Saturated nominal applications keep their constructor through
   -- substitution and normalization. The arrow constructor normalizes to
@@ -446,7 +444,7 @@ module Cinch.Dictionary where
   nominal-carrier :: UType -> Nat -> Option String
   nominal-carrier ty arity = case ty of
     UApp head argument -> nominal-carrier head (arity + 1)
-    UCon name kind | nominal-carrier-kind kind arity && not (same name "(->)") -> Some name
+    UCon name kind | nominal-carrier-kind kind arity && not (name == "(->)") -> Some name
     other -> None
 
   nominal-carrier-kind :: Kind -> Nat -> Bool
@@ -458,44 +456,44 @@ module Cinch.Dictionary where
   -- Both buckets have the original diagnostic order and disjoint members.
   merge-coherence-candidates :: List CoherenceCandidate -> List CoherenceCandidate -> List CoherenceCandidate
   merge-coherence-candidates definite flexible = case (definite, flexible) of
-    (Nil, other) -> other
-    (other, Nil) -> other
-    (Cons first rest, Cons second more) ->
-      if first.position > second.position then Cons first (merge-coherence-candidates rest flexible)
-      else Cons second (merge-coherence-candidates definite more)
+    ([], other) -> other
+    (other, []) -> other
+    (first : rest, second : more) ->
+      if first.position > second.position then first : (merge-coherence-candidates rest flexible)
+      else second : (merge-coherence-candidates definite more)
 
   index-coherence-class :: CoherenceCandidate -> Scheme -> CoherenceClass -> (List CoherenceCandidate, List CoherenceCandidate, CoherenceClass)
   index-coherence-class entry sc group = case group of
     SingleClassInstance prior -> case prior of
       CoherenceCandidate position name first ->
-        let all = Cons prior Nil in
+        let all = [prior] in
         let buckets = (case coherence-carrier first of
           None -> CoherenceClass all all hash-map-empty
-          Some carrier -> CoherenceClass all Nil (hash-map-insert carrier all hash-map-empty)) in
+          Some carrier -> CoherenceClass all [] (hash-map-insert carrier all hash-map-empty)) in
         index-coherence-class entry sc buckets
     CoherenceClass all flexible carriers -> case coherence-carrier sc of
-      None -> (all, Nil, CoherenceClass (Cons entry all) (Cons entry flexible) carriers)
+      None -> (all, [], CoherenceClass (entry : all) (entry : flexible) carriers)
       Some carrier -> let matches = coherence-bucket carrier carriers in
-        (matches, flexible, CoherenceClass (Cons entry all) flexible
-          (hash-map-insert carrier (Cons entry matches) carriers))
+        (matches, flexible, CoherenceClass (entry : all) flexible
+          (hash-map-insert carrier (entry : matches) carriers))
 
   -- Walk backwards so a bucket contains only later rows. A duplicate
   -- symbol remains a candidate even across different carrier buckets.
   index-coherence-rows :: List (String, Scheme) -> Nat -> HashMap String CoherenceClass -> HashMap String (List CoherenceCandidate) -> List CoherenceRow -> List CoherenceRow
   index-coherence-rows reversed position classes symbols indexed = case reversed of
-    Nil -> indexed
-    Cons (name, sc) rest ->
+    [] -> indexed
+    (name, sc) : rest ->
       let entry = CoherenceCandidate position name sc in
       let duplicates = coherence-bucket name symbols in
-      let next-symbols = hash-map-insert name (Cons entry duplicates) symbols in
+      let next-symbols = hash-map-insert name (entry : duplicates) symbols in
       case class-root (scheme-body sc) of
-        None -> index-coherence-rows rest (position + 1) classes next-symbols (Cons (CoherenceRow name sc Nil Nil duplicates) indexed)
+        None -> index-coherence-rows rest (position + 1) classes next-symbols ((CoherenceRow name sc [] [] duplicates) : indexed)
         Some (owner, kind) -> case hash-map-lookup owner classes of
           None -> index-coherence-rows rest (position + 1) (hash-map-insert owner (SingleClassInstance entry) classes)
-            next-symbols (Cons (CoherenceRow name sc Nil Nil duplicates) indexed)
+            next-symbols ((CoherenceRow name sc [] [] duplicates) : indexed)
           Some prior -> case index-coherence-class entry sc prior of
             (members, flexible, next) -> index-coherence-rows rest (position + 1) (hash-map-insert owner next classes)
-              next-symbols (Cons (CoherenceRow name sc members flexible duplicates) indexed)
+              next-symbols ((CoherenceRow name sc members flexible duplicates) : indexed)
 
   report-instance-overlap :: String -> String -> Store -> Store
   report-instance-overlap name other st =
@@ -504,7 +502,7 @@ module Cinch.Dictionary where
 
   check-instance-pair :: String -> Scheme -> CoherenceCandidate -> Store -> Store
   check-instance-pair name sc (CoherenceCandidate position other candidate) st =
-    if same name other || overlapping-heads sc candidate st then report-instance-overlap name other st else st
+    if name == other || overlapping-heads sc candidate st then report-instance-overlap name other st else st
 
   -- Preserve list order for diagnostics, including when a duplicate
   -- symbol is also in the class bucket.
@@ -513,10 +511,10 @@ module Cinch.Dictionary where
   -- Duplicated symbols still report independently of unification.
   check-instance-pairs name sc classes symbols st =
     if not (clean st) then check-duplicate-symbols name symbols st else case (classes, symbols) of
-    (Nil, Nil) -> st
-    (Cons first rest, Nil) -> check-instance-pairs name sc rest Nil (check-instance-pair name sc first st)
-    (Nil, Cons second rest) -> check-instance-pairs name sc Nil rest (check-instance-pair name sc second st)
-    (Cons first more, Cons second rest) ->
+    ([], []) -> st
+    (first : rest, []) -> check-instance-pairs name sc rest [] (check-instance-pair name sc first st)
+    ([], second : rest) -> check-instance-pairs name sc [] rest (check-instance-pair name sc second st)
+    (first : more, second : rest) ->
       let a = first.position in
       let b = second.position in
       if a > b then check-instance-pairs name sc more symbols (check-instance-pair name sc first st)
@@ -525,18 +523,18 @@ module Cinch.Dictionary where
 
   check-duplicate-symbols :: String -> List CoherenceCandidate -> Store -> Store
   check-duplicate-symbols name symbols st = case symbols of
-    Nil -> st
-    Cons (CoherenceCandidate position other scheme) rest ->
+    [] -> st
+    (CoherenceCandidate position other scheme) : rest ->
       check-duplicate-symbols name rest (report-instance-overlap name other st)
 
   check-coherence-rows :: List CoherenceRow -> Store -> Store
   check-coherence-rows rows st = case rows of
-    Nil -> st
-    Cons (CoherenceRow name sc matches flexible symbols) rest ->
+    [] -> st
+    (CoherenceRow name sc matches flexible symbols) : rest ->
       let checked = (if clean st then check-instance-pairs name sc (merge-coherence-candidates matches flexible) symbols st
         else check-duplicate-symbols name symbols st) in
       check-coherence-rows rest checked
 
   check-instance-coherence :: List (String, Scheme) -> Store -> Store
   check-instance-coherence instances st =
-    check-coherence-rows (index-coherence-rows (reverse instances) 0 hash-map-empty hash-map-empty Nil) st
+    check-coherence-rows (index-coherence-rows (reverse instances) 0 hash-map-empty hash-map-empty []) st

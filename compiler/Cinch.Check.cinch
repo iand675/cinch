@@ -67,7 +67,7 @@ module Cinch.Check where
   with-generated names checked = case checked of CheckedProgram surface typed generated -> CheckedProgram surface typed names
 
   check-and-retain :: Program -> Result (List Diagnostic) CheckedProgram
-  check-and-retain program = check-and-retain-with-interfaces Nil program
+  check-and-retain program = check-and-retain-with-interfaces [] program
   check-and-retain-with-interfaces :: List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-with-interfaces known program = check-and-retain-with-interfaces-tuned default-tuning known program
   check-and-retain-with-interfaces-tuned :: CompileTuning -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
@@ -88,12 +88,12 @@ module Cinch.Check where
     \tuning retained cached program -> check-and-retain-using (elaborate tuning retained cached) program
   check-and-retain-using :: (Program -> Elaboration) -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-using elaborate program =
-    let legacy = if needs-inference program then Nil else case program of Program s modules -> check-modules modules in
+    let legacy = if needs-inference program then [] else case program of Program s modules -> check-modules modules in
     case legacy of
-      Cons first rest -> Err legacy
-      Nil -> let typed = elaborate program in
+      first : rest -> Err legacy
+      [] -> let typed = elaborate program in
         case typed.errors of
-          Nil -> Ok (CheckedProgram program typed Nil)
+          [] -> Ok (CheckedProgram program typed [])
           found -> Err found
 
   -- The diagnostics list is appended with the `Semigroup` operator (the
@@ -111,7 +111,7 @@ module Cinch.Check where
 
   -- One failure, at `s`, with `msg`.
   fail :: Span -> String -> List Diagnostic
-  fail s msg = Cons (Diagnostic rung s msg) Nil
+  fail s msg = [Diagnostic rung s msg]
 
   -- ------------------------------------------------------------------ types
 
@@ -184,7 +184,7 @@ module Cinch.Check where
       TyFun d2 c2 -> if ty-equal d1 d2 then ty-equal c1 c2 else False
       other -> False
     TyCon n1 sp1 -> case b of
-      TyCon n2 sp2 -> if string-compare n1 n2 == 0 then ty-spine-equal sp1 sp2 else False
+      TyCon n2 sp2 -> if n1 == n2 then ty-spine-equal sp1 sp2 else False
       other -> False
     TyTuple xs -> case b of
       TyTuple ys -> ty-spine-equal xs ys
@@ -200,11 +200,12 @@ module Cinch.Check where
   -- stay readable.
   ty-is :: Ty -> String -> Bool
   ty-is t tag =
-    if string-compare tag "int" == 0 then ty-is-int t
-    else if string-compare tag "bool" == 0 then ty-is-bool t
-    else if string-compare tag "unit" == 0 then ty-is-unit t
-    else if string-compare tag "string" == 0 then ty-is-str t
-    else ty-is-chr t
+    case tag of
+    "int" -> ty-is-int t
+    "bool" -> ty-is-bool t
+    "unit" -> ty-is-unit t
+    "string" -> ty-is-str t
+    _ -> ty-is-chr t
 
   ty-is-int :: Ty -> Bool
   ty-is-int t = case t of
@@ -252,8 +253,8 @@ module Cinch.Check where
   -- The argument types, left to right.
   ty-arg-types :: Ty -> List Ty
   ty-arg-types t = case t of
-    TyFun a b -> Cons a (ty-arg-types b)
-    other -> Nil
+    TyFun a b -> a : (ty-arg-types b)
+    other -> []
 
   -- The type under every arrow.
   ty-result :: Ty -> Ty
@@ -284,8 +285,8 @@ module Cinch.Check where
   -- A spine of the argument types collected so far.
   ty-spine-of-list :: List Ty -> Ty
   ty-spine-of-list ts = case ts of
-    Nil -> TyArgsEnd zero-span
-    Cons t rest -> TyArg zero-span t (ty-spine-of-list rest)
+    [] -> TyArgsEnd zero-span
+    t : rest -> TyArg zero-span t (ty-spine-of-list rest)
 
   -- A constructor's function type: its argument types arrowed onto the
   -- type it constructs.
@@ -298,7 +299,7 @@ module Cinch.Check where
   -- A mismatch at `s`, when the two types really differ.
   ty-compare :: Span -> Ty -> Ty -> List Diagnostic
   ty-compare s found expected =
-    if ty-equal found expected then Nil
+    if ty-equal found expected then []
     else fail s (string-concat "type mismatch: expected " (string-concat (ty-text expected) (string-concat ", found " (ty-text found))))
 
   -- ----------------------------------------------------------- TypeExpr -> Ty
@@ -308,12 +309,13 @@ module Cinch.Check where
   -- opaque).
   prim-ty :: String -> Ty
   prim-ty n =
-    if string-compare n "Int" == 0 then TyInt
-    else if string-compare n "Bool" == 0 then TyBool
-    else if string-compare n "Unit" == 0 then TyUnit
-    else if string-compare n "String" == 0 then TyStr
-    else if string-compare n "Char" == 0 then TyChr
-    else TyCon n (TyArgsEnd zero-span)
+    case n of
+    "Int" -> TyInt
+    "Bool" -> TyBool
+    "Unit" -> TyUnit
+    "String" -> TyStr
+    "Char" -> TyChr
+    _ -> TyCon n (TyArgsEnd zero-span)
 
   type-head-name :: TypeExpr -> Option String
   type-head-name t = case t of
@@ -323,7 +325,7 @@ module Cinch.Check where
 
   type-to-ty :: TypeExpr -> (Ty, List Diagnostic)
   type-to-ty t = case t of
-    TName s n -> (prim-ty n, Nil)
+    TName s n -> (prim-ty n, [])
     TIndex s n -> (TyHole, fail s "unsupported type: index literal")
     TNegate s x -> (TyHole, fail s "unsupported type: index negation")
     TIndexLambda s name body -> (TyHole, fail s "an index lambda needs a checked proposition operand")
@@ -363,7 +365,7 @@ module Cinch.Check where
   -- An argument spine of `TypeExpr` as a spine of `Ty`.
   ty-spine-to-ty :: TypeExpr -> (Ty, List Diagnostic)
   ty-spine-to-ty t = case t of
-    TArgsEnd s -> (TyArgsEnd s, Nil)
+    TArgsEnd s -> (TyArgsEnd s, [])
     TArg s x rest -> case type-to-ty x of
       (tx, dx) -> case ty-spine-to-ty rest of
         (tr, dr) -> (TyArg s tx tr, dx <> dr)
@@ -394,11 +396,11 @@ module Cinch.Check where
   base-env :: Registry -> Environment
   base-env registry = case registry of
     Registry signatures constructors globals ->
-      Environment Nil (hash-map-insert "True" TyBool (hash-map-insert "False" TyBool globals))
+      Environment [] (hash-map-insert "True" TyBool (hash-map-insert "False" TyBool globals))
 
   extend-env :: String -> Ty -> Environment -> Environment
   extend-env name ty env = case env of
-    Environment locals globals -> Environment (Cons (name, ty) locals) globals
+    Environment locals globals -> Environment ((name, ty) : locals) globals
 
   env-lookup :: String -> Environment -> Option Ty
   env-lookup name env = case env of
@@ -406,8 +408,8 @@ module Cinch.Check where
 
   lookup-local-or-global :: String -> List (String, Ty) -> HashMap String Ty -> Option Ty
   lookup-local-or-global name locals globals = case locals of
-    Nil -> hash-map-lookup name globals
-    Cons (key, ty) rest -> if string-compare key name == 0 then Some ty else lookup-local-or-global name rest globals
+    [] -> hash-map-lookup name globals
+    (key, ty) : rest -> if key == name then Some ty else lookup-local-or-global name rest globals
 
   -- ------------------------------------------------------------- expressions
 
@@ -427,17 +429,17 @@ module Cinch.Check where
   infer-expr env e = case e of
     EVar s n -> case env-lookup n env of
       None -> (TyHole, fail s (string-concat "unbound variable: " n))
-      Some t -> (t, Nil)
+      Some t -> (t, [])
     EFamilyCon s fallback candidate args -> infer-con env s fallback args
     ECon s n args -> infer-con env s n args
     ERecord s name fields -> (TyHole, fail s "record construction requires typed record elaboration")
     ERecordField s name value rest -> (TyHole, fail s "record field spine is not an expression")
     EProject s value name -> (TyHole, fail s "field projection requires typed record elaboration")
-    ELitInt s text -> (TyInt, Nil)
-    ELitStr s text -> (TyStr, Nil)
-    ELitSym s text -> (TyCon "Sym" (TyArgsEnd s), Nil)
-    ELitChar s text -> (TyChr, Nil)
-    EUnit s -> (TyUnit, Nil)
+    ELitInt s text -> (TyInt, [])
+    ELitStr s text -> (TyStr, [])
+    ELitSym s text -> (TyCon "Sym" (TyArgsEnd s), [])
+    ELitChar s text -> (TyChr, [])
+    EUnit s -> (TyUnit, [])
     EApp s f a -> infer-app env s f a
     EBin s op l r -> infer-bin env s op l r
     ENeg s x -> (TyInt, check-expr env x TyInt)
@@ -494,8 +496,8 @@ module Cinch.Check where
 
   infer-tuple-fields :: Environment -> List Expr -> (Ty, List Diagnostic)
   infer-tuple-fields env xs = case xs of
-    Nil -> (TyArgsEnd zero-span, Nil)
-    Cons x rest -> case infer-expr env x of
+    [] -> (TyArgsEnd zero-span, [])
+    x : rest -> case infer-expr env x of
       (tx, dx) -> case infer-tuple-fields env rest of
         (fields, ds) -> (TyArg (expr-span x) tx fields, dx <> ds)
 
@@ -519,20 +521,20 @@ module Cinch.Check where
       False -> (TyHole, fail s "malformed argument spine")
       True -> let count = list-length (exprs-of args) in
         case check-args env (ty-arg-types ty) (exprs-of args) (ty-after-args ty count) of
-          (r, ds) -> (r, ds <> (if count <= ty-arity ty then Nil else fail s (ctor-arity-message n count (ty-arity ty))))
+          (r, ds) -> (r, ds <> (if count <= ty-arity ty then [] else fail s (ctor-arity-message n count (ty-arity ty))))
 
   -- The arity failure for a constructor used with the wrong number of
   -- arguments, empty when the count matches its declaration.
   ctor-arity-diag :: Span -> String -> Nat -> Ty -> List Diagnostic
   ctor-arity-diag s n given ty =
-    if given == ty-arity ty then Nil else fail s (ctor-arity-message n given (ty-arity ty))
+    if given == ty-arity ty then [] else fail s (ctor-arity-message n given (ty-arity ty))
 
   check-args :: Environment -> List Ty -> List Expr -> Ty -> (Ty, List Diagnostic)
   check-args env tys es result = case tys of
-    Nil -> check-extra-args env es result
-    Cons t trest -> case es of
-      Nil -> (result, Nil)
-      Cons e erest -> case check-expr env e t of
+    [] -> check-extra-args env es result
+    t : trest -> case es of
+      [] -> (result, [])
+      e : erest -> case check-expr env e t of
         ds -> case check-args env trest erest result of
           (r, d2) -> (r, ds <> d2)
 
@@ -541,8 +543,8 @@ module Cinch.Check where
   -- inside one of them is still named.
   check-extra-args :: Environment -> List Expr -> Ty -> (Ty, List Diagnostic)
   check-extra-args env es result = case es of
-    Nil -> (result, Nil)
-    Cons e rest -> case check-expr env e TyHole of
+    [] -> (result, [])
+    e : rest -> case check-expr env e TyHole of
       ds -> case check-extra-args env rest result of
         (r, d2) -> (r, ds <> d2)
 
@@ -550,22 +552,24 @@ module Cinch.Check where
 
   is-arith-op :: String -> Bool
   is-arith-op op =
-    if string-compare op "+" == 0 then True
-    else if string-compare op "-" == 0 then True
-    else if string-compare op "*" == 0 then True
-    else string-compare op "/" == 0
+    case op of
+    "+" -> True
+    "-" -> True
+    "*" -> True
+    _ -> op == "/"
 
   is-rel-op :: String -> Bool
   is-rel-op op =
-    if string-compare op "<" == 0 then True
-    else if string-compare op ">" == 0 then True
-    else if string-compare op "<=" == 0 then True
-    else string-compare op ">=" == 0
+    case op of
+    "<" -> True
+    ">" -> True
+    "<=" -> True
+    _ -> op == ">="
 
   is-eq-op :: String -> Bool
   is-eq-op op =
-    if string-compare op "==" == 0 then True
-    else string-compare op "/=" == 0
+    if op == "==" then True
+    else op == "/="
 
   -- The natural frames: `Int -> Int -> Int` for arithmetic, `Int -> Int ->
   -- Bool` for the ordering comparisons, and same-type comparison for `==`.
@@ -615,13 +619,13 @@ module Cinch.Check where
   check-case :: Environment -> Span -> Expr -> Expr -> Ty -> List Diagnostic
   check-case env s scrut alts expected = case infer-expr env scrut of
     (ts, ds) -> case alts-of alts of
-      Nil -> ds
-      Cons a rest -> ds <> (check-alts env ts (Cons a rest) expected)
+      [] -> ds
+      a : rest -> ds <> (check-alts env ts (a : rest) expected)
 
   check-alts :: Environment -> Ty -> List (Pat, Expr) -> Ty -> List Diagnostic
   check-alts env ts alts expected = case alts of
-    Nil -> Nil
-    Cons a rest -> case a of
+    [] -> []
+    a : rest -> case a of
       (p, body) -> case check-pat env p ts of
         (env2, dp) -> (dp <> (check-alt-body env2 body expected)) <> (check-alts env ts rest expected)
 
@@ -639,8 +643,8 @@ module Cinch.Check where
   infer-case :: Environment -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
   infer-case env s scrut alts = case infer-expr env scrut of
     (ts, ds) -> case alts-of alts of
-      Nil -> (TyHole, ds)
-      Cons a rest -> case a of
+      [] -> (TyHole, ds)
+      a : rest -> case a of
         (p, body) -> case check-pat env p ts of
           (env2, dp) -> case infer-alt-body env2 body of
             (t1, d1) -> (t1, ds <> (dp <> (d1 <> (check-alts env ts rest t1))))
@@ -649,7 +653,7 @@ module Cinch.Check where
 
   bind-let :: Environment -> Expr -> (Environment, List Diagnostic)
   bind-let env bs = case bs of
-    EBindingsEnd s -> (env, Nil)
+    EBindingsEnd s -> (env, [])
     EBinding s n rhs rest -> case spine-ok-bindings rest of
       False -> (env, fail s "malformed let binding spine")
       True -> case infer-expr env rhs of
@@ -698,8 +702,8 @@ module Cinch.Check where
   -- The lambda's parameters, bound against the arrows of its type.
   bind-lam :: Environment -> Span -> List Pat -> Ty -> (Environment, List Diagnostic)
   bind-lam env s ps expected = case ps of
-    Nil -> (env, Nil)
-    Cons p rest -> case expected of
+    [] -> (env, [])
+    p : rest -> case expected of
       TyFun d c -> case check-pat env p d of
         (env2, dp) -> case bind-lam env2 s rest c of
           (env3, d2) -> (env3, dp <> d2)
@@ -708,8 +712,8 @@ module Cinch.Check where
   -- The type left after one arrow per parameter.
   lam-result :: List Pat -> Ty -> Ty
   lam-result ps t = case ps of
-    Nil -> t
-    Cons p rest -> case t of
+    [] -> t
+    p : rest -> case t of
       TyFun d c -> lam-result rest c
       other -> TyHole
 
@@ -717,8 +721,8 @@ module Cinch.Check where
 
   check-pat :: Environment -> Pat -> Ty -> (Environment, List Diagnostic)
   check-pat env p expected = case p of
-    PWild s -> (env, Nil)
-    PVar s n -> (extend-env n expected env, Nil)
+    PWild s -> (env, [])
+    PVar s n -> (extend-env n expected env, [])
     PLitInt s text -> (env, ty-compare s TyInt expected)
     PLitStr s text -> (env, ty-compare s TyStr expected)
     PLitSym s text -> (env, ty-compare s (TyCon "Sym" (TyArgsEnd s)) expected)
@@ -738,8 +742,8 @@ module Cinch.Check where
 
   tuple-field-types :: Ty -> List Ty
   tuple-field-types fields = case fields of
-    TyArg s x rest -> Cons x (tuple-field-types rest)
-    other -> Nil
+    TyArg s x rest -> x : (tuple-field-types rest)
+    other -> []
 
   check-tuple-pat :: Environment -> Span -> Pat -> Ty -> (Environment, List Diagnostic)
   check-tuple-pat env s xs expected = case spine-ok-pats xs of
@@ -774,17 +778,17 @@ module Cinch.Check where
   -- not tracked inside a data declaration).
   con-pat-type-diag :: Span -> Ty -> Ty -> List Diagnostic
   con-pat-type-diag s ctor-ty-here expected = case ty-head-name ctor-ty-here of
-    None -> Nil
+    None -> []
     Some owner -> case ty-head-name expected of
-      None -> Nil
-      Some eo -> if string-compare owner eo == 0 then Nil else ty-compare s (TyCon owner (TyArgsEnd zero-span)) expected
+      None -> []
+      Some eo -> if owner == eo then [] else ty-compare s (TyCon owner (TyArgsEnd zero-span)) expected
 
   bind-pats :: Environment -> List Ty -> List Pat -> (Environment, List Diagnostic)
   bind-pats env tys pats = case tys of
-    Nil -> bind-extra-pats env pats
-    Cons t trest -> case pats of
-      Nil -> (env, Nil)
-      Cons p prest -> case check-pat env p t of
+    [] -> bind-extra-pats env pats
+    t : trest -> case pats of
+      [] -> (env, [])
+      p : prest -> case check-pat env p t of
         (env2, d) -> case bind-pats env2 trest prest of
           (env3, d2) -> (env3, d <> d2)
 
@@ -792,8 +796,8 @@ module Cinch.Check where
   -- type), so the arity failure is the only report.
   bind-extra-pats :: Environment -> List Pat -> (Environment, List Diagnostic)
   bind-extra-pats env pats = case pats of
-    Nil -> (env, Nil)
-    Cons p rest -> case check-pat env p TyHole of
+    [] -> (env, [])
+    p : rest -> case check-pat env p TyHole of
       (env2, d) -> case bind-extra-pats env2 rest of
         (env3, d2) -> (env3, d <> d2)
 
@@ -804,59 +808,59 @@ module Cinch.Check where
     PWild s -> True
     PVar s n -> True
     PLitInt s t -> case b of
-      PLitInt s2 t2 -> string-compare t t2 == 0
+      PLitInt s2 t2 -> t == t2
       other -> False
     PLitStr s t -> case b of
-      PLitStr s2 t2 -> string-compare t t2 == 0
+      PLitStr s2 t2 -> t == t2
       other -> False
-    PLitSym s t -> (case b of PLitSym s2 t2 -> string-compare t t2 == 0; other -> False)
+    PLitSym s t -> (case b of PLitSym s2 t2 -> t == t2; other -> False)
     PLitChar s t -> case b of
-      PLitChar s2 t2 -> string-compare t t2 == 0
+      PLitChar s2 t2 -> t == t2
       other -> False
     PCon s n args -> case b of
-      PCon s2 n2 args2 -> if string-compare n n2 == 0 then pat-spine-covers (pats-of args) (pats-of args2) else False
+      PCon s2 n2 args2 -> if n == n2 then pat-spine-covers (pats-of args) (pats-of args2) else False
       other -> False
     other -> False
 
   pat-spine-covers :: List Pat -> List Pat -> Bool
   pat-spine-covers a b = case a of
-    Nil -> case b of
-      Nil -> True
+    [] -> case b of
+      [] -> True
       other -> False
-    Cons pa resta -> case b of
-      Nil -> False
-      Cons pb restb -> if pat-covers pa pb then pat-spine-covers resta restb else False
+    pa : resta -> case b of
+      [] -> False
+      pb : restb -> if pat-covers pa pb then pat-spine-covers resta restb else False
 
   -- Whether `a` matches every list `b` matches (same length, every
   -- position covered).
   clause-covers :: List Pat -> List Pat -> Bool
   clause-covers a b = case a of
-    Nil -> case b of
-      Nil -> True
+    [] -> case b of
+      [] -> True
       other -> False
-    Cons pa resta -> case b of
-      Nil -> False
-      Cons pb restb -> if pat-covers pa pb then clause-covers resta restb else False
+    pa : resta -> case b of
+      [] -> False
+      pb : restb -> if pat-covers pa pb then clause-covers resta restb else False
 
   covered :: List (List Pat) -> List Pat -> Bool
   covered earlier pats = case earlier of
-    Nil -> False
-    Cons e rest -> if clause-covers e pats then True else covered rest pats
+    [] -> False
+    e : rest -> if clause-covers e pats then True else covered rest pats
 
   -- A clause an earlier clause already matches is unreachable: the check
   -- this rung's non-overlap requirement comes down to.
   check-overlap :: List (List Pat, Expr) -> List (List Pat) -> List Diagnostic
   check-overlap clauses earlier = case clauses of
-    Nil -> Nil
-    Cons c rest -> case c of
+    [] -> []
+    c : rest -> case c of
       (pats, body) -> case covered earlier pats of
-        True -> (fail (clause-span pats) "unreachable clause: an earlier clause already matches these patterns") <> (check-overlap rest (Cons pats earlier))
-        False -> check-overlap rest (Cons pats earlier)
+        True -> (fail (clause-span pats) "unreachable clause: an earlier clause already matches these patterns") <> (check-overlap rest (pats : earlier))
+        False -> check-overlap rest (pats : earlier)
 
   clause-span :: List Pat -> Span
   clause-span pats = case pats of
-    Nil -> zero-span
-    Cons p rest -> pat-span p
+    [] -> zero-span
+    p : rest -> pat-span p
 
   -- --------------------------------------------------------------- functions
 
@@ -864,17 +868,17 @@ module Cinch.Check where
   check-fun signatures env s name clauses = case hash-map-lookup name signatures of
     None -> fail s (string-concat "no signature for " name)
     Some ty -> case clauses of
-      Nil -> fail s (string-concat "a function declaration with no clauses: " name)
-      Cons c rest -> check-clauses name env ty (ty-arity ty) clauses
+      [] -> fail s (string-concat "a function declaration with no clauses: " name)
+      c : rest -> check-clauses name env ty (ty-arity ty) clauses
 
   check-clauses :: String -> Environment -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
   check-clauses name env ty arity clauses =
-    (check-clause-list name env ty arity clauses) <> (check-overlap clauses Nil)
+    (check-clause-list name env ty arity clauses) <> (check-overlap clauses [])
 
   check-clause-list :: String -> Environment -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
   check-clause-list name env ty arity clauses = case clauses of
-    Nil -> Nil
-    Cons c rest -> case c of
+    [] -> []
+    c : rest -> case c of
       (pats, body) -> (check-clause name env ty arity pats body) <> (check-clause-list name env ty arity rest)
 
   check-clause :: String -> Environment -> Ty -> Nat -> List Pat -> Expr -> List Diagnostic
@@ -902,8 +906,8 @@ module Cinch.Check where
   -- registry, so top-level functions may be mutually recursive.
   push-diagnostics :: List Diagnostic -> List Diagnostic -> List Diagnostic
   push-diagnostics diagnostics acc = case diagnostics of
-    Nil -> acc
-    Cons first rest -> push-diagnostics rest (Cons first acc)
+    [] -> acc
+    first : rest -> push-diagnostics rest (first : acc)
 
   scan-signature :: Span -> String -> Ty -> List Diagnostic -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
   scan-signature at name ty diagnostics registry acc = case registry of
@@ -914,12 +918,12 @@ module Cinch.Check where
   scan-decl :: Decl -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
   scan-decl d registry acc = case d of
     DExternal s name kind (Some t) metadata ->
-      if string-compare kind "value" == 0 then case type-to-ty t of
+      if kind == "value" then case type-to-ty t of
         (ty, diagnostics) -> case scan-signature s name ty diagnostics registry acc of
           (entries, errors) ->
-            let word-errors = if external-word-type t then Nil else fail s "imported value needs quantified, nominal or effect-aware checking" in
+            let word-errors = if external-word-type t then [] else fail s "imported value needs quantified, nominal or effect-aware checking" in
             let arity-errors = (case external-field "arity" metadata of
-              JNum arity -> if arity == nat-to-int (ty-arity ty) then Nil else fail s "imported value arity disagrees with its checked scheme"
+              JNum arity -> if arity == nat-to-int (ty-arity ty) then [] else fail s "imported value arity disagrees with its checked scheme"
               other -> fail s "imported value has no arity metadata") in
             (entries, push-diagnostics arity-errors (push-diagnostics word-errors errors))
       else (registry, acc)
@@ -932,19 +936,19 @@ module Cinch.Check where
 
   external-field :: String -> Json -> Json
   external-field name metadata = case metadata of
-    JObj key value rest -> if string-compare key name == 0 then value else external-field name rest
+    JObj key value rest -> if key == name then value else external-field name rest
     other -> JNull
 
   external-word-type :: TypeExpr -> Bool
   external-word-type ty = case ty of
-    TName s name -> string-compare name "Int" == 0 || string-compare name "Bool" == 0 || string-compare name "Unit" == 0 || string-compare name "()" == 0
+    TName s name -> name == "Int" || name == "Bool" || name == "Unit" || name == "()"
     TFun s a b -> external-word-type a && external-word-type b
     other -> False
 
   scan-ctors :: String -> List (String, TypeExpr) -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
   scan-ctors owner ctors registry acc = case ctors of
-    Nil -> (registry, acc)
-    Cons (name, texpr) rest -> case registry of
+    [] -> (registry, acc)
+    (name, texpr) : rest -> case registry of
       Registry signatures constructors globals -> case hash-map-lookup name constructors of
         Some prior -> scan-ctors owner rest registry (push-diagnostics (fail (type-expr-span texpr) (string-concat "duplicate constructor: " name)) acc)
         None -> case constructor-type name owner texpr of
@@ -956,37 +960,37 @@ module Cinch.Check where
   constructor-type name owner texpr = case type-to-ty texpr of
     (ty, diagnostics) ->
       let value = ctor-ty owner (ty-spine-of-list (ty-arg-types ty)) in
-      let valid = (case ty-result ty of TyCon n spine -> string-compare n owner == 0; other -> False) in
+      let valid = (case ty-result ty of TyCon n spine -> n == owner; other -> False) in
       (value, if valid then diagnostics else diagnostics <> fail (type-expr-span texpr) (ctor-return-message name owner))
 
   scan-decls :: List Decl -> Registry -> List Diagnostic -> (Registry, List Diagnostic)
   scan-decls ds registry acc = case ds of
-    Nil -> (registry, reverse acc)
-    Cons d rest -> case scan-decl d registry acc of
+    [] -> (registry, reverse acc)
+    d : rest -> case scan-decl d registry acc of
       (next, errors) -> scan-decls rest next errors
 
   -- ------------------------------------------------------- pass two: checking
 
   check-decl :: HashMap String Ty -> Environment -> Decl -> List Diagnostic
   check-decl signatures env d = case d of
-    DSource s name metadata -> Nil
-    DInterface s name hash metadata -> Nil
+    DSource s name metadata -> []
+    DInterface s name hash metadata -> []
     DExternal s name kind scheme metadata ->
-      if string-compare kind "builtin" == 0 then fail s (string-concat "builtin needs region, capability and effect elaboration: " name)
-      else if string-compare kind "builtin-syntax" == 0 then fail s (string-concat "builtin syntax needs dependent predicate elaboration: " name)
-      else if string-compare kind "builtin-constructor" == 0 then fail s (string-concat "builtin constructor needs proposition instantiation and erasure checking: " name)
-      else if string-compare kind "value" == 0 then case scheme of
-        Some ty -> Nil
+      if kind == "builtin" then fail s (string-concat "builtin needs region, capability and effect elaboration: " name)
+      else if kind == "builtin-syntax" then fail s (string-concat "builtin syntax needs dependent predicate elaboration: " name)
+      else if kind == "builtin-constructor" then fail s (string-concat "builtin constructor needs proposition instantiation and erasure checking: " name)
+      else if kind == "value" then case scheme of
+        Some ty -> []
         None -> fail s "imported value has no parsed type metadata"
       else fail s (string-concat-all ["imported ", kind, " needs kind, constructor or dictionary elaboration: ", name])
-    DSig s n t -> Nil
+    DSig s n t -> []
     DLaw s name syntax -> fail s "class laws require checked proposition elaboration"
     DRewrite s name syntax -> fail s "a rewrite needs a checked equation and justification"
     DMethod s label name t -> fail s "resolved signature methods require typed elaboration"
     DFun s n clauses -> check-fun signatures env s n clauses
     DData s n params ctors -> case params of
-      Nil -> Nil
-      Cons p rest -> fail s "parameterized data declarations are not supported in this rung"
+      [] -> []
+      p : rest -> fail s "parameterized data declarations are not supported in this rung"
     DOpaque s name params kind -> fail s "opaque declarations require checked kind and nominal elaboration"
     DRefine s n params binder predicate -> fail s "named refinement declarations need proof checking, which is not supported in this rung"
     DTypeFamily s n params rkind closed eqs -> fail s "type family declarations require typed elaboration"
@@ -997,7 +1001,7 @@ module Cinch.Check where
     DInstance s is-implicit name params class-app members -> fail s "instance declarations are not supported in this rung"
     DFixity s assoc prec ops -> fail s "fixity declarations are not supported in this rung"
     DImport s path mods alias members hidden args -> fail s "module imports need interface resolution, which is not supported in this rung"
-    DExport s text items -> Nil
+    DExport s text items -> []
     DRecord s n params fields -> fail s "record declarations are not supported in this rung"
     DCodata s n params observations -> fail s "codata declarations require checked observations"
     DCorec s body -> fail s "a corec declaration requires guarded recursion checking"
@@ -1027,22 +1031,22 @@ module Cinch.Check where
     -- so a clause that survived here is one the build satisfies.
     DConditional s clauses inner -> check-decl signatures env inner
     DDecl s x rest -> (check-decl signatures env x) <> (check-decl signatures env rest)
-    DDeclsEnd s -> Nil
-    DWrapperLayout s name repr label -> Nil
-    DUnpackFields s name fields -> Nil
-    DInlineHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
-    DUnrollHint s name hint -> (case hint of Ok value -> Nil; Err message -> fail s message)
+    DDeclsEnd s -> []
+    DWrapperLayout s name repr label -> []
+    DUnpackFields s name fields -> []
+    DInlineHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
+    DUnrollHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 
   check-decls :: HashMap String Ty -> Environment -> List Decl -> List Diagnostic
   check-decls signatures env ds = case ds of
-    Nil -> Nil
-    Cons d rest -> (check-decl signatures env d) <> (check-decls signatures env rest)
+    [] -> []
+    d : rest -> (check-decl signatures env d) <> (check-decls signatures env rest)
 
   check-modules :: List Module -> List Diagnostic
   check-modules ms = case ms of
-    Nil -> Nil
-    Cons m rest -> case scan-decls (module-decls m) (Registry hash-map-empty hash-map-empty hash-map-empty) Nil of
+    [] -> []
+    m : rest -> case scan-decls (module-decls m) (Registry hash-map-empty hash-map-empty hash-map-empty) [] of
       (registry, registry-diags) -> case registry of
         Registry signatures constructors globals ->
           registry-diags <> check-decls signatures (base-env registry) (module-decls m) <> check-modules rest

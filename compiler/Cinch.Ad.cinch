@@ -19,9 +19,6 @@ module Cinch.Ad where
 
   export lower-ad-program
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
-
   zero-span :: Span
   zero-span = Span 0 0 1 1
 
@@ -30,31 +27,31 @@ module Cinch.Ad where
 
   has-nat :: Nat -> List Nat -> Bool
   has-nat x xs = case xs of
-    Nil -> False
-    Cons h t -> x == h || has-nat x t
+    [] -> False
+    h : t -> x == h || has-nat x t
 
   has-str :: String -> List String -> Bool
   has-str x xs = case xs of
-    Nil -> False
-    Cons h t -> same x h || has-str x t
+    [] -> False
+    h : t -> x == h || has-str x t
 
   list-len :: forall a. List a -> Nat
   list-len xs = case xs of
-    Nil -> 0
-    Cons _ t -> 1 + list-len t
+    [] -> 0
+    _ : t -> 1 + list-len t
 
   list-rev-go :: forall a. List a -> List a -> List a
   list-rev-go xs acc = case xs of
-    Nil -> acc
-    Cons h t -> list-rev-go t (Cons h acc)
+    [] -> acc
+    h : t -> list-rev-go t (h : acc)
 
   list-rev :: forall a. List a -> List a
-  list-rev xs = list-rev-go xs Nil
+  list-rev xs = list-rev-go xs []
 
   list-map :: forall a b. (a -> b) -> List a -> List b
   list-map f xs = case xs of
-    Nil -> Nil
-    Cons h t -> Cons (f h) (list-map f t)
+    [] -> []
+    h : t -> (f h) : (list-map f t)
 
   -- ---------------------------------------------------------------------------
   -- Standard Core types and symbol names
@@ -104,30 +101,30 @@ module Cinch.Ad where
 
   ty-tuple-of :: List UType -> UType
   ty-tuple-of xs = case xs of
-    Nil -> ty-unit
-    Cons a Nil -> a
+    [] -> ty-unit
+    [a] -> a
     other -> UTuple (utype-list-to-uarg xs)
 
   utype-list-to-uarg :: List UType -> UType
   utype-list-to-uarg xs = case xs of
-    Nil -> UEnd
-    Cons h t -> UArg h (utype-list-to-uarg t)
+    [] -> UEnd
+    h : t -> UArg h (utype-list-to-uarg t)
 
   uarg-to-utype-list :: UType -> List UType
   uarg-to-utype-list spine = case spine of
-    UEnd -> Nil
-    UArg h t -> Cons h (uarg-to-utype-list t)
-    other -> Nil
+    UEnd -> []
+    UArg h t -> h : (uarg-to-utype-list t)
+    other -> []
 
   fun-type-of :: List UType -> UType -> UType
   fun-type-of args res = case args of
-    Nil -> res
-    Cons a rest -> UFun a (fun-type-of rest res)
+    [] -> res
+    a : rest -> UFun a (fun-type-of rest res)
 
   apply-args :: Span -> CoreTerm -> List CoreTerm -> CoreTerm
   apply-args sp fn args = case args of
-    Nil -> fn
-    Cons a rest ->
+    [] -> fn
+    a : rest ->
       let res-ty = case core-type fn of
             UFun _ r -> r
             UFunEff _ _ r -> r
@@ -141,31 +138,31 @@ module Cinch.Ad where
 
   mk-tuple :: Span -> List CoreTerm -> CoreTerm
   mk-tuple sp ts = case ts of
-    Nil -> CUnit sp ty-unit
-    Cons a Nil -> a
+    [] -> CUnit sp ty-unit
+    [a] -> a
     other -> CTuple sp (ty-tuple-of (list-map core-type ts)) (terms-to-cargs sp ts)
 
   terms-to-cargs :: Span -> List CoreTerm -> CoreTerm
   terms-to-cargs sp ts = case ts of
-    Nil -> CArgumentsEnd sp
-    Cons h t -> CArgument sp h (terms-to-cargs sp t)
+    [] -> CArgumentsEnd sp
+    h : t -> CArgument sp h (terms-to-cargs sp t)
 
   cargs-to-terms :: CoreTerm -> List CoreTerm
   cargs-to-terms args = case args of
-    CArgumentsEnd _ -> Nil
-    CArgument _ h t -> Cons h (cargs-to-terms t)
-    other -> Nil
+    CArgumentsEnd _ -> []
+    CArgument _ h t -> h : (cargs-to-terms t)
+    other -> []
 
   cpfields-to-pats :: CorePattern -> List CorePattern
   cpfields-to-pats fs = case fs of
-    CPDone _ -> Nil
-    CPField _ h t -> Cons h (cpfields-to-pats t)
-    other -> Nil
+    CPDone _ -> []
+    CPField _ h t -> h : (cpfields-to-pats t)
+    other -> []
 
   pats-to-cpfields :: Span -> List CorePattern -> CorePattern
   pats-to-cpfields sp ps = case ps of
-    Nil -> CPDone sp
-    Cons h t -> CPField sp h (pats-to-cpfields sp t)
+    [] -> CPDone sp
+    h : t -> CPField sp h (pats-to-cpfields sp t)
 
   mk-none :: Span -> UType -> CoreTerm
   mk-none sp elem = CUse sp (ty-option elem) global-data-core-none "constructor" [elem]
@@ -177,7 +174,7 @@ module Cinch.Ad where
 
   mk-prim-call :: Span -> String -> List UType -> UType -> List CoreTerm -> CoreTerm
   mk-prim-call sp sym arg-tys res-ty args =
-    apply-args sp (CUse sp (fun-type-of arg-tys res-ty) sym "foreign" Nil) args
+    apply-args sp (CUse sp (fun-type-of arg-tys res-ty) sym "foreign" []) args
 
   mk-arr-call :: Span -> String -> List UType -> List UType -> UType -> List CoreTerm -> CoreTerm
   mk-arr-call sp sym actuals arg-tys res-ty args =
@@ -201,8 +198,8 @@ module Cinch.Ad where
 
   lookup-binding-sym :: String -> List String -> String
   lookup-binding-sym canonical syms = case syms of
-    Nil -> interface-global canonical
-    Cons s rest -> if same (canonical-sym s) canonical then s else lookup-binding-sym canonical rest
+    [] -> interface-global canonical
+    s : rest -> if canonical-sym s == canonical then s else lookup-binding-sym canonical rest
 
   ctx-sym :: AdCtx -> String -> String
   ctx-sym ctx canonical = lookup-binding-sym canonical (ctx.syms)
@@ -240,49 +237,49 @@ module Cinch.Ad where
 
   mk-arr-fill :: Span -> FPrec -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-fill sp p n v = case p of
-    PF32 -> mk-arr-call sp "cinch.runtime.arrayFillF32" Nil [ty-nat, ty-f32] ty-array-f32 [n, v]
-    PF64 -> mk-arr-call sp "cinch.runtime.arrayFillF64" Nil [ty-nat, ty-f64] ty-array-f64 [n, v]
+    PF32 -> mk-arr-call sp "cinch.runtime.arrayFillF32" [] [ty-nat, ty-f32] ty-array-f32 [n, v]
+    PF64 -> mk-arr-call sp "cinch.runtime.arrayFillF64" [] [ty-nat, ty-f64] ty-array-f64 [n, v]
 
   mk-arr-zip-binop-opt :: Span -> FPrec -> CoreTerm -> CoreTerm -> String -> CoreTerm
   mk-arr-zip-binop-opt sp p a b op-code = case p of
-    PF32 -> mk-arr-call sp "cinch.runtime.arrayZipBinopF32" Nil [ty-array-f32, ty-array-f32, ty-i64] (ty-option ty-array-f32) [a, b, CInt sp ty-i64 op-code]
-    PF64 -> mk-arr-call sp "cinch.runtime.arrayZipBinopF64" Nil [ty-array-f64, ty-array-f64, ty-i64] (ty-option ty-array-f64) [a, b, CInt sp ty-i64 op-code]
+    PF32 -> mk-arr-call sp "cinch.runtime.arrayZipBinopF32" [] [ty-array-f32, ty-array-f32, ty-i64] (ty-option ty-array-f32) [a, b, CInt sp ty-i64 op-code]
+    PF64 -> mk-arr-call sp "cinch.runtime.arrayZipBinopF64" [] [ty-array-f64, ty-array-f64, ty-i64] (ty-option ty-array-f64) [a, b, CInt sp ty-i64 op-code]
 
   mk-arr-scale :: Span -> FPrec -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-scale sp p a s = case p of
-    PF32 -> mk-arr-call sp "cinch.runtime.arrayMapUnaryF32" Nil [ty-array-f32, ty-i64, ty-f32] ty-array-f32 [a, CInt sp ty-i64 "2", s]
-    PF64 -> mk-arr-call sp "cinch.runtime.arrayScaleF64" Nil [ty-array-f64, ty-f64] ty-array-f64 [a, s]
+    PF32 -> mk-arr-call sp "cinch.runtime.arrayMapUnaryF32" [] [ty-array-f32, ty-i64, ty-f32] ty-array-f32 [a, CInt sp ty-i64 "2", s]
+    PF64 -> mk-arr-call sp "cinch.runtime.arrayScaleF64" [] [ty-array-f64, ty-f64] ty-array-f64 [a, s]
 
   mk-arr-neg :: Span -> FPrec -> CoreTerm -> CoreTerm
   mk-arr-neg sp p a = case p of
-    PF32 -> mk-arr-call sp "cinch.runtime.arrayMapUnaryF32" Nil [ty-array-f32, ty-i64, ty-f32] ty-array-f32 [a, CInt sp ty-i64 "0", prec-lit sp PF32 "0.0"]
+    PF32 -> mk-arr-call sp "cinch.runtime.arrayMapUnaryF32" [] [ty-array-f32, ty-i64, ty-f32] ty-array-f32 [a, CInt sp ty-i64 "0", prec-lit sp PF32 "0.0"]
     PF64 -> mk-arr-scale sp PF64 a (prec-lit sp PF64 "-1.0")
 
   mk-arr-reduce :: Span -> FPrec -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-reduce sp p a mode = case p of
-    PF32 -> mk-arr-call sp "cinch.runtime.arrayReduceF32" Nil [ty-array-f32, ty-i64] ty-f32 [a, mode]
-    PF64 -> mk-arr-call sp "cinch.runtime.arrayReduceF64" Nil [ty-array-f64, ty-i64] ty-f64 [a, mode]
+    PF32 -> mk-arr-call sp "cinch.runtime.arrayReduceF32" [] [ty-array-f32, ty-i64] ty-f32 [a, mode]
+    PF64 -> mk-arr-call sp "cinch.runtime.arrayReduceF64" [] [ty-array-f64, ty-i64] ty-f64 [a, mode]
 
   mk-arr-dot :: Span -> FPrec -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-dot sp p a b mode = case p of
-    PF32 -> mk-arr-call sp "cinch.runtime.arrayDotF32" Nil [ty-array-f32, ty-array-f32, ty-i64] ty-f32 [a, b, mode]
-    PF64 -> mk-arr-call sp "cinch.runtime.arrayDotF64" Nil [ty-array-f64, ty-array-f64, ty-i64] ty-f64 [a, b, mode]
+    PF32 -> mk-arr-call sp "cinch.runtime.arrayDotF32" [] [ty-array-f32, ty-array-f32, ty-i64] ty-f32 [a, b, mode]
+    PF64 -> mk-arr-call sp "cinch.runtime.arrayDotF64" [] [ty-array-f64, ty-array-f64, ty-i64] ty-f64 [a, b, mode]
 
   mk-arr-row-broadcast-f32 :: Span -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-row-broadcast-f32 sp a rows cols =
-    mk-arr-call sp "cinch.runtime.arrayRowBroadcastF32" Nil [ty-array-f32, ty-nat, ty-nat] ty-array-f32 [a, rows, cols]
+    mk-arr-call sp "cinch.runtime.arrayRowBroadcastF32" [] [ty-array-f32, ty-nat, ty-nat] ty-array-f32 [a, rows, cols]
 
   mk-arr-scatter-add-f32 :: Span -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-scatter-add-f32 sp len idx vals oob =
-    mk-arr-call sp "cinch.runtime.arrayScatterAddF32" Nil [ty-nat, ty-array-i32, ty-array-f32, ty-i64] ty-array-f32 [len, idx, vals, oob]
+    mk-arr-call sp "cinch.runtime.arrayScatterAddF32" [] [ty-nat, ty-array-i32, ty-array-f32, ty-i64] ty-array-f32 [len, idx, vals, oob]
 
   mk-arr-stencil2d-adj-f32 :: Span -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-stencil2d-adj-f32 sp dy r h w wts edge steps =
-    mk-arr-call sp "cinch.runtime.arrayStencil2DAdjointF32" Nil [ty-array-f32, ty-nat, ty-nat, ty-nat, ty-array-f32, ty-i64, ty-nat] (ty-option ty-array-f32) [dy, r, h, w, wts, edge, steps]
+    mk-arr-call sp "cinch.runtime.arrayStencil2DAdjointF32" [] [ty-array-f32, ty-nat, ty-nat, ty-nat, ty-array-f32, ty-i64, ty-nat] (ty-option ty-array-f32) [dy, r, h, w, wts, edge, steps]
 
   mk-arr-zip-with-f32-opt :: Span -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
   mk-arr-zip-with-f32-opt sp fn a b =
-    mk-arr-call sp "cinch.runtime.arrayZipWithF32" Nil [UFun ty-f32 (UFun ty-f32 ty-f32), ty-array-f32, ty-array-f32] (ty-option ty-array-f32) [fn, a, b]
+    mk-arr-call sp "cinch.runtime.arrayZipWithF32" [] [UFun ty-f32 (UFun ty-f32 ty-f32), ty-array-f32, ty-array-f32] (ty-option ty-array-f32) [fn, a, b]
 
   -- ---------------------------------------------------------------------------
   -- Differentiable type structure (`AdType`)
@@ -322,13 +319,13 @@ module Cinch.Ad where
 
   ad-list-to-list :: AdTypeList -> List AdType
   ad-list-to-list xs = case xs of
-    ATEnd -> Nil
-    ATCons h t -> Cons h (ad-list-to-list t)
+    ATEnd -> []
+    ATCons h t -> h : (ad-list-to-list t)
 
   ad-list-from-list :: List AdType -> AdTypeList
   ad-list-from-list xs = case xs of
-    Nil -> ATEnd
-    Cons h t -> ATCons h (ad-list-from-list t)
+    [] -> ATEnd
+    h : t -> ATCons h (ad-list-from-list t)
 
   -- Program context passed throughout AD
   record AdCtx where
@@ -346,7 +343,7 @@ module Cinch.Ad where
     -- next-fresh-id, generated-companion-defs, memo-table (key, gen-name, gen-fn-ty)
 
   empty-ad-state :: AdState
-  empty-ad-state = AdState 200000 Nil Nil
+  empty-ad-state = AdState 200000 [] []
 
   fresh-ad-id :: AdState -> (Nat, AdState)
   fresh-ad-id st = case st of
@@ -354,11 +351,11 @@ module Cinch.Ad where
 
   state-add-def :: CoreDefinition -> AdState -> AdState
   state-add-def d st = case st of
-    AdState n defs memo -> AdState n (Cons d defs) memo
+    AdState n defs memo -> AdState n (d : defs) memo
 
   state-add-memo :: String -> String -> UType -> AdState -> AdState
   state-add-memo key gname gty st = case st of
-    AdState n defs memo -> AdState n defs (Cons (key, gname, gty) memo)
+    AdState n defs memo -> AdState n defs ((key, gname, gty) : memo)
 
   state-lookup-memo :: String -> AdState -> Option (String, UType)
   state-lookup-memo key st = case st of
@@ -366,19 +363,19 @@ module Cinch.Ad where
 
   lookup-memo-list :: String -> List (String, String, UType) -> Option (String, UType)
   lookup-memo-list key xs = case xs of
-    Nil -> None
-    Cons (k, n, t) rest -> if same key k then Some (n, t) else lookup-memo-list key rest
+    [] -> None
+    (k, n, t) : rest -> if key == k then Some (n, t) else lookup-memo-list key rest
 
   -- Look up data declarations and definitions
   find-data :: String -> List CoreData -> Option CoreData
   find-data name ds = case ds of
-    Nil -> None
-    Cons d rest -> if same (core-data-name d) name then Some d else find-data name rest
+    [] -> None
+    d : rest -> if core-data-name d == name then Some d else find-data name rest
 
   find-def :: String -> List CoreDefinition -> Option CoreDefinition
   find-def name ds = case ds of
-    Nil -> None
-    Cons d rest -> if same (d.name) name then Some d else find-def name rest
+    [] -> None
+    d : rest -> if d.name == name then Some d else find-def name rest
 
   reduce-ad-type :: AdCtx -> UType -> UType
   reduce-ad-type ctx raw =
@@ -392,18 +389,18 @@ module Cinch.Ad where
 
   quant-pairs :: List Quant -> List UType -> List (Nat, UType)
   quant-pairs qs actuals = case (qs, actuals) of
-    (Cons q qr, Cons a ar) -> Cons (q.id, a) (quant-pairs qr ar)
-    other -> Nil
+    (q : qr, a : ar) -> (q.id, a) : (quant-pairs qr ar)
+    other -> []
 
   ad-type-of :: AdCtx -> UType -> AdType
   ad-type-of ctx raw =
     let ty = reduce-ad-type ctx raw in
     case ty of
       UCon name _ ->
-        if same name "F32" then AdF32
-        else if same name "F64" then AdF64
+        if name == "F32" then AdF32
+        else if name == "F64" then AdF64
         else case find-data name (ctx.datas) of
-          Some d -> ad-type-of-data ctx d Nil
+          Some d -> ad-type-of-data ctx d []
           None -> AdNonDiff
       UTuple spine ->
         let ts = list-map (ad-type-of ctx) (uarg-to-utype-list spine) in
@@ -411,17 +408,17 @@ module Cinch.Ad where
       UFun _ _ -> AdClosure
       UFunEff _ _ _ -> AdClosure
       UUsageArrow _ _ -> AdClosure
-      UApp _ _ -> case unwrap-app-spine ty Nil of
+      UApp _ _ -> case unwrap-app-spine ty [] of
         (UCon head _, args) ->
           if array-type-name head then
             case args of
-              Cons elem Nil -> case reduce-ad-type ctx elem of
-                UCon ename _ -> if same ename "F32" then AdArrayF32 else if same ename "F64" then AdArrayF64 else AdNonDiff
+              [elem] -> case reduce-ad-type ctx elem of
+                UCon ename _ -> if ename == "F32" then AdArrayF32 else if ename == "F64" then AdArrayF64 else AdNonDiff
                 other -> AdNonDiff
               other -> AdNonDiff
-          else if same head global-data-core-option then
+          else if head == global-data-core-option then
             case args of
-              Cons elem Nil ->
+              [elem] ->
                 let inner = ad-type-of ctx elem in
                 if ad-is-active inner then AdOption elem inner else AdNonDiff
               other -> AdNonDiff
@@ -433,7 +430,7 @@ module Cinch.Ad where
 
   ad-type-of-data :: AdCtx -> CoreData -> List UType -> AdType
   ad-type-of-data ctx d actuals = case core-data-constructors d of
-    Cons ctor Nil ->
+    [ctor] ->
       let sc = ctor.constructor-scheme in
       let pairs = quant-pairs (scheme-params sc) actuals in
       let inst-ctor-ty = reduce-ad-type ctx (substitute-bound pairs (scheme-body sc)) in
@@ -461,8 +458,8 @@ module Cinch.Ad where
 
   unwrap-core-app :: CoreTerm -> List CoreTerm -> (CoreTerm, List CoreTerm)
   unwrap-core-app term acc = case strip-wrappers term of
-    CApply _ _ f x -> unwrap-core-app f (Cons x acc)
-    CApplyEff _ _ _ f x -> unwrap-core-app f (Cons x acc)
+    CApply _ _ f x -> unwrap-core-app f (x : acc)
+    CApplyEff _ _ _ f x -> unwrap-core-app f (x : acc)
     other -> (other, acc)
 
   head-use-info :: CoreTerm -> Option (String, String, List UType)
@@ -472,24 +469,24 @@ module Cinch.Ad where
     other -> None
 
   is-jvp2-name :: String -> Bool
-  is-jvp2-name name = same name "cinch.ad.jvp2" || same (canonical-sym name) "Data.AD.jvp2"
+  is-jvp2-name name = name == "cinch.ad.jvp2" || canonical-sym name == "Data.AD.jvp2"
 
   is-vjp2-name :: String -> Bool
-  is-vjp2-name name = same name "cinch.ad.vjp2" || same (canonical-sym name) "Data.AD.vjp2"
+  is-vjp2-name name = name == "cinch.ad.vjp2" || canonical-sym name == "Data.AD.vjp2"
 
   is-ad-wrapper-name :: String -> Bool
   is-ad-wrapper-name name =
     let c = canonical-sym name in
-    same c "Data.AD.jvp"
-    || same c "Data.AD.vjp"
-    || same c "Data.AD.deriv-f32"
-    || same c "Data.AD.deriv-f64"
-    || same c "Data.AD.grad-f32"
-    || same c "Data.AD.grad-f64"
-    || same c "Data.AD.value-and-grad-f32"
-    || same c "Data.AD.value-and-grad-f64"
-    || same c "Data.AD.hvp-f32"
-    || same c "Data.AD.hvp-f64"
+    c == "Data.AD.jvp"
+    || c == "Data.AD.vjp"
+    || c == "Data.AD.deriv-f32"
+    || c == "Data.AD.deriv-f64"
+    || c == "Data.AD.grad-f32"
+    || c == "Data.AD.grad-f64"
+    || c == "Data.AD.value-and-grad-f32"
+    || c == "Data.AD.value-and-grad-f64"
+    || c == "Data.AD.hvp-f32"
+    || c == "Data.AD.hvp-f64"
 
   term-mentions-ad :: CoreTerm -> Bool
   term-mentions-ad term = case term of
@@ -499,18 +496,18 @@ module Cinch.Ad where
 
   terms-mention-ad :: List CoreTerm -> Bool
   terms-mention-ad ts = case ts of
-    Nil -> False
-    Cons h t -> term-mentions-ad h || terms-mention-ad t
+    [] -> False
+    h : t -> term-mentions-ad h || terms-mention-ad t
 
   clauses-mention-ad :: List CoreClause -> Bool
   clauses-mention-ad cs = case cs of
-    Nil -> False
-    Cons (CoreClause _ _ body) rest -> term-mentions-ad body || clauses-mention-ad rest
+    [] -> False
+    (CoreClause _ _ body) : rest -> term-mentions-ad body || clauses-mention-ad rest
 
   defs-mention-ad :: List CoreDefinition -> Bool
   defs-mention-ad ds = case ds of
-    Nil -> False
-    Cons d rest ->
+    [] -> False
+    d : rest ->
       if is-ad-wrapper-name (d.name) then defs-mention-ad rest
       else clauses-mention-ad (d.clauses) || defs-mention-ad rest
 
@@ -520,19 +517,19 @@ module Cinch.Ad where
 
   lookup-nat-map :: Nat -> List (Nat, Nat) -> Option Nat
   lookup-nat-map k xs = case xs of
-    Nil -> None
-    Cons (a, b) rest -> if k == a then Some b else lookup-nat-map k rest
+    [] -> None
+    (a, b) : rest -> if k == a then Some b else lookup-nat-map k rest
 
   alpha-pat :: List (Nat, Nat) -> CorePattern -> AdState -> (CorePattern, List (Nat, Nat), AdState)
   alpha-pat env pat st = case pat of
     CPVar sp ty id name -> case fresh-ad-id st of
-      (nid, s1) -> (CPVar sp ty nid name, Cons (id, nid) env, s1)
+      (nid, s1) -> (CPVar sp ty nid name, (id, nid) : env, s1)
     CPProof sp ty id name -> case fresh-ad-id st of
-      (nid, s1) -> (CPProof sp ty nid name, Cons (id, nid) env, s1)
+      (nid, s1) -> (CPProof sp ty nid name, (id, nid) : env, s1)
     CPErasedValue sp ty id name -> case fresh-ad-id st of
-      (nid, s1) -> (CPErasedValue sp ty nid name, Cons (id, nid) env, s1)
+      (nid, s1) -> (CPErasedValue sp ty nid name, (id, nid) : env, s1)
     CPAs sp ty id name inner -> case fresh-ad-id st of
-      (nid, s1) -> case alpha-pat (Cons (id, nid) env) inner s1 of
+      (nid, s1) -> case alpha-pat ((id, nid) : env) inner s1 of
         (p2, env2, s2) -> (CPAs sp ty nid name p2, env2, s2)
     CPConstructor sp ty cname actuals cty fields -> case alpha-pat env fields st of
       (f2, env2, s2) -> (CPConstructor sp ty cname actuals cty f2, env2, s2)
@@ -545,10 +542,10 @@ module Cinch.Ad where
 
   alpha-pats :: List (Nat, Nat) -> List CorePattern -> AdState -> (List CorePattern, List (Nat, Nat), AdState)
   alpha-pats env ps st = case ps of
-    Nil -> (Nil, env, st)
-    Cons p rest -> case alpha-pat env p st of
+    [] -> ([], env, st)
+    p : rest -> case alpha-pat env p st of
       (p1, env1, s1) -> case alpha-pats env1 rest s1 of
-        (ps2, env2, s2) -> (Cons p1 ps2, env2, s2)
+        (ps2, env2, s2) -> (p1 : ps2, env2, s2)
 
   alpha-term :: List (Nat, Nat) -> CoreTerm -> AdState -> (CoreTerm, AdState)
   alpha-term env term st = case term of
@@ -572,7 +569,7 @@ module Cinch.Ad where
         (b1, s2) -> (CLambda sp ty p1 b1, s2)
     CLet sp ty id name sc rhs body -> case alpha-term env rhs st of
       (r1, s1) -> case fresh-ad-id s1 of
-        (nid, s2) -> case alpha-term (Cons (id, nid) env) body s2 of
+        (nid, s2) -> case alpha-term ((id, nid) : env) body s2 of
           (b1, s3) -> (CLet sp ty nid name sc r1 b1, s3)
     CIf sp ty c y n -> case alpha-term env c st of
       (c1, s1) -> case alpha-term env y s1 of
@@ -616,7 +613,7 @@ module Cinch.Ad where
   alpha-rec-ids :: List (Nat, Nat) -> CoreTerm -> AdState -> (List (Nat, Nat), AdState)
   alpha-rec-ids env members st = case members of
     CRecursiveBinding id _ _ rest -> case fresh-ad-id st of
-      (nid, s1) -> alpha-rec-ids (Cons (id, nid) env) rest s1
+      (nid, s1) -> alpha-rec-ids ((id, nid) : env) rest s1
     other -> (env, st)
 
   alpha-rec-members :: List (Nat, Nat) -> CoreTerm -> AdState -> (CoreTerm, AdState)
@@ -630,17 +627,17 @@ module Cinch.Ad where
 
   opening-rigid-pairs :: List Quant -> List (Nat, UType) -> List UType -> List (Nat, UType)
   opening-rigid-pairs qs openings actuals = case (qs, actuals) of
-    (Cons q qr, Cons a ar) ->
+    (q : qr, a : ar) ->
       let more = opening-rigid-pairs qr openings ar in
       case lookup-opening-rigid (q.id) openings of
-        Some rid -> Cons (rid, a) more
+        Some rid -> (rid, a) : more
         None -> more
-    other -> Nil
+    other -> []
 
   lookup-opening-rigid :: Nat -> List (Nat, UType) -> Option Nat
   lookup-opening-rigid qid openings = case openings of
-    Nil -> None
-    Cons (k, ty) rest ->
+    [] -> None
+    (k, ty) : rest ->
       if k == qid then
         case ty of
           URigid rid _ _ _ -> Some rid
@@ -657,7 +654,7 @@ module Cinch.Ad where
 
   subst-local-term :: Nat -> CoreTerm -> CoreTerm -> AdState -> (CoreTerm, AdState)
   subst-local-term needle repl term st = case term of
-    CLocal _ _ id _ _ -> if id == needle then alpha-term Nil repl st else (term, st)
+    CLocal _ _ id _ _ -> if id == needle then alpha-term [] repl st else (term, st)
     CApply sp ty f x -> case subst-local-term needle repl f st of
       (f1, s1) -> case subst-local-term needle repl x s1 of
         (x1, s2) -> (CApply sp ty f1 x1, s2)
@@ -731,7 +728,7 @@ module Cinch.Ad where
 
   bind-pats-args-st :: Span -> List CorePattern -> List CoreTerm -> CoreTerm -> AdState -> (CoreTerm, AdState)
   bind-pats-args-st sp ps args body st = case (ps, args) of
-    (Cons p pr, Cons a ar) -> case bind-pats-args-st sp pr ar body st of
+    (p : pr, a : ar) -> case bind-pats-args-st sp pr ar body st of
       (b1, s1) -> bind-pat-arg-st sp p a b1 s1
     other -> (body, st)
 
@@ -743,17 +740,17 @@ module Cinch.Ad where
 
   bind-pats-args :: Span -> List CorePattern -> List CoreTerm -> CoreTerm -> CoreTerm
   bind-pats-args sp ps args body = case (ps, args) of
-    (Cons p pr, Cons a ar) -> bind-pat-arg sp p a (bind-pats-args sp pr ar body)
+    (p : pr, a : ar) -> bind-pat-arg sp p a (bind-pats-args sp pr ar body)
     other -> body
 
   instantiate-def-body :: AdCtx -> CoreDefinition -> List UType -> AdState -> Option (List CorePattern, CoreTerm, AdState)
   instantiate-def-body ctx def actuals st = case def.clauses of
-    Cons (CoreClause _ pats body) Nil ->
+    [CoreClause _ pats body] ->
       let rpairs = opening-rigid-pairs (scheme-params (def.scheme)) (def.openings) actuals in
       let subst-ty = (\t -> reduce-ad-type ctx (substitute-rigid-types rpairs t)) in
       let spats = list-map (map-pattern-types subst-ty) pats in
       let sbody = map-term-types subst-ty body in
-      case alpha-pats Nil spats st of
+      case alpha-pats [] spats st of
         (apats, env1, s1) -> case alpha-term env1 sbody s1 of
           (abody, s2) -> Some (apats, abody, s2)
     other -> None
@@ -764,19 +761,19 @@ module Cinch.Ad where
 
   clauses-call-name :: String -> List CoreClause -> Bool
   clauses-call-name nm cs = case cs of
-    Nil -> False
-    Cons (CoreClause _ _ body) rest -> term-calls-name nm body || clauses-call-name nm rest
+    [] -> False
+    (CoreClause _ _ body) : rest -> term-calls-name nm body || clauses-call-name nm rest
 
   term-calls-name :: String -> CoreTerm -> Bool
   term-calls-name nm term = case term of
-    CUse _ _ name _ _ -> same name nm
-    CQualifiedUse _ _ name _ _ _ -> same name nm
+    CUse _ _ name _ _ -> name == nm
+    CQualifiedUse _ _ name _ _ _ -> name == nm
     other -> terms-call-name nm (term-children term)
 
   terms-call-name :: String -> List CoreTerm -> Bool
   terms-call-name nm ts = case ts of
-    Nil -> False
-    Cons h t -> term-calls-name nm h || terms-call-name nm t
+    [] -> False
+    h : t -> term-calls-name nm h || terms-call-name nm t
 
   -- ---------------------------------------------------------------------------
   -- Free local IDs and pattern local IDs
@@ -787,35 +784,35 @@ module Cinch.Ad where
     CPVar _ _ id _ -> [id]
     CPProof _ _ id _ -> [id]
     CPErasedValue _ _ id _ -> [id]
-    CPAs _ _ id _ inner -> Cons id (pat-bound-ids inner)
+    CPAs _ _ id _ inner -> id : (pat-bound-ids inner)
     CPConstructor _ _ _ _ _ fs -> pat-bound-ids fs
     CPTuple _ _ fs -> pat-bound-ids fs
     CPField _ h t -> pat-bound-ids h <> pat-bound-ids t
-    other -> Nil
+    other -> []
 
   free-locals-in :: List Nat -> CoreTerm -> List Nat -> List Nat
   free-locals-in bound term acc = case term of
-    CLocal _ _ id _ _ -> if has-nat id bound || has-nat id acc then acc else Cons id acc
+    CLocal _ _ id _ _ -> if has-nat id bound || has-nat id acc then acc else id : acc
     CLambda _ _ pat body -> free-locals-in (pat-bound-ids pat <> bound) body acc
-    CLet _ _ id _ _ rhs body -> free-locals-in (Cons id bound) body (free-locals-in bound rhs acc)
+    CLet _ _ id _ _ rhs body -> free-locals-in (id : bound) body (free-locals-in bound rhs acc)
     CAlternative _ pat body rest -> free-locals-in bound rest (free-locals-in (pat-bound-ids pat <> bound) body acc)
     CRecursiveFunctions _ _ members body ->
       let rids = recursive-function-ids members <> bound in
-      free-locals-list rids (Cons body (recursive-functions members)) acc
+      free-locals-list rids (body : (recursive-functions members)) acc
     other -> free-locals-list bound (term-children term) acc
 
   free-locals-list :: List Nat -> List CoreTerm -> List Nat -> List Nat
   free-locals-list bound ts acc = case ts of
-    Nil -> acc
-    Cons h t -> free-locals-list bound t (free-locals-in bound h acc)
+    [] -> acc
+    h : t -> free-locals-list bound t (free-locals-in bound h acc)
 
   term-uses-any-id :: List Nat -> CoreTerm -> Bool
-  term-uses-any-id ids term = any-nat-in ids (free-locals-in Nil term Nil)
+  term-uses-any-id ids term = any-nat-in ids (free-locals-in [] term [])
 
   any-nat-in :: List Nat -> List Nat -> Bool
   any-nat-in needles haystack = case needles of
-    Nil -> False
-    Cons h t -> has-nat h haystack || any-nat-in t haystack
+    [] -> False
+    h : t -> has-nat h haystack || any-nat-in t haystack
 
   -- ---------------------------------------------------------------------------
   -- Tangent algebra: ad-zero and ad-add on typed Core
@@ -828,7 +825,7 @@ module Cinch.Ad where
       (aid, s1) ->
         let some-pat = CPConstructor sp (ty-option arr-ty) global-data-core-some [arr-ty] (UFun arr-ty (ty-option arr-ty)) (CPField sp (CPVar sp arr-ty aid "$arr") (CPDone sp)) in
         let none-pat = CPConstructor sp (ty-option arr-ty) global-data-core-none [arr-ty] (ty-option arr-ty) (CPDone sp) in
-        let c = CCase sp arr-ty opt-term (CAlternative sp some-pat (CLocal sp arr-ty aid "$arr" Nil) (CAlternative sp none-pat fallback (CAlternativesEnd sp))) in
+        let c = CCase sp arr-ty opt-term (CAlternative sp some-pat (CLocal sp arr-ty aid "$arr" []) (CAlternative sp none-pat fallback (CAlternativesEnd sp))) in
         (c, s1)
 
   mk-arr-add :: Span -> FPrec -> CoreTerm -> CoreTerm -> AdState -> (CoreTerm, AdState)
@@ -839,8 +836,8 @@ module Cinch.Ad where
     case fresh-ad-id st of
       (id-a, s1) -> case fresh-ad-id s1 of
         (id-b, s2) ->
-          let va = CLocal sp arr-ty id-a "$aa" Nil in
-          let vb = CLocal sp arr-ty id-b "$ab" Nil in
+          let va = CLocal sp arr-ty id-a "$aa" [] in
+          let vb = CLocal sp arr-ty id-b "$ab" [] in
           case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p va vb "0") va s2 of
             (summed, s3) ->
               let body = CIf sp arr-ty (eq-zero va) vb (CIf sp arr-ty (eq-zero vb) va summed) in
@@ -860,7 +857,7 @@ module Cinch.Ad where
       Some p -> (mk-arr-fill sp PF64 (mk-arr-len sp ty-f64 p) (prec-lit sp PF64 "0.0"), st)
       None -> (mk-arr-fill sp PF64 (CInt sp ty-nat "0") (prec-lit sp PF64 "0.0"), st)
     AdTuple fs ->
-      let ftys = case uty of UTuple spine -> uarg-to-utype-list spine; other -> Nil in
+      let ftys = case uty of UTuple spine -> uarg-to-utype-list spine; other -> [] in
       case primal of
         Some p ->
           case fresh-field-vars sp ftys "zp" st of
@@ -883,7 +880,7 @@ module Cinch.Ad where
           (zterms, s1) -> (apply-args sp (CUse sp cty cname "constructor" actuals) zterms, s1)
     AdOption elem inner -> case primal of
       Some p -> case fresh-ad-id st of
-        (vid, s1) -> case ad-zero sp inner elem (Some (CLocal sp elem vid "$zv" Nil)) s1 of
+        (vid, s1) -> case ad-zero sp inner elem (Some (CLocal sp elem vid "$zv" [])) s1 of
           (zv, s2) ->
             let none-pat = CPConstructor sp uty global-data-core-none [elem] uty (CPDone sp) in
             let some-pat = CPConstructor sp uty global-data-core-some [elem] (UFun elem uty) (CPField sp (CPVar sp elem vid "$zv") (CPDone sp)) in
@@ -895,19 +892,19 @@ module Cinch.Ad where
 
   ad-zero-list :: Span -> List AdType -> List UType -> List (Option CoreTerm) -> AdState -> (List CoreTerm, AdState)
   ad-zero-list sp ads tys ps st = case (ads, tys, ps) of
-    (Cons a ar, Cons t tr, Cons p pr) -> case ad-zero sp a t p st of
+    (a : ar, t : tr, p : pr) -> case ad-zero sp a t p st of
       (z1, s1) -> case ad-zero-list sp ar tr pr s1 of
-        (zs, s2) -> (Cons z1 zs, s2)
-    other -> (Nil, st)
+        (zs, s2) -> (z1 : zs, s2)
+    other -> ([], st)
 
   fresh-field-vars :: Span -> List UType -> String -> AdState -> (List CorePattern, List CoreTerm, AdState)
   fresh-field-vars sp tys prefix st = case tys of
-    Nil -> (Nil, Nil, st)
-    Cons ty rest -> case fresh-ad-id st of
+    [] -> ([], [], st)
+    ty : rest -> case fresh-ad-id st of
       (id, s1) ->
         let nm = prefix <> "_" <> nat-str id in
         case fresh-field-vars sp rest prefix s1 of
-          (ps, vs, s2) -> (Cons (CPVar sp ty id nm) ps, Cons (CLocal sp ty id nm Nil) vs, s2)
+          (ps, vs, s2) -> ((CPVar sp ty id nm) : ps, (CLocal sp ty id nm []) : vs, s2)
 
   ad-add :: AdCtx -> Span -> AdType -> UType -> CoreTerm -> CoreTerm -> AdState -> (CoreTerm, AdState)
   ad-add ctx sp adty uty a b st = case adty of
@@ -917,7 +914,7 @@ module Cinch.Ad where
     AdArrayF32 -> mk-arr-add sp PF32 a b st
     AdArrayF64 -> mk-arr-add sp PF64 a b st
     AdTuple fs ->
-      let ftys = case uty of UTuple spine -> uarg-to-utype-list spine; other -> Nil in
+      let ftys = case uty of UTuple spine -> uarg-to-utype-list spine; other -> [] in
       case fresh-field-vars sp ftys "ta" st of
         (pa, va, s1) -> case fresh-field-vars sp ftys "tb" s1 of
           (pb, vb, s2) -> case ad-add-list ctx sp (ad-list-to-list fs) ftys va vb s2 of
@@ -937,21 +934,21 @@ module Cinch.Ad where
     AdOption elem inner ->
       case fresh-ad-id st of
         (id-a, s1) -> case fresh-ad-id s1 of
-          (id-b, s2) -> case ad-add ctx sp inner elem (CLocal sp elem id-a "$oa" Nil) (CLocal sp elem id-b "$ob" Nil) s2 of
+          (id-b, s2) -> case ad-add ctx sp inner elem (CLocal sp elem id-a "$oa" []) (CLocal sp elem id-b "$ob" []) s2 of
             (summed, s3) ->
               let none-pat = CPConstructor sp uty global-data-core-none [elem] uty (CPDone sp) in
               let some-a = CPConstructor sp uty global-data-core-some [elem] (UFun elem uty) (CPField sp (CPVar sp elem id-a "$oa") (CPDone sp)) in
               let some-b = CPConstructor sp uty global-data-core-some [elem] (UFun elem uty) (CPField sp (CPVar sp elem id-b "$ob") (CPDone sp)) in
-              let inner-b = CCase sp uty b (CAlternative sp none-pat (mk-some sp elem (CLocal sp elem id-a "$oa" Nil)) (CAlternative sp some-b (mk-some sp elem summed) (CAlternativesEnd sp))) in
+              let inner-b = CCase sp uty b (CAlternative sp none-pat (mk-some sp elem (CLocal sp elem id-a "$oa" [])) (CAlternative sp some-b (mk-some sp elem summed) (CAlternativesEnd sp))) in
               (CCase sp uty a (CAlternative sp none-pat b (CAlternative sp some-a inner-b (CAlternativesEnd sp))), s3)
     AdClosure -> (a, st)
 
   ad-add-list :: AdCtx -> Span -> List AdType -> List UType -> List CoreTerm -> List CoreTerm -> AdState -> (List CoreTerm, AdState)
   ad-add-list ctx sp ads tys xs ys st = case (ads, tys, xs, ys) of
-    (Cons a ar, Cons t tr, Cons x xr, Cons y yr) -> case ad-add ctx sp a t x y st of
+    (a : ar, t : tr, x : xr, y : yr) -> case ad-add ctx sp a t x y st of
       (s1-t, s1) -> case ad-add-list ctx sp ar tr xr yr s1 of
-        (more, s2) -> (Cons s1-t more, s2)
-    other -> (Nil, st)
+        (more, s2) -> (s1-t : more, s2)
+    other -> ([], st)
 
   -- ---------------------------------------------------------------------------
   -- Scalar & Array Primitive Classification
@@ -973,29 +970,30 @@ module Cinch.Ad where
   classify-scalar-op :: String -> Option ScalarOp
   classify-scalar-op raw =
     let sym = canonical-sym raw in
-    if same sym "Data.Machine.add-f32" then Some (SOAdd PF32)
-    else if same sym "Data.Machine.sub-f32" then Some (SOSub PF32)
-    else if same sym "Data.Machine.mul-f32" then Some (SOMul PF32)
-    else if same sym "Data.Machine.div-f32" then Some (SODiv PF32)
-    else if same sym "Data.Machine.neg-f32" then Some (SONeg PF32)
-    else if same sym "Data.Machine.abs-f32" then Some (SOAbs PF32)
-    else if same sym "Data.Machine.sqrt-f32" then Some (SOSqrt PF32)
-    else if same sym "Data.AD.sin-f32" then Some (SOSin PF32)
-    else if same sym "Data.AD.cos-f32" then Some (SOCos PF32)
-    else if same sym "Data.AD.exp-f32" then Some (SOExp PF32)
-    else if same sym "Data.AD.log-f32" then Some (SOLog PF32)
-    else if same sym "Data.Machine.add-f64" then Some (SOAdd PF64)
-    else if same sym "Data.Machine.sub-f64" then Some (SOSub PF64)
-    else if same sym "Data.Machine.mul-f64" then Some (SOMul PF64)
-    else if same sym "Data.Machine.div-f64" then Some (SODiv PF64)
-    else if same sym "Data.Machine.neg-f64" then Some (SONeg PF64)
-    else if same sym "Data.Machine.abs-f64" then Some (SOAbs PF64)
-    else if same sym "Data.Machine.sqrt-f64" then Some (SOSqrt PF64)
-    else if same sym "Data.AD.sin-f64" then Some (SOSin PF64)
-    else if same sym "Data.AD.cos-f64" then Some (SOCos PF64)
-    else if same sym "Data.AD.exp-f64" then Some (SOExp PF64)
-    else if same sym "Data.AD.log-f64" then Some (SOLog PF64)
-    else None
+    case sym of
+    "Data.Machine.add-f32" -> Some (SOAdd PF32)
+    "Data.Machine.sub-f32" -> Some (SOSub PF32)
+    "Data.Machine.mul-f32" -> Some (SOMul PF32)
+    "Data.Machine.div-f32" -> Some (SODiv PF32)
+    "Data.Machine.neg-f32" -> Some (SONeg PF32)
+    "Data.Machine.abs-f32" -> Some (SOAbs PF32)
+    "Data.Machine.sqrt-f32" -> Some (SOSqrt PF32)
+    "Data.AD.sin-f32" -> Some (SOSin PF32)
+    "Data.AD.cos-f32" -> Some (SOCos PF32)
+    "Data.AD.exp-f32" -> Some (SOExp PF32)
+    "Data.AD.log-f32" -> Some (SOLog PF32)
+    "Data.Machine.add-f64" -> Some (SOAdd PF64)
+    "Data.Machine.sub-f64" -> Some (SOSub PF64)
+    "Data.Machine.mul-f64" -> Some (SOMul PF64)
+    "Data.Machine.div-f64" -> Some (SODiv PF64)
+    "Data.Machine.neg-f64" -> Some (SONeg PF64)
+    "Data.Machine.abs-f64" -> Some (SOAbs PF64)
+    "Data.Machine.sqrt-f64" -> Some (SOSqrt PF64)
+    "Data.AD.sin-f64" -> Some (SOSin PF64)
+    "Data.AD.cos-f64" -> Some (SOCos PF64)
+    "Data.AD.exp-f64" -> Some (SOExp PF64)
+    "Data.AD.log-f64" -> Some (SOLog PF64)
+    _ -> None
 
   -- ---------------------------------------------------------------------------
   -- FORWARD-MODE JVP (`jvp2 f x dx -> (y, dy)`)
@@ -1010,14 +1008,14 @@ module Cinch.Ad where
 
   jvp-lookup :: Nat -> List JvpBinding -> Option JvpBinding
   jvp-lookup id env = case env of
-    Nil -> None
-    Cons b rest -> case b of
+    [] -> None
+    b : rest -> case b of
       JvpBinding pid _ _ _ -> if pid == id then Some b else jvp-lookup id rest
 
   jvp-active-ids :: List JvpBinding -> List Nat
   jvp-active-ids env = case env of
-    Nil -> Nil
-    Cons (JvpBinding pid _ _ _) rest -> Cons pid (jvp-active-ids rest)
+    [] -> []
+    (JvpBinding pid _ _ _) : rest -> pid : (jvp-active-ids rest)
 
   -- Unpack a `(primal, tangent)` pair term into `(pid, tid)` and pass them to `k`.
   unpack-jvp-pair :: Span -> UType -> CoreTerm -> (CoreTerm -> CoreTerm -> AdState -> (CoreTerm, AdState)) -> AdState -> (CoreTerm, AdState)
@@ -1025,8 +1023,8 @@ module Cinch.Ad where
     case fresh-ad-id st of
       (pid, s1) -> case fresh-ad-id s1 of
         (tid, s2) ->
-          let pv = CLocal sp ty pid "$jp" Nil in
-          let tv = CLocal sp ty tid "$jt" Nil in
+          let pv = CLocal sp ty pid "$jp" [] in
+          let tv = CLocal sp ty tid "$jt" [] in
           case k pv tv s2 of
             (body, s3) ->
               let pat = CPTuple sp (ty-pair ty ty) (CPField sp (CPVar sp ty pid "$jp") (CPField sp (CPVar sp ty tid "$jt") (CPDone sp))) in
@@ -1035,8 +1033,8 @@ module Cinch.Ad where
   -- Evaluate a list of JVP expressions, yielding `(primals, tangents)` bound to fresh locals.
   jvp-eval-args :: AdCtx -> List JvpBinding -> List CoreTerm -> (List CoreTerm -> List CoreTerm -> List Bool -> AdState -> (CoreTerm, AdState)) -> AdState -> (CoreTerm, AdState)
   jvp-eval-args ctx env args k st = case args of
-    Nil -> k Nil Nil Nil st
-    Cons arg rest ->
+    [] -> k [] [] [] st
+    arg : rest ->
       let sp = zero-span in
       let ty = reduce-ad-type ctx (core-type arg) in
       let adty = ad-type-of ctx ty in
@@ -1044,14 +1042,14 @@ module Cinch.Ad where
         case jvp-primal-only ctx env arg st of
           (p1, s1) -> case fresh-ad-id s1 of
             (pid, s2) ->
-              let pv = CLocal sp ty pid "$ja" Nil in
-              case jvp-eval-args ctx env rest (\ps ts acts s3 -> k (Cons pv ps) (Cons pv ts) (Cons False acts) s3) s2 of
+              let pv = CLocal sp ty pid "$ja" [] in
+              case jvp-eval-args ctx env rest (\ps ts acts s3 -> k (pv : ps) (pv : ts) (False : acts) s3) s2 of
                 (body, s4) -> (CLet sp (core-type body) pid "$ja" (mono ty) p1 body, s4)
       else
         case jvp-term ctx env arg st of
           (pair-t, s1) ->
             unpack-jvp-pair sp ty pair-t (\pv tv s2 ->
-              jvp-eval-args ctx env rest (\ps ts acts s3 -> k (Cons pv ps) (Cons tv ts) (Cons True acts) s3) s2) s1
+              jvp-eval-args ctx env rest (\ps ts acts s3 -> k (pv : ps) (tv : ts) (True : acts) s3) s2) s1
 
   -- Evaluate a non-active expression (keeping primal values in scope; no tangent produced).
   jvp-primal-only :: AdCtx -> List JvpBinding -> CoreTerm -> AdState -> (CoreTerm, AdState)
@@ -1064,7 +1062,7 @@ module Cinch.Ad where
           (pair-t, s1) -> case fresh-ad-id s1 of
             (tid, s2) ->
               let pat = CPTuple sp (ty-pair rty rty) (CPField sp (CPVar sp rty id name) (CPField sp (CPVar sp rty tid ("d_" <> name)) (CPDone sp))) in
-              let env1 = Cons (JvpBinding id tid rad rty) env in
+              let env1 = (JvpBinding id tid rad rty) : env in
               case jvp-primal-only ctx env1 body s2 of
                 (b1, s3) -> (CCase sp (core-type b1) pair-t (CAlternative sp pat b1 (CAlternativesEnd sp)), s3)
       else case jvp-primal-only ctx env rhs st of
@@ -1097,12 +1095,12 @@ module Cinch.Ad where
     if not (term-uses-any-id (jvp-active-ids env) term) then
       case fresh-ad-id st of
         (pid, s1) ->
-          let pv = CLocal sp ty pid "$jc" Nil in
+          let pv = CLocal sp ty pid "$jc" [] in
           case ad-zero sp adty ty (Some pv) s1 of
             (zt, s2) -> (CLet sp (ty-pair ty ty) pid "$jc" (mono ty) term (mk-pair sp pv zt), s2)
     else case term of
       CLocal _ _ id _ _ -> case jvp-lookup id env of
-        Some (JvpBinding _ tid _ _) -> (mk-pair sp term (CLocal sp ty tid "$jt" Nil), st)
+        Some (JvpBinding _ tid _ _) -> (mk-pair sp term (CLocal sp ty tid "$jt" []), st)
         None -> case ad-zero sp adty ty (Some term) st of
           (zt, s1) -> (mk-pair sp term zt, s1)
 
@@ -1117,7 +1115,7 @@ module Cinch.Ad where
           case jvp-term ctx env rhs st of
             (pair-r, s1) -> case fresh-ad-id s1 of
               (tid, s2) ->
-                let env1 = Cons (JvpBinding id tid rad rty) env in
+                let env1 = (JvpBinding id tid rad rty) : env in
                 case jvp-term ctx env1 body s2 of
                   (b1, s3) ->
                     let pat = CPTuple sp (ty-pair rty rty) (CPField sp (CPVar sp rty id name) (CPField sp (CPVar sp rty tid ("d_" <> name)) (CPDone sp))) in
@@ -1151,7 +1149,7 @@ module Cinch.Ad where
 
       other -> case fresh-ad-id st of
         (pid, s1) ->
-          let pv = CLocal sp ty pid "$jo" Nil in
+          let pv = CLocal sp ty pid "$jo" [] in
           case ad-zero sp adty ty (Some pv) s1 of
             (zt, s2) -> (CLet sp (ty-pair ty ty) pid "$jo" (mono ty) term (mk-pair sp pv zt), s2)
 
@@ -1177,7 +1175,7 @@ module Cinch.Ad where
                     let inner = CCase sp (ty-pair out-ty out-ty) sc-t (CAlternative sp (CPTuple sp sty (pats-to-cpfields sp tpats)) b1 (CAlternativesEnd sp)) in
                     (CCase sp (ty-pair out-ty out-ty) sc-p (CAlternative sp pat inner (CAlternativesEnd sp)), s2)
           CPConstructor _ _ cname actuals cty pfields ->
-            if same cname global-data-core-none || same cname global-data-core-some then
+            if cname == global-data-core-none || cname == global-data-core-some then
               jvp-case-option ctx env sty out-ty sc-p sc-t alts st
             else
               case make-tangent-pattern ctx sp (cpfields-to-pats pfields) st of
@@ -1189,7 +1187,7 @@ module Cinch.Ad where
                       (CCase sp (ty-pair out-ty out-ty) sc-p (CAlternative sp pat inner (CAlternativesEnd sp)), s2)
           CPVar _ vty vid vname -> case fresh-ad-id st of
             (tid, s1) ->
-              let env1 = Cons (JvpBinding vid tid sad vty) env in
+              let env1 = (JvpBinding vid tid sad vty) : env in
               case jvp-term ctx env1 body s1 of
                 (b1, s2) -> (CLet sp (ty-pair out-ty out-ty) vid vname (mono vty) sc-p (CLet sp (ty-pair out-ty out-ty) tid ("d_" <> vname) (mono vty) sc-t b1), s2)
           CPWild _ _ -> jvp-term ctx env body st
@@ -1205,19 +1203,19 @@ module Cinch.Ad where
   jvp-case-option-alts :: AdCtx -> List JvpBinding -> UType -> UType -> CoreTerm -> CoreTerm -> AdState -> (CoreTerm, AdState)
   jvp-case-option-alts ctx env sty out-ty sc-t alts st = case alts of
     CAlternative sp pat body rest -> case pat of
-      CPConstructor _ _ cname actuals cty pfields | same cname global-data-core-some ->
+      CPConstructor _ _ cname actuals cty pfields | (cname == global-data-core-some) ->
         case cpfields-to-pats pfields of
-          Cons (CPVar _ elem vid vname) Nil ->
+          [CPVar _ elem vid vname] ->
             let ead = ad-type-of ctx elem in
             case fresh-ad-id st of
               (tid, s1) ->
-                let env1 = if ad-is-active ead then Cons (JvpBinding vid tid ead elem) env else env in
+                let env1 = if ad-is-active ead then (JvpBinding vid tid ead elem) : env else env in
                 case jvp-term ctx env1 body s1 of
-                  (b1, s2) -> case ad-zero sp ead elem (Some (CLocal sp elem vid vname Nil)) s2 of
+                  (b1, s2) -> case ad-zero sp ead elem (Some (CLocal sp elem vid vname [])) s2 of
                     (zval, s3) ->
                       let t-some = CPConstructor sp sty global-data-core-some actuals cty (CPField sp (CPVar sp elem tid ("d_" <> vname)) (CPDone sp)) in
                       let t-none = CPConstructor sp sty global-data-core-none actuals sty (CPDone sp) in
-                      let bind-t = CCase sp elem sc-t (CAlternative sp t-some (CLocal sp elem tid ("d_" <> vname) Nil) (CAlternative sp t-none zval (CAlternativesEnd sp))) in
+                      let bind-t = CCase sp elem sc-t (CAlternative sp t-some (CLocal sp elem tid ("d_" <> vname) []) (CAlternative sp t-none zval (CAlternativesEnd sp))) in
                       let inner = CLet sp (ty-pair out-ty out-ty) tid ("d_" <> vname) (mono elem) bind-t b1 in
                       case jvp-case-option-alts ctx env sty out-ty sc-t rest s3 of
                         (r1, s4) -> (CAlternative sp pat inner r1, s4)
@@ -1231,28 +1229,28 @@ module Cinch.Ad where
 
   make-tangent-pattern :: AdCtx -> Span -> List CorePattern -> AdState -> (List CorePattern, List JvpBinding, AdState)
   make-tangent-pattern ctx sp ps st = case ps of
-    Nil -> (Nil, Nil, st)
-    Cons p rest -> case p of
+    [] -> ([], [], st)
+    p : rest -> case p of
       CPVar _ ty id name ->
         let rty = reduce-ad-type ctx ty in
         let adty = ad-type-of ctx rty in
         if ad-is-active adty then
           case fresh-ad-id st of
             (tid, s1) -> case make-tangent-pattern ctx sp rest s1 of
-              (tps, bs, s2) -> (Cons (CPVar sp rty tid ("d_" <> name)) tps, Cons (JvpBinding id tid adty rty) bs, s2)
+              (tps, bs, s2) -> ((CPVar sp rty tid ("d_" <> name)) : tps, (JvpBinding id tid adty rty) : bs, s2)
         else case make-tangent-pattern ctx sp rest st of
-          (tps, bs, s1) -> (Cons (CPWild sp rty) tps, bs, s1)
+          (tps, bs, s1) -> ((CPWild sp rty) : tps, bs, s1)
       CPWild _ ty -> case make-tangent-pattern ctx sp rest st of
-        (tps, bs, s1) -> (Cons (CPWild sp ty) tps, bs, s1)
+        (tps, bs, s1) -> ((CPWild sp ty) : tps, bs, s1)
       other -> case make-tangent-pattern ctx sp rest st of
-        (tps, bs, s1) -> (Cons (CPWild sp ty-unit) tps, bs, s1)
+        (tps, bs, s1) -> ((CPWild sp ty-unit) : tps, bs, s1)
 
   -- Differentiate an application spine in JVP mode.
   jvp-app :: AdCtx -> List JvpBinding -> CoreTerm -> UType -> AdType -> AdState -> (CoreTerm, AdState)
   jvp-app ctx env term out-ty out-ad st =
     let sp = zero-span in
-    case unwrap-core-app term Nil of
-      (CLambda _ _ pat body, Cons arg rest) ->
+    case unwrap-core-app term [] of
+      (CLambda _ _ pat body, arg : rest) ->
         let reduced = apply-args sp (bind-pat-arg sp pat arg body) rest in
         jvp-term ctx env reduced st
       (head, args) -> case head-use-info head of
@@ -1264,12 +1262,12 @@ module Cinch.Ad where
               -- 2. Array runtime primitives
               if is-array-ad-prim name then jvp-array-op ctx env sp name actuals args out-ty st
               -- 3. `nd-pack-f32` linear repacking fast path
-              else if same (canonical-sym name) "Data.Array.ND.nd-pack-f32" then
+              else if canonical-sym name == "Data.Array.ND.nd-pack-f32" then
                 jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
-                  (Cons p Nil, Cons t Nil) -> (mk-pair sp (apply-args sp head [p]) (apply-args sp head [t]), s1)
+                  ([p], [t]) -> (mk-pair sp (apply-args sp head [p]) (apply-args sp head [t]), s1)
                   other -> (CError sp, s1)) st
               -- 4. Constructor application (Some, MkVec2, MkNDView, etc.)
-              else if same role "constructor" then
+              else if role == "constructor" then
                 jvp-eval-args ctx env args (\ps ts _ s1 -> (mk-pair sp (apply-args sp head ps) (apply-args sp head ts), s1)) st
               -- 5. User-defined top-level function
               else case find-def name (ctx.defs) of
@@ -1277,12 +1275,12 @@ module Cinch.Ad where
                 None -> jvp-eval-args ctx env args (\ps _ _ s1 ->
                   case fresh-ad-id s1 of
                     (pid, s2) ->
-                      let pv = CLocal sp out-ty pid "$ju" Nil in
+                      let pv = CLocal sp out-ty pid "$ju" [] in
                       case ad-zero sp out-ad out-ty (Some pv) s2 of
                         (zt, s3) -> (CLet sp (ty-pair out-ty out-ty) pid "$ju" (mono out-ty) (apply-args sp head ps) (mk-pair sp pv zt), s3)) st
         None -> case fresh-ad-id st of
           (pid, s1) ->
-            let pv = CLocal sp out-ty pid "$jc" Nil in
+            let pv = CLocal sp out-ty pid "$jc" [] in
             case ad-zero sp out-ad out-ty (Some pv) s1 of
               (zt, s2) -> (CLet sp (ty-pair out-ty out-ty) pid "$jc" (mono out-ty) term (mk-pair sp pv zt), s2)
 
@@ -1308,7 +1306,7 @@ module Cinch.Ad where
         let sqrt-sym = ctx-sym ctx (case p of PF32 -> "Data.Machine.sqrt-f32"; PF64 -> "Data.Machine.sqrt-f64") in
         case fresh-ad-id s1 of
           (sid, s2) ->
-            let sv = CLocal sp t sid "$sq" Nil in
+            let sv = CLocal sp t sid "$sq" [] in
             let tang = mk-fdiv ctx sp p da (mk-fmul ctx sp p (prec-lit sp p "2.0") sv) in
             (CLet sp (ty-pair t t) sid "$sq" (mono t) (mk-prim-call sp sqrt-sym [t] t [a]) (mk-pair sp sv tang), s2)
       (SOSin p, [a], [da]) -> (mk-pair sp (mk-fsin ctx sp p a) (mk-fmul ctx sp p (mk-fcos ctx sp p a) da), s1)
@@ -1317,7 +1315,7 @@ module Cinch.Ad where
         let t = prec-ty p in
         case fresh-ad-id s1 of
           (eid, s2) ->
-            let ev = CLocal sp t eid "$ex" Nil in
+            let ev = CLocal sp t eid "$ex" [] in
             (CLet sp (ty-pair t t) eid "$ex" (mono t) (mk-fexp ctx sp p a) (mk-pair sp ev (mk-fmul ctx sp p ev da)), s2)
       (SOLog p, [a], [da]) ->
         let t = prec-ty p in
@@ -1327,23 +1325,23 @@ module Cinch.Ad where
 
   is-array-ad-prim :: String -> Bool
   is-array-ad-prim name =
-    same name "cinch.runtime.arrayMapF32"
-    || same name "cinch.runtime.arrayMapUnaryF32"
-    || same name "cinch.runtime.arrayZipBinopF32"
-    || same name "cinch.runtime.arrayZipBinopF64"
-    || same name "cinch.runtime.arrayScaleF64"
-    || same name "cinch.runtime.arrayReduceF32"
-    || same name "cinch.runtime.arrayReduceF64"
-    || same name "cinch.runtime.arrayDotF32"
-    || same name "cinch.runtime.arrayDotF64"
-    || same name "cinch.runtime.arrayRowReduceF32"
-    || same name "cinch.runtime.arrayGatherF32"
-    || same name "cinch.runtime.arrayStencil2DF32"
-    || same name "cinch.runtime.arrayFillF32"
-    || same name "cinch.runtime.arrayFillF64"
-    || same name "cinch.runtime.arrayRowBroadcastF32"
-    || same name "cinch.runtime.arrayScatterAddF32"
-    || same name "cinch.runtime.arrayStencil2DAdjointF32"
+    name == "cinch.runtime.arrayMapF32"
+    || name == "cinch.runtime.arrayMapUnaryF32"
+    || name == "cinch.runtime.arrayZipBinopF32"
+    || name == "cinch.runtime.arrayZipBinopF64"
+    || name == "cinch.runtime.arrayScaleF64"
+    || name == "cinch.runtime.arrayReduceF32"
+    || name == "cinch.runtime.arrayReduceF64"
+    || name == "cinch.runtime.arrayDotF32"
+    || name == "cinch.runtime.arrayDotF64"
+    || name == "cinch.runtime.arrayRowReduceF32"
+    || name == "cinch.runtime.arrayGatherF32"
+    || name == "cinch.runtime.arrayStencil2DF32"
+    || name == "cinch.runtime.arrayFillF32"
+    || name == "cinch.runtime.arrayFillF64"
+    || name == "cinch.runtime.arrayRowBroadcastF32"
+    || name == "cinch.runtime.arrayScatterAddF32"
+    || name == "cinch.runtime.arrayStencil2DAdjointF32"
 
   -- Differentiate an elementwise scalar function `fn :: F32 -> F32` for `array-map-f32`.
   -- Returns a CoreTerm of type `F32 -> F32 -> F32` computing `\x dx -> snd (jvp fn x dx)`.
@@ -1352,9 +1350,9 @@ module Cinch.Ad where
     case fresh-ad-id st of
       (xid, s1) -> case fresh-ad-id s1 of
         (dxid, s2) ->
-          let xv = CLocal sp ty-f32 xid "$ex" Nil in
+          let xv = CLocal sp ty-f32 xid "$ex" [] in
           let body-call = CApply sp ty-f32 fn xv in
-          let env1 = Cons (JvpBinding xid dxid AdF32 ty-f32) env in
+          let env1 = (JvpBinding xid dxid AdF32 ty-f32) : env in
           case jvp-term ctx env1 body-call s2 of
             (pair-t, s3) ->
               case unpack-jvp-pair sp ty-f32 pair-t (\_ dy s4 -> (dy, s4)) s3 of
@@ -1369,63 +1367,63 @@ module Cinch.Ad where
 
   jvp-array-op :: AdCtx -> List JvpBinding -> Span -> String -> List UType -> List CoreTerm -> UType -> AdState -> (CoreTerm, AdState)
   jvp-array-op ctx env sp name actuals args out-ty st =
-    if same name "cinch.runtime.arrayMapF32" then
+    if name == "cinch.runtime.arrayMapF32" then
       case args of
         [fn, arr] ->
           case jvp-term ctx env arr st of
             (pair-a, s1) -> unpack-jvp-pair sp ty-array-f32 pair-a (\ap at s2 ->
               case jvp-elem-fn-f32-clean ctx env sp fn s2 of
                 (dfn, s3) ->
-                  let primal = mk-arr-call sp "cinch.runtime.arrayMapF32" Nil [UFun ty-f32 ty-f32, ty-array-f32] ty-array-f32 [fn, ap] in
+                  let primal = mk-arr-call sp "cinch.runtime.arrayMapF32" [] [UFun ty-f32 ty-f32, ty-array-f32] ty-array-f32 [fn, ap] in
                   case mk-unwrap-opt-arr sp PF32 (mk-arr-zip-with-f32-opt sp dfn ap at) at s3 of
                     (tang, s4) -> (mk-pair sp primal tang, s4)) s1
         other -> (CError sp, st)
-    else if same name "cinch.runtime.arrayMapUnaryF32" then
+    else if name == "cinch.runtime.arrayMapUnaryF32" then
       case args of
         [arr, op-t, c-t] ->
           jvp-eval-args ctx env [arr, op-t, c-t] (\ps ts _ s1 -> case (ps, ts) of
             ([a, op, c], [da, _, dc]) ->
-              let primal = mk-arr-call sp "cinch.runtime.arrayMapUnaryF32" Nil [ty-array-f32, ty-i64, ty-f32] ty-array-f32 [a, op, c] in
+              let primal = mk-arr-call sp "cinch.runtime.arrayMapUnaryF32" [] [ty-array-f32, ty-i64, ty-f32] ty-array-f32 [a, op, c] in
               case int-lit-value op-t of
                 Some code ->
-                  if same code "0" then
+                  if code == "0" then
                     (mk-pair sp primal (mk-arr-neg sp PF32 da), s1)
-                  else if same code "2" then
+                  else if code == "2" then
                     case mk-arr-add sp PF32 (mk-arr-scale sp PF32 da c) (mk-arr-scale sp PF32 a dc) s1 of
                       (tang, s2) -> (mk-pair sp primal tang, s2)
-                  else if same code "3" then
+                  else if code == "3" then
                     case fresh-ad-id s1 of
                       (xi, s2) -> case fresh-ad-id s2 of
                         (dxi, s3) ->
-                          let dfn = CLambda sp (UFun ty-f32 (UFun ty-f32 ty-f32)) (CPVar sp ty-f32 xi "$ux") (CLambda sp (UFun ty-f32 ty-f32) (CPVar sp ty-f32 dxi "$udx") (mk-fmul ctx sp PF32 (mk-fmul ctx sp PF32 (prec-lit sp PF32 "2.0") (CLocal sp ty-f32 xi "$ux" Nil)) (CLocal sp ty-f32 dxi "$udx" Nil))) in
+                          let dfn = CLambda sp (UFun ty-f32 (UFun ty-f32 ty-f32)) (CPVar sp ty-f32 xi "$ux") (CLambda sp (UFun ty-f32 ty-f32) (CPVar sp ty-f32 dxi "$udx") (mk-fmul ctx sp PF32 (mk-fmul ctx sp PF32 (prec-lit sp PF32 "2.0") (CLocal sp ty-f32 xi "$ux" [])) (CLocal sp ty-f32 dxi "$udx" []))) in
                           case mk-unwrap-opt-arr sp PF32 (mk-arr-zip-with-f32-opt sp dfn a da) da s3 of
                             (tang, s4) -> (mk-pair sp primal tang, s4)
-                  else if same code "4" then
+                  else if code == "4" then
                     case mk-arr-add sp PF32 da (mk-arr-fill sp PF32 (mk-arr-len sp ty-f32 a) dc) s1 of
                       (tang, s2) -> (mk-pair sp primal tang, s2)
                   else (mk-pair sp primal da, s1)
                 None -> (mk-pair sp primal da, s1)
             other -> (CError sp, s1)) st
         other -> (CError sp, st)
-    else if same name "cinch.runtime.arrayZipBinopF32" || same name "cinch.runtime.arrayZipBinopF64" then
-      let p = if same name "cinch.runtime.arrayZipBinopF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayZipBinopF32" || name == "cinch.runtime.arrayZipBinopF64" then
+      let p = if name == "cinch.runtime.arrayZipBinopF32" then PF32 else PF64 in
       let arr-ty = ty-array (prec-ty p) in
       case args of
         [a-e, b-e, op-e] ->
           jvp-eval-args ctx env [a-e, b-e, op-e] (\ps ts _ s1 -> case (ps, ts) of
             ([a, b, op], [da, db, _]) ->
-              let primal = mk-arr-call sp name Nil [arr-ty, arr-ty, ty-i64] (ty-option arr-ty) [a, b, op] in
+              let primal = mk-arr-call sp name [] [arr-ty, arr-ty, ty-i64] (ty-option arr-ty) [a, b, op] in
               case int-lit-value op-e of
                 Some code ->
-                  if same code "0" then
+                  if code == "0" then
                     (mk-pair sp primal (mk-arr-zip-binop-opt sp p da db "0"), s1)
-                  else if same code "1" then
+                  else if code == "1" then
                     (mk-pair sp primal (mk-arr-zip-binop-opt sp p da db "1"), s1)
-                  else if same code "2" then
+                  else if code == "2" then
                     case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p da b "2") da s1 of
                       (t1, s2) -> case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p a db "2") db s2 of
                         (t2, s3) -> (mk-pair sp primal (mk-arr-zip-binop-opt sp p t1 t2 "0"), s3)
-                  else if same code "3" then
+                  else if code == "3" then
                     case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p da b "2") da s1 of
                       (t1, s2) -> case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p a db "2") db s2 of
                         (t2, s3) -> case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p t1 t2 "1") t1 s3 of
@@ -1435,53 +1433,53 @@ module Cinch.Ad where
                 None -> (mk-pair sp primal (mk-none sp arr-ty), s1)
             other -> (CError sp, s1)) st
         other -> (CError sp, st)
-    else if same name "cinch.runtime.arrayScaleF64" then
+    else if name == "cinch.runtime.arrayScaleF64" then
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, s], [da, ds]) ->
           case mk-arr-add sp PF64 (mk-arr-scale sp PF64 da s) (mk-arr-scale sp PF64 a ds) s1 of
             (tang, s2) -> (mk-pair sp (mk-arr-scale sp PF64 a s) tang, s2)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayReduceF32" || same name "cinch.runtime.arrayReduceF64" then
-      let p = if same name "cinch.runtime.arrayReduceF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayReduceF32" || name == "cinch.runtime.arrayReduceF64" then
+      let p = if name == "cinch.runtime.arrayReduceF32" then PF32 else PF64 in
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, mode], [da, _]) -> (mk-pair sp (mk-arr-reduce sp p a mode) (mk-arr-reduce sp p da mode), s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayDotF32" || same name "cinch.runtime.arrayDotF64" then
-      let p = if same name "cinch.runtime.arrayDotF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayDotF32" || name == "cinch.runtime.arrayDotF64" then
+      let p = if name == "cinch.runtime.arrayDotF32" then PF32 else PF64 in
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, b, mode], [da, db, _]) ->
           let primal = mk-arr-dot sp p a b mode in
           let tang = mk-fadd ctx sp p (mk-arr-dot sp p da b mode) (mk-arr-dot sp p a db mode) in
           (mk-pair sp primal tang, s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayRowReduceF32" then
+    else if name == "cinch.runtime.arrayRowReduceF32" then
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, r, c, m], [da, _, _, _]) ->
-          let mk = (\x -> mk-arr-call sp name Nil [ty-array-f32, ty-nat, ty-nat, ty-i64] (ty-option ty-array-f32) [x, r, c, m]) in
+          let mk = (\x -> mk-arr-call sp name [] [ty-array-f32, ty-nat, ty-nat, ty-i64] (ty-option ty-array-f32) [x, r, c, m]) in
           (mk-pair sp (mk a) (mk da), s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayGatherF32" then
+    else if name == "cinch.runtime.arrayGatherF32" then
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, idx, oob], [da, _, _]) ->
-          let mk = (\x -> mk-arr-call sp name Nil [ty-array-f32, ty-array-i32, ty-i64] ty-array-f32 [x, idx, oob]) in
+          let mk = (\x -> mk-arr-call sp name [] [ty-array-f32, ty-array-i32, ty-i64] ty-array-f32 [x, idx, oob]) in
           (mk-pair sp (mk a) (mk da), s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayStencil2DF32" || same name "cinch.runtime.arrayStencil2DAdjointF32" then
+    else if name == "cinch.runtime.arrayStencil2DF32" || name == "cinch.runtime.arrayStencil2DAdjointF32" then
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, r, h, w, wts, edge, steps], [da, _, _, _, _, _, _]) ->
-          let mk = (\x -> mk-arr-call sp name Nil [ty-array-f32, ty-nat, ty-nat, ty-nat, ty-array-f32, ty-i64, ty-nat] (ty-option ty-array-f32) [x, r, h, w, wts, edge, steps]) in
+          let mk = (\x -> mk-arr-call sp name [] [ty-array-f32, ty-nat, ty-nat, ty-nat, ty-array-f32, ty-i64, ty-nat] (ty-option ty-array-f32) [x, r, h, w, wts, edge, steps]) in
           (mk-pair sp (mk a) (mk da), s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayFillF32" || same name "cinch.runtime.arrayFillF64" then
-      let p = if same name "cinch.runtime.arrayFillF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayFillF32" || name == "cinch.runtime.arrayFillF64" then
+      let p = if name == "cinch.runtime.arrayFillF32" then PF32 else PF64 in
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([n, v], [_, dv]) -> (mk-pair sp (mk-arr-fill sp p n v) (mk-arr-fill sp p n dv), s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayRowBroadcastF32" then
+    else if name == "cinch.runtime.arrayRowBroadcastF32" then
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([a, r, c], [da, _, _]) -> (mk-pair sp (mk-arr-row-broadcast-f32 sp a r c) (mk-arr-row-broadcast-f32 sp da r c), s1)
         other -> (CError sp, s1)) st
-    else if same name "cinch.runtime.arrayScatterAddF32" then
+    else if name == "cinch.runtime.arrayScatterAddF32" then
       jvp-eval-args ctx env args (\ps ts _ s1 -> case (ps, ts) of
         ([len, idx, vals, oob], [_, _, dvals, _]) -> (mk-pair sp (mk-arr-scatter-add-f32 sp len idx vals oob) (mk-arr-scatter-add-f32 sp len idx dvals oob), s1)
         other -> (CError sp, s1)) st
@@ -1493,8 +1491,8 @@ module Cinch.Ad where
   -- memoized `f$jvp_N` companion CoreDefinitions!
   has-closure-arg :: AdCtx -> List CoreTerm -> Bool
   has-closure-arg ctx args = case args of
-    Nil -> False
-    Cons a rest -> case ad-type-of ctx (core-type a) of
+    [] -> False
+    a : rest -> case ad-type-of ctx (core-type a) of
       AdClosure -> True
       other -> has-closure-arg ctx rest
 
@@ -1514,7 +1512,7 @@ module Cinch.Ad where
         let key = "jvp:" <> def.name <> ":" <> type-list-key actuals <> ":" <> bool-mask-key acts in
         let call-args = interleave-jvp-args ps ts acts in
         case state-lookup-memo key s1 of
-          Some (gname, gty) -> (apply-args sp (CUse sp gty gname "value" Nil) call-args, s1)
+          Some (gname, gty) -> (apply-args sp (CUse sp gty gname "value" []) call-args, s1)
           None -> case instantiate-def-body ctx def actuals s1 of
             Some (pats, body, s2) ->
               case fresh-ad-id s2 of
@@ -1527,32 +1525,32 @@ module Cinch.Ad where
                       let s5 = state-add-memo key gname gty s4 in
                       case jvp-term ctx genv body s5 of
                         (gbody, s6) ->
-                          let gdef = CoreDefinition sp gname (mono gty) Nil Nil Nil [CoreClause sp gpats gbody] in
+                          let gdef = CoreDefinition sp gname (mono gty) [] [] [] [CoreClause sp gpats gbody] in
                           let s7 = state-add-def gdef s6 in
-                          (apply-args sp (CUse sp gty gname "value" Nil) call-args, s7)
+                          (apply-args sp (CUse sp gty gname "value" []) call-args, s7)
             None -> (CError sp, s1)) st
 
   interleave-jvp-args :: List CoreTerm -> List CoreTerm -> List Bool -> List CoreTerm
   interleave-jvp-args ps ts acts = case (ps, ts, acts) of
-    (Cons p pr, Cons t tr, Cons True ar) -> Cons p (Cons t (interleave-jvp-args pr tr ar))
-    (Cons p pr, Cons _ tr, Cons False ar) -> Cons p (interleave-jvp-args pr tr ar)
-    other -> Nil
+    (p : pr, t : tr, True : ar) -> p : t : (interleave-jvp-args pr tr ar)
+    (p : pr, _ : tr, False : ar) -> p : (interleave-jvp-args pr tr ar)
+    other -> []
 
   build-jvp-params :: AdCtx -> Span -> List CorePattern -> List Bool -> AdState -> (List CorePattern, List JvpBinding, List UType, AdState)
   build-jvp-params ctx sp pats acts st = case (pats, acts) of
-    (Cons p pr, Cons True ar) -> case p of
+    (p : pr, True : ar) -> case p of
       CPVar _ ty id name ->
         let rty = reduce-ad-type ctx ty in
         let adty = ad-type-of ctx rty in
         case fresh-ad-id st of
           (tid, s1) -> case build-jvp-params ctx sp pr ar s1 of
             (gps, genv, ptys, s2) ->
-              (Cons p (Cons (CPVar sp rty tid ("d_" <> name)) gps), Cons (JvpBinding id tid adty rty) genv, Cons rty (Cons rty ptys), s2)
+              (p : (CPVar sp rty tid ("d_" <> name)) : gps, (JvpBinding id tid adty rty) : genv, rty : rty : ptys, s2)
       other -> case build-jvp-params ctx sp pr ar st of
-        (gps, genv, ptys, s1) -> (Cons p gps, genv, Cons (core-pat-type p) ptys, s1)
-    (Cons p pr, Cons False ar) -> case build-jvp-params ctx sp pr ar st of
-      (gps, genv, ptys, s1) -> (Cons p gps, genv, Cons (core-pat-type p) ptys, s1)
-    other -> (Nil, Nil, Nil, st)
+        (gps, genv, ptys, s1) -> (p : gps, genv, (core-pat-type p) : ptys, s1)
+    (p : pr, False : ar) -> case build-jvp-params ctx sp pr ar st of
+      (gps, genv, ptys, s1) -> (p : gps, genv, (core-pat-type p) : ptys, s1)
+    other -> ([], [], [], st)
 
   core-pat-type :: CorePattern -> UType
   core-pat-type p = case p of
@@ -1565,14 +1563,14 @@ module Cinch.Ad where
 
   type-list-key :: List UType -> String
   type-list-key ts = case ts of
-    Nil -> ""
-    Cons h t -> type-text h <> "," <> type-list-key t
+    [] -> ""
+    h : t -> type-text h <> "," <> type-list-key t
 
   bool-mask-key :: List Bool -> String
   bool-mask-key bs = case bs of
-    Nil -> ""
-    Cons True rest -> "1" <> bool-mask-key rest
-    Cons False rest -> "0" <> bool-mask-key rest
+    [] -> ""
+    True : rest -> "1" <> bool-mask-key rest
+    False : rest -> "0" <> bool-mask-key rest
 
   -- ---------------------------------------------------------------------------
   -- REVERSE-MODE VJP (`vjp2 f x dy -> (y, dx)`)
@@ -1589,20 +1587,20 @@ module Cinch.Ad where
 
   vjp-var-ids :: List VjpVar -> List Nat
   vjp-var-ids vs = case vs of
-    Nil -> Nil
-    Cons (VjpVar id _ _ _) rest -> Cons id (vjp-var-ids rest)
+    [] -> []
+    (VjpVar id _ _ _) : rest -> id : (vjp-var-ids rest)
 
   vjp-lookup-var :: Nat -> List VjpVar -> Option VjpVar
   vjp-lookup-var id vs = case vs of
-    Nil -> None
-    Cons v rest -> if v.var-id == id then Some v else vjp-lookup-var id rest
+    [] -> None
+    v : rest -> if v.var-id == id then Some v else vjp-lookup-var id rest
 
   filter-active-vars :: List Nat -> List VjpVar -> List VjpVar
   filter-active-vars ids env = case env of
-    Nil -> Nil
-    Cons v rest ->
+    [] -> []
+    v : rest ->
       let more = filter-active-vars ids rest in
-      if has-nat (v.var-id) ids then Cons v more else more
+      if has-nat (v.var-id) ids then v : more else more
 
   -- Forward pass bindings (stored in reverse order during construction, then wrapped outside-in)
   data FwdBind where
@@ -1643,8 +1641,8 @@ module Cinch.Ad where
 
   wrap-fwd-binds :: Span -> List FwdBind -> CoreTerm -> CoreTerm
   wrap-fwd-binds sp rev-binds body = case rev-binds of
-    Nil -> body
-    Cons b rest ->
+    [] -> body
+    b : rest ->
       let next = case b of
             FwdLet id name ty rhs -> CLet sp (core-type body) id name (mono ty) rhs body
             FwdCase scrut pat -> CCase sp (core-type body) scrut (CAlternative sp pat body (CAlternativesEnd sp))
@@ -1659,16 +1657,16 @@ module Cinch.Ad where
 
   cot-lookup :: Nat -> List CotEntry -> Option CotEntry
   cot-lookup id cots = case cots of
-    Nil -> None
-    Cons c rest -> case c of
+    [] -> None
+    c : rest -> case c of
       CotEntry cid _ _ _ -> if cid == id then Some c else cot-lookup id rest
 
   cot-replace :: Nat -> AdType -> UType -> CoreTerm -> List CotEntry -> List CotEntry
   cot-replace id adty uty val cots = case cots of
-    Nil -> [CotEntry id adty uty val]
-    Cons (CotEntry cid ca cu cv) rest ->
-      if cid == id then Cons (CotEntry id adty uty val) rest
-      else Cons (CotEntry cid ca cu cv) (cot-replace id adty uty val rest)
+    [] -> [CotEntry id adty uty val]
+    (CotEntry cid ca cu cv) : rest ->
+      if cid == id then (CotEntry id adty uty val) : rest
+      else (CotEntry cid ca cu cv) : (cot-replace id adty uty val rest)
 
   -- Accumulate a cotangent contribution `contrib` into variable `vid` (if `Some vid`).
   -- Emits a `CLet` binding if `vid` already has a cotangent so no work is duplicated!
@@ -1680,17 +1678,17 @@ module Cinch.Ad where
       else case cot-lookup vid cots of
         None -> case fresh-ad-id st of
           (cid, s1) ->
-            let cv = CLocal sp uty cid "$cot" Nil in
-            (Cons (CotEntry vid adty uty cv) cots, Cons (FwdLet cid "$cot" uty contrib) rev-binds, s1)
+            let cv = CLocal sp uty cid "$cot" [] in
+            ((CotEntry vid adty uty cv) : cots, (FwdLet cid "$cot" uty contrib) : rev-binds, s1)
         Some (CotEntry _ _ _ prev) -> case ad-add ctx sp adty uty prev contrib st of
           (summed, s1) -> case fresh-ad-id s1 of
             (cid, s2) ->
-              let cv = CLocal sp uty cid "$cot" Nil in
-              (cot-replace vid adty uty cv cots, Cons (FwdLet cid "$cot" uty summed) rev-binds, s2)
+              let cv = CLocal sp uty cid "$cot" [] in
+              (cot-replace vid adty uty cv cots, (FwdLet cid "$cot" uty summed) : rev-binds, s2)
 
   acc-cot-list :: AdCtx -> Span -> List (Option Nat) -> List AdType -> List UType -> List CoreTerm -> List CotEntry -> List FwdBind -> AdState -> (List CotEntry, List FwdBind, AdState)
   acc-cot-list ctx sp mvids ads tys cs cots binds st = case (mvids, ads, tys, cs) of
-    (Cons mv mvr, Cons a ar, Cons t tr, Cons c cr) ->
+    (mv : mvr, a : ar, t : tr, c : cr) ->
       case acc-cot ctx sp mv a t c cots binds st of
         (cots1, binds1, s1) -> acc-cot-list ctx sp mvr ar tr cr cots1 binds1 s1
     other -> (cots, binds, st)
@@ -1700,24 +1698,24 @@ module Cinch.Ad where
   vjp-bind-atom sp ty adty term existing-id fwds revs env st = case term of
     CLocal _ _ id name _ ->
       let oid = if ad-is-active adty then (case existing-id of Some e -> Some e; None -> Some id) else None in
-      let env1 = case oid of Some aid -> (case vjp-lookup-var aid env of Some _ -> env; None -> Cons (VjpVar aid name adty ty) env); None -> env in
+      let env1 = case oid of Some aid -> (case vjp-lookup-var aid env of Some _ -> env; None -> (VjpVar aid name adty ty) : env); None -> env in
       VjpFwd term oid fwds revs env1 st
     other -> case fresh-ad-id st of
       (id, s1) ->
         let nm = "$vf_" <> nat-str id in
-        let v = CLocal sp ty id nm Nil in
+        let v = CLocal sp ty id nm [] in
         let oid = if ad-is-active adty then Some id else None in
-        let env1 = if ad-is-active adty then Cons (VjpVar id nm adty ty) env else env in
-        VjpFwd v oid (Cons (FwdLet id nm ty term) fwds) revs env1 s1
+        let env1 = if ad-is-active adty then (VjpVar id nm adty ty) : env else env in
+        VjpFwd v oid ((FwdLet id nm ty term) : fwds) revs env1 s1
 
   -- Evaluate a list of argument expressions in VJP forward mode.
   vjp-fwd-args :: AdCtx -> List CoreTerm -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> (List CoreTerm, List (Option Nat), List FwdBind, List RevStep, List VjpVar, AdState)
   vjp-fwd-args ctx args fwds revs env st = case args of
-    Nil -> (Nil, Nil, fwds, revs, env, st)
-    Cons a rest -> case vjp-fwd ctx a fwds revs env st of
+    [] -> ([], [], fwds, revs, env, st)
+    a : rest -> case vjp-fwd ctx a fwds revs env st of
       VjpFwd p1 oid1 fwds1 revs1 env1 s1 ->
         case vjp-fwd-args ctx rest fwds1 revs1 env1 s1 of
-          (ps, oids, fwds2, revs2, env2, s2) -> (Cons p1 ps, Cons oid1 oids, fwds2, revs2, env2, s2)
+          (ps, oids, fwds2, revs2, env2, s2) -> (p1 : ps, oid1 : oids, fwds2, revs2, env2, s2)
 
   -- Core forward-sweep builder for reverse-mode VJP.
   vjp-fwd :: AdCtx -> CoreTerm -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> VjpFwd
@@ -1739,11 +1737,11 @@ module Cinch.Ad where
         let rad = ad-type-of ctx rty in
         case vjp-fwd ctx rhs fwds revs env st of
           VjpFwd pr oid fwds1 revs1 env1 s1 ->
-            let fwds2 = Cons (FwdLet id name rty pr) fwds1 in
+            let fwds2 = (FwdLet id name rty pr) : fwds1 in
             case oid of
               Some rid ->
-                let env2 = Cons (VjpVar id name rad rty) env1 in
-                let revs2 = if rid == id then revs1 else Cons (RevAlias id rid rad rty) revs1 in
+                let env2 = (VjpVar id name rad rty) : env1 in
+                let revs2 = if rid == id then revs1 else (RevAlias id rid rad rty) : revs1 in
                 vjp-fwd ctx body fwds2 revs2 env2 s1
               None -> vjp-fwd ctx body fwds2 revs1 env1 s1
 
@@ -1756,16 +1754,16 @@ module Cinch.Ad where
             case fresh-ad-id s1 of
               (tid, s2) ->
                 let nm = "$vt_" <> nat-str tid in
-                let tv = CLocal sp ty tid nm Nil in
-                let fwds2 = Cons (FwdLet tid nm ty (mk-tuple sp ps)) fwds1 in
-                let revs2 = Cons (RevTuple tid ty ftys fads oids) revs1 in
-                let env2 = Cons (VjpVar tid nm adty ty) env1 in
+                let tv = CLocal sp ty tid nm [] in
+                let fwds2 = (FwdLet tid nm ty (mk-tuple sp ps)) : fwds1 in
+                let revs2 = (RevTuple tid ty ftys fads oids) : revs1 in
+                let env2 = (VjpVar tid nm adty ty) : env1 in
                 VjpFwd tv (Some tid) fwds2 revs2 env2 s2
 
       CIf _ _ cond yes no ->
         case vjp-fwd ctx cond fwds revs env st of
           VjpFwd c1 _ fwds1 revs1 env1 s1 ->
-            let fvs = filter-active-vars (free-locals-in Nil yes (free-locals-in Nil no Nil)) env1 in
+            let fvs = filter-active-vars (free-locals-in [] yes (free-locals-in [] no [])) env1 in
             vjp-branch-if ctx sp ty adty c1 yes no fvs fwds1 revs1 env1 s1
 
       CCase _ _ scrut alts ->
@@ -1786,13 +1784,13 @@ module Cinch.Ad where
     let full-env = extra-env in
     let cot-tuple-ty = ty-tuple-of (list-map (\v -> case v of VjpVar _ _ _ u -> u) out-vars) in
     let pb-ty = UFun out-ty cot-tuple-ty in
-    case vjp-fwd ctx body Nil Nil full-env st of
+    case vjp-fwd ctx body [] [] full-env st of
       VjpFwd pr oid fwds revs _ s1 ->
         case fresh-ad-id s1 of
           (dyid, s2) ->
-            let dyv = CLocal sp out-ty dyid "$bdy" Nil in
-            let init-cots = case oid of Some rid -> [CotEntry rid out-ad out-ty dyv]; None -> Nil in
-            case emit-rev-sweep ctx sp revs init-cots Nil s2 of
+            let dyv = CLocal sp out-ty dyid "$bdy" [] in
+            let init-cots = case oid of Some rid -> [CotEntry rid out-ad out-ty dyv]; None -> [] in
+            case emit-rev-sweep ctx sp revs init-cots [] s2 of
               (final-cots, rev-binds, s3) ->
                 case collect-var-cots sp out-vars final-cots s3 of
                   (cot-terms, s4) ->
@@ -1803,13 +1801,13 @@ module Cinch.Ad where
 
   collect-var-cots :: Span -> List VjpVar -> List CotEntry -> AdState -> (List CoreTerm, AdState)
   collect-var-cots sp vars cots st = case vars of
-    Nil -> (Nil, st)
-    Cons (VjpVar id name adty uty) rest ->
+    [] -> ([], st)
+    (VjpVar id name adty uty) : rest ->
       let (t1, s1) = case cot-lookup id cots of
             Some (CotEntry _ _ _ c) -> (c, st)
-            None -> ad-zero sp adty uty (Some (CLocal sp uty id name Nil)) st
+            None -> ad-zero sp adty uty (Some (CLocal sp uty id name [])) st
       in case collect-var-cots sp rest cots s1 of
-        (more, s2) -> (Cons t1 more, s2)
+        (more, s2) -> (t1 : more, s2)
 
   vjp-branch-if :: AdCtx -> Span -> UType -> AdType -> CoreTerm -> CoreTerm -> CoreTerm -> List VjpVar -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> VjpFwd
   vjp-branch-if ctx sp ty adty cond yes no fvs fwds revs env st =
@@ -1823,10 +1821,10 @@ module Cinch.Ad where
               (pbid, s4) ->
                 let if-term = CIf sp (ty-pair ty pb-ty) cond yes-pair no-pair in
                 let pat = CPTuple sp (ty-pair ty pb-ty) (CPField sp (CPVar sp ty yid "$iy") (CPField sp (CPVar sp pb-ty pbid "$ipb") (CPDone sp))) in
-                let fwds1 = Cons (FwdCase if-term pat) fwds in
-                let revs1 = Cons (RevPullback yid pbid fvs) revs in
-                let env1 = Cons (VjpVar yid "$iy" adty ty) env in
-                VjpFwd (CLocal sp ty yid "$iy" Nil) (Some yid) fwds1 revs1 env1 s4
+                let fwds1 = (FwdCase if-term pat) : fwds in
+                let revs1 = (RevPullback yid pbid fvs) : revs in
+                let env1 = (VjpVar yid "$iy" adty ty) : env in
+                VjpFwd (CLocal sp ty yid "$iy" []) (Some yid) fwds1 revs1 env1 s4
 
   -- Pattern matching in VJP forward mode.
   vjp-case :: AdCtx -> Span -> UType -> AdType -> UType -> AdType -> CoreTerm -> Option Nat -> CoreTerm -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> VjpFwd
@@ -1837,12 +1835,12 @@ module Cinch.Ad where
         case pat of
           CPTuple _ _ pfields ->
             let fpts = cpfields-to-pats pfields in
-            let ftys = case sty of UTuple spine -> uarg-to-utype-list spine; other -> Nil in
+            let ftys = case sty of UTuple spine -> uarg-to-utype-list spine; other -> [] in
             let fads = list-map (ad-type-of ctx) ftys in
             let new-vars = collect-pat-vjp-vars fpts ftys fads in
-            let fwds1 = Cons (FwdCase scrut pat) fwds in
+            let fwds1 = (FwdCase scrut pat) : fwds in
             let revs1 = case sc-oid of
-                  Some sid -> Cons (RevDeTuple sid sty ftys fads scrut (pat-id-names fpts)) revs
+                  Some sid -> (RevDeTuple sid sty ftys fads scrut (pat-id-names fpts)) : revs
                   None -> revs in
             vjp-fwd ctx body fwds1 revs1 (new-vars <> env) st
           CPConstructor _ _ cname actuals cty pfields ->
@@ -1850,17 +1848,17 @@ module Cinch.Ad where
             let ftys = list-map core-pat-type fpts in
             let fads = list-map (ad-type-of ctx) ftys in
             let new-vars = collect-pat-vjp-vars fpts ftys fads in
-            let fwds1 = Cons (FwdCase scrut pat) fwds in
+            let fwds1 = (FwdCase scrut pat) : fwds in
             let revs1 = case sc-oid of
-                  Some sid -> Cons (RevDeProduct sid cname actuals cty ftys fads sty scrut (pat-id-names fpts)) revs
+                  Some sid -> (RevDeProduct sid cname actuals cty ftys fads sty scrut (pat-id-names fpts)) : revs
                   None -> revs in
             vjp-fwd ctx body fwds1 revs1 (new-vars <> env) st
           CPVar _ vty vid vname ->
-            let fwds1 = Cons (FwdLet vid vname vty scrut) fwds in
+            let fwds1 = (FwdLet vid vname vty scrut) : fwds in
             case sc-oid of
               Some sid ->
-                let env1 = Cons (VjpVar vid vname sad vty) env in
-                let revs1 = if sid == vid then revs else Cons (RevAlias vid sid sad vty) revs in
+                let env1 = (VjpVar vid vname sad vty) : env in
+                let revs1 = if sid == vid then revs else (RevAlias vid sid sad vty) : revs in
                 vjp-fwd ctx body fwds1 revs1 env1 st
               None -> vjp-fwd ctx body fwds1 revs env st
           CPWild _ _ -> vjp-fwd ctx body fwds revs env st
@@ -1869,17 +1867,17 @@ module Cinch.Ad where
 
   collect-pat-vjp-vars :: List CorePattern -> List UType -> List AdType -> List VjpVar
   collect-pat-vjp-vars ps tys ads = case (ps, tys, ads) of
-    (Cons (CPVar _ _ id name) pr, Cons t tr, Cons a ar) ->
+    ((CPVar _ _ id name) : pr, t : tr, a : ar) ->
       let more = collect-pat-vjp-vars pr tr ar in
-      if ad-is-active a then Cons (VjpVar id name a t) more else more
-    (Cons _ pr, Cons _ tr, Cons _ ar) -> collect-pat-vjp-vars pr tr ar
-    other -> Nil
+      if ad-is-active a then (VjpVar id name a t) : more else more
+    (_ : pr, _ : tr, _ : ar) -> collect-pat-vjp-vars pr tr ar
+    other -> []
 
   pat-id-names :: List CorePattern -> List (Nat, String)
   pat-id-names ps = case ps of
-    Nil -> Nil
-    Cons (CPVar _ _ id name) rest -> Cons (id, name) (pat-id-names rest)
-    Cons _ rest -> Cons (0, "_") (pat-id-names rest)
+    [] -> []
+    (CPVar _ _ id name) : rest -> (id, name) : (pat-id-names rest)
+    _ : rest -> (0, "_") : (pat-id-names rest)
 
   -- Multi-branch `CCase` (e.g. `Option`, `FloatMode`, `Bool`) using per-branch pullback closures.
   vjp-case-multi :: AdCtx -> Span -> UType -> AdType -> UType -> AdType -> CoreTerm -> Option Nat -> CoreTerm -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> VjpFwd
@@ -1887,9 +1885,9 @@ module Cinch.Ad where
     if not (ad-is-active adty) then
       VjpFwd (CCase sp ty scrut alts) None fwds revs env st
     else
-      let fvs = filter-active-vars (free-locals-in Nil alts Nil) env in
+      let fvs = filter-active-vars (free-locals-in [] alts []) env in
       let all-out-vars = case sc-oid of
-            Some sid -> if has-nat sid (vjp-var-ids fvs) then fvs else Cons (VjpVar sid "$sc" sad sty) fvs
+            Some sid -> if has-nat sid (vjp-var-ids fvs) then fvs else (VjpVar sid "$sc" sad sty) : fvs
             None -> fvs in
       let cot-ty = ty-tuple-of (list-map (\v -> case v of VjpVar _ _ _ u -> u) all-out-vars) in
       let pb-ty = UFun ty cot-ty in
@@ -1899,20 +1897,20 @@ module Cinch.Ad where
             (pbid, s3) ->
               let case-term = CCase sp (ty-pair ty pb-ty) scrut new-alts in
               let pat = CPTuple sp (ty-pair ty pb-ty) (CPField sp (CPVar sp ty yid "$cy") (CPField sp (CPVar sp pb-ty pbid "$cpb") (CPDone sp))) in
-              let fwds1 = Cons (FwdCase case-term pat) fwds in
-              let revs1 = Cons (RevPullback yid pbid all-out-vars) revs in
-              let env1 = Cons (VjpVar yid "$cy" adty ty) env in
-              VjpFwd (CLocal sp ty yid "$cy" Nil) (Some yid) fwds1 revs1 env1 s3
+              let fwds1 = (FwdCase case-term pat) : fwds in
+              let revs1 = (RevPullback yid pbid all-out-vars) : revs in
+              let env1 = (VjpVar yid "$cy" adty ty) : env in
+              VjpFwd (CLocal sp ty yid "$cy" []) (Some yid) fwds1 revs1 env1 s3
 
   vjp-case-multi-alts :: AdCtx -> Span -> UType -> AdType -> UType -> AdType -> Option Nat -> List VjpVar -> List VjpVar -> List VjpVar -> CoreTerm -> AdState -> (CoreTerm, AdState)
   vjp-case-multi-alts ctx sp ty adty sty sad sc-oid fvs all-out-vars env alts st = case alts of
     CAlternative asp pat body rest ->
       case (sc-oid, sad, pat) of
-        (Some sid, AdOption elem ead, CPConstructor _ _ cname _ _ pfields) | same cname global-data-core-some ->
+        (Some sid, AdOption elem ead, CPConstructor _ _ cname _ _ pfields) | (cname == global-data-core-some) ->
           case cpfields-to-pats pfields of
-            Cons (CPVar _ _ vid vname) Nil ->
-              let b-env = Cons (VjpVar vid vname ead elem) env in
-              let b-outs = Cons (VjpVar vid vname ead elem) fvs in
+            [CPVar _ _ vid vname] ->
+              let b-env = (VjpVar vid vname ead elem) : env in
+              let b-outs = (VjpVar vid vname ead elem) : fvs in
               case vjp-make-pb-expr ctx asp body ty adty b-env b-outs st of
                 (pair-b, _, s1) ->
                   -- Wrap pullback so `dv` becomes `Some dv` for `sid` (matching `all-out-vars`)
@@ -1923,7 +1921,7 @@ module Cinch.Ad where
             other -> case vjp-make-pb-expr ctx asp body ty adty env all-out-vars st of
               (pair-b, _, s1) -> case vjp-case-multi-alts ctx sp ty adty sty sad sc-oid fvs all-out-vars env rest s1 of
                 (r1, s2) -> (CAlternative asp pat pair-b r1, s2)
-        (Some sid, AdOption elem _, CPConstructor _ _ cname _ _ _) | same cname global-data-core-none ->
+        (Some sid, AdOption elem _, CPConstructor _ _ cname _ _ _) | (cname == global-data-core-none) ->
           case vjp-make-pb-expr ctx asp body ty adty env fvs st of
             (pair-b, _, s1) ->
               let wrapped = wrap-option-none-pb asp ty elem fvs all-out-vars sid pair-b s1 in
@@ -1939,7 +1937,7 @@ module Cinch.Ad where
   wrap-option-some-pb :: Span -> UType -> UType -> AdType -> List VjpVar -> List VjpVar -> Nat -> CoreTerm -> AdState -> (CoreTerm, AdState)
   wrap-option-some-pb sp out-ty elem ead fvs all-out-vars sid pair-b st =
     let fvs-tys = list-map (\v -> case v of VjpVar _ _ _ u -> u) fvs in
-    let old-cot-ty = ty-tuple-of (Cons elem fvs-tys) in
+    let old-cot-ty = ty-tuple-of (elem : fvs-tys) in
     let old-pb-ty = UFun out-ty old-cot-ty in
     let new-cot-ty = ty-tuple-of (list-map (\v -> case v of VjpVar _ _ _ u -> u) all-out-vars) in
     let new-pb-ty = UFun out-ty new-cot-ty in
@@ -1949,14 +1947,14 @@ module Cinch.Ad where
           (dyid, s3) -> case fresh-ad-id s3 of
             (dvid, s4) -> case fresh-field-vars sp fvs-tys "fv" s4 of
               (fv-pats, fv-terms, s5) ->
-                let call-old = CApply sp old-cot-ty (CLocal sp old-pb-ty pbid "$opb" Nil) (CLocal sp out-ty dyid "$ody" Nil) in
-                let some-dv = mk-some sp elem (CLocal sp elem dvid "$odv" Nil) in
+                let call-old = CApply sp old-cot-ty (CLocal sp old-pb-ty pbid "$opb" []) (CLocal sp out-ty dyid "$ody" []) in
+                let some-dv = mk-some sp elem (CLocal sp elem dvid "$odv" []) in
                 let new-terms = place-opt-cot sid some-dv fvs fv-terms all-out-vars in
                 let unpacked = case fvs of
-                      Nil -> CLet sp new-cot-ty dvid "$odv" (mono elem) call-old (mk-tuple sp new-terms)
-                      more -> CCase sp new-cot-ty call-old (CAlternative sp (CPTuple sp old-cot-ty (pats-to-cpfields sp (Cons (CPVar sp elem dvid "$odv") fv-pats))) (mk-tuple sp new-terms) (CAlternativesEnd sp)) in
+                      [] -> CLet sp new-cot-ty dvid "$odv" (mono elem) call-old (mk-tuple sp new-terms)
+                      more -> CCase sp new-cot-ty call-old (CAlternative sp (CPTuple sp old-cot-ty (pats-to-cpfields sp ((CPVar sp elem dvid "$odv") : fv-pats))) (mk-tuple sp new-terms) (CAlternativesEnd sp)) in
                 let new-pb = CLambda sp new-pb-ty (CPVar sp out-ty dyid "$ody") unpacked in
-                let res-pair = mk-pair sp (CLocal sp out-ty yid "$oy" Nil) new-pb in
+                let res-pair = mk-pair sp (CLocal sp out-ty yid "$oy" []) new-pb in
                 let pat = CPTuple sp (ty-pair out-ty old-pb-ty) (CPField sp (CPVar sp out-ty yid "$oy") (CPField sp (CPVar sp old-pb-ty pbid "$opb") (CPDone sp))) in
                 (CCase sp (ty-pair out-ty new-pb-ty) pair-b (CAlternative sp pat res-pair (CAlternativesEnd sp)), s5)
 
@@ -1972,36 +1970,36 @@ module Cinch.Ad where
         (pbid, s2) -> case fresh-ad-id s2 of
           (dyid, s3) -> case fresh-field-vars sp fvs-tys "fv" s3 of
             (fv-pats, fv-terms, s4) ->
-              let call-old = CApply sp old-cot-ty (CLocal sp old-pb-ty pbid "$npb" Nil) (CLocal sp out-ty dyid "$ndy" Nil) in
+              let call-old = CApply sp old-cot-ty (CLocal sp old-pb-ty pbid "$npb" []) (CLocal sp out-ty dyid "$ndy" []) in
               let none-dv = mk-none sp elem in
               let new-terms = place-opt-cot sid none-dv fvs fv-terms all-out-vars in
               let unpacked = case (fvs, fv-pats) of
-                    (Nil, Nil) -> mk-tuple sp new-terms
-                    (Cons _ Nil, Cons (CPVar _ fty fid fnm) Nil) -> CLet sp new-cot-ty fid fnm (mono fty) call-old (mk-tuple sp new-terms)
+                    ([], []) -> mk-tuple sp new-terms
+                    ([_], [CPVar _ fty fid fnm]) -> CLet sp new-cot-ty fid fnm (mono fty) call-old (mk-tuple sp new-terms)
                     other -> CCase sp new-cot-ty call-old (CAlternative sp (CPTuple sp old-cot-ty (pats-to-cpfields sp fv-pats)) (mk-tuple sp new-terms) (CAlternativesEnd sp)) in
               let new-pb = CLambda sp new-pb-ty (CPVar sp out-ty dyid "$ndy") unpacked in
-              let res-pair = mk-pair sp (CLocal sp out-ty yid "$ny" Nil) new-pb in
+              let res-pair = mk-pair sp (CLocal sp out-ty yid "$ny" []) new-pb in
               let pat = CPTuple sp (ty-pair out-ty old-pb-ty) (CPField sp (CPVar sp out-ty yid "$ny") (CPField sp (CPVar sp old-pb-ty pbid "$npb") (CPDone sp))) in
               (CCase sp (ty-pair out-ty new-pb-ty) pair-b (CAlternative sp pat res-pair (CAlternativesEnd sp)), s4)
 
   place-opt-cot :: Nat -> CoreTerm -> List VjpVar -> List CoreTerm -> List VjpVar -> List CoreTerm
   place-opt-cot sid opt-val fvs fv-terms all-vars = case all-vars of
-    Nil -> Nil
-    Cons v rest ->
+    [] -> []
+    v : rest ->
       let more = place-opt-cot sid opt-val fvs fv-terms rest in
-      if v.var-id == sid then Cons opt-val more
-      else Cons (find-fv-term (v.var-id) fvs fv-terms opt-val) more
+      if v.var-id == sid then opt-val : more
+      else (find-fv-term (v.var-id) fvs fv-terms opt-val) : more
 
   find-fv-term :: Nat -> List VjpVar -> List CoreTerm -> CoreTerm -> CoreTerm
   find-fv-term id fvs ts fallback = case (fvs, ts) of
-    (Cons v vr, Cons t tr) -> if v.var-id == id then t else find-fv-term id vr tr fallback
+    (v : vr, t : tr) -> if v.var-id == id then t else find-fv-term id vr tr fallback
     other -> fallback
 
   -- Application in VJP forward mode
   vjp-app :: AdCtx -> Span -> CoreTerm -> UType -> AdType -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> VjpFwd
   vjp-app ctx sp term out-ty out-ad fwds revs env st =
-    case unwrap-core-app term Nil of
-      (CLambda _ _ pat body, Cons arg rest) ->
+    case unwrap-core-app term [] of
+      (CLambda _ _ pat body, arg : rest) ->
         let reduced = apply-args sp (bind-pat-arg sp pat arg body) rest in
         vjp-fwd ctx reduced fwds revs env st
       (head, args) -> case head-use-info head of
@@ -2013,42 +2011,42 @@ module Cinch.Ad where
                 (ps, oids, fwds1, revs1, env1, s1) -> case fresh-ad-id s1 of
                   (yid, s2) ->
                     let nm = "$vs_" <> nat-str yid in
-                    let yv = CLocal sp out-ty yid nm Nil in
-                    let fwds2 = Cons (FwdLet yid nm out-ty (apply-args sp head ps)) fwds1 in
-                    let revs2 = Cons (RevScalar yid sop ps oids) revs1 in
-                    let env2 = Cons (VjpVar yid nm out-ad out-ty) env1 in
+                    let yv = CLocal sp out-ty yid nm [] in
+                    let fwds2 = (FwdLet yid nm out-ty (apply-args sp head ps)) : fwds1 in
+                    let revs2 = (RevScalar yid sop ps oids) : revs1 in
+                    let env2 = (VjpVar yid nm out-ad out-ty) : env1 in
                     VjpFwd yv (Some yid) fwds2 revs2 env2 s2
             None ->
               -- 2. Array runtime primitives
               if is-array-ad-prim name then
                 vjp-array-fwd ctx sp head name args out-ty out-ad fwds revs env st
               -- 3. `nd-pack-f32` fast path
-              else if same (canonical-sym name) "Data.Array.ND.nd-pack-f32" then
+              else if canonical-sym name == "Data.Array.ND.nd-pack-f32" then
                 case vjp-fwd-args ctx args fwds revs env st of
                   (ps, oids, fwds1, revs1, env1, s1) -> case fresh-ad-id s1 of
                     (yid, s2) ->
                       let nm = "$vp_" <> nat-str yid in
-                      let yv = CLocal sp out-ty yid nm Nil in
-                      let fwds2 = Cons (FwdLet yid nm out-ty (apply-args sp head ps)) fwds1 in
-                      let oid0 = case oids of Cons o _ -> o; Nil -> None in
-                      let revs2 = Cons (RevNdPackF32 yid oid0 out-ad out-ty) revs1 in
-                      let env2 = Cons (VjpVar yid nm out-ad out-ty) env1 in
+                      let yv = CLocal sp out-ty yid nm [] in
+                      let fwds2 = (FwdLet yid nm out-ty (apply-args sp head ps)) : fwds1 in
+                      let oid0 = case oids of o : _ -> o; [] -> None in
+                      let revs2 = (RevNdPackF32 yid oid0 out-ad out-ty) : revs1 in
+                      let env2 = (VjpVar yid nm out-ad out-ty) : env1 in
                       VjpFwd yv (Some yid) fwds2 revs2 env2 s2
               -- 4. Constructor application
-              else if same role "constructor" then
-                if same name global-data-core-some then
+              else if role == "constructor" then
+                if name == global-data-core-some then
                   case vjp-fwd-args ctx args fwds revs env st of
                     (ps, oids, fwds1, revs1, env1, s1) ->
-                      let elem = case actuals of Cons e _ -> e; Nil -> ty-unit in
+                      let elem = case actuals of e : _ -> e; [] -> ty-unit in
                       let ead = ad-type-of ctx elem in
                       case fresh-ad-id s1 of
                         (yid, s2) ->
                           let nm = "$vsm_" <> nat-str yid in
-                          let yv = CLocal sp out-ty yid nm Nil in
-                          let oid0 = case oids of Cons o _ -> o; Nil -> None in
-                          let fwds2 = Cons (FwdLet yid nm out-ty (apply-args sp head ps)) fwds1 in
-                          let revs2 = Cons (RevSome yid elem ead oid0) revs1 in
-                          let env2 = Cons (VjpVar yid nm out-ad out-ty) env1 in
+                          let yv = CLocal sp out-ty yid nm [] in
+                          let oid0 = case oids of o : _ -> o; [] -> None in
+                          let fwds2 = (FwdLet yid nm out-ty (apply-args sp head ps)) : fwds1 in
+                          let revs2 = (RevSome yid elem ead oid0) : revs1 in
+                          let env2 = (VjpVar yid nm out-ad out-ty) : env1 in
                           VjpFwd yv (Some yid) fwds2 revs2 env2 s2
                 else if not (ad-is-active out-ad) then
                   case vjp-fwd-args ctx args fwds revs env st of
@@ -2062,10 +2060,10 @@ module Cinch.Ad where
                       case fresh-ad-id s1 of
                         (yid, s2) ->
                           let nm = "$vc_" <> nat-str yid in
-                          let yv = CLocal sp out-ty yid nm Nil in
-                          let fwds2 = Cons (FwdLet yid nm out-ty (apply-args sp head ps)) fwds1 in
-                          let revs2 = Cons (RevProduct yid name actuals cty ftys fads out-ty oids) revs1 in
-                          let env2 = Cons (VjpVar yid nm out-ad out-ty) env1 in
+                          let yv = CLocal sp out-ty yid nm [] in
+                          let fwds2 = (FwdLet yid nm out-ty (apply-args sp head ps)) : fwds1 in
+                          let revs2 = (RevProduct yid name actuals cty ftys fads out-ty oids) : revs1 in
+                          let env2 = (VjpVar yid nm out-ad out-ty) : env1 in
                           VjpFwd yv (Some yid) fwds2 revs2 env2 s2
               -- 5. User-defined top-level function
               else case find-def name (ctx.defs) of
@@ -2076,72 +2074,72 @@ module Cinch.Ad where
 
   vjp-array-fwd :: AdCtx -> Span -> CoreTerm -> String -> List CoreTerm -> UType -> AdType -> List FwdBind -> List RevStep -> List VjpVar -> AdState -> VjpFwd
   vjp-array-fwd ctx sp head name args out-ty out-ad fwds revs env st =
-    if same name "cinch.runtime.arrayMapF32" then
+    if name == "cinch.runtime.arrayMapF32" then
       case args of
         [fn, arr] -> case vjp-fwd ctx arr fwds revs env st of
           VjpFwd ap aoid fwds1 revs1 env1 s1 -> case fresh-ad-id s1 of
             (yid, s2) ->
               let nm = "$vam_" <> nat-str yid in
-              let yv = CLocal sp out-ty yid nm Nil in
-              let fwds2 = Cons (FwdLet yid nm out-ty (apply-args sp head [fn, ap])) fwds1 in
-              let revs2 = Cons (RevArrayMapF32 yid fn ap aoid) revs1 in
-              let env2 = Cons (VjpVar yid nm out-ad out-ty) env1 in
+              let yv = CLocal sp out-ty yid nm [] in
+              let fwds2 = (FwdLet yid nm out-ty (apply-args sp head [fn, ap])) : fwds1 in
+              let revs2 = (RevArrayMapF32 yid fn ap aoid) : revs1 in
+              let env2 = (VjpVar yid nm out-ad out-ty) : env1 in
               VjpFwd yv (Some yid) fwds2 revs2 env2 s2
         other -> VjpFwd (CError sp) None fwds revs env st
     else case vjp-fwd-args ctx args fwds revs env st of
       (ps, oids, fwds1, revs1, env1, s1) -> case fresh-ad-id s1 of
         (yid, s2) ->
           let nm = "$va_" <> nat-str yid in
-          let yv = CLocal sp out-ty yid nm Nil in
-          let fwds2 = Cons (FwdLet yid nm out-ty (apply-args sp head ps)) fwds1 in
-          let env2 = Cons (VjpVar yid nm out-ad out-ty) env1 in
+          let yv = CLocal sp out-ty yid nm [] in
+          let fwds2 = (FwdLet yid nm out-ty (apply-args sp head ps)) : fwds1 in
+          let env2 = (VjpVar yid nm out-ad out-ty) : env1 in
           let mstep = make-array-rev-step name yid args ps oids in
-          let revs2 = case mstep of Some step -> Cons step revs1; None -> revs1 in
+          let revs2 = case mstep of Some step -> step : revs1; None -> revs1 in
           VjpFwd yv (Some yid) fwds2 revs2 env2 s2
 
   make-array-rev-step :: String -> Nat -> List CoreTerm -> List CoreTerm -> List (Option Nat) -> Option RevStep
   make-array-rev-step name yid orig-args ps oids =
-    if same name "cinch.runtime.arrayMapUnaryF32" then
+    if name == "cinch.runtime.arrayMapUnaryF32" then
       case (orig-args, ps, oids) of
         ([_, op-e, _], [a, _, c], [oa, _, oc]) ->
           let code = case int-lit-value op-e of Some s -> s; None -> "0" in
           Some (RevArrayUnaryF32 yid a code c oa oc)
         other -> None
-    else if same name "cinch.runtime.arrayZipBinopF32" || same name "cinch.runtime.arrayZipBinopF64" then
-      let p = if same name "cinch.runtime.arrayZipBinopF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayZipBinopF32" || name == "cinch.runtime.arrayZipBinopF64" then
+      let p = if name == "cinch.runtime.arrayZipBinopF32" then PF32 else PF64 in
       case (orig-args, ps, oids) of
         ([_, _, op-e], [a, b, _], [oa, ob, _]) ->
           let code = case int-lit-value op-e of Some s -> s; None -> "0" in
           Some (RevArrayZipBinop yid p code a b oa ob)
         other -> None
-    else if same name "cinch.runtime.arrayScaleF64" then
+    else if name == "cinch.runtime.arrayScaleF64" then
       case (ps, oids) of
         ([a, s], [oa, os]) -> Some (RevArrayScaleF64 yid a s oa os)
         other -> None
-    else if same name "cinch.runtime.arrayReduceF32" || same name "cinch.runtime.arrayReduceF64" then
-      let p = if same name "cinch.runtime.arrayReduceF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayReduceF32" || name == "cinch.runtime.arrayReduceF64" then
+      let p = if name == "cinch.runtime.arrayReduceF32" then PF32 else PF64 in
       case (ps, oids) of
         ([a, _], [oa, _]) -> Some (RevArrayReduce yid p a oa)
         other -> None
-    else if same name "cinch.runtime.arrayDotF32" || same name "cinch.runtime.arrayDotF64" then
-      let p = if same name "cinch.runtime.arrayDotF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayDotF32" || name == "cinch.runtime.arrayDotF64" then
+      let p = if name == "cinch.runtime.arrayDotF32" then PF32 else PF64 in
       case (ps, oids) of
         ([a, b, mode], [oa, ob, _]) -> Some (RevArrayDot yid p a b mode oa ob)
         other -> None
-    else if same name "cinch.runtime.arrayRowReduceF32" then
+    else if name == "cinch.runtime.arrayRowReduceF32" then
       case (ps, oids) of
         ([_, rows, cols, _], [oa, _, _, _]) -> Some (RevArrayRowReduceF32 yid rows cols oa)
         other -> None
-    else if same name "cinch.runtime.arrayGatherF32" then
+    else if name == "cinch.runtime.arrayGatherF32" then
       case (ps, oids) of
         ([a, idx, oob], [oa, _, _]) -> Some (RevArrayGatherF32 yid a idx oob oa)
         other -> None
-    else if same name "cinch.runtime.arrayStencil2DF32" then
+    else if name == "cinch.runtime.arrayStencil2DF32" then
       case (ps, oids) of
         ([_, r, h, w, wts, edge, steps], [oa, _, _, _, _, _, _]) -> Some (RevArrayStencil2DF32 yid r h w wts edge steps oa)
         other -> None
-    else if same name "cinch.runtime.arrayFillF32" || same name "cinch.runtime.arrayFillF64" then
-      let p = if same name "cinch.runtime.arrayFillF32" then PF32 else PF64 in
+    else if name == "cinch.runtime.arrayFillF32" || name == "cinch.runtime.arrayFillF64" then
+      let p = if name == "cinch.runtime.arrayFillF32" then PF32 else PF64 in
       case oids of
         [_, ov] -> Some (RevArrayFill yid p ov)
         other -> None
@@ -2187,36 +2185,36 @@ module Cinch.Ad where
                       let s-memo = state-add-memo key gn gt s-id in
                       case vjp-make-pb-expr ctx sp body out-ty out-ad param-vars param-vars s-memo of
                         (gbody, _, s-body) ->
-                          let gdef = CoreDefinition sp gn (mono gt) Nil Nil Nil [CoreClause sp pats gbody] in
+                          let gdef = CoreDefinition sp gn (mono gt) [] [] [] [CoreClause sp pats gbody] in
                           (gn, gt, state-add-def gdef s-body)
                   None -> ("", UError, s1) in
           case fresh-ad-id s2 of
             (yid, s3) -> case fresh-ad-id s3 of
               (pbid, s4) ->
-                let call-t = apply-args sp (CUse sp gty gname "value" Nil) ps in
+                let call-t = apply-args sp (CUse sp gty gname "value" []) ps in
                 let pat = CPTuple sp ret-pair-ty (CPField sp (CPVar sp out-ty yid "$ry") (CPField sp (CPVar sp pb-ty pbid "$rpb") (CPDone sp))) in
-                let fwds2 = Cons (FwdCase call-t pat) fwds1 in
-                let revs2 = Cons (RevPullback yid pbid active-call-vars) revs1 in
-                let env2 = Cons (VjpVar yid "$ry" out-ad out-ty) env1 in
-                VjpFwd (CLocal sp out-ty yid "$ry" Nil) (Some yid) fwds2 revs2 env2 s4
+                let fwds2 = (FwdCase call-t pat) : fwds1 in
+                let revs2 = (RevPullback yid pbid active-call-vars) : revs1 in
+                let env2 = (VjpVar yid "$ry" out-ad out-ty) : env1 in
+                VjpFwd (CLocal sp out-ty yid "$ry" []) (Some yid) fwds2 revs2 env2 s4
 
   collect-active-arg-vars :: List CoreTerm -> List (Option Nat) -> List VjpVar -> List VjpVar
   collect-active-arg-vars ps oids env = case (ps, oids) of
-    (Cons _ pr, Cons (Some id) or1) ->
+    (_ : pr, (Some id) : or1) ->
       let more = collect-active-arg-vars pr or1 env in
       case vjp-lookup-var id env of
-        Some v -> Cons v more
+        Some v -> v : more
         None -> more
-    (Cons _ pr, Cons None or1) -> collect-active-arg-vars pr or1 env
-    other -> Nil
+    (_ : pr, None : or1) -> collect-active-arg-vars pr or1 env
+    other -> []
 
   build-vjp-param-vars :: AdCtx -> List CorePattern -> List Bool -> List VjpVar
   build-vjp-param-vars ctx pats acts = case (pats, acts) of
-    (Cons (CPVar _ ty id name) pr, Cons True ar) ->
+    ((CPVar _ ty id name) : pr, True : ar) ->
       let rty = reduce-ad-type ctx ty in
-      Cons (VjpVar id name (ad-type-of ctx rty) rty) (build-vjp-param-vars ctx pr ar)
-    (Cons _ pr, Cons _ ar) -> build-vjp-param-vars ctx pr ar
-    other -> Nil
+      (VjpVar id name (ad-type-of ctx rty) rty) : (build-vjp-param-vars ctx pr ar)
+    (_ : pr, _ : ar) -> build-vjp-param-vars ctx pr ar
+    other -> []
 
   -- ---------------------------------------------------------------------------
   -- Reverse Sweep Emission (`emit-rev-sweep`)
@@ -2224,8 +2222,8 @@ module Cinch.Ad where
 
   emit-rev-sweep :: AdCtx -> Span -> List RevStep -> List CotEntry -> List FwdBind -> AdState -> (List CotEntry, List FwdBind, AdState)
   emit-rev-sweep ctx sp steps cots binds st = case steps of
-    Nil -> (cots, binds, st)
-    Cons step rest -> case emit-rev-step ctx sp step cots binds st of
+    [] -> (cots, binds, st)
+    step : rest -> case emit-rev-step ctx sp step cots binds st of
       (cots1, binds1, s1) -> emit-rev-sweep ctx sp rest cots1 binds1 s1
 
   emit-rev-step :: AdCtx -> Span -> RevStep -> List CotEntry -> List FwdBind -> AdState -> (List CotEntry, List FwdBind, AdState)
@@ -2247,7 +2245,7 @@ module Cinch.Ad where
       Some (CotEntry _ _ _ dy) ->
         case fresh-field-vars sp ftys "td" st of
           (fpats, fvars, s1) ->
-            let binds1 = Cons (FwdCase dy (CPTuple sp ty (pats-to-cpfields sp fpats))) binds in
+            let binds1 = (FwdCase dy (CPTuple sp ty (pats-to-cpfields sp fpats))) : binds in
             acc-cot-list ctx sp oids fads ftys fvars cots binds1 s1
 
     RevProduct yid cname actuals cty ftys fads out-ty oids -> case cot-lookup yid cots of
@@ -2256,14 +2254,14 @@ module Cinch.Ad where
         case fresh-field-vars sp ftys "pd" st of
           (fpats, fvars, s1) ->
             let pat = CPConstructor sp out-ty cname actuals cty (pats-to-cpfields sp fpats) in
-            let binds1 = Cons (FwdCase dy pat) binds in
+            let binds1 = (FwdCase dy pat) : binds in
             acc-cot-list ctx sp oids fads ftys fvars cots binds1 s1
 
     RevDeTuple sid sty ftys fads scrut field-ids ->
       if not (any-field-in-cots field-ids cots) then (cots, binds, st)
       else case fresh-field-vars sp ftys "ds" st of
         (spats, svars, s1) ->
-          let binds1 = Cons (FwdCase scrut (CPTuple sp sty (pats-to-cpfields sp spats))) binds in
+          let binds1 = (FwdCase scrut (CPTuple sp sty (pats-to-cpfields sp spats))) : binds in
           case gather-field-cots sp field-ids fads ftys svars cots s1 of
             (fcots, s2) -> acc-cot ctx sp (Some sid) (AdTuple (ad-list-from-list fads)) sty (mk-tuple sp fcots) cots binds1 s2
 
@@ -2272,7 +2270,7 @@ module Cinch.Ad where
       else case fresh-field-vars sp ftys "dp" st of
         (spats, svars, s1) ->
           let pat = CPConstructor sp sty cname actuals cty (pats-to-cpfields sp spats) in
-          let binds1 = Cons (FwdCase scrut pat) binds in
+          let binds1 = (FwdCase scrut pat) : binds in
           case gather-field-cots sp field-ids fads ftys svars cots s1 of
             (fcots, s2) ->
               let rebuilt = apply-args sp (CUse sp cty cname "constructor" actuals) fcots in
@@ -2287,7 +2285,7 @@ module Cinch.Ad where
             (zval, s2) ->
               let some-pat = CPConstructor sp opt-ty global-data-core-some [elem] (UFun elem opt-ty) (CPField sp (CPVar sp elem vid "$sv") (CPDone sp)) in
               let none-pat = CPConstructor sp opt-ty global-data-core-none [elem] opt-ty (CPDone sp) in
-              let extracted = CCase sp elem dy (CAlternative sp some-pat (CLocal sp elem vid "$sv" Nil) (CAlternative sp none-pat zval (CAlternativesEnd sp))) in
+              let extracted = CCase sp elem dy (CAlternative sp some-pat (CLocal sp elem vid "$sv" []) (CAlternative sp none-pat zval (CAlternativesEnd sp))) in
               acc-cot ctx sp moid ead elem extracted cots binds s2
 
     RevPullback yid pbid out-vars -> case cot-lookup yid cots of
@@ -2298,39 +2296,39 @@ module Cinch.Ad where
         let out-oids = list-map (\v -> Some (v.var-id)) out-vars in
         let cot-ty = ty-tuple-of out-tys in
         let pb-ty = UFun yty cot-ty in
-        let call-pb = CApply sp cot-ty (CLocal sp pb-ty pbid "$pb" Nil) dy in
+        let call-pb = CApply sp cot-ty (CLocal sp pb-ty pbid "$pb" []) dy in
         case out-vars of
-          Nil -> (cots, binds, st)
-          Cons (VjpVar vid _ vad vty) Nil -> acc-cot ctx sp (Some vid) vad vty call-pb cots binds st
+          [] -> (cots, binds, st)
+          [VjpVar vid _ vad vty] -> acc-cot ctx sp (Some vid) vad vty call-pb cots binds st
           more -> case fresh-field-vars sp out-tys "pbv" st of
             (fpats, fvars, s1) ->
-              let binds1 = Cons (FwdCase call-pb (CPTuple sp cot-ty (pats-to-cpfields sp fpats))) binds in
+              let binds1 = (FwdCase call-pb (CPTuple sp cot-ty (pats-to-cpfields sp fpats))) : binds in
               acc-cot-list ctx sp out-oids out-ads out-tys fvars cots binds1 s1
 
     RevArrayMapF32 yid fn a moid -> case cot-lookup yid cots of
       None -> (cots, binds, st)
       Some (CotEntry _ _ _ dy) ->
         -- Elementwise scalar derivative `\x d -> snd (jvp fn x d)` (exact for `F32 -> F32`!)
-        case jvp-elem-fn-f32-clean ctx Nil sp fn st of
+        case jvp-elem-fn-f32-clean ctx [] sp fn st of
           (dfn, s1) -> case mk-unwrap-opt-arr sp PF32 (mk-arr-zip-with-f32-opt sp dfn a dy) dy s1 of
             (da, s2) -> acc-cot ctx sp moid AdArrayF32 ty-array-f32 da cots binds s2
 
     RevArrayUnaryF32 yid a code c oa oc -> case cot-lookup yid cots of
       None -> (cots, binds, st)
       Some (CotEntry _ _ _ dy) ->
-        if same code "0" then
+        if code == "0" then
           acc-cot ctx sp oa AdArrayF32 ty-array-f32 (mk-arr-neg sp PF32 dy) cots binds st
-        else if same code "2" then
+        else if code == "2" then
           case acc-cot ctx sp oa AdArrayF32 ty-array-f32 (mk-arr-scale sp PF32 dy c) cots binds st of
             (cots1, binds1, s1) -> acc-cot ctx sp oc AdF32 ty-f32 (mk-arr-dot sp PF32 dy a (CInt sp ty-i64 "10")) cots1 binds1 s1
-        else if same code "3" then
+        else if code == "3" then
           case fresh-ad-id st of
             (xi, s1) -> case fresh-ad-id s1 of
               (di, s2) ->
-                let dfn = CLambda sp (UFun ty-f32 (UFun ty-f32 ty-f32)) (CPVar sp ty-f32 xi "$sx") (CLambda sp (UFun ty-f32 ty-f32) (CPVar sp ty-f32 di "$sd") (mk-fmul ctx sp PF32 (mk-fmul ctx sp PF32 (prec-lit sp PF32 "2.0") (CLocal sp ty-f32 xi "$sx" Nil)) (CLocal sp ty-f32 di "$sd" Nil))) in
+                let dfn = CLambda sp (UFun ty-f32 (UFun ty-f32 ty-f32)) (CPVar sp ty-f32 xi "$sx") (CLambda sp (UFun ty-f32 ty-f32) (CPVar sp ty-f32 di "$sd") (mk-fmul ctx sp PF32 (mk-fmul ctx sp PF32 (prec-lit sp PF32 "2.0") (CLocal sp ty-f32 xi "$sx" [])) (CLocal sp ty-f32 di "$sd" []))) in
                 case mk-unwrap-opt-arr sp PF32 (mk-arr-zip-with-f32-opt sp dfn a dy) dy s2 of
                   (da, s3) -> acc-cot ctx sp oa AdArrayF32 ty-array-f32 da cots binds s3
-        else if same code "4" then
+        else if code == "4" then
           case acc-cot ctx sp oa AdArrayF32 ty-array-f32 dy cots binds st of
             (cots1, binds1, s1) -> acc-cot ctx sp oc AdF32 ty-f32 (mk-arr-reduce sp PF32 dy (CInt sp ty-i64 "10")) cots1 binds1 s1
         else acc-cot ctx sp oa AdArrayF32 ty-array-f32 dy cots binds st
@@ -2344,18 +2342,18 @@ module Cinch.Ad where
         let zarr = mk-arr-fill sp p (CInt sp ty-nat "0") (prec-lit sp p "0.0") in
         case mk-unwrap-opt-arr sp p dy-opt zarr st of
           (dy, s1) ->
-            if same code "0" then
+            if code == "0" then
               case acc-cot ctx sp oa ad-arr arr-ty dy cots binds s1 of
                 (cots1, binds1, s2) -> acc-cot ctx sp ob ad-arr arr-ty dy cots1 binds1 s2
-            else if same code "1" then
+            else if code == "1" then
               case acc-cot ctx sp oa ad-arr arr-ty dy cots binds s1 of
                 (cots1, binds1, s2) -> acc-cot ctx sp ob ad-arr arr-ty (mk-arr-neg sp p dy) cots1 binds1 s2
-            else if same code "2" then
+            else if code == "2" then
               case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p dy b "2") zarr s1 of
                 (da, s2) -> case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p dy a "2") zarr s2 of
                   (db, s3) -> case acc-cot ctx sp oa ad-arr arr-ty da cots binds s3 of
                     (cots1, binds1, s4) -> acc-cot ctx sp ob ad-arr arr-ty db cots1 binds1 s4
-            else if same code "3" then
+            else if code == "3" then
               case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p dy b "3") zarr s1 of
                 (da, s2) -> case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p dy a "2") zarr s2 of
                   (num, s3) -> case mk-unwrap-opt-arr sp p (mk-arr-zip-binop-opt sp p b b "2") zarr s3 of
@@ -2414,21 +2412,21 @@ module Cinch.Ad where
 
   any-field-in-cots :: List (Nat, String) -> List CotEntry -> Bool
   any-field-in-cots fs cots = case fs of
-    Nil -> False
-    Cons (id, _) rest ->
+    [] -> False
+    (id, _) : rest ->
       if id /= 0 && (case cot-lookup id cots of Some _ -> True; None -> False) then True
       else any-field-in-cots rest cots
 
   gather-field-cots :: Span -> List (Nat, String) -> List AdType -> List UType -> List CoreTerm -> List CotEntry -> AdState -> (List CoreTerm, AdState)
   gather-field-cots sp fids ads tys svars cots st = case (fids, ads, tys, svars) of
-    (Cons (id, _) fr, Cons a ar, Cons t tr, Cons sv sr) ->
+    ((id, _) : fr, a : ar, t : tr, sv : sr) ->
       let (t1, s1) = if not (ad-is-active a) then (sv, st)
             else case (if id == 0 then None else cot-lookup id cots) of
               Some (CotEntry _ _ _ c) -> (c, st)
               None -> ad-zero sp a t (Some sv) st
       in case gather-field-cots sp fr ar tr sr cots s1 of
-        (more, s2) -> (Cons t1 more, s2)
-    other -> (Nil, st)
+        (more, s2) -> (t1 : more, s2)
+    other -> ([], st)
 
   emit-rev-scalar :: AdCtx -> Span -> Nat -> ScalarOp -> List CoreTerm -> List (Option Nat) -> CoreTerm -> List CotEntry -> List FwdBind -> AdState -> (List CotEntry, List FwdBind, AdState)
   emit-rev-scalar ctx sp yid sop ps oids dy cots binds st = case (sop, ps, oids) of
@@ -2464,7 +2462,7 @@ module Cinch.Ad where
     (SOSqrt p, [_], [oa]) ->
       let ad = case p of PF32 -> AdF32; PF64 -> AdF64 in
       let t = prec-ty p in
-      let yv = CLocal sp t yid ("$vs_" <> nat-str yid) Nil in
+      let yv = CLocal sp t yid ("$vs_" <> nat-str yid) [] in
       acc-cot ctx sp oa ad t (mk-fdiv ctx sp p dy (mk-fmul ctx sp p (prec-lit sp p "2.0") yv)) cots binds st
     (SOSin p, [a], [oa]) ->
       let ad = case p of PF32 -> AdF32; PF64 -> AdF64 in
@@ -2475,7 +2473,7 @@ module Cinch.Ad where
     (SOExp p, [_], [oa]) ->
       let ad = case p of PF32 -> AdF32; PF64 -> AdF64 in
       let t = prec-ty p in
-      let yv = CLocal sp t yid ("$vs_" <> nat-str yid) Nil in
+      let yv = CLocal sp t yid ("$vs_" <> nat-str yid) [] in
       acc-cot ctx sp oa ad t (mk-fmul ctx sp p dy yv) cots binds st
     (SOLog p, [a], [oa]) ->
       let ad = case p of PF32 -> AdF32; PF64 -> AdF64 in
@@ -2494,8 +2492,8 @@ module Cinch.Ad where
     case fresh-ad-id st of
       (xid, s1) -> case fresh-ad-id s1 of
         (dxid, s2) ->
-          let xv = CLocal sp ra xid "$jvp_x" Nil in
-          let env = if ad-is-active aad then [JvpBinding xid dxid aad ra] else Nil in
+          let xv = CLocal sp ra xid "$jvp_x" [] in
+          let env = if ad-is-active aad then [JvpBinding xid dxid aad ra] else [] in
           let body-call = CApply sp rb fn xv in
           case jvp-term ctx env body-call s2 of
             (pair-t, s3) ->
@@ -2510,14 +2508,14 @@ module Cinch.Ad where
     case fresh-ad-id st of
       (xid, s1) -> case fresh-ad-id s1 of
         (dyid, s2) ->
-          let xv = CLocal sp ra xid "$vjp_x" Nil in
-          let dyv = CLocal sp rb dyid "$vjp_dy" Nil in
-          let env = if ad-is-active aad then [VjpVar xid "$vjp_x" aad ra] else Nil in
+          let xv = CLocal sp ra xid "$vjp_x" [] in
+          let dyv = CLocal sp rb dyid "$vjp_dy" [] in
+          let env = if ad-is-active aad then [VjpVar xid "$vjp_x" aad ra] else [] in
           let body-call = CApply sp rb fn xv in
-          case vjp-fwd ctx body-call Nil Nil env s2 of
+          case vjp-fwd ctx body-call [] [] env s2 of
             VjpFwd pr oid fwds revs _ s3 ->
-              let init-cots = case oid of Some rid -> [CotEntry rid bad rb dyv]; None -> Nil in
-              case emit-rev-sweep ctx sp revs init-cots Nil s3 of
+              let init-cots = case oid of Some rid -> [CotEntry rid bad rb dyv]; None -> [] in
+              case emit-rev-sweep ctx sp revs init-cots [] s3 of
                 (final-cots, rev-binds, s4) ->
                   let (dx-term, s5) = case cot-lookup xid final-cots of
                         Some (CotEntry _ _ _ c) -> (c, s4)
@@ -2528,15 +2526,15 @@ module Cinch.Ad where
 
   lookup-lam-env :: Nat -> List (Nat, CoreTerm) -> Option CoreTerm
   lookup-lam-env id env = case env of
-    Nil -> None
-    Cons (k, v) rest -> if k == id then Some v else lookup-lam-env id rest
+    [] -> None
+    (k, v) : rest -> if k == id then Some v else lookup-lam-env id rest
 
   resolve-local-fn-go :: Nat -> List (Nat, CoreTerm) -> CoreTerm -> AdState -> (CoreTerm, AdState)
   resolve-local-fn-go fuel lenv fn st =
     if fuel == 0 then (fn, st)
     else case strip-wrappers fn of
       CLocal _ _ id _ _ -> case lookup-lam-env id lenv of
-        Some target-fn -> case alpha-term Nil target-fn st of
+        Some target-fn -> case alpha-term [] target-fn st of
           (fresh-fn, s1) -> resolve-local-fn-go (fuel - 1) lenv fresh-fn s1
         None -> (fn, st)
       other -> (fn, st)
@@ -2558,7 +2556,7 @@ module Cinch.Ad where
         (b1, ch, s1) -> (CLambda lsp ty pat b1, ch, s1)
       CLet lsp ty id name sc rhs body -> case rewrite-term-once ctx lenv rhs st of
         (r1, ch1, s1) ->
-          let lenv1 = if is-substitutable-fn r1 then Cons (id, r1) lenv else lenv in
+          let lenv1 = if is-substitutable-fn r1 then (id, r1) : lenv else lenv in
           case rewrite-term-once ctx lenv1 body s1 of
             (b1, ch2, s2) -> (CLet lsp ty id name sc r1 b1, ch1 || ch2, s2)
       CIf isp ty c y n -> case rewrite-term-once ctx lenv c st of
@@ -2615,14 +2613,14 @@ module Cinch.Ad where
 
   rewrite-term-list-once :: AdCtx -> List (Nat, CoreTerm) -> List CoreTerm -> AdState -> (List CoreTerm, Bool, AdState)
   rewrite-term-list-once ctx lenv ts st = case ts of
-    Nil -> (Nil, False, st)
-    Cons h t -> case rewrite-term-once ctx lenv h st of
+    [] -> ([], False, st)
+    h : t -> case rewrite-term-once ctx lenv h st of
       (h1, ch1, s1) -> case rewrite-term-list-once ctx lenv t s1 of
-        (t1, ch2, s2) -> (Cons h1 t1, ch1 || ch2, s2)
+        (t1, ch2, s2) -> (h1 : t1, ch1 || ch2, s2)
 
   rewrite-app-once :: AdCtx -> List (Nat, CoreTerm) -> Span -> CoreTerm -> AdState -> (CoreTerm, Bool, AdState)
   rewrite-app-once ctx lenv sp term st =
-    case unwrap-core-app term Nil of
+    case unwrap-core-app term [] of
       (head, args) ->
         -- First rewrite children (innermost-first!)
         case rewrite-term-once ctx lenv head st of
@@ -2677,28 +2675,28 @@ module Cinch.Ad where
 
   rewrite-clause-once :: AdCtx -> CoreClause -> AdState -> (CoreClause, Bool, AdState)
   rewrite-clause-once ctx cl st = case cl of
-    CoreClause sp pats body -> case rewrite-term-once ctx Nil body st of
+    CoreClause sp pats body -> case rewrite-term-once ctx [] body st of
       (b1, ch, s1) -> (CoreClause sp pats b1, ch, s1)
 
   rewrite-clauses-once :: AdCtx -> List CoreClause -> AdState -> (List CoreClause, Bool, AdState)
   rewrite-clauses-once ctx cs st = case cs of
-    Nil -> (Nil, False, st)
-    Cons c rest -> case rewrite-clause-once ctx c st of
+    [] -> ([], False, st)
+    c : rest -> case rewrite-clause-once ctx c st of
       (c1, ch1, s1) -> case rewrite-clauses-once ctx rest s1 of
-        (r1, ch2, s2) -> (Cons c1 r1, ch1 || ch2, s2)
+        (r1, ch2, s2) -> (c1 : r1, ch1 || ch2, s2)
 
   rewrite-defs-once :: AdCtx -> List CoreDefinition -> AdState -> (List CoreDefinition, Bool, AdState)
   rewrite-defs-once ctx ds st = case ds of
-    Nil -> (Nil, False, st)
-    Cons d rest ->
+    [] -> ([], False, st)
+    d : rest ->
       if is-ad-wrapper-name (d.name) then
         case rewrite-defs-once ctx rest st of
-          (r1, ch, s1) -> (Cons d r1, ch, s1)
+          (r1, ch, s1) -> (d : r1, ch, s1)
       else case d of
         CoreDefinition sp name sc openings givens priv clauses ->
           case rewrite-clauses-once ctx clauses st of
             (cs1, ch1, s1) -> case rewrite-defs-once ctx rest s1 of
-              (r1, ch2, s2) -> (Cons (CoreDefinition sp name sc openings givens priv cs1) r1, ch1 || ch2, s2)
+              (r1, ch2, s2) -> ((CoreDefinition sp name sc openings givens priv cs1) : r1, ch1 || ch2, s2)
 
   lower-ad-loop :: Nat -> List CoreData -> List TypeFamilyRuleSet -> List PromotedFn -> List String -> List CoreDefinition -> AdState -> List CoreDefinition
   lower-ad-loop fuel datas fams proms syms defs st =

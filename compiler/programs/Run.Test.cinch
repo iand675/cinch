@@ -22,11 +22,13 @@ module Main where
   -- the last two fail with the distinct codes 41 and 42.
   example-suite :: Suite
   example-suite = Suite "bootstrap.test.example"
-    (check-spine (Cons ("one-plus-one", if (1 :: Int) + 1 == 2 then 0 else 1)
-      (Cons ("list-length", if length (Cons (1 :: Int) (Cons (2 :: Int) Nil)) == 2 then 0 else 2)
-        (Cons ("string-compare", if string-compare "ok" "ok" == 0 then 0 else 3)
-          (Cons ("away-by-one", if (2 :: Int) + 2 == 5 then 0 else 41)
-            (Cons ("different-names", if string-compare "left" "right" == 0 then 0 else 42) Nil))))))
+    (check-spine
+      [ ("one-plus-one", if (1 :: Int) + 1 == 2 then 0 else 1)
+      , ("list-length", if length [1 :: Int, 2] == 2 then 0 else 2)
+      , ("string-compare", if "ok" == "ok" then 0 else 3)
+      , ("away-by-one", if (2 :: Int) + 2 == 5 then 0 else 41)
+      , ("different-names", if "left" == "right" then 0 else 42)
+      ])
 
   -- The report path: relative, so the program writes beside wherever
   -- it is run.

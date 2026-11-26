@@ -29,12 +29,9 @@ module Cinch.Promote where
 
   strip-promoted-fn-name :: String -> String
   strip-promoted-fn-name name = case unpack name of
-    Cons c1 (Cons c2 (Cons c3 rest)) ->
+    c1 : c2 : c3 : rest ->
       if char-code c1 == 102 && char-code c2 == 110 && char-code c3 == 58 then pack rest else name
     other -> name
-
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
 
   int-to-nat-or-zero :: Int -> Nat
   int-to-nat-or-zero n = if n >= 0 then nat-from-int n else 0
@@ -126,13 +123,13 @@ module Cinch.Promote where
 
   pval-list-from-list :: forall a. List (PVal a) -> PValList a
   pval-list-from-list xs = case xs of
-    Nil -> PVEnd
-    Cons h t -> PVArg h (pval-list-from-list t)
+    [] -> PVEnd
+    h : t -> PVArg h (pval-list-from-list t)
 
   pval-list-to-list :: forall a. PValList a -> List (PVal a)
   pval-list-to-list xs = case xs of
-    PVEnd -> Nil
-    PVArg h t -> Cons h (pval-list-to-list t)
+    PVEnd -> []
+    PVArg h t -> h : (pval-list-to-list t)
 
   pval-list-len :: forall a. PValList a -> Nat
   pval-list-len xs = case xs of
@@ -152,31 +149,31 @@ module Cinch.Promote where
   lookup-env :: forall a. String -> PEnv a -> Option (PVal a)
   lookup-env name env = case env of
     PEnvEnd -> None
-    PEnvCons k v rest -> if same k name then Some v else lookup-env name rest
+    PEnvCons k v rest -> if k == name then Some v else lookup-env name rest
 
   lookup-promoted-fn :: String -> List PromotedFn -> Option PromotedFn
   lookup-promoted-fn wanted fns = case fns of
-    Nil -> None
-    Cons f rest -> if same wanted (f.fn-identity) then Some f else lookup-promoted-fn wanted rest
+    [] -> None
+    f : rest -> if wanted == f.fn-identity then Some f else lookup-promoted-fn wanted rest
 
   -- Built-in promoted prelude fast paths (keyed by canonical identity).
   promoted-builtin-arity :: String -> Option Nat
   promoted-builtin-arity id =
-    if same id "Data.List.reverse" || same id "reverse" then Some 1
-    else if same id "Data.List.length" || same id "length" then Some 1
-    else if same id "Data.List.map" || same id "map" then Some 2
-    else if same id "Data.List.append" || same id "append" then Some 2
-    else if same id "Data.List.head" || same id "head" then Some 1
-    else if same id "Data.List.tail" || same id "tail" then Some 1
-    else if same id "Data.List.concat" || same id "concat" then Some 1
-    else if same id "Data.List.foldl" || same id "foldl" then Some 3
-    else if same id "Data.List.foldr" || same id "foldr" then Some 3
-    else if same id "Data.List.take" || same id "take" then Some 2
-    else if same id "Data.List.drop" || same id "drop" then Some 2
-    else if same id "Data.String.string-concat" || same id "string-concat" then Some 2
-    else if same id "Data.Bool.not" || same id "Data.Core.not" || same id "not" then Some 1
-    else if same id "Data.Tuple.fst" || same id "Data.Core.fst" || same id "fst" then Some 1
-    else if same id "Data.Tuple.snd" || same id "Data.Core.snd" || same id "snd" then Some 1
+    if id == "Data.List.reverse" || id == "reverse" then Some 1
+    else if id == "Data.List.length" || id == "length" then Some 1
+    else if id == "Data.List.map" || id == "map" then Some 2
+    else if id == "Data.List.append" || id == "append" then Some 2
+    else if id == "Data.List.head" || id == "head" then Some 1
+    else if id == "Data.List.tail" || id == "tail" then Some 1
+    else if id == "Data.List.concat" || id == "concat" then Some 1
+    else if id == "Data.List.foldl" || id == "foldl" then Some 3
+    else if id == "Data.List.foldr" || id == "foldr" then Some 3
+    else if id == "Data.List.take" || id == "take" then Some 2
+    else if id == "Data.List.drop" || id == "drop" then Some 2
+    else if id == "Data.String.string-concat" || id == "string-concat" then Some 2
+    else if id == "Data.Bool.not" || id == "Data.Core.not" || id == "not" then Some 1
+    else if id == "Data.Tuple.fst" || id == "Data.Core.fst" || id == "fst" then Some 1
+    else if id == "Data.Tuple.snd" || id == "Data.Core.snd" || id == "snd" then Some 1
     else None
 
   fn-arity-in :: List PromotedFn -> String -> Option Nat
@@ -191,10 +188,10 @@ module Cinch.Promote where
   nil-ctor-name = "ctor:Data.Core.Nil"
 
   is-nil-ctor :: String -> Bool
-  is-nil-ctor name = same name nil-ctor-name || same name "ctor:Nil"
+  is-nil-ctor name = name == nil-ctor-name || name == "ctor:Nil"
 
   is-cons-ctor :: String -> Bool
-  is-cons-ctor name = same name cons-ctor-name || same name "ctor:Cons"
+  is-cons-ctor name = name == cons-ctor-name || name == "ctor:Cons"
 
   -- Symbolic arithmetic with algebraic simplification (`m + 0 -> m`, `m * 1 -> m`, etc.).
   sym-add :: forall a. PVal a -> PVal a -> PVal a
@@ -254,9 +251,9 @@ module Cinch.Promote where
   pval-eq a b = case (a, b) of
     (PVNat x, PVNat y) -> Some (PVBool (x == y))
     (PVBool x, PVBool y) -> Some (PVBool ((x && y) || (not x && not y)))
-    (PVStr x, PVStr y) -> Some (PVBool (same x y))
+    (PVStr x, PVStr y) -> Some (PVBool (x == y))
     (PVCon c1 fs1, PVCon c2 fs2) ->
-      if not (same c1 c2) then Some (PVBool False)
+      if c1 /= c2 then Some (PVBool False)
       else pval-list-eq fs1 fs2
     (PVTuple fs1, PVTuple fs2) -> pval-list-eq fs1 fs2
     other -> None
@@ -288,14 +285,14 @@ module Cinch.Promote where
       PVBool v -> if (b && v) || (not b && not v) then PMatch env else PMismatch
       other -> PStuck
     PPStr s -> case val of
-      PVStr v -> if same s v then PMatch env else PMismatch
+      PVStr v -> if s == v then PMatch env else PMismatch
       other -> PStuck
     PPCon cname subpats ->
-      if same cname "ctor:True" || same cname "True" then match-pat (PPBool True) val env
-      else if same cname "ctor:False" || same cname "False" then match-pat (PPBool False) val env
+      if cname == "ctor:True" || cname == "True" then match-pat (PPBool True) val env
+      else if cname == "ctor:False" || cname == "False" then match-pat (PPBool False) val env
       else case val of
         PVCon vname vfields ->
-          if same cname vname || (is-nil-ctor cname && is-nil-ctor vname) || (is-cons-ctor cname && is-cons-ctor vname) then
+          if cname == vname || (is-nil-ctor cname && is-nil-ctor vname) || (is-cons-ctor cname && is-cons-ctor vname) then
             match-pat-list subpats vfields env
           else PMismatch
         other -> PStuck
@@ -350,8 +347,8 @@ module Cinch.Promote where
 
   eval-clauses :: forall a. List PromotedFn -> List PClause -> PValList a -> Nat -> Nat -> (Option (PVal a), Nat)
   eval-clauses fns clauses args fuel depth = case clauses of
-    Nil -> (None, fuel)
-    Cons (PClause pats body) rest -> case match-pat-list pats args PEnvEnd of
+    [] -> (None, fuel)
+    (PClause pats body) : rest -> case match-pat-list pats args PEnvEnd of
       PMatch env -> eval-expr fns env body fuel depth
       PMismatch -> eval-clauses fns rest args fuel depth
       PStuck -> (None, fuel)
@@ -369,8 +366,8 @@ module Cinch.Promote where
         Some arity -> (Some (PVPartial id arity PVEnd), f0)
         None -> (None, f0)
       PECon cname args ->
-        if same cname "ctor:True" || same cname "True" then (Some (PVBool True), f0)
-        else if same cname "ctor:False" || same cname "False" then (Some (PVBool False), f0)
+        if cname == "ctor:True" || cname == "True" then (Some (PVBool True), f0)
+        else if cname == "ctor:False" || cname == "False" then (Some (PVBool False), f0)
         else case eval-expr-list fns env args f0 depth of
           (Some vals, f1) -> (Some (PVCon cname vals), f1)
           (None, f1) -> (None, f1)
@@ -459,65 +456,65 @@ module Cinch.Promote where
       Some arity ->
         let n = pval-list-len args in
         if n < arity then (Some (PVPartial id arity args), fuel)
-        else if same id "Data.String.string-concat" || same id "string-concat" then
+        else if id == "Data.String.string-concat" || id == "string-concat" then
           case args of
             PVArg (PVStr a) (PVArg (PVStr b) PVEnd) -> (Some (PVStr (a <> b)), fuel)
             other -> (None, fuel)
-        else if same id "Data.Bool.not" || same id "Data.Core.not" || same id "not" then
+        else if id == "Data.Bool.not" || id == "Data.Core.not" || id == "not" then
           case args of
             PVArg (PVBool b) PVEnd -> (Some (PVBool (not b)), fuel)
             other -> (None, fuel)
-        else if same id "Data.Tuple.fst" || same id "Data.Core.fst" || same id "fst" then
+        else if id == "Data.Tuple.fst" || id == "Data.Core.fst" || id == "fst" then
           case args of
             PVArg (PVTuple (PVArg a (PVArg _ PVEnd))) PVEnd -> (Some a, fuel)
             other -> (None, fuel)
-        else if same id "Data.Tuple.snd" || same id "Data.Core.snd" || same id "snd" then
+        else if id == "Data.Tuple.snd" || id == "Data.Core.snd" || id == "snd" then
           case args of
             PVArg (PVTuple (PVArg _ (PVArg b PVEnd))) PVEnd -> (Some b, fuel)
             other -> (None, fuel)
-        else if same id "Data.List.reverse" || same id "reverse" then
+        else if id == "Data.List.reverse" || id == "reverse" then
           case args of
             PVArg xs PVEnd -> (builtin-list-reverse xs (PVCon nil-ctor-name PVEnd), fuel)
             other -> (None, fuel)
-        else if same id "Data.List.length" || same id "length" then
+        else if id == "Data.List.length" || id == "length" then
           case args of
             PVArg xs PVEnd -> (builtin-list-length xs 0, fuel)
             other -> (None, fuel)
-        else if same id "Data.List.append" || same id "append" then
+        else if id == "Data.List.append" || id == "append" then
           case args of
             PVArg xs (PVArg ys PVEnd) -> (builtin-list-append xs ys, fuel)
             other -> (None, fuel)
-        else if same id "Data.List.head" || same id "head" then
+        else if id == "Data.List.head" || id == "head" then
           case args of
             PVArg (PVCon c (PVArg h (PVArg _ PVEnd))) PVEnd | is-cons-ctor c -> (Some (PVCon "ctor:Data.Core.Some" (PVArg h PVEnd)), fuel)
             PVArg (PVCon c PVEnd) PVEnd | is-nil-ctor c -> (Some (PVCon "ctor:Data.Core.None" PVEnd), fuel)
             other -> (None, fuel)
-        else if same id "Data.List.tail" || same id "tail" then
+        else if id == "Data.List.tail" || id == "tail" then
           case args of
             PVArg (PVCon c (PVArg _ (PVArg t PVEnd))) PVEnd | is-cons-ctor c -> (Some t, fuel)
             PVArg (PVCon c PVEnd) PVEnd | is-nil-ctor c -> (Some (PVCon nil-ctor-name PVEnd), fuel)
             other -> (None, fuel)
-        else if same id "Data.List.map" || same id "map" then
+        else if id == "Data.List.map" || id == "map" then
           case args of
             PVArg fn (PVArg xs PVEnd) -> builtin-list-map fns fn xs fuel depth
             other -> (None, fuel)
-        else if same id "Data.List.foldl" || same id "foldl" then
+        else if id == "Data.List.foldl" || id == "foldl" then
           case args of
             PVArg fn (PVArg acc (PVArg xs PVEnd)) -> builtin-list-foldl fns fn acc xs fuel depth
             other -> (None, fuel)
-        else if same id "Data.List.foldr" || same id "foldr" then
+        else if id == "Data.List.foldr" || id == "foldr" then
           case args of
             PVArg fn (PVArg acc (PVArg xs PVEnd)) -> builtin-list-foldr fns fn acc xs fuel depth
             other -> (None, fuel)
-        else if same id "Data.List.concat" || same id "concat" then
+        else if id == "Data.List.concat" || id == "concat" then
           case args of
             PVArg xss PVEnd -> (builtin-list-concat xss, fuel)
             other -> (None, fuel)
-        else if same id "Data.List.take" || same id "take" then
+        else if id == "Data.List.take" || id == "take" then
           case args of
             PVArg (PVNat k) (PVArg xs PVEnd) -> (builtin-list-take k xs, fuel)
             other -> (None, fuel)
-        else if same id "Data.List.drop" || same id "drop" then
+        else if id == "Data.List.drop" || id == "drop" then
           case args of
             PVArg (PVNat k) (PVArg xs PVEnd) -> (builtin-list-drop k xs, fuel)
             other -> (None, fuel)
@@ -612,7 +609,7 @@ module Cinch.Promote where
   -- JSON serialization/deserialization for `.cinchif` cross-module promoted functions.
   jfield :: String -> Json -> Json
   jfield key doc = case doc of
-    JObj k v rest -> if same key k then v else jfield key rest
+    JObj k v rest -> if key == k then v else jfield key rest
     other -> JNull
 
   binop-to-str :: PBinOp -> String
@@ -634,21 +631,22 @@ module Cinch.Promote where
 
   str-to-binop :: String -> Option PBinOp
   str-to-binop s =
-    if same s "+" then Some PBAdd
-    else if same s "-" then Some PBSub
-    else if same s "*" then Some PBMul
-    else if same s "/" then Some PBDiv
-    else if same s "%" then Some PBMod
-    else if same s "==" then Some PBEq
-    else if same s "/=" then Some PBNe
-    else if same s "<" then Some PBLt
-    else if same s "<=" then Some PBLe
-    else if same s ">" then Some PBGt
-    else if same s ">=" then Some PBGe
-    else if same s "&&" then Some PBAnd
-    else if same s "||" then Some PBOr
-    else if same s "<>" then Some PBConcat
-    else None
+    case s of
+    "+" -> Some PBAdd
+    "-" -> Some PBSub
+    "*" -> Some PBMul
+    "/" -> Some PBDiv
+    "%" -> Some PBMod
+    "==" -> Some PBEq
+    "/=" -> Some PBNe
+    "<" -> Some PBLt
+    "<=" -> Some PBLe
+    ">" -> Some PBGt
+    ">=" -> Some PBGe
+    "&&" -> Some PBAnd
+    "||" -> Some PBOr
+    "<>" -> Some PBConcat
+    _ -> None
 
   ppat-json :: PPat -> Json
   ppat-json p = case p of
@@ -695,8 +693,8 @@ module Cinch.Promote where
 
   pclauses-json :: List PClause -> Json
   pclauses-json cs = case cs of
-    Nil -> JArrEnd
-    Cons (PClause ps body) rest ->
+    [] -> JArrEnd
+    (PClause ps body) : rest ->
       JArr (JObj "ps" (ppat-list-json ps) (JObj "b" (pexpr-json body) JObjEnd)) (pclauses-json rest)
 
   promoted-fn-json :: PromotedFn -> Json
@@ -709,21 +707,21 @@ module Cinch.Promote where
 
   promoted-fns-json :: List PromotedFn -> Json
   promoted-fns-json fns = case fns of
-    Nil -> JArrEnd
-    Cons f rest -> JArr (promoted-fn-json f) (promoted-fns-json rest)
+    [] -> JArrEnd
+    f : rest -> JArr (promoted-fn-json f) (promoted-fns-json rest)
 
   read-ppat-json :: Json -> Option PPat
   read-ppat-json doc = case jfield "k" doc of
     JStr tag ->
-      if same tag "wild" then Some PPWild
-      else if same tag "var" then (case jfield "n" doc of JStr n -> Some (PPVar n); other -> None)
-      else if same tag "nat" then (case jfield "v" doc of JNum n -> Some (PPNat n); other -> None)
-      else if same tag "bool" then (case jfield "v" doc of JBool b -> Some (PPBool b); other -> None)
-      else if same tag "str" then (case jfield "v" doc of JStr s -> Some (PPStr s); other -> None)
-      else if same tag "con" then (case (jfield "n" doc, read-ppat-list-json (jfield "ps" doc)) of
+      if tag == "wild" then Some PPWild
+      else if tag == "var" then (case jfield "n" doc of JStr n -> Some (PPVar n); other -> None)
+      else if tag == "nat" then (case jfield "v" doc of JNum n -> Some (PPNat n); other -> None)
+      else if tag == "bool" then (case jfield "v" doc of JBool b -> Some (PPBool b); other -> None)
+      else if tag == "str" then (case jfield "v" doc of JStr s -> Some (PPStr s); other -> None)
+      else if tag == "con" then (case (jfield "n" doc, read-ppat-list-json (jfield "ps" doc)) of
         (JStr c, Some ps) -> Some (PPCon c ps)
         other -> None)
-      else if same tag "tup" then (case read-ppat-list-json (jfield "ps" doc) of
+      else if tag == "tup" then (case read-ppat-list-json (jfield "ps" doc) of
         Some ps -> Some (PPTuple ps)
         None -> None)
       else None
@@ -740,37 +738,37 @@ module Cinch.Promote where
   read-pexpr-json :: Json -> Option PExpr
   read-pexpr-json doc = case jfield "k" doc of
     JStr tag ->
-      if same tag "var" then (case jfield "n" doc of JStr n -> Some (PEVar n); other -> None)
-      else if same tag "nat" then (case jfield "v" doc of JNum n -> Some (PENat n); other -> None)
-      else if same tag "bool" then (case jfield "v" doc of JBool b -> Some (PEBool b); other -> None)
-      else if same tag "str" then (case jfield "v" doc of JStr s -> Some (PEStr s); other -> None)
-      else if same tag "fn" then (case jfield "id" doc of JStr id -> Some (PEFnRef id); other -> None)
-      else if same tag "con" then (case (jfield "n" doc, read-pexpr-list-json (jfield "as" doc)) of
+      if tag == "var" then (case jfield "n" doc of JStr n -> Some (PEVar n); other -> None)
+      else if tag == "nat" then (case jfield "v" doc of JNum n -> Some (PENat n); other -> None)
+      else if tag == "bool" then (case jfield "v" doc of JBool b -> Some (PEBool b); other -> None)
+      else if tag == "str" then (case jfield "v" doc of JStr s -> Some (PEStr s); other -> None)
+      else if tag == "fn" then (case jfield "id" doc of JStr id -> Some (PEFnRef id); other -> None)
+      else if tag == "con" then (case (jfield "n" doc, read-pexpr-list-json (jfield "as" doc)) of
         (JStr c, Some es) -> Some (PECon c es)
         other -> None)
-      else if same tag "tup" then (case read-pexpr-list-json (jfield "as" doc) of
+      else if tag == "tup" then (case read-pexpr-list-json (jfield "as" doc) of
         Some es -> Some (PETuple es)
         None -> None)
-      else if same tag "app" then (case (read-pexpr-json (jfield "f" doc), read-pexpr-json (jfield "x" doc)) of
+      else if tag == "app" then (case (read-pexpr-json (jfield "f" doc), read-pexpr-json (jfield "x" doc)) of
         (Some f, Some x) -> Some (PEApp f x)
         other -> None)
-      else if same tag "lam" then (case (jfield "p" doc, read-pexpr-json (jfield "b" doc)) of
+      else if tag == "lam" then (case (jfield "p" doc, read-pexpr-json (jfield "b" doc)) of
         (JStr p, Some b) -> Some (PELam p b)
         other -> None)
-      else if same tag "let" then (case (jfield "n" doc, read-pexpr-json (jfield "r" doc), read-pexpr-json (jfield "b" doc)) of
+      else if tag == "let" then (case (jfield "n" doc, read-pexpr-json (jfield "r" doc), read-pexpr-json (jfield "b" doc)) of
         (JStr n, Some r, Some b) -> Some (PELet n r b)
         other -> None)
-      else if same tag "if" then (case (read-pexpr-json (jfield "c" doc), read-pexpr-json (jfield "y" doc), read-pexpr-json (jfield "n" doc)) of
+      else if tag == "if" then (case (read-pexpr-json (jfield "c" doc), read-pexpr-json (jfield "y" doc), read-pexpr-json (jfield "n" doc)) of
         (Some c, Some y, Some n) -> Some (PEIf c y n)
         other -> None)
-      else if same tag "case" then (case (read-pexpr-json (jfield "s" doc), read-palt-list-json (jfield "alts" doc)) of
+      else if tag == "case" then (case (read-pexpr-json (jfield "s" doc), read-palt-list-json (jfield "alts" doc)) of
         (Some s, Some alts) -> Some (PECase s alts)
         other -> None)
-      else if same tag "bin" then (case (jfield "op" doc, read-pexpr-json (jfield "l" doc), read-pexpr-json (jfield "r" doc)) of
+      else if tag == "bin" then (case (jfield "op" doc, read-pexpr-json (jfield "l" doc), read-pexpr-json (jfield "r" doc)) of
         (JStr op-s, Some l, Some r) -> case str-to-binop op-s of Some op -> Some (PEBin op l r); None -> None
         other -> None)
-      else if same tag "not" then (case read-pexpr-json (jfield "x" doc) of Some x -> Some (PENot x); None -> None)
-      else if same tag "neg" then (case read-pexpr-json (jfield "x" doc) of Some x -> Some (PENeg x); None -> None)
+      else if tag == "not" then (case read-pexpr-json (jfield "x" doc) of Some x -> Some (PENot x); None -> None)
+      else if tag == "neg" then (case read-pexpr-json (jfield "x" doc) of Some x -> Some (PENeg x); None -> None)
       else None
     other -> None
 
@@ -792,9 +790,9 @@ module Cinch.Promote where
 
   read-pclauses-json :: Json -> Option (List PClause)
   read-pclauses-json doc = case doc of
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     JArr row rest -> case (read-ppat-list-json (jfield "ps" row), read-pexpr-json (jfield "b" row), read-pclauses-json rest) of
-      (Some ps, Some b, Some more) -> Some (Cons (PClause ps b) more)
+      (Some ps, Some b, Some more) -> Some ((PClause ps b) : more)
       other -> None
     other -> None
 
@@ -806,6 +804,6 @@ module Cinch.Promote where
   read-promoted-fns-json :: Json -> List PromotedFn
   read-promoted-fns-json doc = case doc of
     JArr row rest -> case read-promoted-fn-json row of
-      Some f -> Cons f (read-promoted-fns-json rest)
+      Some f -> f : (read-promoted-fns-json rest)
       None -> read-promoted-fns-json rest
-    other -> Nil
+    other -> []

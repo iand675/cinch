@@ -5,10 +5,11 @@ module Cinch.Document where
   import Cinch.PackedBody (PackedTerm, packed-term-json, same-packed-term)
   import Data.Json as Plain
   import Data.Machine (feq-f64)
+  import Relation.Eq (Eq)
   import Text.Json as Legacy
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
-  export Json, JNull, JBool, JNum, JFloat, JStr, JArr, JObj, JArrEnd, JObjEnd, JTerm
+  export Json, JNull, JBool, JNum, JFloat, JStr, JArr, JObj, JArrEnd, JObjEnd, JTerm, Eq_Json
   export parse-json, ordered-json-bytes, canonical-json, canonical-bytes, json-eq, term-document
 
   data Json where
@@ -71,12 +72,16 @@ module Cinch.Document where
     (JBool left, JBool right) -> left == right
     (JNum left, JNum right) -> left == right
     (JFloat left, JFloat right) -> feq-f64 left right
-    (JStr left, JStr right) -> string-compare left right == 0
+    (JStr left, JStr right) -> left == right
     (JArr left more, JArr right rest) -> json-eq left right && json-eq more rest
-    (JObj key left more, JObj field right rest) -> string-compare key field == 0 && json-eq left right && json-eq more rest
+    (JObj key left more, JObj field right rest) -> key == field && json-eq left right && json-eq more rest
     (JArrEnd, JArrEnd) -> True
     (JObjEnd, JObjEnd) -> True
     (JTerm left, JTerm right) -> same-packed-term left right || Legacy.json-eq (packed-term-json left) (packed-term-json right)
     (JTerm term, other) -> Legacy.json-eq (packed-term-json term) (to-json other)
     (other, JTerm term) -> Legacy.json-eq (to-json other) (packed-term-json term)
     other -> False
+
+  implicit instance Eq_Json :: Eq Json where
+    (==) a b = json-eq a b
+    (/=) a b = not (json-eq a b)

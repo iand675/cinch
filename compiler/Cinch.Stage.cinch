@@ -19,6 +19,7 @@ module Cinch.Stage where
   import Text.Scan (string-starts-with)
   import Data.Int (int-neg)
   import Data.List (list-length, foldr)
+  import Effect.Sequencing (ResultSequencing)
   import Text.Lex (Span, span-start, span-end, LToken)
   import Text.Show (int-to-string, nat-to-string)
 
@@ -29,30 +30,30 @@ module Cinch.Stage where
   -- the generated declarations. An ordinary source error keeps its origin.
   explain-expansion-errors :: Program -> List Diagnostic -> List Diagnostic
   explain-expansion-errors program errors = case expansion-sites (program.modules) of
-    Nil -> errors
+    [] -> errors
     sites -> map (explain-expansion-error sites) errors
   expansion-sites :: List Module -> List (Span, Span, String)
   expansion-sites modules = case modules of
-    Nil -> Nil
-    Cons m rest -> module-expansions (module-decls m) (expansion-sites rest)
+    [] -> []
+    m : rest -> module-expansions (module-decls m) (expansion-sites rest)
   module-expansions :: List Decl -> List (Span, Span, String) -> List (Span, Span, String)
   module-expansions ds sites = case ds of
-    Nil -> sites
-    Cons (DGeneratedGroup caller home name template) rest ->
-      Cons (decl-span template, caller, name) (module-expansions rest sites)
-    Cons other rest -> module-expansions rest sites
+    [] -> sites
+    (DGeneratedGroup caller home name template) : rest ->
+      (decl-span template, caller, name) : (module-expansions rest sites)
+    other : rest -> module-expansions rest sites
   within-span :: Span -> Span -> Bool
   within-span location range = span-start location >= span-start range && span-start location < span-end range
   expansion-notes :: Span -> List (Span, Span, String) -> String
   expansion-notes location sites = case sites of
-    Nil -> ""
-    Cons (template, caller, name) rest -> let tail = expansion-notes location rest in
+    [] -> ""
+    (template, caller, name) : rest -> let tail = expansion-notes location rest in
       if within-span location template || within-span location caller then
         " (in expansion of " <> name <> " at " <> render-position caller <> ")" <> tail
       else tail
   explain-expansion-error :: List (Span, Span, String) -> Diagnostic -> Diagnostic
   explain-expansion-error sites error = let at = error.span in let notes = expansion-notes at sites in
-    if same notes "" then error else
+    if notes == "" then error else
       let message = error.message in
       let origin = if string-starts-with "unknown index " message || string-starts-with "unknown name " message
             then " (the name does not resolve where this template was defined)" else "" in
@@ -60,9 +61,6 @@ module Cinch.Stage where
 
   stage-error :: forall a. Span -> String -> Result (List Diagnostic) a
   stage-error site message = Err [Diagnostic "bootstrap.stage" site message]
-
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
 
   cat :: List String -> String
   cat parts = string-concat-all parts
@@ -83,8 +81,8 @@ module Cinch.Stage where
 
   stage-work :: List Decl -> Bool
   stage-work declarations = case declarations of
-    Nil -> False
-    Cons first rest -> case first of
+    [] -> False
+    first : rest -> case first of
       DMacro site body -> True
       DDeclarationMacro site name patterns template -> True
       DStage site body -> True
@@ -95,17 +93,17 @@ module Cinch.Stage where
   -- generators need an independently resolved and checked evaluator program.
   needs-stage-check :: List Decl -> Bool
   needs-stage-check declarations = case declarations of
-    Nil -> False
-    Cons (DStage site body) rest -> True
-    Cons (DGenerate site actions) rest -> True
-    Cons other rest -> needs-stage-check rest
+    [] -> False
+    (DStage site body) : rest -> True
+    (DGenerate site actions) : rest -> True
+    other : rest -> needs-stage-check rest
 
   probe-name :: Span -> String
   probe-name site = string-concat "#stage-probe-" (nat-to-string (span-start site))
 
   probe :: Span -> TypeExpr -> Expr -> List Decl
   probe site ty body = let name = probe-name site in
-    [DSig site name ty, DFun site name [(Nil, body)]]
+    [DSig site name ty, DFun site name [([], body)]]
 
   -- One identity, spelled `#StageCode` here and `Code` in ordinary source
   -- (Cinch.Nominal owns the spelling and the encoded global).
@@ -141,10 +139,11 @@ module Cinch.Stage where
   quotation :: Span -> Expr -> Result (List Diagnostic) String
   quotation site expression = case expression of
     EApp at (EVar fn name) argument ->
-      if same name "quoteNat" then Ok "Nat"
-      else if same name "quoteInt" then Ok "Int"
-      else if same name "quoteBool" then Ok "Bool"
-      else stage-error site "this splice requires a checked scalar quotation"
+      case name of
+      "quoteNat" -> Ok "Nat"
+      "quoteInt" -> Ok "Int"
+      "quoteBool" -> Ok "Bool"
+      _ -> stage-error site "this splice requires a checked scalar quotation"
     other -> stage-error site "this splice requires a checked scalar quotation"
 
   -- The carrier a stage declaration's checked type produces: the `t` of its
@@ -152,7 +151,7 @@ module Cinch.Stage where
   -- type the elaborator assigned rather than guessing from syntax.
   scheme-code-carrier :: Scheme -> Option UType
   scheme-code-carrier sc = case scheme-body sc of
-    UApp (UCon name _) carrier -> if same name global-stage-code then Some carrier else None
+    UApp (UCon name _) carrier -> if name == global-stage-code then Some carrier else None
     other -> None
 
   -- A probe names one splice's expression so the evaluator can run it at
@@ -163,8 +162,8 @@ module Cinch.Stage where
   -- probing runs before the program is checked.
   template-clause-probes :: List (List Pat, Expr) -> Result (List Diagnostic) (List Decl)
   template-clause-probes clauses = case clauses of
-    Nil -> Ok Nil
-    Cons (patterns, body) rest -> case template-clause-probes rest of
+    [] -> Ok []
+    (patterns, body) : rest -> case template-clause-probes rest of
       Err errors -> Err errors
       Ok tail -> (case stage-splice-probes body tail of
         Ok (checked, probes) -> Ok probes
@@ -189,9 +188,9 @@ module Cinch.Stage where
 
   template-probes :: List Decl -> Result (List Diagnostic) (List Decl)
   template-probes declarations = case declarations of
-    Nil -> Ok Nil
-    Cons first rest | generated-phase-declaration first -> stage-error (decl-span first) "a generator cannot emit `generate`, `stage` or `macro`"
-    Cons first rest -> case template-probes rest of
+    [] -> Ok []
+    first : rest | generated-phase-declaration first -> stage-error (decl-span first) "a generator cannot emit `generate`, `stage` or `macro`"
+    first : rest -> case template-probes rest of
       Err errors -> Err errors
       Ok more -> case first of
         DFun site name clauses -> case template-clause-probes clauses of
@@ -202,8 +201,8 @@ module Cinch.Stage where
   action-probes :: Decl -> Result (List Diagnostic) (List Decl)
   action-probes action = case action of
     DStageLet site group -> Ok (probe site (TName site "Unit") (ELocalGroup site group (EUnit site)))
-    DStageEmitValue site value -> Ok Nil
-    DEmitMacro site path tokens -> Ok Nil
+    DStageEmitValue site value -> Ok []
+    DEmitMacro site path tokens -> Ok []
     DStageEmit site template -> template-probes (decls-of template)
     DStageBranch site condition yes no -> case (action-probes yes, action-probes no) of
       (Ok first, Ok second) -> Ok (probe site (TName site "Bool") condition <> first <> second)
@@ -213,8 +212,8 @@ module Cinch.Stage where
 
   generator-probes :: List Decl -> Result (List Diagnostic) (List Decl)
   generator-probes declarations = case declarations of
-    Nil -> Ok Nil
-    Cons first rest -> case (action-probes first, generator-probes rest) of
+    [] -> Ok []
+    first : rest -> case (action-probes first, generator-probes rest) of
       (Ok local, Ok more) -> (case first of
         DStageLet site group -> Ok (local <> map (scope-probe site group) more)
         other -> Ok (local <> more))
@@ -223,43 +222,43 @@ module Cinch.Stage where
 
   scope-probe :: Span -> Expr -> Decl -> Decl
   scope-probe site bindings declaration = case declaration of
-    DFun at name [(Nil, expression)] -> DFun at name [(Nil, ELocalGroup site bindings expression)]
+    DFun at name [([], expression)] -> DFun at name [([], ELocalGroup site bindings expression)]
     other -> declaration
 
   runtime-value-names :: List Decl -> List String
   runtime-value-names declarations = case declarations of
-    Nil -> Nil
-    Cons first rest -> case first of
-      DSig site name ty -> Cons name (runtime-value-names rest)
-      DFun site name body -> Cons name (runtime-value-names rest)
+    [] -> []
+    first : rest -> case first of
+      DSig site name ty -> name : (runtime-value-names rest)
+      DFun site name body -> name : (runtime-value-names rest)
       other -> runtime-value-names rest
 
   runtime-value-name :: String -> List String -> Bool
   runtime-value-name name names = case names of
-    Nil -> False
-    Cons first rest -> same name first || runtime-value-name name rest
+    [] -> False
+    first : rest -> name == first || runtime-value-name name rest
 
   stage-exports :: List String -> List ExportItem -> List ExportItem
   stage-exports runtime items = case items of
-    Nil -> Nil
-    Cons first rest -> let tail = stage-exports runtime rest in case first of
-      ExportName site (Cons name Nil) -> if runtime-value-name name runtime then tail else Cons first tail
-      other -> Cons first tail
+    [] -> []
+    first : rest -> let tail = stage-exports runtime rest in case first of
+      ExportName site ([name]) -> if runtime-value-name name runtime then tail else first : tail
+      other -> first : tail
 
   -- Unconditional generators that only declare nominal headers have no
   -- evaluator prerequisites. Their headers can be checked with the helpers
   -- a later generator calls, using the same declarations emitted at runtime.
   nominal-headers :: List Decl -> Bool
   nominal-headers declarations = case declarations of
-    Nil -> True
-    Cons (DRecord site name parameters fields) rest -> nominal-headers rest
-    Cons (DData site name parameters constructors) rest -> nominal-headers rest
+    [] -> True
+    (DRecord site name parameters fields) : rest -> nominal-headers rest
+    (DData site name parameters constructors) : rest -> nominal-headers rest
     other -> False
 
   static-generator-headers :: List Decl -> Option (List Decl)
   static-generator-headers actions = case actions of
-    Nil -> Some Nil
-    Cons (DStageEmit site template) rest -> let declarations = decls-of template in
+    [] -> Some []
+    (DStageEmit site template) : rest -> let declarations = decls-of template in
       if nominal-headers declarations then (case static-generator-headers rest of
         Some more -> Some (declarations <> more)
         None -> None) else None
@@ -269,20 +268,20 @@ module Cinch.Stage where
   -- definitions, respecting local binders and the quote/splice boundary.
   generator-references :: List Decl -> List String
   generator-references declarations = case declarations of
-    Nil -> Nil
-    Cons (DGenerate site actions) rest -> clause-dependencies True [(Nil, generator-expression site (decls-of actions))] (generator-references rest)
-    Cons other rest -> generator-references rest
+    [] -> []
+    (DGenerate site actions) : rest -> clause-dependencies True [([], generator-expression site (decls-of actions))] (generator-references rest)
+    other : rest -> generator-references rest
 
   helper-definitions :: String -> List Decl -> HashMap String (List (List Pat, Expr))
   helper-definitions owner declarations = case declarations of
-    Nil -> hash-map-empty
-    Cons (DFun site name clauses) rest -> hash-map-insert name clauses (hash-map-insert (cat [owner, ".", name]) clauses (helper-definitions owner rest))
-    Cons other rest -> helper-definitions owner rest
+    [] -> hash-map-empty
+    (DFun site name clauses) : rest -> hash-map-insert name clauses (hash-map-insert (cat [owner, ".", name]) clauses (helper-definitions owner rest))
+    other : rest -> helper-definitions owner rest
 
   helper-closure :: HashMap String (List (List Pat, Expr)) -> List String -> HashMap String Unit -> HashMap String Unit
   helper-closure nodes pending seen = case pending of
-    Nil -> seen
-    Cons name rest -> (case hash-map-lookup name seen of
+    [] -> seen
+    name : rest -> (case hash-map-lookup name seen of
       Some visited -> helper-closure nodes rest seen
       None -> let found = hash-map-insert name () seen in (case hash-map-lookup name nodes of
         Some clauses -> helper-closure nodes (clause-dependencies True clauses rest) found
@@ -290,7 +289,7 @@ module Cinch.Stage where
 
   generator-helpers :: String -> List Decl -> HashMap String Unit
   generator-helpers owner declarations = case generator-references declarations of
-    Nil -> hash-map-empty
+    [] -> hash-map-empty
     names -> helper-closure (helper-definitions owner declarations) names hash-map-empty
 
   needed-helper :: String -> String -> HashMap String Unit -> Bool
@@ -300,12 +299,12 @@ module Cinch.Stage where
 
   generator-needs-header :: String -> HashMap String Unit -> List Decl -> Bool
   generator-needs-header home helpers headers = case headers of
-    Nil -> False
-    Cons (DRecord site name params fields) rest -> needed-helper home name helpers || generator-needs-header home helpers rest
-    Cons (DData site name params constructors) rest -> needed-helper home name helpers
+    [] -> False
+    (DRecord site name params fields) : rest -> needed-helper home name helpers || generator-needs-header home helpers rest
+    (DData site name params constructors) : rest -> needed-helper home name helpers
       || foldr (\entry used -> case entry of (constructor, ty) -> needed-helper home constructor helpers || used) False constructors
       || generator-needs-header home helpers rest
-    Cons other rest -> generator-needs-header home helpers rest
+    other : rest -> generator-needs-header home helpers rest
 
   -- A stage declaration whose body is a quotation has no stage computation in
   -- it: the template is checked where the code lands (modules specification
@@ -316,7 +315,7 @@ module Cinch.Stage where
   quotation-bodied declaration = case declaration of
     DDeclarationMacro site name params template -> True
     DFun site name clauses -> case clauses of
-      Cons (patterns, EQuote at body) Nil -> True
+      [(patterns, EQuote at body)] -> True
       other -> False
     other -> False
 
@@ -326,9 +325,9 @@ module Cinch.Stage where
   -- shape.
   quotation-signature-of :: String -> List Decl -> Bool
   quotation-signature-of name all = case all of
-    Nil -> False
-    Cons first rest -> case first of
-      DStage site body -> (quotation-bodied body && same (definition-name body) name) || quotation-signature-of name rest
+    [] -> False
+    first : rest -> case first of
+      DStage site body -> (quotation-bodied body && definition-name body == name) || quotation-signature-of name rest
       other -> quotation-signature-of name rest
 
   -- The name a marked declaration defines, whether it is the definition
@@ -350,43 +349,43 @@ module Cinch.Stage where
   -- the code lands, so neither the body nor the signature is stage code.
   stage-declarations :: String -> HashMap String Unit -> Bool -> List String -> List Decl -> List Decl -> Result (List Diagnostic) (List Decl)
   stage-declarations home helpers owner runtime all declarations = case declarations of
-    Nil -> Ok Nil
-    Cons first rest -> case stage-declarations home helpers owner runtime all rest of
+    [] -> Ok []
+    first : rest -> case stage-declarations home helpers owner runtime all rest of
       Err errors -> Err errors
       Ok tail -> case first of
         -- A macro declaration is compile-time only: it names no runtime
         -- value in any module, so the runtime program keeps no trace of it.
-        DDeclarationMacro site name patterns template -> Ok (Cons (DMacroBinding site name) tail)
-        DMacro site (DFun at name clauses) -> Ok (Cons (DMacroBinding site name) tail)
-        DMacro site (DSig at name scheme) -> Ok (Cons (DMacroBinding site name) tail)
+        DDeclarationMacro site name patterns template -> Ok ((DMacroBinding site name) : tail)
+        DMacro site (DFun at name clauses) -> Ok ((DMacroBinding site name) : tail)
+        DMacro site (DSig at name scheme) -> Ok ((DMacroBinding site name) : tail)
         DMacro site body -> stage-error site "a macro requires a signature or equation"
         DStage site (DDeclarationMacro at name params template) -> if owner then (case template-probes (decls-of template) of
-          Ok probes -> Ok (Cons (DMacroBinding site name) (probes <> tail))
-          Err errors -> Err errors) else Ok (Cons (DMacroBinding site name) tail)
-        DStage site body -> if quotation-bodied body then Ok (Cons (DMacroBinding site (definition-name body)) tail)
+          Ok probes -> Ok ((DMacroBinding site name) : (probes <> tail))
+          Err errors -> Err errors) else Ok ((DMacroBinding site name) : tail)
+        DStage site body -> if quotation-bodied body then Ok ((DMacroBinding site (definition-name body)) : tail)
           else if not owner then Ok tail
           else if quotation-signature-of (definition-name body) all then Ok tail
-          else Ok (Cons body tail)
+          else Ok (body : tail)
         DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
           Err errors -> Err errors
           Ok probes -> (case static-generator-headers (decls-of actions) of
             Some headers | generator-needs-header home helpers headers -> Ok (headers <> probes <> tail)
             other -> Ok (probes <> tail))) else Ok tail
-        DSig site name ty -> Ok (if needed-helper home name helpers then Cons first tail else tail)
-        DFun site name body -> Ok (if needed-helper home name helpers then Cons first tail else tail)
-        DExport site text items -> if owner then Ok tail else Ok (Cons (DExport site text (stage-exports runtime items)) tail)
-        other -> Ok (Cons first tail)
+        DSig site name ty -> Ok (if needed-helper home name helpers then first : tail else tail)
+        DFun site name body -> Ok (if needed-helper home name helpers then first : tail else tail)
+        DExport site text items -> if owner then Ok tail else Ok ((DExport site text (stage-exports runtime items)) : tail)
+        other -> Ok (first : tail)
 
   stage-modules :: String -> List String -> List Module -> Result (List Diagnostic) (List Module)
   stage-modules owner reachable modules = case modules of
-    Nil -> Ok Nil
-    Cons first rest | not (runtime-value-name (first.name) reachable) -> stage-modules owner reachable rest
-    Cons first rest -> let name = first.name in let body = module-decls first in
-      let helpers = if same owner name then generator-helpers name body else hash-map-empty in
-      case (stage-declarations name helpers (same owner name) (runtime-value-names body) body body, stage-modules owner reachable rest) of
+    [] -> Ok []
+    first : rest | not (runtime-value-name (first.name) reachable) -> stage-modules owner reachable rest
+    first : rest -> let name = first.name in let body = module-decls first in
+      let helpers = if owner == name then generator-helpers name body else hash-map-empty in
+      case (stage-declarations name helpers (owner == name) (runtime-value-names body) body body, stage-modules owner reachable rest) of
         (Ok declarations, Ok tail) -> let site = first.span in
-          let visible = if same owner name then Cons (DImport site stage-quotation-module Nil None Nil Nil Nil) declarations else declarations in
-          Ok (Cons (Module site name (decl-spine site visible)) tail)
+          let visible = if owner == name then (DImport site stage-quotation-module [] None [] [] []) : declarations else declarations in
+          Ok ((Module site name (decl-spine site visible)) : tail)
         (Err errors, other) -> Err errors
         (other, Err errors) -> Err errors
 
@@ -395,11 +394,11 @@ module Cinch.Stage where
 
   literal :: Span -> String -> StageValue -> Result (List Diagnostic) Expr
   literal site carrier value = case value of
-    StageInteger number -> if (same carrier "Nat" && number >= 0) || same carrier "Int" then
+    StageInteger number -> if (carrier == "Nat" && number >= 0) || carrier == "Int" then
       let body = if number < 0 then ENeg site (ELitInt site (int-to-string (int-neg number))) else ELitInt site (int-to-string number) in
       Ok (EAnn site body (TName site carrier))
       else stage-error site "checked scalar quotation did not produce its declared carrier"
-    StageBoolean boolean -> if same carrier "Bool" then Ok (ECon site (if boolean then "True" else "False") (EArgsEnd site))
+    StageBoolean boolean -> if carrier == "Bool" then Ok (ECon site (if boolean then "True" else "False") (EArgsEnd site))
       else stage-error site "checked scalar quotation did not produce its declared carrier"
     other -> stage-error site "checked scalar quotation did not produce its declared carrier"
 
@@ -424,22 +423,22 @@ module Cinch.Stage where
 
   template-equation :: String -> List Decl -> Option (List Pat, Expr)
   template-equation name declarations = case declarations of
-    Cons (DStage site (DFun at declared [(parameters, EQuote span body)])) rest | same declared name -> Some (parameters, body)
-    Cons other rest -> template-equation name rest
-    Nil -> None
+    (DStage site (DFun at declared [(parameters, EQuote span body)])) : rest | (declared == name) -> Some (parameters, body)
+    other : rest -> template-equation name rest
+    [] -> None
 
   stage-signature :: String -> List Decl -> Option TypeExpr
   stage-signature name declarations = case declarations of
-    Cons (DStage site (DSig at declared ty)) rest | same declared name -> Some ty
-    Cons other rest -> stage-signature name rest
-    Nil -> None
+    (DStage site (DSig at declared ty)) : rest | (declared == name) -> Some ty
+    other : rest -> stage-signature name rest
+    [] -> None
 
   code-carrier :: TypeExpr -> Option TypeExpr
   code-carrier ty = case ty of
     TForall site parameters body -> (case code-carrier body of
       Some carrier -> Some (TForall site parameters carrier)
       None -> None)
-    TApp site (TName at name) (TArg arg carrier (TArgsEnd end)) | same name "Code" -> Some carrier
+    TApp site (TName at name) (TArg arg carrier (TArgsEnd end)) | (name == "Code") -> Some carrier
     other -> None
 
   record ExpandScope where
@@ -449,7 +448,7 @@ module Cinch.Stage where
   defining-scope :: String -> ExpandScope -> ExpandScope
   defining-scope home scope = case scope.site of
     MacroSite owner fix modules names parent ->
-      ExpandScope (MacroSite home (indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent)) Nil
+      ExpandScope (MacroSite home (indexed-module-scope-fixes home modules []) modules names (CallerSite owner fix parent)) []
 
   scope-with-template :: List Decl -> ExpandScope -> ExpandScope
   scope-with-template declarations scope = ExpandScope (scope.site) declarations
@@ -460,19 +459,19 @@ module Cinch.Stage where
     other -> walk-children (expand-clause checked owner scope) body fuel
 
   expand-code :: CheckedProgram -> String -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  expand-code checked owner scope site expression fuel = code-application checked owner scope site expression expression Nil fuel
+  expand-code checked owner scope site expression fuel = code-application checked owner scope site expression expression [] fuel
 
   code-application :: CheckedProgram -> String -> ExpandScope -> Span -> Expr -> Expr -> List Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   code-application checked owner scope site original expression args fuel = if fuel == 0 || fuel > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else case expression of
-    EApp at function argument -> code-application checked owner scope site original function (Cons argument args) (fuel - 1)
-    EQuote at body -> (case args of Nil -> expand-clause checked owner scope body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
+    EApp at function argument -> code-application checked owner scope site original function (argument : args) (fuel - 1)
+    EQuote at body -> (case args of [] -> expand-clause checked owner scope body (fuel - 1); other -> stage-error site "a quotation does not take arguments")
     EMacroCall at path tokens -> (case args of
-      Nil -> expand-call (scope.site) at path tokens (fuel - 1)
+      [] -> expand-call (scope.site) at path tokens (fuel - 1)
       other -> stage-error site "a macro quotation does not take runtime arguments")
     EVar at name -> (case surface-template (scope.site) name of
       Some (CodeTemplate home parameters ty body) -> (case hygienic-term body (macro-budget - fuel) of
         (renamed, serial) -> if serial + 1 > macro-budget then stage-error site "compile-time quotation exhausted its work budget" else
-          (case apply-code-template checked owner scope home site parameters ty args Nil renamed (macro-budget - (serial + 1)) of
+          (case apply-code-template checked owner scope home site parameters ty args [] renamed (macro-budget - (serial + 1)) of
             Ok (result, remaining) -> Ok (ETemplateScope site home result, remaining)
             Err errors -> Err errors))
       None -> splice-value checked owner site original (fuel - 1))
@@ -483,15 +482,15 @@ module Cinch.Stage where
   -- executes only at the splice sites that the quotation actually reaches.
   apply-code-template :: CheckedProgram -> String -> ExpandScope -> String -> Span -> List Pat -> TypeExpr -> List Expr -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
   apply-code-template checked owner scope home site parameters ty arguments names body fuel = case (parameters, arguments, ty) of
-    (Nil, Nil, result) -> (case code-carrier result of
+    ([], [], result) -> (case code-carrier result of
       Some carrier -> (case template-holes checked home (defining-scope home scope) names body fuel of
         Ok (expanded, remaining) -> Ok (EAnn site expanded carrier, remaining)
         Err errors -> Err errors)
       None -> stage-error site "a quoted stage definition must return Code")
-    (Cons (PVar at name) rest, Cons argument more, TFun arrow domain result) -> (case code-carrier domain of
+    ((PVar at name) : rest, argument : more, TFun arrow domain result) -> (case code-carrier domain of
       Some carrier -> (case expand-code checked owner scope (expr-span argument) argument fuel of
         Ok (value, next) -> let key = cat ["#stage-operand-", nat-to-string (span-start site), "-", nat-to-string (list-length rest)] in
-          (case apply-code-template checked owner scope home site rest result more (Cons (name, key) names) body next of
+          (case apply-code-template checked owner scope home site rest result more ((name, key) : names) body next of
             Ok (expanded, remaining) ->
               let operand = EAnn site (EArgumentScope site value) carrier in
               let thunk = ELam site [PAnn site (PWild site) (TName site "Unit")] operand in
@@ -518,7 +517,7 @@ module Cinch.Stage where
 
   inline-code-reference :: String -> Expr -> Expr -> Bool -> Result (List Diagnostic) (Expr, Bool)
   inline-code-reference key operand term used = case term of
-    EApp site (EVar at name) (EUnit arg) | same key name -> Ok (operand, True)
+    EApp site (EVar at name) (EUnit arg) | (key == name) -> Ok (operand, True)
     other -> walk-children (inline-code-reference key operand) term used
 
   template-holes :: CheckedProgram -> String -> ExpandScope -> List (String, String) -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
@@ -532,94 +531,106 @@ module Cinch.Stage where
 
   code-operand :: String -> List (String, String) -> Option String
   code-operand name names = case names of
-    Cons (parameter, key) rest -> if same name parameter then Some key else code-operand name rest
-    Nil -> None
+    (parameter, key) : rest -> if name == parameter then Some key else code-operand name rest
+    [] -> None
 
   -- A splice whose expression is a stage computation: evaluate it and reify
   -- the code it produced.
-  splice-value :: CheckedProgram -> String -> Span -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
-  splice-value checked owner site expression fuel = case quotation site expression of
-    Err errors -> Err errors
-    Ok carrier -> case evaluate-probe checked owner site fuel of
-      Err errors -> Err errors
-      Ok (StageQuoted value, remaining) -> case literal site carrier value of
-        Err errors -> Err errors
-        Ok term -> Ok (term, remaining)
-      Ok (StageCode template, remaining) -> Ok (template.body, remaining)
-      Ok other -> stage-error site "splice did not produce checked code"
+  splice-value :: using (seq :: ResultSequencing (List Diagnostic)) => CheckedProgram -> String -> Span -> Expr -> Nat -> Result (List Diagnostic) (Expr, Nat)
+  splice-value checked owner site expression fuel = do
+    carrier <- quotation site expression
+    evaluated <- evaluate-probe checked owner site fuel
+    case evaluated of
+      (StageQuoted value, remaining) -> do
+        term <- literal site carrier value
+        Ok (term, remaining)
+      (StageCode template, remaining) -> Ok (template.body, remaining)
+      other -> stage-error site "splice did not produce checked code"
 
-  expand-clauses :: CheckedProgram -> String -> ExpandScope -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
+  expand-clauses :: using (seq :: ResultSequencing (List Diagnostic)) => CheckedProgram -> String -> ExpandScope -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
   expand-clauses checked owner scope clauses fuel = case clauses of
-    Nil -> Ok (Nil, fuel)
-    Cons (patterns, body) rest -> case expand-clause checked owner scope body fuel of
-      Err errors -> Err errors
-      Ok (term, remaining) -> case expand-clauses checked owner scope rest remaining of
-        Err errors -> Err errors
-        Ok (more, done) -> Ok (Cons (patterns, term) more, done)
+    [] -> Ok ([], fuel)
+    (patterns, body) : rest -> do
+      first <- expand-clause checked owner scope body fuel
+      case first of
+        (term, remaining) -> do
+          rest-res <- expand-clauses checked owner scope rest remaining
+          case rest-res of
+            (more, done) -> Ok ((patterns, term) : more, done)
 
-  expand-template-declaration :: CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
+  expand-template-declaration :: using (seq :: ResultSequencing (List Diagnostic)) => CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
   expand-template-declaration checked owner scope declaration fuel = case declaration of
-    DFun site name body -> case expand-clauses checked owner scope body fuel of
-      Err errors -> Err errors
-      Ok (value, remaining) -> Ok (DFun site name value, remaining)
+    DFun site name body -> do
+      expanded <- expand-clauses checked owner scope body fuel
+      case expanded of
+        (value, remaining) -> Ok (DFun site name value, remaining)
     other -> Ok (declaration, fuel)
 
-  expand-template :: CheckedProgram -> String -> ExpandScope -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-template :: using (seq :: ResultSequencing (List Diagnostic)) => CheckedProgram -> String -> ExpandScope -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-template checked owner scope fuel = case scope.template of
-    Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-template-declaration checked owner scope first fuel of
-      Err errors -> Err errors
-      Ok (value, remaining) -> case expand-template checked owner (scope-with-template rest scope) remaining of
-        Err errors -> Err errors
-        Ok (more, done) -> Ok (Cons value more, done)
+    [] -> Ok ([], fuel)
+    first : rest -> do
+      head-res <- expand-template-declaration checked owner scope first fuel
+      case head-res of
+        (value, remaining) -> do
+          tail-res <- expand-template checked owner (scope-with-template rest scope) remaining
+          case tail-res of
+            (more, done) -> Ok (value : more, done)
 
   stored-declarations :: String -> List Decl -> Option Decl
   stored-declarations name declarations = case declarations of
-    Cons (DStage at (DDeclarationMacro site declared Nil template)) rest | same declared name -> Some template
-    Cons other rest -> stored-declarations name rest
-    Nil -> None
+    (DStage at (DDeclarationMacro site declared [] template)) : rest | (declared == name) -> Some template
+    other : rest -> stored-declarations name rest
+    [] -> None
 
-  emit-stage-value :: CheckedProgram -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  emit-stage-value :: using (seq :: ResultSequencing (List Diagnostic)) => CheckedProgram -> ExpandScope -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   emit-stage-value checked scope site value fuel = case (scope.site, value) of
     (MacroSite owner fix modules names parent, EVar at spelling) -> (case lookup-macro names owner spelling of
       Some (home, name) -> (case hash-map-lookup home modules of
         Some definition -> let declarations = module-decls definition in (case (stored-declarations name declarations, stage-signature name declarations) of
-          (Some template, Some (TName at carrier)) | same carrier "Declarations" ->
-            let destination = defining-scope home scope in (case expand-template checked home (scope-with-template (decls-of template) destination) fuel of
-              Err errors -> Err errors
-              Ok (expanded, remaining) -> (case fill-declarations (destination.site) fix (MacroOperands Nil Nil) expanded remaining of
-                Err errors -> Err errors
-                Ok (filled, done) -> Ok ([DGeneratedGroup site home (home <> "." <> name) (decl-spine (decl-span template) filled)], done)))
+          (Some template, Some (TName at carrier)) | (carrier == "Declarations") -> do
+            let destination = defining-scope home scope
+            exp-res <- expand-template checked home (scope-with-template (decls-of template) destination) fuel
+            case exp-res of
+              (expanded, remaining) -> do
+                fill-res <- fill-declarations destination.site fix (MacroOperands [] []) expanded remaining
+                case fill-res of
+                  (filled, done) -> Ok ([DGeneratedGroup site home (home <> "." <> name) (decl-spine (decl-span template) filled)], done)
           other -> stage-error site "emit requires a stage value of type Declarations")
         None -> stage-error site "stage declaration module is unavailable")
       None -> stage-error site "stage declaration value is not in scope")
     other -> stage-error site "emit requires a stage value of type Declarations"
 
-  expand-action :: MacroSite -> CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-action :: using (seq :: ResultSequencing (List Diagnostic)) => MacroSite -> CheckedProgram -> String -> ExpandScope -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-action context checked owner scope action fuel = case action of
-    DStageLet site group -> (case evaluate-probe checked owner site fuel of
-      Ok (StageUnit, remaining) -> Ok (Nil, remaining)
-      Err errors -> Err errors
-      other -> stage-error site "checked generator binding did not produce Unit")
+    DStageLet site group -> do
+      evaluated <- evaluate-probe checked owner site fuel
+      case evaluated of
+        (StageUnit, remaining) -> Ok ([], remaining)
+        other -> stage-error site "checked generator binding did not produce Unit"
     DStageEmitValue site value -> emit-stage-value checked scope site value fuel
     DEmitMacro site path tokens -> expand-declaration-call context site path tokens fuel
-    DStageEmit site template -> case expand-template checked owner (scope-with-template (decls-of template) scope) fuel of
-      Err errors -> Err errors
-      Ok (generated, remaining) -> Ok ([DGeneratedGroup site owner "quoteDecls" (decl-spine (decl-span template) generated)], remaining)
-    DStageBranch site condition yes no -> case evaluate-probe checked owner site fuel of
-      Err errors -> Err errors
-      Ok (StageBoolean selected, remaining) -> expand-action context checked owner scope (if selected then yes else no) remaining
-      Ok other -> stage-error site "checked generator branch did not produce Bool"
+    DStageEmit site template -> do
+      expanded <- expand-template checked owner (scope-with-template (decls-of template) scope) fuel
+      case expanded of
+        (generated, remaining) -> Ok ([DGeneratedGroup site owner "quoteDecls" (decl-spine (decl-span template) generated)], remaining)
+    DStageBranch site condition yes no -> do
+      evaluated <- evaluate-probe checked owner site fuel
+      case evaluated of
+        (StageBoolean selected, remaining) -> expand-action context checked owner scope (if selected then yes else no) remaining
+        other -> stage-error site "checked generator branch did not produce Bool"
     other -> stage-error (decl-span action) "invalid compile-time generator action"
 
-  expand-actions :: MacroSite -> CheckedProgram -> String -> ExpandScope -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
+  expand-actions :: using (seq :: ResultSequencing (List Diagnostic)) => MacroSite -> CheckedProgram -> String -> ExpandScope -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-actions context checked owner scope actions fuel = case actions of
-    Nil -> Ok (Nil, fuel)
-    Cons first rest -> case expand-action context checked owner scope first fuel of
-      Err errors -> Err errors
-      Ok (generated, remaining) -> case expand-actions context checked owner scope rest remaining of
-        Err errors -> Err errors
-        Ok (more, done) -> Ok (generated <> more, done)
+    [] -> Ok ([], fuel)
+    first : rest -> do
+      head-res <- expand-action context checked owner scope first fuel
+      case head-res of
+        (generated, remaining) -> do
+          tail-res <- expand-actions context checked owner scope rest remaining
+          case tail-res of
+            (more, done) -> Ok (generated <> more, done)
 
   -- A macro declaration is compile-time only: it names no runtime value in
   -- any module, so the runtime program keeps no trace of it. It is not
@@ -637,11 +648,11 @@ module Cinch.Stage where
     DMacro site (DFun at name clauses) -> Ok ([DMacroBinding site name], fuel)
     DMacro site (DSig at name scheme) -> Ok ([DMacroBinding site name], fuel)
     DMacro site body -> stage-error site "a macro requires a signature or equation"
-    DStage site body -> Ok (if quotation-bodied body then [DMacroBinding site (definition-name body)] else Nil, fuel)
+    DStage site body -> Ok (if quotation-bodied body then [DMacroBinding site (definition-name body)] else [], fuel)
     DGenerate site actions -> (case evaluator of
-      Some checked -> expand-actions site-context checked owner (ExpandScope site-context Nil) (decls-of actions) fuel
+      Some checked -> expand-actions site-context checked owner (ExpandScope site-context []) (decls-of actions) fuel
       None -> stage-error site "generator requires a checked stage program")
-    DSig site name ty -> if quotation-signature-of name module-decls then Ok (Nil, fuel) else Ok ([declaration], fuel)
+    DSig site name ty -> if quotation-signature-of name module-decls then Ok ([], fuel) else Ok ([declaration], fuel)
     DFun site name clauses -> if clauses-have-macro-call clauses then
       (case macro-expand-clauses site-context clauses fuel of
         Err errors -> Err errors
@@ -649,7 +660,7 @@ module Cinch.Stage where
       else Ok ([declaration], fuel)
     DConditional site clauses inner -> case expand-declaration evaluator site-context owner module-decls inner fuel of
       Err errors -> Err errors
-      Ok (Nil, remaining) -> Ok (Nil, remaining)
+      Ok ([], remaining) -> Ok ([], remaining)
       Ok (expanded, remaining) -> Ok ([DConditional site clauses (decl-spine site expanded)], remaining)
     other -> Ok ([declaration], fuel)
 
@@ -659,12 +670,12 @@ module Cinch.Stage where
   -- same rules as written code).
   macro-expand-clauses :: MacroSite -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
   macro-expand-clauses site-context clauses fuel = case clauses of
-    Nil -> Ok (Nil, fuel)
-    Cons (patterns, body) rest -> case expand-term site-context body fuel of
+    [] -> Ok ([], fuel)
+    (patterns, body) : rest -> case expand-term site-context body fuel of
       Err errors -> Err errors
       Ok (expanded, remaining) -> case macro-expand-clauses site-context rest remaining of
         Err errors -> Err errors
-        Ok (more, done) -> Ok (Cons (patterns, expanded) more, done)
+        Ok (more, done) -> Ok ((patterns, expanded) : more, done)
 
   -- One term, with every macro call in it replaced by its expansion. The
   -- walk visits every expression position, because a call can stand
@@ -764,7 +775,7 @@ module Cinch.Stage where
               else let (renamed, serial) = hygienic-term template (macro-budget - fuel) in
                 if serial + 1 > macro-budget then expand-error site "macro expansion exhausted its work budget" else case macro-fill-splices renamed (zip-parameters parameters groups) fix of
                   Err errors -> Err errors
-                  Ok filled -> let scope = MacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+                  Ok filled -> let scope = MacroSite home (if owner == home then fix else indexed-module-scope-fixes home modules []) modules names (CallerSite owner fix parent) in
                     case expand-term scope filled (macro-budget - (serial + 1)) of
                       Err errors -> Err errors
                       Ok (expanded, remaining) -> Ok (ETemplateScope site home expanded, remaining)
@@ -776,14 +787,14 @@ module Cinch.Stage where
     syntax :: List (String, List LToken)
   bind-operands :: Span -> List (String, String) -> List (List LToken) -> Result (List Diagnostic) MacroOperands
   bind-operands site params groups = case (params, groups) of
-    (Nil, Nil) -> Ok (MacroOperands Nil Nil)
-    (Cons (param, sort) rest, Cons tokens more) -> (case bind-operands site rest more of
+    ([], []) -> Ok (MacroOperands [] [])
+    ((param, sort) : rest, tokens : more) -> (case bind-operands site rest more of
       Err errors -> Err errors
-      Ok (MacroOperands names syntax) -> if same sort "Name" then
+      Ok (MacroOperands names syntax) -> if sort == "Name" then
         (case macro-name-argument site tokens of
           Err errors -> Err errors
-          Ok spelling -> Ok (MacroOperands (Cons (param, spelling) names) syntax))
-        else Ok (MacroOperands names (Cons (param, tokens) syntax)))
+          Ok spelling -> Ok (MacroOperands ((param, spelling) : names) syntax))
+        else Ok (MacroOperands names ((param, tokens) : syntax)))
     other -> expand-error site "macro token-tree arity mismatch"
 
   data ReifiedName where
@@ -793,8 +804,8 @@ module Cinch.Stage where
   reified-spelling value = case value of NameValue name -> name; SymbolValue name -> name
   name-operand :: String -> List (String, String) -> Option ReifiedName
   name-operand param locals = case locals of
-    Nil -> None
-    Cons (name, spelling) rest -> if same name param then Some (NameValue spelling) else name-operand param rest
+    [] -> None
+    (name, spelling) : rest -> if name == param then Some (NameValue spelling) else name-operand param rest
 
   reify-name :: MacroSite -> MacroOperands -> Expr -> Nat -> Result (List Diagnostic) (Option ReifiedName)
   reify-name scope operands expr fuel = if fuel == 0 then expand-error (expr-span expr) "macro expansion exhausted its work budget" else
@@ -802,12 +813,12 @@ module Cinch.Stage where
       (MacroSite owner fix modules namespaces parent, MacroOperands locals syntax) -> (case expr of
         EVar site name -> Ok (name-operand name locals)
         ELitSym site name -> Ok (Some (SymbolValue name))
-        EApp site (EVar op-site op) argument | (same op "name-to-sym" || same op "sym-to-name") && stage-operation-available namespaces owner op ->
+        EApp site (EVar op-site op) argument | (op == "name-to-sym" || op == "sym-to-name") && stage-operation-available namespaces owner op ->
           (case reify-name scope operands argument (fuel - 1) of
             Err errors -> Err errors
             Ok result -> (case (op, result) of
-              (member, Some (NameValue spelling)) | same member "name-to-sym" -> Ok (Some (SymbolValue spelling))
-              (member, Some (SymbolValue spelling)) | same member "sym-to-name" -> Ok (Some (NameValue spelling))
+              (member, Some (NameValue spelling)) | (member == "name-to-sym") -> Ok (Some (SymbolValue spelling))
+              (member, Some (SymbolValue spelling)) | (member == "sym-to-name") -> Ok (Some (NameValue spelling))
               other -> expand-error site ("invalid stage operand for " <> op)))
         EMacroCall site path tokens -> (case lookup-macro namespaces owner path of
           None -> expand-error site ("macro is not in scope: " <> path)
@@ -817,7 +828,7 @@ module Cinch.Stage where
               None -> Ok None
               Some (params, body) -> case bind-operands site params (macro-argument-groups (thaw-macro-tokens tokens) (list-length params)) of
                 Err errors -> Err errors
-                Ok args -> let nested = MacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent) in
+                Ok args -> let nested = MacroSite home (if owner == home then fix else indexed-module-scope-fixes home modules []) modules namespaces (CallerSite owner fix parent) in
                   (case reify-name nested args body (fuel - 1) of
                     Ok (Some (NameValue spelling)) -> Ok (Some (NameValue spelling))
                     Err errors -> Err errors
@@ -846,7 +857,7 @@ module Cinch.Stage where
           None -> expand-error site "emit requires a macro producing Declarations"
           Some (params, template) -> let groups = macro-argument-groups (thaw-macro-tokens tokens) (list-length params) in
             if list-length groups /= list-length params then expand-error site "declaration macro token-tree arity mismatch" else
-              let scope = MacroSite home (if same owner home then fix else indexed-module-scope-fixes home modules Nil) modules names (CallerSite owner fix parent) in
+              let scope = MacroSite home (if owner == home then fix else indexed-module-scope-fixes home modules []) modules names (CallerSite owner fix parent) in
               (case bind-operands site params groups of
                 Err errors -> Err errors
                 Ok operands -> case template of
@@ -867,7 +878,7 @@ module Cinch.Stage where
         Some (home, name) -> (case hash-map-lookup home modules of
           Some definition -> (case value-macro "Syntax" name (module-decls definition) of
             Some (params, body) -> (case bind-operands at params (macro-argument-groups (thaw-macro-tokens tokens) (list-length params)) of
-              Ok nested -> field-syntax (MacroSite home (indexed-module-scope-fixes home modules Nil) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
+              Ok nested -> field-syntax (MacroSite home (indexed-module-scope-fixes home modules []) modules namespaces (CallerSite owner fix parent)) nested owner body (fuel - 1)
               Err errors -> Err errors)
             None -> expand-error at "record fields require a macro producing Syntax")
           None -> expand-error at ("unavailable macro module " <> home))
@@ -876,12 +887,12 @@ module Cinch.Stage where
 
   construct-declarations :: MacroSite -> MacroOperands -> String -> String -> Span -> Expr -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   construct-declarations scope operands argument-home macro-name site expression fuel = case (scope, expression) of
-    (MacroSite home fix modules namespaces parent, EApp at (EApp inner (EVar op-site op) requested) field-value) | same op "Syntax.recordDeclaration" && stage-operation-available namespaces home op ->
+    (MacroSite home fix modules namespaces parent, EApp at (EApp inner (EVar op-site op) requested) field-value) | (op == "Syntax.recordDeclaration") && stage-operation-available namespaces home op ->
       (case reify-name scope operands requested fuel of
         Ok (Some (NameValue name)) -> (case string-char-at name 0 of
           Some first | is-ascii-upper first -> (case field-syntax scope operands argument-home field-value fuel of
             Ok (origin, tokens, remaining) -> (case parse-tree-record-fields tokens of
-              POk fields Nil -> let generated = DRecord at name Nil fields in
+              POk fields [] -> let generated = DRecord at name [] fields in
                 Ok ([DGeneratedGroup site origin (home <> "." <> macro-name) (decl-spine at [generated])], remaining)
               other -> expand-error at "expected a braced group of record field signatures")
             Err errors -> Err errors)
@@ -892,12 +903,12 @@ module Cinch.Stage where
 
   fill-declarations :: MacroSite -> List (String, Fix) -> MacroOperands -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   fill-declarations scope fix operands declarations fuel = case declarations of
-    Nil -> Ok (Nil, fuel)
-    Cons first rest -> (case fill-declaration scope fix operands first fuel of
+    [] -> Ok ([], fuel)
+    first : rest -> (case fill-declaration scope fix operands first fuel of
       Err errors -> Err errors
       Ok (declared, remaining) -> case fill-declarations scope fix operands rest remaining of
         Err errors -> Err errors
-        Ok (tail, done) -> Ok (Cons declared tail, done))
+        Ok (tail, done) -> Ok (declared : tail, done))
 
   fill-declaration :: MacroSite -> List (String, Fix) -> MacroOperands -> Decl -> Nat -> Result (List Diagnostic) (Decl, Nat)
   fill-declaration scope fix operands declaration fuel = case declaration of
@@ -918,8 +929,8 @@ module Cinch.Stage where
 
   fill-declared-clauses :: MacroSite -> List (String, Fix) -> MacroOperands -> List (List Pat, Expr) -> Nat -> Result (List Diagnostic) (List (List Pat, Expr), Nat)
   fill-declared-clauses scope fix operands clauses fuel = if fuel > macro-budget then expand-error (Span 0 0 1 1) "macro expansion exhausted its work budget" else case clauses of
-    Nil -> Ok (Nil, fuel)
-    Cons (patterns, rhs) rest -> let site = expr-span rhs in
+    [] -> Ok ([], fuel)
+    (patterns, rhs) : rest -> let site = expr-span rhs in
       (case hygienic-term (ELam site patterns rhs) (macro-budget - fuel) of
         (ELam at ps body, serial) -> if serial > macro-budget then expand-error site "macro expansion exhausted its work budget" else (case fill-declaration-term scope operands fix (macro-budget - serial) body of
           Err errors -> Err errors
@@ -927,7 +938,7 @@ module Cinch.Stage where
             Err errors -> Err errors
             Ok (expanded, remaining) -> case fill-declared-clauses scope fix operands rest remaining of
               Err errors -> Err errors
-              Ok (more, done) -> Ok (Cons (ps, expanded) more, done))
+              Ok (more, done) -> Ok ((ps, expanded) : more, done))
         other -> expand-error site "invalid quoted equation")
 
   fill-declaration-term :: MacroSite -> MacroOperands -> List (String, Fix) -> Nat -> Expr -> Result (List Diagnostic) Expr
@@ -936,8 +947,8 @@ module Cinch.Stage where
 
   zip-parameters :: List String -> List (List LToken) -> List (String, List LToken)
   zip-parameters names groups = case (names, groups) of
-    (Cons name rest, Cons tokens more) -> Cons (name, tokens) (zip-parameters rest more)
-    other -> Nil
+    (name : rest, tokens : more) -> (name, tokens) : (zip-parameters rest more)
+    other -> []
 
   -- Two declaration lists with different jobs, named for those jobs so the
   -- record's fields alone cannot save a caller from handing the walk's
@@ -950,36 +961,36 @@ module Cinch.Stage where
   --   `declarations` is only the walk's remaining work.
   expand-declarations :: Option CheckedProgram -> MacroSite -> String -> List Decl -> List Decl -> Nat -> Result (List Diagnostic) (List Decl, List String, Nat)
   expand-declarations evaluator site-context owner module-decls declarations fuel = case declarations of
-    Nil -> Ok (Nil, Nil, fuel)
-    Cons first rest -> case expand-declaration evaluator site-context owner module-decls first fuel of
+    [] -> Ok ([], [], fuel)
+    first : rest -> case expand-declaration evaluator site-context owner module-decls first fuel of
       Err errors -> Err errors
       Ok (local, remaining) -> case expand-declarations evaluator site-context owner module-decls rest remaining of
         Err errors -> Err errors
         Ok (more, names, done) -> let emitted = (case first of
               DGenerate at actions -> generated-binding-names local
               DEmitMacro at path tokens -> generated-binding-names local
-              other -> Nil) in Ok (local <> more, emitted <> names, done)
+              other -> []) in Ok (local <> more, emitted <> names, done)
 
   -- Only declarations actually emitted by an action enter the driver report.
   generated-binding-names :: List Decl -> List String
   generated-binding-names ds = case ds of
-    Nil -> Nil
-    Cons declaration rest -> let more = generated-binding-names rest in
+    [] -> []
+    declaration : rest -> let more = generated-binding-names rest in
       case declaration of
         DGeneratedGroup site home origin group -> generated-binding-names (decls-of group) <> more
         DConditional site conditions group -> generated-binding-names (decls-of group) <> more
-        DData site name params ctors -> Cons name (map (\pair -> case pair of (name, ty) -> name) ctors <> more)
-        DEffect site name params ops -> Cons name (map (\pair -> case pair of (name, ty) -> name) ops <> more)
-        DClass site name params members -> Cons name (generated-binding-names (decls-of members) <> more)
-        DMethod site label name ty -> Cons name more
-        DFun site name clauses -> Cons name more
-        DSig site name ty -> Cons name more
-        DForeign site direction abi external name ty -> Cons name more
-        DRecord site name params fields -> Cons name more
-        DCodata site name params fields -> Cons name more
-        DOpaque site name params kind -> Cons name more
-        DRefine site name params binder predicate -> Cons name more
-        DInstance site is-implicit name params head members -> Cons name more
+        DData site name params ctors -> name : (map (\pair -> case pair of (name, ty) -> name) ctors <> more)
+        DEffect site name params ops -> name : (map (\pair -> case pair of (name, ty) -> name) ops <> more)
+        DClass site name params members -> name : (generated-binding-names (decls-of members) <> more)
+        DMethod site label name ty -> name : more
+        DFun site name clauses -> name : more
+        DSig site name ty -> name : more
+        DForeign site direction abi external name ty -> name : more
+        DRecord site name params fields -> name : more
+        DCodata site name params fields -> name : more
+        DOpaque site name params kind -> name : more
+        DRefine site name params binder predicate -> name : more
+        DInstance site is-implicit name params head members -> name : more
         other -> more
 
   -- Diagnose a failure to resolve the stage program using the source
@@ -988,35 +999,35 @@ module Cinch.Stage where
   -- recursive component along the path can still refer to a generated value.
   dependency-terms :: Bool -> Expr -> List String -> Result (List Diagnostic) (Expr, List String)
   dependency-terms active term names = case term of
-    EVar site name | active -> Ok (term, Cons name names)
-    ERecord site name fields | active -> walk-children (dependency-terms True) term (Cons name names)
-    ECon site name fields | active -> walk-children (dependency-terms True) term (Cons name names)
-    EBin site op left right | active -> walk-children (dependency-terms True) term (Cons op names)
+    EVar site name | active -> Ok (term, name : names)
+    ERecord site name fields | active -> walk-children (dependency-terms True) term (name : names)
+    ECon site name fields | active -> walk-children (dependency-terms True) term (name : names)
+    EBin site op left right | active -> walk-children (dependency-terms True) term (op : names)
     EQuote site body -> dependency-terms False body names
     ESplice site body -> dependency-terms True body names
     other -> walk-children (dependency-terms active) term names
 
   clause-dependencies :: Bool -> List (List Pat, Expr) -> List String -> List String
   clause-dependencies active clauses names = case clauses of
-    Nil -> names
-    Cons (patterns, body) rest -> let (renamed, after) = hygienic-term (ELam (expr-span body) patterns body) 0 in
+    [] -> names
+    (patterns, body) : rest -> let (renamed, after) = hygienic-term (ELam (expr-span body) patterns body) 0 in
       (case dependency-terms active renamed names of
         Ok (term, found) -> clause-dependencies active rest found
         Err errors -> clause-dependencies active rest names)
 
   template-equations :: List Decl -> List Expr
   template-equations declarations = case declarations of
-    Nil -> Nil
-    Cons (DFun site name clauses) rest -> map (\entry -> case entry of (ps, body) -> EQuote site (ELam site ps body)) clauses <> template-equations rest
-    Cons other rest -> template-equations rest
+    [] -> []
+    (DFun site name clauses) : rest -> map (\entry -> case entry of (ps, body) -> EQuote site (ELam site ps body)) clauses <> template-equations rest
+    other : rest -> template-equations rest
 
   generator-expression :: Span -> List Decl -> Expr
   generator-expression site actions = case actions of
-    Nil -> EUnit site
-    Cons action rest -> let tail = generator-expression site rest in (case action of
+    [] -> EUnit site
+    action : rest -> let tail = generator-expression site rest in (case action of
       DStageLet at group -> ELocalGroup at group tail
       DStageEmitValue at value -> ETuple at (expr-spine at [value, tail])
-      DStageEmit at declarations -> ETuple at (expr-spine at (Cons tail (template-equations (decls-of declarations))))
+      DStageEmit at declarations -> ETuple at (expr-spine at (tail : (template-equations (decls-of declarations))))
       DStageBranch at condition yes no -> ETuple at (expr-spine at [condition, generator-expression at [yes], generator-expression at [no], tail])
       other -> tail)
 
@@ -1034,20 +1045,20 @@ module Cinch.Stage where
 
   generator-outputs :: String -> String -> List Decl -> StageDependencies -> StageDependencies
   generator-outputs owner key actions graph = case actions of
-    Nil -> graph
-    Cons action rest -> let more = generator-outputs owner key rest graph in (case action of
+    [] -> graph
+    action : rest -> let more = generator-outputs owner key rest graph in (case action of
       DStageBranch at guard yes no -> generator-outputs owner key [yes, no] more
       DStageEmit at ds -> fold-generated owner key (decls-of ds) more
       other -> more)
 
   fold-generated :: String -> String -> List Decl -> StageDependencies -> StageDependencies
   fold-generated owner key declarations graph = case declarations of
-    Nil -> graph
-    Cons (DFun at name clauses) rest -> fold-generated owner key rest (generated-node owner key name graph)
-    Cons (DRecord at name params fields) rest -> fold-generated owner key rest (generated-node owner key name graph)
-    Cons (DEffect at name params operations) rest -> fold-generated owner key rest (generated-members owner key operations graph)
-    Cons (DData at name params constructors) rest -> fold-generated owner key rest (generated-members owner key constructors graph)
-    Cons other rest -> fold-generated owner key rest graph
+    [] -> graph
+    (DFun at name clauses) : rest -> fold-generated owner key rest (generated-node owner key name graph)
+    (DRecord at name params fields) : rest -> fold-generated owner key rest (generated-node owner key name graph)
+    (DEffect at name params operations) : rest -> fold-generated owner key rest (generated-members owner key operations graph)
+    (DData at name params constructors) : rest -> fold-generated owner key rest (generated-members owner key constructors graph)
+    other : rest -> fold-generated owner key rest graph
 
   generated-members :: String -> String -> List (String, TypeExpr) -> StageDependencies -> StageDependencies
   generated-members owner key members graph = foldr (\member found -> case member of (name, ty) -> generated-node owner key name found) graph members
@@ -1057,33 +1068,33 @@ module Cinch.Stage where
 
   stage-dependency-graph :: String -> List Decl -> StageDependencies
   stage-dependency-graph owner declarations = case declarations of
-    Nil -> StageDependencies hash-map-empty Nil
-    Cons declaration rest -> let more = stage-dependency-graph owner rest in (case declaration of
-      DFun site name clauses -> dependency-node owner name (cat ["`", name, "`"]) (clause-dependencies True clauses Nil) more
-      DStage at (DFun site name clauses) -> (case dependency-node owner name (cat ["stage `", name, "`"]) (clause-dependencies True clauses Nil) more of
-        StageDependencies nodes roots -> StageDependencies nodes (Cons (name, at) roots))
+    [] -> StageDependencies hash-map-empty []
+    declaration : rest -> let more = stage-dependency-graph owner rest in (case declaration of
+      DFun site name clauses -> dependency-node owner name (cat ["`", name, "`"]) (clause-dependencies True clauses []) more
+      DStage at (DFun site name clauses) -> (case dependency-node owner name (cat ["stage `", name, "`"]) (clause-dependencies True clauses []) more of
+        StageDependencies nodes roots -> StageDependencies nodes ((name, at) : roots))
       DGenerate site ds -> let key = generator-name site in let actions = decls-of ds in
         (case dependency-node owner key ("generate block at " <> render-position site)
-                (clause-dependencies True [(Nil, generator-expression site actions)] Nil) (generator-outputs owner key actions more) of
-          StageDependencies nodes roots -> StageDependencies nodes (Cons (key, site) roots))
+                (clause-dependencies True [([], generator-expression site actions)] []) (generator-outputs owner key actions more) of
+          StageDependencies nodes roots -> StageDependencies nodes ((key, site) : roots))
       other -> more)
 
   cycle-edges :: HashMap String (String, List String) -> String -> List String -> List String -> HashMap String Unit -> (Option (List String), HashMap String Unit)
   cycle-edges nodes start path edges seen = case edges of
-    Nil -> (None, seen)
-    Cons name rest -> (case hash-map-lookup name nodes of
+    [] -> (None, seen)
+    name : rest -> (case hash-map-lookup name nodes of
       None -> cycle-edges nodes start path rest seen
-      Some (label, deps) -> if same start label && list-length path > 1 then (Some (reverse (Cons label path)), seen)
+      Some (label, deps) -> if start == label && list-length path > 1 then (Some (reverse (label : path)), seen)
         else (case hash-map-lookup label seen of
           Some unit -> cycle-edges nodes start path rest seen
-          None -> (case cycle-edges nodes start (Cons label path) deps (hash-map-insert label () seen) of
+          None -> (case cycle-edges nodes start (label : path) deps (hash-map-insert label () seen) of
             (Some chain, done) -> (Some chain, done)
             (None, done) -> cycle-edges nodes start path rest done)))
 
   staged-cycle :: StageDependencies -> List Diagnostic
   staged-cycle graph = case graph of
-    StageDependencies nodes Nil -> Nil
-    StageDependencies nodes (Cons (name, site) rest) -> (case hash-map-lookup name nodes of
+    StageDependencies nodes [] -> []
+    StageDependencies nodes ((name, site) : rest) -> (case hash-map-lookup name nodes of
       Some (label, dependencies) -> (case cycle-edges nodes label [label] dependencies (hash-map-insert label () hash-map-empty) of
         (Some chain, seen) -> [Diagnostic "bootstrap.stage" site ("stage dependency cycle: " <> render-cycle chain)]
         (None, seen) -> staged-cycle (StageDependencies nodes rest))
@@ -1092,37 +1103,37 @@ module Cinch.Stage where
   expand-module :: (Program -> (Program, List Diagnostic)) -> Program -> HashMap String Module -> MacroNamespaces -> Module -> Nat -> Result (List Diagnostic) (Module, List String, Nat)
   expand-module resolve program headers names current fuel =
     let declarations = module-decls current in
-    if not (stage-work declarations) then Ok (current, Nil, fuel) else
+    if not (stage-work declarations) then Ok (current, [], fuel) else
       let owner = current.name in
-      let finish = \evaluator -> case expand-declarations evaluator (MacroSite owner (indexed-module-scope-fixes owner headers Nil) headers names RootCall) owner declarations declarations fuel of
+      let finish = \evaluator -> case expand-declarations evaluator (MacroSite owner (indexed-module-scope-fixes owner headers []) headers names RootCall) owner declarations declarations fuel of
             Err errors -> Err errors
             Ok (body, emitted, remaining) -> let site = current.span in Ok (Module site owner (decl-spine site body), emitted, remaining) in
       if not (needs-stage-check declarations) then finish None else let modules = program.modules in case stage-modules owner (source-import-closure owner modules) modules of
         Err errors -> Err errors
-        Ok modules -> let site = program.span in case resolve (Program site (Cons (quotation-scope site) modules)) of
-          (resolved, Nil) -> case check-and-retain resolved of
+        Ok modules -> let site = program.span in case resolve (Program site ((quotation-scope site) : modules)) of
+          (resolved, []) -> case check-and-retain resolved of
             Err errors -> Err errors
             Ok checked -> finish (Some checked)
           (resolved, errors) -> (case staged-cycle (stage-dependency-graph owner declarations) of
-            Nil -> Err errors
+            [] -> Err errors
             cycle -> Err cycle)
 
   expand-modules :: (Program -> (Program, List Diagnostic)) -> Program -> HashMap String Module -> MacroNamespaces -> List Module -> Nat -> Result (List Diagnostic) (List Module, List (String, List String), Nat)
   expand-modules resolve program headers names modules fuel = case modules of
-    Nil -> Ok (Nil, Nil, fuel)
-    Cons first rest -> case expand-module resolve program headers names first fuel of
+    [] -> Ok ([], [], fuel)
+    first : rest -> case expand-module resolve program headers names first fuel of
       Err errors -> Err errors
       Ok (expanded, names-here, remaining) -> case expand-modules resolve program headers names rest remaining of
         Err errors -> Err errors
-        Ok (tail, reports, done) -> Ok (Cons expanded tail, (case names-here of Nil -> reports; other -> Cons (first.name, names-here) reports), done)
+        Ok (tail, reports, done) -> Ok (expanded : tail, (case names-here of [] -> reports; other -> (first.name, names-here) : reports), done)
 
   modules-have-stage-work :: List Module -> Bool
   modules-have-stage-work modules = case modules of
-    Nil -> False
-    Cons first rest -> stage-work (module-decls first) || modules-have-stage-work rest
+    [] -> False
+    first : rest -> stage-work (module-decls first) || modules-have-stage-work rest
 
   expand-stages :: (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) Program
-  expand-stages resolve program = expand-stages-with resolve (\unit -> Nil) program
+  expand-stages resolve program = expand-stages-with resolve (\unit -> []) program
 
   stage-code-carrier :: String -> List Decl -> Option TypeExpr
   stage-code-carrier name declarations = case stage-signature name declarations of
@@ -1131,9 +1142,9 @@ module Cinch.Stage where
 
   stage-code-inputs :: List Pat -> TypeExpr -> Option (List String)
   stage-code-inputs patterns syntax = case (patterns, syntax) of
-    (Nil, result) -> (case code-carrier result of Some carrier -> Some Nil; None -> None)
-    (Cons (PVar site name) rest, TFun arrow domain result) -> (case (code-carrier domain, stage-code-inputs rest result) of
-      (Some carrier, Some names) -> Some (Cons name names)
+    ([], result) -> (case code-carrier result of Some carrier -> Some []; None -> None)
+    ((PVar site name) : rest, TFun arrow domain result) -> (case (code-carrier domain, stage-code-inputs rest result) of
+      (Some carrier, Some names) -> Some (name : names)
       other -> None)
     other -> None
 
@@ -1159,7 +1170,7 @@ module Cinch.Stage where
     Ok (expanded, generated) -> Ok expanded
   expand-stages-with-report :: (Program -> (Program, List Diagnostic)) -> (Unit -> List Module) -> Program -> Result (List Diagnostic) (Program, List (String, List String))
   expand-stages-with-report resolve import-headers program = let modules = program.modules in
-    if not (modules-have-stage-work modules) then Ok (program, Nil) else
+    if not (modules-have-stage-work modules) then Ok (program, []) else
       let imports = import-headers () in let names = macro-namespaces modules imports in
       let prepared = map (prepare-stage-module names) modules in
       case expand-modules resolve (Program (program.span) prepared) (module-name-index (prepared <> imports)) names prepared macro-budget of

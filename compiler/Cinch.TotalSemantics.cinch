@@ -8,8 +8,6 @@ module Cinch.TotalSemantics where
   export total-numeric-operation, total-numeric-comparison, total-boolean-negation
   export total-numeric-reading, total-bytes-reading, total-boolean-reading, arithmetic-constant
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
   -- Expansion has no calls or lets. Keep its small set of node shapes
   -- typed so symbolic readers do not construct and scan field objects.
   data ExpandedTerm where
@@ -22,8 +20,8 @@ module Cinch.TotalSemantics where
 
   formals :: List String -> Nat -> BodyScope ExpandedTerm -> BodyScope ExpandedTerm
   formals sorts index scope = case sorts of
-    Nil -> scope
-    Cons first rest -> formals rest (index + 1) (push-body-slot scope (ExpandedLocal index))
+    [] -> scope
+    first : rest -> formals rest (index + 1) (push-body-slot scope (ExpandedLocal index))
 
   expand-call-arguments :: TotalGraph -> BodyScope ExpandedTerm -> TotalArguments -> Nat -> BodyScope ExpandedTerm -> (Option (BodyScope ExpandedTerm), Nat)
   expand-call-arguments graph caller arguments fuel callee = case argument-node arguments of
@@ -84,42 +82,42 @@ module Cinch.TotalSemantics where
   binary-formals :: ExpandedTerm -> ExpandedTerm -> Bool
   binary-formals first second = is-local 0 first && is-local 1 second
   same-parameters :: String -> TotalFunction -> Bool
-  same-parameters sort function = case total-parameters function of [first, second] -> same first sort && same second sort; other -> False
+  same-parameters sort function = case total-parameters function of [first, second] -> first == sort && second == sort; other -> False
   total-numeric-operation :: TotalFunction -> Option String
   total-numeric-operation function = case expanded function of
     Some (ExpandedBinary op first second) | binary-formals first second ->
-      if same-parameters "Nat" function && same (total-result function) "Nat" then
-        (if same op "NatAdd" then Some "+" else if same op "NatMul" then Some "*" else None)
-      else if same-parameters "Int" function && same (total-result function) "Int" then
-        (if same op "IntAdd" then Some "+" else if same op "IntMul" then Some "*" else if same op "IntSub" then Some "-" else None)
+      if same-parameters "Nat" function && total-result function == "Nat" then
+        (if op == "NatAdd" then Some "+" else if op == "NatMul" then Some "*" else None)
+      else if same-parameters "Int" function && total-result function == "Int" then
+        (if op == "IntAdd" then Some "+" else if op == "IntMul" then Some "*" else if op == "IntSub" then Some "-" else None)
       else None
     other -> None
   relation :: String -> Option String
-  relation op = if same op "I64Eq" then Some "==" else if same op "I64Ne" then Some "/=" else if same op "I64Lt" then Some "<"
-    else if same op "I64Le" then Some "<=" else if same op "I64Gt" then Some ">" else if same op "I64Ge" then Some ">=" else None
+  relation op = if op == "I64Eq" then Some "==" else if op == "I64Ne" then Some "/=" else if op == "I64Lt" then Some "<"
+    else if op == "I64Le" then Some "<=" else if op == "I64Gt" then Some ">" else if op == "I64Ge" then Some ">=" else None
   zeros :: List Char -> Bool
-  zeros chars = case chars of Nil -> True; Cons char rest -> char-code char == 48 && zeros rest
+  zeros chars = case chars of [] -> True; char : rest -> char-code char == 48 && zeros rest
   i64-zero :: ExpandedTerm -> Bool
   i64-zero term = case term of
-    ExpandedNumber sort decimal -> same sort "I64" && (case unpack decimal of
-      Nil -> False
-      Cons char rest -> if char-code char == 45 then (case rest of Nil -> False; other -> zeros rest) else zeros (Cons char rest))
+    ExpandedNumber sort decimal -> sort == "I64" && (case unpack decimal of
+      [] -> False
+      char : rest -> if char-code char == 45 then (case rest of [] -> False; other -> zeros rest) else zeros (char : rest))
     other -> False
   comparison-inputs :: TotalFunction -> ExpandedTerm -> ExpandedTerm -> Bool
   comparison-inputs function first second = if same-parameters "I64" function then binary-formals first second else case first of
     ExpandedBinary op a b -> i64-zero second && binary-formals a b
-      && ((same-parameters "Nat" function && same op "NatCmp")
-       || (same-parameters "Int" function && same op "IntCmp"))
+      && ((same-parameters "Nat" function && op == "NatCmp")
+       || (same-parameters "Int" function && op == "IntCmp"))
     other -> False
   total-numeric-comparison :: TotalFunction -> Option String
-  total-numeric-comparison function = if not (same (total-result function) "Bool") then None else case expanded function of
+  total-numeric-comparison function = if total-result function /= "Bool" then None else case expanded function of
     Some (ExpandedBinary op first second) | comparison-inputs function first second -> relation op
     other -> None
 
   total-boolean-negation :: TotalFunction -> Bool
   total-boolean-negation function = case total-parameters function of
-    [input] -> same input "Bool" && same (total-result function) "Bool" && (case expanded function of
-      Some (ExpandedUnary op argument) -> same op "BoolNot" && is-local 0 argument
+    [input] -> input == "Bool" && total-result function == "Bool" && (case expanded function of
+      Some (ExpandedUnary op argument) -> op == "BoolNot" && is-local 0 argument
       other -> False)
     other -> False
 
@@ -134,11 +132,11 @@ module Cinch.TotalSemantics where
   reading-sort value = case value of ReadNumber sort reading -> sort; ReadBool reading -> "Bool"; ReadBytes reading -> "Bytes"
   input-readings :: List String -> Arithmetic -> Option (List BodyReading)
   input-readings sorts arguments = case (sorts, arguments) of
-    (Nil, AArgumentsEnd) -> Some Nil
-    (Cons sort rest, AArgument first more) -> case input-readings rest more of
-      Some values -> if same sort "Bool" then Some (Cons (ReadBool (case first of AInteger n -> if n == 0 then Some False else if n == 1 then Some True else None; other -> None)) values)
-        else if same sort "Bytes" then Some (Cons (ReadBytes (Some first)) values)
-        else if same sort "Nat" || same sort "Int" || same sort "I64" then Some (Cons (ReadNumber sort (Some first)) values) else None
+    ([], AArgumentsEnd) -> Some []
+    (sort : rest, AArgument first more) -> case input-readings rest more of
+      Some values -> if sort == "Bool" then Some ((ReadBool (case first of AInteger n -> if n == 0 then Some False else if n == 1 then Some True else None; other -> None)) : values)
+        else if sort == "Bytes" then Some ((ReadBytes (Some first)) : values)
+        else if sort == "Nat" || sort == "Int" || sort == "I64" then Some ((ReadNumber sort (Some first)) : values) else None
       None -> None
     other -> None
   arithmetic-constant :: Arithmetic -> Option Int
@@ -152,20 +150,20 @@ module Cinch.TotalSemantics where
   same-reading first second = case (first, second) of (Some a, Some b) -> if arithmetic-equal a b then Some a else None; other -> None
   merge-reading :: BodyReading -> BodyReading -> Option BodyReading
   merge-reading first second = case (first, second) of
-    (ReadNumber sort a, ReadNumber other b) -> if same sort other then Some (ReadNumber sort (same-reading a b)) else None
+    (ReadNumber sort a, ReadNumber other b) -> if sort == other then Some (ReadNumber sort (same-reading a b)) else None
     (ReadBytes a, ReadBytes b) -> Some (ReadBytes (same-reading a b))
     (ReadBool (Some a), ReadBool (Some b)) -> Some (ReadBool (if a == b then Some a else None))
     (ReadBool a, ReadBool b) -> Some (ReadBool None)
     other -> None
   math-reading :: String -> String -> Option Arithmetic -> Option Arithmetic -> BodyReading
   math-reading sort operation a b = ReadNumber sort (case (a, b) of
-    (Some first, Some second) -> Some (if same operation "+" then APlus first second else if same operation "-" then AMinus first second else ATimes first second)
+    (Some first, Some second) -> Some (if operation == "+" then APlus first second else if operation == "-" then AMinus first second else ATimes first second)
     other -> None)
   comparison-reading :: String -> Option Arithmetic -> Option Arithmetic -> BodyReading
   comparison-reading operation a b = ReadBool (case (a, b) of
     (Some first, Some second) -> (case (arithmetic-constant first, arithmetic-constant second) of
-      (Some left, Some right) -> Some (if same operation "I64Eq" then left == right else if same operation "I64Ne" then not (left == right) else if same operation "I64Lt" then left < right else if same operation "I64Le" then left <= right else if same operation "I64Gt" then left > right else left >= right)
-      other -> if arithmetic-equal first second then Some (same operation "I64Eq" || same operation "I64Le" || same operation "I64Ge") else None)
+      (Some left, Some right) -> Some (if operation == "I64Eq" then left == right else if operation == "I64Ne" then left /= right else if operation == "I64Lt" then left < right else if operation == "I64Le" then left <= right else if operation == "I64Gt" then left > right else left >= right)
+      other -> if arithmetic-equal first second then Some (operation == "I64Eq" || operation == "I64Le" || operation == "I64Ge") else None)
     other -> None)
   ordering-reading :: Option Arithmetic -> Option Arithmetic -> BodyReading
   ordering-reading a b = ReadNumber "I64" (case (a, b) of
@@ -175,28 +173,28 @@ module Cinch.TotalSemantics where
     other -> None)
   boolean-reading :: String -> Option Bool -> Option Bool -> BodyReading
   boolean-reading operation a b = ReadBool (case (a, b) of
-    (Some first, Some second) -> Some (if same operation "BoolEq" then first == second else if same operation "BoolNe" then not (first == second) else if same operation "BoolAnd" then first && second else first || second)
-    (Some False, other) -> if same operation "BoolAnd" then Some False else None
-    (other, Some False) -> if same operation "BoolAnd" then Some False else None
-    (Some True, other) -> if same operation "BoolOr" then Some True else None
-    (other, Some True) -> if same operation "BoolOr" then Some True else None
+    (Some first, Some second) -> Some (if operation == "BoolEq" then first == second else if operation == "BoolNe" then first /= second else if operation == "BoolAnd" then first && second else first || second)
+    (Some False, other) -> if operation == "BoolAnd" then Some False else None
+    (other, Some False) -> if operation == "BoolAnd" then Some False else None
+    (Some True, other) -> if operation == "BoolOr" then Some True else None
+    (other, Some True) -> if operation == "BoolOr" then Some True else None
     other -> None)
   primitive-reading :: String -> List BodyReading -> Option BodyReading
   primitive-reading operation arguments = case arguments of
-    [ReadNumber sort first, ReadNumber other second] -> if not (same sort other) then None else
-      if same operation "NatAdd" && same sort "Nat" then Some (math-reading "Nat" "+" first second)
-      else if same operation "NatMul" && same sort "Nat" then Some (math-reading "Nat" "*" first second)
-      else if same operation "IntAdd" && same sort "Int" then Some (math-reading "Int" "+" first second)
-      else if same operation "IntSub" && same sort "Int" then Some (math-reading "Int" "-" first second)
-      else if same operation "IntMul" && same sort "Int" then Some (math-reading "Int" "*" first second)
-      else if (same operation "NatCmp" && same sort "Nat") || (same operation "IntCmp" && same sort "Int") then Some (ordering-reading first second)
-      else if same sort "I64" && (case relation operation of Some comparison -> True; None -> False) then Some (comparison-reading operation first second)
+    [ReadNumber sort first, ReadNumber other second] -> if sort /= other then None else
+      if operation == "NatAdd" && sort == "Nat" then Some (math-reading "Nat" "+" first second)
+      else if operation == "NatMul" && sort == "Nat" then Some (math-reading "Nat" "*" first second)
+      else if operation == "IntAdd" && sort == "Int" then Some (math-reading "Int" "+" first second)
+      else if operation == "IntSub" && sort == "Int" then Some (math-reading "Int" "-" first second)
+      else if operation == "IntMul" && sort == "Int" then Some (math-reading "Int" "*" first second)
+      else if (operation == "NatCmp" && sort == "Nat") || (operation == "IntCmp" && sort == "Int") then Some (ordering-reading first second)
+      else if sort == "I64" && (case relation operation of Some comparison -> True; None -> False) then Some (comparison-reading operation first second)
       else None
-    [ReadNumber sort first] -> if same operation "IntNeg" && same sort "Int" then Some (math-reading "Int" "-" (Some (AInteger 0)) first)
-      else if (same operation "IntFromNat" && same sort "Nat") || (same operation "IntFromI64" && same sort "I64") then Some (ReadNumber "Int" first) else None
-    [ReadBytes length] -> if same operation "BytesLen" then Some (ReadNumber "Nat" length) else None
-    [ReadBool first, ReadBool second] -> if same operation "BoolEq" || same operation "BoolNe" || same operation "BoolAnd" || same operation "BoolOr" then Some (boolean-reading operation first second) else None
-    [ReadBool value] -> if same operation "BoolNot" then Some (ReadBool (case value of Some flag -> Some (not flag); None -> None)) else None
+    [ReadNumber sort first] -> if operation == "IntNeg" && sort == "Int" then Some (math-reading "Int" "-" (Some (AInteger 0)) first)
+      else if (operation == "IntFromNat" && sort == "Nat") || (operation == "IntFromI64" && sort == "I64") then Some (ReadNumber "Int" first) else None
+    [ReadBytes length] -> if operation == "BytesLen" then Some (ReadNumber "Nat" length) else None
+    [ReadBool first, ReadBool second] -> if operation == "BoolEq" || operation == "BoolNe" || operation == "BoolAnd" || operation == "BoolOr" then Some (boolean-reading operation first second) else None
+    [ReadBool value] -> if operation == "BoolNot" then Some (ReadBool (case value of Some flag -> Some (not flag); None -> None)) else None
     other -> None
   read-body :: BodyScope BodyReading -> ExpandedTerm -> Nat -> (Option BodyReading, Nat)
   read-body scope body fuel = if fuel == 0 then (None, 0) else
@@ -225,7 +223,7 @@ module Cinch.TotalSemantics where
         (other, left) -> (None, left))
   function-reading :: TotalFunction -> Arithmetic -> Option BodyReading
   function-reading function arguments = case (input-readings (total-parameters function) arguments, expanded function) of
-    (Some inputs, Some body) -> (case read-body (body-scope-from-list inputs) body 4096 of (Some reading, fuel) -> if same (reading-sort reading) (total-result function) then Some reading else None; other -> None)
+    (Some inputs, Some body) -> (case read-body (body-scope-from-list inputs) body 4096 of (Some reading, fuel) -> if reading-sort reading == total-result function then Some reading else None; other -> None)
     other -> None
   total-numeric-reading :: TotalFunction -> Arithmetic -> Option Arithmetic
   total-numeric-reading function arguments = case function-reading function arguments of Some (ReadNumber sort reading) -> reading; other -> None

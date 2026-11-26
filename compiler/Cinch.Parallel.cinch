@@ -24,9 +24,12 @@ module Cinch.Parallel where
   import Data.List (reverse)
   import Data.Nat
   import Data.Option
-  import Data.String (string-compare, unpack)
+  import Data.String (unpack)
+  import Effect.Sequencing (OptionSequencing)
+  import Relation.Eq (Eq)
+  import Text.Show (Show, show)
 
-  export CompileStrategy, Latency, Throughput
+  export CompileStrategy, Latency, Throughput, Eq_CompileStrategy, Show_CompileStrategy
   export CompileTuning
   export default-tuning, latency-tuning, throughput-tuning
   export tuning-with-strategy, tuning-with-workers
@@ -37,6 +40,18 @@ module Cinch.Parallel where
   data CompileStrategy where
     Latency :: CompileStrategy
     Throughput :: CompileStrategy
+
+  implicit instance Eq_CompileStrategy :: Eq CompileStrategy where
+    (==) a b = case (a, b) of
+      (Latency, Latency) -> True
+      (Throughput, Throughput) -> True
+      _ -> False
+    (/=) a b = not (a == b)
+
+  implicit instance Show_CompileStrategy :: Show CompileStrategy where
+    show s = case s of
+      Latency -> "latency"
+      Throughput -> "throughput"
 
   record CompileTuning where
     strategy :: CompileStrategy
@@ -52,45 +67,39 @@ module Cinch.Parallel where
   throughput-tuning workers = CompileTuning Throughput workers
 
   tuning-with-strategy :: CompileStrategy -> CompileTuning -> CompileTuning
-  tuning-with-strategy strategy tuning = case tuning of
-    CompileTuning old workers -> CompileTuning strategy workers
+  tuning-with-strategy strategy tuning = CompileTuning strategy tuning.workers
 
   tuning-with-workers :: Nat -> CompileTuning -> CompileTuning
-  tuning-with-workers workers tuning = case tuning of
-    CompileTuning strategy old -> CompileTuning strategy workers
+  tuning-with-workers workers tuning = CompileTuning tuning.strategy workers
 
   tuning-is-latency :: CompileTuning -> Bool
-  tuning-is-latency tuning = case tuning.strategy of
-    Latency -> True
-    Throughput -> False
+  tuning-is-latency tuning = tuning.strategy == Latency
 
   tuning-is-throughput :: CompileTuning -> Bool
-  tuning-is-throughput tuning = case tuning.strategy of
-    Latency -> False
-    Throughput -> True
+  tuning-is-throughput tuning = tuning.strategy == Throughput
 
   strategy-name :: CompileStrategy -> String
-  strategy-name strategy = case strategy of
-    Latency -> "latency"
-    Throughput -> "throughput"
+  strategy-name strategy = show strategy
 
   parse-compile-strategy :: String -> Option CompileStrategy
-  parse-compile-strategy word =
-    if string-compare word "latency" == 0 || string-compare word "hot-reload" == 0 then Some Latency
-    else if string-compare word "throughput" == 0 || string-compare word "batch" == 0 then Some Throughput
-    else None
+  parse-compile-strategy word = case word of
+    "latency" -> Some Latency
+    "hot-reload" -> Some Latency
+    "throughput" -> Some Throughput
+    "batch" -> Some Throughput
+    _ -> None
 
-  parse-nat-digits :: List Char -> Nat -> Option Nat
+  parse-nat-digits :: using (seq :: OptionSequencing) => List Char -> Nat -> Option Nat
   parse-nat-digits cs acc = case cs of
-    Nil -> Some acc
-    Cons c rest -> case digit-value c of
-      Some d -> parse-nat-digits rest (acc * 10 + d)
-      None -> None
+    [] -> Some acc
+    c : rest -> do
+      d <- digit-value c
+      parse-nat-digits rest (acc * 10 + d)
 
   parse-nat-word :: String -> Option Nat
   parse-nat-word word = case unpack word of
-    Nil -> None
-    Cons c rest -> parse-nat-digits (Cons c rest) 0
+    [] -> None
+    c : rest -> parse-nat-digits (c : rest) 0
 
   -- Choose a deterministic chunk size for a parallel batch of `total` items.
   -- `Latency` splits at unit granularity (1) so small hot-reload edits fan
@@ -114,36 +123,36 @@ module Cinch.Parallel where
   take-chunk remaining items acc =
     if remaining == 0 then (reverse acc, items)
     else case items of
-      Nil -> (reverse acc, Nil)
-      Cons first rest -> take-chunk (saturating-sub remaining 1) rest (Cons first acc)
+      [] -> (reverse acc, [])
+      first : rest -> take-chunk (saturating-sub remaining 1) rest (first : acc)
 
   chunk-loop :: forall a. Nat -> List a -> List (List a) -> List (List a)
   chunk-loop width items acc = case items of
-    Nil -> reverse acc
-    Cons first rest -> case take-chunk width items Nil of
-      (group, more) -> chunk-loop width more (Cons group acc)
+    [] -> reverse acc
+    first : rest -> case take-chunk width items [] of
+      (group, more) -> chunk-loop width more (group : acc)
 
   -- Partition `items` into contiguous chunks of size `width` (>= 1),
   -- preserving exact input order.
   chunk-list :: forall a. Nat -> List a -> List (List a)
   chunk-list width items =
     let step = if width == 0 then (1 :: Nat) else width in
-    chunk-loop step items Nil
+    chunk-loop step items []
 
   prepend-reversed :: forall a. List a -> List a -> List a
   prepend-reversed items acc = case items of
-    Nil -> acc
-    Cons first rest -> prepend-reversed rest (Cons first acc)
+    [] -> acc
+    first : rest -> prepend-reversed rest (first : acc)
 
   flatten-loop :: forall a. List (List a) -> List a -> List a
   flatten-loop groups acc = case groups of
-    Nil -> reverse acc
-    Cons group rest -> flatten-loop rest (prepend-reversed group acc)
+    [] -> reverse acc
+    group : rest -> flatten-loop rest (prepend-reversed group acc)
 
   -- Flatten chunked results back into a single list in O(n) time,
   -- preserving exact input order.
   flatten-lists :: forall a. List (List a) -> List a
-  flatten-lists groups = flatten-loop groups Nil
+  flatten-lists groups = flatten-loop groups []
 
   -- Configure the runtime's work-stealing participant count when an
   -- explicit worker count (> 0) was requested. Zero leaves the runtime

@@ -87,14 +87,14 @@ module Cinch.PackedBody where
   read-region-words :: I64 -> Nat -> Nat -> List Nat -> Array Nat
   read-region-words address at end backwards =
     if at + 4 > end then array-from-list (reverse backwards)
-    else read-region-words address (at + 4) end (Cons (word address at) backwards)
+    else read-region-words address (at + 4) end ((word address at) : backwards)
 
   extract-region-words :: Bytes -> Region -> Array Nat
   extract-region-words source region = case region of
     Region start size ->
       if start + size <= bytes-len source && size % 4 == 0 then
-        hold-package-source source (read-region-words (bytes-data source) start (start + size) Nil)
-      else array-from-list Nil
+        hold-package-source source (read-region-words (bytes-data source) start (start + size) [])
+      else array-from-list []
 
   extract-signature-callees :: Bytes -> Array PackedSignature -> Nat -> List (Option (List String)) -> Array (Option (List String))
   extract-signature-callees source signatures at backwards = case array-get signatures at of
@@ -102,16 +102,16 @@ module Cinch.PackedBody where
     Some (PackedSignature identity parameters result root (Region start length)) ->
       let calls =
             if start + length <= bytes-len source && length % 4 == 0 then
-              hold-package-source source (packed-callees (bytes-data source) signatures start (start + length) Nil)
+              hold-package-source source (packed-callees (bytes-data source) signatures start (start + length) [])
             else None in
-      extract-signature-callees source signatures (at + 1) (Cons calls backwards)
+      extract-signature-callees source signatures (at + 1) (calls : backwards)
 
   -- Package alone validates the sections before handing them to this view.
   retain-checked-body-table :: Bytes -> Array String -> Region -> Region -> Array PackedSignature -> CheckedBodyTable
   retain-checked-body-table source strings nodes operands signatures =
     let node-words = extract-region-words source nodes in
     let operand-words = extract-region-words source operands in
-    let callees = extract-signature-callees source signatures 0 Nil in
+    let callees = extract-signature-callees source signatures 0 [] in
     let identity = hold-package-source source (bytes-data source) in
     CheckedBodyTable identity (bytes-len source) strings node-words operand-words signatures callees (index-packed-signatures signatures 0 hash-map-empty)
 
@@ -142,7 +142,7 @@ module Cinch.PackedBody where
     if at == end then Some (reverse backwards) else
       (case array-get signatures (word address at) of
         Some (PackedSignature name parameters result root edges) ->
-          packed-callees address signatures (at + 4) end (Cons name backwards)
+          packed-callees address signatures (at + 4) end (name : backwards)
         None -> None)
 
   -- Node IDs identify a checked definition only within the same retained

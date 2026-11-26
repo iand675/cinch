@@ -23,16 +23,16 @@ module Cinch.Kinds where
     locals :: List (Nat, Scheme)
     memos :: List Nat
   empty-type-scope :: TypeScope
-  empty-type-scope = TypeScope Nil Nil Nil Nil
+  empty-type-scope = TypeScope [] [] [] []
   -- A polytype's binders are in scope, as bound variables, over its body.
   bind-quant-scope :: List Quant -> TypeScope -> TypeScope
   bind-quant-scope qs scope = case qs of
-    Nil -> scope
-    Cons q rest -> case bind-quant-scope rest scope of
-      TypeScope bound rigid locals memos -> TypeScope (Cons (q.id, q.kind) bound) rigid locals memos
+    [] -> scope
+    q : rest -> case bind-quant-scope rest scope of
+      TypeScope bound rigid locals memos -> TypeScope ((q.id, q.kind) : bound) rigid locals memos
   open-memo-region :: Nat -> TypeScope -> Option TypeScope
   open-memo-region id scope = case add-rigid-kind id KRegion scope of
-    Some (TypeScope bound rigid locals memos) -> Some (TypeScope bound rigid locals (Cons id memos))
+    Some (TypeScope bound rigid locals memos) -> Some (TypeScope bound rigid locals (id : memos))
     None -> None
   in-memo-region :: UType -> TypeScope -> Bool
   in-memo-region region scope = case region of
@@ -40,12 +40,10 @@ module Cinch.Kinds where
     other -> False
   has-memo-id :: Nat -> List Nat -> Bool
   has-memo-id id memos = case memos of
-    Nil -> False
-    Cons first rest -> first == id || has-memo-id id rest
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
+    [] -> False
+    first : rest -> first == id || has-memo-id id rest
   lookup-id :: Nat -> List (Nat, Kind) -> Option Kind
-  lookup-id id entries = case entries of Nil -> None; Cons (key, kind) rest -> if id == key then Some kind else lookup-id id rest
+  lookup-id id entries = case entries of [] -> None; (key, kind) : rest -> if id == key then Some kind else lookup-id id rest
   record KindIndex where
     size :: Nat
     table :: HashMap String Kind
@@ -59,8 +57,8 @@ module Cinch.Kinds where
 
   collect-kinds :: List (String, Kind) -> Nat -> HashMap String Kind -> KindIndex
   collect-kinds rows size table = case rows of
-    Nil -> KindIndex size table
-    Cons (name, kind) rest -> (case hash-map-lookup name table of
+    [] -> KindIndex size table
+    (name, kind) : rest -> (case hash-map-lookup name table of
       Some _ -> collect-kinds rest size table
       None -> collect-kinds rest (size + 1) (hash-map-insert name kind table))
 
@@ -77,43 +75,43 @@ module Cinch.Kinds where
   add-kind-declaration :: String -> Kind -> KindDeclarations -> KindDeclarations
   add-kind-declaration name kind (KindDeclarations rows (KindIndex size table)) =
     let count = (case hash-map-lookup name table of None -> size + 1; Some old -> size) in
-    KindDeclarations (Cons (name, kind) rows) (KindIndex count (hash-map-insert name kind table))
+    KindDeclarations ((name, kind) : rows) (KindIndex count (hash-map-insert name kind table))
   prefix-kind-declarations :: List (String, Kind) -> KindDeclarations -> KindDeclarations
   prefix-kind-declarations prefix declarations = case prefix of
-    Nil -> declarations
-    Cons (name, kind) rest -> add-kind-declaration name kind (prefix-kind-declarations rest declarations)
+    [] -> declarations
+    (name, kind) : rest -> add-kind-declaration name kind (prefix-kind-declarations rest declarations)
 
   equal-type :: UType -> UType -> Bool
-  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "kind scope")) of Nil -> True; other -> False)
+  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "kind scope")) of [] -> True; other -> False)
   add-rigid-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
   add-rigid-kind id kind scope = case lookup-id id (scope.rigid) of
     Some prior -> None
-    None -> (case lookup-local id (scope.locals) of Some prior -> None; None -> Some (TypeScope (scope.bound) (Cons (id, kind) (scope.rigid)) (scope.locals) (scope.memos)))
+    None -> (case lookup-local id (scope.locals) of Some prior -> None; None -> Some (TypeScope (scope.bound) ((id, kind) : (scope.rigid)) (scope.locals) (scope.memos)))
   add-bound-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
   add-bound-kind id kind scope = case lookup-id id (scope.bound) of
     Some prior -> None
-    None -> Some (TypeScope (Cons (id, kind) (scope.bound)) (scope.rigid) (scope.locals) (scope.memos))
+    None -> Some (TypeScope ((id, kind) : (scope.bound)) (scope.rigid) (scope.locals) (scope.memos))
   lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
-  lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if id == key then Some sc else lookup-local id rest
+  lookup-local id locals = case locals of [] -> None; (key, sc) : rest -> if id == key then Some sc else lookup-local id rest
   add-local-scheme :: Nat -> Scheme -> TypeScope -> Option TypeScope
   add-local-scheme id sc scope = case (lookup-id id (scope.rigid), lookup-local id (scope.locals)) of
     (None, None) -> if borrow-scope-conflict scope (scheme-body sc) then None
-      else Some (TypeScope (scope.bound) (scope.rigid) (Cons (id, sc) (scope.locals)) (scope.memos))
+      else Some (TypeScope (scope.bound) (scope.rigid) ((id, sc) : (scope.locals)) (scope.memos))
     other -> None
   borrow-scope-conflict :: TypeScope -> UType -> Bool
   borrow-scope-conflict scope ty = case borrow-regions ty of
-    Nil -> False
+    [] -> False
     loans -> borrow-local-conflict loans (scope.locals)
   borrow-local-conflict :: List (Bool, UType) -> List (Nat, Scheme) -> Bool
   borrow-local-conflict loans locals = case locals of
-    Nil -> False
-    Cons (id, scheme) rest ->
+    [] -> False
+    (id, scheme) : rest ->
       borrow-region-conflict loans (borrow-regions (scheme-body scheme)) || borrow-local-conflict loans rest
   -- A forall value has both its actual rigid index kind and a term binding
   -- at that kind's carrier. Ordinary locals still cannot shadow rigid ids.
   add-value-parameter :: Nat -> UType -> TypeScope -> Option TypeScope
   add-value-parameter id carrier scope = case (lookup-id id (scope.rigid), lookup-local id (scope.locals)) of
-    (Some kind, None) -> if kind-equal kind (value-kind carrier) then Some (TypeScope (scope.bound) (scope.rigid) (Cons (id, mono carrier) (scope.locals)) (scope.memos)) else None
+    (Some kind, None) -> if kind-equal kind (value-kind carrier) then Some (TypeScope (scope.bound) (scope.rigid) ((id, mono carrier) : (scope.locals)) (scope.memos)) else None
     other -> None
   highest :: Nat -> Nat -> Nat
   highest a b = if a > b then a else b
@@ -172,9 +170,9 @@ module Cinch.Kinds where
   local-carrier :: UType -> Nat -> TypeScope -> Bool
   local-carrier carrier id scope = case lookup-local id (scope.locals) of
     Some sc -> (case scheme-requirements sc of
-      Nil -> (case fresh-for-types [carrier, scheme-body sc] (restore-level (highest (type-level carrier) (type-level (scheme-body sc)) + 1) (empty-store "local index carrier")) of
+      [] -> (case fresh-for-types [carrier, scheme-body sc] (restore-level (highest (type-level carrier) (type-level (scheme-body sc)) + 1) (empty-store "local index carrier")) of
         (fresh, prepared) -> case open-scheme False sc prepared of
-          (expected, pairs, opened) -> (case store-errors (unify (Span 0 0 1 1) expected carrier opened) of Nil -> True; other -> False))
+          (expected, pairs, opened) -> (case store-errors (unify (Span 0 0 1 1) expected carrier opened) of [] -> True; other -> False))
       other -> False)
     None -> False
   kind-well-formed-in :: KindIndex -> TypeScope -> Kind -> Bool
@@ -220,7 +218,7 @@ module Cinch.Kinds where
   type-authorized kinds scope ty = case ty of
     UCon name actual ->
       if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then True
-      else if same name "Sing" || same name "Same" then True
+      else if name == "Sing" || name == "Same" then True
       else (case kind-at name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
     UBound id name actual -> (case lookup-id id (scope.bound) of Some expected -> kind-equal actual expected; None -> False)
     URigid id name level actual -> (case lookup-id id (scope.rigid) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-authorized kinds scope carrier && local-carrier carrier id scope; None -> False)
@@ -279,17 +277,17 @@ module Cinch.Kinds where
   -- constructor spelling only inside a row, with at most one scoped Region.
   symbolic-effect-spelling :: String -> Bool
   symbolic-effect-spelling name = case unpack name of
-    Cons first rest -> char-code first >= 65 && char-code first <= 90 && symbolic-effect-tail rest
-    Nil -> False
+    first : rest -> char-code first >= 65 && char-code first <= 90 && symbolic-effect-tail rest
+    [] -> False
 
   symbolic-effect-tail :: List Char -> Bool
   symbolic-effect-tail chars = case chars of
-    Nil -> True
-    Cons ch rest -> (is-ascii-alpha-numeric ch || char-code ch == 95 || char-code ch == 45 || char-code ch == 39) && symbolic-effect-tail rest
+    [] -> True
+    ch : rest -> (is-ascii-alpha-numeric ch || char-code ch == 95 || char-code ch == 45 || char-code ch == 39) && symbolic-effect-tail rest
 
   row-label-well-formed :: KindIndex -> TypeScope -> UType -> Bool
   row-label-well-formed kinds scope label = case label of
-    UApp (UCon name actual) region -> if same name "Mut" then
+    UApp (UCon name actual) region -> if name == "Mut" then
       kind-equal actual (KFun KRegion KEffect)
         && kind-equal (type-kind region) KRegion && type-authorized kinds scope region
         && (case kind-at "Mut" kinds of Some declared -> kind-equal declared borrow-constructor-kind; None -> False)
@@ -303,12 +301,12 @@ module Cinch.Kinds where
     other -> type-authorized kinds scope label
   scheme-type-scope-in :: KindIndex -> TypeScope -> List Quant -> Option TypeScope
   scheme-type-scope-in kinds scope qs = case qs of
-    Nil -> Some scope
-    Cons q rest -> if kind-well-formed-in kinds scope (q.kind) then
+    [] -> Some scope
+    q : rest -> if kind-well-formed-in kinds scope (q.kind) then
       (case add-bound-kind (q.id) (q.kind) scope of Some bound -> scheme-type-scope-in kinds bound rest; None -> None)
       else None
   requirements-well-formed :: KindIndex -> TypeScope -> List Requirement -> Bool
-  requirements-well-formed kinds scope requirements = case requirements of Nil -> True; Cons r rest -> type-well-formed-in kinds scope (r.ty) && requirements-well-formed kinds scope rest
+  requirements-well-formed kinds scope requirements = case requirements of [] -> True; r : rest -> type-well-formed-in kinds scope (r.ty) && requirements-well-formed kinds scope rest
   scheme-well-formed-in :: KindIndex -> TypeScope -> Scheme -> Bool
   scheme-well-formed-in kinds scope sc = case scheme-type-scope-in kinds scope (scheme-params sc) of
     -- A declaration's type is a value type or a proposition: `same :: (value
@@ -332,8 +330,8 @@ module Cinch.Kinds where
 
   nominal-entries-closed :: KindIndex -> List (String, Kind) -> Bool
   nominal-entries-closed kinds entries = case entries of
-    Nil -> True
-    Cons (name, kind) rest -> nominal-name name
+    [] -> True
+    (name, kind) : rest -> nominal-name name
       && kind-well-formed-in kinds empty-type-scope kind && nominal-entries-closed kinds rest
 
   nominal-kinds-closed :: List (String, Kind) -> Bool

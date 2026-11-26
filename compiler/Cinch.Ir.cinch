@@ -116,12 +116,12 @@ module Cinch.Ir where
   -- Start a function: fresh counters and an empty local environment.
   reset-gen :: Gen -> Gen
   reset-gen g = case g of
-    Gen n env fns code -> Gen 0 Nil fns code
+    Gen n env fns code -> Gen 0 [] fns code
 
   -- The environment extended with one binding (the most recent first).
   env-bind :: String -> String -> Gen -> Gen
   env-bind name slot g = case g of
-    Gen n env fns code -> Gen n (Cons (name, slot) env) fns code
+    Gen n env fns code -> Gen n ((name, slot) : env) fns code
 
   -- Replace the environment (a function's parameter bindings).
   with-env :: List (String, String) -> Gen -> Gen
@@ -130,14 +130,14 @@ module Cinch.Ir where
 
   env-lookup :: String -> List (String, String) -> Option String
   env-lookup name env = case env of
-    Nil -> None
-    Cons b rest -> case b of
-      (n, slot) -> if string-compare n name == 0 then Some slot else env-lookup name rest
+    [] -> None
+    b : rest -> case b of
+      (n, slot) -> if n == name then Some slot else env-lookup name rest
 
   name-in :: String -> List String -> Bool
   name-in name xs = case xs of
-    Nil -> False
-    Cons y rest -> if string-compare y name == 0 then True else name-in name rest
+    [] -> False
+    y : rest -> if y == name then True else name-in name rest
 
   -- A top-level function's symbol: the `cinch_` prefix keeps the
   -- fragment's names clear of the C runtime's own symbols. The fragment's
@@ -172,15 +172,15 @@ module Cinch.Ir where
     Some slot ->
       let (g1, v) = fresh-val g in
       (gen-line g1 (cat ["  ", v, " = load i64, i64* ", slot]), v)
-    None -> if name-in name (g.fns) then gen-call g name Nil
+    None -> if name-in name (g.fns) then gen-call g name []
       else (gen-text g (cat ["  ; unsupported name `", name, "` in value position\n"]), "0")
 
   -- `True` and `False` are the fragment's only lowered constructors; they
   -- are `i64` 1 and 0.
   gen-con :: Gen -> String -> Expr -> (Gen, String)
   gen-con g name args =
-    if string-compare name "True" == 0 then (g, "1")
-    else if string-compare name "False" == 0 then (g, "0")
+    if name == "True" then (g, "1")
+    else if name == "False" then (g, "0")
     else (gen-text g (cat ["  ; unsupported constructor `", name, "`\n"]), "0")
 
   gen-app :: Gen -> Expr -> (Gen, String)
@@ -200,10 +200,10 @@ module Cinch.Ir where
   -- type on each argument, literal or register.
   gen-args :: Gen -> List Expr -> (Gen, String)
   gen-args g args = case args of
-    Nil -> (g, "")
-    Cons a Nil -> case gen-expr g a of
+    [] -> (g, "")
+    [a] -> case gen-expr g a of
       (g1, av) -> (g1, cat ["i64 ", av])
-    Cons a rest -> case gen-expr g a of
+    a : rest -> case gen-expr g a of
       (g1, av) -> case gen-args g1 rest of
         (g2, reststr) -> (g2, cat ["i64 ", av, ", ", reststr])
 
@@ -215,11 +215,11 @@ module Cinch.Ir where
 
   -- An application chain's arguments, leftmost first.
   app-args :: Expr -> List Expr
-  app-args e = app-args-into e Nil
+  app-args e = app-args-into e []
 
   app-args-into :: Expr -> List Expr -> List Expr
   app-args-into e acc = case e of
-    EApp s f a -> app-args-into f (Cons a acc)
+    EApp s f a -> app-args-into f (a : acc)
     other -> acc
 
   gen-bin-expr :: Gen -> String -> Expr -> Expr -> (Gen, String)
@@ -230,18 +230,19 @@ module Cinch.Ir where
 
   gen-bin :: Gen -> String -> String -> String -> (Gen, String)
   gen-bin g op a b =
-    if string-compare op "+" == 0 then gen-arith g "add" a b
-    else if string-compare op "-" == 0 then gen-arith g "sub" a b
-    else if string-compare op "*" == 0 then gen-arith g "mul" a b
-    else if string-compare op "/" == 0 then gen-arith g "sdiv" a b
-    else if string-compare op "%" == 0 then gen-arith g "srem" a b
-    else if string-compare op "==" == 0 then gen-cmp g "eq" a b
-    else if string-compare op "/=" == 0 then gen-cmp g "ne" a b
-    else if string-compare op "<" == 0 then gen-cmp g "slt" a b
-    else if string-compare op "<=" == 0 then gen-cmp g "sle" a b
-    else if string-compare op ">" == 0 then gen-cmp g "sgt" a b
-    else if string-compare op ">=" == 0 then gen-cmp g "sge" a b
-    else (gen-text g (cat ["  ; unsupported operator `", op, "`\n"]), "0")
+    case op of
+    "+" -> gen-arith g "add" a b
+    "-" -> gen-arith g "sub" a b
+    "*" -> gen-arith g "mul" a b
+    "/" -> gen-arith g "sdiv" a b
+    "%" -> gen-arith g "srem" a b
+    "==" -> gen-cmp g "eq" a b
+    "/=" -> gen-cmp g "ne" a b
+    "<" -> gen-cmp g "slt" a b
+    "<=" -> gen-cmp g "sle" a b
+    ">" -> gen-cmp g "sgt" a b
+    ">=" -> gen-cmp g "sge" a b
+    _ -> (gen-text g (cat ["  ; unsupported operator `", op, "`\n"]), "0")
 
   gen-arith :: Gen -> String -> String -> String -> (Gen, String)
   gen-arith g op a b =
@@ -295,8 +296,8 @@ module Cinch.Ir where
 
   gen-bindings :: Gen -> List (String, Expr) -> Gen
   gen-bindings g bs = case bs of
-    Nil -> g
-    Cons b rest -> case b of
+    [] -> g
+    b : rest -> case b of
       (name, rhs) ->
         let (g1, rv) = gen-expr g rhs in
         let (g2, slot) = fresh-slot g1 in
@@ -320,19 +321,19 @@ module Cinch.Ir where
     other -> (g, "i64 0", "", None)
 
   gen-params :: Gen -> List Pat -> (Gen, String, String, List (String, String))
-  gen-params g pats = gen-params-into g pats Nil
+  gen-params g pats = gen-params-into g pats []
 
   gen-params-into :: Gen -> List Pat -> List (String, String) -> (Gen, String, String, List (String, String))
   gen-params-into g pats env = case pats of
-    Nil -> (g, "", "", env)
-    Cons p rest -> case gen-param g p of
+    [] -> (g, "", "", env)
+    p : rest -> case gen-param g p of
       (g1, header, prologue, opt) -> case gen-params-into g1 rest (env-add opt env) of
         (g2, header2, prologue2, env2) -> (g2, join-params header header2, cat [prologue, prologue2], env2)
 
   env-add :: Option (String, String) -> List (String, String) -> List (String, String)
   env-add opt env = case opt of
     None -> env
-    Some pair -> Cons pair env
+    Some pair -> pair : env
 
   join-params :: String -> String -> String
   join-params a b =
@@ -342,8 +343,8 @@ module Cinch.Ir where
 
   function-attributes :: String -> List (String, String) -> String
   function-attributes name hints = case hints of
-    Nil -> ""
-    Cons (owner, attribute) rest -> if string-compare owner name == 0 then cat [" ", attribute, function-attributes name rest]
+    [] -> ""
+    (owner, attribute) : rest -> if owner == name then cat [" ", attribute, function-attributes name rest]
       else function-attributes name rest
 
   gen-define-clause :: Gen -> List (String, String) -> String -> List Pat -> Expr -> Gen
@@ -373,23 +374,23 @@ module Cinch.Ir where
   gen-decl :: List (String, String) -> Gen -> Decl -> Gen
   gen-decl hints g d = case d of
     DFun s name clauses -> case clauses of
-      Nil -> g
-      Cons c rest -> case c of
+      [] -> g
+      c : rest -> case c of
         (pats, body) -> gen-define-clause (reset-gen g) hints name pats body
     other -> g
 
   gen-decls :: List (String, String) -> Gen -> List Decl -> Gen
   gen-decls hints g ds = case ds of
-    Nil -> g
-    Cons d rest -> gen-decls hints (gen-decl hints g d) rest
+    [] -> g
+    d : rest -> gen-decls hints (gen-decl hints g d) rest
 
   gen-module :: Gen -> Module -> Gen
   gen-module g m = let ds = module-decls m in gen-decls (declaration-inline-hints ds) g ds
 
   gen-modules :: Gen -> List Module -> Gen
   gen-modules g ms = case ms of
-    Nil -> g
-    Cons m rest -> gen-modules (gen-module g m) rest
+    [] -> g
+    m : rest -> gen-modules (gen-module g m) rest
 
   -- --------------------------------------------------------------- program
 
@@ -401,14 +402,14 @@ module Cinch.Ir where
 
   module-fn-names :: List Module -> List String
   module-fn-names ms = case ms of
-    Nil -> Nil
-    Cons m rest -> decls-fn-names (module-decls m) (module-fn-names rest)
+    [] -> []
+    m : rest -> decls-fn-names (module-decls m) (module-fn-names rest)
 
   decls-fn-names :: List Decl -> List String -> List String
   decls-fn-names ds acc = case ds of
-    Nil -> acc
-    Cons d rest -> case d of
-      DFun s name clauses -> decls-fn-names rest (Cons name acc)
+    [] -> acc
+    d : rest -> case d of
+      DFun s name clauses -> decls-fn-names rest (name : acc)
       other -> decls-fn-names rest acc
 
   ir-header :: String
@@ -420,7 +421,7 @@ module Cinch.Ir where
   -- The rung's entry point: the whole program as one LLVM module.
   emit-program :: Program -> String
   emit-program p =
-    builder-run ((gen-entry-wrapper (gen-modules (Gen 0 Nil (program-function-names p) (builder-add-string ir-header builder-new)) (p.modules))).code)
+    builder-run ((gen-entry-wrapper (gen-modules (Gen 0 [] (program-function-names p) (builder-add-string ir-header builder-new)) (p.modules))).code)
 
   -- ------------------------------------------------------------ diagnostics
 
@@ -431,62 +432,62 @@ module Cinch.Ir where
 
   append-diags :: List Diagnostic -> List Diagnostic -> List Diagnostic
   append-diags a b = case a of
-    Nil -> b
-    Cons x rest -> Cons x (append-diags rest b)
+    [] -> b
+    x : rest -> x : (append-diags rest b)
 
   function-arities :: List Module -> List (String, Nat)
   function-arities modules = case modules of
-    Nil -> Nil
-    Cons m rest -> decl-arities (module-decls m) (function-arities rest)
+    [] -> []
+    m : rest -> decl-arities (module-decls m) (function-arities rest)
 
   decl-arities :: List Decl -> List (String, Nat) -> List (String, Nat)
   decl-arities ds acc = case ds of
-    Nil -> acc
-    Cons d rest -> case d of
-      DFun s name (Cons (ps, body) more) -> decl-arities rest (Cons (name, list-length ps) acc)
+    [] -> acc
+    d : rest -> case d of
+      DFun s name ((ps, body) : more) -> decl-arities rest ((name, list-length ps) : acc)
       other -> decl-arities rest acc
 
   lookup-arity :: String -> List (String, Nat) -> Option Nat
   lookup-arity name fns = case fns of
-    Nil -> None
-    Cons (n, arity) rest -> if string-compare name n == 0 then Some arity else lookup-arity name rest
+    [] -> None
+    (n, arity) : rest -> if name == n then Some arity else lookup-arity name rest
 
   entry-refusal :: Span -> List (String, Nat) -> List Diagnostic
   entry-refusal sp fns = case lookup-arity "main" fns of
-    None -> Cons (diag sp "the program has no main definition") Nil
-    Some arity -> Nil
+    None -> [diag sp "the program has no main definition"]
+    Some arity -> []
 
   local-pats :: List Pat -> List String
   local-pats ps = case ps of
-    Nil -> Nil
-    Cons p rest -> case p of
-      PVar s name -> Cons name (local-pats rest)
+    [] -> []
+    p : rest -> case p of
+      PVar s name -> name : (local-pats rest)
       other -> local-pats rest
 
   module-value-refusals :: List (String, Nat) -> List Module -> List Diagnostic
   module-value-refusals fns ms = case ms of
-    Nil -> Nil
-    Cons m rest -> append-diags (decl-value-refusals fns (module-decls m)) (module-value-refusals fns rest)
+    [] -> []
+    m : rest -> append-diags (decl-value-refusals fns (module-decls m)) (module-value-refusals fns rest)
 
   decl-value-refusals :: List (String, Nat) -> List Decl -> List Diagnostic
   decl-value-refusals fns ds = case ds of
-    Nil -> Nil
-    Cons d rest -> append-diags (case d of
+    [] -> []
+    d : rest -> append-diags (case d of
       DFun s name clauses -> clause-value-refusals fns clauses
-      other -> Nil) (decl-value-refusals fns rest)
+      other -> []) (decl-value-refusals fns rest)
 
   clause-value-refusals :: List (String, Nat) -> List (List Pat, Expr) -> List Diagnostic
   clause-value-refusals fns clauses = case clauses of
-    Nil -> Nil
-    Cons (ps, body) rest -> append-diags (value-refusals fns (local-pats ps) body) (clause-value-refusals fns rest)
+    [] -> []
+    (ps, body) : rest -> append-diags (value-refusals fns (local-pats ps) body) (clause-value-refusals fns rest)
 
   -- A global value is a nullary worker call. A non-nullary function in
   -- value position or a partial application needs closure lowering.
   value-refusals :: List (String, Nat) -> List String -> Expr -> List Diagnostic
   value-refusals fns locals e = case e of
-    EVar s name -> if name-in name locals then Nil else case lookup-arity name fns of
-      None -> Cons (diag s (cat ["unknown value in emitted code: ", name])) Nil
-      Some arity -> if arity == 0 then Nil else Cons (diag s (cat ["function value `", name, "` needs closure lowering"])) Nil
+    EVar s name -> if name-in name locals then [] else case lookup-arity name fns of
+      None -> [diag s (cat ["unknown value in emitted code: ", name])]
+      Some arity -> if arity == 0 then [] else [diag s (cat ["function value `", name, "` needs closure lowering"])]
     EApp s head arg -> append-diags (call-value-refusal fns locals e) (argument-value-refusals fns locals (app-args e))
     EBin s op a b -> append-diags (value-refusals fns locals a) (value-refusals fns locals b)
     ENeg s x -> value-refusals fns locals x
@@ -496,91 +497,91 @@ module Cinch.Ir where
     ELet s bs body -> case binding-value-refusals fns locals bs of
       (names, errors) -> append-diags errors (value-refusals fns names body)
     ELetScope sp body -> value-refusals fns locals body
-    other -> Nil
+    other -> []
 
   call-value-refusal :: List (String, Nat) -> List String -> Expr -> List Diagnostic
   call-value-refusal fns locals e = case app-head e of
-    EVar s name -> if name-in name locals then Cons (diag s "a local function application needs closure lowering") Nil
+    EVar s name -> if name-in name locals then [diag s "a local function application needs closure lowering"]
       else case lookup-arity name fns of
-        None -> Nil
-        Some arity -> if arity == list-length (app-args e) then Nil
-          else Cons (diag s (cat ["application of `", name, "` must supply all ", nat-to-string arity, " arguments before lowering"])) Nil
-    other -> Nil
+        None -> []
+        Some arity -> if arity == list-length (app-args e) then []
+          else [diag s (cat ["application of `", name, "` must supply all ", nat-to-string arity, " arguments before lowering"])]
+    other -> []
 
   argument-value-refusals :: List (String, Nat) -> List String -> List Expr -> List Diagnostic
   argument-value-refusals fns locals args = case args of
-    Nil -> Nil
-    Cons arg rest -> append-diags (value-refusals fns locals arg) (argument-value-refusals fns locals rest)
+    [] -> []
+    arg : rest -> append-diags (value-refusals fns locals arg) (argument-value-refusals fns locals rest)
 
   binding-value-refusals :: List (String, Nat) -> List String -> Expr -> (List String, List Diagnostic)
   binding-value-refusals fns locals bs = case bs of
-    EBindingsEnd s -> (locals, Nil)
-    EBinding s name rhs rest -> case binding-value-refusals fns (Cons name locals) rest of
+    EBindingsEnd s -> (locals, [])
+    EBinding s name rhs rest -> case binding-value-refusals fns (name : locals) rest of
       (names, more) -> (names, append-diags (value-refusals fns locals rhs) more)
-    other -> (locals, Cons (diag (expr-span bs) "malformed binding spine in emitted code") Nil)
+    other -> (locals, [diag (expr-span bs) "malformed binding spine in emitted code"])
 
   -- What the emitter cannot lower, named with its span. Empty means the
   -- program is in the fragment and `emit-program` produces its IR.
   emit-diagnostics :: Program -> List Diagnostic
   emit-diagnostics p = case p of
     Program s ms -> case ms of
-      Cons first (Cons second rest) -> Cons (diag s "multiple modules need qualified symbols, which this emitter does not lower yet") Nil
+      first : second : rest -> [(diag s "multiple modules need qualified symbols, which this emitter does not lower yet")]
       other -> append-diags (module-refusals (program-function-names p) ms)
         (append-diags (entry-refusal s (function-arities ms)) (module-value-refusals (function-arities ms) ms))
 
   module-refusals :: List String -> List Module -> List Diagnostic
   module-refusals fns ms = case ms of
-    Nil -> Nil
-    Cons m rest -> append-diags (decls-refusals fns (module-decls m)) (module-refusals fns rest)
+    [] -> []
+    m : rest -> append-diags (decls-refusals fns (module-decls m)) (module-refusals fns rest)
 
   decls-refusals :: List String -> List Decl -> List Diagnostic
   decls-refusals fns ds = case ds of
-    Nil -> Nil
-    Cons d rest -> append-diags (decl-refusal fns ds d) (decls-refusals fns rest)
+    [] -> []
+    d : rest -> append-diags (decl-refusal fns ds d) (decls-refusals fns rest)
 
   decl-refusal :: List String -> List Decl -> Decl -> List Diagnostic
   decl-refusal fns ds d = case d of
-    DData s name (Cons p ps) ctors -> Cons (diag s "parameterized data needs typed constructor lowering") Nil
-    DExternal s name kind scheme metadata -> Cons (diag s (cat ["imported ", kind, " needs the shared uniform-word ABI and layout registry before lowering: ", name])) Nil
-    DOpaque s name params kind -> Cons (diag s "opaque declarations require the typed nominal backend") Nil
-    DRefine s name params binder predicate -> Cons (diag s "a named refinement needs proof checking before lowering") Nil
+    DData s name (p : ps) ctors -> [diag s "parameterized data needs typed constructor lowering"]
+    DExternal s name kind scheme metadata -> [diag s (cat ["imported ", kind, " needs the shared uniform-word ABI and layout registry before lowering: ", name])]
+    DOpaque s name params kind -> [diag s "opaque declarations require the typed nominal backend"]
+    DRefine s name params binder predicate -> [diag s "a named refinement needs proof checking before lowering"]
     DSig s name t -> sig-refusal s name t
     DFun s name clauses -> fun-refusal fns ds s name clauses
-    DClass s name params members -> Cons (diag s (cat ["class `", name, "` is not in the fragment"])) Nil
-    DLaw s name syntax -> Cons (diag s "class laws require checked proposition elaboration") Nil
-    DMethod s label name ty -> Cons (diag s "resolved signature methods require the typed backend") Nil
-    DInstance s i name params t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
-    DEffect s name params ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
-    DForeign s direction conv symbol fname t -> Cons (diag s (cat ["foreign import `", fname, "` is not in the fragment"])) Nil
-    DProof s body -> Cons (diag s "a proof declaration requires typed erasure") Nil
-    DSpec s body -> Cons (diag s "a spec declaration requires typed erasure") Nil
-    DMacroBinding s name -> Cons (diag s "unresolved macro declaration") Nil
-    DMacro s body -> Cons (diag s "a macro declaration requires compile-time expansion") Nil
-    DStage s body -> Cons (diag s "a stage declaration requires compile-time checking") Nil
-    DGenerate s actions -> Cons (diag s "a generate block requires compile-time expansion") Nil
+    DClass s name params members -> [diag s (cat ["class `", name, "` is not in the fragment"])]
+    DLaw s name syntax -> [diag s "class laws require checked proposition elaboration"]
+    DMethod s label name ty -> [diag s "resolved signature methods require the typed backend"]
+    DInstance s i name params t members -> [diag s "an instance declaration is not in the fragment"]
+    DEffect s name params ops -> [diag s (cat ["effect `", name, "` is not in the fragment"])]
+    DForeign s direction conv symbol fname t -> [diag s (cat ["foreign import `", fname, "` is not in the fragment"])]
+    DProof s body -> [diag s "a proof declaration requires typed erasure"]
+    DSpec s body -> [diag s "a spec declaration requires typed erasure"]
+    DMacroBinding s name -> [diag s "unresolved macro declaration"]
+    DMacro s body -> [diag s "a macro declaration requires compile-time expansion"]
+    DStage s body -> [diag s "a stage declaration requires compile-time checking"]
+    DGenerate s actions -> [diag s "a generate block requires compile-time expansion"]
     -- A contract emits no code: it is a claim about the definition it
     -- names, verified before lowering.
-    DWrapperLayout s name repr label -> Nil
-    DUnpackFields s name fields -> Nil
-    DInlineHint s name hint -> Nil
-    DUnrollHint s name hint -> Nil
-    DContract s keyword name subject clauses -> Nil
+    DWrapperLayout s name repr label -> []
+    DUnpackFields s name fields -> []
+    DInlineHint s name hint -> []
+    DUnrollHint s name hint -> []
+    DContract s keyword name subject clauses -> []
     -- A target-selected declaration lowers as the declaration it wraps;
     -- pruning already removed the ones this target does not satisfy.
     DConditional s clauses inner -> decl-refusal fns ds inner
-    DUnmodeled s text -> Cons (diag s "an unmodeled declaration is not in the fragment") Nil
-    other -> Nil
+    DUnmodeled s text -> [diag s "an unmodeled declaration is not in the fragment"]
+    other -> []
 
   sig-refusal :: Span -> String -> TypeExpr -> List Diagnostic
-  sig-refusal s name t = append-diags (if string-compare name "main" == 0 then main-type-refusal s t else Nil)
+  sig-refusal s name t = append-diags (if name == "main" then main-type-refusal s t else [])
     (case sig-unsupported t of
-      None -> Nil
-      Some why -> Cons (diag s (cat ["signature for `", name, "` carries ", why])) Nil)
+      None -> []
+      Some why -> [diag s (cat ["signature for `", name, "` carries ", why])])
 
   main-type-refusal :: Span -> TypeExpr -> List Diagnostic
   main-type-refusal sp t = case t of
-    TName s name -> if string-compare name "Int" == 0 then Nil else Cons (diag sp "main must return Int in the fragment") Nil
-    other -> Cons (diag sp "main must have type Int in the fragment") Nil
+    TName s name -> if name == "Int" then [] else [diag sp "main must return Int in the fragment"]
+    other -> [diag sp "main must have type Int in the fragment"]
 
   -- A signature's arrow spine is the lowered shape; `using` (dictionary
   -- passing) and `forall` (type abstraction) are outside the fragment.
@@ -618,9 +619,9 @@ module Cinch.Ir where
 
   find-sig :: List Decl -> String -> Option TypeExpr
   find-sig ds name = case ds of
-    Nil -> None
-    Cons d rest -> case d of
-      DSig s n t -> if string-compare n name == 0 then Some t else find-sig rest name
+    [] -> None
+    d : rest -> case d of
+      DSig s n t -> if n == name then Some t else find-sig rest name
       other -> find-sig rest name
 
   fun-refusal :: List String -> List Decl -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
@@ -629,15 +630,15 @@ module Cinch.Ir where
 
   name-refusal :: Span -> String -> List Diagnostic
   name-refusal s name =
-    if is-operator-name name then Cons (diag s (cat ["operator definition `", name, "` has no lowered symbol"])) Nil
-    else Nil
+    if is-operator-name name then [diag s (cat ["operator definition `", name, "` has no lowered symbol"])]
+    else []
 
   clause-refusals :: List String -> List Decl -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
   clause-refusals fns ds s name clauses = case clauses of
-    Nil -> Cons (diag s (cat ["function `", name, "` has no equations"])) Nil
-    Cons c rest -> case rest of
-      Nil -> one-clause-refusals fns ds s name c
-      Cons d more -> Cons (diag s (cat ["function `", name, "` has several equations; only one is lowered"])) Nil
+    [] -> [diag s (cat ["function `", name, "` has no equations"])]
+    c : rest -> case rest of
+      [] -> one-clause-refusals fns ds s name c
+      d : more -> [diag s (cat ["function `", name, "` has several equations; only one is lowered"])]
 
   one-clause-refusals :: List String -> List Decl -> Span -> String -> (List Pat, Expr) -> List Diagnostic
   one-clause-refusals fns ds s name c = case c of
@@ -648,35 +649,35 @@ module Cinch.Ir where
 
   arity-refusal :: List Decl -> Span -> String -> Nat -> List Diagnostic
   arity-refusal ds s name n = case find-sig ds name of
-    None -> Nil
+    None -> []
     Some t ->
-      if sig-arity t == n then Nil
-      else Cons (diag s (cat ["signature for `", name, "` has arity ", nat-to-string (sig-arity t), " but the equation binds ", nat-to-string n])) Nil
+      if sig-arity t == n then []
+      else [diag s (cat ["signature for `", name, "` has arity ", nat-to-string (sig-arity t), " but the equation binds ", nat-to-string n])]
 
   main-param-refusal :: Span -> String -> List Pat -> List Diagnostic
   main-param-refusal s name pats = case pats of
-    Nil -> Nil
-    Cons p rest -> if string-compare name "main" == 0 then Cons (diag s "main must take no parameters in this rung") Nil else Nil
+    [] -> []
+    p : rest -> if name == "main" then [diag s "main must take no parameters in this rung"] else []
 
   pats-refusals :: List Pat -> List Diagnostic
   pats-refusals ps = case ps of
-    Nil -> Nil
-    Cons p rest -> append-diags (pat-refusal p) (pats-refusals rest)
+    [] -> []
+    p : rest -> append-diags (pat-refusal p) (pats-refusals rest)
 
   pat-refusal :: Pat -> List Diagnostic
   pat-refusal p = case p of
-    PVar s name -> Nil
-    PWild s -> Nil
-    other -> Cons (diag (pat-span other) "a parameter pattern beyond a variable or wildcard is not lowered") Nil
+    PVar s name -> []
+    PWild s -> []
+    other -> [diag (pat-span other) "a parameter pattern beyond a variable or wildcard is not lowered"]
 
   expr-refusals :: List String -> Expr -> List Diagnostic
   expr-refusals fns e = case e of
-    EVar s name -> Nil
-    ELitInt s text -> Nil
+    EVar s name -> []
+    ELitInt s text -> []
     EFamilyCon s fallback candidate args -> expr-refusals fns (ECon s fallback args)
     ECon s name args -> append-diags (con-refusal s name) (case exprs-of args of
-      Nil -> Nil
-      Cons arg rest -> Cons (diag s "the fragment's Boolean constructors take no arguments") Nil)
+      [] -> []
+      arg : rest -> [diag s "the fragment's Boolean constructors take no arguments"])
     EApp s f a -> app-refusal fns e
     EBin s op l r -> append-diags (op-refusal s op) (append-diags (expr-refusals fns l) (expr-refusals fns r))
     ENeg s x -> expr-refusals fns x
@@ -685,48 +686,49 @@ module Cinch.Ir where
     ELetScope sp body -> expr-refusals fns body
     EForget s atoms x -> expr-refusals fns x
     EAnn s x t -> expr-refusals fns x
-    EUnit s -> Nil
-    other -> Cons (diag (expr-span other) (cat ["the emitter cannot lower this ", expr-node-name other])) Nil
+    EUnit s -> []
+    other -> [diag (expr-span other) (cat ["the emitter cannot lower this ", expr-node-name other])]
 
   app-refusal :: List String -> Expr -> List Diagnostic
   app-refusal fns e = case app-head e of
-    EVar s name -> if name-in name fns then args-refusals fns (app-args e) else Cons (diag s (cat ["`", name, "` is applied but is not a fragment function"])) Nil
-    other -> Cons (diag (expr-span other) "an application whose head is not a function name is not lowered") Nil
+    EVar s name -> if name-in name fns then args-refusals fns (app-args e) else [diag s (cat ["`", name, "` is applied but is not a fragment function"])]
+    other -> [diag (expr-span other) "an application whose head is not a function name is not lowered"]
 
   args-refusals :: List String -> List Expr -> List Diagnostic
   args-refusals fns args = case args of
-    Nil -> Nil
-    Cons a rest -> append-diags (expr-refusals fns a) (args-refusals fns rest)
+    [] -> []
+    a : rest -> append-diags (expr-refusals fns a) (args-refusals fns rest)
 
   con-refusal :: Span -> String -> List Diagnostic
   con-refusal s name =
-    if string-compare name "True" == 0 then Nil
-    else if string-compare name "False" == 0 then Nil
-    else Cons (diag s (cat ["constructor `", name, "` is not lowered"])) Nil
+    if name == "True" then []
+    else if name == "False" then []
+    else [diag s (cat ["constructor `", name, "` is not lowered"])]
 
   op-refusal :: Span -> String -> List Diagnostic
   op-refusal s op =
-    if op-supported op then Nil else Cons (diag s (cat ["operator `", op, "` is not lowered"])) Nil
+    if op-supported op then [] else [diag s (cat ["operator `", op, "` is not lowered"])]
 
   op-supported :: String -> Bool
   op-supported op =
-    if string-compare op "+" == 0 then True
-    else if string-compare op "-" == 0 then True
-    else if string-compare op "*" == 0 then True
-    else if string-compare op "/" == 0 then True
-    else if string-compare op "%" == 0 then True
-    else if string-compare op "==" == 0 then True
-    else if string-compare op "/=" == 0 then True
-    else if string-compare op "<" == 0 then True
-    else if string-compare op "<=" == 0 then True
-    else if string-compare op ">" == 0 then True
-    else if string-compare op ">=" == 0 then True
-    else False
+    case op of
+    "+" -> True
+    "-" -> True
+    "*" -> True
+    "/" -> True
+    "%" -> True
+    "==" -> True
+    "/=" -> True
+    "<" -> True
+    "<=" -> True
+    ">" -> True
+    ">=" -> True
+    _ -> False
 
   bindings-refusals :: List String -> List (String, Expr) -> List Diagnostic
   bindings-refusals fns bs = case bs of
-    Nil -> Nil
-    Cons b rest -> case b of
+    [] -> []
+    b : rest -> case b of
       (name, rhs) -> append-diags (expr-refusals fns rhs) (bindings-refusals fns rest)
 
   -- The surface name of a node, so a refusal says which construct it is.

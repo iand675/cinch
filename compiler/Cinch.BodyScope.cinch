@@ -34,8 +34,8 @@ module Cinch.BodyScope where
 
   push-body-slots :: forall a. List a -> BodyScope a -> BodyScope a
   push-body-slots values scope = case values of
-    Nil -> scope
-    Cons first rest -> push-body-slots rest (push-body-slot scope first)
+    [] -> scope
+    first : rest -> push-body-slots rest (push-body-slot scope first)
 
   body-slot :: forall a. Nat -> BodyScope a -> Option a
   body-slot slot scope = case scope of

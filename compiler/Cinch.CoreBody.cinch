@@ -43,10 +43,10 @@ module Cinch.CoreBody where
   dense-zero = Span 0 0 0 0
 
   dense-same :: String -> String -> Bool
-  dense-same a b = string-compare a b == 0
+  dense-same a b = a == b
 
   dense-list :: List Json -> Json
-  dense-list items = case items of Nil -> JArrEnd; Cons first rest -> JArr first (dense-list rest)
+  dense-list items = case items of [] -> JArrEnd; first : rest -> JArr first (dense-list rest)
 
   dense-node :: String -> List Json -> Json
   dense-node tag fields = JArr (JStr tag) (dense-list fields)
@@ -65,8 +65,8 @@ module Cinch.CoreBody where
 
   dense-items :: Json -> Option (List Json)
   dense-items doc = case doc of
-    JArrEnd -> Some Nil
-    JArr first rest -> case dense-items rest of Some more -> Some (Cons first more); None -> None
+    JArrEnd -> Some []
+    JArr first rest -> case dense-items rest of Some more -> Some (first : more); None -> None
     other -> None
 
   -- A digest only filters the structural comparison: it never decides
@@ -152,8 +152,8 @@ module Cinch.CoreBody where
 
   dense-type-lookup :: UType -> Nat -> Nat -> List (Nat, UType) -> Option Nat
   dense-type-lookup ty digest index table = case table of
-    Nil -> None
-    Cons (stored, candidate) rest ->
+    [] -> None
+    (stored, candidate) : rest ->
       if stored == digest && same-shape candidate ty then Some index
       else dense-type-lookup ty digest (index + 1) rest
 
@@ -167,22 +167,22 @@ module Cinch.CoreBody where
 
   dense-type-docs :: Bool -> List UType -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-type-docs dense types table = case types of
-    Nil -> (JArrEnd, table)
-    Cons first rest -> let (doc, t1) = dense-type-doc dense first table in
+    [] -> (JArrEnd, table)
+    first : rest -> let (doc, t1) = dense-type-doc dense first table in
       let (more, t2) = dense-type-docs dense rest t1 in
       (JArr doc more, t2)
 
   dense-quants :: List Quant -> Json
   dense-quants qs = case qs of
-    Nil -> JArrEnd
-    Cons q rest ->
+    [] -> JArrEnd
+    q : rest ->
       let entry = JArr (JNum (nat-to-int (q.id))) (JArr (JStr (q.name)) (JArr (kind-tree (q.kind)) (JArr (JBool (q.only)) JArrEnd)))
       in JArr entry (dense-quants rest)
 
   dense-requirements :: Bool -> List Requirement -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-requirements dense requirements table = case requirements of
-    Nil -> (JArrEnd, table)
-    Cons requirement rest ->
+    [] -> (JArrEnd, table)
+    requirement : rest ->
       let (doc, t1) = dense-type-doc dense (requirement.ty) table in
       let (more, t2) = dense-requirements dense rest t1 in
       (JArr (JArr (JStr (requirement.name)) (JArr doc JArrEnd)) more, t2)
@@ -194,28 +194,28 @@ module Cinch.CoreBody where
 
   dense-openings :: Bool -> List (Nat, UType) -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-openings dense openings table = case openings of
-    Nil -> (JArrEnd, table)
-    Cons (id, ty) rest ->
+    [] -> (JArrEnd, table)
+    (id, ty) : rest ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (more, t2) = dense-openings dense rest t1 in
       (JArr (JArr (JNum (nat-to-int id)) (JArr doc JArrEnd)) more, t2)
 
   dense-givens :: Bool -> List CoreGiven -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-givens dense givens table = case givens of
-    Nil -> (JArrEnd, table)
-    Cons (CoreGiven s name ty) rest ->
+    [] -> (JArrEnd, table)
+    (CoreGiven s name ty) : rest ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (more, t2) = dense-givens dense rest t1 in
       (JArr (JArr (JStr name) (JArr doc JArrEnd)) more, t2)
 
   dense-private :: List (Nat, Kind) -> Json
   dense-private private = case private of
-    Nil -> JArrEnd
-    Cons (id, kind) rest -> JArr (JArr (JNum (nat-to-int id)) (JArr (kind-tree kind) JArrEnd)) (dense-private rest)
+    [] -> JArrEnd
+    (id, kind) : rest -> JArr (JArr (JNum (nat-to-int id)) (JArr (kind-tree kind) JArrEnd)) (dense-private rest)
 
   dense-proof :: Proof -> Json
   dense-proof warrant = case warrant of
-    Trivial -> dense-node "proof-trivial" Nil
+    Trivial -> dense-node "proof-trivial" []
     Conjunction first second -> dense-node "proof-conjunction" [dense-proof first, dense-proof second]
     Refutation certificate -> dense-node "proof-refutation" [dense-certificate certificate]
 
@@ -226,8 +226,8 @@ module Cinch.CoreBody where
 
   dense-citations :: List (Int, Citation) -> Json
   dense-citations rows = case rows of
-    Nil -> JArrEnd
-    Cons (weight, citation) rest -> JArr (JArr (JNum weight) (JArr (dense-citation citation) JArrEnd)) (dense-citations rest)
+    [] -> JArrEnd
+    (weight, citation) : rest -> JArr (JArr (JNum weight) (JArr (dense-citation citation) JArrEnd)) (dense-citations rest)
 
   dense-citation :: Citation -> Json
   dense-citation citation = case citation of
@@ -243,8 +243,8 @@ module Cinch.CoreBody where
 
   dense-evidences :: Bool -> List CoreEvidence -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-evidences dense evidences table = case evidences of
-    Nil -> (JArrEnd, table)
-    Cons evidence rest -> let (doc, t1) = dense-evidence dense evidence table in
+    [] -> (JArrEnd, table)
+    evidence : rest -> let (doc, t1) = dense-evidence dense evidence table in
       let (more, t2) = dense-evidences dense rest t1 in
       (JArr doc more, t2)
 
@@ -265,12 +265,12 @@ module Cinch.CoreBody where
     CEArgument s first rest -> let (a, t1) = dense-evidence dense first table in
       let (b, t2) = dense-evidence dense rest t1 in
       (dense-node "evidence-argument" [a, b], t2)
-    CEArgumentsEnd s -> (dense-node "evidence-end" Nil, table)
+    CEArgumentsEnd s -> (dense-node "evidence-end" [], table)
 
   dense-patterns :: Bool -> List CorePattern -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-patterns dense patterns table = case patterns of
-    Nil -> (JArrEnd, table)
-    Cons pattern rest -> let (doc, t1) = dense-pattern dense pattern table in
+    [] -> (JArrEnd, table)
+    pattern : rest -> let (doc, t1) = dense-pattern dense pattern table in
       let (more, t2) = dense-patterns dense rest t1 in
       (JArr doc more, t2)
 
@@ -307,18 +307,18 @@ module Cinch.CoreBody where
     CPField s first rest -> let (a, t1) = dense-pattern dense first table in
       let (b, t2) = dense-pattern dense rest t1 in
       (dense-node "field-pattern" [a, b], t2)
-    CPDone s -> (dense-node "done-pattern" Nil, table)
+    CPDone s -> (dense-node "done-pattern" [], table)
 
   dense-handler-openings :: Bool -> List (Nat, UType) -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-handler-openings dense openings table = case openings of
-    Nil -> (JArrEnd, table)
-    Cons (key, ty) rest ->
+    [] -> (JArrEnd, table)
+    (key, ty) : rest ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (more, t2) = dense-handler-openings dense rest t1 in
       (JArr (JArr (JNum (nat-to-int key)) (JArr doc JArrEnd)) more, t2)
 
   dense-ids :: List Nat -> Json
-  dense-ids ids = case ids of Nil -> JArrEnd; Cons id rest -> JArr (JNum (nat-to-int id)) (dense-ids rest)
+  dense-ids ids = case ids of [] -> JArrEnd; id : rest -> JArr (JNum (nat-to-int id)) (dense-ids rest)
   dense-term :: Bool -> CoreTerm -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-term dense term table = case term of
     CUse s ty name role actuals ->
@@ -418,7 +418,7 @@ module Cinch.CoreBody where
       let (c, t3) = dense-term dense closure t2 in
       let (r, t4) = dense-term dense rest t3 in
       (dense-node "handler-operation" [JNum (nat-to-int slot), openingsDoc, rowDoc, c, r], t4)
-    CHandlerEnd s -> (dense-node "handler-end" Nil, table)
+    CHandlerEnd s -> (dense-node "handler-end" [], table)
     CLambda s ty pattern body ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (patternDoc, t2) = dense-pattern dense pattern t1 in
@@ -445,7 +445,7 @@ module Cinch.CoreBody where
       let (v, t1) = dense-term dense value table in
       let (r, t2) = dense-term dense rest t1 in
       (dense-node "recursive-binding" [JNum (nat-to-int id), JStr name, v, r], t2)
-    CRecursiveBindingsEnd -> (dense-node "recursive-bindings-end" Nil, table)
+    CRecursiveBindingsEnd -> (dense-node "recursive-bindings-end" [], table)
     CIf s ty condition yes no ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (c, t2) = dense-term dense condition t1 in
@@ -512,24 +512,24 @@ module Cinch.CoreBody where
       let (v, t1) = dense-term dense value table in
       let (r, t2) = dense-term dense rest t1 in
       (dense-node "argument" [v, r], t2)
-    CArgumentsEnd s -> (dense-node "arguments-end" Nil, table)
+    CArgumentsEnd s -> (dense-node "arguments-end" [], table)
     CAlternative s pattern body rest ->
       let (p, t1) = dense-pattern dense pattern table in
       let (b, t2) = dense-term dense body t1 in
       let (r, t3) = dense-term dense rest t2 in
       (dense-node "alternative" [p, b, r], t3)
-    CAlternativesEnd s -> (dense-node "alternatives-end" Nil, table)
-    CError s -> (dense-node "error" Nil, table)
+    CAlternativesEnd s -> (dense-node "alternatives-end" [], table)
+    CError s -> (dense-node "error" [], table)
 
   dense-proofs :: List Proof -> Json
   dense-proofs proofs = case proofs of
-    Nil -> JArrEnd
-    Cons first rest -> JArr (dense-proof first) (dense-proofs rest)
+    [] -> JArrEnd
+    first : rest -> JArr (dense-proof first) (dense-proofs rest)
 
   dense-clauses :: Bool -> List CoreClause -> List (Nat, UType) -> (Json, List (Nat, UType))
   dense-clauses dense clauses table = case clauses of
-    Nil -> (JArrEnd, table)
-    Cons (CoreClause s patterns body) rest ->
+    [] -> (JArrEnd, table)
+    (CoreClause s patterns body) : rest ->
       let (patternDocs, t1) = dense-patterns dense patterns table in
       let (bodyDoc, t2) = dense-term dense body t1 in
       let (more, t3) = dense-clauses dense rest t2 in
@@ -537,8 +537,8 @@ module Cinch.CoreBody where
 
   dense-carrier-jsons :: List (Nat, UType) -> Json
   dense-carrier-jsons table = case table of
-    Nil -> JArrEnd
-    Cons (digest, ty) rest -> JArr (carrier-tree ty) (dense-carrier-jsons rest)
+    [] -> JArrEnd
+    (digest, ty) : rest -> JArr (carrier-tree ty) (dense-carrier-jsons rest)
 
   dense-body-object :: String -> Json -> Json -> Json -> Json -> Json -> Json
   dense-body-object name scheme openings givens private clauses =
@@ -547,7 +547,7 @@ module Cinch.CoreBody where
   dense-definition-doc :: Bool -> CoreDefinition -> Json
   dense-definition-doc dense definition = case definition of
     CoreDefinition s name scheme openings givens private clauses ->
-      let (schemeDoc, t1) = dense-scheme dense scheme Nil in
+      let (schemeDoc, t1) = dense-scheme dense scheme [] in
       let (openingsDoc, t2) = dense-openings dense openings t1 in
       let (givensDoc, t3) = dense-givens dense givens t2 in
       let (clausesDoc, t4) = dense-clauses dense clauses t3 in
@@ -569,11 +569,11 @@ module Cinch.CoreBody where
 
   dense-claim-list :: List CoreDefinition -> Option (List Json)
   dense-claim-list definitions = case definitions of
-    Nil -> Some Nil
-    Cons definition rest ->
+    [] -> Some []
+    definition : rest ->
       let doc = dense-definition-document definition in
       (case (dense-definition-of-document doc, dense-claim-list rest) of
-        (Some decoded, Some more) -> if dense-document-equal doc decoded then Some (Cons doc more) else None
+        (Some decoded, Some more) -> if dense-document-equal doc decoded then Some (doc : more) else None
         other -> None)
 
   dense-document-equal :: Json -> CoreDefinition -> Bool
@@ -586,8 +586,8 @@ module Cinch.CoreBody where
 
   dense-claim-docs :: List CoreDefinition -> List Json
   dense-claim-docs definitions = case definitions of
-    Nil -> Nil
-    Cons definition rest -> Cons (dense-definition-document definition) (dense-claim-docs rest)
+    [] -> []
+    definition : rest -> (dense-definition-document definition) : (dense-claim-docs rest)
 
   -- ---------------------------------------------------------- the reader
 
@@ -598,8 +598,8 @@ module Cinch.CoreBody where
 
   dense-at :: Nat -> List UType -> Option UType
   dense-at index types = case types of
-    Nil -> None
-    Cons first rest -> if index == 0 then Some first else dense-at (index - 1) rest
+    [] -> None
+    first : rest -> if index == 0 then Some first else dense-at (index - 1) rest
 
   dense-type-of :: List UType -> Json -> Option UType
   dense-type-of types doc = case dense-natural doc of
@@ -613,9 +613,9 @@ module Cinch.CoreBody where
 
   dense-type-list-from :: List UType -> List Json -> Option (List UType)
   dense-type-list-from types items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case (dense-type-of types first, dense-type-list-from types rest) of
-      (Some ty, Some more) -> Some (Cons ty more)
+    [] -> Some []
+    first : rest -> case (dense-type-of types first, dense-type-list-from types rest) of
+      (Some ty, Some more) -> Some (ty : more)
       other -> None
 
   dense-quants-of :: Json -> Option (List Quant)
@@ -625,9 +625,9 @@ module Cinch.CoreBody where
 
   dense-quants-from :: List Json -> Option (List Quant)
   dense-quants-from items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case (dense-quant-of first, dense-quants-from rest) of
-      (Some quant, Some more) -> Some (Cons quant more)
+    [] -> Some []
+    first : rest -> case (dense-quant-of first, dense-quants-from rest) of
+      (Some quant, Some more) -> Some (quant : more)
       other -> None
 
   dense-quant-of :: Json -> Option Quant
@@ -645,11 +645,11 @@ module Cinch.CoreBody where
 
   dense-requirements-from :: List UType -> List Json -> Option (List Requirement)
   dense-requirements-from types items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case first of
+    [] -> Some []
+    first : rest -> case first of
       JArr nameDoc (JArr typeDoc JArrEnd) ->
         (case (dense-text nameDoc, dense-type-of types typeDoc, dense-requirements-from types rest) of
-          (Some name, Some ty, Some more) -> Some (Cons (Requirement name ty) more)
+          (Some name, Some ty, Some more) -> Some ((Requirement name ty) : more)
           other -> None)
       other -> None
     other -> None
@@ -667,11 +667,11 @@ module Cinch.CoreBody where
 
   dense-openings-from :: List UType -> List Json -> Option (List (Nat, UType))
   dense-openings-from types items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case first of
+    [] -> Some []
+    first : rest -> case first of
       JArr idDoc (JArr typeDoc JArrEnd) ->
         (case (dense-natural idDoc, dense-type-of types typeDoc, dense-openings-from types rest) of
-          (Some id, Some ty, Some more) -> Some (Cons (id, ty) more)
+          (Some id, Some ty, Some more) -> Some ((id, ty) : more)
           other -> None)
       other -> None
     other -> None
@@ -683,11 +683,11 @@ module Cinch.CoreBody where
 
   dense-givens-from :: List UType -> List Json -> Option (List CoreGiven)
   dense-givens-from types items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case first of
+    [] -> Some []
+    first : rest -> case first of
       JArr nameDoc (JArr typeDoc JArrEnd) ->
         (case (dense-text nameDoc, dense-type-of types typeDoc, dense-givens-from types rest) of
-          (Some name, Some ty, Some more) -> Some (Cons (CoreGiven dense-zero name ty) more)
+          (Some name, Some ty, Some more) -> Some ((CoreGiven dense-zero name ty) : more)
           other -> None)
       other -> None
     other -> None
@@ -699,11 +699,11 @@ module Cinch.CoreBody where
 
   dense-private-from :: List Json -> Option (List (Nat, Kind))
   dense-private-from items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case first of
+    [] -> Some []
+    first : rest -> case first of
       JArr idDoc (JArr kindDoc JArrEnd) ->
         (case (dense-natural idDoc, read-kind-tree kindDoc, dense-private-from rest) of
-          (Some id, Some kind, Some more) -> Some (Cons (id, kind) more)
+          (Some id, Some kind, Some more) -> Some ((id, kind) : more)
           other -> None)
       other -> None
     other -> None
@@ -746,11 +746,11 @@ module Cinch.CoreBody where
 
   dense-citations-from :: List Json -> Option (List (Int, Citation))
   dense-citations-from items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case first of
+    [] -> Some []
+    first : rest -> case first of
       JArr weightDoc (JArr citationDoc JArrEnd) ->
         (case (dense-number weightDoc, dense-citation-of citationDoc, dense-citations-from rest) of
-          (Some weight, Some citation, Some more) -> Some (Cons (weight, citation) more)
+          (Some weight, Some citation, Some more) -> Some ((weight, citation) : more)
           other -> None)
       other -> None
     other -> None
@@ -793,9 +793,9 @@ module Cinch.CoreBody where
 
   dense-evidences-from :: List UType -> List Json -> Option (List CoreEvidence)
   dense-evidences-from types items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case (dense-evidence-of types first, dense-evidences-from types rest) of
-      (Some evidence, Some more) -> Some (Cons evidence more)
+    [] -> Some []
+    first : rest -> case (dense-evidence-of types first, dense-evidences-from types rest) of
+      (Some evidence, Some more) -> Some (evidence : more)
       other -> None
 
   dense-evidence-of :: List UType -> Json -> Option CoreEvidence
@@ -841,9 +841,9 @@ module Cinch.CoreBody where
 
   dense-patterns-of :: List UType -> Json -> Option (List CorePattern)
   dense-patterns-of types doc = case doc of
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     JArr first rest -> (case (dense-pattern-of types first, dense-patterns-of types rest) of
-      (Some pattern, Some more) -> Some (Cons pattern more)
+      (Some pattern, Some more) -> Some (pattern : more)
       other -> None)
     other -> None
 
@@ -930,11 +930,11 @@ module Cinch.CoreBody where
 
   dense-handler-openings-from :: List UType -> List Json -> Option (List (Nat, UType))
   dense-handler-openings-from types items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case first of
+    [] -> Some []
+    first : rest -> case first of
       JArr keyDoc (JArr typeDoc JArrEnd) ->
         (case (dense-natural keyDoc, dense-type-of types typeDoc, dense-handler-openings-from types rest) of
-          (Some key, Some ty, Some more) -> Some (Cons (key, ty) more)
+          (Some key, Some ty, Some more) -> Some ((key, ty) : more)
           other -> None)
       other -> None
     other -> None
@@ -1209,17 +1209,17 @@ module Cinch.CoreBody where
 
   dense-proofs-from :: List Json -> Option (List Proof)
   dense-proofs-from items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case (dense-proof-of first, dense-proofs-from rest) of
-      (Some warrant, Some more) -> Some (Cons warrant more)
+    [] -> Some []
+    first : rest -> case (dense-proof-of first, dense-proofs-from rest) of
+      (Some warrant, Some more) -> Some (warrant : more)
       other -> None
 
   dense-clauses-of :: List UType -> Json -> Option (List CoreClause)
   dense-clauses-of types doc = case doc of
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     JArr first rest ->
       (case (dense-patterns-of types (dense-field "patterns" first), dense-term-of types (dense-field "body" first), dense-clauses-of types rest) of
-        (Some patterns, Some body, Some more) -> Some (Cons (CoreClause dense-zero patterns body) more)
+        (Some patterns, Some body, Some more) -> Some ((CoreClause dense-zero patterns body) : more)
         other -> None)
     other -> None
 
@@ -1232,9 +1232,9 @@ module Cinch.CoreBody where
 
   dense-carriers-of :: List Json -> Option (List UType)
   dense-carriers-of items = case items of
-    Nil -> Some Nil
-    Cons first rest -> case (read-carrier-tree first, dense-carriers-of rest) of
-      (Some ty, Some more) -> Some (Cons ty more)
+    [] -> Some []
+    first : rest -> case (read-carrier-tree first, dense-carriers-of rest) of
+      (Some ty, Some more) -> Some (ty : more)
       other -> None
 
   dense-definition-of-document :: Json -> Option CoreDefinition
@@ -1251,7 +1251,7 @@ module Cinch.CoreBody where
   dense-claims-of-document :: Json -> Option (List CoreDefinition)
   dense-claims-of-document doc = case doc of
     JArr first rest -> (case (dense-definition-of-document first, dense-claims-of-document rest) of
-      (Some definition, Some more) -> Some (Cons definition more)
+      (Some definition, Some more) -> Some (definition : more)
       other -> None)
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     other -> None

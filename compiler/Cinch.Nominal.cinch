@@ -22,14 +22,12 @@ module Cinch.Nominal where
   export stage-quotation-module, stage-code-type-name, global-stage-code, global-stage-str-nat
   export nominal-entry-valid
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
   field :: String -> Json -> Json
-  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  field name doc = case doc of JObj key value rest -> if name == key then value else field name rest; other -> JNull
   present :: String -> Json -> Bool
-  present name doc = case doc of JObj key value rest -> same name key || present name rest; other -> False
+  present name doc = case doc of JObj key value rest -> name == key || present name rest; other -> False
   has :: String -> List String -> Bool
-  has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
+  has name names = case names of [] -> False; n : rest -> name == n || has name rest
   text :: Json -> String
   text doc = case doc of JStr value -> value; other -> ""
   -- The identity spelling every interface, object and symbol name agrees on.
@@ -46,9 +44,9 @@ module Cinch.Nominal where
   -- step.
   encode-identity :: List Char -> List Char -> List Char
   encode-identity chars rest = case chars of
-    Nil -> rest
-    Cons c more -> let code = char-code c in
-      if plain-code code then Cons c (encode-identity more rest)
+    [] -> rest
+    c : more -> let code = char-code c in
+      if plain-code code then c : (encode-identity more rest)
       else escaped-code code (encode-identity more rest)
   -- The decimal fallback this replaced spent four characters on every
   -- plain letter. The escape is also shorter for punctuation: `$2e` against
@@ -64,7 +62,7 @@ module Cinch.Nominal where
     else escape-byte (240 + nat-div code 262144) (escape-byte (128 + nat-rem (nat-div code 4096) 64)
       (escape-byte (128 + nat-rem (nat-div code 64) 64) (escape-byte (128 + nat-rem code 64) rest)))
   escape-byte :: Nat -> List Char -> List Char
-  escape-byte byte rest = Cons '$' (Cons (hex-digit (nat-div byte 16)) (Cons (hex-digit (nat-rem byte 16)) rest))
+  escape-byte byte rest = '$' : (hex-digit (nat-div byte 16)) : (hex-digit (nat-rem byte 16)) : rest
   hex-digit :: Nat -> Char
   hex-digit n = if n < 10 then digit-char n
     else if n == 10 then 'a' else if n == 11 then 'b' else if n == 12 then 'c'
@@ -80,17 +78,17 @@ module Cinch.Nominal where
   -- the first character outside the grammar, which is how a name embedded in
   -- a longer spelling keeps its suffix.
   decode-identity :: List Char -> Option (String, List Char)
-  decode-identity chars = case decode-run chars Nil of
+  decode-identity chars = case decode-run chars [] of
     Some (reversed, rest) -> Some (pack (reverse reversed), rest)
     None -> None
   decode-run :: List Char -> List Char -> Option (List Char, List Char)
   decode-run chars reversed = case chars of
-    Nil -> Some (reversed, Nil)
-    Cons c rest -> let code = char-code c in
-      if plain-code code then decode-run rest (Cons c reversed)
+    [] -> Some (reversed, [])
+    c : rest -> let code = char-code c in
+      if plain-code code then decode-run rest (c : reversed)
       else if code == 36 then (case hex-byte rest of
         Some (lead, more) -> (case decode-scalar lead more of
-          Some (scalar, after) -> decode-run after (Cons scalar reversed)
+          Some (scalar, after) -> decode-run after (scalar : reversed)
           None -> None)
         None -> None)
       else Some (reversed, chars)
@@ -124,11 +122,11 @@ module Cinch.Nominal where
     None -> None
   continuation-byte :: List Char -> Option (Nat, List Char)
   continuation-byte chars = case chars of
-    Cons c rest -> if char-code c == 36 then (case hex-byte rest of
+    c : rest -> if char-code c == 36 then (case hex-byte rest of
       Some (byte, more) -> if byte >= 128 && byte < 192 then Some (byte, more) else None
       None -> None)
       else None
-    Nil -> None
+    [] -> None
   hex-byte :: List Char -> Option (Nat, List Char)
   hex-byte chars = case hex-digit-code chars of
     Some (high, more) -> (case hex-digit-code more of
@@ -137,11 +135,11 @@ module Cinch.Nominal where
     None -> None
   hex-digit-code :: List Char -> Option (Nat, List Char)
   hex-digit-code chars = case chars of
-    Cons c rest -> let code = char-code c in
+    c : rest -> let code = char-code c in
       if code >= 48 && code <= 57 then Some (code - 48, rest)
       else if code >= 97 && code <= 102 then Some (code - 87, rest)
       else None
-    Nil -> None
+    [] -> None
   -- Read one byte and mark an escaped byte by adding 256. The outer
   -- loops check the offset and retain the source buffer across the read.
   prim classify-identity-byte :: I64 -> I64 -> I64 where
@@ -215,7 +213,7 @@ module Cinch.Nominal where
   interface-global :: String -> String
   interface-global identity = case identity-global-bytes (string-to-bytes identity) of
     Some name -> name
-    None -> pack (Cons 'i' (Cons '.' (encode-identity (unpack identity) Nil)))
+    None -> pack ('i' : '.' : (encode-identity (unpack identity) []))
 
   -- Object admission indexes producer symbols. Accept the complete
   -- canonical global spelling before looking up its decoded UTF-8 name.
@@ -330,13 +328,13 @@ module Cinch.Nominal where
     other -> None
   valid-parameters :: Json -> Json -> List String -> Bool
   valid-parameters rows names seen = case (rows, names) of
-    (JArr row rest, JArr (JStr name) more) -> same name (text (field "name" row)) && string-length name > 0 && not (has name seen)
+    (JArr row rest, JArr (JStr name) more) -> name == text (field "name" row) && string-length name > 0 && not (has name seen)
       && nonempty (field "kind" row) && (case field "implicit" row of JBool value -> True; other -> False)
-      && valid-parameters rest more (Cons name seen)
+      && valid-parameters rest more (name : seen)
     (JArrEnd, JArrEnd) -> True
     other -> False
   parameter-has-name :: String -> Json -> Bool
-  parameter-has-name name rows = case rows of JArr row rest -> same name (text (field "name" row)) || parameter-has-name name rest; other -> False
+  parameter-has-name name rows = case rows of JArr row rest -> name == text (field "name" row) || parameter-has-name name rest; other -> False
   valid-refinement-row :: Json -> Bool
   valid-refinement-row row = let template = field "refinement" row in
     nonempty (field "binder" template) && nonempty (field "carrier" template) && nonempty (field "predicate" template)
@@ -345,18 +343,18 @@ module Cinch.Nominal where
   null-field name row = present name row && (case field name row of JNull -> True; other -> False)
   -- | Test exact defining constructor membership without introducing source-visible names.
   usage-member :: String -> Json -> Bool
-  usage-member name rows = case rows of JArr (JStr first) rest -> same name first || usage-member name rest; other -> False
+  usage-member name rows = case rows of JArr (JStr first) rest -> name == first || usage-member name rest; other -> False
   -- | Reject executable or layout metadata in the dedicated usage-only constructor rows.
   usage-keys :: Json -> List String -> Bool
   usage-keys row seen = case row of
-    JObj key value rest -> has key ["identity", "fields", "result"] && not (has key seen) && usage-keys rest (Cons key seen)
+    JObj key value rest -> has key ["identity", "fields", "result"] && not (has key seen) && usage-keys rest (key : seen)
     JObjEnd -> list-length seen == 3
     other -> False
   -- | Validate complete constructor coverage before a later typed field decoder can use the proof.
   usage-rows-valid :: Json -> HashMap String () -> HashMap String () -> Nat -> Bool
   usage-rows-valid rows constructors seen remaining = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
-      remaining > 0 && usage-keys row Nil && indexed-name identity constructors && not (indexed-name identity seen)
+      remaining > 0 && usage-keys row [] && indexed-name identity constructors && not (indexed-name identity seen)
       && nonempty (field "result" row) && usage-strings (field "fields" row)
       && usage-rows-valid rest constructors (hash-map-insert identity () seen) (saturating-sub remaining 1)
     JArrEnd -> remaining == 0
@@ -368,23 +366,23 @@ module Cinch.Nominal where
   usage-contract-keys :: Json -> List String -> Bool
   usage-contract-keys row seen = case row of
     JObj key value rest -> has key ["identity", "kind", "params", "parameters", "constructors", "refinement", "usage"]
-      && not (has key seen) && usage-contract-keys rest (Cons key seen)
+      && not (has key seen) && usage-contract-keys rest (key : seen)
     JObjEnd -> list-length seen == 7
     other -> False
   -- | Absence preserves old metadata; a present proof must cover a nonempty data family completely.
   valid-nominal-body :: Json -> Bool
   valid-nominal-body row = let kind = text (field "kind" row) in
     let usage = present "usage" row in
-    if same kind "data" then null-field "refinement" row &&
+    if kind == "data" then null-field "refinement" row &&
       (case constructor-index (field "constructors" row) hash-map-empty 0 of
         None -> False
         Some (constructors, count) -> not usage ||
-          (count > 0 && usage-contract-keys row Nil && usage-rows-valid (field "usage" row) constructors hash-map-empty count))
-    else not usage && (if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
-      else null-field "refinement" row && (same kind "opaque" || same kind "signature") && null-field "constructors" row)
+          (count > 0 && usage-contract-keys row [] && usage-rows-valid (field "usage" row) constructors hash-map-empty count))
+    else not usage && (if kind == "refinement" then null-field "constructors" row && valid-refinement-row row
+      else null-field "refinement" row && (kind == "opaque" || kind == "signature") && null-field "constructors" row)
   valid-nominal-entry :: String -> Json -> Bool
   valid-nominal-entry identity row = string-length identity > 0
-    && valid-parameters (field "parameters" row) (field "params" row) Nil
+    && valid-parameters (field "parameters" row) (field "params" row) []
     && valid-nominal-body row
   valid-nominals :: Json -> HashMap String () -> Bool
   valid-nominals rows seen = case rows of
@@ -399,7 +397,7 @@ module Cinch.Nominal where
   resolved-entry-valid :: Json -> Bool
   resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
     JNull -> True
-    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) hash-map-empty && valid-measures (field "measures" row) Nil)
+    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) hash-map-empty && valid-measures (field "measures" row) [])
   resolved-nominals :: Json -> Json
   resolved-nominals metadata = case field "resolved" metadata of JNull -> JArrEnd; row -> append-rows (field "nominals" row) (measure-nominals (field "measures" row))
   append-rows :: Json -> Json -> Json
@@ -415,7 +413,7 @@ module Cinch.Nominal where
       && valid-nominals (field "nominals" (field "resolved" row)) hash-map-empty
       && (case field "measures" (field "resolved" row) of JNull -> True; JArrEnd -> True; other -> False)
       && present "total_body" row && (case field "total_body" row of JNull -> False; other -> True)
-      && valid-measures rest (Cons identity seen)
+      && valid-measures rest (identity : seen)
     JArrEnd -> True
     JNull -> True
     other -> False
@@ -425,15 +423,15 @@ module Cinch.Nominal where
     other -> JArrEnd
   measure-reference :: String -> Json -> Bool
   measure-reference name rows = case rows of
-    JArr row rest -> (same name (text (field "identity" row)) && same "measure" (text (field "kind" row))) || measure-reference name rest
+    JArr row rest -> (name == text (field "identity" row) && "measure" == text (field "kind" row)) || measure-reference name rest
     other -> False
   -- In an argument position a name can denote a constructor index. The
   -- elaborator subsequently checks its carrier and defining public table.
   qualify-argument :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-argument refs locals argument = case argument of
     TName at name -> case qualify-name refs locals at name of
-      (ty, Nil) -> (ty, Nil)
-      (ty, errors) -> if constructor-reference name refs then (TName at (interface-global name), Nil) else (ty, errors)
+      (ty, []) -> (ty, [])
+      (ty, errors) -> if constructor-reference name refs then (TName at (interface-global name), []) else (ty, errors)
     other -> qualify refs locals argument
   constructor-reference :: String -> Json -> Bool
   constructor-reference name rows = case rows of
@@ -442,81 +440,81 @@ module Cinch.Nominal where
   singleton-reference :: String -> Json -> Bool
   singleton-reference name rows = case rows of
     JArr row rest -> (case field "constructors" row of
-      JArr (JStr symbol) JArrEnd -> same symbol name
+      JArr (JStr symbol) JArrEnd -> symbol == name
       other -> False) || singleton-reference name rest
     other -> False
   resolved-text :: Json -> Option String
   resolved-text metadata = case field "scheme" (field "resolved" metadata) of JStr scheme -> Some scheme; other -> None
   contains-identity :: String -> Json -> Bool
   contains-identity identity rows = case rows of
-    JArr row rest -> same identity (text (field "identity" row)) || contains-identity identity rest
+    JArr row rest -> identity == text (field "identity" row) || contains-identity identity rest
     other -> False
   fail :: Span -> String -> (TypeExpr, List Diagnostic)
   fail sp message = (TUnmodeled sp message, [Diagnostic "bootstrap.resolve" sp message])
   qualify-name :: Json -> List String -> Span -> String -> (TypeExpr, List Diagnostic)
   qualify-name refs locals sp name =
-    if same name "Io" then (TName sp "b.Io", Nil)
-    else if same name "Scope" then (TName sp "b.Scope", Nil)
-    else if same name "Task" then (TName sp "b.Task", Nil)
-    else if same name "Fin" then (TName sp "b.Fin", Nil)
-    else if same name "Vec" then (TName sp "b.Vec", Nil)
-    else if has name locals || kernel-type-name name then (TName sp name, Nil)
-    else if contains-identity name refs then (TName sp (interface-global name), Nil)
+    if name == "Io" then (TName sp "b.Io", [])
+    else if name == "Scope" then (TName sp "b.Scope", [])
+    else if name == "Task" then (TName sp "b.Task", [])
+    else if name == "Fin" then (TName sp "b.Fin", [])
+    else if name == "Vec" then (TName sp "b.Vec", [])
+    else if has name locals || kernel-type-name name then (TName sp name, [])
+    else if contains-identity name refs then (TName sp (interface-global name), [])
     else fail sp (string-concat "resolved scheme contains an unbound type name: " name)
   quantified-names :: TypeExpr -> List String
-  quantified-names qs = case qs of TQuantifier s name only kind rest -> Cons name (quantified-names rest); other -> Nil
+  quantified-names qs = case qs of TQuantifier s name only kind rest -> name : (quantified-names rest); other -> []
   -- Qualify carrier annotations before adding their binder to the scope.
   -- The elaborator checks their kinds; this traversal checks provenance
   -- and ensures that later quantifiers cannot appear in earlier carriers.
   qualify-kind :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-kind refs locals ty = case ty of
-    TName s name -> if has name ["Type", "Region", "Effect", "Row"] then (ty, Nil) else qualify refs locals ty
+    TName s name -> if has name ["Type", "Region", "Effect", "Row"] then (ty, []) else qualify refs locals ty
     TFun s a b -> case (qualify-kind refs locals a, qualify-kind refs locals b) of
       ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
     other -> qualify refs locals ty
   qualify-quantifiers :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-quantifiers refs locals qs = case qs of
     TQuantifier s name only kind rest -> if string-length name == 0 || has name locals then fail s "invalid resolved quantifier kinds or scope"
-      else case (qualify-kind refs locals kind, qualify-quantifiers refs (Cons name locals) rest) of
+      else case (qualify-kind refs locals kind, qualify-quantifiers refs (name : locals) rest) of
         ((annotation, errors), (more, others)) -> (TQuantifier s name only annotation more, errors <> others)
-    TQuantifiersEnd s -> (qs, Nil)
+    TQuantifiersEnd s -> (qs, [])
     other -> fail (type-expr-span qs) "invalid resolved quantifier kinds or scope"
   signature-reference :: String -> Json -> Bool
-  signature-reference name refs = same name "Io" || same name "Copy" || same name "Kernel" || signature-in-rows name refs
+  signature-reference name refs = name == "Io" || name == "Copy" || name == "Kernel" || signature-in-rows name refs
   signature-in-rows :: String -> Json -> Bool
   signature-in-rows name refs = case refs of
-    JArr row rest -> (same name (text (field "identity" row)) && same (text (field "kind" row)) "signature") || signature-in-rows name rest
+    JArr row rest -> (name == text (field "identity" row) && text (field "kind" row) == "signature") || signature-in-rows name rest
     other -> False
   constraint-head :: TypeExpr -> String
   constraint-head ty = case ty of TName s name -> name; TApp s head args -> constraint-head head; other -> ""
   qualify-bounds :: Json -> List String -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-bounds refs locals seen bounds = case bounds of
-    TBoundsEnd s -> (bounds, Nil)
+    TBoundsEnd s -> (bounds, [])
     TBound s name class-app rest ->
       if resolved-predicate-syntax class-app then
-        (if not (same name "") then fail s "resolved named proof binding needs erased proof elaboration"
+        (if name /= "" then fail s "resolved named proof binding needs erased proof elaboration"
          else case (qualify-predicate refs locals class-app, qualify-bounds refs locals seen rest) of
            ((predicate, errors), (more, others)) -> (TBound s name predicate more, errors <> others))
       else if string-length name == 0 || has name seen then fail s "invalid resolved dictionary binder scope"
       else if not (signature-reference (constraint-head class-app) refs) then fail s "resolved context needs a defining signature contract"
-      else case (qualify refs locals class-app, qualify-bounds refs locals (Cons name seen) rest) of
+      else case (qualify refs locals class-app, qualify-bounds refs locals (name : seen) rest) of
         ((app, errors), (more, others)) -> (TBound s name app more, errors <> others)
     other -> fail (type-expr-span bounds) "resolved context needs dictionary or proposition elaboration"
   qualify :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify refs locals ty = case ty of
     TName s name -> qualify-name refs locals s name
     TRefined s predicate carrier -> case qualify refs locals carrier of
-      (base, errors) -> case anonymous-predicate-names locals predicate Nil of
-        Nil -> case qualify-predicate refs locals predicate of
+      (base, errors) -> case anonymous-predicate-names locals predicate [] of
+        [] -> case qualify-predicate refs locals predicate of
           (condition, more) -> (TRefined s condition base, errors <> more)
-        Cons name Nil -> case qualify-predicate refs (Cons name locals) predicate of
+        [name] -> case qualify-predicate refs (name : locals) predicate of
           (condition, more) -> (TRefined s condition base, errors <> more)
         other -> fail s "resolved refinement has more than one unbound result name"
-    TIndex s digits -> (ty, Nil)
+    TIndex s digits -> (ty, [])
     TNegate s body -> case qualify refs locals body of (value, errors) -> (TNegate s value, errors)
-    TFun s (TBound bound name carrier (TBoundsEnd end)) result -> case (qualify refs locals carrier, qualify refs (Cons name locals) result) of
+    TFun s (TBound bound name carrier (TBoundsEnd end)) result -> case (qualify refs locals carrier, qualify refs (name : locals) result) of
       ((domain, errors), (out, others)) -> (TFun s (TBound bound name domain (TBoundsEnd end)) out, errors <> others)
-    TFunEff s (TBound bound name carrier (TBoundsEnd end)) row result -> case (qualify refs locals carrier, qualify-row (Cons name locals) row, qualify refs (Cons name locals) result) of
+    TFunEff s (TBound bound name carrier (TBoundsEnd end)) row result -> case (qualify refs locals carrier, qualify-row (name : locals) row, qualify refs (name : locals) result) of
       ((domain, errors), (effects, more), (out, others)) -> (TFunEff s (TBound bound name domain (TBoundsEnd end)) effects out, errors <> more <> others)
     TFun s a b -> case (qualify refs locals a, qualify refs locals b) of
       ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
@@ -524,29 +522,29 @@ module Cinch.Nominal where
       ((x, ex), (effects, ee), (y, ey)) -> (TFunEff s x effects y, ex <> ee <> ey)
     TUsageArrow s usage arrow -> case qualify refs locals arrow of
       (renamed, errors) -> (TUsageArrow s usage renamed, errors)
-    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | (name == "Eq") ->
       qualify-predicate refs locals ty
     TApp s (TName at name) args | has name ["b.toNat", "b.length", "b.bytesLen"] -> qualify-predicate refs locals ty
     TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
       ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
     TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
     TList s args -> case qualify refs locals args of (xs, errors) -> (TList s xs, errors)
-    TStrLit s text -> (ty, Nil)
-    TSigma s name dom body -> case (qualify refs locals dom, qualify refs (Cons name locals) body) of
+    TStrLit s text -> (ty, [])
+    TSigma s name dom body -> case (qualify refs locals dom, qualify refs (name : locals) body) of
       ((d, ed), (b, eb)) -> (TSigma s name d b, ed <> eb)
     TArg s x rest -> case (qualify-argument refs locals x, qualify refs locals rest) of
       ((a, ea), (xs, es)) -> (TArg s a xs, ea <> es)
-    TArgsEnd s -> (ty, Nil)
+    TArgsEnd s -> (ty, [])
     TForall s qs body -> case (qualify-quantifiers refs locals qs, qualify refs (quantified-names qs <> locals) body) of
       ((binders, errors), (out, others)) -> (TForall s binders out, errors <> others)
-    TUsing s bounds body -> case (qualify-bounds refs (contract-argument-names body <> locals) Nil bounds, qualify refs locals body) of
+    TUsing s bounds body -> case (qualify-bounds refs (contract-argument-names body <> locals) [] bounds, qualify refs locals body) of
       ((context, errors), (out, more)) -> (TUsing s context out, errors <> more)
     other -> fail (type-expr-span ty) "resolved scheme needs dictionary, effect or dependent elaboration"
   -- Predicate application heads are contracts, never implicit binders.
   -- The predicate qualifier separately checks the admitted vocabulary.
   anonymous-predicate-names :: List String -> TypeExpr -> List String -> List String
   anonymous-predicate-names locals syntax seen = case syntax of
-    TName s name -> if has name locals || has name seen || has name ["True", "False"] then seen else Cons name seen
+    TName s name -> if has name locals || has name seen || has name ["True", "False"] then seen else name : seen
     TInfix s op a b -> anonymous-predicate-names locals b (anonymous-predicate-names locals a seen)
     TNegate s body -> anonymous-predicate-names locals body seen
     TApp s head args -> anonymous-predicate-names locals args seen
@@ -561,48 +559,48 @@ module Cinch.Nominal where
     other -> fail (type-expr-span row) "resolved effect row needs open-row elaboration"
   qualify-effects :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-effects locals labels = case labels of
-    TArgsEnd s -> (labels, Nil)
+    TArgsEnd s -> (labels, [])
     TArg s label rest -> case (qualify-effect locals label, qualify-effects locals rest) of
       ((out, errors), (more, others)) -> (TArg s out more, errors <> others)
     other -> fail (type-expr-span labels) "invalid resolved effect label spine"
   qualify-effect :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-effect locals label = case label of
-    TName s name -> if cell-effect-name name then (TName s (string-concat "#kernel." name), Nil)
-      else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, Nil)
+    TName s name -> if cell-effect-name name then (TName s (string-concat "#kernel." name), [])
+      else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, [])
       else fail s "resolved effect label needs a kernel contract"
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval", "Mut"] && has region locals then (label, Nil)
+      if has name ["IO", "Async", "Cancel", "Eval", "Mut"] && has region locals then (label, [])
       else fail s "resolved effect label has an unknown identity or region"
     other -> fail (type-expr-span label) "resolved effect label needs region elaboration"
   qualify-resolved :: Json -> TypeExpr -> (TypeExpr, List Diagnostic)
-  qualify-resolved metadata ty = if resolved-entry-valid metadata then qualify (append-rows (resolved-nominals metadata) (measure-references (resolved-measures metadata))) Nil ty
+  qualify-resolved metadata ty = if resolved-entry-valid metadata then qualify (append-rows (resolved-nominals metadata) (measure-references (resolved-measures metadata))) [] ty
     else fail (type-expr-span ty) "invalid resolved nominal contract"
 
   contract-argument-names :: TypeExpr -> List String
   contract-argument-names ty = case ty of
-    TFun s (TBound b name carrier (TBoundsEnd end)) body -> Cons name (contract-argument-names body)
-    TFunEff s (TBound b name carrier (TBoundsEnd end)) row body -> Cons name (contract-argument-names body)
+    TFun s (TBound b name carrier (TBoundsEnd end)) body -> name : (contract-argument-names body)
+    TFunEff s (TBound b name carrier (TBoundsEnd end)) row body -> name : (contract-argument-names body)
     TFun s domain body -> contract-argument-names body
     TFunEff s domain row body -> contract-argument-names body
     TUsageArrow s usage arrow -> contract-argument-names arrow
-    other -> Nil
+    other -> []
 
   resolved-predicate-syntax :: TypeExpr -> Bool
   resolved-predicate-syntax syntax = case syntax of
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
-    TName s name -> same name "True" || same name "False"
-    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
+    TName s name -> name == "True" || name == "False"
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> name == "Eq"
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
     other -> False
   qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate refs locals syntax = case syntax of
-    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | (name == "Eq") ->
       case (qualify-predicate refs locals a, qualify-predicate refs locals b) of
         ((left, errors), (right, more)) ->
           (TApp s (TName at name) (TArg first left (TArg second right (TArgsEnd end))), errors <> more)
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if has name ["b.toNat", "b.length", "b.bytesLen"] then (case qualify-predicate refs locals input of
-        (value, errors) -> (TApp sp (TName at (if same name "b.toNat" then "#kernel.toNat" else if same name "b.length" then "#kernel.length" else "#kernel.bytes-length")) (TArg arg value (TArgsEnd end)), errors))
+        (value, errors) -> (TApp sp (TName at (if name == "b.toNat" then "#kernel.toNat" else if name == "b.length" then "#kernel.length" else "#kernel.bytes-length")) (TArg arg value (TArgsEnd end)), errors))
       else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
       else if measure-reference name refs || singleton-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
@@ -611,8 +609,8 @@ module Cinch.Nominal where
     TApp sp (TName at name) arguments -> if measure-reference name refs then (case qualify-predicate-args refs locals arguments of
       (values, errors) -> (TApp sp (TName at (interface-global name)) values, errors))
       else fail sp "resolved predicate application has no defining measure contract"
-    TName s name -> if same name "True" || same name "False" then (syntax, Nil) else qualify-name refs locals s name
-    TIndex s text -> (syntax, Nil)
+    TName s name -> if name == "True" || name == "False" then (syntax, []) else qualify-name refs locals s name
+    TIndex s text -> (syntax, [])
     TNegate s body -> case qualify-predicate refs locals body of (out, errors) -> (TNegate s out, errors)
     TInfix s op a b -> if has op ["+", "-", "*", "<", "<=", "==", "/=", ">=", ">", "&&", "||"] then
       (case (qualify-predicate refs locals a, qualify-predicate refs locals b) of
@@ -627,7 +625,7 @@ module Cinch.Nominal where
 
   qualify-predicate-args :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate-args refs locals arguments = case arguments of
-    TArgsEnd sp -> (arguments, Nil)
+    TArgsEnd sp -> (arguments, [])
     TArg sp first rest -> (case (qualify-predicate refs locals first, qualify-predicate-args refs locals rest) of
       ((value, errors), (more, others)) -> (TArg sp value more, errors <> others))
     other -> fail (type-expr-span arguments) "invalid defining measure argument spine"

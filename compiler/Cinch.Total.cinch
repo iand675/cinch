@@ -51,29 +51,27 @@ module Cinch.Total where
     MkSourceProjection :: String -> String -> String -> Json -> TotalFunction
     MkKeyedOrdering :: String -> Nat -> Nat -> TotalFunction
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
   has :: String -> List String -> Bool
-  has key keys = case keys of Nil -> False; Cons first rest -> same key first || has key rest
+  has key keys = case keys of [] -> False; first : rest -> key == first || has key rest
   without :: String -> List String -> List String
-  without key keys = case keys of Nil -> Nil; Cons first rest -> if same key first then rest else Cons first (without key rest)
+  without key keys = case keys of [] -> []; first : rest -> if key == first then rest else first : (without key rest)
   field :: String -> Json -> Json
-  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  field name doc = case doc of JObj key value rest -> if name == key then value else field name rest; other -> JNull
   text :: Json -> String
   text doc = case doc of JStr value -> value; other -> ""
   fields :: List String -> Json -> Bool
   fields keys doc = case doc of
     JObj key value rest -> has key keys && fields (without key keys) rest
-    JObjEnd -> (case keys of Nil -> True; other -> False)
+    JObjEnd -> (case keys of [] -> True; other -> False)
     other -> False
   sorts :: Json -> Option (List String)
   sorts rows = case rows of
-    JArr (JStr sort) rest -> if valid-sort sort then (case sorts rest of Some more -> Some (Cons sort more); None -> None) else None
-    JArrEnd -> Some Nil
+    JArr (JStr sort) rest -> if valid-sort sort then (case sorts rest of Some more -> Some (sort : more); None -> None) else None
+    JArrEnd -> Some []
     other -> None
   find-row :: String -> TotalRows -> Option TotalRow
   find-row name rows = case rows of
-    SingleRow identity row -> if same name identity then Some row else None
+    SingleRow identity row -> if name == identity then Some row else None
     IndexedRows count table -> hash-map-lookup name table
   row-count :: TotalRows -> Nat
   row-count rows = case rows of SingleRow identity row -> 1; IndexedRows count table -> count
@@ -84,35 +82,35 @@ module Cinch.Total where
 
   arguments-fit :: TotalRows -> BodyScope String -> Json -> List String -> Bool
   arguments-fit definitions scope arguments parameters = case (arguments, parameters) of
-    (JArr argument rest, Cons expected more) -> (case infer definitions scope argument of Some actual -> same expected actual; None -> False) && arguments-fit definitions scope rest more
-    (JArrEnd, Nil) -> True
+    (JArr argument rest, expected : more) -> (case infer definitions scope argument of Some actual -> expected == actual; None -> False) && arguments-fit definitions scope rest more
+    (JArrEnd, []) -> True
     other -> False
   call-type :: TotalRows -> BodyScope String -> Json -> TotalRow -> Option String
   call-type definitions scope arguments (TotalRow name position original parameters result body targets packed) =
     if arguments-fit definitions scope arguments parameters then Some result else None
   infer :: TotalRows -> BodyScope String -> Json -> Option String
   infer definitions scope term = let node = text (field "node" term) in
-    if same node "local" then
+    if node == "local" then
       (if fields ["node", "slot"] term then (case field "slot" term of JNum index -> if index >= 0 then body-slot (nat-from-int index) scope else None; other -> None) else None)
-    else if same node "number" then
+    else if node == "number" then
       (if fields ["node", "sort", "decimal"] term && decimal-number (text (field "sort" term)) (text (field "decimal" term)) then Some (text (field "sort" term)) else None)
-    else if same node "bool" then
+    else if node == "bool" then
       (if fields ["node", "value"] term then (case field "value" term of JBool value -> Some "Bool"; other -> None) else None)
-    else if same node "primitive" then
+    else if node == "primitive" then
       (if fields ["node", "operation", "arguments"] term then (case operation-type (text (field "operation" term)) of
         Some (parameters, result) -> if arguments-fit definitions scope (field "arguments" term) parameters then Some result else None
         None -> None) else None)
-    else if same node "call" then
+    else if node == "call" then
       (if fields ["node", "target", "arguments"] term then (case find-row (text (field "target" term)) definitions of
         Some declaration -> call-type definitions scope (field "arguments" term) declaration
         None -> None) else None)
-    else if same node "let" then
+    else if node == "let" then
       (if fields ["node", "value", "body"] term then (case infer definitions scope (field "value" term) of
         Some sort -> infer definitions (push-body-slot scope sort) (field "body" term)
         None -> None) else None)
-    else if same node "if" then
+    else if node == "if" then
       (if fields ["node", "condition", "yes", "no"] term then (case (infer definitions scope (field "condition" term), infer definitions scope (field "yes" term), infer definitions scope (field "no" term)) of
-        (Some condition, Some yes, Some no) -> if same condition "Bool" && same yes no then Some yes else None
+        (Some condition, Some yes, Some no) -> if condition == "Bool" && yes == no then Some yes else None
         other -> None) else None)
     else None
 
@@ -122,26 +120,27 @@ module Cinch.Total where
     other -> tail
   calls-into :: Json -> List String -> List String
   calls-into term tail = let node = text (field "node" term) in
-    if same node "call" then Cons (text (field "target" term)) (calls-arguments (field "arguments" term) tail)
-    else if same node "primitive" then calls-arguments (field "arguments" term) tail
-    else if same node "let" then calls-into (field "value" term) (calls-into (field "body" term) tail)
-    else if same node "if" then calls-into (field "condition" term) (calls-into (field "yes" term) (calls-into (field "no" term) tail))
-    else tail
+    case node of
+    "call" -> (text (field "target" term)) : (calls-arguments (field "arguments" term) tail)
+    "primitive" -> calls-arguments (field "arguments" term) tail
+    "let" -> calls-into (field "value" term) (calls-into (field "body" term) tail)
+    "if" -> calls-into (field "condition" term) (calls-into (field "yes" term) (calls-into (field "no" term) tail))
+    _ -> tail
   -- Completed rows double as the index of the reachable subgraph.
   acyclic-calls :: TotalRows -> HashMap String () -> VisitedRows -> List String -> Option VisitedRows
   acyclic-calls definitions path visited targets = case targets of
-    Nil -> Some visited
-    Cons name rest -> case visited of
+    [] -> Some visited
+    name : rest -> case visited of
       VisitedRows done size selected -> case hash-map-lookup name done of
         Some prior -> acyclic-calls definitions path visited rest
         None -> case (hash-map-lookup name path, find-row name definitions) of
           (None, Some declaration) -> (case acyclic-calls definitions (hash-map-insert name () path) visited (declaration.targets) of
             Some (VisitedRows checked count reached) ->
-              acyclic-calls definitions path (VisitedRows (hash-map-insert name declaration checked) (count + 1) (Cons declaration reached)) rest
+              acyclic-calls definitions path (VisitedRows (hash-map-insert name declaration checked) (count + 1) (declaration : reached)) rest
             None -> None)
           other -> None
   walk-calls :: TotalRows -> List String -> Option VisitedRows
-  walk-calls rows roots = acyclic-calls rows hash-map-empty (VisitedRows hash-map-empty 0 Nil) roots
+  walk-calls rows roots = acyclic-calls rows hash-map-empty (VisitedRows hash-map-empty 0 []) roots
   definition-name :: Json -> Option String
   definition-name declaration = let name = text (field "identity" declaration) in
     if string-length name > 0 && fields ["identity", "parameters", "result", "body"] declaration then Some name else None
@@ -156,13 +155,13 @@ module Cinch.Total where
         (Some name, Some parameters) ->
           let result = text (field "result" declaration) in
           let expanded = term-value body in
-          if valid-sort result then Some (TotalRow name position declaration parameters result expanded (calls-into expanded Nil) None) else None
+          if valid-sort result then Some (TotalRow name position declaration parameters result expanded (calls-into expanded []) None) else None
         other -> None)
   index-definitions :: Option PackedBodyTable -> Json -> Nat -> HashMap String TotalRow -> List TotalRow -> Option (TotalRows, List TotalRow)
   index-definitions bodies rows position table indexed = case rows of
     JArr declaration rest -> case definition-row bodies declaration position of
       Some row -> let name = row.name in (case hash-map-lookup name table of
-        None -> index-definitions bodies rest (position + 1) (hash-map-insert name row table) (Cons row indexed)
+        None -> index-definitions bodies rest (position + 1) (hash-map-insert name row table) (row : indexed)
         Some duplicate -> None)
       None -> None
     JArrEnd -> Some (IndexedRows position table, indexed)
@@ -170,24 +169,24 @@ module Cinch.Total where
   valid-definition :: TotalRows -> TotalRow -> Bool
   valid-definition all (TotalRow name position original parameters result body targets packed) =
     case infer all (body-scope-from-list parameters) (term-value body) of
-      Some inferred -> same result inferred
+      Some inferred -> result == inferred
       None -> False
   valid-definitions :: TotalRows -> List TotalRow -> Bool
   valid-definitions all rows = case rows of
-    Cons declaration rest -> valid-definition all declaration && valid-definitions all rest
-    Nil -> True
+    declaration : rest -> valid-definition all declaration && valid-definitions all rest
+    [] -> True
   -- The wire reader checked each row's types and its edge sorts against
   -- the same table. This proof applies only if every row matches that
   -- table and the graph walk below finds every referenced definition.
   all-packed-rows :: List TotalRow -> Bool
   all-packed-rows rows = case rows of
-    Nil -> True
-    Cons (TotalRow name position original parameters result body targets (Some term)) rest -> all-packed-rows rest
+    [] -> True
+    (TotalRow name position original parameters result body targets (Some term)) : rest -> all-packed-rows rest
     other -> False
 
   valid-single-definition :: TotalRow -> Bool
   valid-single-definition row = case row of
-    TotalRow name position original parameters result body targets (Some term) -> (case targets of Nil -> True; other -> False)
+    TotalRow name position original parameters result body targets (Some term) -> (case targets of [] -> True; other -> False)
     other -> valid-definition (IndexedRows 0 hash-map-empty) row
 
   check-total-graph :: Json -> Option TotalGraph
@@ -213,10 +212,10 @@ module Cinch.Total where
       -- The only possible internal call would recurse back to this row.
       JArr declaration JArrEnd -> (case definition-row bodies declaration 0 of
         Some row -> let name = row.name in
-          if (case root of Some required -> same name required; None -> True) && valid-single-definition row
+          if (case root of Some required -> name == required; None -> True) && valid-single-definition row
           then Some (TotalGraph (Some doc) (SingleRow name row) [row]) else None
         None -> None)
-      other -> case index-definitions bodies definitions 0 hash-map-empty Nil of
+      other -> case index-definitions bodies definitions 0 hash-map-empty [] of
         Some (rows, indexed) ->
           if (all-packed-rows indexed || valid-definitions rows indexed) && check-graph-roots rows indexed root then Some (TotalGraph (Some doc) rows (reverse indexed))
           else None
@@ -249,13 +248,13 @@ module Cinch.Total where
   projection-result-sort result = has result ["Bytes", "Nat", "Int"]
   projection-document :: String -> String -> Json -> Json
   projection-document domain result steps = JObj "domain" (JStr domain) (JObj "fields" steps
-    (if same result "Bytes" then JObjEnd else JObj "result" (JStr result) JObjEnd))
+    (if result == "Bytes" then JObjEnd else JObj "result" (JStr result) JObjEnd))
   source-field-projection :: String -> String -> String -> List (String, Nat) -> Option TotalFunction
   source-field-projection name domain result steps = read-source-projection name (projection-document domain result (projection-steps steps))
   projection-steps :: List (String, Nat) -> Json
   projection-steps steps = case steps of
-    Nil -> JArrEnd
-    Cons (constructor, index) rest -> JArr (JArr (JStr constructor) (JArr (JNum (nat-to-int index)) JArrEnd)) (projection-steps rest)
+    [] -> JArrEnd
+    (constructor, index) : rest -> JArr (JArr (JStr constructor) (JArr (JNum (nat-to-int index)) JArrEnd)) (projection-steps rest)
   valid-projection-steps :: Json -> Bool
   valid-projection-steps steps = case steps of
     JArr (JArr (JStr constructor) (JArr (JNum index) JArrEnd)) rest ->
@@ -290,7 +289,7 @@ module Cinch.Total where
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
     MkSourceProjection name domain result steps -> [domain]
-    other -> (case function-row function of Some (TotalRow name position original parameters result body targets packed) -> parameters; None -> Nil)
+    other -> (case function-row function of Some (TotalRow name position original parameters result body targets packed) -> parameters; None -> [])
   total-result :: TotalFunction -> String
   total-result function = case function of
     MkSourceProjection name domain result steps -> result
@@ -318,8 +317,8 @@ module Cinch.Total where
     other -> False
   match-total-rows :: List TotalRow -> Json -> Bool
   match-total-rows rows definitions = case (rows, definitions) of
-    (Nil, JArrEnd) -> True
-    (Cons row rest, JArr expected more) -> json-eq (row.document) expected && match-total-rows rest more
+    ([], JArrEnd) -> True
+    (row : rest, JArr expected more) -> json-eq (row.document) expected && match-total-rows rest more
     other -> False
 
   compare-position :: TotalRow -> TotalRow -> Ordering
@@ -327,8 +326,8 @@ module Cinch.Total where
     if first < second then LT else if first > second then GT else EQ
   closure-rows :: List TotalRow -> Json
   closure-rows rows = case rows of
-    Cons row rest -> JArr (row.document) (closure-rows rest)
-    Nil -> JArrEnd
+    row : rest -> JArr (row.document) (closure-rows rest)
+    [] -> JArrEnd
   projected-graph :: TotalRows -> List TotalRow -> TotalGraph
   projected-graph index rows = TotalGraph None index rows
   total-graph-symbols :: TotalGraph -> List String
@@ -338,7 +337,7 @@ module Cinch.Total where
     None -> None
     Some row | row-count rows == 1 -> Some (MkTotalFunction graph name)
     Some row -> (case row.targets of
-      Nil -> Some (MkTotalFunction (projected-graph (SingleRow name row) [row]) name)
+      [] -> Some (MkTotalFunction (projected-graph (SingleRow name row) [row]) name)
       targets -> (case walk-calls rows [name] of
         None -> None
         Some (VisitedRows reachable size reached) ->
@@ -360,12 +359,12 @@ module Cinch.Total where
 
   same-total-rows :: List TotalRow -> List TotalRow -> Bool
   same-total-rows first second = case (first, second) of
-    (Nil, Nil) -> True
-    (Cons x xs, Cons y ys) -> same-total-row x y && same-total-rows xs ys
+    ([], []) -> True
+    (x : xs, y : ys) -> same-total-row x y && same-total-rows xs ys
     other -> False
 
   total-function-equal :: TotalFunction -> TotalFunction -> Bool
-  total-function-equal first second = same (total-identity first) (total-identity second) &&
+  total-function-equal first second = total-identity first == total-identity second &&
     (case (first, second) of
       (MkTotalFunction (TotalGraph a left x) p, MkTotalFunction (TotalGraph b right y) q) -> same-total-rows x y
       other -> total-documents-equal (total-function-document first) (total-function-document second))
@@ -430,29 +429,30 @@ module Cinch.Total where
     PackedIf condition yes no -> IfTerm (WireTerm condition) (WireTerm yes) (WireTerm no)
     InvalidPackedTerm -> InvalidTerm
   term-node (JsonTerm doc) = let node = text (field "node" doc) in
-    if same node "local" then (case field "slot" doc of JNum slot | slot >= 0 -> LocalTerm (nat-from-int slot); other -> InvalidTerm)
-    else if same node "number" then NumberTerm (text (field "sort" doc)) (text (field "decimal" doc))
-    else if same node "bool" then (case field "value" doc of JBool value -> BoolTerm value; other -> InvalidTerm)
-    else if same node "primitive" then PrimitiveTerm (text (field "operation" doc)) (JsonArguments (field "arguments" doc))
-    else if same node "call" then CallTerm (text (field "target" doc)) (JsonArguments (field "arguments" doc))
-    else if same node "let" then LetTerm (JsonTerm (field "value" doc)) (JsonTerm (field "body" doc))
-    else if same node "if" then IfTerm (JsonTerm (field "condition" doc)) (JsonTerm (field "yes" doc)) (JsonTerm (field "no" doc))
-    else InvalidTerm
+    case node of
+    "local" -> (case field "slot" doc of JNum slot | slot >= 0 -> LocalTerm (nat-from-int slot); other -> InvalidTerm)
+    "number" -> NumberTerm (text (field "sort" doc)) (text (field "decimal" doc))
+    "bool" -> (case field "value" doc of JBool value -> BoolTerm value; other -> InvalidTerm)
+    "primitive" -> PrimitiveTerm (text (field "operation" doc)) (JsonArguments (field "arguments" doc))
+    "call" -> CallTerm (text (field "target" doc)) (JsonArguments (field "arguments" doc))
+    "let" -> LetTerm (JsonTerm (field "value" doc)) (JsonTerm (field "body" doc))
+    "if" -> IfTerm (JsonTerm (field "condition" doc)) (JsonTerm (field "yes" doc)) (JsonTerm (field "no" doc))
+    _ -> InvalidTerm
 
   -- A universal finite return envelope, derived from actual literal leaves.
   -- Unknown arithmetic/parameters remain unknown. Conditions may narrow the
   -- result further, but taking both checked branches is always conservative.
   decimal-fold :: List Char -> Int -> Option Int
   decimal-fold chars value = case chars of
-    Nil -> Some value
-    Cons char rest -> let code = char-code char in
+    [] -> Some value
+    char : rest -> let code = char-code char in
       if code >= 48 && code <= 57 then decimal-fold rest (value * 10 + (nat-to-int code - 48)) else None
   decimal-value :: String -> Option Int
   decimal-value value = if string-length value > 4096 then None else parse-decimal-value value
   parse-decimal-value :: String -> Option Int
   parse-decimal-value value = case unpack value of
-    Nil -> None
-    Cons char rest -> if char-code char == 45 then (case rest of Nil -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (Cons char rest) 0
+    [] -> None
+    char : rest -> if char-code char == 45 then (case rest of [] -> None; other -> (case decimal-fold rest 0 of Some n -> Some (0 - n); None -> None)) else decimal-fold (char : rest) 0
   -- Retain the existing limit on possible literal outcomes, tracking their
   -- count and extrema without copying a list at every conditional.
   record LiteralBounds where
@@ -466,8 +466,8 @@ module Cinch.Total where
       (if high >= other-high then high else other-high) total) else None
   unknown-domains :: List String -> BodyScope (Option LiteralBounds) -> BodyScope (Option LiteralBounds)
   unknown-domains parameters scope = case parameters of
-    Nil -> scope
-    Cons parameter rest -> unknown-domains rest (push-body-slot scope None)
+    [] -> scope
+    parameter : rest -> unknown-domains rest (push-body-slot scope None)
   argument-domains :: TotalGraph -> BodyScope (Option LiteralBounds) -> TotalArguments -> Nat -> BodyScope (Option LiteralBounds) -> (BodyScope (Option LiteralBounds), Nat)
   argument-domains graph scope arguments fuel values = if fuel == 0 then (values, 0) else case argument-node arguments of
     NextArgument argument rest -> (case literal-results graph scope argument fuel of
@@ -512,13 +512,13 @@ module Cinch.Total where
   -- carries the same identity, and a row `second` does not have is compatible.
   compatible-rows :: List TotalRow -> TotalRows -> Bool
   compatible-rows first table = case first of
-    Cons row rest -> (case find-row (row.name) table of
+    row : rest -> (case find-row (row.name) table of
       Some prior -> same-total-row row prior
       None -> True) && compatible-rows rest table
-    Nil -> True
+    [] -> True
   total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
   total-functions-compatible first second = case (first, second) of
-    (MkKeyedOrdering name less greater, MkKeyedOrdering other small large) -> not (same name other) || (less == small && greater == large)
+    (MkKeyedOrdering name less greater, MkKeyedOrdering other small large) -> name /= other || (less == small && greater == large)
     (MkKeyedOrdering name less greater, other) -> projection-compatible first second
     (other, MkKeyedOrdering name less greater) -> projection-compatible second first
     other -> graph-views-compatible first second
@@ -527,7 +527,7 @@ module Cinch.Total where
     (False, False) -> case (first, second) of
       (MkTotalFunction (TotalGraph a left ordered) p, MkTotalFunction (TotalGraph b rows other) q) -> compatible-rows ordered rows
       other -> True
-    (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
+    (True, True) -> total-identity first /= total-identity second || total-function-equal first second
     (True, False) -> projection-compatible first second
     (False, True) -> projection-compatible second first
   projection-compatible :: TotalFunction -> TotalFunction -> Bool
@@ -552,7 +552,7 @@ module Cinch.Total where
       Some old -> if total-function-equal old function then Some descriptors else None
   remember-graph-rows :: List TotalRow -> HashMap String TotalRow -> HashMap String TotalFunction -> HashMap String TotalFunction -> Option (HashMap String TotalRow)
   remember-graph-rows rows known projections orderings = case rows of
-    Cons row rest ->
+    row : rest ->
       let name = row.name in
       case (hash-map-lookup name projections, hash-map-lookup name orderings) of
         (None, None) ->
@@ -560,7 +560,7 @@ module Cinch.Total where
             None -> remember-graph-rows rest (hash-map-insert name row known) projections orderings
             Some prior -> if same-total-row row prior then remember-graph-rows rest known projections orderings else None
         other -> None
-    Nil -> Some known
+    [] -> Some known
   extend-total-compatibility :: TotalFunction -> TotalCompatibility -> Option TotalCompatibility
   extend-total-compatibility function context = case context of
     TotalCompatibility rows projections orderings -> case function of

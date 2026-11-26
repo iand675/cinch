@@ -34,20 +34,21 @@ module Cinch.Builtin where
   -- | Preserve scalar arrow order without adding implicit values or constraints.
   scalar-argument-scheme :: List ScalarShape -> String -> String
   scalar-argument-scheme arguments result = case arguments of
-    Nil -> result
-    Cons first rest -> string-concat-all [first.shape-name, " -> ", scalar-argument-scheme rest result]
+    [] -> result
+    first : rest -> string-concat-all [first.shape-name, " -> ", scalar-argument-scheme rest result]
   -- | Admit only fixed integer nominals supported by the one-word Native scalar ABI.
   scalar-shape :: String -> Option ScalarShape
   scalar-shape name =
-    if string-compare name "I8" == 0 then Some (ScalarShape "I8" 8 True)
-    else if string-compare name "I16" == 0 then Some (ScalarShape "I16" 16 True)
-    else if string-compare name "I32" == 0 then Some (ScalarShape "I32" 32 True)
-    else if string-compare name "I64" == 0 then Some (ScalarShape "I64" 64 True)
-    else if string-compare name "U8" == 0 then Some (ScalarShape "U8" 8 False)
-    else if string-compare name "U16" == 0 then Some (ScalarShape "U16" 16 False)
-    else if string-compare name "U32" == 0 then Some (ScalarShape "U32" 32 False)
-    else if string-compare name "U64" == 0 then Some (ScalarShape "U64" 64 False)
-    else None
+    case name of
+    "I8" -> Some (ScalarShape "I8" 8 True)
+    "I16" -> Some (ScalarShape "I16" 16 True)
+    "I32" -> Some (ScalarShape "I32" 32 True)
+    "I64" -> Some (ScalarShape "I64" 64 True)
+    "U8" -> Some (ScalarShape "U8" 8 False)
+    "U16" -> Some (ScalarShape "U16" 16 False)
+    "U32" -> Some (ScalarShape "U32" 32 False)
+    "U64" -> Some (ScalarShape "U64" 64 False)
+    _ -> None
   -- | Decode only canonical operation identifiers, never user-facing function names or LLVM text.
   scalar-intrinsic :: String -> Option ScalarOperation
   scalar-intrinsic symbol = if string-starts-with "cinch.prim." symbol then
@@ -67,11 +68,11 @@ module Cinch.Builtin where
   -- | Match a canonical family and require an exact supported nominal suffix.
   scalar-family :: String -> List (String, String) -> Option ScalarOperation
   scalar-family body families = case families of
-    Nil -> if string-starts-with "wrapping" body then scalar-wrapping-conversion body ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    [] -> if string-starts-with "wrapping" body then scalar-wrapping-conversion body ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
       else scalar-widening-conversion body [("i8To", "I8"), ("i16To", "I16"), ("i32To", "I32"), ("i64To", "I64"), ("u8To", "U8"), ("u16To", "U16"), ("u32To", "U32"), ("u64To", "U64")]
-    Cons (prefix, code) rest -> if string-starts-with prefix body then
+    (prefix, code) : rest -> if string-starts-with prefix body then
       (case scalar-shape (string-drop (string-length prefix) body) of
-        Some shape -> if (string-compare code "udiv" == 0 || string-compare code "urem" == 0) && shape.shape-signed
+        Some shape -> if (code == "udiv" || code == "urem") && shape.shape-signed
           then scalar-family body rest
           else Some (scalar-family-operation code shape)
         None -> scalar-family body rest)
@@ -79,24 +80,24 @@ module Cinch.Builtin where
   -- | Construct a fixed scalar signature; shift/rotate counts retain their canonical U32 carrier.
   scalar-family-operation :: String -> ScalarShape -> ScalarOperation
   scalar-family-operation code shape =
-    if string-compare code "not" == 0 || string-compare code "neg" == 0
-      || string-compare code "bitrev" == 0 || string-compare code "bswap" == 0 then
+    if code == "not" || code == "neg"
+      || code == "bitrev" || code == "bswap" then
       ScalarOperation [shape] shape code
-    else if string-compare code "ctpop" == 0 || string-compare code "ctlz" == 0 || string-compare code "cttz" == 0 then
+    else if code == "ctpop" || code == "ctlz" || code == "cttz" then
       ScalarOperation [shape] (ScalarShape "U32" 32 False) code
-    else if string-compare code "shl" == 0 || string-compare code "shr" == 0
-      || string-compare code "rotl" == 0 || string-compare code "rotr" == 0 then
+    else if code == "shl" || code == "shr"
+      || code == "rotl" || code == "rotr" then
       ScalarOperation [shape, ScalarShape "U32" 32 False] shape code
-    else if string-compare code "eq" == 0 || string-compare code "ne" == 0
-      || string-compare code "lt" == 0 || string-compare code "le" == 0
-      || string-compare code "gt" == 0 || string-compare code "ge" == 0 then
+    else if code == "eq" || code == "ne"
+      || code == "lt" || code == "le"
+      || code == "gt" || code == "ge" then
       ScalarOperation [shape, shape] (ScalarShape "Bool" 1 False) code
     else ScalarOperation [shape, shape] shape code
   -- | Match only wrapping integer conversions whose opcode explicitly names both carriers.
   scalar-wrapping-conversion :: String -> List String -> Option ScalarOperation
   scalar-wrapping-conversion body names = case names of
-    Nil -> None
-    Cons name rest -> let prefix = string-concat-all ["wrapping", name, "To"] in
+    [] -> None
+    name : rest -> let prefix = string-concat-all ["wrapping", name, "To"] in
       if string-starts-with prefix body then
         (case (scalar-shape name, scalar-shape (string-drop (string-length prefix) body)) of
           (Some source, Some destination) -> Some (ScalarOperation [source] destination "convert")
@@ -107,8 +108,8 @@ module Cinch.Builtin where
   -- can grant an equality between the input and the result.
   scalar-widening-conversion :: String -> List (String, String) -> Option ScalarOperation
   scalar-widening-conversion body names = case names of
-    Nil -> None
-    Cons (prefix, name) rest -> if string-starts-with prefix body then
+    [] -> None
+    (prefix, name) : rest -> if string-starts-with prefix body then
       (case (scalar-shape name, scalar-shape (string-drop (string-length prefix) body)) of
         (Some source, Some destination) -> if
           (source.shape-signed == destination.shape-signed && source.shape-width <= destination.shape-width)
@@ -119,8 +120,8 @@ module Cinch.Builtin where
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
-    if string-compare symbol "cinch.runtime.natAdd" == 0 then Some "cinch_nat_add"
-    else if string-compare symbol "cinch.runtime.natMul" == 0 then Some "cinch_nat_mul"
+    if symbol == "cinch.runtime.natAdd" then Some "cinch_nat_add"
+    else if symbol == "cinch.runtime.natMul" then Some "cinch_nat_mul"
     else None
 
   -- The executable total body an arithmetic intrinsic carries: the
@@ -129,41 +130,43 @@ module Cinch.Builtin where
   -- has one (closed total-body contracts).
   total-primitive :: String -> Option (String, List String, String)
   total-primitive symbol =
-    if string-compare symbol "cinch.runtime.natAdd" == 0 then Some ("NatAdd", ["Nat", "Nat"], "Nat")
-    else if string-compare symbol "cinch.runtime.natMul" == 0 then Some ("NatMul", ["Nat", "Nat"], "Nat")
-    else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("BytesLen", ["Bytes"], "Nat")
-    else if string-compare symbol "cinch.runtime.bytesLenI64" == 0 then Some ("BytesLen", ["Bytes"], "I64")
-    else if string-compare symbol "cinch.prim.eqI64" == 0 then Some ("I64Eq", ["I64", "I64"], "Bool")
-    else if string-compare symbol "cinch.prim.neI64" == 0 then Some ("I64Ne", ["I64", "I64"], "Bool")
-    else None
+    case symbol of
+    "cinch.runtime.natAdd" -> Some ("NatAdd", ["Nat", "Nat"], "Nat")
+    "cinch.runtime.natMul" -> Some ("NatMul", ["Nat", "Nat"], "Nat")
+    "cinch.runtime.bytesLen" -> Some ("BytesLen", ["Bytes"], "Nat")
+    "cinch.runtime.bytesLenI64" -> Some ("BytesLen", ["Bytes"], "I64")
+    "cinch.prim.eqI64" -> Some ("I64Eq", ["I64", "I64"], "Bool")
+    "cinch.prim.neI64" -> Some ("I64Ne", ["I64", "I64"], "Bool")
+    _ -> None
 
   -- | Recognize unboxed/word/128-bit byte-buffer operations lowered inline with TBAA and invariant metadata.
   fast-bytes-intrinsic :: String -> Option (String, String)
   fast-bytes-intrinsic symbol =
-    if string-compare symbol "cinch.runtime.bytesLenI64" == 0 then Some ("Bytes -> I64", "lenI64")
-    else if string-compare symbol "cinch.runtime.bytesSet" == 0 then Some ("Bytes -> Nat -> Nat -> Unit", "set")
-    else if string-compare symbol "cinch.runtime.bytesGetU8" == 0 then Some ("Bytes -> Nat -> U8", "getU8")
-    else if string-compare symbol "cinch.runtime.bytesSetU8" == 0 then Some ("Bytes -> Nat -> U8 -> Unit", "setU8")
-    else if string-compare symbol "cinch.runtime.bytesGetU8At" == 0 then Some ("Bytes -> I64 -> U8", "getU8At")
-    else if string-compare symbol "cinch.runtime.bytesSetU8At" == 0 then Some ("Bytes -> I64 -> U8 -> Unit", "setU8At")
-    else if string-compare symbol "cinch.runtime.bytesLoadLe32" == 0 then Some ("Bytes -> Nat -> U32", "loadLe32")
-    else if string-compare symbol "cinch.runtime.bytesStoreLe32" == 0 then Some ("Bytes -> Nat -> U32 -> Unit", "storeLe32")
-    else if string-compare symbol "cinch.runtime.bytesLoadLe32At" == 0 then Some ("Bytes -> I64 -> U32", "loadLe32At")
-    else if string-compare symbol "cinch.runtime.bytesStoreLe32At" == 0 then Some ("Bytes -> I64 -> U32 -> Unit", "storeLe32At")
-    else if string-compare symbol "cinch.runtime.bytesLoadLe64" == 0 then Some ("Bytes -> Nat -> U64", "loadLe64")
-    else if string-compare symbol "cinch.runtime.bytesStoreLe64" == 0 then Some ("Bytes -> Nat -> U64 -> Unit", "storeLe64")
-    else if string-compare symbol "cinch.runtime.bytesLoadLe64At" == 0 then Some ("Bytes -> I64 -> U64", "loadLe64At")
-    else if string-compare symbol "cinch.runtime.bytesStoreLe64At" == 0 then Some ("Bytes -> I64 -> U64 -> Unit", "storeLe64At")
-    else if string-compare symbol "cinch.runtime.bytesLoadU128" == 0 then Some ("Bytes -> Nat -> U128", "loadU128")
-    else if string-compare symbol "cinch.runtime.bytesStoreU128" == 0 then Some ("Bytes -> Nat -> U128 -> Unit", "storeU128")
-    else if string-compare symbol "cinch.runtime.bytesLoadU128At" == 0 then Some ("Bytes -> I64 -> U128", "loadU128At")
-    else if string-compare symbol "cinch.runtime.bytesStoreU128At" == 0 then Some ("Bytes -> I64 -> U128 -> Unit", "storeU128At")
-    else None
+    case symbol of
+    "cinch.runtime.bytesLenI64" -> Some ("Bytes -> I64", "lenI64")
+    "cinch.runtime.bytesSet" -> Some ("Bytes -> Nat -> Nat -> Unit", "set")
+    "cinch.runtime.bytesGetU8" -> Some ("Bytes -> Nat -> U8", "getU8")
+    "cinch.runtime.bytesSetU8" -> Some ("Bytes -> Nat -> U8 -> Unit", "setU8")
+    "cinch.runtime.bytesGetU8At" -> Some ("Bytes -> I64 -> U8", "getU8At")
+    "cinch.runtime.bytesSetU8At" -> Some ("Bytes -> I64 -> U8 -> Unit", "setU8At")
+    "cinch.runtime.bytesLoadLe32" -> Some ("Bytes -> Nat -> U32", "loadLe32")
+    "cinch.runtime.bytesStoreLe32" -> Some ("Bytes -> Nat -> U32 -> Unit", "storeLe32")
+    "cinch.runtime.bytesLoadLe32At" -> Some ("Bytes -> I64 -> U32", "loadLe32At")
+    "cinch.runtime.bytesStoreLe32At" -> Some ("Bytes -> I64 -> U32 -> Unit", "storeLe32At")
+    "cinch.runtime.bytesLoadLe64" -> Some ("Bytes -> Nat -> U64", "loadLe64")
+    "cinch.runtime.bytesStoreLe64" -> Some ("Bytes -> Nat -> U64 -> Unit", "storeLe64")
+    "cinch.runtime.bytesLoadLe64At" -> Some ("Bytes -> I64 -> U64", "loadLe64At")
+    "cinch.runtime.bytesStoreLe64At" -> Some ("Bytes -> I64 -> U64 -> Unit", "storeLe64At")
+    "cinch.runtime.bytesLoadU128" -> Some ("Bytes -> Nat -> U128", "loadU128")
+    "cinch.runtime.bytesStoreU128" -> Some ("Bytes -> Nat -> U128 -> Unit", "storeU128")
+    "cinch.runtime.bytesLoadU128At" -> Some ("Bytes -> I64 -> U128", "loadU128At")
+    "cinch.runtime.bytesStoreU128At" -> Some ("Bytes -> I64 -> U128 -> Unit", "storeU128At")
+    _ -> None
 
   u32-wrapping-operation :: String -> Option String
   u32-wrapping-operation symbol =
-    if string-compare symbol "cinch.prim.wrappingAddU32" == 0 then Some "add"
-    else if string-compare symbol "cinch.prim.wrappingSubU32" == 0 then Some "sub"
+    if symbol == "cinch.prim.wrappingAddU32" then Some "add"
+    else if symbol == "cinch.prim.wrappingSubU32" then Some "sub"
     else None
 
   -- The selected runtime ABI's checked intrinsics. The returned scheme is checked
@@ -179,10 +182,10 @@ module Cinch.Builtin where
   other-intrinsic-contract symbol =
     -- Machine primitives retain their canonical operation identity. They
     -- lower directly to LLVM, rather than naming an unchecked C function.
-    if string-compare symbol "cinch.prim.eqI64" == 0 || string-compare symbol "cinch.prim.neI64" == 0 then
+    if symbol == "cinch.prim.eqI64" || symbol == "cinch.prim.neI64" then
       Some ("I64 -> I64 -> Bool", symbol)
-    else if string-compare symbol "cinch.prim.wrappingAddI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
-    else if string-compare symbol "cinch.prim.wrappingSubI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
+    else if symbol == "cinch.prim.wrappingAddI64" then Some ("I64 -> I64 -> I64", symbol)
+    else if symbol == "cinch.prim.wrappingSubI64" then Some ("I64 -> I64 -> I64", symbol)
     else if (case u32-wrapping-operation symbol of Some operation -> True; None -> False) then Some ("U32 -> U32 -> U32", symbol)
     else case fast-bytes-intrinsic symbol of
       Some (scheme, operation) -> Some (scheme, symbol)
@@ -191,13 +194,14 @@ module Cinch.Builtin where
         None -> numeric-intrinsic-contract symbol
   numeric-intrinsic-contract :: String -> Option (String, String)
   numeric-intrinsic-contract symbol =
-    if string-compare symbol "cinch.runtime.textF64ToDecimal" == 0 then Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")
-    else if string-compare symbol "cinch.runtime.textF64FromDecimal" == 0 then Some ("Bytes -> F64", "cinch_text_f64_from_decimal")
-    else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
-    else if string-compare symbol "cinch.runtime.bytesGet" == 0 then Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
-    else if string-compare symbol "cinch.runtime.bytesNew" == 0 then Some ("Nat -> Bytes", "cinch_bytes_new")
-    else if string-compare symbol "cinch.runtime.slotsFoldNat" == 0 then Some ("Nat -> U64", "cinch_nat_low_word")
-    else case nat-arithmetic-extern symbol of
+    case symbol of
+    "cinch.runtime.textF64ToDecimal" -> Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")
+    "cinch.runtime.textF64FromDecimal" -> Some ("Bytes -> F64", "cinch_text_f64_from_decimal")
+    "cinch.runtime.bytesLen" -> Some ("Bytes -> Nat", "cinch_bytes_len")
+    "cinch.runtime.bytesGet" -> Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
+    "cinch.runtime.bytesNew" -> Some ("Nat -> Bytes", "cinch_bytes_new")
+    "cinch.runtime.slotsFoldNat" -> Some ("Nat -> U64", "cinch_nat_low_word")
+    _ -> case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)
       None -> case mvar-plan symbol of
         Some (operation, scheme) -> Some (scheme, if operation < 2 then "cinch_mvar_new" else "cinch_mvar_access")
@@ -209,8 +213,8 @@ module Cinch.Builtin where
 
   ad-plan :: String -> Option (Nat, String)
   ad-plan symbol =
-    if string-compare symbol "cinch.ad.jvp2" == 0 then Some (0, "forall a b. (a -> b) -> a -> a -> (b, b)")
-    else if string-compare symbol "cinch.ad.vjp2" == 0 then Some (1, "forall a b. (a -> b) -> a -> b -> (b, a)")
+    if symbol == "cinch.ad.jvp2" then Some (0, "forall a b. (a -> b) -> a -> a -> (b, b)")
+    else if symbol == "cinch.ad.vjp2" then Some (1, "forall a b. (a -> b) -> a -> b -> (b, a)")
     else None
 
   -- Runtime operations over buffers, the platform, sockets, piped children
@@ -226,52 +230,52 @@ module Cinch.Builtin where
   -- Nat count for 3, as a fresh counted value for 4, or Unit for 5).
   platform-intrinsic :: String -> Option (String, String, List Nat, Nat)
   platform-intrinsic symbol =
-    if string-compare symbol "cinch.runtime.bytesCompare" == 0 then Some ("Bytes -> Bytes -> I64", "cinch_bytes_compare", [1, 1], 0)
-    else if string-compare symbol "cinch.runtime.intNeg" == 0 then Some ("Int -> Int", "cinch_int_neg", [4], 0)
-    else if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256", [1], 0)
-    else if string-compare symbol "cinch.runtime.textSha512" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha512", [1], 0)
-    else if string-compare symbol "cinch.runtime.textSha1" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha1", [1], 0)
-    else if string-compare symbol "cinch.runtime.textMd5" == 0 then Some ("Bytes -> Bytes", "cinch_text_md5", [1], 0)
-    else if string-compare symbol "cinch.runtime.textHmacSha256" == 0 then Some ("Bytes -> Bytes -> Bytes", "cinch_text_hmac_sha256", [1, 1], 0)
-    else if string-compare symbol "cinch.runtime.randomBytes" == 0 then Some ("Nat -> Bytes", "cinch_random_bytes", [2], 0)
-    else if string-compare symbol "cinch.runtime.fsMkdir" == 0 then Some ("Bytes -> Bool -> I64", "cinch_fs_mkdir", [1, 0], 0)
-    else if string-compare symbol "cinch.runtime.fsRemove" == 0 then Some ("Bytes -> Bool -> I64", "cinch_fs_remove", [1, 0], 0)
-    else if string-compare symbol "cinch.runtime.fsTempDir" == 0 then Some ("Unit -> Bytes", "cinch_fs_temp_dir", [3], 0)
-    else if string-compare symbol "cinch.runtime.mapPackageBytes" == 0 then Some ("I64 -> I64 -> Result I64 Bytes", "cinch_map_package_bytes", [0, 0], 4)
-    else if string-compare symbol "cinch.runtime.packageText" == 0 then Some ("Bytes -> I64 -> I64 -> Result I64 String", "cinch_package_text", [1, 0, 0], 4)
-    else if string-compare symbol "cinch.runtime.packageOffset" == 0 then Some ("Nat -> I64", "cinch_nat_to_i64", [4], 0)
-    else if string-compare symbol "cinch.runtime.signalSend" == 0 then Some ("I64 -> I64 -> I64", "cinch_signal_send", [0, 0], 0)
+    if symbol == "cinch.runtime.bytesCompare" then Some ("Bytes -> Bytes -> I64", "cinch_bytes_compare", [1, 1], 0)
+    else if symbol == "cinch.runtime.intNeg" then Some ("Int -> Int", "cinch_int_neg", [4], 0)
+    else if symbol == "cinch.runtime.textSha256" then Some ("Bytes -> Bytes", "cinch_text_sha256", [1], 0)
+    else if symbol == "cinch.runtime.textSha512" then Some ("Bytes -> Bytes", "cinch_text_sha512", [1], 0)
+    else if symbol == "cinch.runtime.textSha1" then Some ("Bytes -> Bytes", "cinch_text_sha1", [1], 0)
+    else if symbol == "cinch.runtime.textMd5" then Some ("Bytes -> Bytes", "cinch_text_md5", [1], 0)
+    else if symbol == "cinch.runtime.textHmacSha256" then Some ("Bytes -> Bytes -> Bytes", "cinch_text_hmac_sha256", [1, 1], 0)
+    else if symbol == "cinch.runtime.randomBytes" then Some ("Nat -> Bytes", "cinch_random_bytes", [2], 0)
+    else if symbol == "cinch.runtime.fsMkdir" then Some ("Bytes -> Bool -> I64", "cinch_fs_mkdir", [1, 0], 0)
+    else if symbol == "cinch.runtime.fsRemove" then Some ("Bytes -> Bool -> I64", "cinch_fs_remove", [1, 0], 0)
+    else if symbol == "cinch.runtime.fsTempDir" then Some ("Unit -> Bytes", "cinch_fs_temp_dir", [3], 0)
+    else if symbol == "cinch.runtime.mapPackageBytes" then Some ("I64 -> I64 -> Result I64 Bytes", "cinch_map_package_bytes", [0, 0], 4)
+    else if symbol == "cinch.runtime.packageText" then Some ("Bytes -> I64 -> I64 -> Result I64 String", "cinch_package_text", [1, 0, 0], 4)
+    else if symbol == "cinch.runtime.packageOffset" then Some ("Nat -> I64", "cinch_nat_to_i64", [4], 0)
+    else if symbol == "cinch.runtime.signalSend" then Some ("I64 -> I64 -> I64", "cinch_signal_send", [0, 0], 0)
     -- The bump arena (`seed/runtime/src/arena.rs`): the handle is a
     -- machine word at both ends, so neither entry takes or answers a
     -- counted word.
-    else if string-compare symbol "cinch.runtime.arenaNew" == 0 then Some ("I64 -> I64", "cinch_arena_new", [0], 0)
-    else if string-compare symbol "cinch.runtime.arenaLeave" == 0 then Some ("I64 -> I64", "cinch_arena_leave", [0], 0)
-    else if string-compare symbol "cinch.runtime.arenaEnterPhase" == 0 then Some ("I64 -> I64", "cinch_arena_enter_phase", [0], 0)
-    else if string-compare symbol "cinch.runtime.arenaExitPhase" == 0 then Some ("I64 -> I64", "cinch_arena_exit_phase", [0], 0)
-    else if string-compare symbol "cinch.runtime.netTcpConnect" == 0 then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_connect", [1, 0], 2)
-    else if string-compare symbol "cinch.runtime.netTcpListen" == 0 then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_listen", [1, 0], 2)
-    else if string-compare symbol "cinch.runtime.netTcpAccept" == 0 then Some ("I64 -> Result I64 I64", "cinch_net_tcp_accept", [0], 2)
-    else if string-compare symbol "cinch.runtime.netListenerAddr" == 0 then Some ("I64 -> Result I64 Bytes", "cinch_net_listener_addr", [0], 4)
-    else if string-compare symbol "cinch.runtime.netListenerClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_net_listener_close", [0], 5)
-    else if string-compare symbol "cinch.runtime.netUdpSend" == 0 then Some ("Bytes -> I64 -> Bytes -> Result I64 Nat", "cinch_net_udp_send", [1, 0, 1], 3)
-    else if string-compare symbol "cinch.runtime.netRead" == 0 then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_net_read", [0, 2], 4)
-    else if string-compare symbol "cinch.runtime.netWrite" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_net_write", [0, 1], 3)
-    else if string-compare symbol "cinch.runtime.netClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_net_close", [0], 5)
-    else if string-compare symbol "cinch.runtime.netResolve" == 0 then Some ("Bytes -> I64 -> Result I64 Bytes", "cinch_net_resolve", [1, 0], 4)
-    else if string-compare symbol "cinch.runtime.processArgCount" == 0 then Some ("Unit -> Nat", "cinch_argv_count", [3], 1)
-    else if string-compare symbol "cinch.runtime.processSpawn" == 0 then Some ("Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64", "cinch_process_spawn", [1, 1, 1, 1], 2)
-    else if string-compare symbol "cinch.runtime.processWriteStdin" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_process_write_stdin", [0, 1], 3)
-    else if string-compare symbol "cinch.runtime.processCloseStdin" == 0 then Some ("I64 -> Result I64 Unit", "cinch_process_close_stdin", [0], 5)
-    else if string-compare symbol "cinch.runtime.processRead" == 0 then Some ("I64 -> I64 -> Nat -> Result I64 Bytes", "cinch_process_read", [0, 0, 2], 4)
-    else if string-compare symbol "cinch.runtime.processWait" == 0 then Some ("I64 -> Result I64 Nat", "cinch_process_wait", [0], 3)
-    else if string-compare symbol "cinch.runtime.processClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_process_close", [0], 5)
-    else if string-compare symbol "cinch.runtime.ptyOpen" == 0 then Some ("Unit -> Result I64 I64", "cinch_pty_open", [3], 2)
-    else if string-compare symbol "cinch.runtime.ptySpawn" == 0 then Some ("I64 -> Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64", "cinch_pty_spawn", [0, 1, 1, 1, 1], 2)
-    else if string-compare symbol "cinch.runtime.ptyRead" == 0 then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_pty_read", [0, 2], 4)
-    else if string-compare symbol "cinch.runtime.ptyWrite" == 0 then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_pty_write", [0, 1], 3)
-    else if string-compare symbol "cinch.runtime.ptyWait" == 0 then Some ("I64 -> Result I64 Nat", "cinch_pty_wait", [0], 3)
-    else if string-compare symbol "cinch.runtime.ptyClose" == 0 then Some ("I64 -> Result I64 Unit", "cinch_pty_close", [0], 5)
-    else if string-compare symbol "cinch.runtime.ptyResize" == 0 then Some ("I64 -> Nat -> Nat -> Result I64 Unit", "cinch_pty_resize", [0, 2, 2], 5)
+    else if symbol == "cinch.runtime.arenaNew" then Some ("I64 -> I64", "cinch_arena_new", [0], 0)
+    else if symbol == "cinch.runtime.arenaLeave" then Some ("I64 -> I64", "cinch_arena_leave", [0], 0)
+    else if symbol == "cinch.runtime.arenaEnterPhase" then Some ("I64 -> I64", "cinch_arena_enter_phase", [0], 0)
+    else if symbol == "cinch.runtime.arenaExitPhase" then Some ("I64 -> I64", "cinch_arena_exit_phase", [0], 0)
+    else if symbol == "cinch.runtime.netTcpConnect" then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_connect", [1, 0], 2)
+    else if symbol == "cinch.runtime.netTcpListen" then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_listen", [1, 0], 2)
+    else if symbol == "cinch.runtime.netTcpAccept" then Some ("I64 -> Result I64 I64", "cinch_net_tcp_accept", [0], 2)
+    else if symbol == "cinch.runtime.netListenerAddr" then Some ("I64 -> Result I64 Bytes", "cinch_net_listener_addr", [0], 4)
+    else if symbol == "cinch.runtime.netListenerClose" then Some ("I64 -> Result I64 Unit", "cinch_net_listener_close", [0], 5)
+    else if symbol == "cinch.runtime.netUdpSend" then Some ("Bytes -> I64 -> Bytes -> Result I64 Nat", "cinch_net_udp_send", [1, 0, 1], 3)
+    else if symbol == "cinch.runtime.netRead" then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_net_read", [0, 2], 4)
+    else if symbol == "cinch.runtime.netWrite" then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_net_write", [0, 1], 3)
+    else if symbol == "cinch.runtime.netClose" then Some ("I64 -> Result I64 Unit", "cinch_net_close", [0], 5)
+    else if symbol == "cinch.runtime.netResolve" then Some ("Bytes -> I64 -> Result I64 Bytes", "cinch_net_resolve", [1, 0], 4)
+    else if symbol == "cinch.runtime.processArgCount" then Some ("Unit -> Nat", "cinch_argv_count", [3], 1)
+    else if symbol == "cinch.runtime.processSpawn" then Some ("Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64", "cinch_process_spawn", [1, 1, 1, 1], 2)
+    else if symbol == "cinch.runtime.processWriteStdin" then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_process_write_stdin", [0, 1], 3)
+    else if symbol == "cinch.runtime.processCloseStdin" then Some ("I64 -> Result I64 Unit", "cinch_process_close_stdin", [0], 5)
+    else if symbol == "cinch.runtime.processRead" then Some ("I64 -> I64 -> Nat -> Result I64 Bytes", "cinch_process_read", [0, 0, 2], 4)
+    else if symbol == "cinch.runtime.processWait" then Some ("I64 -> Result I64 Nat", "cinch_process_wait", [0], 3)
+    else if symbol == "cinch.runtime.processClose" then Some ("I64 -> Result I64 Unit", "cinch_process_close", [0], 5)
+    else if symbol == "cinch.runtime.ptyOpen" then Some ("Unit -> Result I64 I64", "cinch_pty_open", [3], 2)
+    else if symbol == "cinch.runtime.ptySpawn" then Some ("I64 -> Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64", "cinch_pty_spawn", [0, 1, 1, 1, 1], 2)
+    else if symbol == "cinch.runtime.ptyRead" then Some ("I64 -> Nat -> Result I64 Bytes", "cinch_pty_read", [0, 2], 4)
+    else if symbol == "cinch.runtime.ptyWrite" then Some ("I64 -> Bytes -> Result I64 Nat", "cinch_pty_write", [0, 1], 3)
+    else if symbol == "cinch.runtime.ptyWait" then Some ("I64 -> Result I64 Nat", "cinch_pty_wait", [0], 3)
+    else if symbol == "cinch.runtime.ptyClose" then Some ("I64 -> Result I64 Unit", "cinch_pty_close", [0], 5)
+    else if symbol == "cinch.runtime.ptyResize" then Some ("I64 -> Nat -> Nat -> Result I64 Unit", "cinch_pty_resize", [0, 2, 2], 5)
     else None
 
   -- Visible spelling and canonical kernel identity. Runtime.newIO is the
@@ -477,50 +481,51 @@ module Cinch.Builtin where
 
   -- | Recognize the sealed carrier at its minimum ABI; runtime capability admission remains separate.
   mvar-type-name :: String -> Bool
-  mvar-type-name name = runtime-abi-int >= 10 && (string-compare name "MVarCell" == 0 || string-compare name "RwLockCell" == 0)
+  mvar-type-name name = runtime-abi-int >= 10 && (name == "MVarCell" || name == "RwLockCell")
 
   cell-type-name :: String -> Bool
-  cell-type-name name = (runtime-abi-int >= 9 && string-compare name "TVar" == 0)
+  cell-type-name name = (runtime-abi-int >= 9 && name == "TVar")
     || mvar-type-name name
   cell-effect-name :: String -> Bool
-  cell-effect-name name = (runtime-abi-int >= 9 && string-compare name "STM" == 0)
-    || (runtime-abi-int >= 10 && string-compare name "MVar" == 0)
+  cell-effect-name name = (runtime-abi-int >= 9 && name == "STM")
+    || (runtime-abi-int >= 10 && name == "MVar")
 
   -- | Pair each checked MVar/RwLock/Atomic opcode with its complete canonical effectful scheme.
   mvar-plan :: String -> Option (Nat, String)
   mvar-plan symbol = if runtime-abi-int < 10 then None else
-    if string-compare symbol "cinch.runtime.mvarNew" == 0 then Some (0, "forall a. a ->{MVar} MVarCell a")
-    else if string-compare symbol "cinch.runtime.mvarNewEmpty" == 0 then Some (1, "forall a. Unit ->{MVar} MVarCell a")
-    else if string-compare symbol "cinch.runtime.mvarTake" == 0 then Some (2, "forall a. MVarCell a ->{MVar, Diverge} a")
-    else if string-compare symbol "cinch.runtime.mvarPut" == 0 then Some (3, "forall a. MVarCell a -> a ->{MVar, Diverge} Unit")
-    else if string-compare symbol "cinch.runtime.mvarRead" == 0 then Some (4, "forall a. MVarCell a ->{MVar, Diverge} a")
-    else if string-compare symbol "cinch.runtime.mvarSwap" == 0 then Some (5, "forall a. MVarCell a -> a ->{MVar, Diverge} a")
-    else if string-compare symbol "cinch.runtime.mvarTryTake" == 0 then Some (6, "forall a. MVarCell a ->{MVar} Option a")
-    else if string-compare symbol "cinch.runtime.mvarTryPut" == 0 then Some (7, "forall a. MVarCell a -> a ->{MVar} Bool")
-    else if string-compare symbol "cinch.runtime.mvarTryRead" == 0 then Some (8, "forall a. MVarCell a ->{MVar} Option a")
-    else if string-compare symbol "cinch.runtime.mvarIsEmpty" == 0 then Some (9, "forall a. MVarCell a ->{MVar} Bool")
-    else if string-compare symbol "cinch.runtime.mvarTakeOrCancel" == 0 then Some (10, "forall a. MVarCell a ->{MVar, Diverge} Option a")
-    else if string-compare symbol "cinch.runtime.mvarPutOrCancel" == 0 then Some (11, "forall a. MVarCell a -> a ->{MVar, Diverge} Bool")
-    else if string-compare symbol "cinch.runtime.mvarReadOrCancel" == 0 then Some (12, "forall a. MVarCell a ->{MVar, Diverge} Option a")
-    else if string-compare symbol "cinch.runtime.mvarSwapOrCancel" == 0 then Some (13, "forall a. MVarCell a -> a ->{MVar, Diverge} Option a")
-    else if string-compare symbol "cinch.runtime.rwlockNew" == 0 then Some (14, "forall a. a ->{MVar} RwLockCell a")
-    else if string-compare symbol "cinch.runtime.rwlockRead" == 0 then Some (15, "forall a. RwLockCell a ->{MVar, Diverge} a")
-    else if string-compare symbol "cinch.runtime.rwlockWrite" == 0 then Some (16, "forall a. RwLockCell a -> a ->{MVar, Diverge} Unit")
-    else if string-compare symbol "cinch.runtime.rwlockSwap" == 0 then Some (17, "forall a. RwLockCell a -> a ->{MVar, Diverge} a")
-    else if string-compare symbol "cinch.runtime.rwlockTryRead" == 0 then Some (18, "forall a. RwLockCell a ->{MVar} Option a")
-    else if string-compare symbol "cinch.runtime.rwlockTryWrite" == 0 then Some (19, "forall a. RwLockCell a -> a ->{MVar} Bool")
-    else if string-compare symbol "cinch.runtime.atomicNew" == 0 then Some (20, "I64 ->{MVar} AtomicCell")
-    else if string-compare symbol "cinch.runtime.atomicLoad" == 0 then Some (21, "AtomicCell -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicStore" == 0 then Some (22, "AtomicCell -> I64 -> I64 ->{MVar} Unit")
-    else if string-compare symbol "cinch.runtime.atomicSwap" == 0 then Some (23, "AtomicCell -> I64 -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicFetchAdd" == 0 then Some (24, "AtomicCell -> I64 -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicFetchSub" == 0 then Some (25, "AtomicCell -> I64 -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicFetchAnd" == 0 then Some (26, "AtomicCell -> I64 -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicFetchOr" == 0 then Some (27, "AtomicCell -> I64 -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicFetchXor" == 0 then Some (28, "AtomicCell -> I64 -> I64 ->{MVar} I64")
-    else if string-compare symbol "cinch.runtime.atomicCas" == 0 then Some (29, "AtomicCell -> I64 -> I64 -> I64 -> I64 ->{MVar} Bool")
-    else if string-compare symbol "cinch.runtime.atomicFence" == 0 then Some (30, "I64 ->{MVar} Unit")
-    else None
+    case symbol of
+    "cinch.runtime.mvarNew" -> Some (0, "forall a. a ->{MVar} MVarCell a")
+    "cinch.runtime.mvarNewEmpty" -> Some (1, "forall a. Unit ->{MVar} MVarCell a")
+    "cinch.runtime.mvarTake" -> Some (2, "forall a. MVarCell a ->{MVar, Diverge} a")
+    "cinch.runtime.mvarPut" -> Some (3, "forall a. MVarCell a -> a ->{MVar, Diverge} Unit")
+    "cinch.runtime.mvarRead" -> Some (4, "forall a. MVarCell a ->{MVar, Diverge} a")
+    "cinch.runtime.mvarSwap" -> Some (5, "forall a. MVarCell a -> a ->{MVar, Diverge} a")
+    "cinch.runtime.mvarTryTake" -> Some (6, "forall a. MVarCell a ->{MVar} Option a")
+    "cinch.runtime.mvarTryPut" -> Some (7, "forall a. MVarCell a -> a ->{MVar} Bool")
+    "cinch.runtime.mvarTryRead" -> Some (8, "forall a. MVarCell a ->{MVar} Option a")
+    "cinch.runtime.mvarIsEmpty" -> Some (9, "forall a. MVarCell a ->{MVar} Bool")
+    "cinch.runtime.mvarTakeOrCancel" -> Some (10, "forall a. MVarCell a ->{MVar, Diverge} Option a")
+    "cinch.runtime.mvarPutOrCancel" -> Some (11, "forall a. MVarCell a -> a ->{MVar, Diverge} Bool")
+    "cinch.runtime.mvarReadOrCancel" -> Some (12, "forall a. MVarCell a ->{MVar, Diverge} Option a")
+    "cinch.runtime.mvarSwapOrCancel" -> Some (13, "forall a. MVarCell a -> a ->{MVar, Diverge} Option a")
+    "cinch.runtime.rwlockNew" -> Some (14, "forall a. a ->{MVar} RwLockCell a")
+    "cinch.runtime.rwlockRead" -> Some (15, "forall a. RwLockCell a ->{MVar, Diverge} a")
+    "cinch.runtime.rwlockWrite" -> Some (16, "forall a. RwLockCell a -> a ->{MVar, Diverge} Unit")
+    "cinch.runtime.rwlockSwap" -> Some (17, "forall a. RwLockCell a -> a ->{MVar, Diverge} a")
+    "cinch.runtime.rwlockTryRead" -> Some (18, "forall a. RwLockCell a ->{MVar} Option a")
+    "cinch.runtime.rwlockTryWrite" -> Some (19, "forall a. RwLockCell a -> a ->{MVar} Bool")
+    "cinch.runtime.atomicNew" -> Some (20, "I64 ->{MVar} AtomicCell")
+    "cinch.runtime.atomicLoad" -> Some (21, "AtomicCell -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicStore" -> Some (22, "AtomicCell -> I64 -> I64 ->{MVar} Unit")
+    "cinch.runtime.atomicSwap" -> Some (23, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicFetchAdd" -> Some (24, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicFetchSub" -> Some (25, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicFetchAnd" -> Some (26, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicFetchOr" -> Some (27, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicFetchXor" -> Some (28, "AtomicCell -> I64 -> I64 ->{MVar} I64")
+    "cinch.runtime.atomicCas" -> Some (29, "AtomicCell -> I64 -> I64 -> I64 -> I64 ->{MVar} Bool")
+    "cinch.runtime.atomicFence" -> Some (30, "I64 ->{MVar} Unit")
+    _ -> None
 
   -- | Count value arguments without changing the ownership of captured partial arguments.
   mvar-arity :: Nat -> Nat
@@ -543,127 +548,128 @@ module Cinch.Builtin where
 
   -- Array, Tensor and Columnar are primitive starting with ABI 6.
   array-type-name :: String -> Bool
-  array-type-name name = runtime-abi-int >= 6 && (string-compare name "Array" == 0 || string-compare name "Tensor" == 0 || string-compare name "Columnar" == 0)
+  array-type-name name = runtime-abi-int >= 6 && (name == "Array" || name == "Tensor" || name == "Columnar")
 
   -- Operation, packed format (zero means the actual element class), canonical scheme.
   -- Packed widths are the supported 64-bit bootstrap target's physical scalar widths.
   array-plan :: String -> Option (Nat, Nat, String)
   array-plan symbol = if runtime-abi-int < 6 then None else
-    if string-compare symbol "cinch.runtime.arrayFromList" == 0 then Some (0, 0, "forall a. List a -> Array a")
-    else if string-compare symbol "cinch.runtime.arrayReplicate" == 0 then Some (1, 0, "forall a. Nat -> a -> Array a")
-    else if string-compare symbol "cinch.runtime.arrayLen" == 0 then Some (2, 0, "forall a. Array a -> Nat")
-    else if string-compare symbol "cinch.runtime.arrayGet" == 0 then Some (3, 0, "forall a. Array a -> Nat -> Option a")
-    else if string-compare symbol "cinch.runtime.arraySet" == 0 then Some (4, 0, "forall a. Array a -> Nat -> a -> Option (Array a)")
-    else if string-compare symbol "cinch.runtime.arraySlice" == 0 then Some (5, 0, "forall a. Array a -> Nat -> Nat -> Option (Array a)")
-    else if string-compare symbol "cinch.runtime.arrayAppend" == 0 then Some (6, 0, "forall a. Array a -> Array a -> Array a")
-    else if string-compare symbol "cinch.runtime.tensorReshape" == 0 then Some (7, 0, "forall a. Array Nat -> Array a -> Option (Tensor a)")
-    else if string-compare symbol "cinch.runtime.tensorShape" == 0 then Some (8, 0, "forall a. Tensor a -> Array Nat")
-    else if string-compare symbol "cinch.runtime.tensorData" == 0 then Some (9, 0, "forall a. Tensor a -> Array a")
-    else if string-compare symbol "cinch.runtime.tensorGet" == 0 then Some (10, 0, "forall a. Tensor a -> Array Nat -> Option a")
-    else if string-compare symbol "cinch.runtime.tensorSet" == 0 then Some (11, 0, "forall a. Tensor a -> Array Nat -> a -> Option (Tensor a)")
-    else if string-compare symbol "cinch.runtime.columnarColumn" == 0 then Some (12, 0, "forall a. Array a -> Columnar a")
-    else if string-compare symbol "cinch.runtime.columnarZip" == 0 then Some (13, 0, "forall a b. Columnar a -> Columnar b -> Option (Columnar (a, b))")
-    else if string-compare symbol "cinch.runtime.columnarRows" == 0 then Some (14, 0, "forall a. Columnar a -> Nat")
-    else if string-compare symbol "cinch.runtime.slotsNew" == 0 then Some (20, 0, "forall a. U64 -> Array a")
-    else if string-compare symbol "cinch.runtime.slotsLen" == 0 then Some (21, 0, "forall a. Array a -> U64")
-    else if string-compare symbol "cinch.runtime.slotsRead" == 0 then Some (22, 0, "forall a. Array a -> U64 -> a")
-    else if string-compare symbol "cinch.runtime.slotsWrite" == 0 then Some (23, 0, "forall a. Array a -> U64 -> a -> Unit")
-    else if string-compare symbol "cinch.runtime.slotsTake" == 0 then Some (24, 0, "forall a. Array a -> U64 -> a")
-    else if string-compare symbol "cinch.runtime.slotsMove" == 0 then Some (25, 0, "forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit")
-    else if string-compare symbol "cinch.runtime.slotsClear" == 0 then Some (26, 0, "forall a. Array a -> U64 -> U64 -> Unit")
-    else if string-compare symbol "cinch.runtime.slotsPrefetch" == 0 then Some (27, 0, "forall a. Array a -> U64 -> Unit")
-    else if string-compare symbol "cinch.runtime.columnarColumns" == 0 then Some (15, 0, "forall a. Columnar a -> Nat")
-    else if string-compare symbol "cinch.runtime.columnarGet" == 0 then Some (16, 0, "forall a. Columnar a -> Nat -> Option a")
-    else if string-compare symbol "cinch.runtime.columnarLeft" == 0 then Some (17, 0, "forall a b. Columnar (a, b) -> Option (Columnar a)")
-    else if string-compare symbol "cinch.runtime.columnarRight" == 0 then Some (18, 0, "forall a b. Columnar (a, b) -> Option (Columnar b)")
-    else if string-compare symbol "cinch.runtime.columnarArray" == 0 then Some (19, 0, "forall a. Columnar a -> Option (Array a)")
-    else if string-compare symbol "cinch.runtime.arrayFromListI8" == 0 then Some (0, 385, "List I8 -> Array I8")
-    else if string-compare symbol "cinch.runtime.arrayFromListI16" == 0 then Some (0, 386, "List I16 -> Array I16")
-    else if string-compare symbol "cinch.runtime.arrayFromListI32" == 0 then Some (0, 388, "List I32 -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayFromListI64" == 0 then Some (0, 392, "List I64 -> Array I64")
-    else if string-compare symbol "cinch.runtime.arrayFromListU8" == 0 then Some (0, 257, "List U8 -> Array U8")
-    else if string-compare symbol "cinch.runtime.arrayFromListU16" == 0 then Some (0, 258, "List U16 -> Array U16")
-    else if string-compare symbol "cinch.runtime.arrayFromListU32" == 0 then Some (0, 260, "List U32 -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayFromListU64" == 0 then Some (0, 264, "List U64 -> Array U64")
-    else if string-compare symbol "cinch.runtime.arrayFromListF32" == 0 then Some (0, 260, "List F32 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayFromListF64" == 0 then Some (0, 264, "List F64 -> Array F64")
-    else if string-compare symbol "cinch.runtime.arrayFromListChar" == 0 then Some (0, 260, "List Char -> Array Char")
-    else if string-compare symbol "cinch.runtime.arrayFromListUsize" == 0 then Some (0, 264, "List Usize -> Array Usize")
-    else if string-compare symbol "cinch.runtime.arrayFromListIsize" == 0 then Some (0, 392, "List Isize -> Array Isize")
-    else if string-compare symbol "cinch.runtime.arrayTabulateF32" == 0 then Some (30, 260, "Nat -> (Nat -> F32) -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayTabulateU8" == 0 then Some (31, 257, "Nat -> (Nat -> U8) -> Array U8")
-    else if string-compare symbol "cinch.runtime.arrayTabulateI32" == 0 then Some (32, 388, "Nat -> (Nat -> I32) -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayTabulateU32" == 0 then Some (33, 260, "Nat -> (Nat -> U32) -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayZipBinopF32" == 0 then Some (34, 260, "Array F32 -> Array F32 -> I64 -> Option (Array F32)")
-    else if string-compare symbol "cinch.runtime.arrayZipBinopI32" == 0 then Some (35, 388, "Array I32 -> Array I32 -> I64 -> Option (Array I32)")
-    else if string-compare symbol "cinch.runtime.arrayReduceF32" == 0 then Some (36, 260, "Array F32 -> I64 -> F32")
-    else if string-compare symbol "cinch.runtime.arrayReduceI32" == 0 then Some (37, 388, "Array I32 -> I64 -> I32")
-    else if string-compare symbol "cinch.runtime.arrayDotF32" == 0 then Some (38, 260, "Array F32 -> Array F32 -> I64 -> F32")
-    else if string-compare symbol "cinch.runtime.arrayDotI32" == 0 then Some (39, 388, "Array I32 -> Array I32 -> I32")
-    else if string-compare symbol "cinch.runtime.arrayRowReduceF32" == 0 then Some (40, 260, "Array F32 -> Nat -> Nat -> I64 -> Option (Array F32)")
-    else if string-compare symbol "cinch.runtime.arrayScanI32" == 0 then Some (41, 388, "Array I32 -> I64 -> Bool -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayFilterI32Gt" == 0 then Some (42, 388, "Array I32 -> I32 -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayHistogramU8" == 0 then Some (43, 257, "Array U8 -> Nat -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayStencil2DU8" == 0 then Some (44, 257, "Array U8 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Option (Array U8)")
-    else if string-compare symbol "cinch.runtime.arraySpmvCsrF32" == 0 then Some (45, 260, "Array F32 -> Array U32 -> Array U32 -> Array F32 -> I64 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arraySetExecMode" == 0 then Some (46, 264, "I64 -> Unit")
-    else if string-compare symbol "cinch.runtime.arrayHistogramBatchU8" == 0 then Some (47, 257, "Array U8 -> Nat -> Nat -> Nat -> Nat -> Option (Array U32)")
-    else if string-compare symbol "cinch.runtime.arrayMapUnaryF32" == 0 then Some (48, 260, "Array F32 -> I64 -> F32 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayFusedMapReduceF32" == 0 then Some (49, 260, "Array F32 -> I64 -> F32 -> I64 -> F32")
-    else if string-compare symbol "cinch.runtime.arrayTabulateF64" == 0 then Some (50, 264, "Nat -> (Nat -> F64) -> Array F64")
-    else if string-compare symbol "cinch.runtime.arrayMapU8" == 0 then Some (51, 257, "(U8 -> U8) -> Array U8 -> Array U8")
-    else if string-compare symbol "cinch.runtime.arrayMapI32" == 0 then Some (52, 388, "(I32 -> I32) -> Array I32 -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayMapU32" == 0 then Some (53, 260, "(U32 -> U32) -> Array U32 -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayMapF32" == 0 then Some (54, 260, "(F32 -> F32) -> Array F32 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayMapF64" == 0 then Some (55, 264, "(F64 -> F64) -> Array F64 -> Array F64")
-    else if string-compare symbol "cinch.runtime.arrayZipWithI32" == 0 then Some (56, 388, "(I32 -> I32 -> I32) -> Array I32 -> Array I32 -> Option (Array I32)")
-    else if string-compare symbol "cinch.runtime.arrayZipWithF32" == 0 then Some (57, 260, "(F32 -> F32 -> F32) -> Array F32 -> Array F32 -> Option (Array F32)")
-    else if string-compare symbol "cinch.runtime.arrayFoldlI32" == 0 then Some (58, 388, "(I32 -> I32 -> I32) -> I32 -> Array I32 -> I32")
-    else if string-compare symbol "cinch.runtime.arrayFoldlF32" == 0 then Some (59, 260, "(F32 -> F32 -> F32) -> F32 -> Array F32 -> F32")
-    else if string-compare symbol "cinch.runtime.arrayReduceU32" == 0 then Some (60, 260, "Array U32 -> I64 -> U32")
-    else if string-compare symbol "cinch.runtime.arrayReduceI64" == 0 then Some (61, 392, "Array I64 -> I64 -> I64")
-    else if string-compare symbol "cinch.runtime.arrayReduceF64" == 0 then Some (62, 264, "Array F64 -> I64 -> F64")
-    else if string-compare symbol "cinch.runtime.arrayDotF64" == 0 then Some (63, 264, "Array F64 -> Array F64 -> I64 -> F64")
-    else if string-compare symbol "cinch.runtime.arrayStridedDotF32" == 0 then Some (64, 260, "Array F32 -> Nat -> Nat -> Array F32 -> Nat -> Nat -> Nat -> I64 -> F32")
-    else if string-compare symbol "cinch.runtime.arrayRowReduceI32" == 0 then Some (65, 388, "Array I32 -> Nat -> Nat -> I64 -> Option (Array I32)")
-    else if string-compare symbol "cinch.runtime.arrayScanU32" == 0 then Some (66, 260, "Array U32 -> I64 -> Bool -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayFilterI32" == 0 then Some (67, 388, "(I32 -> Bool) -> Array I32 -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayGatherF32" == 0 then Some (68, 260, "Array F32 -> Array I32 -> I64 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayGatherI32" == 0 then Some (69, 388, "Array I32 -> Array I32 -> I64 -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayScatterUniqueU32" == 0 then Some (70, 260, "Array U32 -> Array U32 -> Array U32 -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayScatterCombineI32" == 0 then Some (71, 388, "Array I32 -> Array I32 -> Array I32 -> I64 -> Array I32")
-    else if string-compare symbol "cinch.runtime.arrayHistogramU32" == 0 then Some (72, 260, "Array U32 -> Nat -> Array U32")
-    else if string-compare symbol "cinch.runtime.arrayStencil2DF32" == 0 then Some (73, 260, "Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)")
-    else if string-compare symbol "cinch.runtime.arraySegmentedReduceF32" == 0 then Some (74, 260, "Array F32 -> Array U32 -> I64 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayPackStrided1D" == 0 then Some (75, 0, "forall a. Array a -> Nat -> Nat -> Nat -> Option (Array a)")
-    else if string-compare symbol "cinch.runtime.arrayPackStrided2D" == 0 then Some (76, 0, "forall a. Array a -> Nat -> Nat -> Nat -> Nat -> Nat -> Option (Array a)")
-    else if string-compare symbol "cinch.runtime.arrayLastReportBytes" == 0 then Some (77, 264, "Unit -> Bytes")
-    else if string-compare symbol "cinch.runtime.deviceOpen" == 0 then Some (78, 264, "I64 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceClose" == 0 then Some (79, 264, "I64 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceResetTelemetry" == 0 then Some (80, 264, "I64 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceUploadArray" == 0 then Some (81, 0, "forall a. I64 -> Array a -> I64")
-    else if string-compare symbol "cinch.runtime.deviceDownloadU8" == 0 then Some (82, 257, "I64 -> I64 -> Option (Array U8)")
-    else if string-compare symbol "cinch.runtime.deviceDownloadU32" == 0 then Some (83, 260, "I64 -> I64 -> Option (Array U32)")
-    else if string-compare symbol "cinch.runtime.deviceDownloadI32" == 0 then Some (84, 388, "I64 -> I64 -> Option (Array I32)")
-    else if string-compare symbol "cinch.runtime.deviceDownloadF32" == 0 then Some (85, 260, "I64 -> I64 -> Option (Array F32)")
-    else if string-compare symbol "cinch.runtime.deviceBufferFree" == 0 then Some (86, 264, "I64 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceBufferBytes" == 0 then Some (87, 264, "I64 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceDotF32" == 0 then Some (88, 260, "I64 -> I64 -> I64 -> Nat -> I64 -> Option F32")
-    else if string-compare symbol "cinch.runtime.deviceScanI32" == 0 then Some (89, 388, "I64 -> I64 -> Nat -> Bool -> I64")
-    else if string-compare symbol "cinch.runtime.deviceFilterI32Gt" == 0 then Some (90, 388, "I64 -> I64 -> Nat -> I32 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceRowReduceF32" == 0 then Some (91, 260, "I64 -> I64 -> Nat -> Nat -> I64")
-    else if string-compare symbol "cinch.runtime.deviceStencilHistogramU8" == 0 then Some (92, 257, "I64 -> I64 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Nat -> I64")
-    else if string-compare symbol "cinch.runtime.deviceStencil2DF32" == 0 then Some (93, 260, "I64 -> I64 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> I64")
-    else if string-compare symbol "cinch.runtime.deviceSpmvCsrF32" == 0 then Some (94, 260, "I64 -> I64 -> I64 -> I64 -> I64 -> Nat -> Nat -> I64 -> I64")
-    else if string-compare symbol "cinch.runtime.deviceReportBytes" == 0 then Some (95, 264, "I64 -> Bytes")
-    else if string-compare symbol "cinch.runtime.arrayFillF32" == 0 then Some (96, 260, "Nat -> F32 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayFillF64" == 0 then Some (97, 264, "Nat -> F64 -> Array F64")
-    else if string-compare symbol "cinch.runtime.arrayZipBinopF64" == 0 then Some (98, 264, "Array F64 -> Array F64 -> I64 -> Option (Array F64)")
-    else if string-compare symbol "cinch.runtime.arrayScaleF64" == 0 then Some (99, 264, "Array F64 -> F64 -> Array F64")
-    else if string-compare symbol "cinch.runtime.arrayRowBroadcastF32" == 0 then Some (100, 260, "Array F32 -> Nat -> Nat -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayScatterAddF32" == 0 then Some (101, 260, "Nat -> Array I32 -> Array F32 -> I64 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arrayStencil2DAdjointF32" == 0 then Some (102, 260, "Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)")
-    else None
+    case symbol of
+    "cinch.runtime.arrayFromList" -> Some (0, 0, "forall a. List a -> Array a")
+    "cinch.runtime.arrayReplicate" -> Some (1, 0, "forall a. Nat -> a -> Array a")
+    "cinch.runtime.arrayLen" -> Some (2, 0, "forall a. Array a -> Nat")
+    "cinch.runtime.arrayGet" -> Some (3, 0, "forall a. Array a -> Nat -> Option a")
+    "cinch.runtime.arraySet" -> Some (4, 0, "forall a. Array a -> Nat -> a -> Option (Array a)")
+    "cinch.runtime.arraySlice" -> Some (5, 0, "forall a. Array a -> Nat -> Nat -> Option (Array a)")
+    "cinch.runtime.arrayAppend" -> Some (6, 0, "forall a. Array a -> Array a -> Array a")
+    "cinch.runtime.tensorReshape" -> Some (7, 0, "forall a. Array Nat -> Array a -> Option (Tensor a)")
+    "cinch.runtime.tensorShape" -> Some (8, 0, "forall a. Tensor a -> Array Nat")
+    "cinch.runtime.tensorData" -> Some (9, 0, "forall a. Tensor a -> Array a")
+    "cinch.runtime.tensorGet" -> Some (10, 0, "forall a. Tensor a -> Array Nat -> Option a")
+    "cinch.runtime.tensorSet" -> Some (11, 0, "forall a. Tensor a -> Array Nat -> a -> Option (Tensor a)")
+    "cinch.runtime.columnarColumn" -> Some (12, 0, "forall a. Array a -> Columnar a")
+    "cinch.runtime.columnarZip" -> Some (13, 0, "forall a b. Columnar a -> Columnar b -> Option (Columnar (a, b))")
+    "cinch.runtime.columnarRows" -> Some (14, 0, "forall a. Columnar a -> Nat")
+    "cinch.runtime.slotsNew" -> Some (20, 0, "forall a. U64 -> Array a")
+    "cinch.runtime.slotsLen" -> Some (21, 0, "forall a. Array a -> U64")
+    "cinch.runtime.slotsRead" -> Some (22, 0, "forall a. Array a -> U64 -> a")
+    "cinch.runtime.slotsWrite" -> Some (23, 0, "forall a. Array a -> U64 -> a -> Unit")
+    "cinch.runtime.slotsTake" -> Some (24, 0, "forall a. Array a -> U64 -> a")
+    "cinch.runtime.slotsMove" -> Some (25, 0, "forall a. Array a -> U64 -> Array a -> U64 -> U64 -> Unit")
+    "cinch.runtime.slotsClear" -> Some (26, 0, "forall a. Array a -> U64 -> U64 -> Unit")
+    "cinch.runtime.slotsPrefetch" -> Some (27, 0, "forall a. Array a -> U64 -> Unit")
+    "cinch.runtime.columnarColumns" -> Some (15, 0, "forall a. Columnar a -> Nat")
+    "cinch.runtime.columnarGet" -> Some (16, 0, "forall a. Columnar a -> Nat -> Option a")
+    "cinch.runtime.columnarLeft" -> Some (17, 0, "forall a b. Columnar (a, b) -> Option (Columnar a)")
+    "cinch.runtime.columnarRight" -> Some (18, 0, "forall a b. Columnar (a, b) -> Option (Columnar b)")
+    "cinch.runtime.columnarArray" -> Some (19, 0, "forall a. Columnar a -> Option (Array a)")
+    "cinch.runtime.arrayFromListI8" -> Some (0, 385, "List I8 -> Array I8")
+    "cinch.runtime.arrayFromListI16" -> Some (0, 386, "List I16 -> Array I16")
+    "cinch.runtime.arrayFromListI32" -> Some (0, 388, "List I32 -> Array I32")
+    "cinch.runtime.arrayFromListI64" -> Some (0, 392, "List I64 -> Array I64")
+    "cinch.runtime.arrayFromListU8" -> Some (0, 257, "List U8 -> Array U8")
+    "cinch.runtime.arrayFromListU16" -> Some (0, 258, "List U16 -> Array U16")
+    "cinch.runtime.arrayFromListU32" -> Some (0, 260, "List U32 -> Array U32")
+    "cinch.runtime.arrayFromListU64" -> Some (0, 264, "List U64 -> Array U64")
+    "cinch.runtime.arrayFromListF32" -> Some (0, 260, "List F32 -> Array F32")
+    "cinch.runtime.arrayFromListF64" -> Some (0, 264, "List F64 -> Array F64")
+    "cinch.runtime.arrayFromListChar" -> Some (0, 260, "List Char -> Array Char")
+    "cinch.runtime.arrayFromListUsize" -> Some (0, 264, "List Usize -> Array Usize")
+    "cinch.runtime.arrayFromListIsize" -> Some (0, 392, "List Isize -> Array Isize")
+    "cinch.runtime.arrayTabulateF32" -> Some (30, 260, "Nat -> (Nat -> F32) -> Array F32")
+    "cinch.runtime.arrayTabulateU8" -> Some (31, 257, "Nat -> (Nat -> U8) -> Array U8")
+    "cinch.runtime.arrayTabulateI32" -> Some (32, 388, "Nat -> (Nat -> I32) -> Array I32")
+    "cinch.runtime.arrayTabulateU32" -> Some (33, 260, "Nat -> (Nat -> U32) -> Array U32")
+    "cinch.runtime.arrayZipBinopF32" -> Some (34, 260, "Array F32 -> Array F32 -> I64 -> Option (Array F32)")
+    "cinch.runtime.arrayZipBinopI32" -> Some (35, 388, "Array I32 -> Array I32 -> I64 -> Option (Array I32)")
+    "cinch.runtime.arrayReduceF32" -> Some (36, 260, "Array F32 -> I64 -> F32")
+    "cinch.runtime.arrayReduceI32" -> Some (37, 388, "Array I32 -> I64 -> I32")
+    "cinch.runtime.arrayDotF32" -> Some (38, 260, "Array F32 -> Array F32 -> I64 -> F32")
+    "cinch.runtime.arrayDotI32" -> Some (39, 388, "Array I32 -> Array I32 -> I32")
+    "cinch.runtime.arrayRowReduceF32" -> Some (40, 260, "Array F32 -> Nat -> Nat -> I64 -> Option (Array F32)")
+    "cinch.runtime.arrayScanI32" -> Some (41, 388, "Array I32 -> I64 -> Bool -> Array I32")
+    "cinch.runtime.arrayFilterI32Gt" -> Some (42, 388, "Array I32 -> I32 -> Array I32")
+    "cinch.runtime.arrayHistogramU8" -> Some (43, 257, "Array U8 -> Nat -> Array U32")
+    "cinch.runtime.arrayStencil2DU8" -> Some (44, 257, "Array U8 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Option (Array U8)")
+    "cinch.runtime.arraySpmvCsrF32" -> Some (45, 260, "Array F32 -> Array U32 -> Array U32 -> Array F32 -> I64 -> Array F32")
+    "cinch.runtime.arraySetExecMode" -> Some (46, 264, "I64 -> Unit")
+    "cinch.runtime.arrayHistogramBatchU8" -> Some (47, 257, "Array U8 -> Nat -> Nat -> Nat -> Nat -> Option (Array U32)")
+    "cinch.runtime.arrayMapUnaryF32" -> Some (48, 260, "Array F32 -> I64 -> F32 -> Array F32")
+    "cinch.runtime.arrayFusedMapReduceF32" -> Some (49, 260, "Array F32 -> I64 -> F32 -> I64 -> F32")
+    "cinch.runtime.arrayTabulateF64" -> Some (50, 264, "Nat -> (Nat -> F64) -> Array F64")
+    "cinch.runtime.arrayMapU8" -> Some (51, 257, "(U8 -> U8) -> Array U8 -> Array U8")
+    "cinch.runtime.arrayMapI32" -> Some (52, 388, "(I32 -> I32) -> Array I32 -> Array I32")
+    "cinch.runtime.arrayMapU32" -> Some (53, 260, "(U32 -> U32) -> Array U32 -> Array U32")
+    "cinch.runtime.arrayMapF32" -> Some (54, 260, "(F32 -> F32) -> Array F32 -> Array F32")
+    "cinch.runtime.arrayMapF64" -> Some (55, 264, "(F64 -> F64) -> Array F64 -> Array F64")
+    "cinch.runtime.arrayZipWithI32" -> Some (56, 388, "(I32 -> I32 -> I32) -> Array I32 -> Array I32 -> Option (Array I32)")
+    "cinch.runtime.arrayZipWithF32" -> Some (57, 260, "(F32 -> F32 -> F32) -> Array F32 -> Array F32 -> Option (Array F32)")
+    "cinch.runtime.arrayFoldlI32" -> Some (58, 388, "(I32 -> I32 -> I32) -> I32 -> Array I32 -> I32")
+    "cinch.runtime.arrayFoldlF32" -> Some (59, 260, "(F32 -> F32 -> F32) -> F32 -> Array F32 -> F32")
+    "cinch.runtime.arrayReduceU32" -> Some (60, 260, "Array U32 -> I64 -> U32")
+    "cinch.runtime.arrayReduceI64" -> Some (61, 392, "Array I64 -> I64 -> I64")
+    "cinch.runtime.arrayReduceF64" -> Some (62, 264, "Array F64 -> I64 -> F64")
+    "cinch.runtime.arrayDotF64" -> Some (63, 264, "Array F64 -> Array F64 -> I64 -> F64")
+    "cinch.runtime.arrayStridedDotF32" -> Some (64, 260, "Array F32 -> Nat -> Nat -> Array F32 -> Nat -> Nat -> Nat -> I64 -> F32")
+    "cinch.runtime.arrayRowReduceI32" -> Some (65, 388, "Array I32 -> Nat -> Nat -> I64 -> Option (Array I32)")
+    "cinch.runtime.arrayScanU32" -> Some (66, 260, "Array U32 -> I64 -> Bool -> Array U32")
+    "cinch.runtime.arrayFilterI32" -> Some (67, 388, "(I32 -> Bool) -> Array I32 -> Array I32")
+    "cinch.runtime.arrayGatherF32" -> Some (68, 260, "Array F32 -> Array I32 -> I64 -> Array F32")
+    "cinch.runtime.arrayGatherI32" -> Some (69, 388, "Array I32 -> Array I32 -> I64 -> Array I32")
+    "cinch.runtime.arrayScatterUniqueU32" -> Some (70, 260, "Array U32 -> Array U32 -> Array U32 -> Array U32")
+    "cinch.runtime.arrayScatterCombineI32" -> Some (71, 388, "Array I32 -> Array I32 -> Array I32 -> I64 -> Array I32")
+    "cinch.runtime.arrayHistogramU32" -> Some (72, 260, "Array U32 -> Nat -> Array U32")
+    "cinch.runtime.arrayStencil2DF32" -> Some (73, 260, "Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)")
+    "cinch.runtime.arraySegmentedReduceF32" -> Some (74, 260, "Array F32 -> Array U32 -> I64 -> Array F32")
+    "cinch.runtime.arrayPackStrided1D" -> Some (75, 0, "forall a. Array a -> Nat -> Nat -> Nat -> Option (Array a)")
+    "cinch.runtime.arrayPackStrided2D" -> Some (76, 0, "forall a. Array a -> Nat -> Nat -> Nat -> Nat -> Nat -> Option (Array a)")
+    "cinch.runtime.arrayLastReportBytes" -> Some (77, 264, "Unit -> Bytes")
+    "cinch.runtime.deviceOpen" -> Some (78, 264, "I64 -> I64")
+    "cinch.runtime.deviceClose" -> Some (79, 264, "I64 -> I64")
+    "cinch.runtime.deviceResetTelemetry" -> Some (80, 264, "I64 -> I64")
+    "cinch.runtime.deviceUploadArray" -> Some (81, 0, "forall a. I64 -> Array a -> I64")
+    "cinch.runtime.deviceDownloadU8" -> Some (82, 257, "I64 -> I64 -> Option (Array U8)")
+    "cinch.runtime.deviceDownloadU32" -> Some (83, 260, "I64 -> I64 -> Option (Array U32)")
+    "cinch.runtime.deviceDownloadI32" -> Some (84, 388, "I64 -> I64 -> Option (Array I32)")
+    "cinch.runtime.deviceDownloadF32" -> Some (85, 260, "I64 -> I64 -> Option (Array F32)")
+    "cinch.runtime.deviceBufferFree" -> Some (86, 264, "I64 -> I64")
+    "cinch.runtime.deviceBufferBytes" -> Some (87, 264, "I64 -> I64")
+    "cinch.runtime.deviceDotF32" -> Some (88, 260, "I64 -> I64 -> I64 -> Nat -> I64 -> Option F32")
+    "cinch.runtime.deviceScanI32" -> Some (89, 388, "I64 -> I64 -> Nat -> Bool -> I64")
+    "cinch.runtime.deviceFilterI32Gt" -> Some (90, 388, "I64 -> I64 -> Nat -> I32 -> I64")
+    "cinch.runtime.deviceRowReduceF32" -> Some (91, 260, "I64 -> I64 -> Nat -> Nat -> I64")
+    "cinch.runtime.deviceStencilHistogramU8" -> Some (92, 257, "I64 -> I64 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Nat -> I64")
+    "cinch.runtime.deviceStencil2DF32" -> Some (93, 260, "I64 -> I64 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> I64")
+    "cinch.runtime.deviceSpmvCsrF32" -> Some (94, 260, "I64 -> I64 -> I64 -> I64 -> I64 -> Nat -> Nat -> I64 -> I64")
+    "cinch.runtime.deviceReportBytes" -> Some (95, 264, "I64 -> Bytes")
+    "cinch.runtime.arrayFillF32" -> Some (96, 260, "Nat -> F32 -> Array F32")
+    "cinch.runtime.arrayFillF64" -> Some (97, 264, "Nat -> F64 -> Array F64")
+    "cinch.runtime.arrayZipBinopF64" -> Some (98, 264, "Array F64 -> Array F64 -> I64 -> Option (Array F64)")
+    "cinch.runtime.arrayScaleF64" -> Some (99, 264, "Array F64 -> F64 -> Array F64")
+    "cinch.runtime.arrayRowBroadcastF32" -> Some (100, 260, "Array F32 -> Nat -> Nat -> Array F32")
+    "cinch.runtime.arrayScatterAddF32" -> Some (101, 260, "Nat -> Array I32 -> Array F32 -> I64 -> Array F32")
+    "cinch.runtime.arrayStencil2DAdjointF32" -> Some (102, 260, "Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)")
+    _ -> None
   array-extern :: Nat -> String
   array-extern operation =
     if operation == 0 then "cinch_array_from_list"
@@ -756,8 +762,8 @@ module Cinch.Builtin where
   builtin-syntax-metadata name = find-builtin-syntax name builtin-declarations
   find-builtin-syntax :: String -> List Decl -> Option Json
   find-builtin-syntax name declarations = case declarations of
-    Nil -> None
-    Cons (DExternal sp symbol category syntax metadata) rest ->
-      if string-compare name symbol == 0 && string-compare category "builtin-syntax" == 0 then Some metadata
+    [] -> None
+    (DExternal sp symbol category syntax metadata) : rest ->
+      if name == symbol && category == "builtin-syntax" then Some metadata
       else find-builtin-syntax name rest
-    Cons other rest -> find-builtin-syntax name rest
+    other : rest -> find-builtin-syntax name rest

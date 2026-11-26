@@ -10,6 +10,7 @@ module Cinch.PackageWrite where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (list-length, reverse, sort, sort-by)
   import Data.Nat (nat-from-int, nat-to-i64, saturating-sub)
+  import Effect.Sequencing (ResultSequencing)
 
   export encode-interface-package, encode-object-package
 
@@ -18,12 +19,12 @@ module Cinch.PackageWrite where
     words :: List Nat
 
   empty-tape :: Tape
-  empty-tape = Tape 0 Nil
+  empty-tape = Tape 0 []
 
   append-words :: List Nat -> Tape -> Tape
   append-words words (Tape count backwards) = case words of
-    Nil -> Tape count backwards
-    Cons word more -> append-words more (Tape (count + 1) (Cons word backwards))
+    [] -> Tape count backwards
+    word : more -> append-words more (Tape (count + 1) (word : backwards))
 
   record Strings where
     index :: HashMap String (Nat, Nat, Nat)
@@ -33,7 +34,7 @@ module Cinch.PackageWrite where
     chunks :: List Bytes
 
   empty-strings :: Strings
-  empty-strings = Strings hash-map-empty 0 0 empty-tape Nil
+  empty-strings = Strings hash-map-empty 0 0 empty-tape []
 
   intern :: String -> Strings -> ((Nat, Nat, Nat), Strings)
   intern text pool = case pool of
@@ -43,7 +44,7 @@ module Cinch.PackageWrite where
         let bytes = string-to-bytes text in let width = bytes-len bytes in
         let row = (count, size, width) in
         (row, Strings (hash-map-insert text row index) (count + 1) (size + width)
-          (append-words [size, width] spans) (Cons bytes chunks)))
+          (append-words [size, width] spans) (bytes : chunks)))
 
   intern-id :: String -> Strings -> (Nat, Strings)
   intern-id text pool = case intern text pool of ((id, offset, size), next) -> (id, next)
@@ -62,13 +63,13 @@ module Cinch.PackageWrite where
 
   array-items :: Json -> List Json
   array-items value = case value of
-    JArr first rest -> Cons first (array-items rest)
-    other -> Nil
+    JArr first rest -> first : (array-items rest)
+    other -> []
 
   object-fields :: Json -> List (String, Json)
   object-fields value = case value of
-    JObj key item rest -> Cons (key, item) (object-fields rest)
-    other -> Nil
+    JObj key item rest -> (key, item) : (object-fields rest)
+    other -> []
 
   -- Definitions repeated in several exported closures are represented once.
   record Definitions where
@@ -80,7 +81,7 @@ module Cinch.PackageWrite where
     JArr row rest -> (case (field "identity" row, state) of
       (JStr identity, Definitions index ordered) -> (case hash-map-lookup identity index of
         Some old -> if json-eq old row then collect-definitions rest state else Err "conflicting packed body definitions"
-        None -> collect-definitions rest (Definitions (hash-map-insert identity row index) (Cons (identity, row) ordered)))
+        None -> collect-definitions rest (Definitions (hash-map-insert identity row index) ((identity, row) : ordered)))
       other -> Err "missing packed body identity")
     JArrEnd -> Ok state
     other -> Err "invalid packed body definition table"
@@ -94,20 +95,20 @@ module Cinch.PackageWrite where
         JNum 1 -> collect-definitions (field "definitions" item) state
         other -> Err "unsupported packed body version")
 
-  collect-bodies :: Json -> Definitions -> Result String Definitions
+  collect-bodies :: using (seq :: ResultSequencing String) => Json -> Definitions -> Result String Definitions
   collect-bodies value state = case value of
-    JArr first rest -> (case collect-bodies first state of
-      Err error -> Err error
-      Ok next -> collect-bodies rest next)
-    JObj key item rest -> (case collect-member key item state of
-      Err error -> Err error
-      Ok next -> collect-bodies rest next)
+    JArr first rest -> do
+      next <- collect-bodies first state
+      collect-bodies rest next
+    JObj key item rest -> do
+      next <- collect-member key item state
+      collect-bodies rest next
     other -> Ok state
 
   index-bodies :: List (String, Json) -> Nat -> HashMap String Nat -> HashMap String Nat
   index-bodies rows position index = case rows of
-    Nil -> index
-    Cons (name, value) rest -> index-bodies rest (position + 1) (hash-map-insert name position index)
+    [] -> index
+    (name, value) : rest -> index-bodies rest (position + 1) (hash-map-insert name position index)
 
   record Nodes where
     pool :: Strings
@@ -144,13 +145,13 @@ module Cinch.PackageWrite where
       PackedIf condition yes no -> IfNode (JTerm condition) (JTerm yes) (JTerm no)
       InvalidPackedTerm -> BadNode)
     other -> (case field "node" value of
-      JStr kind | kind == "local" -> (case field "slot" value of JNum slot | slot >= 0 -> LocalNode (nat-from-int slot); other -> BadNode)
-      JStr kind | kind == "number" -> (case (field "sort" value, field "decimal" value) of (JStr sort, JStr decimal) -> NumberNode sort decimal; other -> BadNode)
-      JStr kind | kind == "bool" -> (case field "value" value of JBool yes -> BoolNode yes; other -> BadNode)
-      JStr kind | kind == "primitive" -> (case field "operation" value of JStr operation -> ApplicationNode False operation (DocumentArguments (field "arguments" value)); other -> BadNode)
-      JStr kind | kind == "call" -> (case field "target" value of JStr callee -> ApplicationNode True callee (DocumentArguments (field "arguments" value)); other -> BadNode)
-      JStr kind | kind == "let" -> LetNode (field "value" value) (field "body" value)
-      JStr kind | kind == "if" -> IfNode (field "condition" value) (field "yes" value) (field "no" value)
+      JStr "local" -> (case field "slot" value of JNum slot | slot >= 0 -> LocalNode (nat-from-int slot); other -> BadNode)
+      JStr "number" -> (case (field "sort" value, field "decimal" value) of (JStr sort, JStr decimal) -> NumberNode sort decimal; other -> BadNode)
+      JStr "bool" -> (case field "value" value of JBool yes -> BoolNode yes; other -> BadNode)
+      JStr "primitive" -> (case field "operation" value of JStr operation -> ApplicationNode False operation (DocumentArguments (field "arguments" value)); other -> BadNode)
+      JStr "call" -> (case field "target" value of JStr callee -> ApplicationNode True callee (DocumentArguments (field "arguments" value)); other -> BadNode)
+      JStr "let" -> LetNode (field "value" value) (field "body" value)
+      JStr "if" -> IfNode (field "condition" value) (field "yes" value) (field "no" value)
       other -> BadNode)
 
   argument-head :: Arguments -> Option (Json, Arguments)
@@ -160,23 +161,24 @@ module Cinch.PackageWrite where
       NoPackedArguments -> None
       NextPackedArgument first rest -> Some (JTerm first, SpanArguments rest))
 
-  emit-arguments :: HashMap String Nat -> Nat -> Arguments -> List Nat -> Nat -> Nodes -> Result String (Nat, Nat, Nodes)
+  emit-arguments :: using (seq :: ResultSequencing String) => HashMap String Nat -> Nat -> Arguments -> List Nat -> Nat -> Nodes -> Result String (Nat, Nat, Nodes)
   emit-arguments index depth args backwards count state = case argument-head args of
     None -> (case state of
       Nodes pool nodes operands targets ->
         Ok (operands.count, count, Nodes pool nodes (append-words (reverse backwards) operands) targets))
-    Some (item, rest) -> (case emit-expression index depth item state of
-      Err error -> Err error
-      Ok (id, next) -> emit-arguments index depth rest (Cons id backwards) (count + 1) next)
+    Some (item, rest) -> do
+      emitted <- emit-expression index depth item state
+      case emitted of
+        (id, next) -> emit-arguments index depth rest (id : backwards) (count + 1) next
 
   emit-application :: HashMap String Nat -> Bool -> String -> Nat -> Nat -> Nodes -> Result String (Nat, Nodes)
   emit-application index call name start count (Nodes pool nodes operands targets) =
     if call then (case hash-map-lookup name index of
       None -> Err ("missing packed call target " <> name)
-      Some id -> Ok (add-node 4 id start count (Nodes pool nodes operands (Cons id targets))))
+      Some id -> Ok (add-node 4 id start count (Nodes pool nodes operands (id : targets))))
     else let (id, next) = intern-id name pool in Ok (add-node 3 id start count (Nodes next nodes operands targets))
 
-  emit-expression :: HashMap String Nat -> Nat -> Json -> Nodes -> Result String (Nat, Nodes)
+  emit-expression :: using (seq :: ResultSequencing String) => HashMap String Nat -> Nat -> Json -> Nodes -> Result String (Nat, Nodes)
   emit-expression index depth expression state =
     if depth == 0 then Err "over-nested packed body" else
     let next = depth - 1 in
@@ -187,21 +189,27 @@ module Cinch.PackageWrite where
           let (sort-id, first) = intern-id sort pool in let (decimal-id, second) = intern-id decimal first in
           Ok (add-node 1 sort-id decimal-id 0 (Nodes second nodes operands targets)))
       BoolNode yes -> Ok (add-node 2 (if yes then 1 else 0) 0 0 state)
-      ApplicationNode call name args -> (case emit-arguments index next args Nil 0 state of
-        Err error -> Err error
-        Ok (start, count, following) -> emit-application index call name start count following)
-      LetNode bound body -> (case emit-expression index next bound state of
-        Err error -> Err error
-        Ok (left, following) -> (case emit-expression index next body following of
-          Err error -> Err error
-          Ok (right, final) -> Ok (add-node 5 left right 0 final)))
-      IfNode condition yes no -> (case emit-expression index next condition state of
-        Err error -> Err error
-        Ok (test, following) -> (case emit-expression index next yes following of
-          Err error -> Err error
-          Ok (left, middle) -> (case emit-expression index next no middle of
-            Err error -> Err error
-            Ok (right, final) -> Ok (add-node 6 test left right final))))
+      ApplicationNode call name args -> do
+        emitted <- emit-arguments index next args [] 0 state
+        case emitted of
+          (start, count, following) -> emit-application index call name start count following
+      LetNode bound body -> do
+        first <- emit-expression index next bound state
+        case first of
+          (left, following) -> do
+            second <- emit-expression index next body following
+            case second of
+              (right, final) -> Ok (add-node 5 left right 0 final)
+      IfNode condition yes no -> do
+        c-res <- emit-expression index next condition state
+        case c-res of
+          (test, following) -> do
+            y-res <- emit-expression index next yes following
+            case y-res of
+              (left, middle) -> do
+                n-res <- emit-expression index next no middle
+                case n-res of
+                  (right, final) -> Ok (add-node 6 test left right final)
       BadNode -> Err "invalid packed body node"
 
   emit-parameters :: Json -> Tape -> Strings -> Result String (Tape, Strings)
@@ -213,22 +221,22 @@ module Cinch.PackageWrite where
 
   write-targets :: List Nat -> Option Nat -> Tape -> Tape
   write-targets values previous tape = case values of
-    Nil -> tape
-    Cons first rest -> (case previous of
+    [] -> tape
+    first : rest -> (case previous of
       Some old | old == first -> write-targets rest previous tape
       other -> write-targets rest (Some first) (append-words [first] tape))
 
   emit-bodies :: List (String, Json) -> HashMap String Nat -> Tape -> Tape -> Nodes -> Result String (Tape, Tape, Nodes)
   emit-bodies definitions index bodies edges state = case definitions of
-    Nil -> Ok (bodies, edges, state)
-    Cons (name, definition) rest -> (case (state, field "result" definition) of
+    [] -> Ok (bodies, edges, state)
+    (name, definition) : rest -> (case (state, field "result" definition) of
       (Nodes pool nodes operands ignored, JStr result) ->
         let start = operands.count in
         (case emit-parameters (field "parameters" definition) operands pool of
           Err error -> Err error
           Ok (params, strings) ->
             let count = saturating-sub (params.count) start in
-            (case emit-expression index 256 (field "body" definition) (Nodes strings nodes params Nil) of
+            (case emit-expression index 256 (field "body" definition) (Nodes strings nodes params []) of
               Err error -> Err error
               Ok (root, Nodes term-strings term-nodes term-operands targets) ->
                 let edge-start = edges.count in
@@ -236,7 +244,7 @@ module Cinch.PackageWrite where
                 let (name-id, first) = intern-id name term-strings in
                 let (result-id, final) = intern-id result first in
                 let next-bodies = append-words [name-id, result-id, start, count, root, edge-start, saturating-sub (next-edges.count) edge-start, 0] bodies in
-                emit-bodies rest index next-bodies next-edges (Nodes final term-nodes term-operands Nil)))
+                emit-bodies rest index next-bodies next-edges (Nodes final term-nodes term-operands [])))
       other -> Err "invalid packed body result sort")
 
   body-root :: Json -> Option String
@@ -261,24 +269,25 @@ module Cinch.PackageWrite where
       Ok (append-words [if number < 0 then 8 else 3, value % 4294967296, value / 4294967296] tape, pool)
     else Err "integer exceeds packed format width"
 
-  emit-items :: Option (HashMap String Nat) -> Nat -> List Json -> Tape -> Strings -> Result String (Tape, Strings)
+  emit-items :: using (seq :: ResultSequencing String) => Option (HashMap String Nat) -> Nat -> List Json -> Tape -> Strings -> Result String (Tape, Strings)
   emit-items index depth items tape pool = case items of
-    Nil -> Ok (tape, pool)
-    Cons item rest -> (case emit-value index depth item tape pool of
-      Err error -> Err error
-      Ok (next, strings) -> emit-items index depth rest next strings)
+    [] -> Ok (tape, pool)
+    item : rest -> do
+      emitted <- emit-value index depth item tape pool
+      case emitted of
+        (next, strings) -> emit-items index depth rest next strings
 
-  emit-fields :: Option (HashMap String Nat) -> Nat -> Json -> List (String, Json) -> Tape -> Strings -> Result String (Tape, Strings)
+  emit-fields :: using (seq :: ResultSequencing String) => Option (HashMap String Nat) -> Nat -> Json -> List (String, Json) -> Tape -> Strings -> Result String (Tape, Strings)
   emit-fields index depth parent fields tape pool = case fields of
-    Nil -> Ok (tape, pool)
-    Cons (name, value) rest ->
-      let (id, strings) = intern-id name pool in let start = append-words [id] tape in
-      let encoded = (case (index, value) of
+    [] -> Ok (tape, pool)
+    (name, value) : rest -> do
+      let (id, strings) = intern-id name pool
+      let start = append-words [id] tape
+      emitted <- case (index, value) of
         (Some bodies, JObj key item tail) | name == "total_body" -> emit-body-root bodies parent start strings
-        other -> emit-value index depth value start strings) in
-      (case encoded of
-        Err error -> Err error
-        Ok (next, following) -> emit-fields index depth parent rest next following)
+        other -> emit-value index depth value start strings
+      case emitted of
+        (next, following) -> emit-fields index depth parent rest next following
 
   emit-value :: Option (HashMap String Nat) -> Nat -> Json -> Tape -> Strings -> Result String (Tape, Strings)
   emit-value index depth value tape pool =
@@ -307,8 +316,8 @@ module Cinch.PackageWrite where
 
   emit-value-rows :: HashMap String Nat -> List Json -> Tape -> Strings -> Result String (Tape, Strings)
   emit-value-rows index rows tape pool = case rows of
-    Nil -> Ok (tape, pool)
-    Cons row rest -> (case (field "name" row, field "symbol" row, field "scheme" row, field "arity" row) of
+    [] -> Ok (tape, pool)
+    row : rest -> (case (field "name" row, field "symbol" row, field "scheme" row, field "arity" row) of
       (JStr name, JStr symbol, JStr scheme, JNum arity) | arity >= 0 ->
         let root = (case field "total_body" row of
           JNull -> Some 4294967295
@@ -325,17 +334,17 @@ module Cinch.PackageWrite where
   compare-modules :: (String, String, Json) -> (String, String, Json) -> Ordering
   compare-modules (left, digest, doc) (right, hash, other) = compare-text left right
 
-  collect-modules :: List (String, String, Json) -> Definitions -> Result String Definitions
+  collect-modules :: using (seq :: ResultSequencing String) => List (String, String, Json) -> Definitions -> Result String Definitions
   collect-modules rows state = case rows of
-    Nil -> Ok state
-    Cons (name, hash, doc) rest -> (case collect-bodies (field "exports" doc) state of
-      Err error -> Err error
-      Ok next -> collect-modules rest next)
+    [] -> Ok state
+    (name, hash, doc) : rest -> do
+      next <- collect-bodies (field "exports" doc) state
+      collect-modules rest next
 
   module-indices :: List (String, String, Json) -> Nat -> HashMap String Nat -> Result String (HashMap String Nat)
   module-indices rows position index = case rows of
-    Nil -> Ok index
-    Cons (name, hash, doc) rest -> (case hash-map-lookup name index of
+    [] -> Ok index
+    (name, hash, doc) : rest -> (case hash-map-lookup name index of
       Some old -> Err "duplicate packed module"
       None -> module-indices rest (position + 1) (hash-map-insert name position index))
 
@@ -347,8 +356,8 @@ module Cinch.PackageWrite where
 
   emit-modules :: HashMap String Nat -> HashMap String Nat -> List (String, String, Json) -> List (String, String, Json) -> Directories -> Result String Directories
   emit-modules index bodies sorted original state = case (sorted, original, state) of
-    (Nil, Nil, directories) -> Ok directories
-    (Cons (name, hash, doc) rest, Cons (input, digest, source) inputs, Directories modules values contracts pool) ->
+    ([], [], directories) -> Ok directories
+    ((name, hash, doc) : rest, (input, digest, source) : inputs, Directories modules values contracts pool) ->
       (case hash-map-lookup input index of
         None -> Err "missing packed module position"
         Some position -> (case emit-value (Some bodies) 256 doc contracts pool of
@@ -368,8 +377,8 @@ module Cinch.PackageWrite where
 
   write-words :: Bytes -> Nat -> List Nat -> Result String Unit
   write-words out end backwards = case backwards of
-    Nil -> Ok ()
-    Cons word rest ->
+    [] -> Ok ()
+    word : rest ->
       if end >= 4 && end <= bytes-len out && word <= 4294967295 then
         let at = end - 4 in
         let written = bytes-write-le32 out at (wrapping-i64-to-u32 (nat-to-i64 word)) in
@@ -381,8 +390,8 @@ module Cinch.PackageWrite where
 
   write-chunks :: Bytes -> Nat -> List Bytes -> Result String Unit
   write-chunks out end backwards = case backwards of
-    Nil -> Ok ()
-    Cons source rest ->
+    [] -> Ok ()
+    source : rest ->
       let width = bytes-len source in
       if width <= end && end <= bytes-len out then
         let at = end - width in
@@ -391,38 +400,32 @@ module Cinch.PackageWrite where
 
   describe-sections :: Nat -> List Tape -> Tape -> (Nat, Tape)
   describe-sections start sections header = case sections of
-    Nil -> (start, header)
-    Cons tape rest ->
+    [] -> (start, header)
+    tape : rest ->
       let width = 4 * tape.count in
       describe-sections (start + width) rest (append-words [start, width] header)
 
-  write-sections :: Bytes -> Nat -> List Tape -> Result String Unit
+  write-sections :: using (seq :: ResultSequencing String) => Bytes -> Nat -> List Tape -> Result String Unit
   write-sections out start sections = case sections of
-    Nil -> Ok ()
-    Cons tape rest -> (case write-tape out start tape of
-      Err error -> Err error
-      Ok done -> write-sections out (start + 4 * tape.count) rest)
+    [] -> Ok ()
+    tape : rest -> do
+      _ <- write-tape out start tape
+      write-sections out (start + 4 * tape.count) rest
 
-  assemble :: Strings -> List Tape -> Result String Bytes
+  assemble :: using (seq :: ResultSequencing String) => Strings -> List Tape -> Result String Bytes
   assemble (Strings index count size spans chunks) sections =
     let strings-width = 4 + 4 * spans.count + size in
     let strings-end = 88 + strings-width in
     let (length, region-pairs) = describe-sections strings-end sections (append-words [88, strings-width] empty-tape) in
-    if length > 4294967295 then Err "packed package exceeds the 32-bit format" else
-    let out = bytes-new length in
-    (case write-tape out 0 (append-words [1129204035, 877350984, length, 4] empty-tape) of
-      Err error -> Err error
-      Ok done -> (case write-tape out 16 region-pairs of
-        Err error -> Err error
-        Ok done -> (case write-tape out 88 (append-words [count] empty-tape) of
-          Err error -> Err error
-          Ok done -> (case write-tape out 92 spans of
-            Err error -> Err error
-            Ok done -> (case write-chunks out strings-end chunks of
-              Err error -> Err error
-              Ok done -> (case write-sections out strings-end sections of
-                Err error -> Err error
-                Ok done -> Ok out))))))
+    if length > 4294967295 then Err "packed package exceeds the 32-bit format" else do
+      let out = bytes-new length
+      _ <- write-tape out 0 (append-words [1129204035, 877350984, length, 4] empty-tape)
+      _ <- write-tape out 16 region-pairs
+      _ <- write-tape out 88 (append-words [count] empty-tape)
+      _ <- write-tape out 92 spans
+      _ <- write-chunks out strings-end chunks
+      _ <- write-sections out strings-end sections
+      Ok out
 
   -- The caller supplies checked contracts in dependency visitation order.
   encode-object-package :: List (String, String, Json) -> Json -> Result String Bytes
@@ -431,27 +434,27 @@ module Cinch.PackageWrite where
   encode-interface-package :: List (String, String, Json) -> Result String Bytes
   encode-interface-package rows = encode-package rows None
 
-  encode-package :: List (String, String, Json) -> Option Json -> Result String Bytes
-  encode-package rows abi =
-    let sorted = sort-by compare-modules rows in
-    case (module-indices sorted 0 hash-map-empty, collect-modules sorted (Definitions hash-map-empty Nil)) of
-      (Err error, other) -> Err error
-      (other, Err error) -> Err error
-      (Ok indices, Ok (Definitions definitions order)) ->
-        let body-rows = sort-by compare-fields order in
-        let body-ids = index-bodies body-rows 0 hash-map-empty in
-        (case emit-bodies body-rows body-ids empty-tape empty-tape (Nodes empty-strings empty-tape empty-tape Nil) of
-          Err error -> Err error
-          Ok (bodies, edges, Nodes body-strings nodes operands targets) ->
-            (case emit-modules indices body-ids sorted rows (Directories empty-tape empty-tape empty-tape body-strings) of
-              Err error -> Err error
-              Ok (Directories modules values contracts strings) ->
-                encode-abi abi strings [modules, values, bodies, edges, nodes, operands, contracts]))
+  encode-package :: using (seq :: ResultSequencing String) => List (String, String, Json) -> Option Json -> Result String Bytes
+  encode-package rows abi = do
+    let sorted = sort-by compare-modules rows
+    indices <- module-indices sorted 0 hash-map-empty
+    collected <- collect-modules sorted (Definitions hash-map-empty [])
+    case collected of
+      Definitions definitions order -> do
+        let body-rows = sort-by compare-fields order
+        let body-ids = index-bodies body-rows 0 hash-map-empty
+        emitted-bodies <- emit-bodies body-rows body-ids empty-tape empty-tape (Nodes empty-strings empty-tape empty-tape [])
+        case emitted-bodies of
+          (bodies, edges, Nodes body-strings nodes operands targets) -> do
+            dirs <- emit-modules indices body-ids sorted rows (Directories empty-tape empty-tape empty-tape body-strings)
+            case dirs of
+              Directories modules values contracts strings ->
+                encode-abi abi strings [modules, values, bodies, edges, nodes, operands, contracts]
 
-  encode-abi :: Option Json -> Strings -> List Tape -> Result String Bytes
+  encode-abi :: using (seq :: ResultSequencing String) => Option Json -> Strings -> List Tape -> Result String Bytes
   encode-abi abi (Strings index count size spans chunks) sections = case abi of
     None -> assemble (Strings index count size spans chunks) (sections <> [empty-tape])
-    Some document ->
-      (case emit-value None 256 document (append-words [count] empty-tape) (Strings index count size spans chunks) of
-        Err error -> Err error
-        Ok (metadata, strings) -> assemble strings (sections <> [metadata]))
+    Some document -> do
+      emitted <- emit-value None 256 document (append-words [count] empty-tape) (Strings index count size spans chunks)
+      case emitted of
+        (metadata, strings) -> assemble strings (sections <> [metadata])

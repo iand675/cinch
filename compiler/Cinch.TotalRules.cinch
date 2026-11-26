@@ -4,27 +4,27 @@ module Cinch.TotalRules where
   export valid-sort, decimal-number, operation-type
 
   same-rule-name :: String -> String -> Bool
-  same-rule-name first second = string-compare first second == 0
+  same-rule-name first second = first == second
   has-sort-name :: String -> List String -> Bool
   has-sort-name name choices = case choices of
-    Nil -> False
-    Cons first rest -> same-rule-name name first || has-sort-name name rest
+    [] -> False
+    first : rest -> same-rule-name name first || has-sort-name name rest
 
   valid-sort :: String -> Bool
   valid-sort name = has-sort-name name ["Nat", "Int", "Bool", "Bytes", "I64"]
   decimal-digits :: List Char -> Bool
-  decimal-digits chars = case chars of Nil -> True; Cons char rest -> char-code char >= 48 && char-code char <= 57 && decimal-digits rest
+  decimal-digits chars = case chars of [] -> True; char : rest -> char-code char >= 48 && char-code char <= 57 && decimal-digits rest
   trim-zeros :: List Char -> List Char
-  trim-zeros chars = case chars of Cons char (Cons next rest) -> if char-code char == 48 then trim-zeros (Cons next rest) else chars; other -> chars
+  trim-zeros chars = case chars of char : next : rest -> if char-code char == 48 then trim-zeros (next : rest) else chars; other -> chars
   i64-digits :: Bool -> List Char -> Bool
   i64-digits negative digits = let value = pack (trim-zeros digits) in
     string-length value < 19 || (string-length value == 19 && string-compare value (if negative then "9223372036854775808" else "9223372036854775807") <= 0)
   decimal-number :: String -> String -> Bool
   decimal-number sort value = case unpack value of
-    Nil -> False
-    Cons char rest -> if char-code char == 45 then
-      not (same-rule-name sort "Nat") && (same-rule-name sort "Int" || same-rule-name sort "I64") && (case rest of Nil -> False; other -> decimal-digits rest && (not (same-rule-name sort "I64") || i64-digits True rest))
-      else (same-rule-name sort "Nat" || same-rule-name sort "Int" || same-rule-name sort "I64") && decimal-digits (Cons char rest) && (not (same-rule-name sort "I64") || i64-digits False (Cons char rest))
+    [] -> False
+    char : rest -> if char-code char == 45 then
+      not (same-rule-name sort "Nat") && (same-rule-name sort "Int" || same-rule-name sort "I64") && (case rest of [] -> False; other -> decimal-digits rest && (not (same-rule-name sort "I64") || i64-digits True rest))
+      else (same-rule-name sort "Nat" || same-rule-name sort "Int" || same-rule-name sort "I64") && decimal-digits (char : rest) && (not (same-rule-name sort "I64") || i64-digits False (char : rest))
 
   operation-type :: String -> Option (List String, String)
   operation-type name =

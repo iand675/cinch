@@ -23,36 +23,33 @@ module Cinch.Contracts where
   export prepare-imported-class-methods, imported-class-methods
   export PreparedExternals, prepare-externals, select-externals
 
-  same :: String -> String -> Bool
-  same a b = string-compare a b == 0
-
   zero :: Span
   zero = Span 0 0 1 1
 
   public-global :: LoadedInterface -> String -> String
   public-global i name = case loaded-identities i name of
-    Cons identity Nil -> interface-global identity
-    other -> pack (Cons 'o' (Cons '.' (encode-identity (unpack (i.name)) (Cons '.' (encode-identity (unpack name) Nil)))))
+    [identity] -> interface-global identity
+    other -> pack ('o' : '.' : encode-identity (unpack (i.name)) ('.' : (encode-identity (unpack name) [])))
 
   entries :: LoadedInterface -> List (String, String, String) -> List Decl
   entries i names = case names of
-    Nil -> Nil
-    Cons (name, kind, identity) rest -> case loaded-entry i kind identity of
-      Some metadata -> Cons (DExternal zero name kind None metadata) (entries i rest)
-      None -> Cons (DUnmodeled zero (string-concat "missing exported metadata for " identity)) (entries i rest)
+    [] -> []
+    (name, kind, identity) : rest -> case loaded-entry i kind identity of
+      Some metadata -> (DExternal zero name kind None metadata) : (entries i rest)
+      None -> (DUnmodeled zero (string-concat "missing exported metadata for " identity)) : (entries i rest)
 
   fixities :: List (String, String, Nat) -> List Decl
   fixities rows = case rows of
-    Nil -> Nil
-    Cons (op, assoc, prec) rest -> Cons (DFixity zero
-      (if same assoc "left" then "infixl" else if same assoc "right" then "infixr" else "infix")
-      prec (Cons op Nil)) (fixities rest)
+    [] -> []
+    (op, assoc, prec) : rest -> (DFixity zero
+      (if assoc == "left" then "infixl" else if assoc == "right" then "infixr" else "infix")
+      prec ([op])) : (fixities rest)
 
   interface-headers :: List LoadedInterface -> List Module
   interface-headers interfaces = case interfaces of
-    Nil -> Nil
-    Cons i rest -> Cons (Module zero (i.name) (decl-spine zero
-      (entries i (i.exports) <> fixities (i.fixities)))) (interface-headers rest)
+    [] -> []
+    i : rest -> (Module zero (i.name) (decl-spine zero
+      (entries i (i.exports) <> fixities (i.fixities)))) : (interface-headers rest)
 
   -- Parsing and exported fixities use just the operators, including
   -- those without a declared fixity that shadow an inherited spelling.
@@ -66,34 +63,33 @@ module Cinch.Contracts where
 
   operator-entries :: LoadedInterface -> List (String, String, String) -> List Decl
   operator-entries i names = case names of
-    Nil -> Nil
-    Cons (name, kind, identity) rest ->
+    [] -> []
+    (name, kind, identity) : rest ->
       if is-operator-name name then
         (case loaded-entry i kind identity of
-          Some metadata -> Cons (DExternal zero name kind None metadata) (operator-entries i rest)
+          Some metadata -> (DExternal zero name kind None metadata) : (operator-entries i rest)
           None -> operator-entries i rest)
       else operator-entries i rest
 
   declarations :: LoadedInterface -> List (String, String, String) -> List Decl
   declarations i exports = case exports of
-    Nil -> Nil
-    Cons (name, kind, identity) rest -> case loaded-entry i kind identity of
-      None -> Cons (DUnmodeled zero (string-concat "missing exported metadata for " identity)) (declarations i rest)
-      Some metadata -> Cons (DExternal zero (interface-global identity) kind None metadata) (declarations i rest)
+    [] -> []
+    (name, kind, identity) : rest -> case loaded-entry i kind identity of
+      None -> (DUnmodeled zero (string-concat "missing exported metadata for " identity)) : (declarations i rest)
+      Some metadata -> (DExternal zero (interface-global identity) kind None metadata) : (declarations i rest)
 
   interface-declarations :: LoadedInterface -> List Decl
   -- Canonical private slots may be reached by checked defaults and laws.
   -- Imported source names still come exclusively from loaded-exports.
-  interface-declarations i = Cons (DInterface zero (i.name) (i.hash) (i.doc))
-    (declarations i (i.exports <> i.private-methods)
+  interface-declarations i = (DInterface zero (i.name) (i.hash) (i.doc)) : (declarations i (i.exports <> i.private-methods)
       <> overloads i (loaded-names i))
 
   overloads :: LoadedInterface -> List String -> List Decl
   overloads i names = case names of
-    Nil -> Nil
-    Cons name rest -> let identities = loaded-identities i name in case identities of
-      Cons first (Cons second more) -> Cons (DExternal zero (public-global i name) "overload" None
-        (candidate-json identities)) (overloads i rest)
+    [] -> []
+    name : rest -> let identities = loaded-identities i name in case identities of
+      first : second : more -> (DExternal zero (public-global i name) "overload" None
+        (candidate-json identities)) : (overloads i rest)
       other -> overloads i rest
 
   sequencing-providers :: List String
@@ -101,37 +97,37 @@ module Cinch.Contracts where
 
   overload-candidates :: Json -> List String
   overload-candidates candidates = case candidates of
-    JArr (JStr identity) rest -> Cons identity (overload-candidates rest)
-    other -> Nil
+    JArr (JStr identity) rest -> identity : (overload-candidates rest)
+    other -> []
   overload-references :: HashMap String Bool -> List Decl -> List String
   overload-references used declarations = case declarations of
-    Nil -> Nil
-    Cons (DExternal sp name category scheme entries) rest ->
+    [] -> []
+    (DExternal sp name category scheme entries) : rest ->
       let more = overload-references used rest in
-      if same category "overload" && referenced name used then candidate-references (overload-candidates entries) more else more
-    Cons other rest -> overload-references used rest
+      if category == "overload" && referenced name used then candidate-references (overload-candidates entries) more else more
+    other : rest -> overload-references used rest
   candidate-references :: List String -> List String -> List String
   candidate-references identities more = case identities of
-    Nil -> more
-    Cons identity rest -> let tail = candidate-references rest more in
-      let methods = if same identity "Effect.Sequencing.DirectSequencing.pure" then
+    [] -> more
+    identity : rest -> let tail = candidate-references rest more in
+      let methods = if identity == "Effect.Sequencing.DirectSequencing.pure" then
             map (\owner -> interface-global (string-concat owner ".pure")) sequencing-providers <> tail else tail in
-      Cons (interface-global identity) (Cons (interface-global (nominal-owner identity)) methods)
+      (interface-global identity) : (interface-global (nominal-owner identity)) : methods
   sequencing-references :: List String -> List String
   sequencing-references providers = case providers of
-    Nil -> [interface-global "Effect.Sequencing.SeqDirect"]
-    Cons owner rest -> Cons (interface-global owner) (Cons (interface-global (string-concat owner ".bind")) (sequencing-references rest))
+    [] -> [interface-global "Effect.Sequencing.SeqDirect"]
+    owner : rest -> (interface-global owner) : (interface-global (string-concat owner ".bind")) : (sequencing-references rest)
 
   candidate-json :: List String -> Json
-  candidate-json candidates = case candidates of Nil -> JArrEnd; Cons id rest -> JArr (JStr id) (candidate-json rest)
+  candidate-json candidates = case candidates of [] -> JArrEnd; id : rest -> JArr (JStr id) (candidate-json rest)
 
   field :: String -> Json -> Json
   field name doc = case doc of
-    JObj key value rest -> if same name key then value else field name rest
+    JObj key value rest -> if name == key then value else field name rest
     other -> JNull
 
   has :: String -> List String -> Bool
-  has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
+  has name names = case names of [] -> False; n : rest -> name == n || has name rest
 
   -- Membership in the reference list, built once. The list holds every
   -- symbol the program mentions (tens of thousands), and the passes below
@@ -148,8 +144,8 @@ module Cinch.Contracts where
 
   reference-index-from :: List String -> HashMap String Bool -> HashMap String Bool
   reference-index-from names index = case names of
-    Nil -> index
-    Cons name rest -> reference-index-from rest (hash-map-insert name True index)
+    [] -> index
+    name : rest -> reference-index-from rest (hash-map-insert name True index)
 
   referenced :: String -> HashMap String Bool -> Bool
   referenced name index = case hash-map-lookup name index of
@@ -165,20 +161,20 @@ module Cinch.Contracts where
     field3 :: Nat
 
   prepare-externals :: List Decl -> PreparedExternals
-  prepare-externals declarations = index-externals declarations declarations 0 Nil hash-map-empty
+  prepare-externals declarations = index-externals declarations declarations 0 [] hash-map-empty
 
   index-externals :: List Decl -> List Decl -> Nat -> List (Nat, Decl) -> HashMap String (List (Nat, Decl)) -> PreparedExternals
   index-externals original declarations position kept index = case declarations of
-    Nil -> PreparedExternals original (reverse kept) index (position / 4)
-    Cons declaration rest -> case declaration of
+    [] -> PreparedExternals original (reverse kept) index (position / 4)
+    declaration : rest -> case declaration of
       DExternal sp name category syntax metadata ->
-        let earlier = (case hash-map-lookup name index of Some prior -> prior; None -> Nil) in
-        index-externals original rest (position + 1) kept (hash-map-insert name (Cons (position, declaration) earlier) index)
-      other -> index-externals original rest (position + 1) (Cons (position, declaration) kept) index
+        let earlier = (case hash-map-lookup name index of Some prior -> prior; None -> []) in
+        index-externals original rest (position + 1) kept (hash-map-insert name ((position, declaration) : earlier) index)
+      other -> index-externals original rest (position + 1) ((position, declaration) : kept) index
 
   select-externals :: List (List String) -> PreparedExternals -> List Decl
   select-externals used (PreparedExternals original kept index budget) =
-    case collect-externals Nil used budget index hash-map-empty Nil of
+    case collect-externals [] used budget index hash-map-empty [] of
       None -> original
       Some reached -> merge-external-positions kept (sort-by compare-external-position reached)
 
@@ -186,10 +182,10 @@ module Cinch.Contracts where
   -- the already ordered declarations. Stop probing at a fraction of that cost.
   collect-externals :: List String -> List (List String) -> Nat -> HashMap String (List (Nat, Decl)) -> HashMap String Bool -> List (Nat, Decl) -> Option (List (Nat, Decl))
   collect-externals requests pending budget index seen found = case requests of
-    Nil -> case pending of
-      Nil -> Some found
-      Cons next groups -> collect-externals next groups budget index seen found
-    Cons name rest -> if budget == 0 then None else
+    [] -> case pending of
+      [] -> Some found
+      next : groups -> collect-externals next groups budget index seen found
+    name : rest -> if budget == 0 then None else
       let remaining = saturating-sub budget 1 in
       if referenced name seen then collect-externals rest pending remaining index seen found else
         (case hash-map-lookup name index of
@@ -198,11 +194,11 @@ module Cinch.Contracts where
 
   merge-external-positions :: List (Nat, Decl) -> List (Nat, Decl) -> List Decl
   merge-external-positions kept selected = case (kept, selected) of
-    (Cons (a, first) other, Cons (b, second) rest) ->
-      if a < b then Cons first (merge-external-positions other selected) else Cons second (merge-external-positions kept rest)
-    (Cons (a, first) other, Nil) -> Cons first (merge-external-positions other Nil)
-    (Nil, Cons (b, second) rest) -> Cons second (merge-external-positions Nil rest)
-    (Nil, Nil) -> Nil
+    ((a, first) : other, (b, second) : rest) ->
+      if a < b then first : (merge-external-positions other selected) else second : (merge-external-positions kept rest)
+    ((a, first) : other, []) -> first : (merge-external-positions other [])
+    ([], (b, second) : rest) -> second : (merge-external-positions [] rest)
+    ([], []) -> []
 
   compare-external-position :: (Nat, Decl) -> (Nat, Decl) -> Ordering
   compare-external-position (first, a) (second, b) =
@@ -213,33 +209,33 @@ module Cinch.Contracts where
 
   materialize-externals-from :: HashMap String Bool -> HashMap String (List String) -> List Decl -> (List Decl, List Diagnostic)
   materialize-externals-from references seen ds = case ds of
-    Nil -> (Nil, Nil)
-    Cons d rest -> case d of
+    [] -> ([], [])
+    d : rest -> case d of
       DExternal s name kind scheme metadata ->
         if not (referenced name references) || seen-entry name kind seen then materialize-externals-from references seen rest
         -- Stage primitives have a compiler-owned signature resolved in their
         -- synthetic module, including the active String carrier.
-        else if same kind "stage-primitive" && same name global-stage-str-nat then
+        else if kind == "stage-primitive" && name == global-stage-str-nat then
           (case materialize-externals-from references (seen-add name kind seen) rest of
-            (others, errors) -> (Cons d others, errors))
+            (others, errors) -> (d : others, errors))
         else case external-type s name kind metadata of
           (ty, errors) -> case materialize-externals-from references (seen-add name kind seen) rest of
-            (others, more) -> (Cons (DExternal s name kind ty metadata) others, errors <> more)
+            (others, more) -> ((DExternal s name kind ty metadata) : others, errors <> more)
       other -> case materialize-externals-from references seen rest of
-        (others, errors) -> (Cons d others, errors)
+        (others, errors) -> (d : others, errors)
 
   -- The materialized set is a table by name whose value is the kinds the
   -- name was materialized as: an identity carries one kind, and the pair
   -- is what the scan compared.
   seen-index :: List (String, String) -> HashMap String (List String)
   seen-index seen = case seen of
-    Nil -> hash-map-empty
-    Cons (name, kind) rest -> seen-add name kind (seen-index rest)
+    [] -> hash-map-empty
+    (name, kind) : rest -> seen-add name kind (seen-index rest)
 
   seen-add :: String -> String -> HashMap String (List String) -> HashMap String (List String)
   seen-add name kind index = case hash-map-lookup name index of
-    None -> hash-map-insert name (Cons kind Nil) index
-    Some kinds -> hash-map-insert name (Cons kind kinds) index
+    None -> hash-map-insert name ([kind]) index
+    Some kinds -> hash-map-insert name (kind : kinds) index
 
   seen-entry :: String -> String -> HashMap String (List String) -> Bool
   seen-entry name kind seen = case hash-map-lookup name seen of
@@ -248,8 +244,8 @@ module Cinch.Contracts where
 
   kind-member :: String -> List String -> Bool
   kind-member kind kinds = case kinds of
-    Nil -> False
-    Cons k rest -> same kind k || kind-member kind rest
+    [] -> False
+    k : rest -> kind == k || kind-member kind rest
 
   -- A kernel declaration's scheme is compiler-owned text, so nothing in
   -- the source mentions the prelude families it names. A program that uses
@@ -257,28 +253,28 @@ module Cinch.Contracts where
   -- mention of the same family would.
   kernel-references :: HashMap String Bool -> List Decl -> List String
   kernel-references used ds = case ds of
-    Nil -> Nil
-    Cons (DExternal s symbol category ty metadata) rest ->
-      (if same category "builtin" && referenced symbol used then
+    [] -> []
+    (DExternal s symbol category ty metadata) : rest ->
+      (if category == "builtin" && referenced symbol used then
         (case field "scheme" metadata of
           JStr text -> (case parse-scheme symbol (string-to-bytes text) of
-            Parsed scheme Nil -> kernel-canonical-references (type-references scheme)
-            other -> Nil)
-          other -> Nil)
-       else Nil) <> kernel-references used rest
-    Cons other rest -> kernel-references used rest
+            Parsed scheme [] -> kernel-canonical-references (type-references scheme)
+            other -> [])
+          other -> [])
+       else []) <> kernel-references used rest
+    other : rest -> kernel-references used rest
   kernel-canonical-reference :: String -> List String
-  kernel-canonical-reference name = if has name ["List", "Option", "Result"] then Cons (interface-global (string-concat "Data.Core." name)) Nil else Nil
+  kernel-canonical-reference name = if has name ["List", "Option", "Result"] then [interface-global (string-concat "Data.Core." name)] else []
   kernel-canonical-references :: List String -> List String
   kernel-canonical-references names = case names of
-    Nil -> Nil
-    Cons first rest -> kernel-canonical-reference first <> kernel-canonical-references rest
+    [] -> []
+    first : rest -> kernel-canonical-reference first <> kernel-canonical-references rest
 
   external-type :: Span -> String -> String -> Json -> (Option TypeExpr, List Diagnostic)
   external-type s name kind metadata =
-    if same kind "value" || same kind "constructor" || same kind "method" then case resolved-text metadata of
+    if kind == "value" || kind == "constructor" || kind == "method" then case resolved-text metadata of
       Some text -> case parse-scheme name (string-to-bytes text) of
-        Parsed ty Nil -> case qualify-resolved metadata ty of (resolved, errors) -> (Some resolved, errors)
+        Parsed ty [] -> case qualify-resolved metadata ty of (resolved, errors) -> (Some resolved, errors)
         other -> (None, [Diagnostic "bootstrap.resolve" s (string-concat "cannot parse resolved scheme for " name)])
       None -> display-type s name kind metadata
     else display-type s name kind metadata
@@ -289,7 +285,7 @@ module Cinch.Contracts where
   -- `kernel-canonical-type` states the same rule for its own path).
   canonical-kernel-type :: TypeExpr -> TypeExpr
   canonical-kernel-type syntax = case syntax of
-    TName sp name -> if same name "List" || same name "Option" || same name "Result" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
+    TName sp name -> if name == "List" || name == "Option" || name == "Result" then TName sp (interface-global (string-concat "Data.Core." name)) else syntax
     TForall sp qs body -> TForall sp qs (canonical-kernel-type body)
     TFun sp domain result -> TFun sp (canonical-kernel-type domain) (canonical-kernel-type result)
     TApp sp head args -> TApp sp (canonical-kernel-type head) (canonical-kernel-arguments args)
@@ -307,17 +303,17 @@ module Cinch.Contracts where
   display-type s name kind metadata =
     -- The owning kernel declaration decides whether syntax has a scheme.
     -- Infer checks the supplied metadata against that declaration.
-    if same kind "builtin-syntax" && syntax-without-scheme name then (None, Nil)
-    else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
+    if kind == "builtin-syntax" && syntax-without-scheme name then (None, [])
+    else if kind == "value" || kind == "constructor" || kind == "method" || kind == "builtin" || kind == "builtin-syntax" || kind == "builtin-constructor" then case field "scheme" metadata of
       JStr text -> case parse-scheme name (string-to-bytes text) of
-        Parsed ty Nil -> (Some (canonical-kernel-type ty), Nil)
-        other -> (None, Cons (Diagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)) Nil)
-      other -> (None, Cons (Diagnostic "bootstrap.resolve" s (string-concat "missing imported scheme for " name)) Nil)
-    else (None, Nil)
+        Parsed ty [] -> (Some (canonical-kernel-type ty), [])
+        other -> (None, [Diagnostic "bootstrap.resolve" s (string-concat "cannot parse imported scheme for " name)])
+      other -> (None, [Diagnostic "bootstrap.resolve" s (string-concat "missing imported scheme for " name)])
+    else (None, [])
 
   type-references :: TypeExpr -> List String
   type-references ty = case ty of
-    TName s name -> Cons name Nil
+    TName s name -> [name]
     TNegate s x -> type-references x
     TIndexLambda s name body -> type-references body
     TInfix s op a b -> type-references a <> type-references b
@@ -329,7 +325,7 @@ module Cinch.Contracts where
     TRow s labels tail -> type-references labels
     TTuple s args -> type-references args
     TList s args -> [global-data-core-nil, global-data-core-cons] <> type-references args
-    TStrLit s text -> Nil
+    TStrLit s text -> []
     TSigma s name dom body -> type-references dom <> type-references body
     TForall s binders body -> type-references binders <> type-references body
     TQuantifier s name only kind rest -> type-references kind <> type-references rest
@@ -338,13 +334,13 @@ module Cinch.Contracts where
     TBound s name kind rest -> type-references kind <> type-references rest
     TEvidenceField s name ty -> type-references ty
     TUnpackField s enabled ty -> type-references ty
-    other -> Nil
+    other -> []
 
   pat-references :: Pat -> List String
   pat-references p = case p of
-    PFamilyCon sp fallback candidate args -> Cons fallback (pat-references args)
-    PCon s name args -> Cons name (pat-references args)
-    PRecord s name fields -> Cons name (pat-references fields)
+    PFamilyCon sp fallback candidate args -> fallback : (pat-references args)
+    PCon s name args -> name : (pat-references args)
+    PRecord s name fields -> name : (pat-references fields)
     PRecordField s name value rest -> pat-references value <> pat-references rest
     PTuple s args -> pat-references args
     PList s args -> [global-data-core-nil, global-data-core-cons] <> pat-references args
@@ -352,34 +348,34 @@ module Cinch.Contracts where
     PAs s name inner -> pat-references inner
     PAnn s inner ty -> pat-references inner <> type-references ty
     PArg s x rest -> pat-references x <> pat-references rest
-    other -> Nil
+    other -> []
 
   patterns-references :: List Pat -> List String
-  patterns-references ps = case ps of Nil -> Nil; Cons p rest -> pat-references p <> patterns-references rest
+  patterns-references ps = case ps of [] -> []; p : rest -> pat-references p <> patterns-references rest
 
   expr-references :: Expr -> List String
   expr-references e = case e of
-    EVar s name -> Cons name Nil
+    EVar s name -> [name]
     -- The resolver keeps the bare predicate name only inside kernel decide.
     -- Elaborating that test needs the checked list constructors in scope.
-    ECon s name args | same name "NotNull" ->
+    ECon s name args | (name == "NotNull") ->
       [global-data-core-nil, global-data-core-cons] <> expr-references args
-    EFamilyCon sp fallback candidate args -> Cons fallback (expr-references args)
-    ECon s name args -> Cons name (expr-references args)
-    ERecord s name fields -> Cons name (expr-references fields)
+    EFamilyCon sp fallback candidate args -> fallback : (expr-references args)
+    ECon s name args -> name : (expr-references args)
+    ERecord s name fields -> name : (expr-references fields)
     ERecordField s name value rest -> expr-references value <> expr-references rest
     EProject s value name -> expr-references value
     ETuple s args -> expr-references args
     EMap s args -> [global-data-core-nil, global-data-core-cons, interface-global "Data.FromMap.FromMap.from-map"] <> expr-references args
-    ERange s args -> Cons global-data-fromlist-fromlist-from-list (Cons (interface-global (case args of
+    ERange s args -> global-data-fromlist-fromlist-from-list : ((interface-global (case args of
       EArg a lo (EArg b hi (EArgsEnd end)) -> "Data.Enum.enum-from-to"
-      other -> "Data.Enum.enum-from-then-to")) (expr-references args))
+      other -> "Data.Enum.enum-from-then-to")) : (expr-references args))
     EList s args -> [global-data-core-nil, global-data-core-cons, global-data-fromlist-fromlist-from-list] <> expr-references args
     ESupplied s f a -> expr-references f <> expr-references a
     EApp s f a -> expr-references f <> expr-references a
     EBin s op a b -> expr-references a <> expr-references b
-    ENeg s (ELitInt at text) -> Nil
-    ENeg s x -> Cons (interface-global "Algebra.Arithmetic.Neg.negate") (expr-references x)
+    ENeg s (ELitInt at text) -> []
+    ENeg s x -> (interface-global "Algebra.Arithmetic.Neg.negate") : (expr-references x)
     ELam s ps body -> patterns-references ps <> expr-references body
     ELet s bs body -> expr-references bs <> expr-references body
     ELetScope sp body -> expr-references body
@@ -399,32 +395,32 @@ module Cinch.Contracts where
     EBind s name rhs -> expr-references rhs
     EHandle s body handled-by -> expr-references body <> expr-references handled-by
     EHandler s label clauses -> type-references label <> expr-references clauses
-    EHandlerClause s name pats continuation body rest -> (if same name "return" then Nil else Cons name Nil)
+    EHandlerClause s name pats continuation body rest -> (if name == "return" then [] else [name])
       <> patterns-references pats <> expr-references body <> expr-references rest
     EQuote s body -> expr-references body
     -- The macro's name is a compile-time reference, not a value one: the
     -- expansion is what names runtime values.
-    EDefinitionName s home name -> Nil
-    ESyntaxReference s key name -> Nil
+    EDefinitionName s home name -> []
+    ESyntaxReference s key name -> []
     ESyntaxCaptureUnder s key name body -> expr-references body
     ETemplateScope s home body -> expr-references body
     EArgumentScope s body -> expr-references body
-    EMacroCall s path tokens -> Nil
+    EMacroCall s path tokens -> []
     EArg s x rest -> expr-references x <> expr-references rest
     EBinding s name rhs rest -> expr-references rhs <> expr-references rest
     EAlt s pat rhs rest -> pat-references pat <> expr-references rhs <> expr-references rest
-    other -> Nil
+    other -> []
 
   clause-references :: List (List Pat, Expr) -> List String
   clause-references clauses = case clauses of
-    Nil -> Nil
-    Cons (ps, body) rest -> patterns-references ps <> expr-references body <> clause-references rest
+    [] -> []
+    (ps, body) : rest -> patterns-references ps <> expr-references body <> clause-references rest
 
   defined-instance-method :: String -> List Decl -> Bool
   defined-instance-method name members = case members of
-    Nil -> False
-    Cons (DFun sp member clauses) rest -> same name member || defined-instance-method name rest
-    Cons other rest -> defined-instance-method name rest
+    [] -> False
+    (DFun sp member clauses) : rest -> name == member || defined-instance-method name rest
+    other : rest -> defined-instance-method name rest
 
   default-method-references :: List Decl -> Json -> List String
   default-method-references members methods = case methods of
@@ -436,7 +432,7 @@ module Cinch.Contracts where
             Some clauses -> clause-references clauses <> more
             None -> more)
         other -> more)
-    other -> Nil
+    other -> []
 
   record ImportedClasses where
     class-rows :: List (String, Json)
@@ -446,27 +442,27 @@ module Cinch.Contracts where
   -- Keep document order for checks that visit all rows, and keep the first
   -- row for lookups, including when a class is re-exported.
   imported-classes :: List Decl -> ImportedClasses
-  imported-classes ds = let newest = collect-class-rows ds Nil in
+  imported-classes ds = let newest = collect-class-rows ds [] in
     ImportedClasses (reverse newest) (index-class-rows newest hash-map-empty) hash-map-empty
 
   collect-class-rows :: List Decl -> List (String, Json) -> List (String, Json)
   collect-class-rows ds found = case ds of
-    Nil -> found
-    Cons (DInterface s name hash metadata) rest ->
+    [] -> found
+    (DInterface s name hash metadata) : rest ->
       collect-class-rows rest (append-class-rows (field "signatures" (field "exports" metadata)) found)
-    Cons other rest -> collect-class-rows rest found
+    other : rest -> collect-class-rows rest found
 
   append-class-rows :: Json -> List (String, Json) -> List (String, Json)
   append-class-rows rows found = case rows of
     JArr row rest -> case field "identity" row of
-      JStr identity -> append-class-rows rest (Cons (interface-global identity, row) found)
+      JStr identity -> append-class-rows rest ((interface-global identity, row) : found)
       other -> append-class-rows rest found
     other -> found
 
   index-class-rows :: List (String, Json) -> HashMap String Json -> HashMap String Json
   index-class-rows rows indexed = case rows of
-    Nil -> indexed
-    Cons (native, row) rest -> index-class-rows rest (hash-map-insert native row indexed)
+    [] -> indexed
+    (native, row) : rest -> index-class-rows rest (hash-map-insert native row indexed)
 
   imported-class-row :: String -> ImportedClasses -> Option Json
   imported-class-row name (ImportedClasses ordered indexed methods) = hash-map-lookup name indexed
@@ -484,8 +480,8 @@ module Cinch.Contracts where
 
   prepare-class-method-rows :: List (String, Json) -> HashMap String (Option (List (String, Nat, TypeExpr))) -> HashMap String (Option (List (String, Nat, TypeExpr)))
   prepare-class-method-rows rows prepared = case rows of
-    Nil -> prepared
-    Cons (owner, row) rest -> case hash-map-lookup owner prepared of
+    [] -> prepared
+    (owner, row) : rest -> case hash-map-lookup owner prepared of
       Some prior -> prepare-class-method-rows rest prepared
       None -> prepare-class-method-rows rest (hash-map-insert owner (read-class-methods (field "methods" row)) prepared)
 
@@ -494,14 +490,14 @@ module Cinch.Contracts where
     JArr row rest -> case (field "name" row, field "slot" row, resolved-text row) of
       (JStr name, JNum slot, Some text) | slot >= 0 ->
         (case parse-scheme "resolved-interface" (string-to-bytes text) of
-          Parsed ty Nil -> (case qualify-resolved row ty of
-            (qualified, Nil) -> (case read-class-methods rest of
-              Some methods -> Some (Cons (name, nat-from-int slot, qualified) methods)
+          Parsed ty [] -> (case qualify-resolved row ty of
+            (qualified, []) -> (case read-class-methods rest of
+              Some methods -> Some ((name, nat-from-int slot, qualified) : methods)
               None -> None)
             errors -> None)
           other -> None)
       other -> None
-    JArrEnd -> Some Nil
+    JArrEnd -> Some []
     other -> None
 
   instance-class-name :: TypeExpr -> Option String
@@ -516,8 +512,8 @@ module Cinch.Contracts where
   imported-law-references laws = case laws of
     JArr row rest -> (case portable-law-syntax zero (\identity -> Some identity) (field "syntax" row) of
       Some syntax -> law-references syntax
-      None -> Nil) <> imported-law-references rest
-    other -> Nil
+      None -> []) <> imported-law-references rest
+    other -> []
 
   -- The source instance needs bindings for its class laws and omitted
   -- default methods. Loading an unrelated interface has no runtime demand.
@@ -526,29 +522,29 @@ module Cinch.Contracts where
 
   seek-instance :: List Decl -> List Decl -> List String
   seek-instance all ds = case ds of
-    Nil -> Nil
-    Cons (DInstance sp flag name params head members) rest -> class-references (imported-classes all) ds
-    Cons other rest -> seek-instance all rest
+    [] -> []
+    (DInstance sp flag name params head members) : rest -> class-references (imported-classes all) ds
+    other : rest -> seek-instance all rest
 
   class-references :: ImportedClasses -> List Decl -> List String
   class-references classes ds = case ds of
-    Nil -> Nil
-    Cons (DInstance sp flag name params head members) rest ->
+    [] -> []
+    (DInstance sp flag name params head members) : rest ->
       (case instance-class-name head of
         Some owner -> (case imported-class-row owner classes of
           Some row -> default-method-references (decls-of members) (field "methods" row)
             <> imported-law-references (field "laws" row)
-          None -> Nil)
-        None -> Nil) <> class-references classes rest
-    Cons other rest -> class-references classes rest
+          None -> [])
+        None -> []) <> class-references classes rest
+    other : rest -> class-references classes rest
 
   ctor-references :: List (String, TypeExpr) -> List String
-  ctor-references ctors = case ctors of Nil -> Nil; Cons (name, ty) rest -> type-references ty <> ctor-references rest
+  ctor-references ctors = case ctors of [] -> []; (name, ty) : rest -> type-references ty <> ctor-references rest
 
   param-references :: List TypeParam -> List String
   param-references params = case params of
-    Nil -> Nil
-    Cons p rest -> (case p.kind of None -> Nil; Some ty -> type-references ty) <> param-references rest
+    [] -> []
+    p : rest -> (case p.kind of None -> []; Some ty -> type-references ty) <> param-references rest
 
   -- Keep the recursive list frame small. Putting this declaration match
   -- inside the traversal reserves every branch's native slots for every
@@ -563,7 +559,7 @@ module Cinch.Contracts where
   rewrite-proof-references :: RewriteJustification -> List String
   rewrite-proof-references evidence = case evidence of
     RewriteTerm expression -> expr-references expression
-    RewriteLaw at owner member args -> Cons owner (expr-references (expr-spine at args))
+    RewriteLaw at owner member args -> owner : (expr-references (expr-spine at args))
 
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
@@ -575,21 +571,21 @@ module Cinch.Contracts where
     DLaw s name syntax -> law-references syntax
     DRewrite s name (RewriteSyntax targeted params bounds pattern replacement guard evidence) ->
       param-references params <> type-references bounds <> expr-references pattern <> expr-references replacement
-      <> (case guard of Some condition -> expr-references condition; None -> Nil)
+      <> (case guard of Some condition -> expr-references condition; None -> [])
       <> rewrite-proof-references evidence
     DClass s name params members -> param-references params <> declaration-references (decls-of members)
     DFun s name clauses -> clause-references clauses
     DOpaque s name params kind -> param-references params <> type-references kind
     DData s name params ctors -> param-references params <> ctor-references ctors
-    DTypeFamily s name params rk closed eqs -> param-references params <> (case rk of None -> Nil; Some k -> type-references k) <> type-family-eq-references eqs
-    DTypeInstance s fam args rhs -> Cons fam (type-references args <> type-references rhs)
+    DTypeFamily s name params rk closed eqs -> param-references params <> (case rk of None -> []; Some k -> type-references k) <> type-family-eq-references eqs
+    DTypeInstance s fam args rhs -> fam : (type-references args <> type-references rhs)
     DDataFamily s name params -> param-references params
-    DDataInstance s fam args ctors -> Cons fam (type-references args <> ctor-references ctors)
+    DDataInstance s fam args ctors -> fam : (type-references args <> ctor-references ctors)
     DRecord s name params fields -> param-references params <> ctor-references fields
     DCodata s name params observations -> param-references params <> ctor-references observations
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
-    DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)
+    DForeign s direction abi symbol name ty -> type-references ty <> (if direction == "export" then [name] else [])
     DPrim s name ty bodies -> type-references ty <> prim-body-references bodies
     -- A temporal contract's formulas are checked as ordinary terms over the
     -- definition's parameters (core specification section 10), so every
@@ -600,28 +596,28 @@ module Cinch.Contracts where
     -- reference set left the method unbound in the environment the formula
     -- is checked in.
     DContract s keyword name subject clauses -> contract-clause-references clauses
-    other -> Nil
+    other -> []
 
   type-family-eq-references :: List TypeFamilyEq -> List String
   type-family-eq-references eqs = case eqs of
-    Nil -> Nil
-    Cons (TypeFamilyEq s head args rhs) rest -> type-references args <> type-references rhs <> type-family-eq-references rest
+    [] -> []
+    (TypeFamilyEq s head args rhs) : rest -> type-references args <> type-references rhs <> type-family-eq-references rest
 
   contract-clause-references :: List ContractClause -> List String
   contract-clause-references clauses = case clauses of
-    Nil -> Nil
-    Cons first rest -> case first of
+    [] -> []
+    first : rest -> case first of
       ContractFormula s op body -> expr-references body <> contract-clause-references rest
       ContractAssume s body -> expr-references body <> contract-clause-references rest
       ContractAssumed s text -> contract-clause-references rest
 
   prim-body-references :: List PrimBody -> List String
   prim-body-references bodies = case bodies of
-    Nil -> Nil
-    Cons (PrimBody sp family fragment unverified condition selected justification uses immediates) rest ->
-      ctor-references uses <> (case justification of Some evidence -> rewrite-proof-references evidence; None -> Nil) <> prim-body-references rest
+    [] -> []
+    (PrimBody sp family fragment unverified condition selected justification uses immediates) : rest ->
+      ctor-references uses <> (case justification of Some evidence -> rewrite-proof-references evidence; None -> []) <> prim-body-references rest
 
   declaration-references :: List Decl -> List String
   declaration-references ds = case ds of
-    Nil -> Nil
-    Cons d rest -> declaration-reference d <> declaration-references rest
+    [] -> []
+    d : rest -> declaration-reference d <> declaration-references rest

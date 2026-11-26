@@ -7,11 +7,12 @@
 
 module Cinch.Report where
 
-  import Text.Lex (Span, span-line, span-col, bytes-slice)
+  import Text.Lex (Span, span-start, span-end, span-line, span-col, bytes-slice)
   import Data.String (utf8-valid-from)
   import Data.Char (is-ascii-lower)
   import Text.Scan (string-starts-with, string-drop, string-contains)
-  import Text.Show (nat-to-string)
+  import Text.Show (Show, show, nat-to-string)
+  import Relation.Eq (Eq)
   import Cinch.Ast (span-join, span-here)
 
   -- A diagnostic carries its rung, source span, and rendered message.
@@ -21,6 +22,18 @@ module Cinch.Report where
     rung :: String
     span :: Span
     message :: String
+
+  implicit instance Eq_Diagnostic :: Eq Diagnostic where
+    (==) a b = a.rung == b.rung
+      && span-start a.span == span-start b.span
+      && span-end a.span == span-end b.span
+      && span-line a.span == span-line b.span
+      && span-col a.span == span-col b.span
+      && a.message == b.message
+    (/=) a b = not (a == b)
+
+  implicit instance Show_Diagnostic :: Show Diagnostic where
+    show d = render-diagnostic d
 
   -- `line:col`, the position a reader navigates to.
   render-position :: Span -> String
@@ -38,21 +51,21 @@ module Cinch.Report where
       string-concat-all ["unknown name ", string-drop (string-length "name is not in scope: ") message, " (", message, ")"] else
       if string-starts-with "unknown type constructor or unbound type variable: " message then
         let name = string-drop (string-length "unknown type constructor or unbound type variable: ") message in
-        let variable = case unpack name of Cons first rest -> is-ascii-lower first && not (string-contains "." name); Nil -> False in
+        let variable = case unpack name of first : rest -> is-ascii-lower first && not (string-contains "." name); [] -> False in
         string-concat-all [if variable then "unknown type variable " else "unknown type ", name, " (", message, ")"] else message) in
     string-concat rung (string-concat ":" (string-concat pos (string-concat ": " rendered)))
 
   diagnostics-count :: List Diagnostic -> Nat
   diagnostics-count ds = case ds of
-    Nil -> 0
-    Cons d rest -> 1 + diagnostics-count rest
+    [] -> 0
+    d : rest -> 1 + diagnostics-count rest
 
   -- One per line, newline-terminated, so a rung can write its report to a
   -- file or a stream without further formatting.
   render-diagnostics :: List Diagnostic -> String
   render-diagnostics ds = case ds of
-    Nil -> empty-string
-    Cons d rest -> string-concat (render-diagnostic d) (string-concat "\n" (render-diagnostics rest))
+    [] -> empty-string
+    d : rest -> string-concat (render-diagnostic d) (string-concat "\n" (render-diagnostics rest))
 
   -- Project bundles label their actual input files with column-one
   -- `-- source: <escaped path>` comments. These affect presentation only:
@@ -97,8 +110,8 @@ module Cinch.Report where
         (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic.span))) ")"))))))
   render-source-diagnostics-from :: Bytes -> Bytes -> List Diagnostic -> String
   render-source-diagnostics-from prefix source diagnostics = case diagnostics of
-    Nil -> empty-string
-    Cons first rest -> string-concat (render-source-diagnostic prefix source first)
+    [] -> empty-string
+    first : rest -> string-concat (render-source-diagnostic prefix source first)
       (string-concat "\n" (render-source-diagnostics-from prefix source rest))
   render-source-diagnostics :: Bytes -> List Diagnostic -> String
   render-source-diagnostics source diagnostics =

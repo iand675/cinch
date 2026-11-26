@@ -6,6 +6,7 @@ module Cinch.Inputs where
   import Cinch.Document
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
+  import Effect.Sequencing (ResultSequencing)
   import Text.Scan (string-ends-with)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
@@ -24,8 +25,8 @@ module Cinch.Inputs where
   embedded-library-home name = embedded-home-member name embedded-homes
   embedded-home-member :: String -> List String -> Bool
   embedded-home-member name homes = case homes of
-    Nil -> False
-    Cons home rest -> string-compare name home == 0 || embedded-home-member name rest
+    [] -> False
+    home : rest -> name == home || embedded-home-member name rest
   embedded-homes :: List String
   embedded-homes =
     ["Data.Core", "Data.Ordering", "Relation.Eq", "Relation.Ord",
@@ -45,48 +46,48 @@ module Cinch.Inputs where
 
   field :: String -> Json -> Json
   field name doc = case doc of
-    JObj key value rest -> if string-compare name key == 0 then value else field name rest
+    JObj key value rest -> if name == key then value else field name rest
     other -> JNull
 
-  rows :: Json -> Result String (List (String, String, String))
+  rows :: using (seq :: ResultSequencing String) => Json -> Result String (List (String, String, String))
   rows items = case items of
-    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) JArrEnd))) rest -> case rows rest of
-      Err message -> Err message
-      Ok more -> Ok (Cons (name, hash, path) more)
-    JArrEnd -> Ok Nil
+    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) JArrEnd))) rest -> do
+      more <- rows rest
+      Ok ((name, hash, path) : more)
+    JArrEnd -> Ok []
     other -> Err "malformed interface manifest rows"
 
-  read-files :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String (List (String, String, Bytes))
+  read-files :: forall r. using (io :: Io r, seq :: ResultSequencing String) => List (String, String, String) ->{IO r} Result String (List (String, String, Bytes))
   read-files inputs = case inputs of
-    Nil -> Ok Nil
-    Cons (name, hash, path) rest -> case fs-read (path-from-string path) of
-      Err error -> Err (string-concat "cannot read interface: " path)
-      Ok src -> case read-files rest of
-        Err message -> Err message
-        Ok others -> Ok (Cons (name, hash, src) others)
+    [] -> Ok []
+    (name, hash, path) : rest -> case fs-read (path-from-string path) of
+      Err _ -> Err (string-concat "cannot read interface: " path)
+      Ok src -> do
+        others <- read-files rest
+        Ok ((name, hash, src) : others)
 
   read-interface-references :: forall r. using (io :: Io r) => String ->{IO r} Result String (List (String, String, String))
   read-interface-references path = case fs-read (path-from-string path) of
-    Err error -> Err (string-concat "cannot read interface manifest: " path)
+    Err _ -> Err (string-concat "cannot read interface manifest: " path)
     Ok src -> case parse-json path src of
-      Parsed doc Nil -> case field "schema" doc of
+      Parsed doc [] -> case field "schema" doc of
         JNum version ->
           if version == 1 then rows (field "interfaces" doc)
           else Err "unsupported interface manifest schema"
         other -> Err "missing interface manifest schema"
       other -> Err "interface manifest is not valid JSON"
 
-  load-interface-references :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String ValidatedInterfaces
-  load-interface-references inputs = case read-files inputs of
-    Err message -> Err message
-    Ok files -> load-validated-interfaces files
+  load-interface-references :: forall r. using (io :: Io r, seq :: ResultSequencing String) => List (String, String, String) ->{IO r} Result String ValidatedInterfaces
+  load-interface-references inputs = do
+    files <- read-files inputs
+    load-validated-interfaces files
 
-  read-interface-inputs :: forall r. using (io :: Io r) => String ->{IO r} Result String InterfaceInputs
+  read-interface-inputs :: forall r. using (io :: Io r, seq :: ResultSequencing String) => String ->{IO r} Result String InterfaceInputs
   read-interface-inputs path =
     if string-ends-with ".cpk" path then Ok (InterfacePackage path)
-    else case read-interface-references path of
-      Err message -> Err message
-      Ok inputs -> Ok (InterfaceFiles inputs)
+    else do
+      inputs <- read-interface-references path
+      Ok (InterfaceFiles inputs)
 
   interface-input-files :: InterfaceInputs -> List String
   interface-input-files inputs = case inputs of
@@ -100,34 +101,34 @@ module Cinch.Inputs where
 
   file-paths :: List (String, String, String) -> List String
   file-paths inputs = case inputs of
-    Nil -> Nil
-    Cons (home, digest, path) rest -> Cons path (file-paths rest)
+    [] -> []
+    (home, digest, path) : rest -> path : file-paths rest
 
-  load-interface-inputs :: forall r. using (io :: Io r) => InterfaceInputs ->{IO r} Result String ValidatedInterfaces
+  load-interface-inputs :: forall r. using (io :: Io r, seq :: ResultSequencing String) => InterfaceInputs ->{IO r} Result String ValidatedInterfaces
   load-interface-inputs inputs = case inputs of
     InterfaceFiles rows -> load-interface-references rows
-    InterfacePackage path -> case read-package-documents path of
-      Err message -> Err message
-      Ok documents -> load-validated-package-contracts documents
+    InterfacePackage path -> do
+      documents <- read-package-documents path
+      load-validated-package-contracts documents
 
-  load-client-interface-inputs :: forall r. using (io :: Io r) => InterfaceInputs -> Option String ->{IO r} Result String (ValidatedInterfaces, Option PackageSnapshot)
+  load-client-interface-inputs :: forall r. using (io :: Io r, seq :: ResultSequencing String) => InterfaceInputs -> Option String ->{IO r} Result String (ValidatedInterfaces, Option PackageSnapshot)
   load-client-interface-inputs inputs metadata = case (inputs, metadata) of
-    (InterfacePackage path, Some file) | string-compare path file == 0 ->
-      (case read-package-snapshot path of
-        Err message -> Err message
-        Ok (documents, snapshot) -> (case load-validated-package-contracts documents of
-          Err message -> Err message
-          Ok checked -> Ok (checked, Some snapshot)))
-    other -> case load-interface-inputs inputs of
-      Err message -> Err message
-      Ok checked -> Ok (checked, None)
+    (InterfacePackage path, Some file) | (path == file) -> do
+      pair <- read-package-snapshot path
+      case pair of
+        (documents, snapshot) -> do
+          checked <- load-validated-package-contracts documents
+          Ok (checked, Some snapshot)
+    other -> do
+      checked <- load-interface-inputs inputs
+      Ok (checked, None)
 
-  read-validated-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String ValidatedInterfaces
-  read-validated-interfaces path = case read-interface-inputs path of
-    Err message -> Err message
-    Ok inputs -> load-interface-inputs inputs
+  read-validated-interfaces :: forall r. using (io :: Io r, seq :: ResultSequencing String) => String ->{IO r} Result String ValidatedInterfaces
+  read-validated-interfaces path = do
+    inputs <- read-interface-inputs path
+    load-interface-inputs inputs
 
-  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
-  read-interfaces path = case read-validated-interfaces path of
-    Err message -> Err message
-    Ok checked -> Ok (checked.interfaces-members)
+  read-interfaces :: forall r. using (io :: Io r, seq :: ResultSequencing String) => String ->{IO r} Result String (List LoadedInterface)
+  read-interfaces path = do
+    checked <- read-validated-interfaces path
+    Ok checked.interfaces-members
