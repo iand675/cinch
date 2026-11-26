@@ -2228,12 +2228,15 @@ const LIN_ROWS: usize = 256;
 const LIN_SPLITS: usize = 2;
 const LIN_SPLIT_TRIES: usize = 6;
 
-fn gcd(a: i128, b: i128) -> i128 {
-    let (mut a, mut b) = (a.abs(), b.abs());
+fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         (a, b) = (b, a % b);
     }
     a
+}
+
+fn gcd(a: i128, b: i128) -> i128 {
+    i128::try_from(gcd_u128(a.unsigned_abs(), b.unsigned_abs())).unwrap_or(1)
 }
 
 /// `l - r <= d` as a linear constraint, the left side's coefficients
@@ -2383,7 +2386,7 @@ fn lin_prove(hyps: &[PTerm], disjuncts: &[PTerm], sorts: &Sorts) -> Option<LinCe
             rows.push(LinStep { le, why: DiffWhy::Domain(k.clone()) });
         }
     }
-    if rows.len() > LIN_ROWS {
+    if rows.len() > LIN_ROWS * 4 {
         return None;
     }
     let diseqs: Vec<(DiffWhy, LinLe, LinLe)> =
@@ -2424,89 +2427,345 @@ fn lin_refute(rows: &mut Vec<LinStep>, diseqs: &[(DiffWhy, LinLe, LinLe)], depth
 /// a negative bound, or `None` when the rows are rationally feasible, a
 /// coefficient overflows, or the row cap is passed.
 fn fourier_motzkin(rows: &[LinStep]) -> Option<Vec<(usize, i128)>> {
-    // Each row: coefficients, bound, and its derivation over `rows`.
-    type Row = (Vec<(ITerm, i128)>, i128, Vec<(usize, i128)>);
-    let mut cur: Vec<Row> =
-        rows.iter().enumerate().map(|(i, s)| (s.le.terms.clone(), s.le.c, vec![(i, 1)])).collect();
-    loop {
-        if let Some(r) = cur.iter().find(|r| r.0.is_empty() && r.1 < 0) {
-            return Some(r.2.clone());
+    struct FmRow {
+        /// Sorted strictly ascending by variable ID; all coefficients non-zero.
+        terms: Vec<(usize, i128)>,
+        c: i128,
+        /// Sorted strictly ascending by original row index; all weights > 0.
+        deriv: Vec<(usize, i128)>,
+    }
+
+    enum InsertOutcome {
+        Ok,
+        Contradiction(Vec<(usize, i128)>),
+        LimitExceeded,
+    }
+
+    fn normalize_row(terms: &mut [(usize, i128)], c: &mut i128, deriv: &mut [(usize, i128)]) {
+        let g = terms
+            .iter()
+            .map(|(_, a)| a.unsigned_abs())
+            .chain(deriv.iter().map(|(_, m)| m.unsigned_abs()))
+            .chain(std::iter::once(c.unsigned_abs()))
+            .fold(0u128, gcd_u128);
+        if g > 1 {
+            if let Ok(g_i) = i128::try_from(g) {
+                for (_, a) in terms.iter_mut() {
+                    *a /= g_i;
+                }
+                *c /= g_i;
+                for (_, m) in deriv.iter_mut() {
+                    *m /= g_i;
+                }
+            }
         }
-        // The key whose elimination makes the fewest new rows.
-        let mut best: Option<(ITerm, usize)> = None;
-        let mut seen: Vec<ITerm> = Vec::new();
-        for r in &cur {
-            for (t, _) in &r.0 {
-                if seen.contains(t) {
+    }
+
+    fn merge_scaled(
+        a: &[(usize, i128)],
+        ma: i128,
+        b: &[(usize, i128)],
+        mb: i128,
+    ) -> Option<Vec<(usize, i128)>> {
+        let mut out = Vec::with_capacity(a.len() + b.len());
+        let (mut i, mut j) = (0, 0);
+        while i < a.len() && j < b.len() {
+            match a[i].0.cmp(&b[j].0) {
+                std::cmp::Ordering::Less => {
+                    let v = a[i].1.checked_mul(ma)?;
+                    if v != 0 {
+                        out.push((a[i].0, v));
+                    }
+                    i += 1;
+                }
+                std::cmp::Ordering::Greater => {
+                    let v = b[j].1.checked_mul(mb)?;
+                    if v != 0 {
+                        out.push((b[j].0, v));
+                    }
+                    j += 1;
+                }
+                std::cmp::Ordering::Equal => {
+                    let va = a[i].1.checked_mul(ma)?;
+                    let vb = b[j].1.checked_mul(mb)?;
+                    let sum = va.checked_add(vb)?;
+                    if sum != 0 {
+                        out.push((a[i].0, sum));
+                    }
+                    i += 1;
+                    j += 1;
+                }
+            }
+        }
+        for &(k, v) in &a[i..] {
+            let sv = v.checked_mul(ma)?;
+            if sv != 0 {
+                out.push((k, sv));
+            }
+        }
+        for &(k, v) in &b[j..] {
+            let sv = v.checked_mul(mb)?;
+            if sv != 0 {
+                out.push((k, sv));
+            }
+        }
+        Some(out)
+    }
+
+    struct RowSet {
+        rows: Vec<FmRow>,
+        /// Canonical positive-leading primitive direction -> `(pos_slot, neg_slot)`,
+        /// where each slot stores `(row_index, terms_gcd)` of the tightest row in that direction.
+        dirs: HashMap<Vec<(usize, i128)>, (Option<(usize, i128)>, Option<(usize, i128)>)>,
+        limit: usize,
+    }
+
+    impl RowSet {
+        fn new(limit: usize) -> Self {
+            Self { rows: Vec::new(), dirs: HashMap::new(), limit }
+        }
+
+        fn insert(&mut self, mut row: FmRow) -> InsertOutcome {
+            // Immediate contradiction short-circuit and tautology dropping.
+            if row.terms.is_empty() {
+                if row.c < 0 {
+                    normalize_row(&mut row.terms, &mut row.c, &mut row.deriv);
+                    return InsertOutcome::Contradiction(row.deriv);
+                }
+                return InsertOutcome::Ok;
+            }
+            let g_u = row.terms.iter().fold(0u128, |g, (_, a)| gcd_u128(g, a.unsigned_abs()));
+            let Ok(g_terms) = i128::try_from(g_u) else {
+                if self.rows.len() >= self.limit {
+                    return InsertOutcome::LimitExceeded;
+                }
+                self.rows.push(row);
+                return InsertOutcome::Ok;
+            };
+            let neg = row.terms[0].1 < 0;
+            let mut dir = Vec::with_capacity(row.terms.len());
+            let mut dir_ok = true;
+            for &(v, a) in &row.terms {
+                let q = a / g_terms;
+                let dq = if neg {
+                    match q.checked_neg() {
+                        Some(x) => x,
+                        None => {
+                            dir_ok = false;
+                            break;
+                        }
+                    }
+                } else {
+                    q
+                };
+                dir.push((v, dq));
+            }
+            if !dir_ok {
+                if self.rows.len() >= self.limit {
+                    return InsertOutcome::LimitExceeded;
+                }
+                self.rows.push(row);
+                return InsertOutcome::Ok;
+            }
+            let entry = self.dirs.entry(dir).or_insert((None, None));
+            // Check opposite direction for an immediate multi-term contradiction:
+            // `g_terms * (dir . x) <= c` and `-g_opp * (dir . x) <= c_opp`.
+            let opp_slot = if neg { entry.0 } else { entry.1 };
+            if let Some((opp_idx, g_opp)) = opp_slot {
+                let opp = &self.rows[opp_idx];
+                let d = gcd_u128(g_terms.unsigned_abs(), g_opp.unsigned_abs()) as i128;
+                let m_new = g_opp / d;
+                let m_opp = g_terms / d;
+                let c_sum = row
+                    .c
+                    .checked_mul(m_new)
+                    .and_then(|x| opp.c.checked_mul(m_opp).and_then(|y| x.checked_add(y)));
+                if let Some(mut c_total) = c_sum {
+                    if c_total < 0 {
+                        if let Some(mut deriv) = merge_scaled(&row.deriv, m_new, &opp.deriv, m_opp) {
+                            normalize_row(&mut [], &mut c_total, &mut deriv);
+                            return InsertOutcome::Contradiction(deriv);
+                        }
+                    }
+                }
+            }
+            // Proportional / duplicate subsumption in the same direction:
+            // keep only the single tightest bound (and smallest gcd on ties),
+            // never altering a kept row's original terms, constant, or weights.
+            let same_slot = if neg { &mut entry.1 } else { &mut entry.0 };
+            if let Some((old_idx, g_old)) = *same_slot {
+                let old_c = self.rows[old_idx].c;
+                if let (Some(lhs), Some(rhs)) = (row.c.checked_mul(g_old), old_c.checked_mul(g_terms)) {
+                    if lhs < rhs || (lhs == rhs && g_terms < g_old) {
+                        self.rows[old_idx] = row;
+                        *same_slot = Some((old_idx, g_terms));
+                    }
+                    return InsertOutcome::Ok;
+                }
+                // Overflow during rational comparison: conservatively keep both.
+                if self.rows.len() >= self.limit {
+                    return InsertOutcome::LimitExceeded;
+                }
+                self.rows.push(row);
+                return InsertOutcome::Ok;
+            }
+            if self.rows.len() >= self.limit {
+                return InsertOutcome::LimitExceeded;
+            }
+            let idx = self.rows.len();
+            self.rows.push(row);
+            *same_slot = Some((idx, g_terms));
+            InsertOutcome::Ok
+        }
+    }
+
+    // Intern all distinct variable keys once so inner-loop operations work on
+    // sorted `Vec<(usize, i128)>` without cloning or formatting `ITerm`s.
+    let mut var_table: Vec<&ITerm> = Vec::new();
+    let mut init_set = RowSet::new(usize::MAX);
+    for (i, step) in rows.iter().enumerate() {
+        let mut terms: Vec<(usize, i128)> = Vec::with_capacity(step.le.terms.len());
+        for (t, a) in &step.le.terms {
+            if *a == 0 {
+                continue;
+            }
+            let id = if let Some(pos) = var_table.iter().position(|existing| *existing == t) {
+                pos
+            } else {
+                let pos = var_table.len();
+                var_table.push(t);
+                pos
+            };
+            terms.push((id, *a));
+        }
+        terms.sort_unstable_by_key(|&(v, _)| v);
+        // Coalesce any duplicate keys that might appear in manually constructed rows.
+        let mut coalesced: Vec<(usize, i128)> = Vec::with_capacity(terms.len());
+        for (v, a) in terms {
+            if let Some(last) = coalesced.last_mut() {
+                if last.0 == v {
+                    last.1 = last.1.checked_add(a)?;
                     continue;
                 }
-                seen.push(t.clone());
-                let coef = |r: &Row| r.0.iter().find(|(k, _)| k == t).map_or(0, |(_, a)| *a);
-                let pos = cur.iter().filter(|r| coef(r) > 0).count();
-                let neg = cur.iter().filter(|r| coef(r) < 0).count();
-                let cost = pos * neg;
-                if best.as_ref().is_none_or(|(_, c)| cost < *c) {
-                    best = Some((t.clone(), cost));
+            }
+            coalesced.push((v, a));
+        }
+        coalesced.retain(|&(_, a)| a != 0);
+        let row = FmRow { terms: coalesced, c: step.le.c, deriv: vec![(i, 1)] };
+        match init_set.insert(row) {
+            InsertOutcome::Ok => {}
+            InsertOutcome::Contradiction(deriv) => return Some(deriv),
+            InsertOutcome::LimitExceeded => return None,
+        }
+    }
+
+    let num_vars = var_table.len();
+    let mut cur = init_set.rows;
+    let mut pos_count = vec![0usize; num_vars];
+    let mut neg_count = vec![0usize; num_vars];
+
+    // Cascading pure-variable elimination: any variable appearing with only
+    // positive or only negative coefficients can never be cancelled by a
+    // positive Farkas combination, so all rows mentioning it drop for free.
+    let eliminate_pure_vars = |cur: &mut Vec<FmRow>, pos_count: &mut [usize], neg_count: &mut [usize]| {
+        loop {
+            pos_count.fill(0);
+            neg_count.fill(0);
+            for r in cur.iter() {
+                for &(v, a) in &r.terms {
+                    if a > 0 {
+                        pos_count[v] += 1;
+                    } else if a < 0 {
+                        neg_count[v] += 1;
+                    }
                 }
             }
+            let has_pure = (0..num_vars).any(|v| (pos_count[v] > 0) ^ (neg_count[v] > 0));
+            if !has_pure {
+                break;
+            }
+            cur.retain(|r| r.terms.iter().all(|&(v, _)| pos_count[v] > 0 && neg_count[v] > 0));
+            if cur.is_empty() {
+                pos_count.fill(0);
+                neg_count.fill(0);
+                break;
+            }
         }
-        let (t, _) = best?;
-        let coef = |r: &Row| r.0.iter().find(|(k, _)| *k == t).map_or(0, |(_, a)| *a);
-        let (mut next, mut pos, mut neg): (Vec<Row>, Vec<Row>, Vec<Row>) = (Vec::new(), Vec::new(), Vec::new());
+    };
+
+    eliminate_pure_vars(&mut cur, &mut pos_count, &mut neg_count);
+    if cur.len() > LIN_ROWS {
+        return None;
+    }
+
+    loop {
+        if cur.is_empty() {
+            return None;
+        }
+        // Pick the non-pure variable minimizing net row growth `pos * neg - (pos + neg)`
+        // (equivalently `zero + pos * neg`), breaking ties by fewest pairings `pos * neg`.
+        let best_var = (0..num_vars)
+            .filter(|&v| pos_count[v] > 0 && neg_count[v] > 0)
+            .min_by_key(|&v| {
+                let prod = pos_count[v] * neg_count[v];
+                let net = prod as isize - (pos_count[v] + neg_count[v]) as isize;
+                (net, prod)
+            })?;
+
+        let mut next_set = RowSet::new(LIN_ROWS);
+        let mut pos: Vec<(i128, FmRow)> = Vec::with_capacity(pos_count[best_var]);
+        let mut neg: Vec<(i128, FmRow)> = Vec::with_capacity(neg_count[best_var]);
         for r in cur {
-            match coef(&r) {
-                0 => next.push(r),
-                a if a > 0 => pos.push(r),
-                _ => neg.push(r),
+            match r.terms.binary_search_by_key(&best_var, |&(v, _)| v) {
+                Ok(idx) => {
+                    let a = r.terms[idx].1;
+                    if a > 0 {
+                        pos.push((a, r));
+                    } else {
+                        neg.push((a, r));
+                    }
+                }
+                Err(_) => match next_set.insert(r) {
+                    InsertOutcome::Ok => {}
+                    InsertOutcome::Contradiction(deriv) => return Some(deriv),
+                    InsertOutcome::LimitExceeded => return None,
+                },
             }
         }
-        for p in &pos {
-            for n in &neg {
-                let (ap, an) = (coef(p), -coef(n));
-                let mut terms: Vec<(ITerm, i128)> = Vec::new();
-                for (row, k) in [(p, an), (n, ap)] {
-                    for (key, a) in &row.0 {
-                        let v = a.checked_mul(k)?;
-                        match terms.iter_mut().find(|(j, _)| j == key) {
-                            Some((_, b)) => *b = b.checked_add(v)?,
-                            None => terms.push((key.clone(), v)),
-                        }
-                    }
-                }
-                terms.retain(|(_, a)| *a != 0);
-                let c = p.1.checked_mul(an)?.checked_add(n.1.checked_mul(ap)?)?;
-                let mut deriv: Vec<(usize, i128)> = Vec::new();
-                for (row, k) in [(p, an), (n, ap)] {
-                    for (i, m) in &row.2 {
-                        let v = m.checked_mul(k)?;
-                        match deriv.iter_mut().find(|(j, _)| j == i) {
-                            Some((_, b)) => *b = b.checked_add(v)?,
-                            None => deriv.push((*i, v)),
-                        }
-                    }
-                }
-                // Exact division by a common factor of everything keeps
-                // the multipliers integral and the numbers small.
-                let g = terms
-                    .iter()
-                    .map(|(_, a)| *a)
-                    .chain(deriv.iter().map(|(_, m)| *m))
-                    .chain(std::iter::once(c))
-                    .fold(0, gcd);
-                let g = if g > 1 { g } else { 1 };
-                for (_, a) in terms.iter_mut() {
-                    *a /= g;
-                }
-                for (_, m) in deriv.iter_mut() {
-                    *m /= g;
-                }
-                next.push((terms, c / g, deriv));
-                if next.len() > LIN_ROWS {
-                    return None;
+
+        for (ap, p) in &pos {
+            for (an_neg, n) in &neg {
+                let Some(an) = an_neg.checked_neg() else {
+                    continue;
+                };
+                // GCD-scaled pairing (`lcm` multipliers): multiply p by `an / g` and n by `ap / g`.
+                let g_pair = gcd_u128(ap.unsigned_abs(), an.unsigned_abs()) as i128;
+                let mp = an / g_pair;
+                let mn = *ap / g_pair;
+                let Some(mut c) = p
+                    .c
+                    .checked_mul(mp)
+                    .and_then(|x| n.c.checked_mul(mn).and_then(|y| x.checked_add(y)))
+                else {
+                    continue;
+                };
+                let Some(mut terms) = merge_scaled(&p.terms, mp, &n.terms, mn) else {
+                    continue;
+                };
+                let Some(mut deriv) = merge_scaled(&p.deriv, mp, &n.deriv, mn) else {
+                    continue;
+                };
+                normalize_row(&mut terms, &mut c, &mut deriv);
+                match next_set.insert(FmRow { terms, c, deriv }) {
+                    InsertOutcome::Ok => {}
+                    InsertOutcome::Contradiction(deriv) => return Some(deriv),
+                    InsertOutcome::LimitExceeded => return None,
                 }
             }
         }
-        cur = next;
+
+        cur = next_set.rows;
+        eliminate_pure_vars(&mut cur, &mut pos_count, &mut neg_count);
     }
 }
 
@@ -7185,4 +7444,248 @@ mod local_value_identity_tests {
         assert_eq!(PTerm::Lit(false).to_string(), "False");
     }
 
+}
+
+#[cfg(test)]
+mod fourier_motzkin_tests {
+    use super::*;
+    use std::time::Instant;
+
+    fn var(name: &str) -> ITerm {
+        ITerm::Var(name.into())
+    }
+
+    fn add(a: ITerm, b: ITerm) -> ITerm {
+        ITerm::Bin(IdxOp::Add, Box::new(a), Box::new(b))
+    }
+
+    fn sub(a: ITerm, b: ITerm) -> ITerm {
+        ITerm::Bin(IdxOp::Sub, Box::new(a), Box::new(b))
+    }
+
+    fn mul_c(k: i128, a: ITerm) -> ITerm {
+        ITerm::Bin(IdxOp::Mul, Box::new(ITerm::num(k)), Box::new(a))
+    }
+
+    fn cmp(op: IdxCmp, a: ITerm, b: ITerm) -> PTerm {
+        PTerm::Cmp(op, Box::new(a), Box::new(b))
+    }
+
+    fn int_sorts(names: &[&str]) -> Sorts {
+        Sorts {
+            vars: names.iter().map(|n| ((*n).into(), IntSort::Int)).collect(),
+            fns: vec![],
+            values: vec![],
+        }
+    }
+
+    fn raw_step(terms: Vec<(&str, i128)>, c: i128, hyp: usize) -> LinStep {
+        LinStep {
+            le: LinLe {
+                terms: terms.into_iter().map(|(n, k)| (var(n), k)).collect(),
+                c,
+            },
+            why: DiffWhy::Hyp { hyp, conj: 0 },
+        }
+    }
+
+    fn check_raw_farkas(rows: &[LinStep], cert: &[(usize, i128)]) -> bool {
+        if cert.is_empty() {
+            return false;
+        }
+        let mut sum: i128 = 0;
+        let mut net: Vec<(ITerm, i128)> = Vec::new();
+        for &(idx, mult) in cert {
+            if mult <= 0 {
+                return false;
+            }
+            let Some(step) = rows.get(idx) else { return false };
+            for (t, a) in &step.le.terms {
+                let Some(v) = a.checked_mul(mult) else { return false };
+                match net.iter_mut().find(|(j, _)| j == t) {
+                    Some((_, b)) => match b.checked_add(v) {
+                        Some(x) => *b = x,
+                        None => return false,
+                    },
+                    None => net.push((t.clone(), v)),
+                }
+            }
+            match step.le.c.checked_mul(mult).and_then(|v| sum.checked_add(v)) {
+                Some(v) => sum = v,
+                None => return false,
+            }
+        }
+        sum < 0 && net.iter().all(|(_, n)| *n == 0)
+    }
+
+    #[test]
+    fn redundant_bounds_and_pure_vars_discharge_under_cap() {
+        // Multi-term chain with many redundant/repeated bounds and pure-variable noise
+        // that blows past LIN_ROWS = 256 without subsumption/pure-var elimination.
+        let mut names = vec!["a", "b", "c", "d", "e", "f", "cap"];
+        let mut facts = vec![
+            cmp(IdxCmp::Le, add(var("a"), var("b")), var("d")),
+            cmp(IdxCmp::Le, add(var("d"), var("c")), var("e")),
+            cmp(IdxCmp::Le, add(var("e"), var("f")), var("cap")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("a")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("b")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("c")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("f")),
+        ];
+        // Add redundant looser bounds on the intermediate variables (each induces pos*neg blowup if unpruned).
+        for k in 1..=8 {
+            facts.push(cmp(IdxCmp::Le, add(var("a"), var("b")), add(var("d"), ITerm::num(k))));
+            facts.push(cmp(IdxCmp::Le, add(var("d"), var("c")), add(var("e"), ITerm::num(k))));
+            facts.push(cmp(IdxCmp::Le, add(var("e"), var("f")), add(var("cap"), ITerm::num(k))));
+            facts.push(cmp(IdxCmp::Le, sub(var("d"), ITerm::num(k)), var("e")));
+            facts.push(cmp(IdxCmp::Le, sub(var("e"), ITerm::num(k)), var("cap")));
+        }
+        // Add upper/lower noise coupling pure variables to `d` and `e`.
+        let noise_names: Vec<String> = (0..12).map(|i| format!("noise_{i}")).collect();
+        for (i, n) in noise_names.iter().enumerate() {
+            names.push(n.as_str());
+            facts.push(cmp(IdxCmp::Le, add(var("d"), var(n)), ITerm::num(1000 + i as i128)));
+            facts.push(cmp(IdxCmp::Le, add(var("e"), var(n)), ITerm::num(2000 + i as i128)));
+        }
+        let goal = cmp(IdxCmp::Le, add(var("a"), var("c")), var("cap"));
+        let sorts = int_sorts(&names);
+        let t0 = Instant::now();
+        let cert = lin_prove(&facts, std::slice::from_ref(&goal), &sorts);
+        let elapsed = t0.elapsed();
+        eprintln!("[stress_redundant_chain] proved={} elapsed={:?}", cert.is_some(), elapsed);
+        let cert = cert.expect("redundant multi-term chain should discharge cleanly");
+        assert!(check_lin_cert(&facts, std::slice::from_ref(&goal), &cert, &sorts));
+        // Also verify full linear_entails + check_linear_proof.
+        let proofs = linear_entails(&facts, &goal, &sorts).expect("linear_entails should succeed");
+        assert!(proofs.iter().all(|p| check_linear_proof(&facts, p, &sorts)));
+    }
+
+    #[test]
+    fn large_shared_coefficients_avoid_i128_overflow_via_gcd_pairing() {
+        // Chain of 6 variables with shared large coefficient M = 10^20 per column,
+        // while each row has gcd = 1 across its own terms so lin_le cannot divide it out.
+        // Without GCD-scaled pairing (ap/g, an/g), M * M = 10^40 > i128::MAX overflows on step 1.
+        let m: i128 = 100_000_000_000_000_000_000;
+        let names = ["x0", "x1", "x2", "x3", "x4", "x5", "eps"];
+        let facts = vec![
+            // M*x0 - M*x1 + eps <= 0
+            cmp(IdxCmp::Le, add(sub(mul_c(m, var("x0")), mul_c(m, var("x1"))), var("eps")), ITerm::num(0)),
+            // M*x1 - M*x2 + eps <= 0
+            cmp(IdxCmp::Le, add(sub(mul_c(m, var("x1")), mul_c(m, var("x2"))), var("eps")), ITerm::num(0)),
+            // M*x2 - M*x3 + eps <= 0
+            cmp(IdxCmp::Le, add(sub(mul_c(m, var("x2")), mul_c(m, var("x3"))), var("eps")), ITerm::num(0)),
+            // M*x3 - M*x4 + eps <= 0
+            cmp(IdxCmp::Le, add(sub(mul_c(m, var("x3")), mul_c(m, var("x4"))), var("eps")), ITerm::num(0)),
+            // M*x4 - M*x5 + eps <= 0
+            cmp(IdxCmp::Le, add(sub(mul_c(m, var("x4")), mul_c(m, var("x5"))), var("eps")), ITerm::num(0)),
+            // 0 <= eps
+            cmp(IdxCmp::Le, ITerm::num(0), var("eps")),
+            // x5 <= x0 - 1  (contradicts M*x0 <= M*x5 since eps >= 0)
+            cmp(IdxCmp::Lt, var("x5"), var("x0")),
+        ];
+        // Goal: False (prove contradiction directly via x0 <= x5 -> negated is x5 < x0, so use goal x0 <= x5).
+        let hyps = &facts[..6];
+        let goal = cmp(IdxCmp::Le, var("x0"), var("x5"));
+        let sorts = int_sorts(&names);
+        let t0 = Instant::now();
+        let cert = lin_prove(hyps, std::slice::from_ref(&goal), &sorts);
+        let elapsed = t0.elapsed();
+        eprintln!("[stress_large_gcd_chain] proved={} elapsed={:?}", cert.is_some(), elapsed);
+        let cert = cert.expect("GCD-scaled pairing must prevent i128 overflow");
+        assert!(check_lin_cert(hyps, std::slice::from_ref(&goal), &cert, &sorts));
+    }
+
+    #[test]
+    fn proportional_subsumption_and_soundness_over_rationals() {
+        // 1. Proportional row subsumption: 2x + 2y <= 4 subsumes x + y <= 5, and
+        //    contradicts -3x - 3y <= -7 over Q (sum: 3*(2x+2y<=4) + 2*(-3x-3y<=-7) => 0 <= -2).
+        let rows = vec![
+            raw_step(vec![("x", 1), ("y", 1)], 5, 0),
+            raw_step(vec![("x", 2), ("y", 2)], 4, 1),
+            raw_step(vec![("x", 3), ("y", 3)], 12, 2),
+            raw_step(vec![("x", -3), ("y", -3)], -7, 3),
+        ];
+        let cert = fourier_motzkin(&rows).expect("proportional contradiction should be found");
+        assert!(check_raw_farkas(&rows, &cert), "certificate must be a valid Farkas combination");
+
+        // 2. Integer-only unsatisfiable system (rationally feasible at x = 1/2):
+        //    2x <= 1 and -2x <= -1 MUST remain refused over Q!
+        let rational_sat = vec![
+            raw_step(vec![("x", 2)], 1, 0),
+            raw_step(vec![("x", -2)], -1, 1),
+        ];
+        assert!(
+            fourier_motzkin(&rational_sat).is_none(),
+            "2x <= 1 && -2x <= -1 is satisfiable over Q and must not be refuted"
+        );
+
+        // 3. Full lin_prove on a 2-variable integer-only UNSAT system whose individual
+        //    constraints each have gcd = 1 (rational solution x = 1/4, y = 1/2):
+        //    2x + y <= 1, 2x - y <= 0, -2x + y <= 0, -2x - y <= -1.
+        let sorts = int_sorts(&["x", "y"]);
+        let hyps = vec![
+            cmp(IdxCmp::Le, add(mul_c(2, var("x")), var("y")), ITerm::num(1)),
+            cmp(IdxCmp::Le, sub(mul_c(2, var("x")), var("y")), ITerm::num(0)),
+            cmp(IdxCmp::Le, sub(var("y"), mul_c(2, var("x"))), ITerm::num(0)),
+            cmp(IdxCmp::Le, sub(ITerm::num(1), add(mul_c(2, var("x")), var("y"))), ITerm::num(0)),
+        ];
+        // Asking to prove `0 <= -1` (i.e. hypotheses are inconsistent) must be refused over Q.
+        let impossible = cmp(IdxCmp::Le, ITerm::num(0), ITerm::num(-1));
+        assert!(
+            lin_prove(&hyps, std::slice::from_ref(&impossible), &sorts).is_none(),
+            "rationally satisfiable 2-var integer-unsat system must remain refused"
+        );
+        // Same via direct negated goal: `2x + y <= 1, 2x - y <= 0, -2x + y <= 0 |= 2x + y <= 0`
+        // (negated goal is `-2x - y <= -1`, same system) must be refused!
+        let goal = cmp(IdxCmp::Le, add(mul_c(2, var("x")), var("y")), ITerm::num(0));
+        assert!(
+            lin_prove(&hyps[..3], std::slice::from_ref(&goal), &sorts).is_none(),
+            "must not infer integer tightening across eliminated variables"
+        );
+
+        // 4. Plain satisfiable multi-term system must remain refused.
+        let sat_hyps = vec![
+            cmp(IdxCmp::Le, add(var("x"), var("y")), ITerm::num(10)),
+            cmp(IdxCmp::Le, ITerm::num(0), var("x")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("y")),
+        ];
+        let unprovable = cmp(IdxCmp::Le, var("x"), ITerm::num(9));
+        assert!(lin_prove(&sat_hyps, std::slice::from_ref(&unprovable), &sorts).is_none());
+    }
+
+    #[test]
+    fn benchmark_medium_redundant_system() {
+        // A 22-constraint system with moderate redundancy (solvable both before and after)
+        // to measure wall-clock speedup and verify certificate soundness.
+        let names = ["x", "y", "z", "w", "cap"];
+        let mut facts = vec![
+            cmp(IdxCmp::Le, add(var("x"), var("y")), var("w")),
+            cmp(IdxCmp::Le, add(var("w"), var("z")), var("cap")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("x")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("y")),
+            cmp(IdxCmp::Le, ITerm::num(0), var("z")),
+        ];
+        for k in 1..=5 {
+            facts.push(cmp(IdxCmp::Le, add(var("x"), var("y")), add(var("w"), ITerm::num(k))));
+            facts.push(cmp(IdxCmp::Le, add(var("w"), var("z")), add(var("cap"), ITerm::num(k))));
+            facts.push(cmp(IdxCmp::Le, sub(ITerm::num(-k), var("y")), ITerm::num(0)));
+        }
+        let goal = cmp(IdxCmp::Le, add(var("x"), var("z")), var("cap"));
+        let sorts = int_sorts(&names);
+        let iters = 200;
+        let t0 = Instant::now();
+        let mut last = None;
+        for _ in 0..iters {
+            last = lin_prove(&facts, std::slice::from_ref(&goal), &sorts);
+        }
+        let elapsed = t0.elapsed();
+        eprintln!(
+            "[bench_medium_20x] proved={} total={:?} per_call={:?}",
+            last.is_some(),
+            elapsed,
+            elapsed / iters
+        );
+        let cert = last.expect("medium redundant system should prove");
+        assert!(check_lin_cert(&facts, std::slice::from_ref(&goal), &cert, &sorts));
+    }
 }

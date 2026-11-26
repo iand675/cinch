@@ -13,6 +13,7 @@
 module Cinch.Proof where
 
   import Algebra.Semigroup
+  import Data.Int (int-div, int-rem)
   import Relation.Eq (Eq)
   import Text.Show (Show)
 
@@ -264,6 +265,111 @@ module Cinch.Proof where
 
   -- Untrusted search. Each Fourier-Motzkin row retains positive original
   -- citations; elimination never becomes evidence until check-proof passes.
+  record PrunedRow where
+    pruned-dir :: List (Arithmetic, Int)
+    pruned-neg :: Bool
+    pruned-gcd :: Int
+    pruned-row :: SearchRow
+  data InsertResult where
+    InsertFound :: Certificate -> InsertResult
+    InsertOverflow :: InsertResult
+    InsertDone :: Nat -> List PrunedRow -> InsertResult
+  int-abs :: Int -> Int
+  int-abs x = if x < 0 then 0 - x else x
+  int-gcd-pos :: Int -> Int -> Int
+  int-gcd-pos a b = if b == 0 then a else int-gcd-pos b (int-rem a b)
+  int-gcd :: Int -> Int -> Int
+  int-gcd a b = int-gcd-pos (int-abs a) (int-abs b)
+  terms-gcd-acc :: Int -> List (Arithmetic, Int) -> Int
+  terms-gcd-acc g terms = if g == 1 then 1 else case terms of
+    [] -> g
+    (key, amount) : rest -> terms-gcd-acc (int-gcd g amount) rest
+  terms-gcd :: List (Arithmetic, Int) -> Int
+  terms-gcd terms = terms-gcd-acc 0 terms
+  weights-gcd-acc :: Int -> List (Int, Citation) -> Int
+  weights-gcd-acc g weights = if g == 1 then 1 else case weights of
+    [] -> g
+    (coefficient, reference) : rest -> weights-gcd-acc (int-gcd g coefficient) rest
+  div-terms :: Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  div-terms g terms = if g <= 1 then terms else case terms of
+    [] -> []
+    (key, amount) : rest -> (key, int-div amount g) : (div-terms g rest)
+  div-weights :: Int -> List (Int, Citation) -> List (Int, Citation)
+  div-weights g weights = if g <= 1 then weights else case weights of
+    [] -> []
+    (coefficient, reference) : rest -> (int-div coefficient g, reference) : (div-weights g rest)
+  normalize-weights :: List (Int, Citation) -> List (Int, Citation)
+  normalize-weights weights = let g = weights-gcd-acc 0 weights in
+    if g <= 1 then weights else div-weights g weights
+  normalize-search-row :: SearchRow -> SearchRow
+  normalize-search-row row = case row of
+    SearchRow (Row terms constant) weights ->
+      let g = weights-gcd-acc (terms-gcd-acc (int-abs constant) terms) weights in
+      if g <= 1 then row
+      else SearchRow (Row (div-terms g terms) (int-div constant g)) (div-weights g weights)
+  arithmetic-tag :: Arithmetic -> Int
+  arithmetic-tag a = case a of
+    AInteger _ -> 0
+    AVariable _ -> 1
+    APlus _ _ -> 2
+    AMinus _ _ -> 3
+    ATimes _ _ -> 4
+    ACall _ _ -> 5
+    AArgument _ _ -> 6
+    AArgumentsEnd -> 7
+  cmp-int :: Int -> Int -> Int
+  cmp-int a b = if a < b then -1 else if a > b then 1 else 0
+  cmp-string :: String -> String -> Int
+  cmp-string a b = let o = string-compare a b in if o < 0 then -1 else if o > 0 then 1 else 0
+  arithmetic-compare :: Arithmetic -> Arithmetic -> Int
+  arithmetic-compare a b = case (a, b) of
+    (AInteger x, AInteger y) -> cmp-int x y
+    (AVariable x, AVariable y) -> cmp-string x y
+    (APlus x y, APlus u v) -> let c = arithmetic-compare x u in if c == 0 then arithmetic-compare y v else c
+    (AMinus x y, AMinus u v) -> let c = arithmetic-compare x u in if c == 0 then arithmetic-compare y v else c
+    (ATimes x y, ATimes u v) -> let c = arithmetic-compare x u in if c == 0 then arithmetic-compare y v else c
+    (ACall f xs, ACall g ys) -> let c = cmp-string f g in if c == 0 then arithmetic-compare xs ys else c
+    (AArgument x xs, AArgument y ys) -> let c = arithmetic-compare x y in if c == 0 then arithmetic-compare xs ys else c
+    (AArgumentsEnd, AArgumentsEnd) -> 0
+    other -> cmp-int (arithmetic-tag a) (arithmetic-tag b)
+  insert-sorted-term :: Arithmetic -> Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  insert-sorted-term key amount terms = if amount == 0 then terms else case terms of
+    [] -> [(key, amount)]
+    (other, coefficient) : rest ->
+      let ord = arithmetic-compare key other in
+      if ord < 0 then (key, amount) : ((other, coefficient) : rest)
+      else if ord == 0 then
+        (if coefficient + amount == 0 then rest else (other, coefficient + amount) : rest)
+      else (other, coefficient) : (insert-sorted-term key amount rest)
+  canonicalize-terms :: List (Arithmetic, Int) -> List (Arithmetic, Int)
+  canonicalize-terms terms = case terms of
+    [] -> []
+    (key, amount) : rest -> insert-sorted-term key amount (canonicalize-terms rest)
+  canonicalize-search-row :: SearchRow -> SearchRow
+  canonicalize-search-row row = case row of
+    SearchRow (Row terms constant) weights -> SearchRow (Row (canonicalize-terms terms) constant) weights
+  merge-scaled-terms :: Int -> List (Arithmetic, Int) -> Int -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  merge-scaled-terms x first y second = case (first, second) of
+    ([], []) -> []
+    ([], (k, b) : rest) -> let v = y * b in if v == 0 then merge-scaled-terms x [] y rest else (k, v) : (merge-scaled-terms x [] y rest)
+    ((k, a) : rest, []) -> let v = x * a in if v == 0 then merge-scaled-terms x rest y [] else (k, v) : (merge-scaled-terms x rest y [])
+    ((k1, a) : r1, (k2, b) : r2) ->
+      let ord = arithmetic-compare k1 k2 in
+      if ord < 0 then
+        let v = x * a in if v == 0 then merge-scaled-terms x r1 y second else (k1, v) : (merge-scaled-terms x r1 y second)
+      else if ord > 0 then
+        let v = y * b in if v == 0 then merge-scaled-terms x first y r2 else (k2, v) : (merge-scaled-terms x first y r2)
+      else
+        let v = x * a + y * b in if v == 0 then merge-scaled-terms x r1 y r2 else (k1, v) : (merge-scaled-terms x r1 y r2)
+  scale-dir :: Int -> Bool -> List (Arithmetic, Int) -> List (Arithmetic, Int)
+  scale-dir g neg terms = if g <= 0 then terms else case terms of
+    [] -> []
+    (k, a) : rest -> let q = int-div a g in (k, if neg then 0 - q else q) : (scale-dir g neg rest)
+  terms-equal :: List (Arithmetic, Int) -> List (Arithmetic, Int) -> Bool
+  terms-equal first second = case (first, second) of
+    ([], []) -> True
+    ((k1, a1) : r1, (k2, a2) : r2) -> a1 == a2 && arithmetic-equal k1 k2 && terms-equal r1 r2
+    other -> False
   weighted-add :: Int -> Citation -> List (Int, Citation) -> List (Int, Citation)
   weighted-add by reference weights = case weights of
     [] -> [(by, reference)]
@@ -279,24 +385,94 @@ module Cinch.Proof where
   row-coefficient key row = case row of SearchRow (Row terms constant) weights -> coefficient key terms
   combine :: Int -> SearchRow -> Int -> SearchRow -> SearchRow
   combine x a y b = case (a, b) of
-    (SearchRow first refs, SearchRow second others) -> SearchRow (row-plus (row-scale x first) (row-scale y second)) (weighted-plus (weighted-scale x refs) (weighted-scale y others))
-  partition :: Arithmetic -> List SearchRow -> (List SearchRow, List SearchRow, List SearchRow)
-  partition key rows = case rows of
-    [] -> ([], [], [])
-    row : rest -> case partition key rest of
-      (positive, negative, zero) -> let amount = row-coefficient key row in
-        if amount > 0 then (row : positive, negative, zero)
-        else if amount < 0 then (positive, row : negative, zero)
-        else (positive, negative, row : zero)
-  eliminate-one :: Arithmetic -> SearchRow -> List SearchRow -> List SearchRow
-  eliminate-one key positive negative = case negative of
-    [] -> []
-    row : rest -> (combine (0 - row-coefficient key row) positive (row-coefficient key positive) row) : (eliminate-one key positive rest)
-  eliminate-pairs :: Arithmetic -> List SearchRow -> List SearchRow -> List SearchRow
-  eliminate-pairs key positive negative = case positive of [] -> []; row : rest -> eliminate-one key row negative <> eliminate-pairs key rest negative
-  -- Variable order is an untrusted search choice. Eliminate the column
-  -- producing the fewest rows, so aliases and repeated range bounds do
-  -- not exhaust the fixed budget before the relevant contradiction.
+    (SearchRow (Row xs cx) refs, SearchRow (Row ys cy) others) ->
+      normalize-search-row (SearchRow (Row (merge-scaled-terms x xs y ys) (x * cx + y * cy)) (weighted-plus (weighted-scale x refs) (weighted-scale y others)))
+  combine-pair :: Arithmetic -> SearchRow -> SearchRow -> SearchRow
+  combine-pair key positive negative =
+    let ap = row-coefficient key positive in
+    let an = 0 - row-coefficient key negative in
+    let g = int-gcd ap an in
+    if g <= 1 then combine an positive ap negative
+    else combine (int-div an g) positive (int-div ap g) negative
+  opposite-certificate :: Int -> Int -> List (Int, Citation) -> Int -> Int -> List (Int, Citation) -> Option Certificate
+  opposite-certificate g1 c1 w1 g2 c2 w2 =
+    if c1 * g2 + c2 * g1 < 0 then
+      let d = int-gcd g1 g2 in
+      let combined = (if d <= 1 then weighted-plus (weighted-scale g2 w1) (weighted-scale g1 w2)
+        else weighted-plus (weighted-scale (int-div g2 d) w1) (weighted-scale (int-div g1 d) w2)) in
+      Some (Farkas (normalize-weights combined))
+    else None
+  check-opposite-tail :: List (Arithmetic, Int) -> Bool -> Int -> Int -> List (Int, Citation) -> List PrunedRow -> Option Certificate
+  check-opposite-tail dir neg g c weights entries = case entries of
+    [] -> None
+    (PrunedRow dir2 neg2 g2 (SearchRow (Row _ c2) w2)) : rest ->
+      if neg /= neg2 && terms-equal dir dir2 then
+        (case opposite-certificate g c weights g2 c2 w2 of
+          Some cert -> Some cert
+          None -> check-opposite-tail dir neg g c weights rest)
+      else check-opposite-tail dir neg g c weights rest
+  insert-pruned-scan :: Nat -> Nat -> PrunedRow -> List (Arithmetic, Int) -> Bool -> Int -> Int -> List (Int, Citation) -> List PrunedRow -> List PrunedRow -> List PrunedRow -> InsertResult
+  insert-pruned-scan limit count cand dir neg g c weights orig prefix remaining = case remaining of
+    [] -> if count >= limit then InsertOverflow else InsertDone (count + 1) (cand : orig)
+    entry : rest -> case entry of
+      PrunedRow dir2 neg2 g2 (SearchRow (Row _ c2) w2) ->
+        if terms-equal dir dir2 then
+          if neg /= neg2 then
+            (case opposite-certificate g c weights g2 c2 w2 of
+              Some cert -> InsertFound cert
+              None -> insert-pruned-scan limit count cand dir neg g c weights orig (entry : prefix) rest)
+          else
+            let lhs = c * g2 in
+            let rhs = c2 * g in
+            if lhs < rhs || (lhs == rhs && g < g2) then
+              (case check-opposite-tail dir neg g c weights rest of
+                Some cert -> InsertFound cert
+                None -> InsertDone count (reverse prefix <> (cand : rest)))
+            else InsertDone count orig
+        else insert-pruned-scan limit count cand dir neg g c weights orig (entry : prefix) rest
+  insert-pruned :: Nat -> Nat -> List PrunedRow -> SearchRow -> InsertResult
+  insert-pruned limit count acc row = case row of
+    SearchRow (Row terms constant) weights -> case terms of
+      [] -> if constant < 0 then InsertFound (Farkas (normalize-weights weights)) else InsertDone count acc
+      (first-key, first-amount) : _ ->
+        let g = terms-gcd terms in
+        let neg = first-amount < 0 in
+        let dir = scale-dir g neg terms in
+        let cand = PrunedRow dir neg g row in
+        insert-pruned-scan limit count cand dir neg g constant weights acc [] acc
+  prune-rows-acc :: Nat -> Nat -> List PrunedRow -> List SearchRow -> InsertResult
+  prune-rows-acc limit count acc rows = case rows of
+    [] -> InsertDone count acc
+    row : rest -> case insert-pruned limit count acc (canonicalize-search-row row) of
+      InsertFound cert -> InsertFound cert
+      InsertOverflow -> InsertOverflow
+      InsertDone next-count next-acc -> prune-rows-acc limit next-count next-acc rest
+  partition-pruned :: Arithmetic -> List PrunedRow -> (List SearchRow, List SearchRow, List PrunedRow, Nat)
+  partition-pruned key entries = case entries of
+    [] -> ([], [], [], 0)
+    entry : rest -> case partition-pruned key rest of
+      (positive, negative, zero, zero-count) -> case entry of
+        PrunedRow _ _ _ row -> let amount = row-coefficient key row in
+          if amount > 0 then (row : positive, negative, zero, zero-count)
+          else if amount < 0 then (positive, row : negative, zero, zero-count)
+          else (positive, negative, entry : zero, zero-count + 1)
+  eliminate-one-pruned :: Arithmetic -> Nat -> SearchRow -> List SearchRow -> Nat -> List PrunedRow -> InsertResult
+  eliminate-one-pruned key limit positive negative count acc = case negative of
+    [] -> InsertDone count acc
+    row : rest -> case insert-pruned limit count acc (combine-pair key positive row) of
+      InsertFound cert -> InsertFound cert
+      InsertOverflow -> InsertOverflow
+      InsertDone next-count next-acc -> eliminate-one-pruned key limit positive rest next-count next-acc
+  eliminate-pairs-pruned :: Arithmetic -> Nat -> List SearchRow -> List SearchRow -> Nat -> List PrunedRow -> InsertResult
+  eliminate-pairs-pruned key limit positive negative count acc = case positive of
+    [] -> InsertDone count acc
+    row : rest -> case eliminate-one-pruned key limit row negative count acc of
+      InsertFound cert -> InsertFound cert
+      InsertOverflow -> InsertOverflow
+      InsertDone next-count next-acc -> eliminate-pairs-pruned key limit rest negative next-count next-acc
+  -- Variable order is an untrusted search choice. Pure variables drop
+  -- upfront for free; then eliminate the column producing the fewest rows,
+  -- so aliases and repeated range bounds do not exhaust the fixed budget.
   -- Every resulting certificate still cites the original full context.
   search-has-variable :: Arithmetic -> List Arithmetic -> Bool
   search-has-variable key variables = case variables of [] -> False; other : rest -> arithmetic-equal key other || search-has-variable key rest
@@ -308,6 +484,54 @@ module Cinch.Proof where
   search-variables rows seen = case rows of
     [] -> reverse seen
     (SearchRow (Row terms constant) weights) : rest -> search-variables rest (remember-variables terms seen)
+  unprune-rows :: List PrunedRow -> List SearchRow
+  unprune-rows entries = case entries of
+    [] -> []
+    (PrunedRow _ _ _ row) : rest -> row : (unprune-rows rest)
+  variable-signs :: Arithmetic -> List SearchRow -> Bool -> Bool -> (Bool, Bool)
+  variable-signs key rows has-pos has-neg = if has-pos && has-neg then (True, True) else case rows of
+    [] -> (has-pos, has-neg)
+    row : rest -> let amount = row-coefficient key row in
+      if amount > 0 then variable-signs key rest True has-neg
+      else if amount < 0 then variable-signs key rest has-pos True
+      else variable-signs key rest has-pos has-neg
+  pure-variables :: List Arithmetic -> List SearchRow -> List Arithmetic
+  pure-variables variables rows = case variables of
+    [] -> []
+    key : rest -> case variable-signs key rows False False of
+      (True, False) -> key : (pure-variables rest rows)
+      (False, True) -> key : (pure-variables rest rows)
+      other -> pure-variables rest rows
+  row-mentions-any :: List (Arithmetic, Int) -> List Arithmetic -> Bool
+  row-mentions-any terms targets = case terms of
+    [] -> False
+    (key, _) : rest -> search-has-variable key targets || row-mentions-any rest targets
+  drop-pure-rows :: List Arithmetic -> List SearchRow -> List SearchRow
+  drop-pure-rows pures rows = case rows of
+    [] -> []
+    row : rest -> case row of
+      SearchRow (Row terms _) _ -> if row-mentions-any terms pures then drop-pure-rows pures rest else row : (drop-pure-rows pures rest)
+  eliminate-pure-rows :: Nat -> List SearchRow -> List SearchRow
+  eliminate-pure-rows rounds rows = if rounds == 0 then rows else
+    let pures = pure-variables (search-variables rows []) rows in
+    case pures of
+      [] -> rows
+      _ : _ -> eliminate-pure-rows (rounds - 1) (drop-pure-rows pures rows)
+  drop-pure-pruned :: List Arithmetic -> List PrunedRow -> (Nat, List PrunedRow)
+  drop-pure-pruned pures entries = case entries of
+    [] -> (0, [])
+    entry : rest -> case drop-pure-pruned pures rest of
+      (n, kept) -> case entry of
+        PrunedRow _ _ _ (SearchRow (Row terms _) _) ->
+          if row-mentions-any terms pures then (n, kept) else (n + 1, entry : kept)
+  eliminate-pure-pruned :: Nat -> Nat -> List PrunedRow -> (Nat, List PrunedRow)
+  eliminate-pure-pruned rounds count entries = if rounds == 0 then (count, entries) else
+    let rows = unprune-rows entries in
+    let pures = pure-variables (search-variables rows []) rows in
+    case pures of
+      [] -> (count, entries)
+      _ : _ -> case drop-pure-pruned pures entries of
+        (next-count, next-entries) -> eliminate-pure-pruned (rounds - 1) next-count next-entries
   elimination-cost :: Arithmetic -> List SearchRow -> Nat -> Nat -> Nat -> Nat
   elimination-cost key rows positive negative zero = case rows of
     [] -> positive * negative + zero
@@ -327,15 +551,30 @@ module Cinch.Proof where
   find-contradiction :: List SearchRow -> Option Certificate
   find-contradiction rows = case rows of
     [] -> None
-    (SearchRow row weights) : rest -> if contradiction row then Some (Farkas weights) else find-contradiction rest
+    (SearchRow row weights) : rest -> if contradiction row then Some (Farkas (normalize-weights weights)) else find-contradiction rest
+  fourier-loop :: Nat -> Nat -> Nat -> List PrunedRow -> Option Certificate
+  fourier-loop fuel limit count entries = case entries of
+    [] -> None
+    _ : _ -> if fuel == 0 then None else
+      case first-variable (unprune-rows entries) of
+        None -> None
+        Some key -> case partition-pruned key entries of
+          (positive, negative, zero, zero-count) ->
+            case eliminate-pairs-pruned key limit positive negative zero-count zero of
+              InsertFound certificate -> Some certificate
+              InsertOverflow -> None
+              InsertDone next-count next-entries ->
+                case eliminate-pure-pruned fuel next-count next-entries of
+                  (cleaned-count, cleaned-entries) -> fourier-loop (fuel - 1) limit cleaned-count cleaned-entries
   fourier :: Nat -> Nat -> List SearchRow -> Option Certificate
-  fourier fuel limit rows = if list-length rows > limit then None else case find-contradiction rows of
+  fourier fuel limit rows = case find-contradiction rows of
     Some certificate -> Some certificate
-    None -> if fuel == 0 then None else case first-variable rows of
-      None -> None
-      Some key -> case partition key rows of
-        (positive, negative, zero) -> if list-length positive * list-length negative + list-length zero > limit then None
-          else fourier (fuel - 1) limit (zero <> eliminate-pairs key positive negative)
+    None ->
+      let trimmed = eliminate-pure-rows fuel rows in
+      case prune-rows-acc limit 0 [] trimmed of
+        InsertFound certificate -> Some certificate
+        InsertOverflow -> None
+        InsertDone count entries -> fourier-loop fuel limit count entries
 
   -- References are rebuilt for each split context. Alternative indices
   -- cannot accidentally retain the depths from a sibling branch.
