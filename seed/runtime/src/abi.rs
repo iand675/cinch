@@ -1143,120 +1143,273 @@ pub unsafe extern "C" fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, 
 /// The lexicographic order of two `Bytes` words' contents: -1, 0 or 1,
 /// read in place (no copy, no allocation).
 ///
-/// The order is byte order, which is the order of the same bytes read as
-/// one big-endian word, so the common prefix is compared eight bytes at a
-/// time: a name up to one word long costs two loads and one compare, where
-/// `memcmp` costs a call and a dispatch before it reads anything. Two words
-/// over one region are equal without reading a byte. The lengths break a
-/// prefix tie; they never decide the order of two differing prefixes, so
-/// they are read last.
+/// Short prefixes (`< 16` bytes, the common case for compiler identifiers)
+/// compare via unaligned big-endian loads with overlapping tails; longer
+/// prefixes (`>= 16` bytes) dispatch to architecture SIMD (NEON on AArch64,
+/// AVX2/SSE2 on x86_64). Two words over one region are equal without reading
+/// a byte, and lengths break a prefix tie.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_compare(a: i64, b: i64) -> i64 {
     let a = unsafe { as_bytes(a) };
     let b = unsafe { as_bytes(b) };
-    let x = a.as_slice();
-    let y = b.as_slice();
-    maybe_census(x, y);
-    if std::ptr::eq(x.as_ptr(), y.as_ptr()) && x.len() == y.len() {
+    compare_bytes(a.as_slice(), b.as_slice())
+}
+
+/// Lexicographic byte comparison returning `-1`, `0`, or `1`.
+#[inline]
+pub(crate) fn compare_bytes(x: &[u8], y: &[u8]) -> i64 {
+    let xlen = x.len();
+    let ylen = y.len();
+    let xp = x.as_ptr();
+    let yp = y.as_ptr();
+    if std::ptr::eq(xp, yp) && xlen == ylen {
         return 0;
     }
-    let n = x.len().min(y.len());
-    let mut i = 0;
-    while i + 8 <= n {
-        let ua = u64::from_be_bytes(x[i..i + 8].try_into().unwrap());
-        let ub = u64::from_be_bytes(y[i..i + 8].try_into().unwrap());
-        if ua != ub {
-            return if ua < ub { -1 } else { 1 };
+    let n = xlen.min(ylen);
+    if n < 16 {
+        let ord = unsafe { compare_bytes_short(xp, yp, n) };
+        if ord != 0 {
+            return ord;
         }
-        i += 8;
-    }
-    while i < n {
-        let (ba, bb) = (x[i], y[i]);
-        if ba != bb {
-            return if ba < bb { -1 } else { 1 };
+    } else {
+        let ord = unsafe { compare_bytes_simd(xp, yp, n) };
+        if ord != 0 {
+            return ord;
         }
-        i += 1;
     }
-    match x.len().cmp(&y.len()) {
+    match xlen.cmp(&ylen) {
         std::cmp::Ordering::Less => -1,
         std::cmp::Ordering::Equal => 0,
         std::cmp::Ordering::Greater => 1,
     }
 }
 
-// TEMPORARY compare census (`CINCH_CMP_CENSUS=1`): removed before the change
-// lands. It answers one question and nothing else, whether the cost of the
-// compare is its width (bytes scanned per call) or its count (calls).
-mod compare_census {
-    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
-    use std::sync::LazyLock;
-
-    pub(super) static CALLS: AtomicU64 = AtomicU64::new(0);
-    pub(super) static SAME_REGION: AtomicU64 = AtomicU64::new(0);
-    pub(super) static LEN_EQUAL: AtomicU64 = AtomicU64::new(0);
-    pub(super) static CONTENT_EQUAL: AtomicU64 = AtomicU64::new(0);
-    pub(super) static SCANNED: AtomicU64 = AtomicU64::new(0);
-    pub(super) static MIN_LEN: AtomicU64 = AtomicU64::new(0);
-    pub(super) static WIDE: AtomicU64 = AtomicU64::new(0);
-
-    pub(super) static ENABLED: LazyLock<bool> = LazyLock::new(|| {
-        let on = std::env::var_os("CINCH_CMP_CENSUS").is_some_and(|v| v == "1");
-        if on {
-            crate::sys::atexit(print);
+/// Fast lexicographic prefix compare for `n < 16` bytes using unaligned
+/// big-endian loads and overlapping tails (zero byte loops).
+#[inline]
+unsafe fn compare_bytes_short(xp: *const u8, yp: *const u8, n: usize) -> i64 {
+    if n >= 8 {
+        let a0 = u64::from_be(unsafe { xp.cast::<u64>().read_unaligned() });
+        let b0 = u64::from_be(unsafe { yp.cast::<u64>().read_unaligned() });
+        if a0 != b0 {
+            return if a0 < b0 { -1 } else { 1 };
         }
-        on
-    });
-
-    pub(super) extern "C" fn print() {
-        use crate::heap::Line;
-        let mut line = Line::new();
-        line.push(b"cinch-cmp: calls=");
-        line.num(CALLS.load(Relaxed));
-        line.push(b" same-region=");
-        line.num(SAME_REGION.load(Relaxed));
-        line.push(b" len-equal=");
-        line.num(LEN_EQUAL.load(Relaxed));
-        line.push(b" content-equal=");
-        line.num(CONTENT_EQUAL.load(Relaxed));
-        line.push(b" scanned=");
-        line.num(SCANNED.load(Relaxed));
-        line.push(b" min-len=");
-        line.num(MIN_LEN.load(Relaxed));
-        line.push(b" wide=");
-        line.num(WIDE.load(Relaxed));
-        line.push(b"\n");
-        line.flush();
+        if n > 8 {
+            let off = n - 8;
+            let a1 = u64::from_be(unsafe { xp.add(off).cast::<u64>().read_unaligned() });
+            let b1 = u64::from_be(unsafe { yp.add(off).cast::<u64>().read_unaligned() });
+            if a1 != b1 {
+                return if a1 < b1 { -1 } else { 1 };
+            }
+        }
+        return 0;
     }
+    if n >= 4 {
+        let a0 = u32::from_be(unsafe { xp.cast::<u32>().read_unaligned() });
+        let b0 = u32::from_be(unsafe { yp.cast::<u32>().read_unaligned() });
+        if a0 != b0 {
+            return if a0 < b0 { -1 } else { 1 };
+        }
+        if n > 4 {
+            let off = n - 4;
+            let a1 = u32::from_be(unsafe { xp.add(off).cast::<u32>().read_unaligned() });
+            let b1 = u32::from_be(unsafe { yp.add(off).cast::<u32>().read_unaligned() });
+            if a1 != b1 {
+                return if a1 < b1 { -1 } else { 1 };
+            }
+        }
+        return 0;
+    }
+    if n >= 2 {
+        let a0 = u16::from_be(unsafe { xp.cast::<u16>().read_unaligned() });
+        let b0 = u16::from_be(unsafe { yp.cast::<u16>().read_unaligned() });
+        if a0 != b0 {
+            return if a0 < b0 { -1 } else { 1 };
+        }
+        if n == 3 {
+            let a2 = unsafe { *xp.add(2) };
+            let b2 = unsafe { *yp.add(2) };
+            if a2 != b2 {
+                return if a2 < b2 { -1 } else { 1 };
+            }
+        }
+        return 0;
+    }
+    if n == 1 {
+        let a0 = unsafe { *xp };
+        let b0 = unsafe { *yp };
+        if a0 != b0 {
+            return if a0 < b0 { -1 } else { 1 };
+        }
+    }
+    0
 }
 
+#[cfg(target_arch = "aarch64")]
 #[inline]
-fn maybe_census(x: &[u8], y: &[u8]) {
-    use compare_census as census;
-    use std::sync::atomic::Ordering::Relaxed;
-    if !*census::ENABLED {
-        return;
+unsafe fn compare_diff_16(xp: *const u8, yp: *const u8) -> i64 {
+    let a0 = u64::from_be(unsafe { xp.cast::<u64>().read_unaligned() });
+    let b0 = u64::from_be(unsafe { yp.cast::<u64>().read_unaligned() });
+    if a0 != b0 {
+        return if a0 < b0 { -1 } else { 1 };
     }
-    let n = x.len().min(y.len());
-    census::CALLS.fetch_add(1, Relaxed);
-    census::MIN_LEN.fetch_add(n as u64, Relaxed);
-    if n > 8 {
-        census::WIDE.fetch_add(1, Relaxed);
+    let a1 = u64::from_be(unsafe { xp.add(8).cast::<u64>().read_unaligned() });
+    let b1 = u64::from_be(unsafe { yp.add(8).cast::<u64>().read_unaligned() });
+    if a1 < b1 { -1 } else { 1 }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline]
+unsafe fn compare_diff_32(xp: *const u8, yp: *const u8) -> i64 {
+    for off in [0usize, 8, 16] {
+        let a = u64::from_be(unsafe { xp.add(off).cast::<u64>().read_unaligned() });
+        let b = u64::from_be(unsafe { yp.add(off).cast::<u64>().read_unaligned() });
+        if a != b {
+            return if a < b { -1 } else { 1 };
+        }
     }
-    if x.as_ptr() == y.as_ptr() && x.len() == y.len() {
-        census::SAME_REGION.fetch_add(1, Relaxed);
-        return;
+    let a = u64::from_be(unsafe { xp.add(24).cast::<u64>().read_unaligned() });
+    let b = u64::from_be(unsafe { yp.add(24).cast::<u64>().read_unaligned() });
+    if a < b { -1 } else { 1 }
+}
+
+/// AArch64 NEON prefix comparison for `n >= 16` bytes.
+#[cfg(target_arch = "aarch64")]
+#[inline]
+unsafe fn compare_bytes_simd(xp: *const u8, yp: *const u8, n: usize) -> i64 {
+    use std::arch::aarch64::{vandq_u8, vceqq_u8, vld1q_u8, vminvq_u8};
+    let mut i = 0usize;
+    while i + 64 <= n {
+        let eq0 = unsafe { vceqq_u8(vld1q_u8(xp.add(i)), vld1q_u8(yp.add(i))) };
+        let eq1 = unsafe { vceqq_u8(vld1q_u8(xp.add(i + 16)), vld1q_u8(yp.add(i + 16))) };
+        let eq2 = unsafe { vceqq_u8(vld1q_u8(xp.add(i + 32)), vld1q_u8(yp.add(i + 32))) };
+        let eq3 = unsafe { vceqq_u8(vld1q_u8(xp.add(i + 48)), vld1q_u8(yp.add(i + 48))) };
+        let eq01 = unsafe { vandq_u8(eq0, eq1) };
+        let eq23 = unsafe { vandq_u8(eq2, eq3) };
+        if unsafe { vminvq_u8(vandq_u8(eq01, eq23)) } != 0xFF {
+            if unsafe { vminvq_u8(eq01) } != 0xFF {
+                return unsafe { compare_diff_32(xp.add(i), yp.add(i)) };
+            }
+            return unsafe { compare_diff_32(xp.add(i + 32), yp.add(i + 32)) };
+        }
+        i += 64;
     }
-    if x.len() == y.len() {
-        census::LEN_EQUAL.fetch_add(1, Relaxed);
+    while i + 16 <= n {
+        let eq = unsafe { vceqq_u8(vld1q_u8(xp.add(i)), vld1q_u8(yp.add(i))) };
+        if unsafe { vminvq_u8(eq) } != 0xFF {
+            return unsafe { compare_diff_16(xp.add(i), yp.add(i)) };
+        }
+        i += 16;
     }
-    let mut i = 0;
-    while i < n && x[i] == y[i] {
-        i += 1;
+    if i < n {
+        let off = n - 16;
+        let eq = unsafe { vceqq_u8(vld1q_u8(xp.add(off)), vld1q_u8(yp.add(off))) };
+        if unsafe { vminvq_u8(eq) } != 0xFF {
+            return unsafe { compare_diff_16(xp.add(off), yp.add(off)) };
+        }
     }
-    census::SCANNED.fetch_add(i as u64, Relaxed);
-    if i == n && x.len() == y.len() {
-        census::CONTENT_EQUAL.fetch_add(1, Relaxed);
+    0
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn compare_bytes_avx2(xp: *const u8, yp: *const u8, n: usize) -> i64 {
+    use std::arch::x86_64::{
+        __m256i, _mm256_cmpeq_epi8, _mm256_loadu_si256, _mm256_movemask_epi8,
+    };
+    let mut i = 0usize;
+    while i + 32 <= n {
+        let a = unsafe { _mm256_loadu_si256(xp.add(i).cast::<__m256i>()) };
+        let b = unsafe { _mm256_loadu_si256(yp.add(i).cast::<__m256i>()) };
+        let mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(a, b)) as u32;
+        if mask != u32::MAX {
+            let diff = (!mask).trailing_zeros() as usize;
+            let ba = unsafe { *xp.add(i + diff) };
+            let bb = unsafe { *yp.add(i + diff) };
+            return if ba < bb { -1 } else { 1 };
+        }
+        i += 32;
     }
+    if i < n {
+        let off = n - 32;
+        let a = unsafe { _mm256_loadu_si256(xp.add(off).cast::<__m256i>()) };
+        let b = unsafe { _mm256_loadu_si256(yp.add(off).cast::<__m256i>()) };
+        let mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(a, b)) as u32;
+        if mask != u32::MAX {
+            let diff = (!mask).trailing_zeros() as usize;
+            let ba = unsafe { *xp.add(off + diff) };
+            let bb = unsafe { *yp.add(off + diff) };
+            return if ba < bb { -1 } else { 1 };
+        }
+    }
+    0
+}
+
+#[cfg(target_arch = "x86_64")]
+#[inline]
+unsafe fn compare_bytes_sse2(xp: *const u8, yp: *const u8, n: usize) -> i64 {
+    use std::arch::x86_64::{__m128i, _mm_cmpeq_epi8, _mm_loadu_si128, _mm_movemask_epi8};
+    let mut i = 0usize;
+    while i + 16 <= n {
+        let a = unsafe { _mm_loadu_si128(xp.add(i).cast::<__m128i>()) };
+        let b = unsafe { _mm_loadu_si128(yp.add(i).cast::<__m128i>()) };
+        let mask = unsafe { _mm_movemask_epi8(_mm_cmpeq_epi8(a, b)) } as u32;
+        if mask != 0xFFFF {
+            let diff = ((!mask) & 0xFFFF).trailing_zeros() as usize;
+            let ba = unsafe { *xp.add(i + diff) };
+            let bb = unsafe { *yp.add(i + diff) };
+            return if ba < bb { -1 } else { 1 };
+        }
+        i += 16;
+    }
+    if i < n {
+        let off = n - 16;
+        let a = unsafe { _mm_loadu_si128(xp.add(off).cast::<__m128i>()) };
+        let b = unsafe { _mm_loadu_si128(yp.add(off).cast::<__m128i>()) };
+        let mask = unsafe { _mm_movemask_epi8(_mm_cmpeq_epi8(a, b)) } as u32;
+        if mask != 0xFFFF {
+            let diff = ((!mask) & 0xFFFF).trailing_zeros() as usize;
+            let ba = unsafe { *xp.add(off + diff) };
+            let bb = unsafe { *yp.add(off + diff) };
+            return if ba < bb { -1 } else { 1 };
+        }
+    }
+    0
+}
+
+/// x86_64 prefix comparison for `n >= 16` bytes: AVX2 when available and
+/// `n >= 32`, otherwise SSE2.
+#[cfg(target_arch = "x86_64")]
+#[inline]
+unsafe fn compare_bytes_simd(xp: *const u8, yp: *const u8, n: usize) -> i64 {
+    if n >= 32 && std::arch::is_x86_feature_detected!("avx2") {
+        return unsafe { compare_bytes_avx2(xp, yp, n) };
+    }
+    unsafe { compare_bytes_sse2(xp, yp, n) }
+}
+
+/// Portable 8-byte unaligned big-endian fallback for other targets.
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+#[inline]
+unsafe fn compare_bytes_simd(xp: *const u8, yp: *const u8, n: usize) -> i64 {
+    let mut i = 0usize;
+    while i + 8 <= n {
+        let a = u64::from_be(unsafe { xp.add(i).cast::<u64>().read_unaligned() });
+        let b = u64::from_be(unsafe { yp.add(i).cast::<u64>().read_unaligned() });
+        if a != b {
+            return if a < b { -1 } else { 1 };
+        }
+        i += 8;
+    }
+    if i < n {
+        let off = n - 8;
+        let a = u64::from_be(unsafe { xp.add(off).cast::<u64>().read_unaligned() });
+        let b = u64::from_be(unsafe { yp.add(off).cast::<u64>().read_unaligned() });
+        if a != b {
+            return if a < b { -1 } else { 1 };
+        }
+    }
+    0
 }
 
 /// The data pointer of a `Bytes` word: how buffer contents cross to
@@ -1700,5 +1853,111 @@ mod tests {
         // dedicated division exit is gone with the faulting division.
         assert_eq!(Error::DivByZero.exit_code(), EXIT_PANIC);
         assert_eq!(Error::NegativeResult.exit_code(), EXIT_PANIC);
+    }
+
+    #[test]
+    fn compare_bytes_matches_slice_cmp_across_lengths_alignments_and_diffs() {
+        fn ref_cmp(a: &[u8], b: &[u8]) -> i64 {
+            match a.cmp(b) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            }
+        }
+
+        // Base buffer large enough to slice at any alignment offset 0..32 with length up to 130.
+        let mut buf_a = vec![0u8; 200];
+        let mut buf_b = vec![0u8; 200];
+        for (i, b) in buf_a.iter_mut().enumerate() {
+            *b = ((i * 73 + 19) & 0xFF) as u8;
+        }
+
+        // 1. Exhaustive prefix lengths 0..=130 and first-differing-byte offsets 0..len,
+        //    plus unsigned high-bit edge cases (0x7F vs 0x80, 0x00 vs 0xFF).
+        for len in 0..=130usize {
+            let off_a = len % 17;
+            let off_b = (len * 5 + 3) % 17;
+            buf_b[off_b..off_b + len].copy_from_slice(&buf_a[off_a..off_a + len]);
+            let sa = &buf_a[off_a..off_a + len];
+            let sb = &buf_b[off_b..off_b + len];
+            // Equal content at distinct addresses and same address.
+            assert_eq!(compare_bytes(sa, sb), 0, "eq len={len}");
+            assert_eq!(compare_bytes(sa, sa), 0, "same ptr len={len}");
+            // Prefix ties (different lengths, same pointer and different pointers).
+            if len > 0 {
+                assert_eq!(compare_bytes(&sa[..len - 1], sa), -1, "same ptr prefix len={len}");
+                assert_eq!(compare_bytes(sa, &sa[..len - 1]), 1, "same ptr prefix rev len={len}");
+                assert_eq!(compare_bytes(&sa[..len - 1], sb), -1, "diff ptr prefix len={len}");
+                assert_eq!(compare_bytes(sa, &sb[..len - 1]), 1, "diff ptr prefix rev len={len}");
+            }
+            // Every first-differing-byte offset in 0..len.
+            for diff in 0..len {
+                let orig = buf_b[off_b + diff];
+                // Make b > a (handling 0xFF wrap by testing both directions via high-bit values).
+                for &(va, vb) in &[(0x00u8, 0x01u8), (0x7Fu8, 0x80u8), (0x00u8, 0xFFu8), (0xFEu8, 0xFFu8)] {
+                    let saved_a = buf_a[off_a + diff];
+                    buf_a[off_a + diff] = va;
+                    buf_b[off_b + diff] = vb;
+                    let a_sl = &buf_a[off_a..off_a + len];
+                    let b_sl = &buf_b[off_b..off_b + len];
+                    assert_eq!(
+                        compare_bytes(a_sl, b_sl),
+                        ref_cmp(a_sl, b_sl),
+                        "len={len} diff={diff} va={va:#x} vb={vb:#x}"
+                    );
+                    assert_eq!(
+                        compare_bytes(b_sl, a_sl),
+                        ref_cmp(b_sl, a_sl),
+                        "rev len={len} diff={diff} va={va:#x} vb={vb:#x}"
+                    );
+                    buf_a[off_a + diff] = saved_a;
+                }
+                buf_b[off_b + diff] = orig;
+            }
+        }
+
+        // 2. Every alignment pair (0..16) x (0..16) across key lengths crossing 8/16/32/64 boundaries.
+        for &len in &[0usize, 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 128, 130] {
+            for off_a in 0..16usize {
+                for off_b in 0..16usize {
+                    buf_b[off_b..off_b + len].copy_from_slice(&buf_a[off_a..off_a + len]);
+                    let sa = &buf_a[off_a..off_a + len];
+                    let sb = &buf_b[off_b..off_b + len];
+                    assert_eq!(compare_bytes(sa, sb), 0);
+                    if len > 0 {
+                        let last = off_b + len - 1;
+                        let saved = buf_b[last];
+                        buf_b[last] = saved.wrapping_add(1);
+                        let sb2 = &buf_b[off_b..off_b + len];
+                        assert_eq!(compare_bytes(sa, sb2), ref_cmp(sa, sb2));
+                        buf_b[last] = saved;
+                    }
+                }
+            }
+        }
+
+        // 3. End-to-end through extern "C" cinch_bytes_compare.
+        for &len in &[0usize, 1, 3, 7, 8, 15, 16, 31, 32, 64, 65, 129, 256] {
+            let mut v1: Vec<u8> = (0..len).map(|i| ((i * 17 + 5) & 0xFF) as u8).collect();
+            let mut v2 = v1.clone();
+            unsafe {
+                let w1 = cinch_bytes_from_data(v1.as_ptr(), v1.len() as i64);
+                let w2 = cinch_bytes_from_data(v2.as_ptr(), v2.len() as i64);
+                assert_eq!(cinch_bytes_compare(w1, w1), 0);
+                assert_eq!(cinch_bytes_compare(w1, w2), 0);
+                cinch_free(w1);
+                cinch_free(w2);
+                if len > 0 {
+                    v1[len - 1] = 0x7F;
+                    v2[len - 1] = 0x80;
+                    let w1 = cinch_bytes_from_data(v1.as_ptr(), v1.len() as i64);
+                    let w2 = cinch_bytes_from_data(v2.as_ptr(), v2.len() as i64);
+                    assert_eq!(cinch_bytes_compare(w1, w2), -1);
+                    assert_eq!(cinch_bytes_compare(w2, w1), 1);
+                    cinch_free(w1);
+                    cinch_free(w2);
+                }
+            }
+        }
     }
 }
