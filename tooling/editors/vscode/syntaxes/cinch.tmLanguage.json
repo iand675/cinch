@@ -75,7 +75,7 @@
         },
         {
           "name": "storage.type.declaration.cinch",
-          "match": "\\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\\b(?![A-Za-z0-9_'!?-])"
+          "match": "\\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|machine|refines|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\\b(?![A-Za-z0-9_'!?-])"
         },
         {
           "name": "keyword.other.cinch",
@@ -92,7 +92,7 @@
         },
         {
           "name": "keyword.other.contract.cinch",
-          "match": "\\b(safety|liveness|recurrence|stability|always|eventually|recur|stable|assume)\\b(?![A-Za-z0-9_'!?-])"
+          "match": "\\b(safety|liveness|recurrence|stability|always|deadlock_free|eventually|leads_to|recur|stable|fair|strong_fair|symmetry|max_states|observe|view|measure|assume)\\b(?![A-Za-z0-9_'!?-])"
         },
         { "name": "storage.modifier.cinch", "match": "\\b(erased|own)\\b(?![A-Za-z0-9_'!?-])" },
         { "name": "keyword.control.flow.cinch", "match": "\\b(return|resume)\\b(?![A-Za-z0-9_'!?-])" },

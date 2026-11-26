@@ -27,9 +27,9 @@ This manual documents the Cinch language, compiler CLI, type and effect systems,
 - [08 · Dependent types, proofs, and erasure](08-dependent-types-and-proofs.md) — Indexed families, `Sigma`, `Prop`, `%0` erasure, `refl`/`congr`, and totality
 - [09 · Effects, handlers, capabilities, and sequencing](09-effects-and-capabilities.md) — Effect rows, `Io r`, `using`/`with`, handlers, and `do` providers
 - [10 · Ownership, regions, and reclamation](10-ownership-and-memory.md) — Multiplicities (`%0`, `%1`, `%aff`, `%many`), `Copy`, borrows, and reference counting
-- [11 · Laziness, memoization, and codata](11-laziness-and-codata.md) — Thunks, `~` memo bindings, `Eval r`, `codata`, `Later`, and `corec`
-- [13 · Structured concurrency and runtime](13-concurrency-and-runtime.md) — Scopes, `spawn`, cancellation, STM, and runtime diagnostics
-- [17 · Runtime upgrades and temporal contracts](17-upgrades-and-temporal-contracts.md) — `upgrade` migrations, versioned dispatch, and temporal assertions
+- [11 · Laziness, memoization, and codata](11-laziness-and-codata.md) — Thunks, `~` memo bindings, `Eval r`, `codata`, `Later`, clocked `Later k`, and `corec`
+- [13 · Structured concurrency and runtime](13-concurrency-and-runtime.md) — Scopes, `spawn`, cancellation, STM, fair `MVar`, and runtime diagnostics
+- [17 · Runtime upgrades and temporal contracts](17-upgrades-and-temporal-contracts.md) — `upgrade` migrations, `machine` model checking, fairness, `refines`, and temporal assertions
 - [22 · Safety assertions, must-use, and LLVM contracts](22-safety-assertions-and-llvm.md) — Checked bounds, JPL profile, and LLVM attribute lowering
 
 ## Systems programming and optimization

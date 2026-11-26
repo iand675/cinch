@@ -221,15 +221,243 @@ cinch: 7:15: temporal safety: the contract `loopInv` on `Main.countdown` is fals
 
 # The checked temporal fragment
 
+Cinch checks temporal contracts across three surfaces: borrowed mutable-state functions, explicit-state `machine` declarations (with checked stuttering refinement via `refines`), and concurrency primitives (`withScope`, fair `MVar`, and `Effect.Stm`).
+
 | Kind | Operator | Checked today |
 | --- | --- | --- |
-| `safety` | `always` | Verifies the invariant at entry and across every write transition on borrowed `Mut` state. Undecidable steps fail with an explicit refusal rather than being assumed. |
-| `stability` | `stable` | Verifies that a fact about a location holds across all transitions outside its footprint; any direct or callee write to that footprint triggers evidence invalidation. |
-| `liveness` | `eventually` | Verifies finite structured obligations within a scope (joining spawned task handles, completing scope cleanup). Open-ended progress claims requiring fairness are rejected. |
-| `recurrence` | `recur` | Verifies recurrence along a structurally decreasing recursion argument. Non-structural or unbounded loops are rejected. |
+| `safety` | `always` | On `Mut` functions: inductive invariant at entry and across every write transition. On `machine` declarations: exhaustive bounded BFS over every reachable state, reporting a shortest counterexample trace on failure. |
+| `safety` | `deadlock_free` | On `machine` declarations: verifies every reachable state has at least one enabled outgoing transition, or prints a shortest path to a deadlocked state. |
+| `stability` | `stable` | On `Mut` functions: verifies footprint invariance across untouched transitions. On `machine` declarations: verifies that once `P` holds, no reachable transition makes `P` false. |
+| `liveness` | `eventually` | On `withScope` functions: discharges finite structured-scope obligations (`joined`, `cleanup`). On `Effect.Concurrent.MVar` functions: discharges `fair_handoff` automatically from FIFO mutex and queue fairness (`Effect.Stm` requires an explicit `assume`). On `machine` declarations: checks absence of fair cycles avoiding `Q` via Tarjan SCC and Emerson-Lei fairness checking. |
+| `liveness` | `leads_to` | On `machine` declarations (`(P) ~> (Q)`): verifies that from every reachable `P`-state, every fair infinite run reaches a `Q`-state, or prints a fair-cycle lasso counterexample. |
+| `recurrence` | `recur` | On recursive functions: structural recursion at every cycle. On `machine` declarations: verifies `Q` holds infinitely often on every fair run. |
 
-Non-structural and unbounded temporal claims always receive a named check-time refusal. In particular, `liveness` cannot prove that external I/O or network calls eventually succeed; any external guarantee must be stated explicitly via `assume`.
+Non-structural and unbounded temporal claims outside these fragments receive a named check-time refusal. In particular, `liveness` cannot prove that external I/O or network calls eventually succeed; any external guarantee must be stated explicitly via `assume`.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Unbounded temporal reasoning.** Simulation-based refinement, divergence-sensitive liveness, and proofs over arbitrary concurrent process trees are specified but not yet implemented.
+# Explicit-state machines (`machine`)
 
-For a guided walkthrough, see the [upgrades and contracts tutorial](../learn/21-upgrades-and-contracts.md).
+A `machine` declaration defines a finite-state transition system directly in ordinary Cinch code, reusing the same records, enums, refinements, and functions your program executes:
+
+```text
+machine Name where
+  state = StateType
+  init = initialStateExpr
+  actions = [act1, act2, ...]
+  fair = [act1]                 -- optional: weak fairness (WF)
+  strong_fair = [act2]          -- optional: strong fairness (SF)
+  symmetry = [NodeType]         -- optional: type-checked symmetry reduction
+  max_states = 4096             -- optional: BFS exploration cap (default 4096)
+  observe = projectionFn        -- optional: observation function
+```
+
+## Action signatures and finite parameter domains
+
+Each action listed in `actions` is a pure Cinch function whose **last** parameter is `StateType`, returning one of three shapes:
+
+- `... -> StateType -> StateType` — unconditionally enabled deterministic step.
+- `... -> StateType -> Option StateType` — guarded step (`Some next` = enabled, `None` = disabled).
+- `... -> StateType -> List StateType` — non-deterministic step (`Nil` = disabled).
+
+Any parameters before `StateType` are automatically enumerated by the model checker from their Cinch types:
+
+| Parameter type | Enumerated domain |
+| --- | --- |
+| `Bool` | `[False, True]` |
+| Nullary `data` enum | All declared constructors in declaration order |
+| `Fin n` (static numeral `n`) | `0 .. n - 1` |
+| `InRange lo hi Nat` (and refined integer ranges) | `lo .. hi` |
+
+Unbounded parameter types (such as bare `Nat` or `String`) are rejected rather than silently truncated.
+
+## Machine contracts, fairness, and stuttering invariance
+
+A `contract` targeting a `machine` uses predicate lambdas `\s -> ... :: StateType -> Bool` (or `(True)` for `deadlock_free`):
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  record Pool where
+    queued :: Nat
+    running :: Nat
+    done :: Nat
+
+  accept :: Pool -> Option Pool
+  accept s =
+    if s.queued + s.running < 2
+    then Some (Pool { queued = s.queued + 1, running = s.running, done = s.done })
+    else None
+
+  start :: Pool -> Option Pool
+  start s =
+    let q = s.queued in
+    if q > 0 && s.running < 1
+    then Some (Pool { queued = q - 1, running = s.running + 1, done = s.done })
+    else None
+
+  finish :: Pool -> Option Pool
+  finish s =
+    let r = s.running in
+    if r > 0 && s.done < 3
+    then Some (Pool { queued = s.queued, running = r - 1, done = s.done + 1 })
+    else None
+
+  machine WorkerPool where
+    state = Pool
+    init = Pool { queued = 0, running = 0, done = 0 }
+    actions = [accept, start, finish]
+
+  contract safety boundInv for WorkerPool where
+    always = (\s -> s.queued + s.running <= 2 && s.running <= 1)
+
+  main :: Int
+  main = 0
+```
+
+- **Weak fairness (`fair`)** discards any cycle in which a listed action remains continuously enabled in every state of the cycle without firing.
+- **Strong fairness (`strong_fair`)** discards any cycle in which a listed action is enabled in at least one state of the cycle without firing.
+- Fairness clauses can be placed on the `machine` (applying to all contracts on it) or overridden/extended on an individual `contract`.
+- **Stuttering invariance (`next` forbidden):** Public contracts reject a raw `next` operator (`\`next\` is forbidden in public temporal contracts; contracts must be stuttering-invariant`) so that properties proved on an abstract machine are preserved by every stuttering refinement:
+
+<!-- cinch:reject contains="stuttering-invariant" -->
+```cinch
+module Main where
+  record S where
+    x :: Nat
+
+  step :: S -> S
+  step s = S { x = s.x }
+
+  machine M where
+    state = S
+    init = S { x = 0 }
+    actions = [step]
+
+  contract safety badNext for M where
+    next = (\s -> s.x == 0)
+
+  main :: Int
+  main = 0
+```
+
+## Symmetry reduction and Partial Order Reduction (POR)
+
+- **Symmetry reduction (`symmetry = [T1, ...]`)** canonicalizes reachable states under permutations of each listed enum type, collapsing symmetric states during BFS. Soundness requires that no listed type has an `Ord` instance in scope; if `Ord T` is present, checking fails with `unsound symmetry reduction`.
+- **Static field-footprint POR** analyses which record fields each action reads and writes. Pairs of actions with disjoint read/write footprints are identified automatically and reported in the manifest summary (`symmetry_merged`, `por_independent_pairs`).
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  data Node where
+    N0 :: Node
+    N1 :: Node
+
+  record Sys where
+    owner :: Option Node
+    left :: Nat
+    right :: Nat
+
+  acquire :: Node -> Sys -> Option Sys
+  acquire n s = case s.owner of
+    None -> Some (Sys { owner = Some n, left = s.left, right = s.right })
+    Some _ -> None
+
+  release :: Sys -> Option Sys
+  release s = case s.owner of
+    Some _ -> Some (Sys { owner = None, left = s.left, right = s.right })
+    None -> None
+
+  bumpLeft :: InRange 0 1 Nat -> Sys -> Option Sys
+  bumpLeft d s =
+    if s.left == 0 && d == 1
+    then Some (Sys { owner = s.owner, left = 1, right = s.right })
+    else None
+
+  bumpRight :: Sys -> Option Sys
+  bumpRight s =
+    if s.right == 0
+    then Some (Sys { owner = s.owner, left = s.left, right = 1 })
+    else None
+
+  machine LockSys where
+    state = Sys
+    init = Sys { owner = None, left = 0, right = 0 }
+    actions = [acquire, release, bumpLeft, bumpRight]
+    symmetry = [Node]
+
+  contract safety boundedCounts for LockSys where
+    always = (\s -> s.left <= 1 && s.right <= 1)
+
+  main :: Int
+  main = 0
+```
+
+# Checked stuttering refinement (`refines`)
+
+A `refines` declaration prevents specification-implementation drift by verifying a stuttering simulation from a concrete machine to an abstract machine:
+
+```text
+refines ConcreteMachine AbstractMachine where
+  view = projectFn              -- ConcreteState -> AbstractState
+  measure = rankFn              -- optional: ConcreteState -> Nat
+```
+
+The checker explores every reachable state and edge of `ConcreteMachine` and verifies:
+
+1. `view concreteInit == abstractInit`.
+2. For every concrete transition `c1 --[act]--> c2`, either `view c1 == view c2` (a stuttering step) or `view c1 -> view c2` is an existing transition in `AbstractMachine`'s reachable transition graph.
+3. When `measure` is provided, every stuttering step (`view c1 == view c2`) must satisfy `measure c2 < measure c1`, ruling out infinite silent stuttering (livelock).
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  record AbsState where
+    done :: Bool
+
+  absFinish :: AbsState -> Option AbsState
+  absFinish s = if not s.done then Some (AbsState { done = True }) else None
+
+  machine AbsSpec where
+    state = AbsState
+    init = AbsState { done = False }
+    actions = [absFinish]
+
+  record ConcState where
+    phase :: Nat
+
+  prepare :: ConcState -> Option ConcState
+  prepare s = if s.phase == 0 then Some (ConcState { phase = 1 }) else None
+
+  commit :: ConcState -> Option ConcState
+  commit s = if s.phase == 1 then Some (ConcState { phase = 2 }) else None
+
+  machine ConcImpl where
+    state = ConcState
+    init = ConcState { phase = 0 }
+    actions = [prepare, commit]
+
+  project :: ConcState -> AbsState
+  project s = AbsState { done = s.phase == 2 }
+
+  stutterRank :: ConcState -> Nat
+  stutterRank s = if s.phase == 0 then 2 else (if s.phase == 1 then 1 else 0)
+
+  refines ConcImpl AbsSpec where
+    view = project
+    measure = stutterRank
+
+  main :: Int
+  main = 0
+```
+
+Discharged refinements are recorded in `build/<entry>.manifest.json` under `temporal.contracts` with `"kind": "refinement"`, and any illegal transition or non-decreasing stuttering step fails check time with the exact offending action and state trace.
+
+# Concurrency fairness contracts (`fair_handoff`)
+
+`eventually = (fair_handoff)` connects liveness verification to the runtime's synchronization guarantees (see [Chapter 13](13-concurrency-and-runtime.md#fair-mvar-and-temporal-handoff-guarantees)):
+
+- Functions performing the `MVar` effect (`Effect.Concurrent.MVar`) discharge `eventually = (fair_handoff)` automatically because `MVar` uses a strict-FIFO ticketed mutex and FIFO waiter queues.
+- Functions performing `STM` (`Effect.Stm`) are refused unless an explicit `assume = "..."` documents the external fairness assumption, because optimistic transactions can retry indefinitely under contention.
+
+<span class="support-tag support-tag--planned">Coming soon</span> **Unbounded inductive proofs over arbitrary state spaces and process trees.** Bounded explicit-state model checking, weak/strong fairness, symmetry reduction, POR, stuttering refinement, clocked `Later k`, and fair `MVar` discharge are implemented today; unbounded symbolic/inductive proofs beyond `max_states` and proofs over dynamically spawned concurrent process trees remain planned.
+
+For guided walkthroughs, see [state evolution and temporal contracts](../learn/21-upgrades-and-contracts.md) and the beginner guide to [state machines, fairness, and model checking](../learn/23-state-machines-and-model-checking.md).

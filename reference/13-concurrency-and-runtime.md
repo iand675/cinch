@@ -370,6 +370,55 @@ module Main where
   main = 0
 ```
 
+# Fair `MVar` and temporal handoff guarantees
+
+When concurrent tasks need starvation-free synchronization, prefer `Effect.Concurrent.MVar` over optimistic `Effect.Stm`. An `MVar a` is a synchronized single-slot cell backed by a **strict-FIFO ticketed runtime mutex** and **FIFO waiter queues** for blocked takers, putters, and swaps. Nonblocking calls (`mvar-try-take`, `mvar-try-put`, `mvar-try-read`) cannot steal a value or slot already reserved for a queued waiter, and cancellable variants (`-or-cancel`) preserve committed handoffs.
+
+| Operation | Effect row | Behavior |
+| --- | --- | --- |
+| `mvar-new`, `mvar-new-empty` | `{MVar}` | Allocate a full or empty `MVar a`. |
+| `mvar-take`, `mvar-put`, `mvar-read`, `mvar-swap` | `{MVar, Diverge}` | Blocking FIFO-served take, put, non-destructive read, and atomic swap. |
+| `mvar-try-take`, `mvar-try-put`, `mvar-try-read`, `mvar-is-empty` | `{MVar}` | Nonblocking immediate operations; never jump ahead of queued waiters. |
+| `mvar-take-or-cancel`, `mvar-put-or-cancel`, `mvar-read-or-cancel`, `mvar-swap-or-cancel` | `{MVar, Cancel r, Diverge}` | Cancellable blocking forms; unregister cleanly if cancelled before commit. |
+
+Because `MVar` guarantees FIFO handoff fairness at runtime, a temporal contract claiming `eventually = (fair_handoff)` over an `MVar` function discharges automatically without an unverified assumption:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Effect.Concurrent.MVar
+
+  exchange :: MVar Nat -> Nat ->{MVar, Diverge} Nat
+  exchange slot x = do
+    _ <- mvar-put slot x
+    mvar-take slot
+
+  contract liveness mvarFair for exchange where
+    eventually = (fair_handoff)
+
+  main :: Int
+  main = 0
+```
+
+By contrast, `Effect.Stm` is optimistic and does not promise fairness under contention, so claiming `eventually = (fair_handoff)` on an `STM` function is rejected unless an explicit `assume` clause is recorded:
+
+<!-- cinch:reject contains="does not guarantee fairness" -->
+```cinch
+module Main where
+  import Effect.Stm
+
+  bump :: TVar Nat ->{STM, Diverge} Nat
+  bump v = atomically (tvar-read v)
+
+  contract liveness stmFair for bump where
+    eventually = (fair_handoff)
+
+  main :: Int
+  main = 0
+```
+
+See [Chapter 17](17-upgrades-and-temporal-contracts.md#concurrency-fairness-contracts-fair_handoff) and [state machines, fairness, and model checking](../learn/23-state-machines-and-model-checking.md#connecting-fairness-to-real-concurrent-code-mvar-vs-stm) for how runtime fairness connects to state-machine verification.
+
 # Planned extensions
 
 - <span class="support-tag support-tag--planned">Coming soon</span> **Bounded channels and `select`/`race`.** Typed bounded channels (`Effect.Channel`) with ownership transfer at send commit, cancellation-safe blocked operations, and multi-channel `select`/`race` are specified but not yet in the standard library.
