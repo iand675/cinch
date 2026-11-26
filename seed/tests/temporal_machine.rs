@@ -937,3 +937,272 @@ module Main where
     assert!(cman.contains("refines FullSystem AuthSpec"), "got: {cman}");
     assert!(cman.contains("refines FullSystem QueueSpec"), "got: {cman}");
 }
+
+// ----------------------------------------------------------------- 11. Data.Finite Extensible Domains & Symmetry Guard
+
+#[test]
+fn finite_typeclass_enumerates_payload_adts_and_records_and_guards_symmetry() {
+    let finite_mod = include_str!("../prelude/Data/Finite.cinch");
+
+    // 1. User-defined payload-carrying ADT (`Msg`) + record (`Cmd`) enumerated via `Data.Finite.Finite`:
+    let ok_src = r#"
+module Main where
+  import Data.Finite
+
+  data Client where
+    C0 :: Client
+    C1 :: Client
+
+  data Msg where
+    Req :: Client -> Nat -> Msg
+    Ack :: Client -> Msg
+
+  implicit instance Finite_Client :: Finite Client where
+    enumerate _ = [C0, C1]
+
+  implicit instance Finite_Msg :: Finite Msg where
+    enumerate _ =
+      finite-sum [
+        finite-product (\c -> \w -> Req c w) (enumerate ()) [1, 2],
+        finite-map Ack (enumerate ())
+      ]
+
+  record Broker where
+    load :: Nat
+    acks :: Nat
+
+  dispatch :: Msg -> Broker -> Option Broker
+  dispatch msg s = case msg of
+    Req _ w ->
+      if s.load + w <= 3
+      then Some (Broker { load = s.load + w, acks = s.acks })
+      else None
+    Ack _ ->
+      let l = s.load in
+      if l > 0 && s.acks < 2
+      then Some (Broker { load = l - 1, acks = s.acks + 1 })
+      else None
+
+  machine BrokerMachine where
+    state = Broker
+    init = Broker { load = 0, acks = 0 }
+    actions = [dispatch]
+
+  contract safety boundedLoad for BrokerMachine where
+    always = (\s -> s.load <= 3 && s.acks <= 2)
+
+  main :: Int
+  main = 0
+"#;
+    let dir_ok = common::project("finite-adt-ok", &[
+        ("Data.Finite.cinch", finite_mod),
+        ("Main.cinch", ok_src),
+    ]);
+    let res_ok = common::drive_with_profile(
+        Mode::Check,
+        StageMode::Refresh,
+        &dir_ok,
+        "Main.cinch",
+        None,
+        &TargetProfile::native(),
+    );
+    assert!(res_ok.is_ok(), "expected Data.Finite payload ADT machine to pass, got: {res_ok:?}");
+    common::cleanup(&dir_ok);
+
+    // 2. Counterexample triggers specifically on payload ADT value `Req _ 2`:
+    let bad_src = r#"
+module Main where
+  import Data.Finite
+
+  data Client where
+    C0 :: Client
+    C1 :: Client
+
+  data Msg where
+    Req :: Client -> Nat -> Msg
+    Ack :: Client -> Msg
+
+  implicit instance Finite_Client :: Finite Client where
+    enumerate _ = [C0, C1]
+
+  implicit instance Finite_Msg :: Finite Msg where
+    enumerate _ =
+      finite-sum [
+        finite-product (\c -> \w -> Req c w) (enumerate ()) [1, 2],
+        finite-map Ack (enumerate ())
+      ]
+
+  record Broker where
+    load :: Nat
+
+  dispatch :: Msg -> Broker -> Option Broker
+  dispatch msg s = case msg of
+    Req _ w ->
+      if s.load + w <= 2
+      then Some (Broker { load = s.load + w })
+      else None
+    Ack _ -> None
+
+  machine BrokerBad where
+    state = Broker
+    init = Broker { load = 0 }
+    actions = [dispatch]
+
+  contract safety capOne for BrokerBad where
+    always = (\s -> s.load <= 1)
+
+  main :: Int
+  main = 0
+"#;
+    let dir_bad = common::project("finite-adt-bad", &[
+        ("Data.Finite.cinch", finite_mod),
+        ("Main.cinch", bad_src),
+    ]);
+    let err_bad = common::drive_with_profile(
+        Mode::Check,
+        StageMode::Refresh,
+        &dir_bad,
+        "Main.cinch",
+        None,
+        &TargetProfile::native(),
+    )
+    .expect_err("expected safety violation from Req _ 2")
+    .to_string();
+    assert!(err_bad.contains("temporal safety violation"), "got: {err_bad}");
+    assert!(err_bad.contains("changed: load: 0 -> 2") || err_bad.contains("changed: load: 1 -> 2"), "got: {err_bad}");
+    common::cleanup(&dir_bad);
+
+    // 3. Soundness guard: `symmetry = [Node]` MUST be rejected when `Finite Node` is in scope!
+    let bad_sym = r#"
+module Main where
+  import Data.Finite
+
+  data Node where
+    N0 :: Node
+    N1 :: Node
+
+  implicit instance Finite_Node :: Finite Node where
+    enumerate _ = [N0, N1]
+
+  record S where
+    owner :: Option Node
+
+  take :: Node -> S -> Option S
+  take n s = case s.owner of
+    None -> Some (S { owner = Some n })
+    Some _ -> None
+
+  machine UnsoundSym where
+    state = S
+    init = S { owner = None }
+    actions = [take]
+    symmetry = [Node]
+
+  main :: Int
+  main = 0
+"#;
+    let dir_sym = common::project("finite-symmetry-reject", &[
+        ("Data.Finite.cinch", finite_mod),
+        ("Main.cinch", bad_sym),
+    ]);
+    let err_sym = common::drive_with_profile(
+        Mode::Check,
+        StageMode::Refresh,
+        &dir_sym,
+        "Main.cinch",
+        None,
+        &TargetProfile::native(),
+    )
+    .expect_err("symmetry with Finite instance in scope must be rejected")
+    .to_string();
+    assert!(err_sym.contains("unsound symmetry reduction"), "got: {err_sym}");
+    assert!(err_sym.contains("Finite"), "got: {err_sym}");
+    common::cleanup(&dir_sym);
+}
+
+// ----------------------------------------------------------------- 12. Effect.Test.Hegel Pure Library & Shrinking
+
+#[test]
+fn hegel_choice_stream_generators_and_state_machine_shrinking() {
+    let main_src = r#"
+module Main where
+  import Data.Bool
+  import Data.Finite
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Test.Hegel
+
+  list-len-local :: forall a. List a -> Nat
+  list-len-local xs = case xs of
+    Nil -> 0
+    Cons _ rest -> 1 + list-len-local rest
+
+  sum-nats :: List Nat -> Nat
+  sum-nats xs = case xs of
+    Nil -> 0
+    Cons x rest -> x + sum-nats rest
+
+  -- Shared pure state-machine transition functions (same style as `machine` actions!)
+  record Vault where
+    balance :: Nat
+
+  deposit :: Nat -> Vault -> Option Vault
+  deposit amt s =
+    if s.balance + amt <= 10
+    then Some (Vault { balance = s.balance + amt })
+    else None
+
+  withdraw :: Vault -> Option Vault
+  withdraw s =
+    let b = s.balance in
+    if b > 0 then Some (Vault { balance = b - 1 }) else None
+
+  -- 1. Passing property over gen-finite + gen-pair
+  check-pass :: Bool
+  check-pass = case hegel-check (gen-pair (gen-finite :: Gen Bool) (gen-range 1 5)) (\p -> case p of (_, n) -> n >= 1 && n <= 5) of
+    Ok trials -> trials == 200
+    Err _ -> False
+
+  -- 2. Failing list property shrinks automatically to length 3 and all zeros [0, 0, 0]!
+  check-list-shrink :: Bool
+  check-list-shrink = case hegel-check (gen-list 8 (gen-nat 50)) (\xs -> list-len-local xs < 3) of
+    Ok _ -> False
+    Err fail ->
+      let shrunk = hegel-failure-shrunk fail in
+      list-len-local shrunk == 3 && sum-nats shrunk == 0
+
+  -- 3. Native-speed state-machine simulation finds balance >= 5 and shrinks trace to 1 step (`deposit` of 5)!
+  check-machine-shrink :: Bool
+  check-machine-shrink =
+    let actions = [
+          step-action-gen "deposit" (gen-range 1 5) deposit,
+          step-action "withdraw" withdraw
+        ] in
+    case hegel-check-machine (Vault { balance = 0 }) actions (\s -> s.balance < 5) of
+      Ok _ -> False
+      Err fail ->
+        let tr = machine-failure-trace fail in
+        let fin = machine-failure-final-state fail in
+        fin.balance >= 5 && list-len-local tr <= 2
+
+  main :: Int
+  main =
+    if not check-pass then 1
+    else if not check-list-shrink then 2
+    else if not check-machine-shrink then 3
+    else 0
+"#;
+    let dir = common::project("hegel-shrinking-and-sim", &[
+        ("Data.Finite.cinch", include_str!("../prelude/Data/Finite.cinch")),
+        ("Effect.Test.Hegel.cinch", include_str!("../prelude/Effect/Test/Hegel.cinch")),
+        ("Main.cinch", main_src),
+    ]);
+    assert_eq!(
+        common::run(&dir, "Main.cinch"),
+        0,
+        "exit 1=check-pass, 2=check-list-shrink, 3=check-machine-shrink, 0=all passed"
+    );
+    common::cleanup(&dir);
+}

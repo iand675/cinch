@@ -114,7 +114,7 @@ Cinch's model checker is designed to live inside your compiler's normal check lo
 | **Built-in `Set`, `SUBSET` (powerset), `[S -> T]` function spaces, and `CHOOSE`** | Not built into the model checker. | Represent finite sets and maps as small records, tuples, `Option` fields, or canonicalized `List`s. |
 | **Per-instance fairness (`\A n \in Nodes : WF_v(Act(n))`)** | `fair = [act]` applies at the action-name level, not separately per enumerated parameter value. | When fairness must hold per actor independently, split per-actor actions (e.g. `stepA`, `stepB`) or track round-robin turn state explicitly. |
 | **Multi-core disk-backed state stores (millions of states)** | Single-threaded in-memory BFS inside the compiler check pass. | Keep checked models compact with `symmetry`, product decomposition, assume-guarantee `assume`, and `refines` layers. |
-| **Simulation / random-walk mode (`tlc -simulate`) & PlusCal imperative syntax** | Not implemented. | Write pure functional actions directly; use `cinch model trace --where` and `:explore` to inspect reachable states. |
+| **Simulation / random-walk mode (`tlc -simulate`) & PlusCal imperative syntax** | Pure stdlib library (`Effect.Test.Hegel.hegel-check-machine`) — runs at native LLVM speed with integrated trace shrinking, reusing the exact same pure action functions. | Use `machine` for exhaustive small-scope checking and `Effect.Test.Hegel` for large-state native randomized simulation. |
 | **Automatic extraction of `machine` from arbitrary `spawn`/`IO` code** | Not implemented. | Isolate pure protocol transitions as `machine` actions and invoke those exact same pure functions from your concurrent `MVar`/`IO` runtime loops. |
 
 ---
@@ -174,11 +174,12 @@ Every action listed in `actions = [...]` must take `StateType` as its **last** p
 | `InRange lo hi Nat` (or refined `Int`/`Nat`/scalar with static bounds, `hi - lo <= 256`) | **Yes** (`hi - lo + 1` values) | `lo, lo + 1, ..., hi` |
 | `Option T` where `T` is enumerable (`1 + |T| <= 256`) | **Yes** | `None`, followed by `Some v` for every `v` in `T` |
 | Tuple `(A, B)` / `(A, B, ...)` of enumerable types (product `<= 256`) | **Yes** | All combinations `(a, b, ...)` in lexicographic order |
+| Any user record or payload ADT implementing `Data.Finite.Finite` (`<= 256`) | **Yes** | Evaluates `enumerate () :: List P` at check time |
 | Multiple prefix params `P1 -> P2 -> ... -> State -> ...` | **Yes** (product `<= 1024`) | Cartesian product of each parameter's domain |
 | Bare `Nat`, `Int`, `U64`, `I64`, `Char` | **No** — rejected | Unbounded / too large; refine with `InRange lo hi Nat` or `Fin n` |
-| `String`, `Bytes`, `Sym` | **No** — rejected | Infinite domain; replace with a finite enum |
-| `List a`, `Map k v` | **No** — rejected | Unbounded length; replace with a fixed tuple or enum |
-| Payload-carrying or recursive `data` (other than `Option T`) | **No** — rejected | Enumerate components as separate prefix parameters or a tuple |
+| `String`, `Bytes`, `Sym` | **No** — rejected | Infinite domain; replace with a finite enum or a custom `Finite` wrapper |
+| `List a`, `Map k v` | **No** — rejected | Unbounded length; replace with a fixed tuple, `Finite` wrapper, or simulate with `Effect.Test.Hegel` |
+| Payload-carrying or recursive `data` without `Finite` | **No** — rejected | Implement `Data.Finite.Finite` (or pass components as separate parameters/tuples) |
 | `Fin n` with non-constant `n`, or range size `> 256` | **No** — rejected | Keep per-parameter domains small and static |
 | Functions (`a -> b`) | **No** — rejected | Higher-order action parameters are not enumerated |
 
@@ -212,6 +213,58 @@ module Main where
 
   contract safety capDelivered for Router where
     always = (\s -> s.delivered <= 3)
+
+  main :: Int
+  main = 0
+```
+
+### Extensible domains with `Data.Finite`
+
+For payload-carrying algebraic data types or user records (such as protocol messages), implement `Data.Finite.Finite` (`enumerate :: Unit -> List a`) using `finite-map`, `finite-product`, and `finite-sum`:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Data.Finite
+
+  data Client where
+    C0 :: Client
+    C1 :: Client
+
+  data Msg where
+    Req :: Client -> Nat -> Msg
+    Ack :: Client -> Msg
+
+  implicit instance Finite_Client :: Finite Client where
+    enumerate _ = [C0, C1]
+
+  implicit instance Finite_Msg :: Finite Msg where
+    enumerate _ =
+      finite-sum [
+        finite-product (\c -> \w -> Req c w) (enumerate ()) [1, 2],
+        finite-map Ack (enumerate ())
+      ]
+
+  record Broker where
+    load :: Nat
+
+  dispatch :: Msg -> Broker -> Option Broker
+  dispatch msg s = case msg of
+    Req _ w ->
+      if s.load + w <= 3
+      then Some (Broker { load = s.load + w })
+      else None
+    Ack _ ->
+      let l = s.load in
+      if l > 0 then Some (Broker { load = l - 1 }) else None
+
+  machine BrokerMachine where
+    state = Broker
+    init = Broker { load = 0 }
+    actions = [dispatch]
+
+  contract safety boundedLoad for BrokerMachine where
+    always = (\s -> s.load <= 3)
 
   main :: Int
   main = 0
@@ -279,7 +332,7 @@ Additional evaluation boundaries:
 - **`max_states` (default `4096`):** Exploration stops inserting new states once `max_states` distinct canonical states are reached. When this happens, the machine is flagged as **capped** (`[CAPPED]` in `cinch model inspect` and `:machines`, `"capped": true` in `--json` and manifests). Treat a capped exploration as bounded bug-finding, not exhaustive verification—either tighten state bounds, add `symmetry`, or raise `max_states`.
 - **Symmetry reduction (`symmetry = [T1, ...]`):**
   - Works on nullary `data` enums (`data Node = N0 | N1 | N2`) and single-field nominal wrappers (`data JobId = JobId Nat`).
-  - **Requires no `Ord T` instance in scope.** Having `Ord T` breaks permutation invariance and is rejected with `unsound symmetry reduction`.
+  - **Requires no `Ord T` or `Finite T` instance in scope.** Having either `Ord T` or `Finite T` exposes a deterministic order on `T`, breaks permutation invariance, and is rejected with `unsound symmetry reduction`.
   - Uses first-appearance canonicalization on every state visited, merging equivalent states during BFS.
 - **Static field-footprint POR:**
   - Automatically analyzes each action body to determine which fields of the state record are read and which are written.

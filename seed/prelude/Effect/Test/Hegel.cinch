@@ -1,0 +1,478 @@
+-- | Choice-stream property testing and native-speed state-machine simulation
+-- with automatic integrated shrinking (Hegel / Hypothesis / Hedgehog style).
+--
+-- Every `Gen a` is a pure function over a finite stream of bounded discrete
+-- choices (`List Nat`). When a property or state-machine invariant fails, the
+-- shrinker minimizes the underlying choice sequence directly—deleting slices
+-- and binary-searching draws toward `0`—so nested data structures and failing
+-- state-machine traces shrink automatically without writing `shrink` instances.
+--
+-- Use compile-time `machine` declarations for exhaustive small-scope checking
+-- (with type-checked `symmetry`, static POR, `refines`, and manifest provenance),
+-- and reuse the exact same pure action functions with `hegel-check-machine` for
+-- fast native randomized simulation over large or unbounded state spaces.
+module Effect.Test.Hegel where
+
+  import Data.Bool
+  import Data.Finite
+  import Data.List
+  import Data.Nat
+  import Data.NonZero
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Gen, ChoiceSource, HegelSeed, hegel-seed, hegel-next-nat
+  export gen-pure, gen-fail, gen-map, gen-bind, gen-filter
+  export gen-nat, gen-range, gen-bool, gen-element, gen-finite, gen-one-of, gen-option, gen-pair, gen-list
+  export gen-run-live, gen-run-replay
+  export HegelConfig, default-hegel-config, hegel-config-trials, hegel-config-max-choices, hegel-config-max-shrinks, hegel-config-seed
+  export HegelFailure, hegel-failure-trial, hegel-failure-original, hegel-failure-shrunk, hegel-failure-shrinks, hegel-failure-choices
+  export hegel-check, hegel-check-with
+  export StepAction, step-action, step-action-total, step-action-gen
+  export MachineFailure, machine-failure-trial, machine-failure-trace, machine-failure-final-state, machine-failure-shrinks, machine-failure-choices
+  export hegel-check-machine, hegel-check-machine-with
+
+  -- | Deterministic 48-bit LCG PRNG state (high 32 bits output) for choice-stream draws.
+  data HegelSeed where
+    HegelSeed :: Nat -> HegelSeed
+
+  -- | Create a deterministic seed from a natural number.
+  hegel-seed :: Nat -> HegelSeed
+  hegel-seed s = HegelSeed (nat-rem s 281474976710656)
+
+  -- | Advance the 48-bit LCG one step, returning an upper 32-bit draw and the next seed.
+  hegel-next-nat :: HegelSeed -> (Nat, HegelSeed)
+  hegel-next-nat seed = case seed of
+    HegelSeed s ->
+      let s1 = nat-rem (s * 25214903917 + 11) 281474976710656 in
+      (nat-div s1 65536, HegelSeed s1)
+
+  -- | Underlying discrete choice stream driving a `Gen a`.
+  -- `LiveSource` draws from `HegelSeed` and records choices (in reverse order) up to a budget.
+  -- `ReplaySource` consumes pre-recorded choices during shrinking and records the canonicalized log.
+  data ChoiceSource where
+    LiveSource :: HegelSeed -> List Nat -> Nat -> ChoiceSource
+    ReplaySource :: List Nat -> List Nat -> ChoiceSource
+
+  -- | Choice-stream generator of values of type `a` with integrated shrinking.
+  data Gen a where
+    MkGen :: (ChoiceSource -> Option (a, ChoiceSource)) -> Gen a
+
+  -- | Configuration for `hegel-check-with` and `hegel-check-machine-with`.
+  data HegelConfig where
+    HegelConfig :: Nat -> Nat -> Nat -> HegelSeed -> HegelConfig
+
+  -- | Default configuration: 200 trials, max 256 choices per trial, max 80 shrink passes, deterministic seed 1.
+  default-hegel-config :: HegelConfig
+  default-hegel-config = HegelConfig 200 256 80 (hegel-seed 1)
+
+  hegel-config-trials :: HegelConfig -> Nat
+  hegel-config-trials cfg = case cfg of HegelConfig n _ _ _ -> n
+
+  hegel-config-max-choices :: HegelConfig -> Nat
+  hegel-config-max-choices cfg = case cfg of HegelConfig _ c _ _ -> c
+
+  hegel-config-max-shrinks :: HegelConfig -> Nat
+  hegel-config-max-shrinks cfg = case cfg of HegelConfig _ _ s _ -> s
+
+  hegel-config-seed :: HegelConfig -> HegelSeed
+  hegel-config-seed cfg = case cfg of HegelConfig _ _ _ g -> g
+
+  -- | Counterexample from `hegel-check` / `hegel-check-with`.
+  data HegelFailure a where
+    HegelFailure :: Nat -> a -> a -> Nat -> List Nat -> HegelFailure a
+
+  hegel-failure-trial :: forall a. HegelFailure a -> Nat
+  hegel-failure-trial f = case f of HegelFailure t _ _ _ _ -> t
+
+  hegel-failure-original :: forall a. HegelFailure a -> a
+  hegel-failure-original f = case f of HegelFailure _ o _ _ _ -> o
+
+  hegel-failure-shrunk :: forall a. HegelFailure a -> a
+  hegel-failure-shrunk f = case f of HegelFailure _ _ s _ _ -> s
+
+  hegel-failure-shrinks :: forall a. HegelFailure a -> Nat
+  hegel-failure-shrinks f = case f of HegelFailure _ _ _ n _ -> n
+
+  hegel-failure-choices :: forall a. HegelFailure a -> List Nat
+  hegel-failure-choices f = case f of HegelFailure _ _ _ _ cs -> cs
+
+  -- | Named state-machine action driven by a `Gen` of transition functions.
+  data StepAction s where
+    MkStepAction :: String -> Gen (s -> Option s) -> StepAction s
+
+  -- | Wrap a guarded pure transition `s -> Option s` as a simulation action.
+  step-action :: forall s. String -> (s -> Option s) -> StepAction s
+  step-action name f = MkStepAction name (gen-pure f)
+
+  -- | Wrap an unconditionally enabled pure transition `s -> s` as a simulation action.
+  step-action-total :: forall s. String -> (s -> s) -> StepAction s
+  step-action-total name f = MkStepAction name (gen-pure (\s -> Some (f s)))
+
+  -- | Wrap a parameterized pure transition `p -> s -> Option s` with a `Gen p` argument generator.
+  step-action-gen :: forall p s. String -> Gen p -> (p -> s -> Option s) -> StepAction s
+  step-action-gen name gp f = MkStepAction name (gen-map f gp)
+
+  -- | Counterexample trace from `hegel-check-machine` / `hegel-check-machine-with`.
+  data MachineFailure s where
+    MachineFailure :: Nat -> List (String, s) -> s -> Nat -> List Nat -> MachineFailure s
+
+  machine-failure-trial :: forall s. MachineFailure s -> Nat
+  machine-failure-trial f = case f of MachineFailure t _ _ _ _ -> t
+
+  machine-failure-trace :: forall s. MachineFailure s -> List (String, s)
+  machine-failure-trace f = case f of MachineFailure _ tr _ _ _ -> tr
+
+  machine-failure-final-state :: forall s. MachineFailure s -> s
+  machine-failure-final-state f = case f of MachineFailure _ _ st _ _ -> st
+
+  machine-failure-shrinks :: forall s. MachineFailure s -> Nat
+  machine-failure-shrinks f = case f of MachineFailure _ _ _ n _ -> n
+
+  machine-failure-choices :: forall s. MachineFailure s -> List Nat
+  machine-failure-choices f = case f of MachineFailure _ _ _ _ cs -> cs
+
+  -- ---------------------------------------------------------------------
+  -- Internal choice-stream primitives
+  -- ---------------------------------------------------------------------
+
+  draw-rand-bound :: HegelSeed -> Nat -> (Nat, HegelSeed)
+  draw-rand-bound g bound =
+    if bound == 0 then (0, g)
+    else case hegel-next-nat g of
+      (raw, g1) ->
+        let span = bound + 1 in
+        case non-zero-nat span of
+          Some nz -> (nat-rem raw nz, g1)
+          None -> (0, g1)
+
+  draw-choice :: Nat -> ChoiceSource -> Option (Nat, ChoiceSource)
+  draw-choice bound src = case src of
+    LiveSource g rev-log rem ->
+      if rem == 0 then None
+      else case draw-rand-bound g bound of
+        (v, g1) -> Some (v, LiveSource g1 (Cons v rev-log) (rem - 1))
+    ReplaySource input rev-log -> case input of
+      Nil -> None
+      Cons raw rest ->
+        let v = if raw <= bound then raw else bound in
+        Some (v, ReplaySource rest (Cons v rev-log))
+
+  source-log :: ChoiceSource -> List Nat
+  source-log src = case src of
+    LiveSource _ rev-log _ -> reverse rev-log
+    ReplaySource _ rev-log -> reverse rev-log
+
+  source-seed :: ChoiceSource -> Option HegelSeed
+  source-seed src = case src of
+    LiveSource g _ _ -> Some g
+    ReplaySource _ _ -> None
+
+  run-gen :: forall a. Gen a -> ChoiceSource -> Option (a, ChoiceSource)
+  run-gen gen src = case gen of MkGen f -> f src
+
+  -- | Run `Gen a` live from a `HegelSeed` and choice budget, returning the value, recorded choice log, and next seed.
+  gen-run-live :: forall a. HegelSeed -> Nat -> Gen a -> Option (a, List Nat, HegelSeed)
+  gen-run-live g max-choices gen =
+    case run-gen gen (LiveSource g Nil max-choices) of
+      None -> None
+      Some (v, src2) -> case source-seed src2 of
+        Some g2 -> Some (v, source-log src2, g2)
+        None -> None
+
+  -- | Replay `Gen a` against a recorded choice sequence, returning the produced value and canonical consumed choices.
+  gen-run-replay :: forall a. List Nat -> Gen a -> Option (a, List Nat)
+  gen-run-replay choices gen =
+    case run-gen gen (ReplaySource choices Nil) of
+      None -> None
+      Some (v, src2) -> Some (v, source-log src2)
+
+  -- ---------------------------------------------------------------------
+  -- Generator combinators
+  -- ---------------------------------------------------------------------
+
+  -- | Constant generator consuming zero choices.
+  gen-pure :: forall a. a -> Gen a
+  gen-pure x = MkGen (\src -> Some (x, src))
+
+  -- | Generator that always rejects the current choice path.
+  gen-fail :: forall a. Gen a
+  gen-fail = MkGen (\_ -> None)
+
+  -- | Transform generated values without changing the choice structure.
+  gen-map :: forall a b. (a -> b) -> Gen a -> Gen b
+  gen-map f ga = MkGen (\src -> case run-gen ga src of
+    None -> None
+    Some (a, src2) -> Some (f a, src2))
+
+  -- | Dependent generator sequencing: later choices may depend on earlier values.
+  gen-bind :: forall a b. Gen a -> (a -> Gen b) -> Gen b
+  gen-bind ga k = MkGen (\src -> case run-gen ga src of
+    None -> None
+    Some (a, src2) -> run-gen (k a) src2)
+
+  -- | Reject generated values that fail `pred`.
+  gen-filter :: forall a. (a -> Bool) -> Gen a -> Gen a
+  gen-filter pred ga = MkGen (\src -> case run-gen ga src of
+    None -> None
+    Some (a, src2) -> if pred a then Some (a, src2) else None)
+
+  -- | Draw a `Nat` uniformly in `[0 .. bound]` (shrinks toward `0`).
+  gen-nat :: Nat -> Gen Nat
+  gen-nat bound = MkGen (draw-choice bound)
+
+  -- | Draw a `Nat` uniformly in `[lo .. hi]` (shrinks toward `lo`).
+  gen-range :: Nat -> Nat -> Gen Nat
+  gen-range lo hi =
+    if lo > hi then gen-fail
+    else gen-map (\d -> lo + d) (gen-nat (hi - lo))
+
+  -- | Draw a `Bool` (`False` shrinks first, then `True`).
+  gen-bool :: Gen Bool
+  gen-bool = gen-map (\n -> n /= 0) (gen-nat 1)
+
+  list-len :: forall a. List a -> Nat
+  list-len xs = case xs of
+    Nil -> 0
+    Cons _ rest -> 1 + list-len rest
+
+  list-nth :: forall a. Nat -> List a -> Option a
+  list-nth idx xs = case xs of
+    Nil -> None
+    Cons x rest -> if idx == 0 then Some x else list-nth (idx - 1) rest
+
+  -- | Pick uniformly from a non-empty list of values (shrinks toward earlier elements).
+  gen-element :: forall a. List a -> Gen a
+  gen-element xs =
+    let n = list-len xs in
+    if n == 0 then gen-fail
+    else gen-bind (gen-nat (n - 1)) (\idx -> case list-nth idx xs of
+      Some x -> gen-pure x
+      None -> gen-fail)
+
+  -- | Pick uniformly from any type implementing `Data.Finite.Finite`.
+  gen-finite :: forall a. using (fa :: Finite a) => Gen a
+  gen-finite = gen-element (enumerate ())
+
+  -- | Pick uniformly from a non-empty list of sub-generators (shrinks toward earlier branches).
+  gen-one-of :: forall a. List (Gen a) -> Gen a
+  gen-one-of gs = gen-bind (gen-element gs) (\g -> g)
+
+  -- | Generate `Option a` (`None` is index 0 so values shrink to `None` first).
+  gen-option :: forall a. Gen a -> Gen (Option a)
+  gen-option ga = gen-bind gen-bool (\present ->
+    if present then gen-map Some ga else gen-pure None)
+
+  -- | Generate a pair `(a, b)`.
+  gen-pair :: forall a b. Gen a -> Gen b -> Gen (a, b)
+  gen-pair ga gb = gen-bind ga (\a -> gen-map (\b -> (a, b)) gb)
+
+  -- | Generate a list of length `[0 .. max-len]` (shrinks length toward 0 and elements toward their smallest choice).
+  gen-list :: forall a. Nat -> Gen a -> Gen (List a)
+  gen-list max-len ga = gen-list-loop max-len ga Nil
+
+  gen-list-loop :: forall a. Nat -> Gen a -> List a -> Gen (List a)
+  gen-list-loop rem ga acc =
+    if rem == 0 then gen-pure (reverse acc)
+    else gen-bind gen-bool (\keep-going ->
+      if keep-going
+      then gen-bind ga (\x -> gen-list-loop (rem - 1) ga (Cons x acc))
+      else gen-pure (reverse acc))
+
+  -- ---------------------------------------------------------------------
+  -- Integrated choice-sequence shrinker (delta deletion + binary search)
+  -- ---------------------------------------------------------------------
+
+  list-take :: forall a. Nat -> List a -> List a
+  list-take n xs =
+    if n == 0 then Nil
+    else case xs of
+      Nil -> Nil
+      Cons x rest -> Cons x (list-take (n - 1) rest)
+
+  list-drop :: forall a. Nat -> List a -> List a
+  list-drop n xs =
+    if n == 0 then xs
+    else case xs of
+      Nil -> Nil
+      Cons _ rest -> list-drop (n - 1) rest
+
+  append-list :: forall a. List a -> List a -> List a
+  append-list xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (append-list rest ys)
+
+  delete-slice :: Nat -> Nat -> List Nat -> List Nat
+  delete-slice start len xs = append-list (list-take start xs) (list-drop (start + len) xs)
+
+  set-at :: Nat -> Nat -> List Nat -> List Nat
+  set-at idx val xs = case xs of
+    Nil -> Nil
+    Cons x rest ->
+      if idx == 0 then Cons val rest
+      else Cons x (set-at (idx - 1) val rest)
+
+  -- Try deleting slices of size `span` across the choice sequence.
+  shrink-delete-span :: (List Nat -> Option (List Nat)) -> Nat -> Nat -> List Nat -> Nat -> (List Nat, Nat, Bool)
+  shrink-delete-span test-fail span pos cur steps =
+    let n = list-len cur in
+    if span == 0 || pos + span > n then (cur, steps, False)
+    else
+      let cand = delete-slice pos span cur in
+      case test-fail cand of
+        Some canon -> (canon, steps + 1, True)
+        None -> shrink-delete-span test-fail span (pos + 1) cur steps
+
+  -- Shrink one choice position toward `0` via binary search.
+  shrink-value-bsearch :: (List Nat -> Option (List Nat)) -> Nat -> Nat -> Nat -> List Nat -> Nat -> (List Nat, Nat, Bool)
+  shrink-value-bsearch test-fail idx lo hi cur steps =
+    if lo >= hi then (cur, steps, False)
+    else
+      let mid = lo + nat-div (hi - lo) 2 in
+      let cand = set-at idx mid cur in
+      case test-fail cand of
+        Some canon ->
+          case shrink-value-bsearch test-fail idx lo mid canon (steps + 1) of
+            (best, s2, _) -> (best, s2, True)
+        None -> shrink-value-bsearch test-fail idx (mid + 1) hi cur steps
+
+  shrink-values-pass :: (List Nat -> Option (List Nat)) -> Nat -> List Nat -> Nat -> (List Nat, Nat, Bool)
+  shrink-values-pass test-fail idx cur steps =
+    case list-nth idx cur of
+      None -> (cur, steps, False)
+      Some v ->
+        if v == 0 then shrink-values-pass test-fail (idx + 1) cur steps
+        else
+          -- Try 0 first (fastest common win), then binary search [1 .. v - 1].
+          let zero-cand = set-at idx 0 cur in
+          case test-fail zero-cand of
+            Some canon -> (canon, steps + 1, True)
+            None -> case shrink-value-bsearch test-fail idx 1 v cur steps of
+              (cur2, s2, True) -> (cur2, s2, True)
+              (cur2, s2, False) -> shrink-values-pass test-fail (idx + 1) cur2 s2
+
+  shrink-loop :: (List Nat -> Option (List Nat)) -> Nat -> List Nat -> Nat -> (List Nat, Nat)
+  shrink-loop test-fail budget cur steps =
+    if budget == 0 then (cur, steps)
+    else
+      let n = list-len cur in
+      -- 1. Try dropping a half-chunk, then 2 elements, then 1 element.
+      let half = nat-div n 2 in
+      case (if half > 1 then shrink-delete-span test-fail half 0 cur steps else (cur, steps, False)) of
+        (c1, s1, True) -> shrink-loop test-fail (budget - 1) c1 s1
+        (_, _, False) -> case shrink-delete-span test-fail 2 0 cur steps of
+          (c2, s2, True) -> shrink-loop test-fail (budget - 1) c2 s2
+          (_, _, False) -> case shrink-delete-span test-fail 1 0 cur steps of
+            (c3, s3, True) -> shrink-loop test-fail (budget - 1) c3 s3
+            (_, _, False) -> case shrink-values-pass test-fail 0 cur steps of
+              (c4, s4, True) -> shrink-loop test-fail (budget - 1) c4 s4
+              (_, _, False) -> (cur, steps)
+
+  -- ---------------------------------------------------------------------
+  -- Property checker
+  -- ---------------------------------------------------------------------
+
+  -- | Check `prop` on values from `gen` using `default-hegel-config`, shrinking any counterexample automatically.
+  hegel-check :: forall a. Gen a -> (a -> Bool) -> Result (HegelFailure a) Nat
+  hegel-check gen prop = hegel-check-with default-hegel-config gen prop
+
+  -- | Check `prop` under an explicit `HegelConfig`.
+  hegel-check-with :: forall a. HegelConfig -> Gen a -> (a -> Bool) -> Result (HegelFailure a) Nat
+  hegel-check-with cfg gen prop =
+    hegel-prop-loop
+      gen prop
+      (hegel-config-trials cfg)
+      (hegel-config-max-choices cfg)
+      (hegel-config-max-shrinks cfg)
+      0
+      (hegel-config-seed cfg)
+
+  hegel-prop-loop :: forall a. Gen a -> (a -> Bool) -> Nat -> Nat -> Nat -> Nat -> HegelSeed -> Result (HegelFailure a) Nat
+  hegel-prop-loop gen prop max-trials max-choices max-shrinks done g =
+    if done >= max-trials then Ok done
+    else
+      let trial = done + 1 in
+      case gen-run-live g max-choices gen of
+        None ->
+          case hegel-next-nat g of
+            (_, g1) -> hegel-prop-loop gen prop max-trials max-choices max-shrinks trial g1
+        Some (val, choices, g1) ->
+          if prop val then
+            hegel-prop-loop gen prop max-trials max-choices max-shrinks trial g1
+          else
+            let test-fail = (\cs -> case gen-run-replay cs gen of
+                  Some (v2, canon) -> if not (prop v2) then Some canon else None
+                  None -> None) in
+            case shrink-loop test-fail max-shrinks choices 0 of
+              (best-cs, shrinks) ->
+                let best-val = (case gen-run-replay best-cs gen of
+                      Some (v3, _) -> v3
+                      None -> val) in
+                Err (HegelFailure trial val best-val shrinks best-cs)
+
+  -- ---------------------------------------------------------------------
+  -- Native-speed state-machine simulator with integrated trace shrinking
+  -- ---------------------------------------------------------------------
+
+  -- Generate one random/replayable execution trace up to `max-steps` steps.
+  -- Each step draws `continue? :: Bool` and an action index, then draws the action's parameter(s).
+  -- Because choices are recorded linearly, deleting a step slice or shrinking a parameter draw
+  -- shrinks the entire failing trace automatically!
+  gen-trace-loop :: forall s. Nat -> List (StepAction s) -> (s -> Bool) -> s -> List (String, s) -> Gen (List (String, s), s, Bool)
+  gen-trace-loop rem actions inv cur rev-trace =
+    if not (inv cur) then gen-pure (reverse rev-trace, cur, False)
+    else if rem == 0 then gen-pure (reverse rev-trace, cur, True)
+    else gen-bind gen-bool (\take-step ->
+      if not take-step then gen-pure (reverse rev-trace, cur, True)
+      else gen-bind (gen-element actions) (\act -> case act of
+        MkStepAction label fn-gen ->
+          gen-bind fn-gen (\step-fn ->
+            case step-fn cur of
+              None -> gen-trace-loop (rem - 1) actions inv cur rev-trace
+              Some next-st ->
+                gen-trace-loop (rem - 1) actions inv next-st (Cons (label, next-st) rev-trace))))
+
+  -- | Simulate `actions` from `init` for up to 25 steps per trial across 200 trials, checking `inv` at every state
+  -- and automatically shrinking any violating trace and action parameters.
+  hegel-check-machine :: forall s. s -> List (StepAction s) -> (s -> Bool) -> Result (MachineFailure s) Nat
+  hegel-check-machine init actions inv =
+    hegel-check-machine-with default-hegel-config 25 init actions inv
+
+  -- | Simulate `actions` from `init` under explicit configuration and step depth.
+  hegel-check-machine-with :: forall s. HegelConfig -> Nat -> s -> List (StepAction s) -> (s -> Bool) -> Result (MachineFailure s) Nat
+  hegel-check-machine-with cfg max-steps init actions inv =
+    if not (inv init) then Err (MachineFailure 1 Nil init 0 Nil)
+    else
+      let trace-gen = gen-trace-loop max-steps actions inv init Nil in
+      hegel-machine-loop
+        trace-gen
+        (hegel-config-trials cfg)
+        (hegel-config-max-choices cfg)
+        (hegel-config-max-shrinks cfg)
+        0
+        (hegel-config-seed cfg)
+
+  hegel-machine-loop :: forall s. Gen (List (String, s), s, Bool) -> Nat -> Nat -> Nat -> Nat -> HegelSeed -> Result (MachineFailure s) Nat
+  hegel-machine-loop trace-gen max-trials max-choices max-shrinks done g =
+    if done >= max-trials then Ok done
+    else
+      let trial = done + 1 in
+      case gen-run-live g max-choices trace-gen of
+        None ->
+          case hegel-next-nat g of
+            (_, g1) -> hegel-machine-loop trace-gen max-trials max-choices max-shrinks trial g1
+        Some ((trace, final-st, ok), choices, g1) ->
+          if ok then
+            hegel-machine-loop trace-gen max-trials max-choices max-shrinks trial g1
+          else
+            let test-fail = (\cs -> case gen-run-replay cs trace-gen of
+                  Some ((_, _, False), canon) -> Some canon
+                  other -> None) in
+            case shrink-loop test-fail max-shrinks choices 0 of
+              (best-cs, shrinks) ->
+                case gen-run-replay best-cs trace-gen of
+                  Some ((best-trace, best-final, _), _) ->
+                    Err (MachineFailure trial best-trace best-final shrinks best-cs)
+                  None ->
+                    Err (MachineFailure trial trace final-st shrinks choices)
