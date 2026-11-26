@@ -17,7 +17,7 @@
 -- a plausible key: a compiler's names arrive as the lexer's bytes).
 module Data.Bytes where
 
-  import Prim.Machine (u8-to-i64)
+  import Prim.Machine (u8-to-i64, u8-to-u64, u32-to-u64, wrapping-add-i64, wrapping-sub-i64, eq-i64, ne-i64, lt-i64, le-i64, wrapping-i64-to-u8, wrapping-i64-to-u64, wrapping-u64-to-i64, mask-i64, bit-xor-u64, bit-or-u64, wrapping-shl-u64)
   import Algebra.Arithmetic
   import Data.Hash
   import Data.List
@@ -89,57 +89,100 @@ module Data.Bytes where
   -- digest as a fresh 32-byte buffer.
   foreign import ccall "cinch.runtime.textSha256" sha256-bytes :: Bytes -> Bytes
 
-  -- | Copy typed byte values in list order into one fresh mutable buffer.
-  -- A tail count pass and checked tail stores keep construction stack bounded.
+  -- -----------------------------------------------------------------
+  -- Private safe machine primitives for zero-allocation indexing & wyhash.
+  -- -----------------------------------------------------------------
+
+  -- | 64x64->128-bit widening multiply-XOR mix (wyhash / rapidhash core).
+  prim wymix-u64 :: U64 -> U64 -> U64 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %p = mul i128 %a, %b
+      %lo = trunc i128 %p to i64
+      %hi128 = lshr i128 %p, 64
+      %hi = trunc i128 %hi128 to i64
+      %r = xor i64 %lo, %hi
+      ret i64 %r
+    }
+
+  -- | Extract the low 64-bit little-endian lane of a U128 word.
+  prim u128-lo-u64 :: U128 -> U64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+
+  -- | Extract the high 64-bit little-endian lane of a U128 word.
+  prim u128-hi-u64 :: U128 -> U64 where
+    llvm {
+      %s = lshr i128 %0, 64
+      %r = trunc i128 %s to i64
+      ret i64 %r
+    }
+
+  -- -----------------------------------------------------------------
+  -- Private `%1`-linear buffer write boundary for list constructors.
+  -- -----------------------------------------------------------------
+
+  -- | Private raw single-byte store returning its uniquely owned buffer.
+  put-u8-raw :: Bytes -> I64 -> U8 -> Bytes
+  put-u8-raw b pos v =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let w = bytes-set-u8-at b pos v in b
+    else b
+
+  -- | Linearly store one U8 byte at an unboxed I64 offset.
+  put-u8-lin :: Bytes %1 -> I64 -> U8 -> Bytes
+  put-u8-lin b pos v = put-u8-raw b pos v
+
+  -- | Private raw range-checked Nat byte store returning its buffer.
+  put-nat-byte-raw :: Bytes -> I64 -> InRange 0 255 Nat -> Bytes
+  put-nat-byte-raw b pos v =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let w = bytes-set-u8-at b pos (wrapping-i64-to-u8 (nat-to-i64 v)) in b
+    else b
+
+  -- | Linearly store one range-checked Nat byte at an unboxed I64 offset.
+  put-nat-byte-lin :: Bytes %1 -> I64 -> InRange 0 255 Nat -> Bytes
+  put-nat-byte-lin b pos v = put-nat-byte-raw b pos v
+
+  -- | Count any typed element list using an unboxed I64 accumulator.
+  byte-list-size-i64 :: forall a. List a -> I64 -> I64
+  byte-list-size-i64 xs total = case xs of
+    Nil -> total
+    Cons _ rest -> byte-list-size-i64 rest (wrapping-add-i64 total 1)
+
+  -- | Copy typed byte values in list order into one fresh `%1`-linear buffer.
+  -- A tail unboxed count pass and `%1`-linear tail stores keep stack O(1).
   bytes-from-list :: List (InRange 0 255 Nat) -> Bytes
   bytes-from-list xs =
-    let size = byte-list-size xs 0 in
-    let out = bytes-new size in
-    let filled = bytes-fill-into out 0 xs in
-    out
+    let n = byte-list-size-i64 xs 0 in
+    if 0 <= n then bytes-fill-lin (bytes-new (nat-from-i64 n)) 0 xs
+    else bytes-new 0
 
-  -- | Count any typed element list without retaining recursive return frames.
-  byte-list-size :: forall a. List a -> Nat -> Nat
-  byte-list-size xs total = case xs of
-    Nil -> total
-    Cons _ rest -> let next = total + 1 in byte-list-size rest next
+  -- | Linearly store range-checked Nat bytes into a uniquely owned buffer.
+  bytes-fill-lin :: Bytes %1 -> I64 -> List (InRange 0 255 Nat) -> Bytes
+  bytes-fill-lin out i xs = case xs of
+    Nil -> out
+    Cons value rest ->
+      let out1 = put-nat-byte-lin out i value in
+      bytes-fill-lin out1 (wrapping-add-i64 i 1) rest
 
-  -- | Store already range-checked byte values into the pre-sized private result.
-  bytes-fill-into :: Bytes -> Nat -> List (InRange 0 255 Nat) -> Unit
-  bytes-fill-into out i xs = case xs of
-    Nil -> ()
-    Cons value rest -> if i < bytes-len out then
-      let written = bytes-set out i value in
-      let next = i + 1 in bytes-fill-into out next rest
-      else ()
-
-  -- A `U8` as the byte it is (`Data.Machine`'s `u8-to-i64` intrinsic,
-  -- declared here because `Data.Machine` imports this module): its
-  -- promised range is the evidence `nat-from-i64` takes, and the result
-  -- keeps it.
-  byte-word :: (x :: U8) -> refined (InRange 0 255 r && r == x) I64
-  byte-word x = u8-to-i64 x
-
-  byte-of-u8 :: U8 -> InRange 0 255 Nat
-  byte-of-u8 x = let w = byte-word x in nat-from-i64 w
-
-  -- | Copy machine byte values into one fresh buffer without recursive unwinding.
+  -- | Copy machine byte values into one fresh `%1`-linear buffer without boxing.
   bytes-from-u8s :: List U8 -> Bytes
   bytes-from-u8s xs =
-    let size = byte-list-size xs 0 in
-    let out = bytes-new size in
-    let filled = u8s-fill-into out 0 xs in
-    out
+    let n = byte-list-size-i64 xs 0 in
+    if 0 <= n then u8s-fill-lin (bytes-new (nat-from-i64 n)) 0 xs
+    else bytes-new 0
 
-  -- | Convert and store each machine byte through an explicit checked destination index.
-  u8s-fill-into :: Bytes -> Nat -> List U8 -> Unit
-  u8s-fill-into out i xs = case xs of
-    Nil -> ()
-    Cons value rest -> if i < bytes-len out then
-      let byte = byte-of-u8 value in
-      let written = bytes-set out i byte in
-      let next = i + 1 in u8s-fill-into out next rest
-      else ()
+  -- | Linearly store machine U8 bytes directly into a uniquely owned buffer.
+  u8s-fill-lin :: Bytes %1 -> I64 -> List U8 -> Bytes
+  u8s-fill-lin out i xs = case xs of
+    Nil -> out
+    Cons value rest ->
+      let out1 = put-u8-lin out i value in
+      u8s-fill-lin out1 (wrapping-add-i64 i 1) rest
 
   implicit instance FromList_Bytes :: FromList Bytes U8 where
     from-list xs = bytes-from-u8s xs
@@ -154,37 +197,36 @@ module Data.Bytes where
     (==) x y = eq-i64 (bytes-compare x y) 0
     (/=) x y = ne-i64 (bytes-compare x y) 0
 
-  -- The digest fold is FNV-1a in a 64-bit word: the accumulator starts at
-  -- the offset basis, every byte is mixed in as `(h xor byte) * prime`
-  -- under WRAPPING multiplication, and the word is reduced to `Nat` once,
-  -- after the fold.
+  -- -----------------------------------------------------------------
+  -- Word-at-a-time wyhash / rapidhash-style hashing (Wang Yi / De Carli).
   --
-  -- INVARIANT: the accumulator is a `U64` at every step, so a product is
-  -- taken modulo 2^64 and no value is ever out of the word's range. The
-  -- only boxed `Nat` a digest allocates is the one the reduction returns.
-  --
-  -- Why the word, not `Nat`. The earlier fold was `h * 31 + byte` over
-  -- `Nat`: two bignum operations and about 73 allocations per
-  -- compiler-length name, 1,700 ns for the digest of an 8 to 40 byte
-  -- identifier. A hash index only pays when a digest costs less than the
-  -- scan it replaces, and at that price none did (design/compilation-speed.md
-  -- 2.9 measures the old instance against the short scans it lost to).
+  -- Fast paths for lengths 0, 1..3, 4..7 (two overlapping LE32 loads),
+  -- 8..16 (two overlapping LE64 loads — zero loop for compiler identifiers),
+  -- and a 3-lane 48-byte unrolled loop + 16-byte loop + overlapping 16-byte
+  -- tail for longer buffers. All intermediate arithmetic is unboxed
+  -- I64/U64/U128; the only boxed Nat allocated is the final bucket digest.
   --
   -- The digest is a bucket key, so the class law is the only obligation
   -- (Data.Hash): equal slices hash alike because the fold reads content
   -- only, the result is a pure function of the bytes (no address, no time,
   -- so it is reproducible across runs), and distinct slices may still
   -- share a digest (the bucket scan's job).
-  hash-bytes-from :: Bytes -> Nat -> U64 -> Nat
-  hash-bytes-from b i h =
-    if i >= bytes-len b then u64-to-nat h
-    else
-      let c = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
-      hash-bytes-from b (i + 1) (wrapping-mul-u64 (bit-xor-u64 h c) 1099511628211)
+  -- -----------------------------------------------------------------
 
-  -- The offset basis of FNV-1a (64-bit): 14695981039346656037.
-  fnv-offset :: U64
-  fnv-offset = 14695981039346656037
+  wy-p0 :: U64
+  wy-p0 = 11562461410679940143
+
+  wy-p1 :: U64
+  wy-p1 = 16646288086500911323
+
+  wy-p2 :: U64
+  wy-p2 = 10285213230658275043
+
+  wy-p3 :: U64
+  wy-p3 = 6384245875588680899
+
+  wy-seed0 :: U64
+  wy-seed0 = 14953955755779583847
 
   -- A 64-bit word as the `Nat` of the same value with its top bit
   -- cleared. INVARIANT: the result is in `0 .. 2^63 - 1`, which is what
@@ -195,9 +237,79 @@ module Data.Bytes where
   u64-to-nat :: U64 -> Nat
   u64-to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
 
+  wy-finalize :: U64 -> U64 -> U64 -> U64 -> Nat
+  wy-finalize a b-hi seed ulen =
+    let m1 = wymix-u64 (bit-xor-u64 a wy-p1) (bit-xor-u64 b-hi seed) in
+    let h = wymix-u64 (bit-xor-u64 wy-p1 ulen) m1 in
+    u64-to-nat h
+
+  -- | 3-lane 48-byte unrolled loop for buffers > 48 bytes; hands off directly
+  -- to the 16-byte loop and final overlapping 16-byte tail without allocating.
+  wy-loop48 :: using (lim16-n + 16 <= bytes-len b) => (b :: Bytes) -> (i :: I64) -> (lim16-n :: Nat) -> (lim16 :: I64) -> U64 -> U64 -> U64 -> U64 -> Nat
+  wy-loop48 b i lim16-n lim16 ulen s0 s1 s2 =
+    let i16 = wrapping-add-i64 i 16 in
+    let i32 = wrapping-add-i64 i 32 in
+    if 0 <= i && 0 <= i16 && 0 <= i32 && nat-from-i64 i <= lim16-n && nat-from-i64 i16 <= lim16-n && nat-from-i64 i32 <= lim16-n then
+      let v0 = bytes-load-u128-at b i in
+      let v1 = bytes-load-u128-at b i16 in
+      let v2 = bytes-load-u128-at b i32 in
+      let ns0 = wymix-u64 (bit-xor-u64 (u128-lo-u64 v0) wy-p1) (bit-xor-u64 (u128-hi-u64 v0) s0) in
+      let ns1 = wymix-u64 (bit-xor-u64 (u128-lo-u64 v1) wy-p2) (bit-xor-u64 (u128-hi-u64 v1) s1) in
+      let ns2 = wymix-u64 (bit-xor-u64 (u128-lo-u64 v2) wy-p3) (bit-xor-u64 (u128-hi-u64 v2) s2) in
+      wy-loop48 b (wrapping-add-i64 i 48) lim16-n lim16 ulen ns0 ns1 ns2
+    else
+      let seed = bit-xor-u64 s0 (bit-xor-u64 s1 s2) in
+      wy-loop16 b i lim16-n lim16 ulen seed
+
+  -- | 16-byte stride loop finishing with one overlapping 16-byte tail read.
+  wy-loop16 :: using (lim16-n + 16 <= bytes-len b) => (b :: Bytes) -> (i :: I64) -> (lim16-n :: Nat) -> (lim16 :: I64) -> U64 -> U64 -> Nat
+  wy-loop16 b i lim16-n lim16 ulen seed =
+    if 0 <= i && nat-from-i64 i < lim16-n then
+      let v = bytes-load-u128-at b i in
+      let nseed = wymix-u64 (bit-xor-u64 (u128-lo-u64 v) wy-p1) (bit-xor-u64 (u128-hi-u64 v) seed) in
+      wy-loop16 b (wrapping-add-i64 i 16) lim16-n lim16 ulen nseed
+    else if 0 <= lim16 && nat-from-i64 lim16 <= lim16-n then
+      let vlast = bytes-load-u128-at b lim16 in
+      wy-finalize (u128-lo-u64 vlast) (u128-hi-u64 vlast) seed ulen
+    else 0
+
+  hash-bytes :: Bytes -> Nat
+  hash-bytes b =
+    let len = bytes-len-i64 b in
+    let n = bytes-len b in
+    let ulen = wrapping-i64-to-u64 len in
+    if len <= 16 then
+      if 8 <= len && 8 <= n then
+        let off8 = wrapping-sub-i64 len 8 in
+        let a = bytes-load-le64-at b 0 in
+        let b-hi = if 0 <= off8 && nat-from-i64 off8 <= n - 8 then bytes-load-le64-at b off8 else 0 in
+        wy-finalize a b-hi wy-seed0 ulen
+      else if 4 <= len && 4 <= n then
+        let off4 = wrapping-sub-i64 len 4 in
+        let a = u32-to-u64 (bytes-load-le32-at b 0) in
+        let b-hi = if 0 <= off4 && nat-from-i64 off4 <= n - 4 then u32-to-u64 (bytes-load-le32-at b off4) else 0 in
+        wy-finalize a b-hi wy-seed0 ulen
+      else if 1 <= len && 1 <= n then
+        let off1 = wrapping-sub-i64 len 1 in
+        let b0 = u8-to-u64 (bytes-get-u8-at b 0) in
+        let b1 = if 2 <= len then u8-to-u64 (bytes-get-u8-at b 1) else b0 in
+        let b2 = if 0 <= off1 && nat-from-i64 off1 < n then u8-to-u64 (bytes-get-u8-at b off1) else b0 in
+        let a = bit-or-u64 (wrapping-shl-u64 b0 16) (bit-or-u64 (wrapping-shl-u64 b1 8) b2) in
+        wy-finalize a 0 wy-seed0 ulen
+      else
+        wy-finalize 0 0 wy-seed0 0
+    else if 16 <= n then
+      let lim16 = wrapping-sub-i64 len 16 in
+      let lim16-n = n - 16 in
+      if 48 < len then
+        wy-loop48 b 0 lim16-n lim16 ulen wy-seed0 wy-seed0 wy-seed0
+      else
+        wy-loop16 b 0 lim16-n lim16 ulen wy-seed0
+    else wy-finalize 0 0 wy-seed0 0
+
   -- The buffer's digest (instances live with their type). `Data.String`
   -- hashes its UTF-8 backing through THIS instance, so a string and the
   -- bytes it converts to agree by construction rather than by two
   -- copies of one algorithm.
   implicit instance Hash_Bytes :: Hash Bytes where
-    hash b = hash-bytes-from b 0 fnv-offset
+    hash b = hash-bytes b
