@@ -67,4 +67,4 @@ Requires Clang 20+, `wasm-ld`, and Rust's `wasm32-wasip1` and `wasm32-unknown-un
 
 ## Deployment
 
-`npm run build` outputs a static site with Pagefind search to `website/dist/`. Vercel builds `website/` on pushes to `deploy/cinch-site`, using `scripts/vercel-ignore.sh` (tested via `bash website/scripts/test-vercel-ignore.sh`) to skip builds when no site source, published doc, stdlib source, or TextMate grammar changed.
+`npm run build` outputs a static site with Pagefind search to `website/dist/`. Vercel builds `website/` on pushes to `main`, using `scripts/vercel-ignore.sh` (tested via `bash website/scripts/test-vercel-ignore.sh`) to skip builds when no site source, published doc, stdlib source, or TextMate grammar changed.
