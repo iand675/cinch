@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 packed library provider with string literal patterns, list cons (:), data-parallel arrays, and AD runtime support.",
-  "revision": "d63c0e18cc71249ebc7ab43361b22240d5bd35c9",
+  "description": "ABI 10 packed library provider with verified Data.Wide div/rem-u128, U128/I128 numeric indices, string literal patterns, list cons (:), data-parallel arrays, and AD runtime support.",
+  "revision": "0106c0858f91c127f2b47cbd533092118e79260f",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "6c71228ee3a79f0c7f0263788294d0346a755707eef8ef1b268842e1e9666b02"
+  "source_sha256": "45e66a6caebbd30dc9228a73c4c47c0e2f0131f3caed5d36720f92e8ffc68373"
 }

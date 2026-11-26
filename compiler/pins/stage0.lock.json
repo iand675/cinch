@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 seed with string literal patterns, list cons (:), concurrency primitives, and tail_conv disabled.",
+  "description": "ABI 10 seed with pluggable LLVM prim verification, U128/I128 numeric indices, wildcard Dec proof retention, string literal patterns, list cons (:), concurrency primitives, and tail_conv disabled.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "d63c0e18cc71249ebc7ab43361b22240d5bd35c9",
+  "revision": "0106c0858f91c127f2b47cbd533092118e79260f",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "4a9cf624aa96f97d7b57fc30534922f1c8e7f9f12e56e3420c1c6486fa5c10ab"
+  "source_sha256": "c4a9c0160f273b2a37ac7a4cddccaa0de309306e893ef3a3b83591e2c1081e0b"
 }
