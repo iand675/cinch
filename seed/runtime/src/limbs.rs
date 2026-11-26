@@ -79,33 +79,205 @@ pub(crate) fn sub_limbs(a: &[u32], b: &[u32]) -> Vec<u32> {
     out
 }
 
-/// `a * b` for normalized magnitudes (schoolbook).
+/// Limb threshold below which multiplication uses schoolbook directly.
+const KARATSUBA_THRESHOLD: usize = 40;
+
+/// Strip trailing zero limbs from a borrowed slice.
+#[inline]
+fn trim_zeros(mut s: &[u32]) -> &[u32] {
+    while let Some(&0) = s.last() {
+        s = &s[..s.len() - 1];
+    }
+    s
+}
+
+/// Add `a * b` into `out` (schoolbook). `out` must have length `>= a.len() + b.len()`.
+fn schoolbook_add_mul(out: &mut [u32], a: &[u32], b: &[u32]) {
+    let (outer, inner) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    for (i, &ai_u32) in outer.iter().enumerate() {
+        let ai = ai_u32 as u64;
+        if ai == 0 {
+            continue;
+        }
+        let mut carry = 0u64;
+        let dst = &mut out[i..i + inner.len()];
+        for (d, &bj) in dst.iter_mut().zip(inner.iter()) {
+            // (2^32-1)^2 + (2^32-1) + (2^32-1) = 2^64-1, so the
+            // accumulator never overflows u64.
+            let t = ai * (bj as u64) + (*d as u64) + carry;
+            *d = t as u32;
+            carry = t >> 32;
+        }
+        let mut k = i + inner.len();
+        while carry > 0 {
+            debug_assert!(k < out.len());
+            let t = (out[k] as u64) + carry;
+            out[k] = t as u32;
+            carry = t >> 32;
+            k += 1;
+        }
+    }
+}
+
+/// `dst += src` in place, returning the carry out past `dst`.
+#[inline]
+fn add_assign_slice(dst: &mut [u32], src: &[u32]) -> u64 {
+    let mut carry = 0u64;
+    for (d, &s) in dst.iter_mut().zip(src.iter()) {
+        let sum = (*d as u64) + (s as u64) + carry;
+        *d = sum as u32;
+        carry = sum >> 32;
+    }
+    for d in &mut dst[src.len()..] {
+        if carry == 0 {
+            break;
+        }
+        let sum = (*d as u64) + carry;
+        *d = sum as u32;
+        carry = sum >> 32;
+    }
+    carry
+}
+
+/// `dst -= src` in place, returning the borrow out past `dst` (0 or 1).
+#[inline]
+fn sub_assign_slice(dst: &mut [u32], src: &[u32]) -> u64 {
+    let mut borrow = 0u64;
+    for (d, &s) in dst.iter_mut().zip(src.iter()) {
+        let (d1, b1) = d.overflowing_sub(s);
+        let (d2, b2) = d1.overflowing_sub(borrow as u32);
+        *d = d2;
+        borrow = (b1 as u64) + (b2 as u64);
+    }
+    for d in &mut dst[src.len()..] {
+        if borrow == 0 {
+            break;
+        }
+        let (d2, b2) = d.overflowing_sub(borrow as u32);
+        *d = d2;
+        borrow = b2 as u64;
+    }
+    borrow
+}
+
+/// Compute `dst = a + b` into a slice of length `>= a.len().max(b.len()) + 1`,
+/// returning the normalized length written.
+#[inline]
+fn add_into_slice(dst: &mut [u32], a: &[u32], b: &[u32]) -> usize {
+    let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    let mut carry = 0u64;
+    for i in 0..small.len() {
+        let sum = (large[i] as u64) + (small[i] as u64) + carry;
+        dst[i] = sum as u32;
+        carry = sum >> 32;
+    }
+    for i in small.len()..large.len() {
+        let sum = (large[i] as u64) + carry;
+        dst[i] = sum as u32;
+        carry = sum >> 32;
+    }
+    let mut len = large.len();
+    if carry > 0 {
+        dst[len] = carry as u32;
+        len += 1;
+    }
+    while len > 0 && dst[len - 1] == 0 {
+        len -= 1;
+    }
+    len
+}
+
+/// Compute `a * b` into a zeroed `out` (`out.len() >= a.len() + b.len()`)
+/// using schoolbook below [`KARATSUBA_THRESHOLD`], chunking for strongly
+/// unbalanced operands, and additive Karatsuba for balanced large operands.
+fn mul_into(out: &mut [u32], a: &[u32], b: &[u32], scratch: &mut [u32]) {
+    let a = trim_zeros(a);
+    let b = trim_zeros(b);
+    if a.is_empty() || b.is_empty() {
+        return;
+    }
+    let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    if small.len() < KARATSUBA_THRESHOLD {
+        schoolbook_add_mul(out, small, large);
+        return;
+    }
+
+    // Strongly unbalanced (`large >= 1.5 * small`): split `large` into
+    // `small`-sized chunks so every sub-product is balanced.
+    if large.len() * 2 >= small.len() * 3 {
+        let chunk_size = small.len();
+        let mut pos = 0;
+        while pos < large.len() {
+            let end = (pos + chunk_size).min(large.len());
+            let chunk = &large[pos..end];
+            let prod_len = small.len() + chunk.len();
+            let (prod, rest) = scratch.split_at_mut(prod_len);
+            prod.fill(0);
+            mul_into(prod, small, chunk, rest);
+            let carry = add_assign_slice(&mut out[pos..], prod);
+            debug_assert_eq!(carry, 0);
+            pos = end;
+        }
+        return;
+    }
+
+    // Balanced additive Karatsuba:
+    //   a = a0 + a1 * B^m, b = b0 + b1 * B^m
+    //   a * b = z0 + ((a0 + a1)(b0 + b1) - z0 - z2) * B^m + z2 * B^(2m)
+    let m = large.len().div_ceil(2);
+    debug_assert!(m < small.len());
+    let (a0, a1) = small.split_at(m);
+    let (b0, b1) = large.split_at(m);
+
+    // z0 = a0 * b0 directly into out[0..2m], z2 = a1 * b1 directly into out[2m..].
+    let z2_len = a1.len() + b1.len();
+    let (out_lo, out_hi) = out.split_at_mut(2 * m);
+    mul_into(out_lo, a0, b0, scratch);
+    mul_into(&mut out_hi[..z2_len], a1, b1, scratch);
+
+    // Scratch layout: [sa: m+1][sb: m+1][z1: 2m+2][rec_scratch...]
+    let (sa_buf, rest) = scratch.split_at_mut(m + 1);
+    let (sb_buf, rest) = rest.split_at_mut(m + 1);
+    let (z1_buf, rec_scratch) = rest.split_at_mut(2 * m + 2);
+
+    let sa_len = add_into_slice(sa_buf, a0, a1);
+    let sb_len = add_into_slice(sb_buf, b0, b1);
+    let z1_cap = sa_len + sb_len;
+    let z1 = &mut z1_buf[..z1_cap];
+    z1.fill(0);
+    mul_into(z1, &sa_buf[..sa_len], &sb_buf[..sb_len], rec_scratch);
+
+    // z1 = (a0 + a1)(b0 + b1) - z0 - z2 >= 0.
+    let b0_borrow = sub_assign_slice(z1, trim_zeros(out_lo));
+    debug_assert_eq!(b0_borrow, 0);
+    let b2_borrow = sub_assign_slice(z1, trim_zeros(&out_hi[..z2_len]));
+    debug_assert_eq!(b2_borrow, 0);
+
+    let z1_trimmed = trim_zeros(z1);
+    let carry = add_assign_slice(&mut out[m..], z1_trimmed);
+    debug_assert_eq!(carry, 0);
+}
+
+/// `a * b` for normalized magnitudes (schoolbook below [`KARATSUBA_THRESHOLD`],
+/// Karatsuba above).
 pub(crate) fn mul_limbs(a: &[u32], b: &[u32]) -> Vec<u32> {
     if a.is_empty() || b.is_empty() {
         return Vec::new();
     }
     let mut out = vec![0u32; a.len() + b.len()];
-    for i in 0..a.len() {
-        let ai = a[i] as u64;
-        if ai == 0 {
-            continue;
-        }
-        let mut carry = 0u64;
-        for j in 0..b.len() {
-            // (2^32-1)^2 + (2^32-1) + (2^32-1) = 2^64-1, so the
-            // accumulator never overflows u64.
-            let t = ai * (b[j] as u64) + (out[i + j] as u64) + carry;
-            out[i + j] = t as u32;
-            carry = t >> 32;
-        }
-        let mut k = i + b.len();
-        while carry > 0 {
-            debug_assert!(k < out.len());
-            let t = out[k] as u64 + carry;
-            out[k] = t as u32;
-            carry = t >> 32;
-            k += 1;
-        }
+    let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    if small.len() < KARATSUBA_THRESHOLD {
+        schoolbook_add_mul(&mut out, small, large);
+    } else {
+        // Monotonic scratch bound: chunking uses at most `2*small + (6*small + 64)`,
+        // balanced Karatsuba uses at most `6*large + 64`.
+        let scratch_len = if large.len() * 2 >= small.len() * 3 {
+            8 * small.len() + 64
+        } else {
+            6 * large.len() + 64
+        };
+        let mut scratch = vec![0u32; scratch_len];
+        mul_into(&mut out, small, large, &mut scratch);
     }
     normalize(&mut out);
     out
@@ -120,14 +292,64 @@ pub(crate) fn div_rem_by_word(u: &[u32], d: u32) -> (Vec<u32>, u32) {
 }
 
 /// Divide `v` in place by a single-limb divisor, returning the remainder.
+///
+/// Uses exact precomputed reciprocal multiplication (Granlund–Montgomery /
+/// Möller–Granlund) so every limb computes quotient and remainder via one
+/// `u64 × u64 -> u128` high-multiply, shift, and multiply-subtract with zero
+/// per-limb hardware divisions.
 pub(crate) fn div_rem_by_word_in_place(v: &mut Vec<u32>, d: u32) -> u32 {
     debug_assert!(d != 0);
-    let mut rem: u64 = 0;
-    for limb in v.iter_mut().rev() {
-        let cur = (rem << 32) | (*limb as u64);
-        *limb = (cur / d as u64) as u32;
-        rem = cur % d as u64;
+    if v.is_empty() {
+        return 0;
     }
+    if d == 1 {
+        normalize(v);
+        return 0;
+    }
+    if d.is_power_of_two() {
+        let shift = d.trailing_zeros();
+        let rshift = 32 - shift;
+        let rem = v[0] & (d - 1);
+        let len = v.len();
+        for i in 0..len - 1 {
+            v[i] = (v[i] >> shift) | (v[i + 1] << rshift);
+        }
+        v[len - 1] >>= shift;
+        normalize(v);
+        return rem;
+    }
+
+    let d64 = d as u64;
+    let k = 31 - d.leading_zeros();
+    let mut rem: u64 = 0;
+
+    if k <= 30 {
+        // 2^k < d < 2^(k+1) <= 2^31:
+        // M = ceil(2^(64+k) / d) fits in u64, and for every cur < d * 2^32,
+        // cur * (M*d - 2^(64+k)) < d^2 * 2^32 < 2^(34+2k) <= 2^(64+k),
+        // so floor((cur * M) / 2^(64+k)) == floor(cur / d) identically.
+        let m = (((1u128 << (64 + k)) / (d as u128)) + 1) as u64;
+        for limb in v.iter_mut().rev() {
+            let cur = (rem << 32) | (*limb as u64);
+            let q = ((((cur as u128) * (m as u128)) >> 64) as u64) >> k;
+            rem = cur - q * d64;
+            *limb = q as u32;
+        }
+    } else {
+        // 2^31 < d < 2^32:
+        // M = ceil(2^96 / d) = 2^64 + m with m < 2^64, and for every
+        // cur < d * 2^32, cur * (M*d - 2^96) < d^2 * 2^32 < 2^96,
+        // so floor((cur + floor((cur * m) / 2^64)) / 2^32) == floor(cur / d).
+        let m = ((((1u128 << 96) / (d as u128)) + 1) - (1u128 << 64)) as u64;
+        for limb in v.iter_mut().rev() {
+            let cur = (rem << 32) | (*limb as u64);
+            let hi = (((cur as u128) * (m as u128)) >> 64) as u64;
+            let q = (cur + hi) >> 32;
+            rem = cur - q * d64;
+            *limb = q as u32;
+        }
+    }
+
     normalize(v);
     rem as u32
 }
@@ -552,5 +774,199 @@ mod tests {
         let r = div_rem_by_word_in_place(&mut w, 2);
         assert_eq!(r, 1);
         assert_eq!(w, n(((1u64 << 32) + 1) / 2));
+    }
+
+    fn div_rem_by_word_ref(u: &[u32], d: u32) -> (Vec<u32>, u32) {
+        let mut q = u.to_vec();
+        let mut rem: u64 = 0;
+        for limb in q.iter_mut().rev() {
+            let cur = (rem << 32) | (*limb as u64);
+            *limb = (cur / d as u64) as u32;
+            rem = cur % d as u64;
+        }
+        normalize(&mut q);
+        (q, rem as u32)
+    }
+
+    fn schoolbook_mul_ref(a: &[u32], b: &[u32]) -> Vec<u32> {
+        if a.is_empty() || b.is_empty() {
+            return Vec::new();
+        }
+        let mut out = vec![0u32; a.len() + b.len()];
+        schoolbook_add_mul(&mut out, a, b);
+        normalize(&mut out);
+        out
+    }
+
+    fn xorshift64(state: &mut u64) -> u64 {
+        let mut x = *state;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        *state = x;
+        x
+    }
+
+    #[test]
+    fn div_rem_by_word_reciprocal_matches_hardware_div_exhaustively() {
+        let mut divisors: Vec<u32> = vec![
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            15,
+            16,
+            17,
+            31,
+            32,
+            33,
+            255,
+            256,
+            257,
+            65_535,
+            65_536,
+            65_537,
+            1_000_000_000,
+            (1u32 << 30) - 1,
+            1u32 << 30,
+            (1u32 << 30) + 1,
+            (1u32 << 31) - 2,
+            (1u32 << 31) - 1,
+            1u32 << 31,
+            (1u32 << 31) + 1,
+            (1u32 << 31) + 2,
+            0xDEAD_BEEF,
+            0xFFFF_FFFB,
+            0xFFFF_FFFE,
+            0xFFFF_FFFF,
+        ];
+        let mut rng = 0xA5A5_1234_5678_9ABCu64;
+        // Add random divisors across every bit width 1..=32.
+        for bits in 1..=32u32 {
+            for _ in 0..4 {
+                let raw = xorshift64(&mut rng) as u32;
+                let d = if bits == 32 {
+                    raw | 0x8000_0000
+                } else {
+                    (raw & ((1u32 << bits) - 1)) | (1u32 << (bits - 1))
+                };
+                if d != 0 {
+                    divisors.push(d);
+                }
+            }
+        }
+
+        // Test every limb length 0..=64 with adversarial and random patterns.
+        for len in 0..=64usize {
+            let mut patterns: Vec<Vec<u32>> = Vec::new();
+            patterns.push(vec![0xFFFF_FFFFu32; len]);
+            if len > 0 {
+                let mut pow2 = vec![0u32; len];
+                pow2[len - 1] = 1;
+                patterns.push(pow2);
+                let mut alt: Vec<u32> = (0..len)
+                    .map(|i| if i % 2 == 0 { 0xFFFF_FFFF } else { 0 })
+                    .collect();
+                alt[len - 1] = 0x8000_0000;
+                patterns.push(alt);
+                let mut rand_v: Vec<u32> = (0..len).map(|_| xorshift64(&mut rng) as u32).collect();
+                normalize(&mut rand_v);
+                patterns.push(rand_v);
+            }
+            for u in &patterns {
+                for &d in &divisors {
+                    let (got_q, got_r) = div_rem_by_word(u, d);
+                    let (want_q, want_r) = div_rem_by_word_ref(u, d);
+                    assert_eq!(got_q, want_q, "quotient mismatch len={len} d={d:#x}");
+                    assert_eq!(got_r, want_r, "remainder mismatch len={len} d={d:#x}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn karatsuba_mul_matches_schoolbook_on_boundary_and_random_inputs() {
+        let mut rng = 0xDEAD_C0DE_CAFE_BABEu64;
+        let rand_limbs = |len: usize, rng: &mut u64| -> Vec<u32> {
+            let mut v: Vec<u32> = (0..len).map(|_| xorshift64(rng) as u32).collect();
+            if let Some(last) = v.last_mut() {
+                if *last == 0 {
+                    *last = 1;
+                }
+            }
+            v
+        };
+
+        // 1. All-0xFFFF_FFFF and sparse powers-of-2^32 cases across balanced & unbalanced shapes.
+        let shapes: &[(usize, usize)] = &[
+            (31, 31),
+            (32, 32),
+            (33, 33),
+            (47, 48),
+            (48, 72),
+            (32, 200),
+            (200, 32),
+            (64, 64),
+            (64, 256),
+            (100, 100),
+            (256, 256),
+            (512, 512),
+        ];
+        for &(la, lb) in shapes {
+            // All-ones (maximum carry propagation)
+            let a_max = vec![0xFFFF_FFFFu32; la];
+            let b_max = vec![0xFFFF_FFFFu32; lb];
+            assert_eq!(
+                mul_limbs(&a_max, &b_max),
+                schoolbook_mul_ref(&a_max, &b_max),
+                "all-max {la}x{lb}"
+            );
+
+            // Powers of 2^32 (sparse: triggers trim_zeros in sub-slices)
+            let mut a_pow = vec![0u32; la];
+            a_pow[la - 1] = 1;
+            let mut b_pow = vec![0u32; lb];
+            b_pow[lb - 1] = 1;
+            assert_eq!(
+                mul_limbs(&a_pow, &b_pow),
+                schoolbook_mul_ref(&a_pow, &b_pow),
+                "pow2^32 {la}x{lb}"
+            );
+            a_pow[0] = 1;
+            b_pow[0] = 1;
+            assert_eq!(
+                mul_limbs(&a_pow, &b_pow),
+                schoolbook_mul_ref(&a_pow, &b_pow),
+                "2^32k+1 {la}x{lb}"
+            );
+
+            // Random full-width inputs
+            let a_rnd = rand_limbs(la, &mut rng);
+            let b_rnd = rand_limbs(lb, &mut rng);
+            assert_eq!(
+                mul_limbs(&a_rnd, &b_rnd),
+                schoolbook_mul_ref(&a_rnd, &b_rnd),
+                "random {la}x{lb}"
+            );
+        }
+
+        // 2. Sweep sizes around threshold (28..=72) with varied aspect ratios.
+        for la in [28usize, 31, 32, 33, 35, 40, 47, 48, 55, 63, 64, 65, 72] {
+            for lb in [28usize, 32, 33, 47, 48, 64, 96, 130] {
+                let a = rand_limbs(la, &mut rng);
+                let b = rand_limbs(lb, &mut rng);
+                assert_eq!(
+                    mul_limbs(&a, &b),
+                    schoolbook_mul_ref(&a, &b),
+                    "sweep {la}x{lb}"
+                );
+            }
+        }
     }
 }
