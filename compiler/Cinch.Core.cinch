@@ -16,9 +16,11 @@ module Cinch.Core where
   import Cinch.ExportType (export-global)
   import Cinch.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.Bytes (bytes-len, bytes-get)
   import Data.Nat (nat-to-int)
+  import Data.String (string-compare, string-byte-length, string-utf8-first, string-to-bytes)
+  import Prim.Machine (ge-i64, lt-i64)
   import Text.Lex (Span)
-  import Text.Scan (string-starts-with)
   import Algebra.Semigroup
 
   export scoped-core-case-facts, scoped-core-case-rest-facts, normalized-case-rest-facts, case-pattern-may-prove, core-alternative-covers, opening-value-types, opening-value-patterns
@@ -460,7 +462,7 @@ module Cinch.Core where
   handler-residual :: UType -> UType -> Option UType
   handler-residual label row = if not (valid-type label && kind-equal (type-kind label) KEffect && valid-type row && kind-equal (type-kind row) KRow) then None else case row of
     URow labels -> case handler-residual-labels label labels of Some rest -> Some (URow rest); None -> None
-    URowJoin a b -> case (handler-residual label a, handler-residual label b) of (Some x, Some y) -> Some (union-effects x y); other -> None
+    URowJoin a b -> case handler-residual label a of Some x -> (case handler-residual label b of Some y -> Some (union-effects x y); None -> None); None -> None
     UBound id name KRow -> Some row
     URigid id name level KRow -> Some row
     other -> None
@@ -475,10 +477,11 @@ module Cinch.Core where
     UCon name kind -> if name == declaration.effect-name && kind-equal kind (declaration.effect-kind) then Some args else None
     other -> None
   handler-parameter-pairs :: List Quant -> List UType -> List (Nat, UType) -> Option (List (Nat, UType))
-  handler-parameter-pairs qs args pairs = case (qs, args) of
-    ([], []) -> Some pairs
-    (q : rest, arg : more) -> if valid-type arg && kind-equal (type-kind arg) (map-kind-types (substitute-bound pairs) (q.kind)) then handler-parameter-pairs rest more ((q.id, arg) : pairs) else None
-    other -> None
+  handler-parameter-pairs qs args pairs = case qs of
+    [] -> case args of [] -> Some pairs; other -> None
+    q : rest -> case args of
+      arg : more -> if valid-type arg && kind-equal (type-kind arg) (map-kind-types (substitute-bound pairs) (q.kind)) then handler-parameter-pairs rest more ((q.id, arg) : pairs) else None
+      [] -> None
   handler-remaining-params :: List Quant -> List Quant -> List Quant
   handler-remaining-params owner all = case owner of [] -> all; q : rest -> case all of first : more -> handler-remaining-params rest more; [] -> []
   handler-operation-scheme :: CoreEffect -> UType -> CoreOperation -> Option Scheme
@@ -685,7 +688,7 @@ module Cinch.Core where
       UArg first rest -> index-value-terms sp first <> index-value-terms sp rest
       other -> []
     UIndexCall function arguments -> index-argument-terms sp arguments
-    other -> (case (value-carrier (type-kind value), index-of-type value) of (Some carrier, Some term) -> index-local-terms sp carrier term; other -> [])
+    other -> (case value-carrier (type-kind value) of Some carrier -> (case index-of-type value of Some term -> index-local-terms sp carrier term; None -> []); None -> [])
   index-argument-terms :: Span -> UType -> List CoreTerm
   index-argument-terms sp arguments = case arguments of UArg first rest -> index-value-terms sp first <> index-argument-terms sp rest; other -> []
   implicit-value-terms :: Span -> List UType -> List CoreTerm
@@ -811,21 +814,25 @@ module Cinch.Core where
   task-effect :: String -> UType -> UType
   task-effect name owner = URow (UArg (UApp (UCon name (KFun KRegion KEffect)) owner) UEnd)
   task-spawn-effects :: CoreTerm -> CoreTerm -> UType
-  task-spawn-effects token body = case (scope-parameters (core-type token), task-body-parts (core-type body)) of
-    (Some (owner, region), Some (error, value, row)) -> union-effects (task-effect "Async" owner) (union-effects row (union-effects (core-effects token) (core-effects body)))
-    other -> UError
+  task-spawn-effects token body = case scope-parameters (core-type token) of
+    Some (owner, region) -> case task-body-parts (core-type body) of
+      Some (error, value, row) -> union-effects (task-effect "Async" owner) (union-effects row (union-effects (core-effects token) (core-effects body)))
+      None -> UError
+    None -> UError
   task-join-effects :: CoreTerm -> CoreTerm -> UType
   task-join-effects token handles = case scope-parameters (core-type token) of
     Some (owner, region) -> union-effects (URow (UArg (UCon "Diverge" KEffect) UEnd)) (union-effects (task-effect "Async" owner) (union-effects (task-effect "Cancel" owner) (union-effects (core-effects token) (core-effects handles))))
     None -> UError
   task-join-result :: CoreTerm -> CoreTerm -> Option UType
-  task-join-result token handles = case (scope-parameters (core-type token), handles) of
-    (Some (owner, region), CArgument sp first rest) -> (case task-parts (core-type first) of
-      Some (actual, error, value) -> if contract-equal region actual then (case task-join-fields region error rest of
-        Some UEnd -> Some (task-result-type error value)
-        Some more -> Some (task-result-type error (UTuple (UArg value more)))
-        None -> None) else None
-      None -> None)
+  task-join-result token handles = case handles of
+    CArgument sp first rest -> case scope-parameters (core-type token) of
+      Some (owner, region) -> (case task-parts (core-type first) of
+        Some (actual, error, value) -> if contract-equal region actual then (case task-join-fields region error rest of
+          Some UEnd -> Some (task-result-type error value)
+          Some more -> Some (task-result-type error (UTuple (UArg value more)))
+          None -> None) else None
+        None -> None)
+      None -> None
     other -> None
   task-join-fields :: UType -> UType -> CoreTerm -> Option UType
   task-join-fields region error handles = case handles of
@@ -888,27 +895,25 @@ module Cinch.Core where
   rewrite-type-equal :: UType -> UType -> Bool
   rewrite-type-equal first second = valid-type first && valid-type second && contract-equal first second
   rewrite-types-equal :: List UType -> List UType -> Bool
-  rewrite-types-equal first second = case (first, second) of
-    ([], []) -> True
-    (a : rest, b : more) -> rewrite-type-equal a b && rewrite-types-equal rest more
-    other -> False
+  rewrite-types-equal first second = case first of
+    [] -> case second of [] -> True; other -> False
+    a : rest -> case second of b : more -> rewrite-type-equal a b && rewrite-types-equal rest more; [] -> False
   rewrite-evidences-equal :: List CoreEvidence -> List CoreEvidence -> Bool
-  rewrite-evidences-equal first second = case (first, second) of
-    ([], []) -> True
-    (a : rest, b : more) -> rewrite-evidence-equal a b && rewrite-evidences-equal rest more
-    other -> False
+  rewrite-evidences-equal first second = case first of
+    [] -> case second of [] -> True; other -> False
+    a : rest -> case second of b : more -> rewrite-evidence-equal a b && rewrite-evidences-equal rest more; [] -> False
   rewrite-evidence-equal :: CoreEvidence -> CoreEvidence -> Bool
-  rewrite-evidence-equal first second = case (first, second) of
-    (CECopy sp carrier, CECopy at other) -> same-shape carrier other
-    (CEKernel sp carrier, CEKernel at other) -> same-shape carrier other
-    (CEGiven sp ty name, CEGiven at other symbol) ->
-      name == symbol && rewrite-type-equal ty other
-    (CEInstance sp ty name types arguments, CEInstance at other symbol actuals supplied) ->
-      name == symbol && rewrite-type-equal ty other && rewrite-types-equal types actuals
-        && rewrite-evidence-equal arguments supplied
-    (CEArgument sp a rest, CEArgument at b more) ->
-      rewrite-evidence-equal a b && rewrite-evidence-equal rest more
-    (CEArgumentsEnd sp, CEArgumentsEnd at) -> True
+  rewrite-evidence-equal first second = case first of
+    CECopy sp carrier -> case second of CECopy at other -> same-shape carrier other; other -> False
+    CEKernel sp carrier -> case second of CEKernel at other -> same-shape carrier other; other -> False
+    CEGiven sp ty name -> case second of CEGiven at other symbol -> name == symbol && rewrite-type-equal ty other; other -> False
+    CEInstance sp ty name types arguments -> case second of
+      CEInstance at other symbol actuals supplied ->
+        name == symbol && rewrite-type-equal ty other && rewrite-types-equal types actuals
+          && rewrite-evidence-equal arguments supplied
+      other -> False
+    CEArgument sp a rest -> case second of CEArgument at b more -> rewrite-evidence-equal a b && rewrite-evidence-equal rest more; other -> False
+    CEArgumentsEnd sp -> case second of CEArgumentsEnd at -> True; other -> False
     other -> False
   rewrite-argument :: Nat -> List (Nat, CoreTerm) -> Option CoreTerm
   rewrite-argument id arguments = case arguments of
@@ -930,33 +935,42 @@ module Cinch.Core where
   rewrite-structure arguments binders first second =
     let equal = rewrite-equal arguments binders in
     let typed = rewrite-type-equal (core-type first) (core-type second) in
-    case (first, second) of
-      (CLocal sp ty id name actuals, CLocal at other key display supplied) ->
-        typed && rewrite-local-equal id key binders && rewrite-types-equal actuals supplied
-      (CUse sp ty name role actuals, CUse at other symbol kind supplied) ->
-        typed && name == symbol && role == kind && rewrite-types-equal actuals supplied
-      (CQualifiedUse sp ty name role actuals evidence, CQualifiedUse at other symbol kind supplied proofs) ->
-        typed && name == symbol && role == kind
-          && rewrite-types-equal actuals supplied && rewrite-evidences-equal evidence proofs
-      (CMethod sp ty name owner slot actuals evidence, CMethod at other symbol origin field supplied proofs) ->
-        typed && owner == origin && name == symbol && slot == field
-          && rewrite-types-equal actuals supplied && rewrite-evidences-equal evidence proofs
-      (CApply sp ty f x, CApply at other g y) -> typed && equal f g && equal x y
-      (CLambda sp ty (CPVar site domain id name) body, CLambda at other (CPVar source carrier key display) rhs) ->
-        typed && rewrite-type-equal domain carrier && rewrite-equal arguments ((id, key) : binders) body rhs
-      (CLambda sp ty (CPWild site domain) body, CLambda at other (CPWild source carrier) rhs) ->
-        typed && rewrite-type-equal domain carrier && equal body rhs
-      (CInt sp ty text, CInt at other value) -> typed && text == value
-      (CString sp ty text, CString at other value) -> typed && text == value
-      (CChar sp ty text, CChar at other value) -> typed && text == value
-      (CSymbol sp ty text, CSymbol at other value) -> typed && text == value
-      (CUnit sp ty, CUnit at other) -> typed
-      (CIf sp ty guard yes no, CIf at other test left right) -> typed && equal guard test && equal yes left && equal no right
-      (CPrimitive sp ty name args, CPrimitive at other symbol supplied) ->
-        typed && name == symbol && equal args supplied
-      (CTuple sp ty fields, CTuple at other supplied) -> typed && equal fields supplied
-      (CArgument sp value rest, CArgument at argument more) -> equal value argument && equal rest more
-      (CArgumentsEnd sp, CArgumentsEnd at) -> True
+    case first of
+      CLocal sp ty id name actuals -> case second of
+        CLocal at other key display supplied -> typed && rewrite-local-equal id key binders && rewrite-types-equal actuals supplied
+        other -> False
+      CUse sp ty name role actuals -> case second of
+        CUse at other symbol kind supplied -> typed && name == symbol && role == kind && rewrite-types-equal actuals supplied
+        other -> False
+      CQualifiedUse sp ty name role actuals evidence -> case second of
+        CQualifiedUse at other symbol kind supplied proofs ->
+          typed && name == symbol && role == kind
+            && rewrite-types-equal actuals supplied && rewrite-evidences-equal evidence proofs
+        other -> False
+      CMethod sp ty name owner slot actuals evidence -> case second of
+        CMethod at other symbol origin field supplied proofs ->
+          typed && owner == origin && name == symbol && slot == field
+            && rewrite-types-equal actuals supplied && rewrite-evidences-equal evidence proofs
+        other -> False
+      CApply sp ty f x -> case second of CApply at other g y -> typed && equal f g && equal x y; other -> False
+      CLambda sp ty (CPVar site domain id name) body -> case second of
+        CLambda at other (CPVar source carrier key display) rhs ->
+          typed && rewrite-type-equal domain carrier && rewrite-equal arguments ((id, key) : binders) body rhs
+        other -> False
+      CLambda sp ty (CPWild site domain) body -> case second of
+        CLambda at other (CPWild source carrier) rhs ->
+          typed && rewrite-type-equal domain carrier && equal body rhs
+        other -> False
+      CInt sp ty text -> case second of CInt at other value -> typed && text == value; other -> False
+      CString sp ty text -> case second of CString at other value -> typed && text == value; other -> False
+      CChar sp ty text -> case second of CChar at other value -> typed && text == value; other -> False
+      CSymbol sp ty text -> case second of CSymbol at other value -> typed && text == value; other -> False
+      CUnit sp ty -> case second of CUnit at other -> typed; other -> False
+      CIf sp ty guard yes no -> case second of CIf at other test left right -> typed && equal guard test && equal yes left && equal no right; other -> False
+      CPrimitive sp ty name args -> case second of CPrimitive at other symbol supplied -> typed && name == symbol && equal args supplied; other -> False
+      CTuple sp ty fields -> case second of CTuple at other supplied -> typed && equal fields supplied; other -> False
+      CArgument sp value rest -> case second of CArgument at argument more -> equal value argument && equal rest more; other -> False
+      CArgumentsEnd sp -> case second of CArgumentsEnd at -> True; other -> False
       other -> False
 
   -- Creating a closure is pure; invoking it contributes its latent row.
@@ -1091,11 +1105,14 @@ module Cinch.Core where
     other -> if decision-constant True term then Some True else if decision-constant False term then Some False else None
   scoped-branch-writes :: CoreTerm -> Bool -> List (Span, Option UType)
   scoped-branch-writes term positive = case term of
-    CIf sp ty condition yes no -> case (write-branch-literal yes, write-branch-literal no) of
-      (Some left, Some right) | left /= right -> scoped-branch-writes condition (left == positive)
-      (Some True, other) | not positive -> scoped-branch-writes condition False <> scoped-branch-writes no False
-      (other, Some False) | positive -> scoped-branch-writes condition True <> scoped-branch-writes yes True
-      other -> core-mutable-writes term
+    CIf sp ty condition yes no -> case write-branch-literal yes of
+      Some left -> case write-branch-literal no of
+        Some right | left /= right -> scoped-branch-writes condition (left == positive)
+        Some False | positive -> scoped-branch-writes condition True <> scoped-branch-writes yes True
+        other -> if left && not positive then scoped-branch-writes condition False <> scoped-branch-writes no False else core-mutable-writes term
+      None -> case write-branch-literal no of
+        Some False | positive -> scoped-branch-writes condition True <> scoped-branch-writes yes True
+        other -> core-mutable-writes term
     other -> core-mutable-writes term
   guard-fallthrough-writes :: CoreTerm -> List (Span, Option UType)
   guard-fallthrough-writes body = fallthrough-writes-using (\ty -> ty) (\term -> term) False body
@@ -1737,7 +1754,7 @@ module Cinch.Core where
     UIndex carrier value -> type-index-scope bound rigid carrier && index-scoped bound rigid [] value
     UPi id name domain row result -> type-index-scope bound rigid domain && type-index-scope (id : bound) rigid row && type-index-scope (id : bound) rigid result
     UBound id name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id bound; None -> True)
-    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid || string-starts-with "$sing_" name; None -> True)
+    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid || (ge-i64 (string-compare name "$sing_") 0 && lt-i64 (string-compare name "$sing`") 0); None -> True)
     UMeta id kind -> False
     UCon name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> False; None -> True)
     UApp a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
@@ -1775,9 +1792,11 @@ module Cinch.Core where
   opening-value-types :: List (Nat, UType) -> List (Nat, UType)
   opening-value-types openings = case openings of
     [] -> []
-    (key, value) : rest -> (case (value-carrier (type-kind value), index-of-type value) of
-      (Some carrier, Some (IRigid id name level)) -> (id, carrier) : (opening-value-types rest)
-      other -> opening-value-types rest)
+    (key, value) : rest -> case value-carrier (type-kind value) of
+      Some carrier -> case index-of-type value of
+        Some (IRigid id name level) -> (id, carrier) : (opening-value-types rest)
+        other -> opening-value-types rest
+      None -> opening-value-types rest
   opening-value-patterns :: Span -> List (Nat, UType) -> List CorePattern
   opening-value-patterns sp openings = value-type-patterns sp (opening-value-types openings)
   value-type-patterns :: Span -> List (Nat, UType) -> List CorePattern
@@ -1947,7 +1966,7 @@ module Cinch.Core where
   bool-type :: UType -> Bool
   bool-type ty = case ty of UCon name KType -> name == "Bool"; other -> False
   same-number-sort :: UType -> UType -> Bool
-  same-number-sort a b = case (number-sort a, number-sort b) of (Some x, Some y) -> x == y; other -> False
+  same-number-sort a b = case number-sort a of Some x -> (case number-sort b of Some y -> x == y; None -> False); None -> False
   proof-variable :: Nat -> Arithmetic
   proof-variable id = AVariable (string-concat "#value:" (nat-to-string id))
   borrow-read-variable :: Nat -> Arithmetic
@@ -2032,11 +2051,13 @@ module Cinch.Core where
     other -> scope
   scope-let :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> ProofScope
   scope-let scope facts id scheme rhs = let bound = scope-local id (scheme-body scheme) scope in
-    case (scheme-params scheme, scheme-requirements scheme) of
-      ([], []) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
-        Some value -> if not (volatile-borrow-index value) && scope-index-valid (scheme-body scheme) value then
-          (case bound of ProofScope types values proofs bodies guards -> ProofScope types ((id, value) : values) proofs bodies guards) else bound
-        None -> bound
+    case scheme-params scheme of
+      [] -> case scheme-requirements scheme of
+        [] -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
+          Some value -> if not (volatile-borrow-index value) && scope-index-valid (scheme-body scheme) value then
+            (case bound of ProofScope types values proofs bodies guards -> ProofScope types ((id, value) : values) proofs bodies guards) else bound
+          None -> bound
+        other -> bound
       other -> bound
 
   scope-erased :: Nat -> UType -> ProofScope -> ProofScope
@@ -2118,26 +2139,29 @@ module Cinch.Core where
     [] -> None
     (sp, region) : rest -> if predicate-written region (borrow-index-regions predicate) then Some sp else mutable-predicate-write rest predicate
   facts-after-writes :: ProofScope -> List Proposition -> List (Span, Option UType) -> List Proposition
-  facts-after-writes gamma facts writes = case (writes, facts) of
-    ([], other) -> facts
-    (other, []) -> []
-    (other, first : rest) -> let live = facts-after-writes gamma rest writes in
-      (case mutable-fact-write gamma writes first of None -> first : live; Some sp -> live)
+  facts-after-writes gamma facts writes = case writes of
+    [] -> facts
+    other -> case facts of
+      [] -> []
+      first : rest -> let live = facts-after-writes gamma rest writes in
+        (case mutable-fact-write gamma writes first of None -> first : live; Some sp -> live)
   erased-after-writes :: List (Nat, UType) -> List (Span, Option UType) -> List (Nat, UType)
   erased-after-writes proofs writes = case proofs of
     [] -> []
     (id, predicate) : rest -> let live = erased-after-writes rest writes in
       (case mutable-predicate-write writes predicate of None -> (id, predicate) : live; Some sp -> live)
   proof-after-writes :: ProofScope -> List (Span, Option UType) -> ProofScope
-  proof-after-writes gamma writes = case (gamma, writes) of
-    (scope, []) -> scope
-    (ProofScope types values proofs bodies guards, other) ->
-      ProofScope types values (erased-after-writes proofs writes) bodies guards
+  proof-after-writes gamma writes = case writes of
+    [] -> gamma
+    other -> case gamma of
+      ProofScope types values proofs bodies guards ->
+        ProofScope types values (erased-after-writes proofs writes) bodies guards
   scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
-  scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
-    (ProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
-      && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
-    (scope, CProofRefl s predicate) -> reflexive-equality predicate && contract-equal expected predicate
+  scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case term of
+    CProofRef s predicate id name -> case gamma of
+      ProofScope types values proofs bodies guards -> valid-proof-reference term && contract-equal expected predicate
+        && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
+    CProofRefl s predicate -> reflexive-equality predicate && contract-equal expected predicate
     other -> False)
   -- These identities and schemes belong to the kernel. In particular a
   -- constructor's source proof slot is absent from its runtime payload.
@@ -2197,13 +2221,14 @@ module Cinch.Core where
   decision-not-null-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   decision-not-null-index gamma facts condition = case condition of
     CCase sp ty input (CAlternative at empty no (CAlternative next nonempty yes (CAlternativesEnd end))) ->
-      (case (empty, nonempty) of
-        (CPConstructor nil-at nil-type nil args nil-ctor (CPDone nil-end),
-         CPConstructor cons-at cons-type cons params cons-ctor (CPField head (CPWild h-at h-type) (CPField tail (CPWild t-at t-type) (CPDone cons-end)))) ->
-          if nil == global-data-core-nil && cons == global-data-core-cons
-            && contract-equal nil-type (core-type input) && contract-equal cons-type (core-type input)
-            && decision-constant False no && decision-constant True yes
-          then actual-index gamma facts input else None
+      (case empty of
+        CPConstructor nil-at nil-type nil args nil-ctor (CPDone nil-end) -> case nonempty of
+          CPConstructor cons-at cons-type cons params cons-ctor (CPField head (CPWild h-at h-type) (CPField tail (CPWild t-at t-type) (CPDone cons-end))) ->
+            if nil == global-data-core-nil && cons == global-data-core-cons
+              && contract-equal nil-type (core-type input) && contract-equal cons-type (core-type input)
+              && decision-constant False no && decision-constant True yes
+            then actual-index gamma facts input else None
+          other -> None
         other -> None)
     other -> None
   -- A strict binder and its checked defining expression can be distinct
@@ -2227,9 +2252,15 @@ module Cinch.Core where
     UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test (proof-after-writes gamma (scoped-branch-writes test False)) (scoped-branch-facts gamma facts test False) second no; other -> False)
     other -> (case condition of
       CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
-        && (case (core-predicate gamma predicate, comparison-name operation, decision-index-reading gamma facts first, decision-index-reading gamma facts second) of
-          (Some (PCompare expected a b), Some relation, Some left, Some right) -> comparison-equal expected relation
-            && same-decision-reading gamma facts a left && same-decision-reading gamma facts b right
+        && (case core-predicate gamma predicate of
+          Some (PCompare expected a b) -> case comparison-name operation of
+            Some relation -> if comparison-equal expected relation then
+              (case decision-index-reading gamma facts first of
+                Some left -> case decision-index-reading gamma facts second of
+                  Some right -> same-decision-reading gamma facts a left && same-decision-reading gamma facts b right
+                  None -> False
+                None -> False) else False
+            None -> False
           other -> False)
       other -> False)
   structural-decision-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> String -> (UType -> Bool) -> Bool
@@ -2245,16 +2276,19 @@ module Cinch.Core where
 
   proof-local :: Nat -> ProofScope -> Option UType
   proof-local id gamma = scope-entry id (gamma.types)
-  decimal-digits :: List Char -> Int -> Bool -> Option Int
-  decimal-digits chars n seen = case chars of
-    [] -> if seen then Some n else None
-    c : rest -> let code = char-code c in
-      if code >= 48 && code <= 57 then decimal-digits rest (n * 10 + nat-to-int (code - 48)) True else None
+  decimal-bytes :: Bytes -> Nat -> Int -> Bool -> Option Int
+  decimal-bytes bs idx n seen =
+    if idx < bytes-len bs then
+      let code = bytes-get bs idx in
+      if code >= 48 && code <= 57 then decimal-bytes bs (idx + 1) (n * 10 + nat-to-int (code - 48)) True else None
+    else if seen then Some n else None
   decimal-value :: String -> Option Int
-  decimal-value text = case unpack text of
-    c : rest -> if char-code c == 45 then (case decimal-digits rest 0 False of Some n -> Some (0 - n); None -> None)
-      else decimal-digits (c : rest) 0 False
-    [] -> None
+  decimal-value text =
+    let bs = string-to-bytes text in
+    if 0 < bytes-len bs then
+      if bytes-get bs 0 == 45 then (case decimal-bytes bs 1 0 False of Some n -> Some (0 - n); None -> None)
+      else decimal-bytes bs 0 0 False
+    else None
   valid-integer-literal :: UType -> String -> Bool
   valid-integer-literal carrier text = case decimal-value text of Some value -> integer-literal-valid carrier value; None -> False
   valid-number-literal :: UType -> String -> Bool
@@ -2372,7 +2406,7 @@ module Cinch.Core where
   -- telescope and the tail; constructing the head must itself be pure.
   spine-literal :: CoreTerm -> Bool
   spine-literal term = case term of
-    CChar sp ty text -> contract-equal ty (UCon "Char" KType) && (case unpack text of [c] -> True; other -> False)
+    CChar sp ty text -> contract-equal ty (UCon "Char" KType) && (case string-utf8-first text of Some (c, n) -> n == string-byte-length text; None -> False)
     CInt sp ty text -> valid-number-literal ty text
     CUnit sp ty -> contract-equal ty (UCon "Unit" KType)
     CUse sp ty name role [] -> bool-type ty && role == "constructor"
@@ -2395,11 +2429,12 @@ module Cinch.Core where
   -- refinement fixes its length exactly. Only equality on this binder's
   -- own measure supplies a constant reading.
   exact-measure-side :: UType -> UType -> UType -> Option Int
-  exact-measure-side measure first second = case (first, second) of
-    (UIndexPromote input, other) -> exact-measure-side measure input other
-    (input, UIndexPromote value) -> exact-measure-side measure input value
-    (input, UIndex carrier (IInteger n)) -> if contract-equal input measure && integer-carrier carrier && n >= 0 then Some n else None
-    other -> None
+  exact-measure-side measure first second = case first of
+    UIndexPromote input -> exact-measure-side measure input second
+    other -> case second of
+      UIndexPromote value -> exact-measure-side measure first value
+      UIndex carrier (IInteger n) -> if contract-equal first measure && integer-carrier carrier && n >= 0 then Some n else None
+      other2 -> None
   exact-refined-length :: UType -> Option Int
   exact-refined-length ty = case refinement-view ty of
     URefine id name carrier (UCompare relation left right) | (relation == "==") || relation == "Eq" ->
@@ -2427,18 +2462,20 @@ module Cinch.Core where
     other -> None
   local-borrow-index :: ProofScope -> UType -> CoreTerm -> Option UType
   local-borrow-index gamma result term = case term of
-    CLocal sp ty id name [] -> (case (borrow-type-parts ty, proof-local id gamma) of
-      (Some (mutable, region, carrier), Some declared) ->
-        if integer-carrier carrier && contract-equal ty declared && contract-equal result carrier
-        then Some (UIndexBorrowRead (UIndex ty (IRigid id name 0))) else None
-      other -> None)
+    CLocal sp ty id name [] -> (case borrow-type-parts ty of
+      Some (mutable, region, carrier) -> case proof-local id gamma of
+        Some declared -> if integer-carrier carrier && contract-equal ty declared && contract-equal result carrier
+          then Some (UIndexBorrowRead (UIndex ty (IRigid id name 0))) else None
+        None -> None
+      None -> None)
     other -> None
   borrow-observation-reading :: ProofScope -> UType -> Option Arithmetic
   borrow-observation-reading gamma input = case input of
-    UIndex ty (IRigid id name level) -> (case (borrow-type-parts ty, proof-local id gamma) of
-      (Some (mutable, region, carrier), Some declared) ->
-        if integer-carrier carrier && contract-equal ty declared then Some (borrow-read-variable id) else None
-      other -> None)
+    UIndex ty (IRigid id name level) -> (case borrow-type-parts ty of
+      Some (mutable, region, carrier) -> case proof-local id gamma of
+        Some declared -> if integer-carrier carrier && contract-equal ty declared then Some (borrow-read-variable id) else None
+        None -> None
+      None -> None)
     other -> None
   ordinary-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   ordinary-arithmetic gamma facts term = case term of
@@ -2462,11 +2499,13 @@ module Cinch.Core where
       None -> None
     CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if same-number-sort ty (core-type first) && same-number-sort ty (core-type second) then
-        (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
-          (Some x, Some y) -> if op == "+" then Some (APlus x y)
-            else if op == "*" then Some (ATimes x y)
-            else if op == "-" && not (nat-type ty) then Some (AMinus x y) else None
-          other -> None)
+        (case core-arithmetic gamma facts first of
+          Some x -> case core-arithmetic gamma facts second of
+            Some y -> if op == "+" then Some (APlus x y)
+              else if op == "*" then Some (ATimes x y)
+              else if op == "-" && not (nat-type ty) then Some (AMinus x y) else None
+            None -> None
+          None -> None)
       else None
     CPrimitive s ty op (CArgument a first (CArgumentsEnd end)) ->
       if op == "copy-out" then
@@ -2474,14 +2513,16 @@ module Cinch.Core where
       else if op == "negate" && same-number-sort ty (core-type first) && not (nat-type ty) then
         (case core-arithmetic gamma facts first of Some x -> Some (AMinus (AInteger 0) x); None -> None) else None
     CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
-      Some op -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
-        (Some a, Some b) -> Some (if op == "+" then APlus a b else if op == "*" then ATimes a b else AMinus a b)
-        other -> None
+      Some op -> case core-arithmetic gamma facts first of
+        Some a -> case core-arithmetic gamma facts second of
+          Some b -> Some (if op == "+" then APlus a b else if op == "*" then ATimes a b else AMinus a b)
+          None -> None
+        None -> None
       None -> None
     CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then
       (case body of
         CPrimitive at out op (CArgument a first (CArgument b second (CArgumentsEnd end))) | (op == "-") ->
-          (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (AMinus x y); other -> None)
+          (case core-arithmetic gamma facts first of Some x -> (case core-arithmetic gamma facts second of Some y -> Some (AMinus x y); None -> None); None -> None)
         other -> None) else None
     other -> None
   comparison-name :: String -> Option Comparison
@@ -2498,13 +2539,15 @@ module Cinch.Core where
     CPrimitive sp ty operation (CArgumentsEnd end) -> if operation == "decision-true" then Some PTruth else if operation == "decision-false" then Some PFalsehood else None
     CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if same-integer-carrier (core-type first) (core-type second) then
-        (case (comparison-name op, core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
-          (Some rel, Some x, Some y) -> Some (PCompare rel x y)
-          other -> None) else None
+        (case comparison-name op of
+          Some rel -> case core-arithmetic gamma facts first of
+            Some x -> case core-arithmetic gamma facts second of Some y -> Some (PCompare rel x y); None -> None
+            None -> None
+          None -> None) else None
     CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-comparison gamma method first second of
-      Some relation -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
-        (Some a, Some b) -> Some (PCompare relation a b)
-        other -> None
+      Some relation -> case core-arithmetic gamma facts first of
+        Some a -> case core-arithmetic gamma facts second of Some b -> Some (PCompare relation a b); None -> None
+        None -> None
       None -> None
     CApply s ty function input -> (case negated-condition-input gamma term of
       Some argument -> (case scoped-core-condition gamma facts argument of Some predicate -> Some (PNegate predicate); None -> None)
@@ -2512,9 +2555,11 @@ module Cinch.Core where
     CUse s ty name role [] -> if role == "constructor" then
       (if name == "True" then Some PTruth else if name == "False" then Some PFalsehood else None) else None
     CIf s ty condition yes no -> case scoped-core-condition gamma facts condition of
-      Some p -> case (scoped-core-condition gamma (p : facts) yes, scoped-core-condition gamma ((PNegate p) : facts) no) of
-        (Some q, Some r) -> Some (PEither (PBoth p q) (PBoth (PNegate p) r))
-        other -> None
+      Some p -> case scoped-core-condition gamma (p : facts) yes of
+        Some q -> case scoped-core-condition gamma ((PNegate p) : facts) no of
+          Some r -> Some (PEither (PBoth p q) (PBoth (PNegate p) r))
+          None -> None
+        None -> None
       None -> None
     CCase s ty input alternatives -> (case decision-not-null-index gamma facts term of
       Some actual -> core-predicate gamma (UPropNotNull actual)
@@ -2526,12 +2571,14 @@ module Cinch.Core where
   -- A known test fact is in scope when reading the selected operand. Never
   -- negate a partial reading to describe the opposite branch.
   merge-branch-implications :: Option Proposition -> Option Proposition -> Option Proposition
-  merge-branch-implications first second = case (first, second) of
-    (other, Some PTruth) -> first
-    (None, other) -> second
-    (Some PTruth, other) -> second
-    (Some p, None) -> first
-    (Some p, Some q) -> Some (PBoth p q)
+  merge-branch-implications first second = case second of
+    Some PTruth -> first
+    other -> case first of
+      None -> second
+      Some PTruth -> second
+      Some p -> case second of
+        None -> first
+        Some q -> Some (PBoth p q)
   scoped-core-branch :: ProofScope -> List Proposition -> CoreTerm -> Bool -> Option Proposition
   scoped-core-branch gamma facts condition positive = if not (bool-type (core-type condition)) then None else
     case scoped-core-condition gamma facts condition of
@@ -2583,9 +2630,11 @@ module Cinch.Core where
       ordering-case-facts gamma facts value ty constructor name positive
     CPConstructor sp ty name actuals constructor fields -> case-list-shape gamma facts value ty name constructor fields positive
     CPInt sp ty text -> if not (contract-equal ty (core-type value)) then [] else
-      (case (core-arithmetic gamma facts value, core-arithmetic gamma facts (CInt sp ty text)) of
-        (Some actual, Some literal) -> [PCompare (if positive then Equal else Unequal) actual literal]
-        other -> [])
+      (case core-arithmetic gamma facts value of
+        Some actual -> case core-arithmetic gamma facts (CInt sp ty text) of
+          Some literal -> [PCompare (if positive then Equal else Unequal) actual literal]
+          None -> []
+        None -> [])
     other -> []
   ordering-result :: UType
   ordering-result = UCon (global-data-ordering-ordering) KType
@@ -2630,9 +2679,9 @@ module Cinch.Core where
                 && contract-equal (core-effects project) (URow UEnd)
                 && ordering-slot-proves gamma dictionary less key factory "<"
                 && ordering-slot-proves gamma dictionary greater key factory ">") then None else
-              (case (ordering-key-reading gamma facts sp key project first, ordering-key-reading gamma facts sp key project second) of
-                (Some a, Some b) -> Some (a, b)
-                other -> None)
+              (case ordering-key-reading gamma facts sp key project first of
+                Some a -> case ordering-key-reading gamma facts sp key project second of Some b -> Some (a, b); None -> None
+                None -> None)
           None -> None)
         None -> None
     other -> None
@@ -2657,9 +2706,11 @@ module Cinch.Core where
   list-shape-reading gamma index = if not (typed-index-admissible index) then None else case index of
     UIndexList element UEnd -> Some (AInteger 0)
     UIndexList element (UArg first rest) -> Some (AInteger 1)
-    UIndex carrier (IRigid id name level) -> (case (core-list-element carrier, proof-local id gamma) of
-      (Some element, Some declared) -> if contract-equal carrier declared then Some (list-shape-variable id) else None
-      other -> None)
+    UIndex carrier (IRigid id name level) -> (case core-list-element carrier of
+      Some element -> case proof-local id gamma of
+        Some declared -> if contract-equal carrier declared then Some (list-shape-variable id) else None
+        None -> None
+      None -> None)
     other -> None
   irrefutable-case-pattern :: UType -> CorePattern -> Bool
   irrefutable-case-pattern expected pattern = case pattern of
@@ -2668,13 +2719,14 @@ module Cinch.Core where
     CPAs sp ty id name inner -> contract-equal expected ty && irrefutable-case-pattern expected inner
     other -> False
   list-pattern-shape :: UType -> String -> UType -> CorePattern -> Bool -> Option Int
-  list-pattern-shape ty name constructor fields positive = case (core-list-element ty, fields) of
-    (Some element, CPDone end) ->
-      if name == global-data-core-nil && contract-equal constructor ty then Some (if positive then 0 else 1) else None
-    (Some element, CPField sp head (CPField tail-at tail (CPDone end))) ->
-      if name == global-data-core-cons && contract-equal constructor (UFun element (UFun ty ty))
-        && (positive || (irrefutable-case-pattern element head && irrefutable-case-pattern ty tail)) then Some (if positive then 1 else 0) else None
-    other -> None
+  list-pattern-shape ty name constructor fields positive = case core-list-element ty of
+    Some element -> case fields of
+      CPDone end -> if name == global-data-core-nil && contract-equal constructor ty then Some (if positive then 0 else 1) else None
+      CPField sp head (CPField tail-at tail (CPDone end)) ->
+        if name == global-data-core-cons && contract-equal constructor (UFun element (UFun ty ty))
+          && (positive || (irrefutable-case-pattern element head && irrefutable-case-pattern ty tail)) then Some (if positive then 1 else 0) else None
+      other -> None
+    None -> None
   case-list-shape :: ProofScope -> List Proposition -> CoreTerm -> UType -> String -> UType -> CorePattern -> Bool -> List Proposition
   case-list-shape gamma facts value ty name constructor fields positive = if not (contract-equal ty (core-type value)) then [] else
     case list-pattern-shape ty name constructor fields positive of
@@ -2732,14 +2784,15 @@ module Cinch.Core where
     [] -> False
     first : rest -> case-pattern-may-prove first False || refutable-equation-proofs rest
   single-refutable-column :: List CorePattern -> List CorePattern -> Option (CorePattern, CorePattern) -> Option (CorePattern, CorePattern)
-  single-refutable-column before current found = case (before, current) of
-    ([], []) -> found
-    (old : earlier, new : later) ->
-      if irrefutable-case-pattern (pattern-type old) old then single-refutable-column earlier later found
-      else (case found of
-        None -> single-refutable-column earlier later (Some (old, new))
-        Some pair -> None)
-    other -> None
+  single-refutable-column before current found = case before of
+    [] -> case current of [] -> found; other -> None
+    old : earlier -> case current of
+      new : later ->
+        if irrefutable-case-pattern (pattern-type old) old then single-refutable-column earlier later found
+        else (case found of
+          None -> single-refutable-column earlier later (Some (old, new))
+          Some pair -> None)
+      [] -> None
   scoped-core-equation-facts :: ProofScope -> List (List CorePattern) -> List CorePattern -> List Proposition
   scoped-core-equation-facts gamma earlier patterns = case earlier of
     [] -> []
@@ -2757,7 +2810,7 @@ module Cinch.Core where
     facts-after-writes gamma with-branch (scoped-branch-writes condition positive)
   subtraction-goal :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proposition
   subtraction-goal gamma facts first second = if nat-type (core-type first) && nat-type (core-type second) then
-    (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (PCompare AtMost y x); other -> None) else None
+    (case core-arithmetic gamma facts first of Some x -> (case core-arithmetic gamma facts second of Some y -> Some (PCompare AtMost y x); None -> None); None -> None) else None
   operation-goal :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option Proposition
   operation-goal gamma facts op first second =
     if op == "-" then subtraction-goal gamma facts first second
@@ -2806,17 +2859,20 @@ module Cinch.Core where
     Some element -> True
     None -> integer-carrier (numeric-carrier-view ty)
   scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
-  scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
-    ([], []) | (case core-list-element (scheme-body sc) of Some element -> True; None -> False) ->
-      if not (contract-equal (scheme-body sc) (core-type rhs)) then None else (case literal-spine-length rhs of
-        Some length -> Some (PCompare Equal (AVariable ("#list-length:" <> nat-to-string id)) (AInteger (nat-to-int length)))
-        None -> None)
-    ([], []) -> if not (stable-index-source rhs && contract-equal (scheme-body sc) (core-type rhs)) then None
-      else let carrier = numeric-carrier-view (scheme-body sc) in
-        if same-number-sort carrier carrier || (integer-carrier carrier && scalar-copy rhs) then
-          (let value = if is-refinement (core-type rhs) then CForget (Span 0 0 1 1) carrier rhs else rhs in
-           case core-arithmetic gamma facts value of Some reading -> Some (PCompare Equal (proof-variable id) reading); None -> None)
-        else None
+  scoped-core-let-fact gamma facts id sc rhs = case scheme-params sc of
+    [] -> case scheme-requirements sc of
+      [] -> case core-list-element (scheme-body sc) of
+        Some element ->
+          if not (contract-equal (scheme-body sc) (core-type rhs)) then None else (case literal-spine-length rhs of
+            Some length -> Some (PCompare Equal (AVariable ("#list-length:" <> nat-to-string id)) (AInteger (nat-to-int length)))
+            None -> None)
+        None -> if not (stable-index-source rhs && contract-equal (scheme-body sc) (core-type rhs)) then None
+          else let carrier = numeric-carrier-view (scheme-body sc) in
+            if same-number-sort carrier carrier || (integer-carrier carrier && scalar-copy rhs) then
+              (let value = if is-refinement (core-type rhs) then CForget (Span 0 0 1 1) carrier rhs else rhs in
+               case core-arithmetic gamma facts value of Some reading -> Some (PCompare Equal (proof-variable id) reading); None -> None)
+            else None
+      other -> None
     other -> None
   proof-pattern :: CorePattern -> ProofScope -> ProofScope
   proof-pattern pattern gamma = case pattern of
@@ -3038,12 +3094,14 @@ module Cinch.Core where
     other -> False
 
   forgotten-tuple-fields :: UType -> UType -> Bool
-  forgotten-tuple-fields fields targets = case (fields, targets) of
-    (UEnd, UEnd) -> True
-    (UArg field more, UArg requested rest) -> (case (refinement-view field, requested) of
-      (UTuple inputs, UTuple outputs) -> forgotten-tuple-fields inputs outputs
-      (URefine id name base predicate, other) -> contract-equal field requested || contract-equal base requested
-      other -> contract-equal field requested) && forgotten-tuple-fields more rest
+  forgotten-tuple-fields fields targets = case fields of
+    UEnd -> case targets of UEnd -> True; other -> False
+    UArg field more -> case targets of
+      UArg requested rest -> (case refinement-view field of
+        UTuple inputs -> (case requested of UTuple outputs -> forgotten-tuple-fields inputs outputs; other -> contract-equal field requested)
+        URefine id name base predicate -> contract-equal field requested || contract-equal base requested
+        other -> contract-equal field requested) && forgotten-tuple-fields more rest
+      other -> False
     other -> False
   -- Every path producing a refinement retains either its checked producer
   -- or an introduction certificate. A literal's annotated type is no proof.
@@ -3187,9 +3245,9 @@ module Cinch.Core where
   -- an identity, not an approximation: both are the identity on such a scope
   -- by their own definitions.
   writes-move-nothing :: ProofScope -> List Proposition -> Bool
-  writes-move-nothing gamma facts = case (gamma, facts) of
-    (ProofScope types values proofs bodies guards, []) -> case proofs of [] -> True; other -> False
-    (other, rest) -> False
+  writes-move-nothing gamma facts = case facts of
+    [] -> case gamma of ProofScope types values proofs bodies guards -> (case proofs of [] -> True; other -> False)
+    other -> False
   -- The scope a refreshed term's writes leave behind. Asking whether writes
   -- can matter before computing them avoids a walk over the whole prefix at
   -- every level of a left-nested spine with no proof bindings or facts.
@@ -3213,16 +3271,18 @@ module Cinch.Core where
   contract-equal :: UType -> UType -> Bool
   contract-equal a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core contract")) of [] -> True; other -> False
   contract-equal-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> UType -> Bool
-  contract-equal-in fams proms a b = case (fams, proms) of
-    ([], []) -> contract-equal a b
+  contract-equal-in fams proms a b = case fams of
+    [] -> case proms of
+      [] -> contract-equal a b
+      other -> case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted fams proms (empty-store "Core contract"))) of [] -> True; other -> False
     other -> case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted fams proms (empty-store "Core contract"))) of [] -> True; other -> False
   index-arithmetic :: ProofScope -> UType -> IndexTerm -> Option Arithmetic
   index-arithmetic gamma carrier value = if not (same-number-sort carrier carrier && index-runtime-admissible carrier value) then None else case value of
     IInteger n -> Some (AInteger n)
     IRigid id name level -> case proof-local id gamma of Some ty -> if same-number-sort carrier (numeric-carrier-view ty) then Some (proof-variable id) else None; None -> None
-    IAdd a b -> case (index-arithmetic gamma carrier a, index-arithmetic gamma carrier b) of (Some x, Some y) -> Some (APlus x y); other -> None
-    ISubtract a b -> case (index-arithmetic gamma carrier a, index-arithmetic gamma carrier b) of (Some x, Some y) -> Some (AMinus x y); other -> None
-    IMultiply a b -> case (index-arithmetic gamma carrier a, index-arithmetic gamma carrier b) of (Some x, Some y) -> Some (ATimes x y); other -> None
+    IAdd a b -> case index-arithmetic gamma carrier a of Some x -> (case index-arithmetic gamma carrier b of Some y -> Some (APlus x y); None -> None); None -> None
+    ISubtract a b -> case index-arithmetic gamma carrier a of Some x -> (case index-arithmetic gamma carrier b of Some y -> Some (AMinus x y); None -> None); None -> None
+    IMultiply a b -> case index-arithmetic gamma carrier a of Some x -> (case index-arithmetic gamma carrier b of Some y -> Some (ATimes x y); None -> None); None -> None
     other -> None
   -- Projection and numeric promotion keep their input's actual carrier.
   -- A matching identifier alone cannot change the type supplied by Gamma.
@@ -3246,9 +3306,11 @@ module Cinch.Core where
       Some declared -> if contract-equal carrier declared then Some (proof-variable id) else None
       None -> None
     UIndexPromote input -> typed-index-arithmetic gamma input
-    UIndexMath op left right -> case (typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
-      (Some a, Some b) -> Some (if op == "+" then APlus a b else if op == "*" then ATimes a b else AMinus a b)
-      other -> None
+    UIndexMath op left right -> case typed-index-arithmetic gamma left of
+      Some a -> case typed-index-arithmetic gamma right of
+        Some b -> Some (if op == "+" then APlus a b else if op == "*" then ATimes a b else AMinus a b)
+        None -> None
+      None -> None
     UApp f x -> case typed-index-carrier value of
       Some carrier | integer-index-carrier carrier -> Some (AVariable (string-concat "#tf:" (type-text value)))
       other -> None
@@ -3266,9 +3328,11 @@ module Cinch.Core where
       UIndexList element UEnd -> Some PTruth
       UIndexList element (UArg first (UIndexList second UEnd)) -> Some PTruth
       UIndexList element (UArg first tail) -> (case tail of
-        UIndexList second (UArg next rest) -> (case (typed-index-arithmetic gamma first, typed-index-arithmetic gamma next, ordered-predicate gamma tail) of
-          (Some a, Some b, Some suffix) -> Some (PBoth (PCompare AtMost a b) suffix)
-          other -> None)
+        UIndexList second (UArg next rest) -> (case typed-index-arithmetic gamma first of
+          Some a -> case typed-index-arithmetic gamma next of
+            Some b -> case ordered-predicate gamma tail of Some suffix -> Some (PBoth (PCompare AtMost a b) suffix); None -> None
+            None -> None
+          None -> None)
         other -> None)
       other -> structural-local-predicate gamma carrier value "#kernel.ordered" ordered-predicate)
     other -> None
@@ -3287,12 +3351,13 @@ module Cinch.Core where
   core-predicate :: ProofScope -> UType -> Option Proposition
   core-predicate gamma predicate = if not (valid-type predicate && kind-equal (type-kind predicate) KProp) then None else case predicate of
     UPropLit value -> Some (if value then PTruth else PFalsehood)
-    UCompare relation left right -> case (if relation == "Eq" then Some Equal else comparison-name relation,
-      typed-index-arithmetic gamma left, typed-index-arithmetic gamma right) of
-      (Some op, Some x, Some y) -> Some (PCompare op x y)
-      other -> None
-    UPropAnd a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PBoth x y); other -> None
-    UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
+    UCompare relation left right -> case (if relation == "Eq" then Some Equal else comparison-name relation) of
+      Some op -> case typed-index-arithmetic gamma left of
+        Some x -> case typed-index-arithmetic gamma right of Some y -> Some (PCompare op x y); None -> None
+        None -> None
+      None -> None
+    UPropAnd a b -> case core-predicate gamma a of Some x -> (case core-predicate gamma b of Some y -> Some (PBoth x y); None -> None); None -> None
+    UPropOr a b -> case core-predicate gamma a of Some x -> (case core-predicate gamma b of Some y -> Some (PEither x y); None -> None); None -> None
     UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
     UPropOrdered value -> ordered-predicate gamma value
@@ -3310,11 +3375,11 @@ module Cinch.Core where
   scoped-core-predicates :: ProofScope -> UType -> Option (List Proposition)
   scoped-core-predicates gamma predicates = case predicates of
     UEnd -> Some []
-    UArg first rest -> case (core-predicate gamma first, scoped-core-predicates gamma rest) of (Some p, Some ps) -> Some (p : ps); other -> None
+    UArg first rest -> case core-predicate gamma first of Some p -> (case scoped-core-predicates gamma rest of Some ps -> Some (p : ps); None -> None); None -> None
     other -> None
   required-predicates :: ProofScope -> UType -> Option (List Proposition)
   required-predicates gamma ty = case ty of
-    URequire predicates body -> case (scoped-core-predicates gamma predicates, required-predicates gamma body) of (Some ps, Some more) -> Some (ps <> more); other -> None
+    URequire predicates body -> case scoped-core-predicates gamma predicates of Some ps -> (case required-predicates gamma body of Some more -> Some (ps <> more); None -> None); None -> None
     other -> Some []
   required-body :: UType -> UType
   required-body ty = case ty of URequire predicates body -> required-body body; other -> ty
@@ -3353,28 +3418,29 @@ module Cinch.Core where
       Some evidence -> if check-proof hypotheses goal evidence then (case prove-goals hypotheses rest of Some more -> Some (evidence : more); None -> None) else None
       None -> None
   check-goals :: List Proposition -> List Proposition -> List Proof -> Bool
-  check-goals hypotheses goals evidence = case (goals, evidence) of
-    ([], []) -> True
-    (goal : rest, first : more) -> check-proof hypotheses goal first && check-goals hypotheses rest more
-    other -> False
+  check-goals hypotheses goals evidence = case goals of
+    [] -> case evidence of [] -> True; other -> False
+    goal : rest -> case evidence of first : more -> check-proof hypotheses goal first && check-goals hypotheses rest more; [] -> False
   contains-required :: UType -> Bool
   contains-required ty = case refinement-view ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UUsageArrow usage arrow -> contains-required arrow; UProofFun predicate row result -> contains-required result; other -> False
   arithmetic-index :: ProofScope -> Arithmetic -> Option IndexTerm
   arithmetic-index gamma term = case term of
     AInteger n -> Some (IInteger n)
     AVariable name -> variable-index (gamma.types) name
-    APlus a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (IAdd x y); other -> None
-    AMinus a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (ISubtract x y); other -> None
-    ATimes a b -> case (arithmetic-index gamma a, arithmetic-index gamma b) of (Some x, Some y) -> Some (IMultiply x y); other -> None
+    APlus a b -> case arithmetic-index gamma a of Some x -> (case arithmetic-index gamma b of Some y -> Some (IAdd x y); None -> None); None -> None
+    AMinus a b -> case arithmetic-index gamma a of Some x -> (case arithmetic-index gamma b of Some y -> Some (ISubtract x y); None -> None); None -> None
+    ATimes a b -> case arithmetic-index gamma a of Some x -> (case arithmetic-index gamma b of Some y -> Some (IMultiply x y); None -> None); None -> None
     other -> None
   variable-index :: List (Nat, UType) -> String -> Option IndexTerm
   variable-index gamma name = case gamma of
     [] -> None
     (id, ty) : rest -> if arithmetic-equal (proof-variable id) (AVariable name) then Some (IRigid id name 0) else variable-index rest name
   actual-math-index :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option UType
-  actual-math-index gamma facts op first second = case (actual-index gamma facts first, actual-index gamma facts second) of
-    (Some left, Some right) -> let out = normalize (empty-store "Core mathematical index") (UIndexMath op left right) in if typed-index-admissible out then Some out else None
-    other -> None
+  actual-math-index gamma facts op first second = case actual-index gamma facts first of
+    Some left -> case actual-index gamma facts second of
+      Some right -> let out = normalize (empty-store "Core mathematical index") (UIndexMath op left right) in if typed-index-admissible out then Some out else None
+      None -> None
+    None -> None
   actual-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   actual-index gamma facts term = case checked-total-index gamma facts term of
     Some value -> Some value
@@ -3410,9 +3476,9 @@ module Cinch.Core where
       checked-list-index gamma facts term UEnd
     CApply sp ty (CApply at partial (CUse origin constructor name role actuals) first) rest
         | (name == global-data-core-cons) && role == "constructor" ->
-      (case (actual-index gamma facts first, actual-index gamma facts rest) of
-        (Some head, Some tail) -> checked-list-index gamma facts term (UArg head tail)
-        other -> None)
+      (case actual-index gamma facts first of
+        Some head -> case actual-index gamma facts rest of Some tail -> checked-list-index gamma facts term (UArg head tail); None -> None
+        None -> None)
     other -> None
   checked-list-index :: ProofScope -> List Proposition -> CoreTerm -> UType -> Option UType
   checked-list-index gamma facts term fields = case core-list-element (core-type term) of
@@ -3448,7 +3514,7 @@ module Cinch.Core where
     CProved s ty evidence body -> if certified-operation gamma facts ty evidence body then (case body of
       CPrimitive at output operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> actual-math-index gamma facts operation first second
       other -> None) else None
-    CChar s ty text -> if contract-equal ty (UCon "Char" KType) then (case unpack text of [c] -> Some (UIndex ty (ICharacter c)); other -> None) else None
+    CChar s ty text -> if contract-equal ty (UCon "Char" KType) then (case string-utf8-first text of Some (c, n) -> if n == string-byte-length text then Some (UIndex ty (ICharacter c)) else None; None -> None) else None
     CInt s ty text -> case decimal-value text of Some n -> if integer-literal-valid ty n then Some (UIndex ty (IInteger n)) else None; None -> None
     CLocal s ty id name [] -> scope-index gamma id name ty
     other -> case core-arithmetic gamma facts term of
@@ -3525,11 +3591,13 @@ module Cinch.Core where
   pattern-result :: UType -> CorePattern -> Option UType
   pattern-result fun pattern = pattern-result-in [] [] fun pattern
   pattern-result-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> CorePattern -> Option UType
-  pattern-result-in fams proms fun pattern = case (reduce-types fams proms fun, pattern) of
-    (UUsageArrow UsageZero arrow, CPErasedValue sp ty id name) -> if valid-type fun then pattern-result-in fams proms arrow (CPVar sp ty id name) else None
-    (UUsageArrow UsageZero arrow, other) -> None
-    (other, CPErasedValue sp ty id name) -> None
-    (reduced, other) -> pattern-result-runtime-in fams proms reduced pattern
+  pattern-result-in fams proms fun pattern = case reduce-types fams proms fun of
+    UUsageArrow UsageZero arrow -> case pattern of
+      CPErasedValue sp ty id name -> if valid-type fun then pattern-result-in fams proms arrow (CPVar sp ty id name) else None
+      other -> None
+    reduced -> case pattern of
+      CPErasedValue sp ty id name -> None
+      other -> pattern-result-runtime-in fams proms reduced pattern
   pattern-result-runtime-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> CorePattern -> Option UType
   pattern-result-runtime-in fams proms fun pattern = case fun of
     UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal-in fams proms predicate actual then Some result else None; other -> None
@@ -3573,10 +3641,9 @@ module Cinch.Core where
   definition-given-types :: List Requirement -> List CoreGiven -> Bool
   definition-given-types requirements givens = definition-given-types-in [] [] requirements givens
   definition-given-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> List Requirement -> List CoreGiven -> Bool
-  definition-given-types-in fams proms requirements givens = case (requirements, givens) of
-    ([], []) -> True
-    (r : rest, g : more) -> contract-equal-in fams proms (r.ty) (g.ty) && definition-given-types-in fams proms rest more
-    other -> False
+  definition-given-types-in fams proms requirements givens = case requirements of
+    [] -> case givens of [] -> True; other -> False
+    r : rest -> case givens of g : more -> contract-equal-in fams proms (r.ty) (g.ty) && definition-given-types-in fams proms rest more; [] -> False
   core-definition-result-types :: CoreDefinition -> Bool
   core-definition-result-types definition = core-definition-result-types-with [] [] definition
   core-definition-result-types-with-families :: List TypeFamilyRuleSet -> CoreDefinition -> Bool
@@ -3669,9 +3736,11 @@ module Cinch.Core where
     [] -> Some (UEnd, ty)
     input : rest -> (case ty of
       UFun domain result -> if contract-equal domain (core-type input) && proof-term gamma facts input then
-        (case (actual-index gamma facts input, total-call-values gamma facts result rest) of
-          (Some value, Some (values, output)) -> if kind-equal (type-kind value) (value-kind domain) then Some (UArg value values, output) else None
-          other -> None) else None
+        (case actual-index gamma facts input of
+          Some value -> case total-call-values gamma facts result rest of
+            Some (values, output) -> if kind-equal (type-kind value) (value-kind domain) then Some (UArg value values, output) else None
+            None -> None
+          None -> None) else None
       UFunEff domain (URow UEnd) result -> total-call-values gamma facts (UFun domain result) inputs
       other -> None)
   checked-total-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
@@ -3700,10 +3769,12 @@ module Cinch.Core where
     other -> None
   body-index-arguments :: ProofScope -> TotalFunction -> UType -> Option Arithmetic
   body-index-arguments gamma function arguments = if total-source-projection function then
-    (case (total-parameters function, arguments) of
-      ([domain], UArg value UEnd) -> (case nominal-index-key gamma (UCon domain KType) value of
-        Some key -> Some (AArgument key AArgumentsEnd)
-        None -> None)
+    (case total-parameters function of
+      [domain] -> case arguments of
+        UArg value UEnd -> (case nominal-index-key gamma (UCon domain KType) value of
+          Some key -> Some (AArgument key AArgumentsEnd)
+          None -> None)
+        other -> None
       other -> None)
     else total-index-arguments gamma (total-parameters function) arguments
   nominal-index-key :: ProofScope -> UType -> UType -> Option Arithmetic
@@ -3723,10 +3794,13 @@ module Cinch.Core where
       other -> total-value-call-key gamma value sort)
     else typed-index-arithmetic gamma value
   total-index-arguments :: ProofScope -> List String -> UType -> Option Arithmetic
-  total-index-arguments gamma sorts arguments = case (sorts, arguments) of
-    ([], UEnd) -> Some AArgumentsEnd
-    (sort : rest, UArg first more) -> (case (total-argument-key gamma sort first, total-index-arguments gamma rest more) of (Some value, Some others) -> Some (AArgument value others); other -> None)
-    other -> None
+  total-index-arguments gamma sorts arguments = case sorts of
+    [] -> case arguments of UEnd -> Some AArgumentsEnd; other -> None
+    sort : rest -> case arguments of
+      UArg first more -> case total-argument-key gamma sort first of
+        Some value -> case total-index-arguments gamma rest more of Some others -> Some (AArgument value others); None -> None
+        None -> None
+      other -> None
   body-key-binding :: String -> List BodyBinding -> Option BodyBinding
   body-key-binding key bindings = case bindings of [] -> None; first : rest -> if key == body-call-key first then Some first else body-key-binding key rest
   body-application-facts :: BodyBinding -> Arithmetic -> List Proposition
@@ -3777,9 +3851,9 @@ module Cinch.Core where
   guarded-actuals :: ProofScope -> List Proposition -> List CoreTerm -> Option (List UType)
   guarded-actuals gamma facts arguments = case arguments of
     [] -> Some []
-    first : rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case (actual-index gamma facts first, guarded-actuals gamma facts rest) of
-      (Some value, Some more) -> Some (value : more)
-      other -> None)
+    first : rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case actual-index gamma facts first of
+      Some value -> case guarded-actuals gamma facts rest of Some more -> Some (value : more); None -> None
+      None -> None)
   scoped-guarded-call-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   scoped-guarded-call-index gamma facts term = case term of
     CDischarge sp ty evidence _ body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body [] of
@@ -3790,9 +3864,9 @@ module Cinch.Core where
   guarded-actual-readings :: ProofScope -> List Proposition -> List CoreTerm -> Option (List Arithmetic)
   guarded-actual-readings gamma facts arguments = case arguments of
     [] -> Some []
-    first : rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case (core-arithmetic gamma facts first, guarded-actual-readings gamma facts rest) of
-      (Some value, Some more) -> Some (value : more)
-      other -> None)
+    first : rest -> if not (nat-type (core-type first) && proof-term gamma facts first) then None else (case core-arithmetic gamma facts first of
+      Some value -> case guarded-actual-readings gamma facts rest of Some more -> Some (value : more); None -> None
+      None -> None)
   scoped-guarded-call-reading :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   scoped-guarded-call-reading gamma facts term = case term of
     CDischarge sp ty evidence _ body -> if not (nat-type ty && discharged gamma facts ty evidence body) then None else (case guarded-call-spine gamma body [] of
@@ -3866,15 +3940,16 @@ module Cinch.Core where
   total-core-parameters :: List String -> List CorePattern -> Option (List (Option Nat, String))
   total-core-parameters sorts patterns = total-core-parameters-into [] sorts patterns
   total-core-parameters-into :: List (Option Nat, String) -> List String -> List CorePattern -> Option (List (Option Nat, String))
-  total-core-parameters-into backwards sorts patterns = case (sorts, patterns) of
-    ([], []) -> Some (reverse backwards)
-    (sort : rest, (CPVar sp ty id name) : more) -> case total-core-sort ty of
-      Some actual -> if sort == actual && not (total-core-scope-bound id backwards) then total-core-parameters-into ((Some id, sort) : backwards) rest more else None
-      None -> None
-    (sort : rest, (CPWild sp ty) : more) -> case total-core-sort ty of
-      Some actual -> if sort == actual then total-core-parameters-into ((None, sort) : backwards) rest more else None
-      None -> None
-    other -> None
+  total-core-parameters-into backwards sorts patterns = case sorts of
+    [] -> case patterns of [] -> Some (reverse backwards); other -> None
+    sort : rest -> case patterns of
+      (CPVar sp ty id name) : more -> case total-core-sort ty of
+        Some actual -> if sort == actual && not (total-core-scope-bound id backwards) then total-core-parameters-into ((Some id, sort) : backwards) rest more else None
+        None -> None
+      (CPWild sp ty) : more -> case total-core-sort ty of
+        Some actual -> if sort == actual then total-core-parameters-into ((None, sort) : backwards) rest more else None
+        None -> None
+      other -> None
   total-core-flatten :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
   total-core-flatten patterns body = total-core-flatten-into (reverse patterns) body
   total-core-flatten-into :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
@@ -3902,30 +3977,38 @@ module Cinch.Core where
   total-core-relation :: String -> Option String
   total-core-relation relation = if relation == "==" then Some "I64Eq" else if relation == "/=" then Some "I64Ne" else if relation == "<" then Some "I64Lt" else if relation == "<=" then Some "I64Le" else if relation == ">" then Some "I64Gt" else if relation == ">=" then Some "I64Ge" else None
   total-core-operation :: String -> List CoreTerm -> List Json -> Option Json
-  total-core-operation operation terms values = case (terms, values) of
-    ([first], [value]) -> (case total-core-sort (core-type first) of
-      Some sort -> if operation == "negate" && sort == "Int" then Some (total-core-primitive "IntNeg" [value]) else None
-      None -> None)
-    ([first, second], [left, right]) -> (case (total-core-sort (core-type first), total-core-sort (core-type second)) of
-      (Some sort, Some other) -> if sort /= other then None else
-        if sort == "Nat" || sort == "Int" then
-          (let prefix = if sort == "Nat" then "Nat" else "Int" in
-           if operation == "+" then Some (total-core-primitive (prefix <> "Add") [left, right])
-           else if operation == "*" then Some (total-core-primitive (prefix <> "Mul") [left, right])
-           else if operation == "-" && sort == "Int" then Some (total-core-primitive "IntSub" [left, right])
-           else case total-core-relation operation of
-             Some relation -> Some (total-core-primitive relation [total-core-primitive (prefix <> "Cmp") [left, right], total-core-number "I64" "0"])
-             None -> None)
-        else if sort == "I64" then (case total-core-relation operation of Some relation -> Some (total-core-primitive relation [left, right]); None -> None)
-        else if sort == "Bool" && (operation == "==" || operation == "/=") then Some (total-core-primitive (if operation == "==" then "BoolEq" else "BoolNe") [left, right]) else None
-      other -> None)
+  total-core-operation operation terms values = case terms of
+    [first] -> case values of
+      [value] -> (case total-core-sort (core-type first) of
+        Some sort -> if operation == "negate" && sort == "Int" then Some (total-core-primitive "IntNeg" [value]) else None
+        None -> None)
+      other -> None
+    [first, second] -> case values of
+      [left, right] -> (case total-core-sort (core-type first) of
+        Some sort -> case total-core-sort (core-type second) of
+          Some other -> if sort /= other then None else
+            if sort == "Nat" || sort == "Int" then
+              (let prefix = if sort == "Nat" then "Nat" else "Int" in
+               if operation == "+" then Some (total-core-primitive (prefix <> "Add") [left, right])
+               else if operation == "*" then Some (total-core-primitive (prefix <> "Mul") [left, right])
+               else if operation == "-" && sort == "Int" then Some (total-core-primitive "IntSub" [left, right])
+               else case total-core-relation operation of
+                 Some relation -> Some (total-core-primitive relation [total-core-primitive (prefix <> "Cmp") [left, right], total-core-number "I64" "0"])
+                 None -> None)
+            else if sort == "I64" then (case total-core-relation operation of Some relation -> Some (total-core-primitive relation [left, right]); None -> None)
+            else if sort == "Bool" && (operation == "==" || operation == "/=") then Some (total-core-primitive (if operation == "==" then "BoolEq" else "BoolNe") [left, right]) else None
+          None -> None
+        None -> None)
+      other -> None
     other -> None
   total-core-expressions :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> List CoreTerm -> Option (List Json, List String)
   total-core-expressions bindings index scope terms = case terms of
     [] -> Some ([], [])
-    first : rest -> case (total-core-expression bindings index scope first, total-core-expressions bindings index scope rest) of
-      (Some (value, calls), Some (more, others)) -> Some (value : more, calls <> others)
-      other -> None
+    first : rest -> case total-core-expression bindings index scope first of
+      Some (value, calls) -> case total-core-expressions bindings index scope rest of
+        Some (more, others) -> Some (value : more, calls <> others)
+        None -> None
+      None -> None
   total-core-call :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
   total-core-call bindings index scope term = case total-core-head term of
     CUse sp ty name role [] -> (case total-core-expressions bindings index scope (total-core-arguments term []) of
@@ -3955,28 +4038,44 @@ module Cinch.Core where
   total-unit-initializer scope term = case term of
     CUnit sp (UCon name KType) -> name == "Unit"
     CLet sp ty id name sc (CLocal rhs field param label []) body ->
-      (case (total-core-local param scope 0, total-core-value-sort field, scheme-params sc, scheme-requirements sc) of
-        (Some (slot, expected), Some actual, [], []) -> expected == actual
-          && contract-equal field (scheme-body sc) && total-unit-initializer scope body
+      (case scheme-params sc of
+        [] -> case scheme-requirements sc of
+          [] -> case total-core-local param scope 0 of
+            Some (slot, expected) -> case total-core-value-sort field of
+              Some actual -> expected == actual && contract-equal field (scheme-body sc) && total-unit-initializer scope body
+              None -> False
+            None -> False
+          other -> False
         other -> False)
     other -> False
   total-core-expression :: List BodyBinding -> TotalCoreIndex -> List (Option Nat, String) -> CoreTerm -> Option (Json, List String)
   total-core-expression bindings index scope term = if not (contract-equal (core-effects term) (URow UEnd)) then None else case term of
-    CLocal sp ty id name [] -> (case (total-core-local id scope 0, total-core-value-sort ty) of
-      (Some (slot, expected), Some actual) -> if expected == actual then Some (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int slot)) JObjEnd), []) else None
-      other -> None)
+    CLocal sp ty id name [] -> (case total-core-local id scope 0 of
+      Some (slot, expected) -> case total-core-value-sort ty of
+        Some actual -> if expected == actual then Some (JObj "node" (JStr "local") (JObj "slot" (JNum (nat-to-int slot)) JObjEnd), []) else None
+        None -> None
+      None -> None)
     CInt sp ty decimal -> (case total-core-value-sort ty of Some sort -> Some (total-core-number sort decimal, []); None -> None)
-    CIf sp ty condition yes no -> (case (total-core-expression bindings index scope condition, total-core-expression bindings index scope yes, total-core-expression bindings index scope no) of
-      (Some (test, called), Some (first, left), Some (second, right)) -> Some (JObj "node" (JStr "if") (JObj "condition" test (JObj "yes" first (JObj "no" second JObjEnd))), called <> left <> right)
-      other -> None)
-    CLet sp ty id name sc rhs body -> if (case (scheme-params sc, scheme-requirements sc) of ([], []) -> True; other -> False) then
-      (if total-unit-initializer scope rhs && contract-equal (scheme-body sc) (UCon "Unit" KType)
-       then total-core-expression bindings index scope body
-       else case (total-core-expression bindings index scope rhs, total-core-value-sort (scheme-body sc)) of
-        (Some (value, called), Some sort) -> (case total-core-expression bindings index (scope <> [(Some id, sort)]) body of
-          Some (inside, more) -> Some (JObj "node" (JStr "let") (JObj "value" value (JObj "body" inside JObjEnd)), called <> more)
-          None -> None)
-        other -> None) else None
+    CIf sp ty condition yes no -> (case total-core-expression bindings index scope condition of
+      Some (test, called) -> case total-core-expression bindings index scope yes of
+        Some (first, left) -> case total-core-expression bindings index scope no of
+          Some (second, right) -> Some (JObj "node" (JStr "if") (JObj "condition" test (JObj "yes" first (JObj "no" second JObjEnd))), called <> left <> right)
+          None -> None
+        None -> None
+      None -> None)
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      [] -> case scheme-requirements sc of
+        [] -> if total-unit-initializer scope rhs && contract-equal (scheme-body sc) (UCon "Unit" KType)
+          then total-core-expression bindings index scope body
+          else case total-core-expression bindings index scope rhs of
+            Some (value, called) -> case total-core-value-sort (scheme-body sc) of
+              Some sort -> (case total-core-expression bindings index (scope <> [(Some id, sort)]) body of
+                Some (inside, more) -> Some (JObj "node" (JStr "let") (JObj "value" value (JObj "body" inside JObjEnd)), called <> more)
+                None -> None)
+              None -> None
+            None -> None
+        other -> None
+      other -> None
     CRefine sp ty evidence body -> total-core-expression bindings index scope body
     CForget sp ty body -> total-core-expression bindings index scope body
     CCast sp ty body -> total-core-expression bindings index scope body
@@ -3996,14 +4095,23 @@ module Cinch.Core where
     other -> None
   total-core-row :: List BodyBinding -> TotalCoreIndex -> CoreDefinition -> Option (Json, List String)
   total-core-row bindings index definition = if not (core-definition-closed definition && core-definition-result-types definition) then None else
-    case (scheme-params (definition.scheme), scheme-requirements (definition.scheme), definition.givens, definition.clauses) of
-      ([], [], [], [CoreClause sp patterns body]) -> (case (total-core-signature (scheme-body (definition.scheme)), export-global (definition.name), total-core-flatten patterns body) of
-        (Some (parameters, result), Ok native, (arguments, inner)) -> (case total-core-parameters parameters arguments of
-          Some scope -> (case total-core-expression bindings index scope inner of
-            Some (value, references) -> Some (JObj "identity" (JStr native) (JObj "parameters" (total-core-text-list parameters) (JObj "result" (JStr result) (JObj "body" value JObjEnd))), references)
-            None -> None)
-          None -> None)
-        other -> None)
+    case scheme-params (definition.scheme) of
+      [] -> case scheme-requirements (definition.scheme) of
+        [] -> case definition.givens of
+          [] -> case definition.clauses of
+            [CoreClause sp patterns body] -> case total-core-signature (scheme-body (definition.scheme)) of
+              Some (parameters, result) -> case export-global (definition.name) of
+                Ok native -> case total-core-flatten patterns body of
+                  (arguments, inner) -> (case total-core-parameters parameters arguments of
+                    Some scope -> (case total-core-expression bindings index scope inner of
+                      Some (value, references) -> Some (JObj "identity" (JStr native) (JObj "parameters" (total-core-text-list parameters) (JObj "result" (JStr result) (JObj "body" value JObjEnd))), references)
+                      None -> None)
+                    None -> None)
+                Err error -> None
+              None -> None
+            other -> None
+          other -> None
+        other -> None
       other -> None
   -- The definition list, indexed by the name a lookup asks for.
   --
@@ -4046,12 +4154,13 @@ module Cinch.Core where
         [] -> (reverse left, [])
         head : tail -> total-core-halve tail more (head : left)
   total-core-order-merge :: List Json -> List Json -> List Json
-  total-core-order-merge first second = case (first, second) of
-    ([], other) -> other
-    (other, []) -> other
-    (a : left, b : right) -> if string-compare (total-core-identity a) (total-core-identity b) <= 0
-      then a : (total-core-order-merge left second)
-      else b : (total-core-order-merge first right)
+  total-core-order-merge first second = case first of
+    [] -> second
+    a : left -> case second of
+      [] -> first
+      b : right -> if string-compare (total-core-identity a) (total-core-identity b) <= 0
+        then a : (total-core-order-merge left second)
+        else b : (total-core-order-merge first right)
   total-core-ordered :: List Json -> List Json
   total-core-ordered rows = case rows of
     [] -> []
@@ -4081,18 +4190,19 @@ module Cinch.Core where
     None -> None
   total-core-gather-into :: List BodyBinding -> TotalCoreIndex -> HashMap String () -> HashMap String () -> List Json -> String -> Option (List Json, HashMap String ())
   total-core-gather-into bindings index visiting seen tail name =
-    case (hash-map-lookup name visiting, hash-map-lookup name seen) of
-      (Some active, other) -> None
-      (None, Some done) -> Some (tail, seen)
-      (None, None) -> (case total-core-indexed-definition name index of
-        Some definition -> (case total-core-row bindings index definition of
-          Some (row, references) -> (case total-core-gather-list-into bindings index (hash-map-insert name () visiting) seen tail references of
-            Some (rows, checked) -> Some (row : rows, hash-map-insert name () checked)
+    case hash-map-lookup name visiting of
+      Some active -> None
+      None -> case hash-map-lookup name seen of
+        Some done -> Some (tail, seen)
+        None -> (case total-core-indexed-definition name index of
+          Some definition -> (case total-core-row bindings index definition of
+            Some (row, references) -> (case total-core-gather-list-into bindings index (hash-map-insert name () visiting) seen tail references of
+              Some (rows, checked) -> Some (row : rows, hash-map-insert name () checked)
+              None -> None)
             None -> None)
-          None -> None)
-        None -> (case body-binding name bindings of
-          Some binding -> Some (total-core-document-into (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) tail, hash-map-insert name () seen)
-          None -> None))
+          None -> (case body-binding name bindings of
+            Some binding -> Some (total-core-document-into (total-core-members (total-core-field "definitions" (total-function-document (binding-function binding)))) tail, hash-map-insert name () seen)
+            None -> None))
   total-core-document-into :: List Json -> List Json -> List Json
   total-core-document-into rows tail = case rows of
     [] -> tail
@@ -4121,8 +4231,10 @@ module Cinch.Core where
   projection-constructor datas name = case datas of
     [] -> None
     nominal : rest -> if name == core-data-name nominal then
-      (case (core-data-kind nominal, core-data-params nominal, core-data-constructors nominal) of
-        (KType, [], [constructor]) -> Some constructor
+      (case core-data-kind nominal of
+        KType -> case core-data-params nominal of
+          [] -> case core-data-constructors nominal of [constructor] -> Some constructor; other -> None
+          other -> None
         other -> None)
       else projection-constructor rest name
   projection-fields :: UType -> UType -> Option (List UType)
@@ -4131,13 +4243,14 @@ module Cinch.Core where
     UCon name KType -> if contract-equal expected ty then Some [] else None
     other -> None
   projection-bindings :: String -> List (String, Nat) -> Nat -> List UType -> CorePattern -> List (Nat, UType, List (String, Nat)) -> Option (List (Nat, UType, List (String, Nat)))
-  projection-bindings constructor path index fields pattern scope = case (fields, pattern) of
-    ([], CPDone sp) -> Some scope
-    (ty : rest, CPField sp (CPVar at actual id name) tail) -> if contract-equal ty actual then
-      projection-bindings constructor path (index + 1) rest tail ((id, ty, path <> [(constructor, index)]) : scope) else None
-    (ty : rest, CPField sp (CPWild at actual) tail) -> if contract-equal ty actual then
-      projection-bindings constructor path (index + 1) rest tail scope else None
-    other -> None
+  projection-bindings constructor path index fields pattern scope = case fields of
+    [] -> case pattern of CPDone sp -> Some scope; other -> None
+    ty : rest -> case pattern of
+      CPField sp (CPVar at actual id name) tail -> if contract-equal ty actual then
+        projection-bindings constructor path (index + 1) rest tail ((id, ty, path <> [(constructor, index)]) : scope) else None
+      CPField sp (CPWild at actual) tail -> if contract-equal ty actual then
+        projection-bindings constructor path (index + 1) rest tail scope else None
+      other -> None
   projection-local :: Nat -> UType -> List (Nat, UType, List (String, Nat)) -> Option (List (String, Nat))
   projection-local id ty scope = case scope of
     [] -> None
@@ -4149,23 +4262,37 @@ module Cinch.Core where
       (CAlternative arm (CPConstructor pat matched constructor [] ctor-type fields) body (CAlternativesEnd end)) ->
         let input = UCon carrier KType in
         if not (contract-equal matched input && contract-equal result (core-type body)) then None else
-          (case (projection-local id input scope, projection-constructor datas carrier) of
-            (Some path, Some definition) -> let sc = definition.constructor-scheme in
-              if not (constructor == definition.constructor-name && contract-equal ctor-type (scheme-body sc)) then None else
-                (case (scheme-params sc, scheme-requirements sc, projection-fields input ctor-type) of
-                  ([], [], Some field-types) -> (case projection-bindings constructor path 0 field-types fields scope of
-                    Some inner -> projection-expression sort datas inner body
-                    None -> None)
-                  other -> None)
-            other -> None)
+          (case projection-local id input scope of
+            Some path -> case projection-constructor datas carrier of
+              Some definition -> let sc = definition.constructor-scheme in
+                if not (constructor == definition.constructor-name && contract-equal ctor-type (scheme-body sc)) then None else
+                  (case scheme-params sc of
+                    [] -> case scheme-requirements sc of
+                      [] -> case projection-fields input ctor-type of
+                        Some field-types -> (case projection-bindings constructor path 0 field-types fields scope of
+                          Some inner -> projection-expression sort datas inner body
+                          None -> None)
+                        None -> None
+                      other -> None
+                    other -> None)
+              None -> None
+            None -> None)
     other -> None
   core-field-projection :: List CoreData -> CoreDefinition -> String -> Option TotalFunction
   core-field-projection datas definition native = if not (core-definition-closed definition && core-definition-result-types definition) then None else
     let sc = definition.scheme in
-    case (scheme-params sc, scheme-requirements sc, definition.givens, scheme-body sc, definition.clauses) of
-      ([], [], [], UFun (UCon domain KType) (UCon result KType), [CoreClause sp [CPVar at input id label] body]) ->
-        if not (projection-result-sort result && contract-equal input (UCon domain KType) && contract-equal (core-effects body) (URow UEnd)) then None else
-          (case projection-expression result datas [(id, input, [])] body of Some steps -> source-field-projection native domain result steps; None -> None)
+    case scheme-params sc of
+      [] -> case scheme-requirements sc of
+        [] -> case definition.givens of
+          [] -> case scheme-body sc of
+            UFun (UCon domain KType) (UCon result KType) -> case definition.clauses of
+              [CoreClause sp [CPVar at input id label] body] ->
+                if not (projection-result-sort result && contract-equal input (UCon domain KType) && contract-equal (core-effects body) (URow UEnd)) then None else
+                  (case projection-expression result datas [(id, input, [])] body of Some steps -> source-field-projection native domain result steps; None -> None)
+              other -> None
+            other -> None
+          other -> None
+        other -> None
       other -> None
   core-source-function :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option TotalFunction
   core-source-function bindings definitions datas native = case total-core-native-definition native definitions of
@@ -4239,10 +4366,9 @@ module Cinch.Core where
     [] -> None
     (number, selector, native, definition) : rest -> if slot == number then Some (selector, native, definition) else total-method-member slot rest
   total-method-types :: List UType -> List UType -> Bool
-  total-method-types first second = case (first, second) of
-    ([], []) -> True
-    (a : rest, b : more) -> contract-equal a b && total-method-types rest more
-    other -> False
+  total-method-types first second = case first of
+    [] -> case second of [] -> True; other -> False
+    a : rest -> case second of b : more -> contract-equal a b && total-method-types rest more; [] -> False
   total-method-spine :: UType -> List UType -> (UType, List UType)
   total-method-spine ty arguments = case ty of UApp head argument -> total-method-spine head (argument : arguments); other -> (ty, arguments)
   total-method-self :: String -> String -> UType -> CoreEvidence -> Bool
@@ -4261,54 +4387,66 @@ module Cinch.Core where
     CUnit sp ty -> Some term
     CMethod sp ty name declaring slot actuals [evidence] ->
       if total-method-self given dictionary factory evidence then
-        (case (total-method-member slot members, total-method-spine factory [], export-global name) of
-          (Some (selector, native, definition), (UCon subject kind, arguments), Ok selected) ->
-            if owner == declaring && owner == subject && selected == selector
-              && total-method-types actuals arguments && contract-equal ty (scheme-body (definition.scheme)) then
-                Some (CUse sp ty (interface-global native) "value" [])
-            else None
-          other -> None)
+        (case total-method-member slot members of
+          Some (selector, native, definition) -> case total-method-spine factory [] of
+            (UCon subject kind, arguments) -> case export-global name of
+              Ok selected ->
+                if owner == declaring && owner == subject && selected == selector
+                  && total-method-types actuals arguments && contract-equal ty (scheme-body (definition.scheme)) then
+                    Some (CUse sp ty (interface-global native) "value" [])
+                else None
+              Err err -> None
+            other -> None
+          None -> None)
       else (case evidence of CEInstance at subject symbol [] (CEArgumentsEnd end) -> Some term; other -> None)
-    CApply sp ty function argument -> (case (total-method-term given dictionary owner factory members function, total-method-term given dictionary owner factory members argument) of
-      (Some f, Some x) -> Some (CApply sp ty f x)
-      other -> None)
-    CApplyEff sp ty row function argument -> (case (total-method-term given dictionary owner factory members function, total-method-term given dictionary owner factory members argument) of
-      (Some f, Some x) -> Some (CApplyEff sp ty row f x)
-      other -> None)
+    CApply sp ty function argument -> (case total-method-term given dictionary owner factory members function of
+      Some f -> case total-method-term given dictionary owner factory members argument of Some x -> Some (CApply sp ty f x); None -> None
+      None -> None)
+    CApplyEff sp ty row function argument -> (case total-method-term given dictionary owner factory members function of
+      Some f -> case total-method-term given dictionary owner factory members argument of Some x -> Some (CApplyEff sp ty row f x); None -> None
+      None -> None)
     CLambda sp ty pattern body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CLambda sp ty pattern out); None -> None)
-    CLet sp ty id name sc value body -> (case (total-method-term given dictionary owner factory members value, total-method-term given dictionary owner factory members body) of
-      (Some first, Some rest) -> Some (CLet sp ty id name sc first rest)
-      other -> None)
-    CIf sp ty condition yes no -> (case (total-method-term given dictionary owner factory members condition, total-method-term given dictionary owner factory members yes, total-method-term given dictionary owner factory members no) of
-      (Some c, Some y, Some n) -> Some (CIf sp ty c y n)
-      other -> None)
+    CLet sp ty id name sc value body -> (case total-method-term given dictionary owner factory members value of
+      Some first -> case total-method-term given dictionary owner factory members body of Some rest -> Some (CLet sp ty id name sc first rest); None -> None
+      None -> None)
+    CIf sp ty condition yes no -> (case total-method-term given dictionary owner factory members condition of
+      Some c -> case total-method-term given dictionary owner factory members yes of
+        Some y -> case total-method-term given dictionary owner factory members no of Some n -> Some (CIf sp ty c y n); None -> None
+        None -> None
+      None -> None)
     CRefine sp ty certificate body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CRefine sp ty certificate out); None -> None)
     CForget sp ty body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CForget sp ty out); None -> None)
     CCast sp ty body -> (case total-method-term given dictionary owner factory members body of Some out -> Some (CCast sp ty out); None -> None)
     CPrimitive sp ty operation arguments -> (case total-method-term given dictionary owner factory members arguments of Some out -> Some (CPrimitive sp ty operation out); None -> None)
-    CArgument sp first rest -> (case (total-method-term given dictionary owner factory members first, total-method-term given dictionary owner factory members rest) of
-      (Some a, Some b) -> Some (CArgument sp a b)
-      other -> None)
+    CArgument sp first rest -> (case total-method-term given dictionary owner factory members first of
+      Some a -> case total-method-term given dictionary owner factory members rest of Some b -> Some (CArgument sp a b); None -> None
+      None -> None)
     CArgumentsEnd sp -> Some term
     other -> None
   total-method-clauses :: String -> String -> String -> UType -> List (Nat, String, String, CoreDefinition) -> List CoreClause -> Option (List CoreClause)
   total-method-clauses given dictionary owner factory members clauses = case clauses of
     [] -> Some []
-    (CoreClause sp patterns body) : rest -> (case (total-method-term given dictionary owner factory members body, total-method-clauses given dictionary owner factory members rest) of
-      (Some out, Some more) -> Some ((CoreClause sp patterns out) : more)
-      other -> None)
+    (CoreClause sp patterns body) : rest -> (case total-method-term given dictionary owner factory members body of
+      Some out -> case total-method-clauses given dictionary owner factory members rest of Some more -> Some ((CoreClause sp patterns out) : more); None -> None
+      None -> None)
   total-method-definition :: List BodyBinding -> String -> String -> Scheme -> List (Nat, String, String, CoreDefinition) -> String -> CoreDefinition -> Option CoreDefinition
   total-method-definition bindings dictionary owner factory members native definition =
     if not (scheme-closed factory && core-definition-bodies-closed bindings definition && core-definition-result-types definition) then None else
-      case (scheme-params factory, scheme-requirements factory, definition) of
-        ([], [], CoreDefinition sp name sc [] [given] private clauses) ->
-          (case (scheme-params sc, scheme-requirements sc) of
-            ([], [self]) -> if self.name /= "#instance-self"
-              || not (contract-equal (self.ty) (scheme-body factory) && contract-equal (given.ty) (scheme-body factory)) then None else
-                (case total-method-clauses (given.symbol) dictionary owner (scheme-body factory) members clauses of
-                  Some out -> Some (CoreDefinition sp (interface-global native) (mono (scheme-body sc)) [] [] private out)
-                  None -> None)
-            other -> None)
+      case scheme-params factory of
+        [] -> case scheme-requirements factory of
+          [] -> case definition of
+            CoreDefinition sp name sc [] [given] private clauses ->
+              (case scheme-params sc of
+                [] -> case scheme-requirements sc of
+                  [self] -> if self.name /= "#instance-self"
+                    || not (contract-equal (self.ty) (scheme-body factory) && contract-equal (given.ty) (scheme-body factory)) then None else
+                      (case total-method-clauses (given.symbol) dictionary owner (scheme-body factory) members clauses of
+                        Some out -> Some (CoreDefinition sp (interface-global native) (mono (scheme-body sc)) [] [] private out)
+                        None -> None)
+                  other -> None
+                other -> None)
+            other -> None
+          other -> None
         other -> None
   total-method-definitions :: List BodyBinding -> String -> String -> Scheme -> List (Nat, String, String, CoreDefinition) -> List (Nat, String, String, CoreDefinition) -> List CoreDefinition
   total-method-definitions bindings dictionary owner factory all remaining = case remaining of

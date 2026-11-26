@@ -25,7 +25,10 @@ module Cinch.RuntimeIr where
   import Algebra.Semigroup
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
-  import Text.Scan (string-split-on, string-starts-with, string-contains)
+  import Text.Scan (string-split-on, string-contains)
+  import Data.String (string-compare, string-byte-length, string-utf8-first, string-to-bytes)
+  import Data.Bytes (bytes-len, bytes-get)
+  import Prim.Machine (ge-i64, lt-i64)
   import Text.Lex (Span)
   import Data.Array
   import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
@@ -204,7 +207,7 @@ module Cinch.RuntimeIr where
   -- is what makes the recursion terminate, because a unit already being
   -- unfolded is never unfolded again.
   data InlinePlan where
-    InlinePlan :: Bool -> List String -> List String -> InlinePlan
+    InlinePlan :: Bool -> HashMap String () -> List String -> InlinePlan
     NoInline :: InlinePlan
   -- What the unfoldable class recorded about one body: whether it calls a
   -- unit at the head of an application (a link the recursive rule may
@@ -225,7 +228,7 @@ module Cinch.RuntimeIr where
     field4 :: Nat
     field5 :: Bool
   empty-queue :: WorkerQueue
-  empty-queue = WorkerQueue [] hash-map-empty False "" 8 False
+  empty-queue = WorkerQueue [] hash-map-empty False "" 9 False
 
   record RuntimeContext where
     info :: ProgramInfo
@@ -312,7 +315,7 @@ module Cinch.RuntimeIr where
   fresh-scoped :: Writer -> String -> (Writer, String)
   fresh-scoped w prefix = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) ->
-      let worker = string-starts-with "." prefix in
+      let worker = ge-i64 (string-compare prefix ".") 0 && lt-i64 (string-compare prefix "/") 0 in
       if scope == "" then fresh-serial w (if worker then prefix else cat ["@", prefix])
       else (Writer (next + 1) globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining),
         if worker then cat [scope, prefix, nat-to-string next] else cat ["@\"", scope, ".", prefix, nat-to-string next, "\""])
@@ -384,29 +387,31 @@ module Cinch.RuntimeIr where
   program-concurrent info = case program-ownership info of
     OwnershipPlan borrows consumed arenas concurrent -> concurrent
   same-ownership-plan :: List CoreDefinition -> OwnershipPlan -> OwnershipPlan -> Bool
-  same-ownership-plan definitions left right = case (left, right) of
-    (OwnershipPlan b1 c1 a1 m1, OwnershipPlan b2 c2 a2 m2) ->
-      (if m1 then m2 else not m2)
-      && same-borrow-modes definitions b1 b2
-      && same-bool-maps definitions c1 c2
-      && same-arena-phases definitions a1 a2
+  same-ownership-plan definitions left right = case left of
+    OwnershipPlan b1 c1 a1 m1 -> case right of
+      OwnershipPlan b2 c2 a2 m2 ->
+        (if m1 then m2 else not m2)
+        && same-borrow-modes definitions b1 b2
+        && same-bool-maps definitions c1 c2
+        && same-arena-phases definitions a1 a2
   prepend-binding :: forall a. String -> a -> HashMap String (List a) -> HashMap String (List a)
   prepend-binding key value entries = case hash-map-lookup key entries of
     Some found -> hash-map-insert key (value : found) entries
     None -> hash-map-insert key [value] entries
   index-callable :: List CheckedBinding -> CallableBindings -> CallableBindings
-  index-callable bindings index = case (bindings, index) of
-    ([], index) -> index
-    (binding : rest, CallableBindings methods externals instances bodies natives) ->
-      let role = checked-role binding in
-      let name = checked-name binding in
-      let next-methods = if role == "method" then prepend-binding name binding methods else methods in
-      let next-externals = if role == "external" then hash-map-insert name binding externals else externals in
-      let next-instances = if role == "instance" || role == "implicit-instance" then hash-map-insert name binding instances else instances in
-      case checked-body-binding binding of
-        Some body -> let function = binding-function body in
-          index-callable rest (CallableBindings next-methods next-externals next-instances (hash-map-insert name function bodies) (hash-map-insert (binding-native body) function natives))
-        None -> index-callable rest (CallableBindings next-methods next-externals next-instances bodies natives)
+  index-callable bindings index = case bindings of
+    [] -> index
+    binding : rest -> case index of
+      CallableBindings methods externals instances bodies natives ->
+        let role = checked-role binding in
+        let name = checked-name binding in
+        let next-methods = if role == "method" then prepend-binding name binding methods else methods in
+        let next-externals = if role == "external" then hash-map-insert name binding externals else externals in
+        let next-instances = if role == "instance" || role == "implicit-instance" then hash-map-insert name binding instances else instances in
+        case checked-body-binding binding of
+          Some body -> let function = binding-function body in
+            index-callable rest (CallableBindings next-methods next-externals next-instances (hash-map-insert name function bodies) (hash-map-insert (binding-native body) function natives))
+          None -> index-callable rest (CallableBindings next-methods next-externals next-instances bodies natives)
   collect-function-hints :: List Module -> Option (HashMap String FunctionHints) -> Option (HashMap String FunctionHints)
   collect-function-hints modules hints = case modules of
     [] -> hints
@@ -432,14 +437,15 @@ module Cinch.RuntimeIr where
   llvm-hint w name = case function-hints (writer-program w) name of
     FunctionHints inline cold loop -> (if inline == "" then "" else " " <> inline) <> (if cold then " cold" else "")
   index-foreign :: List CheckedBinding -> ForeignBindings -> ForeignBindings
-  index-foreign bindings index = case (bindings, index) of
-    ([], index) -> index
-    (binding : rest, ForeignBindings names symbols pointers) ->
-      let plan = checked-foreign-plan binding in
-      let next = hash-map-insert (checked-name binding) plan names in
-      case plan of
-        None -> index-foreign rest (ForeignBindings next symbols pointers)
-        Some abi -> index-foreign rest (ForeignBindings next (prepend-binding (abi.symbol) abi symbols) (add-pointer-types (abi.parameters) (add-pointer-type (abi.result) pointers)))
+  index-foreign bindings index = case bindings of
+    [] -> index
+    binding : rest -> case index of
+      ForeignBindings names symbols pointers ->
+        let plan = checked-foreign-plan binding in
+        let next = hash-map-insert (checked-name binding) plan names in
+        case plan of
+          None -> index-foreign rest (ForeignBindings next symbols pointers)
+          Some abi -> index-foreign rest (ForeignBindings next (prepend-binding (abi.symbol) abi symbols) (add-pointer-types (abi.parameters) (add-pointer-type (abi.result) pointers)))
   add-pointer-type :: ForeignParameter -> List UType -> List UType
   add-pointer-type parameter tail = if parameter.class == "ptr" then (parameter.parameter-type) : tail else tail
   add-pointer-types :: List ForeignParameter -> List UType -> List UType
@@ -464,10 +470,9 @@ module Cinch.RuntimeIr where
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
-  same-classes first second = case (first, second) of
-    ([], []) -> True
-    (a : rest, b : more) -> a == b && same-classes rest more
-    other -> False
+  same-classes first second = case first of
+    [] -> case second of [] -> True; other -> False
+    a : rest -> case second of b : more -> a == b && same-classes rest more; [] -> False
   version-present :: String -> Nat -> List Nat -> List MethodVersion -> Bool
   version-present owner slot classes versions = case versions of
     [] -> False
@@ -484,9 +489,11 @@ module Cinch.RuntimeIr where
   own-quants :: List Nat -> List Quant -> List Quant
   own-quants inherited qs = case qs of [] -> []; q : rest -> if id-present (q.id) inherited then own-quants inherited rest else q : (own-quants inherited rest)
   own-actuals :: List Nat -> List Quant -> List UType -> List UType
-  own-actuals inherited qs actuals = case (qs, actuals) of
-    (q : rest, actual : more) -> if id-present (q.id) inherited then own-actuals inherited rest more else actual : (own-actuals inherited rest more)
-    other -> []
+  own-actuals inherited qs actuals = case qs of
+    [] -> []
+    q : rest -> case actuals of
+      actual : more -> if id-present (q.id) inherited then own-actuals inherited rest more else actual : (own-actuals inherited rest more)
+      [] -> []
   method-own-quants :: CoreClassMethod -> List Quant
   method-own-quants member = own-quants (method-class-ids member) (scheme-params (class-method-scheme member))
   method-own-classes :: Writer -> CoreClassMethod -> List UType -> Option (List Nat)
@@ -499,10 +506,9 @@ module Cinch.RuntimeIr where
     [] -> []
     (MethodVersion name index classes) : rest -> if owner == name && slot == index then classes : (selected-versions owner slot rest) else selected-versions owner slot rest
   classes-before :: List Nat -> List Nat -> Bool
-  classes-before first second = case (first, second) of
-    ([], b : more) -> True
-    (a : rest, b : more) -> a < b || (a == b && classes-before rest more)
-    other -> False
+  classes-before first second = case first of
+    [] -> case second of b : more -> True; [] -> False
+    a : rest -> case second of b : more -> a < b || (a == b && classes-before rest more); [] -> False
   insert-version :: List Nat -> List (List Nat) -> List (List Nat)
   insert-version classes versions = case versions of
     [] -> [classes]
@@ -580,13 +586,17 @@ module Cinch.RuntimeIr where
     Some provider -> case object-string-layout name provider of Some descriptor -> True; None -> False
     None -> False
   word-class :: RuntimeContext -> UType -> Option Nat
-  word-class context ty = case mutable-borrow (base ty) of
-    Some place -> Some 1
-    None -> case borrowed-carrier (base ty) of
-      Some carrier -> word-class context carrier
-      None -> case (deferral-parts (base ty), lazy-parts (base ty)) of
-        (None, None) -> value-word-class context ty
-        other -> Some 1
+  word-class context ty =
+    let b = base ty in
+    case mutable-borrow b of
+      Some place -> Some 1
+      None -> case borrowed-carrier b of
+        Some carrier -> word-class context carrier
+        None -> case deferral-parts b of
+          Some _ -> Some 1
+          None -> case lazy-parts b of
+            Some _ -> Some 1
+            None -> value-word-class context ty
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
@@ -605,7 +615,8 @@ module Cinch.RuntimeIr where
             UBound id name KType -> representation id bounds
             URigid id name level KType -> (case representation id rigids of
               Some code -> Some code
-              None -> if string-starts-with "$gadt_" name || string-starts-with "$sing_" name then Some 1 else None)
+              None -> if (ge-i64 (string-compare name "$gadt_") 0 && lt-i64 (string-compare name "$gadt`") 0)
+                || (ge-i64 (string-compare name "$sing_") 0 && lt-i64 (string-compare name "$sing`") 0) then Some 1 else None)
             UIndex carrier idx -> Some 0
             UIndexMath op left right -> Some 0
             UFun domain result -> Some 1
@@ -676,9 +687,9 @@ module Cinch.RuntimeIr where
   class-vector :: RuntimeContext -> List UType -> Option (List Nat)
   class-vector context actuals = case actuals of
     [] -> Some []
-    ty : rest -> case (word-class context ty, class-vector context rest) of
-      (Some code, Some more) -> Some (code : more)
-      other -> None
+    ty : rest -> case word-class context ty of
+      Some code -> case class-vector context rest of Some more -> Some (code : more); None -> None
+      None -> None
   class-text :: List Nat -> String
   class-text classes = case classes of [] -> ""; code : rest -> cat [nat-to-string code, class-text rest]
   native-classes :: List Nat -> String
@@ -697,23 +708,25 @@ module Cinch.RuntimeIr where
   quant-word-class context kind ty = if kind-equal kind KType then word-class context ty
     else if former-kind kind && kind-equal kind (type-kind ty) then Some 1 else None
   scheme-classes :: RuntimeContext -> List Quant -> List UType -> Option (List Nat)
-  scheme-classes context qs actuals = case (qs, actuals) of
-    ([], []) -> Some []
-    (q : rest, actual : more) -> if erased-kind (q.kind) then scheme-classes context rest more else
-      (case (quant-word-class context (q.kind) actual, scheme-classes context rest more) of
-        (Some code, Some tail) -> Some (code : tail)
-        other -> None)
-    other -> None
+  scheme-classes context qs actuals = case qs of
+    [] -> case actuals of [] -> Some []; other -> None
+    q : rest -> case actuals of
+      actual : more -> if erased-kind (q.kind) then scheme-classes context rest more else
+        (case quant-word-class context (q.kind) actual of
+          Some code -> case scheme-classes context rest more of Some tail -> Some (code : tail); None -> None
+          None -> None)
+      [] -> None
   source-scheme-classes :: RuntimeContext -> List Quant -> List UType -> Option (List Nat)
-  source-scheme-classes context qs actuals = case (qs, actuals) of
-    ([], []) -> Some []
-    (q : rest, actual : more) -> (case value-carrier (q.kind) of
-      Some carrier -> if typed-index-admissible actual || valid-app-arg-kind (q.kind) actual then source-scheme-classes context rest more else None
-      None -> if erased-kind (q.kind) then source-scheme-classes context rest more else
-        (case (quant-word-class context (q.kind) actual, source-scheme-classes context rest more) of
-          (Some code, Some tail) -> Some (code : tail)
-          other -> None))
-    other -> None
+  source-scheme-classes context qs actuals = case qs of
+    [] -> case actuals of [] -> Some []; other -> None
+    q : rest -> case actuals of
+      actual : more -> (case value-carrier (q.kind) of
+        Some carrier -> if typed-index-admissible actual || valid-app-arg-kind (q.kind) actual then source-scheme-classes context rest more else None
+        None -> if erased-kind (q.kind) then source-scheme-classes context rest more else
+          (case quant-word-class context (q.kind) actual of
+            Some code -> case source-scheme-classes context rest more of Some tail -> Some (code : tail); None -> None
+            None -> None))
+      [] -> None
   class-bindings :: List Quant -> List Nat -> Option (List (Nat, Nat))
   class-bindings qs classes = case qs of
     [] -> case classes of [] -> Some []; other -> None
@@ -727,9 +740,9 @@ module Cinch.RuntimeIr where
   rigid-bindings openings bounds = case openings of
     [] -> Some []
     (key, URigid id name level kind) : rest -> if erased-kind kind || (case value-carrier kind of Some carrier -> True; None -> False) then rigid-bindings rest bounds else
-      (case (representation key bounds, rigid-bindings rest bounds) of
-        (Some code, Some more) -> Some ((id, code) : more)
-        other -> None)
+      (case representation key bounds of
+        Some code -> case rigid-bindings rest bounds of Some more -> Some ((id, code) : more); None -> None
+        None -> None)
     (key, UIndex carrier (IRigid id name level)) : rest -> rigid-bindings rest bounds
     other -> None
   -- Unconstrained body-local Type variables are sealed by Core typing.
@@ -976,13 +989,13 @@ module Cinch.RuntimeIr where
   -- | Match constructor parameters while erasing runtime identities and preserving
   -- the representation-bearing type and machine-width arguments.
   regular-parameters :: List Quant -> List Quant -> Bool
-  regular-parameters expected actual = case (expected, actual) of
-    ([], []) -> True
-    (q : rest, p : more) -> if q.id == p.id then
-      kind-equal (q.kind) (p.kind) && (kind-equal (q.kind) KType || former-kind (q.kind) || kind-equal (q.kind) KRegion || (case value-carrier (q.kind) of Some carrier -> True; None -> False)) && regular-parameters rest more
-      else (case value-carrier (q.kind) of Some carrier -> regular-parameters rest actual; None -> False)
-    (q : rest, []) -> (case value-carrier (q.kind) of Some carrier -> regular-parameters rest []; None -> False)
-    other -> False
+  regular-parameters expected actual = case expected of
+    [] -> case actual of [] -> True; other -> False
+    q : rest -> case actual of
+      p : more -> if q.id == p.id then
+        kind-equal (q.kind) (p.kind) && (kind-equal (q.kind) KType || former-kind (q.kind) || kind-equal (q.kind) KRegion || (case value-carrier (q.kind) of Some carrier -> True; None -> False)) && regular-parameters rest more
+        else (case value-carrier (q.kind) of Some carrier -> regular-parameters rest actual; None -> False)
+      [] -> (case value-carrier (q.kind) of Some carrier -> regular-parameters rest []; None -> False)
   without-natural-indices :: List Quant -> List Quant
   without-natural-indices parameters = case parameters of
     [] -> []
@@ -1001,16 +1014,20 @@ module Cinch.RuntimeIr where
       && constructor-shape context result more
     other -> same-data-result ty result
   same-data-result :: UType -> UType -> Bool
-  same-data-result first second = case (first, second) of
-    (UCon a ka, UCon b kb) -> a == b && kind-equal ka kb
-    (UBound a an ka, UBound b bn kb) -> a == b && kind-equal ka kb
-    -- Normalization represents a bound value index as UIndex/IBound.
-    -- Compare the same binder and its checked carrier, never an arbitrary
-    -- computed or constructor-local index with a family parameter.
-    (UBound a an ka, UIndex carrier (IBound b bn)) -> a == b && (case value-carrier ka of Some expected -> runtime-type-equal expected carrier; None -> False)
-    (UIndex carrier (IBound a an), UBound b bn kb) -> a == b && (case value-carrier kb of Some expected -> runtime-type-equal carrier expected; None -> False)
-    (UIndex carrier (IBound a an), UIndex input (IBound b bn)) -> a == b && runtime-type-equal carrier input
-    (UApp f x, UApp g y) -> same-data-result f g && (same-data-result x y || erased-layout-index x y)
+  same-data-result first second = case first of
+    UCon a ka -> case second of UCon b kb -> a == b && kind-equal ka kb; other -> False
+    UBound a an ka -> case second of
+      UBound b bn kb -> a == b && kind-equal ka kb
+      -- Normalization represents a bound value index as UIndex/IBound.
+      -- Compare the same binder and its checked carrier, never an arbitrary
+      -- computed or constructor-local index with a family parameter.
+      UIndex carrier (IBound b bn) -> a == b && (case value-carrier ka of Some expected -> runtime-type-equal expected carrier; None -> False)
+      other -> False
+    UIndex carrier (IBound a an) -> case second of
+      UBound b bn kb -> a == b && (case value-carrier kb of Some expected -> runtime-type-equal carrier expected; None -> False)
+      UIndex input (IBound b bn) -> a == b && runtime-type-equal carrier input
+      other -> False
+    UApp f x -> case second of UApp g y -> same-data-result f g && (same-data-result x y || erased-layout-index x y); other -> False
     other -> False
   -- A checked value index does not choose a runtime representation.
   -- Ordinary type parameters still retain their exact declared identity;
@@ -1018,9 +1035,11 @@ module Cinch.RuntimeIr where
   -- are checked separately below. This permits Signal 1/Signal 2 to share
   -- one tagged family layout without reifying their phantom Nat index.
   erased-layout-index :: UType -> UType -> Bool
-  erased-layout-index actual parameter = case (value-carrier (type-kind actual), value-carrier (type-kind parameter)) of
-    (Some carrier, Some expected) -> typed-index-admissible actual && runtime-type-equal carrier expected
-    other -> False
+  erased-layout-index actual parameter = case value-carrier (type-kind actual) of
+    Some carrier -> case value-carrier (type-kind parameter) of
+      Some expected -> typed-index-admissible actual && runtime-type-equal carrier expected
+      None -> False
+    None -> False
   same-data-head :: UType -> String -> Bool
   same-data-head ty owner = case type-head ty of
     UCon name kind -> name == owner
@@ -1134,27 +1153,30 @@ module Cinch.RuntimeIr where
       let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
       let (ready, result) = fresh declared "%v" in
       (line ready (cat ["  ", result, " = call i64 @cinch_", runtime-number ty, "_from_decimal(ptr ", name, ", i64 ", len, ")"]), result)
-  decimal-digits :: List Char -> Nat -> Option Nat
-  decimal-digits chars value = case chars of
-    [] -> Some value
-    c : rest -> let code = char-code c in
-      if code >= 48 && code <= 57 then decimal-digits rest (value * 10 + (code - 48)) else None
+  decimal-bytes :: Bytes -> Nat -> Nat -> Option Nat
+  decimal-bytes bs idx value =
+    if idx < bytes-len bs then
+      let code = bytes-get bs idx in
+      if code >= 48 && code <= 57 then decimal-bytes bs (idx + 1) (value * 10 + (code - 48)) else None
+    else Some value
   -- The immediate word of a decimal literal, printed as an unsigned (Nat)
   -- or signed (Int) i64 constant.
   immediate-literal :: Bool -> String -> Option String
-  immediate-literal natural text = case unpack text of
-    [] -> None
-    sign : rest -> if char-code sign == 45 then
-        (if natural then None else case rest of
-          [] -> None
-          first : more -> case decimal-digits rest 0 of
-            Some magnitude -> if magnitude == 0 then Some "1" else if magnitude <= 4611686018427387904 then Some (cat ["-", nat-to-string (2 * magnitude - 1)]) else None
-            None -> None)
-      else case decimal-digits (sign : rest) 0 of
+  immediate-literal natural text =
+    let bs = string-to-bytes text in
+    if 0 < bytes-len bs then
+      if bytes-get bs 0 == 45 then
+        (if natural || bytes-len bs <= 1 then None else case decimal-bytes bs 1 0 of
+          Some magnitude -> if magnitude == 0 then Some "1" else if magnitude <= 4611686018427387904 then Some (cat ["-", nat-to-string (2 * magnitude - 1)]) else None
+          None -> None)
+      else case decimal-bytes bs 0 0 of
         Some value -> if value <= (if natural then 9223372036854775807 else 4611686018427387903) then Some (nat-to-string (2 * value + 1)) else None
         None -> None
+    else None
   char-word :: String -> Option String
-  char-word text = case unpack text of [c] -> Some (nat-to-string (char-code c)); other -> None
+  char-word text = case string-utf8-first text of
+    Some (c, n) -> if n == string-byte-length text then Some (nat-to-string (char-code c)) else None
+    None -> None
   -- An immortal header word: rc 0, then kind at bit 35 and layout at bit 40.
   static-header :: Nat -> Nat -> Nat
   static-header kind layout = layout * 1099511627776 + kind * 34359738368
@@ -1167,20 +1189,22 @@ module Cinch.RuntimeIr where
   -- KIND_BYTES_STATIC, so a write faults instead of touching constant data.
   -- The provider's String wrapper is inline (tag 0, its one field counted).
   string-literal :: Writer -> Span -> UType -> String -> (Writer, String)
-  string-literal w sp ty text = case (base ty, (writer-program w).object) of
-    (UCon name KType, Some provider) -> (case object-string-layout name provider of
-      Some descriptor ->
-        let (one, storage) = fresh-scoped w "text" in
-        let size = nat-to-string (bytes-len (string-to-bytes text)) in
-        let contents = if size == "0" then "[0 x i8] zeroinitializer" else cat ["[", size, " x i8] c\"", llvm-data-bytes text, "\""] in
-        let shape = cat ["{ i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
-        let declared = global one (cat [storage, " = private unnamed_addr constant ", shape, " { ",
-          "i64 ", nat-to-string (static-header 1 descriptor), ", ptr ", struct-field shape storage 3,
-          ", i64 ", nat-to-string (static-header 9 2), ", i64 ", size, ", ptr ", struct-field shape storage 5,
-          ", ", contents, " }, align 8"]) in
-        let (done, result) = fresh declared "%v" in
-        (line done (cat ["  ", result, " = ptrtoint ptr ", struct-field shape storage 1, " to i64"]), result)
-      None -> unsupported w sp "String literal has no checked defining wrapper layout")
+  string-literal w sp ty text = case base ty of
+    UCon name KType -> case (writer-program w).object of
+      Some provider -> (case object-string-layout name provider of
+        Some descriptor ->
+          let (one, storage) = fresh-scoped w "text" in
+          let size = nat-to-string (bytes-len (string-to-bytes text)) in
+          let contents = if size == "0" then "[0 x i8] zeroinitializer" else cat ["[", size, " x i8] c\"", llvm-data-bytes text, "\""] in
+          let shape = cat ["{ i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
+          let declared = global one (cat [storage, " = private unnamed_addr constant ", shape, " { ",
+            "i64 ", nat-to-string (static-header 1 descriptor), ", ptr ", struct-field shape storage 3,
+            ", i64 ", nat-to-string (static-header 9 2), ", i64 ", size, ", ptr ", struct-field shape storage 5,
+            ", ", contents, " }, align 8"]) in
+          let (done, result) = fresh declared "%v" in
+          (line done (cat ["  ", result, " = ptrtoint ptr ", struct-field shape storage 1, " to i64"]), result)
+        None -> unsupported w sp "String literal has no checked defining wrapper layout")
+      None -> unsupported w sp "String literal needs its checked library object layout"
     other -> unsupported w sp "String literal needs its checked library object layout"
   -- Intern the static UTF-8 name through the same process table as Data.Sym.
   symbol-literal :: Writer -> Span -> UType -> String -> (Writer, String)
@@ -1459,11 +1483,13 @@ module Cinch.RuntimeIr where
       (case handler-fields rest (index + 1) of Some more -> Some (CArgument sp closure more); None -> None)
     other -> None
   handler-operations :: UType -> List CoreEffect -> Option (List CoreOperation)
-  handler-operations label effects = case (type-head label, effects) of
-    (UCon name kind, declaration : rest) ->
-      if name == declaration.effect-name && kind-equal kind (declaration.effect-kind) then Some (declaration.effect-operations)
-      else handler-operations label rest
-    other -> None
+  handler-operations label effects = case effects of
+    [] -> None
+    declaration : rest -> case type-head label of
+      UCon name kind ->
+        if name == declaration.effect-name && kind-equal kind (declaration.effect-kind) then Some (declaration.effect-operations)
+        else handler-operations label rest
+      other -> None
   handler-operation-slot :: String -> List CoreOperation -> Option Nat
   handler-operation-slot name operations = case operations of
     [] -> None
@@ -1632,9 +1658,9 @@ module Cinch.RuntimeIr where
     ty : rest -> ty == "i64" && all-i64-llvms rest
 
   drop-typed-fields-rev :: List UType -> List String -> Writer -> Writer
-  drop-typed-fields-rev tys vals w = case (tys, vals) of
-    (ty : ts, val : vs) -> count-op False ty val (drop-typed-fields-rev ts vs w)
-    other -> w
+  drop-typed-fields-rev tys vals w = case tys of
+    [] -> w
+    ty : ts -> case vals of val : vs -> count-op False ty val (drop-typed-fields-rev ts vs w); [] -> w
 
   frame-rhs-shape :: Writer -> CoreTerm -> Option (Writer, Nat, List CoreTerm)
   frame-rhs-shape w rhs = case rhs of
@@ -2975,7 +3001,7 @@ module Cinch.RuntimeIr where
         cat [payload-l, ":"],
         cat ["  ", p, " = inttoptr i64 %arg0 to ptr"]], p)) in
     let (w6, blen) = fresh w5 "%v" in
-    let w7 = line w6 (cat ["  ", blen, " = load i64, ptr ", payload, ", align 8, !tbaa !3"]) in
+    let w7 = line w6 (cat ["  ", blen, " = load i64, ptr ", payload, ", align 8, !tbaa !3, !range !8"]) in
     let w8 = (if is-len then w7 else
       let (c0, access-l) = fresh w7 "bacc" in
       let (c1, in-range) = (if width == 1 then
@@ -3067,11 +3093,17 @@ module Cinch.RuntimeIr where
               "  unreachable",
               cat [ok-l, ":"]] in
             call branched "@cinch_nat_from_i64" [count]
+  builtin-result-attr :: String -> String
+  builtin-result-attr name =
+    if name == "cinch.runtime.bytesLenI64" then "range(i64 0, 9223372036854775807) "
+    else if name == "cinch.runtime.bytesGetU8" || name == "cinch.runtime.bytesGetU8At" then "range(i64 0, 256) "
+    else if name == "cinch.runtime.bytesLoadLe32" || name == "cinch.runtime.bytesLoadLe32At" then "range(i64 0, 4294967296) "
+    else ""
   builtin-borrow-worker :: String -> Writer -> Writer
   builtin-borrow-worker name w =
     let classes = builtin-classes name in
     let bname = cat [name, "#borrow"] in
-    let started = line (line w (cat ["define private ", builtin-result-llvm name, " ", symbol bname, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ") alwaysinline", worker-open w])) "entry:" in
+    let started = line (line w (cat ["define private ", builtin-result-attr name, builtin-result-llvm name, " ", symbol bname, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ") alwaysinline", worker-open w])) "entry:" in
     let lowered = (if fast-bytes-builtin name then (case fast-bytes-intrinsic name of
         Some (scheme, operation) -> bytes-access-worker-ex started operation False
         None -> unsupported started (Span 0 0 1 1) "checked borrowed Bytes worker has no operation")
@@ -3089,7 +3121,7 @@ module Cinch.RuntimeIr where
   builtin-worker :: String -> Writer -> Writer
   builtin-worker name w =
     let classes = builtin-classes name in
-    let started = line (line w (cat ["define ", worker-linkage w name, builtin-result-llvm name, " ", symbol name, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ")", builtin-inline-attr name, worker-open w])) "entry:" in
+    let started = line (line w (cat ["define ", worker-linkage w name, builtin-result-attr name, builtin-result-llvm name, " ", symbol name, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ")", builtin-inline-attr name, worker-open w])) "entry:" in
     let lowered = (if name == "b.newIO" then (started, "0")
       else if fast-bytes-builtin name then (case fast-bytes-intrinsic name of
         Some (scheme, operation) -> bytes-access-worker started operation
@@ -3299,29 +3331,32 @@ module Cinch.RuntimeIr where
             else let decl = cat ["declare ", foreign-llvm-type (c.use-result), " ", llvm-object-symbol sym, "(", join (foreign-parameter-types (c.use-params)), ")"] in
               request-demand (PrimitiveUseDemand sym decl) w in
       primitive-uses rest next
+  starts-with-dot-range :: String -> String -> String -> Bool
+  starts-with-dot-range lo hi s = ge-i64 (string-compare s lo) 0 && lt-i64 (string-compare s hi) 0
   prelude-declared-intrinsic :: String -> Bool
   prelude-declared-intrinsic symbol =
-    string-starts-with "@llvm.fshl." symbol
-      || string-starts-with "@llvm.fshr." symbol
-      || string-starts-with "@llvm.ctpop." symbol
-      || string-starts-with "@llvm.ctlz." symbol
-      || string-starts-with "@llvm.cttz." symbol
-      || string-starts-with "@llvm.bitreverse." symbol
-      || string-starts-with "@llvm.bswap." symbol
-      || string-starts-with "@llvm.copysign." symbol
-      || string-starts-with "@llvm.fabs." symbol
-      || string-starts-with "@llvm.sqrt." symbol
-      || string-starts-with "@llvm.sin." symbol
-      || string-starts-with "@llvm.cos." symbol
-      || string-starts-with "@llvm.exp." symbol
-      || string-starts-with "@llvm.log." symbol
-      || string-starts-with "@llvm.floor." symbol
-      || string-starts-with "@llvm.ceil." symbol
-      || string-starts-with "@llvm.trunc." symbol
-      || string-starts-with "@llvm.round." symbol
-      || string-starts-with "@llvm.roundeven." symbol
-      || string-starts-with "@llvm.smin." symbol
-      || string-starts-with "@llvm.smax." symbol
+    starts-with-dot-range "@llvm." "@llvm/" symbol && (
+      starts-with-dot-range "@llvm.fshl." "@llvm.fshl/" symbol
+      || starts-with-dot-range "@llvm.fshr." "@llvm.fshr/" symbol
+      || starts-with-dot-range "@llvm.ctpop." "@llvm.ctpop/" symbol
+      || starts-with-dot-range "@llvm.ctlz." "@llvm.ctlz/" symbol
+      || starts-with-dot-range "@llvm.cttz." "@llvm.cttz/" symbol
+      || starts-with-dot-range "@llvm.bitreverse." "@llvm.bitreverse/" symbol
+      || starts-with-dot-range "@llvm.bswap." "@llvm.bswap/" symbol
+      || starts-with-dot-range "@llvm.copysign." "@llvm.copysign/" symbol
+      || starts-with-dot-range "@llvm.fabs." "@llvm.fabs/" symbol
+      || starts-with-dot-range "@llvm.sqrt." "@llvm.sqrt/" symbol
+      || starts-with-dot-range "@llvm.sin." "@llvm.sin/" symbol
+      || starts-with-dot-range "@llvm.cos." "@llvm.cos/" symbol
+      || starts-with-dot-range "@llvm.exp." "@llvm.exp/" symbol
+      || starts-with-dot-range "@llvm.log." "@llvm.log/" symbol
+      || starts-with-dot-range "@llvm.floor." "@llvm.floor/" symbol
+      || starts-with-dot-range "@llvm.ceil." "@llvm.ceil/" symbol
+      || starts-with-dot-range "@llvm.trunc." "@llvm.trunc/" symbol
+      || starts-with-dot-range "@llvm.round." "@llvm.round/" symbol
+      || starts-with-dot-range "@llvm.roundeven." "@llvm.roundeven/" symbol
+      || starts-with-dot-range "@llvm.smin." "@llvm.smin/" symbol
+      || starts-with-dot-range "@llvm.smax." "@llvm.smax/" symbol)
   primitive-intrinsic-worker :: String -> Writer -> Writer
   primitive-intrinsic-worker symbol w =
     if prelude-declared-intrinsic symbol then w
@@ -3329,8 +3364,8 @@ module Cinch.RuntimeIr where
     else if symbol == "@llvm.vector.reduce.add.v16i32" then global w "declare i32 @llvm.vector.reduce.add.v16i32(<16 x i32>)"
     else (case reverse (string-split-on "." symbol) of
       ty : rest ->
-        if string-starts-with "@llvm.sadd.sat." symbol || string-starts-with "@llvm.uadd.sat." symbol
-            || string-starts-with "@llvm.ssub.sat." symbol || string-starts-with "@llvm.usub.sat." symbol then
+        if starts-with-dot-range "@llvm.sadd.sat." "@llvm.sadd.sat/" symbol || starts-with-dot-range "@llvm.uadd.sat." "@llvm.uadd.sat/" symbol
+            || starts-with-dot-range "@llvm.ssub.sat." "@llvm.ssub.sat/" symbol || starts-with-dot-range "@llvm.usub.sat." "@llvm.usub.sat/" symbol then
           global w (cat ["declare ", ty, " ", symbol, "(", ty, ", ", ty, ")"])
         else global w (cat ["declare { ", ty, ", i1 } ", symbol, "(", ty, ", ", ty, ")"])
       [] -> refuse w (Span 0 0 1 1) "inline intrinsic is missing its checked result width")
@@ -3602,9 +3637,9 @@ module Cinch.RuntimeIr where
     [] -> (w, function)
     first : rest -> case apply-one w function first of (next, result) -> apply-words next result rest
   actual-pairs :: List Quant -> List UType -> List (Nat, UType)
-  actual-pairs qs actuals = case (qs, actuals) of
-    (q : rest, actual : more) -> (q.id, actual) : (actual-pairs rest more)
-    other -> []
+  actual-pairs qs actuals = case qs of
+    [] -> []
+    q : rest -> case actuals of actual : more -> (q.id, actual) : (actual-pairs rest more); [] -> []
   concrete-scheme :: Scheme -> List UType -> Scheme
   concrete-scheme sc actuals = let pairs = actual-pairs (scheme-params sc) actuals in
     qualified [] (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (substitute-bound pairs (scheme-body sc))
@@ -3674,9 +3709,13 @@ module Cinch.RuntimeIr where
   inline-abi-agrees :: Writer -> RuntimeUnit -> Scheme -> Bool
   inline-abi-agrees w unit sc = case scheme-requirements sc of
     [] -> (case external-shape (list-length (unit.params)) (scheme-body sc) [] of
-      Some (params, result-type) -> (case (class-vector (w.context) params, word-class (w.context) result-type, unit.result) of
-        (Some expected, Some result, Some actual-result) -> same-classes expected (unit.params) && result == actual-result
-        other -> False)
+      Some (params, result-type) -> case unit.result of
+        Some actual-result -> case class-vector (w.context) params of
+          Some expected -> case word-class (w.context) result-type of
+            Some result -> same-classes expected (unit.params) && result == actual-result
+            None -> False
+          None -> False
+        None -> False
       None -> False)
     other -> False
   imported-total-body :: String -> ProgramInfo -> Option TotalFunction
@@ -3717,13 +3756,13 @@ module Cinch.RuntimeIr where
   plan-imported-primitive :: Nat -> String -> TotalArguments -> List Nat -> Option (ImportedOperations, List Nat)
   plan-imported-primitive arity operation arguments slots = case argument-node arguments of
     NextArgument first rest -> (case plan-imported-operations first slots of
-      Some (left, next) -> (case (arity, argument-node rest) of
-        (1, NoArguments) -> Some (ImportedNot left, next)
-        (2, NextArgument second end) -> (case argument-node end of
+      Some (left, next) -> (case argument-node rest of
+        NoArguments -> if arity == 1 then Some (ImportedNot left, next) else None
+        NextArgument second end -> if arity == 2 then (case argument-node end of
           NoArguments -> (case plan-imported-operations second next of
             Some (right, final) -> Some (ImportedBinary operation left right, final)
             None -> None)
-          other -> None)
+          other -> None) else None
         other -> None)
       None -> None)
     other -> None
@@ -3842,23 +3881,26 @@ module Cinch.RuntimeIr where
         if list-length givens /= evidence-count then unsupported w sp "external function context disagrees with its checked scheme" else
         if evidence-count <= native-count then
         (case external-shape (native-count - evidence-count) (scheme-body sc) [] of
-          Some (params, result-type) -> (case (class-vector (w.context) (requirement-types (scheme-requirements sc) <> params), word-class (w.context) result-type, unit.result) of
-            (Some expected, Some result, Some actual-result) -> if not (same-classes expected (unit.params)) || result /= actual-result then unsupported w sp "external function word ABI disagrees with its checked scheme" else
-              let ready = request-demand (ExternalDemand unit) w in
-              let typed = value-llvms (w.context) (requirement-types (scheme-requirements sc) <> params) in
-              if list-length args == list-length params then
-                (case expressions definitions locals ready args of (next, values) -> typed-call next (value-llvm (w.context) result-type) (llvm-object-symbol (unit.symbol)) (typed-values typed (givens <> values)))
-              else if wide-code (result : expected) then unsupported w sp wide-refusal
-              else if list-length args < list-length params then
-                (if native-count > 13 then unsupported w sp "closure shape needs an extended runtime descriptor" else
-                case call ready (llvm-object-symbol (unit.closure)) [] of
-                  (next, closure-value) -> case apply-words next closure-value givens of (applied, value) -> apply-terms definitions locals applied value args)
-              else (case expressions definitions locals ready (take-terms (list-length params) args) of
-                (next, values) -> case typed-call next (value-llvm (w.context) result-type) (llvm-object-symbol (unit.symbol)) (typed-values typed (givens <> values)) of
+          Some (params, result-type) -> case unit.result of
+            Some actual-result -> case class-vector (w.context) (requirement-types (scheme-requirements sc) <> params) of
+              Some expected -> case word-class (w.context) result-type of
+                Some result -> if not (same-classes expected (unit.params)) || result /= actual-result then unsupported w sp "external function word ABI disagrees with its checked scheme" else
+                  let ready = request-demand (ExternalDemand unit) w in
+                  let typed = value-llvms (w.context) (requirement-types (scheme-requirements sc) <> params) in
+                  if list-length args == list-length params then
+                    (case expressions definitions locals ready args of (next, values) -> typed-call next (value-llvm (w.context) result-type) (llvm-object-symbol (unit.symbol)) (typed-values typed (givens <> values)))
+                  else if wide-code (result : expected) then unsupported w sp wide-refusal
+                  else if list-length args < list-length params then
+                    (if native-count > 13 then unsupported w sp "closure shape needs an extended runtime descriptor" else
+                    case call ready (llvm-object-symbol (unit.closure)) [] of
+                      (next, closure-value) -> case apply-words next closure-value givens of (applied, value) -> apply-terms definitions locals applied value args)
+                  else (case expressions definitions locals ready (take-terms (list-length params) args) of
+                    (next, values) -> case typed-call next (value-llvm (w.context) result-type) (llvm-object-symbol (unit.symbol)) (typed-values typed (givens <> values)) of
 
-                  (called, value) -> apply-terms definitions locals called value (drop-terms (list-length params) args))
-            other -> unsupported w sp (cat ["external function lacks concrete checked word representations: ",
-              unit.symbol, " with checked type ", type-text (scheme-body sc)]))
+                      (called, value) -> apply-terms definitions locals called value (drop-terms (list-length params) args))
+                None -> unsupported w sp (cat ["external function lacks concrete checked word representations: ", unit.symbol, " with checked type ", type-text (scheme-body sc)])
+              None -> unsupported w sp (cat ["external function lacks concrete checked word representations: ", unit.symbol, " with checked type ", type-text (scheme-body sc)])
+            None -> unsupported w sp (cat ["external function lacks concrete checked word representations: ", unit.symbol, " with checked type ", type-text (scheme-body sc)])
           None -> unsupported w sp "external unit arity exceeds its checked function telescope")
         else unsupported w sp "external function context disagrees with its checked scheme"
   runtime-type-equal :: UType -> UType -> Bool
@@ -3892,14 +3934,16 @@ module Cinch.RuntimeIr where
     UIndexMath op first second -> (case value-carrier (type-kind first) of
       Some carrier -> index-math-expression locals w sp carrier op first second
       None -> unsupported w sp "index arithmetic has no checked carrier")
-    other -> (case (value-carrier (type-kind value), index-of-type value) of
-      (Some carrier, Some (IRigid id name level)) -> read-index-local locals w sp id carrier
-      (Some carrier, Some (ICharacter c)) -> if named carrier "Char" then (w, nat-to-string (char-code c)) else unsupported w sp "character index needs its Char carrier"
-      (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else if wide-scalar carrier then (w, wide-literal carrier (int-to-string n)) else unsupported w sp "index literal needs a runtime integer carrier"
-      (Some carrier, Some (IAdd first second)) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
-      (Some carrier, Some (ISubtract first second)) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
-      (Some carrier, Some (IMultiply first second)) -> index-math-expression locals w sp carrier "*" (UIndex carrier first) (UIndex carrier second)
-      other -> unsupported w sp "index witness needs checked runtime reification")
+    other -> (case value-carrier (type-kind value) of
+      Some carrier -> case index-of-type value of
+        Some (IRigid id name level) -> read-index-local locals w sp id carrier
+        Some (ICharacter c) -> if named carrier "Char" then (w, nat-to-string (char-code c)) else unsupported w sp "character index needs its Char carrier"
+        Some (IInteger n) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else if wide-scalar carrier then (w, wide-literal carrier (int-to-string n)) else unsupported w sp "index literal needs a runtime integer carrier"
+        Some (IAdd first second) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
+        Some (ISubtract first second) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
+        Some (IMultiply first second) -> index-math-expression locals w sp carrier "*" (UIndex carrier first) (UIndex carrier second)
+        other -> unsupported w sp "index witness needs checked runtime reification"
+      None -> unsupported w sp "index witness needs checked runtime reification")
   index-math-expression :: List Local -> Writer -> Span -> UType -> String -> UType -> UType -> (Writer, String)
   index-math-expression locals w sp carrier operation first second = if not (number carrier) then unsupported w sp "index arithmetic requires a mathematical runtime carrier" else
     let suffix = if operation == "+" then "add" else if operation == "*" then "mul" else "sub" in
@@ -3908,13 +3952,14 @@ module Cinch.RuntimeIr where
         (two, b) -> case call two (cat ["@cinch_", runtime-number carrier, "_", suffix]) [a, b] of
           (done, result) -> (count-op False carrier b (count-op False carrier a done), result)
   implicit-value-words :: List Local -> Writer -> Span -> List Quant -> List UType -> (Writer, List String)
-  implicit-value-words locals w sp params actuals = case (params, actuals) of
-    ([], []) -> (w, [])
-    (q : rest, actual : more) -> (case value-carrier (q.kind) of
-      Some carrier -> (case index-expression locals w sp actual of
-        (ready, word) -> case implicit-value-words locals ready sp rest more of (done, values) -> (done, word : values))
-      None -> implicit-value-words locals w sp rest more)
-    other -> (refuse w sp "implicit value argument arity disagrees with the checked scheme", [])
+  implicit-value-words locals w sp params actuals = case params of
+    [] -> case actuals of [] -> (w, []); other -> (refuse w sp "implicit value argument arity disagrees with the checked scheme", [])
+    q : rest -> case actuals of
+      actual : more -> (case value-carrier (q.kind) of
+        Some carrier -> (case index-expression locals w sp actual of
+          (ready, word) -> case implicit-value-words locals ready sp rest more of (done, values) -> (done, word : values))
+        None -> implicit-value-words locals w sp rest more)
+      [] -> (refuse w sp "implicit value argument arity disagrees with the checked scheme", [])
   value-types :: List (Nat, UType) -> List UType
   value-types values = case values of [] -> []; (id, ty) : rest -> ty : (value-types rest)
   runtime-index-locals :: List (Nat, UType) -> Nat -> List Local
@@ -3938,35 +3983,42 @@ module Cinch.RuntimeIr where
                 Some parameter-classes -> case expressions definitions locals (demand-worker (d.name) classes indexed) args of
                   (ready, values) -> closure sp (specialized-name (d.name) classes) parameter-classes (saved <> givens <> witnesses <> values) ready
                 None -> unsupported indexed sp "function parameters need known closure representations")
-              else case (saved, givens, witnesses, hash-map-lookup (d.name) (program-borrow-modes (writer-program indexed))) of
-                ([], [], [], Some mask) | list-length mask == count && any-borrowed mask ->
-                  let planned = request-demand (BorrowDemand (d.name) classes) indexed in
-                  (case eval-borrow-args definitions locals planned (take-terms count args) mask of
-                    (ready, values, post-drops) ->
-                      case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
-                        (called, result) -> apply-terms definitions locals (drop-locals post-drops called) result (drop-terms count args))
-                other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
-                  (ready, values) -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) (typed-values (value-llvms context all-types) (saved <> givens <> witnesses <> values)) of
-                    (called, result) -> apply-terms definitions locals called result (drop-terms count args)
+              else case (case saved of
+                    [] -> (case givens of
+                      [] -> (case witnesses of
+                        [] -> hash-map-lookup (d.name) (program-borrow-modes (writer-program indexed))
+                        other -> None)
+                      other -> None)
+                    other -> None) of
+                  Some mask | list-length mask == count && any-borrowed mask ->
+                    let planned = request-demand (BorrowDemand (d.name) classes) indexed in
+                    (case eval-borrow-args definitions locals planned (take-terms count args) mask of
+                      (ready, values, post-drops) ->
+                        case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
+                          (called, result) -> apply-terms definitions locals (drop-locals post-drops called) result (drop-terms count args))
+                  other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
+                    (ready, values) -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) (typed-values (value-llvms context all-types) (saved <> givens <> witnesses <> values)) of
+                      (called, result) -> apply-terms definitions locals called result (drop-terms count args)
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
   -- Evaluate arguments for a borrowed-parameter worker call:
   -- local variables at borrowed positions pass directly without dup/drop;
   -- computed expressions at borrowed positions are dropped right after the call.
   eval-borrow-args :: List CoreDefinition -> List Local -> Writer -> List CoreTerm -> List Bool -> (Writer, List String, List Local)
-  eval-borrow-args definitions locals w args mask = case (args, mask) of
-    ([], other) -> (w, [], [])
-    (arg : rest, True : more) -> case borrowed-local-word locals arg of
-      Some word -> case eval-borrow-args definitions locals w rest more of
-        (done, vals, drops) -> (done, word : vals, drops)
-      None -> case expression definitions locals w arg of
+  eval-borrow-args definitions locals w args mask = case args of
+    [] -> (w, [], [])
+    arg : rest -> case mask of
+      True : more -> case borrowed-local-word locals arg of
+        Some word -> case eval-borrow-args definitions locals w rest more of
+          (done, vals, drops) -> (done, word : vals, drops)
+        None -> case expression definitions locals w arg of
+          (ready, val) -> case eval-borrow-args definitions locals ready rest more of
+            (done, vals, drops) -> (done, val : vals, (Discard (core-type arg) val) : drops)
+      False : more -> case expression definitions locals w arg of
         (ready, val) -> case eval-borrow-args definitions locals ready rest more of
-          (done, vals, drops) -> (done, val : vals, (Discard (core-type arg) val) : drops)
-    (arg : rest, False : more) -> case expression definitions locals w arg of
-      (ready, val) -> case eval-borrow-args definitions locals ready rest more of
-        (done, vals, drops) -> (done, val : vals, drops)
-    (arg : rest, []) -> case expression definitions locals w arg of
-      (ready, val) -> case eval-borrow-args definitions locals ready rest [] of
-        (done, vals, drops) -> (done, val : vals, drops)
+          (done, vals, drops) -> (done, val : vals, drops)
+      [] -> case expression definitions locals w arg of
+        (ready, val) -> case eval-borrow-args definitions locals ready rest [] of
+          (done, vals, drops) -> (done, val : vals, drops)
   -- A call whose arguments and result travel at their own LLVM types.
   typed-call :: Writer -> String -> String -> List (String, String) -> (Writer, String)
   typed-call w result name args = let (next, value) = fresh w "%v" in
@@ -4200,33 +4252,45 @@ module Cinch.RuntimeIr where
     (logical, physical, codes) : rest -> (case method-at logical (description.methods) of
       Some member -> (case specialize-method description factory member of
         Some sc -> (case class-bindings (scheme-params sc) (factory-codes <> codes) of
-          Some bindings -> (case (word-class (extend-context bindings (w.context)) (scheme-body sc), external-field-map w description factory factory-codes rest) of
-            (Some code, Some more) -> Some ((if list-length (scheme-requirements sc) == 0 then code else 1) : more)
-            other -> None)
+          Some bindings -> (case word-class (extend-context bindings (w.context)) (scheme-body sc) of
+            Some code -> case external-field-map w description factory factory-codes rest of
+              Some more -> Some ((if list-length (scheme-requirements sc) == 0 then code else 1) : more)
+              None -> None
+            None -> None)
           None -> None)
         None -> None)
       None -> None)
   external-evidence :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> List UType -> CoreEvidence -> (Writer, String)
-  external-evidence definitions locals w sp ty name actuals args = case ((writer-program w).object, instance-binding name (writer-program w)) of
-    (Some provider, Some binding) -> (case scheme-classes (w.context) (scheme-params (checked-scheme binding)) actuals of
-      Some codes -> (case object-dictionary name codes provider of
-        Some (unit, owner, context-count, fields) ->
-          let factory = checked-scheme binding in
-          let sc = concrete-scheme factory actuals in
-          (case (class-owner (scheme-body sc), find-class owner ((writer-program w).classes), object-family owner provider) of
-            (Some actual-owner, Some description, Some (declared, slots)) -> if owner /= actual-owner || declared /= list-length (description.methods) || context-count /= list-length (scheme-requirements sc) then unsupported w sp "external factory disagrees with its checked class or context" else
-              -- Specialize the closed declaration. The instantiated use can
-              -- contain caller-local rigid variables, including phantom types.
-              (case (external-field-map w description factory codes slots, class-vector (w.context) (requirement-types (scheme-requirements sc)), unit.result) of
-                (Some expected-fields, Some expected-params, Some 1) -> if not (same-classes expected-fields fields && same-classes expected-params (unit.params)) then unsupported w sp "external factory word ABI disagrees with its checked class fields" else
-                  (case evidence-values definitions locals w args of
-                    (ready, values) -> if list-length values /= context-count then unsupported ready sp "external factory context arity disagrees with checked evidence" else
-                      call (request-demand (ExternalDemand unit) ready) (llvm-object-symbol (unit.symbol)) values)
-                other -> unsupported w sp "external factory lacks checked runtime field representations")
-            other -> unsupported w sp "external factory has no matching checked method family")
-        None -> unsupported w sp (cat ["checked factory variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
-      None -> unsupported w sp "external factory needs checked representation specialization")
-    other -> unsupported w sp (cat ["checked factory has no executable source factory: ", name])
+  external-evidence definitions locals w sp ty name actuals args = case (writer-program w).object of
+    Some provider -> case instance-binding name (writer-program w) of
+      Some binding -> (case scheme-classes (w.context) (scheme-params (checked-scheme binding)) actuals of
+        Some codes -> (case object-dictionary name codes provider of
+          Some (unit, owner, context-count, fields) ->
+            let factory = checked-scheme binding in
+            let sc = concrete-scheme factory actuals in
+            (case class-owner (scheme-body sc) of
+              Some actual-owner -> case find-class owner ((writer-program w).classes) of
+                Some description -> case object-family owner provider of
+                  Some (declared, slots) -> if owner /= actual-owner || declared /= list-length (description.methods) || context-count /= list-length (scheme-requirements sc) then unsupported w sp "external factory disagrees with its checked class or context" else
+                    -- Specialize the closed declaration. The instantiated use can
+                    -- contain caller-local rigid variables, including phantom types.
+                    (case unit.result of
+                      Some 1 -> case external-field-map w description factory codes slots of
+                        Some expected-fields -> case class-vector (w.context) (requirement-types (scheme-requirements sc)) of
+                          Some expected-params -> if not (same-classes expected-fields fields && same-classes expected-params (unit.params)) then unsupported w sp "external factory word ABI disagrees with its checked class fields" else
+                            (case evidence-values definitions locals w args of
+                              (ready, values) -> if list-length values /= context-count then unsupported ready sp "external factory context arity disagrees with checked evidence" else
+                                call (request-demand (ExternalDemand unit) ready) (llvm-object-symbol (unit.symbol)) values)
+                          None -> unsupported w sp "external factory lacks checked runtime field representations"
+                        None -> unsupported w sp "external factory lacks checked runtime field representations"
+                      other -> unsupported w sp "external factory lacks checked runtime field representations")
+                  None -> unsupported w sp "external factory has no matching checked method family"
+                None -> unsupported w sp "external factory has no matching checked method family"
+              None -> unsupported w sp "external factory has no matching checked method family")
+          None -> unsupported w sp (cat ["checked factory variant is absent from the runtime object: ", name, " [", native-classes codes, "]"]))
+        None -> unsupported w sp "external factory needs checked representation specialization")
+      None -> unsupported w sp (cat ["checked factory has no executable source factory: ", name])
+    None -> unsupported w sp (cat ["checked factory has no executable source factory: ", name])
   symbol-for-dictionary :: String -> List Nat -> String
   symbol-for-dictionary name classes = symbol (dictionary-name name classes)
   method-at :: Nat -> List CoreClassMethod -> Option CoreClassMethod
@@ -4254,17 +4318,21 @@ module Cinch.RuntimeIr where
             Some actual -> if owner /= actual then None else
               (case field-at slot (candidate.fields) of
                 Some field -> if strict-value-field w candidate field then None else
-                  (case (find-class owner ((writer-program w).classes), method-at slot (class-methods-of owner w)) of
-                    (Some description, Some member) -> (case (method-own-classes w member actuals, scheme-classes (w.context) (scheme-params (candidate.scheme)) factory-actuals) of
-                      (Some own-codes, Some classes) -> let codes = classes <> own-codes in let d = field.field-definition in
-                        if (case runtime-givens w d of [] -> True; other -> False)
-                          && (case definition-value-dependencies w d of [] -> True; other -> False)
-                          && (case d.openings of [] -> True; other -> False)
-                          && (case d.clauses of [] -> False; other -> True)
-                          && (case definition-context d codes w of Some context -> True; None -> False)
-                          then Some (codes, own-codes, d) else None
-                      other -> None)
-                    other -> None)
+                  (case find-class owner ((writer-program w).classes) of
+                    Some description -> case method-at slot (class-methods-of owner w) of
+                      Some member -> case method-own-classes w member actuals of
+                        Some own-codes -> case scheme-classes (w.context) (scheme-params (candidate.scheme)) factory-actuals of
+                          Some classes -> let codes = classes <> own-codes in let d = field.field-definition in
+                            if (case runtime-givens w d of [] -> True; other -> False)
+                              && (case definition-value-dependencies w d of [] -> True; other -> False)
+                              && (case d.openings of [] -> True; other -> False)
+                              && (case d.clauses of [] -> False; other -> True)
+                              && (case definition-context d codes w of Some context -> True; None -> False)
+                              then Some (codes, own-codes, d) else None
+                          None -> None
+                        None -> None
+                      None -> None
+                    None -> None)
                 None -> None)
             None -> None)
           else None
@@ -4805,9 +4873,11 @@ module Cinch.RuntimeIr where
             (planned, descriptor) -> allocate planned descriptor values)
     other -> unsupported w sp "a generalisation needs a polymorphic type"
   poly-class-binders :: List Quant -> List Nat -> List Nat
-  poly-class-binders qs ids = case (qs, ids) of
-    (q : rest, id : more) -> if poly-class-kind (q.kind) then id : (poly-class-binders rest more) else poly-class-binders rest more
-    other -> []
+  poly-class-binders qs ids = case qs of
+    [] -> []
+    q : rest -> case ids of
+      id : more -> if poly-class-kind (q.kind) then id : (poly-class-binders rest more) else poly-class-binders rest more
+      [] -> []
   poly-class-positions :: List Quant -> Nat -> List Nat
   poly-class-positions qs index = case qs of
     [] -> []
@@ -4846,9 +4916,9 @@ module Cinch.RuntimeIr where
           case poly-components definitions locals restored sp binders body rest of
             (done, values, classes) -> (done, value : values, code : classes)
   zip-classes :: List Nat -> List Nat -> List (Nat, Nat)
-  zip-classes ids codes = case (ids, codes) of
-    (id : rest, code : more) -> (id, code) : (zip-classes rest more)
-    other -> []
+  zip-classes ids codes = case ids of
+    [] -> []
+    id : rest -> case codes of code : more -> (id, code) : (zip-classes rest more); [] -> []
   writer-rigids :: Writer -> List (Nat, Nat)
   writer-rigids w = case w.context of RuntimeContext info bounds rigids queue inlining -> rigids
   with-writer-rigids :: List (Nat, Nat) -> Writer -> Writer
@@ -4910,9 +4980,9 @@ module Cinch.RuntimeIr where
   typed-words values = case values of [] -> []; value : rest -> ("i64", value) : (typed-words rest)
   -- Pair each value with the LLVM type it travels as.
   typed-values :: List String -> List String -> List (String, String)
-  typed-values types values = case (types, values) of
-    (ty : more, value : rest) -> (ty, value) : (typed-values more rest)
-    other -> typed-words values
+  typed-values types values = case types of
+    [] -> typed-words values
+    ty : more -> case values of value : rest -> (ty, value) : (typed-values more rest); [] -> []
   typed-payload :: List (String, String) -> Nat
   typed-payload values = case values of [] -> 0; (ty, value) : rest -> (if ty == "i128" then 2 else 1) + typed-payload rest
   -- Fields are stored at their payload word offsets. A wide field's two
@@ -5302,9 +5372,9 @@ module Cinch.RuntimeIr where
         other -> []
     other -> []
   release-terms :: List UType -> List String -> Writer -> Writer
-  release-terms types words w = case (types, words) of
-    (first : rest, word : more) -> release-terms rest more (count-op False first word w)
-    other -> w
+  release-terms types words w = case types of
+    [] -> w
+    first : rest -> case words of word : more -> release-terms rest more (count-op False first word w); [] -> w
   -- A unit small enough to copy is copied at each of its call sites. The
   -- copy binds its arguments where the call would pass them and releases
   -- them where the callee's worker releases its parameters, so the copy
@@ -5313,8 +5383,12 @@ module Cinch.RuntimeIr where
   -- another admitted unit: that fixed point is the loop-breaker rule, and
   -- it is what keeps a recursive group out.
   inline-body-shape :: CoreDefinition -> Option (List CorePattern, CoreTerm)
-  inline-body-shape d = case (d.givens, d.openings, d.clauses) of
-    ([], [], [CoreClause sp patterns body]) -> if variable-patterns patterns && not (row-guarded body) then Some (patterns, body) else None
+  inline-body-shape d = case d.givens of
+    [] -> case d.openings of
+      [] -> case d.clauses of
+        [CoreClause sp patterns body] -> if variable-patterns patterns && not (row-guarded body) then Some (patterns, body) else None
+        other -> None
+      other -> None
     other -> None
   variable-patterns :: List CorePattern -> Bool
   variable-patterns patterns = case patterns of
@@ -5427,9 +5501,11 @@ module Cinch.RuntimeIr where
     CArgumentsEnd sp -> Some (UnfoldShape False 0)
     other -> None
   unfold-merge :: Option UnfoldShape -> Option UnfoldShape -> Option UnfoldShape
-  unfold-merge a b = case (a, b) of
-    (Some (UnfoldShape chain-a cases-a), Some (UnfoldShape chain-b cases-b)) -> Some (UnfoldShape (chain-a || chain-b) (cases-a + cases-b))
-    (other, more) -> None
+  unfold-merge a b = case a of
+    Some (UnfoldShape chain-a cases-a) -> case b of
+      Some (UnfoldShape chain-b cases-b) -> Some (UnfoldShape (chain-a || chain-b) (cases-a + cases-b))
+      None -> None
+    None -> None
   -- An application spine whose head names a unit: the link a copy may
   -- expand. It only widens the cap, so a false positive costs nothing.
   is-unit-spine :: CoreTerm -> Bool
@@ -5460,8 +5536,12 @@ module Cinch.RuntimeIr where
     d : rest -> case inline-class-candidate d of
       Some shape -> inline-class-names rest ((d.name) : known)
       None -> inline-class-names rest known
+  inline-name-map :: List String -> HashMap String () -> HashMap String ()
+  inline-name-map names acc = case names of
+    [] -> acc
+    first : rest -> inline-name-map rest (hash-map-insert first () acc)
   inline-plan :: Bool -> List CoreDefinition -> ProgramInfo -> InlinePlan
-  inline-plan enabled definitions info = if enabled then InlinePlan True (inline-admitted-names definitions) [] else NoInline
+  inline-plan enabled definitions info = if enabled then InlinePlan True (inline-name-map (inline-admitted-names definitions) hash-map-empty) [] else NoInline
   with-inline :: InlinePlan -> Writer -> Writer
   with-inline plan w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-inline plan context)
   context-inline :: InlinePlan -> RuntimeContext -> RuntimeContext
@@ -5469,7 +5549,7 @@ module Cinch.RuntimeIr where
   inline-admitted :: RuntimeContext -> String -> Bool
   inline-admitted context name = case context of
     RuntimeContext info bounds rigids queue plan -> case plan of
-      InlinePlan enabled names stack -> enabled && name-listed name names && function-hint info name /= "noinline" && not (name-listed name stack)
+      InlinePlan enabled names stack -> enabled && (case hash-map-lookup name names of Some _ -> True; None -> False) && function-hint info name /= "noinline" && not (name-listed name stack)
       NoInline -> False
   -- The unfolding stack and its one bound: a unit already on the stack is
   -- refused, so a cycle of admitted units cannot recurse without end, and
@@ -5519,8 +5599,8 @@ module Cinch.RuntimeIr where
       (evaluated, words) -> case expression definitions (parameter-locals patterns words <> locals) evaluated body of
         (done, result) -> (release-terms (term-types args) words done, result)
   parameter-locals :: List CorePattern -> List String -> List Local
-  parameter-locals patterns words = case (patterns, words) of
-    ((CPVar sp ty id name) : rest, word : more) -> (Borrowed id ty word) : (parameter-locals rest more)
+  parameter-locals patterns words = case patterns of
+    (CPVar sp ty id name) : rest -> case words of word : more -> (Borrowed id ty word) : (parameter-locals rest more); [] -> []
     other -> []
   -- The scrutinee of a case can be a call whose unit answers with a
   -- constructor application of its own parameters in order: the applied
@@ -5534,9 +5614,11 @@ module Cinch.RuntimeIr where
     CErasedApply sp ty row f witness -> call-spine f args
     other -> None
   identity-arguments :: List CorePattern -> List CoreTerm -> Bool
-  identity-arguments patterns args = case (patterns, args) of
-    ((CPVar sp ty id name) : rest, (CLocal at aty key kname []) : more) -> id == key && identity-arguments rest more
-    (other, []) -> True
+  identity-arguments patterns args = case args of
+    [] -> True
+    (CLocal at aty key kname []) : more -> case patterns of
+      (CPVar sp ty id name) : rest -> id == key && identity-arguments rest more
+      other -> False
     other -> False
   inline-scrutinee :: List CoreDefinition -> Writer -> CoreTerm -> Option (String, List CoreTerm)
   inline-scrutinee definitions w value = case call-spine value [] of
@@ -5746,10 +5828,14 @@ module Cinch.RuntimeIr where
     CLocal sp ty id name [] -> local-field id locals None
     CApply sp ty (CUse at scheme name role []) (CLocal arg carrier id label []) ->
       (case worker-definition name w of
-        Some d -> if (case (scheme-params (d.scheme), scheme-requirements (d.scheme), definition-parameters d) of
-              ([], [], [parameter]) -> not (wide-type (w.context) ty || wide-type (w.context) carrier)
+        Some d -> if (case scheme-params (d.scheme) of
+              [] -> case scheme-requirements (d.scheme) of
+                [] -> case definition-parameters d of
+                  [parameter] -> not (wide-type (w.context) ty || wide-type (w.context) carrier)
+                  other -> False
+                other -> False
               other -> False) && (case definition-value-dependencies w d of [] -> True; other -> False)
-            && (case (d.givens, d.openings) of ([], []) -> True; other -> False)
+            && (case d.givens of [] -> (case d.openings of [] -> True; other -> False); other -> False)
             then local-field id locals (Some name) else None
         None -> None)
     other -> None
@@ -5765,15 +5851,17 @@ module Cinch.RuntimeIr where
   -- slot. Aliased cells take the ordinary allocation path and keep all of
   -- their fields. A unique cell transfers its fields before calling workers.
   rebuilding-fields :: List CoreDefinition -> List Local -> Writer -> CorePattern -> List CoreTerm -> Option (List FieldMove)
-  rebuilding-fields definitions locals w fields args = case (fields, args) of
-    (CPDone sp, []) -> Some []
-    (CPField sp (CPVar at ty id name) rest, arg : more) ->
-      (case move-field definitions locals w arg of
-        Some (FieldMove actual carrier word worker) | actual == id ->
-          (case rebuilding-fields definitions locals w rest more of
-            Some moves -> Some ((FieldMove actual carrier word worker) : moves)
-            None -> None)
-        other -> None)
+  rebuilding-fields definitions locals w fields args = case fields of
+    CPDone sp -> case args of [] -> Some []; other -> None
+    CPField sp (CPVar at ty id name) rest -> case args of
+      arg : more ->
+        (case move-field definitions locals w arg of
+          Some (FieldMove actual carrier word worker) | actual == id ->
+            (case rebuilding-fields definitions locals w rest more of
+              Some moves -> Some ((FieldMove actual carrier word worker) : moves)
+              None -> None)
+          other -> None)
+      [] -> None
     other -> None
   retain-fields :: List FieldMove -> Writer -> Writer
   retain-fields fields w = case fields of
@@ -5785,19 +5873,25 @@ module Cinch.RuntimeIr where
     input : rest -> case evaluate-move input w of
       (ready, result) -> case evaluate-fields rest ready of (done, values) -> (done, result : values)
   rebuild-case-cell :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
-  rebuild-case-cell definitions locals w ty value pointer pattern body = if not ((writer-program w).reclaim) then None else case (pattern, head body) of
-    (CPConstructor sp subject name actuals sc fields, CUse at output ctor role params) | (name == ctor) && role == "constructor" && scheme-equivalent (mono ty) (mono (core-type body)) ->
-      let args = arguments body [] in
-      (case (args, constructor name (writer-program w)) of
-        (first : rest, Some (owner, tag, c)) -> (case data-declaration owner (writer-program w) of
-          Some d -> (case (core-data-layout d, source-scheme-classes (w.context) (scheme-params (c.constructor-scheme)) params) of
-            (UniformData, Some classes) -> (case rebuilding-fields definitions locals w fields args of
-              Some moves -> (case request-data sp d classes w of
-                (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
+  rebuild-case-cell definitions locals w ty value pointer pattern body = if not ((writer-program w).reclaim) then None else case pattern of
+    CPConstructor sp subject name actuals sc fields -> case head body of
+      CUse at output ctor role params | (name == ctor) && role == "constructor" && scheme-equivalent (mono ty) (mono (core-type body)) ->
+        let args = arguments body [] in
+        (case args of
+          first : rest -> case constructor name (writer-program w) of
+            Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
+              Some d -> (case core-data-layout d of
+                UniformData -> case source-scheme-classes (w.context) (scheme-params (c.constructor-scheme)) params of
+                  Some classes -> (case rebuilding-fields definitions locals w fields args of
+                    Some moves -> (case request-data sp d classes w of
+                      (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
+                    None -> None)
+                  None -> None
+                other -> None)
               None -> None)
-            other -> None)
-          None -> None)
-        other -> None)
+            None -> None
+          [] -> None)
+      other -> None
     other -> None
   emit-rebuilt-cell :: Writer -> UType -> String -> String -> Nat -> List String -> List FieldMove -> (Writer, String)
   emit-rebuilt-cell w ty value pointer descriptor types moves =
@@ -6577,7 +6671,7 @@ module Cinch.RuntimeIr where
   -- A wide literal's LLVM `i128` operand. LLVM reads a decimal constant as
   -- signed, so a U128 at or above 2^127 is written as its two's complement.
   wide-literal :: UType -> String -> String
-  wide-literal ty text = if named ty "U128" then (case decimal-digits (unpack text) 0 of
+  wide-literal ty text = if named ty "U128" then (case decimal-bytes (string-to-bytes text) 0 0 of
       Some value -> if value >= 170141183460469231731687303715884105728 && value <= 340282366920938463463374607431768211456 then cat ["-", nat-to-string (340282366920938463463374607431768211456 - value)] else text
       None -> text)
     else text
@@ -6751,9 +6845,9 @@ module Cinch.RuntimeIr where
     [] -> w
     (ty, arg) : rest -> load-typed-loop-args rest (line w (cat ["  ", arg, " = load ", ty, ", ptr ", arg, ".slot"]))
   store-typed-loop-args :: List String -> List String -> Nat -> Writer -> Writer
-  store-typed-loop-args llvms vals index w = case (llvms, vals) of
-    (ty : ts, val : vs) -> store-typed-loop-args ts vs (index + 1) (line w (cat ["  store ", ty, " ", val, ", ptr %arg", nat-to-string index, ".slot"]))
-    other -> w
+  store-typed-loop-args llvms vals index w = case llvms of
+    [] -> w
+    ty : ts -> case vals of val : vs -> store-typed-loop-args ts vs (index + 1) (line w (cat ["  store ", ty, " ", val, ", ptr %arg", nat-to-string index, ".slot"])); [] -> w
   -- | Emit a typed wrapper + private SSA self-tail loop worker for functions with i64 or i128 parameters.
   self-loop-worker :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> List UType -> Nat -> Writer -> Writer
   self-loop-worker definitions classes d prefix roots types arity w =
@@ -6793,10 +6887,9 @@ module Cinch.RuntimeIr where
       else None
     other -> None
   same-nat-list :: List Nat -> List Nat -> Bool
-  same-nat-list a b = case (a, b) of
-    ([], []) -> True
-    (x : xs, y : ys) -> x == y && same-nat-list xs ys
-    other -> False
+  same-nat-list a b = case a of
+    [] -> case b of [] -> True; other -> False
+    x : xs -> case b of y : ys -> x == y && same-nat-list xs ys; [] -> False
   self-loop-result :: List CoreDefinition -> String -> List Nat -> List String -> String -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
   self-loop-result definitions self classes param-llvms result locals roots w failed term = case term of
     CIf sp ty test yes no -> case expression definitions locals w test of
@@ -6862,9 +6955,11 @@ module Cinch.RuntimeIr where
       Some (name, actuals, args) -> Some (name, args)
       None -> None
   cpr-merge-ctor :: Option (String, List CoreTerm) -> Option (String, List CoreTerm) -> Option (String, List CoreTerm)
-  cpr-merge-ctor a b = case (a, b) of
-    (Some (na, aa), Some (nb, ab)) -> if na == nb && list-length aa == list-length ab then Some (na, aa) else None
-    other -> None
+  cpr-merge-ctor a b = case a of
+    Some (na, aa) -> case b of
+      Some (nb, ab) -> if na == nb && list-length aa == list-length ab then Some (na, aa) else None
+      None -> None
+    None -> None
   cpr-alts-ctor :: CoreTerm -> Option (String, List CoreTerm)
   cpr-alts-ctor alts = case alts of
     CAlternative sp pat body (CAlternativesEnd end) -> cpr-term-ctor body
@@ -6920,9 +7015,9 @@ module Cinch.RuntimeIr where
       let w2 = line w1 (cat ["  ", next, " = insertvalue ", agg-ty, " ", acc, ", ", ty, " ", val, ", ", nat-to-string index]) in
       cpr-emit-insert w2 agg-ty next rest (index + 1)
   cpr-release-fields :: List Nat -> List String -> Writer -> Writer
-  cpr-release-fields classes words w = case (classes, words) of
-    (c : cs, word : ws) -> cpr-release-fields cs ws (if c == 1 || c == 2 then count-line False word w else w)
-    other -> w
+  cpr-release-fields classes words w = case classes of
+    [] -> w
+    c : cs -> case words of word : ws -> cpr-release-fields cs ws (if c == 1 || c == 2 then count-line False word w else w); [] -> w
   fold-cpr-case :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> Option (Writer, String)
   fold-cpr-case definitions locals w value alternatives = case call-spine value [] of
     Some (name, actuals, args) -> case worker-definition name w of
@@ -7150,63 +7245,65 @@ module Cinch.RuntimeIr where
   tail-operands :: List CoreDefinition -> List Local -> List Local -> List Local -> Writer -> List CoreTerm -> (Writer, List String, List Local)
   tail-operands definitions locals roots saved w args = case args of
     [] -> (w, [], roots)
-    arg : rest -> case (rest, saved) of
-      ([], []) -> (case move-field definitions locals w arg of
-        Some input -> (case take-parameter-root (input.word) roots of
-          Some remaining -> (case evaluate-move input w of (done, value) -> (done, [value], remaining))
+    arg : rest -> case saved of
+      [] -> case rest of
+        [] -> (case move-field definitions locals w arg of
+          Some input -> (case take-parameter-root (input.word) roots of
+            Some remaining -> (case evaluate-move input w of (done, value) -> (done, [value], remaining))
+            None -> (case expression definitions locals w arg of (done, value) -> (done, [value], roots)))
           None -> (case expression definitions locals w arg of (done, value) -> (done, [value], roots)))
-        None -> (case expression definitions locals w arg of (done, value) -> (done, [value], roots)))
-      (more, []) -> (case arg of
-        CLocal sp ty id name [] -> case local id locals of
-          Some (decl, word) -> if word-aliases-unused word locals more then
-            (case take-parameter-root word roots of
-              Some remaining -> case tail-operands definitions locals remaining [] w more of
-                (done, values, final-roots) -> (done, word : values, final-roots)
-              None -> case expression definitions locals w arg of
+        more -> (case arg of
+          CLocal sp ty id name [] -> case local id locals of
+            Some (decl, word) -> if word-aliases-unused word locals more then
+              (case take-parameter-root word roots of
+                Some remaining -> case tail-operands definitions locals remaining [] w more of
+                  (done, values, final-roots) -> (done, word : values, final-roots)
+                None -> case expression definitions locals w arg of
+                  (ready, value) -> case tail-operands definitions locals roots [] ready more of
+                    (done, values, remaining) -> (done, value : values, remaining))
+              else (case expression definitions locals w arg of
                 (ready, value) -> case tail-operands definitions locals roots [] ready more of
                   (done, values, remaining) -> (done, value : values, remaining))
-            else (case expression definitions locals w arg of
+            None -> case expression definitions locals w arg of
               (ready, value) -> case tail-operands definitions locals roots [] ready more of
-                (done, values, remaining) -> (done, value : values, remaining))
-          None -> case expression definitions locals w arg of
+                (done, values, remaining) -> (done, value : values, remaining)
+          other -> case expression definitions locals w arg of
             (ready, value) -> case tail-operands definitions locals roots [] ready more of
-              (done, values, remaining) -> (done, value : values, remaining)
-        other -> case expression definitions locals w arg of
-          (ready, value) -> case tail-operands definitions locals roots [] ready more of
-            (done, values, remaining) -> (done, value : values, remaining))
+              (done, values, remaining) -> (done, value : values, remaining))
       other -> case expression definitions locals w arg of
         (ready, value) -> case tail-operands definitions locals roots saved ready rest of
           (done, values, remaining) -> (done, value : values, remaining)
   tail-borrow-operands :: List CoreDefinition -> List Local -> List Local -> Writer -> List CoreTerm -> List Bool -> (Writer, List String, List Local)
-  tail-borrow-operands definitions locals roots w args mask = case (args, mask) of
-    ([], other) -> (w, [], roots)
-    (arg : rest, True : more) -> case borrowed-local-word locals arg of
-      Some word -> case tail-borrow-operands definitions locals roots w rest more of
-        (done, values, remaining) -> (done, word : values, remaining)
-      None -> case expression definitions locals w arg of
-        (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
-          (done, values, remaining) -> (done, value : values, remaining)
-    (arg : rest, False : more) -> case arg of
-      CLocal sp ty id name [] -> case local id locals of
-        Some (decl, word) -> if word-aliases-unused word locals rest then
-          (case take-parameter-root word roots of
-            Some remaining -> case tail-borrow-operands definitions locals remaining w rest more of
-              (done, values, final-roots) -> (done, word : values, final-roots)
-            None -> case expression definitions locals w arg of
-              (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
-                (done, values, remaining) -> (done, value : values, remaining))
-          else (case expression definitions locals w arg of
-            (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
-              (done, values, remaining) -> (done, value : values, remaining))
+  tail-borrow-operands definitions locals roots w args mask = case args of
+    [] -> (w, [], roots)
+    arg : rest -> case mask of
+      True : more -> case borrowed-local-word locals arg of
+        Some word -> case tail-borrow-operands definitions locals roots w rest more of
+          (done, values, remaining) -> (done, word : values, remaining)
         None -> case expression definitions locals w arg of
           (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
             (done, values, remaining) -> (done, value : values, remaining)
-      other -> case expression definitions locals w arg of
-        (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+      False : more -> case arg of
+        CLocal sp ty id name [] -> case local id locals of
+          Some (decl, word) -> if word-aliases-unused word locals rest then
+            (case take-parameter-root word roots of
+              Some remaining -> case tail-borrow-operands definitions locals remaining w rest more of
+                (done, values, final-roots) -> (done, word : values, final-roots)
+              None -> case expression definitions locals w arg of
+                (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+                  (done, values, remaining) -> (done, value : values, remaining))
+            else (case expression definitions locals w arg of
+              (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+                (done, values, remaining) -> (done, value : values, remaining))
+          None -> case expression definitions locals w arg of
+            (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+              (done, values, remaining) -> (done, value : values, remaining)
+        other -> case expression definitions locals w arg of
+          (ready, value) -> case tail-borrow-operands definitions locals roots ready rest more of
+            (done, values, remaining) -> (done, value : values, remaining)
+      [] -> case expression definitions locals w arg of
+        (ready, value) -> case tail-borrow-operands definitions locals roots ready rest [] of
           (done, values, remaining) -> (done, value : values, remaining)
-    (arg : rest, []) -> case expression definitions locals w arg of
-      (ready, value) -> case tail-borrow-operands definitions locals roots ready rest [] of
-        (done, values, remaining) -> (done, value : values, remaining)
 
   transfer-tail-prefix :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List String -> List CoreTerm -> Option (String, String) -> List Bool -> Writer
   transfer-tail-prefix definitions locals roots saved width w callee prefix args loop mask =
@@ -7305,9 +7402,11 @@ module Cinch.RuntimeIr where
         Some (name, classes, evidence, args) ->
           if any-borrowed mask then
             let bcallee = cat [specialized-name name classes, "#b"] in
-            (case (evidence, loop) of
-              ([], Some (self-name, meta)) | (self-name == bcallee) ->
-                transfer-tail-prefix definitions locals roots [] width w bcallee [] args loop mask
+            (case evidence of
+              [] -> case loop of
+                Some (self-name, meta) | (self-name == bcallee) ->
+                  transfer-tail-prefix definitions locals roots [] width w bcallee [] args loop mask
+                other -> tail-return definitions locals roots w failed term
               other -> tail-return definitions locals roots w failed term)
           else
             (case evidences definitions locals (demand-worker name classes w) evidence of
@@ -7446,11 +7545,12 @@ module Cinch.RuntimeIr where
 
   -- | Build parameter roots omitting Discard entries for borrowed parameters (`True`).
   borrowed-parameter-roots :: List CorePattern -> Nat -> List Bool -> List Local
-  borrowed-parameter-roots patterns index mask = case (patterns, mask) of
-    ([], other) -> []
-    (first : rest, True : more) -> borrowed-parameter-roots rest (index + 1) more
-    (first : rest, False : more) -> (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) : (borrowed-parameter-roots rest (index + 1) more)
-    (first : rest, []) -> (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) : (borrowed-parameter-roots rest (index + 1) [])
+  borrowed-parameter-roots patterns index mask = case patterns of
+    [] -> []
+    first : rest -> case mask of
+      True : more -> borrowed-parameter-roots rest (index + 1) more
+      False : more -> (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) : (borrowed-parameter-roots rest (index + 1) more)
+      [] -> (Discard (pattern-type first) (cat ["%arg", nat-to-string index])) : (borrowed-parameter-roots rest (index + 1) [])
 
   -- | Emit a private borrowed-parameter self-loop worker (i64/i128 parameters).
   self-loop-worker-borrowed :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> List UType -> Nat -> List Bool -> Writer -> Writer
@@ -7529,35 +7629,37 @@ module Cinch.RuntimeIr where
 
   -- | Emit a private borrowed-parameter companion worker (`@"<spec>#b"`).
   borrow-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
-  borrow-worker definitions name classes w = case (worker-definition name w, hash-map-lookup name (program-borrow-modes (writer-program w))) of
-    (Some d, Some mask) -> case class-bindings (scheme-params (d.scheme)) classes of
-      None -> refuse w (Span 0 0 1 1) "borrow worker needs representation classes"
-      Some bounds -> case definition-rigids d bounds of
-        None -> refuse w (Span 0 0 1 1) "borrow worker openings are invalid"
-        Some rigids -> let scoped = with-representations bounds rigids w in
-          if not (scheme-supported (scoped.context) (d.scheme)) then refuse scoped (Span 0 0 1 1) "borrow worker scheme unsupported"
-          else case d.clauses of
-            (CoreClause at patterns body) : rest ->
-              let parameters = runtime-parameters patterns in
-              let arity = list-length parameters in
-              let types = pattern-types parameters in
-              let prefix = self-binding scoped d classes in
-              let roots = borrowed-parameter-roots parameters 0 mask in
-              case (if wide-code classes then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
-                Some (group, width) -> global-tail-worker-borrowed definitions d classes prefix roots scoped group width arity mask
-                None -> if self-tail-present name classes arity (d.clauses) then
-                    self-loop-worker-borrowed definitions classes d prefix roots types arity mask scoped
-                  else
-                    let bname = cat [specialized-name name classes, "#b"] in
-                    let result = definition-result-llvm (scoped.context) d in
-                    let params = typed-arguments (typed-values (value-llvms (scoped.context) types) (value-parameters arity 0)) in
-                    let started = line (line scoped (cat ["define private ", result, " ", symbol bname, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
-                    if worker-uses-arena name started then
-                      let entered = line started "  %arena.phase = call i64 @cinch_arena_enter_phase(i64 4096)" in
-                      line (worker-clauses-arena definitions prefix roots 0 (Some "%arena.phase") (d.clauses) entered) "}"
-                    else line (worker-clauses definitions prefix roots 0 (d.clauses) started) "}"
-            [] -> refuse scoped (Span 0 0 1 1) "borrow worker has no clauses"
-    other -> refuse w (Span 0 0 1 1) "borrow worker definition or mask is absent"
+  borrow-worker definitions name classes w = case worker-definition name w of
+    Some d -> case hash-map-lookup name (program-borrow-modes (writer-program w)) of
+      Some mask -> case class-bindings (scheme-params (d.scheme)) classes of
+        None -> refuse w (Span 0 0 1 1) "borrow worker needs representation classes"
+        Some bounds -> case definition-rigids d bounds of
+          None -> refuse w (Span 0 0 1 1) "borrow worker openings are invalid"
+          Some rigids -> let scoped = with-representations bounds rigids w in
+            if not (scheme-supported (scoped.context) (d.scheme)) then refuse scoped (Span 0 0 1 1) "borrow worker scheme unsupported"
+            else case d.clauses of
+              (CoreClause at patterns body) : rest ->
+                let parameters = runtime-parameters patterns in
+                let arity = list-length parameters in
+                let types = pattern-types parameters in
+                let prefix = self-binding scoped d classes in
+                let roots = borrowed-parameter-roots parameters 0 mask in
+                case (if wide-code classes then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
+                  Some (group, width) -> global-tail-worker-borrowed definitions d classes prefix roots scoped group width arity mask
+                  None -> if self-tail-present name classes arity (d.clauses) then
+                      self-loop-worker-borrowed definitions classes d prefix roots types arity mask scoped
+                    else
+                      let bname = cat [specialized-name name classes, "#b"] in
+                      let result = definition-result-llvm (scoped.context) d in
+                      let params = typed-arguments (typed-values (value-llvms (scoped.context) types) (value-parameters arity 0)) in
+                      let started = line (line scoped (cat ["define private ", result, " ", symbol bname, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
+                      if worker-uses-arena name started then
+                        let entered = line started "  %arena.phase = call i64 @cinch_arena_enter_phase(i64 4096)" in
+                        line (worker-clauses-arena definitions prefix roots 0 (Some "%arena.phase") (d.clauses) entered) "}"
+                      else line (worker-clauses definitions prefix roots 0 (d.clauses) started) "}"
+              [] -> refuse scoped (Span 0 0 1 1) "borrow worker has no clauses"
+      None -> refuse w (Span 0 0 1 1) "borrow worker definition or mask is absent"
+    None -> refuse w (Span 0 0 1 1) "borrow worker definition or mask is absent"
 
   recursive-worker :: List CoreDefinition -> RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Writer -> Writer
   recursive-worker definitions member group bounds rigids saved w = case member of
@@ -7786,22 +7888,22 @@ module Cinch.RuntimeIr where
             None -> case hash-map-lookup key cache of
               Some cached-unit -> (cached-unit, False)
               None -> (EmittedUnit key "" [] "" 0 [] [] [] [] False, True) in
-      case (state, unit) of
-        (FrontierState globals code errors layouts seen dict serial info collected dirty-keys emitted-n reused-n,
-         EmittedUnit ukey ug ushared ucode umeta uerrors ulayouts upending uversions udict) ->
-          let fixed-globals = renumber-meta umeta serial ug in
-          let fixed-code = renumber-meta umeta serial ucode in
-          let merged-globals = case merge-shared-globals ushared globals of
-                GlobalOutput out def sh -> GlobalOutput (append-builder-text fixed-globals out) def sh in
-          let merged-code = append-builder-text fixed-code code in
-          let merged-errors = errors <> uerrors in
-          let merged-layouts = merge-unit-layouts ulayouts layouts in
-          let merged-versions = merge-unit-versions uversions (info.versions) in
-          let merged-info = with-versions merged-versions info in
-          let merged-collected = hash-map-insert ukey unit collected in
-          let (next-seen, next-dirty, more-next) = enqueue-frontier-demands from-miss upending seen dirty-keys next-backwards in
-          let next-state = FrontierState merged-globals merged-code merged-errors merged-layouts next-seen (dict || udict) (serial + umeta) merged-info merged-collected next-dirty (if from-miss then emitted-n + 1 else emitted-n) (if from-miss then reused-n else reused-n + 1) in
-          merge-frontier-ordered rest cache fresh-map next-state more-next
+      case state of
+        FrontierState globals code errors layouts seen dict serial info collected dirty-keys emitted-n reused-n -> case unit of
+          EmittedUnit ukey ug ushared ucode umeta uerrors ulayouts upending uversions udict ->
+            let fixed-globals = renumber-meta umeta serial ug in
+            let fixed-code = renumber-meta umeta serial ucode in
+            let merged-globals = case merge-shared-globals ushared globals of
+                  GlobalOutput out def sh -> GlobalOutput (append-builder-text fixed-globals out) def sh in
+            let merged-code = append-builder-text fixed-code code in
+            let merged-errors = errors <> uerrors in
+            let merged-layouts = merge-unit-layouts ulayouts layouts in
+            let merged-versions = merge-unit-versions uversions (info.versions) in
+            let merged-info = with-versions merged-versions info in
+            let merged-collected = hash-map-insert ukey unit collected in
+            let (next-seen, next-dirty, more-next) = enqueue-frontier-demands from-miss upending seen dirty-keys next-backwards in
+            let next-state = FrontierState merged-globals merged-code merged-errors merged-layouts next-seen (dict || udict) (serial + umeta) merged-info merged-collected next-dirty (if from-miss then emitted-n + 1 else emitted-n) (if from-miss then reused-n else reused-n + 1) in
+            merge-frontier-ordered rest cache fresh-map next-state more-next
 
   workers-frontier-loop :: CompileTuning -> List CoreDefinition -> InlinePlan -> HashMap String EmittedUnit -> HashMap String Nat -> List Demand -> FrontierState -> FrontierState
   workers-frontier-loop tuning definitions plan cache dirty-names frontier state = case frontier of
@@ -7879,8 +7981,8 @@ module Cinch.RuntimeIr where
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_free(i64)\ndeclare void @cinch_frame_release(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers-mt wasm32 concurrent,
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_data(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_utf8_validate(i64, i64)\ndeclare i64 @cinch_utf8_count_chars(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
-    "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_array_tabulate_packed(i64, i64, i64)\ndeclare i64 @cinch_array_map_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_with_packed(i64, i64, i64, i64)\ndeclare i64 @cinch_array_foldl_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f32(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f64(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_i32(i64, i64, i64)\ndeclare i64 @cinch_array_map_unary_f32(i64, i64, i64)\ndeclare i64 @cinch_array_reduce_f32(i64, i64)\ndeclare i64 @cinch_array_reduce_f64(i64, i64)\ndeclare i64 @cinch_array_reduce_i32(i64, i64)\ndeclare i64 @cinch_array_reduce_u32(i64, i64)\ndeclare i64 @cinch_array_reduce_i64(i64, i64)\ndeclare i64 @cinch_array_dot_f32(i64, i64, i64)\ndeclare i64 @cinch_array_dot_f64(i64, i64, i64)\ndeclare i64 @cinch_array_dot_i32(i64, i64)\ndeclare i64 @cinch_array_strided_dot_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_fused_map_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_scan_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scan_u32(i64, i64, i64)\ndeclare i64 @cinch_array_filter_i32_gt(i64, i64)\ndeclare i64 @cinch_array_filter_packed(i64, i64)\ndeclare i64 @cinch_array_gather_f32(i64, i64, i64)\ndeclare i64 @cinch_array_gather_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_unique_u32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_combine_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_histogram_u8(i64, i64)\ndeclare i64 @cinch_array_histogram_u32(i64, i64)\ndeclare i64 @cinch_array_histogram_batch_u8(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_u8(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_segmented_reduce_f32(i64, i64, i64)\ndeclare i64 @cinch_array_spmv_csr_f32(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_1d(i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_2d(i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_set_exec_mode(i64)\ndeclare i64 @cinch_array_last_report_bytes()\ndeclare i64 @cinch_array_fill_f32(i64, i64)\ndeclare i64 @cinch_array_fill_f64(i64, i64)\ndeclare i64 @cinch_array_scale_f64(i64, i64)\ndeclare i64 @cinch_array_row_broadcast_f32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_add_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_adjoint_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_open(i64)\ndeclare i64 @cinch_device_close(i64)\ndeclare i64 @cinch_device_reset_telemetry(i64)\ndeclare i64 @cinch_device_upload_array(i64, i64)\ndeclare i64 @cinch_device_download_array(i64, i64, i64)\ndeclare i64 @cinch_device_buffer_free(i64)\ndeclare i64 @cinch_device_buffer_bytes(i64)\ndeclare i64 @cinch_device_dot_f32_bits(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_scan_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_filter_i32_gt_handle(i64, i64, i64, i64)\ndeclare i64 @cinch_device_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil_histogram_u8_arr(i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil2d_f32_arr(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_spmv_csr_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_report_bytes(i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
+    "declare noundef range(i64 0, -9223372036854775808) i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare noundef range(i64 0, 9223372036854775807) i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_data(i64)\ndeclare noundef range(i64 0, 256) i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_utf8_validate(i64, i64)\ndeclare i64 @cinch_utf8_count_chars(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare noundef range(i64 0, 9223372036854775807) i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_array_tabulate_packed(i64, i64, i64)\ndeclare i64 @cinch_array_map_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_with_packed(i64, i64, i64, i64)\ndeclare i64 @cinch_array_foldl_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f32(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f64(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_i32(i64, i64, i64)\ndeclare i64 @cinch_array_map_unary_f32(i64, i64, i64)\ndeclare i64 @cinch_array_reduce_f32(i64, i64)\ndeclare i64 @cinch_array_reduce_f64(i64, i64)\ndeclare i64 @cinch_array_reduce_i32(i64, i64)\ndeclare i64 @cinch_array_reduce_u32(i64, i64)\ndeclare i64 @cinch_array_reduce_i64(i64, i64)\ndeclare i64 @cinch_array_dot_f32(i64, i64, i64)\ndeclare i64 @cinch_array_dot_f64(i64, i64, i64)\ndeclare i64 @cinch_array_dot_i32(i64, i64)\ndeclare i64 @cinch_array_strided_dot_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_fused_map_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_scan_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scan_u32(i64, i64, i64)\ndeclare i64 @cinch_array_filter_i32_gt(i64, i64)\ndeclare i64 @cinch_array_filter_packed(i64, i64)\ndeclare i64 @cinch_array_gather_f32(i64, i64, i64)\ndeclare i64 @cinch_array_gather_i32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_unique_u32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_combine_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_histogram_u8(i64, i64)\ndeclare i64 @cinch_array_histogram_u32(i64, i64)\ndeclare i64 @cinch_array_histogram_batch_u8(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_u8(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_segmented_reduce_f32(i64, i64, i64)\ndeclare i64 @cinch_array_spmv_csr_f32(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_1d(i64, i64, i64, i64)\ndeclare i64 @cinch_array_pack_strided_2d(i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_set_exec_mode(i64)\ndeclare i64 @cinch_array_last_report_bytes()\ndeclare i64 @cinch_array_fill_f32(i64, i64)\ndeclare i64 @cinch_array_fill_f64(i64, i64)\ndeclare i64 @cinch_array_scale_f64(i64, i64)\ndeclare i64 @cinch_array_row_broadcast_f32(i64, i64, i64)\ndeclare i64 @cinch_array_scatter_add_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_adjoint_f32(i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_open(i64)\ndeclare i64 @cinch_device_close(i64)\ndeclare i64 @cinch_device_reset_telemetry(i64)\ndeclare i64 @cinch_device_upload_array(i64, i64)\ndeclare i64 @cinch_device_download_array(i64, i64, i64)\ndeclare i64 @cinch_device_buffer_free(i64)\ndeclare i64 @cinch_device_buffer_bytes(i64)\ndeclare i64 @cinch_device_dot_f32_bits(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_scan_i32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_filter_i32_gt_handle(i64, i64, i64, i64)\ndeclare i64 @cinch_device_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil_histogram_u8_arr(i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_stencil2d_f32_arr(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_spmv_csr_f32(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_device_report_bytes(i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_stm_state(i64)\ndeclare i64 @cinch_stm_publish(i64, i64)\ndeclare i64 @cinch_stm_wait_begin(i64)\ndeclare i64 @cinch_stm_wait_park(i64)\ndeclare i64 @cinch_stm_wait_cancel(i64)\ndeclare i64 @cinch_stm_wake(i64)\ndeclare i64 @cinch_stm_yield(i64)\n",
     "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\ndeclare i64 @cinch_atomic_new(i64)\ndeclare i64 @cinch_atomic_load(i64, i64)\ndeclare i64 @cinch_atomic_store(i64, i64, i64)\ndeclare i64 @cinch_atomic_swap(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_add(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_sub(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_and(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_or(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_xor(i64, i64, i64)\ndeclare i64 @cinch_atomic_cas(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_atomic_fence(i64)\ndeclare i64 @cinch_rwlock_new(i64, i64)\ndeclare i64 @cinch_rwlock_access(i64, i64, i64, ptr)\n",
@@ -7901,7 +8003,7 @@ module Cinch.RuntimeIr where
     "declare i128 @llvm.fshl.i128(i128, i128, i128)\ndeclare i128 @llvm.fshr.i128(i128, i128, i128)\ndeclare i128 @llvm.ctpop.i128(i128)\ndeclare i128 @llvm.ctlz.i128(i128, i1)\ndeclare i128 @llvm.cttz.i128(i128, i1)\ndeclare i128 @llvm.bitreverse.i128(i128)\ndeclare i128 @llvm.bswap.i128(i128)\n",
     "declare float @llvm.copysign.f32(float, float)\ndeclare double @llvm.copysign.f64(double, double)\ndeclare float @llvm.fabs.f32(float)\ndeclare double @llvm.fabs.f64(double)\ndeclare float @llvm.sqrt.f32(float)\ndeclare double @llvm.sqrt.f64(double)\ndeclare float @llvm.sin.f32(float)\ndeclare double @llvm.sin.f64(double)\ndeclare float @llvm.cos.f32(float)\ndeclare double @llvm.cos.f64(double)\ndeclare float @llvm.exp.f32(float)\ndeclare double @llvm.exp.f64(double)\ndeclare float @llvm.log.f32(float)\ndeclare double @llvm.log.f64(double)\ndeclare float @llvm.floor.f32(float)\ndeclare double @llvm.floor.f64(double)\ndeclare float @llvm.ceil.f32(float)\ndeclare double @llvm.ceil.f64(double)\ndeclare float @llvm.trunc.f32(float)\ndeclare double @llvm.trunc.f64(double)\ndeclare float @llvm.round.f32(float)\ndeclare double @llvm.round.f64(double)\ndeclare float @llvm.roundeven.f32(float)\ndeclare double @llvm.roundeven.f64(double)\n",
     "declare <8 x i16> @llvm.smin.v8i16(<8 x i16>, <8 x i16>)\ndeclare <8 x i16> @llvm.smax.v8i16(<8 x i16>, <8 x i16>)\ndeclare <4 x i32> @llvm.smin.v4i32(<4 x i32>, <4 x i32>)\ndeclare <4 x i32> @llvm.smax.v4i32(<4 x i32>, <4 x i32>)\ndeclare <4 x i32> @llvm.fshl.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\ndeclare <4 x i32> @llvm.fshr.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\ndeclare <2 x i64> @llvm.fshl.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\ndeclare <2 x i64> @llvm.fshr.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\n",
-    "!0 = !{}\n!1 = !{!\"cinch.tbaa\"}\n!2 = !{!\"cinch.hdr\", !1, i64 0}\n!3 = !{!2, !2, i64 0}\n!4 = !{!\"cinch.bytes\", !1, i64 0}\n!5 = !{!4, !4, i64 0}\n!6 = !{!\"branch_weights\", i32 9999, i32 1}\n!7 = !{!\"branch_weights\", i32 1, i32 9999}\n"]
+    "!0 = !{}\n!1 = !{!\"cinch.tbaa\"}\n!2 = !{!\"cinch.hdr\", !1, i64 0}\n!3 = !{!2, !2, i64 0}\n!4 = !{!\"cinch.bytes\", !1, i64 0}\n!5 = !{!4, !4, i64 0}\n!6 = !{!\"branch_weights\", i32 9999, i32 1}\n!7 = !{!\"branch_weights\", i32 1, i32 9999}\n!8 = !{i64 0, i64 9223372036854775807}\n"]
   -- Inline count helpers with RC_FRAME/RC_FRAME_RELEASED support (Idea 3) and
   -- static thread-locality specialization (Idea 5): when `concurrent` is False,
   -- all header loads are plain non-atomic loads with no MT branch; `.local`
@@ -8061,11 +8163,11 @@ module Cinch.RuntimeIr where
     list-length left-rows == list-length right-rows && tail-groups-subset left-rows right
 
   same-method-versions :: List MethodVersion -> List MethodVersion -> Bool
-  same-method-versions left right = case (left, right) of
-    ([], []) -> True
-    ((MethodVersion a b c) : rest1, (MethodVersion x y z) : rest2) ->
-      a == x && b == y && same-classes c z && same-method-versions rest1 rest2
-    other -> False
+  same-method-versions left right = case left of
+    [] -> case right of [] -> True; other -> False
+    (MethodVersion a b c) : rest1 -> case right of
+      (MethodVersion x y z) : rest2 -> a == x && b == y && same-classes c z && same-method-versions rest1 rest2
+      [] -> False
 
   settled-workers :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
   settled-workers definitions roots info = settled-workers-with-plan NoInline definitions roots info
@@ -8125,9 +8227,11 @@ module Cinch.RuntimeIr where
       let arity = list-length (definition-parameters d) in
       let arities = source-tail-arities rest w in
       if arity == 0 || arity /= list-length (definition-all-parameters d) || builtin-known name || wide-definition d then arities else
-        (case (opening-value-types (d.openings), field-owner name ((writer-program w).instances)) of
-          ([], None) -> let context = runtime-givens w d in
-            if wide-givens context then arities else hash-map-insert name (list-length context + arity) arities
+        (case opening-value-types (d.openings) of
+          [] -> case field-owner name ((writer-program w).instances) of
+            None -> let context = runtime-givens w d in
+              if wide-givens context then arities else hash-map-insert name (list-length context + arity) arities
+            Some _ -> arities
           other -> arities)
 
   -- A definition whose own parameters or result are wide scalars: its
@@ -8257,10 +8361,12 @@ module Cinch.RuntimeIr where
       (CoreClause sp patterns body) : rest ->
         let types = value-field-types (definition-value-dependencies w d) <> given-types (runtime-givens w d) <> value-types (opening-value-types (d.openings)) <> pattern-types (definition-parameters d) in
         let result = (case proof-stage-arities patterns 0 of first : second : more -> Some 1; other -> word-class context (core-type body)) in
-        case (class-vector context types, result) of
-          -- A library bridge and its object closure are word entries.
-          (Some params, Some returned) -> if wide-code (returned : params) then None else Some (params, returned)
-          other -> None
+        case class-vector context types of
+          Some params -> case result of
+            -- A library bridge and its object closure are word entries.
+            Some returned -> if wide-code (returned : params) then None else Some (params, returned)
+            None -> None
+          None -> None
   library-class :: Nat -> Json
   library-class code = JStr (if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else "W")
   library-classes :: List Nat -> Json
