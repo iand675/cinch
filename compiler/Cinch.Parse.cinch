@@ -906,6 +906,7 @@ module Cinch.Parse where
           ((DUnmodeled (sp-of t) "repr(unboxed) must appear on its own") : acc)
         Some args | has-repr-item "transparent" (string-split-on "," args) -> wrapper-decl (sp-of t) "transparent" rest src fix
           ((DUnmodeled (sp-of t) "repr(transparent) combines with no other representation") : acc)
+        Some args | has-repr-item "value" (string-split-on "," args) -> wrapper-decl (sp-of t) args rest src fix acc
         other -> (case inline-attribute text of
           Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] [] rest src fix acc
           None -> (case test-attribute text of
@@ -952,6 +953,14 @@ module Cinch.Parse where
         else if arg == "never" then Ok "noinline" else Err "`#[inline]` expects always or never")
     else if family == "cold" then
       Some (family, if open == end then Ok "cold" else Err "`#[cold]` takes no arguments")
+    else if family == "no-alloc" then
+      Some (family, if open == end then Ok "no-alloc" else Err "`#[no-alloc]` takes no arguments")
+    else if family == "no-raw-ptr" then
+      Some (family, if open == end then Ok "no-raw-ptr" else Err "`#[no-raw-ptr]` takes no arguments")
+    else if family == "byval" then
+      Some (family, if open == end then Ok "byval" else Err "`#[byval]` takes no arguments")
+    else if family == "sret" then
+      Some (family, if open == end then Ok "sret" else Err "`#[sret]` takes no arguments")
     else if family == "unroll" then Some (family, parsed-unroll arg)
     else if string-strip text == "unroll disable" then Some ("unroll", Ok "0")
     else None
@@ -976,7 +985,9 @@ module Cinch.Parse where
     [] -> False
     (DUnrollHint sp owner hint) : rest -> (name == owner && family == "unroll") || prior-function-hint name family rest
     (DInlineHint sp owner hint) : rest ->
-      let category = (case hint of Ok value | (value == "cold") -> "cold"; other -> "inline") in
+      let category = (case hint of
+        Ok value | (value == "cold" || value == "no-alloc" || value == "no-raw-ptr" || value == "byval" || value == "sret") -> value
+        other -> "inline") in
       (name == owner && family == category) || prior-function-hint name family rest
     other : rest -> prior-function-hint name family rest
   repeated-hint :: String -> List (Span, String, Result String String) -> Option String
@@ -1277,6 +1288,7 @@ module Cinch.Parse where
   inline-subject d = case d of
     DSig sp name ty -> Some name
     DFun sp name clauses -> Some name
+    DForeign sp direction conv symbol name ty -> Some name
     other -> None
 
   function-hint-decl :: List (Span, String, Result String String) -> List (Span, ParsedTestItem) -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)

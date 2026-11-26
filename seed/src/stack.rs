@@ -1958,7 +1958,7 @@ mod frame_capture_tests {
         p.lent_entries.insert("ImportedDestroy".into(), crate::core::LentEntry::Imported { width: 1 });
         let parameter = AbiParam { ty: "Bytes".into(), class: AbiClass::Ptr, role: "borrowed".into(),
             allocator: String::new(), nullable: false, width: 8, align: 8, signed: false,
-            pointee_align: 0, by_value: false, tag: 0, fields: vec![], leaves: vec![] };
+            pointee_align: 0, by_value: false, tag: 0, fields: vec![], leaves: vec![], value_layout: None };
         let result = AbiParam { ty: "Unit".into(), class: AbiClass::Unit, ..parameter.clone() };
         p.foreigns.insert("foreign_destroy".into(), ForeignPlan {
             symbol: "foreign_destroy".into(), export: false, unit: "ForeignDestroy".into(),

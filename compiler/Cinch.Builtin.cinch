@@ -304,6 +304,15 @@ module Cinch.Builtin where
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("ignore", "b.ignore"), ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
+    , ("withLocal", "b.withLocal"), ("with-local", "b.withLocal")
+    , ("refAsPtr", "b.refAsPtr"), ("ref-as-ptr", "b.refAsPtr")
+    , ("mutAsPtr", "b.mutAsPtr"), ("mut-as-ptr", "b.mutAsPtr")
+    , ("fixedArrayRepeat", "b.fixedArrayRepeat"), ("fixed-array-repeat", "b.fixedArrayRepeat")
+    , ("fixedArrayGet", "b.fixedArrayGet"), ("fixed-array-get", "b.fixedArrayGet")
+    , ("fixedArraySet", "b.fixedArraySet"), ("fixed-array-set", "b.fixedArraySet")
+    , ("fixedArrayRef", "b.fixedArrayRef"), ("fixed-array-ref", "b.fixedArrayRef")
+    , ("fixedArrayMut", "b.fixedArrayMut"), ("fixed-array-mut", "b.fixedArrayMut")
+    , ("fixedArrayLen", "b.fixedArrayLen"), ("fixed-array-len", "b.fixedArrayLen")
     , ("delay", "b.delay"), ("force", "b.force"), ("demand", "b.demand")
     , ("laterPure", "b.laterPure"), ("laterAp", "b.laterAp"), ("laterFix", "b.laterFix"), ("forceClock", "b.forceClock")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
@@ -473,6 +482,15 @@ module Cinch.Builtin where
     , task-rule "borrow" "Borrow" 1 False
     , task-rule "mutBorrow" "MutBorrow" 1 False
     , task-rule "refSet" "RefSet" 2 False
+    , task-rule "withLocal" "WithLocal" 2 False
+    , task-rule "refAsPtr" "RefAsPtr" 1 False
+    , task-rule "mutAsPtr" "MutAsPtr" 1 False
+    , task-rule "fixedArrayRepeat" "FixedArrayRepeat" 2 True
+    , task-rule "fixedArrayGet" "FixedArrayGet" 2 False
+    , task-rule "fixedArraySet" "FixedArraySet" 3 False
+    , task-rule "fixedArrayRef" "FixedArrayRef" 2 False
+    , task-rule "fixedArrayMut" "FixedArrayMut" 2 False
+    , task-rule "fixedArrayLen" "FixedArrayLen" 1 False
     , task-rule "delay" "Delay" 1 False
     , task-rule "force" "Force" 1 False
     , task-rule "demand" "Demand" 1 False

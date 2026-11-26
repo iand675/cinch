@@ -1092,8 +1092,102 @@ impl AdOp {
     }
 }
 
+/// Layout of a POD unboxed value type (`#[repr(value)]` record, `FixedArray n a`,
+/// or a POD scalar/pointer leaf used inside `withLocal` or field/element access).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValueLayout {
+    pub size: u64,
+    pub align: u64,
+    pub kind: ValueLayoutKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ValueLayoutKind {
+    /// A POD scalar, `Bool`, `Unit`, or native `Ptr` leaf.
+    Scalar { signed: bool, is_ptr: bool, is_float: bool },
+    /// A `#[repr(value)]` record with runtime (non-erased) fields at recorded byte offsets.
+    Struct { fields: Vec<ValueField> },
+    /// A `FixedArray n T` with `len` elements at `stride` bytes each.
+    Array { len: u64, stride: u64, elem: Box<ValueLayout> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValueField {
+    pub name: String,
+    pub offset: u64,
+    pub layout: ValueLayout,
+}
+
+/// Inline operations over unboxed POD value types, `FixedArray`, and stack places.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ValOp {
+    /// Construct a `#[repr(value)]` struct of `layout` from `arity` runtime field values.
+    Construct { layout: u32, arity: u16 },
+    /// Project a field at `offset` (having `field_layout`) from a value of `layout`.
+    Proj { layout: u32, field_layout: u32, offset: u64 },
+    /// Construct a `FixedArray n T` (`layout`) by repeating `elem`.
+    FixedArrayRepeat { layout: u32 },
+    /// Read element `i` (proved `i < n`) from a `FixedArray n T` value.
+    FixedArrayGet { layout: u32, elem_layout: u32, stride: u64 },
+    /// Stack-allocate a `withLocal` cell of `layout` initialized with `init`, yielding a native `ptr`.
+    /// When `immortal_header` is true (scalar `withLocal`), reserves an 8-byte zeroed immortal header
+    /// before the payload so the pointer is also compatible with existing `Class::Obj` `Mut` callees.
+    StackAlloc { layout: u32, immortal_header: bool },
+    /// Load a value (`layout`) from a native place `ptr` at byte `offset`.
+    PlaceLoad { layout: u32, offset: u64 },
+    /// Store a value (`layout`) into a native place `ptr` at byte `offset`, yielding `Unit`.
+    PlaceStore { layout: u32, offset: u64 },
+    /// Compute an interior place pointer `gep i8, ptr %base, i64 offset`.
+    PlaceGep { offset: u64 },
+    /// Compute an interior element pointer `gep i8, ptr %base, i64 (idx * stride)`.
+    PlaceIndex { stride: u64 },
+    /// Extract a native LLVM `ptr` (`Borrowed a` / `RawPtr a`) from a place-backed `Ref`/`Mut`.
+    RefAsPtr,
+}
+
+impl ValOp {
+    pub fn arity(self) -> usize {
+        match self {
+            ValOp::Construct { arity, .. } => arity as usize,
+            ValOp::Proj { .. }
+            | ValOp::FixedArrayRepeat { .. }
+            | ValOp::StackAlloc { .. }
+            | ValOp::PlaceLoad { .. }
+            | ValOp::PlaceGep { .. }
+            | ValOp::RefAsPtr => 1,
+            ValOp::FixedArrayGet { .. }
+            | ValOp::PlaceStore { .. }
+            | ValOp::PlaceIndex { .. } => 2,
+        }
+    }
+
+    pub fn is_effectful(self) -> bool {
+        matches!(
+            self,
+            ValOp::StackAlloc { .. } | ValOp::PlaceLoad { .. } | ValOp::PlaceStore { .. }
+        )
+    }
+
+    pub fn symbol(self) -> String {
+        match self {
+            ValOp::Construct { layout, .. } => format!("cinch.val.construct.{layout}"),
+            ValOp::Proj { layout, offset, .. } => format!("cinch.val.proj.{layout}.{offset}"),
+            ValOp::FixedArrayRepeat { layout } => format!("cinch.val.repeat.{layout}"),
+            ValOp::FixedArrayGet { layout, .. } => format!("cinch.val.aget.{layout}"),
+            ValOp::StackAlloc { layout, .. } => format!("cinch.val.alloca.{layout}"),
+            ValOp::PlaceLoad { layout, offset } => format!("cinch.val.pload.{layout}.{offset}"),
+            ValOp::PlaceStore { layout, offset } => format!("cinch.val.pstore.{layout}.{offset}"),
+            ValOp::PlaceGep { offset } => format!("cinch.val.gep.{offset}"),
+            ValOp::PlaceIndex { stride } => format!("cinch.val.idx.{stride}"),
+            ValOp::RefAsPtr => "cinch.val.refAsPtr".to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
+    /// Inline unboxed POD value, `FixedArray`, and stack-place operations.
+    Value(ValOp),
     /// Automatic differentiation (`jvp2`/`vjp2`), lowered to pure Core before array IR & RC.
     Ad { op: AdOp, classes: [Class; 2] },
     /// Immutable typed arrays, specialized by element representation.
@@ -1439,6 +1533,7 @@ impl PrimOp {
     pub fn symbol(self) -> String {
         use PrimOp::*;
         let n = match self {
+            Value(op) => return op.symbol(),
             Ad { op, .. } => return format!("cinch.ad.{}", op.name()),
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             ArrayCompute { op, .. } => return format!("cinch.runtime.{}", op.name()),
@@ -1543,6 +1638,7 @@ impl PrimOp {
     pub fn arity(self) -> usize {
         use PrimOp::*;
         match self {
+            Value(op) => op.arity(),
             Ad { op, .. } => op.sig().0.len(),
             Array { op, packed, .. } => op.sig(packed).0.len(),
             ArrayCompute { op, .. } => op.sig().0.len(),
@@ -1643,6 +1739,7 @@ impl PrimOp {
             Atomic(op) => op.sig(),
             RwLock { op, .. } => op.sig(),
             Slots { op, .. } => op.sig(),
+            Value(_) => (Vec::new(), Ty::Unit),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
             }
@@ -3091,6 +3188,11 @@ pub enum Crossing {
     /// says how the narrowed value extends back into the slot: an `Int`
     /// immediate sign-extends, a pointer or a `Nat` zero-extends.
     Csize { signed: bool },
+    /// A native LLVM `ptr` crossing: pointer roles (`RawPtr`, `Borrowed`,
+    /// `Retained`, `Owned`, `Out`, `MaybeNull`) and opaque handles keep
+    /// pointer provenance across direct calls, `prim` bodies, and foreign
+    /// bindings without assuming pointers are `i64`.
+    Ptr,
 }
 
 /// One definition's facts for the LLVM contract surface (the plan note
@@ -3391,6 +3493,10 @@ pub struct AbiParam {
     /// field plan: the field plan stores bits, while the classifier
     /// needs to know which bits live in a float register.
     pub leaves: Vec<CLeaf>,
+    /// When this aggregate is a POD `#[repr(value)]` type, its interned
+    /// `ValueLayout` id in `Program::value_layouts` (marshaled directly
+    /// without heap boxing).
+    pub value_layout: Option<u32>,
 }
 
 /// One machine scalar inside a C aggregate, as the target's calling
@@ -3474,6 +3580,12 @@ pub struct UnitRepr {
     /// constructor that the unit itself names (tuples) and for every
     /// other unit.
     pub data: Option<String>,
+    /// For functions with unboxed POD value parameters (`#[repr(value)]` or
+    /// `FixedArray n a`), the interned `ValueLayout` id per parameter slot.
+    pub value_params: Vec<Option<u32>>,
+    /// For functions returning an unboxed POD value type, its interned
+    /// `ValueLayout` id in `Program::value_layouts`.
+    pub value_result: Option<u32>,
 }
 
 #[derive(Clone, Debug)]
@@ -3602,6 +3714,9 @@ pub struct Program {
     /// meet at link time. Empty for a whole program, where every module is
     /// simply emitted.
     pub private_modules: Vec<String>,
+    /// Interned POD unboxed value layouts (`#[repr(value)]`, `FixedArray`,
+    /// and `withLocal` cells) referenced by `ValueLayoutId` (`u32`).
+    pub value_layouts: Vec<ValueLayout>,
 }
 
 /// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
@@ -3637,6 +3752,7 @@ impl Program {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            value_layouts: Vec::new(),
         }
     }
 
@@ -3676,6 +3792,7 @@ impl Program {
             borrowed: self.borrowed.clone(),
             lent_entries: self.lent_entries.clone(),
             private_modules: self.private_modules.clone(),
+            value_layouts: self.value_layouts.clone(),
         }
     }
 }
@@ -3816,6 +3933,10 @@ pub enum PrimAbiTy {
     Int { bits: u32, signed: bool },
     F32,
     F64,
+    /// A native target pointer (`ptr` in LLVM IR, target pointer width in bytes).
+    Ptr,
+    /// A `Unit` return (`void` in LLVM IR).
+    Unit,
 }
 
 /// A checked `prim` (primitive operations and inline target IR
@@ -7238,6 +7359,7 @@ impl<'a> Driver<'a> {
                 data: None,
                 result: None,
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
         // Rebuild the producer: the map stages collapse into the composed
@@ -9337,6 +9459,7 @@ mod tests {
             lent_entries: Default::default(),
             private_modules: Vec::new(),
             inline: Default::default(),
+            value_layouts: Vec::new(),
         };
         for reverse in [false, true] {
             if reverse { program.fns.reverse(); }
@@ -9395,6 +9518,7 @@ mod tests {
             lent_entries: Default::default(),
             private_modules: Vec::new(),
             inline: Default::default(),
+            value_layouts: Vec::new(),
         };
         share_repeated_subterms(&mut program);
         assert_eq!(program.fns.len(), 2);

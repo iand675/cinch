@@ -8,7 +8,7 @@ module Cinch.Export where
   import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, TemporalRow, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Cinch.Unpack (unpacked-abi)
   import Cinch.Logical (specification-names)
-  import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
+  import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
   import Cinch.Typing (task-source-forwarder, task-forwarder-type)
   import Cinch.Core (CoreTerm, CLocal, CUse, CApply, CApplyEff, CRequire, CDischarge, CorePattern, CPVar, CPWild, CoreClause)
   import Cinch.Guarded (check-guarded-binding)
@@ -980,6 +980,15 @@ module Cinch.Export where
       UniformData -> more
       layout -> (case export-global (core-data-name d) of Ok identity -> hash-map-insert identity layout more; Err message -> more)
 
+  value-abi-fields :: List ValueField -> Json
+  value-abi-fields fs = case fs of
+    [] -> JArrEnd
+    f : rest ->
+      let row = JObj "name" (JStr (f.vf-name)) (JObj "offset" (JNum (nat-to-int (f.vf-offset))) (JObj "size" (JNum (nat-to-int (f.vf-size))) (JObj "align" (JNum (nat-to-int (f.vf-align))) JObjEnd))) in
+      JArr row (value-abi-fields rest)
+  value-abi :: String -> Nat -> Nat -> List ValueField -> Json
+  value-abi repr size align fs =
+    JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (value-abi-fields fs) (JObj "repr" (JStr repr) JObjEnd)))
   wrapper-abi :: String -> String -> Nat -> Nat -> Json
   wrapper-abi repr label size align = let offset = JObj "offset" (JNum 0) (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) JObjEnd)) in
     JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (JArr (JObj "name" (JStr label) offset) JArrEnd) (JObj "repr" (JStr repr) JObjEnd)))
@@ -989,6 +998,7 @@ module Cinch.Export where
           Some (UnpackedRecord slots) -> unpacked-abi slots
           Some (UnboxedData label word size align) -> wrapper-abi "unboxed" label size align
           Some (TransparentData label size align) -> wrapper-abi "transparent" label size align
+          Some (ValueData repr size align fs) -> value-abi repr size align fs
           other -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd)))) in
       JArr (JObj "type" (field "name" row) layout) (layouts index rest)
     other -> JArrEnd

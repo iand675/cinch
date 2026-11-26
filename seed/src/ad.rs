@@ -732,6 +732,7 @@ impl AdContext {
                     data: None,
                     result: Some(Class::Obj),
                     dictionary_values: Vec::new(),
+                    ..Default::default()
                 },
             });
         }
@@ -756,6 +757,7 @@ impl AdContext {
                     data: Some("Data.Core.Option".into()),
                     result: Some(Class::Obj),
                     dictionary_values: Vec::new(),
+                    ..Default::default()
                 },
             });
         }
@@ -776,6 +778,7 @@ impl AdContext {
                     data: Some("Data.Core.Option".into()),
                     result: Some(Class::Obj),
                     dictionary_values: Vec::new(),
+                    ..Default::default()
                 },
             });
         }
@@ -1928,6 +1931,7 @@ impl AdContext {
                 data: None,
                 result: Some(result_class),
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
 
@@ -2928,6 +2932,7 @@ impl AdContext {
                             data: None,
                             result: Some(Class::Raw),
                             dictionary_values: Vec::new(),
+                            ..Default::default()
                         },
                     });
                     let mapper = Core::Lam { fn_id: helper_id, env: cap_vals, classes: Vec::new() };
@@ -3008,6 +3013,7 @@ impl AdContext {
                                 data: None,
                                 result: Some(Class::Raw),
                                 dictionary_values: Vec::new(),
+                                ..Default::default()
                             },
                         });
                         let tab_fn = Core::Lam { fn_id: helper_id, env: cap_vals, classes: Vec::new() };
@@ -3186,6 +3192,7 @@ impl AdContext {
                 data: None,
                 result: Some(Class::Obj), // returns `(primal_res, pullback_closure)`
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
 
@@ -3294,6 +3301,7 @@ impl AdContext {
                 data: None,
                 result: Some(Class::Obj), // returns `(primal_y, dx)`
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
 
@@ -4057,6 +4065,7 @@ impl AdContext {
                         data: None,
                         result: Some(out_cls),
                         dictionary_values: Vec::new(),
+                        ..Default::default()
                     },
                 });
                 let rewritten_rest = replace_jump_with_call(rest, *id, &join_fn_id, &cap_args);
@@ -4330,6 +4339,7 @@ impl AdContext {
                 data: None,
                 result: Some(pb_ret_cls),
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
 
@@ -4599,6 +4609,7 @@ impl AdContext {
                         data: None,
                         result: Some(Class::Raw),
                         dictionary_values: Vec::new(),
+                        ..Default::default()
                     },
                 });
                 let mapper = if g_cap.is_empty() {
@@ -4908,6 +4919,7 @@ impl AdContext {
                 data: None,
                 result: Some(pb_ret_cls),
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
 

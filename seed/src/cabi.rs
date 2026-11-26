@@ -473,6 +473,7 @@ mod tests {
             tag: 0,
             fields: Vec::new(),
             leaves,
+            value_layout: None,
         }
     }
 

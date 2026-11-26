@@ -838,11 +838,18 @@ fn emit_module(
     // layout types where an aggregate crosses `byval`/`sret`), one
     // marshalling wrapper per import, and one C-callable entry per
     // export.
-    if !program.foreigns.is_empty() {
+    if !program.foreigns.is_empty() || !program.value_layouts.is_empty() {
         let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
         out.push_str(&format!(
             "declare void @llvm.memset.p0.{size_ty}(ptr, i8, {size_ty}, i1)\n"
         ));
+        if !program.value_layouts.is_empty() {
+            out.push_str(&format!(
+                "declare void @llvm.memcpy.p0.p0.{size_ty}(ptr, ptr, {size_ty}, i1)\n"
+            ));
+        }
+    }
+    if !program.foreigns.is_empty() {
         out.push_str(&format!(
             "@__cinch_ffi_nn = internal constant [{} x i8] c\"{}\"\n",
             FFI_NULL_MSG.len(),
@@ -903,13 +910,18 @@ fn emit_module(
             }
             // A unit another module defines is declared with the
             // boundary its definition has, narrowed or not.
-            let sig = reg.narrow_sigs.get(&f.id.0);
-            let params = (0..f.arity())
-                .map(|i| sig.map_or(Cross::WORD, |s| s.param(i)).ty())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let ret = sig.map_or(Cross::WORD, |s| s.ret).ty();
-            out.push_str(&format!("declare {ret} @{}({params})\n", quote(&f.id.0)));
+            if let Some(vsig) = reg.val_sigs.get(&f.id.0) {
+                let sig = reg.narrow_sigs.get(&f.id.0);
+                out.push_str(&format!("{}\n", fn_declare_val(&f.id.0, f.arity(), sig, vsig, &reg.value_layouts)));
+            } else {
+                let sig = reg.narrow_sigs.get(&f.id.0);
+                let params = (0..f.arity())
+                    .map(|i| sig.map_or(Cross::WORD, |s| s.param(i)).ty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let ret = sig.map_or(Cross::WORD, |s| s.ret).ty();
+                out.push_str(&format!("declare {ret} @{}({params})\n", quote(&f.id.0)));
+            }
             // Its worker, which this module's direct calls reach when the
             // unit is widened or lends parameters across the boundary.
             if let Some(&width) = reg.tail_width.get(&f.id.0) {
@@ -1417,6 +1429,10 @@ struct Registry {
     /// then need the count paths' frame arms even though they build no
     /// frame block of their own.
     frame_received: bool,
+    /// Interned POD unboxed value layouts (`Program::value_layouts`).
+    value_layouts: Vec<crate::core::ValueLayout>,
+    /// Units with at least one unboxed POD value parameter or return value.
+    val_sigs: HashMap<String, ValueSig>,
 }
 
 impl Registry {
@@ -2037,26 +2053,56 @@ impl Registry {
             }
         }
         // Inline primitive wrappers keep their canonical word ABI except at
-        // declared wide positions. The fragment's i128 values cross those
-        // boundaries directly; closure frames use the ordinary wide boxing path.
+        // declared wide (`i128`) and native pointer (`ptr`) positions.
         for plan in &p.prims {
-            let cross = |t: &PrimAbiTy| {
-                if inline_prim_class(t) == Class::Wide { Cross::WIDE } else { Cross::WORD }
+            let cross = |t: &PrimAbiTy| match t {
+                PrimAbiTy::Int { bits: 128, .. } => Cross::WIDE,
+                PrimAbiTy::Ptr => Cross::PTR,
+                _ => Cross::WORD,
             };
             let sig = NarrowSig { params: plan.args.iter().map(cross).collect(), ret: cross(&plan.res) };
-            if sig.is_wide() {
+            if !sig.is_word() {
                 reg.narrow_sigs.insert(plan.unit.clone(), sig);
             }
         }
-        // A foreign import's wrapper takes and gives a `__int128` as the
-        // `i128` it is in every wide position.
+        reg.value_layouts = p.value_layouts.clone();
+        for f in &p.fns {
+            if f.repr.value_params.iter().any(|v| v.is_some()) || f.repr.value_result.is_some() {
+                reg.val_sigs.insert(
+                    f.id.0.clone(),
+                    ValueSig {
+                        params: f.repr.value_params.clone(),
+                        ret: f.repr.value_result,
+                    },
+                );
+                reg.tail_width.remove(&f.id.0);
+                reg.tailcc.remove(&f.id.0);
+                reg.cpr.remove(&f.id.0);
+            }
+        }
+        // A foreign import's wrapper takes and gives a `__int128` as `i128`
+        // in wide positions, a native LLVM `ptr` in pointer positions, and
+        // unboxed POD value structs directly without heap boxing.
         for (name, plan) in &p.foreigns {
             if plan.export || plan.canon.is_some() {
                 continue;
             }
-            let wide = |a: &AbiParam| if matches!(a.class, AbiClass::Scalar(s) if s.is_wide()) { Cross::WIDE } else { Cross::WORD };
-            let sig = NarrowSig { params: plan.params.iter().map(wide).collect(), ret: wide(&plan.result) };
-            if sig.is_wide() {
+            if plan.params.iter().any(|a| a.value_layout.is_some()) || plan.result.value_layout.is_some() {
+                reg.val_sigs.insert(
+                    name.clone(),
+                    ValueSig {
+                        params: plan.params.iter().map(|a| a.value_layout).collect(),
+                        ret: plan.result.value_layout,
+                    },
+                );
+            }
+            let cross = |a: &AbiParam| match &a.class {
+                AbiClass::Scalar(s) if s.is_wide() => Cross::WIDE,
+                AbiClass::Ptr => Cross::PTR,
+                _ => Cross::WORD,
+            };
+            let sig = NarrowSig { params: plan.params.iter().map(cross).collect(), ret: cross(&plan.result) };
+            if !sig.is_word() {
                 reg.narrow_sigs.insert(name.clone(), sig);
             }
         }
@@ -2577,7 +2623,7 @@ fn foreign_param_classes(plan: &ForeignPlan) -> Vec<Class> {
             .params
             .iter()
             .map(|a| {
-                if matches!(a.class, AbiClass::Aggregate) {
+                if matches!(a.class, AbiClass::Aggregate) && a.value_layout.is_none() {
                     Class::Obj
                 } else if matches!(a.class, AbiClass::Scalar(s) if s.is_wide()) {
                     Class::Wide
@@ -4634,9 +4680,10 @@ fn build_unit(
         // positions (`NarrowSig::of_wide_prim`); every other primitive's
         // boundary is the word.
         UnitBody::Prim(op) if op.touches_wide() => reg.narrow_sigs.get(name),
-        // A constructor with a wide field takes that field as an `i128`, and
-        // a foreign wrapper a wide scalar.
-        UnitBody::Ctor(_) | UnitBody::Foreign(_) => reg.narrow_sigs.get(name).filter(|s| s.is_wide()),
+        // A constructor with a wide field takes that field as an `i128`;
+        // a foreign wrapper takes and gives wide scalars and native pointers.
+        UnitBody::Ctor(_) => reg.narrow_sigs.get(name).filter(|s| s.is_wide()),
+        UnitBody::Foreign(_) => reg.narrow_sigs.get(name),
         _ => None,
     };
     match &body {
@@ -4812,16 +4859,21 @@ fn build_unit(
     let tailcc = fn_body && reg.tailcc.contains(name);
     let cpr = if fn_body { reg.cpr.get(name) } else { None };
     let cc = if tailcc { "tailcc " } else { "" };
-    let header = match cpr {
-        // A product result's body returns the constructor's fields: the
-        // header's result is the aggregate, and a word's `range` does not
-        // apply to it.
-        Some(cpr) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
-            .replacen("define i64 ", &format!("define {cc}{} ", cpr.ty()), 1),
-        None if tailcc => {
-            fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
+    let val_sig = reg.val_sigs.get(name);
+    let header = if let Some(vsig) = val_sig {
+        fn_header_val(name, arity, &noundef_params, narrow, vsig, &reg.value_layouts)
+    } else {
+        match cpr {
+            // A product result's body returns the constructor's fields: the
+            // header's result is the aggregate, and a word's `range` does not
+            // apply to it.
+            Some(cpr) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
+                .replacen("define i64 ", &format!("define {cc}{} ", cpr.ty()), 1),
+            None if tailcc => {
+                fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
+            }
+            None => fn_header(name, arity, ret_range, &noundef_params, narrow),
         }
-        None => fn_header(name, arity, ret_range, &noundef_params, narrow),
     };
     // The C wrapper keeps the unit's boundary exactly as it was, narrowed
     // positions included: the object ABI, a foreign consumer and the JIT
@@ -4886,7 +4938,7 @@ fn build_unit(
     }
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
-    let worker = matches!(body, UnitBody::TailWorker(_));
+    let worker = matches!(body, UnitBody::TailWorker(_)) || val_sig.is_some();
     Ok(EmittedUnit {
         name: name.to_string(),
         hints,
@@ -4911,6 +4963,204 @@ fn build_unit(
         scan,
         lang_facts: lang,
     })
+}
+
+/// Calling convention for an unboxed POD value type (`#[repr(value)]` or `FixedArray`):
+/// - `size == 0`: zero-sized (`i64 0`).
+/// - `1..=8` bytes, `align <= 16`: 1 GP register (`i64`).
+/// - `9..=16` bytes, `align <= 16`: 2 GP registers (`{ i64, i64 }`).
+/// - `size > 16` or `align > 16`: passed by readonly aligned pointer, returned by hidden `sret` pointer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ValueAbi {
+    Zero,
+    SmallWord,
+    SmallPair,
+    Indirect { size: u64, align: u64 },
+}
+
+impl ValueAbi {
+    fn of(l: &crate::core::ValueLayout) -> Self {
+        if l.size == 0 {
+            ValueAbi::Zero
+        } else if l.size <= 8 && l.align <= 16 {
+            ValueAbi::SmallWord
+        } else if l.size <= 16 && l.align <= 16 {
+            ValueAbi::SmallPair
+        } else {
+            ValueAbi::Indirect { size: l.size, align: l.align.max(1) }
+        }
+    }
+
+    fn is_indirect(self) -> bool {
+        matches!(self, ValueAbi::Indirect { .. })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ValueSig {
+    params: Vec<Option<u32>>,
+    ret: Option<u32>,
+}
+
+impl ValueSig {
+    fn param(&self, i: usize) -> Option<u32> {
+        self.params.get(i).copied().flatten()
+    }
+}
+
+fn fn_header_val(
+    name: &str,
+    arity: usize,
+    noundef_params: &[bool],
+    narrow: Option<&NarrowSig>,
+    vsig: &ValueSig,
+    layouts: &[crate::core::ValueLayout],
+) -> String {
+    let cross = |i: usize| narrow.map_or(Cross::WORD, |s| s.param(i));
+    let mut params: Vec<String> = Vec::new();
+    let ret_ty = match vsig.ret {
+        Some(lid) => match ValueAbi::of(&layouts[lid as usize]) {
+            ValueAbi::Zero | ValueAbi::SmallWord => "i64".to_string(),
+            ValueAbi::SmallPair => "{ i64, i64 }".to_string(),
+            ValueAbi::Indirect { size, align } => {
+                params.push(format!(
+                    "ptr sret([{size} x i8]) noalias align {align} dereferenceable({size}) %sret"
+                ));
+                "void".to_string()
+            }
+        },
+        None => narrow.map_or(Cross::WORD, |s| s.ret).ty().to_string(),
+    };
+    for i in 0..arity {
+        if let Some(lid) = vsig.param(i) {
+            match ValueAbi::of(&layouts[lid as usize]) {
+                ValueAbi::Zero | ValueAbi::SmallWord => params.push(format!("i64 %p{i}")),
+                ValueAbi::SmallPair => params.push(format!("{{ i64, i64 }} %p{i}")),
+                ValueAbi::Indirect { size, align } => params.push(format!(
+                    "ptr readonly align {align} dereferenceable({size}) %p{i}"
+                )),
+            }
+        } else {
+            let ty = cross(i).ty();
+            let nd = if noundef_params.get(i).copied().unwrap_or(false) { " noundef" } else { "" };
+            params.push(format!("{ty}{nd} %p{i}"));
+        }
+    }
+    format!("define {ret_ty} @{}({})", quote(name), params.join(", "))
+}
+
+fn fn_declare_val(
+    name: &str,
+    arity: usize,
+    narrow: Option<&NarrowSig>,
+    vsig: &ValueSig,
+    layouts: &[crate::core::ValueLayout],
+) -> String {
+    let cross = |i: usize| narrow.map_or(Cross::WORD, |s| s.param(i));
+    let mut params: Vec<String> = Vec::new();
+    let ret_ty = match vsig.ret {
+        Some(lid) => match ValueAbi::of(&layouts[lid as usize]) {
+            ValueAbi::Zero | ValueAbi::SmallWord => "i64".to_string(),
+            ValueAbi::SmallPair => "{ i64, i64 }".to_string(),
+            ValueAbi::Indirect { size, align } => {
+                params.push(format!(
+                    "ptr sret([{size} x i8]) noalias align {align} dereferenceable({size})"
+                ));
+                "void".to_string()
+            }
+        },
+        None => narrow.map_or(Cross::WORD, |s| s.ret).ty().to_string(),
+    };
+    for i in 0..arity {
+        if let Some(lid) = vsig.param(i) {
+            match ValueAbi::of(&layouts[lid as usize]) {
+                ValueAbi::Zero | ValueAbi::SmallWord => params.push("i64".to_string()),
+                ValueAbi::SmallPair => params.push("{ i64, i64 }".to_string()),
+                ValueAbi::Indirect { size, align } => {
+                    params.push(format!("ptr readonly align {align} dereferenceable({size})"))
+                }
+            }
+        } else {
+            params.push(cross(i).ty().to_string());
+        }
+    }
+    format!("declare {ret_ty} @{}({})", quote(name), params.join(", "))
+}
+
+fn emit_val_memcpy(b: &mut Builder, dst: &str, src: &str, bytes: u64, align: u64) {
+    if bytes == 0 {
+        return;
+    }
+    let st = b.size_ty();
+    let al = align.max(1);
+    b.line(&format!(
+        "call void @llvm.memcpy.p0.p0.{st}(ptr align {al} {dst}, ptr align {al} {src}, {st} {bytes}, i1 false)"
+    ));
+}
+
+fn emit_val_memset_zero(b: &mut Builder, dst: &str, bytes: u64, align: u64) {
+    if bytes == 0 {
+        return;
+    }
+    let st = b.size_ty();
+    let al = align.max(1);
+    b.line(&format!(
+        "call void @llvm.memset.p0.{st}(ptr align {al} {dst}, i8 0, {st} {bytes}, i1 false)"
+    ));
+}
+
+fn load_val_scalar(b: &mut Builder, ptr: &str, l: &crate::core::ValueLayout) -> (String, Option<String>) {
+    let crate::core::ValueLayoutKind::Scalar { signed, is_ptr, .. } = l.kind else {
+        unreachable!("load_val_scalar requires Scalar layout")
+    };
+    if l.size == 0 {
+        return ("0".to_string(), None);
+    }
+    let al = l.align.max(1);
+    if is_ptr {
+        let p = b.reg();
+        b.line(&format!("{p} = load ptr, ptr {ptr}, align {al}"));
+        let w = Cross::PTR.widen(b, &p);
+        return (w, Some(p));
+    }
+    let bits = l.size * 8;
+    let v = b.reg();
+    b.line(&format!("{v} = load i{bits}, ptr {ptr}, align {al}"));
+    if bits == 64 || bits == 128 {
+        (v, None)
+    } else {
+        let w = b.reg();
+        let ext = if signed { "sext" } else { "zext" };
+        b.line(&format!("{w} = {ext} i{bits} {v} to i64"));
+        (w, None)
+    }
+}
+
+fn store_val_scalar(b: &mut Builder, ptr: &str, l: &crate::core::ValueLayout, val: &str, is_ptr_reg: bool) {
+    let crate::core::ValueLayoutKind::Scalar { is_ptr, .. } = l.kind else {
+        unreachable!("store_val_scalar requires Scalar layout")
+    };
+    if l.size == 0 {
+        return;
+    }
+    let al = l.align.max(1);
+    if is_ptr {
+        let pv = if is_ptr_reg {
+            val.to_string()
+        } else {
+            Cross::PTR.narrow(b, val)
+        };
+        b.line(&format!("store ptr {pv}, ptr {ptr}, align {al}"));
+        return;
+    }
+    let bits = l.size * 8;
+    if bits == 64 || bits == 128 {
+        b.line(&format!("store i{bits} {val}, ptr {ptr}, align {al}"));
+    } else {
+        let t = b.reg();
+        b.line(&format!("{t} = trunc i64 {val} to i{bits}"));
+        b.line(&format!("store i{bits} {t}, ptr {ptr}, align {al}"));
+    }
 }
 
 fn fn_header(
@@ -4943,7 +5193,7 @@ fn fn_header(
         // `i32` cannot spell, and the narrowed type itself already
         // implies the whole range, so the attribute is dropped rather
         // than emitted malformed.
-        (false, Some((lo, hi))) if lo < hi && range_fits(lo, hi, ret_cross.bits) => {
+        (false, Some((lo, hi))) if !ret_cross.is_ptr() && lo < hi && range_fits(lo, hi, ret_cross.bits) => {
             format!("range({} {lo}, {hi}) {}", ret_cross.ty(), ret_cross.ty())
         }
         (false, _) => ret_cross.ty().to_string(),
@@ -5025,67 +5275,107 @@ struct Cross {
     /// pointer, a `Nat` and an unsigned scalar zero-extend, and a float
     /// zero-extends its bits.
     sext: bool,
+    /// Native LLVM `ptr` crossing: preserves pointer provenance across direct
+    /// calls, `prim` bodies, and foreign bindings without assuming pointers
+    /// are `i64`.
+    ptr: bool,
 }
 
 impl Cross {
-    const WORD: Cross = Cross { bits: 64, sext: false };
+    const WORD: Cross = Cross { bits: 64, sext: false, ptr: false };
     /// A wide position (`Class::Wide`, design/wide-scalars.md): the value
     /// is an `i128` on both sides of the boundary and in the body, so
     /// crossing converts nothing. Unlike a narrowed position it is not an
     /// optimisation the registry may drop; it is the value's own type.
-    const WIDE: Cross = Cross { bits: 128, sext: false };
+    const WIDE: Cross = Cross { bits: 128, sext: false, ptr: false };
+    /// A native LLVM `ptr` crossing.
+    const PTR: Cross = Cross { bits: 64, sext: false, ptr: true };
 
     /// `n` resolved on a target whose pointers are `pointer_bytes` wide:
     /// a `csize` crossing is the slot unless the pointer is narrower.
     fn of(n: Option<crate::core::Crossing>, pointer_bytes: usize) -> Cross {
         use crate::core::Crossing;
         match n {
-            Some(Crossing::Bits { bits, signed }) => Cross { bits, sext: signed },
+            Some(Crossing::Bits { bits, signed }) => Cross { bits, sext: signed, ptr: false },
             Some(Crossing::Csize { signed }) if pointer_bytes < 8 => {
-                Cross { bits: pointer_bytes as u32 * 8, sext: signed }
+                Cross { bits: pointer_bytes as u32 * 8, sext: signed, ptr: false }
             }
+            Some(Crossing::Ptr) => Cross::PTR,
             _ => Cross::WORD,
         }
     }
 
     fn is_word(self) -> bool {
-        self.bits == 64
+        !self.ptr && self.bits == 64
     }
 
     fn is_wide(self) -> bool {
-        self.bits == 128
+        !self.ptr && self.bits == 128
+    }
+
+    fn is_ptr(self) -> bool {
+        self.ptr
     }
 
     /// A narrowed position: fewer bits than the word.
     fn is_narrow(self) -> bool {
-        self.bits < 64
+        !self.ptr && self.bits < 64
     }
 
     fn ty(self) -> &'static str {
-        narrow_llvm_ty(self.bits)
+        if self.ptr {
+            "ptr"
+        } else {
+            narrow_llvm_ty(self.bits)
+        }
     }
 
     /// The slot word of a value that crossed at this width (a wide value
     /// is its own slot value).
     fn widen(self, b: &mut Builder, v: &str) -> String {
-        if !self.is_narrow() {
-            return v.to_string();
+        if self.ptr {
+            let pty = b.size_ty();
+            let i = b.reg();
+            b.line(&format!("{i} = ptrtoint ptr {v} to {pty}"));
+            if b.pointer_bytes < 8 {
+                let w = b.reg();
+                b.line(&format!("{w} = zext {pty} {i} to i64"));
+                w
+            } else {
+                i
+            }
+        } else if !self.is_narrow() {
+            v.to_string()
+        } else {
+            let ext = if self.sext { "sext" } else { "zext" };
+            let w = b.reg();
+            b.line(&format!("{w} = {ext} {} {v} to i64", self.ty()));
+            w
         }
-        let ext = if self.sext { "sext" } else { "zext" };
-        let w = b.reg();
-        b.line(&format!("{w} = {ext} {} {v} to i64", self.ty()));
-        w
     }
 
     /// The narrowed value of the slot word `v`. Every value of a narrowed
     /// position fits its width, so the truncation drops nothing.
     fn narrow(self, b: &mut Builder, v: &str) -> String {
-        if !self.is_narrow() {
-            return v.to_string();
+        if self.ptr {
+            let pty = b.size_ty();
+            let src = if b.pointer_bytes < 8 {
+                let t = b.reg();
+                b.line(&format!("{t} = trunc i64 {v} to {pty}"));
+                t
+            } else {
+                v.to_string()
+            };
+            let p = b.reg();
+            b.line(&format!("{p} = inttoptr {pty} {src} to ptr"));
+            p
+        } else if !self.is_narrow() {
+            v.to_string()
+        } else {
+            let w = b.reg();
+            b.line(&format!("{w} = trunc i64 {v} to {}", self.ty()));
+            w
         }
-        let w = b.reg();
-        b.line(&format!("{w} = trunc i64 {v} to {}", self.ty()));
-        w
     }
 }
 
@@ -7663,6 +7953,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             arrays_codegen::emit_compute(b, reg, name, op, compute_op)
         }
         Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
+        Value(_) => unreachable!("inline ValOp is lowered directly in CoreEmitter"),
         MVar { op: mvar_op, classes } => mvar_codegen::emit(b, reg, name, op, mvar_op, classes),
         Atomic(atomic_op) => sync_codegen::emit_atomic(b, atomic_op),
         RwLock { op: rw_op, classes } => sync_codegen::emit_rwlock(b, reg, name, op, rw_op, classes),
@@ -9194,19 +9485,28 @@ fn load_stored_value(
             }
         }
         FieldShape::Word { align } => {
-            let al = if *align > 1 {
-                format!(", !align {}", reg.meta_node(format!("!{{i64 {align}}}")))
+            if fa.size == reg.pointer_bytes as u64 {
+                let al = if *align > 1 {
+                    format!(", !align {}", reg.meta_node(format!("!{{i64 {align}}}")))
+                } else {
+                    String::new()
+                };
+                let v = b.reg();
+                b.line(&format!("{v} = load ptr, ptr {p}, align 1{al}"));
+                let w = Cross::PTR.widen(b, &v);
+                if freeze {
+                    freeze_word(b, &w)
+                } else {
+                    w
+                }
             } else {
-                String::new()
-            };
-            let v = b.reg();
-            b.line(&format!("{v} = load ptr, ptr {p}, align 1{al}"));
-            let w = b.reg();
-            b.line(&format!("{w} = ptrtoint ptr {v} to i64"));
-            if freeze {
-                freeze_word(b, &w)
-            } else {
-                w
+                let v = b.reg();
+                b.line(&format!("{v} = load i64, ptr {p}, align 1"));
+                if freeze {
+                    freeze_word(b, &v)
+                } else {
+                    v
+                }
             }
         }
         FieldShape::Inline { .. } => {
@@ -9275,7 +9575,12 @@ fn store_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAc
         }
         FieldShape::Word { .. } => {
             let p = b.gep(payload, fa.offset as usize);
-            b.line(&format!("store i64 {val}, ptr {p}, align 1"));
+            if fa.size == reg.pointer_bytes as u64 {
+                let pv = Cross::PTR.narrow(b, val);
+                b.line(&format!("store ptr {pv}, ptr {p}, align 1"));
+            } else {
+                b.line(&format!("store i64 {val}, ptr {p}, align 1"));
+            }
         }
         FieldShape::Inline { fields, .. } => {
             // The value is a nested block: copy its payload in.
@@ -9313,7 +9618,12 @@ fn copy_field_exact(
         FieldShape::Word { .. } => {
             let w = load_stored_value(b, reg, src, src_off + fa.offset, fa, freeze);
             let dp = b.gep(dst, (dst_off + fa.offset) as usize);
-            b.line(&format!("store i64 {w}, ptr {dp}, align 1"));
+            if fa.size == reg.pointer_bytes as u64 && reg.pointer_bytes < 8 {
+                let pv = Cross::PTR.narrow(b, &w);
+                b.line(&format!("store ptr {pv}, ptr {dp}, align 1"));
+            } else {
+                b.line(&format!("store i64 {w}, ptr {dp}, align 1"));
+            }
             return;
         }
         FieldShape::Inline { fields, .. } => {
@@ -9777,8 +10087,7 @@ fn foreign_import_body(
                 args.push(word_to_c(b, *s, cx.usize_bits, &format!("%p{i}")));
             }
             AbiClass::Ptr => {
-                let v = b.reg();
-                b.line(&format!("{v} = inttoptr i64 %p{i} to ptr"));
+                let v = format!("%p{i}");
                 if !p.nullable {
                     check_non_null(b, &v, &fault);
                     any_check = true;
@@ -9788,21 +10097,40 @@ fn foreign_import_body(
                 args.push(v);
             }
             AbiClass::Aggregate => {
-                // A call-scoped C-layout copy of the block payload, laid
-                // out and aligned as the recorded layout says (and long
-                // enough for every register piece's load). Zeroed first,
-                // so its padding crosses as zero bits, not stack bytes.
+                // A call-scoped C-layout copy of the payload, laid out and
+                // aligned as the recorded layout says. For `#[repr(value)]`
+                // aggregates, the bytes come directly from the unboxed stack
+                // or register argument with zero heap boxing.
                 let pass = crossing.params[i].as_ref();
                 let bytes = pass.map_or(p.width, |pass| pass.buffer_bytes(p));
                 let direct = matches!(pass, Some(ParamPass::Direct(_)));
                 let buf = b.alloca_bytes(bytes, copy_align(p, direct));
                 zero_bytes(b, cx, &buf, bytes);
                 assume_layout(b, &buf, p.align, p.width);
-                let blk = b.reg();
-                b.line(&format!("{blk} = inttoptr i64 %p{i} to ptr"));
-                let payload = blk.clone();
-                for fa in &p.fields {
-                    copy_field_exact(b, reg, &buf, 0, &payload, 0, fa, false);
+                if let Some(lid) = p.value_layout {
+                    let vl = &reg.value_layouts[lid as usize];
+                    match ValueAbi::of(vl) {
+                        ValueAbi::Zero => {}
+                        ValueAbi::SmallWord => {
+                            let tmp = b.alloca_bytes(8, vl.align.max(8));
+                            b.line(&format!("store i64 %p{i}, ptr {tmp}, align 8"));
+                            emit_val_memcpy(b, &buf, &tmp, p.width, 1);
+                        }
+                        ValueAbi::SmallPair => {
+                            let tmp = b.alloca_bytes(16, vl.align.max(8));
+                            b.line(&format!("store {{ i64, i64 }} %p{i}, ptr {tmp}, align 8"));
+                            emit_val_memcpy(b, &buf, &tmp, p.width, 1);
+                        }
+                        ValueAbi::Indirect { .. } => {
+                            emit_val_memcpy(b, &buf, &format!("%p{i}"), p.width, 1);
+                        }
+                    }
+                } else {
+                    let blk = Cross::PTR.narrow(b, &format!("%p{i}"));
+                    let payload = blk.clone();
+                    for fa in &p.fields {
+                        copy_field_exact(b, reg, &buf, 0, &payload, 0, fa, false);
+                    }
                 }
                 match pass {
                     // D66's const-pointer, and the conventions' own
@@ -9876,10 +10204,9 @@ fn foreign_import_body(
                 any_check = true;
                 assume_ptr(b, &r, &plan.result);
             }
-            let w = b.reg();
-            b.line(&format!("{w} = ptrtoint ptr {r} to i64"));
-            let w = freeze_word(b, &w);
-            b.line(&format!("ret i64 {w}"));
+            let fr = b.reg();
+            b.line(&format!("{fr} = freeze ptr {r}"));
+            b.line(&format!("ret ptr {fr}"));
         }
         AbiClass::Aggregate => {
             // The by-value result crosses through the caller's result
@@ -9915,21 +10242,48 @@ fn foreign_import_body(
                     b.line(&format!("store {ty} {r}, ptr {buf}, align 8"));
                 }
             }
-            // The block holds C bytes: no word in it is a reference this
-            // program owns, so none is counted.
-            let blk = b.reg();
-            b.line(&ctor_alloc_call(
-                &blk,
-                plan.result.width,
-                reg.raw_shape_desc(plan.result.width.div_ceil(8), plan.result.tag as u64),
-            ));
-            let payload = blk.clone();
-            for fa in &plan.result.fields {
-                copy_field_exact(b, reg, &payload, 0, &buf, 0, fa, true);
+            if let Some(lid) = plan.result.value_layout {
+                let vl = &reg.value_layouts[lid as usize];
+                match ValueAbi::of(vl) {
+                    ValueAbi::Zero => b.line("ret i64 0"),
+                    ValueAbi::SmallWord => {
+                        let tmp = b.alloca_bytes(8, vl.align.max(8));
+                        b.line(&format!("store i64 0, ptr {tmp}, align 8"));
+                        emit_val_memcpy(b, &tmp, &buf, plan.result.width, 1);
+                        let r = b.reg();
+                        b.line(&format!("{r} = load i64, ptr {tmp}, align 8"));
+                        let fr = freeze_word(b, &r);
+                        b.line(&format!("ret i64 {fr}"));
+                    }
+                    ValueAbi::SmallPair => {
+                        let tmp = b.alloca_bytes(16, vl.align.max(8));
+                        emit_val_memset_zero(b, &tmp, 16, 8);
+                        emit_val_memcpy(b, &tmp, &buf, plan.result.width, 1);
+                        let r = b.reg();
+                        b.line(&format!("{r} = load {{ i64, i64 }}, ptr {tmp}, align 8"));
+                        b.line(&format!("ret {{ i64, i64 }} {r}"));
+                    }
+                    ValueAbi::Indirect { .. } => {
+                        emit_val_memcpy(b, "%sret", &buf, plan.result.width, 1);
+                        b.line("ret void");
+                    }
+                }
+            } else {
+                // The block holds C bytes: no word in it is a reference this
+                // program owns, so none is counted.
+                let blk = b.reg();
+                b.line(&ctor_alloc_call(
+                    &blk,
+                    plan.result.width,
+                    reg.raw_shape_desc(plan.result.width.div_ceil(8), plan.result.tag as u64),
+                ));
+                let payload = blk.clone();
+                for fa in &plan.result.fields {
+                    copy_field_exact(b, reg, &payload, 0, &buf, 0, fa, true);
+                }
+                let w = Cross::PTR.widen(b, &blk);
+                ret(b, &w);
             }
-            let w = b.reg();
-            b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
-            ret(b, &w);
         }
     }
     if any_check {
@@ -9956,6 +10310,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     use crate::cabi::{ParamPass, ResultPass};
     let crossing = foreign_crossing(plan, reg)?;
     let mut b = Builder::new();
+    b.pointer_bytes = reg.pointer_bytes;
     let fault = b.label();
     let mut any_check = false;
     let mut params: Vec<String> = Vec::new();
@@ -9988,8 +10343,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                     any_check = true;
                     assume_ptr(&mut b, &n, p);
                 }
-                let w = b.reg();
-                b.line(&format!("{w} = ptrtoint ptr {n} to i64"));
+                let w = Cross::PTR.widen(&mut b, &n);
                 let w = freeze_word(&mut b, &w);
                 words.push(w);
             }
@@ -10020,19 +10374,46 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                         buf
                     }
                 };
-                let blk = b.reg();
-                b.line(&ctor_alloc_call(
-                    &blk,
-                    p.width,
-                    reg.raw_shape_desc(p.width.div_ceil(8), p.tag as u64),
-                ));
-                let payload = blk.clone();
-                for fa in &p.fields {
-                    copy_field_exact(&mut b, reg, &payload, 0, &src, 0, fa, true);
+                if let Some(lid) = p.value_layout {
+                    let vl = &reg.value_layouts[lid as usize];
+                    let bytes = vl.size.max(p.width).max(16);
+                    let align = vl.align.max(8);
+                    let buf = b.alloca_bytes(bytes, align);
+                    zero_bytes(&mut b, cx, &buf, bytes);
+                    for fa in &p.fields {
+                        copy_field_exact(&mut b, reg, &buf, 0, &src, 0, fa, true);
+                    }
+                    match ValueAbi::of(vl) {
+                        ValueAbi::Zero => words.push("0".to_string()),
+                        ValueAbi::SmallWord => {
+                            let w = b.reg();
+                            b.line(&format!("{w} = load i64, ptr {buf}, align 8"));
+                            words.push(w);
+                        }
+                        ValueAbi::SmallPair => {
+                            let w = b.reg();
+                            b.line(&format!("{w} = load {{ i64, i64 }}, ptr {buf}, align 8"));
+                            words.push(w);
+                        }
+                        ValueAbi::Indirect { .. } => {
+                            words.push(buf);
+                        }
+                    }
+                } else {
+                    let blk = b.reg();
+                    b.line(&ctor_alloc_call(
+                        &blk,
+                        p.width,
+                        reg.raw_shape_desc(p.width.div_ceil(8), p.tag as u64),
+                    ));
+                    let payload = blk.clone();
+                    for fa in &p.fields {
+                        copy_field_exact(&mut b, reg, &payload, 0, &src, 0, fa, true);
+                    }
+                    let w = b.reg();
+                    b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
+                    words.push(w);
                 }
-                let w = b.reg();
-                b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
-                words.push(w);
             }
         }
     }
@@ -10041,7 +10422,80 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
         return err(format!("foreign export {} supplies too few arguments for {}", plan.symbol, plan.unit));
     }
     let (prefix, extra) = words.split_at(arity);
-    let mut r = call_unit(&mut b, reg, &plan.unit, prefix);
+    let val_ret_ptr: Option<String>;
+    let mut r = if let Some(vsig) = reg.val_sigs.get(&plan.unit) {
+        if !extra.is_empty() {
+            return err(format!(
+                "foreign export {} cannot pass unboxed value types across a curried closure frame",
+                plan.symbol
+            ));
+        }
+        let sig = reg.narrow_sigs.get(&plan.unit);
+        let mut typed = Vec::with_capacity(prefix.len() + 1);
+        let mut sret_buf: Option<String> = None;
+        let ret_ty_call = match vsig.ret {
+            Some(lid) => match ValueAbi::of(&reg.value_layouts[lid as usize]) {
+                ValueAbi::Zero | ValueAbi::SmallWord => "i64".to_string(),
+                ValueAbi::SmallPair => "{ i64, i64 }".to_string(),
+                ValueAbi::Indirect { size, align } => {
+                    let slot = b.alloca_bytes(size, align);
+                    typed.push(format!(
+                        "ptr sret([{size} x i8]) align {align} dereferenceable({size}) {slot}"
+                    ));
+                    sret_buf = Some(slot);
+                    "void".to_string()
+                }
+            },
+            None => sig.map_or(Cross::WORD, |s| s.ret).ty().to_string(),
+        };
+        for (i, a) in prefix.iter().enumerate() {
+            if let Some(lid) = vsig.param(i) {
+                match ValueAbi::of(&reg.value_layouts[lid as usize]) {
+                    ValueAbi::Zero | ValueAbi::SmallWord => typed.push(format!("i64 {a}")),
+                    ValueAbi::SmallPair => typed.push(format!("{{ i64, i64 }} {a}")),
+                    ValueAbi::Indirect { size, align } => typed.push(format!(
+                        "ptr readonly align {align} dereferenceable({size}) {a}"
+                    )),
+                }
+            } else {
+                let c = sig.map_or(Cross::WORD, |s| s.param(i));
+                let n = c.narrow(&mut b, a);
+                typed.push(format!("{} {n}", c.ty()));
+            }
+        }
+        let (sym, cc) = reg.direct(&plan.unit, plan.unit.clone());
+        if let Some(slot) = sret_buf {
+            b.line(&format!("call {cc}void @{}({})", quote(&sym), typed.join(", ")));
+            val_ret_ptr = Some(slot);
+            "0".to_string()
+        } else {
+            let rv = b.reg();
+            b.line(&format!("{rv} = call {cc}{ret_ty_call} @{}({})", quote(&sym), typed.join(", ")));
+            if let Some(lid) = vsig.ret {
+                let vl = &reg.value_layouts[lid as usize];
+                let slot = b.alloca_bytes(vl.size.max(16), vl.align.max(8));
+                match ValueAbi::of(vl) {
+                    ValueAbi::Zero => {}
+                    ValueAbi::SmallWord => {
+                        b.line(&format!("store i64 {rv}, ptr {slot}, align 8"));
+                    }
+                    ValueAbi::SmallPair => {
+                        b.line(&format!("store {{ i64, i64 }} {rv}, ptr {slot}, align 8"));
+                    }
+                    ValueAbi::Indirect { .. } => unreachable!(),
+                }
+                val_ret_ptr = Some(slot);
+                rv
+            } else {
+                val_ret_ptr = None;
+                let ret_c = sig.map_or(Cross::WORD, |s| s.ret);
+                ret_c.widen(&mut b, &rv)
+            }
+        }
+    } else {
+        val_ret_ptr = None;
+        call_unit(&mut b, reg, &plan.unit, prefix)
+    };
     if !extra.is_empty() {
         // A source definition can return the rest of its arrow spine as
         // a closure. The C caller supplies all arguments in a single call.
@@ -10070,8 +10524,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
             b.line(&format!("ret {} {v}", abi_llvm_ty(&plan.result, usize_bits)));
         }
         AbiClass::Ptr => {
-            let p = b.reg();
-            b.line(&format!("{p} = inttoptr i64 {r} to ptr"));
+            let p = Cross::PTR.narrow(&mut b, &r);
             if !plan.result.nullable {
                 check_non_null(&mut b, &p, &fault);
                 any_check = true;
@@ -10079,12 +10532,15 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
             b.line(&format!("ret ptr {p}"));
         }
         AbiClass::Aggregate => {
-            // The boxed result's C-layout bytes: copied into the caller's
-            // `sret` slot, or into a zeroed local copy whose register
-            // pieces are the returned value.
-            let blk = b.reg();
-            b.line(&format!("{blk} = inttoptr i64 {r} to ptr"));
-            let payload = blk.clone();
+            // The result's C-layout bytes: for `#[repr(value)]`, directly from
+            // the unboxed stack slot; otherwise from the boxed payload block.
+            let payload = if let Some(slot) = val_ret_ptr {
+                slot
+            } else {
+                let blk = b.reg();
+                b.line(&format!("{blk} = inttoptr i64 {r} to ptr"));
+                blk
+            };
             match crossing.result.as_ref().expect("an aggregate result is classified") {
                 ResultPass::Sret => {
                     for fa in &plan.result.fields {
@@ -10240,6 +10696,8 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
     // the registry is what leaves it out.
     let narrow = reg.call_sig(&f.id.0);
     let cross = |i: usize| narrow.map_or(Cross::WORD, |s| s.param(i));
+    let vsig = reg.val_sigs.get(&f.id.0).cloned();
+    let val_ret = vsig.as_ref().and_then(|s| s.ret);
     let mut e = CoreEmitter {
         b,
         reg,
@@ -10257,18 +10715,37 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         pending: Vec::new(),
         cpr: reg.cpr.get(&f.id.0).cloned(),
         virt: HashMap::new(),
+        ptr_slots: HashMap::new(),
+        ptr_vals: HashMap::new(),
+        val_slots: HashMap::new(),
+        val_ret,
+        has_local_alloca: val_ret.is_some(),
     };
-    // A narrowed parameter arrives at its own width and the body reads a
-    // slot word, so the entry widens it once (design/narrow-value-
-    // representation.md section 4: the compiler boxes at the expanding
-    // edge, and everything below the edge keeps the word it always had).
-    // The extension direction is the one the word convention already
-    // uses for that type, so the slot holds the same value the body would
-    // have seen had the position never narrowed: a signed machine scalar
-    // and a `csize` `Int` sign-extend (`-2 :: I8` is `-2` in the slot,
-    // not `254`), while an unsigned scalar, a float's bits, a pointer and
-    // a `Nat` zero-extend.
     for i in 0..f.arity() {
+        if let Some(lid) = vsig.as_ref().and_then(|s| s.param(i)) {
+            let vl = &reg.value_layouts[lid as usize];
+            e.has_local_alloca = true;
+            match ValueAbi::of(vl) {
+                ValueAbi::Zero => {
+                    let buf = e.b.alloca_bytes(1, vl.align.max(1));
+                    e.val_slots.insert(LocalId(i), (buf, lid));
+                }
+                ValueAbi::SmallWord => {
+                    let buf = e.b.alloca_bytes(8, vl.align.max(8));
+                    e.b.line(&format!("store i64 %p{i}, ptr {buf}, align 8"));
+                    e.val_slots.insert(LocalId(i), (buf, lid));
+                }
+                ValueAbi::SmallPair => {
+                    let buf = e.b.alloca_bytes(16, vl.align.max(8));
+                    e.b.line(&format!("store {{ i64, i64 }} %p{i}, ptr {buf}, align 8"));
+                    e.val_slots.insert(LocalId(i), (buf, lid));
+                }
+                ValueAbi::Indirect { .. } => {
+                    e.val_slots.insert(LocalId(i), (format!("%p{i}"), lid));
+                }
+            }
+            continue;
+        }
         let ty = e.local_ty(LocalId(i));
         if (ty == "i128") != cross(i).is_wide() {
             return err(format!(
@@ -10276,9 +10753,15 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
                 f.id.0
             ));
         }
-        let slot = e.slot(LocalId(i));
-        let w = cross(i).widen(e.b, &format!("%p{i}"));
-        e.b.line(&format!("store {ty} {w}, ptr {slot}"));
+        if cross(i).is_ptr() {
+            let pslot = e.b.alloca_ty("ptr");
+            e.b.line(&format!("store ptr %p{i}, ptr {pslot}"));
+            e.ptr_slots.insert(LocalId(i), pslot);
+        } else {
+            let slot = e.slot(LocalId(i));
+            let w = cross(i).widen(e.b, &format!("%p{i}"));
+            e.b.line(&format!("store {ty} {w}, ptr {slot}"));
+        }
     }
     // P20's `#[checked-params]` row re-states as `llvm.assume` operand
     // bundles at the entry (design/llvm-contract-attributes.md item 4):
@@ -10294,8 +10777,11 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
                 ));
             }
             if p.nonnull || p.pointee_align > 1 || p.pointee_size > 0 {
-                let v = e.b.reg();
-                e.b.line(&format!("{v} = inttoptr i64 %p{i} to ptr"));
+                let v = if cross(i).is_ptr() {
+                    format!("%p{i}")
+                } else {
+                    Cross::PTR.narrow(e.b, &format!("%p{i}"))
+                };
                 let mut bundles: Vec<String> = Vec::new();
                 if p.nonnull {
                     bundles.push(format!("\"nonnull\"(ptr {v})"));
@@ -10410,7 +10896,9 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
             }
         }
         Core::Prim(op) => {
-            out.insert(*op);
+            if !matches!(op, PrimOp::Value(_)) {
+                out.insert(*op);
+            }
         }
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => collect_prims(d, out),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => collect_prims(body, out),
@@ -10607,6 +11095,22 @@ struct CoreEmitter<'a, 'b> {
     /// fields from the slots, and the count operations of the block that
     /// does not exist, which act on the fields.
     virt: HashMap<LocalId, (Vec<String>, Vec<Class>)>,
+    /// Native LLVM `ptr` slots (`alloca ptr`) for pointer-typed parameters
+    /// and `let`-bound pointer values, keeping pointer provenance intact
+    /// without `ptrtoint`/`inttoptr` round-trips.
+    ptr_slots: HashMap<LocalId, String>,
+    /// Native LLVM `ptr` register associated with a widened `i64` word,
+    /// avoiding redundant `inttoptr` when a widened pointer is passed to
+    /// a `ptr`-expecting consumer.
+    ptr_vals: HashMap<String, String>,
+    /// Stack `alloca` slots holding unboxed POD value locals (`#[repr(value)]`
+    /// structs and `FixedArray n a`), mapped to `(ptr_reg, layout_id)`.
+    val_slots: HashMap<LocalId, (String, u32)>,
+    /// This unit's unboxed POD value return layout, if any.
+    val_ret: Option<u32>,
+    /// True if this function frame owns any stack `alloca` whose address may
+    /// be passed to callees (disables `musttail` on outgoing calls).
+    has_local_alloca: bool,
 }
 
 /// A join's code generation site: the block its body starts at, the slot
@@ -10707,6 +11211,695 @@ impl CoreEmitter<'_, '_> {
         } else {
             "i64"
         }
+    }
+
+    /// Whether `e` natively produces an LLVM `ptr` value without going through
+    /// a uniform `i64` word.
+    fn expr_is_ptr(&self, e: &Core) -> bool {
+        match e {
+            Core::Var(x) => self.ptr_slots.contains_key(x),
+            Core::App(f, args) => {
+                if let Core::Prim(PrimOp::Value(op)) = &**f {
+                    return match op {
+                        crate::core::ValOp::StackAlloc { .. }
+                        | crate::core::ValOp::PlaceGep { .. }
+                        | crate::core::ValOp::PlaceIndex { .. }
+                        | crate::core::ValOp::RefAsPtr => true,
+                        crate::core::ValOp::Proj { field_layout, .. } => matches!(
+                            self.reg.value_layouts[*field_layout as usize].kind,
+                            crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }
+                        ),
+                        crate::core::ValOp::FixedArrayGet { elem_layout, .. } => matches!(
+                            self.reg.value_layouts[*elem_layout as usize].kind,
+                            crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }
+                        ),
+                        crate::core::ValOp::PlaceLoad { layout, .. } => matches!(
+                            self.reg.value_layouts[*layout as usize].kind,
+                            crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }
+                        ),
+                        _ => false,
+                    };
+                }
+                self.known_unit(f)
+                    .filter(|(_, arity)| *arity == args.len())
+                    .filter(|(unit, arity)| {
+                        !self.reg.cpr.contains_key(unit)
+                            && !self.reg.val_sigs.contains_key(unit)
+                            && self.reg.tail_sig(unit, *arity).1 == *arity
+                    })
+                    .and_then(|(unit, _)| self.reg.call_sig(&unit))
+                    .is_some_and(|s| s.ret.is_ptr())
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether `e` evaluates to an unboxed POD aggregate (`#[repr(value)]` struct
+    /// or `FixedArray n a`), returning its interned `ValueLayout` id.
+    fn expr_val_layout(&self, e: &Core) -> Option<u32> {
+        let is_agg = |lid: u32| {
+            !matches!(
+                self.reg.value_layouts[lid as usize].kind,
+                crate::core::ValueLayoutKind::Scalar { .. }
+            )
+        };
+        match e {
+            Core::Var(x) => self.val_slots.get(x).map(|&(_, lid)| lid),
+            Core::App(f, args) => {
+                if let Core::Prim(PrimOp::Value(op)) = &**f {
+                    return match op {
+                        crate::core::ValOp::Construct { layout, .. }
+                        | crate::core::ValOp::FixedArrayRepeat { layout } => Some(*layout),
+                        crate::core::ValOp::Proj { field_layout, .. } if is_agg(*field_layout) => {
+                            Some(*field_layout)
+                        }
+                        crate::core::ValOp::FixedArrayGet { elem_layout, .. } if is_agg(*elem_layout) => {
+                            Some(*elem_layout)
+                        }
+                        crate::core::ValOp::PlaceLoad { layout, .. } if is_agg(*layout) => {
+                            Some(*layout)
+                        }
+                        _ => None,
+                    };
+                }
+                self.known_unit(f)
+                    .filter(|(_, arity)| *arity == args.len())
+                    .and_then(|(unit, _)| self.reg.val_sigs.get(&unit))
+                    .and_then(|s| s.ret)
+            }
+            Core::Let(_, _, _, body)
+            | Core::Dup(_, _, body)
+            | Core::Drop(_, _, body)
+            | Core::Release { body, .. } => self.expr_val_layout(body),
+            Core::If(_, t, f) => self
+                .expr_val_layout(&t.body)
+                .or_else(|| self.expr_val_layout(&f.body)),
+            Core::Case { alts, .. } => alts.iter().find_map(|a| self.expr_val_layout(&a.body)),
+            _ => None,
+        }
+    }
+
+    /// Emit `e` directly into the destination buffer `dst` (with layout `lid`),
+    /// performing direct in-place initialization / NRVO with zero extra stack copies.
+    fn emit_val_into(&mut self, e: &Core, dst: &str, lid: u32) -> Result<()> {
+        use crate::core::{ValOp, ValueLayoutKind};
+        let vl = self.reg.value_layouts[lid as usize].clone();
+        match e {
+            Core::Var(x) => {
+                if let Some((src, _)) = self.val_slots.get(x).cloned() {
+                    emit_val_memcpy(self.b, dst, &src, vl.size, 1);
+                    return Ok(());
+                }
+                if matches!(vl.kind, ValueLayoutKind::Scalar { is_ptr: true, .. }) {
+                    let p = self.emit_as_ptr(e)?;
+                    store_val_scalar(self.b, dst, &vl, &p, true);
+                    return Ok(());
+                }
+                let v = self.emit_expr(e)?;
+                store_val_scalar(self.b, dst, &vl, &v, false);
+                Ok(())
+            }
+            Core::Let(x, _, value, body) => {
+                if !self.bound.contains(x) {
+                    return err(format!("let binds unknown local {}", x.0));
+                }
+                if let Some(vlid) = self.expr_val_layout(value) {
+                    let sub = self.reg.value_layouts[vlid as usize].clone();
+                    let alloc_sz = match ValueAbi::of(&sub) {
+                        ValueAbi::Zero => 1,
+                        ValueAbi::SmallWord => 8,
+                        ValueAbi::SmallPair => 16,
+                        ValueAbi::Indirect { size, .. } => size.max(1),
+                    };
+                    let buf = self.b.alloca_bytes(alloc_sz, sub.align.max(8));
+                    self.has_local_alloca = true;
+                    self.emit_val_into(value, &buf, vlid)?;
+                    self.val_slots.insert(*x, (buf, vlid));
+                    return self.emit_val_into(body, dst, lid);
+                }
+                if self.expr_is_ptr(value) && self.frame_site(*x).is_none() && !self.wide.contains(x) {
+                    let p = self.emit_as_ptr(value)?;
+                    let pslot = self.b.alloca_ty("ptr");
+                    self.b.line(&format!("store ptr {p}, ptr {pslot}"));
+                    self.ptr_slots.insert(*x, pslot);
+                    return self.emit_val_into(body, dst, lid);
+                }
+                let v = self.emit_let(*x, value)?;
+                self.store_local(*x, value, &v)?;
+                self.emit_val_into(body, dst, lid)
+            }
+            Core::Dup(x, class, body) | Core::Drop(x, class, body) => {
+                self.emit_count(e, *x, *class)?;
+                self.emit_val_into(body, dst, lid)
+            }
+            Core::Release { block, moved, rest, token, body } => {
+                let slot = self.emit_release(*block, moved, rest, *token)?;
+                self.in_release(slot, |this| this.emit_val_into(body, dst, lid))
+            }
+            Core::If(c, t, f) => {
+                let cv = self.emit_expr(c)?;
+                let cmp = self.b.reg();
+                self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
+                let lthen = self.b.label();
+                let lelse = self.b.label();
+                let ljoin = self.b.label();
+                self.b.line(&format!("br i1 {cmp}, label %{lthen}, label %{lelse}"));
+                self.b.start(&lthen);
+                self.emit_val_into(&t.body, dst, lid)?;
+                if !self.b.terminated {
+                    self.b.line(&format!("br label %{ljoin}"));
+                }
+                self.b.start(&lelse);
+                self.emit_val_into(&f.body, dst, lid)?;
+                if !self.b.terminated {
+                    self.b.line(&format!("br label %{ljoin}"));
+                }
+                self.b.start(&ljoin);
+                Ok(())
+            }
+            Core::App(f, args) => {
+                if let Core::Prim(PrimOp::Value(op)) = &**f {
+                    match op {
+                        ValOp::Construct { .. } => {
+                            let ValueLayoutKind::Struct { fields } = &vl.kind else {
+                                return err("internal error: ValOp::Construct on non-struct layout");
+                            };
+                            for (vf, arg) in fields.iter().zip(args.iter()) {
+                                let fp = if vf.offset == 0 {
+                                    dst.to_string()
+                                } else {
+                                    self.b.gep(dst, vf.offset as usize)
+                                };
+                                match &vf.layout.kind {
+                                    ValueLayoutKind::Scalar { is_ptr: true, .. } => {
+                                        let p = self.emit_as_ptr(arg)?;
+                                        store_val_scalar(self.b, &fp, &vf.layout, &p, true);
+                                    }
+                                    ValueLayoutKind::Scalar { .. } => {
+                                        let v = self.emit_expr(arg)?;
+                                        store_val_scalar(self.b, &fp, &vf.layout, &v, false);
+                                    }
+                                    _ => {
+                                        let child_lid = self
+                                            .reg
+                                            .value_layouts
+                                            .iter()
+                                            .position(|l| l == &vf.layout)
+                                            .ok_or_else(|| crate::Error::plain("internal error: missing nested field layout"))?
+                                            as u32;
+                                        self.emit_val_into(arg, &fp, child_lid)?;
+                                    }
+                                }
+                            }
+                            return Ok(());
+                        }
+                        ValOp::FixedArrayRepeat { .. } => {
+                            let ValueLayoutKind::Array { len, stride, elem } = &vl.kind else {
+                                return err("internal error: FixedArrayRepeat on non-array layout");
+                            };
+                            let arg = &args[0];
+                            if *len == 0 {
+                                return Ok(());
+                            }
+                            if matches!(arg, Core::Int(0) | Core::Bool(false) | Core::Unit) {
+                                emit_val_memset_zero(self.b, dst, vl.size, vl.align);
+                                return Ok(());
+                            }
+                            // Evaluate the element once (into a scalar/ptr register or temp buffer),
+                            // then fill `len` slots in a compact LLVM loop.
+                            let elem_val = match &elem.kind {
+                                ValueLayoutKind::Scalar { is_ptr: true, .. } => {
+                                    (Some(self.emit_as_ptr(arg)?), true, None)
+                                }
+                                ValueLayoutKind::Scalar { .. } => {
+                                    (Some(self.emit_expr(arg)?), false, None)
+                                }
+                                _ => {
+                                    let elid = self
+                                        .reg
+                                        .value_layouts
+                                        .iter()
+                                        .position(|l| l == elem.as_ref())
+                                        .ok_or_else(|| crate::Error::plain("internal error: missing array elem layout"))?
+                                        as u32;
+                                    let tmp = self.emit_val_ptr(arg, elid)?;
+                                    (None, false, Some(tmp))
+                                }
+                            };
+                            let idx_slot = self.b.alloca_ty("i64");
+                            self.b.line(&format!("store i64 0, ptr {idx_slot}"));
+                            let lhdr = self.b.label();
+                            let lbody = self.b.label();
+                            let ldone = self.b.label();
+                            self.b.line(&format!("br label %{lhdr}"));
+                            self.b.start(&lhdr);
+                            let iv = self.b.reg();
+                            self.b.line(&format!("{iv} = load i64, ptr {idx_slot}"));
+                            let cmp = self.b.reg();
+                            self.b.line(&format!("{cmp} = icmp ult i64 {iv}, {len}"));
+                            self.b.line(&format!("br i1 {cmp}, label %{lbody}, label %{ldone}"));
+                            self.b.start(&lbody);
+                            let off = self.b.reg();
+                            self.b.line(&format!("{off} = mul i64 {iv}, {stride}"));
+                            let ep = self.b.reg();
+                            self.b.line(&format!("{ep} = getelementptr inbounds i8, ptr {dst}, i64 {off}"));
+                            if let Some(ref v) = elem_val.0 {
+                                store_val_scalar(self.b, &ep, elem, v, elem_val.1);
+                            } else if let Some(ref src) = elem_val.2 {
+                                emit_val_memcpy(self.b, &ep, src, elem.size, 1);
+                            }
+                            let next = self.b.reg();
+                            self.b.line(&format!("{next} = add i64 {iv}, 1"));
+                            self.b.line(&format!("store i64 {next}, ptr {idx_slot}"));
+                            self.b.line(&format!("br label %{lhdr}"));
+                            self.b.start(&ldone);
+                            return Ok(());
+                        }
+                        ValOp::PlaceLoad { offset, .. } => {
+                            let base = self.emit_as_ptr(&args[0])?;
+                            let src = if *offset == 0 {
+                                base
+                            } else {
+                                self.b.gep(&base, *offset as usize)
+                            };
+                            emit_val_memcpy(self.b, dst, &src, vl.size, 1);
+                            return Ok(());
+                        }
+                        ValOp::Proj { layout: base_lid, offset, .. } => {
+                            let base = self.emit_val_ptr(&args[0], *base_lid)?;
+                            let src = if *offset == 0 {
+                                base
+                            } else {
+                                self.b.gep(&base, *offset as usize)
+                            };
+                            emit_val_memcpy(self.b, dst, &src, vl.size, 1);
+                            return Ok(());
+                        }
+                        ValOp::FixedArrayGet { layout: arr_lid, stride, .. } => {
+                            let base = self.emit_val_ptr(&args[0], *arr_lid)?;
+                            let iv = self.emit_expr(&args[1])?;
+                            let off = self.b.reg();
+                            self.b.line(&format!("{off} = mul i64 {iv}, {stride}"));
+                            let src = self.b.reg();
+                            self.b.line(&format!("{src} = getelementptr inbounds i8, ptr {base}, i64 {off}"));
+                            emit_val_memcpy(self.b, dst, &src, vl.size, 1);
+                            return Ok(());
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some((unit, arity)) = self.known_unit(f) {
+                    if arity == args.len() {
+                        if let Some(vsig) = self.reg.val_sigs.get(&unit).cloned() {
+                            if vsig.ret == Some(lid) {
+                                self.call_val_unit_into(&unit, args, &vsig, Some(dst))?;
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                // Scalar fallback
+                if matches!(vl.kind, ValueLayoutKind::Scalar { is_ptr: true, .. }) {
+                    let p = self.emit_as_ptr(e)?;
+                    store_val_scalar(self.b, dst, &vl, &p, true);
+                } else {
+                    let v = self.emit_expr(e)?;
+                    store_val_scalar(self.b, dst, &vl, &v, false);
+                }
+                Ok(())
+            }
+            _ => {
+                if matches!(vl.kind, ValueLayoutKind::Scalar { is_ptr: true, .. }) {
+                    let p = self.emit_as_ptr(e)?;
+                    store_val_scalar(self.b, dst, &vl, &p, true);
+                } else {
+                    let v = self.emit_expr(e)?;
+                    store_val_scalar(self.b, dst, &vl, &v, false);
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Obtain a stack `ptr` to the bytes of an unboxed value expression `e` of layout `lid`.
+    fn emit_val_ptr(&mut self, e: &Core, lid: u32) -> Result<String> {
+        if let Core::Var(x) = e {
+            if let Some((p, _)) = self.val_slots.get(x).cloned() {
+                return Ok(p);
+            }
+        }
+        let vl = self.reg.value_layouts[lid as usize].clone();
+        let alloc_sz = match ValueAbi::of(&vl) {
+            ValueAbi::Zero => 1,
+            ValueAbi::SmallWord => 8,
+            ValueAbi::SmallPair => 16,
+            ValueAbi::Indirect { size, .. } => size.max(1),
+        };
+        let buf = self.b.alloca_bytes(alloc_sz, vl.align.max(8));
+        self.has_local_alloca = true;
+        self.emit_val_into(e, &buf, lid)?;
+        Ok(buf)
+    }
+
+    /// Call a unit with a `ValueSig`, optionally placing an aggregate return directly into `sret_dst`.
+    fn call_val_unit_into(
+        &mut self,
+        unit: &str,
+        args: &[Core],
+        vsig: &ValueSig,
+        sret_dst: Option<&str>,
+    ) -> Result<String> {
+        let narrow = self.reg.call_sig(unit).cloned();
+        let mut typed: Vec<String> = Vec::new();
+        let ret_abi = vsig.ret.map(|lid| ValueAbi::of(&self.reg.value_layouts[lid as usize]));
+        let mut local_sret: Option<String> = None;
+        if let Some(ValueAbi::Indirect { size, align }) = ret_abi {
+            let dst = match sret_dst {
+                Some(d) => d.to_string(),
+                None => {
+                    let buf = self.b.alloca_bytes(size.max(1), align);
+                    self.has_local_alloca = true;
+                    local_sret = Some(buf.clone());
+                    buf
+                }
+            };
+            typed.push(format!(
+                "ptr sret([{size} x i8]) noalias align {align} dereferenceable({size}) {dst}"
+            ));
+        }
+        for (i, a) in args.iter().enumerate() {
+            if let Some(lid) = vsig.param(i) {
+                let vl = self.reg.value_layouts[lid as usize].clone();
+                match ValueAbi::of(&vl) {
+                    ValueAbi::Zero => typed.push("i64 0".to_string()),
+                    ValueAbi::SmallWord => {
+                        let buf = self.b.alloca_bytes(8, vl.align.max(8));
+                        self.b.line(&format!("store i64 0, ptr {buf}, align 8"));
+                        self.emit_val_into(a, &buf, lid)?;
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = load i64, ptr {buf}, align 8"));
+                        typed.push(format!("i64 {r}"));
+                    }
+                    ValueAbi::SmallPair => {
+                        let buf = self.b.alloca_bytes(16, vl.align.max(8));
+                        emit_val_memset_zero(self.b, &buf, 16, 8);
+                        self.emit_val_into(a, &buf, lid)?;
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = load {{ i64, i64 }}, ptr {buf}, align 8"));
+                        typed.push(format!("{{ i64, i64 }} {r}"));
+                    }
+                    ValueAbi::Indirect { size, align } => {
+                        let p = self.emit_val_ptr(a, lid)?;
+                        typed.push(format!(
+                            "ptr readonly align {align} dereferenceable({size}) {p}"
+                        ));
+                    }
+                }
+            } else {
+                let c = narrow.as_ref().map_or(Cross::WORD, |s| s.param(i));
+                if c.is_ptr() {
+                    let p = self.emit_as_ptr(a)?;
+                    typed.push(format!("ptr {p}"));
+                } else {
+                    let v = self.emit_expr(a)?;
+                    let w = c.narrow(self.b, &v);
+                    typed.push(format!("{} {w}", c.ty()));
+                }
+            }
+        }
+        match ret_abi {
+            Some(ValueAbi::Indirect { .. }) => {
+                self.b.line(&format!("call void @{}({})", quote(unit), typed.join(", ")));
+                Ok(local_sret.unwrap_or_else(|| "0".to_string()))
+            }
+            Some(ValueAbi::Zero) => {
+                let r = self.b.reg();
+                self.b.line(&format!("{r} = call i64 @{}({})", quote(unit), typed.join(", ")));
+                Ok(r)
+            }
+            Some(ValueAbi::SmallWord) => {
+                let r = self.b.reg();
+                self.b.line(&format!("{r} = call i64 @{}({})", quote(unit), typed.join(", ")));
+                if let Some(dst) = sret_dst {
+                    let tmp = self.b.alloca_bytes(8, 8);
+                    self.b.line(&format!("store i64 {r}, ptr {tmp}, align 8"));
+                    let sz = self.reg.value_layouts[vsig.ret.unwrap() as usize].size;
+                    emit_val_memcpy(self.b, dst, &tmp, sz, 1);
+                }
+                Ok(r)
+            }
+            Some(ValueAbi::SmallPair) => {
+                let r = self.b.reg();
+                self.b.line(&format!("{r} = call {{ i64, i64 }} @{}({})", quote(unit), typed.join(", ")));
+                if let Some(dst) = sret_dst {
+                    let tmp = self.b.alloca_bytes(16, 8);
+                    self.b.line(&format!("store {{ i64, i64 }} {r}, ptr {tmp}, align 8"));
+                    let sz = self.reg.value_layouts[vsig.ret.unwrap() as usize].size;
+                    emit_val_memcpy(self.b, dst, &tmp, sz, 1);
+                }
+                Ok("0".to_string())
+            }
+            None => {
+                let ret_c = narrow.as_ref().map_or(Cross::WORD, |s| s.ret);
+                let r = self.b.reg();
+                self.b.line(&format!(
+                    "{r} = call {} @{}({})",
+                    ret_c.ty(),
+                    quote(unit),
+                    typed.join(", ")
+                ));
+                let w = ret_c.widen(self.b, &r);
+                if ret_c.is_ptr() {
+                    self.ptr_vals.insert(w.clone(), r);
+                }
+                Ok(w)
+            }
+        }
+    }
+
+    /// Emit an inline `ValOp` returning a scalar/unit word.
+    fn emit_val_op(&mut self, op: crate::core::ValOp, args: &[Core]) -> Result<String> {
+        use crate::core::{ValOp, ValueLayoutKind};
+        match op {
+            ValOp::StackAlloc { .. }
+            | ValOp::PlaceGep { .. }
+            | ValOp::PlaceIndex { .. }
+            | ValOp::RefAsPtr => {
+                let p = self.emit_as_ptr(&Core::App(
+                    Box::new(Core::Prim(PrimOp::Value(op))),
+                    args.to_vec(),
+                ))?;
+                let w = Cross::PTR.widen(self.b, &p);
+                self.ptr_vals.insert(w.clone(), p);
+                Ok(w)
+            }
+            ValOp::Proj { layout, field_layout, offset } => {
+                let fl = self.reg.value_layouts[field_layout as usize].clone();
+                let base = self.emit_val_ptr(&args[0], layout)?;
+                let fp = if offset == 0 { base } else { self.b.gep(&base, offset as usize) };
+                if matches!(fl.kind, ValueLayoutKind::Scalar { .. }) {
+                    let (w, maybe_p) = load_val_scalar(self.b, &fp, &fl);
+                    if let Some(p) = maybe_p {
+                        self.ptr_vals.insert(w.clone(), p);
+                    }
+                    Ok(w)
+                } else {
+                    Ok("0".to_string())
+                }
+            }
+            ValOp::FixedArrayGet { layout, elem_layout, stride } => {
+                let el = self.reg.value_layouts[elem_layout as usize].clone();
+                let base = self.emit_val_ptr(&args[0], layout)?;
+                let iv = self.emit_expr(&args[1])?;
+                let off = self.b.reg();
+                self.b.line(&format!("{off} = mul i64 {iv}, {stride}"));
+                let ep = self.b.reg();
+                self.b.line(&format!("{ep} = getelementptr inbounds i8, ptr {base}, i64 {off}"));
+                if matches!(el.kind, ValueLayoutKind::Scalar { .. }) {
+                    let (w, maybe_p) = load_val_scalar(self.b, &ep, &el);
+                    if let Some(p) = maybe_p {
+                        self.ptr_vals.insert(w.clone(), p);
+                    }
+                    Ok(w)
+                } else {
+                    Ok("0".to_string())
+                }
+            }
+            ValOp::PlaceLoad { layout, offset } => {
+                let vl = self.reg.value_layouts[layout as usize].clone();
+                let base = self.emit_as_ptr(&args[0])?;
+                let fp = if offset == 0 { base } else { self.b.gep(&base, offset as usize) };
+                if matches!(vl.kind, ValueLayoutKind::Scalar { .. }) {
+                    let (w, maybe_p) = load_val_scalar(self.b, &fp, &vl);
+                    if let Some(p) = maybe_p {
+                        self.ptr_vals.insert(w.clone(), p);
+                    }
+                    Ok(w)
+                } else {
+                    Ok("0".to_string())
+                }
+            }
+            ValOp::PlaceStore { layout, offset } => {
+                let vl = self.reg.value_layouts[layout as usize].clone();
+                let base = self.emit_as_ptr(&args[0])?;
+                let fp = if offset == 0 { base } else { self.b.gep(&base, offset as usize) };
+                match &vl.kind {
+                    ValueLayoutKind::Scalar { is_ptr: true, .. } => {
+                        let p = self.emit_as_ptr(&args[1])?;
+                        store_val_scalar(self.b, &fp, &vl, &p, true);
+                    }
+                    ValueLayoutKind::Scalar { .. } => {
+                        let v = self.emit_expr(&args[1])?;
+                        store_val_scalar(self.b, &fp, &vl, &v, false);
+                    }
+                    _ => {
+                        self.emit_val_into(&args[1], &fp, layout)?;
+                    }
+                }
+                Ok("0".to_string())
+            }
+            ValOp::Construct { .. } | ValOp::FixedArrayRepeat { .. } => Ok("0".to_string()),
+        }
+    }
+
+    /// Emit `e` directly as a native LLVM `ptr`, preserving provenance without
+    /// `ptrtoint`/`inttoptr` whenever `e` produces a native pointer.
+    fn emit_as_ptr(&mut self, e: &Core) -> Result<String> {
+        match e {
+            Core::Var(x) => {
+                if !self.bound.contains(x) {
+                    return err(format!("unbound local {}", x.0));
+                }
+                if let Some(pslot) = self.ptr_slots.get(x).cloned() {
+                    let p = self.b.reg();
+                    self.b.line(&format!("{p} = load ptr, ptr {pslot}"));
+                    return Ok(p);
+                }
+            }
+            Core::App(f, args) => {
+                if let Core::Prim(PrimOp::Value(op)) = &**f {
+                    use crate::core::ValOp;
+                    match *op {
+                        ValOp::StackAlloc { layout, immortal_header } => {
+                            let vl = self.reg.value_layouts[layout as usize].clone();
+                            self.has_local_alloca = true;
+                            if immortal_header {
+                                // Scalar `withLocal`: 8-byte zeroed immortal header + 8-byte payload slot
+                                // so `ptr` points directly at payload and any `cinch_dup`/`cinch_drop`
+                                // sees header == 0 (immortal no-op).
+                                let raw = self.b.alloca_bytes(16, 8);
+                                self.b.line(&format!("store i64 0, ptr {raw}, align 8"));
+                                let payload = self.b.gep(&raw, 8);
+                                let init_w = self.emit_expr(&args[0])?;
+                                self.b.line(&format!("store i64 {init_w}, ptr {payload}, align 8"));
+                                return Ok(payload);
+                            } else {
+                                let buf = self.b.alloca_bytes(vl.size.max(1), vl.align.max(1));
+                                self.emit_val_into(&args[0], &buf, layout)?;
+                                return Ok(buf);
+                            }
+                        }
+                        ValOp::PlaceGep { offset } => {
+                            let base = self.emit_as_ptr(&args[0])?;
+                            return Ok(if offset == 0 { base } else { self.b.gep(&base, offset as usize) });
+                        }
+                        ValOp::PlaceIndex { stride } => {
+                            let base = self.emit_as_ptr(&args[0])?;
+                            let iv = self.emit_expr(&args[1])?;
+                            let off = self.b.reg();
+                            self.b.line(&format!("{off} = mul i64 {iv}, {stride}"));
+                            let ep = self.b.reg();
+                            self.b.line(&format!("{ep} = getelementptr inbounds i8, ptr {base}, i64 {off}"));
+                            return Ok(ep);
+                        }
+                        ValOp::RefAsPtr => {
+                            return self.emit_as_ptr(&args[0]);
+                        }
+                        ValOp::Proj { layout, field_layout, offset } => {
+                            let fl = self.reg.value_layouts[field_layout as usize].clone();
+                            if matches!(fl.kind, crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }) {
+                                let base = self.emit_val_ptr(&args[0], layout)?;
+                                let fp = if offset == 0 { base } else { self.b.gep(&base, offset as usize) };
+                                let p = self.b.reg();
+                                self.b.line(&format!("{p} = load ptr, ptr {fp}, align {}", fl.align.max(1)));
+                                return Ok(p);
+                            }
+                        }
+                        ValOp::FixedArrayGet { layout, elem_layout, stride } => {
+                            let el = self.reg.value_layouts[elem_layout as usize].clone();
+                            if matches!(el.kind, crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }) {
+                                let base = self.emit_val_ptr(&args[0], layout)?;
+                                let iv = self.emit_expr(&args[1])?;
+                                let off = self.b.reg();
+                                self.b.line(&format!("{off} = mul i64 {iv}, {stride}"));
+                                let ep = self.b.reg();
+                                self.b.line(&format!("{ep} = getelementptr inbounds i8, ptr {base}, i64 {off}"));
+                                let p = self.b.reg();
+                                self.b.line(&format!("{p} = load ptr, ptr {ep}, align {}", el.align.max(1)));
+                                return Ok(p);
+                            }
+                        }
+                        ValOp::PlaceLoad { layout, offset } => {
+                            let vl = self.reg.value_layouts[layout as usize].clone();
+                            if matches!(vl.kind, crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }) {
+                                let base = self.emit_as_ptr(&args[0])?;
+                                let fp = if offset == 0 { base } else { self.b.gep(&base, offset as usize) };
+                                let p = self.b.reg();
+                                self.b.line(&format!("{p} = load ptr, ptr {fp}, align {}", vl.align.max(1)));
+                                return Ok(p);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some((unit, arity)) = self.known_unit(f) {
+                    if arity == args.len()
+                        && !self.reg.cpr.contains_key(&unit)
+                        && !self.reg.val_sigs.contains_key(&unit)
+                        && self.reg.tail_sig(&unit, arity).1 == arity
+                    {
+                        if let Some(sig) = self.reg.call_sig(&unit).cloned() {
+                            if sig.ret.is_ptr() {
+                                let (sym, _) = self.reg.tail_sig(&unit, arity);
+                                let (sym, cc) = self.reg.direct(&unit, sym);
+                                let mut args_ty: Vec<String> = Vec::with_capacity(args.len());
+                                for (i, a) in args.iter().enumerate() {
+                                    let c = sig.param(i);
+                                    if c.is_wide() != self.rep_wide(a) {
+                                        return err(format!(
+                                            "{}: argument {i} of {} has a width its parameter does not (design/wide-scalars.md, phase 1)",
+                                            self.unit,
+                                            crate::repr::base_unit(&unit)
+                                        ));
+                                    }
+                                    if c.is_ptr() {
+                                        let p = self.emit_as_ptr(a)?;
+                                        args_ty.push(format!("ptr {p}"));
+                                    } else {
+                                        let v = self.emit_expr(a)?;
+                                        let w = c.narrow(self.b, &v);
+                                        args_ty.push(format!("{} {w}", c.ty()));
+                                    }
+                                }
+                                let r = self.b.reg();
+                                self.b.line(&format!(
+                                    "{r} = call {cc}ptr @{}({})",
+                                    quote(&sym),
+                                    args_ty.join(", ")
+                                ));
+                                return Ok(r);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        let w = self.emit_expr(e)?;
+        if let Some(p) = self.ptr_vals.get(&w).cloned() {
+            return Ok(p);
+        }
+        Ok(Cross::PTR.narrow(self.b, &w))
     }
 
     /// Whether `e`'s value is wide: an `i128` operand rather than a word.
@@ -11041,6 +12234,13 @@ impl CoreEmitter<'_, '_> {
                 if !self.bound.contains(x) {
                     return err(format!("unbound local {}", x.0));
                 }
+                if let Some(pslot) = self.ptr_slots.get(x).cloned() {
+                    let p = self.b.reg();
+                    self.b.line(&format!("{p} = load ptr, ptr {pslot}"));
+                    let w = Cross::PTR.widen(self.b, &p);
+                    self.ptr_vals.insert(w.clone(), p);
+                    return Ok(w);
+                }
                 let ty = self.local_ty(*x);
                 let slot = self.slot(*x);
                 let r = self.b.reg();
@@ -11189,6 +12389,27 @@ impl CoreEmitter<'_, '_> {
                 if self.virtual_let(*x, e, body)? {
                     return self.emit_expr(body);
                 }
+                if let Some(vlid) = self.expr_val_layout(e) {
+                    let sub = self.reg.value_layouts[vlid as usize].clone();
+                    let alloc_sz = match ValueAbi::of(&sub) {
+                        ValueAbi::Zero => 1,
+                        ValueAbi::SmallWord => 8,
+                        ValueAbi::SmallPair => 16,
+                        ValueAbi::Indirect { size, .. } => size.max(1),
+                    };
+                    let buf = self.b.alloca_bytes(alloc_sz, sub.align.max(8));
+                    self.has_local_alloca = true;
+                    self.emit_val_into(e, &buf, vlid)?;
+                    self.val_slots.insert(*x, (buf, vlid));
+                    return self.emit_expr(body);
+                }
+                if self.expr_is_ptr(e) && self.frame_site(*x).is_none() && !self.wide.contains(x) {
+                    let p = self.emit_as_ptr(e)?;
+                    let pslot = self.b.alloca_ty("ptr");
+                    self.b.line(&format!("store ptr {p}, ptr {pslot}"));
+                    self.ptr_slots.insert(*x, pslot);
+                    return self.emit_expr(body);
+                }
                 let v = self.emit_let(*x, e)?;
                 self.store_local(*x, e, &v)?;
                 self.emit_expr(body)
@@ -11300,11 +12521,18 @@ impl CoreEmitter<'_, '_> {
                     return err(format!("ref set for unknown local {}", l.0));
                 }
                 let v = self.emit_expr(v)?;
-                let slot = self.slot(*l);
-                let cell = self.b.reg();
-                self.b.line(&format!("{cell} = load i64, ptr {slot}"));
-                let pointer = self.b.reg();
-                self.b.line(&format!("{pointer} = inttoptr i64 {cell} to ptr"));
+                let pointer = if let Some(pslot) = self.ptr_slots.get(l).cloned() {
+                    let p = self.b.reg();
+                    self.b.line(&format!("{p} = load ptr, ptr {pslot}"));
+                    p
+                } else {
+                    let slot = self.slot(*l);
+                    let cell = self.b.reg();
+                    self.b.line(&format!("{cell} = load i64, ptr {slot}"));
+                    let p = self.b.reg();
+                    self.b.line(&format!("{p} = inttoptr i64 {cell} to ptr"));
+                    p
+                };
                 let old = self.b.load_at(&pointer, 0);
                 self.b.store_at(&pointer, 0, &v);
                 rc_op(self.b, self.reg.rc_debug, true, &old, *payload);
@@ -11337,6 +12565,12 @@ impl CoreEmitter<'_, '_> {
     fn emit_count(&mut self, e: &Core, x: LocalId, class: Class) -> Result<()> {
         if !self.bound.contains(&x) {
             return err(format!("count operation on unknown local {}", x.0));
+        }
+        // Native pointer slots (stack `withLocal` slots with immortal header,
+        // `#[repr(value)]`/`FixedArray` borrows, and `RawPtr`/`Borrowed`) are
+        // never reference-counted.
+        if self.ptr_slots.contains_key(&x) || self.val_slots.contains_key(&x) {
+            return Ok(());
         }
         // The count of a block that was never built is its fields' counts.
         if let Some((slots, classes)) = self.virt.get(&x).cloned() {
@@ -11744,6 +12978,9 @@ impl CoreEmitter<'_, '_> {
     /// `call`; anything else (a dynamic head, a partial application, an
     /// over-application) goes through the `__apply` stub.
     fn emit_app(&mut self, f: &Core, args: &[Core]) -> Result<String> {
+        if let Core::Prim(PrimOp::Value(op)) = f {
+            return self.emit_val_op(*op, args);
+        }
         // A saturated zero-field constructor application is the block, not a
         // call to the constructor's unit. The saturation test is exact: a
         // zero-field constructor takes no arguments, so `args` being empty is
@@ -11758,6 +12995,11 @@ impl CoreEmitter<'_, '_> {
             }
         }
         if let Some((unit, arity)) = self.known_unit(f) {
+            if arity == args.len() {
+                if let Some(vsig) = self.reg.val_sigs.get(&unit).cloned() {
+                    return self.call_val_unit_into(&unit, args, &vsig, None);
+                }
+            }
             if arity == args.len() && self.reg.cpr.contains_key(&unit) {
                 // A product result that is needed as a block: call the body
                 // and box the fields here, through the constructor's unit,
@@ -11769,10 +13011,6 @@ impl CoreEmitter<'_, '_> {
                 return Ok(box_product(self.b, &cpr, &r));
             }
             if arity == args.len() {
-                let mut vals = Vec::with_capacity(args.len());
-                for a in args {
-                    vals.push(self.emit_expr(a)?);
-                }
                 // The result's `!range` fact where the callee's type
                 // states one (the plan note's item 3).
                 let rng = match self.reg.ranges.get(&unit) {
@@ -11789,11 +13027,15 @@ impl CoreEmitter<'_, '_> {
                 let (sym, width) = self.reg.tail_sig(&unit, arity);
                 let (sym, cc) = self.reg.direct(&unit, sym);
                 let narrow = if width == arity {
-                    self.reg.call_sig(&unit)
+                    self.reg.call_sig(&unit).cloned()
                 } else {
                     None
                 };
                 let Some(sig) = narrow else {
+                    let mut vals = Vec::with_capacity(args.len());
+                    for a in args {
+                        vals.push(self.emit_expr(a)?);
+                    }
                     if args.iter().any(|a| self.rep_wide(a)) {
                         return err(format!(
                             "{}: {} takes words, and is passed an `I128`/`U128` value (design/wide-scalars.md, phase 1)",
@@ -11814,18 +13056,24 @@ impl CoreEmitter<'_, '_> {
                 // result back as a word, which is what the body of the
                 // caller works in (the mirror of the callee's own entry
                 // widening).
-                let mut args_ty: Vec<String> = Vec::with_capacity(vals.len());
-                for (i, v) in vals.iter().enumerate() {
+                let mut args_ty: Vec<String> = Vec::with_capacity(args.len());
+                for (i, a) in args.iter().enumerate() {
                     let c = sig.param(i);
-                    if c.is_wide() != self.rep_wide(&args[i]) {
+                    if c.is_wide() != self.rep_wide(a) {
                         return err(format!(
                             "{}: argument {i} of {} has a width its parameter does not (design/wide-scalars.md, phase 1)",
                             self.unit,
                             crate::repr::base_unit(&unit)
                         ));
                     }
-                    let w = c.narrow(self.b, v);
-                    args_ty.push(format!("{} {w}", c.ty()));
+                    if c.is_ptr() {
+                        let p = self.emit_as_ptr(a)?;
+                        args_ty.push(format!("ptr {p}"));
+                    } else {
+                        let v = self.emit_expr(a)?;
+                        let w = c.narrow(self.b, &v);
+                        args_ty.push(format!("{} {w}", c.ty()));
+                    }
                 }
                 // `!range` metadata is typed like the call, and the
                 // registered range is a word range; a narrowed result's
@@ -11839,7 +13087,11 @@ impl CoreEmitter<'_, '_> {
                     quote(&sym),
                     args_ty.join(", ")
                 ));
-                return Ok(sig.ret.widen(self.b, &r));
+                let w = sig.ret.widen(self.b, &r);
+                if sig.ret.is_ptr() {
+                    self.ptr_vals.insert(w.clone(), r);
+                }
+                return Ok(w);
             }
         }
         if args.iter().any(|a| self.rep_wide(a)) {
@@ -11944,12 +13196,77 @@ impl CoreEmitter<'_, '_> {
     /// block with a branch to the join's block, which settles into the same
     /// destination, so a value-position jump is not a special case.
     fn emit_to(&mut self, e: &Core, dest: &Dest) -> Result<()> {
+        if matches!(dest, Dest::Ret) {
+            if let Some(res_lid) = self.val_ret {
+                let vl = self.reg.value_layouts[res_lid as usize].clone();
+                match ValueAbi::of(&vl) {
+                    ValueAbi::Zero => {
+                        self.emit_val_into(e, "null", res_lid)?;
+                        if !self.b.terminated {
+                            self.settle_tokens(0);
+                            self.b.line("ret i64 0");
+                        }
+                    }
+                    ValueAbi::SmallWord => {
+                        let buf = self.b.alloca_bytes(8, vl.align.max(8));
+                        self.b.line(&format!("store i64 0, ptr {buf}, align 8"));
+                        self.emit_val_into(e, &buf, res_lid)?;
+                        if !self.b.terminated {
+                            let r = self.b.reg();
+                            self.b.line(&format!("{r} = load i64, ptr {buf}, align 8"));
+                            self.settle_tokens(0);
+                            self.b.line(&format!("ret i64 {r}"));
+                        }
+                    }
+                    ValueAbi::SmallPair => {
+                        let buf = self.b.alloca_bytes(16, vl.align.max(8));
+                        emit_val_memset_zero(self.b, &buf, 16, 8);
+                        self.emit_val_into(e, &buf, res_lid)?;
+                        if !self.b.terminated {
+                            let r = self.b.reg();
+                            self.b.line(&format!("{r} = load {{ i64, i64 }}, ptr {buf}, align 8"));
+                            self.settle_tokens(0);
+                            self.b.line(&format!("ret {{ i64, i64 }} {r}"));
+                        }
+                    }
+                    ValueAbi::Indirect { .. } => {
+                        self.emit_val_into(e, "%sret", res_lid)?;
+                        if !self.b.terminated {
+                            self.settle_tokens(0);
+                            self.b.line("ret void");
+                        }
+                    }
+                }
+                return Ok(());
+            }
+        }
         match e {
             Core::Let(x, _, value, body) => {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
                 if self.virtual_let(*x, value, body)? {
+                    return self.emit_to(body, dest);
+                }
+                if let Some(vlid) = self.expr_val_layout(value) {
+                    let sub = self.reg.value_layouts[vlid as usize].clone();
+                    let alloc_sz = match ValueAbi::of(&sub) {
+                        ValueAbi::Zero => 1,
+                        ValueAbi::SmallWord => 8,
+                        ValueAbi::SmallPair => 16,
+                        ValueAbi::Indirect { size, .. } => size.max(1),
+                    };
+                    let buf = self.b.alloca_bytes(alloc_sz, sub.align.max(8));
+                    self.has_local_alloca = true;
+                    self.emit_val_into(value, &buf, vlid)?;
+                    self.val_slots.insert(*x, (buf, vlid));
+                    return self.emit_to(body, dest);
+                }
+                if self.expr_is_ptr(value) && self.frame_site(*x).is_none() && !self.wide.contains(x) {
+                    let p = self.emit_as_ptr(value)?;
+                    let pslot = self.b.alloca_ty("ptr");
+                    self.b.line(&format!("store ptr {p}, ptr {pslot}"));
+                    self.ptr_slots.insert(*x, pslot);
                     return self.emit_to(body, dest);
                 }
                 let v = self.emit_let(*x, value)?;
@@ -12027,7 +13344,7 @@ impl CoreEmitter<'_, '_> {
             }
             Core::If(c, t, f) => {
                 if matches!(dest, Dest::Slot { .. })
-                    || (matches!(dest, Dest::Ret) && self.cpr.is_none())
+                    || (matches!(dest, Dest::Ret) && self.cpr.is_none() && !self.ret.is_ptr())
                 {
                     if let Some(ty) = self.can_select_if(t, f) {
                         let cv = self.emit_expr(c)?;
@@ -12127,13 +13444,21 @@ impl CoreEmitter<'_, '_> {
                         // must not clobber a slot mid-update), then the
                         // parameter slots, then the jump.
                         let mut vals = Vec::with_capacity(args.len());
-                        for a in args {
-                            vals.push(self.emit_expr(a)?);
+                        for (i, a) in args.iter().enumerate() {
+                            if self.ptr_slots.contains_key(&LocalId(i)) {
+                                vals.push(self.emit_as_ptr(a)?);
+                            } else {
+                                vals.push(self.emit_expr(a)?);
+                            }
                         }
                         for (i, v) in vals.iter().enumerate() {
-                            let ty = self.local_ty(LocalId(i));
-                            let slot = self.slot(LocalId(i));
-                            self.b.line(&format!("store {ty} {v}, ptr {slot}"));
+                            if let Some(pslot) = self.ptr_slots.get(&LocalId(i)).cloned() {
+                                self.b.line(&format!("store ptr {v}, ptr {pslot}"));
+                            } else {
+                                let ty = self.local_ty(LocalId(i));
+                                let slot = self.slot(LocalId(i));
+                                self.b.line(&format!("store {ty} {v}, ptr {slot}"));
+                            }
                         }
                         // The back edge leaves every `Release` in the body
                         // behind, so a cell the body kept and did not reuse
@@ -12170,16 +13495,18 @@ impl CoreEmitter<'_, '_> {
                             && self.reg.tailcc.contains(&self.unit)
                             && self.reg.tailcc.contains(&unit) =>
                     {
-                        let mut vals = Vec::with_capacity(args.len());
-                        for a in args {
-                            vals.push(self.emit_expr(a)?);
-                        }
-                        let sig = self.reg.narrow_sigs.get(&unit);
-                        let mut typed = Vec::with_capacity(vals.len());
-                        for (i, v) in vals.iter().enumerate() {
-                            let c = sig.map_or(Cross::WORD, |s| s.param(i));
-                            let n = c.narrow(self.b, v);
-                            typed.push(format!("{} {n}", c.ty()));
+                        let sig = self.reg.narrow_sigs.get(&unit).cloned();
+                        let mut typed = Vec::with_capacity(args.len());
+                        for (i, a) in args.iter().enumerate() {
+                            let c = sig.as_ref().map_or(Cross::WORD, |s| s.param(i));
+                            if c.is_ptr() {
+                                let p = self.emit_as_ptr(a)?;
+                                typed.push(format!("ptr {p}"));
+                            } else {
+                                let v = self.emit_expr(a)?;
+                                let n = c.narrow(self.b, &v);
+                                typed.push(format!("{} {n}", c.ty()));
+                            }
                         }
                         self.settle_tokens(dest.base());
                         let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
@@ -12209,21 +13536,25 @@ impl CoreEmitter<'_, '_> {
                     // results must agree. Every such call is guaranteed
                     // constant stack, recursive group or not.
                     Some((unit, _))
-                        if self.reg.tailcc.contains(&self.unit)
+                        if !self.has_local_alloca
+                            && self.reg.tailcc.contains(&self.unit)
                             && self.reg.tailcc.contains(&unit)
                             && !self.reg.cpr.contains_key(&unit)
+                            && !self.reg.val_sigs.contains_key(&unit)
                             && self.reg.narrow_sigs.get(&unit).map_or(Cross::WORD, |s| s.ret).ty() == self.ret.ty() =>
                     {
-                        let mut vals = Vec::with_capacity(args.len());
-                        for a in args {
-                            vals.push(self.emit_expr(a)?);
-                        }
-                        let sig = self.reg.narrow_sigs.get(&unit);
-                        let mut typed = Vec::with_capacity(vals.len());
-                        for (i, v) in vals.iter().enumerate() {
-                            let c = sig.map_or(Cross::WORD, |s| s.param(i));
-                            let n = c.narrow(self.b, v);
-                            typed.push(format!("{} {n}", c.ty()));
+                        let sig = self.reg.narrow_sigs.get(&unit).cloned();
+                        let mut typed = Vec::with_capacity(args.len());
+                        for (i, a) in args.iter().enumerate() {
+                            let c = sig.as_ref().map_or(Cross::WORD, |s| s.param(i));
+                            if c.is_ptr() {
+                                let p = self.emit_as_ptr(a)?;
+                                typed.push(format!("ptr {p}"));
+                            } else {
+                                let v = self.emit_expr(a)?;
+                                let n = c.narrow(self.b, &v);
+                                typed.push(format!("{} {n}", c.ty()));
+                            }
                         }
                         // The `ret` must follow the call directly, so a
                         // kept cell is freed before it.
@@ -12315,11 +13646,13 @@ impl CoreEmitter<'_, '_> {
                     // would read as the body that allocates nothing, so the
                     // call boxes beside itself in the arm below.
                     Some((unit, arity))
-                        if !self.reg.tailcc.contains(&self.unit)
+                        if !self.has_local_alloca
+                            && !self.reg.tailcc.contains(&self.unit)
                             && self.reg.elfv1_tail_groups.as_ref().is_none_or(|groups| {
                                 groups.get(&self.unit).is_some_and(|group| groups.get(&unit) == Some(group))
                             })
                             && !self.reg.cpr.contains_key(&unit)
+                            && !self.reg.val_sigs.contains_key(&unit)
                             && self.reg.tail_sig(&unit, arity).1 == self.width
                             // `musttail` needs the callee's prototype to be
                             // the caller's exactly, parameters included, so
@@ -12365,6 +13698,12 @@ impl CoreEmitter<'_, '_> {
                         Ok(())
                     }
                     _ => {
+                        if self.ret.is_ptr() {
+                            let p = self.emit_as_ptr(e)?;
+                            self.settle_tokens(dest.base());
+                            self.b.line(&format!("ret ptr {p}"));
+                            return Ok(());
+                        }
                         let v = self.emit_app(f, args)?;
                         // The unit's own result narrowing applies here too:
                         // a body that is one application returns through
@@ -12404,6 +13743,14 @@ impl CoreEmitter<'_, '_> {
                 self.unit
             )),
             other => {
+                if matches!(dest, Dest::Ret) && self.ret.is_ptr() {
+                    let p = self.emit_as_ptr(other)?;
+                    if !self.b.terminated {
+                        self.settle_tokens(dest.base());
+                        self.b.line(&format!("ret ptr {p}"));
+                    }
+                    return Ok(());
+                }
                 let v = self.emit_expr(other)?;
                 // A terminating expression (the fault path, or a value that
                 // was delivered elsewhere) leaves nothing to settle.
@@ -12493,16 +13840,18 @@ impl CoreEmitter<'_, '_> {
     /// Call product-result `unit`'s body with `args`, answering the
     /// aggregate register.
     fn call_product(&mut self, unit: &str, args: &[Core]) -> Result<String> {
-        let mut vals = Vec::with_capacity(args.len());
-        for a in args {
-            vals.push(self.emit_expr(a)?);
-        }
-        let sig = self.reg.narrow_sigs.get(unit);
-        let mut typed = Vec::with_capacity(vals.len());
-        for (i, v) in vals.iter().enumerate() {
-            let c = sig.map_or(Cross::WORD, |s| s.param(i));
-            let n = c.narrow(self.b, v);
-            typed.push(format!("{} {n}", c.ty()));
+        let sig = self.reg.narrow_sigs.get(unit).cloned();
+        let mut typed = Vec::with_capacity(args.len());
+        for (i, a) in args.iter().enumerate() {
+            let c = sig.as_ref().map_or(Cross::WORD, |s| s.param(i));
+            if c.is_ptr() {
+                let p = self.emit_as_ptr(a)?;
+                typed.push(format!("ptr {p}"));
+            } else {
+                let v = self.emit_expr(a)?;
+                let n = c.narrow(self.b, &v);
+                typed.push(format!("{} {n}", c.ty()));
+            }
         }
         let ty = self.reg.cpr[unit].ty();
         let cc = if self.reg.tailcc.contains(unit) { "tailcc " } else { "" };
@@ -16095,27 +17444,31 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
 
 // ==================== `prim` inline-body units (P18) ====================
 
-/// Representation of a checked inline primitive's scalar at its public boundary.
+/// Representation of a checked inline primitive's scalar or pointer at its public boundary.
 fn inline_prim_class(ty: &PrimAbiTy) -> Class {
     match ty {
         PrimAbiTy::Int { bits: 128, .. } => Class::Wide,
-        PrimAbiTy::Int { .. } | PrimAbiTy::F32 | PrimAbiTy::F64 => Class::Raw,
+        PrimAbiTy::Int { .. } | PrimAbiTy::F32 | PrimAbiTy::F64 | PrimAbiTy::Ptr | PrimAbiTy::Unit => {
+            Class::Raw
+        }
     }
 }
 
-/// The LLVM type of one prim ABI scalar (the inline fragment's widths).
+/// The LLVM type of one prim ABI scalar, pointer, or `Unit` result.
 fn abi_word(t: &PrimAbiTy) -> String {
     match t {
         PrimAbiTy::Int { bits, .. } => format!("i{bits}"),
         PrimAbiTy::F32 => "float".to_string(),
         PrimAbiTy::F64 => "double".to_string(),
+        PrimAbiTy::Ptr => "ptr".to_string(),
+        PrimAbiTy::Unit => "void".to_string(),
     }
 }
 
-/// The inline-asm constraint letter of one prim ABI scalar.
+/// The inline-asm constraint letter of one prim ABI scalar or pointer.
 fn asm_constraint(t: &PrimAbiTy) -> char {
     match t {
-        PrimAbiTy::Int { .. } => 'r',
+        PrimAbiTy::Int { .. } | PrimAbiTy::Ptr | PrimAbiTy::Unit => 'r',
         PrimAbiTy::F32 | PrimAbiTy::F64 => 'f',
     }
 }
@@ -16202,10 +17555,15 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
         // return operand and `$1 ...` the declared arguments. The call
         // carries `llvm.sideeffect` so DCE cannot drop it
         // (design/llvm-contract-attributes.md).
-        let mut constraints = String::from("=");
-        constraints.push(asm_constraint(&plan.res));
+        let mut constraints = String::new();
+        if !matches!(plan.res, PrimAbiTy::Unit) {
+            constraints.push('=');
+            constraints.push(asm_constraint(&plan.res));
+        }
         for a in &plan.args {
-            constraints.push(',');
+            if !constraints.is_empty() {
+                constraints.push(',');
+            }
             constraints.push(asm_constraint(a));
         }
         let args: Vec<String> = plan
@@ -16215,13 +17573,23 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
             .map(|(i, t)| format!("{} %{}", abi_word(t), i))
             .collect();
         let mut code = String::from("  call void @llvm.sideeffect()\n");
-        code.push_str(&format!(
-            "  %v = call {ret_ty} asm sideeffect \"{}\", \"{}\"({})\n",
-            asm_escape(body.fragment.trim()),
-            constraints,
-            args.join(", ")
-        ));
-        code.push_str(&format!("  ret {ret_ty} %v\n"));
+        if matches!(plan.res, PrimAbiTy::Unit) {
+            code.push_str(&format!(
+                "  call void asm sideeffect \"{}\", \"{}\"({})\n",
+                asm_escape(body.fragment.trim()),
+                constraints,
+                args.join(", ")
+            ));
+            code.push_str("  ret void\n");
+        } else {
+            code.push_str(&format!(
+                "  %v = call {ret_ty} asm sideeffect \"{}\", \"{}\"({})\n",
+                asm_escape(body.fragment.trim()),
+                constraints,
+                args.join(", ")
+            ));
+            code.push_str(&format!("  ret {ret_ty} %v\n"));
+        }
         code
     } else {
         format!("{}\n", body.fragment.trim_end())
@@ -16270,6 +17638,7 @@ fn prim_wrapper_unit(
         ));
     }
     let mut b = Builder::new();
+    b.pointer_bytes = reg.pointer_bytes;
     let narrow = reg.narrow_sigs.get(name);
     let mut args: Vec<String> = Vec::new();
     for (i, t) in plan.args.iter().enumerate() {
@@ -16277,16 +17646,29 @@ fn prim_wrapper_unit(
         args.push(format!("{} {v}", abi_word(t)));
     }
     let ret_ty = abi_word(&plan.res);
-    let v = b.reg();
-    b.line(&format!(
-        "{v} = call {ret_ty} @{}({})",
-        quote(&impl_name),
-        args.join(", ")
-    ));
-    let r = prim_res_bridge(&mut b, &plan.res, &v);
     let ret_cross = narrow.map_or(Cross::WORD, |s| s.ret);
-    let result = ret_cross.narrow(&mut b, &r);
-    b.line(&format!("ret {} {result}", ret_cross.ty()));
+    if matches!(plan.res, PrimAbiTy::Unit) {
+        b.line(&format!(
+            "call void @{}({})",
+            quote(&impl_name),
+            args.join(", ")
+        ));
+        b.line("ret i64 0");
+    } else {
+        let v = b.reg();
+        b.line(&format!(
+            "{v} = call {ret_ty} @{}({})",
+            quote(&impl_name),
+            args.join(", ")
+        ));
+        if ret_cross.is_ptr() {
+            b.line(&format!("ret ptr {v}"));
+        } else {
+            let r = prim_res_bridge(&mut b, &plan.res, &v);
+            let result = ret_cross.narrow(&mut b, &r);
+            b.line(&format!("ret {} {result}", ret_cross.ty()));
+        }
+    }
     let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), Some(impl_name.as_str()));
     let mut wrapper_hints = f.hints.clone();
     if wrapper_hints.inline.is_none() {
@@ -16336,6 +17718,8 @@ fn prim_arg_bridge(b: &mut Builder, t: &PrimAbiTy, word: &str) -> String {
             b.line(&format!("{f} = bitcast i64 {word} to double"));
             f
         }
+        PrimAbiTy::Ptr => word.to_string(),
+        PrimAbiTy::Unit => "0".to_string(),
     }
 }
 
@@ -16365,5 +17749,7 @@ fn prim_res_bridge(b: &mut Builder, t: &PrimAbiTy, v: &str) -> String {
             b.line(&format!("{w} = bitcast double {v} to i64"));
             w
         }
+        PrimAbiTy::Ptr => Cross::PTR.widen(b, v),
+        PrimAbiTy::Unit => "0".to_string(),
     }
 }

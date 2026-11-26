@@ -914,7 +914,7 @@ fn prim_abi_to_sem_ty(ty: &crate::core::PrimAbiTy) -> Option<(SemTy, bool)> {
     use crate::core::PrimAbiTy;
     match ty {
         PrimAbiTy::Int { bits, signed } => Some((SemTy::Bv(*bits as u16), *signed)),
-        PrimAbiTy::F32 | PrimAbiTy::F64 => None,
+        PrimAbiTy::F32 | PrimAbiTy::F64 | PrimAbiTy::Ptr | PrimAbiTy::Unit => None,
     }
 }
 

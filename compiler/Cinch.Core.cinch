@@ -75,7 +75,8 @@ module Cinch.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, core-data-layout, with-data-layout
+  export state-label, state-residual
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   -- `WithLayout` is exported with `MkCoreData` because a family whose table
   -- is only partly exported is abstract to an importing module: it could
@@ -241,12 +242,21 @@ module Cinch.Core where
   physical-fields :: List RecordSlot -> List UType
   physical-fields slots = case slots of [] -> []; slot : rest -> slot-types slot <> physical-fields rest
 
+  record ValueField where
+    vf-name :: String
+    vf-offset :: Nat
+    vf-size :: Nat
+    vf-align :: Nat
+    vf-type :: UType
+
   data DataLayout where
     UniformData :: DataLayout
     TransparentData :: String -> Nat -> Nat -> DataLayout
     UnpackedRecord :: List RecordSlot -> DataLayout
     -- Represented field name, runtime word class, ABI size and alignment.
     UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
+    -- POD unboxed multi-field record: repr spelling, size, align, field layouts.
+    ValueData :: String -> Nat -> Nat -> List ValueField -> DataLayout
   data CoreData where
     MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
     WithLayout :: DataLayout -> CoreData -> CoreData
@@ -777,6 +787,13 @@ module Cinch.Core where
     UMeta id KRow -> row
     URowJoin first second -> union-effects (memo-residual region first) (memo-residual region second)
     other -> (case handler-residual (memo-label region) row of Some residual -> residual; None -> UError)
+  state-label :: UType -> UType
+  state-label region = UApp (UCon "State" (KFun KRegion KEffect)) region
+  state-residual :: UType -> UType -> UType
+  state-residual region row = case row of
+    UMeta id KRow -> row
+    URowJoin first second -> union-effects (state-residual region first) (state-residual region second)
+    other -> (case handler-residual (state-label region) row of Some residual -> residual; None -> UError)
   memo-demand-type :: UType -> UType
   memo-demand-type cell = case lazy-parts cell of
     Some (row, region, result) -> UApp (UApp (UCon "Ref" borrow-constructor-kind) region) result
@@ -1037,6 +1054,13 @@ module Cinch.Core where
         (case args of
           CArgument at count (CArgumentsEnd end) -> core-effects count
           other -> UError)
+      else if name == "val-local-scope" then
+        (case args of
+          CArgument at (CLet lt lty lid lname lsc rhs body) (CArgumentsEnd end) ->
+            (case mutable-borrow (scheme-body lsc) of
+              Some (region, carrier) -> union-effects (core-effects rhs) (state-residual region (core-effects body))
+              None -> union-effects (core-effects rhs) (core-effects body))
+          other -> core-effects args)
       else core-effects args
     CProved s ty evidence body -> core-effects body
     CRefine s ty evidence body -> core-effects body
@@ -1077,7 +1101,7 @@ module Cinch.Core where
     CApplyEff sp ty row f x -> child-writes [f, x] <> argument-writes sp x <> row-writes sp row <> opaque-call-writes sp f
     CErasedApply sp ty row f witness -> core-mutable-writes f <> row-writes sp row <> opaque-call-writes sp f
     CPrimitive sp ty operation (CArgument at place rest) ->
-      child-writes [place, rest] <> (if operation == "ref-set" then argument-writes sp place
+      child-writes [place, rest] <> (if operation == "ref-set" || operation == "val-place-store" || operation == "val-fixed-set" then argument-writes sp place
         else if operation == "thunk-force" then forced-thunk-writes sp place
         else if operation == "memo-demand" then [(sp, None)] else [])
     CIf sp ty condition yes no -> core-mutable-writes condition <> (case write-branch-literal condition of

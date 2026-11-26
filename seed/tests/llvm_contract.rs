@@ -600,7 +600,7 @@ module Main where
     );
     // A foreign result read back at the boundary freezes.
     assert!(
-        body_of(&ir, "Main.nullPtr").contains("freeze i64"),
+        body_of(&ir, "Main.nullPtr").contains("freeze ptr"),
         "a foreign pointer result must freeze\n{ir}"
     );
     // A `RawPtr` field loaded out of a foreign buffer freezes: the
