@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 packed library provider and runtime with data-parallel multi-backend GPU/SIMD/WebGPU and AD runtime support.",
-  "revision": "f6a7b525783d4de8f9ae43776cb61f12312d9af6",
+  "description": "ABI 10 packed library provider with string literal patterns, list cons (:), data-parallel arrays, and AD runtime support.",
+  "revision": "d63c0e18cc71249ebc7ab43361b22240d5bd35c9",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "230f0b8b089634636b8ff14ddea902ae51138a4ba1873a80c61da24c2c9544d3"
+  "source_sha256": "6c71228ee3a79f0c7f0263788294d0346a755707eef8ef1b268842e1e9666b02"
 }
