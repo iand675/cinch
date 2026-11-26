@@ -38,6 +38,7 @@ pub mod lsp;
 pub mod parser;
 pub mod mvar;
 pub mod pkg;
+pub mod prim_verify;
 pub mod promote;
 pub mod provenance;
 pub mod rc;

@@ -20,6 +20,8 @@ usage:
   cinch core verify <file.core>    parse and re-check a Core dump
   cinch core diff <a.core> <b.core>
                                    report the first structural divergence
+  cinch verify-prims <file.cinch...> [--policy=dev|jpl] [--checker=kernel|compiled]
+                                   formally verify inline LLVM prim bodies
   cinch doc extract <file.cinch> [--iface <cinchif>] [--legacy] [--out <json>]
   cinch doc render <file.cinch> [--iface <cinchif>] [--legacy] [--plain] [--out <markdown>]
   cinch doc html <root> [--out-dir <dir>] [--iface-dir <dir>] [--legacy] [--title <text>]
@@ -124,6 +126,7 @@ fn main() {
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
         Some("core") => exit(cinch::driver::core_cli(&args[1..])),
+        Some("verify-prims") => exit(cinch::prim_verify::cli(&args[1..])),
         Some("cxx") => exit(cinch::cxx::cli(&args[1..])),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("repl") => {
