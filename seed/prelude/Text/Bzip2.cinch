@@ -1,23 +1,16 @@
 -- | Bzip2 decompression: concatenated streams of Burrows-Wheeler blocks with Huffman and move-to-front coding.
--- A block passes through its stages in order. Symbols are read with canonical
--- Huffman codes (two to six tables, switched every fifty symbols by
--- move-to-front coded selectors) through a 1024-entry direct lookup with a
--- canonical range scan for codes longer than ten bits. Zero-run symbols and
--- move-to-front indices rebuild the transformed block while counting each byte
--- value with carry-only counter updates; it is inverted through a vector of
--- 32-bit successor links kept beside the block's bytes.
--- Following that vector feeds an explicit state machine that undoes the initial
--- run-length coding straight into the output, filling repeats by doubling
--- memmoves. Bits are read as 64-bit
--- big-endian windows, CRCs fold four bytes per branch-free step, and every block
--- CRC and each stream's combined CRC are verified. Obsolete randomized blocks
--- are rejected; streams that follow the first are decoded in turn.
+-- Bits are read from a 64-bit big-endian register refilled in 64-bit words, canonical Huffman symbols
+-- use a 1024-entry direct table with unboxed run accumulators, the Burrows-Wheeler inverse transform
+-- packs each byte and its 24-bit successor link into one merged 32-bit Seward vector word, and block
+-- CRCs use a precomputed Slice-by-8 MSB-first table. Every in-place buffer mutation is threaded
+-- strictly through linear `%1` ownership.
 module Text.Bzip2 where
 
   import Data.Bytes
   import Data.List
   import Data.Machine
   import Data.Nat
+  import Data.Option
   import Data.Result
   import Data.String
   import Text.Show (nat-to-string)
@@ -44,34 +37,293 @@ module Text.Bzip2 where
     Bzip2ChecksumMismatch -> "bzip2: checksum mismatch"
 
   -- ---------------------------------------------------------------------
-  -- Words and bits.
+  -- Private `%1`-linear buffer mutation primitives.
   -- ---------------------------------------------------------------------
 
-  -- | A byte or zero past the end.
-  at :: Bytes -> Nat -> Nat
-  at input i = if i < bytes-len input then bytes-get input i else 0
+  -- | Private raw single-byte store returning its buffer.
+  put-u8-raw :: Bytes -> I64 -> U8 -> Bytes
+  put-u8-raw b pos v =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let w = bytes-set-u8-at b pos v in b
+    else b
 
-  -- | Saturating subtraction.
-  minus :: Nat -> Nat -> Nat
-  minus a b = if b <= a then a - b else 0
+  -- | Linearly store one byte into a uniquely owned buffer.
+  put-u8-lin :: Bytes %1 -> I64 -> U8 -> Bytes
+  put-u8-lin b pos v = put-u8-raw b pos v
 
-  -- | A value below 2^32 as a 32-bit word.
-  word :: Nat -> U32
-  word n = if n < 4294967296 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+  -- | Private raw 32-bit little-endian store returning its buffer.
+  put-le32-raw :: Bytes -> I64 -> U32 -> Bytes
+  put-le32-raw b pos v =
+    let n = bytes-len-i64 b in
+    if 4 <= n && 0 <= pos then
+      let nn = nat-from-i64 n in
+      if 4 <= nn && nat-from-i64 pos <= nn - 4 then
+        let w = bytes-store-le32-at b pos v in b
+      else b
+    else b
 
-  -- | A 32-bit counter in a word table, zero outside it.
-  get32 :: Bytes -> Nat -> Nat
-  get32 b i = if i + 4 <= bytes-len b then u32-to-nat (bytes-load-le32 b i) else 0
+  -- | Linearly store a 32-bit little-endian word into a uniquely owned buffer.
+  put-le32-lin :: Bytes %1 -> I64 -> U32 -> Bytes
+  put-le32-lin b pos v = put-le32-raw b pos v
 
-  -- | Store a 32-bit counter in a word table when it fits.
-  set32 :: Bytes -> Nat -> Nat -> Unit
-  set32 b i v = if i + 4 <= bytes-len b then bytes-store-le32 b i (word v) else ()
+  -- | Checked 32-bit little-endian load at an I64 byte offset.
+  load-le32-safe :: Bytes -> I64 -> U32
+  load-le32-safe b off =
+    let n = bytes-len-i64 b in
+    if 4 <= n && 0 <= off then
+      let nn = nat-from-i64 n in
+      if 4 <= nn && nat-from-i64 off <= nn - 4 then bytes-load-le32-at b off else 0
+    else 0
 
-  -- | Store a byte when it fits.
-  put :: Bytes -> Nat -> Nat -> Unit
-  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+  -- | Checked 64-bit little-endian load at an I64 byte offset.
+  load-le64-safe :: Bytes -> I64 -> U64
+  load-le64-safe b off =
+    let n = bytes-len-i64 b in
+    if 8 <= n && 0 <= off then
+      let nn = nat-from-i64 n in
+      if 8 <= nn && nat-from-i64 off <= nn - 8 then bytes-load-le64-at b off else 0
+    else 0
 
-  -- | The bit field of a little-endian 64-bit load: byte swap so the first byte leads, drop shift bits, keep the next n (1 to 32).
+  -- | Private raw byte-range copy returning its destination buffer.
+  copy-range-raw :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Bytes
+  copy-range-raw dst src di si n =
+    if di + n <= bytes-len dst && si + n <= bytes-len src then
+      let c = bytes-copy-range dst src di si n in dst
+    else dst
+
+  -- | Linearly copy `n` bytes from `src` into a uniquely owned destination buffer.
+  copy-range-lin :: Bytes %1 -> Bytes -> Nat -> Nat -> Nat -> Bytes
+  copy-range-lin dst src di si n = copy-range-raw dst src di si n
+
+  -- | Private raw self-copy (memmove) returning its buffer.
+  copy-self-raw :: Bytes -> Nat -> Nat -> Nat -> Bytes
+  copy-self-raw b di si n =
+    if di + n <= bytes-len b && si + n <= bytes-len b then
+      let c = bytes-copy-range b b di si n in b
+    else b
+
+  -- | Linearly memmove `n` bytes within a uniquely owned buffer.
+  copy-self-lin :: Bytes %1 -> Nat -> Nat -> Nat -> Bytes
+  copy-self-lin b di si n = copy-self-raw b di si n
+
+  -- | Private raw move-to-front step returning `(value, buffer)`.
+  -- Fast-paths indices 1..3 with direct byte swaps to avoid FFI memmove calls on common BWT indices.
+  mtf-step-raw :: Bytes -> I64 -> (U8, Bytes)
+  mtf-step-raw order idx =
+    let n-len = bytes-len-i64 order in
+    if 0 <= idx && idx < n-len then
+      let val = bytes-get-u8-at order idx in
+      if eq-i64 idx 0 then (val, order)
+      else if eq-i64 idx 1 && 1 < n-len then
+        let b0 = bytes-get-u8-at order 0 in
+        let w0 = bytes-set-u8-at order 1 b0 in
+        let w1 = bytes-set-u8-at order 0 val in
+        (val, order)
+      else if eq-i64 idx 2 && 2 < n-len then
+        let b0 = bytes-get-u8-at order 0 in
+        let b1 = bytes-get-u8-at order 1 in
+        let w2 = bytes-set-u8-at order 2 b1 in
+        let w1 = bytes-set-u8-at order 1 b0 in
+        let w0 = bytes-set-u8-at order 0 val in
+        (val, order)
+      else if eq-i64 idx 3 && 3 < n-len then
+        let b0 = bytes-get-u8-at order 0 in
+        let b1 = bytes-get-u8-at order 1 in
+        let b2 = bytes-get-u8-at order 2 in
+        let w3 = bytes-set-u8-at order 3 b2 in
+        let w2 = bytes-set-u8-at order 2 b1 in
+        let w1 = bytes-set-u8-at order 1 b0 in
+        let w0 = bytes-set-u8-at order 0 val in
+        (val, order)
+      else
+        let n = nat-from-i64 idx in
+        let moved = if n + 1 <= bytes-len order then bytes-copy-range order order 1 0 n else () in
+        let w = bytes-set-u8-at order 0 val in
+        (val, order)
+    else (0, order)
+
+  -- | Linearly perform one move-to-front lookup and shift on a uniquely owned table.
+  mtf-step-lin :: Bytes %1 -> I64 -> (U8, Bytes)
+  mtf-step-lin order idx = mtf-step-raw order idx
+
+  -- | Private raw read of the front byte of an MTF buffer without consuming ownership.
+  mtf-front-raw :: Bytes -> (U8, Bytes)
+  mtf-front-raw mtf =
+    let v = if 0 < bytes-len-i64 mtf then bytes-get-u8-at mtf 0 else 0 in (v, mtf)
+
+  -- | Linearly inspect byte 0 of a uniquely owned MTF buffer.
+  mtf-front-lin :: Bytes %1 -> (U8, Bytes)
+  mtf-front-lin mtf = mtf-front-raw mtf
+
+  -- | Private raw counter increment on a 32-bit little-endian counter table.
+  add-count-raw :: Bytes -> I64 -> U32 -> Bytes
+  add-count-raw counts byte-idx delta =
+    let off = wrapping-shl-i64 byte-idx 2 in
+    let cur = load-le32-safe counts off in
+    put-le32-raw counts off (wrapping-add-u32 cur delta)
+
+  -- | Linearly add `delta` to counter `byte-idx` in a uniquely owned 256-entry U32 table.
+  add-count-lin :: Bytes %1 -> I64 -> U32 -> Bytes
+  add-count-lin counts byte-idx delta = add-count-raw counts byte-idx delta
+
+  -- | Private raw read-and-increment of a 32-bit table entry.
+  fetch-inc32-raw :: Bytes -> I64 -> (I64, Bytes)
+  fetch-inc32-raw tbl idx =
+    let off = wrapping-shl-i64 idx 2 in
+    let cur = load-le32-safe tbl off in
+    let tbl1 = put-le32-raw tbl off (wrapping-add-u32 cur 1) in
+    (u32-to-i64 cur, tbl1)
+
+  -- | Linearly fetch and increment entry `idx` in a uniquely owned U32 table.
+  fetch-inc32-lin :: Bytes %1 -> I64 -> (I64, Bytes)
+  fetch-inc32-lin tbl idx = fetch-inc32-raw tbl idx
+
+  -- | Private raw prefix-sum step replacing `counts[c]` with `sum` and returning `(sum + old, counts)`.
+  prefix-step-raw :: Bytes -> I64 -> U32 -> (U32, Bytes)
+  prefix-step-raw counts c sum =
+    let off = wrapping-shl-i64 c 2 in
+    let n = load-le32-safe counts off in
+    let counts1 = put-le32-raw counts off sum in
+    (wrapping-add-u32 sum n, counts1)
+
+  -- | Linearly convert entry `c` of a counter table into an exclusive prefix sum.
+  prefix-step-lin :: Bytes %1 -> I64 -> U32 -> (U32, Bytes)
+  prefix-step-lin counts c sum = prefix-step-raw counts c sum
+
+  -- | Private raw read of the low byte stored in merged `tt` slot `i`.
+  tt-byte-raw :: Bytes -> I64 -> (I64, Bytes)
+  tt-byte-raw tt i =
+    let off = wrapping-shl-i64 i 2 in
+    let b = if 0 <= off && off < bytes-len-i64 tt then u8-to-i64 (bytes-get-u8-at tt off) else 0 in
+    (b, tt)
+
+  -- | Linearly read the transformed byte at position `i` of the merged Seward `tt` vector.
+  tt-byte-lin :: Bytes %1 -> I64 -> (I64, Bytes)
+  tt-byte-lin tt i = tt-byte-raw tt i
+
+  -- | Private raw Seward link write: preserve low byte at `pos`, set upper 24 bits to `succ`.
+  tt-set-link-raw :: Bytes -> I64 -> U32 -> Bytes
+  tt-set-link-raw tt pos succ =
+    let off = wrapping-shl-i64 pos 2 in
+    let cur = load-le32-safe tt off in
+    let merged = bit-or-u32 (bit-and-u32 cur 255) (wrapping-shl-u32 succ 8) in
+    put-le32-raw tt off merged
+
+  -- | Linearly attach 24-bit successor link `succ` onto merged `tt` entry `pos`.
+  tt-set-link-lin :: Bytes %1 -> I64 -> U32 -> Bytes
+  tt-set-link-lin tt pos succ = tt-set-link-raw tt pos succ
+
+  -- | Private raw read of a 32-bit word from `tt` (merged byte + successor link).
+  tt-word-raw :: Bytes -> I64 -> (U32, Bytes)
+  tt-word-raw tt pos =
+    let off = wrapping-shl-i64 pos 2 in
+    (load-le32-safe tt off, tt)
+
+  -- | Linearly read one merged `(succ << 8) | byte` word from `tt`.
+  tt-word-lin :: Bytes %1 -> I64 -> (U32, Bytes)
+  tt-word-lin tt pos = tt-word-raw tt pos
+
+  -- | Private raw slice-by-8 CRC table derivation step.
+  crc-slice-step-raw :: Bytes -> I64 -> Bytes
+  crc-slice-step-raw tab off =
+    if 1024 <= off then
+      let prev = load-le32-safe tab (wrapping-sub-i64 off 1024) in
+      let idx = wrapping-shl-i64 (u32-to-i64 (wrapping-shr-u32 prev 24)) 2 in
+      let t0 = load-le32-safe tab idx in
+      let val = bit-xor-u32 t0 (wrapping-shl-u32 prev 8) in
+      put-le32-raw tab off val
+    else tab
+
+  -- | Linearly derive one MSB-first Slice-by-8 CRC-32 entry.
+  crc-slice-step-lin :: Bytes %1 -> I64 -> Bytes
+  crc-slice-step-lin tab off = crc-slice-step-raw tab off
+
+  -- | Convert a non-negative I64 to Nat, clamping negatives to 0.
+  i64-to-nat :: I64 -> Nat
+  i64-to-nat x = if 0 <= x then nat-from-i64 x else 0
+
+  -- | Private raw buffer growth preserving the first `len` bytes.
+  grow-raw :: Bytes -> I64 -> I64 -> (Bytes, I64)
+  grow-raw out len need =
+    let cur = bytes-len-i64 out in
+    let new-cap = wrapping-add-i64 (wrapping-add-i64 (wrapping-shl-i64 cur 1) need) 4096 in
+    let nc-nat = i64-to-nat new-cap in
+    let bigger = bytes-new nc-nat in
+    let len-nat = i64-to-nat len in
+    let copied = if len-nat <= bytes-len out && len-nat <= bytes-len bigger then bytes-copy-range bigger out 0 0 len-nat else () in
+    (bigger, bytes-len-i64 bigger)
+
+  -- | Linearly grow a uniquely owned output buffer to hold at least `need` bytes.
+  grow-lin :: Bytes %1 -> I64 -> I64 -> (Bytes, I64)
+  grow-lin out len need = grow-raw out len need
+
+  -- | Private raw trim returning the first `len` bytes as an exact buffer.
+  trim-raw :: Bytes -> I64 -> Bytes
+  trim-raw out len =
+    if 0 <= len then
+      if eq-i64 len (bytes-len-i64 out) then out
+      else
+        let ln = nat-from-i64 len in
+        let exact = bytes-new ln in
+        if ln <= bytes-len out && ln <= bytes-len exact then
+          let copied = bytes-copy-range exact out 0 0 ln in exact
+        else exact
+    else bytes-new 0
+
+  -- | Linearly trim a uniquely owned output buffer to its exact written length.
+  trim-lin :: Bytes %1 -> I64 -> Bytes
+  trim-lin out len = trim-raw out len
+
+  -- | Private raw read of a 32-bit word from a Huffman table buffer while keeping ownership.
+  tabs-read32-raw :: Bytes -> I64 -> (U32, Bytes)
+  tabs-read32-raw tabs off = (load-le32-safe tabs off, tabs)
+
+  -- | Linearly read a 32-bit word from a uniquely owned Huffman table buffer.
+  tabs-read32-lin :: Bytes %1 -> I64 -> (U32, Bytes)
+  tabs-read32-lin tabs off = tabs-read32-raw tabs off
+
+  -- | Private raw copy from `tabs` into a fresh `next` code array without aliasing `tabs`.
+  copy-first-codes-raw :: Bytes -> I64 -> (Bytes, Bytes)
+  copy-first-codes-raw tabs base =
+    let nxt = bytes-new 84 in
+    let si = i64-to-nat (wrapping-add-i64 base 4180) in
+    let c = if si + 84 <= bytes-len tabs then bytes-copy-range nxt tabs 0 si 84 else () in
+    (nxt, tabs)
+
+  -- | Linearly snapshot the per-length first-code table from `tabs` into a fresh linear buffer.
+  copy-first-codes-lin :: Bytes %1 -> I64 -> (Bytes, Bytes)
+  copy-first-codes-lin tabs base = copy-first-codes-raw tabs base
+
+  -- | Private raw discard of a linear buffer.
+  drop-bytes-raw :: Bytes -> Unit
+  drop-bytes-raw b = ()
+
+  -- | Linearly consume and release a uniquely owned buffer.
+  drop-bytes-lin :: Bytes %1 -> Unit
+  drop-bytes-lin b = drop-bytes-raw b
+
+  -- | Linearly compute the Slice-by-8 block CRC of `out[start, end)` while keeping unique ownership of `out`.
+  block-crc-lin :: Bytes -> Bytes %1 -> I64 -> I64 -> (U32, Bytes)
+  block-crc-lin crc-tab out start end = block-crc-raw crc-tab out start end
+
+  -- | Private raw wrapper computing Slice-by-8 CRC over `out[start, end)` and returning `(crc, out)`.
+  block-crc-raw :: Bytes -> Bytes -> I64 -> I64 -> (U32, Bytes)
+  block-crc-raw crc-tab out start end =
+    (block-crc-s8 crc-tab out start end, out)
+
+  -- ---------------------------------------------------------------------
+  -- Words, bits, and Slice-by-8 MSB-first CRC-32 (0x04C11DB7).
+  -- ---------------------------------------------------------------------
+
+  -- | Read a byte from an immutable buffer at an I64 offset, or 0 past the end.
+  at-i64 :: Bytes -> I64 -> I64
+  at-i64 b i = if 0 <= i && i < bytes-len-i64 b then u8-to-i64 (bytes-get-u8-at b i) else 0
+
+  -- | Read a 32-bit word from an immutable buffer at an I64 byte offset, or 0 past the end.
+  get32-i64 :: Bytes -> I64 -> U32
+  get32-i64 b off = load-le32-safe b off
+
+  -- | Load a big-endian 64-bit bit window starting at bit offset `pos` from 8-byte-padded `src`.
   bit-field :: U64 -> U32 -> U32 -> U32
   bit-field raw shift n =
     let w = swap-bytes-u64 raw in
@@ -79,483 +331,625 @@ module Text.Bzip2 where
     let k = wrapping-sub-u32 64 n in
     wrapping-u64-to-u32 (wrapping-shr-u64 s k)
 
-  -- | The n bits (1 to 32) starting at a bit position, most significant first, from a buffer padded with eight zero bytes.
-  peek :: Bytes -> Nat -> Nat -> Nat
-  peek src pos n =
-    let byte = nat-div pos 8 in
-    if byte + 8 <= bytes-len src then u32-to-nat (bit-field (bytes-load-le64 src byte) (word (nat-rem pos 8)) (word n)) else 0
+  -- | Peek `n` bits (1..32) starting at bit offset `pos` from 8-byte-padded `src`.
+  peek-i64 :: Bytes -> I64 -> U32 -> U32
+  peek-i64 src pos n =
+    let byte = wrapping-shr-i64 pos 3 in
+    bit-field (load-le64-safe src byte) (wrapping-i64-to-u32 (bit-and-i64 pos 7)) n
 
-  -- | The n bits at a position when all of them lie below the input's bit length.
-  take-bits :: Bytes -> Nat -> Nat -> Nat -> Option Nat
-  take-bits src total pos n = if pos + n <= total then Some (peek src pos n) else None
+  -- | Read `n` bits if all `n` bits lie within `total` bits.
+  take-bits :: Bytes -> I64 -> I64 -> I64 -> Option U32
+  take-bits src total pos n =
+    if le-i64 (wrapping-add-i64 pos n) total then Some (peek-i64 src pos (wrapping-i64-to-u32 n)) else None
 
-  -- | Whether bit k (counted from the least significant) of a value below 2^32 is set.
-  bit-of :: Nat -> Nat -> Bool
-  bit-of v k = u32-to-nat (bit-and-u32 (wrapping-shr-u32 (word v) (word k)) 1) == 1
+  -- | Build the 8192-byte (8 x 256 x U32) Slice-by-8 MSB-first CRC-32 table linearly.
+  build-crc-table :: Unit -> Bytes
+  build-crc-table u =
+    let t0 = bytes-new 8192 in
+    let t1 = crc-fill-base t0 0 in
+    crc-fill-slices t1 1024
 
-  -- | 2^n as a natural number.
-  power2 :: Nat -> Nat
-  power2 n = u32-to-nat (wrapping-shl-u32 1 (word n))
+  -- | Linearly populate slice 0 (256 base entries) of the MSB-first CRC-32 table.
+  crc-fill-base :: Bytes %1 -> I64 -> Bytes
+  crc-fill-base tab i =
+    if lt-i64 i 256 then
+      let c = crc-step8 (wrapping-shl-u32 (wrapping-i64-to-u32 i) 24) in
+      let tab1 = put-le32-lin tab (wrapping-shl-i64 i 2) c in
+      crc-fill-base tab1 (wrapping-add-i64 i 1)
+    else tab
 
-  -- ---------------------------------------------------------------------
-  -- Streams and blocks.
-  -- ---------------------------------------------------------------------
+  -- | Linearly derive slices 1..7 of the MSB-first CRC-32 table.
+  crc-fill-slices :: Bytes %1 -> I64 -> Bytes
+  crc-fill-slices tab off =
+    if lt-i64 off 8192 then
+      let tab1 = crc-slice-step-lin tab off in
+      crc-fill-slices tab1 (wrapping-add-i64 off 4)
+    else tab
 
-  -- | Decompress a complete input of one or more concatenated streams.
-  bzip2-decompress :: Bytes -> Result Bzip2Error Bytes
-  bzip2-decompress input =
-    if bytes-len input == 0 then Err Bzip2Truncated
-    else
-      let src = bytes-new (bytes-len input + 8) in
-      let copied = if bytes-len input <= bytes-len src then bytes-copy-range src input 0 0 (bytes-len input) else () in
-      streams src (bytes-len input) 0 (bytes-new (4 * bytes-len input + 64)) 0
-
-  -- | Decode the stream at a byte offset, then any stream after it.
-  streams :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Result Bzip2Error Bytes
-  streams src size byte out len =
-    if byte >= size then Ok (trim out len)
-    else if not (at src byte == 66 && at src (byte + 1) == 90 && at src (byte + 2) == 104) then Err Bzip2BadHeader
-    else
-      let level = at src (byte + 3) in
-      if level < 49 || level > 57 then Err Bzip2BadHeader
-      else blocks src (8 * size) (8 * (byte + 4)) (100000 * (level - 48)) (bytes-new (500000 * (level - 48))) 0 out len
-
-  -- | The first len bytes as an exact buffer.
-  trim :: Bytes -> Nat -> Bytes
-  trim out len =
-    if len == bytes-len out then out
-    else
-      let exact = bytes-new len in
-      if len <= bytes-len out then let copied = bytes-copy-range exact out 0 0 len in exact else exact
-
-  -- | Decode blocks until the end-of-stream marker, folding each block CRC into the stream CRC.
-  blocks :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Bytes -> Nat -> Result Bzip2Error Bytes
-  blocks src total pos limit tt combined out len = case (take-bits src total pos 24, take-bits src total (pos + 24) 24) of
-    (Some hi, Some lo) ->
-      if hi == 1536581 && lo == 3690640 then (case take-bits src total (pos + 48) 32 of
-        None -> Err Bzip2Truncated
-        Some crc -> if crc == combined then streams src (nat-div total 8) (nat-div (pos + 87) 8) out len else Err Bzip2ChecksumMismatch)
-      else if hi == 3227993 && lo == 2511705 then (case block src total (pos + 48) limit tt out len of
-        Err error -> Err error
-        Ok done -> case done of
-          Decoded grown grown-len after crc -> blocks src total after limit tt (combine combined crc) grown grown-len)
-      else Err (Bzip2BadBlock pos)
-    other -> Err Bzip2Truncated
-
-  -- | The stream CRC step: rotate left by one and XOR the block CRC.
-  combine :: Nat -> Nat -> Nat
-  combine combined crc = u32-to-nat (bit-xor-u32 (rotate-left-u32 (word combined) 1) (word crc))
-
-  -- | A decoded block: the output buffer (possibly grown), its new length, the bit position after the block, and the block CRC.
-  data Decoded where
-    -- | Fields in the order listed above.
-    Decoded :: Bytes -> Nat -> Nat -> Nat -> Decoded
-
-  -- | Decode one block after its magic: CRC, randomized flag, origin pointer, symbol map, then tables and data.
-  block :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Result Bzip2Error Decoded
-  block src total pos limit tt out len = case (take-bits src total pos 32, take-bits src total (pos + 32) 1, take-bits src total (pos + 33) 24) of
-    (Some crc, Some randomized, Some origin) ->
-      if randomized == 1 then Err (Bzip2BadBlock (pos + 32))
-      else case take-bits src total (pos + 57) 16 of
-        None -> Err Bzip2Truncated
-        Some ranges ->
-          let mtf = bytes-new 256 in
-          case symbol-map src total ranges 0 (pos + 73) mtf 0 of
-            None -> Err Bzip2Truncated
-            Some found -> case found of
-              (used, after) -> if used == 0 then Err (Bzip2BadBlock (pos + 57)) else tables src total after mtf used origin crc limit tt out len
-    other -> Err Bzip2Truncated
-
-  -- | Collect the bytes in use, in increasing order, into the move-to-front list: sixteen bits per present range of sixteen values.
-  symbol-map :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Option (Nat, Nat)
-  symbol-map src total ranges r pos mtf used =
-    if r >= 16 then Some (used, pos)
-    else if bit-of ranges (15 - r) then
-      (case take-bits src total pos 16 of
-        None -> None
-        Some mask -> symbol-map src total ranges (r + 1) (pos + 16) mtf (members mask r 0 mtf used))
-    else symbol-map src total ranges (r + 1) pos mtf used
-
-  -- | Append the members of range r whose mask bits are set, most significant bit first.
-  members :: Nat -> Nat -> Nat -> Bytes -> Nat -> Nat
-  members mask r b mtf used =
-    if b >= 16 then used
-    else if bit-of mask (15 - b) then let w = put mtf used (r * 16 + b) in members mask r (b + 1) mtf (used + 1)
-    else members mask r (b + 1) mtf used
-
-  -- ---------------------------------------------------------------------
-  -- Huffman tables.
-  -- ---------------------------------------------------------------------
-
-  -- | Byte offset of the 1024-entry direct table in a table region; each entry is symbol * 32 + length, zero for long codes.
-  fast-at :: Nat
-  fast-at = 0
-
-  -- | Byte offset of the per-length exclusive code limits (lengths 0 to 20).
-  limit-at :: Nat
-  limit-at = 4096
-
-  -- | Byte offset of the per-length first codes.
-  first-at :: Nat
-  first-at = 4180
-
-  -- | Byte offset of the per-length offsets into the symbol permutation.
-  offset-at :: Nat
-  offset-at = 4264
-
-  -- | Byte offset of the symbols sorted by code.
-  perm-at :: Nat
-  perm-at = 4348
-
-  -- | Bytes per table region.
-  table-size :: Nat
-  table-size = 5380
-
-  -- | Read the table count and selectors, then each table's code lengths, then decode the block's symbols.
-  tables :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Result Bzip2Error Decoded
-  tables src total pos mtf used origin crc limit tt out len = case (take-bits src total pos 3, take-bits src total (pos + 3) 15) of
-    (Some groups, Some count) ->
-      if groups < 2 || groups > 6 || count == 0 then Err (Bzip2BadBlock pos)
-      else
-        let order = bytes-from-u8s [0, 1, 2, 3, 4, 5] in
-        let sels = bytes-new count in
-        case selectors src total (pos + 18) groups sels order 0 of
-          Err error -> Err error
-          Ok after ->
-            let tabs = bytes-new (groups * table-size) in
-            case code-tables src total after (used + 2) tabs 0 groups of
-              Err error -> Err error
-              Ok start ->
-                let counts = bytes-new 1024 in
-                case symbols src total tabs sels mtf tt counts (used + 1) limit start 0 50 (table-size * at sels 0) 0 Idle of
-                  Err error -> Err error
-                  Ok decoded -> case decoded of
-                    (size, next) -> if origin >= size then Err (Bzip2BadBlock pos) else finish tt limit counts size origin crc next out len
-    other -> Err Bzip2Truncated
-
-  -- | Each selector is a unary move-to-front index naming the table for the next fifty symbols.
-  selectors :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Result Bzip2Error Nat
-  selectors src total pos groups sels order i =
-    if i >= bytes-len sels then Ok pos
-    else case unary src total pos 0 groups of
-      None -> Err (Bzip2BadBlock pos)
-      Some found -> case found of
-        (index, next) ->
-          let value = move-front order index in
-          let w = put sels i value in
-          selectors src total next groups sels order (i + 1)
-
-  -- | Count one bits before a zero bit; a count reaching the limit is invalid.
-  unary :: Bytes -> Nat -> Nat -> Nat -> Nat -> Option (Nat, Nat)
-  unary src total pos n limit =
-    if n >= limit || pos >= total then None
-    else if peek src pos 1 == 0 then Some (n, pos + 1)
-    else unary src total (pos + 1) (n + 1) limit
-
-  -- | Take the entry at an index, slide the entries before it up by one with a single memmove, and put it at the front.
-  move-front :: Bytes -> Nat -> Nat
-  move-front order index =
-    if index < bytes-len order then
-      let value = bytes-get order index in
-      let moved = if index + 1 <= bytes-len order then bytes-copy-range order order 1 0 index else () in
-      let w = put order 0 value in
-      value
-    else 0
-
-  -- | Read and index every table's code lengths.
-  code-tables :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> Result Bzip2Error Nat
-  code-tables src total pos alphabet tabs g groups =
-    if g >= groups then Ok pos
-    else case take-bits src total pos 5 of
-      None -> Err Bzip2Truncated
-      Some start ->
-        let lengths = bytes-new alphabet in
-        case code-lengths src total (pos + 5) start lengths 0 of
-          Err error -> Err error
-          Ok next -> if build-table tabs (g * table-size) lengths then code-tables src total next alphabet tabs (g + 1) groups else Err (Bzip2BadBlock pos)
-
-  -- | Lengths start at a five-bit value; each "1x" pair raises ("10") or lowers ("11") it, and a "0" bit takes it for the next symbol.
-  code-lengths :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Result Bzip2Error Nat
-  code-lengths src total pos current lengths i =
-    if i >= bytes-len lengths then Ok pos
-    else if current < 1 || current > 20 then Err (Bzip2BadBlock pos)
-    else if pos + 2 > total then Err Bzip2Truncated
-    else
-      let pair = peek src pos 2 in
-      if pair < 2 then let w = put lengths i current in code-lengths src total (pos + 1) current lengths (i + 1)
-      else code-lengths src total (pos + 2) (if pair == 2 then current + 1 else minus current 1) lengths i
-
-  -- | Index a canonical code: per-length first codes, limits and offsets, the code-sorted symbols, and the direct table. False when oversubscribed.
-  build-table :: Bytes -> Nat -> Bytes -> Bool
-  build-table tabs base lengths =
-    let counts = bytes-new 84 in
-    let counted = count-lengths lengths counts 0 in
-    if not (assign-ranges tabs base counts 1 0 0) then False
-    else
-      let next = bytes-new 84 in
-      let copied = if base + first-at + 84 <= bytes-len tabs then bytes-copy-range next tabs 0 (base + first-at) 84 else () in
-      let placed = place-symbols tabs base lengths next 0 in
-      True
-
-  -- | Count codes of each length.
-  count-lengths :: Bytes -> Bytes -> Nat -> Unit
-  count-lengths lengths counts i =
-    if i >= bytes-len lengths then ()
-    else let l = bytes-get lengths i in let w = set32 counts (4 * l) (get32 counts (4 * l) + 1) in count-lengths lengths counts (i + 1)
-
-  -- | Lay out lengths 1 to 20 canonically: first code, exclusive limit and permutation offset of each, rejecting more codes than a length holds.
-  assign-ranges :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat -> Bool
-  assign-ranges tabs base counts l code offset =
-    if l > 20 then True
-    else
-      let n = get32 counts (4 * l) in
-      if code + n > power2 l then False
-      else
-        let a = set32 tabs (base + first-at + 4 * l) code in
-        let b = set32 tabs (base + limit-at + 4 * l) (code + n) in
-        let c = set32 tabs (base + offset-at + 4 * l) offset in
-        assign-ranges tabs base counts (l + 1) ((code + n) * 2) (offset + n)
-
-  -- | Give each symbol, in symbol order, the next code of its length; record it in the permutation and, for codes of up to ten bits, in the direct table.
-  place-symbols :: Bytes -> Nat -> Bytes -> Bytes -> Nat -> Unit
-  place-symbols tabs base lengths next s =
-    if s >= bytes-len lengths then ()
-    else
-      let l = bytes-get lengths s in
-      let code = get32 next (4 * l) in
-      let bumped = set32 next (4 * l) (code + 1) in
-      let slot = get32 tabs (base + offset-at + 4 * l) + minus code (get32 tabs (base + first-at + 4 * l)) in
-      let p = set32 tabs (base + perm-at + 4 * slot) s in
-      let f = if l <= 10 then fill-fast tabs base (code * power2 (10 - l)) (power2 (10 - l)) (s * 32 + l) else () in
-      place-symbols tabs base lengths next (s + 1)
-
-  -- | Fill n direct-table entries from a starting index.
-  fill-fast :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
-  fill-fast tabs base i n v = if n == 0 then () else let w = set32 tabs (base + fast-at + 4 * i) v in fill-fast tabs base (i + 1) (n - 1) v
-
-  -- | Decode one symbol from a twenty-bit window as symbol * 32 + length, or zero for an unused code.
-  decode-symbol :: Bytes -> Nat -> Nat -> Nat
-  decode-symbol tabs base window =
-    let direct = get32 tabs (base + fast-at + 4 * nat-div window 1024) in
-    if direct > 0 then direct else long-code tabs base window 11
-
-  -- | Scan lengths 11 to 20: a code below its length's limit is a symbol of that length.
-  long-code :: Bytes -> Nat -> Nat -> Nat -> Nat
-  long-code tabs base window l =
-    if l > 20 then 0
-    else
-      let code = u32-to-nat (wrapping-shr-u32 (word window) (word (20 - l))) in
-      if code < get32 tabs (base + limit-at + 4 * l) then
-        get32 tabs (base + perm-at + 4 * (get32 tabs (base + offset-at + 4 * l) + minus code (get32 tabs (base + first-at + 4 * l)))) * 32 + l
-      else long-code tabs base window (l + 1)
-
-  -- ---------------------------------------------------------------------
-  -- Symbols, zero runs and move-to-front.
-  -- ---------------------------------------------------------------------
-
-  -- | The zero-run decoder's state between symbols.
-  data Run where
-    -- | No RUNA or RUNB symbol is pending.
-    Idle :: Run
-    -- | A pending run of the front byte: its length so far and the weight of the next run symbol.
-    Pending :: Nat -> Nat -> Run
-
-  -- | Decode symbols into the transformed block, counting each byte value; ends at the end-of-block symbol with the block size and bit position.
-  -- The group state is the selector index, the symbols left in its group and its table's offset.
-  symbols :: Bytes -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Run -> Result Bzip2Error (Nat, Nat)
-  symbols src total tabs sels mtf tt counts eob limit pos group left base size run =
-    if left == 0 then
-      (if group + 1 >= bytes-len sels then Err (Bzip2BadBlock pos)
-      else symbols src total tabs sels mtf tt counts eob limit pos (group + 1) 50 (table-size * at sels (group + 1)) size run)
-    else
-      let code = decode-symbol tabs base (peek src pos 20) in
-      let l = nat-rem code 32 in
-      if l == 0 then Err (Bzip2BadBlock pos)
-      else if pos + l > total then Err Bzip2Truncated
-      else
-        let symbol = nat-div code 32 in
-        if symbol <= 1 then (case run of
-          Idle -> symbols src total tabs sels mtf tt counts eob limit (pos + l) group (left - 1) base size (Pending (symbol + 1) 2)
-          Pending length weight ->
-            if length > limit then Err (Bzip2BadBlock pos)
-            else symbols src total tabs sels mtf tt counts eob limit (pos + l) group (left - 1) base size (Pending (length + (symbol + 1) * weight) (weight * 2)))
-        else
-          let flushed = run-length run in
-          if size + flushed > limit then Err (Bzip2BadBlock pos)
-          else
-            let w = fill-run tt counts size flushed (at mtf 0) in
-            if symbol >= eob then Ok (size + flushed, pos + l)
-            else if size + flushed >= limit then Err (Bzip2BadBlock pos)
-            else
-              let value = move-front mtf (symbol - 1) in
-              let stored = put tt (size + flushed) value in
-              let c = bump counts value in
-              symbols src total tabs sels mtf tt counts eob limit (pos + l) group (left - 1) base (size + flushed + 1) Idle
-
-  -- | The run length a pending zero run contributes.
-  run-length :: Run -> Nat
-  run-length run = case run of Idle -> 0; Pending length weight -> length
-
-  -- | Write a run of one byte into the transformed block and count it.
-  fill-run :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
-  fill-run tt counts start n value =
-    if n == 0 then ()
-    else
-      let c = set32 counts (4 * value) (get32 counts (4 * value) + n) in
-      fill-bytes tt start n value
-
-  -- | Add one to a 32-bit counter, touching only the bytes a carry reaches (one byte write in 255 of 256 cases).
-  bump :: Bytes -> Nat -> Unit
-  bump counts c = let o = quad c in carry counts o (o + 4)
-
-  -- | Increment the byte at i, carrying into the next byte below end on overflow.
-  carry :: Bytes -> Nat -> Nat -> Unit
-  carry counts i end =
-    if i >= end || i >= bytes-len counts then ()
-    else
-      let b = bytes-get counts i in
-      if b < 255 then bytes-set counts i (b + 1) else let w = bytes-set counts i 0 in carry counts (i + 1) end
-
-  -- ---------------------------------------------------------------------
-  -- Inverse transform and run-length decoding.
-  -- ---------------------------------------------------------------------
-
-  -- | Invert the transform from the byte counts, undo the initial run-length coding into the output, and verify the block CRC.
-  -- The block's bytes occupy tt[0, limit) and the successor links the 32-bit words from limit on.
-  finish :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Result Bzip2Error Decoded
-  finish tt limit starts size origin crc next out len =
-    let summed = prefix-sums starts 0 0 in
-    let linked = link tt limit size starts 0 0 0 0 in
-    case rle-fresh tt limit (get32 tt (limit + 4 * origin)) size out len of
-      (grown, end) ->
-        if u32-to-nat (block-crc grown len end) == crc then Ok (Decoded grown end next crc) else Err Bzip2ChecksumMismatch
-
-  -- | Replace counts with exclusive prefix sums: where each byte value's first occurrence lands in sorted order.
-  prefix-sums :: Bytes -> Nat -> Nat -> Unit
-  prefix-sums counts c sum =
-    if c >= 256 then ()
-    else let n = get32 counts (4 * c) in let w = set32 counts (4 * c) sum in prefix-sums counts (c + 1) (sum + n)
-
-  -- | Record at each sorted position the original position it came from. The position's three
-  -- little-endian bytes (blocks hold under 2^24 bytes) are carried alongside it, so each link is
-  -- three byte stores into a word whose top byte stays zero.
-  link :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
-  link tt limit size starts i b0 b1 b2 =
-    if i >= size then ()
-    else
-      let c = at tt i in
-      let o = limit + quad (get32 starts (quad c)) in
-      let w0 = put tt o b0 in
-      let w1 = put tt (o + 1) b1 in
-      let w2 = put tt (o + 2) b2 in
-      let s = bump starts c in
-      if b0 < 255 then link tt limit size starts (i + 1) (b0 + 1) b1 b2
-      else if b1 < 255 then link tt limit size starts (i + 1) 0 (b1 + 1) b2
-      else link tt limit size starts (i + 1) 0 0 (b2 + 1)
-
-  -- | Four times a value, by addition.
-  quad :: Nat -> Nat
-  quad n = let d = n + n in d + d
-
-  -- | Run-length state: no byte since the last run count (or the block start). Each state takes the next byte along the successor vector.
-  rle-fresh :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> (Bytes, Nat)
-  rle-fresh tt limit t left out len =
-    if left == 0 then (out, len)
-    else
-      let b = at tt t in
-      rle-same tt limit (get32 tt (limit + quad t)) (left - 1) (emit out len b) (len + 1) b 1
-
-  -- | Run-length state: the last k bytes (1 to 3) were equal to prev; a fourth equal byte means a count follows.
-  rle-same :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> (Bytes, Nat)
-  rle-same tt limit t left out len prev k =
-    if left == 0 then (out, len)
-    else
-      let b = at tt t in
-      let after = get32 tt (limit + quad t) in
-      let grown = emit out len b in
-      if not (b == prev) then rle-same tt limit after (left - 1) grown (len + 1) b 1
-      else if k == 3 then rle-count tt limit after (left - 1) grown (len + 1) b
-      else rle-same tt limit after (left - 1) grown (len + 1) b (k + 1)
-
-  -- | Run-length state: four equal bytes were seen; this byte repeats prev that many more times.
-  rle-count :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> (Bytes, Nat)
-  rle-count tt limit t left out len prev =
-    if left == 0 then (out, len)
-    else
-      let n = at tt t in
-      rle-fresh tt limit (get32 tt (limit + quad t)) (left - 1) (emit-run out len prev n) (len + n)
-
-  -- | Store a byte at len, doubling the buffer first when it is full.
-  emit :: Bytes -> Nat -> Nat -> Bytes
-  emit out len v = if len < bytes-len out then let w = put out len v in out else emit (grow out len (len + 1)) len v
-
-  -- | Store n copies of a byte from len, growing the buffer to fit.
-  emit-run :: Bytes -> Nat -> Nat -> Nat -> Bytes
-  emit-run out len v n =
-    if len + n > bytes-len out then emit-run (grow out len (len + n)) len v n
-    else let w = fill-bytes out len n v in out
-
-  -- | Store n copies of a byte: one write, then memmoves that double the filled span.
-  fill-bytes :: Bytes -> Nat -> Nat -> Nat -> Unit
-  fill-bytes out i n v = if n == 0 then () else let w = put out i v in double out i 1 n
-
-  -- | Copy the filled span [i, i + done) after itself until n bytes are filled.
-  double :: Bytes -> Nat -> Nat -> Nat -> Unit
-  double out i done n =
-    if done >= n then ()
-    else
-      let step = if done + done <= n then done else n - done in
-      if i + done + step <= bytes-len out then let w = bytes-copy-range out out (i + done) i step in double out i (done + step) n else ()
-
-  -- | A buffer at least twice as large holding the first len bytes, and at least need bytes long.
-  grow :: Bytes -> Nat -> Nat -> Bytes
-  grow out len need =
-    let bigger = bytes-new (2 * bytes-len out + need + 4096) in
-    if len <= bytes-len out && len <= bytes-len bigger then let copied = bytes-copy-range bigger out 0 0 len in bigger else bigger
-
-  -- ---------------------------------------------------------------------
-  -- Block CRC.
-  -- ---------------------------------------------------------------------
-
-  -- | The block CRC of out[start, end): CRC-32 with polynomial 0x04C11DB7, most significant bit first, complemented before and after.
-  block-crc :: Bytes -> Nat -> Nat -> U32
-  block-crc out start end = bit-not-u32 (crc-words out start end (bit-not-u32 (word 0)))
-
-  -- | Fold four bytes per step while they last, then single bytes.
-  crc-words :: Bytes -> Nat -> Nat -> U32 -> U32
-  crc-words out i end crc =
-    if i + 4 <= end && i + 4 <= bytes-len out then crc-words out (i + 4) end (crc-word crc (bytes-load-le32 out i))
-    else crc-bytes out i end crc
-
-  -- | Fold the remaining bytes one at a time.
-  crc-bytes :: Bytes -> Nat -> Nat -> U32 -> U32
-  crc-bytes out i end crc =
-    if i >= end then crc
-    else crc-bytes out (i + 1) end (crc-step8 (bit-xor-u32 crc (wrapping-shl-u32 (word (at out i)) 24)))
-
-  -- | One branch-free shift step of the most-significant-bit-first CRC register (polynomial 0x04C11DB7).
+  -- | One branch-free shift step of the MSB-first CRC-32 register (polynomial 0x04C11DB7).
   crc-step1 :: U32 -> U32
   crc-step1 c =
     let s = wrapping-i32-to-u32 (wrapping-shr-i32 (wrapping-u32-to-i32 c) 31) in
     bit-xor-u32 (wrapping-shl-u32 c 1) (bit-and-u32 s 79764919)
 
-  -- | Eight shift steps of the most-significant-bit-first CRC register (polynomial 0x04C11DB7), branch-free.
+  -- | Eight shift steps of the MSB-first CRC-32 register.
   crc-step8 :: U32 -> U32
   crc-step8 c =
-    let c1 = crc-step1 c in
-    let c2 = crc-step1 c1 in
-    let c3 = crc-step1 c2 in
-    let c4 = crc-step1 c3 in
-    let c5 = crc-step1 c4 in
-    let c6 = crc-step1 c5 in
-    let c7 = crc-step1 c6 in
-    crc-step1 c7
+    let c1 = crc-step1 c in let c2 = crc-step1 c1 in
+    let c3 = crc-step1 c2 in let c4 = crc-step1 c3 in
+    let c5 = crc-step1 c4 in let c6 = crc-step1 c5 in
+    let c7 = crc-step1 c6 in crc-step1 c7
 
-  -- | Fold four bytes, given as a little-endian load, into the register: byte swap, XOR, then thirty-two branch-free steps.
-  crc-word :: U32 -> U32 -> U32
-  crc-word crc w =
-    let x = bit-xor-u32 crc (swap-bytes-u32 w) in
-    let a = crc-step8 x in
-    let b = crc-step8 a in
-    let c = crc-step8 b in
-    crc-step8 c
+  -- | Load one entry from the 8192-byte Slice-by-8 CRC table at `slice-base + byte * 4`.
+  crc-tab-load :: Bytes -> I64 -> U32 -> U32
+  crc-tab-load tab base idx =
+    let off = wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 (bit-and-u32 idx 255)) 2) in
+    load-le32-safe tab off
+
+  -- | Compute the MSB-first CRC-32 of `out[start, end)` using Slice-by-8 with `swap-bytes-u32`.
+  block-crc-s8 :: Bytes -> Bytes -> I64 -> I64 -> U32
+  block-crc-s8 tab out start end =
+    bit-not-u32 (crc-loop8 tab out start end (bit-not-u32 0))
+
+  -- | Process eight bytes per step through the Slice-by-8 table, then finish the tail.
+  crc-loop8 :: Bytes -> Bytes -> I64 -> I64 -> U32 -> U32
+  crc-loop8 tab out i end crc =
+    if 0 <= i && wrapping-add-i64 i 8 <= end then
+      let w0 = swap-bytes-u32 (load-le32-safe out i) in
+      let w1 = swap-bytes-u32 (load-le32-safe out (wrapping-add-i64 i 4)) in
+      let c0 = bit-xor-u32 crc w0 in
+      let a = bit-xor-u32 (crc-tab-load tab 7168 (wrapping-shr-u32 c0 24)) (crc-tab-load tab 6144 (wrapping-shr-u32 c0 16)) in
+      let b = bit-xor-u32 (crc-tab-load tab 5120 (wrapping-shr-u32 c0 8))  (crc-tab-load tab 4096 c0) in
+      let c = bit-xor-u32 (crc-tab-load tab 3072 (wrapping-shr-u32 w1 24)) (crc-tab-load tab 2048 (wrapping-shr-u32 w1 16)) in
+      let d = bit-xor-u32 (crc-tab-load tab 1024 (wrapping-shr-u32 w1 8))  (crc-tab-load tab 0 w1) in
+      let next-crc = bit-xor-u32 (bit-xor-u32 a b) (bit-xor-u32 c d) in
+      crc-loop8 tab out (wrapping-add-i64 i 8) end next-crc
+    else crc-loop1 tab out i end crc
+
+  -- | Process remaining 0..7 tail bytes through slice 0.
+  crc-loop1 :: Bytes -> Bytes -> I64 -> I64 -> U32 -> U32
+  crc-loop1 tab out i end crc =
+    if 0 <= i && lt-i64 i end && i < bytes-len-i64 out then
+      let b = u8-to-u32 (bytes-get-u8-at out i) in
+      let idx = bit-xor-u32 (wrapping-shr-u32 crc 24) b in
+      let next-crc = bit-xor-u32 (crc-tab-load tab 0 idx) (wrapping-shl-u32 crc 8) in
+      crc-loop1 tab out (wrapping-add-i64 i 1) end next-crc
+    else crc
+
+  -- ---------------------------------------------------------------------
+  -- Streams and blocks.
+  -- ---------------------------------------------------------------------
+
+  -- | Decompress a complete input of one or more concatenated bzip2 streams.
+  bzip2-decompress :: Bytes -> Result Bzip2Error Bytes
+  bzip2-decompress input =
+    let in-len = bytes-len input in
+    if in-len == 0 then Err Bzip2Truncated
+    else
+      let src0 = bytes-new (in-len + 8) in
+      let src = copy-range-lin src0 input 0 0 in-len in
+      let crc-tab = build-crc-table () in
+      let init-cap = 4 * in-len + 64 in
+      let out0 = bytes-new init-cap in
+      let out-cap = bytes-len-i64 out0 in
+      let size-i64 = bytes-len-i64 input in
+      streams crc-tab src size-i64 0 out0 out-cap 0
+
+  -- | Decode the stream at a byte offset, then any concatenated stream following it.
+  streams :: Bytes -> Bytes -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error Bytes
+  streams crc-tab src size byte out out-cap out-len =
+    if ge-i64 byte size then Ok (trim-lin out out-len)
+    else if not (eq-i64 (at-i64 src byte) 66 && eq-i64 (at-i64 src (wrapping-add-i64 byte 1)) 90 && eq-i64 (at-i64 src (wrapping-add-i64 byte 2)) 104) then
+      let gone = drop-bytes-lin out in Err Bzip2BadHeader
+    else
+      let level = at-i64 src (wrapping-add-i64 byte 3) in
+      if lt-i64 level 49 || gt-i64 level 57 then
+        let gone = drop-bytes-lin out in Err Bzip2BadHeader
+      else
+        let blk-mult = wrapping-sub-i64 level 48 in
+        let limit = wrapping-mul-i64 100000 blk-mult in
+        let tt-bytes = i64-to-nat (wrapping-shl-i64 limit 2) in
+        let tt0 = bytes-new tt-bytes in
+        let total = wrapping-shl-i64 size 3 in
+        let start-pos = wrapping-shl-i64 (wrapping-add-i64 byte 4) 3 in
+        blocks crc-tab src total start-pos limit tt0 0 out out-cap out-len
+
+  -- | A decoded block result preserving linear ownership of both `tt` and `out`.
+  data Decoded where
+    -- | Unique `tt`, unique `out`, `out-cap`, `out-len`, next bit position, and block CRC.
+    Decoded :: Bytes -> Bytes -> I64 -> I64 -> I64 -> U32 -> Decoded
+
+  -- | Decode blocks until the end-of-stream marker, folding each block CRC into the stream CRC.
+  blocks :: Bytes -> Bytes -> I64 -> I64 -> I64 -> Bytes %1 -> U32 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error Bytes
+  blocks crc-tab src total pos limit tt combined out out-cap out-len =
+    case (take-bits src total pos 24, take-bits src total (wrapping-add-i64 pos 24) 24) of
+      (Some hi, Some lo) ->
+        if eq-u32 hi 1536581 && eq-u32 lo 3690640 then
+          case take-bits src total (wrapping-add-i64 pos 48) 32 of
+            None -> let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in Err Bzip2Truncated
+            Some crc ->
+              let g1 = drop-bytes-lin tt in
+              if eq-u32 crc combined then
+                let next-byte = wrapping-shr-i64 (wrapping-add-i64 pos 87) 3 in
+                streams crc-tab src (wrapping-shr-i64 total 3) next-byte out out-cap out-len
+              else
+                let g2 = drop-bytes-lin out in Err Bzip2ChecksumMismatch
+        else if eq-u32 hi 3227993 && eq-u32 lo 2511705 then
+          case decode-block crc-tab src total (wrapping-add-i64 pos 48) limit tt out out-cap out-len of
+            Err error -> Err error
+            Ok done -> case done of
+              Decoded tt1 out1 cap1 len1 after crc ->
+                let next-comb = bit-xor-u32 (rotate-left-u32 combined 1) crc in
+                blocks crc-tab src total after limit tt1 next-comb out1 cap1 len1
+        else
+          let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in
+          Err (Bzip2BadBlock (i64-to-nat pos))
+      other ->
+        let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in Err Bzip2Truncated
+
+  -- | Decode one block after its 48-bit magic: CRC, randomized flag, origin pointer, symbol map, tables and data.
+  decode-block :: Bytes -> Bytes -> I64 -> I64 -> I64 -> Bytes %1 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error Decoded
+  decode-block crc-tab src total pos limit tt out out-cap out-len =
+    case (take-bits src total pos 32, take-bits src total (wrapping-add-i64 pos 32) 1, take-bits src total (wrapping-add-i64 pos 33) 24) of
+      (Some crc, Some randomized, Some origin) ->
+        if eq-u32 randomized 1 then
+          let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in
+          let bad = wrapping-add-i64 pos 32 in
+          Err (Bzip2BadBlock (i64-to-nat bad))
+        else case take-bits src total (wrapping-add-i64 pos 57) 16 of
+          None -> let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in Err Bzip2Truncated
+          Some ranges ->
+            let mtf0 = bytes-new 256 in
+            case symbol-map src total ranges 0 (wrapping-add-i64 pos 73) mtf0 0 of
+              Err error -> let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in Err error
+              Ok (mtf1, used, after) ->
+                if eq-i64 used 0 then
+                  let g0 = drop-bytes-lin mtf1 in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in
+                  let bad = wrapping-add-i64 pos 57 in
+                  Err (Bzip2BadBlock (i64-to-nat bad))
+                else tables crc-tab src total after mtf1 used (u32-to-i64 origin) crc limit tt out out-cap out-len
+      other ->
+        let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in Err Bzip2Truncated
+
+  -- | Collect the bytes in use into the linear MTF table (16 range bits + 16 member bits each).
+  symbol-map :: Bytes -> I64 -> U32 -> I64 -> I64 -> Bytes %1 -> I64 -> Result Bzip2Error (Bytes, I64, I64)
+  symbol-map src total ranges r pos mtf used =
+    if ge-i64 r 16 then Ok (mtf, used, pos)
+    else
+      let shift = wrapping-i64-to-u32 (wrapping-sub-i64 15 r) in
+      if eq-u32 (bit-and-u32 (wrapping-shr-u32 ranges shift) 1) 1 then
+        case take-bits src total pos 16 of
+          None -> let g = drop-bytes-lin mtf in Err Bzip2Truncated
+          Some mask ->
+            case members mask r 0 mtf used of
+              (mtf1, used1) -> symbol-map src total ranges (wrapping-add-i64 r 1) (wrapping-add-i64 pos 16) mtf1 used1
+      else symbol-map src total ranges (wrapping-add-i64 r 1) pos mtf used
+
+  -- | Append present symbols in range `r` linearly into `mtf`.
+  members :: U32 -> I64 -> I64 -> Bytes %1 -> I64 -> (Bytes, I64)
+  members mask r b mtf used =
+    if ge-i64 b 16 then (mtf, used)
+    else
+      let shift = wrapping-i64-to-u32 (wrapping-sub-i64 15 b) in
+      if eq-u32 (bit-and-u32 (wrapping-shr-u32 mask shift) 1) 1 then
+        let sym = wrapping-i64-to-u8 (wrapping-add-i64 (wrapping-shl-i64 r 4) b) in
+        let mtf1 = put-u8-lin mtf used sym in
+        members mask r (wrapping-add-i64 b 1) mtf1 (wrapping-add-i64 used 1)
+      else members mask r (wrapping-add-i64 b 1) mtf used
+
+  -- ---------------------------------------------------------------------
+  -- Canonical Huffman table construction (all buffers `%1` linear).
+  -- ---------------------------------------------------------------------
+
+  -- | Byte size of one Huffman table region: 1024-entry fast table (4096B) + limits/first/offset (252B) + perm (1032B).
+  table-size :: I64
+  table-size = 5380
+
+  -- | Read table count, selectors, and canonical code tables, then decode block symbols and invert BWT.
+  tables :: Bytes -> Bytes -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> U32 -> I64 -> Bytes %1 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error Decoded
+  tables crc-tab src total pos mtf used origin crc limit tt out out-cap out-len =
+    case (take-bits src total pos 3, take-bits src total (wrapping-add-i64 pos 3) 15) of
+      (Some groups-u, Some count-u) ->
+        let groups = u32-to-i64 groups-u in
+        let count = u32-to-i64 count-u in
+        if lt-i64 groups 2 || gt-i64 groups 6 || eq-i64 count 0 then
+          let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in
+          Err (Bzip2BadBlock (i64-to-nat pos))
+        else
+          let order0 = bytes-from-u8s [0, 1, 2, 3, 4, 5] in
+          let sels0 = bytes-new (i64-to-nat count) in
+          case selectors src total (wrapping-add-i64 pos 18) groups sels0 count order0 0 of
+            Err error ->
+              let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in
+              Err error
+            Ok (sels, after) ->
+              let tabs-bytes = i64-to-nat (wrapping-mul-i64 groups table-size) in
+              let tabs0 = bytes-new tabs-bytes in
+              case code-tables src total after (wrapping-add-i64 used 2) tabs0 0 groups of
+                Err error ->
+                  let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in
+                  Err error
+                Ok (tabs, start) ->
+                  let counts0 = bytes-new 1024 in
+                  let first-base = wrapping-mul-i64 table-size (at-i64 sels 0) in
+                  case symbols src total tabs sels count mtf tt counts0 (wrapping-add-i64 used 1) limit start 0 0 0 50 first-base 0 0 0 of
+                    Err error ->
+                      let g2 = drop-bytes-lin out in Err error
+                    Ok (tt1, counts1, size, next) ->
+                      if ge-i64 origin size then
+                        let g1 = drop-bytes-lin tt1 in let g2 = drop-bytes-lin counts1 in let g3 = drop-bytes-lin out in
+                        Err (Bzip2BadBlock (i64-to-nat pos))
+                      else finish crc-tab tt1 counts1 size origin crc next out out-cap out-len
+      other ->
+        let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin out in Err Bzip2Truncated
+
+  -- | Read move-to-front coded unary selectors linearly into `sels`.
+  selectors :: Bytes -> I64 -> I64 -> I64 -> Bytes %1 -> I64 -> Bytes %1 -> I64 -> Result Bzip2Error (Bytes, I64)
+  selectors src total pos groups sels sels-len order i =
+    if ge-i64 i sels-len then
+      let g = drop-bytes-lin order in Ok (sels, pos)
+    else case unary src total pos 0 groups of
+      None ->
+        let g1 = drop-bytes-lin sels in let g2 = drop-bytes-lin order in
+        Err (Bzip2BadBlock (i64-to-nat pos))
+      Some (idx, next) ->
+        case mtf-step-lin order idx of
+          (val, order1) ->
+            let sels1 = put-u8-lin sels i val in
+            selectors src total next groups sels1 sels-len order1 (wrapping-add-i64 i 1)
+
+  -- | Count consecutive 1-bits before a 0-bit up to `limit`.
+  unary :: Bytes -> I64 -> I64 -> I64 -> I64 -> Option (I64, I64)
+  unary src total pos n limit =
+    if ge-i64 n limit || ge-i64 pos total then None
+    else if eq-u32 (peek-i64 src pos 1) 0 then Some (n, wrapping-add-i64 pos 1)
+    else unary src total (wrapping-add-i64 pos 1) (wrapping-add-i64 n 1) limit
+
+  -- | Read and index all Huffman code tables linearly into `tabs`.
+  code-tables :: Bytes -> I64 -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error (Bytes, I64)
+  code-tables src total pos alphabet tabs g groups =
+    if ge-i64 g groups then Ok (tabs, pos)
+    else case take-bits src total pos 5 of
+      None -> let gt = drop-bytes-lin tabs in Err Bzip2Truncated
+      Some start ->
+        let lengths0 = bytes-new (i64-to-nat alphabet) in
+        case code-lengths src total (wrapping-add-i64 pos 5) (u32-to-i64 start) lengths0 alphabet 0 of
+          Err error -> let gt = drop-bytes-lin tabs in Err error
+          Ok (lengths, next) ->
+            case build-table tabs (wrapping-mul-i64 g table-size) lengths alphabet of
+              (ok, tabs1) ->
+                if ok then code-tables src total next alphabet tabs1 (wrapping-add-i64 g 1) groups
+                else let gt = drop-bytes-lin tabs1 in Err (Bzip2BadBlock (i64-to-nat pos))
+
+  -- | Delta-decode one table's code lengths linearly into `lengths`.
+  code-lengths :: Bytes -> I64 -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error (Bytes, I64)
+  code-lengths src total pos current lengths alpha i =
+    if ge-i64 i alpha then Ok (lengths, pos)
+    else if lt-i64 current 1 || gt-i64 current 20 then
+      let g = drop-bytes-lin lengths in Err (Bzip2BadBlock (i64-to-nat pos))
+    else if gt-i64 (wrapping-add-i64 pos 2) total then
+      let g = drop-bytes-lin lengths in Err Bzip2Truncated
+    else
+      let pair = peek-i64 src pos 2 in
+      if lt-u32 pair 2 then
+        let lengths1 = put-u8-lin lengths i (wrapping-i64-to-u8 current) in
+        code-lengths src total (wrapping-add-i64 pos 1) current lengths1 alpha (wrapping-add-i64 i 1)
+      else
+        let next-cur = if eq-u32 pair 2 then wrapping-add-i64 current 1 else (if gt-i64 current 0 then wrapping-sub-i64 current 1 else 0) in
+        code-lengths src total (wrapping-add-i64 pos 2) next-cur lengths alpha i
+
+  -- | Build one canonical Huffman table and 1024-entry direct table linearly inside `tabs`.
+  build-table :: Bytes %1 -> I64 -> Bytes -> I64 -> (Bool, Bytes)
+  build-table tabs base lengths alpha =
+    let counts0 = bytes-new 84 in
+    let counts = count-lengths lengths alpha counts0 0 in
+    case assign-ranges tabs base counts 1 0 0 of
+      (ok, tabs1) ->
+        if not ok then (False, tabs1)
+        else
+          case copy-first-codes-lin tabs1 base of
+            (next0, tabs2) ->
+              let tabs3 = place-symbols tabs2 base lengths alpha next0 0 in
+              (True, tabs3)
+
+  -- | Count occurrences of each code length linearly.
+  count-lengths :: Bytes -> I64 -> Bytes %1 -> I64 -> Bytes
+  count-lengths lengths alpha counts i =
+    if ge-i64 i alpha then counts
+    else
+      let l = at-i64 lengths i in
+      let counts1 = add-count-lin counts l 1 in
+      count-lengths lengths alpha counts1 (wrapping-add-i64 i 1)
+
+  -- | Assign canonical first codes, exclusive limits, and permutation offsets linearly.
+  assign-ranges :: Bytes %1 -> I64 -> Bytes -> I64 -> U32 -> U32 -> (Bool, Bytes)
+  assign-ranges tabs base counts l code offset =
+    if gt-i64 l 20 then (True, tabs)
+    else
+      let n = get32-i64 counts (wrapping-shl-i64 l 2) in
+      let lim = wrapping-add-u32 code n in
+      let max-codes = wrapping-shl-u32 1 (wrapping-i64-to-u32 l) in
+      if gt-u32 lim max-codes then (False, tabs)
+      else
+        let l4 = wrapping-shl-i64 l 2 in
+        let tabs1 = put-le32-lin tabs (wrapping-add-i64 (wrapping-add-i64 base 4180) l4) code in
+        let tabs2 = put-le32-lin tabs1 (wrapping-add-i64 (wrapping-add-i64 base 4096) l4) lim in
+        let tabs3 = put-le32-lin tabs2 (wrapping-add-i64 (wrapping-add-i64 base 4264) l4) offset in
+        assign-ranges tabs3 base counts (wrapping-add-i64 l 1) (wrapping-shl-u32 lim 1) (wrapping-add-u32 offset n)
+
+  -- | Place every symbol into the permutation table and 1024-entry direct table linearly.
+  place-symbols :: Bytes %1 -> I64 -> Bytes -> I64 -> Bytes %1 -> I64 -> Bytes
+  place-symbols tabs base lengths alpha next s =
+    if ge-i64 s alpha then
+      let g = drop-bytes-lin next in tabs
+    else
+      let l = at-i64 lengths s in
+      case fetch-inc32-lin next l of
+        (code-i, next1) ->
+          let l4 = wrapping-shl-i64 l 2 in
+          case tabs-read32-lin tabs (wrapping-add-i64 (wrapping-add-i64 base 4264) l4) of
+            (off-u, tabs1) ->
+              case tabs-read32-lin tabs1 (wrapping-add-i64 (wrapping-add-i64 base 4180) l4) of
+                (first-u, tabs2) ->
+                  let code-u = wrapping-i64-to-u32 code-i in
+                  let slot = wrapping-add-u32 off-u (wrapping-sub-u32 code-u first-u) in
+                  let tabs3 = put-le32-lin tabs2 (wrapping-add-i64 (wrapping-add-i64 base 4348) (wrapping-shl-i64 (u32-to-i64 slot) 2)) (wrapping-i64-to-u32 s) in
+                  let tabs4 = if le-i64 l 10 then
+                                let sh = wrapping-i64-to-u32 (wrapping-sub-i64 10 l) in
+                                let cnt = u32-to-i64 (wrapping-shl-u32 1 sh) in
+                                let start-idx = u32-to-i64 (wrapping-shl-u32 code-u sh) in
+                                let packed = bit-or-u32 (wrapping-shl-u32 (wrapping-i64-to-u32 s) 5) (wrapping-i64-to-u32 l) in
+                                fill-fast tabs3 base start-idx cnt packed
+                              else tabs3 in
+                  place-symbols tabs4 base lengths alpha next1 (wrapping-add-i64 s 1)
+
+  -- | Fill `n` direct-table slots linearly with `v`.
+  fill-fast :: Bytes %1 -> I64 -> I64 -> I64 -> U32 -> Bytes
+  fill-fast tabs base i n v =
+    if le-i64 n 0 then tabs
+    else
+      let tabs1 = put-le32-lin tabs (wrapping-add-i64 base (wrapping-shl-i64 i 2)) v in
+      fill-fast tabs1 base (wrapping-add-i64 i 1) (wrapping-sub-i64 n 1) v
+
+  -- ---------------------------------------------------------------------
+  -- Hot Huffman + zero-run + MTF symbol decoder (64-bit MSB bit-buffer).
+  -- ---------------------------------------------------------------------
+
+  -- | Decode a long canonical code (11..20 bits) from a 20-bit right-aligned window.
+  long-code :: Bytes -> I64 -> U32 -> I64 -> U32
+  long-code tabs base window l =
+    if gt-i64 l 20 then 0
+    else
+      let sh = wrapping-i64-to-u32 (wrapping-sub-i64 20 l) in
+      let code = wrapping-shr-u32 window sh in
+      let l4 = wrapping-shl-i64 l 2 in
+      let lim = get32-i64 tabs (wrapping-add-i64 (wrapping-add-i64 base 4096) l4) in
+      if lt-u32 code lim then
+        let off = get32-i64 tabs (wrapping-add-i64 (wrapping-add-i64 base 4264) l4) in
+        let first = get32-i64 tabs (wrapping-add-i64 (wrapping-add-i64 base 4180) l4) in
+        let slot = wrapping-add-u32 off (wrapping-sub-u32 code first) in
+        let sym = get32-i64 tabs (wrapping-add-i64 (wrapping-add-i64 base 4348) (wrapping-shl-i64 (u32-to-i64 slot) 2)) in
+        bit-or-u32 (wrapping-shl-u32 sym 5) (wrapping-i64-to-u32 l)
+      else long-code tabs base window (wrapping-add-i64 l 1)
+
+  -- | Decode one symbol from the top 20 bits of the 64-bit MSB register `buf`.
+  decode-symbol-buf :: Bytes -> I64 -> U64 -> U32
+  decode-symbol-buf tabs base buf =
+    let top10 = u64-to-i64-masked (wrapping-shr-u64 buf 54) in
+    let direct = get32-i64 tabs (wrapping-add-i64 base (wrapping-shl-i64 top10 2)) in
+    if ne-u32 direct 0 then direct
+    else long-code tabs base (wrapping-u64-to-u32 (wrapping-shr-u64 buf 44)) 11
+
+  -- | Convert a small U64 (< 2^63) to I64 without overflow.
+  u64-to-i64-masked :: U64 -> I64
+  u64-to-i64-masked w = wrapping-u64-to-i64 w
+
+  -- | Refill the 64-bit MSB bit-buffer from `src` at bit offset `pos`, yielding 57..64 valid bits.
+  refill-msb :: Bytes -> I64 -> (U64, I64)
+  refill-msb src pos =
+    let bidx = wrapping-shr-i64 pos 3 in
+    let boff = bit-and-i64 pos 7 in
+    let raw = swap-bytes-u64 (load-le64-safe src bidx) in
+    (wrapping-shl-u64 raw (wrapping-i64-to-u32 boff), wrapping-sub-i64 64 boff)
+
+  -- | Linearly write `n` copies of 32-bit word `w` into `tt` starting at element `start` using doubling memmoves.
+  fill-tt-run-lin :: Bytes %1 -> I64 -> I64 -> U32 -> Bytes
+  fill-tt-run-lin tt start n w =
+    if le-i64 n 0 then tt
+    else
+      let byte-start = wrapping-shl-i64 start 2 in
+      let tt1 = put-le32-lin tt byte-start w in
+      double-bytes-lin tt1 byte-start 4 (wrapping-shl-i64 n 2)
+
+  -- | Linearly double a filled byte span `[i, i + done)` until `total-bytes` are filled.
+  double-bytes-lin :: Bytes %1 -> I64 -> I64 -> I64 -> Bytes
+  double-bytes-lin b i done total-bytes =
+    if ge-i64 done total-bytes then b
+    else
+      let rem = wrapping-sub-i64 total-bytes done in
+      let step = if le-i64 done rem then done else rem in
+      let di = i64-to-nat (wrapping-add-i64 i done) in
+      let si = i64-to-nat i in
+      let sn = i64-to-nat step in
+      let b1 = copy-self-lin b di si sn in
+      double-bytes-lin b1 i (wrapping-add-i64 done step) total-bytes
+
+  -- | Hot symbol decoding loop: 64-bit MSB bit-buffer, unboxed zero-run accumulators, linear `mtf`/`tt`/`counts`.
+  symbols :: Bytes -> I64 -> Bytes -> Bytes -> I64 -> Bytes %1 -> Bytes %1 -> Bytes %1 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Result Bzip2Error (Bytes, Bytes, I64, I64)
+  symbols src total tabs sels sels-len mtf tt counts eob limit pos buf nbits group left base size run-len run-weight =
+    if eq-i64 left 0 then
+      let ng = wrapping-add-i64 group 1 in
+      if ge-i64 ng sels-len then
+        let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin counts in
+        Err (Bzip2BadBlock (i64-to-nat pos))
+      else
+        let next-base = wrapping-mul-i64 table-size (at-i64 sels ng) in
+        symbols src total tabs sels sels-len mtf tt counts eob limit pos buf nbits ng 50 next-base size run-len run-weight
+    else if lt-i64 nbits 20 then
+      case refill-msb src pos of
+        (buf1, nbits1) ->
+          symbols-step src total tabs sels sels-len mtf tt counts eob limit pos buf1 nbits1 group left base size run-len run-weight
+    else
+      symbols-step src total tabs sels sels-len mtf tt counts eob limit pos buf nbits group left base size run-len run-weight
+
+  -- | Decode one symbol from the refilled 64-bit register `buf` and update zero-runs / MTF / `tt` / `counts`.
+  symbols-step :: Bytes -> I64 -> Bytes -> Bytes -> I64 -> Bytes %1 -> Bytes %1 -> Bytes %1 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Result Bzip2Error (Bytes, Bytes, I64, I64)
+  symbols-step src total tabs sels sels-len mtf tt counts eob limit pos buf nbits group left base size run-len run-weight =
+    let code = decode-symbol-buf tabs base buf in
+    let l = u32-to-i64 (bit-and-u32 code 31) in
+    if eq-i64 l 0 then
+      let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin counts in
+      Err (Bzip2BadBlock (i64-to-nat pos))
+    else if gt-i64 (wrapping-add-i64 pos l) total then
+      let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin counts in
+      Err Bzip2Truncated
+    else
+      let sym = u32-to-i64 (wrapping-shr-u32 code 5) in
+      let next-pos = wrapping-add-i64 pos l in
+      let next-buf = wrapping-shl-u64 buf (wrapping-i64-to-u32 l) in
+      let next-nbits = wrapping-sub-i64 nbits l in
+      let next-left = wrapping-sub-i64 left 1 in
+      if le-i64 sym 1 then
+        if eq-i64 run-weight 0 then
+          symbols src total tabs sels sels-len mtf tt counts eob limit next-pos next-buf next-nbits group next-left base size (wrapping-add-i64 sym 1) 2
+        else if gt-i64 run-len limit then
+          let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin counts in
+          Err (Bzip2BadBlock (i64-to-nat pos))
+        else
+          let add-len = wrapping-mul-i64 (wrapping-add-i64 sym 1) run-weight in
+          symbols src total tabs sels sels-len mtf tt counts eob limit next-pos next-buf next-nbits group next-left base size (wrapping-add-i64 run-len add-len) (wrapping-shl-i64 run-weight 1)
+      else if gt-i64 run-len 0 then
+        let new-size = wrapping-add-i64 size run-len in
+        if gt-i64 new-size limit then
+          let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin counts in
+          Err (Bzip2BadBlock (i64-to-nat pos))
+        else
+          case mtf-front-lin mtf of
+            (front-b, mtf1) ->
+              let counts1 = add-count-lin counts (u8-to-i64 front-b) (wrapping-i64-to-u32 run-len) in
+              let tt1 = fill-tt-run-lin tt size run-len (u8-to-u32 front-b) in
+              if ge-i64 sym eob then
+                let g0 = drop-bytes-lin mtf1 in Ok (tt1, counts1, new-size, next-pos)
+              else if ge-i64 new-size limit then
+                let g0 = drop-bytes-lin mtf1 in let g1 = drop-bytes-lin tt1 in let g2 = drop-bytes-lin counts1 in
+                Err (Bzip2BadBlock (i64-to-nat pos))
+              else
+                case mtf-step-lin mtf1 (wrapping-sub-i64 sym 1) of
+                  (val, mtf2) ->
+                    let tt2 = put-le32-lin tt1 (wrapping-shl-i64 new-size 2) (u8-to-u32 val) in
+                    let counts2 = add-count-lin counts1 (u8-to-i64 val) 1 in
+                    symbols src total tabs sels sels-len mtf2 tt2 counts2 eob limit next-pos next-buf next-nbits group next-left base (wrapping-add-i64 new-size 1) 0 0
+      else if ge-i64 sym eob then
+        let g0 = drop-bytes-lin mtf in Ok (tt, counts, size, next-pos)
+      else if ge-i64 size limit then
+        let g0 = drop-bytes-lin mtf in let g1 = drop-bytes-lin tt in let g2 = drop-bytes-lin counts in
+        Err (Bzip2BadBlock (i64-to-nat pos))
+      else
+        case mtf-step-lin mtf (wrapping-sub-i64 sym 1) of
+          (val, mtf1) ->
+            let tt1 = put-le32-lin tt (wrapping-shl-i64 size 2) (u8-to-u32 val) in
+            let counts1 = add-count-lin counts (u8-to-i64 val) 1 in
+            symbols src total tabs sels sels-len mtf1 tt1 counts1 eob limit next-pos next-buf next-nbits group next-left base (wrapping-add-i64 size 1) 0 0
+
+  -- ---------------------------------------------------------------------
+  -- Merged Seward BWT inverse transform and RLE1 decoding (`%1` linear).
+  -- ---------------------------------------------------------------------
+
+  -- | Compute prefix sums, build merged Seward `tt` links, run RLE1 into `out`, and verify block CRC.
+  finish :: Bytes -> Bytes %1 -> Bytes %1 -> I64 -> I64 -> U32 -> I64 -> Bytes %1 -> I64 -> I64 -> Result Bzip2Error Decoded
+  finish crc-tab tt counts size origin crc next out out-cap out-len =
+    let starts = prefix-sums counts 0 0 in
+    let tt1 = link-seward tt starts size 0 in
+    case tt-word-lin tt1 origin of
+      (origin-word, tt2) ->
+        let t0 = u32-to-i64 (wrapping-shr-u32 origin-word 8) in
+        case rle-fresh tt2 t0 size out out-cap out-len of
+          (tt3, out1, cap1, end1) ->
+            case block-crc-lin crc-tab out1 out-len end1 of
+              (actual-crc, out2) ->
+                if eq-u32 actual-crc crc then Ok (Decoded tt3 out2 cap1 end1 next crc)
+                else
+                  let g1 = drop-bytes-lin tt3 in let g2 = drop-bytes-lin out2 in Err Bzip2ChecksumMismatch
+
+  -- | Linearly convert 256 byte counts into exclusive prefix sums.
+  prefix-sums :: Bytes %1 -> I64 -> U32 -> Bytes
+  prefix-sums counts c sum =
+    if ge-i64 c 256 then counts
+    else case prefix-step-lin counts c sum of
+      (next-sum, counts1) -> prefix-sums counts1 (wrapping-add-i64 c 1) next-sum
+
+  -- | Linearly populate merged Seward links: `tt[starts[c]++] |= (i << 8)` for `i = 0..size-1`.
+  link-seward :: Bytes %1 -> Bytes %1 -> I64 -> I64 -> Bytes
+  link-seward tt starts size i =
+    if ge-i64 i size then
+      let g = drop-bytes-lin starts in tt
+    else
+      case tt-byte-lin tt i of
+        (c, tt1) ->
+          case fetch-inc32-lin starts c of
+            (pos, starts1) ->
+              let tt2 = tt-set-link-lin tt1 pos (wrapping-i64-to-u32 i) in
+              link-seward tt2 starts1 size (wrapping-add-i64 i 1)
+
+  -- | RLE1 state: no preceding run byte; one single `tt` read fetches both byte and successor link.
+  rle-fresh :: Bytes %1 -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> (Bytes, Bytes, I64, I64)
+  rle-fresh tt t left out cap len =
+    if le-i64 left 0 then (tt, out, cap, len)
+    else
+      case tt-word-lin tt t of
+        (w, tt1) ->
+          let b = wrapping-u32-to-u8 w in
+          let after = u32-to-i64 (wrapping-shr-u32 w 8) in
+          case emit-lin out cap len b of
+            (out1, cap1) -> rle-same tt1 after (wrapping-sub-i64 left 1) out1 cap1 (wrapping-add-i64 len 1) b 1
+
+  -- | RLE1 state: last `k` bytes (1..3) equaled `prev`; a fourth switches to `rle-count`.
+  rle-same :: Bytes %1 -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> U8 -> I64 -> (Bytes, Bytes, I64, I64)
+  rle-same tt t left out cap len prev k =
+    if le-i64 left 0 then (tt, out, cap, len)
+    else
+      case tt-word-lin tt t of
+        (w, tt1) ->
+          let b = wrapping-u32-to-u8 w in
+          let after = u32-to-i64 (wrapping-shr-u32 w 8) in
+          case emit-lin out cap len b of
+            (out1, cap1) ->
+              let len1 = wrapping-add-i64 len 1 in
+              let left1 = wrapping-sub-i64 left 1 in
+              if ne-u8 b prev then rle-same tt1 after left1 out1 cap1 len1 b 1
+              else if eq-i64 k 3 then rle-count tt1 after left1 out1 cap1 len1 b
+              else rle-same tt1 after left1 out1 cap1 len1 b (wrapping-add-i64 k 1)
+
+  -- | RLE1 state: four equal bytes seen; this byte repeats `prev` that many additional times.
+  rle-count :: Bytes %1 -> I64 -> I64 -> Bytes %1 -> I64 -> I64 -> U8 -> (Bytes, Bytes, I64, I64)
+  rle-count tt t left out cap len prev =
+    if le-i64 left 0 then (tt, out, cap, len)
+    else
+      case tt-word-lin tt t of
+        (w, tt1) ->
+          let n = u8-to-i64 (wrapping-u32-to-u8 w) in
+          let after = u32-to-i64 (wrapping-shr-u32 w 8) in
+          case emit-run-lin out cap len prev n of
+            (out1, cap1) -> rle-fresh tt1 after (wrapping-sub-i64 left 1) out1 cap1 (wrapping-add-i64 len n)
+
+  -- | Linearly append one byte to `out`, growing the buffer when full.
+  emit-lin :: Bytes %1 -> I64 -> I64 -> U8 -> (Bytes, I64)
+  emit-lin out cap len v =
+    if lt-i64 len cap then (put-u8-lin out len v, cap)
+    else case grow-lin out len (wrapping-add-i64 len 1) of
+      (out1, cap1) -> (put-u8-lin out1 len v, cap1)
+
+  -- | Linearly append `n` copies of byte `v` to `out`, growing once if needed and filling by doubling memmoves.
+  emit-run-lin :: Bytes %1 -> I64 -> I64 -> U8 -> I64 -> (Bytes, I64)
+  emit-run-lin out cap len v n =
+    if le-i64 n 0 then (out, cap)
+    else
+      let need = wrapping-add-i64 len n in
+      if gt-i64 need cap then
+        case grow-lin out len need of
+          (out1, cap1) ->
+            let out2 = put-u8-lin out1 len v in
+            (double-bytes-lin out2 len 1 n, cap1)
+      else
+        let out1 = put-u8-lin out len v in
+        (double-bytes-lin out1 len 1 n, cap)
