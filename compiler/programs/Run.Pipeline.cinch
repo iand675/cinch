@@ -435,7 +435,7 @@ module Main where
                   SubTest rest -> case (opts.roots, opts.mode-selected) of
                     (None, False) ->
                       let test-tuning = case opts.strategy of
-                            None -> CompileTuning Latency tuning.workers tuning.prim-verify tuning.jpl
+                            None -> CompileTuning Latency tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only
                             Some _ -> tuning in
                       test-words test-tuning opts.inlining opts.rc-debug opts.reclaim wanted opts.manifest opts.object-config rest
                     _ -> pipeline-bad-args
