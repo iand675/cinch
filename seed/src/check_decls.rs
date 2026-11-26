@@ -9793,6 +9793,148 @@ impl Checker {
         Ok((receipts, all_discharged))
     }
 
+    fn verify_rewrite_formally(
+        &self,
+        module: &str,
+        r: &ast::RewriteDecl,
+        kinds: &HashMap<String, ParamKind>,
+        ret_ty: &Ty,
+        strategy: &str,
+    ) -> Result<Vec<String>> {
+        use crate::prim_verify::prelude_bridge::build_rewrite_obligation;
+        use crate::prim_verify::sem::SemTy;
+        use crate::prim_verify::{Policy, PrimVerifyMode, VerificationStatus, VerifierEngine};
+        use crate::types::Scalar;
+
+        let mode = self.prim_verify_mode();
+        if mode == PrimVerifyMode::Off {
+            return Ok(vec![format!("rewrite:{module}.{}#verify-off", r.name.text)]);
+        }
+
+        let ty_to_sem = |t: &Ty| -> Option<(SemTy, bool)> {
+            match self.unwrap_prim_abi_ty(t) {
+                Ty::Bool => Some((SemTy::Bool, false)),
+                Ty::Prim(Scalar::I8) => Some((SemTy::Bv(8), true)),
+                Ty::Prim(Scalar::I16) => Some((SemTy::Bv(16), true)),
+                Ty::Prim(Scalar::I32) => Some((SemTy::Bv(32), true)),
+                Ty::Prim(Scalar::I64) => Some((SemTy::Bv(64), true)),
+                Ty::Prim(Scalar::I128) => Some((SemTy::Bv(128), true)),
+                Ty::Prim(Scalar::U8) => Some((SemTy::Bv(8), false)),
+                Ty::Prim(Scalar::U16) => Some((SemTy::Bv(16), false)),
+                Ty::Prim(Scalar::U32) => Some((SemTy::Bv(32), false)),
+                Ty::Prim(Scalar::U64) => Some((SemTy::Bv(64), false)),
+                Ty::Prim(Scalar::U128) => Some((SemTy::Bv(128), false)),
+                _ => None,
+            }
+        };
+
+        let mut binders = Vec::new();
+        for b in &r.binders {
+            if let Some(ParamKind::Val(t) | ParamKind::Data(t)) = kinds.get(&b.name.text) {
+                let (st, signed) = ty_to_sem(t).ok_or_else(|| {
+                    Error::at(
+                        b.name.span,
+                        format!(
+                            "rewrite `{}` binder `{}` has non-bitvector type for `justify verify`",
+                            r.name.text, b.name.text
+                        ),
+                    )
+                })?;
+                binders.push((b.name.text.clone(), st, signed));
+            }
+        }
+        let ret_sem = ty_to_sem(ret_ty).ok_or_else(|| {
+            Error::at(
+                r.span,
+                format!(
+                    "rewrite `{}` result type is outside bit-vector/Bool `justify verify`",
+                    r.name.text
+                ),
+            )
+        })?;
+
+        let ob = build_rewrite_obligation(
+            module,
+            &r.name.text,
+            &binders,
+            ret_sem,
+            &r.match_tm,
+            &r.replace_tm,
+        )
+        .map_err(|msg| {
+            Error::at(
+                r.span,
+                format!("rewrite `{module}.{}` failed formal verification setup: {msg}", r.name.text),
+            )
+        })?;
+
+        let mut engine = match mode {
+            PrimVerifyMode::Lax => VerifierEngine::lax_engine(),
+            PrimVerifyMode::Strict => VerifierEngine::default_engine(Policy::jpl_strict()),
+            PrimVerifyMode::Default => {
+                let policy = if self.jpl_target || self.jpl_user_modules.contains(module) {
+                    Policy::jpl_strict()
+                } else {
+                    Policy::dev_default()
+                };
+                VerifierEngine::default_engine(policy)
+            }
+            PrimVerifyMode::Off => unreachable!(),
+        };
+        if strategy == "verify-compiled-lrat" {
+            engine = engine.with_compiled_lrat_checker();
+        }
+        let replay_only = self.prim_replay_only();
+        let store = match self.prim_proof_cache() {
+            Some(dir) if replay_only => crate::prim_verify::EvidenceStore::with_disk_dir(dir),
+            Some(dir) => crate::prim_verify::EvidenceStore::with_disk_dir(dir).with_shared_memory(),
+            None if replay_only => crate::prim_verify::EvidenceStore::in_memory(),
+            None => crate::prim_verify::EvidenceStore::in_memory().with_shared_memory(),
+        };
+        engine = engine.with_store(store).with_replay_only(replay_only);
+
+        let report = engine.verify(&ob);
+        match report.status {
+            VerificationStatus::Verified { .. } => Ok(Vec::new()),
+            VerificationStatus::Disproved { prover_id, counterexample } => {
+                let inputs = counterexample
+                    .inputs
+                    .iter()
+                    .map(|(k, v)| format!("{k} = {v}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Err(Error::at(
+                    r.span,
+                    format!(
+                        "rewrite `{module}.{}` failed formal verification: {} [{}] (prover: {})",
+                        r.name.text, counterexample.summary, inputs, prover_id
+                    ),
+                ))
+            }
+            VerificationStatus::RejectedByPolicy { reason, .. } => Err(Error::at(
+                r.span,
+                format!(
+                    "rewrite `{module}.{}` verification rejected by policy: {reason}",
+                    r.name.text
+                ),
+            )),
+            VerificationStatus::Unverified { reasons } => {
+                if mode == PrimVerifyMode::Lax {
+                    Ok(vec![format!("rewrite:{module}.{}#lax-unverified", r.name.text)])
+                } else {
+                    Err(Error::at(
+                        r.span,
+                        format!(
+                            "rewrite `{module}.{}` could not be formally verified: {}",
+                            r.name.text,
+                            reasons.join("; ")
+                        ),
+                    ))
+                }
+            }
+        }
+    }
+
     /// A `prim` body's `justify` evidence (primitive operations and
     /// inline target IR specification section 5): the evidence states
     /// `Eq (<prim> x1 ... xn) meaning` over the prim's own argument
@@ -11686,9 +11828,15 @@ impl Checker {
                 ));
             }
         }
-        // The justification: checked evidence under the rule's equation.
+        // The justification: checked evidence under the rule's equation, or
+        // formal verification (`justify verify` / `verify-lrat` / `verify-compiled-lrat`).
         let eq = PTerm::Eq(Box::new(lhs), Box::new(rhs));
-        let assumptions = self.check_justify(&mut env, &r.justify, &eq, span)?;
+        let assumptions = if let Some(strategy) = Self::prim_verify_strategy(&r.justify) {
+            let cur_mod = self.current_module.clone();
+            self.verify_rewrite_formally(&cur_mod, r, &kinds, &mty, strategy)?
+        } else {
+            self.check_justify(&mut env, &r.justify, &eq, span)?
+        };
         // The `require` clause's operative form (platform section 3).
         let cond = match &require_pair {
             None => crate::core::RequireCond::Always,

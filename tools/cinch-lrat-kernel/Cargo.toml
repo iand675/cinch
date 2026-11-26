@@ -1,0 +1,7 @@
+[package]
+name = "cinch-lrat-kernel"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal, zero-dependency, audited RUP LRAT proof checker kernel for Cinch"
+
+[dependencies]
