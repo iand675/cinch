@@ -245,16 +245,33 @@ module Cinch.Ownership where
     (Some x, Some y) -> same-str x y
     other -> False
 
+  -- Check whether a decision-tree arm body has at least one branch where
+  -- scrutinee `sid` is dead and a same-arity constructor is allocated
+  -- (branch-sunk Perceus reset/reuse for cold `else s` arms).
+  arm-has-branch-reuse-alloc :: Nat -> Nat -> CoreTerm -> Bool
+  arm-has-branch-reuse-alloc sid arity term =
+    if arity == 0 then False
+    else case term of
+      CIf sp ty cond yes no ->
+        not (term-uses-id sid cond)
+          && ((not (term-uses-id sid yes) && arm-has-reuse-alloc arity yes)
+              || (not (term-uses-id sid no) && arm-has-reuse-alloc arity no)
+              || arm-has-branch-reuse-alloc sid arity yes
+              || arm-has-branch-reuse-alloc sid arity no)
+      other -> False
+
   -- Check whether any constructor alternative of a `CCase` matches a
-  -- non-nullary constructor (with scrutinee `sid` dead in the arm body)
-  -- and allocates a same-arity constructor on its spine.
+  -- non-nullary constructor (with scrutinee `sid` dead in the arm body or
+  -- dead on a branch of its decision tree) and allocates a same-arity
+  -- constructor on its spine.
   case-has-reusable-arm :: Nat -> CoreTerm -> Bool
   case-has-reusable-arm sid alts = case alts of
     CAlternative sp pat body rest ->
       let hit = (case pat of
             CPConstructor at ty name actuals sc fields ->
               let n = pattern-field-count fields in
-              n > 0 && not (term-uses-id sid body) && arm-has-reuse-alloc n body
+              n > 0 && ((not (term-uses-id sid body) && arm-has-reuse-alloc n body)
+                        || arm-has-branch-reuse-alloc sid n body)
             other -> False) in
       hit || case-has-reusable-arm sid rest
     other -> False

@@ -398,7 +398,7 @@ fn emit_module(
             reg.products = product_ctors(program, &reg);
             reg.cpr = cpr_units(program, &reg);
         }
-        reg.tailcc = tail_units(program, &reg);
+        reg.tailcc = tail_units(program, &reg, &profile.arch);
     }
     reg.rc_debug = profile.rc_debug;
     reg.convention = crate::cabi::Convention::of(profile);
@@ -4140,7 +4140,41 @@ const CPR_MAX_FIELDS: usize = 3;
 /// A self tail call is a jump and counts for neither rule. An apply twin
 /// enters a unit outside the set with an ordinary call, which adds one
 /// frame that the next call does not grow.
-fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
+/// LLVM's AArch64 `-O0` (GlobalISel) backend miscompiles `musttail call tailcc`
+/// when `i128` (`Class::Wide`) arguments spill past the 8 integer argument
+/// registers (`x0..x7`) onto the stack: the callee-pops stack argument copy
+/// corrupts stack-passed `i128` slots even between identical prototypes, while
+/// the C convention lowers the same `musttail` cleanly. Keep units with a
+/// stack-spilled `Wide` parameter on the C convention on AArch64.
+fn has_stack_wide_param(f: &FnDef, reg: &Registry, arch: &str) -> bool {
+    if arch != "aarch64" {
+        return false;
+    }
+    let sig = reg.call_sig(&f.id.0);
+    let mut regs = 0usize;
+    for i in 0..f.arity() {
+        let is_wide = sig.is_some_and(|s| s.param(i).is_wide())
+            || f.repr.params.get(i).copied() == Some(Class::Wide);
+        if is_wide {
+            regs = (regs + 1) & !1;
+            if regs + 2 > 8 {
+                return true;
+            }
+            regs += 2;
+        } else {
+            regs += 1;
+        }
+    }
+    false
+}
+
+fn tail_units(p: &Program, reg: &Registry, arch: &str) -> HashSet<String> {
+    let blocked: HashSet<&str> = p
+        .fns
+        .iter()
+        .filter(|f| has_stack_wide_param(f, reg, arch))
+        .map(|f| f.id.0.as_str())
+        .collect();
     fn result(reg: &Registry, unit: &str) -> (Option<String>, &'static str) {
         (
             reg.cpr.get(unit).map(|c| c.ctor.clone()),
@@ -4149,11 +4183,12 @@ fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
     }
     /// The unit's known tail callees that could be guaranteed, and whether
     /// it makes an unknown tail call.
-    fn walk(e: &Core, unit: &str, reg: &Registry, known: &mut Vec<String>, unknown: &mut bool) {
+    fn walk(e: &Core, unit: &str, reg: &Registry, blocked: &HashSet<&str>, known: &mut Vec<String>, unknown: &mut bool) {
         match e {
             Core::App(head, args) => match &**head {
                 Core::Global(g, _) => {
                     if g.0 != unit
+                        && !blocked.contains(g.0.as_str())
                         && reg.arity.get(&g.0) == Some(&args.len())
                         && reg.fn_units.contains(&g.0)
                         && result(reg, &g.0) == result(reg, unit)
@@ -4171,31 +4206,31 @@ fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
                     }
                 }
             },
-            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => walk(b, unit, reg, known, unknown),
-            Core::Release { body, .. } => walk(body, unit, reg, known, unknown),
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => walk(b, unit, reg, blocked, known, unknown),
+            Core::Release { body, .. } => walk(body, unit, reg, blocked, known, unknown),
             Core::If(_, a, b) => {
-                walk(&a.body, unit, reg, known, unknown);
-                walk(&b.body, unit, reg, known, unknown);
+                walk(&a.body, unit, reg, blocked, known, unknown);
+                walk(&b.body, unit, reg, blocked, known, unknown);
             }
             Core::Case { alts, .. } => {
                 for a in alts {
-                    walk(&a.body, unit, reg, known, unknown);
+                    walk(&a.body, unit, reg, blocked, known, unknown);
                 }
             }
             Core::Join { body, rest, .. } => {
-                walk(body, unit, reg, known, unknown);
-                walk(rest, unit, reg, known, unknown);
+                walk(body, unit, reg, blocked, known, unknown);
+                walk(rest, unit, reg, blocked, known, unknown);
             }
             _ => {}
         }
     }
     let mut edges: HashMap<&str, (Vec<String>, bool)> = HashMap::new();
     for f in &p.fns {
-        if !reg.fn_units.contains(&f.id.0) {
+        if !reg.fn_units.contains(&f.id.0) || blocked.contains(f.id.0.as_str()) {
             continue;
         }
         let (mut known, mut unknown) = (Vec::new(), false);
-        walk(&f.body, &f.id.0, reg, &mut known, &mut unknown);
+        walk(&f.body, &f.id.0, reg, &blocked, &mut known, &mut unknown);
         if unknown || !known.is_empty() {
             edges.insert(f.id.0.as_str(), (known, unknown));
         }
@@ -14383,6 +14418,59 @@ int main(void) {{
         assert_eq!(groups.len(), 1, "{groups:?}");
         assert_eq!(groups[0].members, vec!["T.f", "T.g"]);
         assert_eq!(groups[0].mark, "marked");
+    }
+
+    #[test]
+    fn stack_wide_mutual_tail_calls_stay_off_tailcc_on_aarch64() {
+        // Two mutually tail-recursive units with 8 scalar words followed by two
+        // `i128` (`Class::Wide`) arguments: on AArch64 `-O0` (GlobalISel),
+        // `musttail call tailcc` miscompiles stack-spilled `i128` slots, while
+        // keeping the units on the C convention preserves both correctness and
+        // constant stack.
+        let params: Vec<&str> = vec!["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "w0", "w1"];
+        let classes = vec![
+            Class::Raw, Class::Raw, Class::Raw, Class::Raw,
+            Class::Raw, Class::Raw, Class::Raw, Class::Raw,
+            Class::Wide, Class::Wide,
+        ];
+        let mut f = fndef(
+            "T.f",
+            &params,
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                CBranch::new(app(
+                    p(PrimOp::Nat(crate::core::NatOp::ToI64)),
+                    vec![app(p(PrimOp::Nat(crate::core::NatOp::FromU128)), vec![v(9)])],
+                )),
+                CBranch::new(app(
+                    g("T.g"),
+                    vec![
+                        app(p(arith(ArithOp::Sub)), vec![v(0), n(1)]),
+                        v(1), v(2), v(3), v(4), v(5), v(6), v(7), v(8), v(9),
+                    ],
+                )),
+            ),
+        );
+        f.repr.params = classes.clone();
+        let mut gg = fndef(
+            "T.g",
+            &params,
+            app(g("T.f"), vec![v(0), v(1), v(2), v(3), v(4), v(5), v(6), v(7), v(8), v(9)]),
+        );
+        gg.repr.params = classes;
+        let prog = main_prog(
+            vec![f, gg],
+            app(
+                g("T.f"),
+                vec![n(10), n(1), n(2), n(3), n(4), n(5), n(6), n(7), Core::Wide(11), Core::Wide(42)],
+            ),
+        );
+        let ir = emit(&prog).expect("emit");
+        if cfg!(target_arch = "aarch64") {
+            assert!(!ir.contains("define tailcc i64 @\"T.f#cc\""), "stack-wide unit must stay off tailcc:\n{ir}");
+            assert!(!ir.contains("define tailcc i64 @\"T.g#cc\""), "stack-wide unit must stay off tailcc:\n{ir}");
+        }
+        assert_eq!(run("stack_wide_mutual_tail", &prog), 42);
     }
 
     #[test]
