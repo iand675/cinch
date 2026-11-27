@@ -1,9 +1,9 @@
 {
-  "commit": "35c030a7b6484da4dd06802484c67bba6a0fd552",
-  "description": "ABI 10 packed library provider with verified prelude, wasm32/repr(C), float refinements, and AIG/CDCL/LRAT prim_verify.",
-  "revision": "35c030a7b6484da4dd06802484c67bba6a0fd552",
+  "commit": "073bfb423687a9317d2c36b20264d0715bd06261",
+  "description": "ABI 10 packed library provider with complete prelude verification, extended verify-codegen, cvc5 Alethe SMT, hardware crypto asm (BvClmul/AesCore), and stronger atomic contracts.",
+  "revision": "073bfb423687a9317d2c36b20264d0715bd06261",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "6105abd5b0b088d1ca9e770ff91e5cccf089b6f43b4338a0dc7ffb2643b701d5",
-  "source_sha256": "6105abd5b0b088d1ca9e770ff91e5cccf089b6f43b4338a0dc7ffb2643b701d5"
+  "source_hash": "05577581d2a4b3b9a87058c29dce671697f7eb1b3047c65e94b4f2a0dfd5c523",
+  "source_sha256": "05577581d2a4b3b9a87058c29dce671697f7eb1b3047c65e94b4f2a0dfd5c523"
 }

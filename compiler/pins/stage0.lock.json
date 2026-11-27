@@ -1,11 +1,11 @@
 {
-  "commit": "35c030a7b6484da4dd06802484c67bba6a0fd552",
-  "description": "ABI 10 seed with verified prelude, wasm32/repr(C), verify-codegen, float refinements, and AIG structural hashing + adder-tree ctpop + recursive 1-UIP CDCL + O(1)-reset LRAT.",
+  "commit": "073bfb423687a9317d2c36b20264d0715bd06261",
+  "description": "ABI 10 seed with complete prelude verification, extended verify-codegen (interproc, tail loops, repr(C)/FixedArray, Perceus RC), cvc5 Alethe SMT, hardware crypto asm (BvClmul/AesCore), and stronger atomic contracts.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "35c030a7b6484da4dd06802484c67bba6a0fd552",
+  "revision": "073bfb423687a9317d2c36b20264d0715bd06261",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "dfbb2c8517680c5835f00589bd0ce784f4aaf6608cbe4e481b3634755bcd8456",
-  "source_sha256": "dfbb2c8517680c5835f00589bd0ce784f4aaf6608cbe4e481b3634755bcd8456"
+  "source_hash": "0050e5efac44edb7ecb0aa76cff6bb029c6552860c531ba5566467079ad4a4e4",
+  "source_sha256": "0050e5efac44edb7ecb0aa76cff6bb029c6552860c531ba5566467079ad4a4e4"
 }
