@@ -27,7 +27,7 @@ module Cinch.RuntimeIr where
   import Algebra.Semigroup
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
-  import Text.Scan (string-split-on, string-contains)
+  import Text.Scan (string-split-on, string-starts-with, string-contains)
   import Data.String (string-compare, string-byte-length, string-utf8-first, string-to-bytes)
   import Data.Bytes (bytes-len, bytes-get)
   import Prim.Machine (ge-i64, lt-i64)
