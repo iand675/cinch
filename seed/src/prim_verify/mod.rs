@@ -1102,7 +1102,7 @@ pub fn cli_verify_codegen(args: &[String]) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prim_verify::prelude_bridge::extract_source_obligations;
+    use crate::prim_verify::prelude_bridge::{extract_file_obligations, extract_source_obligations};
     use std::path::PathBuf;
 
     fn verify_snippet(src: &str, policy: Policy) -> Vec<ObligationReport> {
