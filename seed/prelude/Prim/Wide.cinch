@@ -105,7 +105,7 @@ module Prim.Wide where
     } justify verify
 
   -- | Extract the sign bit of each of the 16 byte lanes into the low 16 bits of a U32.
-  prim simd-u8x16-movemask :: U128 -> U32 where
+  prim simd-u8x16-movemask :: U128 -> refined (0 <= r && r <= 65535) U32 where
     llvm {
       %v = bitcast i128 %0 to <16 x i8>
       %m = icmp slt <16 x i8> %v, zeroinitializer

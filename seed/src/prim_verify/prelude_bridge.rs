@@ -283,6 +283,7 @@ pub fn build_prim_body_obligations_for_word_bits(
         &lowered,
         &sem_params,
         word_bits,
+        body_is_big_endian(body),
     ) {
         // Fallback curated functional specs for existing prelude prims that do not
         // yet carry an inline `spec` clause.
@@ -1469,6 +1470,7 @@ fn build_builtin_spec_obligation(
     lowered: &SemProgram,
     params: &[SemParam],
     _word_bits: u16,
+    is_big_endian: bool,
 ) -> Option<Obligation> {
     let (res_node, res_poison) = lowered.result.as_scalar()?;
     let mut g = lowered.graph.clone();
@@ -1603,6 +1605,89 @@ fn build_builtin_spec_obligation(
             }
             let expected = g.bv_zext(acc, 32);
             ("pack_sign_bits_16x8(v)", g.bv_eq(res_node, expected))
+        }
+        "u128-lo-u64" => {
+            let x = lowered.params[0].1;
+            let expected = g.bv_extract(x, 63, 0);
+            ("extract[63:0](x)", g.bv_eq(res_node, expected))
+        }
+        "u128-hi-u64" => {
+            let x = lowered.params[0].1;
+            let expected = g.bv_extract(x, 127, 64);
+            ("extract[127:64](x)", g.bv_eq(res_node, expected))
+        }
+        "simd-u32x4-pack" => {
+            let a = lowered.params[0].1;
+            let b = lowered.params[1].1;
+            let c = lowered.params[2].1;
+            let d = lowered.params[3].1;
+            let expected = if is_big_endian {
+                let hi = g.bv_concat(a, b);
+                let lo = g.bv_concat(c, d);
+                g.bv_concat(hi, lo)
+            } else {
+                let hi = g.bv_concat(d, c);
+                let lo = g.bv_concat(b, a);
+                g.bv_concat(hi, lo)
+            };
+            ("pack_u32x4(a, b, c, d)", g.bv_eq(res_node, expected))
+        }
+        "simd-u64x2-pack" => {
+            let lo = lowered.params[0].1;
+            let hi = lowered.params[1].1;
+            let expected = if is_big_endian {
+                g.bv_concat(lo, hi)
+            } else {
+                g.bv_concat(hi, lo)
+            };
+            ("pack_u64x2(lo, hi)", g.bv_eq(res_node, expected))
+        }
+        "simd-u16x8-shl" | "simd-u16x8-shr" | "simd-i16x8-ashr"
+        | "simd-u32x4-shl" | "simd-u32x4-shr" | "simd-i32x4-ashr"
+        | "simd-u32x4-rotl" | "simd-u32x4-rotr"
+        | "simd-u64x2-shl" | "simd-u64x2-shr"
+        | "simd-u64x2-rotl" | "simd-u64x2-rotr" => {
+            let (lanes, ew): (u16, u16) = if prim_name.contains("x8-") {
+                (8, 16)
+            } else if prim_name.contains("x4-") {
+                (4, 32)
+            } else {
+                (2, 64)
+            };
+            let va = lowered.params[0].1;
+            let s32 = lowered.params[1].1;
+            let mask = g.bv_const(32, (ew - 1) as u128);
+            let sm = g.bv_and(s32, mask);
+            let sh = if ew < 32 {
+                g.bv_trunc(sm, ew)
+            } else if ew > 32 {
+                g.bv_zext(sm, ew)
+            } else {
+                sm
+            };
+            let mut lane_vals = Vec::with_capacity(lanes as usize);
+            for lane in 0..lanes {
+                let lo = lane * ew;
+                let hi = lo + ew - 1;
+                let la = g.bv_extract(va, hi, lo);
+                let out = if prim_name.ends_with("-shl") {
+                    g.bv_shl(la, sh)
+                } else if prim_name.ends_with("-ashr") {
+                    g.bv_ashr(la, sh)
+                } else if prim_name.ends_with("-shr") {
+                    g.bv_lshr(la, sh)
+                } else if prim_name.ends_with("-rotl") {
+                    g.bv_fshl(la, la, sh)
+                } else {
+                    g.bv_fshr(la, la, sh)
+                };
+                lane_vals.push(out);
+            }
+            let mut acc = *lane_vals.last().unwrap();
+            for &lv in lane_vals.iter().rev().skip(1) {
+                acc = g.bv_concat(acc, lv);
+            }
+            (prim_name, g.bv_eq(res_node, acc))
         }
         "ov-add-i8" => {
             let a = lowered.params[0].1;

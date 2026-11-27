@@ -815,7 +815,7 @@ module Cinch.PrimVerify where
               let (ov, ga) = g-bv-cmp "ult" w res a g0 in g-or p0 ov ga
             else if same op "sub" then
               let (ov, ga) = g-bv-cmp "ult" w a b g0 in g-or p0 ov ga
-            else if same op "mul" && w <= 32 then
+            else if same op "mul" && w <= 64 then
               let w2 = w * 2 in
               let (za, g2) = g-bv-cast "zext" w w2 a g0 in
               let (zb, g3) = g-bv-cast "zext" w w2 b g2 in
@@ -843,7 +843,7 @@ module Cinch.PrimVerify where
         let (diff-out, g7) = g-intern (NXor a-neg r-neg) g6 in
         let (ov, g8) = g-and diff-in diff-out g7 in
         g-or p1 ov g8
-      else if same op "mul" && w <= 32 then
+      else if same op "mul" && w <= 64 then
         let w2 = w * 2 in
         let (sa, g2) = g-bv-cast "sext" w w2 a g1 in
         let (sb, g3) = g-bv-cast "sext" w w2 b g2 in
@@ -2737,7 +2737,7 @@ module Cinch.PrimVerify where
           else if same op "or" then Ok (bb-zip-map bb-or la lb st2)
           else if same op "xor" then Ok (bb-zip-map bb-xor la lb st2)
           else if same op "shl" || same op "lshr" || same op "ashr" then Ok (bb-shift op w la lb st2)
-          else if same op "mul" && w <= 32 then Ok (bb-mul-loop w 0 la lb (repeat-bit w lit-false) st2)
+          else if same op "mul" && w <= 64 then Ok (bb-mul-loop w 0 la lb (repeat-bit w lit-false) st2)
           else if same op "umin" then
             let (lt, st3) = bb-vec-ult la lb st2 in Ok (bb-ite-vec lt la lb st3)
           else if same op "umax" then

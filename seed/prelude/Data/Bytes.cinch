@@ -104,14 +104,14 @@ module Data.Bytes where
       %hi = trunc i128 %hi128 to i64
       %r = xor i64 %lo, %hi
       ret i64 %r
-    }
+    } justify verify
 
   -- | Extract the low 64-bit little-endian lane of a U128 word.
   prim u128-lo-u64 :: U128 -> U64 where
     llvm {
       %r = trunc i128 %0 to i64
       ret i64 %r
-    }
+    } justify verify
 
   -- | Extract the high 64-bit little-endian lane of a U128 word.
   prim u128-hi-u64 :: U128 -> U64 where
@@ -119,7 +119,7 @@ module Data.Bytes where
       %s = lshr i128 %0, 64
       %r = trunc i128 %s to i64
       ret i64 %r
-    }
+    } justify verify
 
   -- -----------------------------------------------------------------
   -- Private `%1`-linear buffer write boundary for list constructors.

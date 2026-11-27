@@ -201,7 +201,9 @@ module Prim.Machine where
       %r = mul i8 %0, %1
       ret i8 %r
     } justify verify
-  prim wrapping-neg-i8 :: I8 -> I8 where
+  spec wrapping-neg-i8-spec :: I8 -> I8
+  wrapping-neg-i8-spec x = wrapping-sub-i8 0 x
+  prim wrapping-neg-i8 :: I8 -> I8 spec wrapping-neg-i8-spec where
     llvm {
       %r = sub i8 0, %0
       ret i8 %r
@@ -276,7 +278,9 @@ module Prim.Machine where
       %r = xor i8 %0, %1
       ret i8 %r
     } justify verify
-  prim bit-not-i8 :: I8 -> I8 where
+  spec bit-not-i8-spec :: I8 -> I8
+  bit-not-i8-spec x = bit-xor-i8 x (-1)
+  prim bit-not-i8 :: I8 -> I8 spec bit-not-i8-spec where
     llvm {
       %r = xor i8 %0, -1
       ret i8 %r
@@ -381,7 +385,9 @@ module Prim.Machine where
       %r = mul i16 %0, %1
       ret i16 %r
     } justify verify
-  prim wrapping-neg-i16 :: I16 -> I16 where
+  spec wrapping-neg-i16-spec :: I16 -> I16
+  wrapping-neg-i16-spec x = wrapping-sub-i16 0 x
+  prim wrapping-neg-i16 :: I16 -> I16 spec wrapping-neg-i16-spec where
     llvm {
       %r = sub i16 0, %0
       ret i16 %r
@@ -454,7 +460,9 @@ module Prim.Machine where
       %r = xor i16 %0, %1
       ret i16 %r
     } justify verify
-  prim bit-not-i16 :: I16 -> I16 where
+  spec bit-not-i16-spec :: I16 -> I16
+  bit-not-i16-spec x = bit-xor-i16 x (-1)
+  prim bit-not-i16 :: I16 -> I16 spec bit-not-i16-spec where
     llvm {
       %r = xor i16 %0, -1
       ret i16 %r
@@ -564,7 +572,9 @@ module Prim.Machine where
       %r = mul i32 %0, %1
       ret i32 %r
     } justify verify
-  prim wrapping-neg-i32 :: I32 -> I32 where
+  spec wrapping-neg-i32-spec :: I32 -> I32
+  wrapping-neg-i32-spec x = wrapping-sub-i32 0 x
+  prim wrapping-neg-i32 :: I32 -> I32 spec wrapping-neg-i32-spec where
     llvm {
       %r = sub i32 0, %0
       ret i32 %r
@@ -637,7 +647,9 @@ module Prim.Machine where
       %r = xor i32 %0, %1
       ret i32 %r
     } justify verify
-  prim bit-not-i32 :: I32 -> I32 where
+  spec bit-not-i32-spec :: I32 -> I32
+  bit-not-i32-spec x = bit-xor-i32 x (-1)
+  prim bit-not-i32 :: I32 -> I32 spec bit-not-i32-spec where
     llvm {
       %r = xor i32 %0, -1
       ret i32 %r
@@ -740,7 +752,9 @@ module Prim.Machine where
       %r = mul i64 %0, %1
       ret i64 %r
     } justify verify
-  prim wrapping-neg-i64 :: I64 -> I64 where
+  spec wrapping-neg-i64-spec :: I64 -> I64
+  wrapping-neg-i64-spec x = wrapping-sub-i64 0 x
+  prim wrapping-neg-i64 :: I64 -> I64 spec wrapping-neg-i64-spec where
     llvm {
       %r = sub i64 0, %0
       ret i64 %r
@@ -813,7 +827,9 @@ module Prim.Machine where
       %r = xor i64 %0, %1
       ret i64 %r
     } justify verify
-  prim bit-not-i64 :: I64 -> I64 where
+  spec bit-not-i64-spec :: I64 -> I64
+  bit-not-i64-spec x = bit-xor-i64 x (-1)
+  prim bit-not-i64 :: I64 -> I64 spec bit-not-i64-spec where
     llvm {
       %r = xor i64 %0, -1
       ret i64 %r
@@ -923,7 +939,9 @@ module Prim.Machine where
       %r = mul i8 %0, %1
       ret i8 %r
     } justify verify
-  prim wrapping-neg-u8 :: U8 -> U8 where
+  spec wrapping-neg-u8-spec :: U8 -> U8
+  wrapping-neg-u8-spec x = wrapping-sub-u8 0 x
+  prim wrapping-neg-u8 :: U8 -> U8 spec wrapping-neg-u8-spec where
     llvm {
       %r = sub i8 0, %0
       ret i8 %r
@@ -994,7 +1012,9 @@ module Prim.Machine where
       %r = xor i8 %0, %1
       ret i8 %r
     } justify verify
-  prim bit-not-u8 :: U8 -> U8 where
+  spec bit-not-u8-spec :: U8 -> U8
+  bit-not-u8-spec x = bit-xor-u8 x (wrapping-sub-u8 0 1)
+  prim bit-not-u8 :: U8 -> U8 spec bit-not-u8-spec where
     llvm {
       %r = xor i8 %0, -1
       ret i8 %r
@@ -1099,7 +1119,9 @@ module Prim.Machine where
       %r = mul i16 %0, %1
       ret i16 %r
     } justify verify
-  prim wrapping-neg-u16 :: U16 -> U16 where
+  spec wrapping-neg-u16-spec :: U16 -> U16
+  wrapping-neg-u16-spec x = wrapping-sub-u16 0 x
+  prim wrapping-neg-u16 :: U16 -> U16 spec wrapping-neg-u16-spec where
     llvm {
       %r = sub i16 0, %0
       ret i16 %r
@@ -1168,7 +1190,9 @@ module Prim.Machine where
       %r = xor i16 %0, %1
       ret i16 %r
     } justify verify
-  prim bit-not-u16 :: U16 -> U16 where
+  spec bit-not-u16-spec :: U16 -> U16
+  bit-not-u16-spec x = bit-xor-u16 x (wrapping-sub-u16 0 1)
+  prim bit-not-u16 :: U16 -> U16 spec bit-not-u16-spec where
     llvm {
       %r = xor i16 %0, -1
       ret i16 %r
@@ -1278,7 +1302,9 @@ module Prim.Machine where
       %r = mul i32 %0, %1
       ret i32 %r
     } justify verify
-  prim wrapping-neg-u32 :: U32 -> U32 where
+  spec wrapping-neg-u32-spec :: U32 -> U32
+  wrapping-neg-u32-spec x = wrapping-sub-u32 0 x
+  prim wrapping-neg-u32 :: U32 -> U32 spec wrapping-neg-u32-spec where
     llvm {
       %r = sub i32 0, %0
       ret i32 %r
@@ -1347,7 +1373,9 @@ module Prim.Machine where
       %r = xor i32 %0, %1
       ret i32 %r
     } justify verify
-  prim bit-not-u32 :: U32 -> U32 where
+  spec bit-not-u32-spec :: U32 -> U32
+  bit-not-u32-spec x = bit-xor-u32 x (wrapping-sub-u32 0 1)
+  prim bit-not-u32 :: U32 -> U32 spec bit-not-u32-spec where
     llvm {
       %r = xor i32 %0, -1
       ret i32 %r
@@ -1450,7 +1478,9 @@ module Prim.Machine where
       %r = mul i64 %0, %1
       ret i64 %r
     } justify verify
-  prim wrapping-neg-u64 :: U64 -> U64 where
+  spec wrapping-neg-u64-spec :: U64 -> U64
+  wrapping-neg-u64-spec x = wrapping-sub-u64 0 x
+  prim wrapping-neg-u64 :: U64 -> U64 spec wrapping-neg-u64-spec where
     llvm {
       %r = sub i64 0, %0
       ret i64 %r
@@ -1519,7 +1549,9 @@ module Prim.Machine where
       %r = xor i64 %0, %1
       ret i64 %r
     } justify verify
-  prim bit-not-u64 :: U64 -> U64 where
+  spec bit-not-u64-spec :: U64 -> U64
+  bit-not-u64-spec x = bit-xor-u64 x (wrapping-sub-u64 0 1)
+  prim bit-not-u64 :: U64 -> U64 spec bit-not-u64-spec where
     llvm {
       %r = xor i64 %0, -1
       ret i64 %r
