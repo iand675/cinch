@@ -292,7 +292,7 @@ module Cinch.Layout where
   extract-niche-domain :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> UType -> Result String NicheDomain
   extract-niche-domain word-bits layouts datas shapes seen ty =
     case borrow-type-parts ty of
-      Some (reg, inner) -> extract-niche-domain word-bits layouts datas shapes seen inner
+      Some (is-mut, reg, inner) -> if is-mut then Ok (NicheNonNullObj []) else extract-niche-domain word-bits layouts datas shapes seen inner
       None -> case refinement-view ty of
         URefine id name carrier pred ->
           if niche-fits-immediate word-bits carrier id pred then Ok (NicheOddImm [])
@@ -308,10 +308,11 @@ module Cinch.Layout where
           USigma _ _ _ _ -> Ok (NicheNonNullObj [])
           UFun _ _ -> Ok (NicheNonNullObj [])
           UFunEff _ _ _ -> Ok (NicheNonNullObj [])
+          UUsageArrow _ _ -> Ok (NicheNonNullObj [])
           UPi _ _ _ _ _ -> Ok (NicheNonNullObj [])
           UBound _ _ _ -> Err "repr(niche) requires a concrete single-word payload type"
           URigid _ _ _ _ -> Err "repr(niche) requires a concrete single-word payload type"
-          UMeta _ -> Err "repr(niche) requires a concrete single-word payload type"
+          UMeta _ _ -> Err "repr(niche) requires a concrete single-word payload type"
           _ -> if foreign-pointer ty then Err "repr(niche) cannot derive a niche from an opaque type"
             else case head-name ty of
               Some name ->
@@ -519,7 +520,7 @@ module Cinch.Layout where
       (more, checked) -> (case requested (core-data-name d) layouts of
         None -> (d : more, checked)
         Some (Request site owner repr labels published) ->
-          if repr == "niche" then
+          (if repr == "niche" then
             (case niche-layout word-bits layouts all shapes [] d of
               Err message -> (d : more, add-error site message checked)
               Ok (word, ctors, dom) -> (case published of
@@ -529,4 +530,4 @@ module Cinch.Layout where
             Err message -> (d : more, add-error site message checked)
             Ok (word, bytes, align) -> (case published of
               Some row | not (matches-published row label bytes align) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
-              other -> ((with-data-layout (if repr == "transparent" then TransparentData label bytes align else UnboxedData label word bytes align) d) : more, checked))))
+              other -> ((with-data-layout (if repr == "transparent" then TransparentData label bytes align else UnboxedData label word bytes align) d) : more, checked)))))

@@ -1136,7 +1136,6 @@ module Cinch.Ownership where
     CCase sp ty scrut alts -> alts-are-unique-alloc ret-uniq uniq-locals alts
     CApply sp ty f x -> app-is-unique-alloc ret-uniq term
     CApplyEff sp ty row f x -> app-is-unique-alloc ret-uniq term
-    CErasedApply sp ty row f x -> app-is-unique-alloc ret-uniq term
     other -> False
 
   alts-are-unique-alloc :: HashMap String Bool -> List Nat -> CoreTerm -> Bool
@@ -1149,8 +1148,8 @@ module Cinch.Ownership where
 
   app-is-unique-alloc :: HashMap String Bool -> CoreTerm -> Bool
   app-is-unique-alloc ret-uniq term =
-    let args = app-args term [] in
-    case app-head term of
+    let args = call-args term [] in
+    case call-head term of
       CUse sp ty name role actuals ->
         if same-str role "constructor" then
           (case args of [] -> False; first : rest -> True)
@@ -1183,9 +1182,9 @@ module Cinch.Ownership where
       step-returns-unique rest prev (hash-map-insert (d.name) now out)
 
   fixpoint-returns-unique :: Nat -> List CoreDefinition -> HashMap String Bool -> HashMap String Bool
-  fixpoint-returns-unique fuel defs prev = case fuel of
-    0 -> prev
-    other ->
+  fixpoint-returns-unique fuel defs prev =
+    if fuel == 0 then prev
+    else
       let next = step-returns-unique defs prev hash-map-empty in
       if same-arena-phases defs prev next then next
       else fixpoint-returns-unique (fuel - 1) defs next

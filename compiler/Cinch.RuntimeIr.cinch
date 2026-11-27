@@ -723,11 +723,11 @@ module Cinch.RuntimeIr where
     NicheData word ctors -> word
     other -> 1
   niche-ctor-lookup :: String -> List NicheCtor -> Option NicheCtor
-  niche-ctor-lookup target ctors = case ctors of
+  niche-ctor-lookup wanted ctors = case ctors of
     [] -> None
     c : rest -> (case c of
-      NicheNullary cname sentinel -> if cname == target then Some c else niche-ctor-lookup target rest
-      NichePayload cname multi unsigned lo hi excluded -> if cname == target then Some c else niche-ctor-lookup target rest)
+      NicheNullary cname sentinel -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NichePayload cname multi unsigned lo hi excluded -> if cname == wanted then Some c else niche-ctor-lookup wanted rest)
   niche-nullary-sentinels :: List NicheCtor -> List Int
   niche-nullary-sentinels ctors = case ctors of
     [] -> []
@@ -2021,13 +2021,13 @@ module Cinch.RuntimeIr where
         else if deferred-let w id sc rhs body then (case deferred-value (writer-program w) rhs of
           Some (ctor, actuals, args) -> expression definitions ((DeferredConstructor id (scheme-body sc) ctor actuals args) : locals) w body
           None -> unsupported w sp "deferred constructor let failed its checked representation")
-        else case try-sink-partial-escape definitions locals w sp id name sc rhs body of
+        else (case try-sink-partial-escape definitions locals w sp id name sc rhs body of
           Some sunk -> sunk
-          None -> if erased-region-parameters (scheme-params sc) && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
-            emit-let definitions locals w sp id (scheme-body sc) rhs body
-          else (case bundled-let sp id sc rhs body of
-            Some bundled -> expression definitions locals w bundled
-            None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")
+          None -> (if erased-region-parameters (scheme-params sc) && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
+              emit-let definitions locals w sp id (scheme-body sc) rhs body
+            else (case bundled-let sp id sc rhs body of
+              Some bundled -> expression definitions locals w bundled
+              None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")))
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
     CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
@@ -5199,14 +5199,14 @@ module Cinch.RuntimeIr where
     let max-bound = if unsigned then (18446744073709551615 :: Int) else (9223372036854775807 :: Int) in
     let ge-pred = if unsigned then "uge" else "sge" in
     let le-pred = if unsigned then "ule" else "sle" in
-    let w1 = if lo > min-bound then
+    let w1 = (if lo > min-bound then
           (case compare-word w ge-pred value (niche-word-literal unsigned lo) of
             (compared, cond) -> continue-if compared cond failed)
-        else w in
-    let w2 = if hi < max-bound then
+        else w) in
+    let w2 = (if hi < max-bound then
           (case compare-word w1 le-pred value (niche-word-literal unsigned hi) of
             (compared, cond) -> continue-if compared cond failed)
-        else w1 in
+        else w1) in
     check-not-sentinels excluded value failed w2
 
   match-niche :: List NicheCtor -> String -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
@@ -5215,8 +5215,8 @@ module Cinch.RuntimeIr where
       (case compare-word w "eq" value (niche-word-literal False sentinel) of
         (ready, cond) -> (continue-if ready cond failed, []))
     Some (NichePayload n multi unsigned lo hi excluded) ->
-      let checked = if multi then check-niche-range unsigned lo hi excluded value failed w
-                    else check-not-sentinels (niche-nullary-sentinels ctors) value failed w in
+      let checked = (if multi then check-niche-range unsigned lo hi excluded value failed w
+                    else check-not-sentinels (niche-nullary-sentinels ctors) value failed w) in
       match-unboxed fields value failed checked
     None -> (refuse w (Span 0 0 1 1) "niche pattern missing constructor layout plan", [])
 
@@ -7234,7 +7234,7 @@ module Cinch.RuntimeIr where
   csr-emit-extract-words w agg-ty agg count index =
     if index >= count then (w, [])
     else
-      let (w1, v) = fresh w "%csr" in
+      let (w1, v) = fresh w "%csrw" in
       let w2 = line w1 (cat ["  ", v, " = extractvalue ", agg-ty, " ", agg, ", ", nat-to-string (index + 1)]) in
       case csr-emit-extract-words w2 agg-ty agg count (index + 1) of
         (w3, more) -> (w3, v : more)
@@ -7256,11 +7256,11 @@ module Cinch.RuntimeIr where
                 (called, agg) ->
                   let (w1, tagv) = fresh called "%csrtag" in
                   let (w2, is0) = fresh w1 "%csris0" in
-                  let (w3, l0) = fresh w2 "csr0" in
-                  let (w4, l1) = fresh w3 "csr1" in
-                  let (w5, l0out) = fresh w4 "csr0out" in
-                  let (w6, l1out) = fresh w5 "csr1out" in
-                  let (w7, ljoin) = fresh w6 "csrjoin" in
+                  let (w3, l0) = fresh w2 "csra." in
+                  let (w4, l1) = fresh w3 "csrb." in
+                  let (w5, l0out) = fresh w4 "csraout." in
+                  let (w6, l1out) = fresh w5 "csrbout." in
+                  let (w7, ljoin) = fresh w6 "csrjoin." in
                   let branched = emit-lines w7 [
                     cat ["  ", tagv, " = extractvalue ", agg-ty, " ", agg, ", 0"],
                     cat ["  ", is0, " = icmp eq i8 ", tagv, ", ", nat-to-string (arm0.csr-tag)],
