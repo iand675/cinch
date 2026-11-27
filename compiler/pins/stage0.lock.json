@@ -1,11 +1,11 @@
 {
-  "commit": "768e1489b282da864775fcbdd564a68ae2ecdc73",
-  "description": "ABI 10 seed with Tiers 1-4 niche fusion, bit-packing, pointer tagging, NaN-sentinel float sums, polymorphic CSR/WW, and default auto-unpacking.",
+  "commit": "367865abc1284a544bcaeba64dbb511522b236c3",
+  "description": "ABI 10 seed with direct-apply, Tier 1 PE, and raw bit-packing WordOp RC fix.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "768e1489b282da864775fcbdd564a68ae2ecdc73",
+  "revision": "367865abc1284a544bcaeba64dbb511522b236c3",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "92933993947726d98c099ca7b12ae3668c2cd796248a8f1d664ab731ca3df9cb",
-  "source_sha256": "92933993947726d98c099ca7b12ae3668c2cd796248a8f1d664ab731ca3df9cb"
+  "source_hash": "28b8f8ed88f4c1985821b2a51990986e75e08bd0c4fd355ee93990e36584dcb1",
+  "source_sha256": "28b8f8ed88f4c1985821b2a51990986e75e08bd0c4fd355ee93990e36584dcb1"
 }
