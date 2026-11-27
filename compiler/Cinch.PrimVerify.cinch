@@ -2512,10 +2512,10 @@ module Cinch.PrimVerify where
     else
       let leaves = map-bits-to-singletons xs in
       case bb-ctpop-tree leaves st of
-        (narrow, st1) ->
-          let nlen = list-len-int narrow in
-          if nlen >= w then (take-bits w narrow, st1)
-          else (narrow <> repeat-bit (saturating-sub w nlen) lit-false, st1)
+        (sum-bits, st1) ->
+          let nlen = list-len-int sum-bits in
+          if nlen >= w then (take-bits w sum-bits, st1)
+          else (sum-bits <> repeat-bit (saturating-sub w nlen) lit-false, st1)
 
   map-bits-to-singletons :: List Int -> List (List Int)
   map-bits-to-singletons xs = case xs of
