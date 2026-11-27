@@ -61,10 +61,10 @@ fn ordering_rank(ord: &str) -> Option<u8> {
     }
 }
 
-fn llvm_scalar_byte_width(ty: &str) -> Option<usize> {
+fn llvm_scalar_byte_width(ty: &str, ptr_bytes: usize) -> Option<usize> {
     let ty = ty.trim_end_matches(',');
     if ty == "ptr" {
-        return Some(8);
+        return Some(ptr_bytes);
     }
     if ty == "float" {
         return Some(4);
@@ -77,6 +77,11 @@ fn llvm_scalar_byte_width(ty: &str) -> Option<usize> {
         return Some((bits + 7) / 8);
     }
     None
+}
+
+fn body_ptr_bytes(body: &PrimBody, default_word_bits: u16) -> usize {
+    let wb = super::prelude_bridge::body_word_bits_for(body, default_word_bits);
+    (wb as usize) / 8
 }
 
 fn parse_align(line: &str) -> Option<usize> {
@@ -116,9 +121,23 @@ pub fn audit_prim_body(
     body: &PrimBody,
     report: &mut BoundaryAuditReport,
 ) {
+    audit_prim_body_for_word_bits(module, prim_name, body_index, is_pure, body, 64, report);
+}
+
+/// Audit a single `PrimBody` using the target profile's default pointer/word width.
+pub fn audit_prim_body_for_word_bits(
+    module: &str,
+    prim_name: &str,
+    body_index: usize,
+    is_pure: bool,
+    body: &PrimBody,
+    default_word_bits: u16,
+    report: &mut BoundaryAuditReport,
+) {
     if body.family.text != "llvm" {
         return;
     }
+    let ptr_bytes = body_ptr_bytes(body, default_word_bits);
     if body.unverified {
         report.unsafe_bodies_audited += 1;
     }
@@ -190,7 +209,7 @@ pub fn audit_prim_body(
                                     "atomic-alignment",
                                     format!("line {}: `load atomic` align {al} is not a power of two", line_no + 1),
                                 );
-                            } else if let Some(sz) = llvm_scalar_byte_width(ty_tok) {
+                            } else if let Some(sz) = llvm_scalar_byte_width(ty_tok, ptr_bytes) {
                                 if al < sz {
                                     push_err(
                                         "atomic-alignment",
@@ -258,7 +277,7 @@ pub fn audit_prim_body(
                                     "atomic-alignment",
                                     format!("line {}: `store atomic` align {al} is not a power of two", line_no + 1),
                                 );
-                            } else if let Some(sz) = llvm_scalar_byte_width(ty_tok) {
+                            } else if let Some(sz) = llvm_scalar_byte_width(ty_tok, ptr_bytes) {
                                 if al < sz {
                                     push_err(
                                         "atomic-alignment",
@@ -448,38 +467,62 @@ fn extract_quoted_strings(s: &str) -> Vec<String> {
 
 /// Audit all `prim` bodies in a `.cinch` source string against Memory & Atomic Boundary Contracts.
 pub fn audit_source_contracts(src: &str) -> Result<BoundaryAuditReport, String> {
+    audit_source_contracts_for_word_bits(src, 64)
+}
+
+/// Audit all `prim` bodies in a `.cinch` source string for the given target word width (32 or 64).
+pub fn audit_source_contracts_for_word_bits(
+    src: &str,
+    default_word_bits: u16,
+) -> Result<BoundaryAuditReport, String> {
     let tokens = crate::lexer::lex(src).map_err(|e| format!("lex error: {e}"))?;
     let tokens = crate::layout::layout(tokens).map_err(|e| format!("layout error: {e}"))?;
     let base_fixities = super::prelude_bridge::default_fixities();
     let parsed = crate::parser::parse_modules(&tokens, &base_fixities, &HashMap::new())
         .map_err(|e| format!("parse error: {e}"))?;
     let mut report = BoundaryAuditReport::default();
-    fn visit(module: &str, decls: &[Decl], report: &mut BoundaryAuditReport) {
+    fn visit(module: &str, decls: &[Decl], default_word_bits: u16, report: &mut BoundaryAuditReport) {
         for d in decls {
             match d {
-                Decl::Prim(p) => audit_prim_decl(module, p, report),
+                Decl::Prim(p) => audit_prim_decl_for_word_bits(module, p, default_word_bits, report),
                 Decl::Attributed { inner, .. } | Decl::Conditional { inner, .. } => {
-                    visit(module, std::slice::from_ref(inner.as_ref()), report);
+                    visit(module, std::slice::from_ref(inner.as_ref()), default_word_bits, report);
                 }
                 _ => {}
             }
         }
     }
     for m in &parsed.modules {
-        visit(&m.name.text, &m.decls, &mut report);
+        visit(&m.name.text, &m.decls, default_word_bits, &mut report);
     }
     Ok(report)
 }
 
 pub fn audit_prim_decl(module: &str, p: &PrimDecl, report: &mut BoundaryAuditReport) {
+    audit_prim_decl_for_word_bits(module, p, 64, report);
+}
+
+pub fn audit_prim_decl_for_word_bits(
+    module: &str,
+    p: &PrimDecl,
+    default_word_bits: u16,
+    report: &mut BoundaryAuditReport,
+) {
     let pure = prim_sig_is_pure(&p.ty);
     for (idx, body) in p.bodies.iter().enumerate() {
-        audit_prim_body(module, &p.name.text, idx, pure, body, report);
+        audit_prim_body_for_word_bits(module, &p.name.text, idx, pure, body, default_word_bits, report);
     }
 }
 
 pub fn audit_file_contracts(path: &Path) -> Result<BoundaryAuditReport, String> {
+    audit_file_contracts_for_word_bits(path, 64)
+}
+
+pub fn audit_file_contracts_for_word_bits(
+    path: &Path,
+    default_word_bits: u16,
+) -> Result<BoundaryAuditReport, String> {
     let src = std::fs::read_to_string(path)
         .map_err(|e| format!("failed to read `{}`: {e}", path.display()))?;
-    audit_source_contracts(&src)
+    audit_source_contracts_for_word_bits(&src, default_word_bits)
 }

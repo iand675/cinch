@@ -55,15 +55,34 @@ pub fn extract_file_obligations(
     path: &Path,
     semantics: &[&dyn IrSemantics],
 ) -> Result<Vec<ExtractedPrimBody>, String> {
+    extract_file_obligations_for_word_bits(path, semantics, 64)
+}
+
+/// Parse a `.cinch` file and extract verification obligations using `default_word_bits` (32 or 64)
+/// for unguarded `Usize`/`Isize` bodies.
+pub fn extract_file_obligations_for_word_bits(
+    path: &Path,
+    semantics: &[&dyn IrSemantics],
+    default_word_bits: u16,
+) -> Result<Vec<ExtractedPrimBody>, String> {
     let src = std::fs::read_to_string(path)
         .map_err(|e| format!("failed to read `{}`: {e}", path.display()))?;
-    extract_source_obligations(&src, semantics)
+    extract_source_obligations_for_word_bits(&src, semantics, default_word_bits)
 }
 
 /// Parse Cinch source text and extract verification obligations for every `prim` body.
 pub fn extract_source_obligations(
     src: &str,
     semantics: &[&dyn IrSemantics],
+) -> Result<Vec<ExtractedPrimBody>, String> {
+    extract_source_obligations_for_word_bits(src, semantics, 64)
+}
+
+/// Parse Cinch source text and extract verification obligations using `default_word_bits` (32 or 64).
+pub fn extract_source_obligations_for_word_bits(
+    src: &str,
+    semantics: &[&dyn IrSemantics],
+    default_word_bits: u16,
 ) -> Result<Vec<ExtractedPrimBody>, String> {
     let tokens = crate::lexer::lex(src).map_err(|e| format!("lex error: {e}"))?;
     let tokens = crate::layout::layout(tokens).map_err(|e| format!("layout error: {e}"))?;
@@ -79,7 +98,7 @@ pub fn extract_source_obligations(
     let mut out = Vec::new();
     for m in &parsed.modules {
         let mname = m.name.text.clone();
-        collect_decls(&mname, &m.decls, &eqs, semantics, &mut out);
+        collect_decls(&mname, &m.decls, &eqs, semantics, default_word_bits, &mut out);
     }
     Ok(out)
 }
@@ -107,13 +126,14 @@ fn collect_decls(
     decls: &[Decl],
     eqs: &HashMap<(String, String), Equation>,
     semantics: &[&dyn IrSemantics],
+    default_word_bits: u16,
     out: &mut Vec<ExtractedPrimBody>,
 ) {
     for decl in decls {
         match decl {
-            Decl::Prim(p) => extract_prim(module, p, eqs, semantics, out),
+            Decl::Prim(p) => extract_prim(module, p, eqs, semantics, default_word_bits, out),
             Decl::Attributed { inner, .. } | Decl::Conditional { inner, .. } => {
-                collect_decls(module, std::slice::from_ref(inner.as_ref()), eqs, semantics, out);
+                collect_decls(module, std::slice::from_ref(inner.as_ref()), eqs, semantics, default_word_bits, out);
             }
             _ => {}
         }
@@ -130,8 +150,22 @@ pub fn build_prim_body_obligations(
     eqs: &HashMap<(String, String), Equation>,
     semantics: &[&dyn IrSemantics],
 ) -> Result<Vec<Obligation>, String> {
+    build_prim_body_obligations_for_word_bits(module, p, body_idx, body, eqs, semantics, 64)
+}
+
+/// Build all verification obligations for a single `PrimBody`, using `default_word_bits`
+/// (32 or 64) whenever `body.when` does not explicitly guard `word-size`.
+pub fn build_prim_body_obligations_for_word_bits(
+    module: &str,
+    p: &PrimDecl,
+    body_idx: usize,
+    body: &PrimBody,
+    eqs: &HashMap<(String, String), Equation>,
+    semantics: &[&dyn IrSemantics],
+    default_word_bits: u16,
+) -> Result<Vec<Obligation>, String> {
     let family = body.family.text.as_str();
-    let word_bits = body_word_bits(body);
+    let word_bits = body_word_bits_for(body, default_word_bits);
 
     let sem_plugin = semantics
         .iter()
@@ -211,6 +245,7 @@ pub fn build_prim_body_obligations(
             &param_specs,
             ret_info,
             eqs,
+            word_bits,
         )?;
         obligations.push(ob);
     } else if let Some(ob) = build_builtin_spec_obligation(
@@ -263,6 +298,17 @@ pub fn build_cross_target_obligations(
     p: &PrimDecl,
     semantics: &[&dyn IrSemantics],
 ) -> Result<Vec<Obligation>, String> {
+    build_cross_target_obligations_for_word_bits(module, p, semantics, 64)
+}
+
+/// Build `ObligationKind::CrossTargetEquiv` obligations across pairs of safe `llvm`
+/// bodies on a multi-body `prim` that target the same effective `word_bits` and endianness.
+pub fn build_cross_target_obligations_for_word_bits(
+    module: &str,
+    p: &PrimDecl,
+    semantics: &[&dyn IrSemantics],
+    default_word_bits: u16,
+) -> Result<Vec<Obligation>, String> {
     let Some(sem_plugin) = semantics.iter().find(|s| s.family() == "llvm") else {
         return Ok(Vec::new());
     };
@@ -273,7 +319,7 @@ pub fn build_cross_target_obligations(
         .filter(|(_, b)| {
             !b.unverified && b.family.text == "llvm" && body_is_arch_or_baseline(b)
         })
-        .map(|(idx, b)| (idx, b, body_word_bits(b), body_is_big_endian(b)))
+        .map(|(idx, b)| (idx, b, body_word_bits_for(b, default_word_bits), body_is_big_endian(b)))
         .collect();
     if candidates.len() < 2 {
         return Ok(Vec::new());
@@ -365,6 +411,7 @@ fn extract_prim(
     p: &PrimDecl,
     eqs: &HashMap<(String, String), Equation>,
     semantics: &[&dyn IrSemantics],
+    default_word_bits: u16,
     out: &mut Vec<ExtractedPrimBody>,
 ) {
     for (body_idx, body) in p.bodies.iter().enumerate() {
@@ -385,7 +432,7 @@ fn extract_prim(
             continue;
         }
 
-        match build_prim_body_obligations(module, p, body_idx, body, eqs, semantics) {
+        match build_prim_body_obligations_for_word_bits(module, p, body_idx, body, eqs, semantics, default_word_bits) {
             Ok(obligations) => out.push(ExtractedPrimBody {
                 module: module.to_string(),
                 prim_name: p.name.text.clone(),
@@ -408,7 +455,7 @@ fn extract_prim(
             }),
         }
     }
-    if let Ok(cross_obs) = build_cross_target_obligations(module, p, semantics) {
+    if let Ok(cross_obs) = build_cross_target_obligations_for_word_bits(module, p, semantics, default_word_bits) {
         if !cross_obs.is_empty() {
             out.push(ExtractedPrimBody {
                 module: module.to_string(),
@@ -424,7 +471,7 @@ fn extract_prim(
     }
 }
 
-fn body_word_bits(body: &PrimBody) -> u16 {
+pub(crate) fn body_word_bits_for(body: &PrimBody, default_word_bits: u16) -> u16 {
     for clause in &body.when {
         if let Term::App(head, args, _) = clause {
             if let Term::Var(vp) = head.as_ref() {
@@ -433,12 +480,15 @@ fn body_word_bits(body: &PrimBody) -> u16 {
                         if n == "32" {
                             return 32;
                         }
+                        if n == "64" {
+                            return 64;
+                        }
                     }
                 }
             }
         }
     }
-    64
+    default_word_bits
 }
 
 fn render_when(when: &[Term]) -> String {
@@ -824,6 +874,19 @@ pub fn build_rewrite_obligation(
     match_tm: &Term,
     replace_tm: &Term,
 ) -> Result<Obligation, String> {
+    build_rewrite_obligation_for_word_bits(module, rule_name, binders, ret_ty, match_tm, replace_tm, 64)
+}
+
+/// Build a `RewriteEquiv` obligation using `word_bits` (32 or 64) for `Usize`/`Isize` ops.
+pub fn build_rewrite_obligation_for_word_bits(
+    module: &str,
+    rule_name: &str,
+    binders: &[(String, SemTy, bool)],
+    ret_ty: (SemTy, bool),
+    match_tm: &Term,
+    replace_tm: &Term,
+    word_bits: u16,
+) -> Result<Obligation, String> {
     let mut g = SemGraph::new();
     let mut env: HashMap<String, SpecVal> = HashMap::new();
     let mut sem_params = Vec::with_capacity(binders.len());
@@ -837,8 +900,8 @@ pub fn build_rewrite_obligation(
         });
         env.insert(name.clone(), SpecVal { node, signed: *signed });
     }
-    let lhs = lower_spec_term(&mut g, match_tm, &env, Some(ret_ty))?;
-    let rhs = lower_spec_term(&mut g, replace_tm, &env, Some(ret_ty))?;
+    let lhs = lower_spec_term(&mut g, match_tm, &env, Some(ret_ty), word_bits)?;
+    let rhs = lower_spec_term(&mut g, replace_tm, &env, Some(ret_ty), word_bits)?;
     let goal = match (g.ty(lhs.node), g.ty(rhs.node)) {
         (SemTy::Bool, SemTy::Bool) => g.iff(lhs.node, rhs.node),
         (SemTy::Bv(w1), SemTy::Bv(w2)) if w1 == w2 => g.bv_eq(lhs.node, rhs.node),
@@ -868,6 +931,7 @@ fn build_source_spec_obligation(
     param_specs: &[ParamSpec],
     ret_info: ScalarInfo,
     eqs: &HashMap<(String, String), Equation>,
+    word_bits: u16,
 ) -> Result<Obligation, String> {
     let (res_node, res_poison) = lowered
         .result
@@ -950,7 +1014,7 @@ fn build_source_spec_obligation(
     } else {
         ret_info.llvm_param_ty
     };
-    let spec_val = lower_spec_term(&mut g, spec_body, &env, Some((expected_ty, ret_info.signed)))?;
+    let spec_val = lower_spec_term(&mut g, spec_body, &env, Some((expected_ty, ret_info.signed)), word_bits)?;
 
     let eq_node = if ret_info.is_bool {
         let one = g.bv_const(8, 1);
@@ -999,6 +1063,7 @@ fn lower_spec_term(
     term: &Term,
     env: &HashMap<String, SpecVal>,
     hint: Option<(SemTy, bool)>,
+    word_bits: u16,
 ) -> Result<SpecVal, String> {
     match term {
         Term::Var(vp) => {
@@ -1025,13 +1090,13 @@ fn lower_spec_term(
             Ok(SpecVal { node: g.bv_const(w, v as u128), signed })
         }
         Term::Neg(inner, _) => {
-            let v = lower_spec_term(g, inner, env, hint)?;
+            let v = lower_spec_term(g, inner, env, hint, word_bits)?;
             Ok(SpecVal { node: g.bv_neg(v.node), signed: v.signed })
         }
         Term::If { cond, then, els, .. } => {
-            let vc = lower_spec_term(g, cond, env, Some((SemTy::Bool, false)))?;
-            let vt = lower_spec_term(g, then, env, hint)?;
-            let ve = lower_spec_term(g, els, env, Some((g.ty(vt.node), vt.signed)))?;
+            let vc = lower_spec_term(g, cond, env, Some((SemTy::Bool, false)), word_bits)?;
+            let vt = lower_spec_term(g, then, env, hint, word_bits)?;
+            let ve = lower_spec_term(g, els, env, Some((g.ty(vt.node), vt.signed)), word_bits)?;
             Ok(SpecVal { node: g.ite(vc.node, vt.node, ve.node), signed: vt.signed })
         }
         Term::Let(locals, body, _) => {
@@ -1040,15 +1105,15 @@ fn lower_spec_term(
                 match l {
                     LocalDecl::Bind { pat: Pat::Var(name, _), body: rhs, .. }
                     | LocalDecl::Eq { name, body: rhs, .. } => {
-                        let v = lower_spec_term(g, rhs, &local_env, None)?;
+                        let v = lower_spec_term(g, rhs, &local_env, None, word_bits)?;
                         local_env.insert(name.text.clone(), v);
                     }
                     _ => return Err("unsupported `let` binding in prim spec".to_string()),
                 }
             }
-            lower_spec_term(g, body, &local_env, hint)
+            lower_spec_term(g, body, &local_env, hint, word_bits)
         }
-        Term::Ann(inner, _, _) => lower_spec_term(g, inner, env, hint),
+        Term::Ann(inner, _, _) => lower_spec_term(g, inner, env, hint, word_bits),
         Term::App(head, args, _) => {
             // Flatten curried applications `((f a) b)` into `(f, [a, b])`.
             let mut flat_args: Vec<&Term> = Vec::new();
@@ -1065,7 +1130,7 @@ fn lower_spec_term(
                 Term::Var(vp) => vp.name.text.as_str(),
                 other => return Err(format!("unsupported application head {other:?} in prim spec")),
             };
-            lower_spec_app(g, op_name, &flat_args, env, hint)
+            lower_spec_app(g, op_name, &flat_args, env, hint, word_bits)
         }
         other => Err(format!("unsupported term in prim spec: {other:?}")),
     }
@@ -1077,31 +1142,32 @@ fn lower_spec_app(
     args: &[&Term],
     env: &HashMap<String, SpecVal>,
     hint: Option<(SemTy, bool)>,
+    word_bits: u16,
 ) -> Result<SpecVal, String> {
     // Unary helpers
     if args.len() == 1 {
         if op == "not" {
-            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)))?;
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)), word_bits)?;
             return Ok(SpecVal { node: g.not(a.node), signed: false });
         }
-        if let Some((w, signed)) = suffix_width(op, "bit-not-") {
-            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+        if let Some((w, signed)) = suffix_width(op, "bit-not-", word_bits) {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)), word_bits)?;
             return Ok(SpecVal { node: g.bv_not(a.node), signed });
         }
-        if let Some((w, signed)) = suffix_width(op, "wrapping-neg-") {
-            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+        if let Some((w, signed)) = suffix_width(op, "wrapping-neg-", word_bits) {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)), word_bits)?;
             return Ok(SpecVal { node: g.bv_neg(a.node), signed });
         }
-        if let Some((w, signed)) = suffix_width(op, "reverse-bits-") {
-            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+        if let Some((w, signed)) = suffix_width(op, "reverse-bits-", word_bits) {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)), word_bits)?;
             return Ok(SpecVal { node: g.bv_bitreverse(a.node), signed });
         }
-        if let Some((w, signed)) = suffix_width(op, "swap-bytes-") {
-            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
+        if let Some((w, signed)) = suffix_width(op, "swap-bytes-", word_bits) {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)), word_bits)?;
             return Ok(SpecVal { node: g.bv_bswap(a.node), signed });
         }
-        if let Some((from_w, from_s, to_w, to_s)) = parse_conv_name(op) {
-            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(from_w), from_s)))?;
+        if let Some((from_w, from_s, to_w, to_s)) = parse_conv_name(op, word_bits) {
+            let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(from_w), from_s)), word_bits)?;
             let node = if to_w == from_w {
                 a.node
             } else if to_w < from_w {
@@ -1119,18 +1185,18 @@ fn lower_spec_app(
     if args.len() == 2 {
         match op {
             "&&" => {
-                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)))?;
-                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bool, false)))?;
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)), word_bits)?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bool, false)), word_bits)?;
                 return Ok(SpecVal { node: g.and(a.node, b.node), signed: false });
             }
             "||" => {
-                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)))?;
-                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bool, false)))?;
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bool, false)), word_bits)?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bool, false)), word_bits)?;
                 return Ok(SpecVal { node: g.or(a.node, b.node), signed: false });
             }
             "+" | "-" | "*" => {
-                let a = lower_spec_term(g, args[0], env, hint)?;
-                let b = lower_spec_term(g, args[1], env, Some((g.ty(a.node), a.signed)))?;
+                let a = lower_spec_term(g, args[0], env, hint, word_bits)?;
+                let b = lower_spec_term(g, args[1], env, Some((g.ty(a.node), a.signed)), word_bits)?;
                 let node = match op {
                     "+" => g.bv_add(a.node, b.node),
                     "-" => g.bv_sub(a.node, b.node),
@@ -1140,8 +1206,8 @@ fn lower_spec_app(
                 return Ok(SpecVal { node, signed: a.signed });
             }
             "==" | "/=" | "<" | "<=" | ">" | ">=" => {
-                let a = lower_spec_term(g, args[0], env, None)?;
-                let b = lower_spec_term(g, args[1], env, Some((g.ty(a.node), a.signed)))?;
+                let a = lower_spec_term(g, args[0], env, None, word_bits)?;
+                let b = lower_spec_term(g, args[1], env, Some((g.ty(a.node), a.signed)), word_bits)?;
                 let node = match op {
                     "==" => g.bv_eq(a.node, b.node),
                     "/=" => {
@@ -1173,9 +1239,9 @@ fn lower_spec_app(
             ("gt-", "gt"),
             ("ge-", "ge"),
         ] {
-            if let Some((w, signed)) = suffix_width(op, prefix) {
-                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
-                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bv(w), signed)))?;
+            if let Some((w, signed)) = suffix_width(op, prefix, word_bits) {
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)), word_bits)?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bv(w), signed)), word_bits)?;
                 let (node, out_signed) = match kind {
                     "add" => (g.bv_add(a.node, b.node), signed),
                     "sub" => (g.bv_sub(a.node, b.node), signed),
@@ -1204,9 +1270,9 @@ fn lower_spec_app(
             ("rotate-left-", "rotl"),
             ("rotate-right-", "rotr"),
         ] {
-            if let Some((w, signed)) = suffix_width(op, prefix) {
-                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)))?;
-                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bv(32), false)))?;
+            if let Some((w, signed)) = suffix_width(op, prefix, word_bits) {
+                let a = lower_spec_term(g, args[0], env, Some((SemTy::Bv(w), signed)), word_bits)?;
+                let b = lower_spec_term(g, args[1], env, Some((SemTy::Bv(32), false)), word_bits)?;
                 let bw = g.bv_width(b.node);
                 let mask = g.bv_const(bw, (w - 1) as u128);
                 let masked = g.bv_and(b.node, mask);
@@ -1235,12 +1301,12 @@ fn lower_spec_app(
     ))
 }
 
-fn suffix_width(name: &str, prefix: &str) -> Option<(u16, bool)> {
+fn suffix_width(name: &str, prefix: &str, word_bits: u16) -> Option<(u16, bool)> {
     let rest = name.strip_prefix(prefix)?;
-    parse_width_tag(rest)
+    parse_width_tag(rest, word_bits)
 }
 
-fn parse_width_tag(tag: &str) -> Option<(u16, bool)> {
+fn parse_width_tag(tag: &str, word_bits: u16) -> Option<(u16, bool)> {
     match tag {
         "i8" => Some((8, true)),
         "i16" => Some((16, true)),
@@ -1252,15 +1318,17 @@ fn parse_width_tag(tag: &str) -> Option<(u16, bool)> {
         "u32" => Some((32, false)),
         "u64" => Some((64, false)),
         "u128" => Some((128, false)),
+        "usize" => Some((word_bits, false)),
+        "isize" => Some((word_bits, true)),
         _ => None,
     }
 }
 
-fn parse_conv_name(name: &str) -> Option<(u16, bool, u16, bool)> {
+fn parse_conv_name(name: &str, word_bits: u16) -> Option<(u16, bool, u16, bool)> {
     let trimmed = name.strip_prefix("wrapping-").unwrap_or(name);
     let (lhs, rhs) = trimmed.split_once("-to-")?;
-    let (fw, fs) = parse_width_tag(lhs)?;
-    let (tw, ts) = parse_width_tag(rhs)?;
+    let (fw, fs) = parse_width_tag(lhs, word_bits)?;
+    let (tw, ts) = parse_width_tag(rhs, word_bits)?;
     Some((fw, fs, tw, ts))
 }
 

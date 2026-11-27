@@ -6823,7 +6823,7 @@ impl Checker {
             Ty::Prim(s) => {
                 let float = matches!(s, Scalar::F32 | Scalar::F64);
                 FieldShape::Scalar {
-                    size: s.size(),
+                    size: s.size_for(self.usize_bits),
                     signed: s.is_signed() && !float,
                 }
             }
@@ -6904,7 +6904,7 @@ impl Checker {
             Ty::Unit | Ty::Bool => out.push(CLeaf { offset, size, float: false }),
             Ty::Prim(s) => out.push(CLeaf {
                 offset,
-                size: s.size(),
+                size: s.size_for(self.usize_bits),
                 float: matches!(s, Scalar::F32 | Scalar::F64),
             }),
 

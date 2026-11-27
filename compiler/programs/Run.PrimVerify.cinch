@@ -24,12 +24,12 @@ module Main where
   import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces-tuned)
   import Cinch.Document (Json, canonical-bytes)
   import Cinch.Export (export-interfaces-aliased, interface-hash, checked-primitive-rows)
-  import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only)
+  import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, validate-llvm-equiv, receipt-checker-id, receipt-tier)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, receipt-checker-id, receipt-tier)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
-  import Cinch.Target (TargetProfile, host-profile, profile-with-prim-verify, target-view-program)
+  import Cinch.Target (TargetProfile, host-profile, profile-of-triple, profile-with-prim-verify, target-view-program)
   import Data.Bool
   import Data.List
   import Data.Option (Option, None, Some)
@@ -455,6 +455,87 @@ module Main where
       (OutcomeVerified rs, OutcomeDisproved d) -> Ok ()
       other -> Err "LLVM translation validation test failed"
 
+  -- 17. Target-arch pointer/word-size parameterization (32-bit wasm32 vs 64-bit host).
+  self-check-profile :: TargetProfile -> String -> String -> Result String (CheckedProgram, Bytes)
+  self-check-profile base-profile mode src-str =
+    let src = string-to-bytes src-str in
+    let profile = profile-with-prim-verify mode base-profile in
+    let tuning = tuning-with-word-size (profile.word-size) (tuning-with-prim-verify mode default-tuning) in
+    case parse-program "test.cinch" src of
+      Failed b -> Err "parse failed"
+      Parsed prog (Cons e rest) -> Err "recoverable parse error"
+      Parsed prog Nil -> case target-view-program profile prog of
+        Err msg -> Err msg
+        Ok view -> case resolve-program view of
+          (resolved, Cons e rest) -> Err (render-diagnostics (Cons e rest))
+          (resolved, Nil) -> case check-and-retain-with-interfaces-tuned tuning Nil resolved of
+            Err errs -> Err (render-diagnostics errs)
+            Ok checked -> Ok (checked, src)
+
+  src-wasm32-ptrs :: String
+  src-wasm32-ptrs = string-concat-all [
+    "module Main where\n",
+    "  foreign import ccall \"c_touch\" c-touch :: forall r . RawPtr U8 -> Usize ->{IO r} Usize\n",
+    "  prim bit-xor-usize :: Usize -> Usize -> Usize where\n",
+    "    llvm {\n",
+    "      %r = xor i32 %0, %1\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  rewrite usize-xor-cancel forall (x :: Usize) (y :: Usize). where\n",
+    "    match (bit-xor-usize (bit-xor-usize x y) y)\n",
+    "    replace x\n",
+    "    justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  src-host64-foreign :: String
+  src-host64-foreign = string-concat-all [
+    "module Main where\n",
+    "  foreign import ccall \"c_touch\" c-touch :: forall r . RawPtr U8 -> Usize ->{IO r} Usize\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-target-pointer-word-size :: Result String Unit
+  test-target-pointer-word-size =
+    let ptr-load-four = "%p = inttoptr i32 %0 to ptr\n%v = load atomic ptr, ptr %p acquire, align 4\nret i32 0\n" in
+    case (audit-memory-atomic-contract-for 32 "ptr32" False ptr-load-four, audit-memory-atomic-contract-for 64 "ptr64" False ptr-load-four) of
+      (Nil, Cons v64 rest) ->
+        (case profile-of-triple "wasm32-unknown-unknown" of
+          Err emsg -> Err (string-concat-all ["wasm32-unknown-unknown target profile missing: ", emsg])
+          Ok wasm-prof ->
+            case self-check-profile wasm-prof "default" src-wasm32-ptrs of
+              Err msg -> Err (string-concat-all ["wasm32 pointer/Usize check failed: ", msg])
+              Ok (checked32, src32) ->
+                case export-interfaces-aliased checked32 Nil src32 of
+                  Err msg -> Err msg
+                  Ok rows32 -> case find-main-doc rows32 of
+                    None -> Err "Main module interface not found (wasm32)"
+                    Some doc32 ->
+                      let txt32 = json-text doc32 in
+                      if not (string-contains "\"align\":4" txt32 && string-contains "\"width\":4" txt32) then
+                        Err (string-concat-all ["wasm32 foreign ABI did not record 4-byte ptr/Usize: ", txt32])
+                      else if string-contains "\"width\":8" txt32 then
+                        Err (string-concat-all ["wasm32 foreign ABI leaked 8-byte width: ", txt32])
+                      else
+                        -- Same 32-bit `i32` Usize prim MUST fail on 64-bit host!
+                        (case self-check-profile host-profile "default" src-wasm32-ptrs of
+                          Ok ok -> Err "32-bit i32 Usize prim unexpectedly passed on 64-bit host"
+                          Err expected-err ->
+                            (case self-check-profile host-profile "default" src-host64-foreign of
+                              Err msg64 -> Err (string-concat-all ["64-bit foreign check failed: ", msg64])
+                              Ok (checked64, src64) ->
+                                case export-interfaces-aliased checked64 Nil src64 of
+                                  Err msg -> Err msg
+                                  Ok rows64 -> case find-main-doc rows64 of
+                                    None -> Err "Main module interface not found (host64)"
+                                    Some doc64 ->
+                                      let txt64 = json-text doc64 in
+                                      if string-contains "\"align\":8" txt64 && string-contains "\"width\":8" txt64 then Ok ()
+                                      else Err (string-concat-all ["64-bit foreign ABI did not record 8-byte ptr/Usize: ", txt64]))))
+      other -> Err "32-bit vs 64-bit ptr atomic alignment audit failed"
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -487,11 +568,13 @@ module Main where
                                 Err e -> Err e
                                 Ok u14 -> case test-boundary-audit of
                                   Err e -> Err e
-                                  Ok u15 -> test-tv
+                                  Ok u15 -> case test-tv of
+                                    Err e -> Err e
+                                    Ok u16 -> test-target-pointer-word-size
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 16 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 17 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

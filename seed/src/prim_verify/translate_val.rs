@@ -40,6 +40,15 @@ pub fn lower_core_fn(
     f: &FnDef,
     prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
 ) -> Result<SemProgram, String> {
+    lower_core_fn_for_word_bits(f, prim_bodies, 64)
+}
+
+/// Lower a pure scalar/branching `Core::FnDef` using `word_bits` (32 or 64) for `Usize`/`Isize`.
+pub fn lower_core_fn_for_word_bits(
+    f: &FnDef,
+    prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
+    word_bits: u16,
+) -> Result<SemProgram, String> {
     let mut g = SemGraph::new();
     let mut params = Vec::with_capacity(f.params.len());
     let mut env: HashMap<LocalId, NodeId> = HashMap::new();
@@ -59,7 +68,7 @@ pub fn lower_core_fn(
         env.insert(LocalId(idx), node);
     }
 
-    let res_node = lower_core_expr(&mut g, &f.body, &env, prim_bodies)?;
+    let res_node = lower_core_expr(&mut g, &f.body, &env, prim_bodies, word_bits)?;
     let ret_ty = f
         .repr
         .result
@@ -104,6 +113,7 @@ fn lower_core_expr(
     expr: &Core,
     env: &HashMap<LocalId, NodeId>,
     prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
+    word_bits: u16,
 ) -> Result<NodeId, String> {
     match expr {
         Core::Int(n) => Ok(g.bv_const(64, *n as u64 as u128)),
@@ -115,16 +125,16 @@ fn lower_core_expr(
             .copied()
             .ok_or_else(|| format!("unbound local `{lid:?}` in Core TV")),
         Core::Let(lid, _cls, rhs, body) => {
-            let rv = lower_core_expr(g, rhs, env, prim_bodies)?;
+            let rv = lower_core_expr(g, rhs, env, prim_bodies, word_bits)?;
             let mut next = env.clone();
             next.insert(*lid, rv);
-            lower_core_expr(g, body, &next, prim_bodies)
+            lower_core_expr(g, body, &next, prim_bodies, word_bits)
         }
         Core::If(cond, then_b, else_b) => {
-            let cv = lower_core_expr(g, cond, env, prim_bodies)?;
+            let cv = lower_core_expr(g, cond, env, prim_bodies, word_bits)?;
             let c_bool = coerce_bv(g, cv, SemTy::Bool)?;
-            let tv = lower_core_expr(g, &then_b.body, env, prim_bodies)?;
-            let ev = lower_core_expr(g, &else_b.body, env, prim_bodies)?;
+            let tv = lower_core_expr(g, &then_b.body, env, prim_bodies, word_bits)?;
+            let ev = lower_core_expr(g, &else_b.body, env, prim_bodies, word_bits)?;
             let tv_ty = g.ty(tv);
             let ev_c = coerce_bv(g, ev, tv_ty)?;
             Ok(g.ite(c_bool, tv, ev_c))
@@ -132,10 +142,10 @@ fn lower_core_expr(
         Core::App(head, args) => {
             let mut arg_nodes = Vec::with_capacity(args.len());
             for a in args {
-                arg_nodes.push(lower_core_expr(g, a, env, prim_bodies)?);
+                arg_nodes.push(lower_core_expr(g, a, env, prim_bodies, word_bits)?);
             }
             match head.as_ref() {
-                Core::Prim(op) => lower_core_primop(g, *op, &arg_nodes),
+                Core::Prim(op) => lower_core_primop(g, *op, &arg_nodes, word_bits),
                 Core::Global(gid, _) => {
                     if let Some((p_params, p_ret, frag)) = prim_bodies.get(&gid.0) {
                         let sub = lower_llvm_fragment(frag, p_params, *p_ret)
@@ -157,7 +167,7 @@ fn lower_core_expr(
                             _ => Ok(out),
                         }
                     } else {
-                        lower_named_scalar_global(g, &gid.0, &arg_nodes)
+                        lower_named_scalar_global(g, &gid.0, &arg_nodes, word_bits)
                     }
                 }
                 _ => Err("unsupported non-direct application in Core TV".to_string()),
@@ -167,10 +177,10 @@ fn lower_core_expr(
     }
 }
 
-fn lower_core_primop(g: &mut SemGraph, op: PrimOp, args: &[NodeId]) -> Result<NodeId, String> {
+fn lower_core_primop(g: &mut SemGraph, op: PrimOp, args: &[NodeId], word_bits: u16) -> Result<NodeId, String> {
     match op {
         PrimOp::Arith { ty, op: aop, mode: crate::core::ArithMode::Wrapping } => {
-            let w = ty.width() as u16;
+            let w = ty.width_for(word_bits as u32) as u16;
             let a = coerce_bv(g, args[0], SemTy::Bv(w))?;
             let b = coerce_bv(g, args[1], SemTy::Bv(w))?;
             let r = match aop {
@@ -181,7 +191,7 @@ fn lower_core_primop(g: &mut SemGraph, op: PrimOp, args: &[NodeId]) -> Result<No
             if w < 64 { Ok(g.bv_zext(r, 64)) } else { Ok(r) }
         }
         PrimOp::Bit { ty, op: bop } => {
-            let w = ty.width() as u16;
+            let w = ty.width_for(word_bits as u32) as u16;
             let a = coerce_bv(g, args[0], SemTy::Bv(w))?;
             let b = coerce_bv(g, args[1], SemTy::Bv(w))?;
             let r = match bop {
@@ -192,7 +202,7 @@ fn lower_core_primop(g: &mut SemGraph, op: PrimOp, args: &[NodeId]) -> Result<No
             if w < 64 { Ok(g.bv_zext(r, 64)) } else { Ok(r) }
         }
         PrimOp::Cmp { ty, op: cop } => {
-            let w = ty.width() as u16;
+            let w = ty.width_for(word_bits as u32) as u16;
             let a = coerce_bv(g, args[0], SemTy::Bv(w))?;
             let b = coerce_bv(g, args[1], SemTy::Bv(w))?;
             let signed = ty.is_signed();
@@ -226,6 +236,7 @@ fn lower_named_scalar_global(
     g: &mut SemGraph,
     name: &str,
     args: &[NodeId],
+    word_bits: u16,
 ) -> Result<NodeId, String> {
     let base = name.rsplit('.').next().unwrap_or(name);
     let parse_w = |suf: &str| -> Option<(u16, bool)> {
@@ -240,6 +251,8 @@ fn lower_named_scalar_global(
             "u32" => Some((32, false)),
             "u64" => Some((64, false)),
             "u128" => Some((128, false)),
+            "usize" => Some((word_bits, false)),
+            "isize" => Some((word_bits, true)),
             _ => None,
         }
     };
@@ -296,8 +309,19 @@ pub fn build_core_transform_obligation(
     prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
     stage: &str,
 ) -> Result<Obligation, String> {
-    let pa = lower_core_fn(before, prim_bodies)?;
-    let pb = lower_core_fn(after, prim_bodies)?;
+    build_core_transform_obligation_for_word_bits(before, after, prim_bodies, stage, 64)
+}
+
+/// Target-width-aware version of [`build_core_transform_obligation`].
+pub fn build_core_transform_obligation_for_word_bits(
+    before: &FnDef,
+    after: &FnDef,
+    prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
+    stage: &str,
+    word_bits: u16,
+) -> Result<Obligation, String> {
+    let pa = lower_core_fn_for_word_bits(before, prim_bodies, word_bits)?;
+    let pb = lower_core_fn_for_word_bits(after, prim_bodies, word_bits)?;
     let (va, _) = pa.result.as_scalar().ok_or("non-scalar before")?;
     let (vb, _) = pb.result.as_scalar().ok_or("non-scalar after")?;
 
@@ -340,8 +364,10 @@ fn extract_raw_llvm_fn(ir: &str, unit_name: &str) -> Option<(Vec<SemParam>, SemT
     let lparen = header.find('(')?;
     let rparen = header.rfind(')')?;
     let ret_section = header["define ".len()..header.find('@')?].trim();
-    let ret_word = ret_section.split_whitespace().last()?;
-    let ret_ty = parse_llvm_scalar_ty(ret_word)?;
+    let ret_ty = ret_section
+        .split_whitespace()
+        .rev()
+        .find_map(parse_llvm_scalar_ty)?;
 
     let params_str = &header[lparen + 1..rparen];
     let mut params = Vec::new();
@@ -349,8 +375,7 @@ fn extract_raw_llvm_fn(ir: &str, unit_name: &str) -> Option<(Vec<SemParam>, SemT
     if !params_str.trim().is_empty() {
         for (idx, item) in params_str.split(',').enumerate() {
             let parts: Vec<&str> = item.split_whitespace().collect();
-            let ty_word = parts.first().copied()?;
-            let sem_ty = parse_llvm_scalar_ty(ty_word)?;
+            let sem_ty = parts.iter().copied().find_map(parse_llvm_scalar_ty)?;
             let pname = parts.last().copied().unwrap_or("");
             if pname.starts_with('%') && pname != format!("%{idx}") {
                 renames.push((pname.to_string(), format!("%{idx}")));
@@ -492,6 +517,11 @@ fn parse_direct_quoted_call(line: &str) -> Option<(String, String, Vec<String>)>
         return None;
     }
     let rhs = rhs.trim();
+    let rhs = rhs
+        .strip_prefix("musttail ")
+        .or_else(|| rhs.strip_prefix("notail "))
+        .or_else(|| rhs.strip_prefix("tail "))
+        .unwrap_or(rhs);
     if !rhs.starts_with("call ") {
         return None;
     }
@@ -789,7 +819,17 @@ pub fn build_core_vs_llvm_obligation(
     ir: &str,
     prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
 ) -> Result<Obligation, String> {
-    let core_prog = lower_core_fn(f, prim_bodies)?;
+    build_core_vs_llvm_obligation_for_word_bits(f, ir, prim_bodies, 64)
+}
+
+/// Target-width-aware version of [`build_core_vs_llvm_obligation`].
+pub fn build_core_vs_llvm_obligation_for_word_bits(
+    f: &FnDef,
+    ir: &str,
+    prim_bodies: &HashMap<String, (Vec<SemParam>, SemTy, String)>,
+    word_bits: u16,
+) -> Result<Obligation, String> {
+    let core_prog = lower_core_fn_for_word_bits(f, prim_bodies, word_bits)?;
     let (llvm_params, llvm_ret, llvm_frag) = extract_emitted_llvm_fn(ir, &f.id.0)
         .ok_or_else(|| format!("emitted LLVM IR has no scalar `define` for `{}`", f.id.0))?;
     if llvm_params.len() != core_prog.params.len() {
@@ -806,7 +846,10 @@ pub fn build_core_vs_llvm_obligation(
     let (vl, pl) = llvm_prog.result.as_scalar().ok_or("non-scalar LLVM result")?;
 
     let mut g = core_prog.graph.clone();
-    let pnodes: Vec<NodeId> = core_prog.params.iter().map(|(_, n)| *n).collect();
+    let mut pnodes: Vec<NodeId> = Vec::with_capacity(core_prog.params.len());
+    for ((_, cn), lp) in core_prog.params.iter().zip(llvm_params.iter()) {
+        pnodes.push(coerce_bv(&mut g, *cn, lp.ty)?);
+    }
     let map_l = g.import_graph(&llvm_prog.graph, &pnodes);
     let ub_l = map_l[llvm_prog.ub_cond.0 as usize];
     let vl_m = map_l[vl.0 as usize];
@@ -815,7 +858,9 @@ pub fn build_core_vs_llvm_obligation(
     let not_ub = g.not(ub_l);
     let not_p = g.not(pl_m);
     let wd = g.and(not_ub, not_p);
-    let eq = g.bv_eq(vc, vl_m);
+    let vl_ty = g.ty(vl_m);
+    let vc_cmp = coerce_bv(&mut g, vc, vl_ty)?;
+    let eq = g.bv_eq(vc_cmp, vl_m);
     let goal = g.and(wd, eq);
     let sem_params: Vec<SemParam> = core_prog.params.into_iter().map(|(p, _)| p).collect();
     Ok(Obligation::new(
@@ -880,6 +925,16 @@ pub fn validate_program_codegen(
     ir: &str,
     user_module_prefix: &str,
 ) -> Vec<TvFunctionReport> {
+    validate_program_codegen_for_word_bits(program, ir, user_module_prefix, 64)
+}
+
+/// Target-width-aware version of [`validate_program_codegen`].
+pub fn validate_program_codegen_for_word_bits(
+    program: &Program,
+    ir: &str,
+    user_module_prefix: &str,
+    word_bits: u16,
+) -> Vec<TvFunctionReport> {
     let prim_bodies = collect_program_prim_bodies(program);
     let mut engine = VerifierEngine::default_engine(Policy::jpl_strict());
     let mut reports = Vec::new();
@@ -887,7 +942,7 @@ pub fn validate_program_codegen(
         if !f.id.0.starts_with(user_module_prefix) || f.prim.is_some() || f.ctor.is_some() {
             continue;
         }
-        match build_core_vs_llvm_obligation(f, ir, &prim_bodies) {
+        match build_core_vs_llvm_obligation_for_word_bits(f, ir, &prim_bodies, word_bits) {
             Ok(ob) => {
                 let rep = engine.verify(&ob);
                 let (status, details) = match rep.status {

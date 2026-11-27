@@ -160,15 +160,31 @@ impl Scalar {
     }
 
     /// Width in bits (`Char` is 32 like `U32`).
+    /// For target-dependent `Usize`/`Isize`, prefer [`Self::width_for`].
     pub fn width(self) -> u32 {
+        self.width_for(64)
+    }
+
+    /// Width in bits on a target whose pointer/word width is `usize_bits` (32 or 64).
+    pub fn width_for(self, usize_bits: u32) -> u32 {
         use Scalar::*;
         match self {
             I8 | U8 => 8,
             I16 | U16 => 16,
             I32 | U32 | F32 => 32,
-            I64 | U64 | F64 | Usize | Isize => 64,
+            I64 | U64 | F64 => 64,
+            Usize | Isize => usize_bits,
             Char => 32,
             I128 | U128 => 128,
+        }
+    }
+
+    /// Resolve `Usize`/`Isize` to the concrete fixed-width scalar for `usize_bits`.
+    pub fn resolve_width(self, usize_bits: u32) -> Scalar {
+        match self {
+            Scalar::Usize => if usize_bits == 32 { Scalar::U32 } else { Scalar::U64 },
+            Scalar::Isize => if usize_bits == 32 { Scalar::I32 } else { Scalar::I64 },
+            other => other,
         }
     }
 
@@ -178,15 +194,25 @@ impl Scalar {
         matches!(self, Scalar::I128 | Scalar::U128)
     }
 
-    /// Size in bytes (primitive types specification section 2: the
-    /// layout table every target must honor).
+    /// Size in bytes on a 64-bit target; for target-dependent `Usize`/`Isize`,
+    /// prefer [`Self::size_for`].
     pub fn size(self) -> u64 {
         self.width() as u64 / 8
+    }
+
+    /// Size in bytes on a target whose pointer/word width is `usize_bits` (32 or 64).
+    pub fn size_for(self, usize_bits: u32) -> u64 {
+        self.width_for(usize_bits) as u64 / 8
     }
 
     /// Alignment in bytes (equals the size for every primitive type).
     pub fn align(self) -> u64 {
         self.size()
+    }
+
+    /// Alignment in bytes on a target whose pointer/word width is `usize_bits`.
+    pub fn align_for(self, usize_bits: u32) -> u64 {
+        self.size_for(usize_bits)
     }
 
     pub fn is_float(self) -> bool {

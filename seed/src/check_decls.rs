@@ -9573,7 +9573,7 @@ impl Checker {
         body: &ast::PrimBody,
         strategy: &str,
     ) -> Result<(Vec<crate::prim_verify::TrustReceipt>, bool)> {
-        use crate::prim_verify::prelude_bridge::build_prim_body_obligations;
+        use crate::prim_verify::prelude_bridge::build_prim_body_obligations_for_word_bits;
         use crate::prim_verify::{
             Policy, PrimVerifyMode, TrustReceipt, TrustTier, VerificationStatus, VerifierEngine,
         };
@@ -9622,7 +9622,15 @@ impl Checker {
 
         let obligations = {
             let sems = engine.semantics_refs();
-            match build_prim_body_obligations(module, p, body_idx, body, &self.spec_equations, &sems) {
+            match build_prim_body_obligations_for_word_bits(
+                module,
+                p,
+                body_idx,
+                body,
+                &self.spec_equations,
+                &sems,
+                self.usize_bits as u16,
+            ) {
                 Ok(obs) => obs,
                 Err(msg) if mode == PrimVerifyMode::Lax => {
                     let receipt = TrustReceipt {
@@ -9722,7 +9730,7 @@ impl Checker {
         module: &str,
         p: &ast::PrimDecl,
     ) -> Result<(Vec<crate::prim_verify::TrustReceipt>, bool)> {
-        use crate::prim_verify::prelude_bridge::build_cross_target_obligations;
+        use crate::prim_verify::prelude_bridge::build_cross_target_obligations_for_word_bits;
         use crate::prim_verify::{
             Policy, PrimVerifyMode, TrustReceipt, TrustTier, VerificationStatus, VerifierEngine,
         };
@@ -9752,7 +9760,13 @@ impl Checker {
 
         let obligations = {
             let sems = engine.semantics_refs();
-            build_cross_target_obligations(module, p, &sems).unwrap_or_default()
+            build_cross_target_obligations_for_word_bits(
+                module,
+                p,
+                &sems,
+                self.usize_bits as u16,
+            )
+            .unwrap_or_default()
         };
         let mut receipts = Vec::with_capacity(obligations.len());
         let mut all_discharged = true;
@@ -9828,7 +9842,7 @@ impl Checker {
         ret_ty: &Ty,
         strategy: &str,
     ) -> Result<Vec<String>> {
-        use crate::prim_verify::prelude_bridge::build_rewrite_obligation;
+        use crate::prim_verify::prelude_bridge::build_rewrite_obligation_for_word_bits;
         use crate::prim_verify::sem::SemTy;
         use crate::prim_verify::{Policy, PrimVerifyMode, VerificationStatus, VerifierEngine};
         use crate::types::Scalar;
@@ -9851,6 +9865,8 @@ impl Checker {
                 Ty::Prim(Scalar::U32) => Some((SemTy::Bv(32), false)),
                 Ty::Prim(Scalar::U64) => Some((SemTy::Bv(64), false)),
                 Ty::Prim(Scalar::U128) => Some((SemTy::Bv(128), false)),
+                Ty::Prim(Scalar::Usize) => Some((SemTy::Bv(self.usize_bits as u16), false)),
+                Ty::Prim(Scalar::Isize) => Some((SemTy::Bv(self.usize_bits as u16), true)),
                 _ => None,
             }
         };
@@ -9880,13 +9896,14 @@ impl Checker {
             )
         })?;
 
-        let ob = build_rewrite_obligation(
+        let ob = build_rewrite_obligation_for_word_bits(
             module,
             &r.name.text,
             &binders,
             ret_sem,
             &r.match_tm,
             &r.replace_tm,
+            self.usize_bits as u16,
         )
         .map_err(|msg| {
             Error::at(
@@ -13215,9 +13232,13 @@ impl Checker {
     /// as for `RawPtr`, opaque handles and types without a recorded
     /// layout). The facts feed the LLVM contract surface's `align`,
     /// `dereferenceable` and `!align` claims.
+    fn ptr_bytes(&self) -> u64 {
+        (self.usize_bits / 8) as u64
+    }
+
     fn pointee_layout(&self, pointee: &Ty) -> Option<(u64, u64)> {
         match pointee {
-            Ty::Prim(s) => Some((s.align(), s.size())),
+            Ty::Prim(s) => Some((s.align_for(self.usize_bits), s.size_for(self.usize_bits))),
             Ty::Ptr { pointee, .. } => self.pointee_layout(pointee),
             Ty::Adt(n, _) => {
                 let info = self.lookup_known_type(n).ok()?;
@@ -13294,15 +13315,15 @@ impl Checker {
             Ty::Unit => Ok(p),
             Ty::Prim(s) => {
                 p.class = AbiClass::Scalar(*s);
-                p.width = s.size();
-                p.align = s.align();
+                p.width = s.size_for(self.usize_bits);
+                p.align = s.align_for(self.usize_bits);
                 p.signed = s.is_signed();
                 Ok(p)
             }
             Ty::Ptr { role, pointee } => {
                 p.class = AbiClass::Ptr;
-                p.width = 8;
-                p.align = 8;
+                p.width = self.ptr_bytes();
+                p.align = self.ptr_bytes();
                 p.role = match role {
                     crate::types::PtrRole::Raw => "raw".to_string(),
                     crate::types::PtrRole::Borrowed => "borrowed".to_string(),
@@ -13355,8 +13376,8 @@ impl Checker {
                     // The opaque-handle role (section 3).
                     p.class = AbiClass::Ptr;
                     p.role = "opaque-handle".to_string();
-                    p.width = 8;
-                    p.align = 8;
+                    p.width = self.ptr_bytes();
+                    p.align = self.ptr_bytes();
                     return Ok(p);
                 }
                 let Some(layout) = self
@@ -18194,7 +18215,8 @@ impl Checker {
         match ty {
             Ty::Unit => Ok((0, 1)),
             Ty::Bool => Ok((1, 1)),
-            Ty::Prim(s) => Ok((s.size(), s.align())),
+            Ty::Prim(s) => Ok((s.size_for(self.usize_bits), s.align_for(self.usize_bits))),
+            Ty::Ptr { .. } => Ok((self.ptr_bytes(), self.ptr_bytes())),
             Ty::Adt(name, _) => {
                 let kind = self.lookup_known_type(name.as_str())?.clone();
                 let key = (kind.module.clone(), kind.name.clone());
@@ -23293,8 +23315,8 @@ fn law_index_arithmetic(op: &IdxOp, left: &Value, right: &Value) -> Result<Value
 }
 
 /// Width and signedness of a machine scalar (primitive types
-/// specification section 2).
-fn scalar_shape(name: &str) -> Option<(u32, bool)> {
+/// specification section 2) for a target with `usize_bits` (32 or 64).
+fn scalar_shape(name: &str, usize_bits: u32) -> Option<(u32, bool)> {
     Some(match name {
         "I8" => (8, true),
         "U8" => (8, false),
@@ -23302,8 +23324,10 @@ fn scalar_shape(name: &str) -> Option<(u32, bool)> {
         "U16" => (16, false),
         "I32" => (32, true),
         "U32" | "Char" => (32, false),
-        "I64" | "Isize" => (64, true),
-        "U64" | "Usize" => (64, false),
+        "I64" => (64, true),
+        "U64" => (64, false),
+        "Isize" => (usize_bits, true),
+        "Usize" => (usize_bits, false),
         _ => return None,
     })
 }
@@ -24167,8 +24191,8 @@ impl Checker {
             {
                 // Widen the source's canonical word, preserving its
                 // signedness, then canonicalize at the destination width.
-                let (from_bits, from_signed) = scalar_shape(from.name()).unwrap();
-                let (to_bits, to_signed) = scalar_shape(to.name()).unwrap();
+                let (from_bits, from_signed) = scalar_shape(from.name(), self.usize_bits).unwrap();
+                let (to_bits, to_signed) = scalar_shape(to.name(), self.usize_bits).unwrap();
                 let word = mask_to(from_bits, from_signed, word_of(&args[0], "a machine word")?);
                 Ok(Value::Word(mask_to(to_bits, to_signed, word)))
             }
@@ -24188,7 +24212,7 @@ impl Checker {
             PrimOp::CharToU32 => Ok(Value::Word(word_of(&args[0], "a `Char`")?)),
             PrimOp::U32ToChar => Ok(Value::Word(word_of(&args[0], "a `U32`")?)),
             PrimOp::Bound { ty, max } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let v = if max {
                     if signed {
                         ((1i128 << (bits - 1)) - 1) as i64
@@ -24203,7 +24227,7 @@ impl Checker {
                 Ok(Value::Word(v))
             }
             PrimOp::Cmp { ty, op: cmp } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = word_of(&args[0], "a machine word")?;
                 let b = word_of(&args[1], "a machine word")?;
                 let (a, b) = if signed {
@@ -24227,7 +24251,7 @@ impl Checker {
                 }))
             }
             PrimOp::Arith { ty, op: aop, mode } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = mask_to(bits, signed, word_of(&args[0], "a machine word")?);
                 let b = mask_to(bits, signed, word_of(&args[1], "a machine word")?);
                 let raw = match aop {
@@ -24268,7 +24292,7 @@ impl Checker {
                 }))
             }
             PrimOp::Neg { ty, mode } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = word_of(&args[0], "a machine word")?;
                 Ok(Value::Word(match mode {
                     ArithMode::Wrapping => mask_to(bits, signed, a.wrapping_neg()),
@@ -24290,7 +24314,7 @@ impl Checker {
                 }))
             }
             PrimOp::Shift { ty, op: sop, checked } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = word_of(&args[0], "a machine word")?;
                 let n = word_of(&args[1], "a shift count")?;
                 if checked && (n < 0 || n >= bits as i64) {
@@ -24312,7 +24336,7 @@ impl Checker {
                 Ok(Value::Word(mask_to(bits, signed, r)))
             }
             PrimOp::Rotate { ty, right } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = word_of(&args[0], "a machine word")? as u64;
                 let n = word_of(&args[1], "a rotate count")?.rem_euclid(bits as i64) as u32;
                 let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
@@ -24327,7 +24351,7 @@ impl Checker {
                 Ok(Value::Word(mask_to(bits, signed, r as i64)))
             }
             PrimOp::Bit { ty, op: bop } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = word_of(&args[0], "a machine word")?;
                 let b = word_of(&args[1], "a machine word")?;
                 let r = match bop {
@@ -24338,7 +24362,7 @@ impl Checker {
                 Ok(Value::Word(mask_to(bits, signed, r)))
             }
             PrimOp::BitNot { ty } => {
-                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = word_of(&args[0], "a machine word")?;
                 Ok(Value::Word(mask_to(bits, signed, !a)))
             }

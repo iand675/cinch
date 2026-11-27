@@ -92,35 +92,38 @@ module Cinch.Layout where
   head-name :: UType -> Option String
   head-name ty = case ty of UCon name kind -> Some name; UApp f a -> head-name f; other -> None
 
-  scalar-layout :: String -> Option (Nat, Nat, Nat)
-  scalar-layout name = if name == "Unit" then Some (0, 0, 1)
+  scalar-layout :: Nat -> String -> Option (Nat, Nat, Nat)
+  scalar-layout word-bits name =
+    let ptr-bytes = if word-bits == 32 then 4 else 8 in
+    if name == "Unit" then Some (0, 0, 1)
     else if member name ["Bool", "I8", "U8"] then Some (0, 1, 1)
     else if member name ["I16", "U16"] then Some (0, 2, 2)
     else if member name ["I32", "U32", "F32", "Char"] then Some (0, 4, 4)
-    else if member name ["I64", "U64", "F64", "Usize", "Isize", "Sym"] then Some (0, 8, 8)
+    else if member name ["Usize", "Isize"] then Some (0, ptr-bytes, ptr-bytes)
+    else if member name ["I64", "U64", "F64", "Sym"] then Some (0, 8, 8)
     else if member name ["Int", "Nat"] then Some (2, 8, 8)
     else if name == "Bytes" then Some (1, 8, 8)
     else None
 
-  physical-layout :: List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, Nat, Nat)
-  physical-layout layouts datas shapes seen d = let owner = core-data-name d in
+  physical-layout :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, Nat, Nat)
+  physical-layout word-bits layouts datas shapes seen d = let owner = core-data-name d in
     if member owner seen then Err "repr(unboxed) has a recursive layout" else case represented-field d shapes of
       None -> Err "repr(unboxed) requires one constructor with exactly one represented field"
       Some payload -> (case head-name payload of
-        Some name -> (case scalar-layout name of
+        Some name -> (case scalar-layout word-bits name of
           Some physical -> Ok physical
           None -> (case (requested name layouts, data-for name datas) of
-            (Some (Request at wrapper repr labels row), Some nested) | (repr == "unboxed") -> physical-layout layouts datas shapes (owner : seen) nested
+            (Some (Request at wrapper repr labels row), Some nested) | (repr == "unboxed") -> physical-layout word-bits layouts datas shapes (owner : seen) nested
             other -> Err "repr(unboxed) requires a fixed single-word payload"))
         None -> Err "repr(unboxed) requires a fixed single-word payload")
 
   -- Boundary wrappers keep their heap object. Their payload has the single
   -- field's physical width, including a zero-byte Unit field.
-  transparent-layout :: CoreData -> List UsageShape -> Result String (Nat, Nat, Nat)
-  transparent-layout d shapes = case represented-field d shapes of
+  transparent-layout :: Nat -> CoreData -> List UsageShape -> Result String (Nat, Nat, Nat)
+  transparent-layout word-bits d shapes = case represented-field d shapes of
     None -> Err "repr(transparent) needs exactly one represented field"
     Some payload -> (case head-name payload of
-      Some name -> (case scalar-layout name of
+      Some name -> (case scalar-layout word-bits name of
         Some physical -> Ok physical
         None -> if member name ["I128", "U128"] then Ok (3, 16, 16)
           else Err "repr(transparent) field needs a known boundary layout")
@@ -134,18 +137,18 @@ module Cinch.Layout where
         other -> False)
     other -> False
 
-  check-layouts :: List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
-  check-layouts ds datas shapes st = case requests ds of
+  check-layouts :: Nat -> List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
+  check-layouts word-bits ds datas shapes st = case requests ds of
     [] -> (datas, st)
-    layouts -> attach-layouts layouts datas shapes datas st
+    layouts -> attach-layouts word-bits layouts datas shapes datas st
 
-  attach-layouts :: List Request -> List CoreData -> List UsageShape -> List CoreData -> Store -> (List CoreData, Store)
-  attach-layouts layouts all shapes todo st = case todo of
+  attach-layouts :: Nat -> List Request -> List CoreData -> List UsageShape -> List CoreData -> Store -> (List CoreData, Store)
+  attach-layouts word-bits layouts all shapes todo st = case todo of
     [] -> ([], st)
-    d : rest -> case attach-layouts layouts all shapes rest st of
+    d : rest -> case attach-layouts word-bits layouts all shapes rest st of
       (more, checked) -> (case requested (core-data-name d) layouts of
         None -> (d : more, checked)
-        Some (Request site owner repr labels published) -> let label = layout-label labels published d in (case (if repr == "transparent" then transparent-layout d shapes else physical-layout layouts all shapes [] d) of
+        Some (Request site owner repr labels published) -> let label = layout-label labels published d in (case (if repr == "transparent" then transparent-layout word-bits d shapes else physical-layout word-bits layouts all shapes [] d) of
           Err message -> (d : more, add-error site message checked)
           Ok (word, bytes, align) -> (case published of
             Some row | not (matches-published row label bytes align) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)

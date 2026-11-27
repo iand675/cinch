@@ -8,7 +8,7 @@ module Cinch.Infer where
   import Cinch.Type
   import Cinch.Promote
   import Cinch.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
-  import Cinch.PrimVerify (SpecDef, MkSpecDef, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, verify-rewrite-rule, is-verify-justification-word)
+  import Cinch.PrimVerify (SpecDef, MkSpecDef, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, verify-rewrite-rule-for, is-verify-justification-word)
   import Cinch.Index
   import Cinch.Total
   import Cinch.BodyContract
@@ -4339,8 +4339,8 @@ module Cinch.Infer where
       other -> False)
     None -> False
   -- | Register only the checked authority carried by a kernel, class, foreign, or ordinary external declaration.
-  register-external :: Span -> String -> String -> TypeExpr -> Json -> ImportedClasses -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-external sp name category ty metadata rows classes kinds env st =
+  register-external :: Nat -> Span -> String -> String -> TypeExpr -> Json -> ImportedClasses -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-external word-bits sp name category ty metadata rows classes kinds env st =
     if category == "stage-primitive" && name == global-stage-str-nat then
       (case make-scheme False classes kinds [] ty st of
         (sc, checked) -> if scheme-equivalent sc (mono (UFun (literal-type kinds "String") (primitive-type "Nat"))) then
@@ -4349,7 +4349,7 @@ module Cinch.Infer where
     else if category == "builtin" then register-kernel sp name metadata classes kinds env st
     else if category == "builtin-syntax" then register-decision-syntax sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
     else if category == "builtin-constructor" then register-decision-constructor sp name metadata env (check-kernel-cache sp name category ty classes kinds st)
-    else if category == "value" && imported-foreign-value metadata kinds then register-imported-foreign sp name ty metadata classes kinds env st
+    else if category == "value" && imported-foreign-value metadata kinds then register-imported-foreign word-bits sp name ty metadata classes kinds env st
     else if category == "method" then
       case (field "class" metadata, field "slot" metadata, resolved-text metadata) of
         (JStr identity, JNum slot, Some text) -> if slot < 0 then (env, add-error sp "negative method dictionary slot" st)
@@ -4784,9 +4784,9 @@ module Cinch.Infer where
   -- declaration's group is a property of the module, so it cannot be read
   -- from the tail being walked.
   register :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register all rows classes kinds ds env st = register-with-verify (False, "default", [], [], False) all rows classes kinds ds env st
+  register all rows classes kinds ds env st = register-with-verify (64, False, "default", [], [], False) all rows classes kinds ds env st
 
-  register-with-verify :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-with-verify :: (Nat, Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-with-verify vcfg all rows classes kinds ds env st =
     -- Small scopes cost less to scan than to index. Limit the size probe to
     -- the cutoff so a wide declaration list is not traversed twice.
@@ -4796,7 +4796,7 @@ module Cinch.Infer where
   registration-wide ds remaining = if remaining == 0 then True else case ds of
     [] -> False
     first : rest -> registration-wide rest (remaining - 1)
-  register-linear :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-linear :: (Nat, Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-linear vcfg all rows classes kinds ds env st = case ds of
     [] -> (env, st)
     d : rest -> case register-declaration vcfg all rows classes kinds d env st of
@@ -4821,7 +4821,7 @@ module Cinch.Infer where
     (MkRegistrationLookup names trie) : rest -> (rest, index)
     binding : rest -> case index-new-bindings rest index of
       (more, previous) -> (binding : more, reg-trie-add binding previous)
-  register-indexed :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
+  register-indexed :: (Nat, Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
   register-indexed vcfg all rows classes kinds ds env index st = case ds of
     [] -> (env, st)
     (DFun sp name clauses) : rest -> register-indexed vcfg all rows classes kinds rest env index st
@@ -4835,8 +4835,10 @@ module Cinch.Infer where
         (added, checked) -> case index-new-bindings added index of
           (more, updated) -> register-indexed vcfg all rows classes kinds rest more updated checked
 
-  register-declaration :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-declaration vcfg all rows classes kinds d env st = case d of
+  register-declaration :: (Nat, Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-declaration vcfg all rows classes kinds d env st =
+    let (word-bits, is-jpl, verify-mode, spec-defs, proof-cache, replay-only) = vcfg in
+    case d of
     DSig s name ty -> case make-scheme False classes kinds [] ty st of
       (sc, ss) -> register-source-value s name sc kinds env ss
     DClass s name ps members -> case find-class name (kinds.source-classes) of
@@ -4858,18 +4860,17 @@ module Cinch.Infer where
     DRecord s owner ps fields -> (env, st)
     DCodata s owner ps observations -> (env, st)
     DForeign s direction abi symbol name ty | (direction == "export") -> (env, st)
-    DForeign s direction abi symbol name ty -> register-intrinsic s direction abi symbol name ty classes kinds env st
+    DForeign s direction abi symbol name ty -> register-intrinsic word-bits s direction abi symbol name ty classes kinds env st
     DPrim s name ty spec-opt bodies -> case make-scheme False classes kinds [] ty st of
       (scheme, checked) ->
         let (use-schemes, checked-uses) = elaborate-prim-body-uses classes kinds bodies checked in
         let actual = map-scheme-types (normalize checked-uses) scheme in
-        let (is-jpl, verify-mode, spec-defs, proof-cache, replay-only) = vcfg in
-        (case (lookup-binding name env, primitive-plan name actual spec-opt bodies use-schemes (primitive-law-identity (all.graph-declarations) name) is-jpl verify-mode spec-defs proof-cache replay-only) of
+        (case (lookup-binding name env, primitive-plan word-bits name actual spec-opt bodies use-schemes (primitive-law-identity (all.graph-declarations) name) is-jpl verify-mode spec-defs proof-cache replay-only) of
           (Some prior, result) -> (env, add-error s "duplicate primitive binding" checked-uses)
           (None, Err error) -> (env, add-error s error checked-uses)
           (None, Ok plan) -> ((MkForeignBinding name actual plan) : env, checked-uses))
     DModuleProfile s prof -> (env, st)
-    DExternal s name category (Some ty) metadata -> register-external s name category ty metadata rows classes kinds env st
+    DExternal s name category (Some ty) metadata -> register-external word-bits s name category ty metadata rows classes kinds env st
     DExternal s name category None metadata -> if category == "builtin" then register-kernel s name metadata classes kinds env st
       else if category == "builtin-constructor" then register-decision-constructor s name metadata env st
       else if category == "builtin-syntax" then register-decision-syntax s name metadata env st
@@ -4937,17 +4938,17 @@ module Cinch.Infer where
         Some other -> (env, add-error sp "source total body cannot replace another declaration" st)
         None -> ((MkBodyBinding binding) : env, st))
     None -> add-binding sp name sc "value" env st
-  register-intrinsic :: Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-intrinsic sp direction abi symbol name syntax classes kinds env st =
+  register-intrinsic :: Nat -> Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-intrinsic word-bits sp direction abi symbol name syntax classes kinds env st =
     if not (direction == "import" && abi == "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
     else case mvar-plan symbol of
       Some (operation, expected) -> register-mvar-intrinsic sp name symbol syntax expected classes kinds env st
       None -> case array-or-ad-canonical symbol of
         Some expected -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
-        None -> register-monomorphic-intrinsic sp symbol name syntax classes kinds env st
+        None -> register-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st
   -- | Require a scalar declaration's complete nominal scheme before assigning a canonical operation.
-  register-monomorphic-intrinsic :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-monomorphic-intrinsic sp symbol name syntax classes kinds env st = case scalar-intrinsic symbol of
+  register-monomorphic-intrinsic :: Nat -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st = case scalar-intrinsic symbol of
     Some operation -> case make-scheme False classes kinds [] syntax st of
       (actual, checked) ->
         if list-length (scheme-params actual) /= 0 || list-length (scheme-requirements actual) /= 0 then
@@ -4959,11 +4960,11 @@ module Cinch.Infer where
         else (case lookup-binding name env of
           Some prior -> (env, add-error sp "duplicate scalar intrinsic binding" checked)
           None -> ((MkIntrinsicBinding name actual symbol) : env, checked))
-    None -> register-other-monomorphic-intrinsic sp symbol name syntax classes kinds env st
+    None -> register-other-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st
   -- | Preserve the existing checked contracts for runtime and non-scalar intrinsic declarations.
-  register-other-monomorphic-intrinsic :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-other-monomorphic-intrinsic sp symbol name syntax classes kinds env st = case intrinsic-contract symbol of
-      None -> register-foreign sp symbol name syntax classes kinds env st
+  register-other-monomorphic-intrinsic :: Nat -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-other-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st = case intrinsic-contract symbol of
+      None -> register-foreign word-bits sp symbol name syntax classes kinds env st
       Some (text, external) -> case make-scheme False classes kinds [] syntax st of
         (sc, checked) -> case (scheme-params sc, scheme-requirements sc) of
           ([], []) -> case parse-scheme symbol (string-to-bytes text) of
@@ -5075,8 +5076,8 @@ module Cinch.Infer where
     TRow sp labels tail -> TRow sp (qualify-foreign-type declarations labels) tail
     other -> syntax
   -- | Preserve foreign ABI validation while admitting only the supported pure intrinsic subset.
-  register-imported-foreign :: Span -> String -> TypeExpr -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-imported-foreign sp name syntax metadata classes kinds env st = case field "symbol" metadata of
+  register-imported-foreign :: Nat -> Span -> String -> TypeExpr -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-imported-foreign word-bits sp name syntax metadata classes kinds env st = case field "symbol" metadata of
     JStr identity -> case imported-foreign-row identity kinds of
       None -> (env, add-error sp "imported foreign value has no defining ABI contract" st)
       Some row | (case field "kind" row of JStr category -> category == "intrinsic"; other -> False) ->
@@ -5089,7 +5090,7 @@ module Cinch.Infer where
         (JStr symbol, JStr abi, JNull, JNull) -> if abi /= "ccall" then (env, add-error sp "imported foreign ABI is unsupported" st) else
           (case make-scheme False classes kinds [] (qualify-foreign-type (context-aliases kinds) syntax) st of
             (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-              case foreign-plan 64 (foreign-opaque-names (context-aliases kinds)) symbol actual of
+              case foreign-plan word-bits (foreign-opaque-names (context-aliases kinds)) symbol actual of
                 Err error -> (env, add-error sp error checked)
                 Ok plan -> case (field "symbol" row, foreign-document (case field "symbol" row of JStr local -> local; other -> "") plan) of
                   (JStr local, Ok expected) -> if bytes-compare (canonical-bytes row) (canonical-bytes expected) /= 0 then (env, add-error sp "imported foreign type and ABI contract disagree" checked) else
@@ -5211,26 +5212,26 @@ module Cinch.Infer where
   -- An export attaches a C entry to an already checked source definition.
   -- Keep its plan outside the source namespace so Cinch calls still use
   -- the original definition and its proof and ownership checks.
-  checked-export-declarations :: List Decl -> List (String, Kind) -> TypeContext -> List CoreDefinition -> Store -> (List CheckedBinding, Store)
-  checked-export-declarations declarations classes kinds core st = case declarations of
+  checked-export-declarations :: Nat -> List Decl -> List (String, Kind) -> TypeContext -> List CoreDefinition -> Store -> (List CheckedBinding, Store)
+  checked-export-declarations word-bits declarations classes kinds core st = case declarations of
     [] -> ([], st)
     (DForeign site direction abi symbol name syntax) : rest | (direction == "export") ->
       (case (abi == "ccall", find-core-definition name core) of
         (True, Some definition) -> (case make-scheme False classes kinds [] syntax st of
           (claimed, checked) -> let actual = map-scheme-types (normalize checked) claimed in
             if not (scheme-equivalent actual (definition.scheme)) then ([], add-error site "a foreign export's type must match its defined function" checked)
-            else (case foreign-export-plan 64 (foreign-opaque-names (context-aliases kinds)) symbol actual of
+            else (case foreign-export-plan word-bits (foreign-opaque-names (context-aliases kinds)) symbol actual of
               Err message -> ([], add-error site message checked)
-              Ok plan -> (case checked-export-declarations rest classes kinds core checked of
+              Ok plan -> (case checked-export-declarations word-bits rest classes kinds core checked of
                 (tail, done) -> ((MkForeignExport name plan) : tail, done))))
         (False, other) -> ([], add-error site "foreign export requires ccall" st)
         other -> ([], add-error site "a foreign export wraps a defined function" st))
-    other : rest -> checked-export-declarations rest classes kinds core st
+    other : rest -> checked-export-declarations word-bits rest classes kinds core st
 
-  register-foreign :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-foreign sp symbol name syntax classes kinds env st = case make-scheme False classes kinds [] syntax st of
+  register-foreign :: Nat -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-foreign word-bits sp symbol name syntax classes kinds env st = case make-scheme False classes kinds [] syntax st of
     (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-      case foreign-plan 64 (foreign-opaque-names (context-aliases kinds)) symbol actual of
+      case foreign-plan word-bits (foreign-opaque-names (context-aliases kinds)) symbol actual of
         Err error -> (env, add-error sp error checked)
         Ok plan -> (case lookup-binding name env of
           Some prior -> (env, add-error sp "duplicate foreign binding" checked)
@@ -10819,7 +10820,7 @@ module Cinch.Infer where
         then add-error sp "the justification does not prove the rule's equation" done else done
       (formals, None, checked) -> add-error sp "rewrite citation must conclude with a checked equation" checked
 
-  check-rewrite-evidence :: (Bool, String, List (String, String), Bool) -> String -> Expr -> Expr -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> ImportedClasses -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
+  check-rewrite-evidence :: (Nat, Bool, String, List (String, String), Bool) -> String -> Expr -> Expr -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> ImportedClasses -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
   check-rewrite-evidence rw-cfg rule-name pat-expr rep-expr classes kinds families env locals givens declarations rows lhs rhs evidence st = case evidence of
     RewriteLaw sp owner member args ->
       let (definition, syntax, assumption, header) = (case find-class owner (kinds.source-classes) of
@@ -10842,14 +10843,14 @@ module Cinch.Infer where
       (None, if rewrite-term-equal [] (map-term-types (normalize done) first) (map-term-types (normalize done) second)
         then done else add-error sp "the justification does not prove the rule's equation" done)
     RewriteTerm (EVar sp jword) | is-verify-justification-word jword ->
-      let (is-jpl, verify-mode, proof-cache, replay-only) = rw-cfg in
+      let (word-bits, is-jpl, verify-mode, proof-cache, replay-only) = rw-cfg in
       let res-ty = normalize st (core-type lhs) in
       let norm-locals = map (\(nm, ty) ->
             let nt = normalize st ty in
             case value-carrier (type-kind nt) of
               Some carrier -> (nm, carrier)
               None -> (nm, nt)) locals in
-      (case verify-rewrite-rule rule-name is-jpl verify-mode jword proof-cache replay-only norm-locals res-ty pat-expr rep-expr of
+      (case verify-rewrite-rule-for word-bits rule-name is-jpl verify-mode jword proof-cache replay-only norm-locals res-ty pat-expr rep-expr of
         OutcomeVerified receipts -> (None, st)
         OutcomeAssumed receipts -> (None, st)
         OutcomeDisproved detail ->
@@ -10865,7 +10866,7 @@ module Cinch.Infer where
     None -> (None, st)
     Some expression -> case check-required classes kinds families env locals expression (primitive-type "Bool") st of
       (test, checked) -> (Some test, include-effects (expr-span expression) (core-effects test) (URow UEnd) checked)
-  check-source-rewrite :: (Bool, String, List (String, String), Bool) -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
+  check-source-rewrite :: (Nat, Bool, String, List (String, String), Bool) -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
   check-source-rewrite rw-cfg classes kinds families env declarations rows sp name syntax st = case syntax of
     RewriteSyntax True params bounds pattern replacement guard evidence ->
       (None, add-error sp "target rewrite needs a checked target applicability condition" st)
@@ -10906,7 +10907,7 @@ module Cinch.Infer where
       [] -> (Some (CheckedRewrite name (typed first) (typed second) test identity), done)
       other -> (None, done)
 
-  check-source-rewrites :: (Bool, String, List (String, String), Bool) -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
+  check-source-rewrites :: (Nat, Bool, String, List (String, String), Bool) -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
   check-source-rewrites rw-cfg classes kinds families env declarations rows pending seen st = case pending of
     [] -> ([], st)
     (DRewrite sp name syntax) : rest -> if has name seen then ([], add-error sp "duplicate rewrite declaration" st)
@@ -11536,8 +11537,9 @@ module Cinch.Infer where
       ElaborationImports admitted signatures syntax ordered families (nominal-rows, unique) reader plans headers -> (signatures, ordered, families, nominal-rows, unique, reader)) in
     let (kinds, body-store) = add-source-bodies bodies method-kinds method-store in
     let is-jpl-mod = tuning.jpl || module-has-jpl-profile ds in
-    let vcfg = (is-jpl-mod, tuning.prim-verify, collect-spec-defs (ds <> specs), tuning.proof-cache, tuning.replay-only) in
-    let rw-cfg = (is-jpl-mod, tuning.prim-verify, tuning.proof-cache, tuning.replay-only) in
+    let word-bits = tuning.word-size in
+    let vcfg = (word-bits, is-jpl-mod, tuning.prim-verify, collect-spec-defs (ds <> specs), tuning.proof-cache, tuning.replay-only) in
+    let rw-cfg = (word-bits, is-jpl-mod, tuning.prim-verify, tuning.proof-cache, tuning.replay-only) in
     let (values, sv) = register-with-verify vcfg (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let named-proofs = proof-declarations ds in
     let (proofs, proof-store) = register-source-proofs kinds named-proofs (proof-signatures named-proofs hash-map-empty) named-proofs values sv in
@@ -11566,7 +11568,7 @@ module Cinch.Infer where
     let (nominal-data, nominal-store) = case store-errors declared-store of [] -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (runtime-data, sd) = case store-errors nominal-store of [] -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let (usage, usage-store) = case store-errors sd of [] -> collect-usage nominals distinct read-usage ds (\name -> context-kind name linked-kinds) sd; other -> ([], sd) in
-    let (datas, layout-store) = case store-errors usage-store of [] -> check-unpacked-records ds (check-layouts ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
+    let (datas, layout-store) = case store-errors usage-store of [] -> check-unpacked-records ds (check-layouts word-bits ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
     let sampler = LawSampling (LawEnvironment instances (env-body-context env) core) (law-layouts datas) in
     let (source-laws, source-sampled) = case store-errors layout-store of
           [] -> check-law-instances classes linked-kinds families env sampler instances ds layout-store
@@ -11590,7 +11592,7 @@ module Cinch.Infer where
     -- Checked Core retains contextual phantom regions. Source provenance retains
     -- the defining header, so a later value signature cannot rewrite an export.
     let (exports, export-store) = case store-errors temporal-store of
-          [] -> checked-export-declarations ds classes linked-kinds core temporal-store
+          [] -> checked-export-declarations word-bits ds classes linked-kinds core temporal-store
           other -> ([], temporal-store) in
     if retain then
       Elaboration (store-errors export-store) (exports <> finish-bindings export-store env) (contexts ds) core datas effects

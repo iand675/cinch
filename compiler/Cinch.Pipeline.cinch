@@ -764,7 +764,7 @@ module Cinch.Pipeline where
   -- checker. It never asks another compiler to manufacture source contracts.
   profile-tuning :: TargetProfile -> CompileTuning -> CompileTuning
   profile-tuning profile tuning =
-    tuning-with-replay-only (profile.replay-only) (tuning-with-jpl (profile.jpl) (tuning-with-prim-verify (profile.prim-verify) tuning))
+    tuning-with-word-size (profile.word-size) (tuning-with-replay-only (profile.replay-only) (tuning-with-jpl (profile.jpl) (tuning-with-prim-verify (profile.prim-verify) tuning)))
 
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-source profile program interfaces = checked-source-tuned default-tuning profile program interfaces

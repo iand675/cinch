@@ -462,3 +462,133 @@ module Bad where
     assert!(rules.contains(&"effect-accountability"), "missing effect-accountability: {rep:?}");
     assert!(rules.contains(&"inline-asm-clobbers"), "missing inline-asm-clobbers: {rep:?}");
 }
+
+#[test]
+fn target_arch_pointer_and_word_size_end_to_end() {
+    use cinch::core::{ArtifactProfile, TargetProfile};
+    use cinch::driver::check_sources_profile;
+    use cinch::prim_verify::mem_contract::audit_source_contracts_for_word_bits;
+    use cinch::prim_verify::translate_val::validate_program_codegen_for_word_bits;
+
+    // 1. Atomic `ptr` load alignment obeys target pointer width (4 bytes on 32-bit, 8 bytes on 64-bit).
+    let ptr_atomic_src = r#"
+module PtrAtomic where
+  prim load-ptr :: Usize ->{STM} Usize where
+    unsafe llvm {
+      %p = inttoptr i32 %0 to ptr
+      %v = load atomic ptr, ptr %p acquire, align 4
+      %r = ptrtoint ptr %v to i32
+      ret i32 %r
+    }
+"#;
+    let rep32 = audit_source_contracts_for_word_bits(ptr_atomic_src, 32).expect("audit 32-bit");
+    assert!(
+        rep32.violations.is_empty(),
+        "32-bit ptr align 4 should pass, got: {:?}",
+        rep32.violations
+    );
+    let rep64 = audit_source_contracts_for_word_bits(ptr_atomic_src, 64).expect("audit 64-bit");
+    assert!(
+        rep64.violations.iter().any(|v| v.rule == "atomic-alignment"),
+        "64-bit ptr align 4 must fail atomic-alignment, got: {:?}",
+        rep64.violations
+    );
+
+    // 2. FFI C ABI, `repr(C)` layout, `prim` verification, verified `rewrite`, and Core->LLVM TV
+    //    all use 32-bit / 4-byte pointers on `wasm32` and 64-bit / 8-byte pointers on 64-bit native.
+    let wasm32_src = r#"
+module Main where
+  #[repr(C)]
+  record PtrPair where
+    tag :: U8
+    len :: Usize
+    buf :: RawPtr U8
+
+  foreign import ccall "c_touch" c-touch :: forall r . RawPtr U8 -> Usize -> Isize ->{IO r} Usize
+
+  prim add-usize-word :: Usize -> Usize -> Usize where
+    llvm {
+      %r = add i32 %0, %1
+      ret i32 %r
+    } justify verify
+
+  rewrite usize-xor-cancel forall (x :: Usize) (y :: Usize). where
+    match (bit-xor-usize (bit-xor-usize x y) y)
+    replace x
+    justify verify
+
+  dbl-usize :: Usize -> Usize
+  dbl-usize x = add-usize-word x x
+
+  main :: Int
+  main = if dbl-usize 21 == 42 then 0 else 1
+"#;
+    let wasm_profile = TargetProfile::wasm32(ArtifactProfile::CoreWasm);
+    let prog32 = check_sources_profile(wasm32_src, "<wasm32-ptrs>", &wasm_profile)
+        .expect("wasm32 target should verify 32-bit Usize prim, rewrite, repr(C), and FFI");
+
+    // Check `repr(C)` layout for `PtrPair`: U8(0..1) + pad(3) + Usize(4..8) + RawPtr(8..12) = size 12, align 4.
+    let pair32 = prog32
+        .plans
+        .get("Main.PtrPair")
+        .expect("PtrPair ctor layout on wasm32");
+    assert_eq!(pair32.payload, 12, "wasm32 repr(C) PtrPair payload should be 12 bytes");
+    assert_eq!(pair32.fields[0].offset, 0);
+    assert_eq!(pair32.fields[0].size, 1);
+    assert_eq!(pair32.fields[1].offset, 4);
+    assert_eq!(pair32.fields[1].size, 4);
+    assert_eq!(pair32.fields[2].offset, 8);
+    assert_eq!(pair32.fields[2].size, 4);
+
+    // Check FFI ABI plan widths on wasm32: 4-byte ptr, Usize, Isize.
+    let ffi32 = prog32
+        .foreigns
+        .values()
+        .find(|f| f.symbol == "c_touch")
+        .expect("c_touch foreign plan on wasm32");
+    assert_eq!(ffi32.params[0].width, 4);
+    assert_eq!(ffi32.params[0].align, 4);
+    assert_eq!(ffi32.params[1].width, 4);
+    assert_eq!(ffi32.params[2].width, 4);
+    assert_eq!(ffi32.result.width, 4);
+
+    // Check emitted LLVM IR uses `i32` for `c_touch` on wasm32.
+    let ir32 = cinch::codegen::emit_for(&wasm_profile, &prog32).expect("emit wasm32 IR");
+    assert!(
+        ir32.contains("declare i32 @\"c_touch\"(ptr nonnull, i32 noundef, i32 noundef)"),
+        "wasm32 FFI declare must use i32 for Usize/Isize:\n{ir32}"
+    );
+
+    // Core -> LLVM translation validation at 32 bits for `Main.dbl-usize`.
+    let tv32 = validate_program_codegen_for_word_bits(&prog32, &ir32, "Main.dbl-usize", 32);
+    assert!(
+        tv32.iter().any(|r| r.fn_name == "Main.dbl-usize" && r.status == "verified"),
+        "expected Main.dbl-usize to verify via LRAT TV at 32 bits, got: {tv32:?}"
+    );
+
+    // The same 32-bit `i32` baseline Usize prim MUST be rejected on 64-bit native.
+    let native_profile = TargetProfile::native();
+    assert!(
+        check_sources_profile(wasm32_src, "<native64-ptrs-bad>", &native_profile).is_err(),
+        "32-bit i32 Usize prim must fail on 64-bit native target"
+    );
+
+    // On 64-bit native, the matching 64-bit version gives 8-byte ptr/Usize/Isize and 24-byte PtrPair.
+    let native64_src = wasm32_src.replace("i32", "i64");
+    let prog64 = check_sources_profile(&native64_src, "<native64-ptrs>", &native_profile)
+        .expect("64-bit native target should verify 64-bit Usize prim, rewrite, repr(C), and FFI");
+    let pair64 = prog64
+        .plans
+        .get("Main.PtrPair")
+        .expect("PtrPair ctor layout on 64-bit");
+    assert_eq!(pair64.payload, 24, "64-bit repr(C) PtrPair payload should be 24 bytes");
+    assert_eq!(pair64.fields[1].offset, 8);
+    assert_eq!(pair64.fields[1].size, 8);
+    assert_eq!(pair64.fields[2].offset, 16);
+    assert_eq!(pair64.fields[2].size, 8);
+    let ir64 = cinch::codegen::emit_for(&native_profile, &prog64).expect("emit 64-bit IR");
+    assert!(
+        ir64.contains("declare i64 @\"c_touch\"(ptr nonnull, i64 noundef, i64 noundef)"),
+        "64-bit FFI declare must use i64 for Usize/Isize:\n{ir64}"
+    );
+}

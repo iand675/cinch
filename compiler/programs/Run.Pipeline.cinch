@@ -143,7 +143,7 @@ module Main where
     let workers = case opts.workers of
           Some n -> n
           None -> 0 in
-    CompileTuning strategy workers opts.prim-verify opts.jpl [] opts.replay-only
+    CompileTuning strategy workers opts.prim-verify opts.jpl [] opts.replay-only 64
 
   load-proof-cache-files :: forall r. using (io :: Io r) => Path -> List String -> List (String, String) ->{IO r} List (String, String)
   load-proof-cache-files dir names acc = case names of
@@ -435,7 +435,7 @@ module Main where
                   SubTest rest -> case (opts.roots, opts.mode-selected) of
                     (None, False) ->
                       let test-tuning = case opts.strategy of
-                            None -> CompileTuning Latency tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only
+                            None -> CompileTuning Latency tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only tuning.word-size
                             Some _ -> tuning in
                       test-words test-tuning opts.inlining opts.rc-debug opts.reclaim wanted opts.manifest opts.object-config rest
                     _ -> pipeline-bad-args

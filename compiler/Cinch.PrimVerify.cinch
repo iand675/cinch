@@ -52,7 +52,7 @@ module Cinch.PrimVerify where
   export LratStep, LratAdd, verify-lrat, parse-lrat-steps, verify-lrat-text, serialize-lrat-steps
   export SemGraph, SemType, SBool, SBv, SFp, SVec, obligation-to-smtlib2
   export verify-prim-body, verify-prim-body-cached, verify-prim-cross-target
-  export verify-alethe, verify-rewrite-rule, audit-memory-atomic-contract, validate-llvm-equiv
+  export verify-alethe, verify-rewrite-rule, verify-rewrite-rule-for, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv
   export is-verify-justification-word, worst-trust-tier, receipts-tcb-union
 
   -- ==========================================================================
@@ -3240,42 +3240,47 @@ module Cinch.PrimVerify where
   -- 12. Verified `rewrite ... justify verify` Rules
   -- ==========================================================================
 
-  utype-to-sem-type :: UType -> Option SemType
-  utype-to-sem-type ty = case refinement-view ty of
-    URefine id nm base pred -> utype-to-sem-type base
+  utype-to-sem-type :: Nat -> UType -> Option SemType
+  utype-to-sem-type word-bits ty = case refinement-view ty of
+    URefine id nm base pred -> utype-to-sem-type word-bits base
     UCon name k ->
       let short = strip-module-prefix name in
       if same short "Bool" then Some SBool
       else if same short "I8" || same short "U8" then Some (SBv 8)
       else if same short "I16" || same short "U16" then Some (SBv 16)
       else if same short "I32" || same short "U32" || same short "Char" then Some (SBv 32)
-      else if same short "I64" || same short "U64" || same short "Usize" || same short "Isize" then Some (SBv 64)
+      else if same short "Usize" || same short "Isize" then Some (SBv word-bits)
+      else if same short "I64" || same short "U64" then Some (SBv 64)
       else if same short "I128" || same short "U128" then Some (SBv 128)
       else None
     other -> None
 
-  init-rewrite-binds :: List (String, UType) -> Nat -> SemGraph -> Result String (List (String, Nat, SemType), SemGraph)
-  init-rewrite-binds locals idx g = case locals of
+  init-rewrite-binds :: Nat -> List (String, UType) -> Nat -> SemGraph -> Result String (List (String, Nat, SemType), SemGraph)
+  init-rewrite-binds word-bits locals idx g = case locals of
     Nil -> Ok (Nil, g)
     Cons (nm, ty) rest ->
-      case utype-to-sem-type ty of
+      case utype-to-sem-type word-bits ty of
         None -> Err (string-concat "rewrite formal has non-bitvector type: " nm)
         Some st ->
           let (nid, g1) = g-var idx st nm g in
-          case init-rewrite-binds rest (idx + 1) g1 of
+          case init-rewrite-binds word-bits rest (idx + 1) g1 of
             Err e -> Err e
             Ok (more, g2) -> Ok (Cons (nm, nid, st) more, g2)
 
   verify-rewrite-rule :: String -> Bool -> String -> String -> List (String, String) -> Bool -> List (String, UType) -> UType -> Expr -> Expr -> VerifyOutcome
   verify-rewrite-rule rule-name is-jpl verify-mode just-word proof-cache replay-only locals res-utype lhs-expr rhs-expr =
+    verify-rewrite-rule-for 64 rule-name is-jpl verify-mode just-word proof-cache replay-only locals res-utype lhs-expr rhs-expr
+
+  verify-rewrite-rule-for :: Nat -> String -> Bool -> String -> String -> List (String, String) -> Bool -> List (String, UType) -> UType -> Expr -> Expr -> VerifyOutcome
+  verify-rewrite-rule-for word-bits rule-name is-jpl verify-mode just-word proof-cache replay-only locals res-utype lhs-expr rhs-expr =
     if same verify-mode "off" then
       let gh = sha256-hex (string-to-bytes (string-concat "rewrite:" rule-name)) in
       OutcomeAssumed [make-assumed-receipt gh "cinch-verify-off@1" "assumed (prim-verify=off)"]
     else
-      case utype-to-sem-type res-utype of
+      case utype-to-sem-type word-bits res-utype of
         None -> OutcomeOpen (string-concat rule-name ": rewrite result type is not a modeled bitvector/Bool type")
         Some res-st ->
-          case init-rewrite-binds locals 0 empty-sem-graph of
+          case init-rewrite-binds word-bits locals 0 empty-sem-graph of
             Err err-b -> OutcomeOpen (string-concat-all [rule-name, ": ", err-b])
             Ok (binds, g1) ->
               case lower-spec-expr binds res-st lhs-expr g1 of
@@ -3325,9 +3330,11 @@ module Cinch.PrimVerify where
         Some r -> Cons w (find-orderings rest)
         None -> find-orderings rest
 
-  llvm-byte-width :: String -> Option Nat
-  llvm-byte-width ty =
-    if same ty "ptr" || same ty "double" then Some 8
+  llvm-byte-width :: Nat -> String -> Option Nat
+  llvm-byte-width word-bits ty =
+    let ptr-bytes = if word-bits == 32 then 4 else 8 in
+    if same ty "ptr" then Some ptr-bytes
+    else if same ty "double" then Some 8
     else if same ty "float" then Some 4
     else if string-starts-with "i" ty && string-length ty > 1 then
       case parse-nat-str (string-slice ty 1 (string-length ty)) of
@@ -3335,16 +3342,25 @@ module Cinch.PrimVerify where
         None -> None
     else None
 
-  audit-boundary-line :: String -> Bool -> String -> List String
-  audit-boundary-line prim-name is-pure raw =
+  first-atomic-ty :: List String -> Option String
+  first-atomic-ty ws = case ws of
+    Nil -> None
+    Cons "atomic" (Cons "volatile" (Cons ty rest)) -> Some ty
+    Cons "atomic" (Cons ty rest) -> Some ty
+    Cons w rest -> first-atomic-ty rest
+
+  audit-boundary-line :: Nat -> String -> Bool -> String -> List String
+  audit-boundary-line word-bits prim-name is-pure raw =
     let clean = strip-ir-comment raw in
     let ws = ir-words clean in
+    let ptr-bytes = if word-bits == 32 then 4 else 8 in
     let pure-v =
           if is-pure && (has-str "store" ws || has-str "atomicrmw" ws || has-str "cmpxchg" ws || has-str "fence" ws || has-str "volatile" ws) then
             [string-concat prim-name ": pure prim body performs memory write/atomic/volatile effect"]
           else Nil in
     let ords = find-orderings ws in
     let align-opt = find-align-nat ws in
+    let atomic-ty = first-atomic-ty ws in
     let atomic-v =
           if has-str "load" ws && has-str "atomic" ws then
             let ord-errs = case ords of
@@ -3356,9 +3372,16 @@ module Cinch.PrimVerify where
                   None -> [string-concat prim-name ": `load atomic` requires explicit alignment"]
                   Some al ->
                     if not (is-power-of-two-nat al) then [string-concat prim-name ": `load atomic` alignment must be a power of two"]
-                    else if has-str "i64" ws && al < 8 then [string-concat prim-name ": `load atomic i64` requires align >= 8"]
-                    else if has-str "i32" ws && al < 4 then [string-concat prim-name ": `load atomic i32` requires align >= 4"]
-                    else Nil in
+                    else case atomic-ty of
+                      Some ty ->
+                        (case llvm-byte-width word-bits ty of
+                          Some sz | al < sz -> [string-concat-all [prim-name, ": `load atomic ", ty, "` requires align >= ", nat-to-string sz]]
+                          other -> Nil)
+                      None ->
+                        if has-str "i64" ws && al < 8 then [string-concat prim-name ": `load atomic i64` requires align >= 8"]
+                        else if has-str "i32" ws && al < 4 then [string-concat prim-name ": `load atomic i32` requires align >= 4"]
+                        else if has-str "ptr" ws && al < ptr-bytes then [string-concat-all [prim-name, ": `load atomic ptr` requires align >= ", nat-to-string ptr-bytes]]
+                        else Nil in
             ord-errs <> align-errs
           else if has-str "store" ws && has-str "atomic" ws then
             let ord-errs = case ords of
@@ -3370,9 +3393,16 @@ module Cinch.PrimVerify where
                   None -> [string-concat prim-name ": `store atomic` requires explicit alignment"]
                   Some al ->
                     if not (is-power-of-two-nat al) then [string-concat prim-name ": `store atomic` alignment must be a power of two"]
-                    else if has-str "i64" ws && al < 8 then [string-concat prim-name ": `store atomic i64` requires align >= 8"]
-                    else if has-str "i32" ws && al < 4 then [string-concat prim-name ": `store atomic i32` requires align >= 4"]
-                    else Nil in
+                    else case atomic-ty of
+                      Some ty ->
+                        (case llvm-byte-width word-bits ty of
+                          Some sz | al < sz -> [string-concat-all [prim-name, ": `store atomic ", ty, "` requires align >= ", nat-to-string sz]]
+                          other -> Nil)
+                      None ->
+                        if has-str "i64" ws && al < 8 then [string-concat prim-name ": `store atomic i64` requires align >= 8"]
+                        else if has-str "i32" ws && al < 4 then [string-concat prim-name ": `store atomic i32` requires align >= 4"]
+                        else if has-str "ptr" ws && al < ptr-bytes then [string-concat-all [prim-name, ": `store atomic ptr` requires align >= ", nat-to-string ptr-bytes]]
+                        else Nil in
             ord-errs <> align-errs
           else if has-str "fence" ws then
             (case ords of
@@ -3409,14 +3439,18 @@ module Cinch.PrimVerify where
           else Nil in
     pure-v <> atomic-v <> asm-v
 
-  audit-boundary-lines :: String -> Bool -> List String -> List String
-  audit-boundary-lines prim-name is-pure lines = case lines of
+  audit-boundary-lines :: Nat -> String -> Bool -> List String -> List String
+  audit-boundary-lines word-bits prim-name is-pure lines = case lines of
     Nil -> Nil
-    Cons l rest -> audit-boundary-line prim-name is-pure l <> audit-boundary-lines prim-name is-pure rest
+    Cons l rest -> audit-boundary-line word-bits prim-name is-pure l <> audit-boundary-lines word-bits prim-name is-pure rest
 
   audit-memory-atomic-contract :: String -> Bool -> String -> List String
   audit-memory-atomic-contract prim-name is-pure fragment =
-    audit-boundary-lines prim-name is-pure (string-split-on "\n" fragment)
+    audit-memory-atomic-contract-for 64 prim-name is-pure fragment
+
+  audit-memory-atomic-contract-for :: Nat -> String -> Bool -> String -> List String
+  audit-memory-atomic-contract-for word-bits prim-name is-pure fragment =
+    audit-boundary-lines word-bits prim-name is-pure (string-split-on "\n" fragment)
 
   -- Translation Validation: prove `frag-after` is UB-free, poison-free, and
   -- bit-for-bit identical to `frag-before` with a kernel-checked LRAT proof.

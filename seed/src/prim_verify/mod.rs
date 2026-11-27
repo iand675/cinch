@@ -22,7 +22,7 @@ pub mod translate_val;
 
 use bitblast::{CdclLratProver, CompiledLratChecker, ExternalSatProver, KernelLratChecker};
 use llvm_ir::LlvmSemantics;
-use prelude_bridge::{extract_file_obligations, ExtractedPrimBody};
+use prelude_bridge::ExtractedPrimBody;
 use sem::{Obligation, SemParam, SemProgram, SemTy, TheorySet};
 use serde::{Deserialize, Serialize};
 use smt::{emit_smtlib2, AletheProofChecker, ExternalSmtProver, SmtAttestationChecker};
@@ -722,6 +722,7 @@ pub fn cli(args: &[String]) -> i32 {
     let mut replay_only = replay_only_from_env();
     let mut emit_smt_dir: Option<PathBuf> = None;
     let mut audit_unsafe = false;
+    let mut word_bits: u16 = 64;
     let mut json_out = false;
     let mut verbose = false;
 
@@ -738,6 +739,25 @@ pub fn cli(args: &[String]) -> i32 {
             cadical_bin = Some(s.to_string());
         } else if let Some(d) = a.strip_prefix("--cache-dir=").or_else(|| a.strip_prefix("--proof-cache=")) {
             cache_dir = Some(PathBuf::from(d));
+        } else if let Some(ws) = a.strip_prefix("--word-size=") {
+            match ws {
+                "32" => word_bits = 32,
+                "64" => word_bits = 64,
+                other => {
+                    eprintln!("cinch verify-prims: unsupported --word-size=`{other}` (expected 32 or 64)");
+                    return 2;
+                }
+            }
+        } else if let Some(triple) = a.strip_prefix("--target=") {
+            let arch = triple.split('-').next().unwrap_or(triple);
+            if matches!(arch, "wasm32" | "i386" | "i686" | "arm" | "armv7" | "riscv32" | "mips") {
+                word_bits = 32;
+            } else if matches!(arch, "x86_64" | "aarch64" | "arm64" | "riscv64" | "wasm64" | "powerpc64le") {
+                word_bits = 64;
+            } else {
+                eprintln!("cinch verify-prims: unrecognized --target=`{triple}`");
+                return 2;
+            }
         } else if a == "--replay-only" {
             replay_only = true;
         } else if a == "--audit-unsafe" {
@@ -754,6 +774,8 @@ pub fn cli(args: &[String]) -> i32 {
                  options:\n\
                  \x20 --policy=dev|jpl|lax      admission policy (default: dev)\n\
                  \x20 --checker=kernel|compiled LRAT checker TCB tier (default: kernel)\n\
+                 \x20 --word-size=32|64         target pointer/word width in bits (default: 64)\n\
+                 \x20 --target=<triple>         resolve pointer/word width from target triple\n\
                  \x20 --smt=<binary>            plug in external SMT-LIB 2 solver (z3/bitwuzla/cvc5)\n\
                  \x20 --cadical=<binary>        plug in external CaDiCaL LRAT solver\n\
                  \x20 --proof-cache=<dir>       content-addressed evidence cache directory (--cache-dir)\n\
@@ -828,7 +850,7 @@ pub fn cli(args: &[String]) -> i32 {
     for file in &files {
         let extracted: Vec<ExtractedPrimBody> = {
             let sems = engine.semantics_refs();
-            match extract_file_obligations(file, &sems) {
+            match prelude_bridge::extract_file_obligations_for_word_bits(file, &sems, word_bits) {
                 Ok(e) => e,
                 Err(err) => {
                     eprintln!("cinch verify-prims: {}: {err}", file.display());
@@ -935,7 +957,7 @@ pub fn cli(args: &[String]) -> i32 {
     let mut boundary_violations = 0usize;
     if audit_unsafe {
         for file in &files {
-            match mem_contract::audit_file_contracts(file) {
+            match mem_contract::audit_file_contracts_for_word_bits(file, word_bits) {
                 Ok(rep) => {
                     boundary_violations += rep.violations.len();
                     if !json_out {
@@ -976,10 +998,56 @@ pub fn cli(args: &[String]) -> i32 {
 /// checks the program, emits LLVM IR, and runs LRAT translation validation
 /// (`SemGraph(Core) ⊑ SemGraph(LLVM)`) across all pure scalar user functions.
 pub fn cli_verify_codegen(args: &[String]) -> i32 {
-    let Some(path_str) = args.first() else {
-        eprintln!("usage: cinch verify-codegen <file.cinch>");
+    let mut path_str: Option<&str> = None;
+    let mut target_triple: Option<&str> = None;
+    let mut word_bits_override: Option<u32> = None;
+    for a in args {
+        if let Some(t) = a.strip_prefix("--target=") {
+            target_triple = Some(t);
+        } else if let Some(ws) = a.strip_prefix("--word-size=") {
+            match ws {
+                "32" => word_bits_override = Some(32),
+                "64" => word_bits_override = Some(64),
+                other => {
+                    eprintln!("cinch verify-codegen: unsupported --word-size=`{other}` (expected 32 or 64)");
+                    return 2;
+                }
+            }
+        } else if !a.starts_with('-') && path_str.is_none() {
+            path_str = Some(a.as_str());
+        }
+    }
+    let Some(path_str) = path_str else {
+        eprintln!("usage: cinch verify-codegen <file.cinch> [--target=<triple>|--word-size=32|64]");
         return 2;
     };
+    let mut profile = match target_triple {
+        Some(triple) => {
+            let arch = triple.split('-').next().unwrap_or(triple);
+            if arch == "wasm32" {
+                crate::core::TargetProfile::wasm32(crate::core::ArtifactProfile::CoreWasm)
+            } else if matches!(arch, "i386" | "i686" | "arm" | "armv7" | "riscv32" | "mips") {
+                let mut p = crate::core::TargetProfile::native();
+                p.triple = triple.to_string();
+                p.arch = arch.to_string();
+                p.word_size = 32;
+                p
+            } else if matches!(arch, "x86_64" | "aarch64" | "arm64" | "riscv64" | "wasm64" | "powerpc64le") {
+                let mut p = crate::core::TargetProfile::native();
+                p.triple = triple.to_string();
+                p.arch = arch.to_string();
+                p.word_size = 64;
+                p
+            } else {
+                eprintln!("cinch verify-codegen: unrecognized --target=`{triple}`");
+                return 2;
+            }
+        }
+        None => crate::core::TargetProfile::native(),
+    };
+    if let Some(wb) = word_bits_override {
+        profile.word_size = wb;
+    }
     let path = std::path::Path::new(path_str);
     let src = match std::fs::read_to_string(path) {
         Ok(s) => s,
@@ -988,21 +1056,26 @@ pub fn cli_verify_codegen(args: &[String]) -> i32 {
             return 2;
         }
     };
-    let program = match crate::driver::check_sources(&src, path_str) {
+    let program = match crate::driver::check_sources_profile(&src, path_str, &profile) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("cinch verify-codegen: check failed: {e}");
             return 1;
         }
     };
-    let ir = match crate::codegen::emit(&program) {
+    let ir = match crate::codegen::emit_for(&profile, &program) {
         Ok(ir) => ir,
         Err(e) => {
             eprintln!("cinch verify-codegen: codegen failed: {e}");
             return 1;
         }
     };
-    let reports = translate_val::validate_program_codegen(&program, &ir, "Main.");
+    let reports = translate_val::validate_program_codegen_for_word_bits(
+        &program,
+        &ir,
+        "Main.",
+        profile.word_size as u16,
+    );
     let mut verified = 0usize;
     let mut disproved = 0usize;
     for r in &reports {

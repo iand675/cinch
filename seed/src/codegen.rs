@@ -9041,23 +9041,23 @@ fn ctor_body(
 const FFI_NULL_MSG: &str =
     "a foreign boundary contract was violated: null pointer where the binding requires non-null";
 
-/// The LLVM type of one foreign parameter or result's C shape.
-fn abi_llvm_ty(p: &AbiParam) -> &'static str {
+/// The LLVM type of one foreign parameter or result's C shape on a target with `usize_bits`.
+fn abi_llvm_ty(p: &AbiParam, usize_bits: u32) -> &'static str {
     match &p.class {
         AbiClass::Unit => "void",
         AbiClass::Scalar(s) => {
             if s.is_float() {
                 float_ty(*s)
             } else {
-                int_ty(*s)
+                int_ty(s.resolve_width(usize_bits))
             }
         }
         AbiClass::Ptr | AbiClass::Aggregate => "ptr",
     }
 }
 
-/// Convert one canonical value word to its C scalar shape.
-fn word_to_c(b: &mut Builder, s: Scalar, w: &str) -> String {
+/// Convert one canonical value word to its C scalar shape on a target with `usize_bits`.
+fn word_to_c(b: &mut Builder, s: Scalar, usize_bits: u32, w: &str) -> String {
     // A wide scalar is already its C `__int128` (LLVM `i128`).
     if s.is_wide() {
         return w.to_string();
@@ -9073,7 +9073,7 @@ fn word_to_c(b: &mut Builder, s: Scalar, w: &str) -> String {
         b.line(&format!("{f} = bitcast i64 {w} to double"));
         f
     } else {
-        match s.width() {
+        match s.width_for(usize_bits) {
             64 => w.to_string(),
             bits => {
                 let r = b.reg();
@@ -9084,8 +9084,8 @@ fn word_to_c(b: &mut Builder, s: Scalar, w: &str) -> String {
     }
 }
 
-/// Convert one C scalar value to its canonical value word.
-fn c_to_word(b: &mut Builder, s: Scalar, v: &str) -> String {
+/// Convert one C scalar value to its canonical value word on a target with `usize_bits`.
+fn c_to_word(b: &mut Builder, s: Scalar, usize_bits: u32, v: &str) -> String {
     if s.is_wide() {
         return v.to_string();
     }
@@ -9100,7 +9100,7 @@ fn c_to_word(b: &mut Builder, s: Scalar, v: &str) -> String {
         b.line(&format!("{w} = bitcast double {v} to i64"));
         w
     } else {
-        match s.width() {
+        match s.width_for(usize_bits) {
             64 => v.to_string(),
             bits => {
                 let r = b.reg();
@@ -9529,10 +9529,10 @@ fn ext_attr(p: &AbiParam) -> Option<&'static str> {
 
 /// A foreign result's LLVM type with its return attribute
 /// ([`ext_attr`]): `signext i16`.
-fn abi_result_ty(p: &AbiParam) -> String {
+fn abi_result_ty(p: &AbiParam, usize_bits: u32) -> String {
     match ext_attr(p) {
-        Some(ext) => format!("{ext} {}", abi_llvm_ty(p)),
-        None => abi_llvm_ty(p).to_string(),
+        Some(ext) => format!("{ext} {}", abi_llvm_ty(p, usize_bits)),
+        None => abi_llvm_ty(p, usize_bits).to_string(),
     }
 }
 
@@ -9610,19 +9610,20 @@ fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> Result<String> {
     let mut params: Vec<String> = Vec::new();
     // A result-buffer aggregate result crosses first (`sret`); one the
     // convention returns in registers is the declared result type.
+    let usize_bits = (reg.pointer_bytes * 8) as u32;
     let ret = match &crossing.result {
         Some(ResultPass::Sret) => {
             params.push(format!("ptr {}", sret_attr(&plan.result, reg)));
             "void".to_string()
         }
         Some(ResultPass::Direct { ty, .. }) => ty.clone(),
-        None => abi_result_ty(&plan.result),
+        None => abi_result_ty(&plan.result, usize_bits),
     };
     for (p, pass) in plan.params.iter().zip(&crossing.params) {
         match pass {
             _ if matches!(p.class, AbiClass::Unit) => {}
             None | Some(ParamPass::Reference) => {
-                params.push(format!("{}{}", abi_llvm_ty(p), param_attrs(p, false)))
+                params.push(format!("{}{}", abi_llvm_ty(p, usize_bits), param_attrs(p, false)))
             }
             Some(ParamPass::Byval) => params.push(format!("ptr {}", byval_attr(p, reg))),
             Some(ParamPass::Direct(pieces)) => params.extend(pieces.iter().map(|piece| piece.ty.clone())),
@@ -9721,8 +9722,8 @@ fn foreign_import_body(
         match &p.class {
             AbiClass::Unit => {}
             AbiClass::Scalar(s) => {
-                tys.push(format!("{}{}", abi_llvm_ty(p), param_attrs(p, false)));
-                args.push(word_to_c(b, *s, &format!("%p{i}")));
+                tys.push(format!("{}{}", abi_llvm_ty(p, cx.usize_bits), param_attrs(p, false)));
+                args.push(word_to_c(b, *s, cx.usize_bits, &format!("%p{i}")));
             }
             AbiClass::Ptr => {
                 let v = b.reg();
@@ -9792,7 +9793,7 @@ fn foreign_import_body(
             b.line("ret i64 0");
         }
         AbiClass::Scalar(s) => {
-            let rty = abi_result_ty(&plan.result);
+            let rty = abi_result_ty(&plan.result, cx.usize_bits);
             let r = b.reg();
             foreign_call(
                 b,
@@ -9800,7 +9801,7 @@ fn foreign_import_body(
                 plan,
                 &format!("{r} = call {rty} @{}({})", quote(&plan.symbol), call_args.join(", ")),
             );
-            let w = c_to_word(b, *s, &r);
+            let w = c_to_word(b, *s, cx.usize_bits, &r);
             // The C side's result is foreign input: it freezes at its own
             // width, an `i128` for a wide scalar.
             if s.is_wide() {
@@ -9914,16 +9915,17 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     if sret {
         params.push(format!("ptr {} %sret", sret_attr(&plan.result, reg)));
     }
+    let usize_bits = (reg.pointer_bytes * 8) as u32;
     for (i, p) in plan.params.iter().enumerate() {
         let n = format!("%c{i}");
         match &p.class {
             AbiClass::Unit => words.push("0".to_string()),
             AbiClass::Scalar(s) => {
-                params.push(format!("{}{} {n}", abi_llvm_ty(p), param_attrs(p, true)));
+                params.push(format!("{}{} {n}", abi_llvm_ty(p, usize_bits), param_attrs(p, true)));
                 // The C side's argument is foreign input (an `undef`
                 // C register would otherwise leak into safe code): the
                 // word freezes before it can branch or compare.
-                let w = c_to_word(&mut b, *s, &n);
+                let w = c_to_word(&mut b, *s, usize_bits, &n);
                 words.push(if s.is_wide() { freeze_at(&mut b, &w, 128) } else { freeze_word(&mut b, &w) });
             }
             AbiClass::Ptr => {
@@ -10002,7 +10004,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     let ret_ty = match &crossing.result {
         Some(ResultPass::Sret) => "void".to_string(),
         Some(ResultPass::Direct { ty, .. }) => ty.clone(),
-        None => abi_result_ty(&plan.result),
+        None => abi_result_ty(&plan.result, usize_bits),
     };
     let header = format!(
         "define {} @{}({})",
@@ -10013,8 +10015,8 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     match &plan.result.class {
         AbiClass::Unit => b.line("ret void"),
         AbiClass::Scalar(s) => {
-            let v = word_to_c(&mut b, *s, &r);
-            b.line(&format!("ret {} {v}", abi_llvm_ty(&plan.result)));
+            let v = word_to_c(&mut b, *s, usize_bits, &r);
+            b.line(&format!("ret {} {v}", abi_llvm_ty(&plan.result, usize_bits)));
         }
         AbiClass::Ptr => {
             let p = b.reg();
