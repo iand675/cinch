@@ -1450,13 +1450,13 @@ module Cinch.Typing where
   arena-escape-error :: TypingContext -> Span -> CoreTerm -> Option (Span, String)
   arena-escape-error context sp term = case term of
     CUse at ty name role actuals ->
-      if name == "Effect.Arena.with-arena" then (case actuals of
+      if name == "Effect.Arena.with-arena" || name == interface-global "Effect.Arena.with-arena" then (case actuals of
         [e, a] ->
           if not (arena-escape-safe (context.datas) e) then Some (sp, "arena escape error type must be scalar/Copy (arena-allocated values cannot escape `with-arena`)")
           else if not (arena-escape-safe (context.datas) a) then Some (sp, "arena escape return type must be scalar/Copy (arena-allocated values cannot escape `with-arena`)")
           else None
         other -> None)
-      else if name == "Effect.Arena.with-arena-budget" then (case actuals of
+      else if name == "Effect.Arena.with-arena-budget" || name == interface-global "Effect.Arena.with-arena-budget" then (case actuals of
         [a] ->
           if not (arena-escape-safe (context.datas) a) then Some (sp, "arena escape return type must be scalar/Copy (arena-allocated values cannot escape `with-arena`)")
           else None

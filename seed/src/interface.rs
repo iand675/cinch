@@ -2304,12 +2304,12 @@ fn field_nominal_contract(row: &BTreeMap<String, JsonValue>) -> Result<NominalCo
         let kind = field_str(row, "kind")?;
         let parameters = field_parameters(row)?;
         if identity.is_empty()
-            || !matches!(kind.as_str(), "data" | "opaque" | "signature" | "refinement")
+            || !matches!(kind.as_str(), "data" | "opaque" | "signature" | "refinement" | "effect")
             || field_list(row, "params")? != parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
             return Err(ParseError("invalid resolved nominal contract".into()));
         }
         let constructors = match row.get("constructors") {
-            Some(JsonValue::Null) if matches!(kind.as_str(), "opaque" | "signature" | "refinement") => None,
+            Some(JsonValue::Null) if matches!(kind.as_str(), "opaque" | "signature" | "refinement" | "effect") => None,
             Some(JsonValue::Arr(items)) if kind == "data" => {
                 let mut symbols = Vec::new();
                 for item in items {

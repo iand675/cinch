@@ -856,7 +856,7 @@ module Cinch.Core where
     decl : rest -> if decl.effect-name == name then effect-ops-have-uninhabited (decl.effect-operations) else effect-decl-uninhabited name rest
   label-is-uninhabited-effect :: List CoreEffect -> UType -> Bool
   label-is-uninhabited-effect effects label = case label-head-name-core label of
-    Some name -> name == "Effect.Throw.Throw" || effect-decl-uninhabited name effects
+    Some name -> name == "Effect.Throw.Throw" || name == interface-global "Effect.Throw.Throw" || effect-decl-uninhabited name effects
     None -> False
   labels-have-uninhabited-effect :: List CoreEffect -> UType -> Bool
   labels-have-uninhabited-effect effects labels = case labels of

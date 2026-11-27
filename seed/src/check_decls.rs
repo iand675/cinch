@@ -5946,6 +5946,7 @@ impl Checker {
                         self.effect_ops.insert((module.clone(), mname.text.clone()), ());
                         ops.push((mname.text.clone(), scheme));
                     }
+                    let ops_for_iface = ops.clone();
                     self.effects.insert(
                         head,
                         EffectInfo {
@@ -5955,6 +5956,14 @@ impl Checker {
                             ops,
                         },
                     );
+                    let inherited: Vec<ast::TypeBinder> = eff.params.iter().map(|p| ast::TypeBinder {
+                        name: p.clone(),
+                        ann: None,
+                        implicit: false,
+                    }).collect();
+                    for ((mname, mty), (_, op_scheme)) in eff.ops.iter().zip(ops_for_iface.iter()) {
+                        self.remember_interface_scheme(&module, &mname.text, mty, op_scheme, &inherited);
+                    }
                 }
                 ast::Decl::Instance(inst) => {
                     // The head converts once every module is collected
@@ -19778,6 +19787,40 @@ impl Checker {
                 }
                 layout.name = local.clone();
                 iface.layouts.push(layout);
+            } else if let Some(eff) = self
+                .effects
+                .values()
+                .find(|e| e.module == d.module && e.name == d.name)
+            {
+                let mut params = Vec::new();
+                let mut parameters = Vec::new();
+                if let Some(p) = &eff.type_param {
+                    params.push(p.clone());
+                    parameters.push(crate::interface::ParameterExport {
+                        name: p.clone(),
+                        kind: "Type".to_string(),
+                        implicit: false,
+                    });
+                } else if let Some(r) = &eff.region_param {
+                    params.push(r.clone());
+                    parameters.push(crate::interface::ParameterExport {
+                        name: r.clone(),
+                        kind: "Region".to_string(),
+                        implicit: false,
+                    });
+                }
+                iface.exports.types.push(TypeExport {
+                    name: local.clone(),
+                    identity: format!("{}.{}", d.module, d.name),
+                    params,
+                    parameters,
+                    kind: "effect".to_string(),
+                    ctors: Vec::new(),
+                    ownership: None,
+                    fields: eff.ops.iter().map(|(op, _)| op.clone()).collect(),
+                    refinement: None,
+                    capability: false,
+                });
             }
         }
         // A public method carries its class contract even when the class

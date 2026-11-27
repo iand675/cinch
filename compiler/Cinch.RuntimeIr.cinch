@@ -113,6 +113,7 @@ module Cinch.RuntimeIr where
     BorrowDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
     EvDemand :: String -> List Nat -> List UType -> Demand
+    ArenaHelperDemand :: String -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
   record MethodVersion where
@@ -782,6 +783,7 @@ module Cinch.RuntimeIr where
     BorrowDemand name classes -> cat [specialized-name name classes, "#b"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
     EvDemand name classes actuals -> ev-specialized-name name classes actuals
+    ArenaHelperDemand name -> cat ["arena-helper:", name]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) ->
@@ -1854,7 +1856,7 @@ module Cinch.RuntimeIr where
   -- Koka-style evidence-passing and cooperative bubbling helpers.
   ev-label-key :: UType -> String
   ev-label-key ty = case ty of
-    UCon name kind -> name
+    UCon name kind -> display-global-name name
     UApp f x -> cat ["(", ev-label-key f, " ", ev-label-key x, ")"]
     URigid id name level kind -> cat ["$", name, "#", nat-to-string id]
     UBound id name kind -> cat ["%", name, "#", nat-to-string id]
@@ -1892,6 +1894,7 @@ module Cinch.RuntimeIr where
     name == "IO" || name == "Mut" || name == "Async" || name == "Cancel"
     || name == "Eval" || name == "Diverge" || name == "Blocking"
     || name == "STM" || name == "MVar" || name == "Foreign"
+    || name == "#kernel.STM" || name == "#kernel.MVar"
   ev-label-head :: UType -> Option String
   ev-label-head ty = case ty of
     UCon name kind -> Some name
@@ -2008,7 +2011,7 @@ module Cinch.RuntimeIr where
     other -> None
   ev-lookup-op-slot :: String -> List CoreEffect -> Option Nat
   ev-lookup-op-slot name effects = case effects of
-    [] -> if name == "Effect.Throw.throw" then Some 1 else None
+    [] -> if display-global-name name == "Effect.Throw.throw" then Some 1 else None
     decl : rest -> case handler-operation-slot name (decl.effect-operations) of
       Some slot -> Some slot
       None -> ev-lookup-op-slot name rest
@@ -2302,6 +2305,182 @@ module Cinch.RuntimeIr where
                     (w14, ok-val) ->
                       (count-line False res-word (count-op True ok-ty ok-val w14), ok-val)
     other -> unsupported w sp "try-throw needs checked error and value types"
+
+  ev-in-ev-function :: List Local -> Bool
+  ev-in-ev-function locals = case locals of
+    [] -> False
+    first : rest -> case first of
+      EvFunction ret-llvm roots -> True
+      EvScope label -> True
+      other -> ev-in-ev-function rest
+
+  reader-unbox :: UType -> String -> Writer -> (Writer, String)
+  reader-unbox payload-ty cap-word w =
+    let (w1, ptr) = fresh w "%rdp" in
+    case load-word (line w1 (cat ["  ", ptr, " = inttoptr i64 ", cap-word, " to ptr"])) ptr "0" of
+      (w2, val) -> (count-line False cap-word (count-op True payload-ty val w2), val)
+
+  reader-box :: Span -> UType -> String -> Writer -> (Writer, String)
+  reader-box sp payload-ty val w = case word-class (w.context) payload-ty of
+    Some code -> allocate-typed w (shape-description 1 0 [code]) [("i64", val)]
+    None -> unsupported w sp "reader capability payload needs known runtime representation"
+
+  reader-run-action :: List Local -> UType -> String -> String -> Writer -> (Writer, String)
+  reader-run-action locals res-ty act-word cap-word w =
+    case apply-one w act-word cap-word of
+      (w1, thunk) -> case apply-one w1 thunk "0" of
+        (w2, res) ->
+          if ev-in-ev-function locals then emit-yield-guard locals res-ty res w2
+          else (w2, res)
+
+  ev-external-reader :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> Option (Writer, String)
+  ev-external-reader definitions locals w sp dname actuals givens args =
+    if dname == "Effect.Reader.ask" then
+      (case (actuals, givens, args) of
+        (a : _, [cap], []) -> Some (reader-unbox a cap w)
+        other -> None)
+    else if dname == "Effect.Reader.ask-tagged" then
+      (case (actuals, givens, args) of
+        (_ : a : _, [cap], []) -> Some (reader-unbox a cap w)
+        other -> None)
+    else if dname == "Effect.Reader.asks" then
+      (case (actuals, givens, args) of
+        (a : _, [cap], [f-term]) ->
+          Some (case expression definitions locals w f-term of
+            (w1, f-w) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> apply-one w2 f-w x-w)
+        other -> None)
+    else if dname == "Effect.Reader.asks-tagged" then
+      (case (actuals, givens, args) of
+        (_ : a : _, [cap], [f-term]) ->
+          Some (case expression definitions locals w f-term of
+            (w1, f-w) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> apply-one w2 f-w x-w)
+        other -> None)
+    else if dname == "Effect.Reader.run-reader" then
+      (case (actuals, givens, args) of
+        (a : b : _, [], [val-term, act-term]) ->
+          Some (case expressions definitions locals w [val-term, act-term] of
+            (w1, [val-w, act-w]) -> case reader-box sp a val-w w1 of
+              (w2, cap-w) -> reader-run-action locals b act-w cap-w w2
+            (w1, _) -> unsupported w1 sp "run-reader arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.run-tagged-reader" then
+      (case (actuals, givens, args) of
+        (_ : a : b : _, [], [val-term, act-term]) ->
+          Some (case expressions definitions locals w [val-term, act-term] of
+            (w1, [val-w, act-w]) -> case reader-box sp a val-w w1 of
+              (w2, cap-w) -> reader-run-action locals b act-w cap-w w2
+            (w1, _) -> unsupported w1 sp "run-tagged-reader arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.local" then
+      (case (actuals, givens, args) of
+        (a : b : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, x2-w) -> case reader-box sp a x2-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals b act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "local arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.local-tagged" then
+      (case (actuals, givens, args) of
+        (_ : a : b : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, x2-w) -> case reader-box sp a x2-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals b act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "local-tagged arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.with-reader" then
+      (case (actuals, givens, args) of
+        (a : b : c : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, y-w) -> case reader-box sp b y-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals c act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "with-reader arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.with-tagged-reader" then
+      (case (actuals, givens, args) of
+        (_ : _ : a : b : c : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, y-w) -> case reader-box sp b y-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals c act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "with-tagged-reader arguments mismatch")
+        other -> None)
+    else None
+
+  ev-external-arena-abort :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  ev-external-arena-abort definitions locals w sp tok-arg err-arg =
+    case expressions definitions locals w [tok-arg, err-arg] of
+      (w1, [tok-w, err-w]) ->
+        let (w2, ptr) = fresh w1 "%atp" in
+        case load-word (line w2 (cat ["  ", ptr, " = inttoptr i64 ", tok-w, " to ptr"])) ptr "0" of
+          (w3, h-w) ->
+            let w4 = count-line False tok-w w3 in
+            call w4 "@cinch_arena_escape_abort" [h-w, err-w]
+      (w1, _) -> unsupported w1 sp "arena-abort arguments mismatch"
+
+  arena-ok-helper :: Nat -> String
+  arena-ok-helper code = if code == 0 then "ok-0" else if code == 2 then "ok-2" else "ok-1"
+  arena-err-helper :: Nat -> String
+  arena-err-helper code = if code == 0 then "err-0" else if code == 2 then "err-2" else "err-1"
+  arena-helper-symbol :: String -> String
+  arena-helper-symbol key = cat ["cinch.arena.", key]
+
+  ev-external-arena-run :: List CoreDefinition -> List Local -> Writer -> Span -> Bool -> Nat -> Nat -> Option CoreTerm -> CoreTerm -> (Writer, String)
+  ev-external-arena-run definitions locals w sp budgeted err-code ok-code budget-arg body-arg =
+    let (w0, budget-w) = (case budget-arg of
+      None -> (w, "0")
+      Some bterm -> expression definitions locals w bterm) in
+    case expression definitions locals w0 body-arg of
+      (w1, bundle-w) ->
+        let (w2, bptr) = fresh w1 "%abp" in
+        case load-word (line w2 (cat ["  ", bptr, " = inttoptr i64 ", bundle-w, " to ptr"])) bptr "0" of
+          (w3, body-fn) ->
+            let ok-key = arena-ok-helper ok-code in
+            let err-key = arena-err-helper err-code in
+            let exh-key = if budgeted then "exh" else "unreach" in
+            let w4 = (request-demand (ArenaHelperDemand exh-key) (request-demand (ArenaHelperDemand err-key) (request-demand (ArenaHelperDemand ok-key) (request-demand (ArenaHelperDemand "body") (count-line False bundle-w (count-line True body-fn w3)))))) in
+            case closure sp (arena-helper-symbol "body") [1, 0] [body-fn] w4 of
+              (w5, body-clo) -> case closure sp (arena-helper-symbol ok-key) [ok-code] [] w5 of
+                (w6, ok-clo) -> case closure sp (arena-helper-symbol err-key) [err-code] [] w6 of
+                  (w7, err-clo) -> case closure sp (arena-helper-symbol exh-key) [0] [] w7 of
+                    (w8, exh-clo) -> case call w8 "@cinch_arena_escape_run" [budget-w, body-clo, ok-clo, err-clo, exh-clo] of
+                      (w9, res-w) -> (count-line False exh-clo (count-line False err-clo (count-line False ok-clo (count-line False body-clo w9))), res-w)
+
+  arena-helper-worker :: String -> Writer -> Writer
+  arena-helper-worker key w =
+    let fn-sym = symbol (arena-helper-symbol key) in
+    if key == "body" then
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0, i64 %arg1) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 0 [0]) [("i64", "%arg1")] of
+        (w1, tok-w) -> case apply-one w1 "%arg0" tok-w of
+          (w2, res-w) -> line (line w2 (cat ["  ret i64 ", res-w])) "}"
+    else if key == "ok-0" || key == "ok-1" || key == "ok-2" then
+      let code = if key == "ok-0" then 0 else if key == "ok-2" then 2 else 1 in
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 1 [code]) [("i64", "%arg0")] of
+        (w1, res-w) -> line (line w1 (cat ["  ret i64 ", res-w])) "}"
+    else if key == "err-0" || key == "err-1" || key == "err-2" then
+      let code = if key == "err-0" then 0 else if key == "err-2" then 2 else 1 in
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 0 [code]) [("i64", "%arg0")] of
+        (w1, res-w) -> line (line w1 (cat ["  ret i64 ", res-w])) "}"
+    else if key == "exh" then
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 0 []) [] of
+        (w1, exh-w) -> case allocate-typed w1 (shape-description 1 0 [1]) [("i64", exh-w)] of
+          (w2, res-w) -> line (line w2 (cat ["  ret i64 ", res-w])) "}"
+    else
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case call started "@cinch_arena_escape_abort" ["0", "0"] of
+        (w1, res-w) -> line (line w1 (cat ["  ret i64 ", res-w])) "}"
 
   ev-build-op-spine :: Span -> CoreTerm -> List CoreTerm -> CoreTerm
   ev-build-op-spine sp fun args = case args of
@@ -3713,11 +3892,29 @@ module Cinch.RuntimeIr where
               Some copied -> copied
               None -> function-call definitions locals w sp d actuals classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
-          None -> if name == "Effect.Throw.catch" && (case (givens, args) of ([], [single]) -> True; other -> False) then
+          None ->
+            let dname = display-global-name name in
+            if dname == "Effect.Throw.catch" && (case (givens, args) of ([], [single]) -> True; other -> False) then
               (case args of [single] -> ev-external-catch definitions locals w sp actuals single; other -> external-call definitions locals w sp name actuals givens args)
-            else if name == "Effect.Throw.try-throw" && (case (givens, args) of ([], [single]) -> True; other -> False) then
+            else if dname == "Effect.Throw.try-throw" && (case (givens, args) of ([], [single]) -> True; other -> False) then
               (case args of [single] -> ev-external-try-throw definitions locals w sp actuals single; other -> external-call definitions locals w sp name actuals givens args)
-            else external-call definitions locals w sp name actuals givens args
+            else if dname == "Effect.Arena.arena-abort" && (case (givens, args) of ([], [tok, err]) -> True; other -> False) then
+              (case args of [tok, err] -> ev-external-arena-abort definitions locals w sp tok err; other -> external-call definitions locals w sp name actuals givens args)
+            else if dname == "Effect.Arena.with-arena" && (case (givens, args) of ([], [body]) -> True; other -> False) then
+              (case (actuals, args) of
+                (err-ty : ok-ty : _, [body]) -> case (word-class (w.context) err-ty, word-class (w.context) ok-ty) of
+                  (Some err-code, Some ok-code) -> ev-external-arena-run definitions locals w sp False err-code ok-code None body
+                  other -> unsupported w sp "with-arena needs checked runtime representations"
+                other -> external-call definitions locals w sp name actuals givens args)
+            else if dname == "Effect.Arena.with-arena-budget" && (case (givens, args) of ([], [budget, body]) -> True; other -> False) then
+              (case (actuals, args) of
+                (ok-ty : _, [budget, body]) -> case word-class (w.context) ok-ty of
+                  Some ok-code -> ev-external-arena-run definitions locals w sp True 1 ok-code (Some budget) body
+                  None -> unsupported w sp "with-arena-budget needs checked runtime representation"
+                other -> external-call definitions locals w sp name actuals givens args)
+            else (case ev-external-reader definitions locals w sp dname actuals givens args of
+              Some lowered -> lowered
+              None -> external-call definitions locals w sp name actuals givens args)
   foreign-parameter-types :: List ForeignParameter -> List String
   foreign-parameter-types params = case params of
     [] -> []
@@ -8443,6 +8640,7 @@ module Cinch.RuntimeIr where
     BorrowDemand name classes -> borrow-worker definitions name classes claimed
     BuiltinBorrowDemand name -> builtin-borrow-worker name claimed
     EvDemand name classes actuals -> ev-worker definitions name classes actuals claimed
+    ArenaHelperDemand key -> arena-helper-worker key claimed
 
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of

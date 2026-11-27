@@ -42,7 +42,8 @@ module Cinch.Inputs where
     "Category.Monad", "Category.Alternative", "Category.Foldable", "Category.Traversable",
     "Data.Identity", "Data.Const", "Data.Compose", "Data.NonEmpty",
     "Data.Sorted", "Data.NonZero", "Data.Ascii", "Data.Set",
-    "Data.Hash", "Text.Codec", "Data.HashMap"]
+    "Data.Hash", "Text.Codec", "Data.HashMap",
+    "Effect.Reader", "Effect.Arena", "Effect.Throw"]
 
   field :: String -> Json -> Json
   field name doc = case doc of

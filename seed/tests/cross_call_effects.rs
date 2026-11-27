@@ -277,10 +277,15 @@ fn cross_call_tail_resumptive_and_mixed_handlers() {
   consume :: Int %1 -> Int
   consume x = x
 
-  use-ask-linear :: Int %1 ->{Ask} Int
-  use-ask-linear lin =
+  use-ask :: Int ->{Ask} Int
+  use-ask x =
     let v = ask () in
-    v + consume lin
+    v + x
+
+  run-ask-linear :: Int %1 -> Int
+  run-ask-linear lin = handle (let v = ask () in v + consume lin) with (handler Ask where
+    return r -> r
+    ask u resume k -> k 10)
 
   parse-step :: Int ->{Parse} Int
   parse-step n =
@@ -301,7 +306,7 @@ fn cross_call_tail_resumptive_and_mixed_handlers() {
     Ok _ -> 0
 
   run-ask :: Int -> Int
-  run-ask x = handle use-ask-linear x with (handler Ask where
+  run-ask x = handle use-ask x with (handler Ask where
     return v -> v + 1
     ask u resume k -> k 20)
 
@@ -309,7 +314,8 @@ fn cross_call_tail_resumptive_and_mixed_handlers() {
   main =
     let a = run-ask 12 in
     let b = err-val (run-parse 3) in
-    if a == 33 && b == 11 then 42 else 1
+    let c = run-ask-linear 5 in
+    if a == 33 && b == 11 && c == 15 then 42 else 1
 "#,
     );
 }

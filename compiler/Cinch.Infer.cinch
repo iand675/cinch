@@ -2959,6 +2959,11 @@ module Cinch.Infer where
                   Some old -> collect-kinds rest (context-add-alias d kinds) st
                   None -> case imported-kinds kinds (field "parameters" metadata) st of
                     (qs, sq) -> collect-kinds rest (context-add-alias d (context-add-kind name (kind-arrow qs) kinds)) sq
+              else if variety == "effect" then
+                case imported-kinds kinds (field "parameters" metadata) st of
+                  (qs, sq) -> case context-kind name kinds of
+                    Some old -> collect-kinds rest (context-add-alias d kinds) sq
+                    None -> collect-kinds rest (context-add-alias d (context-add-kind name (source-effect-kind qs) kinds)) sq
               else if variety == "data" || variety == "record" || variety == "codata" || variety == "opaque" || variety == "signature" then
                 case imported-kinds kinds (field "parameters" metadata) st of
                   (qs, sq) -> case context-kind name kinds of
@@ -10638,6 +10643,14 @@ module Cinch.Infer where
       Some binding -> case checked-operations (next + 1) rest env st of
         (more, checked) -> ((CoreOperation (type-expr-span syntax) name next (checked-scheme binding)) : more, checked)
       None -> checked-operations (next + 1) rest env (add-error (type-expr-span syntax) "effect operation has no checked binding" st)
+  imported-effect-operations :: Span -> String -> Nat -> Json -> List CheckedBinding -> List CoreOperation
+  imported-effect-operations sp owner next fields env = case fields of
+    JArr (JStr op) rest ->
+      let full = interface-global (owner <> "." <> op) in
+      (case lookup-binding full env of
+        Some binding -> (CoreOperation sp full next (checked-scheme binding)) : (imported-effect-operations sp owner (next + 1) rest env)
+        None -> imported-effect-operations sp owner (next + 1) rest env)
+    other -> []
   checked-effects :: TypeContext -> List CheckedBinding -> List Decl -> Store -> (List CoreEffect, Store)
   checked-effects kinds env ds st = case ds of
     [] -> ([], st)
@@ -10649,6 +10662,18 @@ module Cinch.Infer where
               case checked-effects kinds env rest (if core-effect-closed declaration then checked else add-error s "effect operation must have closed binders and perform exactly its declaring effect on its last arrow" checked) of
                 (more, final) -> (declaration : more, final)
           None -> checked-effects kinds env rest (add-error s "effect has no checked declaration kind" sq)
+      DExternal s name category syntax metadata | category == "type" ->
+        (case (field "kind" metadata, field "identity" metadata) of
+          (JStr variety, JStr identity) | variety == "effect" ->
+            case imported-kinds kinds (field "parameters" metadata) st of
+              (qs, sq) -> case context-kind name kinds of
+                Some kind ->
+                  let ops = imported-effect-operations s (nominal-owner identity) 1 (field "fields" metadata) env in
+                  let declaration = CoreEffect s name kind qs ops in
+                  (case checked-effects kinds env rest sq of
+                    (more, final) -> (declaration : more, final))
+                None -> checked-effects kinds env rest sq
+          other -> checked-effects kinds env rest st)
       other -> checked-effects kinds env rest st
   instance-member-errors :: List Decl -> List String -> List String -> Store -> Store
   instance-member-errors members wanted signatures st = case members of
