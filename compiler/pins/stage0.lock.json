@@ -5,5 +5,7 @@
   "revision": "a9421bdc7ba6e42c011293d6d7ad6fd0ba5e2de9",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "3a099fcae19ca8596633f63a68b4e339f458ce28535797f788d5b4b87a941521"
+  "source_sha256": "3a099fcae19ca8596633f63a68b4e339f458ce28535797f788d5b4b87a941521",
+  "commit": "b6a2fa330ee75b91d99b01e862ef1fd8057c38a6",
+  "source_hash": "051924f06f8546ab551927a7933d8dfc465703ef4090f33a7b2af4110c717a7a"
 }
