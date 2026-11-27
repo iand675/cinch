@@ -88,9 +88,11 @@ module Text.Scan where
 
   put-u128-raw :: Bytes -> I64 -> U128 -> Bytes
   put-u128-raw b pos v =
-    let n = bytes-len b in
-    if 16 <= n && 0 <= pos && nat-from-i64 pos <= n - 16 then
-      let w = bytes-store-u128-at b pos v in b
+    if 0 <= pos then
+      let p = nat-from-i64 pos in
+      if p + 16 <= bytes-len b then
+        let w = bytes-store-u128 b p v in b
+      else b
     else b
 
   put-u128-lin :: Bytes %1 -> I64 -> U128 -> Bytes
@@ -206,23 +208,28 @@ module Text.Scan where
 
   count-scalars-loop16 :: using (lim16 + 16 <= bytes-len raw) => (raw :: Bytes) -> (lim16 :: Nat) -> I64 -> I64 -> I64 -> I64
   count-scalars-loop16 raw lim16 i end total =
-    if 0 <= i && nat-from-i64 i <= lim16 then
-      let chunk = bytes-load-u128-at raw i in
-      let top = bit-and-u128 chunk (simd-u8x16-splat 192) in
-      let cont = simd-u8x16-cmpeq top (simd-u8x16-splat 128) in
-      let mask = simd-u8x16-movemask cont in
-      let step = wrapping-sub-i64 16 (u32-to-i64 (count-ones-u32 mask)) in
-      count-scalars-loop16 raw lim16 (wrapping-add-i64 i 16) end (wrapping-add-i64 total step)
+    if 0 <= i then
+      let idx = nat-from-i64 i in
+      if idx <= lim16 then
+        let chunk = bytes-load-u128 raw idx in
+        let top = bit-and-u128 chunk (simd-u8x16-splat 192) in
+        let cont = simd-u8x16-cmpeq top (simd-u8x16-splat 128) in
+        let mask = simd-u8x16-movemask cont in
+        let step = wrapping-sub-i64 16 (u32-to-i64 (count-ones-u32 mask)) in
+        count-scalars-loop16 raw lim16 (wrapping-add-i64 i 16) end (wrapping-add-i64 total step)
+      else count-scalars-swar8 raw i end total
     else count-scalars-swar8 raw i end total
 
   count-scalars-swar8 :: Bytes -> I64 -> I64 -> I64 -> I64
   count-scalars-swar8 raw i end total =
-    let n = bytes-len raw in
-    if 8 <= n && 0 <= i && nat-from-i64 i <= n - 8 && le-i64 (wrapping-add-i64 i 8) end then
-      let word = bytes-load-le64-at raw i in
-      let noncont = bit-and-u64 (bit-or-u64 (bit-not-u64 word) (wrapping-shl-u64 word 1)) 9259542123273814144 in
-      let step = u32-to-i64 (count-ones-u64 noncont) in
-      count-scalars-tail raw (wrapping-add-i64 i 8) end (wrapping-add-i64 total step)
+    if 0 <= i && le-i64 (wrapping-add-i64 i 8) end then
+      let idx = nat-from-i64 i in
+      if idx + 8 <= bytes-len raw then
+        let word = bytes-load-le64 raw idx in
+        let noncont = bit-and-u64 (bit-or-u64 (bit-not-u64 word) (wrapping-shl-u64 word 1)) 9259542123273814144 in
+        let step = u32-to-i64 (count-ones-u64 noncont) in
+        count-scalars-tail raw (wrapping-add-i64 i 8) end (wrapping-add-i64 total step)
+      else count-scalars-tail raw i end total
     else count-scalars-tail raw i end total
 
   count-scalars-tail :: Bytes -> I64 -> I64 -> I64 -> I64
@@ -243,10 +250,14 @@ module Text.Scan where
 
   bytes-eq-loop8 :: using (lima + 8 <= bytes-len a, limb + 8 <= bytes-len b) => (a :: Bytes) -> (lima :: Nat) -> (b :: Bytes) -> (limb :: Nat) -> I64 -> I64 -> I64 -> Bool
   bytes-eq-loop8 a lima b limb oa ob rem =
-    if ge-i64 rem 8 && 0 <= oa && nat-from-i64 oa <= lima && 0 <= ob && nat-from-i64 ob <= limb then
-      if eq-u64 (bytes-load-le64-at a oa) (bytes-load-le64-at b ob) then
-        bytes-eq-loop8 a lima b limb (wrapping-add-i64 oa 8) (wrapping-add-i64 ob 8) (wrapping-sub-i64 rem 8)
-      else False
+    if ge-i64 rem 8 && 0 <= oa && 0 <= ob then
+      let ia = nat-from-i64 oa in
+      let ib = nat-from-i64 ob in
+      if ia <= lima && ib <= limb then
+        if eq-u64 (bytes-load-le64 a ia) (bytes-load-le64 b ib) then
+          bytes-eq-loop8 a lima b limb (wrapping-add-i64 oa 8) (wrapping-add-i64 ob 8) (wrapping-sub-i64 rem 8)
+        else False
+      else bytes-eq-tail a oa b ob rem
     else bytes-eq-tail a oa b ob rem
 
   bytes-eq-tail :: Bytes -> I64 -> Bytes -> I64 -> I64 -> Bool
@@ -274,12 +285,15 @@ module Text.Scan where
 
   find-byte-loop16 :: using (lim16 + 16 <= bytes-len buf) => (buf :: Bytes) -> (lim16 :: Nat) -> I64 -> I64 -> U8 -> I64
   find-byte-loop16 buf lim16 i end needle =
-    if 0 <= i && nat-from-i64 i <= lim16 then
-      let chunk = bytes-load-u128-at buf i in
-      let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat needle)) in
-      if ne-u32 mask 0 then
-        wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
-      else find-byte-loop16 buf lim16 (wrapping-add-i64 i 16) end needle
+    if 0 <= i then
+      let idx = nat-from-i64 i in
+      if idx <= lim16 then
+        let chunk = bytes-load-u128 buf idx in
+        let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat needle)) in
+        if ne-u32 mask 0 then
+          wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else find-byte-loop16 buf lim16 (wrapping-add-i64 i 16) end needle
+      else find-byte-tail buf i end needle
     else find-byte-tail buf i end needle
 
   find-byte-tail :: Bytes -> I64 -> I64 -> U8 -> I64
@@ -327,20 +341,24 @@ module Text.Scan where
   mula-loop16 hay lim16 i max-pos needle last-off first last =
     let simd-end = wrapping-sub-i64 max-pos 15 in
     let mid-len = wrapping-sub-i64 last-off 1 in
-    if le-i64 i simd-end && 0 <= i && nat-from-i64 i <= lim16 then
+    if le-i64 i simd-end && 0 <= i then
+      let ni = nat-from-i64 i in
       let j = wrapping-add-i64 i last-off in
-      if 0 <= j && nat-from-i64 j <= lim16 then
-        let c0 = bytes-load-u128-at hay i in
-        let c1 = bytes-load-u128-at hay j in
-        let eq0 = simd-u8x16-cmpeq c0 (simd-u8x16-splat first) in
-        let eq1 = simd-u8x16-cmpeq c1 (simd-u8x16-splat last) in
-        let mask = simd-u8x16-movemask (bit-and-u128 eq0 eq1) in
-        if eq-u32 mask 0 then
-          mula-loop16 hay lim16 (wrapping-add-i64 i 16) max-pos needle last-off first last
-        else
-          let hit = mula-check-mask hay i mask needle mid-len in
-          if ge-i64 hit 0 then hit
-          else mula-loop16 hay lim16 (wrapping-add-i64 i 16) max-pos needle last-off first last
+      if ni <= lim16 && 0 <= j then
+        let nj = nat-from-i64 j in
+        if nj <= lim16 then
+          let c0 = bytes-load-u128 hay ni in
+          let c1 = bytes-load-u128 hay nj in
+          let eq0 = simd-u8x16-cmpeq c0 (simd-u8x16-splat first) in
+          let eq1 = simd-u8x16-cmpeq c1 (simd-u8x16-splat last) in
+          let mask = simd-u8x16-movemask (bit-and-u128 eq0 eq1) in
+          if eq-u32 mask 0 then
+            mula-loop16 hay lim16 (wrapping-add-i64 i 16) max-pos needle last-off first last
+          else
+            let hit = mula-check-mask hay i mask needle mid-len in
+            if ge-i64 hit 0 then hit
+            else mula-loop16 hay lim16 (wrapping-add-i64 i 16) max-pos needle last-off first last
+        else mula-tail hay i max-pos needle last-off mid-len first last
       else mula-tail hay i max-pos needle last-off mid-len first last
     else mula-tail hay i max-pos needle last-off mid-len first last
 
@@ -590,13 +608,16 @@ module Text.Scan where
   advance-scalars-loop :: using (lim16 + 16 <= bytes-len sb) => (sb :: Bytes) -> (lim16 :: Nat) -> I64 -> I64 -> Nat -> I64
   advance-scalars-loop sb lim16 i slen rem =
     if rem == 0 || ge-i64 i slen then i
-    else if 16 <= rem && 0 <= i && nat-from-i64 i <= lim16 && le-i64 (wrapping-add-i64 i 16) slen then
-      let chunk = bytes-load-u128-at sb i in
-      if eq-u32 (simd-u8x16-movemask chunk) 0 then
-        advance-scalars-loop sb lim16 (wrapping-add-i64 i 16) slen (rem - 16)
-      else
-        let w = utf8-lead-width-u8 (bytes-get-u8-at sb i) in
-        advance-scalars-loop sb lim16 (wrapping-add-i64 i w) slen (rem - 1)
+    else if 16 <= rem && 0 <= i && le-i64 (wrapping-add-i64 i 16) slen then
+      let idx = nat-from-i64 i in
+      if idx <= lim16 then
+        let chunk = bytes-load-u128 sb idx in
+        if eq-u32 (simd-u8x16-movemask chunk) 0 then
+          advance-scalars-loop sb lim16 (wrapping-add-i64 i 16) slen (rem - 16)
+        else
+          let w = utf8-lead-width-u8 (bytes-get-u8 sb idx) in
+          advance-scalars-loop sb lim16 (wrapping-add-i64 i w) slen (rem - 1)
+      else advance-scalars-one sb i slen rem
     else advance-scalars-one sb i slen rem
 
   advance-scalars-one :: Bytes -> I64 -> I64 -> Nat -> I64
@@ -821,13 +842,16 @@ module Text.Scan where
 
   case-loop16-lin :: using (lim16 + 16 <= bytes-len src) => (src :: Bytes) -> (lim16 :: Nat) -> I64 -> I64 -> U8 -> Bytes %1 -> Bytes
   case-loop16-lin src lim16 i len base out =
-    if 0 <= i && nat-from-i64 i <= lim16 then
-      let chunk = bytes-load-u128-at src i in
-      let shifted = simd-u8x16-sub chunk (simd-u8x16-splat base) in
-      let mask = simd-u8x16-cmplt shifted (simd-u8x16-splat 26) in
-      let mapped = bit-xor-u128 chunk (bit-and-u128 mask (simd-u8x16-splat 32)) in
-      let out1 = put-u128-lin out i mapped in
-      case-loop16-lin src lim16 (wrapping-add-i64 i 16) len base out1
+    if 0 <= i then
+      let idx = nat-from-i64 i in
+      if idx <= lim16 then
+        let chunk = bytes-load-u128 src idx in
+        let shifted = simd-u8x16-sub chunk (simd-u8x16-splat base) in
+        let mask = simd-u8x16-cmplt shifted (simd-u8x16-splat 26) in
+        let mapped = bit-xor-u128 chunk (bit-and-u128 mask (simd-u8x16-splat 32)) in
+        let out1 = put-u128-lin out i mapped in
+        case-loop16-lin src lim16 (wrapping-add-i64 i 16) len base out1
+      else case-tail-lin src i len base out
     else case-tail-lin src i len base out
 
   case-tail-lin :: Bytes -> I64 -> I64 -> U8 -> Bytes %1 -> Bytes
