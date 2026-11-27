@@ -1,0 +1,1380 @@
+module Runtime.Platform where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+  import Runtime.Bytes
+
+  export errNotFound, errPermDenied, errAlreadyExists, errNotADir, errIsADir, errInvalidArg, errIo
+  export ioCodeErrno, exitCodeFromStatus, setCloexec, writeAllFd, readOnceFd
+  export parseNulWords, parseEnvWords, freeCStrList, spawnChildPosix
+  export cinchBufNew, cinchBufFree, cinchBufPush, cinchBufLen, cinchBufGet
+  export cinchClockMonotonicNs, cinchClockWallNs
+  export cinchFsRename, cinchFsMetaKind, cinchFsMetaSize
+  export cinchFsDirOpen, cinchFsDirNext, cinchFsDirClose
+  export cinchFsMkdir, cinchFsRemove, cinchFsTempDir
+  export cinchRandomBytes, cinchSignalSend
+  export cinchArgvInit, cinchArgvCount, cinchArgvGet
+  export cinchProcNew, cinchProcArg, cinchProcEnv, cinchProcStdin
+  export cinchProcRun, cinchProcReadOut, cinchProcWait, cinchProcFree
+  export cinchProcessSpawn, cinchProcessWriteStdin, cinchProcessCloseStdin
+  export cinchProcessRead, cinchProcessWait, cinchProcessClose
+
+  -- =========================================================================
+  -- Error vocabulary (shared with Runtime.Net and Runtime.Pty)
+  -- =========================================================================
+
+  errNotFound :: I64
+  errNotFound = 1
+  errPermDenied :: I64
+  errPermDenied = 2
+  errAlreadyExists :: I64
+  errAlreadyExists = 3
+  errNotADir :: I64
+  errNotADir = 4
+  errIsADir :: I64
+  errIsADir = 5
+  errInvalidArg :: I64
+  errInvalidArg = 6
+  errIo :: I64
+  errIo = 7
+
+  negErr :: I64 -> I64
+  negErr c = i64Sub 0 c
+
+  ioCodeErrno :: I64 -> I64
+  ioCodeErrno e =
+    if e == 2 then errNotFound
+    else if e == 13 || e == 1 then errPermDenied
+    else if e == 17 then errAlreadyExists
+    else if e == 20 then errNotADir
+    else if e == 21 then errIsADir
+    else if e == 22 then errInvalidArg
+    else errIo
+
+  exitCodeFromStatus :: I32 -> I64
+  exitCodeFromStatus st =
+    let s = i32ToI64 st in
+    let sig = bitAndI64 s 127 in
+    if sig == 0 then bitAndI64 (ashrI64 s 8) 255
+    else i64Add 128 sig
+
+  setCloexec :: I32 ->{Global} Unit
+  setCloexec fd =
+    let _ = sysFcntlSetFd fd 2 1 in
+    ()
+
+  -- =========================================================================
+  -- Low-level I/O helpers (EINTR-safe)
+  -- =========================================================================
+
+  writeAllFdLoop :: I32 -> RawPtr U8 -> U64 ->{Global} I64
+  writeAllFdLoop fd ptr rem =
+    if rem == 0 then 0
+    else
+      let n = isizeToI64 (cWrite fd ptr (u64ToUsize rem)) in
+      if i64Gt n 0 then
+        let nu = i64ToU64 n in
+        writeAllFdLoop fd (ptrAddU64 ptr nu) (u64Sub rem nu)
+      else if i64Lt n 0 && sysErrno () == 4 then
+        writeAllFdLoop fd ptr rem
+      else if i64Lt n 0 then
+        negErr (ioCodeErrno (sysErrno ()))
+      else
+        negErr errIo
+
+  writeAllFd :: I32 -> RawPtr U8 -> U64 ->{Global} I64
+  writeAllFd fd ptr len = writeAllFdLoop fd ptr len
+
+  readOnceFd :: I32 -> RawPtr U8 -> U64 ->{Global} I64
+  readOnceFd fd buf maxLen =
+    let n = isizeToI64 (cRead fd buf (u64ToUsize maxLen)) in
+    if i64Ge n 0 then n
+    else if sysErrno () == 4 then readOnceFd fd buf maxLen
+    else negErr (ioCodeErrno (sysErrno ()))
+
+  readExactFdLoop :: I32 -> RawPtr U8 -> U64 ->{Global} I64
+  readExactFdLoop fd ptr rem =
+    if rem == 0 then 0
+    else
+      let n = isizeToI64 (cRead fd ptr (u64ToUsize rem)) in
+      if i64Gt n 0 then
+        let nu = i64ToU64 n in
+        readExactFdLoop fd (ptrAddU64 ptr nu) (u64Sub rem nu)
+      else if i64Lt n 0 && sysErrno () == 4 then
+        readExactFdLoop fd ptr rem
+      else if i64Lt n 0 then
+        negErr (ioCodeErrno (sysErrno ()))
+      else
+        negErr errIo
+
+  -- =========================================================================
+  -- Word Buffers (5 exports: cinch_buf_*)
+  -- Layout (24 bytes): [0]=data :: MaybeNull U8, [8]=len :: U64, [16]=cap :: U64
+  -- =========================================================================
+
+  bufBytes :: Usize
+  bufBytes = 24
+
+  cinchBufNew :: Unit ->{Global, ThreadAffine} I64
+  cinchBufNew _ =
+    let b = heapGlobalAlloc bufBytes 8 1 in
+    u64ToI64 (rawToU64 b)
+
+  cinchBufFree :: I64 ->{Global, ThreadAffine} I64
+  cinchBufFree h =
+    if h == 0 then 0
+    else
+      let b = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      let dp = loadPtr b 0 in
+      let cap = loadU64 b 16 in
+      let _ = if not (ptrIsNull dp) && cap /= 0 then heapGlobalDealloc (maybeToRaw dp) (u64ToUsize cap) 1 else () in
+      let _ = heapGlobalDealloc b bufBytes 8 in
+      0
+
+  bufAppendRaw :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  bufAppendRaw b src n =
+    if n == 0 then ()
+    else
+      let len = loadU64 b 8 in
+      let cap = loadU64 b 16 in
+      let need = u64Add len n in
+      let dst =
+            (if u64Le need cap then maybeToRaw (loadPtr b 0)
+            else
+              let c0 = if cap == 0 then 32 else u64Mul cap 2 in
+              let newCap = if u64Lt c0 need then need else c0 in
+              let oldPtr = loadPtr b 0 in
+              let p =
+                    (if ptrIsNull oldPtr then heapGlobalAlloc (u64ToUsize newCap) 1 0
+                    else heapGlobalRealloc (maybeToRaw oldPtr) (u64ToUsize cap) 1 (u64ToUsize newCap)) in
+              let _ = storePtr b 0 (rawToMaybe p) in
+              let _ = storeU64 b 16 newCap in
+              p) in
+      let _ = memCopy (ptrAddU64 dst len) src (u64ToUsize n) in
+      storeU64 b 8 need
+
+  bufReplaceRaw :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  bufReplaceRaw b src n =
+    let _ = storeU64 b 8 0 in
+    bufAppendRaw b src n
+
+  cinchBufPush :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchBufPush h byte =
+    if h == 0 || i64Lt byte 0 || i64Gt byte 255 then negErr errInvalidArg
+    else
+      let b = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      let _ = withLocal (u64ToU8 (i64ToU64 byte)) (\slot ->
+        bufAppendRaw b (mutAsPtr slot) 1
+      ) in
+      0
+
+  cinchBufLen :: I64 ->{Global} I64
+  cinchBufLen h =
+    if h == 0 then negErr errInvalidArg
+    else u64ToI64 (loadU64 (maybeToRaw (ptrFromU64 (i64ToU64 h))) 8)
+
+  cinchBufGet :: I64 -> I64 ->{Global} I64
+  cinchBufGet h idx =
+    if h == 0 || i64Lt idx 0 then negErr errInvalidArg
+    else
+      let b = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      let len = loadU64 b 8 in
+      let u = i64ToU64 idx in
+      if u64Ge u len then negErr errInvalidArg
+      else
+        let dp = loadPtr b 0 in
+        if ptrIsNull dp then negErr errInvalidArg
+        else u64ToI64 (u8ToU64 (loadU8 (maybeToRaw dp) (u64ToIsize u)))
+
+  -- Allocate a NUL-terminated copy of raw bytes; returns null if interior NUL exists
+  hasZeroByteLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  hasZeroByteLoop p i len =
+    if u64Ge i len then False
+    else if loadU8 p (u64ToIsize i) == 0 then True
+    else hasZeroByteLoop p (u64Add i 1) len
+
+  allocCStr :: RawPtr U8 -> U64 ->{Global, ThreadAffine} MaybeNull U8
+  allocCStr p len =
+    if len /= 0 && hasZeroByteLoop p 0 len then ptrNull ()
+    else
+      let out = heapGlobalAlloc (u64ToUsize (u64Add len 1)) 1 0 in
+      let _ = if len /= 0 then memCopy out p (u64ToUsize len) else () in
+      let _ = storeU8 out (u64ToIsize len) 0 in
+      rawToMaybe out
+
+  freeCStr :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  freeCStr p len = heapGlobalDealloc p (u64ToUsize (u64Add len 1)) 1
+
+  allocBufCStr :: I64 ->{Global, ThreadAffine} MaybeNull U8
+  allocBufCStr h =
+    if h == 0 then ptrNull ()
+    else
+      let b = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      let len = loadU64 b 8 in
+      let dp = loadPtr b 0 in
+      if len == 0 then
+        let out = heapGlobalAlloc 1 1 1 in
+        rawToMaybe out
+      else if ptrIsNull dp then ptrNull ()
+      else allocCStr (maybeToRaw dp) len
+
+  freeBufCStr :: I64 -> RawPtr U8 ->{Global, ThreadAffine} Unit
+  freeBufCStr h cs =
+    let len = loadU64 (maybeToRaw (ptrFromU64 (i64ToU64 h))) 8 in
+    freeCStr cs len
+
+  -- =========================================================================
+  -- Clocks (2 exports: cinch_clock_monotonic_ns, cinch_clock_wall_ns)
+  -- =========================================================================
+
+  #[static_mut]
+  static monoOrigin :: U64
+
+  maxI64AsU64 :: U64
+  maxI64AsU64 = 9223372036854775807
+
+  cinchClockMonotonicNs :: Unit ->{Global} I64
+  cinchClockMonotonicNs _ =
+    let now = sysMonotonicNs () in
+    let o0 = atomicLoadU64Acquire (monoOrigin ()) 0 in
+    let origin =
+          (if o0 /= 0 then o0
+          else
+            let seedVal = if now == 0 then 1 else now in
+            let prev = atomicCasU64Val (monoOrigin ()) 0 0 seedVal in
+            if prev == 0 then seedVal else prev) in
+    let diff = u64SatSub now origin in
+    u64ToI64 (u64Min diff maxI64AsU64)
+
+  cinchClockWallNs :: Unit ->{Global} I64
+  cinchClockWallNs _ =
+    let now = sysRealtimeNs () in
+    u64ToI64 (u64Min now maxI64AsU64)
+
+  -- =========================================================================
+  -- Filesystem (9 exports: cinch_fs_*)
+  -- =========================================================================
+
+  statModeOf :: RawPtr U8 ->{Global} U64
+  statModeOf st =
+    if sysIsLinux then
+      if sysIsAarch64 then u32ToU64 (loadU32 st 16)
+      else u32ToU64 (loadU32 st 24)
+    else
+      u16ToU64 (loadU16 st 4)
+
+  statSizeOf :: RawPtr U8 ->{Global} I64
+  statSizeOf st =
+    if sysIsLinux then loadI64 st 48
+    else loadI64 st 96
+
+  statIsReg :: U64 -> Bool
+  statIsReg mode = bitAndU64 mode 61440 == 32768
+
+  statIsDir :: U64 -> Bool
+  statIsDir mode = bitAndU64 mode 61440 == 16384
+
+  cinchFsRename :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchFsRename fromH toH =
+    let fc = allocBufCStr fromH in
+    if ptrIsNull fc then negErr errInvalidArg
+    else
+      let tc = allocBufCStr toH in
+      if ptrIsNull tc then
+        let _ = freeBufCStr fromH (maybeToRaw fc) in
+        negErr errInvalidArg
+      else
+        let rc = cRename (maybeToRaw fc) (maybeToRaw tc) in
+        let res = if rc == 0 then 0 else negErr (ioCodeErrno (sysErrno ())) in
+        let _ = freeBufCStr toH (maybeToRaw tc) in
+        let _ = freeBufCStr fromH (maybeToRaw fc) in
+        res
+
+  cinchFsMetaKind :: I64 ->{Global, ThreadAffine} I64
+  cinchFsMetaKind pathH =
+    let pc = allocBufCStr pathH in
+    if ptrIsNull pc then negErr errInvalidArg
+    else
+      let res = withLocal (fixedArrayRepeat 160 (0 :: U8)) (\stBuf ->
+        let st = mutAsPtr stBuf in
+        if sysStat (maybeToRaw pc) st /= 0 then negErr (ioCodeErrno (sysErrno ()))
+        else
+          let mode = statModeOf st in
+          if statIsReg mode then 0
+          else if statIsDir mode then 1
+          else 2
+      ) in
+      let _ = freeBufCStr pathH (maybeToRaw pc) in
+      res
+
+  cinchFsMetaSize :: I64 ->{Global, ThreadAffine} I64
+  cinchFsMetaSize pathH =
+    let pc = allocBufCStr pathH in
+    if ptrIsNull pc then negErr errInvalidArg
+    else
+      let res = withLocal (fixedArrayRepeat 160 (0 :: U8)) (\stBuf ->
+        let st = mutAsPtr stBuf in
+        if sysStat (maybeToRaw pc) st /= 0 then negErr (ioCodeErrno (sysErrno ()))
+        else
+          let sz = statSizeOf st in
+          if i64Lt sz 0 then 0 else sz
+      ) in
+      let _ = freeBufCStr pathH (maybeToRaw pc) in
+      res
+
+  cinchFsDirOpen :: I64 ->{Global, ThreadAffine} I64
+  cinchFsDirOpen pathH =
+    let pc = allocBufCStr pathH in
+    if ptrIsNull pc then negErr errInvalidArg
+    else
+      let dp = cOpendir (maybeToRaw pc) in
+      let res =
+            (if ptrIsNull dp then negErr (ioCodeErrno (sysErrno ()))
+            else u64ToI64 (ptrToU64 dp)) in
+      let _ = freeBufCStr pathH (maybeToRaw pc) in
+      res
+
+  direntNameOff :: Isize
+  direntNameOff = if sysIsLinux then 19 else 21
+
+  isDotOrDotDot :: RawPtr U8 ->{Global} Bool
+  isDotOrDotDot name =
+    let b0 = loadU8 name 0 in
+    if b0 /= 46 then False
+    else
+      let b1 = loadU8 name 1 in
+      if b1 == 0 then True
+      else if b1 == 46 && loadU8 name 2 == 0 then True
+      else False
+
+  dirNextLoop :: RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  dirNextLoop dp outBuf =
+    let ent = cReaddir dp in
+    if ptrIsNull ent then 0
+    else
+      let name = ptrAdd (maybeToRaw ent) direntNameOff in
+      if isDotOrDotDot name then dirNextLoop dp outBuf
+      else
+        let len = usizeToU64 (cStrlen name) in
+        let _ = bufReplaceRaw outBuf name len in
+        1
+
+  cinchFsDirNext :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchFsDirNext dirH outH =
+    if dirH == 0 || outH == 0 then negErr errInvalidArg
+    else dirNextLoop (maybeToRaw (ptrFromU64 (i64ToU64 dirH))) (maybeToRaw (ptrFromU64 (i64ToU64 outH)))
+
+  cinchFsDirClose :: I64 ->{Global} I64
+  cinchFsDirClose dirH =
+    if dirH == 0 then 0
+    else
+      let _ = cClosedir (maybeToRaw (ptrFromU64 (i64ToU64 dirH))) in
+      0
+
+  -- mkdir -p helper on mutable NUL-terminated path buffer
+  mkdirCheckDir :: RawPtr U8 ->{Global} Bool
+  mkdirCheckDir path =
+    withLocal (fixedArrayRepeat 160 (0 :: U8)) (\stBuf ->
+      let st = mutAsPtr stBuf in
+      if sysStat path st /= 0 then False
+      else statIsDir (statModeOf st)
+    )
+
+  mkdirParentsLoop :: RawPtr U8 -> U64 -> U64 ->{Global} I64
+  mkdirParentsLoop buf i len =
+    if u64Ge i len then
+      let rc = cMkdir buf 511 in
+      if rc == 0 then 0
+      else
+        let e = sysErrno () in
+        if e == 17 && mkdirCheckDir buf then 0
+        else negErr (ioCodeErrno e)
+    else if u64Gt i 0 && loadU8 buf (u64ToIsize i) == 47 then
+      let _ = storeU8 buf (u64ToIsize i) 0 in
+      let rc = cMkdir buf 511 in
+      let err = if rc == 0 then 0 else sysErrno () in
+      let _ = storeU8 buf (u64ToIsize i) 47 in
+      if rc /= 0 && err /= 17 then negErr (ioCodeErrno err)
+      else mkdirParentsLoop buf (u64Add i 1) len
+    else
+      mkdirParentsLoop buf (u64Add i 1) len
+
+  cinchFsMkdir :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchFsMkdir pathWord parents =
+    let bs = bytesReadSlice pathWord in
+    let len = i64ToU64 bs.bsLen in
+    if len == 0 then negErr errNotFound
+    else
+      let cs = allocCStr bs.bsPtr len in
+      if ptrIsNull cs then negErr errInvalidArg
+      else
+        let p = maybeToRaw cs in
+        let res =
+              (if parents == 0 then
+                if cMkdir p 511 == 0 then 0
+                else negErr (ioCodeErrno (sysErrno ()))
+              else
+                mkdirParentsLoop p 0 len) in
+        let _ = freeCStr p len in
+        res
+
+  removePathRec :: RawPtr U8 -> U64 -> Bool ->{Global, ThreadAffine} I64
+  removePathRec path pathLen recursive =
+    let kind = withLocal (fixedArrayRepeat 160 (0 :: U8)) (\stBuf ->
+      let st = mutAsPtr stBuf in
+      if sysLstat path st /= 0 then negErr (ioCodeErrno (sysErrno ()))
+      else if statIsDir (statModeOf st) then 1
+      else 0
+    ) in
+    if i64Lt kind 0 then kind
+    else if kind == 0 then
+      if cUnlink path == 0 then 0 else negErr (ioCodeErrno (sysErrno ()))
+    else if not recursive then
+      if cRmdir path == 0 then 0 else negErr (ioCodeErrno (sysErrno ()))
+    else
+      let dp = cOpendir path in
+      if ptrIsNull dp then negErr (ioCodeErrno (sysErrno ()))
+      else
+        let err = removeDirEntries (maybeToRaw dp) path pathLen in
+        let _ = cClosedir (maybeToRaw dp) in
+        if i64Lt err 0 then err
+        else if cRmdir path == 0 then 0
+        else negErr (ioCodeErrno (sysErrno ()))
+
+  removeDirEntries :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global, ThreadAffine} I64
+  removeDirEntries dp dirPath dirLen =
+    let ent = cReaddir dp in
+    if ptrIsNull ent then 0
+    else
+      let name = ptrAdd (maybeToRaw ent) direntNameOff in
+      if isDotOrDotDot name then removeDirEntries dp dirPath dirLen
+      else
+        let nlen = usizeToU64 (cStrlen name) in
+        let childLen = u64Add (u64Add dirLen 1) nlen in
+        let child = heapGlobalAlloc (u64ToUsize (u64Add childLen 1)) 1 0 in
+        let _ = memCopy child dirPath (u64ToUsize dirLen) in
+        let _ = storeU8 child (u64ToIsize dirLen) 47 in
+        let _ = memCopy (ptrAddU64 child (u64Add dirLen 1)) name (u64ToUsize nlen) in
+        let _ = storeU8 child (u64ToIsize childLen) 0 in
+        let rc = removePathRec child childLen True in
+        let _ = heapGlobalDealloc child (u64ToUsize (u64Add childLen 1)) 1 in
+        if i64Lt rc 0 then rc
+        else removeDirEntries dp dirPath dirLen
+
+  cinchFsRemove :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchFsRemove pathWord recursive =
+    let bs = bytesReadSlice pathWord in
+    let len = i64ToU64 bs.bsLen in
+    if len == 0 then negErr errNotFound
+    else
+      let cs = allocCStr bs.bsPtr len in
+      if ptrIsNull cs then negErr errInvalidArg
+      else
+        let p = maybeToRaw cs in
+        let res = removePathRec p len (recursive /= 0) in
+        let _ = freeCStr p len in
+        res
+
+  trimTrailingSlashes :: RawPtr U8 -> U64 ->{Global} U64
+  trimTrailingSlashes p len =
+    if u64Le len 1 then len
+    else if loadU8 p (u64ToIsize (u64Sub len 1)) == 47 then trimTrailingSlashes p (u64Sub len 1)
+    else len
+
+  cinchFsTempDir :: Unit ->{Global, ThreadAffine} I64
+  cinchFsTempDir _ =
+    withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let k = mutAsPtr arr in
+      -- "TMPDIR\0"
+      let _ = put4 k 0 84 77 80 68 in
+      let _ = storeU8 k 4 73 in
+      let _ = storeU8 k 5 82 in
+      let _ = storeU8 k 6 0 in
+      let env = cGetenv k in
+      if not (ptrIsNull env) then
+        let ep = maybeToRaw env in
+        let len = usizeToU64 (cStrlen ep) in
+        if len /= 0 then
+          let trimmed = trimTrailingSlashes ep len in
+          bytesBoxCopy ep trimmed
+        else
+          let _ = put4 k 0 47 116 109 112 in
+          bytesBoxCopy k 4
+      else
+        let _ = put4 k 0 47 116 109 112 in
+        bytesBoxCopy k 4
+    )
+
+  -- =========================================================================
+  -- Entropy & Signals (2 exports: cinch_random_bytes, cinch_signal_send)
+  -- =========================================================================
+
+  openFlagsRoCloexec :: I32
+  openFlagsRoCloexec = if sysIsLinux then 524288 else 16777216
+
+  fillFromUrandom :: RawPtr U8 -> U64 ->{Global} I64
+  fillFromUrandom dst len =
+    withLocal (fixedArrayRepeat 16 (0 :: U8)) (\pathArr ->
+      let p = mutAsPtr pathArr in
+      -- "/dev/urandom\0" (13 bytes)
+      let _ = put8 p 0 47 100 101 118 47 117 114 97 in
+      let _ = put4 p 8 110 100 111 109 in
+      let _ = storeU8 p 12 0 in
+      let fd = sysOpen p openFlagsRoCloexec 0 in
+      if i64Lt (i32ToI64 fd) 0 then negErr (ioCodeErrno (sysErrno ()))
+      else
+        let res = readExactFdLoop fd dst len in
+        let _ = cClose fd in
+        res
+    )
+
+  fillGetrandomLoop :: RawPtr U8 -> U64 ->{Global} I64
+  fillGetrandomLoop dst rem =
+    if rem == 0 then 0
+    else
+      let n = isizeToI64 (sysGetrandom dst (u64ToUsize rem) 0) in
+      if i64Gt n 0 then
+        let nu = i64ToU64 n in
+        fillGetrandomLoop (ptrAddU64 dst nu) (u64Sub rem nu)
+      else if i64Lt n 0 then
+        let e = sysErrno () in
+        if e == 4 then fillGetrandomLoop dst rem
+        else if e == 38 then fillFromUrandom dst rem
+        else negErr (ioCodeErrno e)
+      else negErr errIo
+
+  cinchRandomBytes :: I64 ->{Global, ThreadAffine} I64
+  cinchRandomBytes n =
+    if i64Lt n 0 then negErr errInvalidArg
+    else
+      let len = i64ToU64 n in
+      let buf = if len == 0 then heapGlobalAlloc 1 1 0 else heapGlobalAlloc (u64ToUsize len) 1 0 in
+      let rc =
+            (if len == 0 then fillFromUrandom buf 0
+            else if sysIsLinux then fillGetrandomLoop buf len
+            else fillFromUrandom buf len) in
+      let allocSz = if len == 0 then 1 else len in
+      if i64Lt rc 0 then
+        let _ = heapGlobalDealloc buf (u64ToUsize allocSz) 1 in
+        rc
+      else
+        let word = bytesBoxCopy buf len in
+        let _ = heapGlobalDealloc buf (u64ToUsize allocSz) 1 in
+        word
+
+  cinchSignalSend :: I64 -> I64 ->{Global} I64
+  cinchSignalSend pid sig =
+    let minI32 = i64Sub 0 2147483648 in
+    let maxI32 = 2147483647 in
+    if i64Lt pid minI32 || i64Gt pid maxI32 || i64Lt sig minI32 || i64Gt sig maxI32 then
+      negErr errInvalidArg
+    else
+      i32ToI64 (cKill (i64ToI32 pid) (i64ToI32 sig))
+
+  -- =========================================================================
+  -- Command Line (3 exports: cinch_argv_init, cinch_argv_count, cinch_argv_get)
+  -- =========================================================================
+
+  -- [0]=state (0=empty, 1=initing, 2=done), [1]=count, [2]=ptrsArray, [3]=lensArray
+  #[static_mut]
+  static argvState :: FixedArray 4 U64
+
+  copyArgvLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  copyArgvLoop srcArgv ptrs lens i n =
+    if u64Ge i n then ()
+    else
+      let s = loadPtr srcArgv (u64ToIsize (u64Mul i 8)) in
+      let _ = (if ptrIsNull s then
+          let _ = storeU64 ptrs (u64ToIsize (u64Mul i 8)) 0 in
+          storeU64 lens (u64ToIsize (u64Mul i 8)) 0
+        else
+          let sp = maybeToRaw s in
+          let slen = usizeToU64 (cStrlen sp) in
+          let cp = if slen == 0 then 0 else rawToU64 (heapGlobalAlloc (u64ToUsize slen) 1 0) in
+          let _ = if slen /= 0 then memCopy (maybeToRaw (ptrFromU64 cp)) sp (u64ToUsize slen) else () in
+          let _ = storeU64 ptrs (u64ToIsize (u64Mul i 8)) cp in
+          storeU64 lens (u64ToIsize (u64Mul i 8)) slen) in
+      copyArgvLoop srcArgv ptrs lens (u64Add i 1) n
+
+  cinchArgvInit :: I64 -> MaybeNull U8 ->{Global, ThreadAffine} I64
+  cinchArgvInit argc argv =
+    if ptrIsNull argv || i64Lt argc 0 then 0
+    else
+      let st = ptrCast (argvState ()) in
+      if atomicCasU64Bool st 0 0 1 then
+        let n = i64ToU64 argc in
+        let _ = (if n /= 0 then
+            let ptrs = heapGlobalAlloc (u64ToUsize (u64Mul n 8)) 8 1 in
+            let lens = heapGlobalAlloc (u64ToUsize (u64Mul n 8)) 8 1 in
+            let _ = copyArgvLoop (maybeToRaw argv) ptrs lens 0 n in
+            let _ = storeU64 st 8 n in
+            let _ = storeU64 st 16 (rawToU64 ptrs) in
+            storeU64 st 24 (rawToU64 lens)
+          else
+            storeU64 st 8 0) in
+        let _ = atomicStoreU64Release st 0 2 in
+        0
+      else 0
+
+  cinchArgvCount :: Unit ->{Global} I64
+  cinchArgvCount _ =
+    let st = ptrCast (argvState ()) in
+    if atomicLoadU64Acquire st 0 /= 2 then 0
+    else u64ToI64 (loadU64 st 8)
+
+  cinchArgvGet :: I64 ->{Global, ThreadAffine} I64
+  cinchArgvGet idx =
+    let st = ptrCast (argvState ()) in
+    if atomicLoadU64Acquire st 0 /= 2 || i64Lt idx 0 then
+      let _ = panicOutOfBounds () in
+      0
+    else
+      let n = loadU64 st 8 in
+      let u = i64ToU64 idx in
+      if u64Ge u n then
+        let _ = panicOutOfBounds () in
+        0
+      else
+        let ptrs = maybeToRaw (ptrFromU64 (loadU64 st 16)) in
+        let lens = maybeToRaw (ptrFromU64 (loadU64 st 24)) in
+        let cp = loadU64 ptrs (u64ToIsize (u64Mul u 8)) in
+        let slen = loadU64 lens (u64ToIsize (u64Mul u 8)) in
+        if slen == 0 || cp == 0 then bytesBoxCopy (maybeToRaw (ptrFromU64 1)) 0
+        else bytesBoxCopy (maybeToRaw (ptrFromU64 cp)) slen
+
+  -- =========================================================================
+  -- Shared C-String List & POSIX fork/execvp Spawn Helper (for Proc, Process, Pty)
+  -- =========================================================================
+
+  -- CStrList (24 bytes): [0]=items :: MaybeNull U8 (array of RawPtr U8 C-strings),
+  --                      [8]=len :: U64, [16]=cap :: U64
+  cstrListPush :: RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} Unit
+  cstrListPush list cs =
+    let len = loadU64 list 8 in
+    let cap = loadU64 list 16 in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr list 0)
+          else
+            let newCap = if cap == 0 then 8 else u64Mul cap 2 in
+            let old = loadPtr list 0 in
+            let p =
+                  (if ptrIsNull old then heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0
+                  else heapGlobalRealloc (maybeToRaw old) (u64ToUsize (u64Mul cap 8)) 8 (u64ToUsize (u64Mul newCap 8))) in
+            let _ = storePtr list 0 (rawToMaybe p) in
+            let _ = storeU64 list 16 newCap in
+            p) in
+    let _ = storeU64 buf (u64ToIsize (u64Mul len 8)) (rawToU64 cs) in
+    storeU64 list 8 (u64Add len 1)
+
+  freeCStrItemsLoop :: RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  freeCStrItemsLoop buf i len =
+    if u64Ge i len then ()
+    else
+      let p = loadU64 buf (u64ToIsize (u64Mul i 8)) in
+      let _ = (if p /= 0 then
+          let cp = maybeToRaw (ptrFromU64 p) in
+          let slen = usizeToU64 (cStrlen cp) in
+          heapGlobalDealloc cp (u64ToUsize (u64Add slen 1)) 1
+        else ()) in
+      freeCStrItemsLoop buf (u64Add i 1) len
+
+  freeCStrList :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  freeCStrList list =
+    let len = loadU64 list 8 in
+    let cap = loadU64 list 16 in
+    let dp = loadPtr list 0 in
+    let _ = (if not (ptrIsNull dp) then
+        let _ = freeCStrItemsLoop (maybeToRaw dp) 0 len in
+        if cap /= 0 then heapGlobalDealloc (maybeToRaw dp) (u64ToUsize (u64Mul cap 8)) 8 else ()
+      else ()) in
+    let _ = storePtr list 0 (ptrNull ()) in
+    let _ = storeU64 list 8 0 in
+    storeU64 list 16 0
+
+  findByteLoop :: RawPtr U8 -> U64 -> U64 -> U8 ->{Global} U64
+  findByteLoop p i end targetByte =
+    if u64Ge i end then end
+    else if loadU8 p (u64ToIsize i) == targetByte then i
+    else findByteLoop p (u64Add i 1) end targetByte
+
+  parseNulWordsLoop :: RawPtr U8 -> U64 -> U64 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  parseNulWordsLoop p pos end outList =
+    if u64Ge pos end then 0
+    else
+      let sep = findByteLoop p pos end 0 in
+      let segLen = u64Sub sep pos in
+      if segLen == 0 then negErr errInvalidArg
+      else
+        let cs = heapGlobalAlloc (u64ToUsize (u64Add segLen 1)) 1 0 in
+        let _ = memCopy cs (ptrAddU64 p pos) (u64ToUsize segLen) in
+        let _ = storeU8 cs (u64ToIsize segLen) 0 in
+        let _ = cstrListPush outList cs in
+        if u64Lt sep end then parseNulWordsLoop p (u64Add sep 1) end outList
+        else 0
+
+  parseNulWords :: I64 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  parseNulWords word outList =
+    let bs = bytesReadSlice word in
+    let len = i64ToU64 bs.bsLen in
+    if len == 0 then 0
+    else
+      let effEnd = if loadU8 bs.bsPtr (u64ToIsize (u64Sub len 1)) == 0 then u64Sub len 1 else len in
+      if effEnd == 0 then negErr errInvalidArg
+      else parseNulWordsLoop bs.bsPtr 0 effEnd outList
+
+  parseEnvWordsLoop :: RawPtr U8 -> U64 -> U64 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  parseEnvWordsLoop p pos end outList =
+    if u64Ge pos end then 0
+    else
+      let sep = findByteLoop p pos end 0 in
+      let segLen = u64Sub sep pos in
+      let eq = findByteLoop p pos sep 61 in
+      if segLen == 0 || eq == sep || eq == pos then negErr errInvalidArg
+      else
+        let cs = heapGlobalAlloc (u64ToUsize (u64Add segLen 1)) 1 0 in
+        let _ = memCopy cs (ptrAddU64 p pos) (u64ToUsize segLen) in
+        let _ = storeU8 cs (u64ToIsize segLen) 0 in
+        let _ = cstrListPush outList cs in
+        if u64Lt sep end then parseEnvWordsLoop p (u64Add sep 1) end outList
+        else 0
+
+  parseEnvWords :: I64 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  parseEnvWords word outList =
+    let bs = bytesReadSlice word in
+    let len = i64ToU64 bs.bsLen in
+    if len == 0 then 0
+    else
+      let effEnd = if loadU8 bs.bsPtr (u64ToIsize (u64Sub len 1)) == 0 then u64Sub len 1 else len in
+      if effEnd == 0 then negErr errInvalidArg
+      else parseEnvWordsLoop bs.bsPtr 0 effEnd outList
+
+  applyEnvOverridesLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  applyEnvOverridesLoop items i len =
+    if u64Ge i len then ()
+    else
+      let entry = maybeToRaw (ptrFromU64 (loadU64 items (u64ToIsize (u64Mul i 8)))) in
+      let slen = usizeToU64 (cStrlen entry) in
+      let eq = findByteLoop entry 0 slen 61 in
+      let _ = (if u64Lt eq slen && u64Gt eq 0 then
+          let _ = storeU8 entry (u64ToIsize eq) 0 in
+          let _ = cSetenv entry (ptrAddU64 entry (u64Add eq 1)) 1 in
+          storeU8 entry (u64ToIsize eq) 61
+        else ()) in
+      applyEnvOverridesLoop items (u64Add i 1) len
+
+  buildArgvLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  buildArgvLoop argv src i len =
+    if u64Ge i len then ()
+    else
+      let _ = storeU64 argv (u64ToIsize (u64Mul (u64Add i 1) 8)) (loadU64 src (u64ToIsize (u64Mul i 8))) in
+      buildArgvLoop argv src (u64Add i 1) len
+
+  childReportErrnoAndExit :: I32 -> I32 ->{Global} Unit
+  childReportErrnoAndExit errWrFd errCode =
+    let _ = withLocal errCode (\slot ->
+      let _ = cWrite errWrFd (ptrCast (mutAsPtr slot)) 4 in
+      ()
+    ) in
+    cRawExit 127
+
+  -- Spawn child with explicit fds (-1 means inherit).
+  -- Closes closeChildFds[] if >= 0 in child before exec; uses errPipe to report exec/chdir errno synchronously.
+  -- Returns child pid (> 0) or negative platform error code.
+  spawnChildPosix :: RawPtr U8 -> RawPtr U8 -> MaybeNull U8 -> RawPtr U8 -> I32 -> I32 -> I32 -> I32 -> I32 -> I32 ->{Global, ThreadAffine} I64
+  spawnChildPosix progCStr argsList cwdCStr envList inFd outFd errFd closeParent0 closeParent1 closeParent2 =
+    withLocal (fixedArrayRepeat 2 (0 :: I32)) (\errPipeArr ->
+      let ep = mutAsPtr errPipeArr in
+      if cPipe ep /= 0 then negErr (ioCodeErrno (sysErrno ()))
+      else
+        let errRd = loadI32 ep 0 in
+        let errWr = loadI32 ep 4 in
+        let _ = setCloexec errRd in
+        let _ = setCloexec errWr in
+        let nArgs = loadU64 argsList 8 in
+        let argvBuf = heapGlobalAlloc (u64ToUsize (u64Mul (u64Add nArgs 2) 8)) 8 0 in
+        let _ = storeU64 argvBuf 0 (rawToU64 progCStr) in
+        let argsItems = loadPtr argsList 0 in
+        let _ = if nArgs /= 0 && not (ptrIsNull argsItems) then buildArgvLoop argvBuf (maybeToRaw argsItems) 0 nArgs else () in
+        let _ = storeU64 argvBuf (u64ToIsize (u64Mul (u64Add nArgs 1) 8)) 0 in
+        let pid = cFork () in
+        let pid64 = i32ToI64 pid in
+        if i64Lt pid64 0 then
+          let e = sysErrno () in
+          let _ = cClose errRd in
+          let _ = cClose errWr in
+          let _ = heapGlobalDealloc argvBuf (u64ToUsize (u64Mul (u64Add nArgs 2) 8)) 8 in
+          negErr (ioCodeErrno e)
+        else if pid == 0 then
+          -- Child process
+          let _ = cClose errRd in
+          let _ = if i64Ge (i32ToI64 closeParent0) 0 then (let _ = cClose closeParent0 in ()) else () in
+          let _ = if i64Ge (i32ToI64 closeParent1) 0 then (let _ = cClose closeParent1 in ()) else () in
+          let _ = if i64Ge (i32ToI64 closeParent2) 0 then (let _ = cClose closeParent2 in ()) else () in
+          let _ = if i64Ge (i32ToI64 inFd) 0 && inFd /= 0 then (let _ = cDup2 inFd 0 in ()) else () in
+          let _ = if i64Ge (i32ToI64 outFd) 0 && outFd /= 1 then (let _ = cDup2 outFd 1 in ()) else () in
+          let _ = if i64Ge (i32ToI64 errFd) 0 && errFd /= 2 then (let _ = cDup2 errFd 2 in ()) else () in
+          let _ = if i64Gt (i32ToI64 inFd) 2 then (let _ = cClose inFd in ()) else () in
+          let _ = if i64Gt (i32ToI64 outFd) 2 && outFd /= inFd then (let _ = cClose outFd in ()) else () in
+          let _ = if i64Gt (i32ToI64 errFd) 2 && errFd /= inFd && errFd /= outFd then (let _ = cClose errFd in ()) else () in
+          let _ = (if not (ptrIsNull cwdCStr) then
+              if cChdir (maybeToRaw cwdCStr) /= 0 then childReportErrnoAndExit errWr (i64ToI32 (sysErrno ())) else ()
+            else ()) in
+          let envLen = loadU64 envList 8 in
+          let envItems = loadPtr envList 0 in
+          let _ = if envLen /= 0 && not (ptrIsNull envItems) then applyEnvOverridesLoop (maybeToRaw envItems) 0 envLen else () in
+          let _ = cExecvp progCStr argvBuf in
+          let _ = childReportErrnoAndExit errWr (i64ToI32 (sysErrno ())) in
+          0
+        else
+          -- Parent process
+          let _ = cClose errWr in
+          let _ = heapGlobalDealloc argvBuf (u64ToUsize (u64Mul (u64Add nArgs 2) 8)) 8 in
+          let execErr = withLocal (0 :: I32) (\codeSlot ->
+            let n = readOnceFd errRd (ptrCast (mutAsPtr codeSlot)) 4 in
+            if n == 4 then i32ToI64 (loadI32 (mutAsPtr codeSlot) 0) else 0
+          ) in
+          let _ = cClose errRd in
+          if execErr /= 0 then
+            let _ = withLocal (0 :: I32) (\st -> cWaitpid pid (mutAsPtr st) 0) in
+            negErr (ioCodeErrno execErr)
+          else pid64
+    )
+
+  -- =========================================================================
+  -- One-Shot Subprocess API (8 exports: cinch_proc_*)
+  -- Proc struct (104 bytes):
+  --   0:  progCStr :: MaybeNull U8
+  --   8:  progLen :: U64
+  --   16: argsList (24 bytes: 16..40)
+  --   40: envList (24 bytes: 40..64)
+  --   64: stdinBuf (24 bytes: 64..88)
+  --   88: pid :: I32 (0 if none/reaped)
+  --   92: stdoutFd :: I32 (-1 if closed)
+  --   96: ran :: U64 (0/1)
+  -- =========================================================================
+
+  procBytes :: Usize
+  procBytes = 104
+
+  cinchProcNew :: I64 ->{Global, ThreadAffine} I64
+  cinchProcNew progH =
+    let pc = allocBufCStr progH in
+    if ptrIsNull pc then negErr errInvalidArg
+    else
+      let plen = loadU64 (maybeToRaw (ptrFromU64 (i64ToU64 progH))) 8 in
+      let p = heapGlobalAlloc procBytes 8 1 in
+      let _ = storePtr p 0 pc in
+      let _ = storeU64 p 8 plen in
+      let _ = storeI32 p 88 0 in
+      let _ = storeI32 p 92 (i64ToI32 (i64Sub 0 1)) in
+      u64ToI64 (rawToU64 p)
+
+  cinchProcArg :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchProcArg h argH =
+    if h == 0 then negErr errInvalidArg
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      if loadU64 p 96 /= 0 then negErr errInvalidArg
+      else
+        let ac = allocBufCStr argH in
+        if ptrIsNull ac then negErr errInvalidArg
+        else
+          let _ = cstrListPush (ptrAdd p 16) (maybeToRaw ac) in
+          0
+
+  cinchProcEnv :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchProcEnv h kvH =
+    if h == 0 || kvH == 0 then negErr errInvalidArg
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      if loadU64 p 96 /= 0 then negErr errInvalidArg
+      else
+        let kb = maybeToRaw (ptrFromU64 (i64ToU64 kvH)) in
+        let klen = loadU64 kb 8 in
+        let kptr = loadPtr kb 0 in
+        if klen == 0 || ptrIsNull kptr then negErr errInvalidArg
+        else
+          let kp = maybeToRaw kptr in
+          let eq = findByteLoop kp 0 klen 61 in
+          if eq == klen || eq == 0 then negErr errInvalidArg
+          else
+            let kc = allocCStr kp klen in
+            if ptrIsNull kc then negErr errInvalidArg
+            else
+              let _ = cstrListPush (ptrAdd p 40) (maybeToRaw kc) in
+              0
+
+  cinchProcStdin :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchProcStdin h dataH =
+    if h == 0 || dataH == 0 then negErr errInvalidArg
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      if loadU64 p 96 /= 0 then negErr errInvalidArg
+      else
+        let db = maybeToRaw (ptrFromU64 (i64ToU64 dataH)) in
+        let dlen = loadU64 db 8 in
+        let dptr = loadPtr db 0 in
+        let _ = if dlen /= 0 && not (ptrIsNull dptr) then bufAppendRaw (ptrAdd p 64) (maybeToRaw dptr) dlen else () in
+        0
+
+  cinchProcRun :: I64 ->{Global, ThreadAffine} I64
+  cinchProcRun h =
+    if h == 0 then negErr errInvalidArg
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      if loadU64 p 96 /= 0 then negErr errInvalidArg
+      else
+        withLocal (fixedArrayRepeat 4 (0 :: I32)) (\pipesArr ->
+          let pa = mutAsPtr pipesArr in
+          if cPipe pa /= 0 then negErr (ioCodeErrno (sysErrno ()))
+          else if cPipe (ptrAdd pa 8) /= 0 then
+            let _ = cClose (loadI32 pa 0) in
+            let _ = cClose (loadI32 pa 4) in
+            negErr (ioCodeErrno (sysErrno ()))
+          else
+            let inRd = loadI32 pa 0 in
+            let inWr = loadI32 pa 4 in
+            let outRd = loadI32 pa 8 in
+            let outWr = loadI32 pa 12 in
+            let _ = setCloexec inWr in
+            let _ = setCloexec outRd in
+            let neg1 = i64ToI32 (i64Sub 0 1) in
+            let prog = maybeToRaw (loadPtr p 0) in
+            let pidRes = spawnChildPosix prog (ptrAdd p 16) (ptrNull ()) (ptrAdd p 40) inRd outWr neg1 inWr outRd neg1 in
+            let _ = cClose inRd in
+            let _ = cClose outWr in
+            if i64Lt pidRes 0 then
+              let _ = cClose inWr in
+              let _ = cClose outRd in
+              pidRes
+            else
+              let inLen = loadU64 p 72 in
+              let inPtr = loadPtr p 64 in
+              let _ = if inLen /= 0 && not (ptrIsNull inPtr) then (let _ = writeAllFd inWr (maybeToRaw inPtr) inLen in ()) else () in
+              let _ = cClose inWr in
+              let _ = storeU64 p 72 0 in
+              let _ = storeI32 p 88 (i64ToI32 pidRes) in
+              let _ = storeI32 p 92 outRd in
+              let _ = storeU64 p 96 1 in
+              0
+        )
+
+  drainFdToBufLoop :: I32 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  drainFdToBufLoop fd tmp outBuf =
+    let n = readOnceFd fd tmp 4096 in
+    if i64Lt n 0 then n
+    else if n == 0 then 0
+    else
+      let _ = bufAppendRaw outBuf tmp (i64ToU64 n) in
+      drainFdToBufLoop fd tmp outBuf
+
+  cinchProcReadOut :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchProcReadOut h outH =
+    if h == 0 || outH == 0 then negErr errInvalidArg
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      if loadU64 p 96 == 0 then negErr errInvalidArg
+      else
+        let outBuf = maybeToRaw (ptrFromU64 (i64ToU64 outH)) in
+        let _ = storeU64 outBuf 8 0 in
+        let fd = loadI32 p 92 in
+        if i64Lt (i32ToI64 fd) 0 then 0
+        else
+          let _ = storeI32 p 92 (i64ToI32 (i64Sub 0 1)) in
+          let rc = withLocal (fixedArrayRepeat 4096 (0 :: U8)) (\tmpArr ->
+            drainFdToBufLoop fd (mutAsPtr tmpArr) outBuf
+          ) in
+          let _ = cClose fd in
+          if i64Lt rc 0 then rc
+          else u64ToI64 (loadU64 outBuf 8)
+
+  waitpidLoop :: I32 -> RawPtr I32 ->{Global} I64
+  waitpidLoop pid st =
+    let r = i32ToI64 (cWaitpid pid st 0) in
+    if i64Lt r 0 && sysErrno () == 4 then waitpidLoop pid st
+    else if i64Lt r 0 then negErr (ioCodeErrno (sysErrno ()))
+    else exitCodeFromStatus (loadI32 st 0)
+
+  cinchProcWait :: I64 ->{Global} I64
+  cinchProcWait h =
+    if h == 0 then negErr errInvalidArg
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      let pid = loadI32 p 88 in
+      if i64Le (i32ToI64 pid) 0 then negErr errInvalidArg
+      else
+        let _ = storeI32 p 88 0 in
+        withLocal (0 :: I32) (\st -> waitpidLoop pid (mutAsPtr st))
+
+  cinchProcFree :: I64 ->{Global, ThreadAffine} I64
+  cinchProcFree h =
+    if h == 0 then 0
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 h)) in
+      let fd = loadI32 p 92 in
+      let _ = if i64Ge (i32ToI64 fd) 0 then (let _ = cClose fd in ()) else () in
+      let pid = loadI32 p 88 in
+      let _ = (if i64Gt (i32ToI64 pid) 0 then
+          let _ = cKill pid 9 in
+          let _ = withLocal (0 :: I32) (\st -> waitpidLoop pid (mutAsPtr st)) in
+          ()
+        else ()) in
+      let prog = loadPtr p 0 in
+      let plen = loadU64 p 8 in
+      let _ = if not (ptrIsNull prog) then freeCStr (maybeToRaw prog) plen else () in
+      let _ = freeCStrList (ptrAdd p 16) in
+      let _ = freeCStrList (ptrAdd p 40) in
+      let inPtr = loadPtr p 64 in
+      let inCap = loadU64 p 80 in
+      let _ = if not (ptrIsNull inPtr) && inCap /= 0 then heapGlobalDealloc (maybeToRaw inPtr) (u64ToUsize inCap) 1 else () in
+      let _ = heapGlobalDealloc p procBytes 8 in
+      0
+
+  -- =========================================================================
+  -- Live Piped Child API (6 exports: cinch_process_*)
+  -- Entry (40 bytes):
+  --   0:  handleId :: I64
+  --   8:  pid :: I32
+  --   12: stdinFd :: I32 (-1 if closed or taken)
+  --   16: stdoutFd :: I32 (-1 if closed)
+  --   20: stderrFd :: I32 (-1 if closed)
+  --   24: hasStatus :: U64 (0/1)
+  --   32: status :: I64
+  -- =========================================================================
+
+  pipedEntryBytes :: Usize
+  pipedEntryBytes = 40
+
+  -- [0]=initState (0/1/2), [1]=nextHandle, [2]=entriesData, [3]=entriesLen, [4]=entriesCap
+  #[static_mut]
+  static pipedMeta :: FixedArray 6 U64
+
+  #[static_mut]
+  static pipedMutexBuf :: FixedArray 64 U8
+
+  waitPipedInit :: RawPtr U8 ->{Global} Unit
+  waitPipedInit pm =
+    if atomicLoadU64Acquire pm 0 == 2 then ()
+    else let _ = sysSpinLoop () in waitPipedInit pm
+
+  pipedLock :: Unit ->{Global} Unit
+  pipedLock _ =
+    let pm = ptrCast (pipedMeta ()) in
+    let _ = (if atomicLoadU64Acquire pm 0 == 2 then ()
+      else if atomicCasU64Bool pm 0 0 1 then
+        let _ = cPthreadMutexInit (ptrCast (pipedMutexBuf ())) (ptrNull ()) in
+        let _ = storeU64 pm 8 1 in
+        atomicStoreU64Release pm 0 2
+      else waitPipedInit pm) in
+    let _ = cPthreadMutexLock (ptrCast (pipedMutexBuf ())) in
+    ()
+
+  pipedUnlock :: Unit ->{Global} Unit
+  pipedUnlock _ =
+    let _ = cPthreadMutexUnlock (ptrCast (pipedMutexBuf ())) in
+    ()
+
+  pipedFindIdx :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} I64
+  pipedFindIdx arr i len h =
+    if u64Ge i len then i64Sub 0 1
+    else
+      let ep = maybeToRaw (ptrFromU64 (loadU64 arr (u64ToIsize (u64Mul i 8)))) in
+      if loadI64 ep 0 == h then u64ToI64 i
+      else pipedFindIdx arr (u64Add i 1) len h
+
+  pipedInsert :: RawPtr U8 ->{Global, ThreadAffine} I64
+  pipedInsert entry =
+    let _ = pipedLock () in
+    let pm = ptrCast (pipedMeta ()) in
+    let h = u64ToI64 (loadU64 pm 8) in
+    let _ = storeU64 pm 8 (u64Add (loadU64 pm 8) 1) in
+    let _ = storeI64 entry 0 h in
+    let len = loadU64 pm 24 in
+    let cap = loadU64 pm 32 in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr pm 16)
+          else
+            let newCap = if cap == 0 then 8 else u64Mul cap 2 in
+            let old = loadPtr pm 16 in
+            let p =
+                  (if ptrIsNull old then heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0
+                  else heapGlobalRealloc (maybeToRaw old) (u64ToUsize (u64Mul cap 8)) 8 (u64ToUsize (u64Mul newCap 8))) in
+            let _ = storePtr pm 16 (rawToMaybe p) in
+            let _ = storeU64 pm 32 newCap in
+            p) in
+    let _ = storeU64 buf (u64ToIsize (u64Mul len 8)) (rawToU64 entry) in
+    let _ = storeU64 pm 24 (u64Add len 1) in
+    let _ = pipedUnlock () in
+    h
+
+  pipedLookupLocked :: I64 ->{Global} MaybeNull U8
+  pipedLookupLocked h =
+    let pm = ptrCast (pipedMeta ()) in
+    let len = loadU64 pm 24 in
+    let dp = loadPtr pm 16 in
+    if len == 0 || ptrIsNull dp then ptrNull ()
+    else
+      let arr = maybeToRaw dp in
+      let idx = pipedFindIdx arr 0 len h in
+      if i64Lt idx 0 then ptrNull ()
+      else ptrFromU64 (loadU64 arr (u64ToIsize (u64Mul (i64ToU64 idx) 8)))
+
+  pipedRemoveLocked :: I64 ->{Global} MaybeNull U8
+  pipedRemoveLocked h =
+    let pm = ptrCast (pipedMeta ()) in
+    let len = loadU64 pm 24 in
+    let dp = loadPtr pm 16 in
+    if len == 0 || ptrIsNull dp then ptrNull ()
+    else
+      let arr = maybeToRaw dp in
+      let idx = pipedFindIdx arr 0 len h in
+      if i64Lt idx 0 then ptrNull ()
+      else
+        let u = i64ToU64 idx in
+        let found = loadU64 arr (u64ToIsize (u64Mul u 8)) in
+        let last = u64Sub len 1 in
+        let _ = if u64Lt u last then storeU64 arr (u64ToIsize (u64Mul u 8)) (loadU64 arr (u64ToIsize (u64Mul last 8))) else () in
+        let _ = storeU64 pm 24 last in
+        ptrFromU64 found
+
+  cinchProcessSpawn :: I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchProcessSpawn cmdWord argsWord cwdWord envWord =
+    let cmdBs = bytesReadSlice cmdWord in
+    let cmdLen = i64ToU64 cmdBs.bsLen in
+    if cmdLen == 0 then negErr errInvalidArg
+    else
+      let cmdCStr = allocCStr cmdBs.bsPtr cmdLen in
+      if ptrIsNull cmdCStr then negErr errInvalidArg
+      else
+        let cwdBs = bytesReadSlice cwdWord in
+        let cwdLen = i64ToU64 cwdBs.bsLen in
+        let cwdCStr = if cwdLen == 0 then ptrNull () else allocCStr cwdBs.bsPtr cwdLen in
+        if cwdLen /= 0 && ptrIsNull cwdCStr then
+          let _ = freeCStr (maybeToRaw cmdCStr) cmdLen in
+          negErr errInvalidArg
+        else
+          withLocal (fixedArrayRepeat 3 (0 :: U64)) (\argsArr ->
+            let argsList = ptrCast (mutAsPtr argsArr) in
+            let argsRc = parseNulWords argsWord argsList in
+            if i64Lt argsRc 0 then
+              let _ = freeCStrList argsList in
+              let _ = if cwdLen /= 0 then freeCStr (maybeToRaw cwdCStr) cwdLen else () in
+              let _ = freeCStr (maybeToRaw cmdCStr) cmdLen in
+              argsRc
+            else
+              withLocal (fixedArrayRepeat 3 (0 :: U64)) (\envArr ->
+                let envList = ptrCast (mutAsPtr envArr) in
+                let envRc = parseEnvWords envWord envList in
+                if i64Lt envRc 0 then
+                  let _ = freeCStrList envList in
+                  let _ = freeCStrList argsList in
+                  let _ = if cwdLen /= 0 then freeCStr (maybeToRaw cwdCStr) cwdLen else () in
+                  let _ = freeCStr (maybeToRaw cmdCStr) cmdLen in
+                  envRc
+                else
+                  let res = withLocal (fixedArrayRepeat 6 (0 :: I32)) (\pArr ->
+                    let pa = mutAsPtr pArr in
+                    if cPipe pa /= 0 then negErr (ioCodeErrno (sysErrno ()))
+                    else if cPipe (ptrAdd pa 8) /= 0 then
+                      let _ = cClose (loadI32 pa 0) in
+                      let _ = cClose (loadI32 pa 4) in
+                      negErr (ioCodeErrno (sysErrno ()))
+                    else if cPipe (ptrAdd pa 16) /= 0 then
+                      let _ = cClose (loadI32 pa 0) in
+                      let _ = cClose (loadI32 pa 4) in
+                      let _ = cClose (loadI32 pa 8) in
+                      let _ = cClose (loadI32 pa 12) in
+                      negErr (ioCodeErrno (sysErrno ()))
+                    else
+                      let inRd = loadI32 pa 0 in
+                      let inWr = loadI32 pa 4 in
+                      let outRd = loadI32 pa 8 in
+                      let outWr = loadI32 pa 12 in
+                      let errRd = loadI32 pa 16 in
+                      let errWr = loadI32 pa 20 in
+                      let _ = setCloexec inWr in
+                      let _ = setCloexec outRd in
+                      let _ = setCloexec errRd in
+                      let pidRes = spawnChildPosix (maybeToRaw cmdCStr) argsList cwdCStr envList inRd outWr errWr inWr outRd errRd in
+                      let _ = cClose inRd in
+                      let _ = cClose outWr in
+                      let _ = cClose errWr in
+                      if i64Lt pidRes 0 then
+                        let _ = cClose inWr in
+                        let _ = cClose outRd in
+                        let _ = cClose errRd in
+                        pidRes
+                      else
+                        let entry = heapGlobalAlloc pipedEntryBytes 8 1 in
+                        let _ = storeI32 entry 8 (i64ToI32 pidRes) in
+                        let _ = storeI32 entry 12 inWr in
+                        let _ = storeI32 entry 16 outRd in
+                        let _ = storeI32 entry 20 errRd in
+                        pipedInsert entry
+                  ) in
+                  let _ = freeCStrList envList in
+                  let _ = freeCStrList argsList in
+                  let _ = if cwdLen /= 0 then freeCStr (maybeToRaw cwdCStr) cwdLen else () in
+                  let _ = freeCStr (maybeToRaw cmdCStr) cmdLen in
+                  res
+              )
+          )
+
+  cinchProcessWriteStdin :: I64 -> I64 ->{Global} I64
+  cinchProcessWriteStdin h dataWord =
+    let bs = bytesReadSlice dataWord in
+    let _ = pipedLock () in
+    let ep = pipedLookupLocked h in
+    let neg1 = i64ToI32 (i64Sub 0 1) in
+    let fd =
+          (if ptrIsNull ep then neg1
+          else
+            let e = maybeToRaw ep in
+            let f = loadI32 e 12 in
+            let _ = if i64Ge (i32ToI64 f) 0 then storeI32 e 12 neg1 else () in
+            f) in
+    let _ = pipedUnlock () in
+    if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+    else
+      let rc = writeAllFd fd bs.bsPtr (i64ToU64 bs.bsLen) in
+      let _ = pipedLock () in
+      let ep2 = pipedLookupLocked h in
+      let _ = (if not (ptrIsNull ep2) then storeI32 (maybeToRaw ep2) 12 fd
+        else (let _ = cClose fd in ())) in
+      let _ = pipedUnlock () in
+      if i64Lt rc 0 then rc else bs.bsLen
+
+  cinchProcessCloseStdin :: I64 ->{Global} I64
+  cinchProcessCloseStdin h =
+    let _ = pipedLock () in
+    let ep = pipedLookupLocked h in
+    if ptrIsNull ep then
+      let _ = pipedUnlock () in
+      negErr errInvalidArg
+    else
+      let e = maybeToRaw ep in
+      let fd = loadI32 e 12 in
+      let _ = storeI32 e 12 (i64ToI32 (i64Sub 0 1)) in
+      let _ = pipedUnlock () in
+      let _ = if i64Ge (i32ToI64 fd) 0 then (let _ = cClose fd in ()) else () in
+      0
+
+  cinchProcessRead :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchProcessRead h which maxLen =
+    if i64Le maxLen 0 || (which /= 0 && which /= 1) then negErr errInvalidArg
+    else
+      let _ = pipedLock () in
+      let ep = pipedLookupLocked h in
+      let neg1 = i64ToI32 (i64Sub 0 1) in
+      let dupFd =
+            (if ptrIsNull ep then neg1
+            else
+              let e = maybeToRaw ep in
+              let rawFd = if which == 0 then loadI32 e 16 else loadI32 e 20 in
+              if i64Lt (i32ToI64 rawFd) 0 then neg1 else cDup rawFd) in
+      let _ = pipedUnlock () in
+      if i64Lt (i32ToI64 dupFd) 0 then negErr errInvalidArg
+      else
+        let cap = i64ToU64 maxLen in
+        let buf = heapGlobalAlloc (u64ToUsize cap) 1 0 in
+        let n = readOnceFd dupFd buf cap in
+        let _ = cClose dupFd in
+        if i64Lt n 0 then
+          let _ = heapGlobalDealloc buf (u64ToUsize cap) 1 in
+          n
+        else
+          let word = bytesBoxCopy buf (i64ToU64 n) in
+          let _ = heapGlobalDealloc buf (u64ToUsize cap) 1 in
+          word
+
+  cinchProcessWait :: I64 ->{Global} I64
+  cinchProcessWait h =
+    let _ = pipedLock () in
+    let ep = pipedLookupLocked h in
+    if ptrIsNull ep then
+      let _ = pipedUnlock () in
+      negErr errInvalidArg
+    else
+      let e = maybeToRaw ep in
+      if loadU64 e 24 /= 0 then
+        let st = loadI64 e 32 in
+        let _ = pipedUnlock () in
+        st
+      else
+        let pid = loadI32 e 8 in
+        let res = withLocal (0 :: I32) (\st -> waitpidLoop pid (mutAsPtr st)) in
+        let _ = (if i64Ge res 0 then
+            let _ = storeU64 e 24 1 in
+            storeI64 e 32 res
+          else ()) in
+        let _ = pipedUnlock () in
+        res
+
+  cinchProcessClose :: I64 ->{Global, ThreadAffine} I64
+  cinchProcessClose h =
+    let _ = pipedLock () in
+    let ep = pipedRemoveLocked h in
+    let _ = pipedUnlock () in
+    if ptrIsNull ep then negErr errInvalidArg
+    else
+      let e = maybeToRaw ep in
+      let inFd = loadI32 e 12 in
+      let outFd = loadI32 e 16 in
+      let errFd = loadI32 e 20 in
+      let _ = if i64Ge (i32ToI64 inFd) 0 then (let _ = cClose inFd in ()) else () in
+      let _ = if i64Ge (i32ToI64 outFd) 0 then (let _ = cClose outFd in ()) else () in
+      let _ = if i64Ge (i32ToI64 errFd) 0 then (let _ = cClose errFd in ()) else () in
+      let _ = (if loadU64 e 24 == 0 then
+          let pid = loadI32 e 8 in
+          let _ = if i64Gt (i32ToI64 pid) 0 then (let _ = cKill pid 9 in let _ = withLocal (0 :: I32) (\st -> waitpidLoop pid (mutAsPtr st)) in ()) else () in
+          ()
+        else ()) in
+      let _ = heapGlobalDealloc e pipedEntryBytes 8 in
+      0
+
+  -- =========================================================================
+  -- C ABI Exports (35 exports)
+  -- =========================================================================
+
+  foreign export ccall "cinch_buf_new" cinchBufNew :: Unit ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_buf_free" cinchBufFree :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_buf_push" cinchBufPush :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_buf_len" cinchBufLen :: I64 ->{Global} I64
+  foreign export ccall "cinch_buf_get" cinchBufGet :: I64 -> I64 ->{Global} I64
+
+  foreign export ccall "cinch_clock_monotonic_ns" cinchClockMonotonicNs :: Unit ->{Global} I64
+  foreign export ccall "cinch_clock_wall_ns" cinchClockWallNs :: Unit ->{Global} I64
+
+  foreign export ccall "cinch_fs_rename" cinchFsRename :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_meta_kind" cinchFsMetaKind :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_meta_size" cinchFsMetaSize :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_dir_open" cinchFsDirOpen :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_dir_next" cinchFsDirNext :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_dir_close" cinchFsDirClose :: I64 ->{Global} I64
+  foreign export ccall "cinch_fs_mkdir" cinchFsMkdir :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_remove" cinchFsRemove :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_fs_temp_dir" cinchFsTempDir :: Unit ->{Global, ThreadAffine} I64
+
+  foreign export ccall "cinch_random_bytes" cinchRandomBytes :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_signal_send" cinchSignalSend :: I64 -> I64 ->{Global} I64
+
+  foreign export ccall "cinch_argv_init" cinchArgvInit :: I64 -> MaybeNull U8 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_argv_count" cinchArgvCount :: Unit ->{Global} I64
+  foreign export ccall "cinch_argv_get" cinchArgvGet :: I64 ->{Global, ThreadAffine} I64
+
+  foreign export ccall "cinch_proc_new" cinchProcNew :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_proc_arg" cinchProcArg :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_proc_env" cinchProcEnv :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_proc_stdin" cinchProcStdin :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_proc_run" cinchProcRun :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_proc_read_out" cinchProcReadOut :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_proc_wait" cinchProcWait :: I64 ->{Global} I64
+  foreign export ccall "cinch_proc_free" cinchProcFree :: I64 ->{Global, ThreadAffine} I64
+
+  foreign export ccall "cinch_process_spawn" cinchProcessSpawn :: I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_process_write_stdin" cinchProcessWriteStdin :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_process_close_stdin" cinchProcessCloseStdin :: I64 ->{Global} I64
+  foreign export ccall "cinch_process_read" cinchProcessRead :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_process_wait" cinchProcessWait :: I64 ->{Global} I64
+  foreign export ccall "cinch_process_close" cinchProcessClose :: I64 ->{Global, ThreadAffine} I64

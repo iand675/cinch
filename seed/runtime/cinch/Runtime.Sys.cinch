@@ -12,7 +12,13 @@ module Runtime.Sys where
   export cPthreadCondInit, cPthreadCondDestroy, cPthreadCondWait, cPthreadCondTimedwait
   export cPthreadCondSignal, cPthreadCondBroadcast
   export cClockGettime, cSysconf
-  export sysIsLinux, sysMainImageSlide, sysFramePointer, sysThisThreadStack
+  export cClose, cRename, cMkdir, cRmdir, cUnlink, cOpendir, cReaddir, cClosedir
+  export cDup, cDup2, cPipe, cKill, cFork, cExecvp, cChdir, cSetenv, cWaitpid, cGetpid
+  export cPosixOpenpt, cGrantpt, cUnlockpt, cPtsnameR
+  export cSocket, cConnect, cBind, cListen, cAccept, cGetsockname, cSetsockopt, cSendto
+  export cGetaddrinfo, cFreeaddrinfo, cInetNtop
+  export sysOpen, sysFcntlSetFd, sysIoctl, sysStat, sysLstat, sysGetrandom
+  export sysIsLinux, sysIsAarch64, sysMainImageSlide, sysFramePointer, sysThisThreadStack
   export sysAvailableParallelism, sysMonotonicNs, sysRealtimeNs, sysCondTimedWaitNs
   export sysCallFn0, sysCallFn1, sysCallParExec, sysApplyClosure1
   export sysProtNone, sysProtRead, sysProtWrite, sysMapPrivate, sysMapAnon
@@ -65,6 +71,74 @@ module Runtime.Sys where
   foreign import ccall "clock_gettime" cClockGettime :: I32 -> RawPtr U8 ->{Global} I32
   foreign import ccall "sysconf" cSysconf :: I32 ->{Global} I64
   foreign import ccall "strtod" cStrtod :: RawPtr U8 -> RawPtr (MaybeNull U8) ->{Global} F64
+  foreign import ccall "close" cClose :: I32 ->{Global} I32
+  foreign import ccall "rename" cRename :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+  foreign import ccall "mkdir" cMkdir :: RawPtr U8 -> U32 ->{Global} I32
+  foreign import ccall "rmdir" cRmdir :: RawPtr U8 ->{Global} I32
+  foreign import ccall "unlink" cUnlink :: RawPtr U8 ->{Global} I32
+  foreign import ccall "opendir" cOpendir :: RawPtr U8 ->{Global} MaybeNull U8
+  foreign import ccall "readdir" cReaddir :: RawPtr U8 ->{Global} MaybeNull U8
+  foreign import ccall "closedir" cClosedir :: RawPtr U8 ->{Global} I32
+  foreign import ccall "dup" cDup :: I32 ->{Global} I32
+  foreign import ccall "dup2" cDup2 :: I32 -> I32 ->{Global} I32
+  foreign import ccall "pipe" cPipe :: RawPtr I32 ->{Global} I32
+  foreign import ccall "kill" cKill :: I32 -> I32 ->{Global} I32
+  foreign import ccall "fork" cFork :: Unit ->{Global} I32
+  foreign import ccall "execvp" cExecvp :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+  foreign import ccall "chdir" cChdir :: RawPtr U8 ->{Global} I32
+  foreign import ccall "setenv" cSetenv :: RawPtr U8 -> RawPtr U8 -> I32 ->{Global} I32
+  foreign import ccall "waitpid" cWaitpid :: I32 -> RawPtr I32 -> I32 ->{Global} I32
+  foreign import ccall "getpid" cGetpid :: Unit ->{Global} I32
+  foreign import ccall "posix_openpt" cPosixOpenpt :: I32 ->{Global} I32
+  foreign import ccall "grantpt" cGrantpt :: I32 ->{Global} I32
+  foreign import ccall "unlockpt" cUnlockpt :: I32 ->{Global} I32
+  foreign import ccall "ptsname_r" cPtsnameR :: I32 -> RawPtr U8 -> Usize ->{Global} I32
+  foreign import ccall "socket" cSocket :: I32 -> I32 -> I32 ->{Global} I32
+  foreign import ccall "connect" cConnect :: I32 -> RawPtr U8 -> U32 ->{Global} I32
+  foreign import ccall "bind" cBind :: I32 -> RawPtr U8 -> U32 ->{Global} I32
+  foreign import ccall "listen" cListen :: I32 -> I32 ->{Global} I32
+  foreign import ccall "accept" cAccept :: I32 -> MaybeNull U8 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "getsockname" cGetsockname :: I32 -> RawPtr U8 -> RawPtr U32 ->{Global} I32
+  foreign import ccall "setsockopt" cSetsockopt :: I32 -> I32 -> I32 -> RawPtr U8 -> U32 ->{Global} I32
+  foreign import ccall "sendto" cSendto :: I32 -> RawPtr U8 -> Usize -> I32 -> RawPtr U8 -> U32 ->{Global} Isize
+  foreign import ccall "getaddrinfo" cGetaddrinfo :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr (MaybeNull U8) ->{Global} I32
+  foreign import ccall "freeaddrinfo" cFreeaddrinfo :: RawPtr U8 ->{Global} Unit
+  foreign import ccall "inet_ntop" cInetNtop :: I32 -> RawPtr U8 -> RawPtr U8 -> U32 ->{Global} MaybeNull U8
+
+  -- Variadic POSIX calls (must be invoked with variadic signature for Darwin arm64 ABI)
+  prim sysOpen :: RawPtr U8 -> I32 -> I32 ->{Global} I32 where
+    unsafe llvm {
+      %r = call i32 (ptr, i32, ...) @open(ptr %0, i32 %1, i32 %2)
+      ret i32 %r
+    } uses (open :: RawPtr U8 -> I32 -> I32 -> I32)
+
+  prim sysFcntlSetFd :: I32 -> I32 -> I32 ->{Global} I32 where
+    unsafe llvm {
+      %r = call i32 (i32, i32, ...) @fcntl(i32 %0, i32 %1, i32 %2)
+      ret i32 %r
+    } uses (fcntl :: I32 -> I32 -> I32 -> I32)
+
+  prim sysIoctl :: I32 -> U64 -> RawPtr U8 ->{Global} I32 where
+    unsafe llvm {
+      %r = call i32 (i32, i64, ...) @ioctl(i32 %0, i64 %1, ptr %2)
+      ret i32 %r
+    } uses (ioctl :: I32 -> U64 -> RawPtr U8 -> I32)
+
+  foreign import ccall "stat" cStatRaw :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+  foreign import ccall "lstat" cLstatRaw :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+
+  sysStat :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+  sysStat p buf = cStatRaw p buf
+
+  sysLstat :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+  sysLstat p buf = cLstatRaw p buf
+
+  prim sysGetrandom :: RawPtr U8 -> Usize -> U32 ->{Global} Isize where
+    unsafe llvm {
+      %r = call i64 @getrandom(ptr %0, i64 %1, i32 %2)
+      ret i64 %r
+    } uses (getrandom :: RawPtr U8 -> Usize -> U32 -> Isize) when os linux
+    unsafe llvm { ret i64 -1 }
 
   prim sysIsLinuxPrim :: I64 -> Bool where
     unsafe llvm { ret i8 1 } when os linux
@@ -72,6 +146,13 @@ module Runtime.Sys where
 
   sysIsLinux :: Bool
   sysIsLinux = sysIsLinuxPrim 0
+
+  prim sysIsAarch64Prim :: I64 -> Bool where
+    unsafe llvm { ret i8 1 } when arch aarch64
+    unsafe llvm { ret i8 0 }
+
+  sysIsAarch64 :: Bool
+  sysIsAarch64 = sysIsAarch64Prim 0
 
   prim sysMainImageSlidePrim :: I64 ->{Global} U64 where
     unsafe llvm {

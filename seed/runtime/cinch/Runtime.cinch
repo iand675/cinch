@@ -20,6 +20,9 @@ module Runtime where
   import Runtime.Par
   import Runtime.Coop
   import Runtime.Sync
+  import Runtime.Platform
+  import Runtime.Net
+  import Runtime.Pty
 
   export cinchBlackhole, cinchPanic
   export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc
@@ -63,3 +66,19 @@ module Runtime where
   export cinchCoopScopeOpen, cinchCoopScopeClose, cinchCoopTaskSpawn
   export cinchCoopTaskJoinAllOrCancel, cinchCoopTaskPollCancel, cinchCoopIoSleep
   export cinchCoopParBoth, cinchCoopParTabulate, cinchCoopParMapArray, cinchCoopParSetWorkers
+  export cinchBufNew, cinchBufFree, cinchBufPush, cinchBufLen, cinchBufGet
+  export cinchClockMonotonicNs, cinchClockWallNs
+  export cinchFsRename, cinchFsMetaKind, cinchFsMetaSize
+  export cinchFsDirOpen, cinchFsDirNext, cinchFsDirClose
+  export cinchFsMkdir, cinchFsRemove, cinchFsTempDir
+  export cinchRandomBytes, cinchSignalSend
+  export cinchArgvInit, cinchArgvCount, cinchArgvGet
+  export cinchProcNew, cinchProcArg, cinchProcEnv, cinchProcStdin
+  export cinchProcRun, cinchProcReadOut, cinchProcWait, cinchProcFree
+  export cinchProcessSpawn, cinchProcessWriteStdin, cinchProcessCloseStdin
+  export cinchProcessRead, cinchProcessWait, cinchProcessClose
+  export cinchNetTcpConnect, cinchNetTcpListen, cinchNetTcpAccept
+  export cinchNetListenerAddr, cinchNetListenerClose, cinchNetUdpSend
+  export cinchNetRead, cinchNetWrite, cinchNetClose, cinchNetResolve
+  export cinchPtyOpen, cinchPtySpawn, cinchPtyRead, cinchPtyWrite
+  export cinchPtyWait, cinchPtyResize, cinchPtyClose

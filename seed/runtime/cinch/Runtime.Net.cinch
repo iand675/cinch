@@ -1,0 +1,529 @@
+module Runtime.Net where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+  import Runtime.String
+  import Runtime.Bytes
+  import Runtime.Platform
+
+  export cinchNetTcpConnect, cinchNetTcpListen, cinchNetTcpAccept
+  export cinchNetListenerAddr, cinchNetListenerClose, cinchNetUdpSend
+  export cinchNetRead, cinchNetWrite, cinchNetClose, cinchNetResolve
+
+  -- =========================================================================
+  -- POSIX Networking Constants & Struct Layouts
+  -- =========================================================================
+
+  afUnspec :: I32
+  afUnspec = 0
+  afInet :: I32
+  afInet = 2
+  afInet6 :: I32
+  afInet6 = if sysIsLinux then 10 else 30
+
+  sockStream :: I32
+  sockStream = 1
+  sockDgram :: I32
+  sockDgram = 2
+
+  solSocket :: I32
+  solSocket = if sysIsLinux then 1 else 65535
+  soReuseAddr :: I32
+  soReuseAddr = if sysIsLinux then 2 else 4
+
+  -- struct addrinfo offsets (48 bytes on both 64-bit Darwin and Linux)
+  offAiFlags :: Isize
+  offAiFlags = 0
+  offAiFamily :: Isize
+  offAiFamily = 4
+  offAiSocktype :: Isize
+  offAiSocktype = 8
+  offAiProtocol :: Isize
+  offAiProtocol = 12
+  offAiAddrlen :: Isize
+  offAiAddrlen = 16
+  offAiAddr :: Isize
+  offAiAddr = if sysIsLinux then 24 else 32
+  offAiNext :: Isize
+  offAiNext = 40
+
+  negErr :: I64 -> I64
+  negErr c = i64Sub 0 c
+
+  -- =========================================================================
+  -- Handle Tables (Sockets kind=1, Listeners kind=2)
+  -- Entry (16 bytes): [0]=handle :: I64, [8]=fd :: I32, [12]=kind :: I32
+  -- =========================================================================
+
+  -- [0]=initState (0/1/2), [1]=nextHandle, [2]=entriesData, [3]=entriesLen, [4]=entriesCap
+  #[static_mut]
+  static netMeta :: FixedArray 6 U64
+
+  #[static_mut]
+  static netMutexBuf :: FixedArray 64 U8
+
+  waitNetInit :: RawPtr U8 ->{Global} Unit
+  waitNetInit nm =
+    if atomicLoadU64Acquire nm 0 == 2 then ()
+    else let _ = sysSpinLoop () in waitNetInit nm
+
+  netLock :: Unit ->{Global} Unit
+  netLock _ =
+    let nm = ptrCast (netMeta ()) in
+    let _ = (if atomicLoadU64Acquire nm 0 == 2 then ()
+      else if atomicCasU64Bool nm 0 0 1 then
+        let _ = cPthreadMutexInit (ptrCast (netMutexBuf ())) (ptrNull ()) in
+        let _ = storeU64 nm 8 1 in
+        atomicStoreU64Release nm 0 2
+      else waitNetInit nm) in
+    let _ = cPthreadMutexLock (ptrCast (netMutexBuf ())) in
+    ()
+
+  netUnlock :: Unit ->{Global} Unit
+  netUnlock _ =
+    let _ = cPthreadMutexUnlock (ptrCast (netMutexBuf ())) in
+    ()
+
+  netInsert :: I32 -> I32 ->{Global, ThreadAffine} I64
+  netInsert fd kind =
+    let _ = netLock () in
+    let nm = ptrCast (netMeta ()) in
+    let h = u64ToI64 (loadU64 nm 8) in
+    let _ = storeU64 nm 8 (u64Add (loadU64 nm 8) 1) in
+    let len = loadU64 nm 24 in
+    let cap = loadU64 nm 32 in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr nm 16)
+          else
+            let newCap = if cap == 0 then 16 else u64Mul cap 2 in
+            let old = loadPtr nm 16 in
+            let p =
+                  (if ptrIsNull old then heapGlobalAlloc (u64ToUsize (u64Mul newCap 16)) 8 0
+                  else heapGlobalRealloc (maybeToRaw old) (u64ToUsize (u64Mul cap 16)) 8 (u64ToUsize (u64Mul newCap 16))) in
+            let _ = storePtr nm 16 (rawToMaybe p) in
+            let _ = storeU64 nm 32 newCap in
+            p) in
+    let slot = ptrAddU64 buf (u64Mul len 16) in
+    let _ = storeI64 slot 0 h in
+    let _ = storeI32 slot 8 fd in
+    let _ = storeI32 slot 12 kind in
+    let _ = storeU64 nm 24 (u64Add len 1) in
+    let _ = netUnlock () in
+    h
+
+  netFindIdx :: RawPtr U8 -> U64 -> U64 -> I64 -> I32 ->{Global} I64
+  netFindIdx arr i len h kind =
+    if u64Ge i len then i64Sub 0 1
+    else
+      let slot = ptrAddU64 arr (u64Mul i 16) in
+      if loadI64 slot 0 == h && loadI32 slot 12 == kind then u64ToI64 i
+      else netFindIdx arr (u64Add i 1) len h kind
+
+  netDupFd :: I64 -> I32 ->{Global} I32
+  netDupFd h kind =
+    let _ = netLock () in
+    let nm = ptrCast (netMeta ()) in
+    let len = loadU64 nm 24 in
+    let dp = loadPtr nm 16 in
+    let neg1 = i64ToI32 (i64Sub 0 1) in
+    let res =
+          (if len == 0 || ptrIsNull dp then neg1
+          else
+            let arr = maybeToRaw dp in
+            let idx = netFindIdx arr 0 len h kind in
+            if i64Lt idx 0 then neg1
+            else cDup (loadI32 (ptrAddU64 arr (u64Mul (i64ToU64 idx) 16)) 8)) in
+    let _ = netUnlock () in
+    res
+
+  netRemoveAndClose :: I64 -> I32 ->{Global} I64
+  netRemoveAndClose h kind =
+    let _ = netLock () in
+    let nm = ptrCast (netMeta ()) in
+    let len = loadU64 nm 24 in
+    let dp = loadPtr nm 16 in
+    let neg1 = i64ToI32 (i64Sub 0 1) in
+    let fd =
+          (if len == 0 || ptrIsNull dp then neg1
+          else
+            let arr = maybeToRaw dp in
+            let idx = netFindIdx arr 0 len h kind in
+            if i64Lt idx 0 then neg1
+            else
+              let u = i64ToU64 idx in
+              let slot = ptrAddU64 arr (u64Mul u 16) in
+              let f = loadI32 slot 8 in
+              let last = u64Sub len 1 in
+              let _ = (if u64Lt u last then
+                  let lastSlot = ptrAddU64 arr (u64Mul last 16) in
+                  let _ = storeI64 slot 0 (loadI64 lastSlot 0) in
+                  let _ = storeI32 slot 8 (loadI32 lastSlot 8) in
+                  storeI32 slot 12 (loadI32 lastSlot 12)
+                else ()) in
+              let _ = storeU64 nm 24 last in
+              f) in
+    let _ = netUnlock () in
+    if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+    else
+      let _ = cClose fd in
+      0
+
+  -- =========================================================================
+  -- Host/Port Validation, getaddrinfo, and SocketAddr Formatting
+  -- =========================================================================
+
+  hasZero :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  hasZero p i len =
+    if u64Ge i len then False
+    else if loadU8 p (u64ToIsize i) == 0 then True
+    else hasZero p (u64Add i 1) len
+
+  formatPortBuf :: RawPtr U8 -> U64 -> Isize ->{Global} Isize
+  formatPortBuf buf v pos =
+    let q = u64Div v 10 in
+    let r = u64Rem v 10 in
+    let np = i64ToIsize (i64Sub (isizeToI64 pos) 1) in
+    let _ = storeU8 buf np (u64ToU8 (u64Add 48 r)) in
+    if q == 0 then np else formatPortBuf buf q np
+
+  -- Calls getaddrinfo(host, port, socktype). Returns pointer to addrinfo list, or null.
+  -- Sets errOut to negated platform error code on failure.
+  resolveHostPort :: I64 -> I64 -> I32 -> RawPtr I64 ->{Global, ThreadAffine} MaybeNull U8
+  resolveHostPort hostWord port socktype errOut =
+    if i64Lt port 0 || i64Gt port 65535 then
+      let _ = storeI64 errOut 0 (negErr errInvalidArg) in
+      ptrNull ()
+    else
+      let bs = bytesReadSlice hostWord in
+      let hlen = i64ToU64 bs.bsLen in
+      let utf8Ok = hlen == 0 || cinchUtf8Validate (rawToMaybe bs.bsPtr) bs.bsLen /= 0 in
+      if not utf8Ok || (hlen /= 0 && hasZero bs.bsPtr 0 hlen) then
+        let _ = storeI64 errOut 0 (negErr errInvalidArg) in
+        ptrNull ()
+      else
+        let hostCStr = heapGlobalAlloc (u64ToUsize (u64Add hlen 1)) 1 0 in
+        let _ = if hlen /= 0 then memCopy hostCStr bs.bsPtr (u64ToUsize hlen) else () in
+        let _ = storeU8 hostCStr (u64ToIsize hlen) 0 in
+        let res = withLocal (fixedArrayRepeat 16 (0 :: U8)) (\portArr ->
+          let pbuf = mutAsPtr portArr in
+          let _ = storeU8 pbuf 15 0 in
+          let pstart = formatPortBuf pbuf (i64ToU64 port) 15 in
+          let portCStr = ptrAdd pbuf pstart in
+          withLocal (fixedArrayRepeat 48 (0 :: U8)) (\hintsArr ->
+            let hints = mutAsPtr hintsArr in
+            let _ = memZero hints 48 in
+            let _ = storeI32 hints offAiFamily afUnspec in
+            let _ = storeI32 hints offAiSocktype socktype in
+            withLocal (ptrNull () :: MaybeNull U8) (\resSlot ->
+              let rc = cGetaddrinfo hostCStr portCStr hints (mutAsPtr resSlot) in
+              if rc /= 0 then
+                let _ = storeI64 errOut 0 (negErr errIo) in
+                ptrNull ()
+              else
+                loadPtr (mutAsPtr resSlot) 0
+            )
+          )
+        ) in
+        let _ = heapGlobalDealloc hostCStr (u64ToUsize (u64Add hlen 1)) 1 in
+        res
+
+  sockaddrFamily :: RawPtr U8 ->{Global} I32
+  sockaddrFamily sa =
+    if sysIsLinux then i64ToI32 (u64ToI64 (u16ToU64 (loadU16 sa 0)))
+    else i64ToI32 (u64ToI64 (u8ToU64 (loadU8 sa 1)))
+
+  sockaddrPortHost :: RawPtr U8 ->{Global} U64
+  sockaddrPortHost sa =
+    let hi = u8ToU64 (loadU8 sa 2) in
+    let lo = u8ToU64 (loadU8 sa 3) in
+    bitOrU64 (shlU64 hi 8) lo
+
+  -- Formats sockaddr into dst (capacity >= 96 bytes), returns length written (0 if unknown family)
+  formatSockaddr :: RawPtr U8 -> RawPtr U8 ->{Global} U64
+  formatSockaddr sa dst =
+    let fam = sockaddrFamily sa in
+    let port = sockaddrPortHost sa in
+    if fam /= afInet && fam /= afInet6 then 0
+    else
+      let addrPtr = if fam == afInet then ptrAdd sa 4 else ptrAdd sa 8 in
+      withLocal (fixedArrayRepeat 64 (0 :: U8)) (\ipArr ->
+        let ipBuf = mutAsPtr ipArr in
+        let ok = cInetNtop fam addrPtr ipBuf 64 in
+        if ptrIsNull ok then 0
+        else
+          let ipLen = usizeToU64 (cStrlen ipBuf) in
+          let pos0 =
+                (if fam == afInet6 then
+                  let _ = storeU8 dst 0 91 in -- '['
+                  let _ = memCopy (ptrAdd dst 1) ipBuf (u64ToUsize ipLen) in
+                  let _ = storeU8 dst (u64ToIsize (u64Add ipLen 1)) 93 in -- ']'
+                  u64Add ipLen 2
+                else
+                  let _ = memCopy dst ipBuf (u64ToUsize ipLen) in
+                  ipLen) in
+          let _ = storeU8 dst (u64ToIsize pos0) 58 in -- ':'
+          let pos1 = u64Add pos0 1 in
+          withLocal (fixedArrayRepeat 16 (0 :: U8)) (\pArr ->
+            let pb = mutAsPtr pArr in
+            let pstart = formatPortBuf pb port 16 in
+            let plen = i64ToU64 (i64Sub 16 (isizeToI64 pstart)) in
+            let _ = memCopy (ptrAddU64 dst pos1) (ptrAdd pb pstart) (u64ToUsize plen) in
+            u64Add pos1 plen
+          )
+      )
+
+  -- =========================================================================
+  -- TCP Connect / Listen / Accept / Addr / Close
+  -- =========================================================================
+
+  tcpConnectLoop :: MaybeNull U8 -> I64 ->{Global, ThreadAffine} I64
+  tcpConnectLoop cur lastErr =
+    if ptrIsNull cur then lastErr
+    else
+      let ai = maybeToRaw cur in
+      let fam = loadI32 ai offAiFamily in
+      let st = loadI32 ai offAiSocktype in
+      let proto = loadI32 ai offAiProtocol in
+      let alen = loadU32 ai offAiAddrlen in
+      let addr = loadPtr ai offAiAddr in
+      let next = loadPtr ai offAiNext in
+      if ptrIsNull addr then tcpConnectLoop next lastErr
+      else
+        let fd = cSocket fam st proto in
+        if i64Lt (i32ToI64 fd) 0 then
+          tcpConnectLoop next (negErr (ioCodeErrno (sysErrno ())))
+        else
+          let _ = setCloexec fd in
+          if cConnect fd (maybeToRaw addr) alen == 0 then
+            netInsert fd 1
+          else
+            let err = negErr (ioCodeErrno (sysErrno ())) in
+            let _ = cClose fd in
+            tcpConnectLoop next err
+
+  cinchNetTcpConnect :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNetTcpConnect hostWord port =
+    withLocal (0 :: I64) (\errSlot ->
+      let list = resolveHostPort hostWord port sockStream (mutAsPtr errSlot) in
+      if ptrIsNull list then loadI64 (mutAsPtr errSlot) 0
+      else
+        let res = tcpConnectLoop list (negErr errIo) in
+        let _ = cFreeaddrinfo (maybeToRaw list) in
+        res
+    )
+
+  tcpListenLoop :: MaybeNull U8 -> I64 ->{Global, ThreadAffine} I64
+  tcpListenLoop cur lastErr =
+    if ptrIsNull cur then lastErr
+    else
+      let ai = maybeToRaw cur in
+      let fam = loadI32 ai offAiFamily in
+      let st = loadI32 ai offAiSocktype in
+      let proto = loadI32 ai offAiProtocol in
+      let alen = loadU32 ai offAiAddrlen in
+      let addr = loadPtr ai offAiAddr in
+      let next = loadPtr ai offAiNext in
+      if ptrIsNull addr then tcpListenLoop next lastErr
+      else
+        let fd = cSocket fam st proto in
+        if i64Lt (i32ToI64 fd) 0 then
+          tcpListenLoop next (negErr (ioCodeErrno (sysErrno ())))
+        else
+          let _ = setCloexec fd in
+          let _ = withLocal (1 :: I32) (\oneSlot ->
+            cSetsockopt fd solSocket soReuseAddr (ptrCast (mutAsPtr oneSlot)) 4
+          ) in
+          if cBind fd (maybeToRaw addr) alen == 0 && cListen fd 128 == 0 then
+            netInsert fd 2
+          else
+            let err = negErr (ioCodeErrno (sysErrno ())) in
+            let _ = cClose fd in
+            tcpListenLoop next err
+
+  cinchNetTcpListen :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNetTcpListen hostWord port =
+    withLocal (0 :: I64) (\errSlot ->
+      let list = resolveHostPort hostWord port sockStream (mutAsPtr errSlot) in
+      if ptrIsNull list then loadI64 (mutAsPtr errSlot) 0
+      else
+        let res = tcpListenLoop list (negErr errIo) in
+        let _ = cFreeaddrinfo (maybeToRaw list) in
+        res
+    )
+
+  acceptLoop :: I32 ->{Global} I32
+  acceptLoop fd =
+    let r = cAccept fd (ptrNull ()) (ptrNull ()) in
+    if i64Ge (i32ToI64 r) 0 then r
+    else if sysErrno () == 4 then acceptLoop fd
+    else r
+
+  cinchNetTcpAccept :: I64 ->{Global, ThreadAffine} I64
+  cinchNetTcpAccept h =
+    let fd = netDupFd h 2 in
+    if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+    else
+      let acc = acceptLoop fd in
+      let err = if i64Lt (i32ToI64 acc) 0 then sysErrno () else 0 in
+      let _ = cClose fd in
+      if i64Lt (i32ToI64 acc) 0 then negErr (ioCodeErrno err)
+      else
+        let _ = setCloexec acc in
+        netInsert acc 1
+
+  cinchNetListenerAddr :: I64 ->{Global, ThreadAffine} I64
+  cinchNetListenerAddr h =
+    let fd = netDupFd h 2 in
+    if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+    else
+      let res = withLocal (fixedArrayRepeat 128 (0 :: U8)) (\saArr ->
+        let sa = mutAsPtr saArr in
+        withLocal (128 :: U32) (\lenSlot ->
+          let rc = cGetsockname fd sa (mutAsPtr lenSlot) in
+          if rc /= 0 then negErr (ioCodeErrno (sysErrno ()))
+          else
+            withLocal (fixedArrayRepeat 96 (0 :: U8)) (\txtArr ->
+              let txt = mutAsPtr txtArr in
+              let n = formatSockaddr sa txt in
+              if n == 0 then negErr errIo
+              else bytesBoxCopy txt n
+            )
+        )
+      ) in
+      let _ = cClose fd in
+      res
+
+  cinchNetListenerClose :: I64 ->{Global} I64
+  cinchNetListenerClose h = netRemoveAndClose h 2
+
+  -- =========================================================================
+  -- UDP Send, Stream Read/Write/Close, Resolve
+  -- =========================================================================
+
+  cinchNetUdpSend :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNetUdpSend hostWord port dataWord =
+    let payload = bytesReadSlice dataWord in
+    withLocal (0 :: I64) (\errSlot ->
+      let list = resolveHostPort hostWord port sockDgram (mutAsPtr errSlot) in
+      if ptrIsNull list then loadI64 (mutAsPtr errSlot) 0
+      else
+        let ai = maybeToRaw list in
+        let fam = loadI32 ai offAiFamily in
+        let alen = loadU32 ai offAiAddrlen in
+        let addr = loadPtr ai offAiAddr in
+        let res =
+              (if ptrIsNull addr then negErr errInvalidArg
+              else
+                let fd = cSocket fam sockDgram 0 in
+                if i64Lt (i32ToI64 fd) 0 then negErr (ioCodeErrno (sysErrno ()))
+                else
+                  let n = isizeToI64 (cSendto fd payload.bsPtr (u64ToUsize (i64ToU64 payload.bsLen)) 0 (maybeToRaw addr) alen) in
+                  let err = if i64Lt n 0 then sysErrno () else 0 in
+                  let _ = cClose fd in
+                  if i64Lt n 0 then negErr (ioCodeErrno err) else n) in
+        let _ = cFreeaddrinfo ai in
+        res
+    )
+
+  cinchNetRead :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNetRead h maxLen =
+    if i64Le maxLen 0 then negErr errInvalidArg
+    else
+      let fd = netDupFd h 1 in
+      if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+      else
+        let cap = i64ToU64 maxLen in
+        let buf = heapGlobalAlloc (u64ToUsize cap) 1 0 in
+        let n = readOnceFd fd buf cap in
+        let _ = cClose fd in
+        if i64Lt n 0 then
+          let _ = heapGlobalDealloc buf (u64ToUsize cap) 1 in
+          n
+        else
+          let word = bytesBoxCopy buf (i64ToU64 n) in
+          let _ = heapGlobalDealloc buf (u64ToUsize cap) 1 in
+          word
+
+  cinchNetWrite :: I64 -> I64 ->{Global} I64
+  cinchNetWrite h dataWord =
+    let bs = bytesReadSlice dataWord in
+    let fd = netDupFd h 1 in
+    if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+    else
+      let rc = writeAllFd fd bs.bsPtr (i64ToU64 bs.bsLen) in
+      let _ = cClose fd in
+      if i64Lt rc 0 then rc else bs.bsLen
+
+  cinchNetClose :: I64 ->{Global} I64
+  cinchNetClose h = netRemoveAndClose h 1
+
+  #[repr(value)]
+  record OutBuf where
+    obPtr :: MaybeNull U8
+    obLen :: U64
+    obCap :: U64
+
+  outBufAppend :: OutBuf -> RawPtr U8 -> U64 ->{Global, ThreadAffine} OutBuf
+  outBufAppend ob src n =
+    if n == 0 then ob
+    else
+      let need = u64Add ob.obLen n in
+      let cap = if u64Le need ob.obCap then ob.obCap
+                else
+                  let c0 = if ob.obCap == 0 then 128 else u64Mul ob.obCap 2 in
+                  if u64Lt c0 need then need else c0 in
+      let ptr =
+            (if cap == ob.obCap then maybeToRaw ob.obPtr
+            else if ptrIsNull ob.obPtr then heapGlobalAlloc (u64ToUsize cap) 1 0
+            else heapGlobalRealloc (maybeToRaw ob.obPtr) (u64ToUsize ob.obCap) 1 (u64ToUsize cap)) in
+      let _ = memCopy (ptrAddU64 ptr ob.obLen) src (u64ToUsize n) in
+      OutBuf (rawToMaybe ptr) need cap
+
+  resolveCollectLoop :: MaybeNull U8 -> OutBuf ->{Global, ThreadAffine} OutBuf
+  resolveCollectLoop cur ob =
+    if ptrIsNull cur then ob
+    else
+      let ai = maybeToRaw cur in
+      let addr = loadPtr ai offAiAddr in
+      let next = loadPtr ai offAiNext in
+      let ob2 =
+            (if ptrIsNull addr then ob
+            else
+              withLocal (fixedArrayRepeat 96 (0 :: U8)) (\lineArr ->
+                let lp = mutAsPtr lineArr in
+                let n = formatSockaddr (maybeToRaw addr) lp in
+                if n == 0 then ob
+                else
+                  let _ = storeU8 lp (u64ToIsize n) 10 in -- '\n'
+                  outBufAppend ob lp (u64Add n 1)
+              )) in
+      resolveCollectLoop next ob2
+
+  cinchNetResolve :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNetResolve hostWord port =
+    withLocal (0 :: I64) (\errSlot ->
+      let list = resolveHostPort hostWord port sockStream (mutAsPtr errSlot) in
+      if ptrIsNull list then loadI64 (mutAsPtr errSlot) 0
+      else
+        let ob = resolveCollectLoop list (OutBuf (ptrNull ()) 0 0) in
+        let _ = cFreeaddrinfo (maybeToRaw list) in
+        if ob.obLen == 0 || ptrIsNull ob.obPtr then
+          let _ = if not (ptrIsNull ob.obPtr) && ob.obCap /= 0 then heapGlobalDealloc (maybeToRaw ob.obPtr) (u64ToUsize ob.obCap) 1 else () in
+          bytesBoxCopy (maybeToRaw (ptrFromU64 1)) 0
+        else
+          let word = bytesBoxCopy (maybeToRaw ob.obPtr) ob.obLen in
+          let _ = heapGlobalDealloc (maybeToRaw ob.obPtr) (u64ToUsize ob.obCap) 1 in
+          word
+    )
+
+  foreign export ccall "cinch_net_tcp_connect" cinchNetTcpConnect :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_net_tcp_listen" cinchNetTcpListen :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_net_tcp_accept" cinchNetTcpAccept :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_net_listener_addr" cinchNetListenerAddr :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_net_listener_close" cinchNetListenerClose :: I64 ->{Global} I64
+  foreign export ccall "cinch_net_udp_send" cinchNetUdpSend :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_net_read" cinchNetRead :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_net_write" cinchNetWrite :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_net_close" cinchNetClose :: I64 ->{Global} I64
+  foreign export ccall "cinch_net_resolve" cinchNetResolve :: I64 -> I64 ->{Global, ThreadAffine} I64

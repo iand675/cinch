@@ -1,0 +1,382 @@
+module Runtime.Pty where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+  import Runtime.Bytes
+  import Runtime.Platform
+
+  export cinchPtyOpen, cinchPtySpawn, cinchPtyRead, cinchPtyWrite
+  export cinchPtyWait, cinchPtyResize, cinchPtyClose
+
+  -- =========================================================================
+  -- POSIX Pseudo-Terminal Constants
+  -- =========================================================================
+
+  oRdwrNoctty :: I32
+  oRdwrNoctty = if sysIsLinux then 258 else 131074 -- O_RDWR (2) | O_NOCTTY (0x100 Linux / 0x20000 Darwin)
+
+  tiocswinsz :: U64
+  tiocswinsz = if sysIsLinux then 21524 else 2148037735 -- 0x5414 Linux / 0x80087467 Darwin
+
+  negErr :: I64 -> I64
+  negErr c = i64Sub 0 c
+
+  -- =========================================================================
+  -- PTY Handle Table
+  -- Entry (40 bytes):
+  --   0:  handleId :: I64
+  --   8:  masterFd :: I32
+  --   12: slaveFd :: I32 (-1 after spawn consumes it)
+  --   16: pid :: I32 (0 before spawn)
+  --   24: hasStatus :: U64 (0/1)
+  --   32: status :: I64
+  -- =========================================================================
+
+  ptyEntryBytes :: Usize
+  ptyEntryBytes = 40
+
+  -- [0]=initState (0/1/2), [1]=nextHandle, [2]=entriesData, [3]=entriesLen, [4]=entriesCap
+  #[static_mut]
+  static ptyMeta :: FixedArray 6 U64
+
+  #[static_mut]
+  static ptyMutexBuf :: FixedArray 64 U8
+
+  waitPtyInit :: RawPtr U8 ->{Global} Unit
+  waitPtyInit pm =
+    if atomicLoadU64Acquire pm 0 == 2 then ()
+    else let _ = sysSpinLoop () in waitPtyInit pm
+
+  ptyLock :: Unit ->{Global} Unit
+  ptyLock _ =
+    let pm = ptrCast (ptyMeta ()) in
+    let _ = (if atomicLoadU64Acquire pm 0 == 2 then ()
+      else if atomicCasU64Bool pm 0 0 1 then
+        let _ = cPthreadMutexInit (ptrCast (ptyMutexBuf ())) (ptrNull ()) in
+        let _ = storeU64 pm 8 1 in
+        atomicStoreU64Release pm 0 2
+      else waitPtyInit pm) in
+    let _ = cPthreadMutexLock (ptrCast (ptyMutexBuf ())) in
+    ()
+
+  ptyUnlock :: Unit ->{Global} Unit
+  ptyUnlock _ =
+    let _ = cPthreadMutexUnlock (ptrCast (ptyMutexBuf ())) in
+    ()
+
+  ptyFindIdx :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} I64
+  ptyFindIdx arr i len h =
+    if u64Ge i len then i64Sub 0 1
+    else
+      let ep = maybeToRaw (ptrFromU64 (loadU64 arr (u64ToIsize (u64Mul i 8)))) in
+      if loadI64 ep 0 == h then u64ToI64 i
+      else ptyFindIdx arr (u64Add i 1) len h
+
+  ptyInsert :: RawPtr U8 ->{Global, ThreadAffine} I64
+  ptyInsert entry =
+    let _ = ptyLock () in
+    let pm = ptrCast (ptyMeta ()) in
+    let h = u64ToI64 (loadU64 pm 8) in
+    let _ = storeU64 pm 8 (u64Add (loadU64 pm 8) 1) in
+    let _ = storeI64 entry 0 h in
+    let len = loadU64 pm 24 in
+    let cap = loadU64 pm 32 in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr pm 16)
+          else
+            let newCap = if cap == 0 then 8 else u64Mul cap 2 in
+            let old = loadPtr pm 16 in
+            let p =
+                  (if ptrIsNull old then heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0
+                  else heapGlobalRealloc (maybeToRaw old) (u64ToUsize (u64Mul cap 8)) 8 (u64ToUsize (u64Mul newCap 8))) in
+            let _ = storePtr pm 16 (rawToMaybe p) in
+            let _ = storeU64 pm 32 newCap in
+            p) in
+    let _ = storeU64 buf (u64ToIsize (u64Mul len 8)) (rawToU64 entry) in
+    let _ = storeU64 pm 24 (u64Add len 1) in
+    let _ = ptyUnlock () in
+    h
+
+  ptyLookupLocked :: I64 ->{Global} MaybeNull U8
+  ptyLookupLocked h =
+    let pm = ptrCast (ptyMeta ()) in
+    let len = loadU64 pm 24 in
+    let dp = loadPtr pm 16 in
+    if len == 0 || ptrIsNull dp then ptrNull ()
+    else
+      let arr = maybeToRaw dp in
+      let idx = ptyFindIdx arr 0 len h in
+      if i64Lt idx 0 then ptrNull ()
+      else ptrFromU64 (loadU64 arr (u64ToIsize (u64Mul (i64ToU64 idx) 8)))
+
+  ptyRemoveLocked :: I64 ->{Global} MaybeNull U8
+  ptyRemoveLocked h =
+    let pm = ptrCast (ptyMeta ()) in
+    let len = loadU64 pm 24 in
+    let dp = loadPtr pm 16 in
+    if len == 0 || ptrIsNull dp then ptrNull ()
+    else
+      let arr = maybeToRaw dp in
+      let idx = ptyFindIdx arr 0 len h in
+      if i64Lt idx 0 then ptrNull ()
+      else
+        let u = i64ToU64 idx in
+        let found = loadU64 arr (u64ToIsize (u64Mul u 8)) in
+        let last = u64Sub len 1 in
+        let _ = if u64Lt u last then storeU64 arr (u64ToIsize (u64Mul u 8)) (loadU64 arr (u64ToIsize (u64Mul last 8))) else () in
+        let _ = storeU64 pm 24 last in
+        ptrFromU64 found
+
+  ptyDupMaster :: I64 ->{Global} I32
+  ptyDupMaster h =
+    let _ = ptyLock () in
+    let ep = ptyLookupLocked h in
+    let neg1 = i64ToI32 (i64Sub 0 1) in
+    let fd =
+          (if ptrIsNull ep then neg1
+          else cDup (loadI32 (maybeToRaw ep) 8)) in
+    let _ = ptyUnlock () in
+    fd
+
+  -- =========================================================================
+  -- C ABI Exports (7 exports: cinch_pty_*)
+  -- =========================================================================
+
+  cinchPtyOpen :: Unit ->{Global, ThreadAffine} I64
+  cinchPtyOpen _ =
+    let master = cPosixOpenpt oRdwrNoctty in
+    if i64Lt (i32ToI64 master) 0 then negErr (ioCodeErrno (sysErrno ()))
+    else if cGrantpt master /= 0 then
+      let e = sysErrno () in
+      let _ = cClose master in
+      negErr (ioCodeErrno e)
+    else if cUnlockpt master /= 0 then
+      let e = sysErrno () in
+      let _ = cClose master in
+      negErr (ioCodeErrno e)
+    else
+      withLocal (fixedArrayRepeat 1024 (0 :: U8)) (\pathArr ->
+        let pb = mutAsPtr pathArr in
+        let rc = cPtsnameR master pb 1024 in
+        if rc /= 0 then
+          let e = if i64Gt (i32ToI64 rc) 0 then i32ToI64 rc else sysErrno () in
+          let _ = cClose master in
+          negErr (ioCodeErrno e)
+        else
+          let slave = sysOpen pb oRdwrNoctty 0 in
+          if i64Lt (i32ToI64 slave) 0 then
+            let e = sysErrno () in
+            let _ = cClose master in
+            negErr (ioCodeErrno e)
+          else
+            let entry = heapGlobalAlloc ptyEntryBytes 8 1 in
+            let _ = storeI32 entry 8 master in
+            let _ = storeI32 entry 12 slave in
+            ptyInsert entry
+      )
+
+  hasZeroPty :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  hasZeroPty p i len =
+    if u64Ge i len then False
+    else if loadU8 p (u64ToIsize i) == 0 then True
+    else hasZeroPty p (u64Add i 1) len
+
+  allocCStrPty :: RawPtr U8 -> U64 ->{Global, ThreadAffine} MaybeNull U8
+  allocCStrPty p len =
+    if len /= 0 && hasZeroPty p 0 len then ptrNull ()
+    else
+      let out = heapGlobalAlloc (u64ToUsize (u64Add len 1)) 1 0 in
+      let _ = if len /= 0 then memCopy out p (u64ToUsize len) else () in
+      let _ = storeU8 out (u64ToIsize len) 0 in
+      rawToMaybe out
+
+  ptyWaitpidLoop :: I32 -> RawPtr I32 ->{Global} I64
+  ptyWaitpidLoop pid st =
+    let r = i32ToI64 (cWaitpid pid st 0) in
+    if i64Lt r 0 && sysErrno () == 4 then ptyWaitpidLoop pid st
+    else if i64Lt r 0 then negErr (ioCodeErrno (sysErrno ()))
+    else exitCodeFromStatus (loadI32 st 0)
+
+  cinchPtySpawn :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchPtySpawn h progWord argsWord cwdWord envWord =
+    let progBs = bytesReadSlice progWord in
+    let progLen = i64ToU64 progBs.bsLen in
+    if progLen == 0 then negErr errInvalidArg
+    else
+      let progCStr = allocCStrPty progBs.bsPtr progLen in
+      if ptrIsNull progCStr then negErr errInvalidArg
+      else
+        let cwdBs = bytesReadSlice cwdWord in
+        let cwdLen = i64ToU64 cwdBs.bsLen in
+        let cwdCStr = if cwdLen == 0 then ptrNull () else allocCStrPty cwdBs.bsPtr cwdLen in
+        if cwdLen /= 0 && ptrIsNull cwdCStr then
+          let _ = heapGlobalDealloc (maybeToRaw progCStr) (u64ToUsize (u64Add progLen 1)) 1 in
+          negErr errInvalidArg
+        else
+          withLocal (fixedArrayRepeat 3 (0 :: U64)) (\argsArr ->
+            let argsList = ptrCast (mutAsPtr argsArr) in
+            let argsRc = parseNulWords argsWord argsList in
+            if i64Lt argsRc 0 then
+              let _ = freeCStrList argsList in
+              let _ = if cwdLen /= 0 then heapGlobalDealloc (maybeToRaw cwdCStr) (u64ToUsize (u64Add cwdLen 1)) 1 else () in
+              let _ = heapGlobalDealloc (maybeToRaw progCStr) (u64ToUsize (u64Add progLen 1)) 1 in
+              argsRc
+            else
+              withLocal (fixedArrayRepeat 3 (0 :: U64)) (\envArr ->
+                let envList = ptrCast (mutAsPtr envArr) in
+                let envRc = parseEnvWords envWord envList in
+                if i64Lt envRc 0 then
+                  let _ = freeCStrList envList in
+                  let _ = freeCStrList argsList in
+                  let _ = if cwdLen /= 0 then heapGlobalDealloc (maybeToRaw cwdCStr) (u64ToUsize (u64Add cwdLen 1)) 1 else () in
+                  let _ = heapGlobalDealloc (maybeToRaw progCStr) (u64ToUsize (u64Add progLen 1)) 1 in
+                  envRc
+                else
+                  let _ = ptyLock () in
+                  let ep = ptyLookupLocked h in
+                  let neg1 = i64ToI32 (i64Sub 0 1) in
+                  let slaveFd =
+                        (if ptrIsNull ep then neg1
+                        else
+                          let e = maybeToRaw ep in
+                          let s = loadI32 e 12 in
+                          let _ = storeI32 e 12 neg1 in
+                          s) in
+                  let masterFd = if ptrIsNull ep then neg1 else loadI32 (maybeToRaw ep) 8 in
+                  let _ = ptyUnlock () in
+                  let res =
+                        (if i64Lt (i32ToI64 slaveFd) 0 then negErr errInvalidArg
+                        else
+                          let pidRes = spawnChildPosix (maybeToRaw progCStr) argsList cwdCStr envList slaveFd slaveFd slaveFd masterFd neg1 neg1 in
+                          let _ = cClose slaveFd in
+                          if i64Lt pidRes 0 then pidRes
+                          else
+                            let _ = ptyLock () in
+                            let ep2 = ptyLookupLocked h in
+                            let _ = (if not (ptrIsNull ep2) then
+                                storeI32 (maybeToRaw ep2) 16 (i64ToI32 pidRes)
+                              else ()) in
+                            let _ = ptyUnlock () in
+                            if ptrIsNull ep2 then
+                              let _ = cKill (i64ToI32 pidRes) 9 in
+                              let _ = withLocal (0 :: I32) (\st -> ptyWaitpidLoop (i64ToI32 pidRes) (mutAsPtr st)) in
+                              negErr errInvalidArg
+                            else h) in
+                  let _ = freeCStrList envList in
+                  let _ = freeCStrList argsList in
+                  let _ = if cwdLen /= 0 then heapGlobalDealloc (maybeToRaw cwdCStr) (u64ToUsize (u64Add cwdLen 1)) 1 else () in
+                  let _ = heapGlobalDealloc (maybeToRaw progCStr) (u64ToUsize (u64Add progLen 1)) 1 in
+                  res
+              )
+          )
+
+  cinchPtyRead :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchPtyRead h maxLen =
+    if i64Le maxLen 0 then negErr errInvalidArg
+    else
+      let fd = ptyDupMaster h in
+      if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+      else
+        let cap = i64ToU64 maxLen in
+        let buf = heapGlobalAlloc (u64ToUsize cap) 1 0 in
+        let n = readOnceFd fd buf cap in
+        let _ = cClose fd in
+        if i64Lt n 0 then
+          let _ = heapGlobalDealloc buf (u64ToUsize cap) 1 in
+          n
+        else
+          let word = bytesBoxCopy buf (i64ToU64 n) in
+          let _ = heapGlobalDealloc buf (u64ToUsize cap) 1 in
+          word
+
+  cinchPtyWrite :: I64 -> I64 ->{Global} I64
+  cinchPtyWrite h dataWord =
+    let bs = bytesReadSlice dataWord in
+    let fd = ptyDupMaster h in
+    if i64Lt (i32ToI64 fd) 0 then negErr errInvalidArg
+    else
+      let rc = writeAllFd fd bs.bsPtr (i64ToU64 bs.bsLen) in
+      let _ = cClose fd in
+      if i64Lt rc 0 then rc else bs.bsLen
+
+  cinchPtyWait :: I64 ->{Global} I64
+  cinchPtyWait h =
+    let _ = ptyLock () in
+    let ep = ptyLookupLocked h in
+    if ptrIsNull ep then
+      let _ = ptyUnlock () in
+      negErr errInvalidArg
+    else
+      let e = maybeToRaw ep in
+      if loadU64 e 24 /= 0 then
+        let st = loadI64 e 32 in
+        let _ = ptyUnlock () in
+        st
+      else
+        let pid = loadI32 e 16 in
+        if i64Le (i32ToI64 pid) 0 then
+          let _ = ptyUnlock () in
+          negErr errInvalidArg
+        else
+          let res = withLocal (0 :: I32) (\st -> ptyWaitpidLoop pid (mutAsPtr st)) in
+          let _ = (if i64Ge res 0 then
+              let _ = storeU64 e 24 1 in
+              storeI64 e 32 res
+            else ()) in
+          let _ = ptyUnlock () in
+          res
+
+  cinchPtyResize :: I64 -> I64 -> I64 ->{Global} I64
+  cinchPtyResize h cols rows =
+    if i64Lt cols 0 || i64Gt cols 65535 || i64Lt rows 0 || i64Gt rows 65535 then
+      negErr errInvalidArg
+    else
+      let _ = ptyLock () in
+      let ep = ptyLookupLocked h in
+      let res =
+            (if ptrIsNull ep then negErr errInvalidArg
+            else
+              let fd = loadI32 (maybeToRaw ep) 8 in
+              withLocal (fixedArrayRepeat 4 (0 :: U16)) (\wsArr ->
+                let ws = ptrCast (mutAsPtr wsArr) in
+                let _ = storeU16 ws 0 (u64ToU16 (i64ToU64 rows)) in
+                let _ = storeU16 ws 2 (u64ToU16 (i64ToU64 cols)) in
+                let _ = storeU16 ws 4 0 in
+                let _ = storeU16 ws 6 0 in
+                if sysIoctl fd tiocswinsz ws == 0 then 0
+                else negErr (ioCodeErrno (sysErrno ()))
+              )) in
+      let _ = ptyUnlock () in
+      res
+
+  cinchPtyClose :: I64 ->{Global, ThreadAffine} I64
+  cinchPtyClose h =
+    let _ = ptyLock () in
+    let ep = ptyRemoveLocked h in
+    let _ = ptyUnlock () in
+    if ptrIsNull ep then negErr errInvalidArg
+    else
+      let e = maybeToRaw ep in
+      let master = loadI32 e 8 in
+      let slave = loadI32 e 12 in
+      let _ = if i64Ge (i32ToI64 master) 0 then (let _ = cClose master in ()) else () in
+      let _ = if i64Ge (i32ToI64 slave) 0 then (let _ = cClose slave in ()) else () in
+      let _ = (if loadU64 e 24 == 0 then
+          let pid = loadI32 e 16 in
+          if i64Gt (i32ToI64 pid) 0 then
+            let _ = cKill pid 9 in
+            let _ = withLocal (0 :: I32) (\st -> ptyWaitpidLoop pid (mutAsPtr st)) in
+            ()
+          else ()
+        else ()) in
+      let _ = heapGlobalDealloc e ptyEntryBytes 8 in
+      0
+
+  foreign export ccall "cinch_pty_open" cinchPtyOpen :: Unit ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_pty_spawn" cinchPtySpawn :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_pty_read" cinchPtyRead :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_pty_write" cinchPtyWrite :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_pty_wait" cinchPtyWait :: I64 ->{Global} I64
+  foreign export ccall "cinch_pty_resize" cinchPtyResize :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_pty_close" cinchPtyClose :: I64 ->{Global, ThreadAffine} I64
