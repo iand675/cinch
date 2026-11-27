@@ -333,6 +333,10 @@ struct Tables {
     /// top-level record (`default-hooks = Hooks log-it trace-it`), which a
     /// projection or a decision reads at compile time.
     static_records: HashMap<String, Core>,
+    /// Nullary point-free partial-application wrappers (`f = g a b` where
+    /// `g`'s arity exceeds the saved static arguments). Saturated calls to
+    /// `f` unfold directly into `g a b ...` without calling `__apply`.
+    static_wrappers: HashMap<String, Core>,
     /// Parameter count by unit name.
     arity: HashMap<String, usize>,
     /// Parameter classes for retaining computed partial-call arguments at
@@ -353,6 +357,7 @@ impl Tables {
             ctors: HashMap::new(),
             lambdas: HashMap::new(),
             static_records: HashMap::new(),
+            static_wrappers: HashMap::new(),
             arity: HashMap::new(),
             params: HashMap::new(),
             instances: HashMap::new(),
@@ -384,6 +389,14 @@ impl Tables {
                         let mut record = f.body.clone();
                         close_lambdas(&mut record, &tables.arity);
                         tables.static_records.insert(f.id.0.clone(), record);
+                    } else if let Core::Global(g, _) = &**head {
+                        if g.0 != f.id.0
+                            && !args.is_empty()
+                            && tables.arity.get(&g.0).is_some_and(|a| *a > args.len())
+                            && args.iter().all(static_field)
+                        {
+                            tables.static_wrappers.insert(f.id.0.clone(), f.body.clone());
+                        }
                     }
                 }
             }
@@ -434,6 +447,9 @@ struct Scope {
     /// A local to the closure construction it is bound to, when every
     /// capture is a value (rule `known-closure-call`).
     lams: HashMap<LocalId, Core>,
+    /// A local to the static scalar constant (`Bool`, `Int`, `Unit`) it is
+    /// bound to, for online partial evaluation across multiple uses.
+    consts: HashMap<LocalId, Core>,
     /// The lambda units whose contified copy the pass is inside. A copy can
     /// expose the recursion it came from (an unfolded recursive callee that
     /// builds the same closure again), so the same lambda is not contified
@@ -459,6 +475,12 @@ impl Scope {
     /// The constructor application a local's value is, through aliases.
     fn ctor_of(&self, l: LocalId) -> Option<&Core> {
         self.ctor.get(&self.root_of(l))
+    }
+
+    /// The static scalar constant (`Bool`, `Int`, `Unit`) a local is bound to,
+    /// through aliases.
+    fn const_of(&self, l: LocalId) -> Option<&Core> {
+        self.consts.get(&self.root_of(l))
     }
 }
 
@@ -896,6 +918,13 @@ fn pass(
         }
     }
     match e {
+        Core::Var(l) => {
+            if let Some(c) = scope.const_of(*l) {
+                *e = c.clone();
+                t.fire(Rule::PrimFold);
+                return;
+            }
+        }
         Core::Let(l, _, value, body) => {
             pass(value, scope, tables, classes, occ, opts, fresh, t);
             let alias = match &**value {
@@ -909,6 +938,8 @@ fn pass(
             let is_bound = bound.is_some();
             let dict = matches!(&**value, Core::InstDict(_, subs, _) if subs.iter().all(capture_value));
             let lam = matches!(&**value, Core::Lam { env, .. } if env.iter().all(capture_value));
+            let is_const = matches!(&**value, Core::Bool(_) | Core::Int(_) | Core::Unit)
+                || matches!(&**value, Core::Global(id, _) if tables.arity.get(&id.0).is_some_and(|a| *a > 0));
             if lam {
                 scope.lams.insert(*l, (**value).clone());
             }
@@ -920,6 +951,9 @@ fn pass(
             }
             if dict {
                 scope.dicts.insert(*l, (**value).clone());
+            }
+            if is_const {
+                scope.consts.insert(*l, (**value).clone());
             }
             pass(body, scope, tables, classes, occ, opts, fresh, t);
             if alias.is_some() {
@@ -933,6 +967,15 @@ fn pass(
             }
             if lam {
                 scope.lams.remove(&*l);
+            }
+            if is_const {
+                scope.consts.remove(&*l);
+            }
+        }
+        Core::App(head, args) => {
+            pass(head, scope, tables, classes, occ, opts, fresh, t);
+            for a in args {
+                pass(a, scope, tables, classes, occ, opts, fresh, t);
             }
         }
         _ => {
@@ -2382,66 +2425,146 @@ struct SpecState {
 
 /// Copies per callee and in all, and the largest body copied: specialisation
 /// trades code for knowledge, and the bounds keep the trade small.
-const SPEC_PER_CALLEE: usize = 4;
+const SPEC_PER_CALLEE: usize = 6;
 const SPEC_TOTAL: usize = 256;
 const SPEC_MAX_NODES: usize = 4000;
+const SHAPE_MAX_DEPTH: usize = 3;
+const SHAPE_MAX_FREE: usize = 6;
+
+/// What kind of static shape an argument carries (ordered by priority).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ShapeKind {
+    Func = 0,
+    Ctor = 1,
+    Bool = 2,
+    Int = 3,
+}
+
+/// Base unit name before any `.sp<N>` or `$s<N>` specialization suffixes.
+fn spec_base(name: &str) -> &str {
+    let base = name.find(".sp").map_or(name, |at| &name[..at]);
+    base.find("$s").map_or(base, |at| &base[..at])
+}
 
 /// A known argument's shape: a key naming what is fixed, the template that
 /// rebuilds the value from parameters `LocalId(base + j)`, the free parts
 /// passed for them, and their classes.
 struct ArgShape {
+    kind: ShapeKind,
     key: String,
     template: Core,
     free: Vec<Core>,
     classes: Vec<Class>,
 }
 
-/// The shape of an argument, when it is known: a unit used as a value, a
-/// static record, a closure over values, or a constructor application of
-/// such (a record of functions). Free parts are value captures and value
-/// fields; they become the copy's trailing parameters.
-fn arg_shape(arg: &Core, tables: &Tables, program_fns: &HashMap<String, (Vec<Class>, Vec<Class>)>, base: usize) -> Option<ArgShape> {
-    fn go(e: &Core, tables: &Tables, fns: &HashMap<String, (Vec<Class>, Vec<Class>)>, base: usize,
-          free: &mut Vec<Core>, classes: &mut Vec<Class>, top: bool) -> Option<(String, Core)> {
-        match e {
-            Core::Global(g, v) if tables.arity.get(&g.0).is_some_and(|a| *a > 0) => Some((format!("g:{}", g.0), Core::Global(g.clone(), v.clone()))),
-            Core::Global(..) | Core::App(..) if static_record_of(e, tables).is_some() => {
-                let record = static_record_of(e, tables)?;
-                go(&record, tables, fns, base, free, classes, top)
+/// Resolve a variable through the lexical static-shape map built while walking
+/// a caller's `let` bindings.
+fn resolve_local<'a>(e: &'a Core, env: &'a HashMap<LocalId, Core>) -> &'a Core {
+    let mut cur = e;
+    for _ in 0..8 {
+        if let Core::Var(l) = cur {
+            if let Some(next) = env.get(l) {
+                cur = next;
+                continue;
+            }
+        }
+        break;
+    }
+    cur
+}
+
+/// The shape of an argument, when it is statically known: a unit used as a
+/// value, a static record, a closure over values, a boolean/integer literal,
+/// or a constructor application (nested up to `SHAPE_MAX_DEPTH`). Free parts
+/// are dynamic value captures and fields; they become trailing parameters.
+fn arg_shape(
+    arg: &Core,
+    local_env: &HashMap<LocalId, Core>,
+    tables: &Tables,
+    program_fns: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+    base: usize,
+) -> Option<ArgShape> {
+    fn go(
+        e: &Core,
+        local_env: &HashMap<LocalId, Core>,
+        tables: &Tables,
+        fns: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+        base: usize,
+        free: &mut Vec<Core>,
+        classes: &mut Vec<Class>,
+        depth: usize,
+        has_func: &mut bool,
+    ) -> Option<(String, Core)> {
+        if depth > SHAPE_MAX_DEPTH || free.len() > SHAPE_MAX_FREE {
+            return None;
+        }
+        let resolved = resolve_local(e, local_env);
+        match resolved {
+            Core::Global(g, v) if tables.arity.get(&g.0).is_some_and(|a| *a > 0) => {
+                *has_func = true;
+                Some((format!("g:{}", g.0), Core::Global(g.clone(), v.clone())))
+            }
+            Core::Global(..) | Core::App(..) if static_record_of(resolved, tables).is_some() => {
+                let record = static_record_of(resolved, tables)?;
+                go(&record, local_env, tables, fns, base, free, classes, depth + 1, has_func)
             }
             Core::Lam { fn_id, env, classes: v } if env.iter().all(capture_value) => {
                 let (params, _) = fns.get(&fn_id.0)?;
+                if free.len() + env.len() > SHAPE_MAX_FREE {
+                    return None;
+                }
                 let mut slots = Vec::with_capacity(env.len());
                 for (k, c) in env.iter().enumerate() {
+                    let class = params.get(k).copied()?.subst(v);
+                    if class.is_param() || matches!(class, Class::Wide) || class.is_val() {
+                        return None;
+                    }
                     slots.push(Core::Var(LocalId(base + free.len())));
                     free.push(c.clone());
-                    let class = params.get(k).copied()?.subst(v);
-                    if class.is_param() { return None; }
                     classes.push(class);
                 }
+                *has_func = true;
                 Some((format!("l:{}/{}", fn_id.0, env.len()), Core::Lam { fn_id: fn_id.clone(), env: slots, classes: v.clone() }))
             }
-            Core::App(head, args) if top => {
+            Core::Bool(b) => Some((format!("b:{b}"), Core::Bool(*b))),
+            Core::Int(n) => Some((format!("i:{n}"), Core::Int(*n))),
+            Core::Ctor(c, v) if tables.ctors.get(&c.0).is_some_and(|(_, ar)| *ar == 0) => {
+                Some((format!("c:{}", c.0), Core::Ctor(c.clone(), v.clone())))
+            }
+            Core::App(head, args) if depth < SHAPE_MAX_DEPTH => {
                 let Core::Ctor(c, v) = &**head else { return None };
-                let (_, fields) = fns.get(&c.0)?;
-                let mut keys = Vec::new();
-                let mut built = Vec::new();
+                let (params, fields) = fns.get(&c.0)?;
+                let field_classes = if fields.len() == args.len() { fields } else { params };
+                if field_classes.len() != args.len() {
+                    return None;
+                }
+                let mut keys = Vec::with_capacity(args.len());
+                let mut built = Vec::with_capacity(args.len());
                 for (k, a) in args.iter().enumerate() {
-                    match go(a, tables, fns, base, free, classes, false) {
-                        Some((key, t)) => { keys.push(key); built.push(t); }
-                        None if capture_value(a) => {
+                    let saved_free = free.len();
+                    let saved_classes = classes.len();
+                    let saved_func = *has_func;
+                    if let Some((key, t)) = go(a, local_env, tables, fns, base, free, classes, depth + 1, has_func) {
+                        keys.push(key);
+                        built.push(t);
+                    } else {
+                        free.truncate(saved_free);
+                        classes.truncate(saved_classes);
+                        *has_func = saved_func;
+                        if capture_value(a) && free.len() < SHAPE_MAX_FREE {
+                            let class = field_classes.get(k).copied()?.subst(v);
+                            if class.is_param() || matches!(class, Class::Wide) || class.is_val() {
+                                return None;
+                            }
                             built.push(Core::Var(LocalId(base + free.len())));
                             free.push(a.clone());
-                            let class = fields.get(k).copied()?.subst(v);
-                            if class.is_param() { return None; }
                             classes.push(class);
                             keys.push("_".into());
+                        } else {
+                            return None;
                         }
-                        None => return None,
                     }
                 }
-                // A record with no function in it is not worth a copy.
-                if keys.iter().all(|k| k == "_") { return None; }
                 Some((format!("c:{}({})", c.0, keys.join(",")), Core::App(Box::new(Core::Ctor(c.clone(), v.clone())), built)))
             }
             _ => None,
@@ -2449,31 +2572,105 @@ fn arg_shape(arg: &Core, tables: &Tables, program_fns: &HashMap<String, (Vec<Cla
     }
     let mut free = Vec::new();
     let mut classes = Vec::new();
-    let (key, template) = go(arg, tables, program_fns, base, &mut free, &mut classes, true)?;
-    Some(ArgShape { key, template, free, classes })
+    let mut has_func = false;
+    let (key, template) = go(arg, local_env, tables, program_fns, base, &mut free, &mut classes, 0, &mut has_func)?;
+    if free.len() > SHAPE_MAX_FREE {
+        return None;
+    }
+    let kind = if has_func {
+        ShapeKind::Func
+    } else if matches!(template, Core::Bool(_)) {
+        ShapeKind::Bool
+    } else if matches!(template, Core::Int(_)) {
+        ShapeKind::Int
+    } else {
+        ShapeKind::Ctor
+    };
+    Some(ArgShape { kind, key, template, free, classes })
 }
 
-/// Whether a parameter is used in a way a known value helps: applied,
-/// decided on, projected, or passed on unchanged by a recursive call.
-fn interesting_param(e: &Core, p: LocalId, unit: &str, position: usize) -> bool {
-    let mut found = false;
+/// Whether a parameter is used in a way a known static shape helps:
+/// - `Func`: applied, decided on, projected, or passed on unchanged by a self-call.
+/// - `Ctor`: scrutinized by `Case` or projected by `Proj`.
+/// - `Bool`: tested by `If`, `Case`, or a boolean primitive.
+/// - `Int`: scrutinized by `Case` or used in a machine primitive (`Cmp`, `Arith`, `Bit`, `Shift`, `Neg`).
+fn interesting_param(e: &Core, p: LocalId, unit: &str, position: usize, kind: ShapeKind, tables: &Tables) -> bool {
+    let mut aliases: HashSet<LocalId> = HashSet::new();
+    aliases.insert(p);
     let mut stack = vec![e];
     while let Some(node) = stack.pop() {
         match node {
+            Core::Let(l, _, value, _) => {
+                if let Core::Var(x) = &**value {
+                    if aliases.contains(x) {
+                        aliases.insert(*l);
+                    }
+                }
+            }
             Core::App(head, args) => {
-                if matches!(&**head, Core::Var(x) if *x == p) { found = true; break; }
-                if matches!(&**head, Core::Global(g, _) if g.0 == unit) && matches!(args.get(position), Some(Core::Var(x)) if *x == p) {
-                    found = true; break;
+                match kind {
+                    ShapeKind::Func => {
+                        if matches!(&**head, Core::Var(x) if aliases.contains(x)) {
+                            return true;
+                        }
+                        if matches!(&**head, Core::Global(g, _) if g.0 == unit)
+                            && matches!(args.get(position), Some(Core::Var(x)) if aliases.contains(x))
+                        {
+                            return true;
+                        }
+                    }
+                    ShapeKind::Bool => {}
+                    ShapeKind::Int => {
+                        let is_int_op = matches!(
+                            resolve_prim_op(head, tables),
+                            Some(
+                                PrimOp::Cmp { .. }
+                                    | PrimOp::Arith { mode: ArithMode::Wrapping, .. }
+                                    | PrimOp::Bit { .. }
+                                    | PrimOp::BitNot { .. }
+                                    | PrimOp::Shift { checked: false, .. }
+                                    | PrimOp::Neg { mode: ArithMode::Wrapping, .. }
+                            )
+                        ) || matches!(
+                            &**head,
+                            Core::Global(g, _)
+                                if g.0.contains("Eq_")
+                                    || g.0.contains("Ord_")
+                                    || g.0.contains("Add_")
+                                    || g.0.contains("Sub_")
+                                    || g.0.contains("Mul_")
+                        );
+                        if is_int_op && args.iter().any(|a| matches!(a, Core::Var(x) if aliases.contains(x))) {
+                            return true;
+                        }
+                    }
+                    ShapeKind::Ctor => {}
                 }
                 stack.push(head);
             }
-            Core::Case { scrut, .. } if matches!(&**scrut, Core::Var(x) if *x == p) => { found = true; break; }
-            Core::Proj(inner, _) | Core::DictProj(inner, ..) if matches!(&**inner, Core::Var(x) if *x == p) => { found = true; break; }
+            Core::If(cond, _, _) if kind == ShapeKind::Bool => {
+                if matches!(&**cond, Core::Var(x) if aliases.contains(x)) {
+                    return true;
+                }
+            }
+            Core::Case { scrut, .. } if matches!(&**scrut, Core::Var(x) if aliases.contains(x)) => {
+                return true;
+            }
+            Core::Proj(inner, _) if matches!(kind, ShapeKind::Func | ShapeKind::Ctor) => {
+                if matches!(&**inner, Core::Var(x) if aliases.contains(x)) {
+                    return true;
+                }
+            }
+            Core::DictProj(inner, ..) if kind == ShapeKind::Func => {
+                if matches!(&**inner, Core::Var(x) if aliases.contains(x)) {
+                    return true;
+                }
+            }
             _ => {}
         }
         stack.extend(child_slots_imm(node));
     }
-    found
+    false
 }
 
 /// Redirect self-calls that pass parameter `position` through unchanged to
@@ -2494,61 +2691,131 @@ fn redirect_self_calls(e: &mut Core, unit: &str, arity: usize, position: usize, 
     }
 }
 
-/// Rule `specialise-arguments` (call-pattern specialisation, after GHC's
-/// SpecConstr, on functional arguments): every saturated call of a unit that
-/// passes a known shape where the unit uses that parameter calls a copy
-/// specialised to it. The copy keeps the original parameter list, with the
-/// specialised position dead (its argument is `()`), and takes the shape's
-/// free parts as trailing parameters; its body rebuilds the value in a `let`
-/// at entry, where `known-constructor`, `projection`, `known-closure-call` and
-/// the inliner fold it. A recursive call that passes the parameter on
-/// unchanged calls the copy, so a record of functions threaded down a loop
-/// is known in every iteration.
+/// Whether `e` can be recorded in the caller's lexical static-shape map for
+/// downstream argument specialization.
+fn is_bindable_shape(e: &Core, tables: &Tables) -> bool {
+    match e {
+        Core::Var(_) | Core::Bool(_) | Core::Int(_) => true,
+        Core::Global(g, _) => tables.arity.get(&g.0).is_some_and(|a| *a > 0) || tables.static_records.contains_key(&g.0),
+        Core::Ctor(c, _) => tables.ctors.get(&c.0).is_some_and(|(_, ar)| *ar == 0),
+        Core::Lam { env, .. } => env.iter().all(capture_value),
+        Core::App(head, args) => {
+            matches!(&**head, Core::Ctor(c, _) if tables.ctors.contains_key(&c.0))
+                && args.iter().all(|a| capture_value(a) || is_bindable_shape(a, tables))
+        }
+        _ => false,
+    }
+}
+
+/// Collect candidate call sites in `e`, maintaining a lexical map of static
+/// shapes bound by enclosing `let`s. Picks the highest-priority argument that
+/// the callee actually inspects/calls/branches on and that passes the
+/// anti-unrolling guard.
+fn collect_spec_sites(
+    e: &Core,
+    ui: usize,
+    caller_base: &str,
+    candidates: &HashMap<String, &FnDef>,
+    local_env: &mut HashMap<LocalId, Core>,
+    tables: &Tables,
+    shapes: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+    specs: &SpecState,
+    out: &mut Vec<(usize, String, usize, ArgShape)>,
+) {
+    match e {
+        Core::Let(l, _, value, body) => {
+            collect_spec_sites(value, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+            let pushed = is_bindable_shape(value, tables);
+            if pushed {
+                local_env.insert(*l, (**value).clone());
+            }
+            collect_spec_sites(body, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+            if pushed {
+                local_env.remove(l);
+            }
+            return;
+        }
+        Core::App(head, args) => {
+            if let Core::Global(g, _) = &**head {
+                if let Some(&def) = candidates.get(&g.0) {
+                    if def.params.len() == args.len() {
+                        let callee_base = spec_base(&g.0);
+                        let mut best: Option<(usize, ArgShape)> = None;
+                        for (i, a) in args.iter().enumerate() {
+                            if def.meta.linear.iter().any(|(k, _)| *k == i) { continue; }
+                            if def.repr.params.get(i).is_some_and(|c| matches!(c, Class::Wide) || c.is_val()) { continue; }
+                            if let Some(shape) = arg_shape(a, local_env, tables, shapes, args.len()) {
+                                let memoized = specs.copies.contains_key(&(g.0.clone(), i, shape.key.clone()));
+                                if !memoized && caller_base == callee_base && matches!(shape.kind, ShapeKind::Int | ShapeKind::Ctor) {
+                                    continue;
+                                }
+                                if !memoized && !interesting_param(&def.body, LocalId(i), &g.0, i, shape.kind, tables) {
+                                    continue;
+                                }
+                                let replace = best.as_ref().is_none_or(|(_, prev)| shape.kind < prev.kind);
+                                if replace {
+                                    best = Some((i, shape));
+                                }
+                            }
+                        }
+                        if let Some((i, shape)) = best {
+                            out.push((ui, g.0.clone(), i, shape));
+                        }
+                    }
+                }
+            }
+            collect_spec_sites(head, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+        }
+        _ => {}
+    }
+    for child in child_slots_imm(e) {
+        collect_spec_sites(child, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+    }
+}
+
+/// Rule `specialise-arguments` (Tier 1 online partial evaluation / memoized
+/// polyvariant call-pattern specialization): every saturated call of a unit
+/// that passes a known static shape (function, closure, constructor/record,
+/// boolean, or integer) where the unit inspects/calls/branches on that
+/// parameter calls a memoized specialized copy of the callee.
 fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut Fresh, specs: &mut SpecState, t: &mut Ticks) {
     let shapes: HashMap<String, (Vec<Class>, Vec<Class>)> =
         program.fns.iter().map(|f| (f.id.0.clone(), (f.repr.params.clone(), f.repr.fields.clone()))).collect();
-    let candidates: HashMap<String, usize> = program.fns.iter()
+    let candidates: HashMap<String, &FnDef> = program.fns.iter()
         .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && !f.params.is_empty()
             && nodes(&f.body) <= SPEC_MAX_NODES && !is_lambda_unit(&f.id.0))
-        .map(|f| (f.id.0.clone(), f.params.len()))
+        .map(|f| (f.id.0.clone(), f))
         .collect();
     let mut sites: Vec<(usize, String, usize, ArgShape)> = Vec::new();
     for (ui, f) in program.fns.iter().enumerate() {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body { continue; }
-        let mut stack = vec![&f.body];
-        while let Some(node) = stack.pop() {
-            if let Core::App(head, args) = node {
-                if let Core::Global(g, _) = &**head {
-                    if candidates.get(&g.0) == Some(&args.len()) {
-                        for (i, a) in args.iter().enumerate() {
-                            if let Some(shape) = arg_shape(a, tables, &shapes, args.len()) {
-                                sites.push((ui, g.0.clone(), i, shape));
-                                break;
-                            }
-                        }
-                    }
-                }
-                stack.push(head);
-            }
-            stack.extend(child_slots_imm(node));
-        }
+        let mut local_env: HashMap<LocalId, Core> = HashMap::new();
+        let caller_base = spec_base(&f.id.0);
+        collect_spec_sites(&f.body, ui, caller_base, &candidates, &mut local_env, tables, &shapes, specs, &mut sites);
     }
     let mut new_fns: Vec<FnDef> = Vec::new();
     let mut redirects: Vec<(usize, String, usize, String, String)> = Vec::new();
     for (ui, callee, i, shape) in sites {
         let key = (callee.clone(), i, shape.key.clone());
+        let caller_base = spec_base(&program.fns[ui].id.0).to_string();
+        let callee_base = spec_base(&callee).to_string();
         let name = match specs.copies.get(&key) {
             Some(n) => n.clone(),
             None => {
-                if specs.made >= SPEC_TOTAL || specs.per_callee.get(&callee).copied().unwrap_or(0) >= SPEC_PER_CALLEE { continue; }
+                // Anti-unrolling guard: never spawn a new Int/Ctor clone from a
+                // recursive self-call inside the same base function family
+                // (e.g. `go (n + 1)` or `walk (Cons h t)`). Unchanged recursive
+                // calls are tied by `redirect_self_calls` instead.
+                if caller_base == callee_base && matches!(shape.kind, ShapeKind::Int | ShapeKind::Ctor) {
+                    continue;
+                }
+                if specs.made >= SPEC_TOTAL || specs.per_callee.get(&callee_base).copied().unwrap_or(0) >= SPEC_PER_CALLEE { continue; }
                 let Some(def) = program.fns.iter().find(|f| f.id.0 == callee) else { continue };
-                if !interesting_param(&def.body, LocalId(i), &callee, i) { continue; }
+                if def.meta.linear.iter().any(|(k, _)| *k == i) { continue; }
+                if def.repr.params.get(i).is_some_and(|c| matches!(c, Class::Wide) || c.is_val()) { continue; }
+                if !interesting_param(&def.body, LocalId(i), &callee, i, shape.kind, tables) { continue; }
                 let n = def.params.len();
                 let copy_id = GlobalId(format!("{callee}.sp{}", specs.made));
-                // The copy's trailing parameters are locals n.. of its own,
-                // so every local it mints (the renamed binders and the
-                // entry `let`) must lie past them; the program-wide counter
-                // can sit lower in a small program.
                 fresh.local = fresh.local.max(n + shape.free.len());
                 let mut body = def.body.clone();
                 let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
@@ -2565,9 +2832,6 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 for j in 0..shape.free.len() { copy.params.push(format!("v{}", n + j)); }
                 copy.repr.params[i] = Class::Raw;
                 copy.repr.params.extend(shape.classes.iter().copied());
-                // The parameter facts describe the original words: the dead
-                // position now receives `()`, and the free parts have no
-                // proven facts, so neither may carry an attribute.
                 if let Some(c) = copy.meta.contract.params.get_mut(i) {
                     *c = Default::default();
                 }
@@ -2580,7 +2844,7 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 tables.arity.insert(copy_id.0.clone(), copy.params.len());
                 tables.params.insert(copy_id.0.clone(), copy.repr.params.clone());
                 specs.copies.insert(key, copy_id.0.clone());
-                *specs.per_callee.entry(callee.clone()).or_default() += 1;
+                *specs.per_callee.entry(callee_base).or_default() += 1;
                 specs.made += 1;
                 new_fns.push(copy);
                 copy_id.0
@@ -2593,33 +2857,58 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
     for (ui, callee, i, key, name) in redirects {
         let f = &mut program.fns[ui];
         let mut body = std::mem::replace(&mut f.body, Core::Unit);
-        rewrite_sites(&mut body, &callee, i, &key, &name, tables, &shapes, t);
+        let mut local_env: HashMap<LocalId, Core> = HashMap::new();
+        rewrite_sites(&mut body, &callee, i, &key, &name, &mut local_env, tables, &shapes, t);
         f.body = body;
     }
     program.fns.extend(new_fns);
 }
 
-fn rewrite_sites(e: &mut Core, callee: &str, i: usize, key: &str, name: &str, tables: &Tables,
-                 shapes: &HashMap<String, (Vec<Class>, Vec<Class>)>, t: &mut Ticks) {
-    if let Core::App(head, args) = e {
-        let hit = match &**head {
-            Core::Global(g, classes) if g.0 == callee && tables.arity.get(callee) == Some(&args.len()) => args
-                .get(i)
-                .and_then(|a| arg_shape(a, tables, shapes, args.len()))
-                .filter(|shape| shape.key == key)
-                .map(|shape| (shape, classes.clone())),
-            _ => None,
-        };
-        if let Some((shape, classes)) = hit {
-            args[i] = Core::Unit;
-            args.extend(shape.free);
-            **head = Core::Global(GlobalId(name.to_string()), classes);
-            t.fire(Rule::SpecialiseArgument);
+fn rewrite_sites(
+    e: &mut Core,
+    callee: &str,
+    i: usize,
+    key: &str,
+    name: &str,
+    local_env: &mut HashMap<LocalId, Core>,
+    tables: &Tables,
+    shapes: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+    t: &mut Ticks,
+) {
+    match e {
+        Core::Let(l, _, value, body) => {
+            rewrite_sites(value, callee, i, key, name, local_env, tables, shapes, t);
+            let pushed = is_bindable_shape(value, tables);
+            if pushed {
+                local_env.insert(*l, (**value).clone());
+            }
+            rewrite_sites(body, callee, i, key, name, local_env, tables, shapes, t);
+            if pushed {
+                local_env.remove(l);
+            }
+            return;
         }
-        rewrite_sites(head, callee, i, key, name, tables, shapes, t);
+        Core::App(head, args) => {
+            let hit = match &**head {
+                Core::Global(g, classes) if g.0 == callee && tables.arity.get(callee) == Some(&args.len()) => args
+                    .get(i)
+                    .and_then(|a| arg_shape(a, local_env, tables, shapes, args.len()))
+                    .filter(|shape| shape.key == key)
+                    .map(|shape| (shape, classes.clone())),
+                _ => None,
+            };
+            if let Some((shape, classes)) = hit {
+                args[i] = Core::Unit;
+                args.extend(shape.free);
+                **head = Core::Global(GlobalId(name.to_string()), classes);
+                t.fire(Rule::SpecialiseArgument);
+            }
+            rewrite_sites(head, callee, i, key, name, local_env, tables, shapes, t);
+        }
+        _ => {}
     }
     for child in child_slots(e) {
-        rewrite_sites(child, callee, i, key, name, tables, shapes, t);
+        rewrite_sites(child, callee, i, key, name, local_env, tables, shapes, t);
     }
 }
 
@@ -2952,6 +3241,88 @@ fn saturate_partial(
     tables: &Tables,
     fresh: &mut Fresh,
 ) -> bool {
+    // Direct nested application:
+    // 0. Saturated call to a nullary point-free wrapper (`add-ten x` where
+    //    `add-ten = add-pair 10`) unfolds directly into `add-pair 10 x`.
+    // 1. `(g a b) c` for a known unit/prim `g` merges directly into `g a b c`.
+    // 2. `(f a) b` for an unknown closure `f` with pure-value `b` batches into
+    //    `f a b`, so codegen emits one `@__apply(f, N, argv)` instead of N
+    //    chained 1-arg `@__apply` calls.
+    if let Core::App(outer_head, extra) = e {
+        if !extra.is_empty() {
+            let wrapper_name = match &**outer_head {
+                Core::Global(w, _) => Some(w.0.as_str()),
+                Core::App(inner, empty) if empty.is_empty() => match &**inner {
+                    Core::Global(w, _) => Some(w.0.as_str()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(wrapper_body) = wrapper_name.and_then(|w| tables.static_wrappers.get(w)) {
+                if let Core::App(inner_head, given) = wrapper_body {
+                    let arity = match &**inner_head {
+                        Core::Global(id, _) => tables.arity.get(&id.0).copied(),
+                        _ => None,
+                    };
+                    if let Some(arity) = arity {
+                        if given.len() + extra.len() >= arity {
+                            let take = arity - given.len();
+                            if extra.len() == take || extra[take..].iter().all(|a| is_value(a, tables)) {
+                                let Core::App(_, mut extra) = std::mem::replace(e, Core::Unit) else { unreachable!() };
+                                let mut merged = given.clone();
+                                merged.extend(extra.drain(..take));
+                                let call = Core::App(inner_head.clone(), merged);
+                                *e = if extra.is_empty() {
+                                    call
+                                } else {
+                                    Core::App(Box::new(call), extra)
+                                };
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Core::App(inner_head, given) = &**outer_head {
+            let arity = match &**inner_head {
+                Core::Global(id, _) => tables.arity.get(&id.0).copied(),
+                Core::Prim(op) => Some(op.arity()),
+                Core::Ctor(id, _) => tables.ctors.get(&id.0).map(|(_, a)| *a),
+                _ => None,
+            };
+            if let Some(arity) = arity {
+                if !extra.is_empty()
+                    && given.len() < arity
+                    && given.len() + extra.len() >= arity
+                    && given.iter().all(|a| is_value(a, tables))
+                {
+                    let take = arity - given.len();
+                    if extra.len() == take || extra[take..].iter().all(|a| is_value(a, tables)) {
+                        let Core::App(outer_head, mut extra) = std::mem::replace(e, Core::Unit) else { unreachable!() };
+                        let Core::App(inner_head, mut given) = *outer_head else { unreachable!() };
+                        given.extend(extra.drain(..take));
+                        let call = Core::App(inner_head, given);
+                        *e = if extra.is_empty() {
+                            call
+                        } else {
+                            Core::App(Box::new(call), extra)
+                        };
+                        return true;
+                    }
+                }
+            } else if !matches!(&**inner_head, Core::Global(..) | Core::Prim(_) | Core::Ctor(..))
+                && !extra.is_empty()
+                && extra.iter().all(|a| is_value(a, tables))
+            {
+                let Core::App(outer_head, extra) = std::mem::replace(e, Core::Unit) else { unreachable!() };
+                let Core::App(inner_head, mut given) = *outer_head else { unreachable!() };
+                given.extend(extra);
+                *e = Core::App(inner_head, given);
+                return true;
+            }
+        }
+    }
     let Core::Let(l, _, value, body) = e else { return false };
     let count = occ.get(l).copied().unwrap_or_default();
     if count.uses != 1 || count.in_join {
@@ -5365,6 +5736,7 @@ mod prim_fold_tests {
             ctors: HashMap::new(),
             lambdas: HashMap::new(),
             static_records: HashMap::new(),
+            static_wrappers: HashMap::new(),
             arity: HashMap::new(),
             params: HashMap::new(),
             instances: HashMap::new(),
