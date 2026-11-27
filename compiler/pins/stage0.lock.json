@@ -2,8 +2,8 @@
   "description": "ABI 10 seed with zero scalar unsafe div/rem, verified return refinements, persistent LRAT proof cache, replay-only, acyclic CFGs, cross-target equiv, SIMD specs, Alethe checker, verified rewrites, Core/LLVM TV, and boundary contracts.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "a9421bdc7ba6e42c011293d6d7ad6fd0ba5e2de9",
+  "revision": "f1f1822d6348f4c5c4ba7c9650d136258922e876",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "3a099fcae19ca8596633f63a68b4e339f458ce28535797f788d5b4b87a941521"
+  "source_sha256": "b00af68b484f0c6ef1b093b1b1f86a48fc8b88d17702e8aa288ae3c74ec2ab28"
 }
