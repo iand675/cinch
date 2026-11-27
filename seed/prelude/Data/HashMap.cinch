@@ -235,19 +235,18 @@ module Data.HashMap where
   -- singleton buckets.
   -- -----------------------------------------------------------------
 
-  -- The `absent` parameter keeps the `STip` arm free of a nullary constructor
-  -- allocation so Perceus borrow inference keeps `s` borrowed (`lent`) across
-  -- the entire O(log d) descent (zero RC traffic per internal tree node).
-  spine-lookup-key :: forall k v. using (eq :: Eq k) => I64 -> k -> Option v -> Spine k v -> Option v
-  spine-lookup-key d x absent s = case s of
-    STip -> absent
+  -- Borrowed O(log d) descent over unboxed `I64` digest keys: compiles to a
+  -- single-function register loop with zero RC traffic per internal node.
+  spine-lookup-key :: forall k v. using (eq :: Eq k) => I64 -> k -> Spine k v -> Option v
+  spine-lookup-key d x s = case s of
+    STip -> None
     SBin1 _ d2 k2 v2 l r ->
-      if lt-i64 d d2 then spine-lookup-key d x absent l
-      else if gt-i64 d d2 then spine-lookup-key d x absent r
-      else if k2 == x then Some v2 else absent
+      if lt-i64 d d2 then spine-lookup-key d x l
+      else if gt-i64 d d2 then spine-lookup-key d x r
+      else if k2 == x then Some v2 else None
     SBinMany _ d2 b l r ->
-      if gt-i64 d d2 then spine-lookup-key d x absent r
-      else if lt-i64 d d2 then spine-lookup-key d x absent l
+      if lt-i64 d d2 then spine-lookup-key d x l
+      else if gt-i64 d d2 then spine-lookup-key d x r
       else bucket-lookup x b
 
   spine-insert :: forall k v. using (eq :: Eq k) => I64 -> k -> v -> Spine k v -> Spine k v
@@ -264,15 +263,16 @@ module Data.HashMap where
       else SBinMany h d2 (bucket-insert x v b) l r
 
   -- | Insert only if `x` is not already present (preserves earlier-pair-wins
-  -- in a single tail-recursive pass for `hash-map-from-pairs`). Rebuilds the
-  -- node instead of returning `s` so Perceus unique-reuse fires on every level.
+  -- in a single tail-recursive pass for `hash-map-from-pairs`). Branch-sunk
+  -- Perceus drop-specialization reuses unique nodes on recursive branches
+  -- while returning `s` directly with zero allocations on an existing key.
   spine-insert-if-absent :: forall k v. using (eq :: Eq k) => I64 -> k -> v -> Spine k v -> Spine k v
   spine-insert-if-absent d x v s = case s of
     STip -> SBin1 1 d x v STip STip
     SBin1 h d2 k2 v2 l r ->
       if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert-if-absent d x v l) r
       else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert-if-absent d x v r)
-      else if k2 == x then SBin1 h d2 k2 v2 l r
+      else if k2 == x then s
       else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
     SBinMany h d2 b l r ->
       if lt-i64 d d2 then spine-balance-many d2 b (spine-insert-if-absent d x v l) r
@@ -298,7 +298,7 @@ module Data.HashMap where
 
   hash-map-lookup :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> Option v
   hash-map-lookup x m = case m of
-    HashMap s -> spine-lookup-key (digest-key (hash x)) x None s
+    HashMap s -> spine-lookup-key (digest-key (hash x)) x s
 
   hash-map-insert :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> v -> HashMap k v -> HashMap k v
   hash-map-insert x v m = case m of
@@ -325,11 +325,11 @@ module Data.HashMap where
   spine-delete-key :: forall k v. using (eq :: Eq k) => I64 -> k -> Spine k v -> Spine k v
   spine-delete-key d x s = case s of
     STip -> STip
-    SBin1 h d2 k2 v2 l r ->
+    SBin1 _ d2 k2 v2 l r ->
       if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-delete-key d x l) r
       else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-delete-key d x r)
       else if k2 == x then spine-glue l r
-      else SBin1 h d2 k2 v2 l r
+      else s
     SBinMany h d2 b l r ->
       if lt-i64 d d2 then spine-balance-many d2 b (spine-delete-key d x l) r
       else if gt-i64 d d2 then spine-balance-many d2 b l (spine-delete-key d x r)

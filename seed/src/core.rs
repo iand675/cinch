@@ -8668,7 +8668,7 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>, wide_
             // turning a self-recursive `br label %loop` into mutual recursion
             // (`f <-> f.shared0`) defeats single-function loop optimization and
             // introduces cross-function `musttail` calls on every iteration.
-            if others.len() <= 2 && nodes[rep].size <= 128 && subterm_calls_unit(refs[rep], &f.id) {
+            if others.len() <= 4 && nodes[rep].size <= 128 && subterm_calls_unit(refs[rep], &f.id) {
                 continue;
             }
             let Some(param_classes) = free.iter().map(|l| classes.get(&l.0).copied()).collect::<Option<Vec<Class>>>() else {
