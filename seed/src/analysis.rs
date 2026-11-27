@@ -1841,6 +1841,10 @@ fn index_defs(
             add(&f.name, SymKind::Value, defs);
             sig_text.insert(f.name.text.clone(), render_ast_type(&f.ty));
         }
+        Decl::Static(st) => {
+            add(&st.name, SymKind::Value, defs);
+            sig_text.insert(st.name.text.clone(), render_ast_type(&st.ty));
+        }
         Decl::Prim(p) => {
             add(&p.name, SymKind::Value, defs);
             sig_text.insert(p.name.text.clone(), render_ast_type(&p.ty));

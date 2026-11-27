@@ -689,6 +689,7 @@ module Cinch.Ast where
     DCodata :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
+    DStatic :: Span -> String -> TypeExpr -> Option Bool -> Nat -> Decl
     DPrim :: Span -> String -> TypeExpr -> Option Expr -> List PrimBody -> Decl
     DModuleProfile :: Span -> String -> Decl
     DProof :: Span -> Decl -> Decl
@@ -806,6 +807,7 @@ module Cinch.Ast where
     DCodata s n params observations -> s
     DEffect s n params ops -> s
     DForeign s direction conv symbol foreign-name t -> s
+    DStatic s name t tls align -> s
     DPrim s name ty spec-opt bodies -> s
     DModuleProfile s profile -> s
     DProof s body -> s
@@ -863,6 +865,7 @@ module Cinch.Ast where
     DCodata s n params observations -> Some n
     DEffect s n params ops -> Some n
     DForeign s direction conv symbol foreign-name t -> Some foreign-name
+    DStatic s name t tls align -> Some name
     DPrim s name ty spec-opt bodies -> Some name
     DModuleProfile s profile -> None
     DDecl s x rest -> None
@@ -1205,6 +1208,7 @@ module Cinch.Ast where
     DCodata s n params observations -> params-unmodeled params + ctors-unmodeled observations
     DEffect s n params ops -> params-unmodeled params + ctors-unmodeled ops
     DForeign s direction conv symbol foreign-name t -> type-unmodeled-count t
+    DStatic s name t tls align -> type-unmodeled-count t
     DPrim s name ty spec-opt bodies -> type-unmodeled-count ty + (case spec-opt of Some expr -> expr-unmodeled-count expr; None -> 0) + prim-bodies-unmodeled bodies
     DModuleProfile s profile -> 0
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest

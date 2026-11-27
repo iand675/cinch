@@ -589,6 +589,7 @@ module Cinch.Contracts where
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
     DForeign s direction abi symbol name ty -> type-references ty <> (if direction == "export" then [name] else [])
+    DStatic s name ty tls align -> type-references ty
     DPrim s name ty spec-opt bodies -> type-references ty <> (case spec-opt of Some expr -> expr-references expr; None -> []) <> prim-body-references bodies
     -- A temporal contract's formulas are checked as ordinary terms over the
     -- definition's parameters (core specification section 10), so every

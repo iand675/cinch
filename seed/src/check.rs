@@ -3797,6 +3797,12 @@ struct Checker {
     value_layout_intern: HashMap<crate::core::ValueLayout, u32>,
     /// `#[repr(value)]` record `(module, name)` -> interned `ValueLayout` id.
     value_records: HashMap<(String, String), u32>,
+    /// Zero-initialized POD static and thread-local storage definitions.
+    statics: Vec<crate::core::StaticDef>,
+    /// Static declarations awaiting POD layout verification and accessor emission.
+    pending_statics: Vec<(String, ast::StaticDecl, Ty, bool, u32)>,
+    /// Names of declared static accessors (used by `#[no-raw-ptr]` checks).
+    static_names: HashSet<String>,
     /// P20: the safety assertion set recorded per definition (attribute
     /// annotations specification section 10).
     safety_attrs: HashMap<String, SafetySet>,
@@ -4401,6 +4407,9 @@ impl Checker {
             value_layouts: Vec::new(),
             value_layout_intern: HashMap::new(),
             value_records: HashMap::new(),
+            statics: Vec::new(),
+            pending_statics: Vec::new(),
+            static_names: HashSet::new(),
             safety_attrs: HashMap::new(),
             module_safety: HashMap::new(),
             safety_records: Vec::new(),

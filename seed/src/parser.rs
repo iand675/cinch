@@ -733,6 +733,13 @@ impl<'a> Parser<'a> {
             Tok::VarId(s) if s == "refines" && matches!(self.peek_tok_at(1), Some(Tok::ConId(_))) => {
                 self.parse_refines()
             }
+            Tok::VarId(s)
+                if s == "static"
+                    && matches!(self.peek_tok_at(1), Some(Tok::VarId(_)))
+                    && matches!(self.peek_tok_at(2), Some(Tok::ColonColon)) =>
+            {
+                Ok(Decl::Static(self.parse_static()?))
+            }
             Tok::QuoteDecls => Err(self.err(
                 "`quoteDecls where ...` is an expression; use `generate do ... emit (quoteDecls where ...)` to emit declarations",
             )),
@@ -744,6 +751,15 @@ impl<'a> Parser<'a> {
             t if modifier_name(&t).is_some() => self.parse_sig_or_equation(),
             t => Err(self.err(format!("expected a declaration, found {}", describe(&t)))),
         }
+    }
+
+    /// `static name :: Type`: a zero-initialized POD static or thread-local declaration.
+    fn parse_static(&mut self) -> Result<StaticDecl> {
+        let span = self.bump().span;
+        let name = self.parse_value_name()?;
+        self.expect(&Tok::ColonColon, "`::`")?;
+        let ty = self.parse_type()?;
+        Ok(StaticDecl { name, ty, span })
     }
 
     /// `generate do { stmts }`: a compile-time generator (modules
@@ -4534,6 +4550,7 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
         }
         Decl::OpaqueType(o) => resolve_type(&mut o.kind, fix)?,
+        Decl::Static(st) => resolve_type(&mut st.ty, fix)?,
         Decl::Refine(r) => {
             for b in &mut r.params {
                 if let Some(ann) = &mut b.ann {

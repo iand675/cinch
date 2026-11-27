@@ -25,6 +25,7 @@ fn binding_sites(decls: &mut [Decl], visit: &mut impl FnMut(&mut Name, &[RefKind
                 for ctor in &mut di.ctors { visit(&mut ctor.name, &[Value]); }
             }
             Decl::Foreign(foreign) => visit(&mut foreign.name, &[Value]),
+            Decl::Static(st) => visit(&mut st.name, &[Value]),
             Decl::Prim(primitive) => visit(&mut primitive.name, &[Value]),
             Decl::Effect(effect) => {
                 visit(&mut effect.name, &[RefKind::Effect]);
@@ -451,6 +452,7 @@ fn remove_members(decls: &mut Vec<Decl>, selected: &[LocalBinding]) {
             Decl::OpaqueType(opaque) => !chosen(&opaque.name),
             Decl::Refine(refine) => !chosen(&refine.name),
             Decl::Foreign(foreign) => !chosen(&foreign.name),
+            Decl::Static(st) => !chosen(&st.name),
             Decl::Prim(primitive) => !chosen(&primitive.name),
             Decl::Effect(effect) => {
                 if chosen(&effect.name) { return false; }
@@ -628,6 +630,7 @@ fn declaration(decl: &mut Decl, visit: &mut impl FnMut(&mut Name, RefKind)) {
             for eq in &mut instance.methods { equation(eq, visit); }
         }
         Decl::Foreign(foreign) => visit(&mut foreign.name, RefKind::Value),
+        Decl::Static(st) => visit(&mut st.name, RefKind::Value),
         Decl::OpaqueType(opaque) => visit(&mut opaque.name, RefKind::Type),
         Decl::Refine(refine) => visit(&mut refine.name, RefKind::Type),
         Decl::TypeFamily(tf) => visit(&mut tf.name, RefKind::Type),

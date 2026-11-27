@@ -15,7 +15,7 @@ module Cinch.Infer where
   import Cinch.Guarded
   import Cinch.Proof (Proposition, PNegate, PCompare, Equal, disproved)
   import Data.Nat (nat-from-int, nat-to-int, nat-rem, saturating-sub)
-  import Text.Show (int-to-string)
+  import Text.Show (int-to-string, nat-to-string)
   import Text.Scan (string-words, string-starts-with, string-split-on, string-drop)
   import Data.Bytes (bytes-len, bytes-get)
   import Data.String (string-compare, string-byte-length, string-slice, string-utf8-first)
@@ -562,6 +562,7 @@ module Cinch.Infer where
       DData s name (p : ps) ctors -> True
       DData s name [] ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
+      DStatic s name ty tls align -> True
       DPrim s name ty spec-opt bodies -> True
       DModuleProfile s prof -> False
       DProof s body -> True
@@ -5018,6 +5019,17 @@ module Cinch.Infer where
     DCodata s owner ps observations -> (env, st)
     DForeign s direction abi symbol name ty | (direction == "export") -> (env, st)
     DForeign s direction abi symbol name ty -> register-intrinsic word-bits (all.graph-declarations) s direction abi symbol name ty classes kinds env st
+    DStatic s name ty tls-opt req-align -> case tls-opt of
+      None -> (env, add-error s "`static` declaration requires `#[static_mut]` or `#[thread_local]`" st)
+      Some tls -> case make-scheme False classes kinds [] ty st of
+        (scheme, st1) ->
+          let normalized = map-scheme-types (normalize st1) scheme in
+          case (scheme-params normalized, scheme-body normalized) of
+            ([], elem-ty) ->
+              let eff-name = if tls then "ThreadAffine" else "Global" in
+              let fn-ty = UFunEff (primitive-type "Unit") (URow (UArg (UCon eff-name KEffect) UEnd)) (UApp (UCon "RawPtr" (KFun KType KType)) elem-ty) in
+              add-binding s name (MkScheme [] fn-ty) "value" env st1
+            other -> (env, add-error s "static declaration requires a concrete POD (non-refcounted) type" st1)
     DPrim s name ty spec-opt bodies -> case make-scheme False classes kinds [] ty st of
       (scheme, checked) ->
         let (use-schemes, checked-uses) = elaborate-prim-body-uses classes kinds bodies checked in
@@ -12125,12 +12137,59 @@ module Cinch.Infer where
     [] -> st
     first : rest -> check-value-terms def-sp word-bits no-alloc no-raw-ptr datas rest (check-value-term def-sp word-bits no-alloc no-raw-ptr datas first st)
 
+  type-has-raw-ptr :: UType -> Bool
+  type-has-raw-ptr ty = case ty of
+    UApp (UCon name kind) pointee -> name == "RawPtr" || type-has-raw-ptr pointee
+    UApp f x -> type-has-raw-ptr f || type-has-raw-ptr x
+    UFun a b -> type-has-raw-ptr a || type-has-raw-ptr b
+    UFunEff a row b -> type-has-raw-ptr a || type-has-raw-ptr b
+    UPi id name a row b -> type-has-raw-ptr a || type-has-raw-ptr b
+    UProofFun pred row b -> type-has-raw-ptr b
+    UUsageArrow u arrow -> type-has-raw-ptr arrow
+    UForall qs body -> type-has-raw-ptr body
+    UTuple fields -> type-has-raw-ptr fields
+    UArg first rest -> type-has-raw-ptr first || type-has-raw-ptr rest
+    USigma id name a b -> type-has-raw-ptr a || type-has-raw-ptr b
+    URefine id name base pred -> type-has-raw-ptr base
+    other -> False
+
+  find-checked-scheme :: String -> List CheckedBinding -> Option Scheme
+  find-checked-scheme wanted bindings = case bindings of
+    [] -> None
+    b : rest -> if checked-name b == wanted then Some (checked-scheme b) else find-checked-scheme wanted rest
+
+  static-core-definitions :: List Decl -> List CheckedBinding -> List CoreDefinition
+  static-core-definitions ds bindings = case ds of
+    [] -> []
+    (DStatic sp name ty (Some tls) req-align) : rest ->
+      let more = static-core-definitions rest bindings in
+      (case find-checked-scheme name bindings of
+        Some sc -> case scheme-body sc of
+          UFunEff dom row ret ->
+            (CoreDefinition sp name sc [] [] [] [CoreClause sp [CPWild sp dom]
+              (CPrimitive sp ret "val-static-addr"
+                (CArgument sp (CString sp (primitive-type "String") name)
+                  (CArgument sp (CInt sp (primitive-type "Int") (if tls then "1" else "0"))
+                    (CArgument sp (CInt sp (primitive-type "Int") (nat-to-string req-align))
+                      (CArgumentsEnd sp)))))]) : more
+          other -> more
+        None -> more)
+    other : rest -> static-core-definitions rest bindings
+
   check-value-term :: Span -> Nat -> Bool -> Bool -> List CoreData -> CoreTerm -> Store -> Store
   check-value-term def-sp word-bits no-alloc no-raw-ptr datas term st =
-    let s0 = (if has-unboxed-uniform-container datas (core-type term) then add-error def-sp "unboxed value type cannot be stored in uniform-word runtime container (wrap in Box)" st else st) in
+    let s-box = (if has-unboxed-uniform-container datas (core-type term) then add-error def-sp "unboxed value type cannot be stored in uniform-word runtime container (wrap in Box)" st else st) in
+    let s0 = (if no-raw-ptr && type-has-raw-ptr (core-type term) then add-error def-sp "`#[no-raw-ptr]` forbids raw pointers (`RawPtr`) in this function" s-box else s-box) in
     case term of
       CPrimitive sp ty "val-mut-as-ptr" args ->
         let s1 = if no-raw-ptr then add-error sp "mutAsPtr is forbidden in #[no-raw-ptr] functions" s0 else s0 in
+        check-value-term sp word-bits no-alloc no-raw-ptr datas args s1
+      CPrimitive sp ty "val-static-addr" args ->
+        let s1 = (case ty of
+          UApp (UCon "RawPtr" _) elem -> (case pod-type-layout word-bits datas elem of
+            Some pair -> s0
+            None -> add-error sp "static declaration requires a POD (non-refcounted) type" s0)
+          other -> add-error sp "malformed val-static-addr" s0) in
         check-value-term sp word-bits no-alloc no-raw-ptr datas args s1
       CPrimitive sp ty "mut-borrow" args ->
         let s1 = if no-alloc then add-error sp "heap allocation is forbidden in #[no-alloc] functions" s0 else s0 in
@@ -12172,7 +12231,8 @@ module Cinch.Infer where
     (CoreDefinition sp name sc openings givens private clauses) : rest ->
       let no-alloc = decl-has-hint name "no-alloc" ds in
       let no-raw-ptr = decl-has-hint name "no-raw-ptr" ds in
-      check-value-defs word-bits ds datas rest (check-value-clauses word-bits no-alloc no-raw-ptr datas clauses st)
+      let s0 = if no-raw-ptr && type-has-raw-ptr (scheme-body sc) then add-error sp "`#[no-raw-ptr]` forbids raw pointers (`RawPtr`) in this function signature" st else st in
+      check-value-defs word-bits ds datas rest (check-value-clauses word-bits no-alloc no-raw-ptr datas clauses s0)
 
   check-value-rules :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
   check-value-rules word-bits ds datas core st =
@@ -12209,7 +12269,8 @@ module Cinch.Infer where
         more -> let body-declarations = more <> ds in
           check-bodies-tuned tuning cached classes linked-kinds families env [] body-declarations body-declarations sm)
       other -> ([], sm)) in
-    let core = defaults <> ordinary-core in
+    let static-defs = static-core-definitions ds env in
+    let core = defaults <> static-defs <> ordinary-core in
     let initialized = case store-errors body-checked of [] -> check-eager-values ordinary-core body-checked; other -> body-checked in
     let (declared-data, declared-store) = case store-errors initialized of [] -> checked-data classes linked-kinds env ds [] initialized; other -> ([], initialized) in
     let (nominal-data, nominal-store) = case store-errors declared-store of [] -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in

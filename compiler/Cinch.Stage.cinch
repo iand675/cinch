@@ -986,6 +986,7 @@ module Cinch.Stage where
         DFun site name clauses -> name : more
         DSig site name ty -> name : more
         DForeign site direction abi external name ty -> name : more
+        DStatic site name ty tls align -> name : more
         DRecord site name params fields -> name : more
         DCodata site name params fields -> name : more
         DOpaque site name params kind -> name : more

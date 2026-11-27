@@ -556,6 +556,7 @@ fn walk_decl(decl: &Decl, visit: &mut impl FnMut(&Term) -> Result<()>) -> Result
         | Decl::Fixity(_)
         | Decl::OpaqueType(_)
         | Decl::Foreign(_)
+        | Decl::Static(_)
         | Decl::Data(_)
         | Decl::Refine(_)
         | Decl::TypeFamily(_)

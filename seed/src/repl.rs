@@ -335,6 +335,7 @@ impl Repl {
                 }
                 ast::Decl::Instance(i) => other_names.push(i.name.text.clone()),
                 ast::Decl::Foreign(f) => other_names.push(f.name.text.clone()),
+                ast::Decl::Static(st) => other_names.push(st.name.text.clone()),
                 ast::Decl::Prim(p) => other_names.push(p.name.text.clone()),
                 ast::Decl::OpaqueType(o) => other_names.push(o.name.text.clone()),
                 ast::Decl::Effect(e) => {
@@ -1099,6 +1100,7 @@ fn decl_span(d: &ast::Decl) -> Span {
         ast::Decl::Signature(s) => s.span,
         ast::Decl::Instance(i) => i.span,
         ast::Decl::Foreign(f) => f.span,
+        ast::Decl::Static(st) => st.span,
         ast::Decl::Prim(p) => p.span,
         ast::Decl::OpaqueType(o) => o.span,
         ast::Decl::TypeFamily(tf) => tf.span,

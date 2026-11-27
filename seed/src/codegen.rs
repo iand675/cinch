@@ -905,6 +905,34 @@ fn emit_module(
         }
         out.push('\n');
     }
+    if !program.statics.is_empty() {
+        let mut emitted_statics: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let mut any_static = false;
+        for st in &program.statics {
+            if !emit_modules.is_empty() && !emitted_symbol(&st.symbol, emit_modules) {
+                continue;
+            }
+            let global_sym = format!("cinch.static.{}", st.symbol);
+            if !emitted_statics.insert(global_sym.clone()) {
+                continue;
+            }
+            let tls = if st.thread_local && profile.arch != "wasm32" {
+                "thread_local "
+            } else {
+                ""
+            };
+            let eff_size = st.size.max(1);
+            let eff_align = st.align.max(1);
+            out.push_str(&format!(
+                "@{} = internal {tls}global [{eff_size} x i8] zeroinitializer, align {eff_align}\n",
+                quote(&global_sym)
+            ));
+            any_static = true;
+        }
+        if any_static {
+            out.push('\n');
+        }
+    }
 
     if !emit_modules.is_empty() {
         let mut declared: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -1438,6 +1466,8 @@ struct Registry {
     frame_received: bool,
     /// Interned POD unboxed value layouts (`Program::value_layouts`).
     value_layouts: Vec<crate::core::ValueLayout>,
+    /// Zero-initialized POD static and thread-local storage definitions.
+    statics: Vec<crate::core::StaticDef>,
     /// Units with at least one unboxed POD value parameter or return value.
     val_sigs: HashMap<String, ValueSig>,
 }
@@ -2074,6 +2104,7 @@ impl Registry {
             }
         }
         reg.value_layouts = p.value_layouts.clone();
+        reg.statics = p.statics.clone();
         for f in &p.fns {
             let param_count = f.arity().max(f.repr.params.len()).max(f.repr.value_params.len());
             let params: Vec<Option<(u64, u64)>> = (0..param_count)
@@ -11489,7 +11520,8 @@ impl CoreEmitter<'_, '_> {
                         crate::core::ValOp::StackAlloc { .. }
                         | crate::core::ValOp::PlaceGep { .. }
                         | crate::core::ValOp::PlaceIndex { .. }
-                        | crate::core::ValOp::RefAsPtr => true,
+                        | crate::core::ValOp::RefAsPtr
+                        | crate::core::ValOp::StaticAddr { .. } => true,
                         crate::core::ValOp::Proj { field_layout, .. } => matches!(
                             self.reg.value_layouts[*field_layout as usize].kind,
                             crate::core::ValueLayoutKind::Scalar { is_ptr: true, .. }
@@ -12135,7 +12167,8 @@ impl CoreEmitter<'_, '_> {
             ValOp::StackAlloc { .. }
             | ValOp::PlaceGep { .. }
             | ValOp::PlaceIndex { .. }
-            | ValOp::RefAsPtr => {
+            | ValOp::RefAsPtr
+            | ValOp::StaticAddr { .. } => {
                 let p = self.emit_as_ptr(&Core::App(
                     Box::new(Core::Prim(PrimOp::Value(op))),
                     args.to_vec(),
@@ -12265,6 +12298,11 @@ impl CoreEmitter<'_, '_> {
                         }
                         ValOp::RefAsPtr => {
                             return self.emit_as_ptr(&args[0]);
+                        }
+                        ValOp::StaticAddr { id } => {
+                            let st = &self.reg.statics[id as usize];
+                            let global_sym = format!("cinch.static.{}", st.symbol);
+                            return Ok(format!("@{}", quote(&global_sym)));
                         }
                         ValOp::Proj { layout, field_layout, offset } => {
                             let fl = self.reg.value_layouts[field_layout as usize].clone();

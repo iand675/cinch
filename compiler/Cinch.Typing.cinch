@@ -801,6 +801,10 @@ module Cinch.Typing where
             Some (region, carrier) -> typing-ptr-decays context carrier pointee
             None -> False)
         other -> False)
+    else if op == "val-static-addr" then
+      (case (typing-ptr-pointee "RawPtr" result, args) of
+        (Some pointee, CArgument _ (CString _ _ _) (CArgument _ (CInt _ _ _) (CArgument _ (CInt _ _ _) (CArgumentsEnd _)))) -> True
+        other -> False)
     else if op == "val-place-load" then
       (case args of
         CArgument at place (CArgument bt (CString st sty path) (CArgumentsEnd end)) ->

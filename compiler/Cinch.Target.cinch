@@ -502,6 +502,7 @@ module Cinch.Target where
     -- definition of the same name is published under.
     DForeign s direction abi symbol name ty ->
       if direction == "import" then Some name else None
+    DStatic s name ty tls align -> Some name
     other -> None
 
   -- The module names an import contributes, which is what an export that

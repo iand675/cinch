@@ -7438,6 +7438,21 @@ module Cinch.RuntimeIr where
       (case args of
         CArgument at place (CArgumentsEnd end) -> eval-place-ptr definitions locals w place
         other -> unsupported w sp "refAsPtr/mutAsPtr takes one place argument")
+    else if op == "val-static-addr" then
+      (case (args, base ty) of
+        (CArgument _ (CString _ _ sname) (CArgument _ (CInt _ _ tls-str) (CArgument _ (CInt _ _ align-str) (CArgumentsEnd _))), UApp (UCon "RawPtr" _) elem) ->
+          (case pod-type-layout word-bits datas elem of
+            Some (sz, nat-al) ->
+              let req-al = (case decimal-bytes (string-to-bytes align-str) 0 0 of Some n -> n; None -> 0) in
+              let eff-sz = if sz == 0 then 1 else sz in
+              let nat-al1 = if nat-al == 0 then 1 else nat-al in
+              let eff-al = if req-al > nat-al1 then req-al else nat-al1 in
+              let tls-pfx = if tls-str == "1" && not (program-wasm32 (writer-program w)) then "thread_local " else "" in
+              let gsym = symbol ("cinch.static." <> sname) in
+              let gline = cat [gsym, " = internal ", tls-pfx, "global [", nat-to-string eff-sz, " x i8] zeroinitializer, align ", nat-to-string eff-al] in
+              (global w gline, gsym)
+            None -> unsupported w sp "static declaration requires a POD (non-refcounted) type")
+        other -> unsupported w sp "malformed val-static-addr")
     else if op == "val-place-load" then
       (case args of
         CArgument at place (CArgument bt (CString st sty path) (CArgumentsEnd end)) ->

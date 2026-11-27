@@ -907,11 +907,13 @@ module Cinch.Parse where
         Some args | has-repr-item "transparent" (string-split-on "," args) -> wrapper-decl (sp-of t) "transparent" rest src fix
           ((DUnmodeled (sp-of t) "repr(transparent) combines with no other representation") : acc)
         Some args | has-repr-item "value" (string-split-on "," args) -> wrapper-decl (sp-of t) args rest src fix acc
-        other -> (case inline-attribute text of
-          Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] [] rest src fix acc
-          None -> (case test-attribute text of
-            Some item -> function-hint-decl [] [(sp-of t, item)] rest src fix acc
-            None -> decl-step toks src fix acc)))
+        other -> (case static-attribute text of
+          Some parsed -> static-attr-decl (sp-of t) None None None parsed rest src fix acc
+          None -> (case inline-attribute text of
+            Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] [] rest src fix acc
+            None -> (case test-attribute text of
+              Some item -> function-hint-decl [] [(sp-of t, item)] rest src fix acc
+              None -> decl-step toks src fix acc))))
       TEOF -> POk (reverse acc) toks
       _ -> decl-step toks src fix acc
     [] -> POk (reverse acc) []
@@ -938,6 +940,87 @@ module Cinch.Parse where
           DRecord sp name params fields -> decls-loop tail src fix (d : ((DWrapperLayout site name repr (map (\field -> case field of (label, ty) -> label) fields)) : acc))
           other -> decls-loop tail src fix (d : (DUnmodeled site ("repr(" <> repr <> ") requires a data or record declaration")) : acc))
         PBad -> PBad)
+    [] -> PBad
+
+  parse-static-nat :: List Char -> Nat -> Option Nat
+  parse-static-nat digits n = case digits of
+    [] -> Some n
+    ch : rest -> let code = char-code ch in
+      if code < 48 || code > 57 then None
+      else parse-static-nat rest (n * 10 + (code - 48))
+
+  is-pow2-loop :: Nat -> Nat -> Bool
+  is-pow2-loop wanted cur = if cur == wanted then True else if cur > wanted then False else is-pow2-loop wanted (cur + cur)
+
+  parse-static-align :: String -> Result String Nat
+  parse-static-align raw =
+    let trimmed = string-strip raw in
+    if string-length trimmed == 0 then Err "static alignment must be a positive power of two"
+    else case parse-static-nat (unpack trimmed) 0 of
+      Some n -> if n > 0 && is-pow2-loop n 1 then Ok n else Err "static alignment must be a positive power of two"
+      None -> Err "static alignment must be a positive power of two"
+
+  static-attribute :: String -> Option (Result String (Option Bool, Option Nat))
+  static-attribute text =
+    let trimmed = string-strip text in
+    let end = string-length trimmed in
+    let open = (case string-index-of "(" trimmed of Some pos -> pos; None -> end) in
+    let family = string-strip (string-take open trimmed) in
+    let arg = (if open + 2 <= end && string-drop (end - 1) trimmed == ")" then string-strip (string-take (end - (open + 2)) (string-drop (open + 1) trimmed)) else "") in
+    if family == "static_mut" || family == "static-mut" || family == "thread_local" || family == "thread-local" then
+      let is-tls = family == "thread_local" || family == "thread-local" in
+      if open == end then Some (Ok (Some is-tls, None))
+      else if string-starts-with "align(" arg && string-ends-with ")" arg && 7 <= string-length arg then
+        let inner = string-take (string-length arg - 7) (string-drop 6 arg) in
+        Some (case parse-static-align inner of Ok al -> Ok (Some is-tls, Some al); Err msg -> Err msg)
+      else Some (Err (string-concat-all ["`#[", family, "]` takes no arguments or `align(N)`"]))
+    else if family == "align" then
+      if open == end then Some (Err "static alignment must be a positive power of two")
+      else Some (case parse-static-align arg of Ok al -> Ok (None, Some al); Err msg -> Err msg)
+    else None
+
+  merge-static-attr :: Option Bool -> Option Nat -> Option String -> Result String (Option Bool, Option Nat) -> (Option Bool, Option Nat, Option String)
+  merge-static-attr tls-opt align-opt err-opt parsed = case err-opt of
+    Some msg -> (tls-opt, align-opt, Some msg)
+    None -> case parsed of
+      Err msg -> (tls-opt, align-opt, Some msg)
+      Ok (new-tls, new-align) ->
+        let (next-tls, err1) = (case (tls-opt, new-tls) of
+          (Some _, Some _) -> (tls-opt, Some "`#[static_mut]` and `#[thread_local]` conflict on the same `static` declaration")
+          (None, Some v) -> (Some v, None)
+          other -> (tls-opt, None)) in
+        case err1 of
+          Some msg -> (next-tls, align-opt, Some msg)
+          None -> (case (align-opt, new-align) of
+            (Some _, Some _) -> (next-tls, align-opt, Some "duplicate alignment specification on `static` declaration")
+            (None, Some al) -> (next-tls, Some al, None)
+            other -> (next-tls, align-opt, None))
+
+  static-attr-decl :: Span -> Option Bool -> Option Nat -> Option String -> Result String (Option Bool, Option Nat) -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  static-attr-decl site tls-opt align-opt err-opt first toks src fix acc =
+    let (next-tls, next-align, next-err) = merge-static-attr tls-opt align-opt err-opt first in
+    static-attr-loop site next-tls next-align next-err toks src fix acc
+
+  static-attr-loop :: Span -> Option Bool -> Option Nat -> Option String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  static-attr-loop site tls-opt align-opt err-opt toks src fix acc = case toks of
+    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then static-attr-loop site tls-opt align-opt err-opt rest src fix acc else
+      (case lt-token t of
+        TAttr text -> (case static-attribute text of
+          Some parsed -> static-attr-decl site tls-opt align-opt err-opt parsed rest src fix acc
+          None -> decls-loop toks src fix ((DInlineHint (sp-of t) "" (Err "unexpected attribute on `static` declaration")) : acc))
+        other -> (case parse-decl-recover toks src fix of
+          POk d tail -> (case d of
+            DStatic sp name ty _ _ -> (case err-opt of
+              Some msg -> decls-loop tail src fix ((DInlineHint sp name (Err msg)) : acc)
+              None -> (case tls-opt of
+                Some tls ->
+                  let al = case align-opt of Some n -> n; None -> 0 in
+                  decls-loop tail src fix ((DStatic sp name ty (Some tls) al) : (DInlineHint sp name (Ok "alwaysinline")) : acc)
+                None -> decls-loop tail src fix ((DInlineHint sp name (Err "`static` declaration requires `#[static_mut]` or `#[thread_local]`")) : acc)))
+            other2 ->
+              let msg = case err-opt of Some m -> m; None -> "`#[static_mut]`, `#[thread_local]` and `#[align]` attach to a `static` declaration" in
+              decls-loop tail src fix (other2 : (DInlineHint site "" (Err msg)) : acc))
+          PBad -> PBad))
     [] -> PBad
 
   inline-attribute :: String -> Option (String, Result String String)
@@ -1349,6 +1432,10 @@ module Cinch.Parse where
         (case parse-refines toks src fix of
           POk decl tail -> POk decl tail
           PBad -> parse-sig-or-eq toks src fix)
+        else if s == "static" then
+        (case parse-static (sp-of t) rest src fix of
+          POk decl tail -> POk decl tail
+          PBad -> parse-sig-or-eq toks src fix)
         else if s == "unsafe" then
         (case rest of keyword : more -> if is-word-t (lt-token keyword) "prim" then parse-prim True rest src fix else parse-sig-or-eq toks src fix; [] -> PBad)
         else parse-sig-or-eq toks src fix
@@ -1362,6 +1449,15 @@ module Cinch.Parse where
         else PBad
       _ -> PBad
     [] -> PBad
+
+  parse-static :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-static sp toks src fix = case toks of
+    name-tok : colon-tok : rest -> case (lt-token name-tok, lt-token colon-tok) of
+      (TVar name, TPunct "::") -> (case parse-type rest src of
+        POk ty tail -> POk (DStatic sp name ty None 0) tail
+        PBad -> PBad)
+      other -> PBad
+    other -> PBad
 
   -- The `when` prefix: one atom per `when`, then the declaration they
   -- select. The whole run is one `DConditional` whose clause list is the

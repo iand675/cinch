@@ -148,6 +148,8 @@ module Cinch.Incremental where
       JArr (JStr "DEffect") (JArr (JStr name) (JArr (source-law-parameters params) (JArr (ctor-list-json ops) JArrEnd)))
     DForeign sp dir abi sym name ty ->
       JArr (JStr "DForeign") (JArr (JStr dir) (JArr (JStr abi) (JArr (JStr sym) (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd)))))
+    DStatic sp name ty tls align ->
+      JArr (JStr "DStatic") (JArr (JStr name) (JArr (source-identity-type ty) (JArr (case tls of Some b -> JBool b; None -> JNull) (JArr (JNum (nat-to-int align)) JArrEnd))))
     DPrim sp name ty spec-opt bodies ->
       JArr (JStr "DPrim") (JArr (JStr name) (JArr (source-identity-type ty) (JArr (case spec-opt of Some e -> source-identity-expr e; None -> JNull) (JArr (prim-bodies-json bodies) JArrEnd))))
     DModuleProfile sp profile ->

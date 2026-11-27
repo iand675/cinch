@@ -1118,6 +1118,15 @@ pub struct ValueField {
     pub layout: ValueLayout,
 }
 
+/// Definition of a zero-initialized POD static or thread-local storage global.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StaticDef {
+    pub symbol: String,
+    pub size: u64,
+    pub align: u64,
+    pub thread_local: bool,
+}
+
 /// Inline operations over unboxed POD value types, `FixedArray`, and stack places.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ValOp {
@@ -1143,6 +1152,8 @@ pub enum ValOp {
     PlaceIndex { stride: u64 },
     /// Extract a native LLVM `ptr` (`Borrowed a` / `RawPtr a`) from a place-backed `Ref`/`Mut`.
     RefAsPtr,
+    /// Address of a zero-initialized POD static or thread-local global (`Program::statics[id]`).
+    StaticAddr { id: u32 },
 }
 
 impl ValOp {
@@ -1154,7 +1165,8 @@ impl ValOp {
             | ValOp::StackAlloc { .. }
             | ValOp::PlaceLoad { .. }
             | ValOp::PlaceGep { .. }
-            | ValOp::RefAsPtr => 1,
+            | ValOp::RefAsPtr
+            | ValOp::StaticAddr { .. } => 1,
             ValOp::FixedArrayGet { .. }
             | ValOp::PlaceStore { .. }
             | ValOp::PlaceIndex { .. } => 2,
@@ -1164,7 +1176,10 @@ impl ValOp {
     pub fn is_effectful(self) -> bool {
         matches!(
             self,
-            ValOp::StackAlloc { .. } | ValOp::PlaceLoad { .. } | ValOp::PlaceStore { .. }
+            ValOp::StackAlloc { .. }
+                | ValOp::PlaceLoad { .. }
+                | ValOp::PlaceStore { .. }
+                | ValOp::StaticAddr { .. }
         )
     }
 
@@ -1180,6 +1195,7 @@ impl ValOp {
             ValOp::PlaceGep { offset } => format!("cinch.val.gep.{offset}"),
             ValOp::PlaceIndex { stride } => format!("cinch.val.idx.{stride}"),
             ValOp::RefAsPtr => "cinch.val.refAsPtr".to_string(),
+            ValOp::StaticAddr { id } => format!("cinch.val.static.{id}"),
         }
     }
 }
@@ -3720,6 +3736,8 @@ pub struct Program {
     /// Interned POD unboxed value layouts (`#[repr(value)]`, `FixedArray`,
     /// and `withLocal` cells) referenced by `ValueLayoutId` (`u32`).
     pub value_layouts: Vec<ValueLayout>,
+    /// Zero-initialized POD static and thread-local storage definitions.
+    pub statics: Vec<StaticDef>,
 }
 
 /// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
@@ -3756,6 +3774,7 @@ impl Program {
             lent_entries: Default::default(),
             private_modules: Vec::new(),
             value_layouts: Vec::new(),
+            statics: Vec::new(),
         }
     }
 
@@ -3796,6 +3815,7 @@ impl Program {
             lent_entries: self.lent_entries.clone(),
             private_modules: self.private_modules.clone(),
             value_layouts: self.value_layouts.clone(),
+            statics: self.statics.clone(),
         }
     }
 }
@@ -9466,6 +9486,7 @@ mod tests {
             private_modules: Vec::new(),
             inline: Default::default(),
             value_layouts: Vec::new(),
+            statics: Vec::new(),
         };
         for reverse in [false, true] {
             if reverse { program.fns.reverse(); }
@@ -9525,6 +9546,7 @@ mod tests {
             private_modules: Vec::new(),
             inline: Default::default(),
             value_layouts: Vec::new(),
+            statics: Vec::new(),
         };
         share_repeated_subterms(&mut program);
         assert_eq!(program.fns.len(), 2);

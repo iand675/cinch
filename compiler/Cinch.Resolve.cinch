@@ -1308,6 +1308,8 @@ module Cinch.Resolve where
       if direction == "import" then ([DForeign s direction abi symbol (global-name home name) (rename-type visible [] ty)], [])
       else case resolve-use s False visible [] name of
         (exported-symbol, errors) -> ([DForeign s direction abi symbol exported-symbol (rename-type visible [] ty)], errors)
+    DStatic s name ty tls align ->
+      ([DStatic s (global-name home name) (rename-type visible [] ty) tls align], [])
     DPrim s name ty spec-opt bodies ->
       let (renamed-spec, spec-errors) = case spec-opt of
             None -> (None, [])

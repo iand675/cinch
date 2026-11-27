@@ -3727,7 +3727,8 @@ impl Checker {
                 | ast::Decl::Codata(..)
                 | ast::Decl::ValueSig { .. }
                 | ast::Decl::Equation { .. }
-                | ast::Decl::Foreign(..) => {}
+                | ast::Decl::Foreign(..)
+                | ast::Decl::Static(..) => {}
                 _ => {
                     self.validate_attr_site(decl_attrs, AttrSite::Decl)?;
                 }
@@ -4090,6 +4091,88 @@ impl Checker {
                         self.pending_foreign
                             .push((module.clone(), f.clone(), s, set.foreign_abi));
                     }
+                }
+                ast::Decl::Static(st) => {
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::StaticDecl)?;
+                    let Some(tls) = set.static_decl.thread_local else {
+                        return Err(Error::at(
+                            st.span,
+                            "`static` declaration requires `#[static_mut]` or `#[thread_local]`",
+                        ));
+                    };
+                    let req_align = set.static_decl.align.unwrap_or(0);
+                    self.promoted_rejections.insert(
+                        format!("{module}.{}", st.name.text),
+                        "static declaration cannot be promoted to the type level".into(),
+                    );
+                    let elem_scheme = self.conv_scheme(&st.ty)?;
+                    if !elem_scheme.params.is_empty()
+                        || !elem_scheme.ctx.is_empty()
+                        || !elem_scheme.con_params.is_empty()
+                        || !elem_scheme.idx_params.is_empty()
+                        || !elem_scheme.val_params.is_empty()
+                        || !elem_scheme.prop_params.is_empty()
+                        || !elem_scheme.row_params.is_empty()
+                        || !elem_scheme.region_params.is_empty()
+                    {
+                        return Err(Error::at(
+                            st.span,
+                            "static declaration requires a concrete POD (non-refcounted) type",
+                        ));
+                    }
+                    let eff_name = if tls { "ThreadAffine" } else { "Global" };
+                    let fn_ty = Ty::fun_eff(
+                        Ty::Unit,
+                        EffRow::closed(vec![EffLabel::plain(eff_name)]),
+                        Ty::Ptr {
+                            role: crate::types::PtrRole::Raw,
+                            pointee: Box::new(elem_scheme.ty.clone()),
+                        },
+                    );
+                    let fn_scheme = Scheme::mono(fn_ty);
+                    let syn_ast_ty = ast::Type::Fun {
+                        arg: Box::new(ast::Type::Con(
+                            ast::ConPath { segments: vec![ast::Name::new("Unit", st.span)] },
+                            st.span,
+                        )),
+                        mult: None,
+                        eff: Some(ast::EffectRow {
+                            labels: vec![(
+                                ast::ConPath { segments: vec![ast::Name::new(eff_name, st.span)] },
+                                Vec::new(),
+                            )],
+                            tail: None,
+                            span: st.span,
+                        }),
+                        res: Box::new(ast::Type::App(
+                            Box::new(ast::Type::Con(
+                                ast::ConPath { segments: vec![ast::Name::new("RawPtr", st.span)] },
+                                st.span,
+                            )),
+                            Box::new(st.ty.clone()),
+                            st.span,
+                        )),
+                        span: st.span,
+                    };
+                    self.remember_interface_scheme(&module, &st.name.text, &syn_ast_ty, &fn_scheme, &[]);
+                    self.add_value(
+                        ValueInfo {
+                            module: module.clone(),
+                            name: st.name.text.clone(),
+                            scheme: fn_scheme,
+                            kind: ValueKind::TopFn,
+                        },
+                        st.span,
+                    )?;
+                    self.static_names.insert(st.name.text.clone());
+                    self.static_names.insert(format!("{module}.{}", st.name.text));
+                    self.pending_statics.push((
+                        module.clone(),
+                        st.clone(),
+                        elem_scheme.ty,
+                        tls,
+                        req_align,
+                    ));
                 }
                 ast::Decl::Prim(p) => {
                     // Hint attributes apply to the synthesized unit
@@ -6300,6 +6383,50 @@ impl Checker {
                         ));
                     }
                     *slot = true;
+                }
+                "static_mut" | "static-mut" | "thread_local" | "thread-local" => {
+                    if site != AttrSite::StaticDecl {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                    let is_tls = name == "thread_local" || name == "thread-local";
+                    if out.static_decl.thread_local.is_some() {
+                        return Err(Error::at(
+                            a.span,
+                            "`#[static_mut]` and `#[thread_local]` conflict on the same `static` declaration",
+                        ));
+                    }
+                    out.static_decl.thread_local = Some(is_tls);
+                    let raw = arg_text(args);
+                    if !raw.is_empty() {
+                        let inner = raw
+                            .strip_prefix("align(")
+                            .and_then(|s| s.strip_suffix(')'))
+                            .ok_or_else(|| {
+                                Error::at(
+                                    a.span,
+                                    format!("`#[{name}]` takes no arguments or `align(N)`"),
+                                )
+                            })?;
+                        let al = parse_static_align(inner, a.span)?;
+                        if out.static_decl.align.replace(al).is_some() {
+                            return Err(Error::at(
+                                a.span,
+                                "duplicate alignment specification on `static` declaration",
+                            ));
+                        }
+                    }
+                }
+                "align" => {
+                    if site != AttrSite::StaticDecl {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                    let al = parse_static_align(arg_text(args), a.span)?;
+                    if out.static_decl.align.replace(al).is_some() {
+                        return Err(Error::at(
+                            a.span,
+                            "duplicate alignment specification on `static` declaration",
+                        ));
+                    }
                 }
                 "profile" => {
                     return Err(Error::at(
@@ -9267,6 +9394,58 @@ impl Checker {
     /// the contract), and one body is selected per the artifact
     /// (selection is recorded in the manifest, never in the contract
     /// projection). The synthesized unit joins the program as a leaf.
+    fn check_statics(&mut self) -> Result<()> {
+        for (module, st, elem_ty, tls, req_align) in std::mem::take(&mut self.pending_statics) {
+            let elem_ty = self.uni.zonk(&elem_ty);
+            let Some(layout) = self.pod_value_layout(&elem_ty) else {
+                return Err(Error::at(
+                    st.span,
+                    crate::diagnostic!(
+                        "static declaration `{}` requires a POD (non-refcounted) type, not {}",
+                        st.name.text,
+                        elem_ty
+                    ),
+                ));
+            };
+            let eff_size = layout.size.max(1);
+            let eff_align = layout.align.max(1).max(req_align as u64);
+            let symbol = fn_id(&module, &st.name.text).0;
+            let id = self.statics.len() as u32;
+            self.statics.push(crate::core::StaticDef {
+                symbol: symbol.clone(),
+                size: eff_size,
+                align: eff_align,
+                thread_local: tls,
+            });
+            let mut meta = crate::core::FnMeta::default();
+            meta.contract.result_narrow = Some(crate::core::Crossing::Ptr);
+            meta.contract.no_alloc = true;
+            meta.contract.returns = true;
+            let mut hints = crate::core::FnHints::default();
+            hints.inline = Some(crate::core::InlineHint::Always);
+            self.fns.push(FnDef {
+                id: GlobalId(symbol),
+                params: vec!["_unit".into()],
+                body: crate::core::Core::App(
+                    Box::new(crate::core::Core::Prim(PrimOp::Value(
+                        crate::core::ValOp::StaticAddr { id },
+                    ))),
+                    vec![crate::core::Core::Var(crate::core::LocalId(0))],
+                ),
+                prim: None,
+                ctor: None,
+                hints,
+                meta,
+                repr: crate::core::UnitRepr {
+                    params: vec![crate::core::Class::Raw],
+                    result: Some(crate::core::Class::Raw),
+                    ..crate::core::UnitRepr::default()
+                },
+            });
+        }
+        Ok(())
+    }
+
     fn check_prims(&mut self) -> Result<()> {
         self.check_prims_for(|_| true)
     }
@@ -12415,6 +12594,7 @@ impl Checker {
         program.prims = self.prims;
         program.laws = self.law_rows;
         program.value_layouts = self.value_layouts;
+        program.statics = self.statics;
         // This is the original complete checked constructor inventory,
         // before dictionary lowering, specialization or reachability pruning.
         program.certify_builtin_constructors()?;
@@ -13839,6 +14019,8 @@ pub(crate) enum AttrSite {
     FnDecl,
     /// A `foreign` import or export declaration.
     ForeignDecl,
+    /// A `#[static_mut]` or `#[thread_local]` `static` declaration.
+    StaticDecl,
     /// Any other declaration.
     Decl,
     /// A data constructor declaration.
@@ -13878,6 +14060,9 @@ impl AttrSite {
             }
             "safety" => "`#[recursion]`, `#[stack]`, `#[no-alloc]`, `#[alloc]`, `#[max-complexity]`, `#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]` and `#[deny-warnings]` attach to a function definition (a signature or a top-level equation; attribute annotations specification section 10)".to_string(),
             "byval" | "sret" => "`#[byval]` and `#[sret]` attach to a `foreign` import or export declaration (the by-value aggregate ABI spelling of design/llvm-contract-attributes.md)".to_string(),
+            "static_mut" | "static-mut" | "thread_local" | "thread-local" | "align" => {
+                format!("`#[{family}]` attaches to a `static` declaration")
+            }
             "repr" => match self {
                 AttrSite::FnDecl | AttrSite::Decl | AttrSite::Ctor => {
                     "`#[repr(...)]` attaches to a `data` or `record` declaration (attribute annotations specification section 4.1)".to_string()
@@ -13901,6 +14086,12 @@ pub(crate) struct ForeignAbi {
     pub sret: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct StaticAttr {
+    pub thread_local: Option<bool>,
+    pub align: Option<u32>,
+}
+
 /// What one attachment position's attribute list carries (attribute
 /// annotations specification sections 2, 3, 4, 5 and 10).
 #[derive(Clone, Debug, Default)]
@@ -13920,6 +14111,8 @@ pub(crate) struct AttrSet {
     pub safety: SafetySet,
     /// The by-value aggregate ABI spelling at a foreign declaration.
     pub foreign_abi: ForeignAbi,
+    /// Storage class and optional alignment for a `static` declaration.
+    pub static_decl: StaticAttr,
 }
 
 /// The raw argument text of one attribute: the parenthesized list, or
@@ -13927,6 +14120,12 @@ pub(crate) struct AttrSet {
 fn arg_text(args: &str) -> &str {
     let t = args.trim();
     t.strip_prefix('=').unwrap_or(t).trim()
+}
+
+fn parse_static_align(raw: &str, span: ast::Span) -> Result<u32> {
+    let trimmed = raw.trim();
+    let n = trimmed.parse::<u32>().ok().filter(|&n| n > 0 && n.is_power_of_two());
+    n.ok_or_else(|| Error::at(span, "static alignment must be a positive power of two"))
 }
 
 /// The weight a weight-family attribute assigns (attribute annotations
@@ -15855,6 +16054,22 @@ impl Checker {
         for ((_, name), r) in &self.layout_recipes {
             if r.repr.value {
                 marks.value_records.insert(name.clone());
+            }
+        }
+        for name in &self.static_names {
+            marks.ptrs.insert(name.clone());
+        }
+        for (name, infos) in &self.values {
+            for info in infos {
+                if let Ty::Fun(dom, _, row, cod) = &info.scheme.ty {
+                    if **dom == Ty::Unit
+                        && matches!(&**cod, Ty::Ptr { role: crate::types::PtrRole::Raw, .. })
+                        && row.labels.iter().any(|l| l.head == "Global" || l.head == "ThreadAffine")
+                    {
+                        marks.ptrs.insert(name.clone());
+                        marks.ptrs.insert(format!("{}.{}", info.module, name));
+                    }
+                }
             }
         }
         marks
@@ -18883,6 +19098,7 @@ fn definition_name(d: &ast::Decl) -> Option<&ast::Name> {
         // here made every export collide with its own equation.
         ast::Decl::Foreign(f) if f.is_import => Some(&f.name),
         ast::Decl::Foreign(_) => None,
+        ast::Decl::Static(st) => Some(&st.name),
         ast::Decl::Prim(p) => Some(&p.name),
         ast::Decl::Data(t) => Some(&t.name),
         ast::Decl::Record(r) | ast::Decl::Codata(r) => Some(&r.name),
@@ -20812,6 +21028,7 @@ fn check_program_multi_full_prepared_impl(
     // recorded layouts (foreign function interface specification
     // section 2).
     c.build_foreign_contracts()?;
+    c.check_statics()?;
     c.prepare_task_forwarders();
     {
         let prelude_names: HashSet<&str> = family.iter().map(|m| m.name.text.as_str()).collect();
@@ -20853,6 +21070,7 @@ fn check_program_multi_full_prepared_impl(
     c.compute_layouts()?;
     c.compute_unpack_plans()?;
     c.build_foreign_contracts()?;
+    c.check_statics()?;
     c.prepare_task_forwarders();
     trace_checker_phase(phase_trace, "prepare", "generated_layout.end", None);
     trace_checker_phase(phase_trace, "prepare", "source_bodies.begin", None);
@@ -23328,6 +23546,7 @@ fn declaration_binding_names(declaration: &ast::Decl, names: &mut Vec<String>) {
     match declaration {
         ast::Decl::Attributed { inner, .. } => declaration_binding_names(inner, names),
         ast::Decl::ValueSig { name, .. } | ast::Decl::Foreign(ast::ForeignDecl { name, .. })
+        | ast::Decl::Static(ast::StaticDecl { name, .. })
         | ast::Decl::OpaqueType(ast::OpaqueTypeDecl { name, .. }) => names.push(name.text.clone()),
         ast::Decl::Equation { eq, .. } => names.push(eq.name.text.clone()),
         ast::Decl::Data(data) => {
@@ -26182,6 +26401,7 @@ impl Checker {
                     values.push(refine.name.text.clone());
                 }
                 ast::Decl::Foreign(foreign) => values.push(foreign.name.text.clone()),
+                ast::Decl::Static(st) => values.push(st.name.text.clone()),
                 ast::Decl::Prim(primitive) => values.push(primitive.name.text.clone()),
                 ast::Decl::OpaqueType(opaque) => types.push(opaque.name.text.clone()),
                 ast::Decl::TypeFamily(tf) => types.push(tf.name.text.clone()),

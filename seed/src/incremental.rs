@@ -627,6 +627,7 @@ fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
         Decl::Attributed { inner, .. } => surface_refs(inner, out),
         Decl::NameSpliced { inner, .. } => surface_refs(inner, out),
         Decl::Foreign(_)
+        | Decl::Static(_)
         | Decl::OpaqueType(_)
         | Decl::Contract(_)
         | Decl::Import(_)
@@ -727,6 +728,7 @@ fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::DataFamily(_)
         | Decl::DataInstance(_)
         | Decl::Foreign(_)
+        | Decl::Static(_)
         | Decl::OpaqueType(_)
         | Decl::Effect(_)
         | Decl::Contract(_)
@@ -2859,6 +2861,7 @@ fn decl_item_of(d: &Decl, module: &str) -> Option<String> {
         Decl::TypeFamily(tf) => Some(item_id(ItemKind::Type, module, &tf.name.text)),
         Decl::DataFamily(df) => Some(item_id(ItemKind::Type, module, &df.name.text)),
         Decl::Prim(p) => Some(item_id(ItemKind::Value, module, &p.name.text)),
+        Decl::Static(st) => Some(item_id(ItemKind::Value, module, &st.name.text)),
         Decl::OpaqueType(o) => Some(item_id(ItemKind::Type, module, &o.name.text)),
         Decl::Contract(c) => Some(item_id(ItemKind::Value, module, &c.target.text)),
         Decl::Attributed { inner, .. } => decl_item_of(inner, module),

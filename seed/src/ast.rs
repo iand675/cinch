@@ -943,6 +943,7 @@ impl Decl {
                 inner.visit_types_mut(visit);
             }
             Decl::Foreign(foreign) => foreign.ty.visit_mut(visit),
+            Decl::Static(st) => st.ty.visit_mut(visit),
             Decl::Prim(primitive) => {
                 primitive.ty.visit_mut(visit);
                 if let Some(spec) = &mut primitive.spec { spec.visit_types_mut(visit); }
@@ -1593,6 +1594,16 @@ pub struct ContractDecl {
     pub span: Span,
 }
 
+/// `#[static_mut]` / `#[thread_local]` `static name :: Type`:
+/// a zero-initialized POD static or thread-local storage binding whose
+/// checked accessor has type `Unit ->{Global|ThreadAffine} RawPtr Type`.
+#[derive(Clone, Debug)]
+pub struct StaticDecl {
+    pub name: Name,
+    pub ty: Type,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug)]
 pub enum Decl {
     Import(Import),
@@ -1630,6 +1641,8 @@ pub enum Decl {
     /// splice is refused.
     NameSpliced { name_tm: Box<Term>, inner: Box<Decl> },
     Foreign(ForeignDecl),
+    /// `#[static_mut]` / `#[thread_local]` `static name :: Type`.
+    Static(StaticDecl),
     /// `prim name :: type where { target_body ... }` (primitive
     /// operations and inline target IR specification section 2): a
     /// primitive operation with inline target-IR bodies.
@@ -1917,7 +1930,8 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::Export(_)
         | Decl::Fixity(_)
         | Decl::OpaqueType(_)
-        | Decl::Foreign(_) => {}
+        | Decl::Foreign(_)
+        | Decl::Static(_) => {}
         Decl::Contract(c) => {
             out.push(RefSite {
                 kind: RefKind::Value,
@@ -3328,6 +3342,11 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
             f.ty = hyg_type(&f.ty, cx, sc)?;
             Decl::Foreign(f)
         }
+        Decl::Static(st) => {
+            let mut st = st.clone();
+            st.ty = hyg_type(&st.ty, cx, sc)?;
+            Decl::Static(st)
+        }
         Decl::Attributed { attrs, inner } => Decl::Attributed {
             attrs: attrs.clone(),
             inner: Box::new(hyg_decl(inner, cx, sc)?),
@@ -3843,7 +3862,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             Decl::Signature(s)
         }
         Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_)
-        | Decl::Foreign(_) | Decl::OpaqueType(_)
+        | Decl::Foreign(_) | Decl::Static(_) | Decl::OpaqueType(_)
         | Decl::Data(_) | Decl::Refine(_) | Decl::TypeFamily(_) | Decl::TypeInstance(_)
         | Decl::DataFamily(_) | Decl::DataInstance(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
@@ -4115,6 +4134,7 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         | Decl::Export(_)
         | Decl::Fixity(_)
         | Decl::Foreign(_)
+        | Decl::Static(_)
         | Decl::OpaqueType(_)
         | Decl::Refine(_)
         | Decl::TypeFamily(_)

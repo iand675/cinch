@@ -681,6 +681,7 @@ module Cinch.Eval where
   decl-unmodeleds :: Decl -> List Diagnostic
   decl-unmodeleds d = case d of
     DOpaque s name params kind -> [Diagnostic rung s "opaque declarations require checked nominal elaboration"]
+    DStatic s name ty tls align -> [Diagnostic rung s "static declarations require typed elaboration"]
     DRefine s n params binder predicate -> [(Diagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung")]
     DLaw s name syntax -> [Diagnostic rung s "class laws require checked proposition elaboration"]
     DProof s body -> [Diagnostic rung s "a proof declaration requires erased checking"]

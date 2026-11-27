@@ -136,6 +136,9 @@ mod tests {
             Decl::ValueSig { name, .. } => {
                 out.values.insert(qualify(&name.text));
             }
+            Decl::Static(st) => {
+                out.values.insert(qualify(&st.name.text));
+            }
             _ => {}
         }
     }
