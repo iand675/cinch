@@ -6,6 +6,8 @@ module Runtime.Sync where
   import Runtime.Heap
   import Runtime.Block
   import Runtime.Rc
+  import Runtime.Sched
+  import Runtime.Coop
 
   export cinchAtomicNew, cinchAtomicLoad, cinchAtomicStore, cinchAtomicSwap
   export cinchAtomicFetchAdd, cinchAtomicFetchSub, cinchAtomicFetchAnd
@@ -15,15 +17,20 @@ module Runtime.Sync where
   export cinchStmCellNew, cinchStmPublish, cinchStmState
   export cinchStmWaitBegin, cinchStmWaitCancel, cinchStmWaitPark, cinchStmWake, cinchStmYield
 
-  -- Suspension & cancellation seam (bridged to Rust sched/task until M6 migrates them to Cinch)
-  foreign import ccall "cinch_rt_park_current" rtParkCurrent :: Unit ->{Global} U64
-  foreign import ccall "cinch_rt_park_unpark" rtParkUnpark :: U64 ->{Global} Unit
-  foreign import ccall "cinch_rt_park_drop" rtParkDrop :: U64 ->{Global} Unit
-  foreign import ccall "cinch_rt_park" rtPark :: Unit ->{Global} Unit
-  foreign import ccall "cinch_rt_current_task_canceled" rtTaskCanceled :: Unit ->{Global} U8
+  rtParkCurrent :: Unit ->{Global, ThreadAffine} U64
+  rtParkCurrent _ = parkCurrent ()
 
-  taskCanceled :: Unit ->{Global} Bool
-  taskCanceled _ = rtTaskCanceled () /= 0
+  rtParkUnpark :: U64 ->{Global} Unit
+  rtParkUnpark h = parkUnpark h
+
+  rtParkDrop :: U64 ->{Global, ThreadAffine} Unit
+  rtParkDrop h = parkDrop h
+
+  rtPark :: Unit ->{Global, ThreadAffine} Unit
+  rtPark _ = parkWait ()
+
+  taskCanceled :: Unit ->{Global, ThreadAffine} Bool
+  taskCanceled _ = taskCurrentCanceled () || coopCurrentTaskCanceled ()
 
   -- =========================================================================
   -- Shared panic helpers
@@ -679,7 +686,7 @@ module Runtime.Sync where
     let _ = stmDeregister w in
     0
 
-  stmParkLoop :: RawPtr U8 -> I64 ->{Global} I64
+  stmParkLoop :: RawPtr U8 -> I64 ->{Global, ThreadAffine} I64
   stmParkLoop w cancellable =
     if atomicLoadU64SeqCst w 24 /= 0 then 0
     else if cancellable /= 0 && taskCanceled () then 1
@@ -714,10 +721,8 @@ module Runtime.Sync where
     let _ = spinRelease (ptrCast (stmWaitersLock ())) 0 in
     0
 
-  cinchStmYield :: I64 ->{Global} I64
-  cinchStmYield _unused =
-    let _ = cSchedYield () in
-    0
+  cinchStmYield :: I64 ->{Global, ThreadAffine} I64
+  cinchStmYield _unused = coopIoSleep 0
 
   foreign export ccall "cinch_atomic_new" cinchAtomicNew :: I64 ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_atomic_load" cinchAtomicLoad :: I64 -> I64 ->{Global} I64
@@ -744,4 +749,4 @@ module Runtime.Sync where
   foreign export ccall "cinch_stm_wait_cancel" cinchStmWaitCancel :: I64 ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_stm_wait_park" cinchStmWaitPark :: I64 ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_stm_wake" cinchStmWake :: I64 ->{Global} I64
-  foreign export ccall "cinch_stm_yield" cinchStmYield :: I64 ->{Global} I64
+  foreign export ccall "cinch_stm_yield" cinchStmYield :: I64 ->{Global, ThreadAffine} I64

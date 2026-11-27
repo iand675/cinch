@@ -1,0 +1,341 @@
+module Runtime.Stack where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+
+  export stackGuardBytes, stackMinBytes, defaultStackBytes, maxParticipants
+  export programStackBytes, parDefaultBudget, parBudget, parSetBudgetCell
+  export stackSwapZone, stackGuardedRun, stackSpawnRefused, stackSpawnThread
+
+  stackGuardBytes :: U64
+  stackGuardBytes = 65536
+
+  stackMinBytes :: U64
+  stackMinBytes = 262144
+
+  altStackBytes :: U64
+  altStackBytes = 131072
+
+  defaultStackBytes :: U64
+  defaultStackBytes = 1073741824
+
+  maxParticipants :: U64
+  maxParticipants = 256
+
+  -- =========================================================================
+  -- Participant budget (shared by Runtime.Sched and Runtime.Par)
+  -- =========================================================================
+
+  #[static_mut]
+  static parBudgetAtom :: U64
+
+  parsePosDecimal :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  parsePosDecimal p i acc =
+    let b = loadU8 p (u64ToIsize i) in
+    if b == 0 then acc
+    else if u8Ge b 48 && u8Le b 57 then
+      let d = u8ToU64 (u8Sub b 48) in
+      let next = u64Add (u64Mul acc 10) d in
+      if u64Lt next acc then 0
+      else parsePosDecimal p (u64Add i 1) next
+    else 0
+
+  parDefaultBudget :: Unit ->{Global} U64
+  parDefaultBudget _ =
+    let fromEnv = withLocal (fixedArrayRepeat 16 (0 :: U8)) (\arr ->
+      let k = mutAsPtr arr in
+      -- "CINCH_THREADS\0" (14 bytes)
+      let _ = put8 k 0 67 73 78 67 72 95 84 72 in
+      let _ = put4 k 8 82 69 65 68 in
+      let _ = storeU8 k 12 83 in
+      let _ = storeU8 k 13 0 in
+      let raw = cGetenv k in
+      if ptrIsNull raw then 0
+      else parsePosDecimal (maybeToRaw raw) 0 0
+    ) in
+    let base = if fromEnv /= 0 then fromEnv else sysAvailableParallelism () in
+    if u64Lt base 1 then 1
+    else if u64Gt base maxParticipants then maxParticipants
+    else base
+
+  parBudget :: Unit ->{Global} U64
+  parBudget _ =
+    let v = atomicLoadU64Relaxed (parBudgetAtom ()) 0 in
+    if v /= 0 then v
+    else
+      let n = parDefaultBudget () in
+      let prev = atomicCasU64Val (parBudgetAtom ()) 0 0 n in
+      if prev == 0 then n else prev
+
+  parSetBudgetCell :: U64 ->{Global} Unit
+  parSetBudgetCell n = atomicStoreU64Relaxed (parBudgetAtom ()) 0 n
+
+  -- =========================================================================
+  -- CINCH_STACK_SIZE parsing
+  -- =========================================================================
+
+  programStackBytes :: Unit ->{Global} U64
+  programStackBytes _ =
+    let parsed = withLocal (fixedArrayRepeat 24 (0 :: U8)) (\arr ->
+      let k = mutAsPtr arr in
+      -- "CINCH_STACK_SIZE\0" (17 bytes)
+      let _ = put8 k 0 67 73 78 67 72 95 83 84 in
+      let _ = put8 k 8 65 67 75 95 83 73 90 69 in
+      let _ = storeU8 k 16 0 in
+      let raw = cGetenv k in
+      if ptrIsNull raw then (0 :: I64)
+      else
+        let p = maybeToRaw raw in
+        let n = usizeToU64 (cStrlen p) in
+        heapParseLimit p n
+    ) in
+    let chosen = if i64Gt parsed 0 then i64ToU64 parsed else defaultStackBytes in
+    if u64Lt chosen stackMinBytes then stackMinBytes else chosen
+
+  -- =========================================================================
+  -- Stack overflow guard (SIGSEGV / SIGBUS + sigaltstack + pthread key)
+  -- =========================================================================
+
+  -- Layout constants (Darwin vs Linux)
+  sigSegv :: I32
+  sigSegv = 11
+
+  sigBus :: I32
+  sigBus = if sysIsLinux then 7 else 10
+
+  saOnStack :: I32
+  saOnStack = if sysIsLinux then 134217728 else 1
+
+  saSigInfo :: I32
+  saSigInfo = if sysIsLinux then 4 else 64
+
+  ssDisable :: I32
+  ssDisable = if sysIsLinux then 2 else 4
+
+  siAddrOffset :: Isize
+  siAddrOffset = if sysIsLinux then 16 else 24
+
+  -- State: [0]=installState (0=uninit, 1=initing, 2=done), [1]=key
+  #[static_mut]
+  static stackGuardState :: FixedArray 2 U64
+
+  -- Previous sigaction structs (160 bytes each covers both Darwin 16B and Linux 152B)
+  #[static_mut]
+  static prevSegvAction :: FixedArray 160 U8
+
+  #[static_mut]
+  static prevBusAction :: FixedArray 160 U8
+
+  prim stackOnFaultAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_stack_on_fault to i64
+      ret i64 %a
+    } uses (cinch_rt_stack_on_fault :: I64 -> Unit)
+
+  -- Zone struct (16 bytes): [0]=lo :: U64, [8]=hi :: U64
+  cinchRtStackOnFault :: I32 -> RawPtr U8 -> MaybeNull U8 ->{Global} Unit
+  cinchRtStackOnFault sig info _ctx =
+    let addr = loadU64 info siAddrOffset in
+    let key = atomicLoadU64Relaxed (ptrCast (stackGuardState ())) 8 in
+    let zonePtr = cPthreadGetSpecific key in
+    let _ = (if not (ptrIsNull zonePtr) then
+        let zp = maybeToRaw zonePtr in
+        let lo = loadU64 zp 0 in
+        let hi = loadU64 zp 8 in
+        if u64Ge addr lo && u64Lt addr hi then exhaustedStackInSignal () else ()
+      else ()) in
+    let prev = if sig == sigBus then ptrCast (prevBusAction ()) else ptrCast (prevSegvAction ()) in
+    let _ = cSigaction sig (rawToMaybe prev) (ptrNull ()) in
+    ()
+
+  foreign export ccall "cinch_rt_stack_on_fault" cinchRtStackOnFault :: I32 -> RawPtr U8 -> MaybeNull U8 ->{Global} Unit
+
+  writeSigAction :: RawPtr U8 -> U64 -> I32 ->{Global} Unit
+  writeSigAction act fnAddr flags =
+    let _ = memZero act 160 in
+    let _ = storeU64 act 0 fnAddr in
+    if sysIsLinux then
+      -- Linux struct sigaction: [0]=handler (8), [8]=mask (128), [136]=flags (4), [144]=restorer (8)
+      storeI32 act 136 flags
+    else
+      -- Darwin struct sigaction: [0]=handler (8), [8]=mask (4), [12]=flags (4)
+      storeI32 act 12 flags
+
+  waitInstall :: RawPtr U8 ->{Global} Unit
+  waitInstall st =
+    if atomicLoadU64Acquire st 0 == 2 then ()
+    else
+      let _ = sysSpinLoop () in
+      waitInstall st
+
+  stackInstall :: Unit ->{Global} U64
+  stackInstall _ =
+    let st = ptrCast (stackGuardState ()) in
+    if atomicLoadU64Acquire st 0 == 2 then atomicLoadU64Relaxed st 8
+    else if atomicCasU64Bool st 0 0 1 then
+      let key = withLocal (0 :: U64) (\slot ->
+        let rc = cPthreadKeyCreate (mutAsPtr slot) (ptrNull ()) in
+        if rc /= 0 then
+          let _ = exhaustedThreads () in
+          0
+        else loadU64 (mutAsPtr slot) 0
+      ) in
+      let _ = atomicStoreU64Relaxed st 8 key in
+      let _ = withLocal (fixedArrayRepeat 160 (0 :: U8)) (\actBuf ->
+        let act = mutAsPtr actBuf in
+        let flags = i64ToI32 (bitOrI64 (i32ToI64 saSigInfo) (i32ToI64 saOnStack)) in
+        let _ = writeSigAction act (stackOnFaultAddrPrim 0) flags in
+        let _ = cSigaction sigSegv (rawToMaybe act) (rawToMaybe (ptrCast (prevSegvAction ()))) in
+        cSigaction sigBus (rawToMaybe act) (rawToMaybe (ptrCast (prevBusAction ())))
+      ) in
+      let _ = atomicStoreU64Release st 0 2 in
+      key
+    else
+      let _ = waitInstall st in
+      atomicLoadU64Relaxed st 8
+
+  stackSwapZone :: MaybeNull U8 ->{Global} MaybeNull U8
+  stackSwapZone zone =
+    let key = stackInstall () in
+    let prev = cPthreadGetSpecific key in
+    let _ = cPthreadSetSpecific key zone in
+    prev
+
+  writeStackT :: RawPtr U8 -> MaybeNull U8 -> U64 -> I32 ->{Global} Unit
+  writeStackT st sp sz flags =
+    let _ = memZero st 24 in
+    let _ = storePtr st 0 sp in
+    if sysIsLinux then
+      -- Linux stack_t: [0]=ss_sp(8), [8]=ss_flags(4), [16]=ss_size(8)
+      let _ = storeI32 st 8 flags in
+      storeU64 st 16 sz
+    else
+      -- Darwin stack_t: [0]=ss_sp(8), [8]=ss_size(8), [16]=ss_flags(4)
+      let _ = storeU64 st 8 sz in
+      storeI32 st 16 flags
+
+  readStackTFlags :: RawPtr U8 ->{Global} I32
+  readStackTFlags st =
+    if sysIsLinux then loadI32 st 8 else loadI32 st 16
+
+  setupAltStack :: Unit ->{Global} MaybeNull U8
+  setupAltStack _ =
+    withLocal (fixedArrayRepeat 24 (0 :: U8)) (\curBuf ->
+      let cur = mutAsPtr curBuf in
+      let _ = memZero cur 24 in
+      let rc = cSigaltstack (ptrNull ()) (rawToMaybe cur) in
+      if rc == 0 && bitAndI64 (i32ToI64 (readStackTFlags cur)) (i32ToI64 ssDisable) == 0 then
+        ptrNull ()
+      else
+        let sp = sysMmapAnon (u64ToUsize altStackBytes) in
+        if ptrIsNull sp then
+          let _ = exhaustedStack () in
+          ptrNull ()
+        else
+          withLocal (fixedArrayRepeat 24 (0 :: U8)) (\ssBuf ->
+            let ss = mutAsPtr ssBuf in
+            let _ = writeStackT ss sp altStackBytes 0 in
+            if cSigaltstack (rawToMaybe ss) (ptrNull ()) /= 0 then
+              let _ = sysMunmap (maybeToRaw sp) (u64ToUsize altStackBytes) in
+              let _ = exhaustedStack () in
+              ptrNull ()
+            else sp
+          )
+    )
+
+  teardownAltStack :: MaybeNull U8 ->{Global} Unit
+  teardownAltStack sp =
+    if ptrIsNull sp then ()
+    else
+      let _ = withLocal (fixedArrayRepeat 24 (0 :: U8)) (\offBuf ->
+        let off = mutAsPtr offBuf in
+        let _ = writeStackT off (ptrNull ()) altStackBytes ssDisable in
+        cSigaltstack (rawToMaybe off) (ptrNull ())
+      ) in
+      let _ = sysMunmap (maybeToRaw sp) (u64ToUsize altStackBytes) in
+      ()
+
+  panicUnknownStack :: Unit ->{Global} Unit
+  panicUnknownStack _ =
+    withLocal (fixedArrayRepeat 56 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: the thread's stack range is unknown" (49 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 116 104 in
+      let _ = put8 p 16 101 32 116 104 114 101 97 100 in
+      let _ = put8 p 24 39 115 32 115 116 97 99 107 in
+      let _ = put8 p 32 32 114 97 110 103 101 32 105 in
+      let _ = put8 p 40 115 32 117 110 107 110 111 119 in
+      let _ = storeU8 p 48 110 in
+      panicExitBytes p 49
+    )
+
+  alignUpPage :: U64 -> U64 -> U64
+  alignUpPage addr page =
+    let rem = u64Rem addr page in
+    if rem == 0 then addr else u64Add addr (u64Sub page rem)
+
+  stackGuardedRun :: U64 -> MaybeNull U8 ->{Global} I64
+  stackGuardedRun fnPtr arg =
+    let _ = stackInstall () in
+    let pageRaw = cGetpagesize () in
+    let page = if i64Gt (i32ToI64 pageRaw) 0 then i64ToU64 (i32ToI64 pageRaw) else 4096 in
+    withLocal (fixedArrayRepeat 2 (0 :: U64)) (\rangeArr ->
+      let rp = ptrCast (mutAsPtr rangeArr) in
+      let ok = sysThisThreadStack rp (ptrAddU64 rp 8) in
+      let _ = if not ok then panicUnknownStack () else () in
+      let low = loadU64 rp 0 in
+      let lo = alignUpPage low page in
+      let here = rawToU64 rp in
+      let roomOk = u64Gt here lo && u64Ge (u64Sub here lo) (u64Mul 2 stackGuardBytes) in
+      let band =
+            (if roomOk then
+              sysMprotect (maybeToRaw (ptrFromU64 lo)) (u64ToUsize stackGuardBytes) sysProtNone == 0
+            else False) in
+      let alt = setupAltStack () in
+      withLocal (fixedArrayRepeat 2 (0 :: U64)) (\zoneArr ->
+        let zp = ptrCast (mutAsPtr zoneArr) in
+        let _ = storeU64 zp 0 (u64SatSub lo stackGuardBytes) in
+        let _ = storeU64 zp 8 (if band then u64Add lo stackGuardBytes else lo) in
+        let _ = stackSwapZone (rawToMaybe zp) in
+        let result = sysCallFn1 fnPtr arg in
+        let _ = stackSwapZone (ptrNull ()) in
+        let _ = teardownAltStack alt in
+        let _ = (if band then
+            let rw = i64ToI32 (bitOrI64 (i32ToI64 sysProtRead) (i32ToI64 sysProtWrite)) in
+            let _ = sysMprotect (maybeToRaw (ptrFromU64 lo)) (u64ToUsize stackGuardBytes) rw in
+            ()
+          else ()) in
+        result
+      )
+    )
+
+  -- =========================================================================
+  -- Thread spawning helper
+  -- =========================================================================
+
+  stackSpawnRefused :: I32 ->{Global} Unit
+  stackSpawnRefused err =
+    if err == 12 then exhaustedStack () else exhaustedThreads ()
+
+  stackSpawnThread :: U64 -> U64 -> MaybeNull U8 -> Bool ->{Global} U64
+  stackSpawnThread stackBytes startFn arg detached =
+    withLocal (fixedArrayRepeat 128 (0 :: U8)) (\attrBuf ->
+      let ap = mutAsPtr attrBuf in
+      let rcInit = cPthreadAttrInit ap in
+      let _ = if rcInit /= 0 then stackSpawnRefused rcInit else () in
+      let rcSz = cPthreadAttrSetstacksize ap (u64ToUsize stackBytes) in
+      let _ = (if rcSz /= 0 then
+          let _ = cPthreadAttrDestroy ap in
+          stackSpawnRefused rcSz
+        else ()) in
+      withLocal (0 :: U64) (\tidSlot ->
+        let rcCr = cPthreadCreate (mutAsPtr tidSlot) (rawToMaybe ap) (maybeToRaw (ptrFromU64 startFn)) arg in
+        let _ = cPthreadAttrDestroy ap in
+        let _ = if rcCr /= 0 then stackSpawnRefused rcCr else () in
+        let tid = loadU64 (mutAsPtr tidSlot) 0 in
+        let _ = if detached then (let _ = cPthreadDetach tid in ()) else () in
+        tid
+      )
+    )

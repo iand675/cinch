@@ -343,6 +343,56 @@ pub(crate) fn swap_state(state: State) -> State {
     TLS.with(|t| t.replace(state))
 }
 
+// Temporary bridge for Cinch `Runtime.Sched` fiber context switches until Milestone 8 migrates `eval.rs`.
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_rt_eval_swap_state(buf: *mut u64) {
+    let lo = unsafe { *buf };
+    let hi = unsafe { *buf.add(1) };
+    let incoming = State {
+        frames: (lo & 0xffff_ffff) as u32,
+        runs: (lo >> 32) as u32,
+        pending: match hi {
+            1 => Some(Error::NegativeInput),
+            2 => Some(Error::NegativeResult),
+            3 => Some(Error::DivByZero),
+            4 => Some(Error::OutOfRange),
+            5 => Some(Error::MalformedDecimal),
+            6 => Some(Error::BufferTooSmall),
+            7 => Some(Error::MalformedName),
+            8 => Some(Error::OutOfBounds),
+            9 => Some(Error::ReadOnly),
+            10 => Some(Error::OutputFailed),
+            11 => Some(Error::CorruptValue),
+            12 => Some(Error::BlackHole),
+            13 => Some(Error::NestingTooDeep),
+            _ => None,
+        },
+    };
+    let prev = swap_state(incoming);
+    let out_lo = (prev.frames as u64) | ((prev.runs as u64) << 32);
+    let out_hi = match prev.pending {
+        None => 0,
+        Some(Error::NegativeInput) => 1,
+        Some(Error::NegativeResult) => 2,
+        Some(Error::DivByZero) => 3,
+        Some(Error::OutOfRange) => 4,
+        Some(Error::MalformedDecimal) => 5,
+        Some(Error::BufferTooSmall) => 6,
+        Some(Error::MalformedName) => 7,
+        Some(Error::OutOfBounds) => 8,
+        Some(Error::ReadOnly) => 9,
+        Some(Error::OutputFailed) => 10,
+        Some(Error::CorruptValue) => 11,
+        Some(Error::BlackHole) => 12,
+        Some(Error::NestingTooDeep) => 13,
+    };
+    unsafe {
+        *buf = out_lo;
+        *buf.add(1) = out_hi;
+    }
+}
+
 /// Read and update the running context's evaluator state. `f` does not
 /// evaluate anything itself, so the state is back in place before any
 /// applied code can run.

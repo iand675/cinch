@@ -583,7 +583,7 @@ pub(crate) fn program_stack_bytes() -> usize {
 /// transaction's `retry`) this thread runs the program's tasks, and with
 /// a budget of one thread (`CINCH_THREADS=1`) it is the only thread that
 /// does.
-#[cfg(not(target_os = "unknown"))]
+#[cfg(all(test, not(target_os = "unknown")))]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
     let size = program_stack_bytes();
@@ -602,6 +602,11 @@ pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
             .unwrap_or_else(|_| crate::abi::panic_exit(b"compiler bug: the program thread unwound")),
         Err(e) => crate::stack::spawn_refused(&e),
     }
+}
+
+#[cfg(all(not(test), not(target_os = "unknown")))]
+unsafe extern "C" {
+    pub fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64;
 }
 
 /// Run the program's entry unit `entry` and answer its result word.

@@ -9,7 +9,7 @@ module Runtime.Error where
   export cinchBlackhole, cinchPanic
   export panicNegativeInput, panicNegativeResult, panicDivByZero, panicOutOfRange
   export panicMalformedDecimal, panicBufferTooSmall, panicMalformedName
-  export panicOutOfBounds, panicReadOnly, panicCorruptValue, panicUnmapFailed
+  export panicOutOfBounds, panicReadOnly, panicCorruptValue, panicUnmapFailed, panicOutputFailed
 
   exitBlackhole :: I32
   exitBlackhole = 70
@@ -198,11 +198,174 @@ module Runtime.Error where
     let _ = writeThreadsSuffix () in
     cExit exitExhausted
 
+  -- Backtrace on fault when CINCH_BACKTRACE is truthy
+  asciiLower :: U8 -> U8
+  asciiLower b =
+    if u8Ge b 65 && u8Le b 90 then u8Add b 32 else b
+
+  isSpaceByte :: U8 -> Bool
+  isSpaceByte b = b == 32 || b == 9 || b == 10 || b == 13
+
+  skipSpacesFwd :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  skipSpacesFwd p i len =
+    if u64Ge i len then i
+    else if isSpaceByte (loadU8 p (u64ToIsize i)) then skipSpacesFwd p (u64Add i 1) len
+    else i
+
+  skipSpacesBwd :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  skipSpacesBwd p lo hi =
+    if u64Le hi lo then lo
+    else
+      let prev = u64Sub hi 1 in
+      if isSpaceByte (loadU8 p (u64ToIsize prev)) then skipSpacesBwd p lo prev
+      else hi
+
+  traceEnabled :: Unit ->{Global} Bool
+  traceEnabled _ =
+    withLocal (fixedArrayRepeat 16 (0 :: U8)) (\arr ->
+      let k = mutAsPtr arr in
+      -- "CINCH_BACKTRACE\0" (16 bytes)
+      let _ = put8 k 0 67 73 78 67 72 95 66 65 in
+      let _ = put8 k 8 67 75 84 82 65 67 69 0 in
+      let raw = cGetenv k in
+      if ptrIsNull raw then False
+      else
+        let p = maybeToRaw raw in
+        let total = usizeToU64 (cStrlen p) in
+        let lo = skipSpacesFwd p 0 total in
+        let hi = skipSpacesBwd p lo total in
+        let n = u64Sub hi lo in
+        if n == 0 then False
+        else if n == 1 && loadU8 p (u64ToIsize lo) == 48 then False
+        else if n == 2
+          && asciiLower (loadU8 p (u64ToIsize lo)) == 110
+          && asciiLower (loadU8 p (u64ToIsize (u64Add lo 1))) == 111 then False
+        else if n == 5
+          && asciiLower (loadU8 p (u64ToIsize lo)) == 102
+          && asciiLower (loadU8 p (u64ToIsize (u64Add lo 1))) == 97
+          && asciiLower (loadU8 p (u64ToIsize (u64Add lo 2))) == 108
+          && asciiLower (loadU8 p (u64ToIsize (u64Add lo 3))) == 115
+          && asciiLower (loadU8 p (u64ToIsize (u64Add lo 4))) == 101 then False
+        else True
+    )
+
+  hexNibble :: U64 -> U8
+  hexNibble d =
+    if u64Lt d 10 then u64ToU8 (u64Add 48 d)
+    else u64ToU8 (u64Add 87 d)
+
+  writeHex16 :: RawPtr U8 -> Isize -> U64 -> U64 ->{Global} Unit
+  writeHex16 buf off v i =
+    if u64Ge i 16 then ()
+    else
+      let shift = u64Mul (u64Sub 15 i) 4 in
+      let nib = bitAndU64 (lshrU64 v shift) 15 in
+      let _ = storeU8 buf (i64ToIsize (i64Add (isizeToI64 off) (u64ToI64 i))) (hexNibble nib) in
+      writeHex16 buf off v (u64Add i 1)
+
+  writeHexVarLoop :: RawPtr U8 -> U64 -> Isize ->{Global} Isize
+  writeHexVarLoop buf v pos =
+    let nib = bitAndU64 v 15 in
+    let q = lshrU64 v 4 in
+    let nextPos = i64ToIsize (i64Sub (isizeToI64 pos) 1) in
+    let _ = storeU8 buf nextPos (hexNibble nib) in
+    if q == 0 then nextPos else writeHexVarLoop buf q nextPos
+
+  writeStderrHexVar :: U64 ->{Global} Unit
+  writeStderrHexVar v =
+    withLocal (fixedArrayRepeat 24 (0 :: U8)) (\arr ->
+      let buf = mutAsPtr arr in
+      let start = writeHexVarLoop buf v 24 in
+      let len = u64ToUsize (i64ToU64 (i64Sub 24 (isizeToI64 start))) in
+      writeStderrRaw (ptrAdd buf start) len
+    )
+
+  traceWalkLoop :: RawPtr U64 -> U64 -> U64 -> U64 ->{Global} U64
+  traceWalkLoop pcs fp stackLow count =
+    if u64Ge count 64 then count
+    else if fp == 0 || bitAndU64 fp 7 /= 0 || u64Lt fp stackLow then count
+    else
+      let fpPtr = maybeToRaw (ptrFromU64 fp) in
+      let nextFp = loadU64 fpPtr 0 in
+      let retAddr = loadU64 fpPtr 8 in
+      if retAddr == 0 then count
+      else
+        let _ = storeU64 pcs (u64ToIsize (u64Mul count 8)) retAddr in
+        let nextCount = u64Add count 1 in
+        if u64Le nextFp fp || u64Gt (u64Sub nextFp fp) 16777216 then nextCount
+        else traceWalkLoop pcs nextFp stackLow nextCount
+
+  tracePrintFrames :: RawPtr U64 -> U64 -> U64 -> U64 ->{Global} Unit
+  tracePrintFrames pcs idx count slide =
+    if u64Ge idx count then ()
+    else
+      let pc = loadU64 pcs (u64ToIsize (u64Mul idx 8)) in
+      let rel = if u64Ge pc slide then u64Sub pc slide else pc in
+      let _ = withLocal (fixedArrayRepeat 32 (0 :: U8)) (\arr ->
+        let p = mutAsPtr arr in
+        -- "  #"
+        let _ = storeU8 p 0 32 in
+        let _ = storeU8 p 1 32 in
+        let _ = storeU8 p 2 35 in
+        let pos =
+              (if u64Lt idx 10 then
+                let _ = storeU8 p 3 (u64ToU8 (u64Add 48 idx)) in
+                let _ = storeU8 p 4 32 in
+                (5 :: Isize)
+              else
+                let _ = storeU8 p 3 (u64ToU8 (u64Add 48 (u64Div idx 10))) in
+                let _ = storeU8 p 4 (u64ToU8 (u64Add 48 (u64Rem idx 10))) in
+                (5 :: Isize)) in
+        -- " 0x"
+        let _ = storeU8 p pos 32 in
+        let _ = storeU8 p (i64ToIsize (i64Add (isizeToI64 pos) 1)) 48 in
+        let _ = storeU8 p (i64ToIsize (i64Add (isizeToI64 pos) 2)) 120 in
+        let _ = writeHex16 p (i64ToIsize (i64Add (isizeToI64 pos) 3)) pc 0 in
+        -- " +0x"
+        let p2 = i64ToIsize (i64Add (isizeToI64 pos) 19) in
+        let _ = put4 p p2 32 43 48 120 in
+        writeStderrRaw p (u64ToUsize (i64ToU64 (i64Add (isizeToI64 pos) 23)))
+      ) in
+      let _ = writeStderrHexVar rel in
+      let _ = writeNewline () in
+      tracePrintFrames pcs (u64Add idx 1) count slide
+
+  traceRender :: Unit ->{Global} Unit
+  traceRender _ =
+    withLocal (fixedArrayRepeat 64 (0 :: U64)) (\pcsArr ->
+      let pcs = ptrCast (mutAsPtr pcsArr) in
+      let fp = sysFramePointer () in
+      let stackLow = u64SatSub fp 134217728 in
+      let count = traceWalkLoop pcs fp stackLow 0 in
+      if count == 0 then ()
+      else
+        let _ = withLocal (fixedArrayRepeat 24 (0 :: U8)) (\hdr ->
+          let p = mutAsPtr hdr in
+          -- "cinch-backtrace: " (17 bytes)
+          let _ = put8 p 0 99 105 110 99 104 45 98 97 in
+          let _ = put8 p 8 99 107 116 114 97 99 101 58 in
+          let _ = storeU8 p 16 32 in
+          writeStderrRaw p 17
+        ) in
+        let _ = writeStderrU64 count in
+        let _ = withLocal (fixedArrayRepeat 16 (0 :: U8)) (\sfx ->
+          let p = mutAsPtr sfx in
+          -- " frame(s)\n" (10 bytes)
+          let _ = put8 p 0 32 102 114 97 109 101 40 115 in
+          let _ = storeU8 p 8 41 in
+          let _ = storeU8 p 9 10 in
+          writeStderrRaw p 10
+        ) in
+        let slide = sysMainImageSlide () in
+        tracePrintFrames pcs 0 count slide
+    )
+
   panicExitBytes :: RawPtr U8 -> Usize ->{Global} Unit
   panicExitBytes ptr len =
     let _ = writeCinchRuntimePrefix () in
     let _ = writeStderrRaw ptr len in
     let _ = writeNewline () in
+    let _ = if traceEnabled () then traceRender () else () in
     cExit exitPanic
 
   cinchBlackhole :: Unit ->{Global} Unit
@@ -415,4 +578,17 @@ module Runtime.Error where
       let _ = put8 p 32 112 101 100 32 98 121 116 101 in
       let _ = storeU8 p 40 115 in
       panicExitBytes p 41
+    )
+
+  panicOutputFailed :: Unit ->{Global} Unit
+  panicOutputFailed _ =
+    withLocal (fixedArrayRepeat 40 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "writing to standard output failed" (33 bytes)
+      let _ = put8 p 0 119 114 105 116 105 110 103 32 in
+      let _ = put8 p 8 116 111 32 115 116 97 110 100 in
+      let _ = put8 p 16 97 114 100 32 111 117 116 112 in
+      let _ = put8 p 24 117 116 32 102 97 105 108 101 in
+      let _ = storeU8 p 32 100 in
+      panicExitBytes p 33
     )

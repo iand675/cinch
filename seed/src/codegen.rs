@@ -3792,8 +3792,14 @@ fn scan_body(text: &str, units: &HashSet<String>, extra: Option<&str>) -> UnitSc
             }
             continue;
         }
-        if line.contains("load ") && line.contains(", ptr ") {
-            if let Some(op) = mem_operand(line) {
+        if line.contains("atomicrmw ") || line.contains("cmpxchg ") || line.starts_with("fence ") {
+            scan.reads = true;
+            scan.writes = true;
+        } else if line.contains("load ") && line.contains(", ptr ") {
+            if line.contains("volatile") {
+                scan.reads = true;
+                scan.writes = true;
+            } else if let Some(op) = mem_operand(line) {
                 if !local.contains(&op) {
                     scan.reads = true;
                 }
@@ -3801,7 +3807,9 @@ fn scan_body(text: &str, units: &HashSet<String>, extra: Option<&str>) -> UnitSc
                 scan.reads = true;
             }
         } else if line.starts_with("store ") {
-            if let Some(op) = mem_operand(line) {
+            if line.contains("volatile") {
+                scan.writes = true;
+            } else if let Some(op) = mem_operand(line) {
                 if !local.contains(&op) {
                     scan.writes = true;
                 }

@@ -89,41 +89,6 @@ pub fn park_timeout(timeout: Duration) {
     crate::sched::park_timeout(timeout);
 }
 
-// Temporary C ABI seam for Cinch `Runtime.Sync` until Milestone 6 migrates `sched`/`task`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub extern "C" fn cinch_rt_park_current() -> u64 {
-    Box::into_raw(Box::new(current())) as usize as u64
-}
-
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_rt_park_unpark(handle: u64) {
-    if handle != 0 {
-        unsafe { (&*(handle as usize as *const Parker)).unpark() };
-    }
-}
-
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_rt_park_drop(handle: u64) {
-    if handle != 0 {
-        drop(unsafe { Box::from_raw(handle as usize as *mut Parker) });
-    }
-}
-
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub extern "C" fn cinch_rt_park() {
-    park();
-}
-
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub extern "C" fn cinch_rt_current_task_canceled() -> u8 {
-    u8::from(crate::task::current_task_canceled())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -265,6 +265,7 @@ pub fn blocking<R>(body: impl FnOnce() -> R) -> R {
 
 /// Enter a blocking region: generated code calls it before a foreign
 /// import whose row carries `Blocking`. Returns 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_sched_blocking_enter() -> i64 {
     backend::blocking_enter();
@@ -273,10 +274,17 @@ pub extern "C" fn cinch_sched_blocking_enter() -> i64 {
 
 /// Leave the blocking region the matching
 /// [`cinch_sched_blocking_enter`] entered. Returns 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_sched_blocking_exit() -> i64 {
     backend::blocking_exit();
     0
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_sched_blocking_enter() -> i64;
+    pub fn cinch_sched_blocking_exit() -> i64;
 }
 
 /// Run `body`, the program's own code, with the calling thread

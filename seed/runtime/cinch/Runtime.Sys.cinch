@@ -5,6 +5,16 @@ module Runtime.Sys where
   export cMalloc, cCalloc, cRealloc, cFree, cPosixMemalign, cStrlen, cMemcmp
   export cMmap, cMunmap, cMprotect, cAtexit, cSchedYield
   export cPthreadKeyCreate, cPthreadSetSpecific, cPthreadGetSpecific
+  export cGetpagesize, cSigaction, cSigaltstack
+  export cPthreadSelf, cPthreadCreate, cPthreadJoin, cPthreadDetach
+  export cPthreadAttrInit, cPthreadAttrDestroy, cPthreadAttrSetstacksize
+  export cPthreadMutexInit, cPthreadMutexDestroy, cPthreadMutexLock, cPthreadMutexUnlock
+  export cPthreadCondInit, cPthreadCondDestroy, cPthreadCondWait, cPthreadCondTimedwait
+  export cPthreadCondSignal, cPthreadCondBroadcast
+  export cClockGettime, cSysconf
+  export sysIsLinux, sysMainImageSlide, sysFramePointer, sysThisThreadStack
+  export sysAvailableParallelism, sysMonotonicNs, sysRealtimeNs, sysCondTimedWaitNs
+  export sysCallFn0, sysCallFn1, sysCallParExec, sysApplyClosure1
   export sysProtNone, sysProtRead, sysProtWrite, sysMapPrivate, sysMapAnon
   export sysMmapReserve, sysMprotect, sysMunmap, sysMmapAnon, sysMmapFileReadonly, MmapRes
   export sysErrno, sysEinval, cStrtod
@@ -32,7 +42,219 @@ module Runtime.Sys where
   foreign import ccall "pthread_key_create" cPthreadKeyCreate :: RawPtr U64 -> MaybeNull U8 ->{Global} I32
   foreign import ccall "pthread_setspecific" cPthreadSetSpecific :: U64 -> MaybeNull U8 ->{Global} I32
   foreign import ccall "pthread_getspecific" cPthreadGetSpecific :: U64 ->{Global} MaybeNull U8
+  foreign import ccall "getpagesize" cGetpagesize :: Unit ->{Global} I32
+  foreign import ccall "sigaction" cSigaction :: I32 -> MaybeNull U8 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "sigaltstack" cSigaltstack :: MaybeNull U8 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_self" cPthreadSelf :: Unit ->{Global} U64
+  foreign import ccall "pthread_create" cPthreadCreate :: RawPtr U64 -> MaybeNull U8 -> RawPtr U8 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_join" cPthreadJoin :: U64 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_detach" cPthreadDetach :: U64 ->{Global} I32
+  foreign import ccall "pthread_attr_init" cPthreadAttrInit :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_attr_destroy" cPthreadAttrDestroy :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_attr_setstacksize" cPthreadAttrSetstacksize :: RawPtr U8 -> Usize ->{Global} I32
+  foreign import ccall "pthread_mutex_init" cPthreadMutexInit :: RawPtr U8 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_mutex_destroy" cPthreadMutexDestroy :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_mutex_lock" cPthreadMutexLock :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_mutex_unlock" cPthreadMutexUnlock :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_cond_init" cPthreadCondInit :: RawPtr U8 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_cond_destroy" cPthreadCondDestroy :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_cond_wait" cPthreadCondWait :: RawPtr U8 -> RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_cond_timedwait" cPthreadCondTimedwait :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_cond_signal" cPthreadCondSignal :: RawPtr U8 ->{Global} I32
+  foreign import ccall "pthread_cond_broadcast" cPthreadCondBroadcast :: RawPtr U8 ->{Global} I32
+  foreign import ccall "clock_gettime" cClockGettime :: I32 -> RawPtr U8 ->{Global} I32
+  foreign import ccall "sysconf" cSysconf :: I32 ->{Global} I64
   foreign import ccall "strtod" cStrtod :: RawPtr U8 -> RawPtr (MaybeNull U8) ->{Global} F64
+
+  prim sysIsLinuxPrim :: I64 -> Bool where
+    unsafe llvm { ret i8 1 } when os linux
+    unsafe llvm { ret i8 0 }
+
+  sysIsLinux :: Bool
+  sysIsLinux = sysIsLinuxPrim 0
+
+  prim sysMainImageSlidePrim :: I64 ->{Global} U64 where
+    unsafe llvm {
+      %s = call i64 @_dyld_get_image_vmaddr_slide(i32 0)
+      ret i64 %s
+    } uses (_dyld_get_image_vmaddr_slide :: U32 -> I64) when os darwin
+    unsafe llvm {
+      ret i64 0
+    }
+
+  sysMainImageSlide :: Unit ->{Global} U64
+  sysMainImageSlide _ = sysMainImageSlidePrim 0
+
+  prim sysFramePointerPrim :: I64 ->{Global} U64 where
+    unsafe llvm {
+      %fp = call i64 asm "mov $0, x29", "=r"()
+      ret i64 %fp
+    } when arch aarch64
+    unsafe llvm {
+      %fp = call i64 asm "movq %rbp, $0", "=r"()
+      ret i64 %fp
+    } when arch x86_64
+    unsafe llvm {
+      ret i64 0
+    }
+
+  sysFramePointer :: Unit ->{Global} U64
+  sysFramePointer _ = sysFramePointerPrim 0
+
+  prim sysDarwinStackAddr :: U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = call ptr @pthread_get_stackaddr_np(i64 %0)
+      %v = ptrtoint ptr %p to i64
+      ret i64 %v
+    } uses (pthread_get_stackaddr_np :: U64 -> RawPtr U8) when os darwin
+    unsafe llvm { ret i64 0 }
+
+  prim sysDarwinStackSize :: U64 ->{Global} U64 where
+    unsafe llvm {
+      %s = call i64 @pthread_get_stacksize_np(i64 %0)
+      ret i64 %s
+    } uses (pthread_get_stacksize_np :: U64 -> U64) when os darwin
+    unsafe llvm { ret i64 0 }
+
+  prim sysLinuxGetAttr :: U64 -> RawPtr U8 ->{Global} I32 where
+    unsafe llvm {
+      %r = call i32 @pthread_getattr_np(i64 %0, ptr %1)
+      ret i32 %r
+    } uses (pthread_getattr_np :: U64 -> RawPtr U8 -> I32) when os linux
+    unsafe llvm { ret i32 -1 }
+
+  prim sysLinuxAttrGetStack :: RawPtr U8 -> RawPtr U64 -> RawPtr U64 ->{Global} I32 where
+    unsafe llvm {
+      %r = call i32 @pthread_attr_getstack(ptr %0, ptr %1, ptr %2)
+      ret i32 %r
+    } uses (pthread_attr_getstack :: RawPtr U8 -> RawPtr U64 -> RawPtr U64 -> I32) when os linux
+    unsafe llvm { ret i32 -1 }
+
+  sysThisThreadStack :: RawPtr U64 -> RawPtr U64 ->{Global} Bool
+  sysThisThreadStack outLow outSize =
+    let self = cPthreadSelf () in
+    if sysIsLinux then
+      withLocal (fixedArrayRepeat 128 (0 :: U8)) (\attrBuf ->
+        let ap = mutAsPtr attrBuf in
+        if sysLinuxGetAttr self ap /= 0 then False
+        else
+          let rc = sysLinuxAttrGetStack ap outLow outSize in
+          let _ = cPthreadAttrDestroy ap in
+          rc == 0
+      )
+    else
+      let top = sysDarwinStackAddr self in
+      let sz = sysDarwinStackSize self in
+      if u64Lt top sz || sz == 0 then False
+      else
+        let _ = storeU64 outLow 0 (u64Sub top sz) in
+        let _ = storeU64 outSize 0 sz in
+        True
+
+  sysAvailableParallelism :: Unit ->{Global} U64
+  sysAvailableParallelism _ =
+    let sc = if sysIsLinux then (84 :: I32) else (58 :: I32) in
+    let n = cSysconf sc in
+    if i64Gt n 0 then i64ToU64 n else 1
+
+  sysMonotonicNs :: Unit ->{Global} U64
+  sysMonotonicNs _ =
+    withLocal (fixedArrayRepeat 2 (0 :: U64)) (\ts ->
+      let p = ptrCast (mutAsPtr ts) in
+      let clk = if sysIsLinux then (1 :: I32) else (6 :: I32) in
+      let _ = cClockGettime clk p in
+      let sec = loadU64 p 0 in
+      let nsec = loadU64 p 8 in
+      u64Add (u64Mul sec 1000000000) nsec
+    )
+
+  sysRealtimeNs :: Unit ->{Global} U64
+  sysRealtimeNs _ =
+    withLocal (fixedArrayRepeat 2 (0 :: U64)) (\ts ->
+      let p = ptrCast (mutAsPtr ts) in
+      let _ = cClockGettime 0 p in
+      let sec = loadU64 p 0 in
+      let nsec = loadU64 p 8 in
+      u64Add (u64Mul sec 1000000000) nsec
+    )
+
+  sysCondTimedWaitNs :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global} I32
+  sysCondTimedWaitNs cond mtx timeoutNs =
+    withLocal (fixedArrayRepeat 2 (0 :: U64)) (\ts ->
+      let p = ptrCast (mutAsPtr ts) in
+      let _ = cClockGettime 0 p in
+      let sec = loadU64 p 0 in
+      let nsec = loadU64 p 8 in
+      let addSec = u64Div timeoutNs 1000000000 in
+      let addNsec = u64Rem timeoutNs 1000000000 in
+      let rawNsec = u64Add nsec addNsec in
+      let carry = if u64Ge rawNsec 1000000000 then 1 else 0 in
+      let finalNsec = if carry /= 0 then u64Sub rawNsec 1000000000 else rawNsec in
+      let finalSec = u64Add (u64Add sec addSec) carry in
+      let _ = storeU64 p 0 finalSec in
+      let _ = storeU64 p 8 finalNsec in
+      cPthreadCondTimedwait cond mtx p
+    )
+
+  prim sysCallFn0 :: U64 ->{Global} I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "blr $1", "={x0},{x9},~{x1},~{x2},~{x3},~{x4},~{x5},~{x6},~{x7},~{x8},~{x10},~{x11},~{x12},~{x13},~{x14},~{x15},~{x16},~{x17},~{x30},~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7},~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31},~{cc},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "callq *$1", "={rax},{r11},~{rcx},~{rdx},~{rsi},~{rdi},~{r8},~{r9},~{r10},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    unsafe llvm { ret i64 0 }
+
+  prim sysCallFn1 :: U64 -> MaybeNull U8 ->{Global} I64 where
+    unsafe llvm {
+      %a = ptrtoint ptr %1 to i64
+      %r = call i64 asm sideeffect "blr $2", "={x0},0,{x9},~{x1},~{x2},~{x3},~{x4},~{x5},~{x6},~{x7},~{x8},~{x10},~{x11},~{x12},~{x13},~{x14},~{x15},~{x16},~{x17},~{x30},~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7},~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31},~{cc},~{memory}"(i64 %a, i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %a = ptrtoint ptr %1 to i64
+      %r = call i64 asm sideeffect "callq *$2", "={rax},{rdi},{r11},~{rcx},~{rdx},~{rsi},~{r8},~{r9},~{r10},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %a, i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    unsafe llvm { ret i64 0 }
+
+  prim sysCallParExec :: U64 -> RawPtr U8 -> RawPtr U8 ->{Global} Unit where
+    unsafe llvm {
+      %a = ptrtoint ptr %1 to i64
+      %b = ptrtoint ptr %2 to i64
+      %ign = call i64 asm sideeffect "blr $3", "={x0},0,{x1},{x9},~{x2},~{x3},~{x4},~{x5},~{x6},~{x7},~{x8},~{x10},~{x11},~{x12},~{x13},~{x14},~{x15},~{x16},~{x17},~{x30},~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7},~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31},~{cc},~{memory}"(i64 %a, i64 %b, i64 %0)
+      ret void
+    } when arch aarch64
+    unsafe llvm {
+      %a = ptrtoint ptr %1 to i64
+      %b = ptrtoint ptr %2 to i64
+      %ign = call i64 asm sideeffect "callq *$3", "={rax},{rdi},{rsi},{r11},~{rcx},~{rdx},~{r8},~{r9},~{r10},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %a, i64 %b, i64 %0)
+      ret void
+    } when arch x86_64
+    unsafe llvm { ret void }
+
+  prim sysApplyClosure1 :: I64 -> I64 ->{Global} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %code = load i64, ptr %p, align 8
+      %argv = alloca i64, align 8
+      store i64 %1, ptr %argv, align 8
+      %argvI = ptrtoint ptr %argv to i64
+      %r = call i64 asm sideeffect "blr $4", "={x0},0,{x1},{x2},{x9},~{x3},~{x4},~{x5},~{x6},~{x7},~{x8},~{x10},~{x11},~{x12},~{x13},~{x14},~{x15},~{x16},~{x17},~{x30},~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7},~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31},~{cc},~{memory}"(i64 %0, i64 1, i64 %argvI, i64 %code)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %code = load i64, ptr %p, align 8
+      %argv = alloca i64, align 8
+      store i64 %1, ptr %argv, align 8
+      %argvI = ptrtoint ptr %argv to i64
+      %r = call i64 asm sideeffect "callq *$4", "={rax},{rdi},{rsi},{rdx},{r11},~{rcx},~{r8},~{r9},~{r10},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %0, i64 1, i64 %argvI, i64 %code)
+      ret i64 %r
+    } when arch x86_64
+    unsafe llvm { ret i64 0 }
 
   sysEinval :: I64
   sysEinval = 22

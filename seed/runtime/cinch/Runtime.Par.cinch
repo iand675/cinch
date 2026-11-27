@@ -1,0 +1,1059 @@
+module Runtime.Par where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.Arena
+  import Runtime.BigNum
+  import Runtime.Arrays
+  import Runtime.Stack
+  import Runtime.Sched
+
+  export parBothSequential, parTabulateSequential, parMapSequential
+  export cinchParBoth, cinchParTabulate, cinchParMapArray, cinchParSetWorkers
+
+  -- =========================================================================
+  -- Constants & Layouts
+  -- =========================================================================
+
+  dequeCap :: U64
+  dequeCap = 1024
+
+  dequeMask :: U64
+  dequeMask = 1023
+
+  maxSplits :: U64
+  maxSplits = 64
+
+  spinRounds :: U64
+  spinRounds = 128
+
+  spinHints :: U64
+  spinHints = 64
+
+  localClosureMaxWords :: U64
+  localClosureMaxWords = 24
+
+  -- Job latch states
+  latchPending :: U64
+  latchPending = 0
+  latchSleeping :: U64
+  latchSleeping = 1
+  latchDone :: U64
+  latchDone = 2
+
+  -- Participant struct layout (128-byte cache-line separated deque indices):
+  --   0:     top :: I64 (atomic, cache line 0)
+  --   128:   bottom :: I64 (atomic, cache line 1)
+  --   256:   next :: U64 (atomic Participant ptr)
+  --   264:   owned :: U64 (atomic 0/1)
+  --   272:   signaled :: U64 (protected by mutex)
+  --   280:   mutex :: pthread_mutex_t (64 bytes: 280..344)
+  --   344:   cond :: pthread_cond_t (64 bytes: 344..408)
+  --   408:   inSleepers :: U64 (0/1, protected by pool sleepers mutex)
+  --   416:   sleepPrev :: U64
+  --   424:   sleepNext :: U64
+  --   512:   slots[1024] :: U64 (8192 bytes: 512..8704)
+  offPartTop :: Isize
+  offPartTop = 0
+  offPartBottom :: Isize
+  offPartBottom = 128
+  offPartNext :: Isize
+  offPartNext = 256
+  offPartOwned :: Isize
+  offPartOwned = 264
+  offPartSignaled :: Isize
+  offPartSignaled = 272
+  offPartMutex :: Isize
+  offPartMutex = 280
+  offPartCond :: Isize
+  offPartCond = 344
+  offPartInSleepers :: Isize
+  offPartInSleepers = 408
+  offPartSleepPrev :: Isize
+  offPartSleepPrev = 416
+  offPartSleepNext :: Isize
+  offPartSleepNext = 424
+  offPartSlots :: U64
+  offPartSlots = 512
+  participantBytes :: Usize
+  participantBytes = 8704
+
+  -- Per-thread Local struct (stored in pthread_key_t with destructor):
+  --   0:  me :: U64 (Participant ptr)
+  --   8:  helpFloor :: U64
+  --   16: rng :: U64
+  offLocMe :: Isize
+  offLocMe = 0
+  offLocFloor :: Isize
+  offLocFloor = 8
+  offLocRng :: Isize
+  offLocRng = 16
+  parLocalBytes :: Usize
+  parLocalBytes = 32
+
+  -- JobHeader layout:
+  --   0:  exec :: U64 (fn(job: ptr, me: ptr))
+  --   8:  latch :: U64 (atomic: 0=PENDING, 1=SLEEPING, 2=DONE)
+  --   16: owner :: U64 (Participant ptr)
+  --   24: thief :: U64 (atomic Participant ptr)
+  offJobExec :: Isize
+  offJobExec = 0
+  offJobLatch :: Isize
+  offJobLatch = 8
+  offJobOwner :: Isize
+  offJobOwner = 16
+  offJobThief :: Isize
+  offJobThief = 24
+
+  -- BothJob (48 bytes):
+  offBothClosure :: Isize
+  offBothClosure = 32
+  offBothResult :: Isize
+  offBothResult = 40
+
+  -- RangeJob (56 bytes):
+  offRangeCtx :: Isize
+  offRangeCtx = 32
+  offRangeLo :: Isize
+  offRangeLo = 40
+  offRangeHi :: Isize
+  offRangeHi = 48
+
+  -- RangeCtx (40 bytes):
+  offCtxF :: Isize
+  offCtxF = 0
+  offCtxInput :: Isize
+  offCtxInput = 8
+  offCtxInputFmt :: Isize
+  offCtxInputFmt = 16
+  offCtxOut :: Isize
+  offCtxOut = 24
+  offCtxMarked :: Isize
+  offCtxMarked = 32
+
+  -- =========================================================================
+  -- Global Pool State
+  -- =========================================================================
+
+  -- poolMeta:
+  --   [0]=initState (0/1/2), [1]=tlsKey, [2]=registry (atomic Participant ptr),
+  --   [3]=registered (atomic count), [4]=started (atomic workers),
+  --   [5]=idle (atomic), [6]=queued (atomic), [7]=sleeping (atomic),
+  --   [8]=sleepHead, [9]=sleepTail
+  #[static_mut]
+  static poolMeta :: FixedArray 12 U64
+
+  #[static_mut]
+  static poolSpawnMtxBuf :: FixedArray 64 U8
+
+  #[static_mut]
+  static poolSleepMtxBuf :: FixedArray 64 U8
+
+  #[static_mut]
+  static poolRetiredCondBuf :: FixedArray 64 U8
+
+  offPmInit :: Isize
+  offPmInit = 0
+  offPmKey :: Isize
+  offPmKey = 8
+  offPmRegistry :: Isize
+  offPmRegistry = 16
+  offPmRegistered :: Isize
+  offPmRegistered = 24
+  offPmStarted :: Isize
+  offPmStarted = 32
+  offPmIdle :: Isize
+  offPmIdle = 40
+  offPmQueued :: Isize
+  offPmQueued = 48
+  offPmSleeping :: Isize
+  offPmSleeping = 56
+  offPmSleepHead :: Isize
+  offPmSleepHead = 64
+  offPmSleepTail :: Isize
+  offPmSleepTail = 72
+
+  pmPtr :: Unit ->{Global} RawPtr U8
+  pmPtr _ = ptrCast (poolMeta ())
+
+  spawnMtx :: Unit ->{Global} RawPtr U8
+  spawnMtx _ = ptrCast (poolSpawnMtxBuf ())
+
+  sleepMtx :: Unit ->{Global} RawPtr U8
+  sleepMtx _ = ptrCast (poolSleepMtxBuf ())
+
+  retiredCond :: Unit ->{Global} RawPtr U8
+  retiredCond _ = ptrCast (poolRetiredCondBuf ())
+
+  prim parTlsDtorAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_par_tls_dtor to i64
+      ret i64 %a
+    } uses (cinch_rt_par_tls_dtor :: I64 -> Unit)
+
+  prim parWorkerEntryAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_par_worker_entry to i64
+      ret i64 %a
+    } uses (cinch_rt_par_worker_entry :: I64 -> Unit)
+
+  prim parWorkerGuardedAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_par_worker_guarded to i64
+      ret i64 %a
+    } uses (cinch_rt_par_worker_guarded :: I64 -> Unit)
+
+  prim parExecBothAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_par_exec_both to i64
+      ret i64 %a
+    } uses (cinch_rt_par_exec_both :: I64 -> Unit)
+
+  prim parExecRangeAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_par_exec_range to i64
+      ret i64 %a
+    } uses (cinch_rt_par_exec_range :: I64 -> Unit)
+
+  waitPoolInit :: RawPtr U8 ->{Global} Unit
+  waitPoolInit pm =
+    if atomicLoadU64Acquire pm offPmInit == 2 then ()
+    else
+      let _ = sysSpinLoop () in
+      waitPoolInit pm
+
+  poolEnsureInit :: Unit ->{Global} U64
+  poolEnsureInit _ =
+    let pm = pmPtr () in
+    if atomicLoadU64Acquire pm offPmInit == 2 then atomicLoadU64Relaxed pm offPmKey
+    else if atomicCasU64Bool pm offPmInit 0 1 then
+      let _ = cPthreadMutexInit (spawnMtx ()) (ptrNull ()) in
+      let _ = cPthreadMutexInit (sleepMtx ()) (ptrNull ()) in
+      let _ = cPthreadCondInit (retiredCond ()) (ptrNull ()) in
+      let key = withLocal (0 :: U64) (\slot ->
+        let rc = cPthreadKeyCreate (mutAsPtr slot) (ptrFromU64 (parTlsDtorAddrPrim 0)) in
+        if rc /= 0 then
+          let _ = exhaustedThreads () in
+          0
+        else loadU64 (mutAsPtr slot) 0
+      ) in
+      let _ = atomicStoreU64Relaxed pm offPmKey key in
+      let _ = atomicStoreU64Release pm offPmInit 2 in
+      key
+    else
+      let _ = waitPoolInit pm in
+      atomicLoadU64Relaxed pm offPmKey
+
+  cinchRtParTlsDtor :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+  cinchRtParTlsDtor lp =
+    if ptrIsNull lp then ()
+    else
+      let loc = maybeToRaw lp in
+      let me = loadU64 loc offLocMe in
+      let _ = (if me /= 0 then
+          atomicStoreU64Release (maybeToRaw (ptrFromU64 me)) offPartOwned 0
+        else ()) in
+      heapGlobalDealloc loc parLocalBytes 8
+
+  foreign export ccall "cinch_rt_par_tls_dtor" cinchRtParTlsDtor :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+
+  -- =========================================================================
+  -- Chase-Lev Deque
+  -- =========================================================================
+
+  slotPtr :: RawPtr U8 -> I64 -> RawPtr U8
+  slotPtr part idx =
+    let slot = bitAndU64 (i64ToU64 idx) dequeMask in
+    ptrAddU64 part (u64Add offPartSlots (u64Mul slot 8))
+
+  dequeIsEmpty :: RawPtr U8 ->{Global} Bool
+  dequeIsEmpty part =
+    let b = atomicLoadI64Relaxed part offPartBottom in
+    let t = atomicLoadI64Relaxed part offPartTop in
+    i64Le b t
+
+  dequeHasRoom :: RawPtr U8 ->{Global} Bool
+  dequeHasRoom part =
+    let b = atomicLoadI64Relaxed part offPartBottom in
+    let t = atomicLoadI64Acquire part offPartTop in
+    i64Lt (i64Sub b t) (u64ToI64 dequeCap)
+
+  dequePush :: RawPtr U8 -> U64 ->{Global} Unit
+  dequePush part jobAddr =
+    let b = atomicLoadI64Relaxed part offPartBottom in
+    let _ = atomicStoreU64Relaxed (slotPtr part b) 0 jobAddr in
+    atomicStoreI64Release part offPartBottom (i64Add b 1)
+
+  dequePop :: RawPtr U8 ->{Global} U64
+  dequePop part =
+    let b = i64Sub (atomicLoadI64Relaxed part offPartBottom) 1 in
+    let _ = atomicStoreI64Relaxed part offPartBottom b in
+    let _ = fenceSeqCst () in
+    let t = atomicLoadI64Relaxed part offPartTop in
+    if i64Gt t b then
+      let _ = atomicStoreI64Relaxed part offPartBottom (i64Add b 1) in
+      0
+    else
+      let job = atomicLoadU64Relaxed (slotPtr part b) 0 in
+      if i64Lt t b then job
+      else
+        let won = atomicCasU64SeqCst part offPartTop (i64ToU64 t) (i64ToU64 (i64Add t 1)) in
+        let _ = atomicStoreI64Relaxed part offPartBottom (i64Add b 1) in
+        if won then job else 0
+
+  -- Returns: 0 = Empty, 1 = Lost, otherwise job pointer (> 1)
+  dequeSteal :: RawPtr U8 ->{Global} U64
+  dequeSteal part =
+    let t = atomicLoadI64Acquire part offPartTop in
+    let _ = fenceSeqCst () in
+    let b = atomicLoadI64Acquire part offPartBottom in
+    if i64Ge t b then 0
+    else
+      let job = atomicLoadU64Relaxed (slotPtr part t) 0 in
+      if atomicCasU64SeqCst part offPartTop (i64ToU64 t) (i64ToU64 (i64Add t 1)) then job
+      else 1
+
+  -- =========================================================================
+  -- Participant Lifecycle, Sleep & Signal
+  -- =========================================================================
+
+  partSignal :: RawPtr U8 ->{Global} Unit
+  partSignal part =
+    let mtx = ptrAdd part offPartMutex in
+    let _ = cPthreadMutexLock mtx in
+    let _ = storeU64 part offPartSignaled 1 in
+    let _ = cPthreadCondSignal (ptrAdd part offPartCond) in
+    let _ = cPthreadMutexUnlock mtx in
+    ()
+
+  partSleepLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  partSleepLoop part mtx cond =
+    if loadU64 part offPartSignaled /= 0 then ()
+    else
+      let _ = cPthreadCondWait cond mtx in
+      partSleepLoop part mtx cond
+
+  partSleep :: RawPtr U8 ->{Global} Unit
+  partSleep part =
+    let mtx = ptrAdd part offPartMutex in
+    let cond = ptrAdd part offPartCond in
+    let _ = cPthreadMutexLock mtx in
+    let _ = partSleepLoop part mtx cond in
+    let _ = storeU64 part offPartSignaled 0 in
+    let _ = cPthreadMutexUnlock mtx in
+    ()
+
+  adoptScan :: U64 ->{Global} U64
+  adoptScan cur =
+    if cur == 0 then 0
+    else
+      let p = maybeToRaw (ptrFromU64 cur) in
+      if atomicLoadU64Relaxed p offPartOwned == 0 && atomicCasU64Bool p offPartOwned 0 1 then cur
+      else adoptScan (atomicLoadU64Relaxed p offPartNext)
+
+  registryPushLoop :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global} Unit
+  registryPushLoop pm newPart newAddr =
+    let head = atomicLoadU64Relaxed pm offPmRegistry in
+    let _ = atomicStoreU64Relaxed newPart offPartNext head in
+    if atomicCasU64Bool pm offPmRegistry head newAddr then ()
+    else registryPushLoop pm newPart newAddr
+
+  adoptParticipant :: Unit ->{Global, ThreadAffine} U64
+  adoptParticipant _ =
+    let pm = pmPtr () in
+    let found = adoptScan (atomicLoadU64Acquire pm offPmRegistry) in
+    if found /= 0 then found
+    else
+      let p = heapGlobalAlloc participantBytes 128 1 in
+      let _ = storeU64 p offPartOwned 1 in
+      let _ = cPthreadMutexInit (ptrAdd p offPartMutex) (ptrNull ()) in
+      let _ = cPthreadCondInit (ptrAdd p offPartCond) (ptrNull ()) in
+      let addr = rawToU64 p in
+      let _ = registryPushLoop pm p addr in
+      let _ = atomicAddU64Relaxed pm offPmRegistered 1 in
+      addr
+
+  getParLocal :: Unit ->{Global, ThreadAffine} RawPtr U8
+  getParLocal _ =
+    let key = poolEnsureInit () in
+    let existing = cPthreadGetSpecific key in
+    if not (ptrIsNull existing) then maybeToRaw existing
+    else
+      let loc = heapGlobalAlloc parLocalBytes 8 1 in
+      let me = adoptParticipant () in
+      let _ = storeU64 loc offLocMe me in
+      let floor = withLocal (fixedArrayRepeat 2 (0 :: U64)) (\arr ->
+        let rp = ptrCast (mutAsPtr arr) in
+        if sysThisThreadStack rp (ptrAddU64 rp 8) then
+          u64SatAdd (loadU64 rp 0) (lshrU64 (loadU64 rp 8) 1)
+        else i64ToU64 (i64Sub 0 1)
+      ) in
+      let _ = storeU64 loc offLocFloor floor in
+      let _ = storeU64 loc offLocRng (bitOrU64 (bitAndU64 me 4294967295) 1) in
+      let _ = cPthreadSetSpecific key (rawToMaybe loc) in
+      loc
+
+  mayHelp :: Unit ->{Global, ThreadAffine} Bool
+  mayHelp _ =
+    withLocal (0 :: U8) (\marker ->
+      let sp = rawToU64 (mutAsPtr marker) in
+      let fibFloor = schedHelpFloor () in
+      if fibFloor /= 0 then u64Ge sp fibFloor
+      else
+        let loc = getParLocal () in
+        u64Ge sp (loadU64 loc offLocFloor)
+    )
+
+  nextRandom :: Unit ->{Global, ThreadAffine} U64
+  nextRandom _ =
+    let loc = getParLocal () in
+    let x0 = u64ToU32 (loadU64 loc offLocRng) in
+    let x1 = bitXorU32 x0 (shlU32 x0 13) in
+    let x2 = bitXorU32 x1 (lshrU32 x1 17) in
+    let x3 = bitXorU32 x2 (shlU32 x2 5) in
+    let r = u32ToU64 x3 in
+    let _ = storeU64 loc offLocRng r in
+    r
+
+  -- =========================================================================
+  -- Sleepers & Work Publication / Stealing
+  -- =========================================================================
+
+  wantsWork :: Unit ->{Global} Bool
+  wantsWork _ =
+    let pm = pmPtr () in
+    u64Gt (atomicLoadU64Relaxed pm offPmIdle) (atomicLoadU64Relaxed pm offPmQueued)
+
+  sleepersPush :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  sleepersPush pm part =
+    let addr = rawToU64 part in
+    let tail = loadU64 pm offPmSleepTail in
+    let _ = storeU64 part offPartSleepPrev tail in
+    let _ = storeU64 part offPartSleepNext 0 in
+    let _ = storeU64 part offPartInSleepers 1 in
+    let _ = (if tail /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 tail)) offPartSleepNext addr
+      else
+        storeU64 pm offPmSleepHead addr) in
+    storeU64 pm offPmSleepTail addr
+
+  sleepersUnlink :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  sleepersUnlink pm part =
+    let prev = loadU64 part offPartSleepPrev in
+    let next = loadU64 part offPartSleepNext in
+    let _ = (if prev /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 prev)) offPartSleepNext next
+      else
+        storeU64 pm offPmSleepHead next) in
+    let _ = (if next /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 next)) offPartSleepPrev prev
+      else
+        storeU64 pm offPmSleepTail prev) in
+    let _ = storeU64 part offPartSleepPrev 0 in
+    let _ = storeU64 part offPartSleepNext 0 in
+    storeU64 part offPartInSleepers 0
+
+  sleepersPop :: RawPtr U8 ->{Global} U64
+  sleepersPop pm =
+    let tail = loadU64 pm offPmSleepTail in
+    if tail == 0 then 0
+    else
+      let part = maybeToRaw (ptrFromU64 tail) in
+      let _ = sleepersUnlink pm part in
+      tail
+
+  enterSleepers :: RawPtr U8 ->{Global} Bool
+  enterSleepers part =
+    let pm = pmPtr () in
+    let mtx = sleepMtx () in
+    let _ = cPthreadMutexLock mtx in
+    let _ = atomicAddU64SeqCst pm offPmSleeping 1 in
+    if atomicLoadU64SeqCst pm offPmQueued /= 0 then
+      let _ = atomicSubU64AcqRel pm offPmSleeping 1 in
+      let _ = cPthreadMutexUnlock mtx in
+      False
+    else
+      let _ = sleepersPush pm part in
+      let _ = cPthreadMutexUnlock mtx in
+      True
+
+  leaveSleepers :: RawPtr U8 ->{Global} Bool
+  leaveSleepers part =
+    let pm = pmPtr () in
+    let mtx = sleepMtx () in
+    let _ = cPthreadMutexLock mtx in
+    let wasListed = loadU64 part offPartInSleepers /= 0 in
+    let _ = (if wasListed then
+        let _ = sleepersUnlink pm part in
+        let _ = atomicSubU64AcqRel pm offPmSleeping 1 in
+        ()
+      else ()) in
+    let _ = cPthreadMutexUnlock mtx in
+    not wasListed
+
+  wakeOne :: Unit ->{Global} Unit
+  wakeOne _ =
+    let pm = pmPtr () in
+    if atomicLoadU64SeqCst pm offPmSleeping == 0 then ()
+    else
+      let mtx = sleepMtx () in
+      let _ = cPthreadMutexLock mtx in
+      let pAddr = sleepersPop pm in
+      let _ = if pAddr /= 0 then (let _ = atomicSubU64AcqRel pm offPmSleeping 1 in ()) else () in
+      let _ = cPthreadMutexUnlock mtx in
+      if pAddr /= 0 then partSignal (maybeToRaw (ptrFromU64 pAddr)) else ()
+
+  publishJob :: RawPtr U8 -> U64 ->{Global} Unit
+  publishJob me jobAddr =
+    let pm = pmPtr () in
+    let _ = atomicAddU64SeqCst pm offPmQueued 1 in
+    let _ = dequePush me jobAddr in
+    wakeOne ()
+
+  panicJoinOrder :: Unit ->{Global} Unit
+  panicJoinOrder _ =
+    withLocal (fixedArrayRepeat 48 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: parallel jobs joined out of order" (47 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 112 97 in
+      let _ = put8 p 16 114 97 108 108 101 108 32 106 in
+      let _ = put8 p 24 111 98 115 32 106 111 105 110 in
+      let _ = put8 p 32 101 100 32 111 117 116 32 111 in
+      let _ = put4 p 40 102 32 111 114 in
+      let _ = storeU8 p 44 100 in
+      let _ = storeU8 p 45 101 in
+      let _ = storeU8 p 46 114 in
+      panicExitBytes p 47
+    )
+
+  popOwnJob :: RawPtr U8 -> U64 ->{Global} Bool
+  popOwnJob me jobAddr =
+    let popped = dequePop me in
+    if popped == 0 then False
+    else if popped == jobAddr then
+      let _ = atomicSubU64AcqRel (pmPtr ()) offPmQueued 1 in
+      True
+    else
+      let _ = panicJoinOrder () in
+      False
+
+  stealFromRetries :: RawPtr U8 -> U64 ->{Global} U64
+  stealFromRetries victim tries =
+    if tries == 0 then 0
+    else
+      let res = dequeSteal victim in
+      if res == 0 then 0
+      else if res == 1 then stealFromRetries victim (u64Sub tries 1)
+      else
+        let _ = atomicSubU64AcqRel (pmPtr ()) offPmQueued 1 in
+        res
+
+  skipRegistry :: U64 -> U64 ->{Global} U64
+  skipRegistry cur n =
+    if cur == 0 || n == 0 then cur
+    else skipRegistry (atomicLoadU64Relaxed (maybeToRaw (ptrFromU64 cur)) offPartNext) (u64Sub n 1)
+
+  stealRangeLoop :: U64 -> U64 -> U64 ->{Global} U64
+  stealRangeLoop meAddr cur untilAddr =
+    if cur == untilAddr || cur == 0 then 0
+    else
+      let p = maybeToRaw (ptrFromU64 cur) in
+      let got = if cur /= meAddr then stealFromRetries p 4 else 0 in
+      if got /= 0 then got
+      else stealRangeLoop meAddr (atomicLoadU64Relaxed p offPartNext) untilAddr
+
+  stealAny :: RawPtr U8 -> U64 ->{Global, ThreadAffine} U64
+  stealAny me hintAddr =
+    let pm = pmPtr () in
+    if atomicLoadU64Relaxed pm offPmQueued == 0 then 0
+    else
+      let meAddr = rawToU64 me in
+      let fromHint =
+            (if hintAddr /= 0 && hintAddr /= meAddr then
+              stealFromRetries (maybeToRaw (ptrFromU64 hintAddr)) 4
+            else 0) in
+      if fromHint /= 0 then fromHint
+      else
+        let cnt0 = atomicLoadU64Relaxed pm offPmRegistered in
+        let cnt = if cnt0 == 0 then 1 else cnt0 in
+        let skip = u64Rem (nextRandom ()) cnt in
+        let head = atomicLoadU64Acquire pm offPmRegistry in
+        let start = skipRegistry head skip in
+        let got1 = stealRangeLoop meAddr start 0 in
+        if got1 /= 0 then got1
+        else stealRangeLoop meAddr head start
+
+  -- =========================================================================
+  -- Job Execution & Latches
+  -- =========================================================================
+
+  runJob :: RawPtr U8 -> U64 ->{Global} Unit
+  runJob me jobAddr =
+    let job = maybeToRaw (ptrFromU64 jobAddr) in
+    let _ = atomicStoreU64Relaxed job offJobThief (rawToU64 me) in
+    let execFn = loadU64 job offJobExec in
+    sysCallParExec execFn job me
+
+  completeJob :: RawPtr U8 ->{Global} Unit
+  completeJob job =
+    let owner = loadU64 job offJobOwner in
+    if atomicSwapU64AcqRel job offJobLatch latchDone == latchSleeping then
+      partSignal (maybeToRaw (ptrFromU64 owner))
+    else ()
+
+  jobDone :: RawPtr U8 ->{Global} Bool
+  jobDone job = atomicLoadU64Acquire job offJobLatch == latchDone
+
+  spinWaitLoop :: RawPtr U8 -> Bool -> U64 ->{Global} Bool
+  spinWaitLoop job help rem =
+    if rem == 0 then False
+    else if jobDone job || (help && atomicLoadU64Relaxed (pmPtr ()) offPmQueued /= 0) then True
+    else
+      let _ = sysSpinLoop () in
+      spinWaitLoop job help (u64Sub rem 1)
+
+  waitForLoop :: RawPtr U8 -> RawPtr U8 -> Bool ->{Global, ThreadAffine} Unit
+  waitForLoop me job help =
+    if jobDone job then ()
+    else
+      let pm = pmPtr () in
+      let helped =
+            (if help then
+              let other = stealAny me (atomicLoadU64Relaxed job offJobThief) in
+              if other /= 0 then
+                let _ = atomicSubU64AcqRel pm offPmIdle 1 in
+                let _ = runJob me other in
+                let _ = atomicAddU64SeqCst pm offPmIdle 1 in
+                True
+              else False
+            else False) in
+      if helped then waitForLoop me job help
+      else if spinWaitLoop job help (u64Mul spinRounds spinHints) then
+        waitForLoop me job help
+      else if help && not (enterSleepers me) then
+        waitForLoop me job help
+      else
+        let _ = atomicCasU64Bool job offJobLatch latchPending latchSleeping in
+        let _ = if not (jobDone job) then partSleep me else () in
+        let _ = (if help && leaveSleepers me && jobDone job && atomicLoadU64SeqCst pm offPmQueued /= 0 then
+            wakeOne ()
+          else ()) in
+        waitForLoop me job help
+
+  waitForJob :: RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} Unit
+  waitForJob me job =
+    if jobDone job then ()
+    else
+      let help = mayHelp () in
+      let pm = pmPtr () in
+      let _ = if help then (let _ = atomicAddU64SeqCst pm offPmIdle 1 in ()) else () in
+      let _ = waitForLoop me job help in
+      let _ = if help then (let _ = atomicSubU64AcqRel pm offPmIdle 1 in ()) else () in
+      ()
+
+  -- =========================================================================
+  -- Pool Workers
+  -- =========================================================================
+
+  spinHintsLoop :: U64 ->{Global} Unit
+  spinHintsLoop n =
+    if n == 0 then ()
+    else
+      let _ = sysSpinLoop () in
+      spinHintsLoop (u64Sub n 1)
+
+  workerSearch :: RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} U64
+  workerSearch me idx round =
+    if u64Ge round spinRounds then 0
+    else
+      let job = stealAny me 0 in
+      if job /= 0 then job
+      else if u64Ge (u64Add idx 1) (parBudget ()) then 0
+      else
+        let _ = (if u64Lt round (lshrU64 spinRounds 1) then
+            spinHintsLoop spinHints
+          else
+            let _ = cSchedYield () in ()) in
+        workerSearch me idx (u64Add round 1)
+
+  retiredWaitLoop :: U64 ->{Global} Unit
+  retiredWaitLoop idx =
+    if u64Lt (u64Add idx 1) (parBudget ()) then ()
+    else
+      let _ = cPthreadCondWait (retiredCond ()) (sleepMtx ()) in
+      retiredWaitLoop idx
+
+  parWorkerLoop :: RawPtr U8 -> U64 -> Bool ->{Global, ThreadAffine} Unit
+  parWorkerLoop me idx counted =
+    let pm = pmPtr () in
+    if u64Ge (u64Add idx 1) (parBudget ()) then
+      let _ = if counted then (let _ = atomicSubU64AcqRel pm offPmIdle 1 in ()) else () in
+      let _ = if atomicLoadU64SeqCst pm offPmQueued /= 0 then wakeOne () else () in
+      let mtx = sleepMtx () in
+      let _ = cPthreadMutexLock mtx in
+      let _ = retiredWaitLoop idx in
+      let _ = cPthreadMutexUnlock mtx in
+      parWorkerLoop me idx False
+    else
+      let _ = if not counted then (let _ = atomicAddU64SeqCst pm offPmIdle 1 in ()) else () in
+      let job = workerSearch me idx 0 in
+      if job /= 0 then
+        let _ = atomicSubU64AcqRel pm offPmIdle 1 in
+        let _ = runJob me job in
+        let _ = atomicAddU64SeqCst pm offPmIdle 1 in
+        parWorkerLoop me idx True
+      else
+        let _ = (if enterSleepers me then
+            let _ = partSleep me in
+            let _ = leaveSleepers me in
+            ()
+          else ()) in
+        parWorkerLoop me idx True
+
+  cinchRtParWorkerGuarded :: MaybeNull U8 ->{Global, ThreadAffine} I64
+  cinchRtParWorkerGuarded idxPtr =
+    let idx = ptrToU64 idxPtr in
+    let loc = getParLocal () in
+    let me = maybeToRaw (ptrFromU64 (loadU64 loc offLocMe)) in
+    let _ = parWorkerLoop me idx True in
+    0
+
+  foreign export ccall "cinch_rt_par_worker_guarded" cinchRtParWorkerGuarded :: MaybeNull U8 ->{Global, ThreadAffine} I64
+
+  cinchRtParWorkerEntry :: MaybeNull U8 ->{Global} MaybeNull U8
+  cinchRtParWorkerEntry idxPtr =
+    let _ = stackGuardedRun (parWorkerGuardedAddrPrim 0) idxPtr in
+    ptrNull ()
+
+  foreign export ccall "cinch_rt_par_worker_entry" cinchRtParWorkerEntry :: MaybeNull U8 ->{Global} MaybeNull U8
+
+  startWorkersLoop :: U64 -> U64 ->{Global} Unit
+  startWorkersLoop want stackSz =
+    let pm = pmPtr () in
+    let cur = atomicLoadU64Relaxed pm offPmStarted in
+    if u64Ge cur want then ()
+    else
+      let _ = atomicAddU64SeqCst pm offPmIdle 1 in
+      let _ = stackSpawnThread stackSz (parWorkerEntryAddrPrim 0) (ptrFromU64 cur) True in
+      let _ = atomicStoreU64Release pm offPmStarted (u64Add cur 1) in
+      startWorkersLoop want stackSz
+
+  startWorkers :: U64 ->{Global} Unit
+  startWorkers want =
+    let _ = poolEnsureInit () in
+    let mtx = spawnMtx () in
+    let _ = cPthreadMutexLock mtx in
+    let stackSz = programStackBytes () in
+    let _ = startWorkersLoop want stackSz in
+    let _ = cPthreadMutexUnlock mtx in
+    ()
+
+  parallelParticipant :: Unit ->{Global, ThreadAffine} MaybeNull U8
+  parallelParticipant _ =
+    let n = parBudget () in
+    if u64Le n 1 then ptrNull ()
+    else
+      let _ = poolEnsureInit () in
+      let pm = pmPtr () in
+      let _ = if u64Lt (atomicLoadU64Acquire pm offPmStarted) (u64Sub n 1) then startWorkers (u64Sub n 1) else () in
+      let loc = getParLocal () in
+      ptrFromU64 (loadU64 loc offLocMe)
+
+  -- =========================================================================
+  -- Callbacks, LocalClosure Shadow, and Range Execution
+  -- =========================================================================
+
+  callClosure :: I64 -> I64 ->{Global} I64
+  callClosure f arg =
+    let _ = if rcReclaiming () then cinchDup f else () in
+    sysApplyClosure1 f arg
+
+  -- Initialize stack-local RC_IMMORTAL shadow copy of closure f into buf (26 * U64)
+  -- Returns local closure word (> 0) if active, else 0.
+  initLocalClosure :: RawPtr U8 -> I64 ->{Global} I64
+  initLocalClosure buf f =
+    if not (rcReclaiming ()) || f == 0 || bitAndI64 f 7 /= 0 then 0
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 f)) in
+      let h = readHeader p in
+      if headerKind h /= kindClosure || headerRc h == rcImmortal then 0
+      else
+        let nfilled = loadU64 p 16 in
+        let words = u64SatAdd closurePrefixWords nfilled in
+        if u64Gt words localClosureMaxWords then 0
+        else
+          let layout = headerLayout h in
+          let _ = (if shapeEscaped layout then
+              storeU64 buf 0 (loadU64 (ptrSubU64 p 16) 0)
+            else ()) in
+          let _ = storeU64 buf 8 (makeHeader rcImmortal kindClosure layout) in
+          let dst = ptrAddU64 buf 16 in
+          let _ = memCopy dst p (u64ToUsize (u64Mul words 8)) in
+          u64ToI64 (rawToU64 dst)
+
+  rangeMark :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  rangeMark ctx =
+    if rcReclaiming () && atomicLoadU64Relaxed ctx offCtxMarked == 0 then
+      let _ = cinchMarkMt (loadI64 ctx offCtxF) in
+      let inp = loadI64 ctx offCtxInput in
+      let _ = if inp /= 0 then markMtArray inp else () in
+      let _ = arenaMarkMtAllActive () in
+      atomicStoreU64Relaxed ctx offCtxMarked 1
+    else ()
+
+  rangeInvoke :: RawPtr U8 -> I64 -> U64 ->{Global, ThreadAffine} Unit
+  rangeInvoke ctx localWord i =
+    let inp = loadI64 ctx offCtxInput in
+    let arg =
+          (if inp == 0 then cinchNatFromI64 (u64ToI64 i)
+          else
+            let x = arrayRead inp (u64ToI64 i) in
+            let _ = if rcReclaiming () && arrayIsCounted (loadI64 ctx offCtxInputFmt) then cinchDup x else () in
+            x) in
+    let f = loadI64 ctx offCtxF in
+    let r = if localWord /= 0 then sysApplyClosure1 localWord arg else callClosure f arg in
+    arrayWrite (loadI64 ctx offCtxOut) (u64ToI64 i) r
+
+  runRangeWorkLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> I64 -> U64 -> U64 -> U64 ->{Global, ThreadAffine} U64
+  runRangeWorkLoop me ctx splitsBuf localWord i end made =
+    if u64Ge i end then made
+    else if u64Ge (u64Sub end i) 2 && u64Lt made maxSplits && dequeIsEmpty me && wantsWork () && dequeHasRoom me then
+      let mid = u64Add i (lshrU64 (u64Sub end i) 1) in
+      let _ = rangeMark ctx in
+      let job = ptrAddU64 splitsBuf (u64Mul made 56) in
+      let _ = storeU64 job offJobExec (parExecRangeAddrPrim 0) in
+      let _ = storeU64 job offJobLatch latchPending in
+      let _ = storeU64 job offJobOwner (rawToU64 me) in
+      let _ = storeU64 job offJobThief 0 in
+      let _ = storeU64 job offRangeCtx (rawToU64 ctx) in
+      let _ = storeU64 job offRangeLo mid in
+      let _ = storeU64 job offRangeHi end in
+      let _ = publishJob me (rawToU64 job) in
+      runRangeWorkLoop me ctx splitsBuf localWord i mid (u64Add made 1)
+    else
+      let _ = rangeInvoke ctx localWord i in
+      runRangeWorkLoop me ctx splitsBuf localWord (u64Add i 1) end made
+
+  joinSplitsLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  joinSplitsLoop me ctx splitsBuf made =
+    if made == 0 then ()
+    else
+      let idx = u64Sub made 1 in
+      let job = ptrAddU64 splitsBuf (u64Mul idx 56) in
+      let _ = (if popOwnJob me (rawToU64 job) then
+          runRange me ctx (loadU64 job offRangeLo) (loadU64 job offRangeHi)
+        else
+          waitForJob me job) in
+      joinSplitsLoop me ctx splitsBuf idx
+
+  runRange :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  runRange me ctx lo hi =
+    withLocal (fixedArrayRepeat 448 (0 :: U64)) (\splitsArr ->
+      let splitsBuf = ptrCast (mutAsPtr splitsArr) in
+      withLocal (fixedArrayRepeat 26 (0 :: U64)) (\localArr ->
+        let localBuf = ptrCast (mutAsPtr localArr) in
+        let localWord = initLocalClosure localBuf (loadI64 ctx offCtxF) in
+        let made = runRangeWorkLoop me ctx splitsBuf localWord lo hi 0 in
+        joinSplitsLoop me ctx splitsBuf made
+      )
+    )
+
+  cinchRtParExecBoth :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  cinchRtParExecBoth job _me =
+    let r = callClosure (loadI64 job offBothClosure) 0 in
+    let _ = storeI64 job offBothResult r in
+    completeJob job
+
+  foreign export ccall "cinch_rt_par_exec_both" cinchRtParExecBoth :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+
+  cinchRtParExecRange :: RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} Unit
+  cinchRtParExecRange job me =
+    let ctx = maybeToRaw (ptrFromU64 (loadU64 job offRangeCtx)) in
+    let _ = runRange me ctx (loadU64 job offRangeLo) (loadU64 job offRangeHi) in
+    completeJob job
+
+  foreign export ccall "cinch_rt_par_exec_range" cinchRtParExecRange :: RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} Unit
+
+  -- =========================================================================
+  -- Sequential Readings (one participant, and Cooperative backend)
+  -- =========================================================================
+
+  parBothSequential :: I64 -> I64 -> I64 ->{Global} Unit
+  parBothSequential f g outWord =
+    let out = maybeToRaw (ptrFromU64 (i64ToU64 outWord)) in
+    let a = callClosure f 0 in
+    let b = callClosure g 0 in
+    let _ = storeI64 out 0 a in
+    storeI64 out 8 b
+
+  seqRangeLoop :: RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  seqRangeLoop ctx i n =
+    if u64Ge i n then ()
+    else
+      let _ = rangeInvoke ctx 0 i in
+      seqRangeLoop ctx (u64Add i 1) n
+
+  parTabulateSequential :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  parTabulateSequential n f cls =
+    if i64Lt n 0 then
+      let _ = panicCorruptValue () in
+      0
+    else
+      let outArr = arrayAlloc n cls in
+      withLocal (fixedArrayRepeat 5 (0 :: U64)) (\ctxArr ->
+        let ctx = ptrCast (mutAsPtr ctxArr) in
+        let _ = storeI64 ctx offCtxF f in
+        let _ = storeI64 ctx offCtxInput 0 in
+        let _ = storeI64 ctx offCtxInputFmt 0 in
+        let _ = storeI64 ctx offCtxOut outArr in
+        let _ = storeU64 ctx offCtxMarked 0 in
+        let _ = seqRangeLoop ctx 0 (i64ToU64 n) in
+        outArr
+      )
+
+  parMapSequential :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  parMapSequential f arr cls =
+    let n = cinchArrayLen arr in
+    let fmt = arrayFormat arr in
+    let outArr = arrayAlloc n cls in
+    withLocal (fixedArrayRepeat 5 (0 :: U64)) (\ctxArr ->
+      let ctx = ptrCast (mutAsPtr ctxArr) in
+      let _ = storeI64 ctx offCtxF f in
+      let _ = storeI64 ctx offCtxInput arr in
+      let _ = storeI64 ctx offCtxInputFmt fmt in
+      let _ = storeI64 ctx offCtxOut outArr in
+      let _ = storeU64 ctx offCtxMarked 0 in
+      let _ = seqRangeLoop ctx 0 (i64ToU64 n) in
+      outArr
+    )
+
+  -- =========================================================================
+  -- Public C ABI Entry Points (4 exports + cinch_rt_par_budget for par_arrays.rs)
+  -- =========================================================================
+
+  cinchParBoth :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchParBoth f g outWord =
+    let meMaybe = parallelParticipant () in
+    if not (ptrIsNull meMaybe) then
+      let me = maybeToRaw meMaybe in
+      if wantsWork () && dequeHasRoom me then
+        let _ = (if rcReclaiming () then
+            let _ = cinchMarkMt g in
+            arenaMarkMtAllActive ()
+          else ()) in
+        withLocal (fixedArrayRepeat 6 (0 :: U64)) (\jobArr ->
+          let job = ptrCast (mutAsPtr jobArr) in
+          let _ = storeU64 job offJobExec (parExecBothAddrPrim 0) in
+          let _ = storeU64 job offJobLatch latchPending in
+          let _ = storeU64 job offJobOwner (rawToU64 me) in
+          let _ = storeU64 job offJobThief 0 in
+          let _ = storeI64 job offBothClosure g in
+          let _ = storeI64 job offBothResult 0 in
+          let _ = publishJob me (rawToU64 job) in
+          let a = callClosure f 0 in
+          let b =
+                (if popOwnJob me (rawToU64 job) then
+                  callClosure g 0
+                else
+                  let _ = waitForJob me job in
+                  loadI64 job offBothResult) in
+          let out = maybeToRaw (ptrFromU64 (i64ToU64 outWord)) in
+          let _ = storeI64 out 0 a in
+          let _ = storeI64 out 8 b in
+          0
+        )
+      else
+        let _ = parBothSequential f g outWord in
+        0
+    else
+      let _ = parBothSequential f g outWord in
+      0
+
+  cinchParTabulate :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchParTabulate n f cls =
+    if i64Lt n 0 then
+      let _ = panicCorruptValue () in
+      0
+    else if i64Ge n 2 then
+      let meMaybe = parallelParticipant () in
+      if not (ptrIsNull meMaybe) then
+        let me = maybeToRaw meMaybe in
+        let outArr = arrayAlloc n cls in
+        withLocal (fixedArrayRepeat 5 (0 :: U64)) (\ctxArr ->
+          let ctx = ptrCast (mutAsPtr ctxArr) in
+          let _ = storeI64 ctx offCtxF f in
+          let _ = storeI64 ctx offCtxInput 0 in
+          let _ = storeI64 ctx offCtxInputFmt 0 in
+          let _ = storeI64 ctx offCtxOut outArr in
+          let _ = storeU64 ctx offCtxMarked 0 in
+          let _ = runRange me ctx 0 (i64ToU64 n) in
+          outArr
+        )
+      else parTabulateSequential n f cls
+    else parTabulateSequential n f cls
+
+  cinchParMapArray :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchParMapArray f arr cls =
+    let n = cinchArrayLen arr in
+    if i64Ge n 2 then
+      let meMaybe = parallelParticipant () in
+      if not (ptrIsNull meMaybe) then
+        let me = maybeToRaw meMaybe in
+        let fmt = arrayFormat arr in
+        let outArr = arrayAlloc n cls in
+        withLocal (fixedArrayRepeat 5 (0 :: U64)) (\ctxArr ->
+          let ctx = ptrCast (mutAsPtr ctxArr) in
+          let _ = storeI64 ctx offCtxF f in
+          let _ = storeI64 ctx offCtxInput arr in
+          let _ = storeI64 ctx offCtxInputFmt fmt in
+          let _ = storeI64 ctx offCtxOut outArr in
+          let _ = storeU64 ctx offCtxMarked 0 in
+          let _ = runRange me ctx 0 (i64ToU64 n) in
+          outArr
+        )
+      else parMapSequential f arr cls
+    else parMapSequential f arr cls
+
+  wakeAllSleepersLoop :: RawPtr U8 ->{Global} Unit
+  wakeAllSleepersLoop pm =
+    let pAddr = sleepersPop pm in
+    if pAddr == 0 then ()
+    else
+      let _ = atomicSubU64AcqRel pm offPmSleeping 1 in
+      let _ = partSignal (maybeToRaw (ptrFromU64 pAddr)) in
+      wakeAllSleepersLoop pm
+
+  cinchParSetWorkers :: I64 ->{Global} I64
+  cinchParSetWorkers n =
+    if i64Lt n 0 then
+      let _ = panicCorruptValue () in
+      0
+    else
+      let val =
+            (if n == 0 then parDefaultBudget ()
+            else
+              let u = i64ToU64 n in
+              if u64Gt u maxParticipants then maxParticipants else u) in
+      let _ = parSetBudgetCell val in
+      let _ = poolEnsureInit () in
+      let pm = pmPtr () in
+      let mtx = sleepMtx () in
+      let _ = cPthreadMutexLock mtx in
+      let _ = wakeAllSleepersLoop pm in
+      let _ = cPthreadCondBroadcast (retiredCond ()) in
+      let _ = cPthreadMutexUnlock mtx in
+      0
+
+  cinchRtParBudget :: Unit ->{Global} Usize
+  cinchRtParBudget _ = u64ToUsize (parBudget ())
+
+  foreign export ccall "cinch_par_both" cinchParBoth :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_par_tabulate" cinchParTabulate :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_par_map_array" cinchParMapArray :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_par_set_workers" cinchParSetWorkers :: I64 ->{Global} I64
+  foreign export ccall "cinch_rt_par_budget" cinchRtParBudget :: Unit ->{Global} Usize

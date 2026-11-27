@@ -1540,6 +1540,7 @@ pub unsafe extern "C" fn cinch_bytes_from_data(ptr: *const u8, len: i64) -> i64 
 
 /// Open a structured scope: the `withScope` entry (concurrency
 /// specification section 2).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_scope_open() -> i64 {
     let scope = std::sync::Arc::new(crate::task::Scope::new());
@@ -1548,6 +1549,7 @@ pub extern "C" fn cinch_scope_open() -> i64 {
 
 /// Scope exit: cancel every unjoined child, wait for each cleanup
 /// acknowledgment, and release the scope.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_scope_close(scope: i64) -> i64 {
     let owned = unsafe { Box::from_raw(scope as *mut std::sync::Arc<crate::task::Scope>) };
@@ -1557,6 +1559,7 @@ pub unsafe extern "C" fn cinch_scope_close(scope: i64) -> i64 {
 }
 
 /// Spawn the body closure as a task of `scope`; returns the task handle.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_task_spawn(scope: i64, closure: i64) -> i64 {
     let scope = unsafe { &*(scope as *const std::sync::Arc<crate::task::Scope>) };
@@ -1568,6 +1571,7 @@ pub unsafe extern "C" fn cinch_task_spawn(scope: i64, closure: i64) -> i64 {
 /// `crate::task::join_succeeded` describe (a negative return is a
 /// failure, with its `Err` block in `out[0]`; the first failure cancels
 /// the siblings).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_task_join_all_or_cancel(
     scope: i64,
@@ -1594,6 +1598,7 @@ pub unsafe extern "C" fn cinch_task_join_all_or_cancel(
 /// as well: a task that polls in a loop lets the tasks queued behind it
 /// run first, so a request made by one of them is observed at this same
 /// point, and one worker thread is enough for the loop to end.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_task_poll_cancel() -> i64 {
     crate::sched::yield_now();
@@ -1605,6 +1610,7 @@ pub extern "C" fn cinch_task_poll_cancel() -> i64 {
 /// write or flush (a closed pipe, a full device) is the operating
 /// system's outcome, which no program can rule out: it exits through the
 /// panic path as [`Error::OutputFailed`].
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_io_write(word: i64) -> i64 {
     use std::io::Write;
@@ -1624,6 +1630,7 @@ pub unsafe extern "C" fn cinch_io_write(word: i64) -> i64 {
 /// over a short input allocates only what is read. The read blocks its
 /// thread until input arrives, so it is a blocking region of
 /// [`crate::sched`]: the other tasks keep running meanwhile.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_io_read(len: i64) -> i64 {
     use std::io::Read;
@@ -1647,6 +1654,7 @@ pub unsafe extern "C" fn cinch_io_read(len: i64) -> i64 {
 /// program's thread runs tasks while it sleeps, and a cancellation
 /// request ends the sleep at once because it resumes the task's context.
 /// A sleep of 0 is a yield.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_io_sleep(millis: i64) -> i64 {
     let wait = std::time::Duration::from_millis(millis.max(0) as u64);
@@ -1663,6 +1671,18 @@ pub extern "C" fn cinch_io_sleep(millis: i64) -> i64 {
         crate::park::park_timeout(left);
     }
     0
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_scope_open() -> i64;
+    pub fn cinch_scope_close(scope: i64) -> i64;
+    pub fn cinch_task_spawn(scope: i64, closure: i64) -> i64;
+    pub fn cinch_task_join_all_or_cancel(scope: i64, handles: i64, n: i64, out: i64) -> i64;
+    pub fn cinch_task_poll_cancel() -> i64;
+    pub fn cinch_io_write(word: i64) -> i64;
+    pub fn cinch_io_read(len: i64) -> i64;
+    pub fn cinch_io_sleep(millis: i64) -> i64;
 }
 
 #[cfg(test)]

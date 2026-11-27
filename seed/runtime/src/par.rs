@@ -115,9 +115,23 @@ const SPIN_HINTS: u32 = 64;
 /// The participant budget `N`; 0 until first resolved.
 static BUDGET: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn cinch_rt_par_budget() -> usize;
+    pub fn cinch_par_both(f: i64, g: i64, out: i64) -> i64;
+    pub fn cinch_par_tabulate(n: i64, f: i64, class: i64) -> i64;
+    pub fn cinch_par_map_array(f: i64, arr: i64, class: i64) -> i64;
+    pub fn cinch_par_set_workers(n: i64) -> i64;
+}
+
 /// The participant budget: [`cinch_par_set_workers`]'s, else
 /// `CINCH_THREADS`, else the available parallelism (design section 3.1).
 pub fn budget() -> usize {
+    #[cfg(not(test))]
+    {
+        return unsafe { cinch_rt_par_budget() };
+    }
+    #[cfg(test)]
     match BUDGET.load(Relaxed) {
         0 => {
             let n = default_budget();
@@ -1121,6 +1135,7 @@ unsafe fn map_ctx(f: i64, arr: i64, class: i64) -> RangeCtx {
 /// `f` and `g` are live closure words the caller keeps alive across the
 /// call (borrowed) whose stubs take the Unit word; `out` points at two
 /// writable words.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_par_both(f: i64, g: i64, out: i64) -> i64 {
     if let Some(me) = parallel_participant() {
@@ -1162,6 +1177,7 @@ pub unsafe extern "C" fn cinch_par_both(f: i64, g: i64, out: i64) -> i64 {
 /// `n` is a length from `cinch_nat_to_len`; `f` is a live closure word
 /// the caller keeps alive across the call (borrowed) whose stub takes a
 /// `Nat` word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_par_tabulate(n: i64, f: i64, class: i64) -> i64 {
     if n >= 2 {
@@ -1183,6 +1199,7 @@ pub unsafe extern "C" fn cinch_par_tabulate(n: i64, f: i64, class: i64) -> i64 {
 ///
 /// `f` and `arr` are live words the caller keeps alive across the call
 /// (borrowed); `f`'s stub takes one element word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_par_map_array(f: i64, arr: i64, class: i64) -> i64 {
     if unsafe { arrays::cinch_array_len(arr) } >= 2 {
@@ -1202,6 +1219,7 @@ pub unsafe extern "C" fn cinch_par_map_array(f: i64, arr: i64, class: i64) -> i6
 /// past the new budget retire when they next look for work; a larger
 /// budget starts or reactivates workers at the next parallel call. No
 /// result depends on it. Returns 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_par_set_workers(n: i64) -> i64 {
     if n < 0 {

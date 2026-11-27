@@ -1,0 +1,408 @@
+module Runtime.Coop where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+  import Runtime.Sched
+  import Runtime.Par
+
+  export coopIoSleep, coopCurrentTaskCanceled
+  export cinchCoopScopeOpen, cinchCoopScopeClose, cinchCoopTaskSpawn
+  export cinchCoopTaskJoinAllOrCancel, cinchCoopTaskPollCancel, cinchCoopIoSleep
+  export cinchCoopParBoth, cinchCoopParTabulate, cinchCoopParMapArray, cinchCoopParSetWorkers
+
+  -- =========================================================================
+  -- Cooperative Single-Threaded Backend (10 C ABI exports)
+  -- =========================================================================
+
+  -- CoopTaskState (48 bytes, leaked by design like Rust Arc::into_raw):
+  --   0:  body :: I64
+  --   8:  cancel :: U64 (0/1)
+  --   16: done :: U64 (0/1)
+  --   24: result :: I64
+  --   32: seq :: U64
+  --   40: readyNext :: U64 (intrusive FIFO link)
+  offCtBody :: Isize
+  offCtBody = 0
+  offCtCancel :: Isize
+  offCtCancel = 8
+  offCtDone :: Isize
+  offCtDone = 16
+  offCtResult :: Isize
+  offCtResult = 24
+  offCtSeq :: Isize
+  offCtSeq = 32
+  offCtNext :: Isize
+  offCtNext = 40
+  coopTaskBytes :: Usize
+  coopTaskBytes = 48
+
+  -- CoopScope (24 bytes):
+  --   0:  childrenData :: MaybeNull U8
+  --   8:  childrenLen :: U64
+  --   16: childrenCap :: U64
+  offCsData :: Isize
+  offCsData = 0
+  offCsLen :: Isize
+  offCsLen = 8
+  offCsCap :: Isize
+  offCsCap = 16
+  coopScopeBytes :: Usize
+  coopScopeBytes = 24
+
+  -- Stack-allocated JoinSet node (32 bytes, linked in thread-local joinsHead):
+  --   0:  membersPtr :: U64 (RawPtr U64 of CoopTaskState ptrs)
+  --   8:  membersLen :: U64
+  --   16: firstErr :: I64 (-1 if none)
+  --   24: prev :: U64
+  offJsMembers :: Isize
+  offJsMembers = 0
+  offJsLen :: Isize
+  offJsLen = 8
+  offJsFirstErr :: Isize
+  offJsFirstErr = 16
+  offJsPrev :: Isize
+  offJsPrev = 24
+
+  -- Thread-local cooperative scheduler state:
+  --   [0]=readyHead, [1]=readyTail, [2]=joinsHead, [3]=currentTask, [4]=seq
+  #[thread_local]
+  static coopTls :: FixedArray 5 U64
+
+  offTlsReadyHead :: Isize
+  offTlsReadyHead = 0
+  offTlsReadyTail :: Isize
+  offTlsReadyTail = 8
+  offTlsJoinsHead :: Isize
+  offTlsJoinsHead = 16
+  offTlsCurrent :: Isize
+  offTlsCurrent = 24
+  offTlsSeq :: Isize
+  offTlsSeq = 32
+
+  tlsPtr :: Unit ->{Global, ThreadAffine} RawPtr U8
+  tlsPtr _ = ptrCast (coopTls ())
+
+  panicNoProgress :: Unit ->{Global} Unit
+  panicNoProgress _ =
+    withLocal (fixedArrayRepeat 96 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "cooperative scheduler deadlock: awaiting a task that is suspended on the call stack" (83 bytes)
+      let _ = put8 p 0 99 111 111 112 101 114 97 116 in
+      let _ = put8 p 8 105 118 101 32 115 99 104 101 in
+      let _ = put8 p 16 100 117 108 101 114 32 100 101 in
+      let _ = put8 p 24 97 100 108 111 99 107 58 32 in
+      let _ = put8 p 32 97 119 97 105 116 105 110 103 in
+      let _ = put8 p 40 32 97 32 116 97 115 107 32 in
+      let _ = put8 p 48 116 104 97 116 32 105 115 32 in
+      let _ = put8 p 56 115 117 115 112 101 110 100 101 in
+      let _ = put8 p 64 100 32 111 110 32 116 104 101 in
+      let _ = put8 p 72 32 99 97 108 108 32 115 116 in
+      let _ = storeU8 p 80 97 in
+      let _ = storeU8 p 81 99 in
+      let _ = storeU8 p 82 107 in
+      panicExitBytes p 83
+    )
+
+  readyPush :: U64 ->{Global, ThreadAffine} Unit
+  readyPush taskAddr =
+    let tls = tlsPtr () in
+    let t = maybeToRaw (ptrFromU64 taskAddr) in
+    let _ = storeU64 t offCtNext 0 in
+    let tail = loadU64 tls offTlsReadyTail in
+    let _ = (if tail /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 tail)) offCtNext taskAddr
+      else
+        storeU64 tls offTlsReadyHead taskAddr) in
+    storeU64 tls offTlsReadyTail taskAddr
+
+  readyPop :: Unit ->{Global, ThreadAffine} U64
+  readyPop _ =
+    let tls = tlsPtr () in
+    let head = loadU64 tls offTlsReadyHead in
+    if head == 0 then 0
+    else
+      let t = maybeToRaw (ptrFromU64 head) in
+      let next = loadU64 t offCtNext in
+      let _ = storeU64 t offCtNext 0 in
+      let _ = storeU64 tls offTlsReadyHead next in
+      let _ = if next == 0 then storeU64 tls offTlsReadyTail 0 else () in
+      head
+
+  readyEmpty :: Unit ->{Global, ThreadAffine} Bool
+  readyEmpty _ = loadU64 (tlsPtr ()) offTlsReadyHead == 0
+
+  -- JoinSet refresh: find earliest-completed Err member, cancel remaining unfinished members
+  findMinErrLoop :: RawPtr U8 -> U64 -> U64 -> I64 -> U64 ->{Global} I64
+  findMinErrLoop members idx len bestIdx bestSeq =
+    if u64Ge idx len then bestIdx
+    else
+      let t = maybeToRaw (ptrFromU64 (loadU64 members (u64ToIsize (u64Mul idx 8)))) in
+      if loadU64 t offCtDone /= 0 && resultTag (loadI64 t offCtResult) == taskErrTag then
+        let s = loadU64 t offCtSeq in
+        if i64Lt bestIdx 0 || u64Lt s bestSeq then
+          findMinErrLoop members (u64Add idx 1) len (u64ToI64 idx) s
+        else
+          findMinErrLoop members (u64Add idx 1) len bestIdx bestSeq
+      else
+        findMinErrLoop members (u64Add idx 1) len bestIdx bestSeq
+
+  cancelUnfinishedLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  cancelUnfinishedLoop members idx len =
+    if u64Ge idx len then ()
+    else
+      let t = maybeToRaw (ptrFromU64 (loadU64 members (u64ToIsize (u64Mul idx 8)))) in
+      let _ = if loadU64 t offCtDone == 0 then storeU64 t offCtCancel 1 else () in
+      cancelUnfinishedLoop members (u64Add idx 1) len
+
+  joinSetRefresh :: RawPtr U8 ->{Global} Unit
+  joinSetRefresh js =
+    if i64Ge (loadI64 js offJsFirstErr) 0 then ()
+    else
+      let members = maybeToRaw (ptrFromU64 (loadU64 js offJsMembers)) in
+      let len = loadU64 js offJsLen in
+      let found = findMinErrLoop members 0 len (i64Sub 0 1) 0 in
+      if i64Ge found 0 then
+        let _ = storeI64 js offJsFirstErr found in
+        cancelUnfinishedLoop members 0 len
+      else ()
+
+  membersContains :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} Bool
+  membersContains members idx len taskAddr =
+    if u64Ge idx len then False
+    else if loadU64 members (u64ToIsize (u64Mul idx 8)) == taskAddr then True
+    else membersContains members (u64Add idx 1) len taskAddr
+
+  notifyJoinsLoop :: U64 -> U64 ->{Global} Unit
+  notifyJoinsLoop jsAddr taskAddr =
+    if jsAddr == 0 then ()
+    else
+      let js = maybeToRaw (ptrFromU64 jsAddr) in
+      let members = maybeToRaw (ptrFromU64 (loadU64 js offJsMembers)) in
+      let len = loadU64 js offJsLen in
+      let _ = if membersContains members 0 len taskAddr then joinSetRefresh js else () in
+      notifyJoinsLoop (loadU64 js offJsPrev) taskAddr
+
+  runCoopTask :: U64 ->{Global, ThreadAffine} Unit
+  runCoopTask taskAddr =
+    let tls = tlsPtr () in
+    let t = maybeToRaw (ptrFromU64 taskAddr) in
+    let prev = loadU64 tls offTlsCurrent in
+    let _ = storeU64 tls offTlsCurrent taskAddr in
+    let res = sysApplyClosure1 (loadI64 t offCtBody) 0 in
+    let _ = storeU64 tls offTlsCurrent prev in
+    let seq = loadU64 tls offTlsSeq in
+    let _ = storeU64 tls offTlsSeq (u64Add seq 1) in
+    let _ = storeU64 t offCtSeq seq in
+    let _ = storeI64 t offCtResult res in
+    let _ = storeU64 t offCtDone 1 in
+    notifyJoinsLoop (loadU64 tls offTlsJoinsHead) taskAddr
+
+  pumpOne :: Unit ->{Global, ThreadAffine} Bool
+  pumpOne _ =
+    let next = readyPop () in
+    if next == 0 then False
+    else
+      let _ = runCoopTask next in
+      True
+
+  drainLoop :: Unit ->{Global, ThreadAffine} Unit
+  drainLoop _ =
+    if pumpOne () then drainLoop () else ()
+
+  allDoneLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  allDoneLoop members idx len =
+    if u64Ge idx len then True
+    else
+      let t = maybeToRaw (ptrFromU64 (loadU64 members (u64ToIsize (u64Mul idx 8)))) in
+      if loadU64 t offCtDone == 0 then False
+      else allDoneLoop members (u64Add idx 1) len
+
+  awaitAllLoop :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  awaitAllLoop members len =
+    if allDoneLoop members 0 len && readyEmpty () then ()
+    else if pumpOne () then awaitAllLoop members len
+    else panicNoProgress ()
+
+  coopCurrentTaskCanceled :: Unit ->{Global, ThreadAffine} Bool
+  coopCurrentTaskCanceled _ =
+    let cur = loadU64 (tlsPtr ()) offTlsCurrent in
+    if cur == 0 then False
+    else loadU64 (maybeToRaw (ptrFromU64 cur)) offCtCancel /= 0
+
+  coopIoSleep :: I64 ->{Global, ThreadAffine} I64
+  coopIoSleep _millis =
+    let _ = drainLoop () in
+    0
+
+  -- =========================================================================
+  -- Scope & Task C ABI Exports
+  -- =========================================================================
+
+  cinchCoopScopeOpen :: Unit ->{Global, ThreadAffine} I64
+  cinchCoopScopeOpen _ =
+    let sc = heapGlobalAlloc coopScopeBytes 8 1 in
+    u64ToI64 (rawToU64 sc)
+
+  scopePushChild :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  scopePushChild sc taskAddr =
+    let len = loadU64 sc offCsLen in
+    let cap = loadU64 sc offCsCap in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr sc offCsData)
+          else
+            let newCap = if cap == 0 then 8 else u64Mul cap 2 in
+            let oldPtr = loadPtr sc offCsData in
+            let newPtr =
+                  (if ptrIsNull oldPtr then
+                    heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0
+                  else
+                    heapGlobalRealloc (maybeToRaw oldPtr) (u64ToUsize (u64Mul cap 8)) 8 (u64ToUsize (u64Mul newCap 8))) in
+            let _ = storePtr sc offCsData (rawToMaybe newPtr) in
+            let _ = storeU64 sc offCsCap newCap in
+            newPtr) in
+    let _ = storeU64 buf (u64ToIsize (u64Mul len 8)) taskAddr in
+    storeU64 sc offCsLen (u64Add len 1)
+
+  cinchCoopTaskSpawn :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchCoopTaskSpawn scopeWord closure =
+    let sc = maybeToRaw (ptrFromU64 (i64ToU64 scopeWord)) in
+    let t = heapGlobalAlloc coopTaskBytes 8 1 in
+    let _ = storeI64 t offCtBody closure in
+    let tAddr = rawToU64 t in
+    let _ = scopePushChild sc tAddr in
+    let _ = readyPush tAddr in
+    u64ToI64 tAddr
+
+  coopTakeResultsLoop :: RawPtr U8 -> RawPtr I64 -> U64 -> U64 ->{Global} Unit
+  coopTakeResultsLoop members dst idx len =
+    if u64Ge idx len then ()
+    else
+      let t = maybeToRaw (ptrFromU64 (loadU64 members (u64ToIsize (u64Mul idx 8)))) in
+      let r = loadI64 t offCtResult in
+      let _ = storeI64 t offCtResult 0 in
+      let _ = storeI64 dst (u64ToIsize (u64Mul idx 8)) r in
+      coopTakeResultsLoop members dst (u64Add idx 1) len
+
+  cinchCoopTaskJoinAllOrCancel :: I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchCoopTaskJoinAllOrCancel _scopeWord handlesWord nWord outWord =
+    if i64Lt nWord 0 then
+      let _ = panicCorruptValue () in
+      0
+    else
+      let n = i64ToU64 nWord in
+      let members = maybeToRaw (ptrFromU64 (i64ToU64 handlesWord)) in
+      let out = maybeToRaw (ptrFromU64 (i64ToU64 outWord)) in
+      withLocal (fixedArrayRepeat 4 (0 :: U64)) (\jsArr ->
+        let js = ptrCast (mutAsPtr jsArr) in
+        let _ = storeU64 js offJsMembers (i64ToU64 handlesWord) in
+        let _ = storeU64 js offJsLen n in
+        let _ = storeI64 js offJsFirstErr (i64Sub 0 1) in
+        let tls = tlsPtr () in
+        let prevJs = loadU64 tls offTlsJoinsHead in
+        let _ = storeU64 js offJsPrev prevJs in
+        let _ = joinSetRefresh js in
+        let _ = storeU64 tls offTlsJoinsHead (rawToU64 js) in
+        let _ = awaitAllLoop members n in
+        let _ = storeU64 tls offTlsJoinsHead prevJs in
+        let firstErr = loadI64 js offJsFirstErr in
+        if i64Ge firstErr 0 then
+          let k = i64ToU64 firstErr in
+          let t = maybeToRaw (ptrFromU64 (loadU64 members (u64ToIsize (u64Mul k 8)))) in
+          let errWord = loadI64 t offCtResult in
+          let _ = storeI64 t offCtResult 0 in
+          joinFailed errWord out
+        else if n == 0 then 0
+        else
+          let resBuf = heapGlobalAlloc (u64ToUsize (u64Mul n 8)) 8 0 in
+          let resI64 = ptrCast resBuf in
+          let _ = coopTakeResultsLoop members resI64 0 n in
+          let mask = joinSucceeded resI64 n out in
+          let _ = heapGlobalDealloc resBuf (u64ToUsize (u64Mul n 8)) 8 in
+          mask
+      )
+
+  cancelPendingChildren :: RawPtr U8 -> U64 -> U64 -> Bool ->{Global} Bool
+  cancelPendingChildren buf idx len anyPending =
+    if u64Ge idx len then anyPending
+    else
+      let t = maybeToRaw (ptrFromU64 (loadU64 buf (u64ToIsize (u64Mul idx 8)))) in
+      if loadU64 t offCtDone == 0 then
+        let _ = storeU64 t offCtCancel 1 in
+        cancelPendingChildren buf (u64Add idx 1) len True
+      else
+        cancelPendingChildren buf (u64Add idx 1) len anyPending
+
+  closeDrainLoop :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  closeDrainLoop sc =
+    let len = loadU64 sc offCsLen in
+    let cdata = loadPtr sc offCsData in
+    let anyPending =
+          (if len == 0 || ptrIsNull cdata then False
+          else cancelPendingChildren (maybeToRaw cdata) 0 len False) in
+    if not anyPending && readyEmpty () then ()
+    else if pumpOne () then closeDrainLoop sc
+    else panicNoProgress ()
+
+  discardCoopChildren :: RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  discardCoopChildren buf idx len =
+    if u64Ge idx len then ()
+    else
+      let t = maybeToRaw (ptrFromU64 (loadU64 buf (u64ToIsize (u64Mul idx 8)))) in
+      let r = loadI64 t offCtResult in
+      let _ = storeI64 t offCtResult 0 in
+      let _ = discardResult r in
+      discardCoopChildren buf (u64Add idx 1) len
+
+  cinchCoopScopeClose :: I64 ->{Global, ThreadAffine} I64
+  cinchCoopScopeClose scopeWord =
+    let sc = maybeToRaw (ptrFromU64 (i64ToU64 scopeWord)) in
+    let _ = closeDrainLoop sc in
+    let len = loadU64 sc offCsLen in
+    let cap = loadU64 sc offCsCap in
+    let cdata = loadPtr sc offCsData in
+    let _ = (if len /= 0 && not (ptrIsNull cdata) then
+        discardCoopChildren (maybeToRaw cdata) 0 len
+      else ()) in
+    let _ = (if not (ptrIsNull cdata) && cap /= 0 then
+        heapGlobalDealloc (maybeToRaw cdata) (u64ToUsize (u64Mul cap 8)) 8
+      else ()) in
+    let _ = heapGlobalDealloc sc coopScopeBytes 8 in
+    0
+
+  cinchCoopTaskPollCancel :: Unit ->{Global, ThreadAffine} I64
+  cinchCoopTaskPollCancel _ =
+    let _ = drainLoop () in
+    if coopCurrentTaskCanceled () then 1 else 0
+
+  cinchCoopIoSleep :: I64 ->{Global, ThreadAffine} I64
+  cinchCoopIoSleep millis = coopIoSleep millis
+
+  cinchCoopParBoth :: I64 -> I64 -> I64 ->{Global} I64
+  cinchCoopParBoth f g outWord =
+    let _ = parBothSequential f g outWord in
+    0
+
+  cinchCoopParTabulate :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchCoopParTabulate n f cls = parTabulateSequential n f cls
+
+  cinchCoopParMapArray :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchCoopParMapArray f arr cls = parMapSequential f arr cls
+
+  cinchCoopParSetWorkers :: I64 ->{Global} I64
+  cinchCoopParSetWorkers n =
+    if i64Lt n 0 then
+      let _ = panicCorruptValue () in
+      0
+    else 0
+
+  foreign export ccall "cinch_coop_scope_open" cinchCoopScopeOpen :: Unit ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_scope_close" cinchCoopScopeClose :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_task_spawn" cinchCoopTaskSpawn :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_task_join_all_or_cancel" cinchCoopTaskJoinAllOrCancel :: I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_task_poll_cancel" cinchCoopTaskPollCancel :: Unit ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_io_sleep" cinchCoopIoSleep :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_par_both" cinchCoopParBoth :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_coop_par_tabulate" cinchCoopParTabulate :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_par_map_array" cinchCoopParMapArray :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_coop_par_set_workers" cinchCoopParSetWorkers :: I64 ->{Global} I64

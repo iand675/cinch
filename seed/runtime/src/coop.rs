@@ -473,6 +473,7 @@ fn drain() {
 
 /// Open a structured scope: the `withScope` entry (concurrency
 /// specification section 2).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_coop_scope_open() -> i64 {
     let scope = Arc::new(CoopScope::new());
@@ -481,6 +482,7 @@ pub extern "C" fn cinch_coop_scope_open() -> i64 {
 
 /// Scope exit: cancel every unjoined child, wait for each cleanup
 /// acknowledgment, and release the scope.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_scope_close(scope: i64) -> i64 {
     let owned = unsafe { Box::from_raw(scope as *mut Arc<CoopScope>) };
@@ -490,6 +492,7 @@ pub unsafe extern "C" fn cinch_coop_scope_close(scope: i64) -> i64 {
 }
 
 /// Spawn the body closure as a task of `scope`; returns the task handle.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_task_spawn(scope: i64, closure: i64) -> i64 {
     let scope = unsafe { &*(scope as *const Arc<CoopScope>) };
@@ -499,6 +502,7 @@ pub unsafe extern "C" fn cinch_coop_task_spawn(scope: i64, closure: i64) -> i64 
 /// `joinAllOrCancel` over the `n` handles at `handles`: the hand-over of
 /// `cinch_task_join_all_or_cancel` (a negative return is a failure, with
 /// its `Err` block in `out[0]`).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_task_join_all_or_cancel(
     scope: i64,
@@ -517,6 +521,7 @@ pub unsafe extern "C" fn cinch_coop_task_join_all_or_cancel(
 
 /// The cancellation observation point (section 4): 1 once cancellation
 /// has been requested for the running task, else 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_coop_task_poll_cancel() -> i64 {
     i64::from(poll_cancel())
@@ -525,6 +530,7 @@ pub extern "C" fn cinch_coop_task_poll_cancel() -> i64 {
 /// Sleep `millis` milliseconds as a suspension point: returns early with
 /// 0 (the Unit word) once cancellation is requested for the running task
 /// (concurrency specification section 4).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_coop_io_sleep(millis: i64) -> i64 {
     io_sleep(millis)
@@ -545,6 +551,7 @@ pub extern "C" fn cinch_coop_io_sleep(millis: i64) -> i64 {
 /// # Safety
 ///
 /// As for [`crate::par::cinch_par_both`].
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_par_both(f: i64, g: i64, out: i64) -> i64 {
     unsafe { crate::par::both_sequential(f, g, out) };
@@ -556,6 +563,7 @@ pub unsafe extern "C" fn cinch_coop_par_both(f: i64, g: i64, out: i64) -> i64 {
 /// # Safety
 ///
 /// As for [`crate::par::cinch_par_tabulate`].
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_par_tabulate(n: i64, f: i64, class: i64) -> i64 {
     unsafe { crate::par::tabulate_sequential(n, f, class) }
@@ -566,6 +574,7 @@ pub unsafe extern "C" fn cinch_coop_par_tabulate(n: i64, f: i64, class: i64) -> 
 /// # Safety
 ///
 /// As for [`crate::par::cinch_par_map_array`].
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_par_map_array(f: i64, arr: i64, class: i64) -> i64 {
     unsafe { crate::par::map_sequential(f, arr, class) }
@@ -573,10 +582,25 @@ pub unsafe extern "C" fn cinch_coop_par_map_array(f: i64, arr: i64, class: i64) 
 
 /// `parSetWorkers n`: this backend has one participant whatever `n` is.
 /// Returns 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_coop_par_set_workers(n: i64) -> i64 {
     if n < 0 {
         crate::abi::raise(crate::error::Error::CorruptValue);
     }
     0
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_coop_scope_open() -> i64;
+    pub fn cinch_coop_scope_close(scope: i64) -> i64;
+    pub fn cinch_coop_task_spawn(scope: i64, closure: i64) -> i64;
+    pub fn cinch_coop_task_join_all_or_cancel(scope: i64, handles: i64, n: i64, out: i64) -> i64;
+    pub fn cinch_coop_task_poll_cancel() -> i64;
+    pub fn cinch_coop_io_sleep(millis: i64) -> i64;
+    pub fn cinch_coop_par_both(f: i64, g: i64, out: i64) -> i64;
+    pub fn cinch_coop_par_tabulate(n: i64, f: i64, class: i64) -> i64;
+    pub fn cinch_coop_par_map_array(f: i64, arr: i64, class: i64) -> i64;
+    pub fn cinch_coop_par_set_workers(n: i64) -> i64;
 }

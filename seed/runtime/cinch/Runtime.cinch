@@ -15,6 +15,10 @@ module Runtime where
   import Runtime.Text
   import Runtime.Arrays
   import Runtime.Slots
+  import Runtime.Stack
+  import Runtime.Sched
+  import Runtime.Par
+  import Runtime.Coop
   import Runtime.Sync
 
   export cinchBlackhole, cinchPanic
@@ -52,3 +56,10 @@ module Runtime where
   export cinchMvarNew, cinchMvarAccess
   export cinchStmCellNew, cinchStmPublish, cinchStmState
   export cinchStmWaitBegin, cinchStmWaitCancel, cinchStmWaitPark, cinchStmWake, cinchStmYield
+  export cinchRunMain, cinchSchedBlockingEnter, cinchSchedBlockingExit
+  export cinchScopeOpen, cinchScopeClose, cinchTaskSpawn, cinchTaskJoinAllOrCancel, cinchTaskPollCancel
+  export cinchIoWrite, cinchIoRead, cinchIoSleep
+  export cinchParBoth, cinchParTabulate, cinchParMapArray, cinchParSetWorkers
+  export cinchCoopScopeOpen, cinchCoopScopeClose, cinchCoopTaskSpawn
+  export cinchCoopTaskJoinAllOrCancel, cinchCoopTaskPollCancel, cinchCoopIoSleep
+  export cinchCoopParBoth, cinchCoopParTabulate, cinchCoopParMapArray, cinchCoopParSetWorkers

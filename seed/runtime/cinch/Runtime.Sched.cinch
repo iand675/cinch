@@ -1,0 +1,1674 @@
+module Runtime.Sched where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.Arena
+  import Runtime.Bytes
+  import Runtime.Stack
+
+  export parkCurrent, parkClone, parkUnpark, parkDrop, parkWait, parkWaitTimeoutNs
+  export schedYieldNow, schedBlockingEnter, schedBlockingExit, schedHelpFloor
+  export taskCurrentCanceled, taskOkTag, taskErrTag
+  export joinFailed, joinSucceeded, discardResult, resultTag
+  export cinchRunMain, cinchSchedBlockingEnter, cinchSchedBlockingExit
+  export cinchScopeOpen, cinchScopeClose, cinchTaskSpawn, cinchTaskJoinAllOrCancel, cinchTaskPollCancel
+  export cinchIoWrite, cinchIoRead, cinchIoSleep
+
+  -- Temporary bridge to Rust eval::TLS until Milestone 8 migrates eval.rs to Cinch
+  foreign import ccall "cinch_rt_eval_swap_state" rtEvalSwapState :: RawPtr U8 ->{Global} Unit
+
+  -- Non-inlined C boundary for context switch (prevents red-zone use and TLS hoisting)
+  foreign import ccall "cinch_rt_fiber_switch" callFiberSwitch :: U64 -> U64 ->{Global} Unit
+
+  -- =========================================================================
+  -- Constants & Struct Layouts
+  -- =========================================================================
+
+  taskOkTag :: I64
+  taskOkTag = 1
+
+  taskErrTag :: I64
+  taskErrTag = 0
+
+  joinFailedCode :: I64
+  joinFailedCode = i64Sub 0 1
+
+  joinMaskBits :: U64
+  joinMaskBits = 62
+
+  taskStackBytes :: U64
+  taskStackBytes = 8388608 -- 8 MiB
+
+  workerStackBytes :: U64
+  workerStackBytes = u64Mul 2 stackMinBytes -- 512 KiB
+
+  stackCacheCap :: U64
+  stackCacheCap = 64
+
+  -- Context kinds
+  ctxThread :: U64
+  ctxThread = 0
+  ctxHelper :: U64
+  ctxHelper = 1
+  ctxFiber :: U64
+  ctxFiber = 2
+
+  -- Fiber states
+  fRunnable :: U64
+  fRunnable = 0
+  fRunning :: U64
+  fRunning = 1
+  fParking :: U64
+  fParking = 2
+  fParked :: U64
+  fParked = 3
+  fDone :: U64
+  fDone = 4
+
+  -- Common Context header offsets
+  offCtxRc :: Isize
+  offCtxRc = 0
+  offCtxKind :: Isize
+  offCtxKind = 8
+  offCtxToken :: Isize
+  offCtxToken = 16
+  offCtxBlocking :: Isize
+  offCtxBlocking = 24
+
+  -- Thread context (160 bytes)
+  offThreadMutex :: Isize
+  offThreadMutex = 32
+  offThreadCond :: Isize
+  offThreadCond = 96
+  threadCtxBytes :: Usize
+  threadCtxBytes = 160
+
+  -- Helper context (128 bytes)
+  offHelperCond :: Isize
+  offHelperCond = 32
+  offHelperPrev :: Isize
+  offHelperPrev = 96
+  offHelperNext :: Isize
+  offHelperNext = 104
+  offHelperAsleep :: Isize
+  offHelperAsleep = 112
+  helperCtxBytes :: Usize
+  helperCtxBytes = 128
+
+  -- Fiber context (176 bytes)
+  offFiberState :: Isize
+  offFiberState = 32
+  offFiberSp :: Isize
+  offFiberSp = 40
+  offFiberStack :: Isize
+  offFiberStack = 48
+  offFiberZoneLo :: Isize
+  offFiberZoneLo = 56
+  offFiberZoneHi :: Isize
+  offFiberZoneHi = 64
+  offFiberScope :: Isize
+  offFiberScope = 72
+  offFiberTask :: Isize
+  offFiberTask = 80
+  offFiberClosure :: Isize
+  offFiberClosure = 88
+  offFiberLocalTask :: Isize
+  offFiberLocalTask = 96
+  offFiberLocalArena :: Isize
+  offFiberLocalArena = 104
+  offFiberEvalLo :: Isize
+  offFiberEvalLo = 112
+  offFiberEvalHi :: Isize
+  offFiberEvalHi = 120
+  offFiberRunNext :: Isize
+  offFiberRunNext = 128
+  offFiberTimerPrev :: Isize
+  offFiberTimerPrev = 136
+  offFiberTimerNext :: Isize
+  offFiberTimerNext = 144
+  offFiberTimerDeadline :: Isize
+  offFiberTimerDeadline = 152
+  offFiberInTimer :: Isize
+  offFiberInTimer = 160
+  fiberCtxBytes :: Usize
+  fiberCtxBytes = 176
+
+  -- Per-thread Run struct (64 bytes, stored in pthread_key_t)
+  offRunSchedSp :: Isize
+  offRunSchedSp = 0
+  offRunFiber :: Isize
+  offRunFiber = 8
+  offRunHelper :: Isize
+  offRunHelper = 16
+  offRunDeadline :: Isize
+  offRunDeadline = 24
+  offRunSpare :: Isize
+  offRunSpare = 32
+  offRunTask :: Isize
+  offRunTask = 40
+  offRunThreadCtx :: Isize
+  offRunThreadCtx = 48
+  runStructBytes :: Usize
+  runStructBytes = 64
+
+  -- TaskState (32 bytes, leaked by design like Rust Arc::into_raw)
+  offTaskCancel :: Isize
+  offTaskCancel = 0
+  offTaskDone :: Isize
+  offTaskDone = 8
+  offTaskResult :: Isize
+  offTaskResult = 16
+  offTaskParker :: Isize
+  offTaskParker = 24
+  taskStateBytes :: Usize
+  taskStateBytes = 32
+
+  -- Scope (128 bytes)
+  offScopeRc :: Isize
+  offScopeRc = 0
+  offScopeMutex :: Isize
+  offScopeMutex = 8
+  offScopeChildrenData :: Isize
+  offScopeChildrenData = 72
+  offScopeChildrenLen :: Isize
+  offScopeChildrenLen = 80
+  offScopeChildrenCap :: Isize
+  offScopeChildrenCap = 88
+  offScopeFailed :: Isize
+  offScopeFailed = 96
+  offScopeWaitersData :: Isize
+  offScopeWaitersData = 104
+  offScopeWaitersLen :: Isize
+  offScopeWaitersLen = 112
+  offScopeWaitersCap :: Isize
+  offScopeWaitersCap = 120
+  scopeBytes :: Usize
+  scopeBytes = 128
+
+  -- =========================================================================
+  -- Context Switch (AArch64 + x86_64)
+  -- =========================================================================
+
+  prim fiberSwitchPrim :: U64 -> U64 ->{Global} Unit where
+    unsafe llvm {
+      %ign = call { i64, i64 } asm sideeffect "sub sp, sp, #176\0Astp x19, x20, [sp, #0]\0Astp x21, x22, [sp, #16]\0Astp x23, x24, [sp, #32]\0Astp x25, x26, [sp, #48]\0Astp x27, x28, [sp, #64]\0Aadr x9, 1f\0Astp x29, x9, [sp, #80]\0Astp d8, d9, [sp, #96]\0Astp d10, d11, [sp, #112]\0Astp d12, d13, [sp, #128]\0Astp d14, d15, [sp, #144]\0Astp x0, x30, [sp, #160]\0Amov x9, sp\0Astr x9, [x0]\0Amov sp, x1\0Aldp x19, x20, [sp, #0]\0Aldp x21, x22, [sp, #16]\0Aldp x23, x24, [sp, #32]\0Aldp x25, x26, [sp, #48]\0Aldp x27, x28, [sp, #64]\0Aldp x29, x9, [sp, #80]\0Aldp d8, d9, [sp, #96]\0Aldp d10, d11, [sp, #112]\0Aldp d12, d13, [sp, #128]\0Aldp d14, d15, [sp, #144]\0Aldp x0, x30, [sp, #160]\0Aadd sp, sp, #176\0Abr x9\0A1:\0A", "={x0},={x1},0,1,~{x2},~{x3},~{x4},~{x5},~{x6},~{x7},~{x8},~{x9},~{x10},~{x11},~{x12},~{x13},~{x14},~{x15},~{x16},~{x17},~{x30},~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7},~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31},~{cc},~{memory}"(i64 %0, i64 %1)
+      ret void
+    } when arch aarch64
+    unsafe llvm {
+      %ign = call { i64, i64 } asm sideeffect "subq $$72, %rsp\0Astmxcsr (%rsp)\0Afnstcw 4(%rsp)\0Amovq %r15, 8(%rsp)\0Amovq %r14, 16(%rsp)\0Amovq %r13, 24(%rsp)\0Amovq %r12, 32(%rsp)\0Amovq %rbx, 40(%rsp)\0Amovq %rbp, 48(%rsp)\0Amovq %rdi, 56(%rsp)\0Aleaq 1f(%rip), %rax\0Amovq %rax, 64(%rsp)\0Amovq %rsp, (%rdi)\0Amovq %rsi, %rsp\0Aldmxcsr (%rsp)\0Afldcw 4(%rsp)\0Amovq 8(%rsp), %r15\0Amovq 16(%rsp), %r14\0Amovq 24(%rsp), %r13\0Amovq 32(%rsp), %r12\0Amovq 40(%rsp), %rbx\0Amovq 48(%rsp), %rbp\0Amovq 56(%rsp), %rdi\0Aaddq $$64, %rsp\0Aret\0A1:\0A", "={rdi},={rsi},0,1,~{rax},~{rcx},~{rdx},~{r8},~{r9},~{r10},~{r11},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %0, i64 %1)
+      ret void
+    } when arch x86_64
+    unsafe llvm {
+      ret void
+    }
+
+  cinchRtFiberSwitch :: U64 -> U64 ->{Global} Unit
+  cinchRtFiberSwitch saveAddr toSp = fiberSwitchPrim saveAddr toSp
+
+  foreign export ccall "cinch_rt_fiber_switch" cinchRtFiberSwitch :: U64 -> U64 ->{Global} Unit
+
+  prim isAarch64Prim :: I64 -> Bool where
+    unsafe llvm { ret i8 1 } when arch aarch64
+    unsafe llvm { ret i8 0 }
+
+  prim fiberMainAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_fiber_main to i64
+      ret i64 %a
+    } uses (cinch_rt_fiber_main :: I64 -> Unit)
+
+  prim workerEntryAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_sched_worker_entry to i64
+      ret i64 %a
+    } uses (cinch_rt_sched_worker_entry :: I64 -> Unit)
+
+  prim workerGuardedAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_sched_worker_guarded to i64
+      ret i64 %a
+    } uses (cinch_rt_sched_worker_guarded :: I64 -> Unit)
+
+  prim tlsDtorAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_sched_tls_dtor to i64
+      ret i64 %a
+    } uses (cinch_rt_sched_tls_dtor :: I64 -> Unit)
+
+  prim mainThreadEntryAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_main_thread_entry to i64
+      ret i64 %a
+    } uses (cinch_rt_main_thread_entry :: I64 -> Unit)
+
+  prim mainGuardedAddrPrim :: I64 -> U64 where
+    unsafe llvm {
+      %a = ptrtoint ptr @cinch_rt_main_guarded to i64
+      ret i64 %a
+    } uses (cinch_rt_main_guarded :: I64 -> Unit)
+
+  prepareFiberStack :: U64 -> U64 -> U64 ->{Global} U64
+  prepareFiberStack top entryAddr arg =
+    if isAarch64Prim 0 then
+      let sp = u64Sub (u64Sub top 16) 176 in
+      let frame = maybeToRaw (ptrFromU64 sp) in
+      let _ = memZero frame 176 in
+      let _ = storeU64 frame 80 0 in          -- x29 = 0
+      let _ = storeU64 frame 88 entryAddr in  -- x9 = entry
+      let _ = storeU64 frame 160 arg in       -- x0 = arg
+      let _ = storeU64 frame 168 0 in         -- x30 = 0
+      sp
+    else
+      -- x86_64: fake return address 0 at top - 8; 72-byte frame at top - 80
+      let _ = storeU64 (maybeToRaw (ptrFromU64 (u64Sub top 8))) 0 0 in
+      let sp = u64Sub top 80 in
+      let frame = maybeToRaw (ptrFromU64 sp) in
+      let _ = memZero frame 72 in
+      -- FP_CONTROL = 0x1F80 | (0x037F << 32) = 3844001439616
+      let _ = storeU64 frame 0 3844001439616 in
+      let _ = storeU64 frame 48 0 in          -- rbp = 0
+      let _ = storeU64 frame 56 arg in        -- rdi = arg
+      let _ = storeU64 frame 64 entryAddr in  -- ret target = entry
+      sp
+
+  -- =========================================================================
+  -- Global Scheduler State (initialized once)
+  -- =========================================================================
+
+  -- initState: [0]=state(0/1/2), [1]=tlsKey, [2]=queuedAtomic
+  #[static_mut]
+  static schedMeta :: FixedArray 4 U64
+
+  #[static_mut]
+  static schedMutexBuf :: FixedArray 64 U8
+
+  #[static_mut]
+  static schedIdleCondBuf :: FixedArray 64 U8
+
+  -- Shared fields (protected by schedMutex):
+  -- [0]=runHead, [1]=runTail, [2]=runLen, [3]=timerHead, [4]=workers,
+  -- [5]=idle, [6]=roused, [7]=helpers, [8]=asleepHead, [9]=asleepTail,
+  -- [10]=blocked, [11]=foreign, [12]=stackCacheLen
+  #[static_mut]
+  static schedShared :: FixedArray 16 U64
+
+  #[static_mut]
+  static schedStackCache :: FixedArray 64 U64
+
+  offShRunHead :: Isize
+  offShRunHead = 0
+  offShRunTail :: Isize
+  offShRunTail = 8
+  offShRunLen :: Isize
+  offShRunLen = 16
+  offShTimerHead :: Isize
+  offShTimerHead = 24
+  offShWorkers :: Isize
+  offShWorkers = 32
+  offShIdle :: Isize
+  offShIdle = 40
+  offShRoused :: Isize
+  offShRoused = 48
+  offShHelpers :: Isize
+  offShHelpers = 56
+  offShAsleepHead :: Isize
+  offShAsleepHead = 64
+  offShAsleepTail :: Isize
+  offShAsleepTail = 72
+  offShBlocked :: Isize
+  offShBlocked = 80
+  offShForeign :: Isize
+  offShForeign = 88
+  offShCacheLen :: Isize
+  offShCacheLen = 96
+
+  schedMtx :: Unit ->{Global} RawPtr U8
+  schedMtx _ = ptrCast (schedMutexBuf ())
+
+  schedIdleCond :: Unit ->{Global} RawPtr U8
+  schedIdleCond _ = ptrCast (schedIdleCondBuf ())
+
+  shPtr :: Unit ->{Global} RawPtr U8
+  shPtr _ = ptrCast (schedShared ())
+
+  waitSchedInit :: RawPtr U8 ->{Global} Unit
+  waitSchedInit meta =
+    if atomicLoadU64Acquire meta 0 == 2 then ()
+    else
+      let _ = sysSpinLoop () in
+      waitSchedInit meta
+
+  schedEnsureInit :: Unit ->{Global} U64
+  schedEnsureInit _ =
+    let meta = ptrCast (schedMeta ()) in
+    if atomicLoadU64Acquire meta 0 == 2 then atomicLoadU64Relaxed meta 8
+    else if atomicCasU64Bool meta 0 0 1 then
+      let _ = cPthreadMutexInit (schedMtx ()) (ptrNull ()) in
+      let _ = cPthreadCondInit (schedIdleCond ()) (ptrNull ()) in
+      let key = withLocal (0 :: U64) (\slot ->
+        let rc = cPthreadKeyCreate (mutAsPtr slot) (ptrFromU64 (tlsDtorAddrPrim 0)) in
+        if rc /= 0 then
+          let _ = exhaustedThreads () in
+          0
+        else loadU64 (mutAsPtr slot) 0
+      ) in
+      let _ = atomicStoreU64Relaxed meta 8 key in
+      let _ = atomicStoreU64Release meta 0 2 in
+      key
+    else
+      let _ = waitSchedInit meta in
+      atomicLoadU64Relaxed meta 8
+
+  schedLock :: Unit ->{Global} Unit
+  schedLock _ =
+    let _ = schedEnsureInit () in
+    let _ = cPthreadMutexLock (schedMtx ()) in
+    ()
+
+  schedUnlock :: Unit ->{Global} Unit
+  schedUnlock _ =
+    let _ = cPthreadMutexUnlock (schedMtx ()) in
+    ()
+
+  -- Get or allocate per-thread Run struct via pthread_getspecific (migration-safe)
+  getRun :: Unit ->{Global, ThreadAffine} RawPtr U8
+  getRun _ =
+    let key = schedEnsureInit () in
+    let existing = cPthreadGetSpecific key in
+    if not (ptrIsNull existing) then maybeToRaw existing
+    else
+      let p = heapGlobalAlloc runStructBytes 8 1 in
+      let _ = cPthreadSetSpecific key (rawToMaybe p) in
+      p
+
+  getRunIfExists :: Unit ->{Global} MaybeNull U8
+  getRunIfExists _ =
+    let key = schedEnsureInit () in
+    cPthreadGetSpecific key
+
+  -- =========================================================================
+  -- Context Refcounting & Lifecycle
+  -- =========================================================================
+
+  parkClone :: U64 ->{Global} U64
+  parkClone ctx =
+    if ctx == 0 then 0
+    else
+      let _ = atomicAddU64Relaxed (maybeToRaw (ptrFromU64 ctx)) offCtxRc 1 in
+      ctx
+
+  parkDrop :: U64 ->{Global, ThreadAffine} Unit
+  parkDrop ctx =
+    if ctx == 0 then ()
+    else
+      let p = maybeToRaw (ptrFromU64 ctx) in
+      let prev = atomicSubU64AcqRel p offCtxRc 1 in
+      if prev /= 1 then ()
+      else
+        let _ = fenceAcquire () in
+        let kind = loadU64 p offCtxKind in
+        if kind == ctxThread then
+          let _ = cPthreadCondDestroy (ptrAdd p offThreadCond) in
+          let _ = cPthreadMutexDestroy (ptrAdd p offThreadMutex) in
+          heapGlobalDealloc p threadCtxBytes 8
+        else if kind == ctxHelper then
+          let _ = cPthreadCondDestroy (ptrAdd p offHelperCond) in
+          heapGlobalDealloc p helperCtxBytes 8
+        else
+          heapGlobalDealloc p fiberCtxBytes 8
+
+  getOrCreateThreadCtx :: RawPtr U8 ->{Global, ThreadAffine} U64
+  getOrCreateThreadCtx run =
+    let cur = loadU64 run offRunThreadCtx in
+    if cur /= 0 then cur
+    else
+      let p = heapGlobalAlloc threadCtxBytes 8 1 in
+      let _ = storeU64 p offCtxRc 1 in
+      let _ = storeU64 p offCtxKind ctxThread in
+      let _ = cPthreadMutexInit (ptrAdd p offThreadMutex) (ptrNull ()) in
+      let _ = cPthreadCondInit (ptrAdd p offThreadCond) (ptrNull ()) in
+      let addr = rawToU64 p in
+      let _ = storeU64 run offRunThreadCtx addr in
+      addr
+
+  -- =========================================================================
+  -- Stack Pool (per-thread spare + global cache of up to 64 stacks)
+  -- =========================================================================
+
+  mapFiberStack :: Unit ->{Global} U64
+  mapFiberStack _ =
+    let base = sysMmapReserve (u64ToUsize taskStackBytes) in
+    if ptrIsNull base then
+      let _ = exhaustedStack () in
+      0
+    else
+      let baseP = maybeToRaw base in
+      let usable = ptrAddU64 baseP stackGuardBytes in
+      let rw = i64ToI32 (bitOrI64 (i32ToI64 sysProtRead) (i32ToI64 sysProtWrite)) in
+      if sysMprotect usable (u64ToUsize (u64Sub taskStackBytes stackGuardBytes)) rw /= 0 then
+        let _ = sysMunmap baseP (u64ToUsize taskStackBytes) in
+        let _ = exhaustedStack () in
+        0
+      else rawToU64 baseP
+
+  obtainFiberStack :: Unit ->{Global, ThreadAffine} U64
+  obtainFiberStack _ =
+    let run = getRun () in
+    let spare = loadU64 run offRunSpare in
+    if spare /= 0 then
+      let _ = storeU64 run offRunSpare 0 in
+      spare
+    else
+      let _ = schedLock () in
+      let sh = shPtr () in
+      let len = loadU64 sh offShCacheLen in
+      if u64Gt len 0 then
+        let nextLen = u64Sub len 1 in
+        let base = loadU64 (ptrCast (schedStackCache ())) (u64ToIsize (u64Mul nextLen 8)) in
+        let _ = storeU64 sh offShCacheLen nextLen in
+        let _ = schedUnlock () in
+        base
+      else
+        let _ = schedUnlock () in
+        mapFiberStack ()
+
+  cacheFiberStack :: U64 ->{Global} Unit
+  cacheFiberStack base =
+    let _ = schedLock () in
+    let sh = shPtr () in
+    let len = loadU64 sh offShCacheLen in
+    if u64Lt len stackCacheCap then
+      let _ = storeU64 (ptrCast (schedStackCache ())) (u64ToIsize (u64Mul len 8)) base in
+      let _ = storeU64 sh offShCacheLen (u64Add len 1) in
+      schedUnlock ()
+    else
+      let _ = schedUnlock () in
+      let _ = sysMunmap (maybeToRaw (ptrFromU64 base)) (u64ToUsize taskStackBytes) in
+      ()
+
+  recycleFiberStack :: U64 ->{Global, ThreadAffine} Unit
+  recycleFiberStack base =
+    let run = getRun () in
+    if loadU64 run offRunSpare == 0 then
+      storeU64 run offRunSpare base
+    else
+      cacheFiberStack base
+
+  releaseSpare :: Unit ->{Global} Unit
+  releaseSpare _ =
+    let rp = getRunIfExists () in
+    if ptrIsNull rp then ()
+    else
+      let run = maybeToRaw rp in
+      let spare = loadU64 run offRunSpare in
+      if spare /= 0 then
+        let _ = storeU64 run offRunSpare 0 in
+        cacheFiberStack spare
+      else ()
+
+  cinchRtSchedTlsDtor :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+  cinchRtSchedTlsDtor rp =
+    if ptrIsNull rp then ()
+    else
+      let run = maybeToRaw rp in
+      let spare = loadU64 run offRunSpare in
+      let _ = if spare /= 0 then cacheFiberStack spare else () in
+      let tctx = loadU64 run offRunThreadCtx in
+      let _ = if tctx /= 0 then parkDrop tctx else () in
+      heapGlobalDealloc run runStructBytes 8
+
+  foreign export ccall "cinch_rt_sched_tls_dtor" cinchRtSchedTlsDtor :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+
+  -- =========================================================================
+  -- Shared Queue, Asleep Helpers, Timers, Workers (all called under schedLock)
+  -- =========================================================================
+
+  shAllowed :: RawPtr U8 ->{Global} U64
+  shAllowed sh =
+    let b = parBudget () in
+    let helpers = loadU64 sh offShHelpers in
+    let ownBudget = u64SatSub b helpers in
+    let fgn = loadU64 sh offShForeign in
+    let base = if fgn /= 0 && ownBudget == 0 then 1 else ownBudget in
+    u64Add base (loadU64 sh offShBlocked)
+
+  shAsleepPush :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  shAsleepPush sh h =
+    let hAddr = rawToU64 h in
+    let tail = loadU64 sh offShAsleepTail in
+    let _ = storeU64 h offHelperPrev tail in
+    let _ = storeU64 h offHelperNext 0 in
+    let _ = storeU64 h offHelperAsleep 1 in
+    let _ = (if tail /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 tail)) offHelperNext hAddr
+      else
+        storeU64 sh offShAsleepHead hAddr) in
+    storeU64 sh offShAsleepTail hAddr
+
+  shAsleepRemove :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  shAsleepRemove sh h =
+    let prev = loadU64 h offHelperPrev in
+    let next = loadU64 h offHelperNext in
+    let _ = (if prev /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 prev)) offHelperNext next
+      else
+        storeU64 sh offShAsleepHead next) in
+    let _ = (if next /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 next)) offHelperPrev prev
+      else
+        storeU64 sh offShAsleepTail prev) in
+    let _ = storeU64 h offHelperPrev 0 in
+    let _ = storeU64 h offHelperNext 0 in
+    storeU64 h offHelperAsleep 0
+
+  shAsleepPop :: RawPtr U8 ->{Global} U64
+  shAsleepPop sh =
+    let tail = loadU64 sh offShAsleepTail in
+    if tail == 0 then 0
+    else
+      let h = maybeToRaw (ptrFromU64 tail) in
+      let _ = shAsleepRemove sh h in
+      tail
+
+  shWakeSleeper :: RawPtr U8 ->{Global} Bool
+  shWakeSleeper sh =
+    let idle = loadU64 sh offShIdle in
+    let roused = loadU64 sh offShRoused in
+    if u64Gt idle roused then
+      let _ = storeU64 sh offShRoused (u64Add roused 1) in
+      let _ = cPthreadCondSignal (schedIdleCond ()) in
+      True
+    else
+      let hAddr = shAsleepPop sh in
+      if hAddr /= 0 then
+        let _ = storeU64 sh offShRoused (u64Add roused 1) in
+        let h = maybeToRaw (ptrFromU64 hAddr) in
+        let _ = cPthreadCondSignal (ptrAdd h offHelperCond) in
+        True
+      else False
+
+  shRouse :: RawPtr U8 ->{Global} Unit
+  shRouse sh =
+    if shWakeSleeper sh then ()
+    else
+      let workers = loadU64 sh offShWorkers in
+      if u64Lt workers (shAllowed sh) then
+        let _ = storeU64 sh offShWorkers (u64Add workers 1) in
+        let _ = storeU64 sh offShIdle (u64Add (loadU64 sh offShIdle) 1) in
+        let _ = storeU64 sh offShRoused (u64Add (loadU64 sh offShRoused) 1) in
+        let _ = stackSpawnThread workerStackBytes (workerEntryAddrPrim 0) (ptrNull ()) True in
+        ()
+      else ()
+
+  -- Consumes 1 owned ref to fiber
+  shPushFiber :: RawPtr U8 -> U64 ->{Global} Unit
+  shPushFiber sh fiberAddr =
+    let f = maybeToRaw (ptrFromU64 fiberAddr) in
+    let _ = storeU64 f offFiberRunNext 0 in
+    let tail = loadU64 sh offShRunTail in
+    let _ = (if tail /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 tail)) offFiberRunNext fiberAddr
+      else
+        storeU64 sh offShRunHead fiberAddr) in
+    let _ = storeU64 sh offShRunTail fiberAddr in
+    let newLen = u64Add (loadU64 sh offShRunLen) 1 in
+    let _ = storeU64 sh offShRunLen newLen in
+    let _ = atomicStoreU64Relaxed (ptrCast (schedMeta ())) 16 newLen in
+    shRouse sh
+
+  -- Returns owned ref to fiber, or 0
+  shPopFiber :: RawPtr U8 ->{Global} U64
+  shPopFiber sh =
+    let head = loadU64 sh offShRunHead in
+    if head == 0 then 0
+    else
+      let f = maybeToRaw (ptrFromU64 head) in
+      let next = loadU64 f offFiberRunNext in
+      let _ = storeU64 f offFiberRunNext 0 in
+      let _ = storeU64 sh offShRunHead next in
+      let _ = if next == 0 then storeU64 sh offShRunTail 0 else () in
+      let newLen = u64Sub (loadU64 sh offShRunLen) 1 in
+      let _ = storeU64 sh offShRunLen newLen in
+      let _ = atomicStoreU64Relaxed (ptrCast (schedMeta ())) 16 newLen in
+      head
+
+  shArrive :: RawPtr U8 ->{Global} Unit
+  shArrive sh =
+    let _ = storeU64 sh offShIdle (u64Sub (loadU64 sh offShIdle) 1) in
+    storeU64 sh offShRoused (u64SatSub (loadU64 sh offShRoused) 1)
+
+  shUnclaimed :: RawPtr U8 ->{Global} Bool
+  shUnclaimed sh = u64Gt (loadU64 sh offShRunLen) (loadU64 sh offShRoused)
+
+  -- Sorted doubly-linked timer list (under schedLock)
+  shTimerInsertLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 -> U64 ->{Global} Unit
+  shTimerInsertLoop sh f fAddr deadline cur =
+    let curP = maybeToRaw (ptrFromU64 cur) in
+    let curDl = loadU64 curP offFiberTimerDeadline in
+    if u64Lt deadline curDl then
+      let prev = loadU64 curP offFiberTimerPrev in
+      let _ = storeU64 f offFiberTimerPrev prev in
+      let _ = storeU64 f offFiberTimerNext cur in
+      let _ = storeU64 curP offFiberTimerPrev fAddr in
+      if prev /= 0 then
+        storeU64 (maybeToRaw (ptrFromU64 prev)) offFiberTimerNext fAddr
+      else
+        storeU64 sh offShTimerHead fAddr
+    else
+      let next = loadU64 curP offFiberTimerNext in
+      if next == 0 then
+        let _ = storeU64 f offFiberTimerPrev cur in
+        let _ = storeU64 f offFiberTimerNext 0 in
+        storeU64 curP offFiberTimerNext fAddr
+      else
+        shTimerInsertLoop sh f fAddr deadline next
+
+  shTimerAdd :: U64 -> U64 ->{Global} Unit
+  shTimerAdd fiberAddr deadline =
+    let _ = schedLock () in
+    let sh = shPtr () in
+    let f = maybeToRaw (ptrFromU64 fiberAddr) in
+    let _ = parkClone fiberAddr in
+    let _ = storeU64 f offFiberTimerDeadline deadline in
+    let _ = storeU64 f offFiberInTimer 1 in
+    let head = loadU64 sh offShTimerHead in
+    let _ = (if head == 0 then
+        let _ = storeU64 f offFiberTimerPrev 0 in
+        let _ = storeU64 f offFiberTimerNext 0 in
+        storeU64 sh offShTimerHead fiberAddr
+      else
+        shTimerInsertLoop sh f fiberAddr deadline head) in
+    let _ = if loadU64 sh offShTimerHead == fiberAddr then (let _ = shWakeSleeper sh in ()) else () in
+    schedUnlock ()
+
+  shTimerUnlink :: RawPtr U8 -> RawPtr U8 ->{Global} Bool
+  shTimerUnlink sh f =
+    if loadU64 f offFiberInTimer == 0 then False
+    else
+      let prev = loadU64 f offFiberTimerPrev in
+      let next = loadU64 f offFiberTimerNext in
+      let _ = (if prev /= 0 then
+          storeU64 (maybeToRaw (ptrFromU64 prev)) offFiberTimerNext next
+        else
+          storeU64 sh offShTimerHead next) in
+      let _ = (if next /= 0 then
+          storeU64 (maybeToRaw (ptrFromU64 next)) offFiberTimerPrev prev
+        else ()) in
+      let _ = storeU64 f offFiberTimerPrev 0 in
+      let _ = storeU64 f offFiberTimerNext 0 in
+      let _ = storeU64 f offFiberInTimer 0 in
+      True
+
+  shTimerRemove :: U64 ->{Global, ThreadAffine} Unit
+  shTimerRemove fiberAddr =
+    let _ = schedLock () in
+    let sh = shPtr () in
+    let removed = shTimerUnlink sh (maybeToRaw (ptrFromU64 fiberAddr)) in
+    let _ = schedUnlock () in
+    if removed then parkDrop fiberAddr else ()
+
+  shFireTimers :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  shFireTimers sh now =
+    let head = loadU64 sh offShTimerHead in
+    if head == 0 then ()
+    else
+      let f = maybeToRaw (ptrFromU64 head) in
+      let dl = loadU64 f offFiberTimerDeadline in
+      if u64Gt dl now then ()
+      else
+        let _ = shTimerUnlink sh f in
+        let _ = atomicStoreU64SeqCst f offCtxToken 1 in
+        let _ = (if atomicCasU64SeqCst f offFiberState fParked fRunnable then
+            -- Transfers the timer's ref directly into the run queue!
+            shPushFiber sh head
+          else
+            -- Ref not transferred; drop after unlocking? Ref > 1 because fiber is still live on stack/caller!
+            parkDrop head) in
+        shFireTimers sh now
+
+  #[repr(value)]
+  record NextWork where
+    nwFiber :: U64
+    nwHasSleep :: Bool
+    nwSleepNs :: U64
+
+  shNext :: RawPtr U8 ->{Global, ThreadAffine} NextWork
+  shNext sh =
+    let head = loadU64 sh offShTimerHead in
+    let hasSleep = head /= 0 in
+    let sleepNs =
+          (if hasSleep then
+            let now = sysMonotonicNs () in
+            let _ = shFireTimers sh now in
+            let h2 = loadU64 sh offShTimerHead in
+            if h2 == 0 then 0
+            else
+              let dl = loadU64 (maybeToRaw (ptrFromU64 h2)) offFiberTimerDeadline in
+              u64SatSub dl now
+          else 0) in
+    let stillHas = loadU64 sh offShTimerHead /= 0 in
+    let fib = shPopFiber sh in
+    NextWork fib stillHas sleepNs
+
+  -- =========================================================================
+  -- Running and Suspending Fibers
+  -- =========================================================================
+
+  panicFiberState :: Bool ->{Global} Unit
+  panicFiberState isResumed =
+    withLocal (fixedArrayRepeat 64 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      if isResumed then
+        -- "compiler bug: a finished fiber was resumed" (42 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 97 32 in
+        let _ = put8 p 16 102 105 110 105 115 104 101 100 in
+        let _ = put8 p 24 32 102 105 98 101 114 32 119 in
+        let _ = put8 p 32 97 115 32 114 101 115 117 109 in
+        let _ = storeU8 p 40 101 in
+        let _ = storeU8 p 41 100 in
+        panicExitBytes p 42
+      else
+        -- "compiler bug: invalid fiber state" (33 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 105 110 in
+        let _ = put8 p 16 118 97 108 105 100 32 102 105 in
+        let _ = put8 p 24 98 101 114 32 115 116 97 116 in
+        let _ = storeU8 p 32 101 in
+        panicExitBytes p 33
+    )
+
+  suspendFiber :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  suspendFiber f =
+    let run = getRun () in
+    let schedSp = loadU64 run offRunSchedSp in
+    callFiberSwitch (rawToU64 (ptrAdd f offFiberSp)) schedSp
+
+  parkFiber :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  parkFiber f =
+    let _ = atomicStoreU64SeqCst f offFiberState fParking in
+    let _ = suspendFiber f in
+    atomicStoreU64SeqCst f offCtxToken 0
+
+  -- Takes 1 owned ref to fiber
+  runFiber :: U64 ->{Global, ThreadAffine} Unit
+  runFiber fiberAddr =
+    let f = maybeToRaw (ptrFromU64 fiberAddr) in
+    let _ = (if loadU64 f offFiberStack == 0 then
+        let base = obtainFiberStack () in
+        let _ = storeU64 f offFiberStack base in
+        let _ = storeU64 f offFiberZoneLo base in
+        let _ = storeU64 f offFiberZoneHi (u64Add base stackGuardBytes) in
+        let sp = prepareFiberStack (u64Add base taskStackBytes) (fiberMainAddrPrim 0) fiberAddr in
+        storeU64 f offFiberSp sp
+      else ()) in
+    let _ = atomicStoreU64SeqCst f offFiberState fRunning in
+    -- Install fiber-local state, saving thread's own state in locals
+    let run = getRun () in
+    let ownTask = loadU64 run offRunTask in
+    let _ = storeU64 run offRunTask (loadU64 f offFiberLocalTask) in
+    let _ = storeU64 f offFiberLocalTask 0 in
+    let ownArena = arenaReplaceCurrent (ptrFromU64 (loadU64 f offFiberLocalArena)) in
+    let _ = storeU64 f offFiberLocalArena 0 in
+    -- Swap eval state via fiber's 16-byte buffer at offFiberEvalLo
+    let _ = rtEvalSwapState (ptrAdd f offFiberEvalLo) in
+    let ownZone = stackSwapZone (rawToMaybe (ptrAdd f offFiberZoneLo)) in
+    let _ = storeU64 run offRunFiber fiberAddr in
+    let _ = callFiberSwitch (rawToU64 (ptrAdd run offRunSchedSp)) (loadU64 f offFiberSp) in
+    let _ = storeU64 run offRunFiber 0 in
+    -- Restore thread's own state, saving fiber's state back into fiber
+    let _ = stackSwapZone ownZone in
+    let _ = rtEvalSwapState (ptrAdd f offFiberEvalLo) in
+    let fibArena = arenaReplaceCurrent ownArena in
+    let _ = storeU64 f offFiberLocalArena (ptrToU64 fibArena) in
+    let fibTask = loadU64 run offRunTask in
+    let _ = storeU64 f offFiberLocalTask fibTask in
+    let _ = storeU64 run offRunTask ownTask in
+    let st = atomicLoadU64SeqCst f offFiberState in
+    if st == fParking then
+      let _ = atomicStoreU64SeqCst f offFiberState fParked in
+      if atomicLoadU64SeqCst f offCtxToken /= 0 && atomicCasU64SeqCst f offFiberState fParked fRunnable then
+        let _ = schedLock () in
+        let _ = shPushFiber (shPtr ()) fiberAddr in
+        schedUnlock ()
+      else
+        parkDrop fiberAddr
+    else if st == fDone then
+      let _ = storeU64 f offFiberLocalTask 0 in
+      let _ = storeU64 f offFiberLocalArena 0 in
+      let _ = storeU64 f offFiberZoneLo 0 in
+      let _ = storeU64 f offFiberZoneHi 0 in
+      let base = loadU64 f offFiberStack in
+      let _ = storeU64 f offFiberStack 0 in
+      let _ = if base /= 0 then recycleFiberStack base else () in
+      parkDrop fiberAddr
+    else
+      panicFiberState False
+
+  workerLoop :: Unit ->{Global, ThreadAffine} Unit
+  workerLoop _ =
+    let _ = schedLock () in
+    let sh = shPtr () in
+    let _ = shArrive sh in
+    workerStep sh
+
+  workerStep :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  workerStep sh =
+    let nw = shNext sh in
+    if nw.nwFiber /= 0 then
+      let _ = schedUnlock () in
+      let _ = runFiber nw.nwFiber in
+      let _ = schedLock () in
+      workerStep sh
+    else if u64Gt (loadU64 sh offShWorkers) (shAllowed sh) then
+      let _ = storeU64 sh offShWorkers (u64Sub (loadU64 sh offShWorkers) 1) in
+      let _ = schedUnlock () in
+      releaseSpare ()
+    else
+      let _ = storeU64 sh offShIdle (u64Add (loadU64 sh offShIdle) 1) in
+      let _ = (if nw.nwHasSleep then
+          let _ = sysCondTimedWaitNs (schedIdleCond ()) (schedMtx ()) nw.nwSleepNs in
+          ()
+        else
+          let _ = cPthreadCondWait (schedIdleCond ()) (schedMtx ()) in
+          ()) in
+      let _ = shArrive sh in
+      workerStep sh
+
+  cinchRtSchedWorkerGuarded :: MaybeNull U8 ->{Global, ThreadAffine} I64
+  cinchRtSchedWorkerGuarded _ =
+    let _ = workerLoop () in
+    0
+
+  foreign export ccall "cinch_rt_sched_worker_guarded" cinchRtSchedWorkerGuarded :: MaybeNull U8 ->{Global, ThreadAffine} I64
+
+  cinchRtSchedWorkerEntry :: MaybeNull U8 ->{Global} MaybeNull U8
+  cinchRtSchedWorkerEntry _ =
+    let _ = stackGuardedRun (workerGuardedAddrPrim 0) (ptrNull ()) in
+    ptrNull ()
+
+  foreign export ccall "cinch_rt_sched_worker_entry" cinchRtSchedWorkerEntry :: MaybeNull U8 ->{Global} MaybeNull U8
+
+  -- =========================================================================
+  -- Helping Thread Park Loop
+  -- =========================================================================
+
+  helpInnerLoop :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global, ThreadAffine} U64
+  helpInnerLoop sh h deadline =
+    let gotTok = atomicSwapU64SeqCst h offCtxToken 0 /= 0 in
+    let expired = deadline /= 0 && u64Ge (sysMonotonicNs ()) deadline in
+    if gotTok || expired then
+      let _ = if shUnclaimed sh then shRouse sh else () in
+      0
+    else
+      let nw = shNext sh in
+      if nw.nwFiber /= 0 then nw.nwFiber
+      else
+        let hasOwn = deadline /= 0 in
+        let ownNs = if hasOwn then u64SatSub deadline (sysMonotonicNs ()) else 0 in
+        let useTimeout = nw.nwHasSleep || hasOwn in
+        let waitNs =
+              (if nw.nwHasSleep && hasOwn then u64Min nw.nwSleepNs ownNs
+              else if nw.nwHasSleep then nw.nwSleepNs
+              else ownNs) in
+        let _ = shAsleepPush sh h in
+        let _ = (if useTimeout then
+            let _ = sysCondTimedWaitNs (ptrAdd h offHelperCond) (schedMtx ()) waitNs in
+            ()
+          else
+            let _ = cPthreadCondWait (ptrAdd h offHelperCond) (schedMtx ()) in
+            ()) in
+        let _ = (if loadU64 h offHelperAsleep /= 0 then
+            shAsleepRemove sh h
+          else
+            storeU64 sh offShRoused (u64SatSub (loadU64 sh offShRoused) 1)) in
+        helpInnerLoop sh h deadline
+
+  helpPark :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  helpPark h deadline =
+    if atomicSwapU64SeqCst h offCtxToken 0 /= 0 then ()
+    else if deadline /= 0 && u64Ge (sysMonotonicNs ()) deadline then ()
+    else
+      let _ = schedLock () in
+      let fib = helpInnerLoop (shPtr ()) h deadline in
+      let _ = schedUnlock () in
+      if fib == 0 then ()
+      else
+        let run = getRun () in
+        let _ = storeU64 run offRunDeadline deadline in
+        let _ = runFiber fib in
+        let _ = storeU64 run offRunDeadline 0 in
+        helpPark h deadline
+
+  -- =========================================================================
+  -- Parker API (current, unpark, park, parkTimeoutNs, yieldNow)
+  -- =========================================================================
+
+  parkCurrent :: Unit ->{Global, ThreadAffine} U64
+  parkCurrent _ =
+    let run = getRun () in
+    let fib = loadU64 run offRunFiber in
+    if fib /= 0 then parkClone fib
+    else
+      let h = loadU64 run offRunHelper in
+      if h /= 0 then parkClone h
+      else parkClone (getOrCreateThreadCtx run)
+
+  parkUnpark :: U64 ->{Global} Unit
+  parkUnpark ctx =
+    if ctx == 0 then ()
+    else
+      let p = maybeToRaw (ptrFromU64 ctx) in
+      let kind = loadU64 p offCtxKind in
+      if kind == ctxFiber then
+        let _ = atomicStoreU64SeqCst p offCtxToken 1 in
+        if atomicCasU64SeqCst p offFiberState fParked fRunnable then
+          let _ = parkClone ctx in
+          let _ = schedLock () in
+          let _ = shPushFiber (shPtr ()) ctx in
+          schedUnlock ()
+        else ()
+      else if kind == ctxHelper then
+        if atomicSwapU64SeqCst p offCtxToken 1 == 0 then
+          let _ = schedLock () in
+          let _ = cPthreadCondSignal (ptrAdd p offHelperCond) in
+          schedUnlock ()
+        else ()
+      else
+        if atomicSwapU64SeqCst p offCtxToken 1 == 0 then
+          let mtx = ptrAdd p offThreadMutex in
+          let _ = cPthreadMutexLock mtx in
+          let _ = cPthreadCondSignal (ptrAdd p offThreadCond) in
+          let _ = cPthreadMutexUnlock mtx in
+          ()
+        else ()
+
+  threadParkLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  threadParkLoop ctx mtx cond =
+    if atomicSwapU64SeqCst ctx offCtxToken 0 /= 0 then ()
+    else
+      let _ = cPthreadCondWait cond mtx in
+      threadParkLoop ctx mtx cond
+
+  parkWait :: Unit ->{Global, ThreadAffine} Unit
+  parkWait _ =
+    let run = getRun () in
+    let fib = loadU64 run offRunFiber in
+    if fib /= 0 then
+      let f = maybeToRaw (ptrFromU64 fib) in
+      if atomicSwapU64SeqCst f offCtxToken 0 /= 0 then ()
+      else parkFiber f
+    else
+      let h = loadU64 run offRunHelper in
+      if h /= 0 then
+        helpPark (maybeToRaw (ptrFromU64 h)) 0
+      else
+        let tctx = getOrCreateThreadCtx run in
+        let p = maybeToRaw (ptrFromU64 tctx) in
+        if atomicSwapU64SeqCst p offCtxToken 0 /= 0 then ()
+        else
+          let mtx = ptrAdd p offThreadMutex in
+          let cond = ptrAdd p offThreadCond in
+          let _ = cPthreadMutexLock mtx in
+          let _ = threadParkLoop p mtx cond in
+          let _ = cPthreadMutexUnlock mtx in
+          ()
+
+  parkWaitTimeoutNs :: U64 ->{Global, ThreadAffine} Unit
+  parkWaitTimeoutNs timeoutNs =
+    let run = getRun () in
+    let fib = loadU64 run offRunFiber in
+    let now = sysMonotonicNs () in
+    let dl0 = u64SatAdd now timeoutNs in
+    let deadline = if dl0 == 0 then 1 else dl0 in
+    if fib /= 0 then
+      let f = maybeToRaw (ptrFromU64 fib) in
+      if atomicSwapU64SeqCst f offCtxToken 0 /= 0 then ()
+      else
+        let _ = shTimerAdd fib deadline in
+        let _ = parkFiber f in
+        shTimerRemove fib
+    else
+      let h = loadU64 run offRunHelper in
+      if h /= 0 then
+        helpPark (maybeToRaw (ptrFromU64 h)) deadline
+      else
+        let tctx = getOrCreateThreadCtx run in
+        let p = maybeToRaw (ptrFromU64 tctx) in
+        if atomicSwapU64SeqCst p offCtxToken 0 /= 0 then ()
+        else
+          let mtx = ptrAdd p offThreadMutex in
+          let cond = ptrAdd p offThreadCond in
+          let _ = cPthreadMutexLock mtx in
+          let _ = (if atomicSwapU64SeqCst p offCtxToken 0 == 0 then
+              let _ = sysCondTimedWaitNs cond mtx timeoutNs in
+              let _ = atomicSwapU64SeqCst p offCtxToken 0 in
+              ()
+            else ()) in
+          let _ = cPthreadMutexUnlock mtx in
+          ()
+
+  schedYieldNow :: Unit ->{Global, ThreadAffine} Unit
+  schedYieldNow _ =
+    let run = getRun () in
+    let fib = loadU64 run offRunFiber in
+    let h = loadU64 run offRunHelper in
+    let queued = atomicLoadU64Relaxed (ptrCast (schedMeta ())) 16 in
+    if fib == 0 then
+      if h /= 0 && queued /= 0 then
+        let _ = schedLock () in
+        let nw = shNext (shPtr ()) in
+        let _ = schedUnlock () in
+        if nw.nwFiber /= 0 then
+          let now = sysMonotonicNs () in
+          let _ = storeU64 run offRunDeadline (if now == 0 then 1 else now) in
+          let _ = runFiber nw.nwFiber in
+          storeU64 run offRunDeadline 0
+        else ()
+      else ()
+    else
+      let dl = loadU64 run offRunDeadline in
+      let hostWaits =
+            (if h == 0 then False
+            else
+              let hp = maybeToRaw (ptrFromU64 h) in
+              atomicLoadU64SeqCst hp offCtxToken /= 0 || (dl /= 0 && u64Ge (sysMonotonicNs ()) dl)) in
+      if queued == 0 && not hostWaits then ()
+      else
+        let f = maybeToRaw (ptrFromU64 fib) in
+        let _ = atomicStoreU64SeqCst f offCtxToken 1 in
+        parkFiber f
+
+  -- =========================================================================
+  -- Blocking Regions & Help Floor
+  -- =========================================================================
+
+  blockingDepthPtr :: Unit ->{Global} MaybeNull U8
+  blockingDepthPtr _ =
+    let rp = getRunIfExists () in
+    if ptrIsNull rp then ptrNull ()
+    else
+      let run = maybeToRaw rp in
+      let fib = loadU64 run offRunFiber in
+      if fib /= 0 then rawToMaybe (ptrAdd (maybeToRaw (ptrFromU64 fib)) offCtxBlocking)
+      else
+        let h = loadU64 run offRunHelper in
+        if h /= 0 then rawToMaybe (ptrAdd (maybeToRaw (ptrFromU64 h)) offCtxBlocking)
+        else ptrNull ()
+
+  schedBlockingEnter :: Unit ->{Global} Unit
+  schedBlockingEnter _ =
+    let dp = blockingDepthPtr () in
+    if ptrIsNull dp then ()
+    else
+      let prev = atomicAddU64Relaxed (maybeToRaw dp) 0 1 in
+      if prev /= 0 then ()
+      else
+        let _ = schedLock () in
+        let sh = shPtr () in
+        let _ = storeU64 sh offShBlocked (u64Add (loadU64 sh offShBlocked) 1) in
+        let _ = if shUnclaimed sh then shRouse sh else () in
+        schedUnlock ()
+
+  schedBlockingExit :: Unit ->{Global} Unit
+  schedBlockingExit _ =
+    let dp = blockingDepthPtr () in
+    if ptrIsNull dp then ()
+    else
+      let prev = atomicSubU64AcqRel (maybeToRaw dp) 0 1 in
+      if prev /= 1 then ()
+      else
+        let _ = schedLock () in
+        let sh = shPtr () in
+        let _ = storeU64 sh offShBlocked (u64Sub (loadU64 sh offShBlocked) 1) in
+        let workers = loadU64 sh offShWorkers in
+        let idle = loadU64 sh offShIdle in
+        let roused = loadU64 sh offShRoused in
+        let _ = (if u64Gt workers (shAllowed sh) && u64Gt idle roused then
+            let _ = storeU64 sh offShRoused (u64Add roused 1) in
+            let _ = cPthreadCondSignal (schedIdleCond ()) in
+            ()
+          else ()) in
+        schedUnlock ()
+
+  cinchSchedBlockingEnter :: Unit ->{Global} I64
+  cinchSchedBlockingEnter _ =
+    let _ = schedBlockingEnter () in
+    0
+
+  cinchSchedBlockingExit :: Unit ->{Global} I64
+  cinchSchedBlockingExit _ =
+    let _ = schedBlockingExit () in
+    0
+
+  foreign export ccall "cinch_sched_blocking_enter" cinchSchedBlockingEnter :: Unit ->{Global} I64
+  foreign export ccall "cinch_sched_blocking_exit" cinchSchedBlockingExit :: Unit ->{Global} I64
+
+  schedHelpFloor :: Unit ->{Global} U64
+  schedHelpFloor _ =
+    let rp = getRunIfExists () in
+    if ptrIsNull rp then 0
+    else
+      let fib = loadU64 (maybeToRaw rp) offRunFiber in
+      if fib == 0 then 0
+      else
+        let base = loadU64 (maybeToRaw (ptrFromU64 fib)) offFiberStack in
+        u64Add base (lshrU64 taskStackBytes 1)
+
+  -- =========================================================================
+  -- Structured Concurrency (Scope, TaskState, Join Hand-over)
+  -- =========================================================================
+
+  resultTag :: I64 ->{Global} I64
+  resultTag res = u64ToI64 (ctorTagOf (maybeToRaw (ptrFromU64 (i64ToU64 res))))
+
+  resultPayload :: I64 ->{Global} I64
+  resultPayload res = loadI64 (maybeToRaw (ptrFromU64 (i64ToU64 res))) 0
+
+  discardResult :: I64 ->{Global, ThreadAffine} Unit
+  discardResult res =
+    if res /= 0 && rcReclaiming () then cinchDrop res else ()
+
+  joinFailed :: I64 -> RawPtr U8 ->{Global} I64
+  joinFailed err out =
+    let _ = storeI64 out 0 err in
+    joinFailedCode
+
+  joinSucceededLoop :: RawPtr I64 -> U64 -> U64 -> RawPtr U8 -> Bool -> I64 ->{Global, ThreadAffine} I64
+  joinSucceededLoop results idx n out reclaim mask =
+    if u64Ge idx n then mask
+    else
+      let r = loadI64 results (u64ToIsize (u64Mul idx 8)) in
+      let nextMask =
+            (if reclaim && u64Lt idx joinMaskBits && fieldCounted r 0 then
+              bitOrI64 mask (u64ToI64 (shlU64 1 idx))
+            else mask) in
+      let payload = if reclaim then takeField r 0 else resultPayload r in
+      let _ = storeI64 out (u64ToIsize (u64Mul idx 8)) payload in
+      joinSucceededLoop results (u64Add idx 1) n out reclaim nextMask
+
+  joinSucceeded :: RawPtr I64 -> U64 -> RawPtr U8 ->{Global, ThreadAffine} I64
+  joinSucceeded results n out =
+    if n == 1 then
+      let _ = storeI64 out 0 (loadI64 results 0) in
+      0
+    else
+      joinSucceededLoop results 0 n out (rcReclaiming ()) 0
+
+  taskCurrentCanceled :: Unit ->{Global} Bool
+  taskCurrentCanceled _ =
+    let rp = getRunIfExists () in
+    if ptrIsNull rp then False
+    else
+      let task = loadU64 (maybeToRaw rp) offRunTask in
+      if task == 0 then False
+      else atomicLoadU64SeqCst (maybeToRaw (ptrFromU64 task)) offTaskCancel /= 0
+
+  taskIsDone :: U64 ->{Global} Bool
+  taskIsDone task = atomicLoadU64SeqCst (maybeToRaw (ptrFromU64 task)) offTaskDone /= 0
+
+  taskResult :: U64 ->{Global} I64
+  taskResult task = atomicLoadI64SeqCst (maybeToRaw (ptrFromU64 task)) offTaskResult
+
+  taskTakeResult :: U64 ->{Global} I64
+  taskTakeResult task = atomicSwapI64SeqCst (maybeToRaw (ptrFromU64 task)) offTaskResult 0
+
+  taskRequestCancel :: U64 ->{Global} Unit
+  taskRequestCancel task =
+    let tp = maybeToRaw (ptrFromU64 task) in
+    if atomicSwapU64SeqCst tp offTaskCancel 1 == 0 then
+      let parker = atomicLoadU64Acquire tp offTaskParker in
+      if parker /= 0 then parkUnpark parker else ()
+    else ()
+
+  scopeClone :: U64 ->{Global} U64
+  scopeClone sc =
+    let _ = atomicAddU64Relaxed (maybeToRaw (ptrFromU64 sc)) offScopeRc 1 in
+    sc
+
+  scopeDrop :: U64 ->{Global, ThreadAffine} Unit
+  scopeDrop sc =
+    let p = maybeToRaw (ptrFromU64 sc) in
+    let prev = atomicSubU64AcqRel p offScopeRc 1 in
+    if prev /= 1 then ()
+    else
+      let _ = fenceAcquire () in
+      let cdata = loadPtr p offScopeChildrenData in
+      let ccap = loadU64 p offScopeChildrenCap in
+      let _ = (if not (ptrIsNull cdata) && ccap /= 0 then
+          heapGlobalDealloc (maybeToRaw cdata) (u64ToUsize (u64Mul ccap 8)) 8
+        else ()) in
+      let wdata = loadPtr p offScopeWaitersData in
+      let wcap = loadU64 p offScopeWaitersCap in
+      let _ = (if not (ptrIsNull wdata) && wcap /= 0 then
+          heapGlobalDealloc (maybeToRaw wdata) (u64ToUsize (u64Mul wcap 8)) 8
+        else ()) in
+      let _ = cPthreadMutexDestroy (ptrAdd p offScopeMutex) in
+      heapGlobalDealloc p scopeBytes 8
+
+  scopeVecPush :: RawPtr U8 -> Isize -> Isize -> Isize -> U64 ->{Global, ThreadAffine} Unit
+  scopeVecPush sc offData offLen offCap val =
+    let len = loadU64 sc offLen in
+    let cap = loadU64 sc offCap in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr sc offData)
+          else
+            let newCap = if cap == 0 then 8 else u64Mul cap 2 in
+            let oldPtr = loadPtr sc offData in
+            let newPtr =
+                  (if ptrIsNull oldPtr then
+                    heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0
+                  else
+                    heapGlobalRealloc (maybeToRaw oldPtr) (u64ToUsize (u64Mul cap 8)) 8 (u64ToUsize (u64Mul newCap 8))) in
+            let _ = storePtr sc offData (rawToMaybe newPtr) in
+            let _ = storeU64 sc offCap newCap in
+            newPtr) in
+    let _ = storeU64 buf (u64ToIsize (u64Mul len 8)) val in
+    storeU64 sc offLen (u64Add len 1)
+
+  scopeWaiterContains :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} Bool
+  scopeWaiterContains buf idx len me =
+    if u64Ge idx len then False
+    else if loadU64 buf (u64ToIsize (u64Mul idx 8)) == me then True
+    else scopeWaiterContains buf (u64Add idx 1) len me
+
+  scopeWaitForChild :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  scopeWaitForChild sc me =
+    let wlen = loadU64 sc offScopeWaitersLen in
+    let wdata = loadPtr sc offScopeWaitersData in
+    let present = if wlen == 0 || ptrIsNull wdata then False else scopeWaiterContains (maybeToRaw wdata) 0 wlen me in
+    let _ = (if not present then
+        let _ = parkClone me in
+        scopeVecPush sc offScopeWaitersData offScopeWaitersLen offScopeWaitersCap me
+      else ()) in
+    let _ = cPthreadMutexUnlock (ptrAdd sc offScopeMutex) in
+    parkWait ()
+
+  unparkWaitersLoop :: RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  unparkWaitersLoop buf idx len =
+    if u64Ge idx len then ()
+    else
+      let w = loadU64 buf (u64ToIsize (u64Mul idx 8)) in
+      let _ = parkUnpark w in
+      let _ = parkDrop w in
+      unparkWaitersLoop buf (u64Add idx 1) len
+
+  scopeFinish :: U64 -> U64 -> I64 ->{Global, ThreadAffine} Unit
+  scopeFinish scAddr taskAddr result =
+    let failed = resultTag result == taskErrTag in
+    let sc = maybeToRaw (ptrFromU64 scAddr) in
+    let tp = maybeToRaw (ptrFromU64 taskAddr) in
+    let mtx = ptrAdd sc offScopeMutex in
+    let _ = cPthreadMutexLock mtx in
+    let _ = atomicStoreI64SeqCst tp offTaskResult result in
+    let _ = atomicStoreU64SeqCst tp offTaskDone 1 in
+    let _ = if failed then storeU64 sc offScopeFailed (u64Add (loadU64 sc offScopeFailed) 1) else () in
+    let wdata = loadPtr sc offScopeWaitersData in
+    let wlen = loadU64 sc offScopeWaitersLen in
+    let wcap = loadU64 sc offScopeWaitersCap in
+    let _ = storePtr sc offScopeWaitersData (ptrNull ()) in
+    let _ = storeU64 sc offScopeWaitersLen 0 in
+    let _ = storeU64 sc offScopeWaitersCap 0 in
+    let _ = cPthreadMutexUnlock mtx in
+    if wlen /= 0 && not (ptrIsNull wdata) then
+      let bp = maybeToRaw wdata in
+      let _ = unparkWaitersLoop bp 0 wlen in
+      heapGlobalDealloc bp (u64ToUsize (u64Mul wcap 8)) 8
+    else ()
+
+  -- First frame of every fiber!
+  cinchRtFiberMain :: U64 ->{Global, ThreadAffine} Unit
+  cinchRtFiberMain fiberAddr =
+    let f = maybeToRaw (ptrFromU64 fiberAddr) in
+    let closure = loadI64 f offFiberClosure in
+    let scAddr = loadU64 f offFiberScope in
+    let taskAddr = loadU64 f offFiberTask in
+    let _ = storeI64 f offFiberClosure 0 in
+    let _ = storeU64 f offFiberScope 0 in
+    let _ = storeU64 f offFiberTask 0 in
+    let result = sysApplyClosure1 closure 0 in
+    let _ = scopeFinish scAddr taskAddr result in
+    let _ = scopeDrop scAddr in
+    let _ = atomicStoreU64SeqCst f offFiberState fDone in
+    let _ = suspendFiber f in
+    panicFiberState True
+
+  foreign export ccall "cinch_rt_fiber_main" cinchRtFiberMain :: U64 ->{Global, ThreadAffine} Unit
+
+  cinchScopeOpen :: Unit ->{Global, ThreadAffine} I64
+  cinchScopeOpen _ =
+    let sc = heapGlobalAlloc scopeBytes 8 1 in
+    let _ = storeU64 sc offScopeRc 1 in
+    let _ = cPthreadMutexInit (ptrAdd sc offScopeMutex) (ptrNull ()) in
+    u64ToI64 (rawToU64 sc)
+
+  cinchTaskSpawn :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchTaskSpawn scopeWord closure =
+    let _ = (if rcReclaiming () then
+        let _ = cinchMarkMt closure in
+        arenaMarkMtAllActive ()
+      else ()) in
+    let scAddr = i64ToU64 scopeWord in
+    let sc = maybeToRaw (ptrFromU64 scAddr) in
+    let task = heapGlobalAlloc taskStateBytes 8 1 in
+    let taskAddr = rawToU64 task in
+    let fib = heapGlobalAlloc fiberCtxBytes 8 1 in
+    let fibAddr = rawToU64 fib in
+    let _ = storeU64 fib offCtxRc 2 in -- 1 for run queue, 1 for task.parker
+    let _ = storeU64 fib offCtxKind ctxFiber in
+    let _ = storeU64 fib offFiberState fRunnable in
+    let _ = storeU64 fib offFiberScope (scopeClone scAddr) in
+    let _ = storeU64 fib offFiberTask taskAddr in
+    let _ = storeI64 fib offFiberClosure closure in
+    let _ = storeU64 fib offFiberLocalTask taskAddr in
+    -- Record fiber as task's parker BEFORE publishing task or queueing fiber
+    let _ = atomicStoreU64Release task offTaskParker fibAddr in
+    let mtx = ptrAdd sc offScopeMutex in
+    let _ = cPthreadMutexLock mtx in
+    let _ = scopeVecPush sc offScopeChildrenData offScopeChildrenLen offScopeChildrenCap taskAddr in
+    let _ = cPthreadMutexUnlock mtx in
+    let rp = getRunIfExists () in
+    let owned =
+          (if ptrIsNull rp then False
+          else
+            let r = maybeToRaw rp in
+            loadU64 r offRunFiber /= 0 || loadU64 r offRunHelper /= 0) in
+    let _ = schedLock () in
+    let sh = shPtr () in
+    let _ = if not owned then storeU64 sh offShForeign 1 else () in
+    let _ = shPushFiber sh fibAddr in
+    let _ = schedUnlock () in
+    u64ToI64 taskAddr
+
+  -- joinAllOrCancel loops
+  advanceFinished :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  advanceFinished handles idx n =
+    if u64Ge idx n then idx
+    else
+      let h = loadU64 handles (u64ToIsize (u64Mul idx 8)) in
+      if taskIsDone h then advanceFinished handles (u64Add idx 1) n
+      else idx
+
+  findFirstErr :: RawPtr U8 -> U64 -> U64 ->{Global} I64
+  findFirstErr handles idx n =
+    if u64Ge idx n then i64Sub 0 1
+    else
+      let h = loadU64 handles (u64ToIsize (u64Mul idx 8)) in
+      if taskIsDone h && resultTag (taskResult h) == taskErrTag then u64ToI64 idx
+      else findFirstErr handles (u64Add idx 1) n
+
+  cancelRange :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  cancelRange handles idx n =
+    if u64Ge idx n then ()
+    else
+      let h = loadU64 handles (u64ToIsize (u64Mul idx 8)) in
+      let _ = if not (taskIsDone h) then taskRequestCancel h else () in
+      cancelRange handles (u64Add idx 1) n
+
+  awaitMembersLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 -> I64 -> U64 -> U64 ->{Global, ThreadAffine} I64
+  awaitMembersLoop sc handles n me firstErr finished failuresSeen =
+    let mtx = ptrAdd sc offScopeMutex in
+    let _ = cPthreadMutexLock mtx in
+    let fin2 = advanceFinished handles finished n in
+    let scFailed = loadU64 sc offScopeFailed in
+    let err2 =
+          (if i64Lt firstErr 0 && scFailed /= failuresSeen then
+            let found = findFirstErr handles 0 n in
+            let _ = if i64Ge found 0 then cancelRange handles fin2 n else () in
+            found
+          else firstErr) in
+    let seen2 = if i64Lt firstErr 0 && scFailed /= failuresSeen then scFailed else failuresSeen in
+    if fin2 == n then
+      let _ = cPthreadMutexUnlock mtx in
+      err2
+    else
+      let _ = scopeWaitForChild sc me in
+      awaitMembersLoop sc handles n me err2 fin2 seen2
+
+  collectResultsLoop :: RawPtr U8 -> RawPtr I64 -> U64 -> U64 ->{Global} Unit
+  collectResultsLoop handles dst idx n =
+    if u64Ge idx n then ()
+    else
+      let h = loadU64 handles (u64ToIsize (u64Mul idx 8)) in
+      let _ = storeI64 dst (u64ToIsize (u64Mul idx 8)) (taskTakeResult h) in
+      collectResultsLoop handles dst (u64Add idx 1) n
+
+  cinchTaskJoinAllOrCancel :: I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchTaskJoinAllOrCancel scopeWord handlesWord nWord outWord =
+    if i64Lt nWord 0 then
+      let _ = panicCorruptValue () in
+      0
+    else
+      let n = i64ToU64 nWord in
+      let sc = maybeToRaw (ptrFromU64 (i64ToU64 scopeWord)) in
+      let handles = maybeToRaw (ptrFromU64 (i64ToU64 handlesWord)) in
+      let out = maybeToRaw (ptrFromU64 (i64ToU64 outWord)) in
+      let me = parkCurrent () in
+      let firstErr = awaitMembersLoop sc handles n me (i64Sub 0 1) 0 0 in
+      let _ = parkDrop me in
+      if i64Ge firstErr 0 then
+        let k = i64ToU64 firstErr in
+        let errHandle = loadU64 handles (u64ToIsize (u64Mul k 8)) in
+        joinFailed (taskTakeResult errHandle) out
+      else if n == 0 then 0
+      else
+        let resBuf = heapGlobalAlloc (u64ToUsize (u64Mul n 8)) 8 0 in
+        let resI64 = ptrCast resBuf in
+        let _ = collectResultsLoop handles resI64 0 n in
+        let mask = joinSucceeded resI64 n out in
+        let _ = heapGlobalDealloc resBuf (u64ToUsize (u64Mul n 8)) 8 in
+        mask
+
+  -- Scope close: cancel all children, wait for all to finish, discard unjoined results
+  discardAllLoop :: RawPtr U8 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  discardAllLoop buf idx len =
+    if u64Ge idx len then ()
+    else
+      let h = loadU64 buf (u64ToIsize (u64Mul idx 8)) in
+      let _ = discardResult (taskTakeResult h) in
+      discardAllLoop buf (u64Add idx 1) len
+
+  awaitChildrenLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global, ThreadAffine} Unit
+  awaitChildrenLoop sc me asked finished =
+    let mtx = ptrAdd sc offScopeMutex in
+    let _ = cPthreadMutexLock mtx in
+    let clen = loadU64 sc offScopeChildrenLen in
+    let cdata = loadPtr sc offScopeChildrenData in
+    let _ = (if u64Lt asked clen && not (ptrIsNull cdata) then
+        cancelRange (maybeToRaw cdata) asked clen
+      else ()) in
+    let fin2 = if ptrIsNull cdata then finished else advanceFinished (maybeToRaw cdata) finished clen in
+    if fin2 == clen then
+      let _ = cPthreadMutexUnlock mtx in
+      ()
+    else
+      let _ = scopeWaitForChild sc me in
+      awaitChildrenLoop sc me clen fin2
+
+  cinchScopeClose :: I64 ->{Global, ThreadAffine} I64
+  cinchScopeClose scopeWord =
+    let scAddr = i64ToU64 scopeWord in
+    let sc = maybeToRaw (ptrFromU64 scAddr) in
+    let me = parkCurrent () in
+    let _ = awaitChildrenLoop sc me 0 0 in
+    let _ = parkDrop me in
+    -- Every child has finished; take and drop unjoined results
+    let clen = loadU64 sc offScopeChildrenLen in
+    let cdata = loadPtr sc offScopeChildrenData in
+    let _ = if clen /= 0 && not (ptrIsNull cdata) then discardAllLoop (maybeToRaw cdata) 0 clen else () in
+    let _ = scopeDrop scAddr in
+    0
+
+  cinchTaskPollCancel :: Unit ->{Global, ThreadAffine} I64
+  cinchTaskPollCancel _ =
+    let _ = schedYieldNow () in
+    if taskCurrentCanceled () then 1 else 0
+
+  foreign export ccall "cinch_scope_open" cinchScopeOpen :: Unit ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_scope_close" cinchScopeClose :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_task_spawn" cinchTaskSpawn :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_task_join_all_or_cancel" cinchTaskJoinAllOrCancel :: I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_task_poll_cancel" cinchTaskPollCancel :: Unit ->{Global, ThreadAffine} I64
+
+  -- =========================================================================
+  -- Program Main Thread (cinch_run_main)
+  -- =========================================================================
+
+  programThreadRun :: U64 ->{Global, ThreadAffine} I64
+  programThreadRun entryAddr =
+    let h = heapGlobalAlloc helperCtxBytes 8 1 in
+    let _ = storeU64 h offCtxRc 1 in
+    let _ = storeU64 h offCtxKind ctxHelper in
+    let _ = cPthreadCondInit (ptrAdd h offHelperCond) (ptrNull ()) in
+    let hAddr = rawToU64 h in
+    let _ = schedLock () in
+    let sh = shPtr () in
+    let _ = storeU64 sh offShHelpers (u64Add (loadU64 sh offShHelpers) 1) in
+    let _ = schedUnlock () in
+    let run = getRun () in
+    let _ = storeU64 run offRunHelper hAddr in
+    let res = sysCallFn0 entryAddr in
+    let _ = storeU64 run offRunHelper 0 in
+    let _ = schedLock () in
+    let _ = storeU64 sh offShHelpers (u64Sub (loadU64 sh offShHelpers) 1) in
+    let _ = schedUnlock () in
+    let _ = releaseSpare () in
+    let _ = parkDrop hAddr in
+    res
+
+  cinchRtMainGuarded :: MaybeNull U8 ->{Global, ThreadAffine} I64
+  cinchRtMainGuarded argPtr =
+    let p = maybeToRaw argPtr in
+    let entryAddr = loadU64 p 0 in
+    let res = programThreadRun entryAddr in
+    let _ = storeI64 p 8 res in
+    0
+
+  foreign export ccall "cinch_rt_main_guarded" cinchRtMainGuarded :: MaybeNull U8 ->{Global, ThreadAffine} I64
+
+  cinchRtMainThreadEntry :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8
+  cinchRtMainThreadEntry argPtr =
+    let _ = heapClaimSole () in
+    let _ = stackGuardedRun (mainGuardedAddrPrim 0) argPtr in
+    ptrNull ()
+
+  foreign export ccall "cinch_rt_main_thread_entry" cinchRtMainThreadEntry :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8
+
+  cinchRunMain :: U64 ->{Global} I64
+  cinchRunMain entryAddr =
+    let sz = programStackBytes () in
+    withLocal (fixedArrayRepeat 2 (0 :: U64)) (\argArr ->
+      let ap = ptrCast (mutAsPtr argArr) in
+      let _ = storeU64 ap 0 entryAddr in
+      let _ = storeI64 ap 8 0 in
+      let tid = stackSpawnThread sz (mainThreadEntryAddrPrim 0) (rawToMaybe ap) False in
+      let _ = cPthreadJoin tid (ptrNull ()) in
+      loadI64 ap 8
+    )
+
+  foreign export ccall "cinch_run_main" cinchRunMain :: U64 ->{Global} I64
+
+  -- =========================================================================
+  -- Runtime I/O (cinch_io_write, cinch_io_read, cinch_io_sleep)
+  -- =========================================================================
+
+  writeStdoutLoop :: RawPtr U8 -> Usize ->{Global} Unit
+  writeStdoutLoop ptr rem =
+    if rem == 0 then ()
+    else
+      let n = cWrite 1 ptr rem in
+      let ni = isizeToI64 n in
+      if i64Gt ni 0 then
+        let nu = u64ToUsize (i64ToU64 ni) in
+        writeStdoutLoop (ptrAdd ptr n) (usizeSub rem nu)
+      else if i64Lt ni 0 && sysErrno () == 4 then
+        writeStdoutLoop ptr rem
+      else
+        panicOutputFailed ()
+
+  cinchIoWrite :: I64 ->{Global} I64
+  cinchIoWrite word =
+    let bs = bytesReadSlice word in
+    let _ = if i64Gt bs.bsLen 0 then writeStdoutLoop bs.bsPtr (u64ToUsize (i64ToU64 bs.bsLen)) else () in
+    0
+
+  #[repr(value)]
+  record ReadBufRes where
+    rbPtr :: MaybeNull U8
+    rbLen :: U64
+    rbCap :: U64
+
+  readStdinLoop :: MaybeNull U8 -> U64 -> U64 -> U64 ->{Global, ThreadAffine} ReadBufRes
+  readStdinLoop buf got cap want =
+    if u64Ge got want then ReadBufRes buf got cap
+    else
+      let nextCap =
+            (if u64Lt got cap then cap
+            else
+              let c0 = if cap == 0 then 4096 else u64Mul cap 2 in
+              let c1 = if u64Gt c0 want then want else c0 in
+              if c1 == 0 then 1 else c1) in
+      let nextBuf =
+            (if nextCap == cap then buf
+            else if ptrIsNull buf then
+              rawToMaybe (heapGlobalAlloc (u64ToUsize nextCap) 1 0)
+            else
+              rawToMaybe (heapGlobalRealloc (maybeToRaw buf) (u64ToUsize cap) 1 (u64ToUsize nextCap))) in
+      let toRead = u64Sub nextCap got in
+      let n = cRead 0 (ptrAddU64 (maybeToRaw nextBuf) got) (u64ToUsize toRead) in
+      let ni = isizeToI64 n in
+      if i64Gt ni 0 then
+        readStdinLoop nextBuf (u64Add got (i64ToU64 ni)) nextCap want
+      else if i64Lt ni 0 && sysErrno () == 4 then
+        readStdinLoop nextBuf got nextCap want
+      else
+        ReadBufRes nextBuf got nextCap
+
+  cinchIoRead :: I64 ->{Global, ThreadAffine} I64
+  cinchIoRead len =
+    if i64Lt len 0 then
+      let _ = panicCorruptValue () in
+      0
+    else if len == 0 then 0
+    else
+      let _ = schedBlockingEnter () in
+      let res = readStdinLoop (ptrNull ()) 0 0 (i64ToU64 len) in
+      let _ = schedBlockingExit () in
+      if res.rbLen == 0 || ptrIsNull res.rbPtr then
+        let _ = (if not (ptrIsNull res.rbPtr) && res.rbCap /= 0 then
+            heapGlobalDealloc (maybeToRaw res.rbPtr) (u64ToUsize res.rbCap) 1
+          else ()) in
+        0
+      else
+        let word = bytesBoxCopy (maybeToRaw res.rbPtr) res.rbLen in
+        let _ = heapGlobalDealloc (maybeToRaw res.rbPtr) (u64ToUsize res.rbCap) 1 in
+        word
+
+  sleepLoop :: U64 -> U64 ->{Global, ThreadAffine} Unit
+  sleepLoop begun waitNs =
+    if taskCurrentCanceled () then ()
+    else
+      let elapsed = u64SatSub (sysMonotonicNs ()) begun in
+      if u64Ge elapsed waitNs then ()
+      else
+        let _ = parkWaitTimeoutNs (u64Sub waitNs elapsed) in
+        sleepLoop begun waitNs
+
+  cinchIoSleep :: I64 ->{Global, ThreadAffine} I64
+  cinchIoSleep millis =
+    if i64Le millis 0 then
+      let _ = schedYieldNow () in
+      0
+    else
+      let waitNs = u64SatMul (i64ToU64 millis) 1000000 in
+      let begun = sysMonotonicNs () in
+      let _ = sleepLoop begun waitNs in
+      0
+
+  foreign export ccall "cinch_io_write" cinchIoWrite :: I64 ->{Global} I64
+  foreign export ccall "cinch_io_read" cinchIoRead :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_io_sleep" cinchIoSleep :: I64 ->{Global, ThreadAffine} I64
