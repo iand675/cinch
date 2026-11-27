@@ -957,3 +957,125 @@ module Main where
         "2000-iteration loop over bit-packed products, sums, and nested niche wrappers must not allocate, got {blocks} blocks"
     );
 }
+
+#[test]
+fn tier4_polymorphic_csr_unboxed_products_and_auto_unpack() {
+    let source = r#"
+module Main where
+  record Vec3 where
+    x :: F64
+    y :: F64
+    z :: F64
+
+  -- Unannotated record with two 3-word product fields: auto-unpacks both inline!
+  record Ray where
+    origin :: Vec3
+    dir :: Vec3
+
+  #[noinline]
+  safe-div :: I64 -> I64 -> Result String I64
+  safe-div a b =
+    if b == 0 then Err "div0"
+    else Ok (wrapping-add-i64 a b)
+
+  #[noinline]
+  checked-step :: I64 -> I64 -> Result String I64
+  checked-step x d = case safe-div x d of
+    Err e -> Err e
+    Ok y -> safe-div y 3
+
+  #[noinline]
+  safe-opt :: I64 -> Option I64
+  safe-opt x =
+    if x == 0 then None
+    else Some (wrapping-add-i64 x 1)
+
+  #[noinline]
+  step-opt :: I64 -> Option I64
+  step-opt x = case safe-opt x of
+    None -> None
+    Some y -> safe-opt y
+
+  #[noinline]
+  dot :: Vec3 -> Vec3 -> F64
+  dot a b = case a of
+    Vec3 x1 y1 z1 -> case b of
+      Vec3 x2 y2 z2 ->
+        add-f64 (add-f64 (mul-f64 x1 x2) (mul-f64 y1 y2)) (mul-f64 z1 z2)
+
+  #[noinline]
+  add-vec3 :: Vec3 -> Vec3 -> Vec3
+  add-vec3 a b = case a of
+    Vec3 x1 y1 z1 -> case b of
+      Vec3 x2 y2 z2 -> Vec3 (add-f64 x1 x2) (add-f64 y1 y2) (add-f64 z1 z2)
+
+  loop-csr-and-vec :: I64 -> I64 -> I64
+  loop-csr-and-vec i acc =
+    if i == 0 then acc
+    else
+      let r1 = case checked-step 10 2 of Err _ -> 0; Ok v -> v in
+      let r2 = case checked-step 10 0 of Err _ -> 7; Ok _ -> 0 in
+      let o1 = case step-opt 5 of None -> 0; Some v -> v in
+      let o2 = case step-opt 0 of None -> 3; Some _ -> 0 in
+      let d = dot (Vec3 1.0 2.0 3.0) (Vec3 4.0 5.0 6.0) in
+      let s = case add-vec3 (Vec3 1.0 2.0 3.0) (Vec3 4.0 5.0 6.0) of
+            Vec3 x y z -> add-f64 (add-f64 x y) z in
+      let vsum = if feq-f64 d 32.0 && feq-f64 s 21.0 then 10 else 0 in
+      let step = wrapping-add-i64 (wrapping-add-i64 r1 r2) (wrapping-add-i64 (wrapping-add-i64 o1 o2) vsum) in
+      loop-csr-and-vec (wrapping-sub-i64 i 1) (wrapping-add-i64 acc step)
+
+  main :: Int
+  main =
+    -- r1 = 15, r2 = 7, o1 = 7, o2 = 3, vsum = 10 -> 42 per iter -> 2000 * 42 = 84000
+    let total = loop-csr-and-vec 2000 0 in
+    if total == 84000 then 42 else 1
+"#;
+    let (blocks, _) = run_checked_with_stats("tier4_csr_vec3", source, 42);
+    assert!(
+        blocks < 100,
+        "2000-iteration loop over chained Result/Option CSR and unboxed Vec3 calls must not allocate, got {blocks} blocks"
+    );
+
+    let unpack_source = r#"
+module Main where
+  record Vec3 where
+    x :: F64
+    y :: F64
+    z :: F64
+
+  record Ray where
+    origin :: Vec3
+    dir :: Vec3
+
+  #[noinline]
+  make-ray :: F64 -> F64 -> Ray
+  make-ray a b = Ray { origin = Vec3 a b 1.0, dir = Vec3 2.0 a b }
+
+  #[noinline]
+  sum-ray :: Ray -> F64
+  sum-ray r = case r of
+    Ray (Vec3 ox oy oz) (Vec3 dx dy dz) ->
+      add-f64 (add-f64 (add-f64 ox oy) (add-f64 oz dx)) (add-f64 dy dz)
+
+  loop-ray :: I64 -> I64 -> I64
+  loop-ray i acc =
+    if i == 0 then acc
+    else
+      let r = make-ray 3.0 4.0 in
+      let s = sum-ray r in
+      let step = if feq-f64 s 17.0 then 1 else 0 in
+      loop-ray (wrapping-sub-i64 i 1) (wrapping-add-i64 acc step)
+
+  main :: Int
+  main =
+    let total = loop-ray 1000 0 in
+    if total == 1000 then 42 else 1
+"#;
+    // Without auto-unpacking, 1000 Rays allocate >= 3000 blocks (1 Ray + 2 Vec3 per iter).
+    // With auto-unpacking, Ray flattens origin and dir inline -> ~1000 blocks (1 per iter).
+    let (ray_blocks, _) = run_checked_with_stats("tier4_auto_unpack_ray", unpack_source, 42);
+    assert!(
+        ray_blocks < 1500,
+        "1000 Rays with auto-unpacked Vec3 fields should allocate ~1000 blocks (not 3000+), got {ray_blocks} blocks"
+    );
+}

@@ -5152,6 +5152,9 @@ impl Checker {
                             }
                             self.unpack_requests.entry(fn_id(&module, &rec.name.text))
                                 .or_default().insert(f.name.text.clone(), f.span);
+                        } else if fset.unpack == Some(false) {
+                            self.nounpack_requests.entry(fn_id(&module, &rec.name.text))
+                                .or_default().insert(f.name.text.clone());
                         }
                         if let Some(fr) = fset.repr {
                             if !fr.field_only() {
@@ -5246,12 +5249,17 @@ impl Checker {
                                 span: rec.name.span,
                             },
                         );
-                    } else if !self.embedded_modules.contains(&module)
-                        && !self.unpack_requests.contains_key(&fn_id(&module, &rec.name.text))
-                        && params.is_empty()
-                        && runtime_arity >= 2
-                    {
-                        self.auto_niche_candidates.push((
+                    } else if !self.embedded_modules.contains(&module) && params.is_empty() {
+                        if !self.unpack_requests.contains_key(&fn_id(&module, &rec.name.text))
+                            && runtime_arity >= 2
+                        {
+                            self.auto_niche_candidates.push((
+                                module.clone(),
+                                rec.name.text.clone(),
+                                rec.name.span,
+                            ));
+                        }
+                        self.auto_unpack_candidates.push((
                             module.clone(),
                             rec.name.text.clone(),
                             rec.name.span,

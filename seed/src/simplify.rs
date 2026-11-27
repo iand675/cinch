@@ -4878,7 +4878,7 @@ fn unbox_product_params(program: &mut Program, tables: &mut Tables, fresh: &mut 
             || f.ctor.is_some()
             || f.meta.prim_body
             || program.main.as_ref() == Some(&f.id)
-            || f.id.0.contains("#ww")
+            || f.id.0.matches("#ww").count() >= 2
             || f.repr.params.len() != f.arity()
             || f.repr.params.contains(&Class::Wide)
             || f.repr.result == Some(Class::Wide)

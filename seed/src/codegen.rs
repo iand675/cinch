@@ -4593,7 +4593,10 @@ fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
                 out.push(Leaf::Ctor(id.0.clone()));
                 true
             }
-            Core::Reuse { .. } => false,
+            Core::Reuse { ctor, args, .. } => {
+                out.push(Leaf::Ctor(ctor.0.clone()));
+                reg.ctors.get(&ctor.0).map(|c| c.1) == Some(args.len())
+            }
             Core::App(head, args) => match &**head {
                 Core::Ctor(id, _) if reg.ctors.get(&id.0).map(|c| c.1) == Some(args.len()) => {
                     out.push(Leaf::Ctor(id.0.clone()));
@@ -4611,6 +4614,7 @@ fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
         }
     }
     let mut calls: HashMap<String, Vec<String>> = HashMap::new();
+    let mut single_ctor: HashMap<String, String> = HashMap::new();
     let mut out: HashMap<String, Csr> = HashMap::new();
     let mut open: Vec<String> = Vec::new();
     for f in &p.fns {
@@ -4702,6 +4706,13 @@ fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
                 };
                 out.insert(name.clone(), csr);
             }
+            [a] if !called.is_empty() => {
+                if !reg.sum_ctors.contains_key(*a) {
+                    continue;
+                }
+                single_ctor.insert(name.clone(), (*a).to_string());
+                open.push(name.clone());
+            }
             [] if !called.is_empty() => open.push(name.clone()),
             _ => continue,
         }
@@ -4713,9 +4724,13 @@ fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
             let known = calls[u].iter().find_map(|g| out.get(g).cloned());
             match known {
                 Some(csr) => {
-                    out.insert(u.clone(), csr);
-                    progress = true;
-                    false
+                    if single_ctor.get(u).is_none_or(|c| csr.arm(c).is_some()) {
+                        out.insert(u.clone(), csr);
+                        progress = true;
+                        false
+                    } else {
+                        true
+                    }
                 }
                 None => true,
             }

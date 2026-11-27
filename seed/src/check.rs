@@ -3907,6 +3907,8 @@ struct Checker {
     /// Layout computation pending per type (attribute annotations
     /// specification section 4.3).
     unpack_requests: HashMap<GlobalId, HashMap<String, ast::Span>>,
+    nounpack_requests: HashMap<GlobalId, HashSet<String>>,
+    auto_unpack_candidates: Vec<(String, String, ast::Span)>,
     unpacked_records: HashMap<GlobalId, UnpackedRecord>,
     /// Identity constructors and their validated runtime payload types.
     unboxed_ctors: HashMap<GlobalId, Ty>,
@@ -4520,6 +4522,8 @@ impl Checker {
             diags: Vec::new(),
             fn_hints: HashMap::new(),
             unpack_requests: HashMap::new(),
+            nounpack_requests: HashMap::new(),
+            auto_unpack_candidates: Vec::new(),
             unpacked_records: HashMap::new(),
             unboxed_ctors: HashMap::new(),
             niche_plans: HashMap::new(),
