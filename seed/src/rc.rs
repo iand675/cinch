@@ -1191,24 +1191,44 @@ fn branch_reuse(
     fields: &[LocalId],
     ctors: &Ctors,
 ) -> Option<Core> {
-    // The arm's body with the reuse on its spine, when it allocates a
-    // compatible constructor there.
-    let arm = |body: &Core| -> (Core, bool) {
-        let reused = insert_reuse(body, token, words, tag, fields, false, ctors)
-            .or_else(|| insert_reuse(body, token, words, tag, fields, true, ctors));
-        match reused {
-            Some(rewritten) => (rewritten, true),
-            None => (body.clone(), false),
-        }
-    };
+    if let Some(reused) = insert_reuse(e, token, words, tag, fields, false, ctors)
+        .or_else(|| insert_reuse(e, token, words, tag, fields, true, ctors))
+    {
+        return Some(reused);
+    }
     match e {
+        Core::Let(x, c, v, b) => {
+            // `v` has no unconditional straight-line reuse (checked by
+            // `insert_reuse(e)` above), so descending only into `b` consumes
+            // `token` at most once on any execution path.
+            let b2 = branch_reuse(b, token, words, tag, fields, ctors)?;
+            Some(Core::Let(*x, *c, v.clone(), Box::new(b2)))
+        }
+        Core::Dup(x, c, b) => branch_reuse(b, token, words, tag, fields, ctors)
+            .map(|b2| Core::Dup(*x, *c, Box::new(b2))),
+        Core::Drop(x, c, b) => branch_reuse(b, token, words, tag, fields, ctors)
+            .map(|b2| Core::Drop(*x, *c, Box::new(b2))),
+        Core::Release { block, moved, rest, token: inner_tok, body } => {
+            let b2 = branch_reuse(body, token, words, tag, fields, ctors)?;
+            Some(Core::Release {
+                block: *block,
+                moved: moved.clone(),
+                rest: rest.clone(),
+                token: *inner_tok,
+                body: Box::new(b2),
+            })
+        }
         Core::Case { scrut, alts } if !alts.is_empty() => {
             let mut bodies = Vec::with_capacity(alts.len());
             let mut any = false;
             for a in alts {
-                let (body, reused) = arm(&a.body);
-                any |= reused;
-                bodies.push(body);
+                match branch_reuse(&a.body, token, words, tag, fields, ctors) {
+                    Some(body) => {
+                        any = true;
+                        bodies.push(body);
+                    }
+                    None => bodies.push((*a.body).clone()),
+                }
             }
             // Nothing to gain: a token no arm reads is a slot no path
             // uses, and the release is the same either way.
@@ -1217,7 +1237,7 @@ fn branch_reuse(
             }
             let mut bodies = bodies.into_iter();
             let alts = alts
-                .into_iter()
+                .iter()
                 .map(|a| CAlt {
                     pat: a.pat.clone(),
                     weight: a.weight,
@@ -1227,15 +1247,21 @@ fn branch_reuse(
             Some(Core::Case { scrut: scrut.clone(), alts })
         }
         Core::If(c, t, f) => {
-            let (then, then_reused) = arm(&t.body);
-            let (otherwise, else_reused) = arm(&f.body);
-            if !then_reused && !else_reused {
+            let then_r = branch_reuse(&t.body, token, words, tag, fields, ctors);
+            let else_r = branch_reuse(&f.body, token, words, tag, fields, ctors);
+            if then_r.is_none() && else_r.is_none() {
                 return None;
             }
             Some(Core::If(
                 c.clone(),
-                CBranch { weight: t.weight, body: Box::new(then) },
-                CBranch { weight: f.weight, body: Box::new(otherwise) },
+                CBranch {
+                    weight: t.weight,
+                    body: Box::new(then_r.unwrap_or_else(|| (*t.body).clone())),
+                },
+                CBranch {
+                    weight: f.weight,
+                    body: Box::new(else_r.unwrap_or_else(|| (*f.body).clone())),
+                },
             ))
         }
         _ => None,
@@ -2928,6 +2954,98 @@ mod owned_use_tests {
             matches!(&*no.body, Core::Var(LocalId(1))),
             "expected zero-RC direct return of scrutinee on else branch, got {:?}",
             no.body
+        );
+    }
+
+    #[test]
+    fn nested_if_let_branch_reuse_reuses_cell_on_deep_arm() {
+        // `upd a b s = case s of Bin k v -> if a then (let x = k in if b then Bin x v else Bin v x) else Bin v k`
+        // Recursive `branch_reuse` must thread the release token through `Let`
+        // and nested `If` so every deep constructor arm emits `Core::Reuse`.
+        let bin = FnDef {
+            id: GlobalId("T.Bin".into()),
+            params: vec!["k".into(), "v".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 2)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj, Class::Obj],
+                fields: vec![Class::Obj, Class::Obj],
+                data: Some("T.Pair".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let deep = Core::Let(
+            LocalId(5),
+            Class::Obj,
+            Box::new(Core::Var(LocalId(3))),
+            Box::new(Core::If(
+                Box::new(Core::Var(LocalId(1))),
+                CBranch::new(Core::App(
+                    Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                    vec![Core::Var(LocalId(5)), Core::Var(LocalId(4))],
+                )),
+                CBranch::new(Core::App(
+                    Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                    vec![Core::Var(LocalId(4)), Core::Var(LocalId(5))],
+                )),
+            )),
+        );
+        let upd = FnDef {
+            id: GlobalId("T.upd2".into()),
+            params: vec!["a".into(), "b".into(), "s".into()],
+            body: Core::Case {
+                scrut: Box::new(Core::Var(LocalId(2))),
+                alts: vec![CAlt::new(
+                    CPat::Con {
+                        tag: 0,
+                        fields: vec![LocalId(3), LocalId(4)],
+                        classes: vec![Class::Obj, Class::Obj],
+                    },
+                    Core::If(
+                        Box::new(Core::Var(LocalId(0))),
+                        CBranch::new(deep),
+                        CBranch::new(Core::App(
+                            Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                            vec![Core::Var(LocalId(4)), Core::Var(LocalId(3))],
+                        )),
+                    ),
+                )],
+            },
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Raw, Class::Raw, Class::Obj],
+                result: Some(Class::Obj),
+                ..UnitRepr::default()
+            },
+        };
+        let program = Program::from_functions(vec![bin, upd]);
+        let profile = crate::core::TargetProfile { reclaim: true, ..crate::core::TargetProfile::native() };
+        let out = insert_closed(program, &profile).expect("rc insert_closed");
+        let f = out.fns.iter().find(|f| f.id.0 == "T.upd2").expect("T.upd2");
+        fn count_reuse(e: &Core) -> usize {
+            let mut n = usize::from(matches!(e, Core::Reuse { .. }));
+            for c in crate::core::child_slots_imm(e) {
+                n += count_reuse(c);
+            }
+            n
+        }
+        let Core::Case { alts, .. } = &f.body else { panic!("expected Case") };
+        assert!(
+            matches!(&*alts[0].body, Core::Release { token: Some(_), .. }),
+            "expected Core::Release with reuse token, got {:?}",
+            alts[0].body
+        );
+        assert_eq!(
+            count_reuse(&alts[0].body),
+            3,
+            "all three nested If/Let arms must reuse the released cell: {:?}",
+            alts[0].body
         );
     }
 }

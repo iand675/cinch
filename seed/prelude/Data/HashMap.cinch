@@ -253,8 +253,18 @@ module Data.HashMap where
   spine-insert d x v s = case s of
     STip -> SBin1 1 d x v STip STip
     SBin1 h d2 k2 v2 l r ->
-      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert d x v l) r
-      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert d x v r)
+      if lt-i64 d d2 then
+        let l1 = spine-insert d x v l in
+        let hl = spine-height l1 in
+        let hr = spine-height r in
+        if lt-i64 (wrapping-add-i64 hr 1) hl then spine-rotate-right1 d2 k2 v2 l1 r
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l1 r
+      else if gt-i64 d d2 then
+        let r1 = spine-insert d x v r in
+        let hl = spine-height l in
+        let hr = spine-height r1 in
+        if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left1 d2 k2 v2 l r1
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l r1
       else if k2 == x then SBin1 h d2 x v l r
       else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
     SBinMany h d2 b l r ->
@@ -264,14 +274,25 @@ module Data.HashMap where
 
   -- | Insert only if `x` is not already present (preserves earlier-pair-wins
   -- in a single tail-recursive pass for `hash-map-from-pairs`). Branch-sunk
-  -- Perceus drop-specialization reuses unique nodes on recursive branches
-  -- while returning `s` directly with zero allocations on an existing key.
+  -- Perceus drop-specialization reuses unique nodes in-place on every balanced
+  -- recursive level while returning `s` directly with zero allocations on an
+  -- existing key.
   spine-insert-if-absent :: forall k v. using (eq :: Eq k) => I64 -> k -> v -> Spine k v -> Spine k v
   spine-insert-if-absent d x v s = case s of
     STip -> SBin1 1 d x v STip STip
     SBin1 h d2 k2 v2 l r ->
-      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert-if-absent d x v l) r
-      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert-if-absent d x v r)
+      if lt-i64 d d2 then
+        let l1 = spine-insert-if-absent d x v l in
+        let hl = spine-height l1 in
+        let hr = spine-height r in
+        if lt-i64 (wrapping-add-i64 hr 1) hl then spine-rotate-right1 d2 k2 v2 l1 r
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l1 r
+      else if gt-i64 d d2 then
+        let r1 = spine-insert-if-absent d x v r in
+        let hl = spine-height l in
+        let hr = spine-height r1 in
+        if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left1 d2 k2 v2 l r1
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l r1
       else if k2 == x then s
       else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
     SBinMany h d2 b l r ->
@@ -284,8 +305,18 @@ module Data.HashMap where
   spine-insert-with f d x v s = case s of
     STip -> SBin1 1 d x v STip STip
     SBin1 h d2 k2 v2 l r ->
-      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-insert-with f d x v l) r
-      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-insert-with f d x v r)
+      if lt-i64 d d2 then
+        let l1 = spine-insert-with f d x v l in
+        let hl = spine-height l1 in
+        let hr = spine-height r in
+        if lt-i64 (wrapping-add-i64 hr 1) hl then spine-rotate-right1 d2 k2 v2 l1 r
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l1 r
+      else if gt-i64 d d2 then
+        let r1 = spine-insert-with f d x v r in
+        let hl = spine-height l in
+        let hr = spine-height r1 in
+        if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left1 d2 k2 v2 l r1
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l r1
       else if k2 == x then SBin1 h d2 x (f v v2) l r
       else SBinMany h d2 (Cons (x, v) (Cons (k2, v2) Nil)) l r
     SBinMany h d2 b l r ->
@@ -326,8 +357,18 @@ module Data.HashMap where
   spine-delete-key d x s = case s of
     STip -> STip
     SBin1 _ d2 k2 v2 l r ->
-      if lt-i64 d d2 then spine-balance1 d2 k2 v2 (spine-delete-key d x l) r
-      else if gt-i64 d d2 then spine-balance1 d2 k2 v2 l (spine-delete-key d x r)
+      if lt-i64 d d2 then
+        let l1 = spine-delete-key d x l in
+        let hl = spine-height l1 in
+        let hr = spine-height r in
+        if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left1 d2 k2 v2 l1 r
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l1 r
+      else if gt-i64 d d2 then
+        let r1 = spine-delete-key d x r in
+        let hl = spine-height l in
+        let hr = spine-height r1 in
+        if lt-i64 (wrapping-add-i64 hr 1) hl then spine-rotate-right1 d2 k2 v2 l r1
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d2 k2 v2 l r1
       else if k2 == x then spine-glue l r
       else s
     SBinMany h d2 b l r ->
@@ -365,13 +406,18 @@ module Data.HashMap where
       STip -> SBinMany 1 d b STip STip
       _ -> spine-min-node l
 
-  -- Delete the leftmost node with Perceus unique-reuse intact.
+  -- Delete the leftmost node with Perceus unique-reuse intact at every level.
   spine-delete-min :: forall k v. Spine k v -> Spine k v
   spine-delete-min s = case s of
     STip -> STip
     SBin1 _ d k v l r -> case l of
       STip -> r
-      _ -> spine-balance1 d k v (spine-delete-min l) r
+      _ ->
+        let l1 = spine-delete-min l in
+        let hl = spine-height l1 in
+        let hr = spine-height r in
+        if lt-i64 (wrapping-add-i64 hl 1) hr then spine-rotate-left1 d k v l1 r
+        else SBin1 (wrapping-add-i64 1 (if lt-i64 hl hr then hr else hl)) d k v l1 r
     SBinMany _ d b l r -> case l of
       STip -> r
       _ -> spine-balance-many d b (spine-delete-min l) r
