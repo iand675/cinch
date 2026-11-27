@@ -25,7 +25,7 @@ module Prim.Wide where
     llvm {
       %r = and i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
 
   -- | Bitwise select across 128 bits: (mask & when-one) | (~mask & when-zero).
   prim simd-bitselect :: U128 -> U128 -> U128 -> U128 where
@@ -116,7 +116,7 @@ module Prim.Wide where
       %v = shufflevector <8 x i16> %v0, <8 x i16> poison, <8 x i32> zeroinitializer
       %r = bitcast <8 x i16> %v to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping addition on 8 U16 lanes.
   prim simd-u16x8-add :: U128 -> U128 -> U128 where
@@ -126,7 +126,7 @@ module Prim.Wide where
       %vr = add <8 x i16> %va, %vb
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping subtraction on 8 U16 lanes.
   prim simd-u16x8-sub :: U128 -> U128 -> U128 where
@@ -136,7 +136,7 @@ module Prim.Wide where
       %vr = sub <8 x i16> %va, %vb
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping multiplication on 8 U16 lanes.
   prim simd-u16x8-mul :: U128 -> U128 -> U128 where
@@ -146,7 +146,7 @@ module Prim.Wide where
       %vr = mul <8 x i16> %va, %vb
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise left shift (masked modulo 16) on 8 U16 lanes.
   prim simd-u16x8-shl :: U128 -> U32 -> U128 where
@@ -159,7 +159,7 @@ module Prim.Wide where
       %vr = shl <8 x i16> %va, %sv
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise logical right shift (masked modulo 16) on 8 U16 lanes.
   prim simd-u16x8-shr :: U128 -> U32 -> U128 where
@@ -172,7 +172,7 @@ module Prim.Wide where
       %vr = lshr <8 x i16> %va, %sv
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise arithmetic right shift (masked modulo 16) on 8 signed I16 lanes.
   prim simd-i16x8-ashr :: U128 -> U32 -> U128 where
@@ -185,7 +185,7 @@ module Prim.Wide where
       %vr = ashr <8 x i16> %va, %sv
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise equality mask on 8 U16 lanes.
   prim simd-u16x8-cmpeq :: U128 -> U128 -> U128 where
@@ -196,7 +196,7 @@ module Prim.Wide where
       %vm = sext <8 x i1> %vc to <8 x i16>
       %r = bitcast <8 x i16> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise unsigned less-than mask on 8 U16 lanes.
   prim simd-u16x8-cmplt :: U128 -> U128 -> U128 where
@@ -207,7 +207,7 @@ module Prim.Wide where
       %vm = sext <8 x i1> %vc to <8 x i16>
       %r = bitcast <8 x i16> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise signed less-than mask on 8 I16 lanes.
   prim simd-i16x8-cmplt :: U128 -> U128 -> U128 where
@@ -218,7 +218,7 @@ module Prim.Wide where
       %vm = sext <8 x i1> %vc to <8 x i16>
       %r = bitcast <8 x i16> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise signed minimum on 8 I16 lanes.
   prim simd-i16x8-smin :: U128 -> U128 -> U128 where
@@ -228,7 +228,7 @@ module Prim.Wide where
       %vr = call <8 x i16> @llvm.smin.v8i16(<8 x i16> %va, <8 x i16> %vb)
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise signed maximum on 8 I16 lanes.
   prim simd-i16x8-smax :: U128 -> U128 -> U128 where
@@ -238,7 +238,7 @@ module Prim.Wide where
       %vr = call <8 x i16> @llvm.smax.v8i16(<8 x i16> %va, <8 x i16> %vb)
       %r = bitcast <8 x i16> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Broadcast one U32 into all 4 32-bit lanes of a U128.
   prim simd-u32x4-splat :: U32 -> U128 where
@@ -247,7 +247,7 @@ module Prim.Wide where
       %v = shufflevector <4 x i32> %v0, <4 x i32> poison, <4 x i32> zeroinitializer
       %r = bitcast <4 x i32> %v to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping addition on 4 U32 lanes.
   prim simd-u32x4-add :: U128 -> U128 -> U128 where
@@ -257,7 +257,7 @@ module Prim.Wide where
       %vr = add <4 x i32> %va, %vb
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping subtraction on 4 U32 lanes.
   prim simd-u32x4-sub :: U128 -> U128 -> U128 where
@@ -267,7 +267,7 @@ module Prim.Wide where
       %vr = sub <4 x i32> %va, %vb
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping multiplication on 4 U32 lanes.
   prim simd-u32x4-mul :: U128 -> U128 -> U128 where
@@ -277,7 +277,7 @@ module Prim.Wide where
       %vr = mul <4 x i32> %va, %vb
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise left shift (masked modulo 32) on 4 U32 lanes.
   prim simd-u32x4-shl :: U128 -> U32 -> U128 where
@@ -289,7 +289,7 @@ module Prim.Wide where
       %vr = shl <4 x i32> %va, %sv
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise logical right shift (masked modulo 32) on 4 U32 lanes.
   prim simd-u32x4-shr :: U128 -> U32 -> U128 where
@@ -301,7 +301,7 @@ module Prim.Wide where
       %vr = lshr <4 x i32> %va, %sv
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise arithmetic right shift (masked modulo 32) on 4 signed I32 lanes.
   prim simd-i32x4-ashr :: U128 -> U32 -> U128 where
@@ -313,7 +313,7 @@ module Prim.Wide where
       %vr = ashr <4 x i32> %va, %sv
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise left rotation on 4 U32 lanes.
   prim simd-u32x4-rotl :: U128 -> U32 -> U128 where
@@ -324,7 +324,7 @@ module Prim.Wide where
       %vr = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %va, <4 x i32> %va, <4 x i32> %sv)
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise right rotation on 4 U32 lanes.
   prim simd-u32x4-rotr :: U128 -> U32 -> U128 where
@@ -335,7 +335,7 @@ module Prim.Wide where
       %vr = call <4 x i32> @llvm.fshr.v4i32(<4 x i32> %va, <4 x i32> %va, <4 x i32> %sv)
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise signed minimum on 4 I32 lanes.
   prim simd-i32x4-smin :: U128 -> U128 -> U128 where
@@ -345,7 +345,7 @@ module Prim.Wide where
       %vr = call <4 x i32> @llvm.smin.v4i32(<4 x i32> %va, <4 x i32> %vb)
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise signed maximum on 4 I32 lanes.
   prim simd-i32x4-smax :: U128 -> U128 -> U128 where
@@ -355,7 +355,7 @@ module Prim.Wide where
       %vr = call <4 x i32> @llvm.smax.v4i32(<4 x i32> %va, <4 x i32> %vb)
       %r = bitcast <4 x i32> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise equality mask on 4 U32 lanes.
   prim simd-u32x4-cmpeq :: U128 -> U128 -> U128 where
@@ -366,7 +366,7 @@ module Prim.Wide where
       %vm = sext <4 x i1> %vc to <4 x i32>
       %r = bitcast <4 x i32> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise unsigned less-than mask on 4 U32 lanes.
   prim simd-u32x4-cmplt :: U128 -> U128 -> U128 where
@@ -377,7 +377,7 @@ module Prim.Wide where
       %vm = sext <4 x i1> %vc to <4 x i32>
       %r = bitcast <4 x i32> %vm to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Pack four U32 lanes into a U128 with lane 0 in the least-significant 32 bits.
   prim simd-u32x4-pack :: U32 -> U32 -> U32 -> U32 -> U128 where
@@ -388,7 +388,7 @@ module Prim.Wide where
       %v3 = insertelement <4 x i32> %v2, i32 %3, i64 0
       %r = bitcast <4 x i32> %v3 to i128
       ret i128 %r
-    } when endian big
+    } when endian big justify verify
     llvm {
       %v0 = insertelement <4 x i32> poison, i32 %0, i64 0
       %v1 = insertelement <4 x i32> %v0, i32 %1, i64 1
@@ -396,7 +396,7 @@ module Prim.Wide where
       %v3 = insertelement <4 x i32> %v2, i32 %3, i64 3
       %r = bitcast <4 x i32> %v3 to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Broadcast one U64 into both 64-bit lanes of a U128.
   prim simd-u64x2-splat :: U64 -> U128 where
@@ -405,7 +405,7 @@ module Prim.Wide where
       %v = shufflevector <2 x i64> %v0, <2 x i64> poison, <2 x i32> zeroinitializer
       %r = bitcast <2 x i64> %v to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping addition on 2 U64 lanes.
   prim simd-u64x2-add :: U128 -> U128 -> U128 where
@@ -415,7 +415,7 @@ module Prim.Wide where
       %vr = add <2 x i64> %va, %vb
       %r = bitcast <2 x i64> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise wrapping subtraction on 2 U64 lanes.
   prim simd-u64x2-sub :: U128 -> U128 -> U128 where
@@ -425,7 +425,7 @@ module Prim.Wide where
       %vr = sub <2 x i64> %va, %vb
       %r = bitcast <2 x i64> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise left shift (masked modulo 64) on 2 U64 lanes.
   prim simd-u64x2-shl :: U128 -> U32 -> U128 where
@@ -438,7 +438,7 @@ module Prim.Wide where
       %vr = shl <2 x i64> %va, %sv
       %r = bitcast <2 x i64> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise logical right shift (masked modulo 64) on 2 U64 lanes.
   prim simd-u64x2-shr :: U128 -> U32 -> U128 where
@@ -451,7 +451,7 @@ module Prim.Wide where
       %vr = lshr <2 x i64> %va, %sv
       %r = bitcast <2 x i64> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise left rotation on 2 U64 lanes.
   prim simd-u64x2-rotl :: U128 -> U32 -> U128 where
@@ -463,7 +463,7 @@ module Prim.Wide where
       %vr = call <2 x i64> @llvm.fshl.v2i64(<2 x i64> %va, <2 x i64> %va, <2 x i64> %sv)
       %r = bitcast <2 x i64> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Lane-wise right rotation on 2 U64 lanes.
   prim simd-u64x2-rotr :: U128 -> U32 -> U128 where
@@ -475,7 +475,7 @@ module Prim.Wide where
       %vr = call <2 x i64> @llvm.fshr.v2i64(<2 x i64> %va, <2 x i64> %va, <2 x i64> %sv)
       %r = bitcast <2 x i64> %vr to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | Pack two U64 lanes into a U128 with lane 0 in the least-significant 64 bits.
   prim simd-u64x2-pack :: U64 -> U64 -> U128 where
@@ -484,13 +484,13 @@ module Prim.Wide where
       %v1 = insertelement <2 x i64> %v0, i64 %1, i64 0
       %r = bitcast <2 x i64> %v1 to i128
       ret i128 %r
-    } when endian big
+    } when endian big justify verify
     llvm {
       %v0 = insertelement <2 x i64> poison, i64 %0, i64 0
       %v1 = insertelement <2 x i64> %v0, i64 %1, i64 1
       %r = bitcast <2 x i64> %v1 to i128
       ret i128 %r
-    }
+    } justify verify
 
   -- | One hardware AES encryption round (SubBytes, ShiftRows, MixColumns, AddRoundKey); callers must guard with cpu-has-aes.
   prim aes-enc-round :: U128 -> U128 -> U128 where

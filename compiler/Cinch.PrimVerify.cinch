@@ -1112,6 +1112,29 @@ module Cinch.PrimVerify where
                           Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p ty) binds) ub g6 ret)
     other -> Err "malformed LLVM select"
 
+  bin-vec-intrinsic-lanes :: String -> Nat -> List (Nat, Nat) -> List (Nat, Nat) -> SemGraph -> Result String (List (Nat, Nat), SemGraph)
+  bin-vec-intrinsic-lanes op ew la lb g = case (la, lb) of
+    (Nil, Nil) -> Ok (Nil, g)
+    (Cons (va, pa) ra, Cons (vb, pb) rb) ->
+      let (p, g1) = g-or pa pb g in
+      let (res, g2) = g-bv-bin op ew va vb g1 in
+      (case bin-vec-intrinsic-lanes op ew ra rb g2 of
+        Err e -> Err e
+        Ok (rest, g3) -> Ok (Cons (res, p) rest, g3))
+    other -> Err "mismatched vector lane counts in binary intrinsic"
+
+  tri-vec-intrinsic-lanes :: String -> Nat -> List (Nat, Nat) -> List (Nat, Nat) -> List (Nat, Nat) -> SemGraph -> Result String (List (Nat, Nat), SemGraph)
+  tri-vec-intrinsic-lanes op ew la lb lc g = case (la, lb, lc) of
+    (Nil, Nil, Nil) -> Ok (Nil, g)
+    (Cons (va, pa) ra, Cons (vb, pb) rb, Cons (vc, pc) rc) ->
+      let (p1, g1) = g-or pa pb g in
+      let (p2, g2) = g-or p1 pc g1 in
+      let (res, g3) = g-intern (NBvTri op ew va vb vc) g2 in
+      (case tri-vec-intrinsic-lanes op ew ra rb rc g3 of
+        Err e -> Err e
+        Ok (rest, g4) -> Ok (Cons (res, p2) rest, g4))
+    other -> Err "mismatched vector lane counts in ternary intrinsic"
+
   lower-intrinsic-call :: String -> List String -> LlvmEnv -> Result String LlvmEnv
   lower-intrinsic-call lhs args env =
     let (nsw, nuw, exact, rest) = strip-ir-flags args in
@@ -1189,6 +1212,31 @@ module Cinch.PrimVerify where
                               let (res, g4) = g-bv-bin name w (sv-val va) (sv-val vb) g3 in
                               Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p (SBv w)) binds) ub g4 ret)
                             None -> Err (string-concat "unsupported binary intrinsic " fn-tok))
+          Some (SVec n ew) ->
+            case resolve-operand a-tok (SVec n ew) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok (SVec n ew) (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        let op =
+                              if string-starts-with "@llvm.smin." fn-tok then Some "smin"
+                              else if string-starts-with "@llvm.smax." fn-tok then Some "smax"
+                              else if string-starts-with "@llvm.umin." fn-tok then Some "umin"
+                              else if string-starts-with "@llvm.umax." fn-tok then Some "umax"
+                              else if string-starts-with "@llvm.sadd.sat." fn-tok then Some "sadd_sat"
+                              else if string-starts-with "@llvm.uadd.sat." fn-tok then Some "uadd_sat"
+                              else if string-starts-with "@llvm.ssub.sat." fn-tok then Some "ssub_sat"
+                              else if string-starts-with "@llvm.usub.sat." fn-tok then Some "usub_sat"
+                              else None in
+                        (case (op, va, vb) of
+                          (Some name, MkSemVec la _, MkSemVec lb _) ->
+                            (case bin-vec-intrinsic-lanes name ew la lb g2 of
+                              Err e -> Err e
+                              Ok (lanes, g3) -> Ok (MkLlvmEnv (Cons (lhs, MkSemVec lanes ew) binds) ub g3 ret))
+                          other -> Err (string-concat "unsupported vector binary intrinsic " fn-tok))
           Some (SFp w) ->
             case resolve-operand a-tok (SFp w) env of
               Err e -> Err e
@@ -1247,6 +1295,25 @@ module Cinch.PrimVerify where
                             let op-name = if string-starts-with "@llvm.fshl." fn-tok then "fshl" else "fshr" in
                             let (res, g6) = g-intern (NBvTri op-name w (sv-val va) (sv-val vb) (sv-val vc)) g5 in
                             Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p2 (SBv w)) binds) ub g6 ret)
+          Some (SVec n ew) ->
+            case resolve-operand a-tok (SVec n ew) env of
+              Err e -> Err e
+              Ok (va, g1) ->
+                case env of
+                  MkLlvmEnv binds ub g0 ret ->
+                    case resolve-operand b-tok (SVec n ew) (MkLlvmEnv binds ub g1 ret) of
+                      Err e -> Err e
+                      Ok (vb, g2) ->
+                        case resolve-operand c-tok (SVec n ew) (MkLlvmEnv binds ub g2 ret) of
+                          Err e -> Err e
+                          Ok (vc, g3) ->
+                            let op-name = if string-starts-with "@llvm.fshl." fn-tok then "fshl" else "fshr" in
+                            (case (va, vb, vc) of
+                              (MkSemVec la _, MkSemVec lb _, MkSemVec lc _) ->
+                                (case tri-vec-intrinsic-lanes op-name ew la lb lc g3 of
+                                  Err e -> Err e
+                                  Ok (lanes, g4) -> Ok (MkLlvmEnv (Cons (lhs, MkSemVec lanes ew) binds) ub g4 ret))
+                              other -> Err (string-concat "unsupported vector funnel shift " fn-tok))
           other -> Err (string-concat "unsupported funnel shift " fn-tok)
       other -> Err "unsupported LLVM call"
 
@@ -2296,15 +2363,54 @@ module Cinch.PrimVerify where
     else bb-bswap (saturating-sub w 8) (drop-bits 8 xs) <> take-bits 8 xs
 
   bb-ctpop :: Nat -> List Int -> BlastState -> (List Int, BlastState)
-  bb-ctpop w xs st = bb-ctpop-loop w xs (repeat-bit w lit-false) st
+  bb-ctpop w xs st =
+    if w == 0 then (Nil, st)
+    else
+      let leaves = map-bits-to-singletons xs in
+      case bb-ctpop-tree leaves st of
+        (narrow, st1) ->
+          let nlen = list-len-int narrow in
+          if nlen >= w then (take-bits w narrow, st1)
+          else (narrow <> repeat-bit (saturating-sub w nlen) lit-false, st1)
 
-  bb-ctpop-loop :: Nat -> List Int -> List Int -> BlastState -> (List Int, BlastState)
-  bb-ctpop-loop w xs acc st = case xs of
-    Nil -> (acc, st)
-    Cons b rest ->
-      let inc = Cons b (repeat-bit (saturating-sub w 1) lit-false) in
-      case bb-add-ripple acc inc lit-false st of
-        (next, c, st1) -> bb-ctpop-loop w rest next st1
+  map-bits-to-singletons :: List Int -> List (List Int)
+  map-bits-to-singletons xs = case xs of
+    Nil -> Nil
+    Cons b rest -> Cons [b] (map-bits-to-singletons rest)
+
+  list-len-int :: List Int -> Nat
+  list-len-int xs = case xs of
+    Nil -> 0
+    Cons _ rest -> 1 + list-len-int rest
+
+  pad-bits-to :: Nat -> List Int -> List Int
+  pad-bits-to target xs =
+    let n = list-len-int xs in
+    if n >= target then xs
+    else xs <> repeat-bit (saturating-sub target n) lit-false
+
+  bb-ctpop-pair-step :: List (List Int) -> BlastState -> (List (List Int), BlastState)
+  bb-ctpop-pair-step chunks st = case chunks of
+    Nil -> (Nil, st)
+    Cons only Nil -> (Cons only Nil, st)
+    Cons x (Cons y rest) ->
+      let lx = list-len-int x in
+      let ly = list-len-int y in
+      let target = (if lx > ly then lx else ly) + 1 in
+      let px = pad-bits-to target x in
+      let py = pad-bits-to target y in
+      case bb-add-ripple px py lit-false st of
+        (s, _, st1) ->
+          case bb-ctpop-pair-step rest st1 of
+            (more, st2) -> (Cons s more, st2)
+
+  bb-ctpop-tree :: List (List Int) -> BlastState -> (List Int, BlastState)
+  bb-ctpop-tree chunks st = case chunks of
+    Nil -> (Nil, st)
+    Cons only Nil -> (only, st)
+    other ->
+      case bb-ctpop-pair-step chunks st of
+        (next, st1) -> bb-ctpop-tree next st1
 
   bb-cttz-from :: Nat -> Nat -> List Int -> BlastState -> (List Int, BlastState)
   bb-cttz-from w idx xs st = case xs of
@@ -3079,6 +3185,17 @@ module Cinch.PrimVerify where
         (rest, g2) -> (Cons (nm, nid, ty, param-spec-signed p) rest, g2)
     other -> (Nil, g)
 
+  conjoin-char-invariants :: List PrimParamSpec -> List (String, Nat, SemType, Bool) -> Nat -> SemGraph -> (Nat, SemGraph)
+  conjoin-char-invariants ps ref-env acc g = case (ps, ref-env) of
+    (Cons (MkPrimParamSpec _ ty _ _ _ _) pr, Cons (_, nid, SBv w, _) rr) ->
+      if same ty "Char" && w == 32 then
+        let (hi, g1) = g-bv 32 1114111 g in
+        let (ok-c, g2) = g-bv-cmp "ule" 32 nid hi g1 in
+        let (next-acc, g3) = g-and acc ok-c g2 in
+        conjoin-char-invariants pr rr next-acc g3
+      else conjoin-char-invariants pr rr acc g
+    other -> (acc, g)
+
   -- Main entry point with proof-cache + replay-only + indexed parameter refinements.
   verify-prim-body-cached :: String -> Bool -> String -> String -> List (String, String) -> Bool -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> Option UType -> Option Expr -> List SpecDef -> String -> Bool -> VerifyOutcome
   verify-prim-body-cached prim-name is-jpl verify-mode just-word proof-cache replay-only fragment params result req-preds param-preds postcond spec-opt spec-defs spec-display is-unsafe =
@@ -3101,7 +3218,8 @@ module Cinch.PrimVerify where
               let (true-id, g3) = g-bool True g2 in
               case build-ref-env params vars g3 of
                 (ref-env, g4) ->
-                  let (assume1, g4b) = conjoin-assumptions ref-env req-preds true-id g4 in
+                  let (assume0, g4a) = conjoin-char-invariants params ref-env true-id g4 in
+                  let (assume1, g4b) = conjoin-assumptions ref-env req-preds assume0 g4a in
                   let (assume-id, g5) = conjoin-indexed-assumptions ref-env param-preds assume1 g4b in
                   let (not-ub, g6) = g-not ub-cond g5 in
                   let (ob-no-ub, g7) = g-implies assume-id not-ub g6 in

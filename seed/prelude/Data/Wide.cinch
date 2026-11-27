@@ -57,32 +57,32 @@ module Data.Wide where
     llvm {
       %r = add i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-sub-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = sub i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-mul-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = mul i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-neg-i128 :: I128 -> I128 where
     llvm {
       %r = sub i128 0, %0
       ret i128 %r
-    }
+    } justify verify
   prim saturating-add-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = call i128 @llvm.sadd.sat.i128(i128 %0, i128 %1)
       ret i128 %r
-    }
+    } justify verify
   prim saturating-sub-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = call i128 @llvm.ssub.sat.i128(i128 %0, i128 %1)
       ret i128 %r
-    }
+    } justify verify
   prim saturating-mul-i128 :: I128 -> I128 -> I128 where
     llvm {
       %res = call { i128, i1 } @llvm.smul.with.overflow.i128(i128 %0, i128 %1)
@@ -94,28 +94,28 @@ module Data.Wide where
       %bound = select i1 %same, i128 170141183460469231731687303715884105727, i128 -170141183460469231731687303715884105728
       %r = select i1 %ov, i128 %bound, i128 %val
       ret i128 %r
-    }
+    } justify verify
   prim ov-add-i128 :: I128 -> I128 -> Bool where
     llvm {
       %res = call { i128, i1 } @llvm.sadd.with.overflow.i128(i128 %0, i128 %1)
       %ov = extractvalue { i128, i1 } %res, 1
       %r = zext i1 %ov to i8
       ret i8 %r
-    }
+    } justify verify
   prim ov-sub-i128 :: I128 -> I128 -> Bool where
     llvm {
       %res = call { i128, i1 } @llvm.ssub.with.overflow.i128(i128 %0, i128 %1)
       %ov = extractvalue { i128, i1 } %res, 1
       %r = zext i1 %ov to i8
       ret i8 %r
-    }
+    } justify verify
   prim ov-mul-i128 :: I128 -> I128 -> Bool where
     llvm {
       %res = call { i128, i1 } @llvm.smul.with.overflow.i128(i128 %0, i128 %1)
       %ov = extractvalue { i128, i1 } %res, 1
       %r = zext i1 %ov to i8
       ret i8 %r
-    }
+    } justify verify
   -- Signed 128-bit division/remainder: precondition rules out LLVM immediate UB
   -- (`%1 == 0` or `%0 == MIN && %1 == -1`), so no `unsafe` trust boundary is needed.
   prim raw-sdiv-i128 :: (a :: I128) -> refined (r /= 0 && Not (a == -170141183460469231731687303715884105728 && r == -1)) I128 -> I128 where
@@ -132,112 +132,112 @@ module Data.Wide where
     llvm {
       %r = and i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-or-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = or i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-xor-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = xor i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-not-i128 :: I128 -> I128 where
     llvm {
       %r = xor i128 %0, -1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-shl-i128 :: I128 -> U32 -> I128 where
     llvm {
       %m = and i32 %1, 127
       %s = zext i32 %m to i128
       %r = shl i128 %0, %s
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-shr-i128 :: I128 -> U32 -> I128 where
     llvm {
       %m = and i32 %1, 127
       %s = zext i32 %m to i128
       %r = ashr i128 %0, %s
       ret i128 %r
-    }
+    } justify verify
   prim rotate-left-i128 :: I128 -> U32 -> I128 where
     llvm {
       %s = zext i32 %1 to i128
       %r = call i128 @llvm.fshl.i128(i128 %0, i128 %0, i128 %s)
       ret i128 %r
-    }
+    } justify verify
   prim rotate-right-i128 :: I128 -> U32 -> I128 where
     llvm {
       %s = zext i32 %1 to i128
       %r = call i128 @llvm.fshr.i128(i128 %0, i128 %0, i128 %s)
       ret i128 %r
-    }
+    } justify verify
   prim count-ones-i128 :: I128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctpop.i128(i128 %0)
       %r = trunc i128 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim leading-zeros-i128 :: I128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctlz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim trailing-zeros-i128 :: I128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.cttz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim reverse-bits-i128 :: I128 -> I128 where
     llvm {
       %r = call i128 @llvm.bitreverse.i128(i128 %0)
       ret i128 %r
-    }
+    } justify verify
   prim swap-bytes-i128 :: I128 -> I128 where
     llvm {
       %r = call i128 @llvm.bswap.i128(i128 %0)
       ret i128 %r
-    }
+    } justify verify
   prim eq-i128 :: I128 -> I128 -> Bool where
     llvm {
       %c = icmp eq i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim ne-i128 :: I128 -> I128 -> Bool where
     llvm {
       %c = icmp ne i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim lt-i128 :: I128 -> I128 -> Bool where
     llvm {
       %c = icmp slt i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim le-i128 :: I128 -> I128 -> Bool where
     llvm {
       %c = icmp sle i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim gt-i128 :: I128 -> I128 -> Bool where
     llvm {
       %c = icmp sgt i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim ge-i128 :: I128 -> I128 -> Bool where
     llvm {
       %c = icmp sge i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   checked-add-i128 :: I128 -> I128 -> Option I128
   checked-add-i128 x y = if ov-add-i128 x y then None else Some (wrapping-add-i128 x y)
   checked-sub-i128 :: I128 -> I128 -> Option I128
@@ -270,32 +270,32 @@ module Data.Wide where
     llvm {
       %r = add i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-sub-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = sub i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-mul-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = mul i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-neg-u128 :: U128 -> U128 where
     llvm {
       %r = sub i128 0, %0
       ret i128 %r
-    }
+    } justify verify
   prim saturating-add-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = call i128 @llvm.uadd.sat.i128(i128 %0, i128 %1)
       ret i128 %r
-    }
+    } justify verify
   prim saturating-sub-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = call i128 @llvm.usub.sat.i128(i128 %0, i128 %1)
       ret i128 %r
-    }
+    } justify verify
   prim saturating-mul-u128 :: U128 -> U128 -> U128 where
     llvm {
       %res = call { i128, i1 } @llvm.umul.with.overflow.i128(i128 %0, i128 %1)
@@ -303,28 +303,28 @@ module Data.Wide where
       %ov = extractvalue { i128, i1 } %res, 1
       %r = select i1 %ov, i128 -1, i128 %val
       ret i128 %r
-    }
+    } justify verify
   prim ov-add-u128 :: U128 -> U128 -> Bool where
     llvm {
       %res = call { i128, i1 } @llvm.uadd.with.overflow.i128(i128 %0, i128 %1)
       %ov = extractvalue { i128, i1 } %res, 1
       %r = zext i1 %ov to i8
       ret i8 %r
-    }
+    } justify verify
   prim ov-sub-u128 :: U128 -> U128 -> Bool where
     llvm {
       %res = call { i128, i1 } @llvm.usub.with.overflow.i128(i128 %0, i128 %1)
       %ov = extractvalue { i128, i1 } %res, 1
       %r = zext i1 %ov to i8
       ret i8 %r
-    }
+    } justify verify
   prim ov-mul-u128 :: U128 -> U128 -> Bool where
     llvm {
       %res = call { i128, i1 } @llvm.umul.with.overflow.i128(i128 %0, i128 %1)
       %ov = extractvalue { i128, i1 } %res, 1
       %r = zext i1 %ov to i8
       ret i8 %r
-    }
+    } justify verify
   -- Unsigned 128-bit division/remainder: `udiv`/`urem` have immediate LLVM UB
   -- when `%1 == 0`, so the underlying prims require a `refined (r /= 0) U128`
   -- divisor (verifiable without `unsafe`) and `div-u128`/`rem-u128` expose
@@ -347,107 +347,107 @@ module Data.Wide where
     llvm {
       %r = or i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-xor-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = xor i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-not-u128 :: U128 -> U128 where
     llvm {
       %r = xor i128 %0, -1
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-shl-u128 :: U128 -> U32 -> U128 where
     llvm {
       %m = and i32 %1, 127
       %s = zext i32 %m to i128
       %r = shl i128 %0, %s
       ret i128 %r
-    }
+    } justify verify
   prim wrapping-shr-u128 :: U128 -> U32 -> U128 where
     llvm {
       %m = and i32 %1, 127
       %s = zext i32 %m to i128
       %r = lshr i128 %0, %s
       ret i128 %r
-    }
+    } justify verify
   prim rotate-left-u128 :: U128 -> U32 -> U128 where
     llvm {
       %s = zext i32 %1 to i128
       %r = call i128 @llvm.fshl.i128(i128 %0, i128 %0, i128 %s)
       ret i128 %r
-    }
+    } justify verify
   prim rotate-right-u128 :: U128 -> U32 -> U128 where
     llvm {
       %s = zext i32 %1 to i128
       %r = call i128 @llvm.fshr.i128(i128 %0, i128 %0, i128 %s)
       ret i128 %r
-    }
+    } justify verify
   prim count-ones-u128 :: U128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctpop.i128(i128 %0)
       %r = trunc i128 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim leading-zeros-u128 :: U128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctlz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim trailing-zeros-u128 :: U128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.cttz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
       ret i32 %r
-    }
+    } justify verify
   prim reverse-bits-u128 :: U128 -> U128 where
     llvm {
       %r = call i128 @llvm.bitreverse.i128(i128 %0)
       ret i128 %r
-    }
+    } justify verify
   prim swap-bytes-u128 :: U128 -> U128 where
     llvm {
       %r = call i128 @llvm.bswap.i128(i128 %0)
       ret i128 %r
-    }
+    } justify verify
   prim eq-u128 :: U128 -> U128 -> Bool where
     llvm {
       %c = icmp eq i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim ne-u128 :: U128 -> U128 -> Bool where
     llvm {
       %c = icmp ne i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim lt-u128 :: U128 -> U128 -> Bool where
     llvm {
       %c = icmp ult i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim le-u128 :: U128 -> U128 -> Bool where
     llvm {
       %c = icmp ule i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim gt-u128 :: U128 -> U128 -> Bool where
     llvm {
       %c = icmp ugt i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   prim ge-u128 :: U128 -> U128 -> Bool where
     llvm {
       %c = icmp uge i128 %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
   checked-add-u128 :: U128 -> U128 -> Option U128
   checked-add-u128 x y = if ov-add-u128 x y then None else Some (wrapping-add-u128 x y)
   checked-sub-u128 :: U128 -> U128 -> Option U128
@@ -475,11 +475,11 @@ module Data.Wide where
   prim wrapping-i128-to-u128 :: I128 -> U128 where
     llvm {
       ret i128 %0
-    }
+    } justify verify
   prim wrapping-u128-to-i128 :: U128 -> I128 where
     llvm {
       ret i128 %0
-    }
+    } justify verify
   i128-to-i128 :: I128 -> I128
   i128-to-i128 x = x
   checked-i128-to-i128 :: I128 -> Option I128
@@ -682,7 +682,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i8
       ret i8 %r
-    }
+    } justify verify
   checked-i128-to-i8 :: I128 -> Option I8
   checked-i128-to-i8 x = if lt-i128 x (-128) || gt-i128 x 127 then None else Some (wrapping-i128-to-i8 x)
   saturating-i128-to-i8 :: I128 -> I8
@@ -691,7 +691,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i8
       ret i8 %r
-    }
+    } justify verify
   checked-u128-to-i8 :: U128 -> Option I8
   checked-u128-to-i8 x = if gt-u128 x 127 then None else Some (wrapping-u128-to-i8 x)
   saturating-u128-to-i8 :: U128 -> I8
@@ -700,7 +700,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i16
       ret i16 %r
-    }
+    } justify verify
   checked-i128-to-i16 :: I128 -> Option I16
   checked-i128-to-i16 x = if lt-i128 x (-32768) || gt-i128 x 32767 then None else Some (wrapping-i128-to-i16 x)
   saturating-i128-to-i16 :: I128 -> I16
@@ -709,7 +709,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i16
       ret i16 %r
-    }
+    } justify verify
   checked-u128-to-i16 :: U128 -> Option I16
   checked-u128-to-i16 x = if gt-u128 x 32767 then None else Some (wrapping-u128-to-i16 x)
   saturating-u128-to-i16 :: U128 -> I16
@@ -718,7 +718,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i32
       ret i32 %r
-    }
+    } justify verify
   checked-i128-to-i32 :: I128 -> Option I32
   checked-i128-to-i32 x = if lt-i128 x (-2147483648) || gt-i128 x 2147483647 then None else Some (wrapping-i128-to-i32 x)
   saturating-i128-to-i32 :: I128 -> I32
@@ -727,7 +727,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i32
       ret i32 %r
-    }
+    } justify verify
   checked-u128-to-i32 :: U128 -> Option I32
   checked-u128-to-i32 x = if gt-u128 x 2147483647 then None else Some (wrapping-u128-to-i32 x)
   saturating-u128-to-i32 :: U128 -> I32
@@ -736,7 +736,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i64
       ret i64 %r
-    }
+    } justify verify
   checked-i128-to-i64 :: I128 -> Option I64
   checked-i128-to-i64 x = if lt-i128 x (-9223372036854775808) || gt-i128 x 9223372036854775807 then None else Some (wrapping-i128-to-i64 x)
   saturating-i128-to-i64 :: I128 -> I64
@@ -745,7 +745,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i64
       ret i64 %r
-    }
+    } justify verify
   checked-u128-to-i64 :: U128 -> Option I64
   checked-u128-to-i64 x = if gt-u128 x 9223372036854775807 then None else Some (wrapping-u128-to-i64 x)
   saturating-u128-to-i64 :: U128 -> I64
@@ -754,7 +754,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i8
       ret i8 %r
-    }
+    } justify verify
   checked-i128-to-u8 :: I128 -> Option U8
   checked-i128-to-u8 x = if lt-i128 x 0 || gt-i128 x 255 then None else Some (wrapping-i128-to-u8 x)
   saturating-i128-to-u8 :: I128 -> U8
@@ -763,7 +763,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i8
       ret i8 %r
-    }
+    } justify verify
   checked-u128-to-u8 :: U128 -> Option U8
   checked-u128-to-u8 x = if gt-u128 x 255 then None else Some (wrapping-u128-to-u8 x)
   saturating-u128-to-u8 :: U128 -> U8
@@ -772,7 +772,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i16
       ret i16 %r
-    }
+    } justify verify
   checked-i128-to-u16 :: I128 -> Option U16
   checked-i128-to-u16 x = if lt-i128 x 0 || gt-i128 x 65535 then None else Some (wrapping-i128-to-u16 x)
   saturating-i128-to-u16 :: I128 -> U16
@@ -781,7 +781,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i16
       ret i16 %r
-    }
+    } justify verify
   checked-u128-to-u16 :: U128 -> Option U16
   checked-u128-to-u16 x = if gt-u128 x 65535 then None else Some (wrapping-u128-to-u16 x)
   saturating-u128-to-u16 :: U128 -> U16
@@ -790,7 +790,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i32
       ret i32 %r
-    }
+    } justify verify
   checked-i128-to-u32 :: I128 -> Option U32
   checked-i128-to-u32 x = if lt-i128 x 0 || gt-i128 x 4294967295 then None else Some (wrapping-i128-to-u32 x)
   saturating-i128-to-u32 :: I128 -> U32
@@ -799,7 +799,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i32
       ret i32 %r
-    }
+    } justify verify
   checked-u128-to-u32 :: U128 -> Option U32
   checked-u128-to-u32 x = if gt-u128 x 4294967295 then None else Some (wrapping-u128-to-u32 x)
   saturating-u128-to-u32 :: U128 -> U32
@@ -808,7 +808,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i64
       ret i64 %r
-    }
+    } justify verify
   checked-i128-to-u64 :: I128 -> Option U64
   checked-i128-to-u64 x = if lt-i128 x 0 || gt-i128 x 18446744073709551615 then None else Some (wrapping-i128-to-u64 x)
   saturating-i128-to-u64 :: I128 -> U64
@@ -817,7 +817,7 @@ module Data.Wide where
     llvm {
       %r = trunc i128 %0 to i64
       ret i64 %r
-    }
+    } justify verify
   checked-u128-to-u64 :: U128 -> Option U64
   checked-u128-to-u64 x = if gt-u128 x 18446744073709551615 then None else Some (wrapping-u128-to-u64 x)
   saturating-u128-to-u64 :: U128 -> U64

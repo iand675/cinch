@@ -748,6 +748,21 @@ module Cinch.Foreign where
       let h = fnv-source-hash (canonical-bytes (source-identity-expr expr)) in
       Some (string-concat "inline-spec#" h)
 
+  bodies-have-explicit-word-bits :: Nat -> List PrimBody -> Bool
+  bodies-have-explicit-word-bits want bodies = case bodies of
+    [] -> False
+    (PrimBody sp family fragment unverified when selected justification uses immediates) : rest ->
+      let other-default = if want == 32 then 64 else 32 in
+      (family == "llvm" && body-word-bits-for other-default when == want) || bodies-have-explicit-word-bits want rest
+
+  effective-fallback-word-bits :: Nat -> List PrimBody -> Nat
+  effective-fallback-word-bits default-bits bodies =
+    let has32 = bodies-have-explicit-word-bits 32 bodies in
+    let has64 = bodies-have-explicit-word-bits 64 bodies in
+    if has32 && not has64 then 64
+    else if has64 && not has32 then 32
+    else default-bits
+
   verify-prim-bodies-loop :: Nat -> String -> Bool -> String -> List (String, String) -> Bool -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> Option UType -> Option Expr -> List SpecDef -> String -> List PrimBody -> List TrustReceipt -> Bool -> Result String (Bool, List TrustReceipt)
   verify-prim-bodies-loop word-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies acc all-verified = case bodies of
     [] -> Ok (all-verified, acc)
@@ -818,17 +833,18 @@ module Cinch.Foreign where
               let rspec = param-to-verify-spec "result" result in
               let spec-id-opt = spec-identity-string spec-opt in
               let spec-display = case spec-id-opt of Some s -> s; None -> "well-defined" in
-              (case verify-prim-bodies-loop word-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of
+              let fb-bits = effective-fallback-word-bits word-bits bodies in
+              (case verify-prim-bodies-loop fb-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of
                 Err message -> Err message
                 Ok (all-verified1, receipts1) ->
-                  let cross64 = case collect-same-width-llvm-bodies word-bits 64 bodies of
+                  let cross64 = case collect-same-width-llvm-bodies fb-bits 64 bodies of
                         (ref-f, ref-j) : (more1 : more-rest) ->
                           verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only (adjust-specs-word-size 64 pspecs) (adjust-spec-word-size 64 rspec) req-preds param-preds ref-f (more1 : more-rest) receipts1 all-verified1
                         other -> Ok (all-verified1, receipts1) in
                   let cross-result = case cross64 of
                         Err message -> Err message
                         Ok (all-verified2, receipts2) ->
-                          (case collect-same-width-llvm-bodies word-bits 32 bodies of
+                          (case collect-same-width-llvm-bodies fb-bits 32 bodies of
                             (ref-f, ref-j) : (more1 : more-rest) ->
                               verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only (adjust-specs-word-size 32 pspecs) (adjust-spec-word-size 32 rspec) req-preds param-preds ref-f (more1 : more-rest) receipts2 all-verified2
                             other -> Ok (all-verified2, receipts2)) in

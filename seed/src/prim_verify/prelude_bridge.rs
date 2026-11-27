@@ -32,6 +32,7 @@ struct ScalarInfo {
     llvm_param_ty: SemTy,
     signed: bool,
     is_bool: bool,
+    is_char: bool,
 }
 
 pub(crate) fn default_fixities() -> FixityTable {
@@ -153,6 +154,33 @@ pub fn build_prim_body_obligations(
     build_prim_body_obligations_for_word_bits(module, p, body_idx, body, eqs, semantics, 64)
 }
 
+/// If a `prim` has an explicit `when word-size 32` body alongside an unguarded
+/// fallback body, the fallback only executes on 64-bit targets (and vice versa).
+fn effective_fallback_word_bits(bodies: &[PrimBody], default_word_bits: u16) -> u16 {
+    let mut has32 = false;
+    let mut has64 = false;
+    for b in bodies {
+        if b.family.text != "llvm" {
+            continue;
+        }
+        let w32 = body_word_bits_for(b, 64) == 32;
+        let w64 = body_word_bits_for(b, 32) == 64;
+        if w32 {
+            has32 = true;
+        }
+        if w64 {
+            has64 = true;
+        }
+    }
+    if has32 && !has64 {
+        64
+    } else if has64 && !has32 {
+        32
+    } else {
+        default_word_bits
+    }
+}
+
 /// Build all verification obligations for a single `PrimBody`, using `default_word_bits`
 /// (32 or 64) whenever `body.when` does not explicitly guard `word-size`.
 pub fn build_prim_body_obligations_for_word_bits(
@@ -165,7 +193,8 @@ pub fn build_prim_body_obligations_for_word_bits(
     default_word_bits: u16,
 ) -> Result<Vec<Obligation>, String> {
     let family = body.family.text.as_str();
-    let word_bits = body_word_bits_for(body, default_word_bits);
+    let fb_bits = effective_fallback_word_bits(&p.bodies, default_word_bits);
+    let word_bits = body_word_bits_for(body, fb_bits);
 
     let sem_plugin = semantics
         .iter()
@@ -312,6 +341,7 @@ pub fn build_cross_target_obligations_for_word_bits(
     let Some(sem_plugin) = semantics.iter().find(|s| s.family() == "llvm") else {
         return Ok(Vec::new());
     };
+    let fb_bits = effective_fallback_word_bits(&p.bodies, default_word_bits);
     let candidates: Vec<(usize, &PrimBody, u16, bool)> = p
         .bodies
         .iter()
@@ -319,7 +349,7 @@ pub fn build_cross_target_obligations_for_word_bits(
         .filter(|(_, b)| {
             !b.unverified && b.family.text == "llvm" && body_is_arch_or_baseline(b)
         })
-        .map(|(idx, b)| (idx, b, body_word_bits_for(b, default_word_bits), body_is_big_endian(b)))
+        .map(|(idx, b)| (idx, b, body_word_bits_for(b, fb_bits), body_is_big_endian(b)))
         .collect();
     if candidates.len() < 2 {
         return Ok(Vec::new());
@@ -593,38 +623,43 @@ fn parse_scalar_type(ty: &Type, word_bits: u16) -> Result<ScalarInfo, String> {
                     llvm_param_ty: SemTy::Bv(8),
                     signed: false,
                     is_bool: true,
+                    is_char: false,
                 }),
-                "I8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: true, is_bool: false }),
-                "I16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: true, is_bool: false }),
-                "I32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: true, is_bool: false }),
-                "I64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: true, is_bool: false }),
-                "I128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: true, is_bool: false }),
-                "U8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: false, is_bool: false }),
-                "U16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: false, is_bool: false }),
-                "U32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false }),
-                "U64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: false, is_bool: false }),
-                "U128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: false, is_bool: false }),
+                "I8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: true, is_bool: false, is_char: false }),
+                "I16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: true, is_bool: false, is_char: false }),
+                "I32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: true, is_bool: false, is_char: false }),
+                "I64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: true, is_bool: false, is_char: false }),
+                "I128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: true, is_bool: false, is_char: false }),
+                "U8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: false, is_bool: false, is_char: false }),
+                "U16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: false, is_bool: false, is_char: false }),
+                "U32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false, is_char: false }),
+                "U64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: false, is_bool: false, is_char: false }),
+                "U128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: false, is_bool: false, is_char: false }),
                 "Usize" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(word_bits),
                     signed: false,
                     is_bool: false,
+                    is_char: false,
                 }),
                 "Isize" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(word_bits),
                     signed: true,
                     is_bool: false,
+                    is_char: false,
                 }),
                 "F32" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Fp(FpFmt::F32),
                     signed: true,
                     is_bool: false,
+                    is_char: false,
                 }),
                 "F64" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Fp(FpFmt::F64),
                     signed: true,
                     is_bool: false,
+                    is_char: false,
                 }),
-                "Char" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false }),
+                "Char" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false, is_char: true }),
                 other => Err(format!("non-scalar prim ABI type `{other}`")),
             }
         }
@@ -652,7 +687,14 @@ fn build_param_precond(
         }
     }
     let mut acc = g.bool_const(true);
-    for (name, _, pred_opt) in param_specs {
+    for (name, info, pred_opt) in param_specs {
+        if info.is_char {
+            if let Some(&v) = vars.get(name) {
+                let hi = g.bv_const(exact_w, 0x10_FFFF);
+                let bound = g.bv_ule(v, hi);
+                acc = g.and(acc, bound);
+            }
+        }
         if let Some(pred) = pred_opt {
             // In Cinch parameter refinements, `r` (or the parameter's own name) refers to the parameter.
             if let Some(&v) = vars.get(name) {

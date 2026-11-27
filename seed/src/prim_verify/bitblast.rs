@@ -337,12 +337,32 @@ impl Tseitin {
     fn mk_bv_ctpop(&mut self, a: &[i32]) -> Result<Vec<i32>, BitBlastError> {
         let w = a.len();
         let f = self.false_lit();
-        let mut sum = vec![f; w];
-        for &bit in a {
-            let mut one_bit = vec![f; w];
-            one_bit[0] = bit;
-            sum = self.mk_bv_add(&sum, &one_bit)?;
+        if w == 0 {
+            return Ok(Vec::new());
         }
+        // Balanced binary adder tree: O(w) adders total with exact minimal bit-width
+        // at each level, and constant `false` in all upper bits above ceil(log2(w + 1)).
+        let mut level: Vec<Vec<i32>> = a.iter().map(|&bit| vec![bit]).collect();
+        while level.len() > 1 {
+            let mut next = Vec::with_capacity((level.len() + 1) / 2);
+            let mut i = 0;
+            while i + 1 < level.len() {
+                let mut x = level[i].clone();
+                let mut y = level[i + 1].clone();
+                let target = x.len().max(y.len()) + 1;
+                x.resize(target, f);
+                y.resize(target, f);
+                next.push(self.mk_bv_add(&x, &y)?);
+                i += 2;
+            }
+            if i < level.len() {
+                next.push(level[i].clone());
+            }
+            level = next;
+        }
+        let mut sum = level.into_iter().next().unwrap_or_default();
+        sum.truncate(w);
+        sum.resize(w, f);
         Ok(sum)
     }
 
