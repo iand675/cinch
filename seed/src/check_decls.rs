@@ -3909,8 +3909,35 @@ impl Checker {
                             // guessing its private primitive implementation name.
                             if expected.params.is_empty() {
                                 let (args, result) = op.sig();
-                                let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &[], self, &mut |_| {})).collect();
-                                let repr_result = crate::repr::repr_of(&result, &[], self, &mut |_| {});
+                                // Derive word classes from the checked declared scheme so
+                                // immediate-proven refined params/results (e.g. `InRange 0 255 Nat`
+                                // on `bytes-get`/`bytes-set`) match the surface ABI.
+                                let mut decl_params = Vec::new();
+                                let mut cur_ty = &s.ty;
+                                loop {
+                                    match cur_ty {
+                                        Ty::Fun(a, _, _, b) => {
+                                            if !matches!(a.as_ref(), Ty::Prp(_) | Ty::Sort(_) | Ty::Idx(_)) {
+                                                decl_params.push(a.as_ref().clone());
+                                            }
+                                            cur_ty = b;
+                                        }
+                                        Ty::Pi { dom, cod, .. } => {
+                                            if !matches!(dom.as_ref(), Ty::Prp(_) | Ty::Sort(_) | Ty::Idx(_)) {
+                                                decl_params.push(dom.as_ref().clone());
+                                            }
+                                            cur_ty = cod;
+                                        }
+                                        _ => break,
+                                    }
+                                }
+                                let (use_params, use_result) = if decl_params.len() == args.len() {
+                                    (decl_params, cur_ty.clone())
+                                } else {
+                                    (args.clone(), result)
+                                };
+                                let repr_params = use_params.iter().map(|t| crate::repr::repr_of(t, &[], self, &mut |_| {})).collect();
+                                let repr_result = crate::repr::repr_of(&use_result, &[], self, &mut |_| {});
                                 self.fns.push(FnDef {
                                     id: fn_id(&module, &f.name.text),
                                     params: (0..args.len()).map(|i| format!("p{i}")).collect(),

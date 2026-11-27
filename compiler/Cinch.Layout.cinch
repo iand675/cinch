@@ -180,15 +180,31 @@ module Cinch.Layout where
     [] -> []
     first : rest -> if first >= lo && first <= hi then first : (int-filter-range lo hi rest) else int-filter-range lo hi rest
 
+  niche-index-const :: IndexTerm -> Option Int
+  niche-index-const term = case term of
+    IInteger n -> Some n
+    IAdd a b -> (case (niche-index-const a, niche-index-const b) of (Some x, Some y) -> Some (x + y); other -> None)
+    ISubtract a b -> (case (niche-index-const a, niche-index-const b) of (Some x, Some y) -> Some (x - y); other -> None)
+    IMultiply a b -> (case (niche-index-const a, niche-index-const b) of (Some x, Some y) -> Some (x * y); other -> None)
+    other -> None
+
   niche-int-const :: UType -> Option Int
   niche-int-const t = case t of
-    UIndex carrier (IInteger n) -> Some n
+    UIndex carrier term -> niche-index-const term
     UIndexForget inner -> niche-int-const inner
     UIndexPromote inner -> niche-int-const inner
+    UIndexMath op left right -> (case (niche-int-const left, niche-int-const right) of
+      (Some a, Some b) ->
+        if op == "+" then Some (a + b)
+        else if op == "-" then Some (a - b)
+        else if op == "*" then Some (a * b)
+        else None
+      other -> None)
     other -> None
 
   niche-is-binder :: Nat -> UType -> Bool
   niche-is-binder id t = case t of
+    UBound bid name kind -> bid == id
     UIndex carrier (IBound bid name) -> bid == id
     UIndexForget inner -> niche-is-binder id inner
     UIndexPromote inner -> niche-is-binder id inner

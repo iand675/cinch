@@ -2429,6 +2429,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
         PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::RwLock { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        PrimOp::Bytes(BytesOp::Get) => Some(Class::Raw),
         _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
     }
 }
@@ -2515,6 +2516,7 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
         PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
+        PrimOp::Bytes(BytesOp::Set) => vec![Class::Obj, Class::TObj, Class::Raw],
         _ => match prim_sig(op) {
             Some((params, _)) => params.iter().map(sig_class).collect(),
             None => vec![Class::Raw; op.arity()],

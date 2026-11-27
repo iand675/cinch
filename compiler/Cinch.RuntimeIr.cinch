@@ -600,18 +600,36 @@ module Cinch.RuntimeIr where
         other -> Some 1
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
+  index-term-int-const :: IndexTerm -> Option Int
+  index-term-int-const term = case term of
+    IInteger n -> Some n
+    IAdd a b -> (case (index-term-int-const a, index-term-int-const b) of (Some x, Some y) -> Some (x + y); other -> None)
+    ISubtract a b -> (case (index-term-int-const a, index-term-int-const b) of (Some x, Some y) -> Some (x - y); other -> None)
+    IMultiply a b -> (case (index-term-int-const a, index-term-int-const b) of (Some x, Some y) -> Some (x * y); other -> None)
+    other -> None
+
   -- Extract integer constant from a refinement index operand.
   refinement-int-const :: UType -> Option Int
   refinement-int-const t = case t of
-    UIndex carrier (IInteger n) -> Some n
+    UIndex carrier term -> index-term-int-const term
     UIndexForget inner -> refinement-int-const inner
+    UIndexPromote inner -> refinement-int-const inner
+    UIndexMath op left right -> (case (refinement-int-const left, refinement-int-const right) of
+      (Some a, Some b) ->
+        if op == "+" then Some (a + b)
+        else if op == "-" then Some (a - b)
+        else if op == "*" then Some (a * b)
+        else None
+      other -> None)
     other -> None
 
   -- True if `t` names the refinement binder `id`.
   refinement-is-binder :: Nat -> UType -> Bool
   refinement-is-binder id t = case t of
+    UBound bid name kind -> bid == id
     UIndex carrier (IBound bid name) -> bid == id
     UIndexForget inner -> refinement-is-binder id inner
+    UIndexPromote inner -> refinement-is-binder id inner
     other -> False
 
   -- Extract conservative `(Option Int, Option Int)` inclusive `[lo, hi]` bounds
