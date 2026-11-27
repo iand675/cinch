@@ -704,6 +704,44 @@ module Main where
             if string-contains "failed formal verification" msg then Ok ()
             else Err (string-concat-all ["expected formal verification counterexample for bogus float prim, got: ", msg])
 
+  -- 21. AIG structural hashing + balanced adder-tree ctpop + 1-UIP CDCL bitvector identities.
+  src-aig-cdcl :: String
+  src-aig-cdcl = string-concat-all [
+    "module Main where\n",
+    "  spec cancel-spec :: U32 -> U32 -> U32\n",
+    "  cancel-spec x y = x\n",
+    "  prim add-sub-cancel-u32 :: U32 -> U32 -> U32 spec cancel-spec where\n",
+    "    llvm {\n",
+    "      %s = add i32 %0, %1\n",
+    "      %r = sub i32 %s, %1\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  prim ctpop-bound-u32 :: U32 -> refined (r <= 32) U32 where\n",
+    "    llvm {\n",
+    "      %r = call i32 @llvm.ctpop.i32(i32 %0)\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  prim add-double-sub-u16 :: U16 -> U16 -> U16 spec cancel-u16-spec where\n",
+    "    llvm {\n",
+    "      %a = add i16 %0, %1\n",
+    "      %b = add i16 %a, %1\n",
+    "      %c = shl i16 %1, 1\n",
+    "      %r = sub i16 %b, %c\n",
+    "      ret i16 %r\n",
+    "    } justify verify\n",
+    "  spec cancel-u16-spec :: U16 -> U16 -> U16\n",
+    "  cancel-u16-spec x y = x\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-aig-cdcl-identities :: Result String Unit
+  test-aig-cdcl-identities =
+    case self-iface-and-prims "default" src-aig-cdcl of
+      Err msg -> Err (string-concat-all ["AIG/1-UIP CDCL bitvector identities failed: ", msg])
+      Ok (h, iface, prims) ->
+        if string-contains "\"tier\":\"kernel-cert\"" prims && string-contains "\"prim_proofs\":" iface then Ok ()
+        else Err (string-concat-all ["AIG/1-UIP CDCL identities missing kernel-cert/prim_proofs: ", prims, "\n", iface])
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -744,11 +782,13 @@ module Main where
                                         Err e -> Err e
                                         Ok u18 -> case test-verify-codegen-tv of
                                           Err e -> Err e
-                                          Ok u19 -> test-float-refinements-and-ieee754
+                                          Ok u19 -> case test-float-refinements-and-ieee754 of
+                                            Err e -> Err e
+                                            Ok u20 -> test-aig-cdcl-identities
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 20 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 21 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

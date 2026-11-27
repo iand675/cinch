@@ -93,6 +93,34 @@ module Cinch.PrimVerify where
       else if nat-odd k then NMNode val left (nm-insert (nat-half k) v right)
       else NMNode val (nm-insert (nat-half k) v left) right
 
+  nm-delete :: forall a. Nat -> NatMap a -> NatMap a
+  nm-delete k m = case m of
+    NMEmpty -> NMEmpty
+    NMNode val left right ->
+      if k == 0 then NMNode None left right
+      else if nat-odd k then NMNode val left (nm-delete (nat-half k) right)
+      else NMNode val (nm-delete (nat-half k) left) right
+
+  nm2-lookup :: forall a. Nat -> Nat -> NatMap (NatMap a) -> Option a
+  nm2-lookup k1 k2 m = case nm-lookup k1 m of
+    None -> None
+    Some inner -> nm-lookup k2 inner
+
+  nm2-insert :: forall a. Nat -> Nat -> a -> NatMap (NatMap a) -> NatMap (NatMap a)
+  nm2-insert k1 k2 v m =
+    let inner = case nm-lookup k1 m of Some sub -> sub; None -> nm-empty in
+    nm-insert k1 (nm-insert k2 v inner) m
+
+  nm3-lookup :: forall a. Nat -> Nat -> Nat -> NatMap (NatMap (NatMap a)) -> Option a
+  nm3-lookup k1 k2 k3 m = case nm-lookup k1 m of
+    None -> None
+    Some inner -> nm2-lookup k2 k3 inner
+
+  nm3-insert :: forall a. Nat -> Nat -> Nat -> a -> NatMap (NatMap (NatMap a)) -> NatMap (NatMap (NatMap a))
+  nm3-insert k1 k2 k3 v m =
+    let inner = case nm-lookup k1 m of Some sub -> sub; None -> nm-empty in
+    nm-insert k1 (nm2-insert k2 k3 v inner) m
+
   -- ==========================================================================
   -- 2. String helpers, TrustReceipt, Policy, VerifyOutcome
   -- ==========================================================================
@@ -2269,20 +2297,30 @@ module Cinch.PrimVerify where
   lit-pos :: Int -> Bool
   lit-pos l = l > 0
 
+  lit-code :: Int -> Nat
+  lit-code l = if l >= 0 then nat-from-int l * 2 else nat-from-int (0 - l) * 2 + 1
+
+  -- Tseitin bit-blaster state with AIG-style structural hash caches
+  -- (Böving et al., Lean 4 `bv_decide` 2024; Mishchenko et al., DAC 2006;
+  -- Brummayer & Biere, Boolector 2009). Every gate variable `z` is strictly
+  -- greater than its inputs' variables, preserving reverse-topological cone filtering.
   data BlastState where
-    MkBlastState :: Nat -> Nat -> List (Nat, List Int) -> NatMap (List Int) -> List (Nat, String, List Int) -> BlastState
-    -- next-var, next-cid, clauses (reversed), node-id -> bit-lits (LSB first), var-bits (param-idx, name, lits)
+    MkBlastState :: Nat -> Nat -> List (Nat, List Int) -> NatMap (List Int) -> List (Nat, String, List Int) -> NatMap (NatMap Int) -> NatMap (NatMap Int) -> NatMap (NatMap (NatMap Int)) -> BlastState
+    -- next-var, next-cid, clauses (reversed), node-id -> bit-lits (LSB first),
+    -- var-bits (param-idx, name, lits), and-cache, xor-cache, ite-cache
 
   init-blast-state :: BlastState
-  init-blast-state = MkBlastState 2 2 (Cons (1, Cons lit-true Nil) Nil) nm-empty Nil
+  init-blast-state = MkBlastState 2 2 (Cons (1, Cons lit-true Nil) Nil) nm-empty Nil nm-empty nm-empty nm-empty
 
   bb-fresh-var :: BlastState -> (Int, BlastState)
   bb-fresh-var st = case st of
-    MkBlastState nv nc cs memo vbits -> (nat-to-int nv, MkBlastState (nv + 1) nc cs memo vbits)
+    MkBlastState nv nc cs memo vbits ac xc ic ->
+      (nat-to-int nv, MkBlastState (nv + 1) nc cs memo vbits ac xc ic)
 
   bb-add-clause :: List Int -> BlastState -> BlastState
   bb-add-clause lits st = case st of
-    MkBlastState nv nc cs memo vbits -> MkBlastState nv (nc + 1) (Cons (nc, lits) cs) memo vbits
+    MkBlastState nv nc cs memo vbits ac xc ic ->
+      MkBlastState nv (nc + 1) (Cons (nc, lits) cs) memo vbits ac xc ic
 
   bb-and :: Int -> Int -> BlastState -> (Int, BlastState)
   bb-and a b st =
@@ -2292,25 +2330,27 @@ module Cinch.PrimVerify where
     else if a == b then (a, st)
     else if a == lit-neg b then (lit-false, st)
     else
-      let (z, st1) = bb-fresh-var st in
-      let st2 = bb-add-clause [lit-neg z, a] st1 in
-      let st3 = bb-add-clause [lit-neg z, b] st2 in
-      let st4 = bb-add-clause [z, lit-neg a, lit-neg b] st3 in
-      (z, st4)
+      let ca = lit-code a in
+      let cb = lit-code b in
+      let (k1, k2, la, lb) = if ca <= cb then (ca, cb, a, b) else (cb, ca, b, a) in
+      case st of
+        MkBlastState nv nc cs memo vbits ac xc ic ->
+          case nm2-lookup k1 k2 ac of
+            Some cached -> (cached, st)
+            None ->
+              let (z, st1) = bb-fresh-var st in
+              let st2 = bb-add-clause [lit-neg z, la] st1 in
+              let st3 = bb-add-clause [lit-neg z, lb] st2 in
+              let st4 = bb-add-clause [z, lit-neg la, lit-neg lb] st3 in
+              case st4 of
+                MkBlastState nv4 nc4 cs4 memo4 vbits4 ac4 xc4 ic4 ->
+                  (z, MkBlastState nv4 nc4 cs4 memo4 vbits4 (nm2-insert k1 k2 z ac4) xc4 ic4)
 
+  -- De Morgan lowering (`a | b == !(!a & !b)`) shares subcircuits in `and-cache`.
   bb-or :: Int -> Int -> BlastState -> (Int, BlastState)
   bb-or a b st =
-    if a == lit-true || b == lit-true then (lit-true, st)
-    else if a == lit-false then (b, st)
-    else if b == lit-false then (a, st)
-    else if a == b then (a, st)
-    else if a == lit-neg b then (lit-true, st)
-    else
-      let (z, st1) = bb-fresh-var st in
-      let st2 = bb-add-clause [z, lit-neg a] st1 in
-      let st3 = bb-add-clause [z, lit-neg b] st2 in
-      let st4 = bb-add-clause [lit-neg z, a, b] st3 in
-      (z, st4)
+    let (neg, st1) = bb-and (lit-neg a) (lit-neg b) st in
+    (lit-neg neg, st1)
 
   bb-xor :: Int -> Int -> BlastState -> (Int, BlastState)
   bb-xor a b st =
@@ -2321,12 +2361,26 @@ module Cinch.PrimVerify where
     else if a == b then (lit-false, st)
     else if a == lit-neg b then (lit-true, st)
     else
-      let (z, st1) = bb-fresh-var st in
-      let st2 = bb-add-clause [lit-neg z, a, b] st1 in
-      let st3 = bb-add-clause [lit-neg z, lit-neg a, lit-neg b] st2 in
-      let st4 = bb-add-clause [z, lit-neg a, b] st3 in
-      let st5 = bb-add-clause [z, a, lit-neg b] st4 in
-      (z, st5)
+      let flip = (a < 0) /= (b < 0) in
+      let va = lit-var a in
+      let vb = lit-var b in
+      let (k1, k2) = if va <= vb then (va, vb) else (vb, va) in
+      let pa = nat-to-int k1 in
+      let pb = nat-to-int k2 in
+      case st of
+        MkBlastState nv nc cs memo vbits ac xc ic ->
+          case nm2-lookup k1 k2 xc of
+            Some cached -> (if flip then lit-neg cached else cached, st)
+            None ->
+              let (z, st1) = bb-fresh-var st in
+              let st2 = bb-add-clause [lit-neg z, pa, pb] st1 in
+              let st3 = bb-add-clause [lit-neg z, lit-neg pa, lit-neg pb] st2 in
+              let st4 = bb-add-clause [z, lit-neg pa, pb] st3 in
+              let st5 = bb-add-clause [z, pa, lit-neg pb] st4 in
+              case st5 of
+                MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 ic5 ->
+                  let out = if flip then lit-neg z else z in
+                  (out, MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 (nm2-insert k1 k2 z xc5) ic5)
 
   bb-eq :: Int -> Int -> BlastState -> (Int, BlastState)
   bb-eq a b st =
@@ -2337,15 +2391,31 @@ module Cinch.PrimVerify where
     if c == lit-true then (t, st)
     else if c == lit-false then (e, st)
     else if t == e then (t, st)
-    else if t == lit-true && e == lit-false then (c, st)
-    else if t == lit-false && e == lit-true then (lit-neg c, st)
+    else if t == lit-true || c == t then bb-or c e st
+    else if t == lit-false || c == lit-neg t then bb-and (lit-neg c) e st
+    else if e == lit-true || c == lit-neg e then bb-or (lit-neg c) t st
+    else if e == lit-false || c == e then bb-and c t st
+    else if t == lit-neg e then bb-eq c t st
     else
-      let (z, st1) = bb-fresh-var st in
-      let st2 = bb-add-clause [lit-neg c, lit-neg z, t] st1 in
-      let st3 = bb-add-clause [lit-neg c, z, lit-neg t] st2 in
-      let st4 = bb-add-clause [c, lit-neg z, e] st3 in
-      let st5 = bb-add-clause [c, z, lit-neg e] st4 in
-      (z, st5)
+      let (cc, tt, ee) = if c < 0 then (lit-neg c, e, t) else (c, t, e) in
+      let (flip, nt, ne) = if tt < 0 then (True, lit-neg tt, lit-neg ee) else (False, tt, ee) in
+      let k1 = lit-var cc in
+      let k2 = lit-code nt in
+      let k3 = lit-code ne in
+      case st of
+        MkBlastState nv nc cs memo vbits ac xc ic ->
+          case nm3-lookup k1 k2 k3 ic of
+            Some cached -> (if flip then lit-neg cached else cached, st)
+            None ->
+              let (z, st1) = bb-fresh-var st in
+              let st2 = bb-add-clause [lit-neg cc, lit-neg z, nt] st1 in
+              let st3 = bb-add-clause [lit-neg cc, z, lit-neg nt] st2 in
+              let st4 = bb-add-clause [cc, lit-neg z, ne] st3 in
+              let st5 = bb-add-clause [cc, z, lit-neg ne] st4 in
+              case st5 of
+                MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 ic5 ->
+                  let out = if flip then lit-neg z else z in
+                  (out, MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 (nm3-insert k1 k2 k3 z ic5))
 
   bb-const-bits-pair :: Nat -> U64 -> U64 -> List Int
   bb-const-bits-pair w lo hi = bb-const-bits-pair-loop w 0 lo hi
@@ -2491,70 +2561,82 @@ module Cinch.PrimVerify where
     let fill = if same kind "ashr" then last-bit xs else lit-false in
     bb-ite-vec ge-w res1 (repeat-bit w fill) st3
 
-  -- Schoolbook shift-and-add multiplier (works cleanly for small/medium widths).
+  -- Schoolbook shift-and-add multiplier skipping constant-zero multiplier bits.
   bb-mul-loop :: Nat -> Nat -> List Int -> List Int -> List Int -> BlastState -> (List Int, BlastState)
   bb-mul-loop w i xs ys acc st = case ys of
     Nil -> (acc, st)
     Cons yb yrest ->
-      let partial = shift-left-const w i xs in
-      let (gated, st1) = bb-ite-vec yb partial (repeat-bit w lit-false) st in
-      case bb-add-ripple acc gated lit-false st1 of
-        (next-acc, cout, st2) -> bb-mul-loop w (i + 1) xs yrest next-acc st2
+      if yb == lit-false then bb-mul-loop w (i + 1) xs yrest acc st
+      else
+        let partial = shift-left-const w i xs in
+        let (gated, st1) = bb-ite-vec yb partial (repeat-bit w lit-false) st in
+        case bb-add-ripple acc gated lit-false st1 of
+          (next-acc, cout, st2) -> bb-mul-loop w (i + 1) xs yrest next-acc st2
 
   bb-bswap :: Nat -> List Int -> List Int
   bb-bswap w xs =
     if w <= 8 then xs
     else bb-bswap (saturating-sub w 8) (drop-bits 8 xs) <> take-bits 8 xs
 
+  -- Add two bitvectors (padding shorter with false) and append the carry-out bit.
+  bb-add-wide :: List Int -> List Int -> Int -> BlastState -> (List Int, BlastState)
+  bb-add-wide xs ys cin st = case (xs, ys) of
+    (Nil, Nil) -> ([cin], st)
+    (Cons x xr, Nil) ->
+      let (s, st1) = bb-xor x cin st in
+      let (c, st2) = bb-and x cin st1 in
+      let (rest, st3) = bb-add-wide xr Nil c st2 in
+      (Cons s rest, st3)
+    (Nil, Cons y yr) ->
+      let (s, st1) = bb-xor y cin st in
+      let (c, st2) = bb-and y cin st1 in
+      let (rest, st3) = bb-add-wide Nil yr c st2 in
+      (Cons s rest, st3)
+    (Cons x xr, Cons y yr) ->
+      let (ab, st1) = bb-xor x y st in
+      let (s, st2) = bb-xor ab cin st1 in
+      let (c1, st3) = bb-and x y st2 in
+      let (c2, st4) = bb-and ab cin st3 in
+      let (cout, st5) = bb-or c1 c2 st4 in
+      let (rest, st6) = bb-add-wide xr yr cout st5 in
+      (Cons s rest, st6)
+
+  bb-ctpop-init :: List Int -> List (List Int)
+  bb-ctpop-init xs = case xs of
+    Nil -> Nil
+    Cons b rest -> Cons [b] (bb-ctpop-init rest)
+
+  bb-ctpop-pair :: List (List Int) -> BlastState -> (List (List Int), BlastState)
+  bb-ctpop-pair layer st = case layer of
+    Nil -> (Nil, st)
+    Cons single Nil -> (Cons single Nil, st)
+    Cons a (Cons b rest) ->
+      let (sum, st1) = bb-add-wide a b lit-false st in
+      let (more, st2) = bb-ctpop-pair rest st1 in
+      (Cons sum more, st2)
+
+  bb-ctpop-reduce :: List (List Int) -> BlastState -> (List Int, BlastState)
+  bb-ctpop-reduce layer st = case layer of
+    Nil -> (Nil, st)
+    Cons only Nil -> (only, st)
+    other ->
+      let (next, st1) = bb-ctpop-pair layer st in
+      bb-ctpop-reduce next st1
+
+  pad-bits-to :: Nat -> List Int -> List Int
+  pad-bits-to w xs =
+    if w == 0 then Nil
+    else case xs of
+      Nil -> repeat-bit w lit-false
+      Cons b rest -> Cons b (pad-bits-to (saturating-sub w 1) rest)
+
+  -- Balanced binary adder-tree population count (O(w) 1-bit adders total).
   bb-ctpop :: Nat -> List Int -> BlastState -> (List Int, BlastState)
   bb-ctpop w xs st =
     if w == 0 then (Nil, st)
     else
-      let leaves = map-bits-to-singletons xs in
-      case bb-ctpop-tree leaves st of
-        (sum-bits, st1) ->
-          let nlen = list-len-int sum-bits in
-          if nlen >= w then (take-bits w sum-bits, st1)
-          else (sum-bits <> repeat-bit (saturating-sub w nlen) lit-false, st1)
-
-  map-bits-to-singletons :: List Int -> List (List Int)
-  map-bits-to-singletons xs = case xs of
-    Nil -> Nil
-    Cons b rest -> Cons [b] (map-bits-to-singletons rest)
-
-  list-len-int :: List Int -> Nat
-  list-len-int xs = case xs of
-    Nil -> 0
-    Cons _ rest -> 1 + list-len-int rest
-
-  pad-bits-to :: Nat -> List Int -> List Int
-  pad-bits-to want xs =
-    let n = list-len-int xs in
-    if n >= want then xs
-    else xs <> repeat-bit (saturating-sub want n) lit-false
-
-  bb-ctpop-pair-step :: List (List Int) -> BlastState -> (List (List Int), BlastState)
-  bb-ctpop-pair-step chunks st = case chunks of
-    Nil -> (Nil, st)
-    Cons only Nil -> (Cons only Nil, st)
-    Cons x (Cons y rest) ->
-      let lx = list-len-int x in
-      let ly = list-len-int y in
-      let want = (if lx > ly then lx else ly) + 1 in
-      let px = pad-bits-to want x in
-      let py = pad-bits-to want y in
-      case bb-add-ripple px py lit-false st of
-        (s, _, st1) ->
-          case bb-ctpop-pair-step rest st1 of
-            (more, st2) -> (Cons s more, st2)
-
-  bb-ctpop-tree :: List (List Int) -> BlastState -> (List Int, BlastState)
-  bb-ctpop-tree chunks st = case chunks of
-    Nil -> (Nil, st)
-    Cons only Nil -> (only, st)
-    other ->
-      case bb-ctpop-pair-step chunks st of
-        (next, st1) -> bb-ctpop-tree next st1
+      let (sum, st1) = bb-ctpop-reduce (bb-ctpop-init xs) st in
+      (pad-bits-to w sum, st1)
 
   bb-cttz-from :: Nat -> Nat -> List Int -> BlastState -> (List Int, BlastState)
   bb-cttz-from w idx xs st = case xs of
@@ -2565,7 +2647,7 @@ module Cinch.PrimVerify where
 
   bb-node :: Nat -> SemGraph -> BlastState -> Result String (List Int, BlastState)
   bb-node id g st = case st of
-    MkBlastState nv nc cs memo vbits ->
+    MkBlastState nv nc cs memo vbits ac xc ic ->
       case nm-lookup id memo of
         Some cached -> Ok (cached, st)
         None -> case graph-node id g of
@@ -2573,8 +2655,8 @@ module Cinch.PrimVerify where
           Some node -> case bb-node-uncached node g st of
             Err e -> Err e
             Ok (bits, st1) -> case st1 of
-              MkBlastState nv1 nc1 cs1 memo1 vbits1 ->
-                Ok (bits, MkBlastState nv1 nc1 cs1 (nm-insert id bits memo1) vbits1)
+              MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 ->
+                Ok (bits, MkBlastState nv1 nc1 cs1 (nm-insert id bits memo1) vbits1 ac1 xc1 ic1)
 
   bb-node-uncached :: SemNode -> SemGraph -> BlastState -> Result String (List Int, BlastState)
   bb-node-uncached node g st = case node of
@@ -2584,8 +2666,8 @@ module Cinch.PrimVerify where
       let w = sem-type-width ty in
       let (bits, st1) = bb-fresh-bits w st in
       case st1 of
-        MkBlastState nv nc cs memo vbits ->
-          Ok (bits, MkBlastState nv nc cs memo (Cons (idx, nm, bits) vbits))
+        MkBlastState nv nc cs memo vbits ac xc ic ->
+          Ok (bits, MkBlastState nv nc cs memo (Cons (idx, nm, bits) vbits) ac xc ic)
     NNot a -> case bb-node a g st of
       Err e -> Err e
       Ok (Cons la Nil, st1) -> Ok ([lit-neg la], st1)
@@ -2995,10 +3077,12 @@ module Cinch.PrimVerify where
     Cons h Nil -> nat-to-string h
     Cons h t -> string-concat-all [nat-to-string h, " ", join-nat t]
 
-  -- Built-in CDCL/DPLL SAT Prover emitting guaranteed-valid RUP LRAT proofs.
+  -- Built-in 1-UIP CDCL SAT Prover with non-chronological backjumping,
+  -- phase saving (Pipatsrisawat & Darwiche 2007), Luby restarts (Luby et al. 1993),
+  -- and exact trail-ordered LRAT RUP proof emission.
   data TrailEntry where
-    MkTrail :: Int -> Nat -> Option Nat -> TrailEntry
-    -- lit, decision-level, reason clause id (None for decision)
+    MkTrail :: Int -> Nat -> Option Nat -> Nat -> TrailEntry
+    -- lit, decision-level, reason clause id (None for decision), trail-pos
 
   data SatResult where
     SatUnsat :: List LratStep -> SatResult
@@ -3006,45 +3090,194 @@ module Cinch.PrimVerify where
     SatUnknown :: String -> SatResult
 
   data BcpResult where
-    BcpOk :: NatMap Int -> List TrailEntry -> BcpResult
-    BcpConflict :: Nat -> NatMap Int -> List TrailEntry -> BcpResult
+    BcpOk :: NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> List TrailEntry -> Nat -> BcpResult
+    BcpConflict :: Nat -> NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> List TrailEntry -> Nat -> BcpResult
 
-  bcp-pass :: List (Nat, List Int) -> Nat -> NatMap Int -> List TrailEntry -> Bool -> (Option Nat, NatMap Int, List TrailEntry, Bool)
-  bcp-pass cs level assign trail changed = case cs of
-    Nil -> (None, assign, trail, changed)
+  sat-enqueue :: Int -> Nat -> Option Nat -> NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> List TrailEntry -> Nat -> (NatMap Int, NatMap Nat, NatMap (Option Nat), NatMap Nat, List TrailEntry, Nat)
+  sat-enqueue lit lvl reason assign lmap rmap pmap trail tpos =
+    let v = lit-var lit in
+    ( assign-lit-val lit assign
+    , nm-insert v lvl lmap
+    , nm-insert v reason rmap
+    , nm-insert v tpos pmap
+    , Cons (MkTrail lit lvl reason tpos) trail
+    , tpos + 1
+    )
+
+  bcp-pass :: List (Nat, List Int) -> Nat -> NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> List TrailEntry -> Nat -> Bool -> (Option Nat, NatMap Int, NatMap Nat, NatMap (Option Nat), NatMap Nat, List TrailEntry, Nat, Bool)
+  bcp-pass cs level assign lmap rmap pmap trail tpos changed = case cs of
+    Nil -> (None, assign, lmap, rmap, pmap, trail, tpos, changed)
     Cons (cid, lits) rest -> case eval-clause lits assign None of
-      CEConflict -> (Some cid, assign, trail, True)
-      CEUnit u -> bcp-pass rest level (assign-lit-val u assign) (Cons (MkTrail u level (Some cid)) trail) True
-      other -> bcp-pass rest level assign trail changed
+      CEConflict -> (Some cid, assign, lmap, rmap, pmap, trail, tpos, True)
+      CEUnit u ->
+        let (a1, l1, r1, p1, tr1, tp1) = sat-enqueue u level (Some cid) assign lmap rmap pmap trail tpos in
+        bcp-pass rest level a1 l1 r1 p1 tr1 tp1 True
+      other -> bcp-pass rest level assign lmap rmap pmap trail tpos changed
 
-  run-bcp :: List (Nat, List Int) -> Nat -> NatMap Int -> List TrailEntry -> BcpResult
-  run-bcp cs level assign trail =
-    case bcp-pass cs level assign trail False of
-      (Some conf-cid, assign1, trail1, changed) -> BcpConflict conf-cid assign1 trail1
-      (None, assign1, trail1, True) -> run-bcp cs level assign1 trail1
-      (None, assign1, trail1, False) -> BcpOk assign1 trail1
+  run-bcp :: List (Nat, List Int) -> Nat -> NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> List TrailEntry -> Nat -> BcpResult
+  run-bcp cs level assign lmap rmap pmap trail tpos =
+    case bcp-pass cs level assign lmap rmap pmap trail tpos False of
+      (Some conf-cid, a1, l1, r1, p1, tr1, tp1, changed) -> BcpConflict conf-cid a1 l1 r1 p1 tr1 tp1
+      (None, a1, l1, r1, p1, tr1, tp1, True) -> run-bcp cs level a1 l1 r1 p1 tr1 tp1
+      (None, a1, l1, r1, p1, tr1, tp1, False) -> BcpOk a1 l1 r1 p1 tr1 tp1
 
-  -- Extract decision literals (negated, for the learned clause) and propagation
-  -- reason clause IDs in forward trail order (guaranteed valid RUP chain!).
-  extract-learned-and-hints :: List TrailEntry -> List Int -> List Nat -> (List Int, List Nat)
-  extract-learned-and-hints trail decs hints = case trail of
-    Nil -> (decs, hints)
-    Cons (MkTrail lit lvl reason) rest -> case reason of
-      None -> extract-learned-and-hints rest (Cons (lit-neg lit) decs) hints
-      Some rid -> extract-learned-and-hints rest decs (Cons rid hints)
+  var-level :: Nat -> NatMap Nat -> Nat
+  var-level v lmap = case nm-lookup v lmap of Some lv -> lv; None -> 0
 
-  -- Backtrack trail to decision level `target-lvl` (dropping entries with lvl > target-lvl).
-  backtrack-trail :: Nat -> List TrailEntry -> List TrailEntry
-  backtrack-trail target-lvl trail = case trail of
+  var-pos :: Nat -> NatMap Nat -> Nat
+  var-pos v pmap = case nm-lookup v pmap of Some p -> p; None -> 0
+
+  nm-has-bool :: Nat -> NatMap Bool -> Bool
+  nm-has-bool k m = case nm-lookup k m of Some True -> True; other -> False
+
+  insert-pos-cid :: (Nat, Nat) -> List (Nat, Nat) -> List (Nat, Nat)
+  insert-pos-cid item xs = case item of
+    (p, cid) -> case xs of
+      Nil -> Cons (p, cid) Nil
+      Cons (p2, cid2) rest ->
+        if p <= p2 then Cons (p, cid) xs
+        else Cons (p2, cid2) (insert-pos-cid item rest)
+
+  -- Collect level-0 antecedent reason clause IDs needed for `seeds`,
+  -- sorted in ascending trail-position order for single-pass RUP replay.
+  collect-lvl0-dfs :: List Nat -> NatMap (List Int) -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> NatMap Bool -> List (Nat, Nat) -> List (Nat, Nat)
+  collect-lvl0-dfs stack cdb lmap rmap pmap visited acc = case stack of
+    Nil -> acc
+    Cons v rest ->
+      if nm-has-bool v visited then collect-lvl0-dfs rest cdb lmap rmap pmap visited acc
+      else
+        let vis1 = nm-insert v True visited in
+        case nm-lookup v rmap of
+          Some (Some rid) ->
+            let acc1 = insert-pos-cid (var-pos v pmap, rid) acc in
+            let extra = case nm-lookup rid cdb of
+                  Some cl -> collect-lvl0-clause-vars cl v lmap rest
+                  None -> rest in
+            collect-lvl0-dfs extra cdb lmap rmap pmap vis1 acc1
+          other -> collect-lvl0-dfs rest cdb lmap rmap pmap vis1 acc
+
+  collect-lvl0-clause-vars :: List Int -> Nat -> NatMap Nat -> List Nat -> List Nat
+  collect-lvl0-clause-vars lits skip lmap acc = case lits of
+    Nil -> acc
+    Cons l rest ->
+      let u = lit-var l in
+      let next = if u /= skip && var-level u lmap == 0 then Cons u acc else acc in
+      collect-lvl0-clause-vars rest skip lmap next
+
+  dedup-cids :: List Nat -> NatMap Bool -> List Nat -> List Nat
+  dedup-cids xs seen acc = case xs of
+    Nil -> reverse acc
+    Cons cid rest ->
+      if nm-has-bool cid seen then dedup-cids rest seen acc
+      else dedup-cids rest (nm-insert cid True seen) (Cons cid acc)
+
+  strip-pos :: List (Nat, Nat) -> List Nat
+  strip-pos xs = case xs of
     Nil -> Nil
-    Cons (MkTrail lit lvl reason) rest ->
-      if lvl > target-lvl then backtrack-trail target-lvl rest
-      else trail
+    Cons (p, cid) rest -> Cons cid (strip-pos rest)
 
-  rebuild-assign :: List TrailEntry -> NatMap Int
-  rebuild-assign trail = case trail of
-    Nil -> nm-empty
-    Cons (MkTrail lit lvl reason) rest -> assign-lit-val lit (rebuild-assign rest)
+  clause-vars :: List Int -> List Nat
+  clause-vars lits = case lits of
+    Nil -> Nil
+    Cons l rest -> Cons (lit-var l) (clause-vars rest)
+
+  level0-conflict-hints :: Nat -> NatMap (List Int) -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> List Nat
+  level0-conflict-hints conf-cid cdb lmap rmap pmap =
+    let seeds = case nm-lookup conf-cid cdb of Some cl -> clause-vars cl; None -> Nil in
+    let ordered = collect-lvl0-dfs seeds cdb lmap rmap pmap nm-empty Nil in
+    dedup-cids (strip-pos ordered <> [conf-cid]) nm-empty Nil
+
+  -- Scan one clause during 1-UIP conflict analysis, classifying literals by level.
+  uip-scan-clause :: List Int -> Nat -> Nat -> NatMap Nat -> NatMap Bool -> Nat -> List Int -> List Nat -> (NatMap Bool, Nat, List Int, List Nat)
+  uip-scan-clause lits skip-var cur-lvl lmap seen counter learned-tail lvl0-vars = case lits of
+    Nil -> (seen, counter, learned-tail, lvl0-vars)
+    Cons l rest ->
+      let v = lit-var l in
+      if v == skip-var || nm-has-bool v seen then
+        uip-scan-clause rest skip-var cur-lvl lmap seen counter learned-tail lvl0-vars
+      else
+        let seen1 = nm-insert v True seen in
+        let lv = var-level v lmap in
+        if lv == cur-lvl then
+          uip-scan-clause rest skip-var cur-lvl lmap seen1 (counter + 1) learned-tail lvl0-vars
+        else if lv > 0 then
+          uip-scan-clause rest skip-var cur-lvl lmap seen1 counter (Cons l learned-tail) lvl0-vars
+        else
+          uip-scan-clause rest skip-var cur-lvl lmap seen1 counter learned-tail (Cons v lvl0-vars)
+
+  -- Walk backward on the trail (stored newest-first) to the next seen variable.
+  uip-next-on-trail :: List TrailEntry -> NatMap Bool -> Option (TrailEntry, List TrailEntry)
+  uip-next-on-trail trail seen = case trail of
+    Nil -> None
+    Cons entry rest -> case entry of
+      MkTrail p plvl preason ptpos ->
+        if nm-has-bool (lit-var p) seen then Some (entry, rest)
+        else uip-next-on-trail rest seen
+
+  max-clause-level :: List Int -> NatMap Nat -> Nat -> Nat
+  max-clause-level lits lmap best = case lits of
+    Nil -> best
+    Cons l rest ->
+      let lv = var-level (lit-var l) lmap in
+      max-clause-level rest lmap (if lv > best then lv else best)
+
+  -- 1-UIP conflict resolution loop: resolves backward from `cur-cid` until a single
+  -- current-level literal remains, yielding `(learned, bt-level, exact-rup-hints)`.
+  analyze-uip-loop :: Nat -> Nat -> Nat -> List TrailEntry -> NatMap (List Int) -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> NatMap Bool -> Nat -> List Int -> List Nat -> List Nat -> (List Int, Nat, List Nat)
+  analyze-uip-loop cur-cid skip-var cur-lvl trail cdb lmap rmap pmap seen counter learned-tail lvl0-vars resolved-fwd =
+    let resolved1 = Cons cur-cid resolved-fwd in
+    let cl = case nm-lookup cur-cid cdb of Some lits -> lits; None -> Nil in
+    let (seen1, counter1, learned1, lvl01) = uip-scan-clause cl skip-var cur-lvl lmap seen counter learned-tail lvl0-vars in
+    case uip-next-on-trail trail seen1 of
+      None ->
+        let bt = max-clause-level learned1 lmap 0 in
+        let l0 = strip-pos (collect-lvl0-dfs lvl01 cdb lmap rmap pmap nm-empty Nil) in
+        (learned1, bt, dedup-cids (l0 <> resolved1) nm-empty Nil)
+      Some (MkTrail p plvl preason ptpos, trail-rest) ->
+        let counter2 = saturating-sub counter1 1 in
+        if counter2 == 0 then
+          let asserting = lit-neg p in
+          let learned-full = Cons asserting learned1 in
+          let bt = max-clause-level learned1 lmap 0 in
+          let l0 = strip-pos (collect-lvl0-dfs lvl01 cdb lmap rmap pmap nm-empty Nil) in
+          (learned-full, bt, dedup-cids (l0 <> resolved1) nm-empty Nil)
+        else
+          case preason of
+            Some next-cid ->
+              analyze-uip-loop next-cid (lit-var p) cur-lvl trail-rest cdb lmap rmap pmap seen1 counter2 learned1 lvl01 resolved1
+            None ->
+              let asserting = lit-neg p in
+              let learned-full = Cons asserting learned1 in
+              let bt = max-clause-level learned1 lmap 0 in
+              let l0 = strip-pos (collect-lvl0-dfs lvl01 cdb lmap rmap pmap nm-empty Nil) in
+              (learned-full, bt, dedup-cids (l0 <> resolved1) nm-empty Nil)
+
+  -- Non-chronological backjump to `target-lvl`, saving each popped variable's polarity.
+  backtrack-cdcl :: Nat -> List TrailEntry -> Nat -> NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> NatMap Int -> (List TrailEntry, Nat, NatMap Int, NatMap Nat, NatMap (Option Nat), NatMap Nat, NatMap Int)
+  backtrack-cdcl target-lvl trail tpos assign lmap rmap pmap saved = case trail of
+    Nil -> (Nil, 0, assign, lmap, rmap, pmap, saved)
+    Cons (MkTrail lit lvl reason pos) rest ->
+      if lvl > target-lvl then
+        let v = lit-var lit in
+        let pol = if lit-pos lit then 1 else -1 in
+        backtrack-cdcl target-lvl rest (saturating-sub tpos 1)
+          (nm-delete v assign)
+          (nm-delete v lmap)
+          (nm-delete v rmap)
+          (nm-delete v pmap)
+          (nm-insert v pol saved)
+      else (trail, tpos, assign, lmap, rmap, pmap, saved)
+
+  -- Luby restart sequence (1-indexed): 1, 1, 2, 1, 1, 2, 4, 1, ...
+  nat-pow2 :: Nat -> Nat
+  nat-pow2 k = if k == 0 then 1 else 2 * nat-pow2 (saturating-sub k 1)
+
+  luby-seq :: Nat -> Nat -> Nat
+  luby-seq i k =
+    let size = saturating-sub (nat-pow2 k) 1 in
+    if i == size then nat-pow2 (saturating-sub k 1)
+    else if i < size then luby-seq (saturating-sub i (saturating-sub (nat-pow2 (saturating-sub k 1)) 1)) 1
+    else luby-seq i (k + 1)
 
   -- Count unassigned literals in a clause; returns (satisfied?, count, first-unassigned-lit).
   inspect-clause :: List Int -> NatMap Int -> Nat -> Option Int -> (Bool, Nat, Option Int)
@@ -3059,8 +3292,7 @@ module Cinch.PrimVerify where
         inspect-clause rest assign (cnt + 1) next-u
 
   -- Pick a literal from the shortest unsatisfied clause (MOM/clause-directed branching)
-  -- so the solver stays strictly inside the active cone of influence instead of
-  -- branching blindly on unrelated variables.
+  -- and apply saved phase when available.
   pick-from-clauses :: List (Nat, List Int) -> NatMap Int -> Nat -> Option Int -> Option Int
   pick-from-clauses cs assign best-len best-lit = case cs of
     Nil -> best-lit
@@ -3073,6 +3305,13 @@ module Cinch.PrimVerify where
           else pick-from-clauses rest assign best-len best-lit
         other -> pick-from-clauses rest assign best-len best-lit
 
+  apply-saved-phase :: Int -> NatMap Int -> Int
+  apply-saved-phase lit saved =
+    let v = lit-var lit in
+    case nm-lookup v saved of
+      Some p -> if p > 0 then nat-to-int v else (0 - nat-to-int v)
+      None -> lit
+
   pick-unassigned :: Nat -> Nat -> NatMap Int -> Option Nat
   pick-unassigned cur max-var assign =
     if cur >= max-var then None
@@ -3080,38 +3319,47 @@ module Cinch.PrimVerify where
       None -> Some cur
       Some v -> pick-unassigned (cur + 1) max-var assign
 
-  sat-loop :: Nat -> Nat -> Nat -> List (Nat, List Int) -> Nat -> NatMap Int -> List TrailEntry -> List LratStep -> Nat -> SatResult
-  sat-loop max-var next-cid level cs budget assign trail lrat-acc conflicts =
+  sat-loop :: Nat -> Nat -> Nat -> List (Nat, List Int) -> NatMap (List Int) -> Nat -> NatMap Int -> NatMap Nat -> NatMap (Option Nat) -> NatMap Nat -> NatMap Int -> List TrailEntry -> Nat -> List LratStep -> Nat -> Nat -> Nat -> SatResult
+  sat-loop max-var next-cid level cs cdb budget assign lmap rmap pmap saved trail tpos lrat-acc conflicts since-rst rst-idx =
     if conflicts >= budget then SatUnknown "SAT conflict budget exhausted; plug an external solver"
-    else case run-bcp cs level assign trail of
-      BcpConflict conf-cid assign1 trail1 ->
-        case extract-learned-and-hints trail1 Nil Nil of
-          (learned, reason-hints) ->
-            let full-hints = reason-hints <> [conf-cid] in
-            if level == 0 then
-              SatUnsat (reverse (Cons (LratAdd next-cid Nil full-hints) lrat-acc))
-            else
-              let step = LratAdd next-cid learned full-hints in
-              let new-level = saturating-sub level 1 in
-              let bt-trail = backtrack-trail new-level trail1 in
-              let bt-assign = rebuild-assign bt-trail in
-              let next-cs = Cons (next-cid, learned) cs in
-              sat-loop max-var (next-cid + 1) new-level next-cs budget bt-assign bt-trail (Cons step lrat-acc) (conflicts + 1)
-      BcpOk assign1 trail1 ->
-        let next-lit = case pick-from-clauses cs assign1 999999 None of
-              Some l -> Some l
-              None -> case pick-unassigned 1 max-var assign1 of
-                Some v -> Some (0 - nat-to-int v)
-                None -> None in
-        case next-lit of
-          None -> SatModel assign1
-          Some dec-lit ->
-            let next-lvl = level + 1 in
-            sat-loop max-var next-cid next-lvl cs budget (assign-lit-val dec-lit assign1) (Cons (MkTrail dec-lit next-lvl None) trail1) lrat-acc conflicts
+    else case run-bcp cs level assign lmap rmap pmap trail tpos of
+      BcpConflict conf-cid a1 l1 r1 p1 tr1 tp1 ->
+        if level == 0 then
+          let l0-hints = level0-conflict-hints conf-cid cdb l1 r1 p1 in
+          SatUnsat (reverse (Cons (LratAdd next-cid Nil l0-hints) lrat-acc))
+        else
+          let (learned, bt-level, hints) = analyze-uip-loop conf-cid 0 level tr1 cdb l1 r1 p1 nm-empty 0 Nil Nil Nil in
+          let step = LratAdd next-cid learned hints in
+          let next-cs = Cons (next-cid, learned) cs in
+          let next-cdb = nm-insert next-cid learned cdb in
+          let (bt-tr, bt-tp, bt-a, bt-l, bt-r, bt-p, saved1) = backtrack-cdcl bt-level tr1 tp1 a1 l1 r1 p1 saved in
+          case learned of
+            Nil -> SatUnsat (reverse (Cons step lrat-acc))
+            Cons asserting rest-lits ->
+              let (a2, l2, r2, p2, tr2, tp2) = sat-enqueue asserting bt-level (Some next-cid) bt-a bt-l bt-r bt-p bt-tr bt-tp in
+              sat-loop max-var (next-cid + 1) bt-level next-cs next-cdb budget a2 l2 r2 p2 saved1 tr2 tp2 (Cons step lrat-acc) (conflicts + 1) (since-rst + 1) rst-idx
+      BcpOk a1 l1 r1 p1 tr1 tp1 ->
+        let rst-limit = luby-seq rst-idx 1 * 32 in
+        if level > 0 && since-rst >= rst-limit then
+          let (bt-tr, bt-tp, bt-a, bt-l, bt-r, bt-p, saved1) = backtrack-cdcl 0 tr1 tp1 a1 l1 r1 p1 saved in
+          sat-loop max-var next-cid 0 cs cdb budget bt-a bt-l bt-r bt-p saved1 bt-tr bt-tp lrat-acc conflicts 0 (rst-idx + 1)
+        else
+          let next-lit = case pick-from-clauses cs a1 999999 None of
+                Some l -> Some (apply-saved-phase l saved)
+                None -> case pick-unassigned 1 max-var a1 of
+                  Some v -> Some (apply-saved-phase (0 - nat-to-int v) saved)
+                  None -> None in
+          case next-lit of
+            None -> SatModel a1
+            Some dec-lit ->
+              let next-lvl = level + 1 in
+              let (a2, l2, r2, p2, tr2, tp2) = sat-enqueue dec-lit next-lvl None a1 l1 r1 p1 tr1 tp1 in
+              sat-loop max-var next-cid next-lvl cs cdb budget a2 l2 r2 p2 saved tr2 tp2 lrat-acc conflicts since-rst rst-idx
 
   prove-cnf-lrat :: Nat -> Nat -> List (Nat, List Int) -> SatResult
   prove-cnf-lrat max-var next-cid cs =
-    sat-loop max-var next-cid 0 cs 2048 nm-empty Nil Nil 0
+    let cdb = build-clause-db cs nm-empty in
+    sat-loop max-var next-cid 0 cs cdb 4096 nm-empty nm-empty nm-empty nm-empty nm-empty Nil 0 Nil 0 0 1
 
   eval-model-bits :: List Int -> Nat -> NatMap Int -> U64
   eval-model-bits bits i model = case bits of
@@ -3190,7 +3438,7 @@ module Cinch.PrimVerify where
               Some la-lit -> bb-add-clause [la-lit] st2
               None -> st2 in
         case st3 of
-          MkBlastState max-var next-cid rev-cs memo vbits ->
+          MkBlastState max-var next-cid rev-cs memo vbits ac xc ic ->
             let act0 = nm-insert 1 True (nm-insert (lit-var diff) True nm-empty) in
             let act1 = case assume-opt of
                   Some la-lit -> nm-insert (lit-var la-lit) True act0
@@ -3230,7 +3478,7 @@ module Cinch.PrimVerify where
               Some la-lit -> bb-add-clause [la-lit] st2
               None -> st2 in
         case st3 of
-          MkBlastState max-var next-cid rev-cs memo vbits ->
+          MkBlastState max-var next-cid rev-cs memo vbits ac xc ic ->
             case verify-lrat-text max-var rev-cs pstr of
               Err bad -> Err bad
               Ok verified -> verify-bitwise-cached-loop assume-opt ar br base-st prest
@@ -3337,7 +3585,7 @@ module Cinch.PrimVerify where
               -- Assert negation of goal: UNSAT => goal is valid!
               let st2 = bb-add-clause [lit-neg goal-lit] st1 in
               case st2 of
-                MkBlastState max-var next-cid rev-clauses memo vbits ->
+                MkBlastState max-var next-cid rev-clauses memo vbits ac xc ic ->
                   let clauses = rev-clauses in
                   -- Check persistent proof cache first; ALWAYS re-verify through independent LRAT kernel!
                   case lookup-cached-proof goal-hash proof-cache of
