@@ -131,7 +131,10 @@ def seed_sources(directory: Path) -> dict[str, bytes]:
             continue
         for path in (root / part).rglob("*"):
             if path.is_file():
-                files[f"{SEED_TREE}/{part}/{path.relative_to(root / part).as_posix()}"] = path.read_bytes()
+                rel = path.relative_to(root / part)
+                if part == "runtime/cinch" and ("build" in rel.parts or path.suffix != ".cinch"):
+                    continue
+                files[f"{SEED_TREE}/{part}/{rel.as_posix()}"] = path.read_bytes()
     for part in ("Cargo.toml", "Cargo.lock", ".cargo/config.toml",
                  "runtime/Cargo.toml", "runtime/Cargo.lock"):
         files[f"{SEED_TREE}/{part}"] = (root / part).read_bytes()
@@ -598,7 +601,7 @@ def build_seed_runtime() -> Path:
     if cinch_entry.is_file():
         cinch_obj = runtime / "target/release/cinch_runtime.o"
         seed_bin = BUILD / "stage0/cinch"
-        c_code = run([seed_bin, "emit-object", "--shared", cinch_entry, "-o", cinch_obj],
+        c_code = run([seed_bin, "emit-object", "--shared", "--opt-level", "2", cinch_entry, "-o", cinch_obj],
                      runtime / "cinch", BUILD / "stage0/cinch-runtime-build.log")
         if c_code or not cinch_obj.is_file():
             raise BootstrapError(f"compiling seed/runtime/cinch failed: {BUILD / 'stage0/cinch-runtime-build.log'}")

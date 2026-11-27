@@ -744,21 +744,3 @@ module Runtime.Block where
   foreign export ccall "cinch_alloc_ctor_tagged" cinchAllocCtorTagged :: I64 -> I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
   foreign export ccall "cinch_alloc_shaped" cinchAllocShaped :: I64 -> I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
   foreign export ccall "cinch_alloc_shaped_desc" cinchAllocShapedDesc :: I64 -> I64 -> RawPtr U64 ->{Global, ThreadAffine} RawPtr U8
-
-  -- Temporary Rust bridge helpers (removed in M9)
-  rtAllocate :: Usize -> U8 -> I64 -> U8 ->{Global, ThreadAffine} RawPtr U8
-  rtAllocate size kind rc zeroed = allocate (usizeToU64 size) kind rc (zeroed /= 0)
-
-  rtAllocateDescribed :: Usize -> U8 -> U64 -> U8 ->{Global, ThreadAffine} RawPtr U8
-  rtAllocateDescribed size kind desc zeroed = allocateDescribed (usizeToU64 size) kind desc (zeroed /= 0)
-
-  rtFree :: RawPtr U8 ->{Global, ThreadAffine} Unit
-  rtFree p = blockFree p
-
-  rtArenaReplaceCurrent :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8
-  rtArenaReplaceCurrent a = arenaReplaceCurrent a
-
-  foreign export ccall "cinch_rt_allocate" rtAllocate :: Usize -> U8 -> I64 -> U8 ->{Global, ThreadAffine} RawPtr U8
-  foreign export ccall "cinch_rt_allocate_described" rtAllocateDescribed :: Usize -> U8 -> U64 -> U8 ->{Global, ThreadAffine} RawPtr U8
-  foreign export ccall "cinch_rt_free" rtFree :: RawPtr U8 ->{Global, ThreadAffine} Unit
-  foreign export ccall "cinch_rt_arena_replace_current" rtArenaReplaceCurrent :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8

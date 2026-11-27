@@ -99,7 +99,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 /// the two sides cannot drift.
 #[allow(dead_code)]
 mod block {
-    include!("../runtime/src/block_kinds.rs");
+    include!("block_kinds.rs");
 }
 
 
@@ -1211,7 +1211,7 @@ fn emit_module(
                 // Its entry points stay externally visible in a static object.
                 Some("dso_local")
             } else {
-                (object && linkonce_prim).then_some("linkonce_odr")
+                (object && linkonce_prim).then_some("weak_odr")
             },
             // An object is a link-time artifact: any consumer may take
             // any of its exported functions as a value, and the module
@@ -1230,7 +1230,7 @@ fn emit_module(
             // that belongs to this module.
             out.push_str(&format!(
                 "define {}i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr {} to i64)\n}}\n",
-                if linkonce_prim { "linkonce_odr " } else { "" },
+                if linkonce_prim { "weak_odr " } else { "" },
                 quote(&format!("{}.object-closure", u.name)),
                 static_payload(&format!("{}.clo", u.name), reg.closure_desc(&u.name))
             ));
@@ -14745,33 +14745,13 @@ mod tests {
 
     static RUN_ID: AtomicUsize = AtomicUsize::new(0);
 
-    /// Build the Rust runtime staticlib once per test process and return
-    /// its path (the driver does the same for end-to-end builds).
+    /// Build the runtime staticlib (Rust array-accel + Cinch runtime object)
+    /// once per test process and return its path.
     fn runtime_lib() -> std::path::PathBuf {
         use std::sync::LazyLock;
         static LIB: LazyLock<std::path::PathBuf> = LazyLock::new(|| {
-            let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-            let runtime = manifest_dir.join("runtime");
-            let out = Command::new("cargo")
-                .arg("build")
-                .arg("--release")
-                .arg("--manifest-path")
-                .arg(runtime.join("Cargo.toml"))
-                .arg("--target-dir")
-                .arg(runtime.join("target"))
-                .output()
-                .expect("failed to run cargo for the runtime crate");
-            assert!(
-                out.status.success(),
-                "building seed/runtime (cinchruntime) failed:\n{}",
-                String::from_utf8_lossy(&out.stderr)
-            );
-            let lib = runtime.join("target/release/libcinchruntime.a");
-            assert!(
-                lib.exists(),
-                "libcinchruntime.a not found after building the runtime"
-            );
-            lib
+            crate::driver::ensure_runtime()
+                .unwrap_or_else(|e| panic!("building seed/runtime (cinchruntime) failed: {e}"))
         });
         LIB.clone()
     }

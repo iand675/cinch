@@ -524,20 +524,8 @@ module Runtime.Rc where
   foreign export ccall "cinch_free" cinchFree :: I64 ->{Global, ThreadAffine} Unit
   foreign export ccall "cinch_exit_check" cinchExitCheck :: I64 ->{Global} I64
 
-  -- Temporary Rust bridge helpers (removed in M9)
+  -- Bridge helper for Rust par_arrays.rs
   rtReclaiming :: Unit ->{Global} U8
   rtReclaiming _ = if rcReclaiming () then 1 else 0
 
-  rtMarkMtArray :: I64 ->{Global} Unit
-  rtMarkMtArray w = markMtArray w
-
-  rtFieldCounted :: I64 -> Usize ->{Global} U8
-  rtFieldCounted w s = if fieldCounted w (usizeToU64 s) then 1 else 0
-
-  rtTakeField :: I64 -> Usize ->{Global, ThreadAffine} I64
-  rtTakeField w s = takeField w (usizeToU64 s)
-
   foreign export ccall "cinch_rt_reclaiming" rtReclaiming :: Unit ->{Global} U8
-  foreign export ccall "cinch_rt_mark_mt_array" rtMarkMtArray :: I64 ->{Global} Unit
-  foreign export ccall "cinch_rt_field_counted" rtFieldCounted :: I64 -> Usize ->{Global} U8
-  foreign export ccall "cinch_rt_take_field" rtTakeField :: I64 -> Usize ->{Global, ThreadAffine} I64

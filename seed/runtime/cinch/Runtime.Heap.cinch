@@ -1165,45 +1165,7 @@ module Runtime.Heap where
         let _ = smallFree p local in
         next
 
-  -- Temporary C-ABI bridge exports for remaining Rust modules (removed in M9 except global_alloc)
+  -- C-ABI bridge exports for Rust #[global_allocator] in array-accel crate
   foreign export ccall "cinch_rt_global_alloc" heapGlobalAlloc :: Usize -> Usize -> U8 ->{Global, ThreadAffine} RawPtr U8
   foreign export ccall "cinch_rt_global_dealloc" heapGlobalDealloc :: RawPtr U8 -> Usize -> Usize ->{Global, ThreadAffine} Unit
   foreign export ccall "cinch_rt_global_realloc" heapGlobalRealloc :: RawPtr U8 -> Usize -> Usize -> Usize ->{Global, ThreadAffine} RawPtr U8
-
-  rtAllocBlock :: Usize -> Usize -> U8 -> U8 ->{Global, ThreadAffine} RawPtr U8
-  rtAllocBlock size align imm zeroed = heapAllocBlock (usizeToU64 size) (usizeToU64 align) (imm /= 0) (zeroed /= 0)
-
-  rtFreeBlock :: RawPtr U8 -> Usize ->{Global, ThreadAffine} Unit
-  rtFreeBlock base size = heapFreeBlock (heapLocal ()) base (usizeToU64 size)
-
-  rtRcDebug :: Unit ->{Global} U8
-  rtRcDebug _ = if heapRcDebug () then 1 else 0
-
-  rtClaimSole :: Unit ->{Global, ThreadAffine} Unit
-  rtClaimSole _ = heapClaimSole ()
-
-  rtBlockStats :: RawPtr U64 ->{Global} Unit
-  rtBlockStats out =
-    let st = heapBlockStats () in
-    let _ = storeU64 out 0 (st.bsHeaderBlocks) in
-    let _ = storeU64 out 8 (st.bsHeaderBytes) in
-    let _ = storeU64 out 16 (st.bsImmortal) in
-    storeU64 out 24 (st.bsFreed)
-
-  rtHeapStats :: RawPtr U64 ->{Global} Unit
-  rtHeapStats out =
-    let blocks = totalTally offHeapBlocks 0 in
-    let bytes = totalTally offHeapBytes 8 in
-    let live = liveNow () in
-    let peak = atomicLoadU64Relaxed (ptrCast (liveState ())) 8 in
-    let _ = storeU64 out 0 blocks in
-    let _ = storeU64 out 8 bytes in
-    let _ = storeU64 out 16 live in
-    storeU64 out 24 peak
-
-  foreign export ccall "cinch_rt_alloc_block" rtAllocBlock :: Usize -> Usize -> U8 -> U8 ->{Global, ThreadAffine} RawPtr U8
-  foreign export ccall "cinch_rt_free_block" rtFreeBlock :: RawPtr U8 -> Usize ->{Global, ThreadAffine} Unit
-  foreign export ccall "cinch_rt_rc_debug" rtRcDebug :: Unit ->{Global} U8
-  foreign export ccall "cinch_rt_claim_sole" rtClaimSole :: Unit ->{Global, ThreadAffine} Unit
-  foreign export ccall "cinch_rt_block_stats" rtBlockStats :: RawPtr U64 ->{Global} Unit
-  foreign export ccall "cinch_rt_heap_stats" rtHeapStats :: RawPtr U64 ->{Global} Unit

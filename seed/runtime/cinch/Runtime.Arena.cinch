@@ -175,6 +175,3 @@ module Runtime.Arena where
   foreign export ccall "cinch_arena_enter_phase" cinchArenaEnterPhase :: I64 ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_arena_leave" cinchArenaLeave :: I64 ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_arena_exit_phase" cinchArenaExitPhase :: I64 ->{Global, ThreadAffine} I64
-
-  -- Temporary Rust bridge export (removed in M6)
-  foreign export ccall "cinch_rt_arena_mark_mt_all_active" arenaMarkMtAllActive :: Unit ->{Global, ThreadAffine} Unit

@@ -346,12 +346,25 @@ def build_provider(driver, directory, inputs, snapshot, lock, roots):
     shutil.copy2(product, executable)
     executable.replace(directory / "cinch")
     runtime_target = driver.BUILD / "library-runtime" / toolchain
+    runtime_src = driver.seed_source_root(snapshot) / "runtime"
     code = driver.run(["cargo", "build", "--locked", "--release", "--manifest-path",
-                       driver.seed_source_root(snapshot) / "runtime/Cargo.toml", "--target-dir", runtime_target],
+                       runtime_src / "Cargo.toml", "--target-dir", runtime_target],
                       driver.seed_source_root(snapshot), log, append=True)
     if code:
         raise driver.BootstrapError(f"library runtime did not build (exit {code}): {log}")
     shutil.copy2(runtime_target / "release/libcinchruntime.a", directory / "libcinchruntime.a")
+    cinch_entry = runtime_src / "cinch/Runtime.cinch"
+    if cinch_entry.is_file():
+        cinch_obj = runtime_target / "release/cinch_runtime.o"
+        c_code = driver.run([directory / "cinch", "emit-object", "--shared", "--opt-level", "2",
+                             cinch_entry, "-o", cinch_obj],
+                            runtime_src / "cinch", log, append=True)
+        if c_code or not cinch_obj.is_file():
+            raise driver.BootstrapError(f"compiling library cinch runtime failed (exit {c_code}): {log}")
+        ar_code = driver.run(["ar", "rcs", directory / "libcinchruntime.a", cinch_obj],
+                             directory, log, append=True)
+        if ar_code:
+            raise driver.BootstrapError(f"merging cinch_runtime.o into library libcinchruntime.a failed: {log}")
     library = directory / "library"
     library.mkdir(exist_ok=True)
     source = library / "CinchBaseObject.cinch"

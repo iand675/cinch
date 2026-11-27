@@ -36,10 +36,19 @@ def build(output: Path, cargo_target: Path) -> Path:
             bootstrap.seed_source_root(bootstrap.ROOT), output / "compiler-build.log")
     shutil.copy2(cargo_target / "release/cinch", output / "cinch")
     runtime_target = cargo_target / "runtime"
+    runtime_src = bootstrap.seed_source_root(bootstrap.ROOT) / "runtime"
     execute(["cargo", "build", "--locked", "--release", "--manifest-path",
-             str(bootstrap.seed_source_root(bootstrap.ROOT) / "runtime/Cargo.toml"), "--target-dir", str(runtime_target)],
+             str(runtime_src / "Cargo.toml"), "--target-dir", str(runtime_target)],
             bootstrap.seed_source_root(bootstrap.ROOT), output / "runtime-build.log")
     shutil.copy2(runtime_target / "release/libcinchruntime.a", output / "libcinchruntime.a")
+    cinch_entry = runtime_src / "cinch/Runtime.cinch"
+    if cinch_entry.is_file():
+        cinch_obj = runtime_target / "release/cinch_runtime.o"
+        execute([str(output / "cinch"), "emit-object", "--shared", "--opt-level", "2",
+                 str(cinch_entry), "-o", str(cinch_obj)],
+                runtime_src / "cinch", output / "cinch-runtime-build.log")
+        execute(["ar", "rcs", str(output / "libcinchruntime.a"), str(cinch_obj)],
+                output, output / "cinch-runtime-ar.log")
     package_path = bootstrap.seed_source_root(bootstrap.ROOT) / "prelude/cinch-base.cinchpkg"
     package = bootstrap.read_json(package_path)
     sources = {}

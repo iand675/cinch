@@ -3878,16 +3878,25 @@ fn runtime_archive_fresh(runtime: &Path, archive: &Path) -> bool {
         let Some(cinch_obj) = archive.parent().map(|p| p.join("cinch_runtime.o")) else {
             return false;
         };
+        let Some(stamp) = archive.parent().map(|p| p.join(".cinch_runtime.merged")) else {
+            return false;
+        };
         let Ok(obj_mtime) = std::fs::metadata(&cinch_obj).and_then(|m| m.modified()) else {
             return false;
         };
-        if built < obj_mtime {
+        let Ok(stamp_mtime) = std::fs::metadata(&stamp).and_then(|m| m.modified()) else {
+            return false;
+        };
+        if built < obj_mtime || stamp_mtime < built {
             return false;
         }
     }
     let mut pending = vec![runtime.join("src"), runtime.join("cinch"), runtime.join("Cargo.toml")];
     while let Some(path) = pending.pop() {
         if path.is_dir() {
+            if path.file_name().is_some_and(|n| n == "build") {
+                continue;
+            }
             if let Ok(entries) = std::fs::read_dir(path) {
                 pending.extend(entries.flatten().map(|entry| entry.path()));
             }
@@ -3989,6 +3998,7 @@ fn merge_cinch_runtime_into_archive(
     }
     std::fs::rename(&staged, archive)
         .map_err(|e| Error::plain(format!("installing merged runtime archive failed: {e}")))?;
+    let _ = std::fs::write(obj_dir.join(".cinch_runtime.merged"), b"ok\n");
     Ok(())
 }
 
@@ -3998,7 +4008,7 @@ fn merge_cinch_runtime_into_archive(
 /// unoptimised build costs an order of magnitude on each (an allocation was
 /// about 1,800 instructions against about 120, design/cps-optimisation.md).
 /// The bootstrap ladder links the same profile.
-fn ensure_runtime() -> Result<std::path::PathBuf> {
+pub(crate) fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
     let release = runtime.join("target/release/libcinchruntime.a");

@@ -15,7 +15,6 @@ module Runtime.BigNum where
   export cinchIntFitsI64, cinchIntFromNat, cinchIntToNat
   export cinchIntAdd, cinchIntSub, cinchIntMul, cinchIntDiv, cinchIntRem, cinchIntNeg, cinchIntCmp
   export cinchIntFromDecimal, cinchIntToDecimal, cinchIntDecimalLen
-  export cinchRtNatFromLimbs, cinchRtIntFromParts
 
   -- =========================================================================
   -- Owned base-2^32 limb buffer (little-endian, normalized: top limb != 0)
@@ -1379,15 +1378,6 @@ module Runtime.BigNum where
       let iv = readBoxInt word in
       u64ToUsize (writeLimbsDecimal (iv.ivPtr) (iv.ivLen) (iv.ivNeg) (maybeToRaw buf) (usizeToU64 cap))
 
-  -- Temporary bridge for Rust eval.rs until Milestone 8
-  cinchRtNatFromLimbs :: MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
-  cinchRtNatFromLimbs ptr len =
-    natWordFromOwned (lbClone ptr (usizeToU64 len))
-
-  cinchRtIntFromParts :: U8 -> MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
-  cinchRtIntFromParts neg ptr len =
-    intWordFromOwned (neg /= 0) (lbClone ptr (usizeToU64 len))
-
   foreign export ccall "cinch_nat_from_i64" cinchNatFromI64 :: I64 ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_nat_to_i64" cinchNatToI64 :: I64 ->{Global} I64
   foreign export ccall "cinch_nat_from_u128" cinchNatFromU128 :: U128 ->{Global, ThreadAffine} I64
@@ -1422,6 +1412,3 @@ module Runtime.BigNum where
   foreign export ccall "cinch_int_from_decimal" cinchIntFromDecimal :: MaybeNull U8 -> Usize ->{Global, ThreadAffine} I64
   foreign export ccall "cinch_int_to_decimal" cinchIntToDecimal :: I64 -> MaybeNull U8 -> Usize ->{Global, ThreadAffine} Usize
   foreign export ccall "cinch_int_decimal_len" cinchIntDecimalLen :: I64 ->{Global, ThreadAffine} Usize
-
-  foreign export ccall "cinch_rt_nat_from_limbs" cinchRtNatFromLimbs :: MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
-  foreign export ccall "cinch_rt_int_from_parts" cinchRtIntFromParts :: U8 -> MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
