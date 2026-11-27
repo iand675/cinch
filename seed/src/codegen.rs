@@ -475,19 +475,46 @@ fn emit_module(
             }
         }
     }
-    out.push_str("declare ptr @cinch_alloc_raw(i64, i64)\n");
-    out.push_str("declare ptr @cinch_alloc_ctor(i64, i64)\n");
-    out.push_str("declare ptr @cinch_alloc_shaped(i64, i64, i64)\n");
-    out.push_str("declare ptr @cinch_alloc_ctor_desc(i64, ptr)\n");
-    out.push_str("declare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\n");
-    out.push_str("declare ptr @cinch_alloc_ctor_tagged(i64, i64, i64)\n");
-    out.push_str("declare i64 @cinch_exit_check(i64)\n");
+    let exported_syms: HashSet<&str> = program
+        .foreigns
+        .values()
+        .filter(|p| p.export)
+        .map(|p| p.symbol.as_str())
+        .collect();
+    let emit_declare = |out: &mut String, line: &str| {
+        if !exported_syms.is_empty() {
+            if let Some(at) = line.find('@') {
+                let rest = &line[at + 1..];
+                let sym = if let Some(quoted) = rest.strip_prefix('"') {
+                    quoted.split('"').next().unwrap_or("")
+                } else {
+                    rest.split('(').next().unwrap_or("").trim()
+                };
+                if exported_syms.contains(sym) {
+                    return;
+                }
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    };
+    for line in [
+        "declare ptr @cinch_alloc_raw(i64, i64)",
+        "declare ptr @cinch_alloc_ctor(i64, i64)",
+        "declare ptr @cinch_alloc_shaped(i64, i64, i64)",
+        "declare ptr @cinch_alloc_ctor_desc(i64, ptr)",
+        "declare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)",
+        "declare ptr @cinch_alloc_ctor_tagged(i64, i64, i64)",
+        "declare i64 @cinch_exit_check(i64)",
+    ] {
+        emit_declare(&mut out, line);
+    }
     // `memcpy`'s length is `size_t`, the target's pointer width, so a
     // 32-bit module declares it `i32` and its calls pass `i32` (a
     // 64-bit declaration makes wasm-ld reject the module: the runtime's
     // own `memcpy` is `(i32, i32, i32)`).
     let size_ty = if cx.size_ty() == "i32" { "i32" } else { "i64" };
-    out.push_str(&format!("declare ptr @memcpy(ptr, ptr, {size_ty})\n"));
+    emit_declare(&mut out, &format!("declare ptr @memcpy(ptr, ptr, {size_ty})"));
     // The arguments of a guaranteed unknown tail call that do not fit the
     // twin's registers ([`tail_regs`]): a `musttail` callee cannot read the
     // frame it replaced, so they travel in a per-thread buffer the callee's
@@ -502,19 +529,23 @@ fn emit_module(
     // apply stub and a drop specialisation (`Core::Release`) use to move
     // the fields out of a uniquely held block, and the registration that
     // tells the runtime the program counts references.
-    out.push_str("declare void @cinch_dup(i64)\n");
-    out.push_str("declare void @cinch_drop(i64)\n");
-    out.push_str("declare void @cinch_drop_slow(i64)\n");
-    out.push_str("declare void @cinch_dup_mt(i64)\n");
-    out.push_str("declare void @cinch_drop_mt(i64)\n");
-    out.push_str("declare void @cinch_free(i64)\n");
-    out.push_str("declare void @cinch_reclaim_enable()\n");
+    for line in [
+        "declare void @cinch_dup(i64)",
+        "declare void @cinch_drop(i64)",
+        "declare void @cinch_drop_slow(i64)",
+        "declare void @cinch_dup_mt(i64)",
+        "declare void @cinch_drop_mt(i64)",
+        "declare void @cinch_free(i64)",
+        "declare void @cinch_reclaim_enable()",
+    ] {
+        emit_declare(&mut out, line);
+    }
     // The count helpers are private to this module and a program that
     // counts nothing needs none of them, so they are held back until the
     // units are assembled and then emitted only where a body calls them.
     let frame = reg.reclaim && !reg.rc_debug && reg.any_frame();
     if frame {
-        out.push_str("declare void @cinch_frame_release(i64)\n");
+        emit_declare(&mut out, "declare void @cinch_frame_release(i64)");
     }
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`seed/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
@@ -729,8 +760,7 @@ fn emit_module(
         // section 3; design/llvm-contract-attributes.md).
         "declare void @llvm.sideeffect()",
     ] {
-        out.push_str(f);
-        out.push('\n');
+        emit_declare(&mut out, f);
     }
     // Deterministic pure parallelism (design/parallel-evaluation.md
     // section 3; `seed/runtime/src/par.rs`): the work-stealing entries,
@@ -827,10 +857,10 @@ fn emit_module(
         out.push_str("declare <4 x i32> @llvm.fshr.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\n");
         out.push_str("declare <2 x i64> @llvm.fshl.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\n");
         out.push_str("declare <2 x i64> @llvm.fshr.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\n");
-        out.push_str("declare i64 @cinch_int_from_i128(i128)\n");
-        out.push_str("declare i128 @cinch_int_to_i128(i64)\n");
-        out.push_str("declare i64 @cinch_nat_from_u128(i128)\n");
-        out.push_str("declare i128 @cinch_nat_to_u128(i64)\n");
+        emit_declare(&mut out, "declare i64 @cinch_int_from_i128(i128)");
+        emit_declare(&mut out, "declare i128 @cinch_int_to_i128(i64)");
+        emit_declare(&mut out, "declare i64 @cinch_nat_from_u128(i128)");
+        emit_declare(&mut out, "declare i128 @cinch_nat_to_u128(i64)");
     }
     out.push('\n');
     if object {
@@ -869,6 +899,11 @@ fn emit_module(
         // the same C symbol (the platform homes share the word-buffer
         // bridge), and a repeated `declare` is a redefinition.
         let mut declared: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        declared.insert("memcpy".to_string());
+        declared.insert("exit".to_string());
+        for sym in &exported_syms {
+            declared.insert((*sym).to_string());
+        }
         for plan in program.foreigns.values() {
             if !plan.export && declared.insert(plan.symbol.clone()) {
                 out.push_str(&foreign_declare(plan, &reg)?);

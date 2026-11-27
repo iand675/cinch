@@ -1,0 +1,299 @@
+module Runtime.Error where
+  import Runtime.Mem
+  import Runtime.Sys
+
+  export exitBlackhole, exitPanic, exitExhausted, exitLeak
+  export writeStderrRaw, writeStderrU64, panicExitBytes, exhaustedHeap, exhaustedStack, exhaustedThreads
+  export exhaustedHeapInSignal, exhaustedStackInSignal, isExhausting
+  export cinchBlackhole, cinchPanic
+
+  exitBlackhole :: I32
+  exitBlackhole = 70
+
+  exitPanic :: I32
+  exitPanic = 71
+
+  exitExhausted :: I32
+  exitExhausted = 73
+
+  exitLeak :: I32
+  exitLeak = 74
+
+  #[static_mut]
+  static exhaustingFlag :: U64
+
+  isExhausting :: Unit ->{Global} Bool
+  isExhausting _ = atomicLoadU64Relaxed (exhaustingFlag ()) 0 /= 0
+
+  waitForever :: Unit ->{Global} Unit
+  waitForever _ =
+    let _ = cPause () in
+    waitForever ()
+
+  claimExhausted :: Unit ->{Global} Unit
+  claimExhausted _ =
+    let prev = atomicSwapU64SeqCst (exhaustingFlag ()) 0 1 in
+    if prev /= 0 then waitForever () else ()
+
+  writeAllLoop :: I32 -> RawPtr U8 -> Usize ->{Global} Unit
+  writeAllLoop fd ptr rem =
+    if rem == 0 then ()
+    else
+      let n = cWrite fd ptr rem in
+      let ni = isizeToI64 n in
+      if i64Le ni 0 then ()
+      else
+        let nu = u64ToUsize (i64ToU64 ni) in
+        writeAllLoop fd (ptrAdd ptr n) (usizeSub rem nu)
+
+  writeStderrRaw :: RawPtr U8 -> Usize ->{Global} Unit
+  writeStderrRaw ptr len = writeAllLoop 2 ptr len
+
+  writeU64Digits :: RawPtr U8 -> U64 -> Isize ->{Global} Isize
+  writeU64Digits buf v pos =
+    let q = u64Div v 10 in
+    let r = u64Rem v 10 in
+    let nextPos = i64ToIsize (i64Sub (isizeToI64 pos) 1) in
+    let _ = storeU8 buf nextPos (u64ToU8 (u64Add 48 r)) in
+    if q == 0 then nextPos else writeU64Digits buf q nextPos
+
+  writeStderrU64 :: U64 ->{Global} Unit
+  writeStderrU64 v =
+    withLocal (fixedArrayRepeat 24 (0 :: U8)) (\arr ->
+      let buf = mutAsPtr arr in
+      let start = writeU64Digits buf v 24 in
+      let len = u64ToUsize (i64ToU64 (i64Sub 24 (isizeToI64 start))) in
+      writeStderrRaw (ptrAdd buf start) len
+    )
+
+  writeCinchRuntimePrefix :: Unit ->{Global} Unit
+  writeCinchRuntimePrefix _ =
+    withLocal (fixedArrayRepeat 16 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "cinchruntime: " (14 bytes)
+      let _ = storeU8 p 0 99 in
+      let _ = storeU8 p 1 105 in
+      let _ = storeU8 p 2 110 in
+      let _ = storeU8 p 3 99 in
+      let _ = storeU8 p 4 104 in
+      let _ = storeU8 p 5 114 in
+      let _ = storeU8 p 6 117 in
+      let _ = storeU8 p 7 110 in
+      let _ = storeU8 p 8 116 in
+      let _ = storeU8 p 9 105 in
+      let _ = storeU8 p 10 109 in
+      let _ = storeU8 p 11 101 in
+      let _ = storeU8 p 12 58 in
+      let _ = storeU8 p 13 32 in
+      writeStderrRaw p 14
+    )
+
+  writeNewline :: Unit ->{Global} Unit
+  writeNewline _ =
+    withLocal (0 :: U8) (\ch ->
+      let p = mutAsPtr ch in
+      let _ = storeU8 p 0 10 in
+      writeStderrRaw p 1
+    )
+
+  writeCorruptPanicMsg :: Unit ->{Global} Unit
+  writeCorruptPanicMsg _ =
+    withLocal (fixedArrayRepeat 64 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: panic with corrupt message pointer" (48 bytes)
+      let _ = storeU8 p 0 99 in
+      let _ = storeU8 p 1 111 in
+      let _ = storeU8 p 2 109 in
+      let _ = storeU8 p 3 112 in
+      let _ = storeU8 p 4 105 in
+      let _ = storeU8 p 5 108 in
+      let _ = storeU8 p 6 101 in
+      let _ = storeU8 p 7 114 in
+      let _ = storeU8 p 8 32 in
+      let _ = storeU8 p 9 98 in
+      let _ = storeU8 p 10 117 in
+      let _ = storeU8 p 11 103 in
+      let _ = storeU8 p 12 58 in
+      let _ = storeU8 p 13 32 in
+      let _ = storeU8 p 14 112 in
+      let _ = storeU8 p 15 97 in
+      let _ = storeU8 p 16 110 in
+      let _ = storeU8 p 17 105 in
+      let _ = storeU8 p 18 99 in
+      let _ = storeU8 p 19 32 in
+      let _ = storeU8 p 20 119 in
+      let _ = storeU8 p 21 105 in
+      let _ = storeU8 p 22 116 in
+      let _ = storeU8 p 23 104 in
+      let _ = storeU8 p 24 32 in
+      let _ = storeU8 p 25 99 in
+      let _ = storeU8 p 26 111 in
+      let _ = storeU8 p 27 114 in
+      let _ = storeU8 p 28 114 in
+      let _ = storeU8 p 29 117 in
+      let _ = storeU8 p 30 112 in
+      let _ = storeU8 p 31 116 in
+      let _ = storeU8 p 32 32 in
+      let _ = storeU8 p 33 109 in
+      let _ = storeU8 p 34 101 in
+      let _ = storeU8 p 35 115 in
+      let _ = storeU8 p 36 115 in
+      let _ = storeU8 p 37 97 in
+      let _ = storeU8 p 38 103 in
+      let _ = storeU8 p 39 101 in
+      let _ = storeU8 p 40 32 in
+      let _ = storeU8 p 41 112 in
+      let _ = storeU8 p 42 111 in
+      let _ = storeU8 p 43 105 in
+      let _ = storeU8 p 44 110 in
+      let _ = storeU8 p 45 116 in
+      let _ = storeU8 p 46 101 in
+      let _ = storeU8 p 47 114 in
+      writeStderrRaw p 48
+    )
+
+  writeExhaustedPrefix :: Unit ->{Global} Unit
+  writeExhaustedPrefix _ =
+    withLocal (fixedArrayRepeat 24 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "cinch: exhausted: " (18 bytes)
+      let _ = storeU8 p 0 99 in
+      let _ = storeU8 p 1 105 in
+      let _ = storeU8 p 2 110 in
+      let _ = storeU8 p 3 99 in
+      let _ = storeU8 p 4 104 in
+      let _ = storeU8 p 5 58 in
+      let _ = storeU8 p 6 32 in
+      let _ = storeU8 p 7 101 in
+      let _ = storeU8 p 8 120 in
+      let _ = storeU8 p 9 104 in
+      let _ = storeU8 p 10 97 in
+      let _ = storeU8 p 11 117 in
+      let _ = storeU8 p 12 115 in
+      let _ = storeU8 p 13 116 in
+      let _ = storeU8 p 14 101 in
+      let _ = storeU8 p 15 100 in
+      let _ = storeU8 p 16 58 in
+      let _ = storeU8 p 17 32 in
+      writeStderrRaw p 18
+    )
+
+  writeHeapSuffix :: U64 ->{Global} Unit
+  writeHeapSuffix bytes =
+    let _ = withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "heap (" (6 bytes)
+      let _ = storeU8 p 0 104 in
+      let _ = storeU8 p 1 101 in
+      let _ = storeU8 p 2 97 in
+      let _ = storeU8 p 3 112 in
+      let _ = storeU8 p 4 32 in
+      let _ = storeU8 p 5 40 in
+      writeStderrRaw p 6
+    ) in
+    let _ = writeStderrU64 bytes in
+    withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- " bytes)\n" (8 bytes)
+      let _ = storeU8 p 0 32 in
+      let _ = storeU8 p 1 98 in
+      let _ = storeU8 p 2 121 in
+      let _ = storeU8 p 3 116 in
+      let _ = storeU8 p 4 101 in
+      let _ = storeU8 p 5 115 in
+      let _ = storeU8 p 6 41 in
+      let _ = storeU8 p 7 10 in
+      writeStderrRaw p 8
+    )
+
+  writeStackSuffix :: Unit ->{Global} Unit
+  writeStackSuffix _ =
+    withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "stack\n" (6 bytes)
+      let _ = storeU8 p 0 115 in
+      let _ = storeU8 p 1 116 in
+      let _ = storeU8 p 2 97 in
+      let _ = storeU8 p 3 99 in
+      let _ = storeU8 p 4 107 in
+      let _ = storeU8 p 5 10 in
+      writeStderrRaw p 6
+    )
+
+  writeThreadsSuffix :: Unit ->{Global} Unit
+  writeThreadsSuffix _ =
+    withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "threads\n" (8 bytes)
+      let _ = storeU8 p 0 116 in
+      let _ = storeU8 p 1 104 in
+      let _ = storeU8 p 2 114 in
+      let _ = storeU8 p 3 101 in
+      let _ = storeU8 p 4 97 in
+      let _ = storeU8 p 5 100 in
+      let _ = storeU8 p 6 115 in
+      let _ = storeU8 p 7 10 in
+      writeStderrRaw p 8
+    )
+
+  exhaustedHeap :: U64 ->{Global} Unit
+  exhaustedHeap bytes =
+    let _ = claimExhausted () in
+    let _ = writeExhaustedPrefix () in
+    let _ = writeHeapSuffix bytes in
+    cExit exitExhausted
+
+  exhaustedHeapInSignal :: U64 ->{Global} Unit
+  exhaustedHeapInSignal bytes =
+    let _ = claimExhausted () in
+    let _ = writeExhaustedPrefix () in
+    let _ = writeHeapSuffix bytes in
+    cRawExit exitExhausted
+
+  exhaustedStack :: Unit ->{Global} Unit
+  exhaustedStack _ =
+    let _ = claimExhausted () in
+    let _ = writeExhaustedPrefix () in
+    let _ = writeStackSuffix () in
+    cExit exitExhausted
+
+  exhaustedStackInSignal :: Unit ->{Global} Unit
+  exhaustedStackInSignal _ =
+    let _ = claimExhausted () in
+    let _ = writeExhaustedPrefix () in
+    let _ = writeStackSuffix () in
+    cRawExit exitExhausted
+
+  exhaustedThreads :: Unit ->{Global} Unit
+  exhaustedThreads _ =
+    let _ = claimExhausted () in
+    let _ = writeExhaustedPrefix () in
+    let _ = writeThreadsSuffix () in
+    cExit exitExhausted
+
+  panicExitBytes :: RawPtr U8 -> Usize ->{Global} Unit
+  panicExitBytes ptr len =
+    let _ = writeCinchRuntimePrefix () in
+    let _ = writeStderrRaw ptr len in
+    let _ = writeNewline () in
+    cExit exitPanic
+
+  cinchBlackhole :: Unit ->{Global} Unit
+  cinchBlackhole _ = cExit exitBlackhole
+
+  cinchPanic :: MaybeNull U8 -> Usize ->{Global} Unit
+  cinchPanic msg len =
+    if len == 0 then
+      let _ = writeCinchRuntimePrefix () in
+      let _ = writeNewline () in
+      cExit exitPanic
+    else if ptrIsNull msg then
+      let _ = writeCinchRuntimePrefix () in
+      let _ = writeCorruptPanicMsg () in
+      let _ = writeNewline () in
+      cExit exitPanic
+    else
+      panicExitBytes (maybeToRaw msg) len
+
+  foreign export ccall "cinch_blackhole" cinchBlackhole :: Unit ->{Global} Unit
+  foreign export ccall "cinch_panic" cinchPanic :: MaybeNull U8 -> Usize ->{Global} Unit

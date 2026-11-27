@@ -126,7 +126,9 @@ def native_grammar_inputs(repository: Path, revision: str) -> list[str]:
 def seed_sources(directory: Path) -> dict[str, bytes]:
     root = seed_source_root(directory)
     files = {}
-    for part in ("src", "prelude", "runtime/src"):
+    for part in ("src", "prelude", "runtime/src", "runtime/cinch"):
+        if not (root / part).exists():
+            continue
         for path in (root / part).rglob("*"):
             if path.is_file():
                 files[f"{SEED_TREE}/{part}/{path.relative_to(root / part).as_posix()}"] = path.read_bytes()
@@ -592,9 +594,26 @@ def build_seed_runtime() -> Path:
                seed_source_root(snapshot), log)
     if code or not archive.is_file():
         raise BootstrapError(f"the optimized seed runtime did not build: {log}")
+    cinch_entry = runtime / "cinch/Runtime.cinch"
+    if cinch_entry.is_file():
+        cinch_obj = runtime / "target/release/cinch_runtime.o"
+        seed_bin = BUILD / "stage0/cinch"
+        c_code = run([seed_bin, "emit-object", "--shared", cinch_entry, "-o", cinch_obj],
+                     runtime / "cinch", BUILD / "stage0/cinch-runtime-build.log")
+        if c_code or not cinch_obj.is_file():
+            raise BootstrapError(f"compiling seed/runtime/cinch failed: {BUILD / 'stage0/cinch-runtime-build.log'}")
+        staged = archive.with_name(".libcinchruntime.a.merging")
+        shutil.copy2(archive, staged)
+        ar_code = run(["ar", "rcs", staged, cinch_obj], runtime, BUILD / "stage0/cinch-runtime-ar.log")
+        if ar_code:
+            staged.unlink(missing_ok=True)
+            raise BootstrapError("merging cinch_runtime.o into libcinchruntime.a failed")
+        staged.replace(archive)
     # The pinned Native linker prefers a fresh release archive. Never let a
     # failed/stale optimized build quietly select its debug fallback.
     sources = [runtime / "Cargo.toml", *[p for p in (runtime / "src").rglob("*") if p.is_file()]]
+    if (runtime / "cinch").is_dir():
+        sources.extend(p for p in (runtime / "cinch").rglob("*") if p.is_file())
     if any(p.stat().st_mtime_ns > archive.stat().st_mtime_ns for p in sources):
         raise BootstrapError("the optimized seed runtime is older than its source")
     return archive

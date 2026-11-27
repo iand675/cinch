@@ -1,0 +1,6 @@
+module Runtime where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+
+  export cinchBlackhole, cinchPanic

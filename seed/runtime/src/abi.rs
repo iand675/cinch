@@ -473,16 +473,21 @@ unsafe fn bytes<'a>(ptr: *const u8, len: usize) -> Result<&'a [u8]> {
 // Faults
 // ---------------------------------------------------------------------------
 
-/// The `BlackHole` fault: demanding a memo cell that is already being
-/// evaluated (or any other defined black hole). Exits with code 70, in sync
-/// with `__cinch_blackhole` in the code generator.
+// The `BlackHole` and `cinch_panic` faults are implemented in Cinch
+// (`seed/runtime/cinch/Runtime.Error.cinch`).
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub safe fn cinch_blackhole() -> !;
+    pub fn cinch_panic(msg: *const u8, len: usize) -> !;
+}
+
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_blackhole() -> ! {
     std::process::exit(EXIT_BLACKHOLE)
 }
 
-/// Generic fault: write `msg` to stderr and exit with code 71. A null
-/// pointer or zero length writes no message.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_panic(msg: *const u8, len: usize) -> ! {
     match unsafe { bytes(msg, len) } {

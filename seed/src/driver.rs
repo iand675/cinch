@@ -3874,7 +3874,18 @@ fn runtime_archive_fresh(runtime: &Path, archive: &Path) -> bool {
     let Ok(built) = std::fs::metadata(archive).and_then(|m| m.modified()) else {
         return false;
     };
-    let mut pending = vec![runtime.join("src"), runtime.join("Cargo.toml")];
+    if runtime.join("cinch/Runtime.cinch").is_file() {
+        let Some(cinch_obj) = archive.parent().map(|p| p.join("cinch_runtime.o")) else {
+            return false;
+        };
+        let Ok(obj_mtime) = std::fs::metadata(&cinch_obj).and_then(|m| m.modified()) else {
+            return false;
+        };
+        if built < obj_mtime {
+            return false;
+        }
+    }
+    let mut pending = vec![runtime.join("src"), runtime.join("cinch"), runtime.join("Cargo.toml")];
     while let Some(path) = pending.pop() {
         if path.is_dir() {
             if let Ok(entries) = std::fs::read_dir(path) {
@@ -3905,25 +3916,80 @@ pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
         "libcinchruntime.{}",
         std::env::consts::DLL_EXTENSION
     ));
-    if dylib.exists() {
+    if dylib.exists()
+        && std::fs::metadata(&dylib).and_then(|m| m.modified()).ok()
+            >= std::fs::metadata(&archive).and_then(|m| m.modified()).ok()
+    {
         return Ok(dylib);
     }
-    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
-    // The same profile as the archive beside it, or the library would land
-    // in another directory.
-    let status = std::process::Command::new("cargo")
-        .args(["build", "--release", "--manifest-path"])
-        .arg(runtime.join("Cargo.toml"))
-        .arg("--target-dir")
-        .arg(runtime.join("target"))
+    let tmp = dir.join(format!(
+        ".libcinchruntime.{}.tmp",
+        std::env::consts::DLL_EXTENSION
+    ));
+    let mut cmd = std::process::Command::new(clang());
+    #[cfg(target_os = "macos")]
+    cmd.args(["-dynamiclib", "-Wl,-all_load"]).arg(&archive);
+    #[cfg(not(target_os = "macos"))]
+    cmd.args(["-shared", "-Wl,--whole-archive"])
+        .arg(&archive)
+        .args(["-Wl,--no-whole-archive", "-ldl", "-lpthread", "-lm"]);
+    cmd.arg("-o").arg(&tmp);
+    let status = cmd
         .status()
-        .map_err(|e| Error::plain(format!("failed to build the runtime shared library: {e}")))?;
-    if !status.success() || !dylib.exists() {
+        .map_err(|e| Error::plain(format!("failed to link the runtime shared library: {e}")))?;
+    if !status.success() || !tmp.exists() {
         return Err(Error::plain(
             "libcinchruntime shared library was not produced",
         ));
     }
+    std::fs::rename(&tmp, &dylib)
+        .map_err(|e| Error::plain(format!("failed to install runtime shared library: {e}")))?;
     Ok(dylib)
+}
+
+fn merge_cinch_runtime_into_archive(
+    runtime: &Path,
+    profile: &crate::core::TargetProfile,
+    archive: &Path,
+) -> Result<()> {
+    let entry = runtime.join("cinch/Runtime.cinch");
+    if !entry.is_file() {
+        return Ok(());
+    }
+    let obj_dir = archive
+        .parent()
+        .ok_or_else(|| Error::plain("runtime archive has no parent directory"))?;
+    let cinch_obj = obj_dir.join("cinch_runtime.o");
+    let mut opts = DriverOptions::default();
+    opts.opt_level = Some(2);
+    opts.shared = true;
+    driver_with_profile_opts(
+        Mode::EmitObject,
+        StageMode::Refresh,
+        &entry,
+        Some(&cinch_obj),
+        profile,
+        &opts,
+    )?;
+    if !cinch_obj.is_file() {
+        return Err(Error::plain("compiling seed/runtime/cinch/Runtime.cinch produced no object"));
+    }
+    let staged = obj_dir.join(".libcinchruntime.a.merging");
+    std::fs::copy(archive, &staged)
+        .map_err(|e| Error::plain(format!("staging runtime archive failed: {e}")))?;
+    let status = std::process::Command::new("ar")
+        .args(["rcs"])
+        .arg(&staged)
+        .arg(&cinch_obj)
+        .status()
+        .map_err(|e| Error::plain(format!("failed to run ar for cinch runtime: {e}")))?;
+    if !status.success() {
+        let _ = std::fs::remove_file(&staged);
+        return Err(Error::plain("merging cinch_runtime.o into libcinchruntime.a failed"));
+    }
+    std::fs::rename(&staged, archive)
+        .map_err(|e| Error::plain(format!("installing merged runtime archive failed: {e}")))?;
+    Ok(())
 }
 
 /// The host runtime archive every native link uses, rebuilt when a runtime
@@ -3956,6 +4022,14 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
         ));
     }
     if release.exists() {
+        if let Err(e) = merge_cinch_runtime_into_archive(
+            &runtime,
+            &crate::core::TargetProfile::native(),
+            &release,
+        ) {
+            let _ = std::fs::remove_file(&release);
+            return Err(e);
+        }
         Ok(release)
     } else {
         Err(Error::plain(
@@ -5795,7 +5869,12 @@ pub fn driver_with_profile_opts(
             return Err(Error::plain(format!("--native-object requires an existing file, not a linker option: {}", native.display())));
         }
     }
-    if opts.shared && (mode != Mode::Build || profile.artifact != crate::core::ArtifactProfile::Native || !matches!(profile.os.as_str(), "linux" | "darwin")) {
+    if opts.shared
+        && (!matches!(mode, Mode::Build | Mode::EmitObject)
+            || (mode == Mode::Build
+                && (profile.artifact != crate::core::ArtifactProfile::Native
+                    || !matches!(profile.os.as_str(), "linux" | "darwin"))))
+    {
         return Err(Error::plain("--shared applies to native build only"));
     }
     if !opts.native_objects.is_empty() && !matches!(mode, Mode::Build | Mode::Run) {
@@ -6460,7 +6539,15 @@ fn write_object(
     optimisation_metadata: std::collections::BTreeMap<&str, crate::interface::JsonValue>,
 ) -> Result<i32> {
     use crate::interface::JsonValue as J;
-    let object = codegen::emit_packed_object(profile, program, emit_modules)?;
+    let object = if opts.shared {
+        let ir = codegen::emit_shared_for_modules(profile, program, emit_modules)?;
+        codegen::EmittedModule {
+            ir,
+            abi: J::Obj(Default::default()),
+        }
+    } else {
+        codegen::emit_packed_object(profile, program, emit_modules)?
+    };
     let out = out
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.with_extension("o"));
@@ -6496,6 +6583,9 @@ fn write_object(
     // unoptimized objects keep every local in a stack slot and every call
     // out of line.
     let opt_level = opts.opt_level.unwrap_or(2);
+    if profile.arch != "wasm32" {
+        assemble.arg("-fPIC");
+    }
     assemble.arg(format!("-O{opt_level}")).arg("-c").arg(&ir_path).arg("-o").arg(&out);
     // An object for a foreign target is assembled for that target: the
     // triple decides which instruction set the body's `asm` is, and the

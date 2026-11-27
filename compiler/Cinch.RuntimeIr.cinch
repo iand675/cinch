@@ -3531,7 +3531,8 @@ module Cinch.RuntimeIr where
         let res-sret = res.class == "aggregate" && res.width > 16 in
         let sret-prefix = if res-sret then [cat ["ptr sret([", nat-to-string (res.width), " x i8]) align ", nat-to-string (res.align)]] else [] in
         let c-params = sret-prefix <> foreign-c-parameter-types-for arch (plan.parameters) in
-        global w (cat ["declare ", foreign-c-result res, " ", llvm-object-symbol symbol, "(", join c-params, ")"])
+        if symbol == "memcpy" then w
+        else global w (cat ["declare ", foreign-c-result res, " ", llvm-object-symbol symbol, "(", join c-params, ")"])
       Some (InlinePrimitive owner family selected llvm assembly) ->
         let defined = case llvm of
               None -> w
@@ -9353,6 +9354,36 @@ module Cinch.RuntimeIr where
   -- separate.
   -- The inliner is opt-in, as it is for a program: the plain entries emit
   -- every worker the roots reach, and a `-mode` entry takes the flag.
+  exported-symbol-names :: List (String, ForeignPlan) -> List String
+  exported-symbol-names exports = case exports of
+    [] -> []
+    (name, plan) : rest -> (plan.symbol) : (exported-symbol-names rest)
+
+  line-declares-any :: String -> List String -> Bool
+  line-declares-any line syms = case syms of
+    [] -> False
+    sym : rest ->
+      string-contains (cat ["@", sym, "("]) line
+      || string-contains (cat ["@\"", sym, "\"("]) line
+      || line-declares-any line rest
+
+  filter-declare-lines :: List String -> List String -> List String
+  filter-declare-lines syms lines = case lines of
+    [] -> []
+    l : rest ->
+      if string-starts-with "declare " l && line-declares-any l syms then filter-declare-lines syms rest
+      else l : (filter-declare-lines syms rest)
+
+  join-lines-nl :: List String -> String
+  join-lines-nl lines = case lines of
+    [] -> ""
+    l : rest -> if rest == [] then l else cat [l, "\n", join-lines-nl rest]
+
+  filter-exported-declares :: List (String, ForeignPlan) -> String -> String
+  filter-exported-declares exports text = case exports of
+    [] -> text
+    _ -> join-lines-nl (filter-declare-lines (exported-symbol-names exports) (string-split-on "\n" text))
+
   emit-runtime-library-with-object :: CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
   emit-runtime-library-with-object checked provider roots = emit-runtime-library-with-object-mode False checked provider roots
   emit-runtime-library-with-object-mode :: Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat) -> Result (List Diagnostic) String
@@ -9363,7 +9394,7 @@ module Cinch.RuntimeIr where
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
-      Writer next globals code [] layouts datas -> Ok (cat [declarations, par-preamble info definitions, render-globals globals, apply-entry-with-linkage False "internal ", builder-run code])
+      Writer next globals code [] layouts datas -> Ok (cat [filter-exported-declares exports declarations, filter-exported-declares exports (par-preamble info definitions), render-globals globals, apply-entry-with-linkage False "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -9659,7 +9690,7 @@ module Cinch.RuntimeIr where
     case library-bridges definitions roots [] (foreign-export-bridges exports (settled-workers-with-plan-tuned tuning plan definitions (selected <> foreign-export-roots exports) info)) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code [] layouts context ->
-          let ir = cat [header, declarations-counting wasm32 False True, par-preamble info definitions, render-globals globals, apply-entry-with-linkage wasm32 "internal ", builder-run code] in
+          let ir = cat [header, filter-exported-declares exports (declarations-counting wasm32 False True), filter-exported-declares exports (par-preamble info definitions), render-globals globals, apply-entry-with-linkage wasm32 "internal ", builder-run code] in
           Ok (ir, units, if artifact then JObjEnd else library-object-facts (Writer next globals code [] layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String

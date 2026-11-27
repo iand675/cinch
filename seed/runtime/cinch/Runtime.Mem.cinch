@@ -1,0 +1,813 @@
+module Runtime.Mem where
+  export ptrNull, ptrIsNull, ptrFromU64, ptrToU64, rawToU64, rawToMaybe, maybeToRaw
+  export ptrCast, maybeCast, ptrAdd, ptrAddU64, ptrSubU64
+  export loadU8, storeU8, loadU16, storeU16, loadU32, storeU32, loadI32, storeI32
+  export loadU64, storeU64, loadI64, storeI64, loadF64, storeF64, loadPtr, storePtr
+  export atomicLoadU64Relaxed, atomicLoadU64Acquire, atomicLoadU64SeqCst
+  export atomicStoreU64Relaxed, atomicStoreU64Release, atomicStoreU64SeqCst
+  export atomicAddU64Relaxed, atomicAddU64AcqRel, atomicAddU64SeqCst
+  export atomicSubU64Relaxed, atomicSubU64AcqRel, atomicSubU64SeqCst
+  export atomicAndU64AcqRel, atomicOrU64AcqRel, atomicXorU64AcqRel
+  export atomicSwapU64AcqRel, atomicSwapU64SeqCst
+  export atomicCasU64Bool, atomicCasU64Val
+  export atomicLoadI64Relaxed, atomicLoadI64Acquire, atomicLoadI64SeqCst
+  export atomicStoreI64Relaxed, atomicStoreI64Release, atomicStoreI64SeqCst
+  export atomicAddI64AcqRel, atomicSubI64AcqRel, atomicSwapI64SeqCst, atomicCasI64Bool
+  export atomicLoadU32Relaxed, atomicLoadU32Acquire, atomicStoreU32Release
+  export atomicAddU32AcqRel, atomicSwapU32AcqRel, atomicCasU32Bool
+  export atomicLoadPtrAcquire, atomicStorePtrRelease, atomicSwapPtrAcqRel, atomicCasPtrBool
+  export fenceAcquire, fenceRelease, fenceAcqRel, fenceSeqCst
+  export memCopy, memMove, memSet, memZero
+  export u64ToI64, i64ToU64, u64ToUsize, usizeToU64, u64ToIsize, isizeToU64
+  export u64ToU32, u32ToU64, u64ToU16, u16ToU64, u64ToU8, u8ToU64
+  export i64ToI32, i32ToI64, i64ToIsize, isizeToI64, u32ToI32, i32ToU32
+  export bitAndU64, bitOrU64, bitXorU64, shlU64, lshrU64, ashrI64
+  export bitAndI64, bitOrI64, bitXorI64, shlI64, lshrI64
+  export u64Add, u64Sub, u64Mul, u64Div, u64Rem, i64Add, i64Sub, i64Mul
+  export u64Lt, u64Le, u64Gt, u64Ge, i64Lt, i64Le, i64Gt, i64Ge
+  export usizeAdd, usizeSub, usizeLt, usizeLe, usizeGt, usizeGe
+  export clzU64, ctzU64, bswapU64, bswapU32, f64ToBits, bitsToF64
+
+  -- Pointer utilities
+  prim ptrNullPrim :: forall a. I64 -> MaybeNull a where
+    unsafe llvm {
+      ret ptr null
+    }
+
+  ptrNull :: forall a. Unit -> MaybeNull a
+  ptrNull _ = ptrNullPrim 0
+
+  prim ptrIsNull :: forall a. MaybeNull a -> Bool where
+    unsafe llvm {
+      %c = icmp eq ptr %0, null
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim ptrFromU64 :: forall a. U64 -> MaybeNull a where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      ret ptr %p
+    }
+
+  prim ptrToU64 :: forall a. MaybeNull a -> U64 where
+    unsafe llvm {
+      %v = ptrtoint ptr %0 to i64
+      ret i64 %v
+    }
+
+  prim rawToU64 :: forall a. RawPtr a -> U64 where
+    unsafe llvm {
+      %v = ptrtoint ptr %0 to i64
+      ret i64 %v
+    }
+
+  prim rawToMaybe :: forall a. RawPtr a -> MaybeNull a where
+    unsafe llvm {
+      ret ptr %0
+    }
+
+  prim maybeToRaw :: forall a. MaybeNull a -> RawPtr a where
+    unsafe llvm {
+      ret ptr %0
+    }
+
+  prim ptrCast :: forall a b. RawPtr a -> RawPtr b where
+    unsafe llvm {
+      ret ptr %0
+    }
+
+  prim maybeCast :: forall a b. MaybeNull a -> MaybeNull b where
+    unsafe llvm {
+      ret ptr %0
+    }
+
+  prim ptrAdd :: forall a. RawPtr a -> Isize -> RawPtr a where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      ret ptr %p
+    }
+
+  prim ptrAddU64 :: forall a. RawPtr a -> U64 -> RawPtr a where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      ret ptr %p
+    }
+
+  prim ptrSubU64 :: forall a. RawPtr a -> U64 -> RawPtr a where
+    unsafe llvm {
+      %neg = sub i64 0, %1
+      %p = getelementptr i8, ptr %0, i64 %neg
+      ret ptr %p
+    }
+
+  -- Non-atomic typed loads and stores at byte offset
+  prim loadU8 :: forall a. RawPtr a -> Isize ->{Global} U8 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i8, ptr %p, align 1
+      ret i8 %v
+    }
+
+  prim storeU8 :: forall a. RawPtr a -> Isize -> U8 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i8 %2, ptr %p, align 1
+      ret void
+    }
+
+  prim loadU16 :: forall a. RawPtr a -> Isize ->{Global} U16 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i16, ptr %p, align 2
+      ret i16 %v
+    }
+
+  prim storeU16 :: forall a. RawPtr a -> Isize -> U16 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i16 %2, ptr %p, align 2
+      ret void
+    }
+
+  prim loadU32 :: forall a. RawPtr a -> Isize ->{Global} U32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i32, ptr %p, align 4
+      ret i32 %v
+    }
+
+  prim storeU32 :: forall a. RawPtr a -> Isize -> U32 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i32 %2, ptr %p, align 4
+      ret void
+    }
+
+  prim loadI32 :: forall a. RawPtr a -> Isize ->{Global} I32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i32, ptr %p, align 4
+      ret i32 %v
+    }
+
+  prim storeI32 :: forall a. RawPtr a -> Isize -> I32 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i32 %2, ptr %p, align 4
+      ret void
+    }
+
+  prim loadU64 :: forall a. RawPtr a -> Isize ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i64, ptr %p, align 8
+      ret i64 %v
+    }
+
+  prim storeU64 :: forall a. RawPtr a -> Isize -> U64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i64 %2, ptr %p, align 8
+      ret void
+    }
+
+  prim loadI64 :: forall a. RawPtr a -> Isize ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i64, ptr %p, align 8
+      ret i64 %v
+    }
+
+  prim storeI64 :: forall a. RawPtr a -> Isize -> I64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i64 %2, ptr %p, align 8
+      ret void
+    }
+
+  prim loadF64 :: forall a. RawPtr a -> Isize ->{Global} F64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load double, ptr %p, align 8
+      ret double %v
+    }
+
+  prim storeF64 :: forall a. RawPtr a -> Isize -> F64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store double %2, ptr %p, align 8
+      ret void
+    }
+
+  prim loadPtr :: forall a b. RawPtr a -> Isize ->{Global} MaybeNull b where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load ptr, ptr %p, align 8
+      ret ptr %v
+    }
+
+  prim storePtr :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store ptr %2, ptr %p, align 8
+      ret void
+    }
+
+  -- Atomic U64 operations
+  prim atomicLoadU64Relaxed :: forall a. RawPtr a -> Isize ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i64, ptr %p monotonic, align 8
+      ret i64 %v
+    }
+
+  prim atomicLoadU64Acquire :: forall a. RawPtr a -> Isize ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i64, ptr %p acquire, align 8
+      ret i64 %v
+    }
+
+  prim atomicLoadU64SeqCst :: forall a. RawPtr a -> Isize ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i64, ptr %p seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim atomicStoreU64Relaxed :: forall a. RawPtr a -> Isize -> U64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i64 %2, ptr %p monotonic, align 8
+      ret void
+    }
+
+  prim atomicStoreU64Release :: forall a. RawPtr a -> Isize -> U64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i64 %2, ptr %p release, align 8
+      ret void
+    }
+
+  prim atomicStoreU64SeqCst :: forall a. RawPtr a -> Isize -> U64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i64 %2, ptr %p seq_cst, align 8
+      ret void
+    }
+
+  prim atomicAddU64Relaxed :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v
+    }
+
+  prim atomicAddU64AcqRel :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicAddU64SeqCst :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim atomicSubU64Relaxed :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v
+    }
+
+  prim atomicSubU64AcqRel :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicSubU64SeqCst :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim atomicAndU64AcqRel :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw and ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicOrU64AcqRel :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw or ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicXorU64AcqRel :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xor ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicSwapU64AcqRel :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicSwapU64SeqCst :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim atomicCasU64Bool :: forall a. RawPtr a -> Isize -> U64 -> U64 ->{Global} Bool where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 acq_rel acquire, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  prim atomicCasU64Val :: forall a. RawPtr a -> Isize -> U64 -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 seq_cst seq_cst, align 8
+      %old = extractvalue { i64, i1 } %res, 0
+      ret i64 %old
+    }
+
+  -- Atomic I64 operations
+  prim atomicLoadI64Relaxed :: forall a. RawPtr a -> Isize ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i64, ptr %p monotonic, align 8
+      ret i64 %v
+    }
+
+  prim atomicLoadI64Acquire :: forall a. RawPtr a -> Isize ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i64, ptr %p acquire, align 8
+      ret i64 %v
+    }
+
+  prim atomicLoadI64SeqCst :: forall a. RawPtr a -> Isize ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i64, ptr %p seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim atomicStoreI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i64 %2, ptr %p monotonic, align 8
+      ret void
+    }
+
+  prim atomicStoreI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i64 %2, ptr %p release, align 8
+      ret void
+    }
+
+  prim atomicStoreI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i64 %2, ptr %p seq_cst, align 8
+      ret void
+    }
+
+  prim atomicAddI64AcqRel :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicSubI64AcqRel :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v
+    }
+
+  prim atomicSwapI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v
+    }
+
+  prim atomicCasI64Bool :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} Bool where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 acq_rel acquire, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  -- Atomic U32 operations
+  prim atomicLoadU32Relaxed :: forall a. RawPtr a -> Isize ->{Global} U32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i32, ptr %p monotonic, align 4
+      ret i32 %v
+    }
+
+  prim atomicLoadU32Acquire :: forall a. RawPtr a -> Isize ->{Global} U32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic i32, ptr %p acquire, align 4
+      ret i32 %v
+    }
+
+  prim atomicStoreU32Release :: forall a. RawPtr a -> Isize -> U32 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic i32 %2, ptr %p release, align 4
+      ret void
+    }
+
+  prim atomicAddU32AcqRel :: forall a. RawPtr a -> Isize -> U32 ->{Global} U32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %r = atomicrmw add ptr %p, i32 %2 acq_rel, align 4
+      ret i32 %r
+    }
+
+  prim atomicSwapU32AcqRel :: forall a. RawPtr a -> Isize -> U32 ->{Global} U32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %r = atomicrmw xchg ptr %p, i32 %2 acq_rel, align 4
+      ret i32 %r
+    }
+
+  prim atomicCasU32Bool :: forall a. RawPtr a -> Isize -> U32 -> U32 ->{Global} Bool where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i32 %2, i32 %3 acq_rel acquire, align 4
+      %ok = extractvalue { i32, i1 } %res, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  -- Atomic Ptr operations
+  prim atomicLoadPtrAcquire :: forall a b. RawPtr a -> Isize ->{Global} MaybeNull b where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic ptr, ptr %p acquire, align 8
+      ret ptr %v
+    }
+
+  prim atomicStorePtrRelease :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic ptr %2, ptr %p release, align 8
+      ret void
+    }
+
+  prim atomicSwapPtrAcqRel :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} MaybeNull b where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, ptr %2 acq_rel, align 8
+      ret ptr %v
+    }
+
+  prim atomicCasPtrBool :: forall a b. RawPtr a -> Isize -> MaybeNull b -> MaybeNull b ->{Global} Bool where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, ptr %2, ptr %3 acq_rel acquire, align 8
+      %ok = extractvalue { ptr, i1 } %res, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  -- Fences
+  prim fenceAcquirePrim :: I64 ->{Global} Unit where
+    unsafe llvm {
+      fence acquire
+      ret void
+    }
+
+  fenceAcquire :: Unit ->{Global} Unit
+  fenceAcquire _ = fenceAcquirePrim 0
+
+  prim fenceReleasePrim :: I64 ->{Global} Unit where
+    unsafe llvm {
+      fence release
+      ret void
+    }
+
+  fenceRelease :: Unit ->{Global} Unit
+  fenceRelease _ = fenceReleasePrim 0
+
+  prim fenceAcqRelPrim :: I64 ->{Global} Unit where
+    unsafe llvm {
+      fence acq_rel
+      ret void
+    }
+
+  fenceAcqRel :: Unit ->{Global} Unit
+  fenceAcqRel _ = fenceAcqRelPrim 0
+
+  prim fenceSeqCstPrim :: I64 ->{Global} Unit where
+    unsafe llvm {
+      fence seq_cst
+      ret void
+    }
+
+  fenceSeqCst :: Unit ->{Global} Unit
+  fenceSeqCst _ = fenceSeqCstPrim 0
+
+  -- Bulk memory intrinsics
+  prim memCopy :: RawPtr U8 -> RawPtr U8 -> Usize ->{Global} Unit where
+    unsafe llvm {
+      call void @llvm.memcpy.p0.p0.i64(ptr %0, ptr %1, i64 %2, i1 false)
+      ret void
+    }
+
+  foreign import ccall "memmove" cMemmovePrim :: RawPtr U8 -> RawPtr U8 -> Usize ->{Global} RawPtr U8
+
+  memMove :: RawPtr U8 -> RawPtr U8 -> Usize ->{Global} Unit
+  memMove dst src len =
+    let _ = cMemmovePrim dst src len in ()
+
+  prim memSet :: RawPtr U8 -> U8 -> Usize ->{Global} Unit where
+    unsafe llvm {
+      call void @llvm.memset.p0.i64(ptr %0, i8 %1, i64 %2, i1 false)
+      ret void
+    }
+
+  memZero :: RawPtr U8 -> Usize ->{Global} Unit
+  memZero p n = memSet p 0 n
+
+  -- Unboxed integer/float conversions and machine arithmetic
+  prim u64ToI64 :: U64 -> I64 where
+    unsafe llvm { ret i64 %0 }
+
+  prim i64ToU64 :: I64 -> U64 where
+    unsafe llvm { ret i64 %0 }
+
+  prim u64ToUsize :: U64 -> Usize where
+    unsafe llvm { ret i64 %0 }
+
+  prim usizeToU64 :: Usize -> U64 where
+    unsafe llvm { ret i64 %0 }
+
+  prim u64ToIsize :: U64 -> Isize where
+    unsafe llvm { ret i64 %0 }
+
+  prim isizeToU64 :: Isize -> U64 where
+    unsafe llvm { ret i64 %0 }
+
+  prim i64ToIsize :: I64 -> Isize where
+    unsafe llvm { ret i64 %0 }
+
+  prim isizeToI64 :: Isize -> I64 where
+    unsafe llvm { ret i64 %0 }
+
+  prim u64ToU32 :: U64 -> U32 where
+    unsafe llvm {
+      %t = trunc i64 %0 to i32
+      ret i32 %t
+    }
+
+  prim u32ToU64 :: U32 -> U64 where
+    unsafe llvm {
+      %z = zext i32 %0 to i64
+      ret i64 %z
+    }
+
+  prim u64ToU16 :: U64 -> U16 where
+    unsafe llvm {
+      %t = trunc i64 %0 to i16
+      ret i16 %t
+    }
+
+  prim u16ToU64 :: U16 -> U64 where
+    unsafe llvm {
+      %z = zext i16 %0 to i64
+      ret i64 %z
+    }
+
+  prim u64ToU8 :: U64 -> U8 where
+    unsafe llvm {
+      %t = trunc i64 %0 to i8
+      ret i8 %t
+    }
+
+  prim u8ToU64 :: U8 -> U64 where
+    unsafe llvm {
+      %z = zext i8 %0 to i64
+      ret i64 %z
+    }
+
+  prim i64ToI32 :: I64 -> I32 where
+    unsafe llvm {
+      %t = trunc i64 %0 to i32
+      ret i32 %t
+    }
+
+  prim i32ToI64 :: I32 -> I64 where
+    unsafe llvm {
+      %s = sext i32 %0 to i64
+      ret i64 %s
+    }
+
+  prim u32ToI32 :: U32 -> I32 where
+    unsafe llvm { ret i32 %0 }
+
+  prim i32ToU32 :: I32 -> U32 where
+    unsafe llvm { ret i32 %0 }
+
+  prim bitAndU64 :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = and i64 %0, %1
+      ret i64 %r }
+
+  prim bitOrU64 :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = or i64 %0, %1
+      ret i64 %r }
+
+  prim bitXorU64 :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = xor i64 %0, %1
+      ret i64 %r }
+
+  prim shlU64 :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = shl i64 %0, %1
+      ret i64 %r }
+
+  prim lshrU64 :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = lshr i64 %0, %1
+      ret i64 %r }
+
+  prim ashrI64 :: I64 -> U64 -> I64 where
+    unsafe llvm { %r = ashr i64 %0, %1
+      ret i64 %r }
+
+  prim bitAndI64 :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = and i64 %0, %1
+      ret i64 %r }
+
+  prim bitOrI64 :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = or i64 %0, %1
+      ret i64 %r }
+
+  prim bitXorI64 :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = xor i64 %0, %1
+      ret i64 %r }
+
+  prim shlI64 :: I64 -> U64 -> I64 where
+    unsafe llvm { %r = shl i64 %0, %1
+      ret i64 %r }
+
+  prim lshrI64 :: I64 -> U64 -> I64 where
+    unsafe llvm { %r = lshr i64 %0, %1
+      ret i64 %r }
+
+  prim u64Add :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = add i64 %0, %1
+      ret i64 %r }
+
+  prim u64Sub :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = sub i64 %0, %1
+      ret i64 %r }
+
+  prim u64Mul :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = mul i64 %0, %1
+      ret i64 %r }
+
+  prim u64Div :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = udiv i64 %0, %1
+      ret i64 %r }
+
+  prim u64Rem :: U64 -> U64 -> U64 where
+    unsafe llvm { %r = urem i64 %0, %1
+      ret i64 %r }
+
+  prim i64Add :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = add i64 %0, %1
+      ret i64 %r }
+
+  prim i64Sub :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = sub i64 %0, %1
+      ret i64 %r }
+
+  prim i64Mul :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = mul i64 %0, %1
+      ret i64 %r }
+
+  prim u64Lt :: U64 -> U64 -> Bool where
+    unsafe llvm { %c = icmp ult i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u64Le :: U64 -> U64 -> Bool where
+    unsafe llvm { %c = icmp ule i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u64Gt :: U64 -> U64 -> Bool where
+    unsafe llvm { %c = icmp ugt i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u64Ge :: U64 -> U64 -> Bool where
+    unsafe llvm { %c = icmp uge i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim i64Lt :: I64 -> I64 -> Bool where
+    unsafe llvm { %c = icmp slt i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim i64Le :: I64 -> I64 -> Bool where
+    unsafe llvm { %c = icmp sle i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim i64Gt :: I64 -> I64 -> Bool where
+    unsafe llvm { %c = icmp sgt i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim i64Ge :: I64 -> I64 -> Bool where
+    unsafe llvm { %c = icmp sge i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim usizeAdd :: Usize -> Usize -> Usize where
+    unsafe llvm { %r = add i64 %0, %1
+      ret i64 %r }
+
+  prim usizeSub :: Usize -> Usize -> Usize where
+    unsafe llvm { %r = sub i64 %0, %1
+      ret i64 %r }
+
+  prim usizeLt :: Usize -> Usize -> Bool where
+    unsafe llvm { %c = icmp ult i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim usizeLe :: Usize -> Usize -> Bool where
+    unsafe llvm { %c = icmp ule i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim usizeGt :: Usize -> Usize -> Bool where
+    unsafe llvm { %c = icmp ugt i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim usizeGe :: Usize -> Usize -> Bool where
+    unsafe llvm { %c = icmp uge i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim clzU64 :: U64 -> U64 where
+    unsafe llvm { %r = call i64 @llvm.ctlz.i64(i64 %0, i1 false)
+      ret i64 %r }
+
+  prim ctzU64 :: U64 -> U64 where
+    unsafe llvm { %r = call i64 @llvm.cttz.i64(i64 %0, i1 false)
+      ret i64 %r }
+
+  prim bswapU64 :: U64 -> U64 where
+    unsafe llvm { %r = call i64 @llvm.bswap.i64(i64 %0)
+      ret i64 %r }
+
+  prim bswapU32 :: U32 -> U32 where
+    unsafe llvm {
+      %s = call i32 @llvm.bswap.i32(i32 %0)
+      ret i32 %s
+    }
+
+  prim f64ToBits :: F64 -> U64 where
+    unsafe llvm {
+      %b = bitcast double %0 to i64
+      ret i64 %b
+    }
+
+  prim bitsToF64 :: U64 -> F64 where
+    unsafe llvm {
+      %v = bitcast i64 %0 to double
+      ret double %v
+    }

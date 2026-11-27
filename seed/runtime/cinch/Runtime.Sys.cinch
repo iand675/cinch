@@ -1,0 +1,16 @@
+module Runtime.Sys where
+  export cWrite, cRead, cExit, cRawExit, cPause, cGetenv
+  export cMalloc, cCalloc, cRealloc, cFree, cStrlen, cMemcmp
+
+  foreign import ccall "write" cWrite :: I32 -> RawPtr U8 -> Usize ->{Global} Isize
+  foreign import ccall "read" cRead :: I32 -> RawPtr U8 -> Usize ->{Global} Isize
+  foreign import ccall "exit" cExit :: I32 ->{Global} Unit
+  foreign import ccall "_exit" cRawExit :: I32 ->{Global} Unit
+  foreign import ccall "pause" cPause :: Unit ->{Global} I32
+  foreign import ccall "getenv" cGetenv :: RawPtr U8 ->{Global} MaybeNull U8
+  foreign import ccall "malloc" cMalloc :: Usize ->{Global} MaybeNull U8
+  foreign import ccall "calloc" cCalloc :: Usize -> Usize ->{Global} MaybeNull U8
+  foreign import ccall "realloc" cRealloc :: MaybeNull U8 -> Usize ->{Global} MaybeNull U8
+  foreign import ccall "free" cFree :: MaybeNull U8 ->{Global} Unit
+  foreign import ccall "strlen" cStrlen :: RawPtr U8 ->{Global} Usize
+  foreign import ccall "memcmp" cMemcmp :: RawPtr U8 -> RawPtr U8 -> Usize ->{Global} I32
