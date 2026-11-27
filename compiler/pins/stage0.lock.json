@@ -1,11 +1,11 @@
 {
-  "commit": "073bfb423687a9317d2c36b20264d0715bd06261",
-  "description": "ABI 10 seed with complete prelude verification, extended verify-codegen (interproc, tail loops, repr(C)/FixedArray, Perceus RC), cvc5 Alethe SMT, hardware crypto asm (BvClmul/AesCore), and stronger atomic contracts.",
+  "commit": "768e1489b282da864775fcbdd564a68ae2ecdc73",
+  "description": "ABI 10 seed with Tiers 1-4 niche fusion, bit-packing, pointer tagging, NaN-sentinel float sums, polymorphic CSR/WW, and default auto-unpacking.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "073bfb423687a9317d2c36b20264d0715bd06261",
+  "revision": "768e1489b282da864775fcbdd564a68ae2ecdc73",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "0050e5efac44edb7ecb0aa76cff6bb029c6552860c531ba5566467079ad4a4e4",
-  "source_sha256": "0050e5efac44edb7ecb0aa76cff6bb029c6552860c531ba5566467079ad4a4e4"
+  "source_hash": "92933993947726d98c099ca7b12ae3668c2cd796248a8f1d664ab731ca3df9cb",
+  "source_sha256": "92933993947726d98c099ca7b12ae3668c2cd796248a8f1d664ab731ca3df9cb"
 }

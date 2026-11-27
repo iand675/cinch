@@ -1,9 +1,9 @@
 {
-  "commit": "073bfb423687a9317d2c36b20264d0715bd06261",
-  "description": "ABI 10 packed library provider with complete prelude verification, extended verify-codegen, cvc5 Alethe SMT, hardware crypto asm (BvClmul/AesCore), and stronger atomic contracts.",
-  "revision": "073bfb423687a9317d2c36b20264d0715bd06261",
+  "commit": "768e1489b282da864775fcbdd564a68ae2ecdc73",
+  "description": "ABI 10 packed library provider with Tiers 1-4 niche fusion, bit-packing, pointer tagging, NaN-sentinel float sums, polymorphic CSR/WW, and default auto-unpacking.",
+  "revision": "768e1489b282da864775fcbdd564a68ae2ecdc73",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "05577581d2a4b3b9a87058c29dce671697f7eb1b3047c65e94b4f2a0dfd5c523",
-  "source_sha256": "05577581d2a4b3b9a87058c29dce671697f7eb1b3047c65e94b4f2a0dfd5c523"
+  "source_hash": "ad7234b0c22aee741702193a8185735158948cd2e9a2b242f9f6d88fe48d05e0",
+  "source_sha256": "ad7234b0c22aee741702193a8185735158948cd2e9a2b242f9f6d88fe48d05e0"
 }
