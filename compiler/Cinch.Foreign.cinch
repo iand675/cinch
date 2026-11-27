@@ -822,7 +822,8 @@ module Cinch.Foreign where
       (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
         let pure = pure-primitive-arrows (scheme-body scheme) in
         let ptr-sized = case result.parameter-type of UCon rname KType -> has rname ["Usize", "Isize"]; other -> False in
-        (case checked-prim-bodies word-bits symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) [] of
+        let fb-bits = effective-fallback-word-bits word-bits bodies in
+        (case checked-prim-bodies fb-bits symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) [] of
           Err message -> Err message
           Ok (body, condition) ->
             let trust = primitive-trust symbol bodies in
@@ -833,7 +834,6 @@ module Cinch.Foreign where
               let rspec = param-to-verify-spec "result" result in
               let spec-id-opt = spec-identity-string spec-opt in
               let spec-display = case spec-id-opt of Some s -> s; None -> "well-defined" in
-              let fb-bits = effective-fallback-word-bits word-bits bodies in
               (case verify-prim-bodies-loop fb-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of
                 Err message -> Err message
                 Ok (all-verified1, receipts1) ->
