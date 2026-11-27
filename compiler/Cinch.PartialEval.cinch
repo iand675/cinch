@@ -191,6 +191,15 @@ module Cinch.PartialEval where
     [] -> True
     first : rest -> pe-is-pure-value ctors first && pe-all-pure-values ctors rest
 
+  pe-is-discardable-local-type :: UType -> Bool
+  pe-is-discardable-local-type ty =
+    pe-named ty "Bool" || pe-named ty "Char" || pe-named ty "Unit"
+      || pe-named ty "Int" || pe-named ty "Nat"
+      || pe-named ty "I8" || pe-named ty "I16" || pe-named ty "I32" || pe-named ty "I64" || pe-named ty "Isize"
+      || pe-named ty "U8" || pe-named ty "U16" || pe-named ty "U32" || pe-named ty "U64" || pe-named ty "Usize"
+      || pe-named ty "F32" || pe-named ty "F64"
+      || pe-named ty "String" || pe-named ty "Bytes"
+
   -- Pure expressions safe to discard if their let-binder is unused.
   -- Excludes unknown calls, effects, linear/mutable ops, and thunks.
   pe-discardable :: HashMap String Nat -> CoreTerm -> Bool
@@ -203,7 +212,7 @@ module Cinch.PartialEval where
       CSymbol _ _ _ -> True
       CString _ _ _ -> True
       CUnit _ _ -> True
-      CLocal _ ty _ _ [] -> pe-named ty "Bool" || pe-named ty "I64" || pe-named ty "Int" || pe-named ty "Nat" || pe-named ty "Char" || pe-named ty "Unit"
+      CLocal _ ty _ _ [] -> pe-is-discardable-local-type ty
       CUse _ _ _ role _ -> role == "constructor" || role == "value"
       CLambda _ _ _ _ -> True
       CTuple _ _ fields -> case pe-arg-list fields of
