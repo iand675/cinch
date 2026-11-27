@@ -13,6 +13,8 @@ module Runtime where
   import Runtime.Sym
   import Runtime.BigNum
   import Runtime.Text
+  import Runtime.Arrays
+  import Runtime.Slots
 
   export cinchBlackhole, cinchPanic
   export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc
@@ -35,3 +37,10 @@ module Runtime where
   export cinchIntFromDecimal, cinchIntToDecimal, cinchIntDecimalLen
   export cinchTextSha256, cinchTextSha512, cinchTextSha1, cinchTextMd5
   export cinchTextHmacSha256, cinchTextF64ToDecimal, cinchTextF64FromDecimal
+  export cinchArrayLen, cinchArrayFromList, cinchArrayReplicate, cinchArrayHas
+  export cinchArrayGet, cinchArraySlice, cinchArraySet, cinchArraySetInplace, cinchArrayAppend
+  export cinchTensorReshape, cinchTensorShape, cinchTensorData, cinchTensorIndex
+  export cinchTensorGet, cinchTensorSet
+  export cinchColumnarColumn, cinchColumnarRows, cinchColumnarColumns
+  export cinchColumnarChild, cinchColumnarArray, cinchColumnarZip, cinchColumnarGet
+  export cinchSlotsNew, cinchSlotsMove, cinchSlotsClear, cinchSlotsFault

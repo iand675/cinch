@@ -9377,7 +9377,8 @@ module Cinch.RuntimeIr where
   join-lines-nl :: List String -> String
   join-lines-nl lines = case lines of
     [] -> ""
-    l : rest -> if rest == [] then l else cat [l, "\n", join-lines-nl rest]
+    l : [] -> l
+    l : rest -> cat [l, "\n", join-lines-nl rest]
 
   filter-exported-declares :: List (String, ForeignPlan) -> String -> String
   filter-exported-declares exports text = case exports of

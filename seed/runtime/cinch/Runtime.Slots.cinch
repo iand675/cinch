@@ -1,0 +1,158 @@
+module Runtime.Slots where
+  import Runtime.Mem
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.Arrays
+
+  export cinchSlotsNew, cinchSlotsMove, cinchSlotsClear, cinchSlotsFault
+
+  panicCorruptSlots :: Unit ->{Global} Unit
+  panicCorruptSlots _ =
+    withLocal (fixedArrayRepeat 48 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: corrupt mutable slot array" (40 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 99 111 in
+      let _ = put8 p 16 114 114 117 112 116 32 109 117 in
+      let _ = put8 p 24 116 97 98 108 101 32 115 108 in
+      let _ = put8 p 32 111 116 32 97 114 114 97 121 in
+      panicExitBytes p 40
+    )
+
+  panicSlotRange :: Unit ->{Global} Unit
+  panicSlotRange _ =
+    withLocal (fixedArrayRepeat 48 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: mutable slot index out of range" (45 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 109 117 in
+      let _ = put8 p 16 116 97 98 108 101 32 115 108 in
+      let _ = put8 p 24 111 116 32 105 110 100 101 120 in
+      let _ = put8 p 32 32 111 117 116 32 111 102 32 in
+      let _ = put4 p 40 114 97 110 103 in
+      let _ = storeU8 p 44 101 in
+      panicExitBytes p 45
+    )
+
+  panicSlotEmpty :: Unit ->{Global} Unit
+  panicSlotEmpty _ =
+    withLocal (fixedArrayRepeat 48 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: read of an empty mutable slot" (43 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 114 101 in
+      let _ = put8 p 16 97 100 32 111 102 32 97 110 in
+      let _ = put8 p 24 32 101 109 112 116 121 32 109 in
+      let _ = put8 p 32 117 116 97 98 108 101 32 115 in
+      let _ = storeU8 p 40 108 in
+      let _ = storeU8 p 41 111 in
+      let _ = storeU8 p 42 116 in
+      panicExitBytes p 43
+    )
+
+  #[repr(value)]
+  record SlotArray where
+    saPtr :: RawPtr U8
+    saLen :: I64
+    saFmt :: I64
+
+  readSlotArray :: I64 ->{Global} SlotArray
+  readSlotArray a =
+    if a == 0 || bitAndI64 a 7 /= 0 then
+      let _ = panicCorruptSlots () in
+      SlotArray (maybeToRaw (ptrFromU64 1)) 0 0
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 a)) in
+      if headerKind (readHeader p) /= kindArray then
+        let _ = panicCorruptSlots () in
+        SlotArray p 0 0
+      else
+        let f = loadI64 p 0 in
+        if i64Lt f 0 || i64Gt f 2 then
+          let _ = panicCorruptSlots () in
+          SlotArray p 0 0
+        else
+          let len = loadI64 p 8 in
+          SlotArray (ptrAddU64 p 16) len f
+
+  slotInRange :: I64 -> I64 -> I64 -> Bool
+  slotInRange start n len =
+    if i64Lt start 0 || i64Lt n 0 then False
+    else
+      let endU = u64Add (i64ToU64 start) (i64ToU64 n) in
+      u64Ge endU (i64ToU64 start) && u64Le endU (i64ToU64 len)
+
+  cinchSlotsNew :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchSlotsNew n f =
+    if i64Lt f 0 || i64Gt f 2 then
+      let _ = panicCorruptSlots () in
+      0
+    else
+      arrayAlloc n f
+
+  dropDstLoop :: RawPtr U8 -> Bool -> I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} Unit
+  dropDstLoop dp same si siEnd k kEnd =
+    if i64Ge k kEnd then ()
+    else
+      let overlap = same && i64Ge k si && i64Lt k siEnd in
+      let _ = if not overlap then cinchDrop (loadI64 dp (u64ToIsize (u64Mul (i64ToU64 k) 8))) else () in
+      dropDstLoop dp same si siEnd (i64Add k 1) kEnd
+
+  zeroSrcLoop :: RawPtr U8 -> Bool -> I64 -> I64 -> I64 -> I64 ->{Global} Unit
+  zeroSrcLoop sp same di diEnd k kEnd =
+    if i64Ge k kEnd then ()
+    else
+      let overlap = same && i64Ge k di && i64Lt k diEnd in
+      let _ = if not overlap then storeI64 sp (u64ToIsize (u64Mul (i64ToU64 k) 8)) 0 else () in
+      zeroSrcLoop sp same di diEnd (i64Add k 1) kEnd
+
+  cinchSlotsMove :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchSlotsMove dst di src si n =
+    let d = readSlotArray dst in
+    let s = readSlotArray src in
+    if d.saFmt /= s.saFmt || not (slotInRange di n (d.saLen)) || not (slotInRange si n (s.saLen)) then
+      let _ = panicCorruptSlots () in
+      0
+    else if n == 0 then 0
+    else
+      let same = dst == src in
+      let siEnd = i64Add si n in
+      let diEnd = i64Add di n in
+      let _ = if arrayIsCounted (d.saFmt) then dropDstLoop (d.saPtr) same si siEnd di diEnd else () in
+      let _ = memMove (ptrAddU64 (d.saPtr) (u64Mul (i64ToU64 di) 8))
+                      (ptrAddU64 (s.saPtr) (u64Mul (i64ToU64 si) 8))
+                      (u64ToUsize (u64Mul (i64ToU64 n) 8)) in
+      let _ = zeroSrcLoop (s.saPtr) same di diEnd si siEnd in
+      0
+
+  clearSlotsLoop :: RawPtr U8 -> Bool -> I64 -> I64 ->{Global, ThreadAffine} Unit
+  clearSlotsLoop p isCounted k kEnd =
+    if i64Ge k kEnd then ()
+    else
+      let off = u64ToIsize (u64Mul (i64ToU64 k) 8) in
+      let w = loadI64 p off in
+      let _ = storeI64 p off 0 in
+      let _ = if isCounted then cinchDrop w else () in
+      clearSlotsLoop p isCounted (i64Add k 1) kEnd
+
+  cinchSlotsClear :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchSlotsClear a i n =
+    let s = readSlotArray a in
+    if not (slotInRange i n (s.saLen)) then
+      let _ = panicCorruptSlots () in
+      0
+    else
+      let _ = clearSlotsLoop (s.saPtr) (arrayIsCounted (s.saFmt)) i (i64Add i n) in
+      0
+
+  cinchSlotsFault :: I64 ->{Global} I64
+  cinchSlotsFault code =
+    let _ = if code == 1 then panicSlotRange () else panicSlotEmpty () in
+    0
+
+  foreign export ccall "cinch_slots_new" cinchSlotsNew :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_slots_move" cinchSlotsMove :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_slots_clear" cinchSlotsClear :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_slots_fault" cinchSlotsFault :: I64 ->{Global} I64

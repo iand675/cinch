@@ -4,6 +4,33 @@
 //! separate columns; zip never materializes rows.
 use crate::{abi, block, rc};
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_array_len(a: i64) -> i64;
+    pub fn cinch_array_from_list(xs: i64, f: i64) -> i64;
+    pub fn cinch_array_replicate(n: i64, value: i64, f: i64) -> i64;
+    pub fn cinch_array_has(a: i64, i: i64) -> i64;
+    pub fn cinch_array_get(a: i64, i: i64) -> i64;
+    pub fn cinch_array_slice(a: i64, start: i64, n: i64) -> i64;
+    pub fn cinch_array_set(a: i64, i: i64, value: i64) -> i64;
+    pub fn cinch_array_set_inplace(a: i64, i: i64, value: i64) -> i64;
+    pub fn cinch_array_append(a: i64, b: i64) -> i64;
+    pub fn cinch_tensor_reshape(shape: i64, data: i64) -> i64;
+    pub fn cinch_tensor_shape(a: i64) -> i64;
+    pub fn cinch_tensor_data(a: i64) -> i64;
+    pub fn cinch_tensor_index(a: i64, indices: i64) -> i64;
+    pub fn cinch_tensor_get(a: i64, i: i64) -> i64;
+    pub fn cinch_tensor_set(a: i64, i: i64, value: i64) -> i64;
+    pub fn cinch_columnar_column(a: i64) -> i64;
+    pub fn cinch_columnar_rows(a: i64) -> i64;
+    pub fn cinch_columnar_columns(a: i64) -> i64;
+    pub fn cinch_columnar_child(a: i64, right: i64) -> i64;
+    pub fn cinch_columnar_array(a: i64) -> i64;
+    pub fn cinch_columnar_zip(a: i64, b: i64, desc: i64) -> i64;
+    pub fn cinch_columnar_get(a: i64, i: i64) -> i64;
+}
+
+
 fn corrupt() -> ! {
     abi::panic_exit(b"compiler bug: corrupt array value")
 }
@@ -100,6 +127,7 @@ pub(crate) unsafe fn format(a: i64) -> i64 {
     unsafe { field(a, block::KIND_ARRAY, 0) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_len(a: i64) -> i64 {
     unsafe { field(a, block::KIND_ARRAY, 1) }
@@ -148,6 +176,7 @@ pub(crate) unsafe fn write(a: i64, i: i64, value: i64) {
     }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_from_list(xs: i64, f: i64) -> i64 {
     let mut n = 0i64;
@@ -170,6 +199,7 @@ pub unsafe extern "C" fn cinch_array_from_list(xs: i64, f: i64) -> i64 {
     out
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_replicate(n: i64, value: i64, f: i64) -> i64 {
     let out = unsafe { array(n, f) };
@@ -179,12 +209,14 @@ pub unsafe extern "C" fn cinch_array_replicate(n: i64, value: i64, f: i64) -> i6
     out
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_has(a: i64, i: i64) -> i64 {
     i64::from(i >= 0 && i < unsafe { cinch_array_len(a) })
 }
 
 /// An owned element, after a separate successful bounds check.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_get(a: i64, i: i64) -> i64 {
     if unsafe { cinch_array_has(a, i) } == 0 {
@@ -193,6 +225,7 @@ pub unsafe extern "C" fn cinch_array_get(a: i64, i: i64) -> i64 {
     unsafe { keep(read(a, i), format(a)) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_slice(a: i64, start: i64, n: i64) -> i64 {
     if start < 0
@@ -211,6 +244,7 @@ pub unsafe extern "C" fn cinch_array_slice(a: i64, start: i64, n: i64) -> i64 {
     out
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_set(a: i64, i: i64, value: i64) -> i64 {
     if unsafe { cinch_array_has(a, i) } == 0 {
@@ -266,6 +300,7 @@ unsafe fn exclusive(word: i64) -> bool {
 /// displaced element's reference is released, so writing a value the slot
 /// already holds cannot free it before it is stored, and the result's
 /// reference is taken with `cinch_dup`.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_set_inplace(a: i64, i: i64, value: i64) -> i64 {
     if unsafe { cinch_array_has(a, i) } == 0 {
@@ -290,6 +325,7 @@ pub unsafe extern "C" fn cinch_array_set_inplace(a: i64, i: i64, value: i64) -> 
     out
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_array_append(a: i64, b: i64) -> i64 {
     let an = unsafe { cinch_array_len(a) };
@@ -327,6 +363,7 @@ unsafe fn tensor(data: i64, shape: i64) -> i64 {
     p as usize as i64
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_reshape(shape: i64, data: i64) -> i64 {
     let rank = unsafe { cinch_array_len(shape) };
@@ -349,6 +386,7 @@ pub unsafe extern "C" fn cinch_tensor_reshape(shape: i64, data: i64) -> i64 {
     unsafe { tensor(data, shape) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_shape(a: i64) -> i64 {
     let s = unsafe { field(a, block::KIND_TENSOR, 1) };
@@ -356,6 +394,7 @@ pub unsafe extern "C" fn cinch_tensor_shape(a: i64) -> i64 {
     s
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_data(a: i64) -> i64 {
     let d = unsafe { field(a, block::KIND_TENSOR, 0) };
@@ -363,6 +402,7 @@ pub unsafe extern "C" fn cinch_tensor_data(a: i64) -> i64 {
     d
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_index(a: i64, indices: i64) -> i64 {
     let shape = unsafe { field(a, block::KIND_TENSOR, 1) };
@@ -385,11 +425,13 @@ pub unsafe extern "C" fn cinch_tensor_index(a: i64, indices: i64) -> i64 {
     offset
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_get(a: i64, i: i64) -> i64 {
     unsafe { cinch_array_get(field(a, block::KIND_TENSOR, 0), i) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_tensor_set(a: i64, i: i64, value: i64) -> i64 {
     // `tensor-set` is persistent: the original tensor keeps its element. The
@@ -424,21 +466,25 @@ unsafe fn column(rows: i64, columns: i64, desc: i64, left: i64, right: i64) -> i
     p as usize as i64
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_column(a: i64) -> i64 {
     unsafe { column(cinch_array_len(a), 1, -1, a, 0) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_rows(a: i64) -> i64 {
     unsafe { field(a, block::KIND_COLUMNAR, 0) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_columns(a: i64) -> i64 {
     unsafe { field(a, block::KIND_COLUMNAR, 1) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_child(a: i64, right: i64) -> i64 {
     if unsafe { field(a, block::KIND_COLUMNAR, 2) } == -1 {
@@ -449,6 +495,7 @@ pub unsafe extern "C" fn cinch_columnar_child(a: i64, right: i64) -> i64 {
     child
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_array(a: i64) -> i64 {
     if unsafe { field(a, block::KIND_COLUMNAR, 2) } != -1 {
@@ -459,6 +506,7 @@ pub unsafe extern "C" fn cinch_columnar_array(a: i64) -> i64 {
     leaf
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_zip(a: i64, b: i64, desc: i64) -> i64 {
     let rows = unsafe { cinch_columnar_rows(a) };
@@ -473,6 +521,7 @@ pub unsafe extern "C" fn cinch_columnar_zip(a: i64, b: i64, desc: i64) -> i64 {
     unsafe { column(rows, n, desc, a, b) }
 }
 
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_columnar_get(a: i64, i: i64) -> i64 {
     if i < 0 || i >= unsafe { cinch_columnar_rows(a) } {

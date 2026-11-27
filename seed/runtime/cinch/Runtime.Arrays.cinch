@@ -1,0 +1,519 @@
+module Runtime.Arrays where
+  import Runtime.Mem
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.BigNum
+
+  export arrayElemWidth, arrayIsCounted, arrayAlloc, arrayFormat, arrayRead, arrayWrite
+  export cinchArrayLen, cinchArrayFromList, cinchArrayReplicate, cinchArrayHas
+  export cinchArrayGet, cinchArraySlice, cinchArraySet, cinchArraySetInplace, cinchArrayAppend
+  export cinchTensorReshape, cinchTensorShape, cinchTensorData, cinchTensorIndex
+  export cinchTensorGet, cinchTensorSet
+  export cinchColumnarColumn, cinchColumnarRows, cinchColumnarColumns
+  export cinchColumnarChild, cinchColumnarArray, cinchColumnarZip, cinchColumnarGet
+
+  panicCorruptArray :: Unit ->{Global} Unit
+  panicCorruptArray _ =
+    withLocal (fixedArrayRepeat 40 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: corrupt array value" (33 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 99 111 in
+      let _ = put8 p 16 114 114 117 112 116 32 97 114 in
+      let _ = put8 p 24 114 97 121 32 118 97 108 117 in
+      let _ = storeU8 p 32 101 in
+      panicExitBytes p 33
+    )
+
+  checkedPayload :: I64 -> U8 ->{Global} RawPtr U8
+  checkedPayload word expectedKind =
+    if word == 0 || bitAndI64 word 7 /= 0 then
+      let _ = panicCorruptArray () in
+      maybeToRaw (ptrFromU64 1)
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= expectedKind then
+        let _ = panicCorruptArray () in
+        p
+      else p
+
+  fieldAt :: I64 -> U8 -> U64 ->{Global} I64
+  fieldAt word expectedKind idx =
+    loadI64 (checkedPayload word expectedKind) (u64ToIsize (u64Mul idx 8))
+
+  arrayElemWidth :: I64 -> U64
+  arrayElemWidth fmt =
+    if i64Le fmt 2 then 8
+    else i64ToU64 (bitAndI64 fmt 127)
+
+  arrayIsCounted :: I64 -> Bool
+  arrayIsCounted fmt = fmt == 1 || fmt == 2
+
+  keepElem :: I64 -> I64 ->{Global} I64
+  keepElem word fmt =
+    let _ = if arrayIsCounted fmt then cinchDup word else () in
+    word
+
+  validFormat :: I64 -> Bool
+  validFormat fmt =
+    if i64Ge fmt 0 && i64Le fmt 2 then True
+    else if bitAndI64 fmt 256 /= 0 then
+      let w = arrayElemWidth fmt in
+      w == 1 || w == 2 || w == 4 || w == 8
+    else False
+
+  arrayAlloc :: I64 -> I64 ->{Global, ThreadAffine} I64
+  arrayAlloc len fmt =
+    if i64Lt len 0 || not (validFormat fmt) then
+      let _ = panicCorruptArray () in
+      0
+    else
+      let ulen = i64ToU64 len in
+      let w = arrayElemWidth fmt in
+      let prod = u64Mul ulen w in
+      let hi = u64MulHi ulen w in
+      let total = u64Add prod 16 in
+      let _ = if hi /= 0 || u64Lt total prod then heapRequestTooLarge (i64ToU64 (i64Sub 0 1)) else () in
+      let p = allocate total kindArray rcFresh True in
+      let _ = storeI64 p 0 fmt in
+      let _ = storeI64 p 8 len in
+      u64ToI64 (rawToU64 p)
+
+  arrayFormat :: I64 ->{Global} I64
+  arrayFormat a = fieldAt a kindArray 0
+
+  cinchArrayLen :: I64 ->{Global} I64
+  cinchArrayLen a = fieldAt a kindArray 1
+
+  arrayRead :: I64 -> I64 ->{Global} I64
+  arrayRead a i =
+    let f = arrayFormat a in
+    let w = arrayElemWidth f in
+    let base = ptrAddU64 (checkedPayload a kindArray) (u64Add 16 (u64Mul (i64ToU64 i) w)) in
+    let v =
+          (if w == 1 then u8ToU64 (loadU8 base 0)
+          else if w == 2 then u16ToU64 (loadU16 base 0)
+          else if w == 4 then u32ToU64 (loadU32 base 0)
+          else if w == 8 then loadU64 base 0
+          else
+            let _ = panicCorruptArray () in
+            0) in
+    if i64Gt f 2 && bitAndI64 f 128 /= 0 then
+      let shift = u64Sub 64 (u64Mul w 8) in
+      ashrI64 (u64ToI64 (shlU64 v shift)) shift
+    else
+      u64ToI64 v
+
+  arrayWrite :: I64 -> I64 -> I64 ->{Global} Unit
+  arrayWrite a i val =
+    let f = arrayFormat a in
+    let w = arrayElemWidth f in
+    let base = ptrAddU64 (checkedPayload a kindArray) (u64Add 16 (u64Mul (i64ToU64 i) w)) in
+    let u = i64ToU64 val in
+    if w == 1 then storeU8 base 0 (u64ToU8 u)
+    else if w == 2 then storeU16 base 0 (u64ToU16 u)
+    else if w == 4 then storeU32 base 0 (u64ToU32 u)
+    else if w == 8 then storeI64 base 0 val
+    else panicCorruptArray ()
+
+  countListLoop :: I64 -> I64 ->{Global} I64
+  countListLoop at n =
+    let p = maybeToRaw (ptrFromU64 (i64ToU64 at)) in
+    if ctorTagOf p == 1 then
+      let _ = if n == 9223372036854775807 then heapRequestTooLarge (i64ToU64 (i64Sub 0 1)) else () in
+      countListLoop (loadI64 p 8) (i64Add n 1)
+    else n
+
+  fillFromListLoop :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} Unit
+  fillFromListLoop out f at i n =
+    if i64Ge i n then ()
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 at)) in
+      let v = loadI64 p 0 in
+      let _ = arrayWrite out i (keepElem v f) in
+      fillFromListLoop out f (loadI64 p 8) (i64Add i 1) n
+
+  cinchArrayFromList :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchArrayFromList xs f =
+    let n = countListLoop xs 0 in
+    let out = arrayAlloc n f in
+    let _ = fillFromListLoop out f xs 0 n in
+    out
+
+  replicateLoop :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} Unit
+  replicateLoop out f val i n =
+    if i64Ge i n then ()
+    else
+      let _ = arrayWrite out i (keepElem val f) in
+      replicateLoop out f val (i64Add i 1) n
+
+  cinchArrayReplicate :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchArrayReplicate n val f =
+    let out = arrayAlloc n f in
+    let _ = replicateLoop out f val 0 n in
+    out
+
+  cinchArrayHas :: I64 -> I64 ->{Global} I64
+  cinchArrayHas a i =
+    if i64Ge i 0 && i64Lt i (cinchArrayLen a) then 1 else 0
+
+  cinchArrayGet :: I64 -> I64 ->{Global} I64
+  cinchArrayGet a i =
+    if cinchArrayHas a i == 0 then
+      let _ = panicCorruptArray () in
+      0
+    else
+      keepElem (arrayRead a i) (arrayFormat a)
+
+  sliceLoop :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{Global} Unit
+  sliceLoop a out f start i n =
+    if i64Ge i n then ()
+    else
+      let _ = arrayWrite out i (keepElem (arrayRead a (i64Add start i)) f) in
+      sliceLoop a out f start (i64Add i 1) n
+
+  cinchArraySlice :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchArraySlice a start n =
+    if i64Lt start 0 || i64Lt n 0 then 0
+    else
+      let len = cinchArrayLen a in
+      let endU = u64Add (i64ToU64 start) (i64ToU64 n) in
+      if u64Lt endU (i64ToU64 start) || u64Gt endU (i64ToU64 len) then 0
+      else
+        let f = arrayFormat a in
+        let out = arrayAlloc n f in
+        let _ = sliceLoop a out f start 0 n in
+        out
+
+  setCopyLoop :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{Global} Unit
+  setCopyLoop a out f idx val j n =
+    if i64Ge j n then ()
+    else
+      let v = if j == idx then val else arrayRead a j in
+      let _ = arrayWrite out j (keepElem v f) in
+      setCopyLoop a out f idx val (i64Add j 1) n
+
+  cinchArraySet :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchArraySet a i val =
+    if cinchArrayHas a i == 0 then 0
+    else
+      let f = arrayFormat a in
+      let n = cinchArrayLen a in
+      let out = arrayAlloc n f in
+      let _ = setCopyLoop a out f i val 0 n in
+      out
+
+  isExclusive :: I64 ->{Global} Bool
+  isExclusive word =
+    headerRc (readHeader (maybeToRaw (ptrFromU64 (i64ToU64 word)))) == rcFresh
+
+  cinchArraySetInplace :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchArraySetInplace a i val =
+    if cinchArrayHas a i == 0 then 0
+    else
+      let f = arrayFormat a in
+      if isExclusive a then
+        let old = arrayRead a i in
+        let _ = arrayWrite a i (keepElem val f) in
+        let _ = if arrayIsCounted f then cinchDrop old else () in
+        let _ = cinchDup a in
+        a
+      else
+        let n = cinchArrayLen a in
+        let out = arrayAlloc n f in
+        let _ = setCopyLoop a out f i val 0 n in
+        out
+
+  appendCopyLoop :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{Global} Unit
+  appendCopyLoop src out f dstOff i n =
+    if i64Ge i n then ()
+    else
+      let _ = arrayWrite out (i64Add dstOff i) (keepElem (arrayRead src i) f) in
+      appendCopyLoop src out f dstOff (i64Add i 1) n
+
+  cinchArrayAppend :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchArrayAppend a b =
+    let an = cinchArrayLen a in
+    let bn = cinchArrayLen b in
+    let af = arrayFormat a in
+    let bf = arrayFormat b in
+    let _ = if (arrayIsCounted af /= arrayIsCounted bf) || (arrayIsCounted af && af /= bf) then panicCorruptArray () else () in
+    let f = if af == bf then af else 0 in
+    let sumU = u64Add (i64ToU64 an) (i64ToU64 bn) in
+    let _ = if u64Gt sumU 9223372036854775807 then heapRequestTooLarge (i64ToU64 (i64Sub 0 1)) else () in
+    let out = arrayAlloc (u64ToI64 sumU) f in
+    let _ = appendCopyLoop a out f 0 0 an in
+    let _ = appendCopyLoop b out f an 0 bn in
+    out
+
+  -- =========================================================================
+  -- Tensors (KIND_TENSOR: 16 bytes { data: I64, shape: I64 })
+  -- =========================================================================
+
+  allocTensor :: I64 -> I64 ->{Global, ThreadAffine} I64
+  allocTensor dataWord shapeWord =
+    let p = allocate 16 kindTensor rcFresh False in
+    let _ = storeI64 p 0 dataWord in
+    let _ = storeI64 p 8 shapeWord in
+    let _ = cinchDup dataWord in
+    let _ = cinchDup shapeWord in
+    u64ToI64 (rawToU64 p)
+
+  shapeHasZeroLoop :: I64 -> I64 -> I64 ->{Global} Bool
+  shapeHasZeroLoop shape i rank =
+    if i64Ge i rank then False
+    else if cinchNatToLen (arrayRead shape i) == 0 then True
+    else shapeHasZeroLoop shape (i64Add i 1) rank
+
+  #[repr(value)]
+  record CheckedI64 where
+    ciOk :: Bool
+    ciVal :: I64
+
+  checkedMulNonNeg :: I64 -> I64 -> CheckedI64
+  checkedMulNonNeg a b =
+    if a == 0 || b == 0 then CheckedI64 True 0
+    else
+      let au = i64ToU64 a in
+      let bu = i64ToU64 b in
+      let hi = u64MulHi au bu in
+      let lo = u64Mul au bu in
+      if hi /= 0 || u64Gt lo 9223372036854775807 then CheckedI64 False 0
+      else CheckedI64 True (u64ToI64 lo)
+
+  checkedAddNonNeg :: I64 -> I64 -> CheckedI64
+  checkedAddNonNeg a b =
+    let s = u64Add (i64ToU64 a) (i64ToU64 b) in
+    if u64Gt s 9223372036854775807 then CheckedI64 False 0
+    else CheckedI64 True (u64ToI64 s)
+
+  shapeProdLoop :: I64 -> I64 -> I64 -> I64 ->{Global} CheckedI64
+  shapeProdLoop shape i rank acc =
+    if i64Ge i rank then CheckedI64 True acc
+    else
+      let d = cinchNatToLen (arrayRead shape i) in
+      let m = checkedMulNonNeg acc d in
+      if not (m.ciOk) then m
+      else shapeProdLoop shape (i64Add i 1) rank (m.ciVal)
+
+  cinchTensorReshape :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchTensorReshape shape dataWord =
+    let rank = cinchArrayLen shape in
+    let size =
+          (if shapeHasZeroLoop shape 0 rank then CheckedI64 True 0
+          else shapeProdLoop shape 0 rank 1) in
+    if not (size.ciOk) || size.ciVal /= cinchArrayLen dataWord then 0
+    else allocTensor dataWord shape
+
+  cinchTensorShape :: I64 ->{Global} I64
+  cinchTensorShape a =
+    let s = fieldAt a kindTensor 1 in
+    let _ = cinchDup s in
+    s
+
+  cinchTensorData :: I64 ->{Global} I64
+  cinchTensorData a =
+    let d = fieldAt a kindTensor 0 in
+    let _ = cinchDup d in
+    d
+
+  tensorIndexLoop :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} I64
+  tensorIndexLoop shape indices axis rank off =
+    if i64Ge axis rank then off
+    else
+      let d = cinchNatToLen (arrayRead shape axis) in
+      let idx = cinchNatToLen (arrayRead indices axis) in
+      if i64Ge idx d then i64Sub 0 1
+      else
+        let m = checkedMulNonNeg off d in
+        if not (m.ciOk) then i64Sub 0 1
+        else
+          let s = checkedAddNonNeg (m.ciVal) idx in
+          if not (s.ciOk) then i64Sub 0 1
+          else tensorIndexLoop shape indices (i64Add axis 1) rank (s.ciVal)
+
+  cinchTensorIndex :: I64 -> I64 ->{Global} I64
+  cinchTensorIndex a indices =
+    let shape = fieldAt a kindTensor 1 in
+    let rank = cinchArrayLen shape in
+    if rank /= cinchArrayLen indices then i64Sub 0 1
+    else tensorIndexLoop shape indices 0 rank 0
+
+  cinchTensorGet :: I64 -> I64 ->{Global} I64
+  cinchTensorGet a i = cinchArrayGet (fieldAt a kindTensor 0) i
+
+  cinchTensorSet :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchTensorSet a i val =
+    let borrowed = fieldAt a kindTensor 0 in
+    let _ = cinchDup borrowed in
+    let newData = cinchArraySet borrowed i val in
+    let _ = cinchDrop borrowed in
+    if newData == 0 then 0
+    else
+      let out = allocTensor newData (fieldAt a kindTensor 1) in
+      let _ = cinchDrop newData in
+      out
+
+  -- =========================================================================
+  -- Columnar (KIND_COLUMNAR: 40 bytes { rows, columns, desc, left, right })
+  -- =========================================================================
+
+  allocColumnar :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  allocColumnar rows cols desc left right =
+    let p = allocate 40 kindColumnar rcFresh False in
+    let _ = storeI64 p 0 rows in
+    let _ = storeI64 p 8 cols in
+    let _ = storeI64 p 16 desc in
+    let _ = storeI64 p 24 left in
+    let _ = storeI64 p 32 right in
+    let _ = cinchDup left in
+    let _ = cinchDup right in
+    u64ToI64 (rawToU64 p)
+
+  cinchColumnarColumn :: I64 ->{Global, ThreadAffine} I64
+  cinchColumnarColumn a = allocColumnar (cinchArrayLen a) 1 (i64Sub 0 1) a 0
+
+  cinchColumnarRows :: I64 ->{Global} I64
+  cinchColumnarRows a = fieldAt a kindColumnar 0
+
+  cinchColumnarColumns :: I64 ->{Global} I64
+  cinchColumnarColumns a = fieldAt a kindColumnar 1
+
+  cinchColumnarChild :: I64 -> I64 ->{Global} I64
+  cinchColumnarChild a right =
+    if fieldAt a kindColumnar 2 == i64Sub 0 1 then 0
+    else
+      let child = fieldAt a kindColumnar (if right == 0 then 3 else 4) in
+      let _ = cinchDup child in
+      child
+
+  cinchColumnarArray :: I64 ->{Global} I64
+  cinchColumnarArray a =
+    if fieldAt a kindColumnar 2 /= i64Sub 0 1 then 0
+    else
+      let leaf = fieldAt a kindColumnar 3 in
+      let _ = cinchDup leaf in
+      leaf
+
+  cinchColumnarZip :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchColumnarZip a b desc =
+    let rows = cinchColumnarRows a in
+    if rows /= cinchColumnarRows b then 0
+    else
+      let sum = checkedAddNonNeg (cinchColumnarColumns a) (cinchColumnarColumns b) in
+      if not (sum.ciOk) then 0
+      else allocColumnar rows (sum.ciVal) desc a b
+
+  -- Explicit heap stacks for iterative postorder cinch_columnar_get
+  #[repr(value)]
+  record TodoStack where
+    tsPtr :: RawPtr U8
+    tsLen :: U64
+    tsCap :: U64
+
+  #[repr(value)]
+  record ValStack where
+    vsPtr :: RawPtr U8
+    vsLen :: U64
+    vsCap :: U64
+
+  tsPush :: TodoStack -> I64 -> U64 ->{Global, ThreadAffine} TodoStack
+  tsPush st node visited =
+    let st2 =
+          (if st.tsLen == st.tsCap then
+            let newCap = u64Mul (st.tsCap) 2 in
+            let newPtr = heapGlobalAlloc (u64ToUsize (u64Mul newCap 16)) 8 0 in
+            let _ = memCopy newPtr (st.tsPtr) (u64ToUsize (u64Mul (st.tsLen) 16)) in
+            let _ = heapGlobalDealloc (st.tsPtr) (u64ToUsize (u64Mul (st.tsCap) 16)) 8 in
+            TodoStack newPtr (st.tsLen) newCap
+          else st) in
+    let off = u64Mul (st2.tsLen) 16 in
+    let _ = storeI64 (st2.tsPtr) (u64ToIsize off) node in
+    let _ = storeU64 (st2.tsPtr) (u64ToIsize (u64Add off 8)) visited in
+    TodoStack (st2.tsPtr) (u64Add (st2.tsLen) 1) (st2.tsCap)
+
+  vsPush :: ValStack -> I64 ->{Global, ThreadAffine} ValStack
+  vsPush st val =
+    let st2 =
+          (if st.vsLen == st.vsCap then
+            let newCap = u64Mul (st.vsCap) 2 in
+            let newPtr = heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0 in
+            let _ = memCopy newPtr (st.vsPtr) (u64ToUsize (u64Mul (st.vsLen) 8)) in
+            let _ = heapGlobalDealloc (st.vsPtr) (u64ToUsize (u64Mul (st.vsCap) 8)) 8 in
+            ValStack newPtr (st.vsLen) newCap
+          else st) in
+    let _ = storeI64 (st2.vsPtr) (u64ToIsize (u64Mul (st2.vsLen) 8)) val in
+    ValStack (st2.vsPtr) (u64Add (st2.vsLen) 1) (st2.vsCap)
+
+  columnarGetLoop :: TodoStack -> ValStack -> I64 ->{Global, ThreadAffine} I64
+  columnarGetLoop ts vs idx =
+    if ts.tsLen == 0 then
+      let res = loadI64 (vs.vsPtr) (u64ToIsize (u64Mul (u64Sub (vs.vsLen) 1) 8)) in
+      let _ = heapGlobalDealloc (ts.tsPtr) (u64ToUsize (u64Mul (ts.tsCap) 16)) 8 in
+      let _ = heapGlobalDealloc (vs.vsPtr) (u64ToUsize (u64Mul (vs.vsCap) 8)) 8 in
+      res
+    else
+      let topIdx = u64Sub (ts.tsLen) 1 in
+      let off = u64Mul topIdx 16 in
+      let node = loadI64 (ts.tsPtr) (u64ToIsize off) in
+      let visited = loadU64 (ts.tsPtr) (u64ToIsize (u64Add off 8)) in
+      let ts1 = TodoStack (ts.tsPtr) topIdx (ts.tsCap) in
+      let desc = fieldAt node kindColumnar 2 in
+      let left = fieldAt node kindColumnar 3 in
+      if desc == i64Sub 0 1 then
+        let vs1 = vsPush vs (cinchArrayGet left idx) in
+        columnarGetLoop ts1 vs1 idx
+      else if visited /= 0 then
+        let rightIdx = u64Sub (vs.vsLen) 1 in
+        let leftIdx = u64Sub rightIdx 1 in
+        let rVal = loadI64 (vs.vsPtr) (u64ToIsize (u64Mul rightIdx 8)) in
+        let lVal = loadI64 (vs.vsPtr) (u64ToIsize (u64Mul leftIdx 8)) in
+        let p = allocateDescribed 16 kindCtor (i64ToU64 desc) False in
+        let _ = storeI64 p 0 lVal in
+        let _ = storeI64 p 8 rVal in
+        let vs1 = ValStack (vs.vsPtr) leftIdx (vs.vsCap) in
+        let vs2 = vsPush vs1 (u64ToI64 (rawToU64 p)) in
+        columnarGetLoop ts1 vs2 idx
+      else
+        let right = fieldAt node kindColumnar 4 in
+        let ts2 = tsPush ts1 node 1 in
+        let ts3 = tsPush ts2 right 0 in
+        let ts4 = tsPush ts3 left 0 in
+        columnarGetLoop ts4 vs idx
+
+  cinchColumnarGet :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchColumnarGet a i =
+    if i64Lt i 0 || i64Ge i (cinchColumnarRows a) then
+      let _ = panicCorruptArray () in
+      0
+    else
+      let ts0 = TodoStack (heapGlobalAlloc (u64ToUsize (u64Mul 16 16)) 8 0) 0 16 in
+      let vs0 = ValStack (heapGlobalAlloc (u64ToUsize (u64Mul 16 8)) 8 0) 0 16 in
+      let ts1 = tsPush ts0 a 0 in
+      columnarGetLoop ts1 vs0 i
+
+  foreign export ccall "cinch_array_len" cinchArrayLen :: I64 ->{Global} I64
+  foreign export ccall "cinch_array_from_list" cinchArrayFromList :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_array_replicate" cinchArrayReplicate :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_array_has" cinchArrayHas :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_array_get" cinchArrayGet :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_array_slice" cinchArraySlice :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_array_set" cinchArraySet :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_array_set_inplace" cinchArraySetInplace :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_array_append" cinchArrayAppend :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_tensor_reshape" cinchTensorReshape :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_tensor_shape" cinchTensorShape :: I64 ->{Global} I64
+  foreign export ccall "cinch_tensor_data" cinchTensorData :: I64 ->{Global} I64
+  foreign export ccall "cinch_tensor_index" cinchTensorIndex :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_tensor_get" cinchTensorGet :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_tensor_set" cinchTensorSet :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_columnar_column" cinchColumnarColumn :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_columnar_rows" cinchColumnarRows :: I64 ->{Global} I64
+  foreign export ccall "cinch_columnar_columns" cinchColumnarColumns :: I64 ->{Global} I64
+  foreign export ccall "cinch_columnar_child" cinchColumnarChild :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_columnar_array" cinchColumnarArray :: I64 ->{Global} I64
+  foreign export ccall "cinch_columnar_zip" cinchColumnarZip :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_columnar_get" cinchColumnarGet :: I64 -> I64 ->{Global, ThreadAffine} I64

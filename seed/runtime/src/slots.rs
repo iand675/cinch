@@ -51,12 +51,21 @@ fn in_range(start: i64, n: i64, len: i64) -> bool {
     start >= 0 && n >= 0 && start.checked_add(n).is_some_and(|end| end <= len)
 }
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_slots_new(n: i64, f: i64) -> i64;
+    pub fn cinch_slots_move(dst: i64, di: i64, src: i64, si: i64, n: i64) -> i64;
+    pub fn cinch_slots_clear(a: i64, i: i64, n: i64) -> i64;
+    pub fn cinch_slots_fault(code: i64) -> i64;
+}
+
 /// `n` holes of the element format `f` (the element class's scan code).
 /// The allocation is zero-filled, which is what makes every slot a hole.
 ///
 /// # Safety
 ///
 /// `f` is a word format (0, 1 or 2).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_slots_new(n: i64, f: i64) -> i64 {
     if !(0..=2).contains(&f) {
@@ -81,6 +90,7 @@ pub unsafe extern "C" fn cinch_slots_new(n: i64, f: i64) -> i64 {
 /// # Safety
 ///
 /// `dst` and `src` are word-format slot arrays of the same element format.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_slots_move(dst: i64, di: i64, src: i64, si: i64, n: i64) -> i64 {
     let (dp, dlen, df) = unsafe { words(dst) };
@@ -116,6 +126,7 @@ pub unsafe extern "C" fn cinch_slots_move(dst: i64, di: i64, src: i64, si: i64, 
 /// # Safety
 ///
 /// `a` is a word-format slot array.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_slots_clear(a: i64, i: i64, n: i64) -> i64 {
     let (p, len, f) = unsafe { words(a) };
@@ -136,6 +147,7 @@ pub unsafe extern "C" fn cinch_slots_clear(a: i64, i: i64, n: i64) -> i64 {
 /// The trap behind the compiler's inline slot paths: an index at or past
 /// the length (`code` 1) or a read or take of a counted hole (`code` 2).
 /// Either is a bug in the container that issued it, never in its caller.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_slots_fault(code: i64) -> i64 {
     match code {
