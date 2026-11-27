@@ -471,6 +471,16 @@ module Cinch.CoreBody where
       let (v, t2) = dense-term dense value t1 in
       let (types, t3) = dense-type-docs dense args t2 in
       (dense-node "poly-elim" [doc, v, types], t3)
+    CQualIntro s ty givens body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (gs, t2) = dense-givens dense givens t1 in
+      let (b, t3) = dense-term dense body t2 in
+      (dense-node "qual-intro" [doc, gs, b], t3)
+    CQualElim s ty value evs ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (v, t2) = dense-term dense value t1 in
+      let (proofs, t3) = dense-evidences dense evs t2 in
+      (dense-node "qual-elim" [doc, v, proofs], t3)
     CPrimitive s ty operation arguments ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (a, t2) = dense-term dense arguments t1 in
@@ -1118,6 +1128,18 @@ module Cinch.CoreBody where
       JArr typeDoc (JArr fieldsDoc JArrEnd) ->
         (case (dense-type-of types typeDoc, dense-term-of types fieldsDoc) of
           (Some ty, Some fields) -> Some (CTuple dense-zero ty fields)
+          other -> None)
+      other -> None)
+    else if dense-same tag "qual-intro" then (case rest of
+      JArr typeDoc (JArr givensDoc (JArr bodyDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-givens-of types givensDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some givens, Some body) -> Some (CQualIntro dense-zero ty givens body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "qual-elim" then (case rest of
+      JArr typeDoc (JArr valueDoc (JArr evsDoc JArrEnd)) ->
+        (case (dense-type-of types typeDoc, dense-term-of types valueDoc, dense-evidences-of types evsDoc) of
+          (Some ty, Some value, Some evs) -> Some (CQualElim dense-zero ty value evs)
           other -> None)
       other -> None)
     else if dense-same tag "primitive" then (case rest of

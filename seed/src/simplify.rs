@@ -1234,7 +1234,7 @@ fn free_locals_in(e: &Core, out: &mut Vec<LocalId>, heads: bool) {
 /// `crate::rc`'s join convention places the body's releases before its
 /// value, which a jump as the value would bypass.
 fn carries_join(e: &Core) -> bool {
-    if matches!(e, Core::Join { .. } | Core::Jump { .. }) {
+    if matches!(e, Core::Join { .. } | Core::Jump { .. } | Core::Bubble) {
         return true;
     }
     let mut found = false;
@@ -2298,7 +2298,7 @@ fn contify(e: &mut Core, tables: &Tables, fresh: &mut Fresh, inside: &[String]) 
         return None;
     }
     let (classes, unit_body) = tables.lambdas.get(&fn_id.0)?;
-    if classes.len() < env.len() || !env.iter().all(capture_value) {
+    if classes.len() < env.len() || !env.iter().all(capture_value) || carries_join(unit_body) {
         return None;
     }
     let arity = classes.len() - env.len();

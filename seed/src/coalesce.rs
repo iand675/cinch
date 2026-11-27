@@ -116,12 +116,19 @@ fn run(e: &Core) -> Core {
     rebuild(&steps, tail)
 }
 
+fn has_bubble(e: &Core) -> bool {
+    if matches!(e, Core::Bubble) {
+        return true;
+    }
+    crate::core::child_slots_imm(e).into_iter().any(has_bubble)
+}
+
 fn split(e: &Core) -> Run {
     let mut steps = Vec::new();
     let mut cur = e;
     loop {
         match cur {
-            Core::Let(x, c, v, b) => {
+            Core::Let(x, c, v, b) if !has_bubble(v) => {
                 steps.push(Step::Let(*x, *c, run(v)));
                 cur = b;
             }
@@ -141,6 +148,7 @@ fn split(e: &Core) -> Run {
 /// The node that ends a run, with every run nested inside it rewritten.
 fn nested(e: &Core) -> Core {
     match e {
+        Core::Let(x, c, v, b) => Core::Let(*x, *c, Box::new(run(v)), Box::new(run(b))),
         Core::If(c, t, f) => Core::If(
             Box::new(run(c)),
             CBranch { weight: t.weight, body: Box::new(run(&t.body)) },
