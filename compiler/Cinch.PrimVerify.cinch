@@ -1540,11 +1540,165 @@ module Cinch.PrimVerify where
       else Err "unsupported LLVM line in verifier"
     other -> Err "unsupported LLVM line in verifier"
 
+  -- Pure register-only hardware crypto inline-asm lowering (`pclmulqdq`, `pmull`,
+  -- `aesenc`/`aesenclast`/`aesdec`/`aesdeclast`, `aese`+`aesmc`/`aese`/`aesd`+`aesimc`/`aesd`).
+  -- Any `sideeffect`, memory clobber, or unmodeled ISA instruction stays strictly rejected.
+  pack-vec128 :: List (Nat, Nat) -> SemGraph -> Result String (Nat, Nat, SemGraph)
+  pack-vec128 lanes g = case lanes of
+    Nil -> Err "empty vector in crypto asm"
+    Cons (v0, p0) rest -> pack-vec128-loop v0 p0 rest g
+
+  pack-vec128-loop :: Nat -> Nat -> List (Nat, Nat) -> SemGraph -> Result String (Nat, Nat, SemGraph)
+  pack-vec128-loop acc p lanes g = case lanes of
+    Nil -> Ok (acc, p, g)
+    Cons (v, vp) rest ->
+      let (next-acc, g1) = g-intern (NBvConcat v acc) g in
+      let (next-p, g2) = g-or p vp g1 in
+      pack-vec128-loop next-acc next-p rest g2
+
+  unpack-vec128-loop :: Nat -> Nat -> Nat -> Nat -> Nat -> SemGraph -> (List (Nat, Nat), SemGraph)
+  unpack-vec128-loop bits poison ew idx count g =
+    if idx >= count then (Nil, g)
+    else
+      let lo = idx * ew in
+      let hi = saturating-sub (lo + ew) 1 in
+      let (lane, g1) = g-intern (NBvExtract hi lo bits) g in
+      case unpack-vec128-loop bits poison ew (idx + 1) count g1 of
+        (more, g2) -> (Cons (lane, poison) more, g2)
+
+  extract-quoted-two :: String -> Option (String, String, String)
+  extract-quoted-two s = case string-split-on "\"" s of
+    Cons _ (Cons q1 (Cons _ (Cons q2 rest))) -> Some (q1, q2, join-str "\"" rest)
+    other -> None
+
+  extract-asm-call-args :: String -> Option (String, String, String, String)
+  extract-asm-call-args tail = case string-split-on "(" tail of
+    Cons _ (Cons inside _) ->
+      (case string-split-on ")" inside of
+        Cons arg-str _ ->
+          let ws = ir-words arg-str in
+          (case ws of
+            Cons ty1 (Cons a1 (Cons ty2 (Cons a2 Nil))) -> Some (ty1, a1, ty2, a2)
+            other -> None)
+        Nil -> None)
+    other -> None
+
+  strip-arm-aes-ext :: String -> String
+  strip-arm-aes-ext tpl =
+    let t = string-strip tpl in
+    if string-starts-with ".arch_extension aes\\0A" t then
+      string-strip (string-slice t 22 (string-length t))
+    else t
+
+  lower-crypto-asm-line :: String -> LlvmEnv -> Result String LlvmEnv
+  lower-crypto-asm-line raw env =
+    let clean = string-strip (strip-ir-comment raw) in
+    if string-contains "sideeffect" clean || string-contains "~{memory}" clean then
+      Err "sideeffect/memory inline `asm` requires an ISA semantics plugin"
+    else case string-split-on "=" clean of
+      Cons lhs-raw (Cons r1 rmore) ->
+        let lhs = string-strip lhs-raw in
+        let rhs = string-strip (join-str "=" (Cons r1 rmore)) in
+        let rty-opt =
+              if string-contains "<2 x i64>" rhs then Some (SVec 2 64)
+              else if string-contains "<16 x i8>" rhs then Some (SVec 16 8)
+              else None in
+        (case (rty-opt, extract-quoted-two rhs) of
+          (Some (SVec out-n out-ew), Some (tpl-raw, cons-raw, tail)) ->
+            let tpl = strip-arm-aes-ext tpl-raw in
+            let cons = string-strip cons-raw in
+            (case extract-asm-call-args tail of
+              None -> Err "malformed crypto inline `asm` arguments"
+              Some (ty1-tok, a1-tok, ty2-tok, a2-tok) ->
+                (case (parse-llvm-type ty1-tok, parse-llvm-type ty2-tok) of
+                  (Some t1, Some t2) ->
+                    (case resolve-operand a1-tok t1 env of
+                      Err e -> Err e
+                      Ok (va, g1) ->
+                        case env of
+                          MkLlvmEnv binds ub g0 ret ->
+                            (case resolve-operand a2-tok t2 (MkLlvmEnv binds ub g1 ret) of
+                              Err e -> Err e
+                              Ok (vb, g2) ->
+                                if string-starts-with "pclmulqdq " tpl && same cons "=x,0,x" then
+                                  let imm-part = case string-split-on "," (string-slice tpl 10 (string-length tpl)) of
+                                        Cons h _ -> string-strip h
+                                        Nil -> "" in
+                                  let imm-digits =
+                                        if string-starts-with "$$" imm-part then string-slice imm-part 2 (string-length imm-part)
+                                        else if string-starts-with "$" imm-part then string-slice imm-part 1 (string-length imm-part)
+                                        else imm-part in
+                                  (case (parse-nat-str imm-digits, va, vb) of
+                                    (Some imm, MkSemVec la _, MkSemVec lb _) ->
+                                      let ai = imm % 2 in
+                                      let bi = (imm / 16) % 2 in
+                                      (case (get-lane-at ai la, get-lane-at bi lb) of
+                                        (Some (a-val, a-p), Some (b-val, b-p)) ->
+                                          let (prod, g3) = g-intern (NBvBin "clmul" 128 a-val b-val) g2 in
+                                          let (p, g4) = g-or a-p b-p g3 in
+                                          let (out-lanes, g5) = unpack-vec128-loop prod p out-ew 0 out-n g4 in
+                                          Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g5 ret)
+                                        other -> Err "pclmulqdq lane out of range")
+                                    other -> Err (string-concat "unsupported pclmulqdq template: " tpl))
+                                else if same tpl "pmull $0.1q, $1.1d, $2.1d" && same cons "=w,w,w" then
+                                  (case (va, vb) of
+                                    (MkSemVec (Cons (a-val, a-p) _) _, MkSemVec (Cons (b-val, b-p) _) _) ->
+                                      let (prod, g3) = g-intern (NBvBin "clmul" 128 a-val b-val) g2 in
+                                      let (p, g4) = g-or a-p b-p g3 in
+                                      let (out-lanes, g5) = unpack-vec128-loop prod p out-ew 0 out-n g4 in
+                                      Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g5 ret)
+                                    other -> Err "pmull expects <1 x i64> vector operands")
+                                else
+                                  let x86-aes =
+                                        if same tpl "aesenc $2, $0" then Some "aes-enc-core"
+                                        else if same tpl "aesenclast $2, $0" then Some "aes-enc-last-core"
+                                        else if same tpl "aesdec $2, $0" then Some "aes-dec-core"
+                                        else if same tpl "aesdeclast $2, $0" then Some "aes-dec-last-core"
+                                        else None in
+                                  let arm-aes =
+                                        if same tpl "aese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b" then Some "aes-enc-core"
+                                        else if same tpl "aese $0.16b, $2.16b" then Some "aes-enc-last-core"
+                                        else if same tpl "aesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b" then Some "aes-dec-core"
+                                        else if same tpl "aesd $0.16b, $2.16b" then Some "aes-dec-last-core"
+                                        else None in
+                                  (case (x86-aes, arm-aes, va, vb) of
+                                    (Some op-nm, _, MkSemVec la _, MkSemVec lb _) | same cons "=x,0,x" ->
+                                      (case pack-vec128 la g2 of
+                                        Err e -> Err e
+                                        Ok (s-bits, sp, g3) ->
+                                          (case pack-vec128 lb g3 of
+                                            Err e -> Err e
+                                            Ok (k-bits, kp, g4) ->
+                                              let (core, g5) = g-intern (NBvUn op-nm 128 s-bits) g4 in
+                                              let (out, g6) = g-bv-bin "xor" 128 core k-bits g5 in
+                                              let (p, g7) = g-or sp kp g6 in
+                                              let (out-lanes, g8) = unpack-vec128-loop out p out-ew 0 out-n g7 in
+                                              Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g8 ret)))
+                                    (_, Some op-nm, MkSemVec la _, MkSemVec lb _) | same cons "=w,0,w" ->
+                                      (case pack-vec128 la g2 of
+                                        Err e -> Err e
+                                        Ok (s-bits, sp, g3) ->
+                                          (case pack-vec128 lb g3 of
+                                            Err e -> Err e
+                                            Ok (k0-bits, kp, g4) ->
+                                              let (xored, g5) = g-bv-bin "xor" 128 s-bits k0-bits g4 in
+                                              let (out, g6) = g-intern (NBvUn op-nm 128 xored) g5 in
+                                              let (p, g7) = g-or sp kp g6 in
+                                              let (out-lanes, g8) = unpack-vec128-loop out p out-ew 0 out-n g7 in
+                                              Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g8 ret)))
+                                    other -> Err (string-concat-all ["inline `asm` call `", tpl, "` requires an ISA semantics plugin"]))))
+                  other -> Err "unsupported crypto inline `asm` operand types"))
+          other -> Err "inline `asm` call requires an ISA semantics plugin")
+      other -> Err "inline `asm` call requires an ISA semantics plugin"
+
   lower-ir-lines :: List String -> LlvmEnv -> Result String LlvmEnv
   lower-ir-lines lines env = case lines of
     Nil -> Ok env
     Cons line rest ->
-      case lower-ir-line (ir-words line) env of
+      let step = if string-contains " asm " (strip-ir-comment line) then
+                   lower-crypto-asm-line line env
+                 else lower-ir-line (ir-words line) env in
+      case step of
         Err e -> Err e
         Ok next -> lower-ir-lines rest next
 
@@ -2315,22 +2469,22 @@ module Cinch.PrimVerify where
   -- Brummayer & Biere, Boolector 2009). Every gate variable `z` is strictly
   -- greater than its inputs' variables, preserving reverse-topological cone filtering.
   data BlastState where
-    MkBlastState :: Nat -> Nat -> List (Nat, List Int) -> NatMap (List Int) -> List (Nat, String, List Int) -> NatMap (NatMap Int) -> NatMap (NatMap Int) -> NatMap (NatMap (NatMap Int)) -> BlastState
+    MkBlastState :: Nat -> Nat -> List (Nat, List Int) -> NatMap (List Int) -> List (Nat, String, List Int) -> NatMap (NatMap Int) -> NatMap (NatMap Int) -> NatMap (NatMap (NatMap Int)) -> List (String, List Int) -> BlastState
     -- next-var, next-cid, clauses (reversed), node-id -> bit-lits (LSB first),
-    -- var-bits (param-idx, name, lits), and-cache, xor-cache, ite-cache
+    -- var-bits (param-idx, name, lits), and-cache, xor-cache, ite-cache, aes-cache
 
   init-blast-state :: BlastState
-  init-blast-state = MkBlastState 2 2 (Cons (1, Cons lit-true Nil) Nil) nm-empty Nil nm-empty nm-empty nm-empty
+  init-blast-state = MkBlastState 2 2 (Cons (1, Cons lit-true Nil) Nil) nm-empty Nil nm-empty nm-empty nm-empty Nil
 
   bb-fresh-var :: BlastState -> (Int, BlastState)
   bb-fresh-var st = case st of
-    MkBlastState nv nc cs memo vbits ac xc ic ->
-      (nat-to-int nv, MkBlastState (nv + 1) nc cs memo vbits ac xc ic)
+    MkBlastState nv nc cs memo vbits ac xc ic aesc ->
+      (nat-to-int nv, MkBlastState (nv + 1) nc cs memo vbits ac xc ic aesc)
 
   bb-add-clause :: List Int -> BlastState -> BlastState
   bb-add-clause lits st = case st of
-    MkBlastState nv nc cs memo vbits ac xc ic ->
-      MkBlastState nv (nc + 1) (Cons (nc, lits) cs) memo vbits ac xc ic
+    MkBlastState nv nc cs memo vbits ac xc ic aesc ->
+      MkBlastState nv (nc + 1) (Cons (nc, lits) cs) memo vbits ac xc ic aesc
 
   bb-and :: Int -> Int -> BlastState -> (Int, BlastState)
   bb-and a b st =
@@ -2344,7 +2498,7 @@ module Cinch.PrimVerify where
       let cb = lit-code b in
       let (k1, k2, la, lb) = if ca <= cb then (ca, cb, a, b) else (cb, ca, b, a) in
       case st of
-        MkBlastState nv nc cs memo vbits ac xc ic ->
+        MkBlastState nv nc cs memo vbits ac xc ic aesc ->
           case nm2-lookup k1 k2 ac of
             Some cached -> (cached, st)
             None ->
@@ -2353,8 +2507,8 @@ module Cinch.PrimVerify where
               let st3 = bb-add-clause [lit-neg z, lb] st2 in
               let st4 = bb-add-clause [z, lit-neg la, lit-neg lb] st3 in
               case st4 of
-                MkBlastState nv4 nc4 cs4 memo4 vbits4 ac4 xc4 ic4 ->
-                  (z, MkBlastState nv4 nc4 cs4 memo4 vbits4 (nm2-insert k1 k2 z ac4) xc4 ic4)
+                MkBlastState nv4 nc4 cs4 memo4 vbits4 ac4 xc4 ic4 aesc4 ->
+                  (z, MkBlastState nv4 nc4 cs4 memo4 vbits4 (nm2-insert k1 k2 z ac4) xc4 ic4 aesc4)
 
   -- De Morgan lowering (`a | b == !(!a & !b)`) shares subcircuits in `and-cache`.
   bb-or :: Int -> Int -> BlastState -> (Int, BlastState)
@@ -2378,7 +2532,7 @@ module Cinch.PrimVerify where
       let pa = nat-to-int k1 in
       let pb = nat-to-int k2 in
       case st of
-        MkBlastState nv nc cs memo vbits ac xc ic ->
+        MkBlastState nv nc cs memo vbits ac xc ic aesc ->
           case nm2-lookup k1 k2 xc of
             Some cached -> (if flip then lit-neg cached else cached, st)
             None ->
@@ -2388,9 +2542,9 @@ module Cinch.PrimVerify where
               let st4 = bb-add-clause [z, lit-neg pa, pb] st3 in
               let st5 = bb-add-clause [z, pa, lit-neg pb] st4 in
               case st5 of
-                MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 ic5 ->
+                MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 ic5 aesc5 ->
                   let out = if flip then lit-neg z else z in
-                  (out, MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 (nm2-insert k1 k2 z xc5) ic5)
+                  (out, MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 (nm2-insert k1 k2 z xc5) ic5 aesc5)
 
   bb-eq :: Int -> Int -> BlastState -> (Int, BlastState)
   bb-eq a b st =
@@ -2413,7 +2567,7 @@ module Cinch.PrimVerify where
       let k2 = lit-code nt in
       let k3 = lit-code ne in
       case st of
-        MkBlastState nv nc cs memo vbits ac xc ic ->
+        MkBlastState nv nc cs memo vbits ac xc ic aesc ->
           case nm3-lookup k1 k2 k3 ic of
             Some cached -> (if flip then lit-neg cached else cached, st)
             None ->
@@ -2423,9 +2577,9 @@ module Cinch.PrimVerify where
               let st4 = bb-add-clause [cc, lit-neg z, ne] st3 in
               let st5 = bb-add-clause [cc, z, lit-neg ne] st4 in
               case st5 of
-                MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 ic5 ->
+                MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 ic5 aesc5 ->
                   let out = if flip then lit-neg z else z in
-                  (out, MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 (nm3-insert k1 k2 k3 z ic5))
+                  (out, MkBlastState nv5 nc5 cs5 memo5 vbits5 ac5 xc5 (nm3-insert k1 k2 k3 z ic5) aesc5)
 
   bb-const-bits-pair :: Nat -> U64 -> U64 -> List Int
   bb-const-bits-pair w lo hi = bb-const-bits-pair-loop w 0 lo hi
@@ -2655,9 +2809,53 @@ module Cinch.PrimVerify where
       let (more, st1) = bb-cttz-from w (idx + 1) rest st in
       bb-ite-vec b (bb-const-bits w (nat-u64 idx)) more st1
 
+  -- Exact GF(2) carry-less multiplication bit-blaster (64x64 -> 128, zero carries).
+  bb-nth-bit :: Nat -> List Int -> Int
+  bb-nth-bit i xs = case xs of
+    Nil -> lit-false
+    Cons h t -> if i == 0 then h else bb-nth-bit (saturating-sub i 1) t
+
+  bb-clmul-bit-loop :: Nat -> Nat -> Nat -> List Int -> List Int -> Int -> BlastState -> (Int, BlastState)
+  bb-clmul-bit-loop k i i-end la lb acc st =
+    if i > i-end then (acc, st)
+    else
+      let ai = bb-nth-bit i la in
+      let bj = bb-nth-bit (saturating-sub k i) lb in
+      let (prod, st1) = bb-and ai bj st in
+      let (acc1, st2) = bb-xor acc prod st1 in
+      bb-clmul-bit-loop k (i + 1) i-end la lb acc1 st2
+
+  bb-clmul-loop :: Nat -> Nat -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-clmul-loop k out-w la lb st =
+    if k >= out-w then (Nil, st)
+    else
+      let i-start = if k >= 63 then saturating-sub k 63 else 0 in
+      let i-end = if k < 63 then k else 63 in
+      let (bit, st1) = bb-clmul-bit-loop k i-start i-end la lb lit-false st in
+      let (more, st2) = bb-clmul-loop (k + 1) out-w la lb st1 in
+      (Cons bit more, st2)
+
+  bb-lookup-aes :: String -> List (String, List Int) -> Option (List Int)
+  bb-lookup-aes k xs = case xs of
+    Nil -> None
+    Cons (a, v) rest -> if same k a then Some v else bb-lookup-aes k rest
+
+  bb-aes-core :: String -> List Int -> BlastState -> (List Int, BlastState)
+  bb-aes-core op bits st =
+    let key = string-concat-all [op, ":", join-int bits] in
+    case st of
+      MkBlastState nv nc cs memo vbits ac xc ic aesc ->
+        case bb-lookup-aes key aesc of
+          Some cached -> (cached, st)
+          None ->
+            let (fresh, st1) = bb-fresh-bits 128 st in
+            case st1 of
+              MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 aesc1 ->
+                (fresh, MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 (Cons (key, fresh) aesc1))
+
   bb-node :: Nat -> SemGraph -> BlastState -> Result String (List Int, BlastState)
   bb-node id g st = case st of
-    MkBlastState nv nc cs memo vbits ac xc ic ->
+    MkBlastState nv nc cs memo vbits ac xc ic aesc ->
       case nm-lookup id memo of
         Some cached -> Ok (cached, st)
         None -> case graph-node id g of
@@ -2665,8 +2863,8 @@ module Cinch.PrimVerify where
           Some node -> case bb-node-uncached node g st of
             Err e -> Err e
             Ok (bits, st1) -> case st1 of
-              MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 ->
-                Ok (bits, MkBlastState nv1 nc1 cs1 (nm-insert id bits memo1) vbits1 ac1 xc1 ic1)
+              MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 aesc1 ->
+                Ok (bits, MkBlastState nv1 nc1 cs1 (nm-insert id bits memo1) vbits1 ac1 xc1 ic1 aesc1)
 
   bb-node-uncached :: SemNode -> SemGraph -> BlastState -> Result String (List Int, BlastState)
   bb-node-uncached node g st = case node of
@@ -2676,8 +2874,8 @@ module Cinch.PrimVerify where
       let w = sem-type-width ty in
       let (bits, st1) = bb-fresh-bits w st in
       case st1 of
-        MkBlastState nv nc cs memo vbits ac xc ic ->
-          Ok (bits, MkBlastState nv nc cs memo (Cons (idx, nm, bits) vbits) ac xc ic)
+        MkBlastState nv nc cs memo vbits ac xc ic aesc ->
+          Ok (bits, MkBlastState nv nc cs memo (Cons (idx, nm, bits) vbits) ac xc ic aesc)
     NNot a -> case bb-node a g st of
       Err e -> Err e
       Ok (Cons la Nil, st1) -> Ok ([lit-neg la], st1)
@@ -2733,6 +2931,8 @@ module Cinch.PrimVerify where
         else if same op "ctpop" then Ok (bb-ctpop w la st1)
         else if same op "cttz" then Ok (bb-cttz-from w 0 la st1)
         else if same op "ctlz" then Ok (bb-cttz-from w 0 (reverse la) st1)
+        else if same op "aes-enc-core" || same op "aes-enc-last-core" || same op "aes-dec-core" || same op "aes-dec-last-core" then
+          Ok (bb-aes-core op la st1)
         else Err (string-concat "unsupported unary bv op in bit-blaster: " op)
     NBvBin op w a b -> case bb-node a g st of
       Err e -> Err e
@@ -2746,6 +2946,7 @@ module Cinch.PrimVerify where
           else if same op "and" then Ok (bb-zip-map bb-and la lb st2)
           else if same op "or" then Ok (bb-zip-map bb-or la lb st2)
           else if same op "xor" then Ok (bb-zip-map bb-xor la lb st2)
+          else if same op "clmul" then Ok (bb-clmul-loop 0 128 la lb st2)
           else if same op "shl" || same op "lshr" || same op "ashr" then Ok (bb-shift op w la lb st2)
           else if same op "mul" && w <= 64 then Ok (bb-mul-loop w 0 la lb (repeat-bit w lit-false) st2)
           else if same op "umin" then
@@ -3448,7 +3649,7 @@ module Cinch.PrimVerify where
               Some la-lit -> bb-add-clause [la-lit] st2
               None -> st2 in
         case st3 of
-          MkBlastState max-var next-cid rev-cs memo vbits ac xc ic ->
+          MkBlastState max-var next-cid rev-cs memo vbits ac xc ic aesc ->
             let act0 = nm-insert 1 True (nm-insert (lit-var diff) True nm-empty) in
             let act1 = case assume-opt of
                   Some la-lit -> nm-insert (lit-var la-lit) True act0
@@ -3488,7 +3689,7 @@ module Cinch.PrimVerify where
               Some la-lit -> bb-add-clause [la-lit] st2
               None -> st2 in
         case st3 of
-          MkBlastState max-var next-cid rev-cs memo vbits ac xc ic ->
+          MkBlastState max-var next-cid rev-cs memo vbits ac xc ic aesc ->
             case verify-lrat-text max-var rev-cs pstr of
               Err bad -> Err bad
               Ok verified -> verify-bitwise-cached-loop assume-opt ar br base-st prest
@@ -3610,7 +3811,7 @@ module Cinch.PrimVerify where
               -- Assert negation of goal: UNSAT => goal is valid!
               let st2 = bb-add-clause [lit-neg goal-lit] st1 in
               case st2 of
-                MkBlastState max-var next-cid rev-clauses memo vbits ac xc ic ->
+                MkBlastState max-var next-cid rev-clauses memo vbits ac xc ic aesc ->
                   let clauses = rev-clauses in
                   -- Check persistent proof cache first; ALWAYS re-verify through independent LRAT kernel!
                   case lookup-cached-proof goal-hash proof-cache of
@@ -4065,6 +4266,14 @@ module Cinch.PrimVerify where
           if is-pure && (has-str "store" ws || has-str "atomicrmw" ws || has-str "cmpxchg" ws || has-str "fence" ws || has-str "volatile" ws) then
             [string-concat prim-name ": pure prim body performs memory write/atomic/volatile effect"]
           else Nil in
+    let ptr-v =
+          if (has-str "load" ws || has-str "store" ws || has-str "cmpxchg" ws || has-str "atomicrmw" ws) && not (has-str "ptr" ws) then
+            [string-concat prim-name ": memory/atomic op must operate on explicit LLVM `ptr` operand"]
+          else Nil in
+    let scope-v =
+          if string-contains "syncscope(\"\")" clean then
+            [string-concat prim-name ": atomic op forbids empty `syncscope(\"\")`"]
+          else Nil in
     let ords = find-orderings ws in
     let align-opt = find-align-nat ws in
     let atomic-ty = first-atomic-ty ws in
@@ -4118,33 +4327,60 @@ module Cinch.PrimVerify where
               Nil -> [string-concat prim-name ": `fence` missing ordering"]
               other -> Nil)
           else if has-str "atomicrmw" ws then
-            (case ords of
-              Cons o rest | same o "unordered" -> [string-concat prim-name ": `atomicrmw` forbids `unordered`"]
-              Nil -> [string-concat prim-name ": `atomicrmw` missing ordering"]
-              other -> Nil)
+            let rmw-op-ok =
+                  has-str "xchg" ws || has-str "add" ws || has-str "sub" ws
+                    || has-str "and" ws || has-str "nand" ws || has-str "or" ws || has-str "xor" ws
+                    || has-str "max" ws || has-str "min" ws || has-str "umax" ws || has-str "umin" ws
+                    || has-str "fadd" ws || has-str "fsub" ws || has-str "fmax" ws || has-str "fmin" ws
+                    || has-str "uinc_wrap" ws || has-str "udec_wrap" ws in
+            let op-errs = if rmw-op-ok then Nil else [string-concat prim-name ": invalid `atomicrmw` operation"] in
+            let al-errs = case align-opt of
+                  Some al | not (is-power-of-two-nat al) -> [string-concat prim-name ": `atomicrmw` alignment must be a power of two"]
+                  other -> Nil in
+            let ord-errs = case ords of
+                  Cons o rest | same o "unordered" -> [string-concat prim-name ": `atomicrmw` forbids `unordered`"]
+                  Nil -> [string-concat prim-name ": `atomicrmw` missing ordering"]
+                  other -> Nil in
+            op-errs <> al-errs <> ord-errs
           else if has-str "cmpxchg" ws then
-            (case ords of
-              Cons s-ord (Cons f-ord rest) ->
-                let e1 = if same s-ord "unordered" || same f-ord "unordered" then
-                           [string-concat prim-name ": `cmpxchg` forbids `unordered`"]
-                         else Nil in
-                let e2 = if same f-ord "release" || same f-ord "acq_rel" then
-                           [string-concat-all [prim-name, ": `cmpxchg` failure ordering forbids `", f-ord, "`"]]
-                         else Nil in
-                let e3 = case (atomic-ord-rank s-ord, atomic-ord-rank f-ord) of
-                           (Some sr, Some fr) | fr > sr ->
-                             [string-concat-all [prim-name, ": `cmpxchg` failure ordering `", f-ord, "` stronger than success ordering `", s-ord, "`"]]
-                           other -> Nil in
-                e1 <> e2 <> e3
-              other -> [string-concat prim-name ": `cmpxchg` requires success and failure orderings"])
+            let al-errs = case align-opt of
+                  Some al | not (is-power-of-two-nat al) -> [string-concat prim-name ": `cmpxchg` alignment must be a power of two"]
+                  other -> Nil in
+            let ord-errs = case ords of
+                  Cons s-ord (Cons f-ord rest) ->
+                    let e1 = if same s-ord "unordered" || same f-ord "unordered" then
+                               [string-concat prim-name ": `cmpxchg` forbids `unordered`"]
+                             else Nil in
+                    let e2 = if same f-ord "release" || same f-ord "acq_rel" then
+                               [string-concat-all [prim-name, ": `cmpxchg` failure ordering forbids `", f-ord, "`"]]
+                             else Nil in
+                    let e3 = case (atomic-ord-rank s-ord, atomic-ord-rank f-ord) of
+                               (Some sr, Some fr) | fr > sr ->
+                                 [string-concat-all [prim-name, ": `cmpxchg` failure ordering `", f-ord, "` stronger than success ordering `", s-ord, "`"]]
+                               other -> Nil in
+                    e1 <> e2 <> e3
+                  other -> [string-concat prim-name ": `cmpxchg` requires success and failure orderings"] in
+            al-errs <> ord-errs
           else Nil in
     let asm-v =
           if string-contains "asm " clean && string-contains "syscall" clean then
-            if not (string-contains "~{rcx}" clean && string-contains "~{r11}" clean) then
-              [string-concat prim-name ": x86_64 `syscall` inline asm must clobber `~{rcx}` and `~{r11}`"]
-            else Nil
+            let e1 = if not (string-contains "~{rcx}" clean && string-contains "~{r11}" clean) then
+                       [string-concat prim-name ": x86_64 `syscall` inline asm must clobber `~{rcx}` and `~{r11}`"]
+                     else Nil in
+            let e2 = if string-contains "sideeffect" clean && not (string-contains "~{memory}" clean) then
+                       [string-concat prim-name ": x86_64 `syscall` with `sideeffect` must clobber `~{memory}`"]
+                     else Nil in
+            e1 <> e2
+          else if string-contains "asm " clean && (string-contains "svc #0" clean || string-contains "svc 0" clean) then
+            let e1 = if not (string-contains "~{x8}" clean || string-contains "{x8}" clean || string-contains "~{x16}" clean || string-contains "{x16}" clean) then
+                       [string-concat prim-name ": aarch64 `svc #0` must account for syscall register (`x8`/`x16`)"]
+                     else Nil in
+            let e2 = if string-contains "sideeffect" clean && not (string-contains "~{memory}" clean) then
+                       [string-concat prim-name ": aarch64 `svc #0` with `sideeffect` must clobber `~{memory}`"]
+                     else Nil in
+            e1 <> e2
           else Nil in
-    pure-v <> atomic-v <> asm-v
+    pure-v <> ptr-v <> scope-v <> atomic-v <> asm-v
 
   audit-boundary-lines :: Nat -> String -> Bool -> List String -> List String
   audit-boundary-lines word-bits prim-name is-pure lines = case lines of

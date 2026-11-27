@@ -1256,3 +1256,169 @@ fn proof_producing_smt_alethe_cache_and_fp_arith_casts() {
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+#[test]
+fn hardware_crypto_inline_asm_and_stronger_atomic_contracts() {
+    use cinch::prim_verify::llvm_ir::lower_llvm_fragment;
+    use cinch::prim_verify::mem_contract::{audit_file_contracts, audit_source_contracts};
+    use cinch::prim_verify::sem::{eval_aes_core, eval_bv_clmul, AesRoundKind, SemParam, SemTy};
+    use cinch::prim_verify::translate_val::validate_llvm_memory_equiv;
+    use cinch::prim_verify::{Policy, TrustTier, VerificationStatus, VerifierEngine};
+    use std::path::Path;
+
+    // 1. Concrete FIPS-197 AES-128 & GF(2) CLMUL sanity checks.
+    assert_eq!(eval_bv_clmul(0b101, 0b11), 0b1111);
+    assert_eq!(eval_bv_clmul(0x8000_0000_0000_0000, 0x8000_0000_0000_0000), 1u128 << 126);
+    let s0 = u128::from_le_bytes([
+        0x19, 0x3d, 0xe3, 0xbe, 0xa0, 0xf4, 0xe2, 0x2b,
+        0x9a, 0xc6, 0x8d, 0x2a, 0xe9, 0xf8, 0x48, 0x08,
+    ]);
+    let expected_mc = u128::from_le_bytes([
+        0x04, 0x66, 0x81, 0xe5, 0xe0, 0xcb, 0x19, 0x9a,
+        0x48, 0xf8, 0xd3, 0x7a, 0x28, 0x06, 0x26, 0x4c,
+    ]);
+    assert_eq!(eval_aes_core(AesRoundKind::EncCore, s0), expected_mc);
+    assert_eq!(
+        eval_aes_core(AesRoundKind::DecLastCore, eval_aes_core(AesRoundKind::EncLastCore, s0)),
+        s0
+    );
+
+    let mut engine = VerifierEngine::default_engine(Policy::jpl_strict());
+
+    // 2. Kernel-checked LRAT cross-target equivalence: x86_64 `pclmulqdq` == aarch64 `pmull`.
+    let clmul_x86 = r#"
+      %va = insertelement <2 x i64> zeroinitializer, i64 %0, i64 0
+      %vb = insertelement <2 x i64> zeroinitializer, i64 %1, i64 0
+      %vr = call <2 x i64> asm "pclmulqdq $$0, $2, $0", "=x,0,x"(<2 x i64> %va, <2 x i64> %vb)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+"#;
+    let clmul_arm = r#"
+      %va = insertelement <1 x i64> poison, i64 %0, i64 0
+      %vb = insertelement <1 x i64> poison, i64 %1, i64 0
+      %vr = call <16 x i8> asm ".arch_extension aes\0Apmull $0.1q, $1.1d, $2.1d", "=w,w,w"(<1 x i64> %va, <1 x i64> %vb)
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+"#;
+    let clmul_x86_tampered = clmul_x86.replace("$$0", "$$1");
+
+    let clmul_params = vec![
+        SemParam { index: 0, name: "a".into(), ty: SemTy::Bv(64), signed: false },
+        SemParam { index: 1, name: "b".into(), ty: SemTy::Bv(64), signed: false },
+    ];
+    let ob_clmul = validate_llvm_memory_equiv("clmul-u64", clmul_x86, clmul_arm, &clmul_params, SemTy::Bv(128))
+        .expect("clmul obligation builds");
+    match &engine.verify(&ob_clmul).status {
+        VerificationStatus::Verified { receipt, .. } => assert_eq!(receipt.tier, TrustTier::KernelCert),
+        other => panic!("x86_64 pclmulqdq == aarch64 pmull must kernel-verify via LRAT, got: {other:?}"),
+    }
+    let ob_clmul_bad = validate_llvm_memory_equiv(
+        "clmul-u64-tampered",
+        &clmul_x86_tampered,
+        clmul_arm,
+        &clmul_params,
+        SemTy::Bv(128),
+    )
+    .expect("tampered clmul obligation builds");
+    assert!(
+        matches!(engine.verify(&ob_clmul_bad).status, VerificationStatus::Disproved { .. }),
+        "tampered pclmulqdq $$1 vs pmull MUST be disproved"
+    );
+
+    // 3. Kernel-checked LRAT cross-target equivalence for ALL 4 AES rounds (x86_64 AES-NI == aarch64 ARMv8 Crypto).
+    let aes_params = vec![
+        SemParam { index: 0, name: "state".into(), ty: SemTy::Bv(128), signed: false },
+        SemParam { index: 1, name: "key".into(), ty: SemTy::Bv(128), signed: false },
+    ];
+    let aes_pairs = [
+        ("aes-enc-round", "aesenc $2, $0", ".arch_extension aes\\0Aaese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b"),
+        ("aes-enc-last",  "aesenclast $2, $0", ".arch_extension aes\\0Aaese $0.16b, $2.16b"),
+        ("aes-dec-round", "aesdec $2, $0", ".arch_extension aes\\0Aaesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b"),
+        ("aes-dec-last",  "aesdeclast $2, $0", ".arch_extension aes\\0Aaesd $0.16b, $2.16b"),
+    ];
+    for (name, x86_op, arm_op) in aes_pairs {
+        let fx = format!(
+            "%vs = bitcast i128 %0 to <2 x i64>\n%vk = bitcast i128 %1 to <2 x i64>\n%vr = call <2 x i64> asm \"{x86_op}\", \"=x,0,x\"(<2 x i64> %vs, <2 x i64> %vk)\n%r = bitcast <2 x i64> %vr to i128\nret i128 %r\n"
+        );
+        let fa = format!(
+            "%vs = bitcast i128 %0 to <16 x i8>\n%vk = bitcast i128 %1 to <16 x i8>\n%s1 = call <16 x i8> asm \"{arm_op}\", \"=w,0,w\"(<16 x i8> %vs, <16 x i8> zeroinitializer)\n%vr = xor <16 x i8> %s1, %vk\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n"
+        );
+        let ob = validate_llvm_memory_equiv(name, &fx, &fa, &aes_params, SemTy::Bv(128))
+            .unwrap_or_else(|e| panic!("{name} obligation: {e}"));
+        match &engine.verify(&ob).status {
+            VerificationStatus::Verified { receipt, .. } => assert_eq!(receipt.tier, TrustTier::KernelCert),
+            other => panic!("{name} x86_64 == aarch64 must kernel-verify via LRAT, got: {other:?}"),
+        }
+    }
+    // Mismatched AES round (`aesenc` vs `aese` without `aesmc`) MUST be disproved!
+    let fx_enc = "%vs = bitcast i128 %0 to <2 x i64>\n%vk = bitcast i128 %1 to <2 x i64>\n%vr = call <2 x i64> asm \"aesenc $2, $0\", \"=x,0,x\"(<2 x i64> %vs, <2 x i64> %vk)\n%r = bitcast <2 x i64> %vr to i128\nret i128 %r\n";
+    let fa_last = "%vs = bitcast i128 %0 to <16 x i8>\n%vk = bitcast i128 %1 to <16 x i8>\n%s1 = call <16 x i8> asm \".arch_extension aes\\0Aaese $0.16b, $2.16b\", \"=w,0,w\"(<16 x i8> %vs, <16 x i8> zeroinitializer)\n%vr = xor <16 x i8> %s1, %vk\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n";
+    let ob_aes_bad = validate_llvm_memory_equiv("aes-mismatch", fx_enc, fa_last, &aes_params, SemTy::Bv(128)).unwrap();
+    assert!(
+        matches!(engine.verify(&ob_aes_bad).status, VerificationStatus::Disproved { .. }),
+        "aesenc vs aese (missing aesmc) MUST be disproved"
+    );
+    // Arbitrary / sideeffect inline asm MUST still be strictly rejected!
+    assert!(
+        lower_llvm_fragment(
+            "%r = call i64 asm sideeffect \"syscall\", \"={rax},~{rcx},~{r11},~{memory}\"()\nret i64 %r\n",
+            &[],
+            SemTy::Bv(64),
+        ).is_err()
+    );
+
+    // 4. Stronger C11/LLVM atomic & memory boundary contracts: prelude files pass with 0 violations,
+    //    and new violations (bad syncscope, bad atomicrmw op, misaligned cmpxchg, missing ~{memory}) are caught.
+    for rel in [
+        "prelude/Effect/Stm.cinch",
+        "prelude/Prim/Sys/Linux.cinch",
+        "prelude/Prim/Sys/Darwin.cinch",
+    ] {
+        let rep = audit_file_contracts(Path::new(rel))
+            .unwrap_or_else(|e| panic!("audit {rel} failed: {e}"));
+        assert!(
+            rep.violations.is_empty(),
+            "prelude `{rel}` must have 0 boundary violations, got: {:?}",
+            rep.violations
+        );
+    }
+
+    let bad_contracts = r#"
+module BadContracts where
+  prim bad-scope :: U64 ->{IO} U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load atomic i64, ptr %p syncscope("") seq_cst, align 8
+      ret i64 %v
+    }
+  prim bad-rmw :: U64 ->{IO} U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = atomicrmw bogusop ptr %p, i64 1 seq_cst, align 4
+      ret i64 %v
+    }
+  prim bad-cas-align :: U64 ->{IO} U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %r = cmpxchg ptr %p, i64 0, i64 1 seq_cst seq_cst, align 4
+      ret i64 0
+    }
+  prim bad-pure-volatile :: U64 -> U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load volatile i64, ptr %p, align 8
+      ret i64 %v
+    }
+  prim bad-sys-mem :: U64 ->{IO} U64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "syscall", "={rax},{rdi},~{rcx},~{r11}"(i64 %0)
+      ret i64 %r
+    }
+"#;
+    let bad_rep = audit_source_contracts(bad_contracts).expect("bad contracts parses");
+    assert!(bad_rep.violations.iter().any(|v| v.rule == "atomic-syncscope"), "got: {:?}", bad_rep.violations);
+    assert!(bad_rep.violations.iter().any(|v| v.rule == "atomic-op"), "got: {:?}", bad_rep.violations);
+    assert!(bad_rep.violations.iter().any(|v| v.rule == "atomic-alignment"), "got: {:?}", bad_rep.violations);
+    assert!(bad_rep.violations.iter().any(|v| v.rule == "effect-accountability"), "got: {:?}", bad_rep.violations);
+    assert!(bad_rep.violations.iter().any(|v| v.rule == "inline-asm-clobbers"), "got: {:?}", bad_rep.violations);
+}

@@ -1493,6 +1493,8 @@ fn import_graph_preserving_extra_params(
             SemOp::FpFitsUnsigned(w, a) => dst.fp_fits_unsigned(*w, m(*a)),
             SemOp::FpIsNaN(a) => dst.fp_is_nan(m(*a)),
             SemOp::FpIsFinite(a) => dst.fp_is_finite(m(*a)),
+            SemOp::BvClmul(a, b) => dst.bv_clmul(m(*a), m(*b)),
+            SemOp::AesCore(k, a) => dst.aes_core(*k, m(*a)),
         };
         map.push(mapped);
     }

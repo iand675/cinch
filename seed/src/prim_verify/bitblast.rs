@@ -64,6 +64,7 @@ struct Tseitin {
     and_cache: HashMap<(i32, i32), i32>,
     xor_cache: HashMap<(i32, i32), i32>,
     ite_cache: HashMap<(i32, i32, i32), i32>,
+    aes_core_cache: HashMap<(super::sem::AesRoundKind, Vec<i32>), Vec<i32>>,
 }
 
 impl Tseitin {
@@ -77,6 +78,7 @@ impl Tseitin {
             and_cache: HashMap::new(),
             xor_cache: HashMap::new(),
             ite_cache: HashMap::new(),
+            aes_core_cache: HashMap::new(),
         };
         t.clauses.push(vec![1]);
         t
@@ -516,6 +518,58 @@ impl Tseitin {
         }
         Ok(wide[0..w].to_vec())
     }
+
+    /// Exact GF(2) carry-less multiplication (`pclmulqdq` / `pmull`):
+    /// bit `k` of the 128-bit product is `XOR_{i + j = k} (a[i] & b[j])` with zero carries.
+    fn mk_bv_clmul(&mut self, a: &[i32], b: &[i32]) -> Result<Vec<i32>, BitBlastError> {
+        let wa = a.len();
+        let wb = b.len();
+        let out_w = wa + wb;
+        let f = self.false_lit();
+        let mut out = Vec::with_capacity(out_w);
+        for k in 0..out_w {
+            let mut acc = f;
+            let i_start = k.saturating_sub(wb - 1);
+            let i_end = k.min(wa - 1);
+            for i in i_start..=i_end {
+                let j = k - i;
+                let prod = self.mk_and(a[i], b[j])?;
+                acc = self.mk_xor(acc, prod)?;
+            }
+            out.push(acc);
+        }
+        Ok(out)
+    }
+
+    /// FIPS-197 AES round core transformation (`EncCore`/`EncLastCore`/`DecCore`/`DecLastCore`).
+    /// Concrete 128-bit constant inputs are evaluated bit-exact via FIPS-197 `eval_aes_core`;
+    /// symbolic inputs are structurally hash-consed (Ackermann congruence over the 128-bit
+    /// AIG literal vector, so `s ^ 0` and `s` hit the exact same 128 output bits).
+    fn mk_aes_core(
+        &mut self,
+        kind: super::sem::AesRoundKind,
+        state: &[i32],
+    ) -> Result<Vec<i32>, BitBlastError> {
+        let t = self.true_lit;
+        let f = self.false_lit();
+        if state.len() == 128 && state.iter().all(|&l| l == t || l == f) {
+            let mut val = 0u128;
+            for (i, &l) in state.iter().enumerate() {
+                if l == t {
+                    val |= 1u128 << i;
+                }
+            }
+            let out = super::sem::eval_aes_core(kind, val);
+            return Ok(self.mk_bv_const(128, out));
+        }
+        let key = (kind, state.to_vec());
+        if let Some(cached) = self.aes_core_cache.get(&key) {
+            return Ok(cached.clone());
+        }
+        let fresh: Vec<i32> = (0..128).map(|_| self.fresh()).collect();
+        self.aes_core_cache.insert(key, fresh.clone());
+        Ok(fresh)
+    }
 }
 
 #[derive(Clone)]
@@ -826,6 +880,15 @@ pub fn bitblast_obligation(
                 let vb = lower(g, *b, ts, param_vars, memo)?;
                 let vs = lower(g, *s, ts, param_vars, memo)?;
                 BbVal::Bv(ts.mk_bv_fshr(va.as_bv(), vb.as_bv(), vs.as_bv())?)
+            }
+            SemOp::BvClmul(a, b) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let vb = lower(g, *b, ts, param_vars, memo)?;
+                BbVal::Bv(ts.mk_bv_clmul(va.as_bv(), vb.as_bv())?)
+            }
+            SemOp::AesCore(kind, a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bv(ts.mk_aes_core(*kind, va.as_bv())?)
             }
             SemOp::BvEq(a, b) => {
                 let va = lower(g, *a, ts, param_vars, memo)?;

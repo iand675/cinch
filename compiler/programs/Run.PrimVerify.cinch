@@ -27,7 +27,7 @@ module Main where
   import Cinch.Infer (elaboration-core)
   import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-prim-body-cached, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-goal-hash, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-prim-body-cached, verify-prim-cross-target, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-goal-hash, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
   import Cinch.Target (TargetProfile, host-profile, profile-of-triple, profile-with-prim-verify, target-view-program)
@@ -822,6 +822,34 @@ module Main where
           other -> Err "RC safety returned None unexpectedly"
       other -> Err "aggregate/FixedArray memory TV check failed"
 
+  -- 23. Hardware crypto inline-asm cross-target LRAT equivalence (`pclmulqdq` == `pmull`, `aesenc` == `aese`+`aesmc`) + stronger atomic/syscall contracts.
+  test-crypto-asm-and-atomic-contracts :: Result String Unit
+  test-crypto-asm-and-atomic-contracts =
+    let u64-p0 = MkPrimParamSpec "a" "U64" 64 False False False in
+    let u64-p1 = MkPrimParamSpec "b" "U64" 64 False False False in
+    let u128-p0 = MkPrimParamSpec "s" "U128" 128 False False False in
+    let u128-p1 = MkPrimParamSpec "k" "U128" 128 False False False in
+    let clmul-x86 = "%va = insertelement <2 x i64> zeroinitializer, i64 %0, i64 0\n%vb = insertelement <2 x i64> zeroinitializer, i64 %1, i64 0\n%vr = call <2 x i64> asm \"pclmulqdq $$0, $2, $0\", \"=x,0,x\"(<2 x i64> %va, <2 x i64> %vb)\n%r = bitcast <2 x i64> %vr to i128\nret i128 %r\n" in
+    let clmul-arm = "%va = insertelement <1 x i64> poison, i64 %0, i64 0\n%vb = insertelement <1 x i64> poison, i64 %1, i64 0\n%vr = call <16 x i8> asm \".arch_extension aes\\0Apmull $0.1q, $1.1d, $2.1d\", \"=w,w,w\"(<1 x i64> %va, <1 x i64> %vb)\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    let clmul-bad = "%va = insertelement <2 x i64> zeroinitializer, i64 %0, i64 0\n%vb = insertelement <2 x i64> zeroinitializer, i64 %1, i64 0\n%vr = call <2 x i64> asm \"pclmulqdq $$1, $2, $0\", \"=x,0,x\"(<2 x i64> %va, <2 x i64> %vb)\n%r = bitcast <2 x i64> %vr to i128\nret i128 %r\n" in
+    let aes-x86 = "%vs = bitcast i128 %0 to <2 x i64>\n%vk = bitcast i128 %1 to <2 x i64>\n%vr = call <2 x i64> asm \"aesenc $2, $0\", \"=x,0,x\"(<2 x i64> %vs, <2 x i64> %vk)\n%r = bitcast <2 x i64> %vr to i128\nret i128 %r\n" in
+    let aes-arm = "%vs = bitcast i128 %0 to <16 x i8>\n%vk = bitcast i128 %1 to <16 x i8>\n%s1 = call <16 x i8> asm \".arch_extension aes\\0Aaese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b\", \"=w,0,w\"(<16 x i8> %vs, <16 x i8> zeroinitializer)\n%vr = xor <16 x i8> %s1, %vk\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    let aes-bad = "%vs = bitcast i128 %0 to <16 x i8>\n%vk = bitcast i128 %1 to <16 x i8>\n%s1 = call <16 x i8> asm \".arch_extension aes\\0Aaese $0.16b, $2.16b\", \"=w,0,w\"(<16 x i8> %vs, <16 x i8> zeroinitializer)\n%vr = xor <16 x i8> %s1, %vk\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    case (verify-prim-cross-target "clmul-u64" True "strict" "verify" Nil False clmul-x86 clmul-arm [u64-p0, u64-p1] u128-p0 Nil Nil,
+          verify-prim-cross-target "clmul-bad" True "strict" "verify" Nil False clmul-bad clmul-arm [u64-p0, u64-p1] u128-p0 Nil Nil,
+          verify-prim-cross-target "aes-enc" True "strict" "verify" Nil False aes-x86 aes-arm [u128-p0, u128-p1] u128-p0 Nil Nil,
+          verify-prim-cross-target "aes-bad" True "strict" "verify" Nil False aes-x86 aes-bad [u128-p0, u128-p1] u128-p0 Nil Nil) of
+      (OutcomeVerified _, OutcomeDisproved _, OutcomeVerified _, OutcomeDisproved _) ->
+        let v-scope = audit-memory-atomic-contract "bad-scope" False "%v = load atomic i64, ptr %p syncscope(\"\") seq_cst, align 8" in
+        let v-rmw = audit-memory-atomic-contract "bad-rmw" False "%v = atomicrmw bogus ptr %p, i64 1 seq_cst" in
+        let v-sys = audit-memory-atomic-contract "bad-sys" False "%r = call i64 asm sideeffect \"syscall\", \"={rax},~{rcx},~{r11}\"(i64 %0)" in
+        let v-svc = audit-memory-atomic-contract "bad-svc" False "%r = call i64 asm sideeffect \"svc #0\", \"={x0},~{x8}\"(i64 %0)" in
+        let v-ok = audit-memory-atomic-contract "ok-svc" False "%r = call i64 asm sideeffect \"svc #0\", \"={x0},~{x8},~{memory}\"(i64 %0)" in
+        (case (v-scope, v-rmw, v-sys, v-svc, v-ok) of
+          (Cons _ _, Cons _ _, Cons _ _, Cons _ _, Nil) -> Ok ()
+          other -> Err "stronger atomic/syscall boundary contract audit mismatch")
+      other -> Err "hardware crypto inline-asm cross-target verification failed"
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -866,11 +894,13 @@ module Main where
                                             Err e -> Err e
                                             Ok u20 -> case test-aig-cdcl-identities of
                                               Err e -> Err e
-                                              Ok u21 -> test-extended-tv-and-rc
+                                              Ok u21 -> case test-extended-tv-and-rc of
+                                                Err e -> Err e
+                                                Ok u22 -> test-crypto-asm-and-atomic-contracts
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 22 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 23 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

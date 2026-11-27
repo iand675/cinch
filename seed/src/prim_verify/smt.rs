@@ -32,9 +32,25 @@ pub fn emit_smtlib2(obligation: &Obligation) -> String {
     out.push_str(&format!("; Goal hash: {}\n", obligation.goal_hash));
 
     let theories = obligation.theories();
-    let logic = if theories.fp { "QF_FPBV" } else { "QF_BV" };
+    let uses_aes = obligation
+        .graph
+        .nodes()
+        .iter()
+        .any(|(op, _)| matches!(op, SemOp::AesCore(..)));
+    let logic = match (theories.fp, uses_aes) {
+        (true, true) => "QF_AUFFPBV",
+        (true, false) => "QF_FPBV",
+        (false, true) => "QF_UFBV",
+        (false, false) => "QF_BV",
+    };
     out.push_str(&format!("(set-logic {logic})\n"));
     out.push_str("(set-option :produce-models true)\n");
+    if uses_aes {
+        out.push_str("(declare-fun aes_enc_core ((_ BitVec 128)) (_ BitVec 128))\n");
+        out.push_str("(declare-fun aes_enc_last_core ((_ BitVec 128)) (_ BitVec 128))\n");
+        out.push_str("(declare-fun aes_dec_core ((_ BitVec 128)) (_ BitVec 128))\n");
+        out.push_str("(declare-fun aes_dec_last_core ((_ BitVec 128)) (_ BitVec 128))\n");
+    }
 
     for p in &obligation.params {
         out.push_str(&format!("(declare-const p{} {})\n", p.index, smt_sort(p.ty)));
@@ -225,6 +241,30 @@ fn emit_op(g: &SemGraph, id: NodeId) -> String {
                 n(*s),
                 bv_lit(w, w as u128)
             )
+        }
+        SemOp::BvClmul(a, b) => {
+            let ea = format!("((_ zero_extend 64) {})", n(*a));
+            let mut acc = bv_lit(128, 0);
+            for i in 0..64u16 {
+                let bit = format!("(= ((_ extract {i} {i}) {}) #b1)", n(*b));
+                let shifted = if i == 0 {
+                    ea.clone()
+                } else {
+                    format!("(bvshl {ea} {})", bv_lit(128, i as u128))
+                };
+                let term = format!("(ite {bit} {shifted} {})", bv_lit(128, 0));
+                acc = if i == 0 { term } else { format!("(bvxor {acc} {term})") };
+            }
+            acc
+        }
+        SemOp::AesCore(kind, a) => {
+            let fname = match kind {
+                super::sem::AesRoundKind::EncCore => "aes_enc_core",
+                super::sem::AesRoundKind::EncLastCore => "aes_enc_last_core",
+                super::sem::AesRoundKind::DecCore => "aes_dec_core",
+                super::sem::AesRoundKind::DecLastCore => "aes_dec_last_core",
+            };
+            format!("({fname} {})", n(*a))
         }
         SemOp::BvEq(a, b) => format!("(= {} {})", n(*a), n(*b)),
         SemOp::BvULt(a, b) => format!("(bvult {} {})", n(*a), n(*b)),
