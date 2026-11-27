@@ -485,28 +485,35 @@ module Cinch.Export where
     first : rest -> case loaded-entry first "type" identity of
       Some row -> if text (field "kind" row) == "codata" then Some row else imported-codata-row rest identity
       None -> imported-codata-row rest identity
+  is-capability-decl :: String -> List Decl -> Bool
+  is-capability-decl owner declarations = case declarations of
+    [] -> False
+    (DCapability sp name) : rest -> name == owner || is-capability-decl owner rest
+    other : rest -> is-capability-decl owner rest
   type-row :: Elaboration -> List LoadedInterface -> DeclarationReferences -> Json -> String -> CoreData -> Result String Json
   type-row typed interfaces references surface name declaration =
     let owner = core-data-name declaration in
     let declarations = elaboration-declarations typed in
     let constructors = core-data-constructors declaration in
+    let is-cap = is-capability-decl owner declarations in
     case export-global owner of
       Err error -> Err error
       Ok identity -> case imported-codata-row interfaces identity of
         Some row -> Ok (set-field "name" (JStr name) row)
         None -> case codata-label-contract owner declarations of
-          Some labels -> build-type-row name "codata" labels (data-nominal declarations declaration) (codata-rows typed interfaces references name owner labels constructors)
+          Some labels -> build-type-row name "codata" is-cap labels (data-nominal declarations declaration) (codata-rows typed interfaces references name owner labels constructors)
           None -> case record-label-contract owner declarations of
-            Some labels -> build-type-row name "record" labels (data-nominal declarations declaration) (constructor-rows typed interfaces references surface 0 constructors)
-            None -> build-type-row name "data" JArrEnd (data-nominal declarations declaration) (constructor-rows typed interfaces references surface 0 constructors)
-  build-type-row :: String -> String -> Json -> Result String Json -> Result String Json -> Result String Json
-  build-type-row name kind labels nominal constructors = case (nominal, constructors) of
+            Some labels -> build-type-row name "record" is-cap labels (data-nominal declarations declaration) (constructor-rows typed interfaces references surface 0 constructors)
+            None -> build-type-row name "data" is-cap JArrEnd (data-nominal declarations declaration) (constructor-rows typed interfaces references surface 0 constructors)
+  build-type-row :: String -> String -> Bool -> Json -> Result String Json -> Result String Json -> Result String Json
+  build-type-row name kind is-cap labels nominal constructors = case (nominal, constructors) of
       (Ok nominal, Ok constructors) ->
+        let tail = case field "usage" nominal of JArr first rest -> JObj "ownership" nominal JObjEnd; other -> JObjEnd in
+        let tail2 = if is-cap then JObj "capability" (JBool True) tail else tail in
         Ok (JObj "name" (JStr name)
         (JObj "identity" (field "identity" nominal) (JObj "kind" (JStr kind)
           (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
-            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull
-              (case field "usage" nominal of JArr first rest -> JObj "ownership" nominal JObjEnd; other -> JObjEnd)))))))))
+            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull tail2))))))))
       (Err error, other) -> Err error
       (other, Err error) -> Err error
   constructor-present :: String -> List CoreData -> Bool

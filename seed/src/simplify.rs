@@ -4559,6 +4559,9 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
         | Core::Unit
         | Core::SpliceVal(_)
         | Core::Fault
+        | Core::EvAllocEntry
+        | Core::Bubble
+        | Core::Zero(_)
         | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::StrLit(_)

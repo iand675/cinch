@@ -148,6 +148,18 @@
       "path": "Effect/Io.cinch"
     },
     {
+      "name": "Effect.Reader",
+      "path": "Effect/Reader.cinch"
+    },
+    {
+      "name": "Effect.Arena",
+      "path": "Effect/Arena.cinch"
+    },
+    {
+      "name": "Effect.Throw",
+      "path": "Effect/Throw.cinch"
+    },
+    {
       "name": "Data.FromList",
       "path": "Data/FromList.cinch"
     },
@@ -1346,6 +1358,9 @@
     "Effect.Fs",
     "Effect.Process",
     "Effect.Io",
+    "Effect.Reader",
+    "Effect.Arena",
+    "Effect.Throw",
     "Data.FromList",
     "Data.FromMap",
     "Text.Show",

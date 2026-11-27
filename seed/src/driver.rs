@@ -198,6 +198,18 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Effect/Io.cinch"),
     ),
     (
+        "Effect/Reader.cinch",
+        include_str!("../prelude/Effect/Reader.cinch"),
+    ),
+    (
+        "Effect/Arena.cinch",
+        include_str!("../prelude/Effect/Arena.cinch"),
+    ),
+    (
+        "Effect/Throw.cinch",
+        include_str!("../prelude/Effect/Throw.cinch"),
+    ),
+    (
         "Data/FromList.cinch",
         include_str!("../prelude/Data/FromList.cinch"),
     ),

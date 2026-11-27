@@ -1049,7 +1049,11 @@ impl Checker {
         // (design/rank-n-polymorphism.md section 3). No metavariable is
         // ever bound to a polytype, so the unzonked type answers exactly
         // and this hot path pays no traversal.
-        let (core, ty) = if matches!(ty, Ty::Forall(_)) { self.poly_elim_all(core, ty) } else { (core, ty) };
+        let (core, ty) = if matches!(ty, Ty::Forall(_) | Ty::Qual(_, _)) {
+            self.poly_elim_all(env, core, ty, term.span())
+        } else {
+            (core, ty)
+        };
         self.remember_runtime_index_reading(term, env, &core, &ty);
         Ok((self.code_expectation(core, &ty, term.span(), scope), ty))
     }
@@ -1256,7 +1260,50 @@ impl Checker {
                     _ => self.infer(env, f).map(|(core, ty)| (core, ty, Vec::new(), false)),
                 };
                 self.app_callee_depth = saved_depth;
+                let app_exp = self.app_expected.take();
                 let (mut core, mut ty, callee_obligs, forwarder) = inferred?;
+                if let Some(exp) = app_exp {
+                    fn ty_has_ty_param_effect(t: &Ty) -> bool {
+                        let mut found = false;
+                        match t {
+                            Ty::Fun(a, _, eff, b) | Ty::Pi { dom: a, eff, cod: b, .. } => {
+                                if eff.labels.iter().any(|l| l.ty_arg.is_some()) {
+                                    return true;
+                                }
+                                found = ty_has_ty_param_effect(a) || ty_has_ty_param_effect(b);
+                            }
+                            Ty::Thunk { eff, inner } | Ty::Lazy { eff, inner, .. } => {
+                                if eff.labels.iter().any(|l| l.ty_arg.is_some()) {
+                                    return true;
+                                }
+                                found = ty_has_ty_param_effect(inner);
+                            }
+                            _ => {}
+                        }
+                        found
+                    }
+                    if ty_has_ty_param_effect(&ty) {
+                        let mut cur = &ty;
+                        let mut ok = true;
+                        for _ in 0..args.len() {
+                            match cur {
+                                Ty::Fun(_, _, _, b) | Ty::Pi { cod: b, .. } => cur = b,
+                                _ => {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if ok {
+                            let snap = self.uni.snapshot();
+                            if self.uni.unify(cur, &exp).is_ok() {
+                                self.uni.commit(snap);
+                            } else {
+                                self.uni.rollback_to(snap);
+                            }
+                        }
+                    }
+                }
                 // A callee that writes memory at an unknown target (a
                 // foreign call, `eval`, a mutating `Bytes` primitive) is an
                 // opaque write that invalidates all mutable-location
@@ -1265,8 +1312,8 @@ impl Checker {
                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
                 for (position, a) in args.iter().enumerate() {
                     ty = self.uni.zonk_arrow_head(ty);
-                    if matches!(ty, Ty::Forall(_)) {
-                        let (c, t) = self.poly_elim_all(core, ty);
+                    if matches!(ty, Ty::Forall(_) | Ty::Qual(_, _)) {
+                        let (c, t) = self.poly_elim_all(env, core, ty, a.span());
                         core = c;
                         ty = t;
                     }
@@ -1274,7 +1321,7 @@ impl Checker {
                     // Do not copy an arbitrarily large partial application.
                     let write_core = matches!(&core, ECore::Global(..)).then(|| core.clone());
                     let mut apply_erased = false;
-                    let (arg_core, cod, effects) = match ty {
+                    let (arg_core, arg_dom, cod, effects) = match ty {
                         Ty::Fun(dom, m, eff, cod) => {
                             self.perform(&eff)?;
                             let logical = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
@@ -1297,7 +1344,7 @@ impl Checker {
                             if !apply_erased {
                                 self.check_handle_param(&dom, m, a.span())?;
                             }
-                            (c, *cod, eff)
+                            (c, *dom, *cod, eff)
                         }
                         Ty::Pi { var, dom, mult, eff, cod } => {
                             self.perform(&eff)?;
@@ -1319,7 +1366,7 @@ impl Checker {
                                 a.span(), "this argument has no index reading (this function's result type mentions its argument)",
                             ))?;
                             call_args.push((Some(subst.clone()), self.uni.zonk(&dom), a.span()));
-                            (c, cod.subst_idx(&var, &subst), eff)
+                            (c, *dom, cod.subst_idx(&var, &subst), eff)
                         }
                         Ty::Meta(_) => {
                             let dom = self.uni.fresh();
@@ -1329,7 +1376,7 @@ impl Checker {
                                 .unify(&ty, &Ty::fun_mult(dom.clone(), Mult::Flex, eff.clone(), cod.clone()))
                                 .map_err(|m| Error::at(f.span(), m))?;
                             self.perform(&eff)?;
-                            (Some(self.check(env, a, &dom)?), cod, eff)
+                            (Some(self.check(env, a, &dom)?), dom, cod, eff)
                         }
                         other => {
                             return Err(Error::at(
@@ -1361,16 +1408,31 @@ impl Checker {
                             .map(|frame| frame.outer.clone()).unwrap_or_default();
                         self.note_spawned_closure(callback, &scope, &outer, a.span(), &env.dicts, false)?;
                     }
+                    let resolved_eff = self.uni.resolve_row(&effects);
+                    let stage_yields = row_can_yield(&resolved_eff);
                     if apply_erased {
                         core = app_spine(ECore::Prim(PrimOp::ApplyErased), vec![core]);
                     } else if let Some(c) = arg_core {
-                        core = app_spine(core, vec![c]);
+                        if ecore_has_ev(&c) {
+                            let al = self.fresh_local();
+                            self.note_local_ty(al, &arg_dom);
+                            call_binds.push((al, c));
+                            core = app_spine(core, vec![ECore::Var(al)]);
+                        } else {
+                            core = app_spine(core, vec![c]);
+                        }
                     }
                     ty = cod;
+                    if stage_yields {
+                        if resolved_eff.labels.iter().any(|l| self.label_may_abort(l)) {
+                            self.check_no_live_linear_across_abort(env, *span)?;
+                        }
+                        core = ECore::EffCheck(Box::new(core), self.uni.zonk(&ty));
+                    }
                     // An effectful arrow completes before the next argument is evaluated.
                     // Retain that application as a strict binding: flattening it into an
                     // over-application would evaluate all excess arguments before this call.
-                    let effectful_stage = !self.uni.resolve_row(&effects).is_pure();
+                    let effectful_stage = !resolved_eff.is_pure();
                     if effectful_stage && position + 1 < args.len() {
                         if retained_method.is_none() {
                             retained_method = callee_want(&core).map(|want|
@@ -2203,15 +2265,111 @@ impl Checker {
         matches!(ty, Ty::Forall(_))
     }
 
-    /// Instantiate every polytype at the top of an inferred type.
-    fn poly_elim_all(&mut self, mut core: ECore, ty: Ty) -> (ECore, Ty) {
-        let mut ty = self.uni.zonk(&ty);
-        while let Ty::Forall(scheme) = ty {
-            let (c, t) = self.poly_elim(core, &scheme);
-            core = c;
-            ty = self.uni.zonk(&t);
+    fn synthesizes_qual(&self, env: &Env, term: &ast::Term) -> bool {
+        let mut head = term;
+        let mut arguments = 0;
+        while let ast::Term::App(callee, args, _) = head {
+            arguments += args.len();
+            head = callee;
         }
-        (core, ty)
+        let ast::Term::Var(path) = head else { return false };
+        let declared = if path.quals.is_empty() {
+            match env.lookup(&path.name.text) {
+                Some((_, scheme)) if scheme.params.is_empty() && scheme.ctx.is_empty() => scheme.ty.clone(),
+                _ => return false,
+            }
+        } else {
+            return false;
+        };
+        let mut ty = self.uni.zonk(&declared);
+        for _ in 0..arguments {
+            ty = match ty {
+                Ty::Fun(_, _, _, cod) | Ty::Pi { cod, .. } => *cod,
+                _ => return false,
+            };
+        }
+        matches!(ty, Ty::Qual(_, _))
+    }
+
+    /// Instantiate every polytype and higher-rank qualified context at the top
+    /// of an inferred type.
+    fn poly_elim_all(&mut self, env: &Env, mut core: ECore, ty: Ty, span: ast::Span) -> (ECore, Ty) {
+        let mut ty = self.uni.zonk(&ty);
+        loop {
+            match ty {
+                Ty::Forall(scheme) => {
+                    let (c, t) = self.poly_elim(core, &scheme);
+                    core = c;
+                    ty = self.uni.zonk(&t);
+                }
+                Ty::Qual(ctx, inner) => {
+                    let mut holes = Vec::new();
+                    for (_, class) in &ctx {
+                        let id = self.new_want(class.clone(), span, env);
+                        holes.push(ECore::Hole(id));
+                    }
+                    core = app_spine(core, holes);
+                    ty = self.uni.zonk(&inner);
+                }
+                _ => return (core, ty),
+            }
+        }
+    }
+
+    /// Check a term against a higher-rank qualified type
+    /// `using (c1 :: C1, ...) => T`: bind the context dictionaries/capabilities
+    /// lexically and wrap the checked body as an ordinary closure taking them.
+    fn check_qual_intro(
+        &mut self,
+        env: &mut Env,
+        term: &ast::Term,
+        ctx: &[(String, ClassApp)],
+        inner: &Ty,
+    ) -> Result<ECore> {
+        let expected = Ty::Qual(ctx.to_vec(), Box::new(inner.clone()));
+        if self.synthesizes_qual(env, term) {
+            let (core, actual) = self.infer_inner(env, term)?;
+            let actual = self.uni.zonk(&actual);
+            if matches!(actual, Ty::Qual(_, _)) {
+                self.uni.unify(&actual, &expected).map_err(|m| Error::at(term.span(), m))?;
+                return Ok(core);
+            }
+            return Err(Error::at(term.span(), crate::diagnostic!(
+                "expected the qualified type {}, but this has type {}", expected, actual)));
+        }
+        let mut env2 = env.clone();
+        let mut params = Vec::with_capacity(ctx.len());
+        let span = term.span();
+        for (name, class) in ctx {
+            let l = self.fresh_local();
+            let class_z = self.uni.zonk_class(class);
+            env2.dicts.push((l, class_z.clone()));
+            if self.is_user_capability(&class_z.class) {
+                let cap_ty = Ty::Adt(class_z.class.clone().into(), class_z.args.clone());
+                self.note_local_ty(l, &cap_ty);
+                self.bind_syntax_local(&mut env2, &ast::Name::new(name, span), l, Scheme::mono(cap_ty), Some(Mult::Many), span)?;
+            } else {
+                self.note_local_class(l, Checker::dict_class(&class_z.class));
+                if is_capability_class(&class_z.class) {
+                    let cap_ty = Ty::Adt(class_z.class.clone().into(), class_z.args.clone());
+                    self.bind_syntax_local(&mut env2, &ast::Name::new(name, span), l, Scheme::mono(cap_ty), Some(Mult::Many), span)?;
+                }
+            }
+            params.push(l);
+        }
+        let saved = self.enter_perf();
+        self.lam_depth += 1;
+        let checked = self.check(&mut env2, term, inner);
+        self.lam_depth -= 1;
+        let performed = self.exit_perf(saved);
+        let body = checked?;
+        if self.uni.unify_rows(&performed, &EffRow::pure()).is_err() {
+            return Err(Error::at(span, crate::diagnostic!(
+                "a qualified value must be pure to build; this body performs {}",
+                self.uni.resolve_row(&performed)
+            )));
+        }
+        Ok(ECore::Lam { params, body: Box::new(body) })
     }
 
     /// Check a term against a polytype: skolemise its binders, check the
@@ -2299,6 +2457,9 @@ impl Checker {
         // polytypes out of metavariable bindings, so no zonk is needed.
         if let Ty::Forall(scheme) = expected {
             return self.check_poly_intro(env, term, scheme);
+        }
+        if let Ty::Qual(ctx, inner) = expected {
+            return self.check_qual_intro(env, term, ctx, inner);
         }
         // Bidirectional checking against zero-cost `Sing carrier val` (`sing`,
         // literals, constructors, lists, tuples).
@@ -2514,7 +2675,10 @@ impl Checker {
                         .map_err(|m| Error::at(term.span(), m))?;
                     return Ok(core);
                 }
-                let (core, ty) = self.infer(env, term)?;
+                let saved_exp = self.app_expected.replace(expected.clone());
+                let res = self.infer(env, term);
+                self.app_expected = saved_exp;
+                let (core, ty) = res?;
                 self.check_subsume(env, term, &ty, expected)?;
                 Ok(core)
             }
@@ -2640,7 +2804,11 @@ impl Checker {
         };
         // A polytype domain is checked by generalisation, never by
         // subsumption of an inferred (and so instantiated) argument.
-        if !ordinary_app || matches!(self.uni.zonk(expected), Ty::Prp(_) | Ty::Sort(_) | Ty::Forall(_)) {
+        let expected_z = self.uni.zonk(expected);
+        if matches!(expected_z, Ty::Forall(_) | Ty::Qual(_, _)) {
+            return Ok((self.check(env, argument, expected)?, None));
+        }
+        if !ordinary_app || matches!(expected_z, Ty::Prp(_) | Ty::Sort(_)) {
             return Ok((self.check(env, argument, expected)?, self.idx_of_term(argument, env).ok()));
         }
         // Ordinary applications use inference followed by subsumption in
@@ -7575,6 +7743,11 @@ impl Checker {
         // checks see those references), but computational code may not
         // (core specification section 3).
         let target = (v.module.clone(), v.name.clone());
+        if v.module == "Effect.Arena" && v.name == "with-arena" && ptys.len() == 2 {
+            self.arena_checks.push((span, ptys[0].clone(), ptys[1].clone()));
+        } else if v.module == "Effect.Arena" && v.name == "with-arena-budget" && ptys.len() == 1 {
+            self.arena_checks.push((span, Ty::Unit, ptys[0].clone()));
+        }
         if self.logical.contains(&target) {
             if self.current_logical.is_none() {
                 return Err(Error::at(
@@ -7936,6 +8109,22 @@ impl Checker {
                     }
                     let l = self.fresh_local();
                     self.note_local_ty(l, &bt);
+                    // Flow-sensitive narrowing after an uninhabited abort guard
+                    // (`let _ = if cond then throw err else () in body` injects `not cond`
+                    // into `env` for `body`, and symmetrically when `else` aborts).
+                    if let ast::Term::If { cond, then, els, .. } = body {
+                        let then_aborts = self.is_diverging_abort_term(env, then);
+                        let else_aborts = self.is_diverging_abort_term(env, els);
+                        if then_aborts != else_aborts {
+                            if let Ok((_, reading)) = self.cond_reading(env, cond) {
+                                let key = BranchKey::Bool(else_aborts);
+                                let facts = Self::branch_facts(&reading, &key);
+                                if !facts.is_empty() {
+                                    self.bind_facts(env, &facts, reading.end, *span)?;
+                                }
+                            }
+                        }
+                    }
                     match pat {
                         ast::Pat::Var(n, _) => {
                             let def = is_syntactic_value(body).then_some(&bc);
@@ -10324,6 +10513,10 @@ impl Checker {
                 ctx_span,
                 "cannot pattern match on a polymorphic value; bind it with a variable and use it at a type",
             )),
+            Ty::Qual(_, _) => Err(Error::at(
+                ctx_span,
+                "cannot pattern match on a qualified value; bind it with a variable and use it",
+            )),
             Ty::Sort(s) => Err(Error::at(
                 ctx_span,
                 format!("cannot pattern match on the universe {s}"),
@@ -11805,8 +11998,13 @@ impl Checker {
         args: &[ast::Term],
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
+        let slot = match &v.kind {
+            ValueKind::EffectOp { slot, .. } => *slot,
+            _ => unreachable!("infer_operation_args is called for effect operations"),
+        };
         let mut ty = op_ty;
         let mut binds: Vec<(LocalId, ECore)> = Vec::new();
+        let mut arg_tys: Vec<Ty> = Vec::new();
         for (i, a) in args.iter().enumerate() {
             ty = self.uni.zonk(&ty);
             let (dom, eff, cod) = match ty {
@@ -11837,6 +12035,7 @@ impl Checker {
             let l = self.fresh_local();
             self.note_local_ty(l, &dom);
             binds.push((l, ac));
+            arg_tys.push(dom);
             ty = cod;
             if !eff.is_pure() {
                 if i + 1 != args.len() {
@@ -11848,11 +12047,29 @@ impl Checker {
                 let resolved = self.uni.resolve_row(&eff);
                 match resolved.labels.as_slice() {
                     [label] if resolved.tail == RowTail::Closed => {
+                        if Self::is_uninhabited_op_scheme(&v.scheme) || self.label_may_abort(label) {
+                            self.check_no_live_linear_across_abort(env, span)?;
+                        }
                         self.perform(&EffRow {
                             labels: vec![label.clone()],
                             tail: RowTail::Closed,
                         })?;
-                        return Ok((wrap_lets(binds, ECore::Fault), ty));
+                        let tuple_ctor = if binds.len() > 1 {
+                            Some(self.tuple_ctor(binds.len(), span)?)
+                        } else {
+                            None
+                        };
+                        let arg_vars: Vec<ECore> = binds.iter().map(|(l, _)| ECore::Var(*l)).collect();
+                        let zonked_arg_tys: Vec<Ty> = arg_tys.iter().map(|t| self.uni.zonk(t)).collect();
+                        let perform = ECore::Perform {
+                            label: label.clone(),
+                            slot,
+                            args: arg_vars,
+                            arg_tys: zonked_arg_tys,
+                            tuple_ctor,
+                            ret_ty: self.uni.zonk(&ty),
+                        };
+                        return Ok((wrap_lets(binds, perform), ty));
                     }
                     _ => {
                         return Err(Error::at(
@@ -11872,7 +12089,7 @@ impl Checker {
         ))
     }
 
-    /// Build the dispatch (or unhandled fault) code for one operation
+    /// Build the dispatch (or evidence-passing perform) code for one operation
     /// call, with every argument already evaluated.
     fn dispatch_op(
         &mut self,
@@ -11884,7 +12101,6 @@ impl Checker {
         kv: &Cont,
         span: ast::Span,
     ) -> Result<ECore> {
-        let _ = env;
         let slot = match &v.kind {
             ValueKind::EffectOp { slot, .. } => *slot,
             _ => unreachable!("dispatch_op is called for effect operations"),
@@ -11894,7 +12110,7 @@ impl Checker {
             .map_err(|m| Error::at(span, m))?;
         // The innermost handler extent for this label, at this lexical
         // level (lambda and memo bodies do not dispatch).
-        let candidates: Vec<(usize, Option<String>)> = self
+        let candidates: Vec<(usize, EffLabel)> = self
             .extents
             .iter()
             .enumerate()
@@ -11903,32 +12119,64 @@ impl Checker {
                     && e.memo == self.memo_depth
                     && e.label.head == label.head
             })
-            .map(|(i, e)| (i, e.label.arg.map(|a| a.to_string())))
+            .map(|(i, e)| (i, e.label.clone()))
             .collect();
         let mut found = None;
-        for (i, arg) in candidates.into_iter().rev() {
-            match (&arg, &label.arg) {
-                (Some(x), Some(y)) => {
-                    // A failed region unification changes nothing, so no
-                    // trial scope is needed.
-                    if self.uni.unify_regions(x, y).is_ok() {
-                        found = Some(i);
-                        break;
+        for (i, elab) in candidates.into_iter().rev() {
+            let reg_ok = match (&elab.arg, &label.arg) {
+                (Some(x), Some(y)) => self.uni.unify_regions(x, y).is_ok(),
+                (None, None) => true,
+                _ => false,
+            };
+            if !reg_ok {
+                continue;
+            }
+            let ty_ok = match (&elab.ty_arg, &label.ty_arg) {
+                (Some(tx), Some(ty)) => {
+                    let snap = self.uni.snapshot();
+                    if self.uni.unify(tx, ty).is_ok() {
+                        self.uni.commit(snap);
+                        true
+                    } else {
+                        self.uni.rollback_to(snap);
+                        false
                     }
                 }
-                (None, None) => {
-                    found = Some(i);
-                    break;
-                }
-                _ => {}
+                (None, None) => true,
+                _ => false,
+            };
+            if ty_ok {
+                found = Some(i);
+                break;
             }
         }
         let Some(idx) = found else {
-            // Unhandled operation: the label surfaces honestly and the
-            // call takes the defined fault path (exit 70) as defense in
-            // depth (decision D23).
-            self.perform(&EffRow { labels: vec![label], tail: RowTail::Closed })?;
-            return Ok(ECore::Fault);
+            // No local CPS handler for this label: emit cross-call evidence
+            // lookup / cooperative bubbling so outer evidence handlers catch it.
+            if Self::is_uninhabited_op_scheme(&v.scheme) || self.label_may_abort(&label) {
+                self.check_no_live_linear_across_abort(env, span)?;
+            }
+            self.perform(&EffRow { labels: vec![label.clone()], tail: RowTail::Closed })?;
+            let tuple_ctor = if done.len() > 1 {
+                Some(self.tuple_ctor(done.len(), span)?)
+            } else {
+                None
+            };
+            let perform = ECore::Perform {
+                label,
+                slot,
+                args: done.iter().map(|(l, _)| ECore::Var(*l)).collect(),
+                arg_tys: done.iter().map(|(_, t)| self.uni.zonk(t)).collect(),
+                tuple_ctor,
+                ret_ty: self.uni.zonk(&result),
+            };
+            let rv = self.fresh_local();
+            self.note_local_ty(rv, &result);
+            return Ok(ECore::Let(
+                rv,
+                Box::new(perform),
+                Box::new(app_spine(ECore::Var(kv.kv), vec![ECore::Var(rv)])),
+            ));
         };
         // The resumption: the continuation of this call, one-shot.
         if self.conts[kv.frame].consumes_linear {
@@ -12354,7 +12602,13 @@ impl Checker {
         env: &mut Env,
         h: &ast::HandlerExpr,
         out_cont: Option<&Cont>,
-    ) -> Result<(ECore, Ty, Vec<Option<LocalId>>, bool)> {
+    ) -> Result<(
+        ECore,
+        Ty,
+        Vec<Option<LocalId>>,
+        bool,
+        Option<(ECore, u64, Vec<(usize, Vec<Ty>, Option<GlobalId>)>)>,
+    )> {
         let span = h.span;
         let head = self.effect_head(&h.effect, true)?;
         let mut owned = h.clone();
@@ -12380,30 +12634,46 @@ impl Checker {
             }
             clause_names.push(clause.op.text.clone());
         }
-        let (region_param, ops) = {
+        let (region_param, type_param, ops) = {
             let e = self.effects.get(&head).ok_or_else(|| {
                 Error::at(h.effect.span(), format!("unknown effect {head}"))
             })?;
-            (e.region_param.clone(), e.ops.clone())
+            (e.region_param.clone(), e.type_param.clone(), e.ops.clone())
         };
-        match (&region_param, &h.region) {
-            (Some(_), None) => {
-                return Err(Error::at(
-                    span,
-                    format!("effect {head} has a region parameter: write `handler {head} r where`"),
-                ))
+        let label = if region_param.is_some() {
+            match &h.region {
+                Some(n) => EffLabel {
+                    head: head.clone().into(),
+                    arg: Some(n.text.as_str().into()),
+                    ty_arg: None,
+                },
+                None => {
+                    return Err(Error::at(
+                        span,
+                        format!("effect {head} has a region parameter: write `handler {head} r where`"),
+                    ));
+                }
             }
-            (None, Some(n)) => {
+        } else if type_param.is_some() {
+            let ty_arg = match &h.type_arg {
+                Some(ty_ast) => self.annotation_type(env, ty_ast)?,
+                None => self.uni.fresh(),
+            };
+            EffLabel::with_ty(head.clone(), ty_arg)
+        } else {
+            if let Some(n) = &h.region {
                 return Err(Error::at(
                     n.span,
                     format!("effect {head} has no region parameter"),
-                ))
+                ));
             }
-            _ => {}
-        }
-        let label = EffLabel {
-            head: head.clone().into(),
-            arg: h.region.as_ref().map(|n| n.text.as_str().into()),
+            if h.type_arg.is_some() {
+                return Err(Error::at(
+                    span,
+                    format!("effect {head} has no type parameter"),
+                ));
+            }
+            EffLabel::plain(head.clone())
         };
         let input = self.uni.fresh();
         let output = self.uni.fresh();
@@ -12414,6 +12684,7 @@ impl Checker {
         }
         let mut clause_eff = EffRow::pure();
         let mut closures: Vec<ECore> = Vec::new();
+        let mut ev_closures: Vec<ECore> = Vec::new();
         // Each clause closure's type, the clause tuple's instantiation: its
         // class vector makes the tuple's fields counted references, so
         // dropping the handler releases the clause closures.
@@ -12447,15 +12718,21 @@ impl Checker {
         let body = body?;
         let performed = self.exit_perf(saved);
         clause_eff = self
-                .uni
-                .union_rows(&clause_eff, &performed)
-                .map_err(|m| Error::plain(m))?;
-        closures.push(ECore::Lam { params: vec![x], body: Box::new(body) });
+            .uni
+            .union_rows(&clause_eff, &performed)
+            .map_err(|m| Error::plain(m))?;
+        let ret_lam = ECore::Lam { params: vec![x], body: Box::new(body) };
+        closures.push(ret_lam.clone());
+        ev_closures.push(ret_lam);
         clause_tys.push(Ty::fun(input.clone(), output.clone()));
         // One clause per operation, in declaration order (slot order).
         let mut k_binders: Vec<Option<LocalId>> = Vec::new();
         let mut seen: Vec<String> = Vec::new();
-        for (op_name, op_scheme) in &ops {
+        let mut all_evidence = true;
+        let mut abort_mask: u64 = 0;
+        let mut abort_slots: Vec<(usize, Vec<Ty>, Option<GlobalId>)> = Vec::new();
+        for (op_idx, (op_name, op_scheme)) in ops.iter().enumerate() {
+            let slot = op_idx + 1;
             let slot_clause = h
                 .clauses
                 .iter()
@@ -12471,8 +12748,19 @@ impl Checker {
             // A clause implements every instantiation of the operation;
             // checking it at fresh flexible types would let `forall a`
             // specialize to Int even when this invocation returns Bool.
+            // For a type-parameterized effect (`effect Throw (e :: Type)`),
+            // the effect's own parameter unifies with the handler's `ty_arg`
+            // rather than becoming an operation-local skolem.
             let mut clause_rigids = HashMap::new();
             for (name, actual) in op_scheme.params.iter().zip(op_params) {
+                if type_param.as_deref() == Some(name.as_str()) {
+                    if let Some(ty_arg) = label.ty_arg.as_deref() {
+                        self.uni
+                            .unify(&actual, ty_arg)
+                            .map_err(|message| Error::at(slot_clause.span, message))?;
+                    }
+                    continue;
+                }
                 let rigid = self.fresh_param(name);
                 self.uni
                     .unify(&actual, &Ty::Param(rigid.clone().into()))
@@ -12531,6 +12819,7 @@ impl Checker {
                     format!("clause for {op_name} has too few patterns"),
                 ));
             }
+            let op_arg_tys = param_tys.clone();
             // Everything past the label arrow is the operation's result.
             let result = ty;
             let k_ty = Ty::fun(result, output.clone());
@@ -12582,7 +12871,51 @@ impl Checker {
                 .uni
                 .union_rows(&clause_eff, &performed)
                 .map_err(|m| Error::plain(m))?;
-            closures.push(ECore::Lam { params, body: Box::new(body) });
+            // Classify this clause for Koka-style evidence passing.
+            let ev_body = if slot >= 64 {
+                all_evidence = false;
+                body.clone()
+            } else {
+                match k {
+                    None => {
+                        abort_mask |= 1u64 << slot;
+                        let tup = if op_arg_tys.len() > 1 {
+                            Some(self.tuple_ctor(op_arg_tys.len(), slot_clause.span)?)
+                        } else {
+                            None
+                        };
+                        abort_slots.push((
+                            slot,
+                            op_arg_tys.iter().map(|t| self.uni.zonk(t)).collect(),
+                            tup,
+                        ));
+                        body.clone()
+                    }
+                    Some(kl) if !ecore_mentions_local(&body, kl) => {
+                        abort_mask |= 1u64 << slot;
+                        let tup = if op_arg_tys.len() > 1 {
+                            Some(self.tuple_ctor(op_arg_tys.len(), slot_clause.span)?)
+                        } else {
+                            None
+                        };
+                        abort_slots.push((
+                            slot,
+                            op_arg_tys.iter().map(|t| self.uni.zonk(t)).collect(),
+                            tup,
+                        ));
+                        body.clone()
+                    }
+                    Some(kl) if ecore_is_tail_resumptive(&body, kl) => {
+                        strip_tail_resumption(&body, kl)
+                    }
+                    Some(_) => {
+                        all_evidence = false;
+                        body.clone()
+                    }
+                }
+            };
+            closures.push(ECore::Lam { params: params.clone(), body: Box::new(body) });
+            ev_closures.push(ECore::Lam { params, body: Box::new(ev_body) });
             clause_tys.push(param_tys.into_iter().rev().fold(output.clone(), |acc, p| Ty::fun(p, acc)));
         }
         for c in &h.clauses {
@@ -12595,7 +12928,13 @@ impl Checker {
         }
         let n = closures.len();
         let gid = self.tuple_ctor(n, span)?;
-        let core = app_spine(ECore::Ctor(gid, clause_tys), closures);
+        let core = app_spine(ECore::Ctor(gid.clone(), clause_tys.clone()), closures);
+        let ev_handler = if all_evidence {
+            let ev_core = app_spine(ECore::Ctor(gid, clause_tys), ev_closures);
+            Some((ev_core, abort_mask, abort_slots))
+        } else {
+            None
+        };
         let ty = Ty::Handler {
             label,
             input: Box::new(input),
@@ -12603,7 +12942,7 @@ impl Checker {
             eff: clause_eff,
             resumption: Mult::Flex,
         };
-        Ok((core, ty, k_binders, true))
+        Ok((core, ty, k_binders, true, ev_handler))
     }
 
     fn handler_value(
@@ -12611,15 +12950,13 @@ impl Checker {
         env: &mut Env,
         h: &ast::HandlerExpr,
     ) -> Result<(ECore, Ty)> {
-        let (core, ty, _, _) = self.handler_value_full(env, h, None)?;
+        let (core, ty, _, _, _) = self.handler_value_full(env, h, None)?;
         Ok((core, ty))
     }
 
-    /// `handle e with h`: the handled computation is elaborated in
-    /// continuation-passing style inside a handler extent; operations of
-    /// the handled label performed in its own expression dispatch to `h`,
-    /// and the handled label must not arrive through a call (decision
-    /// D23).
+    /// `handle e with h`: tail-resumptive and/or abortive inline handlers lower
+    /// to Koka-style cross-call evidence passing (`ECore::HandleEvidence`);
+    /// non-tail-resumptive or first-class variable handlers use lexical CPS.
     fn handle_expr(
         &mut self,
         env: &mut Env,
@@ -12628,11 +12965,11 @@ impl Checker {
         kv: Option<&Cont>,
     ) -> Result<(ECore, Ty)> {
         let span = h_term.span();
-        let (hcore, hty, k_binders, flexible) = if let ast::Term::Handler(h) = h_term {
+        let (hcore, hty, k_binders, flexible, ev_handler) = if let ast::Term::Handler(h) = h_term {
             self.handler_value_full(env, h, kv)?
         } else {
             let (core, ty) = self.infer(env, h_term)?;
-            (core, ty, Vec::new(), false)
+            (core, ty, Vec::new(), false, None)
         };
         let (label, input, output, clause_eff) = match self.uni.zonk(&hty) {
             Ty::Handler { label, input, output, eff, .. } => {
@@ -12650,8 +12987,82 @@ impl Checker {
                 .unify(&output, &kv.ty)
                 .map_err(|m| Error::at(span, m))?;
         }
+        // Evidence-passing path: inline tail-resumptive and/or abortive handler
+        // outside any enclosing non-tail LocalCps extent.
+        if let Some((ev_hcore, abort_mask, abort_slots)) = ev_handler {
+            if self.extents.is_empty() {
+                if abort_mask != 0 {
+                    self.check_no_live_linear_across_abort(env, span)?;
+                    self.active_abort_labels.push(label.clone());
+                }
+                let saved = self.enter_perf();
+                let body_res = self.check(env, handled, &input);
+                if abort_mask != 0 {
+                    self.active_abort_labels.pop();
+                }
+                let body_core = body_res?;
+                let pe = self.exit_perf(saved);
+                // Discharge the handled label from the performed row while
+                // propagating every other effect and open row tail honestly.
+                let resolved = self.uni.resolve_row(&pe);
+                let mut remaining_labels = Vec::new();
+                for l in resolved.labels {
+                    let same = l.head == label.head
+                        && match (&l.arg, &label.arg) {
+                            (Some(x), Some(y)) => self.uni.unify_regions(x, y).is_ok(),
+                            (None, None) => true,
+                            _ => false,
+                        }
+                        && match (&l.ty_arg, &label.ty_arg) {
+                            (Some(tx), Some(ty)) => {
+                                let snap = self.uni.snapshot();
+                                if self.uni.unify(tx, ty).is_ok() {
+                                    self.uni.commit(snap);
+                                    true
+                                } else {
+                                    self.uni.rollback_to(snap);
+                                    false
+                                }
+                            }
+                            (None, None) => true,
+                            _ => false,
+                        };
+                    if !same {
+                        remaining_labels.push(l);
+                    }
+                }
+                let remaining = EffRow { labels: remaining_labels, tail: resolved.tail };
+                self.perform(&remaining)?;
+                self.perform(&clause_eff)?;
+                let zonked_label = self.zonk_label(&label);
+                let zonked_slots: Vec<(usize, Vec<Ty>, Option<GlobalId>)> = abort_slots
+                    .into_iter()
+                    .map(|(s, tys, tup)| (s, tys.iter().map(|t| self.uni.zonk(t)).collect(), tup))
+                    .collect();
+                let ev_node = ECore::HandleEvidence {
+                    label: zonked_label,
+                    abort_mask,
+                    abort_slots: zonked_slots,
+                    handler: Box::new(ev_hcore),
+                    body: Box::new(body_core),
+                    body_ty: self.uni.zonk(&input),
+                    out_ty: self.uni.zonk(&output),
+                };
+                if let Some(kv) = kv {
+                    let rv = self.fresh_local();
+                    self.note_local_ty(rv, &output);
+                    let wrapped = ECore::Let(
+                        rv,
+                        Box::new(ev_node),
+                        Box::new(app_spine(ECore::Var(kv.kv), vec![ECore::Var(rv)])),
+                    );
+                    return Ok((wrapped, output));
+                }
+                return Ok((ev_node, output));
+            }
+        }
         // The prompt: the return clause, then the surrounding
-        // continuation.
+        // continuation (LocalCps path for non-tail or first-class handlers).
         let hv = self.fresh_local();
         let pv = self.fresh_local();
         // The handler value is its clause tuple; the prompt takes the
@@ -12696,16 +13107,33 @@ impl Checker {
         self.cont_depth -= 1;
         let ecode = ecode?;
         let pe = self.exit_perf(saved);
-        // The handled label must not arrive through a call: dispatch is
-        // lexical in the bootstrap (decision D23).
+        // A non-tail or first-class handler cannot dispatch across a call:
+        // only tail-resumptive and abortive inline handlers use evidence passing.
         let resolved = self.uni.resolve_row(&pe);
         for l in &resolved.labels {
             if l.head != label.head {
                 continue;
             }
-            let same = match (&l.arg, &label.arg) {
+            let reg_ok = match (&l.arg, &label.arg) {
                 // A failed region unification changes nothing.
                 (Some(x), Some(y)) => self.uni.unify_regions(x, y).is_ok(),
+                (None, None) => true,
+                _ => false,
+            };
+            if !reg_ok {
+                continue;
+            }
+            let same = match (&l.ty_arg, &label.ty_arg) {
+                (Some(tx), Some(ty)) => {
+                    let snap = self.uni.snapshot();
+                    if self.uni.unify(tx, ty).is_ok() {
+                        self.uni.commit(snap);
+                        true
+                    } else {
+                        self.uni.rollback_to(snap);
+                        false
+                    }
+                }
                 (None, None) => true,
                 _ => false,
             };
@@ -12713,7 +13141,7 @@ impl Checker {
                 return Err(Error::at(
                     span,
                     format!(
-                        "the handled effect {{{label}}} is performed through a called computation; the bootstrap handler calculus dispatches operations only from the handled computation's own expression"
+                        "the handled effect {{{label}}} is performed through a called computation; non-tail-resumptive handlers dispatch operations only from the handled computation's own expression"
                     ),
                 ));
             }
@@ -12722,6 +13150,114 @@ impl Checker {
         self.perform(&clause_eff)?;
         let prompt = ECore::Lam { params: vec![pv], body: Box::new(prompt_body) };
         Ok((wrap_lets(vec![(hv, hcore), (kv0_local, prompt)], ecode), output))
+    }
+
+    fn zonk_label(&mut self, label: &EffLabel) -> EffLabel {
+        EffLabel {
+            head: label.head.clone(),
+            arg: label.arg.map(|a| self.uni.resolve_region(a.as_str()).into()),
+            ty_arg: label.ty_arg.as_deref().map(|t| Box::new(self.uni.zonk(t))),
+        }
+    }
+
+    fn is_uninhabited_op_scheme(scheme: &Scheme) -> bool {
+        let mut doms: Vec<&Ty> = Vec::new();
+        let mut cur = &scheme.ty;
+        while let Ty::Fun(a, _, _, b) = cur {
+            doms.push(a);
+            cur = b;
+        }
+        let Ty::Param(ret_p) = cur else {
+            return false;
+        };
+        if !scheme.params.iter().any(|p| p == ret_p.as_str()) {
+            return false;
+        }
+        fn ty_mentions_param(t: &Ty, name: &str) -> bool {
+            let mut found = false;
+            t.visit_shallow(&mut |child| {
+                if !found && ty_mentions_param(child, name) {
+                    found = true;
+                }
+            });
+            found || matches!(t, Ty::Param(p) if p.as_str() == name)
+        }
+        !doms.iter().any(|d| ty_mentions_param(d, ret_p.as_str()))
+    }
+
+    fn label_may_abort(&self, label: &EffLabel) -> bool {
+        if label.head.as_str() == "Effect.Throw.Throw" {
+            return true;
+        }
+        if self.active_abort_labels.iter().any(|l| l.head == label.head) {
+            return true;
+        }
+        if let Some(info) = self.effects.get(label.head.as_str()) {
+            if info.ops.iter().any(|(_, scheme)| Self::is_uninhabited_op_scheme(scheme)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_local_consumed_so_far(&self, l: LocalId) -> bool {
+        let in_cur = self
+            .uses
+            .get(&l)
+            .map(|n| n.consumptions().min >= 1)
+            .unwrap_or(false);
+        in_cur
+            || self.uses_stack.iter().any(|u| {
+                u.get(&l)
+                    .map(|n| n.consumptions().min >= 1)
+                    .unwrap_or(false)
+            })
+    }
+
+    fn check_no_live_linear_across_abort(&mut self, env: &Env, span: ast::Span) -> Result<()> {
+        let locals: Vec<LocalId> = env.locals.iter().map(|(_, l, _)| *l).collect();
+        for l in locals {
+            let Some(ob) = self.obligations.get(&l) else {
+                continue;
+            };
+            if ob.lam != self.lam_depth {
+                continue;
+            }
+            let ob_name = ob.name.clone();
+            if self.effective_mult(l) == Some(Mult::One) && !self.is_local_consumed_so_far(l) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "multiplicity %1: {ob_name} must be used exactly once on every path, and cannot stay live across an aborting effect"
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn is_diverging_abort_term(&self, env: &Env, term: &ast::Term) -> bool {
+        match term {
+            ast::Term::App(head, _, _) => {
+                if let ast::Term::Var(p) = &**head {
+                    if p.quals.is_empty() && env.lookup(&p.name.text).is_some() {
+                        return false;
+                    }
+                    if let Ok(v) = self.resolve_var(p, p.span()) {
+                        return Self::is_uninhabited_op_scheme(&v.scheme);
+                    }
+                }
+                false
+            }
+            ast::Term::Let(_, body, _)
+            | ast::Term::Letrec(_, body, _)
+            | ast::Term::Ann(body, _, _)
+            | ast::Term::CpsWrap(body, _) => self.is_diverging_abort_term(env, body),
+            ast::Term::If { then, els, .. } => {
+                self.is_diverging_abort_term(env, then) && self.is_diverging_abort_term(env, els)
+            }
+            _ => false,
+        }
     }
 
     /// The selected provider's `pure`/`bind` method value and type (the
@@ -12896,12 +13432,17 @@ impl Checker {
         if let Ty::Adt(class, args) = &z {
             if class != "Io" && self.class_sigs.get(class.as_str()).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
                 let local = self.fresh_local();
+                self.note_local_ty(local, &z);
                 self.bind_syntax_local(env, &name, local, Scheme::mono(z.clone()), Some(Mult::Many), span)?;
                 env.dicts.push((local, ClassApp { class: class.clone().to_string(), args: args.clone() }));
                 if let Some(binding) = name.local_binding() {
                     env.syntax_dictionaries.insert(binding.clone(), local);
                 }
-                return Ok((local, core, None));
+                let flex_region = args.iter().find_map(|arg| match arg {
+                    Ty::Region(r) if self.uni.is_flex_region(r) => Some(r.to_string()),
+                    _ => None,
+                });
+                return Ok((local, core, flex_region));
             }
         }
         let region = match &z {
@@ -12918,13 +13459,22 @@ impl Checker {
                 }
             },
             Ty::Meta(_) => {
+                if matches!(&core, ECore::Lit(_)) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "supply {} must have type `Io r` or another checked signature, got an integer literal",
+                            name.text
+                        ),
+                    ));
+                }
                 let r = self.fresh_region();
                 self.uni.note_flex_region(&r);
                 self.uni
                     .unify(&ty, &Ty::Adt("Io".into(), vec![Ty::Region(r.clone().into())]))
                     .map_err(|m| Error::at(span, m))?;
-                r
-.into()            }
+                r.into()
+            }
             other => {
                 return Err(Error::at(
                     span,
@@ -12984,6 +13534,50 @@ impl Checker {
         supplies: &[(ast::Name, ast::Term)],
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
+        if let ast::Term::Var(p) = head {
+            if p.quals.is_empty() {
+                if let Some((local, scheme)) = env.lookup(&p.name.text) {
+                    if scheme.params.is_empty() && scheme.ctx.is_empty() {
+                        if let Ty::Qual(ctx, inner) = self.uni.zonk(&scheme.ty) {
+                            self.note_use(local, p.span(), &[], &env.dicts)?;
+                            let mut holes = Vec::new();
+                            let mut supplied_bindings = Vec::new();
+                            for (n, c) in &ctx {
+                                if self.is_capability(&c.class) {
+                                    if let Some((_, term)) = supplies.iter().find(|(sn, _)| &sn.text == n) {
+                                        let want = Ty::Adt(c.class.clone().into(), c.args.clone());
+                                        let checked = self.check(env, term, &want)?;
+                                        let loc = match checked {
+                                            ECore::Var(loc) => loc,
+                                            expression => {
+                                                let loc = self.fresh_local();
+                                                self.note_local_ty(loc, &want);
+                                                supplied_bindings.push((loc, expression));
+                                                loc
+                                            }
+                                        };
+                                        holes.push(ECore::Var(loc));
+                                        continue;
+                                    }
+                                }
+                                let id = self.new_want(c.clone(), span, env);
+                                holes.push(ECore::Hole(id));
+                            }
+                            for (sn, _) in supplies {
+                                if !ctx.iter().any(|(n, c)| sn.text == *n && self.is_capability(&c.class)) {
+                                    return Err(Error::at(
+                                        sn.span,
+                                        format!("{} has no capability parameter {}", p.name.text, sn.text),
+                                    ));
+                                }
+                            }
+                            let core = app_spine(ECore::Var(local), holes);
+                            return Ok((wrap_lets(supplied_bindings, core), *inner));
+                        }
+                    }
+                }
+            }
+        }
         let v = match head {
             ast::Term::Var(p) => self.resolve_var(p, p.span())?,
             other => {
@@ -13007,7 +13601,7 @@ impl Checker {
         let mut supplied_bindings = Vec::new();
         for constraint in &ctx {
             let (n, c) = (&constraint.name, &constraint.class);
-            if is_capability_class(&c.class) {
+            if self.is_capability(&c.class) {
                 if let Some((_, term)) = supplies.iter().find(|(sn, _)| &sn.text == n) {
                     let want = Ty::Adt(c.class.clone().into(), c.args.clone());
                     let checked = self.check(env, term, &want)?;
@@ -13030,7 +13624,7 @@ impl Checker {
         for (sn, _) in supplies {
             if !ctx
                 .iter()
-                .any(|constraint| sn.text == constraint.name && is_capability_class(&constraint.class.class))
+                .any(|constraint| sn.text == constraint.name && self.is_capability(&constraint.class.class))
             {
                 return Err(Error::at(
                     sn.span,
@@ -13955,6 +14549,18 @@ impl KnotFlow<'_> {
                 self.reject(captured)?;
                 None
             }
+            ECore::HandleEvidence { handler, body, .. } => {
+                let c1 = self.value(handler)?;
+                let c2 = self.value(body)?;
+                self.reject(c1.or(c2))?;
+                None
+            }
+            ECore::Perform { args, .. } => {
+                let captured = self.values(args)?;
+                self.reject(captured)?;
+                None
+            }
+            ECore::EffCheck(inner, _) => self.value(inner)?,
             ECore::Int(_) | ECore::Wide(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
             | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_)
             | ECore::Bool(_) | ECore::Unit | ECore::Global(..) | ECore::Ctor(..)
@@ -14209,7 +14815,16 @@ fn rec_walk(
                 rec_walk(&alt.body, guard, owner, by_local, edges);
             }
         }
-
+        ECore::HandleEvidence { handler, body, .. } => {
+            rec_walk(handler, guard, owner, by_local, edges);
+            rec_walk(body, guard, owner, by_local, edges);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                rec_walk(a, guard, owner, by_local, edges);
+            }
+        }
+        ECore::EffCheck(inner, _) => rec_walk(inner, guard, owner, by_local, edges),
     }
 }
 
@@ -14283,7 +14898,16 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(&alt.body, by_local, out);
             }
         }
-
+        ECore::HandleEvidence { handler, body, .. } => {
+            rec_collect_refs(handler, by_local, out);
+            rec_collect_refs(body, by_local, out);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                rec_collect_refs(a, by_local, out);
+            }
+        }
+        ECore::EffCheck(inner, _) => rec_collect_refs(inner, by_local, out),
     }
 }
 
@@ -14362,6 +14986,16 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(&alt.body, guard, owner, edges);
             }
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            top_rec_walk(handler, guard, owner, edges);
+            top_rec_walk(body, guard, owner, edges);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                top_rec_walk(a, guard, owner, edges);
+            }
+        }
+        ECore::EffCheck(inner, _) => top_rec_walk(inner, guard, owner, edges),
     }
 }
 
@@ -14461,7 +15095,16 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(&mut alt.body, subs);
             }
         }
-
+        ECore::HandleEvidence { handler, body, .. } => {
+            subst_rec_refs(handler, subs);
+            subst_rec_refs(body, subs);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                subst_rec_refs(a, subs);
+            }
+        }
+        ECore::EffCheck(inner, _) => subst_rec_refs(inner, subs),
     }
 }
 
@@ -14471,6 +15114,146 @@ fn wrap_lets(binds: Vec<(LocalId, ECore)>, body: ECore) -> ECore {
         out = ECore::Let(l, Box::new(v), Box::new(out));
     }
     out
+}
+
+fn ecore_mentions_local(e: &ECore, target: LocalId) -> bool {
+    match e {
+        ECore::Var(l) => *l == target,
+        ECore::LitFold { body, .. }
+        | ECore::DictProj(body, ..)
+        | ECore::Proj(body, ..)
+        | ECore::Demand(body, _)
+        | ECore::BoxGet(body, _)
+        | ECore::BoxClear(body, _)
+        | ECore::PolyIntro { body, .. }
+        | ECore::EffCheck(body, _) => ecore_mentions_local(body, target),
+        ECore::App(f, args) => {
+            ecore_mentions_local(f, target) || args.iter().any(|a| ecore_mentions_local(a, target))
+        }
+        ECore::InstDict(_, args, _, _)
+        | ECore::MkClos { env: args, .. }
+        | ECore::DeclsQuote { holes: args, .. }
+        | ECore::Perform { args, .. } => args.iter().any(|a| ecore_mentions_local(a, target)),
+        ECore::Quote { holes, body, .. } => {
+            holes.iter().any(|h| ecore_mentions_local(h, target))
+                || ecore_mentions_local(body, target)
+        }
+        ECore::Lam { params, body } => {
+            !params.contains(&target) && ecore_mentions_local(body, target)
+        }
+        ECore::Let(l, v, body) => {
+            ecore_mentions_local(v, target) || (*l != target && ecore_mentions_local(body, target))
+        }
+        ECore::BoxInit(l, v, _) | ECore::LazyInit(l, v) | ECore::RefSet(l, v, _) => {
+            *l == target || ecore_mentions_local(v, target)
+        }
+        ECore::If(c, t, f) => {
+            ecore_mentions_local(c, target)
+                || ecore_mentions_local(&t.body, target)
+                || ecore_mentions_local(&f.body, target)
+        }
+        ECore::Case { scrut, alts } => {
+            ecore_mentions_local(scrut, target)
+                || alts.iter().any(|a| {
+                    let shadowed = match &a.pat {
+                        CPat::Var(l, _) => *l == target,
+                        CPat::Con { fields, .. } => fields.contains(&target),
+                        CPat::Wild => false,
+                    };
+                    !shadowed && ecore_mentions_local(&a.body, target)
+                })
+        }
+        ECore::HandleEvidence { handler, body, .. } => {
+            ecore_mentions_local(handler, target) || ecore_mentions_local(body, target)
+        }
+        ECore::Int(_)
+        | ECore::Wide(_)
+        | ECore::ConstBig { .. }
+        | ECore::ConstBytes(_)
+        | ECore::ConstString { .. }
+        | ECore::ConstSym(_)
+        | ECore::Lit(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Global(..)
+        | ECore::Ctor(..)
+        | ECore::Prim(_)
+        | ECore::Foreign(_)
+        | ECore::LazyAlloc
+        | ECore::BoxAlloc
+        | ECore::Fault
+        | ECore::Hole(_)
+        | ECore::QuoteHole(_)
+        | ECore::IdxPending(_)
+        | ECore::SyntaxLit(..)
+        | ECore::StrLit(_) => false,
+    }
+}
+
+/// Returns `true` iff every control-flow exit of `e` is a direct tail call
+/// `k expr` and `k` is not referenced anywhere else in `e`.
+fn ecore_is_tail_resumptive(e: &ECore, k: LocalId) -> bool {
+    match e {
+        ECore::App(f, args) => {
+            matches!(&**f, ECore::Var(l) if *l == k)
+                && args.len() == 1
+                && !ecore_mentions_local(&args[0], k)
+        }
+        ECore::Let(l, v, body) => {
+            !ecore_mentions_local(v, k) && *l != k && ecore_is_tail_resumptive(body, k)
+        }
+        ECore::If(c, t, f) => {
+            !ecore_mentions_local(c, k)
+                && ecore_is_tail_resumptive(&t.body, k)
+                && ecore_is_tail_resumptive(&f.body, k)
+        }
+        ECore::Case { scrut, alts } => {
+            !ecore_mentions_local(scrut, k)
+                && !alts.is_empty()
+                && alts.iter().all(|a| ecore_is_tail_resumptive(&a.body, k))
+        }
+        ECore::LitFold { body, .. } | ECore::EffCheck(body, _) => ecore_is_tail_resumptive(body, k),
+        ECore::Fault => true,
+        _ => false,
+    }
+}
+
+/// Strip the tail resumption call `k expr` -> `expr` from a verified
+/// tail-resumptive clause body so the evidence-passing handler closure returns
+/// the operation's result directly at its exact representation class.
+fn strip_tail_resumption(e: &ECore, k: LocalId) -> ECore {
+    match e {
+        ECore::App(f, args) if matches!(&**f, ECore::Var(l) if *l == k) && args.len() == 1 => {
+            args[0].clone()
+        }
+        ECore::Let(l, v, body) => {
+            ECore::Let(*l, v.clone(), Box::new(strip_tail_resumption(body, k)))
+        }
+        ECore::If(c, t, f) => ECore::If(
+            c.clone(),
+            CBranch { weight: t.weight, body: Box::new(strip_tail_resumption(&t.body, k)) },
+            CBranch { weight: f.weight, body: Box::new(strip_tail_resumption(&f.body, k)) },
+        ),
+        ECore::Case { scrut, alts } => ECore::Case {
+            scrut: scrut.clone(),
+            alts: alts
+                .iter()
+                .map(|a| CAlt {
+                    pat: a.pat.clone(),
+                    weight: a.weight,
+                    body: Box::new(strip_tail_resumption(&a.body, k)),
+                })
+                .collect(),
+        },
+        ECore::LitFold { idx, body } => ECore::LitFold {
+            idx: *idx,
+            body: Box::new(strip_tail_resumption(body, k)),
+        },
+        ECore::EffCheck(body, ty) => {
+            ECore::EffCheck(Box::new(strip_tail_resumption(body, k)), ty.clone())
+        }
+        other => other.clone(),
+    }
 }
 
 impl Checker {

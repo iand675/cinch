@@ -1,0 +1,28 @@
+-- Effect.Throw: typed short-circuiting algebraic error effect.
+--
+-- `Throw e` is a type-parameterized algebraic effect lowered via Koka-style
+-- evidence passing and cooperative bubbling:
+--   * Pure (`->{}`) functions pay zero overhead and retain `nounwind`/`willreturn`.
+--   * `throw err` unwinds cooperatively across arbitrarily deep call chains,
+--     running exact Perceus reference-count drops on every popped frame.
+--   * Distinct error types (`Throw ParseErr`, `Throw IoErr`) carry distinct
+--     canonical label hashes and compose cleanly with nested `catch` prompts.
+module Effect.Throw where
+  import Data.Core (Result, Ok, Err)
+  export Throw, throw, catch, try-throw
+
+  effect Throw (e :: Type) where
+    throw :: forall a. e ->{Throw e} a
+
+  -- | Run `body` under a `Throw e` handler, capturing any thrown `e` as `Err e`
+  -- and wrapping a normal completion as `Ok x`.
+  catch :: forall e a (r :: Row). (Unit ->{Throw e | r} a) ->{|r} Result e a
+  catch body = handle body () with (handler Throw e where
+    return x -> Ok x
+    throw err -> Err err)
+
+  -- | Lift a `Result e a` value into the `Throw e` effect.
+  try-throw :: forall e a. Result e a ->{Throw e} a
+  try-throw res = case res of
+    Ok x -> x
+    Err err -> throw err

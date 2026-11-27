@@ -23,7 +23,7 @@ module Cinch.Core where
 
   export scoped-core-case-facts, scoped-core-case-rest-facts, normalized-case-rest-facts, case-pattern-may-prove, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPSymbol, CPTuple, CPField, CPDone
-  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CSymbol, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard, CCast
+  export CoreTerm, CUse, CLocal, CInt, CString, CChar, CSymbol, CUnit, CApply, CLambda, CPolyIntro, CPolyElim, CQualIntro, CQualElim, CLet, CIf, CCase, CTuple, CPrimitive, CGuard, CCast
   export CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd
   export recursive-functions, recursive-function-ids, map-recursive-functions, recursive-proof-scope, recursive-value-writes
   export recursive-box-slots, recursive-member-use, recursive-captures
@@ -42,6 +42,8 @@ module Cinch.Core where
   export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-resumption-count, handler-body-direct, handler-performs
+  export handler-is-evidence, handler-abort-mask, handler-body-allowed, handler-strip-evidence, handler-closure-classify, scheme-is-uninhabited-op
+  export term-aborts-uninhabited, row-has-uninhabited-effect
   export CProofRef, CProofRefl, CProofSearch, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
   export prove-erased-goal, scoped-erased-witness
   export scoped-list-index, checked-length-index, exact-refined-length
@@ -168,6 +170,7 @@ module Cinch.Core where
     UTuple fields -> effect-type-scope qs fields
     USigma id name domain body -> effect-binder qs id name domain body
     UForall inner body -> effect-type-scope (qs <> quants-list inner) body
+    UQual rs body -> effect-requirements qs (uquals-list rs) && effect-type-scope qs body
     UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
     UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
     UPropAnd a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -365,6 +368,12 @@ module Cinch.Core where
     -- Instantiation: the value's polytype opened at the type arguments,
     -- with the opened body as this term's type.
     CPolyElim :: Span -> UType -> CoreTerm -> List UType -> CoreTerm
+    -- Higher-rank `using` introduction: binds each given dictionary/capability
+    -- lexically over the body (lowered to a curried closure).
+    CQualIntro :: Span -> UType -> List CoreGiven -> CoreTerm -> CoreTerm
+    -- Higher-rank `using` elimination: passes resolved evidence arguments to a
+    -- qualified value, opening `UQual qs inner` to `inner`.
+    CQualElim :: Span -> UType -> CoreTerm -> List CoreEvidence -> CoreTerm
     CPrimitive :: Span -> UType -> String -> CoreTerm -> CoreTerm
     -- A checked operation obligation. The certificate contains citations,
     -- not an asserted goal or a cached hypothesis list.
@@ -541,6 +550,8 @@ module Cinch.Core where
     CTuple sp ty fields -> handler-body-direct label names fields
     CPolyIntro sp ty poly-ids fields -> handler-body-direct label names fields
     CPolyElim sp ty fields poly-args -> handler-body-direct label names fields
+    CQualIntro sp ty givens body -> True
+    CQualElim sp ty value evidence -> handler-body-direct label names value
     CPrimitive sp ty name args -> handler-body-direct label names args
     CDecision sp ty predicate body -> handler-body-direct label names body
     CProved sp ty evidence body -> handler-body-direct label names body
@@ -585,6 +596,8 @@ module Cinch.Core where
     CTuple sp ty fields -> resume-uses choose id fields
     CPolyIntro sp ty poly-ids fields -> resume-uses choose id fields
     CPolyElim sp ty fields poly-args -> resume-uses choose id fields
+    CQualIntro sp ty givens body -> if resume-uses choose id body > 0 then 2 else 0
+    CQualElim sp ty value evidence -> resume-uses choose id value
     CPrimitive sp ty name args -> resume-uses choose id args
     CDecision sp ty predicate body -> resume-uses choose id body
     CProved sp ty evidence body -> resume-uses choose id body
@@ -652,6 +665,231 @@ module Cinch.Core where
     CLambda sp ty (CPWild at domain) body -> not exact
     other -> False
 
+  -- Koka-style evidence-passing handler classification:
+  -- 0 = NonTail (requires local CPS), 1 = Tail (every exit is tail call `k expr`),
+  -- 2 = Abort (`k` has 0 uses).
+  handler-tail-alts :: Nat -> CoreTerm -> Bool
+  handler-tail-alts k alts = case alts of
+    CAlternativesEnd sp -> True
+    CAlternative sp pattern body rest ->
+      handler-clause-tail k body && handler-tail-alts k rest
+    other -> False
+  handler-clause-tail :: Nat -> CoreTerm -> Bool
+  handler-clause-tail k term = case term of
+    CApply sp ty (CLocal at ft key name actuals) arg ->
+      key == k && resume-uses resume-max k arg == 0
+    CLet sp ty key name sc rhs body ->
+      resume-uses resume-max k rhs == 0 && key /= k && handler-clause-tail k body
+    CIf sp ty condition yes no ->
+      resume-uses resume-max k condition == 0 && handler-clause-tail k yes && handler-clause-tail k no
+    CCase sp ty value alts ->
+      resume-uses resume-max k value == 0 && (case alts of CAlternativesEnd _ -> False; other -> handler-tail-alts k alts)
+    CWith sp ty given value body ->
+      resume-uses resume-max k value == 0 && handler-clause-tail k body
+    CProved sp ty ev body -> handler-clause-tail k body
+    CRefine sp ty ev body -> handler-clause-tail k body
+    CRefineProof sp ty witness body -> resume-uses resume-max k witness == 0 && handler-clause-tail k body
+    CForget sp ty body -> handler-clause-tail k body
+    CCast sp ty body -> handler-clause-tail k body
+    CRequire sp ty body -> handler-clause-tail k body
+    CDischarge sp ty ev _ body -> handler-clause-tail k body
+    CGuard sp ty condition body -> resume-uses resume-max k condition == 0 && handler-clause-tail k body
+    other -> False
+  handler-strip-alts :: Nat -> UType -> CoreTerm -> CoreTerm
+  handler-strip-alts k res alts = case alts of
+    CAlternativesEnd sp -> alts
+    CAlternative sp pattern body rest ->
+      CAlternative sp pattern (handler-clause-strip k res body) (handler-strip-alts k res rest)
+    other -> alts
+  handler-clause-strip :: Nat -> UType -> CoreTerm -> CoreTerm
+  handler-clause-strip k res term = case term of
+    CApply sp ty (CLocal at ft key name actuals) arg | key == k -> arg
+    CLet sp ty key name sc rhs body -> CLet sp res key name sc rhs (handler-clause-strip k res body)
+    CIf sp ty condition yes no -> CIf sp res condition (handler-clause-strip k res yes) (handler-clause-strip k res no)
+    CCase sp ty value alts -> CCase sp res value (handler-strip-alts k res alts)
+    CWith sp ty given value body -> CWith sp res given value (handler-clause-strip k res body)
+    CProved sp ty ev body -> CProved sp res ev (handler-clause-strip k res body)
+    CRefine sp ty ev body -> CRefine sp res ev (handler-clause-strip k res body)
+    CRefineProof sp ty witness body -> CRefineProof sp res witness (handler-clause-strip k res body)
+    CForget sp ty body -> CForget sp res (handler-clause-strip k res body)
+    CCast sp ty body -> CCast sp res (handler-clause-strip k res body)
+    CRequire sp ty body -> CRequire sp res (handler-clause-strip k res body)
+    CDischarge sp ty ev flag body -> CDischarge sp res ev flag (handler-clause-strip k res body)
+    CGuard sp ty condition body -> CGuard sp res condition (handler-clause-strip k res body)
+    other -> other
+  handler-closure-classify :: CoreTerm -> Nat
+  handler-closure-classify closure = case closure of
+    CLambda sp ty pattern body -> case ty of
+      UFunEff (UFun res out) row out2 -> case pattern of
+        CPWild at domain -> 2
+        CPVar at domain id name ->
+          if resume-uses resume-max id body == 0 then 2
+          else if handler-clause-tail id body then 1
+          else 0
+        other -> 0
+      UFun (UFun res out) out2 | (case body of CLambda _ _ _ _ -> False; other -> True) -> case pattern of
+        CPWild at domain -> 2
+        CPVar at domain id name ->
+          if resume-uses resume-max id body == 0 then 2
+          else if handler-clause-tail id body then 1
+          else 0
+        other -> 0
+      UFun a b -> handler-closure-classify body
+      UPi id name a row b -> handler-closure-classify body
+      UProofFun pred row b -> handler-closure-classify body
+      UUsageArrow usage arrow -> handler-closure-classify (CLambda sp arrow pattern body)
+      other -> 0
+    other -> 0
+  handler-closure-strip-tail :: CoreTerm -> CoreTerm
+  handler-closure-strip-tail closure = case closure of
+    CLambda sp ty pattern body -> case ty of
+      UFunEff (UFun res out) row out2 -> case pattern of
+        CPVar at domain id name ->
+          if resume-uses resume-max id body > 0 && handler-clause-tail id body then
+            CLambda sp (UFunEff (UFun res out) row res) pattern (handler-clause-strip id res body)
+          else closure
+        other -> closure
+      UFun (UFun res out) out2 | (case body of CLambda _ _ _ _ -> False; other -> True) -> case pattern of
+        CPVar at domain id name ->
+          if resume-uses resume-max id body > 0 && handler-clause-tail id body then
+            CLambda sp (UFun (UFun res out) res) pattern (handler-clause-strip id res body)
+          else closure
+        other -> closure
+      UFun a b -> let inner = handler-closure-strip-tail body in CLambda sp (UFun a (core-type inner)) pattern inner
+      UPi id name a row b -> let inner = handler-closure-strip-tail body in CLambda sp (UPi id name a row (core-type inner)) pattern inner
+      UProofFun pred row b -> let inner = handler-closure-strip-tail body in CLambda sp (UProofFun pred row (core-type inner)) pattern inner
+      UUsageArrow usage arrow -> handler-closure-strip-tail (CLambda sp arrow pattern body)
+      other -> closure
+    other -> closure
+  handler-ops-evidence :: CoreTerm -> Bool
+  handler-ops-evidence ops = case ops of
+    CHandlerEnd sp -> True
+    CHandlerOperation sp slot openings row closure rest ->
+      slot < 64 && handler-closure-classify closure > 0 && handler-ops-evidence rest
+    other -> False
+  handler-is-evidence :: CoreTerm -> Bool
+  handler-is-evidence term = case term of
+    CHandler sp ty returned operations -> handler-ops-evidence operations
+    other -> False
+  pow2-nat :: Nat -> Nat
+  pow2-nat n = if n == 0 then 1 else 2 * pow2-nat (n - 1)
+  handler-ops-abort-mask :: CoreTerm -> Nat
+  handler-ops-abort-mask ops = case ops of
+    CHandlerEnd sp -> 0
+    CHandlerOperation sp slot openings row closure rest ->
+      let bit = if slot < 64 && handler-closure-classify closure == 2 then pow2-nat slot else 0 in
+      bit + handler-ops-abort-mask rest
+    other -> 0
+  handler-abort-mask :: CoreTerm -> Nat
+  handler-abort-mask term = case term of
+    CHandler sp ty returned operations -> handler-ops-abort-mask operations
+    other -> 0
+  handler-body-allowed :: UType -> List String -> CoreTerm -> CoreTerm -> Bool
+  handler-body-allowed label names handled-by body =
+    handler-is-evidence handled-by || handler-body-direct label names body
+  handler-strip-ops :: CoreTerm -> CoreTerm
+  handler-strip-ops ops = case ops of
+    CHandlerEnd sp -> ops
+    CHandlerOperation sp slot openings row closure rest ->
+      CHandlerOperation sp slot openings row (handler-closure-strip-tail closure) (handler-strip-ops rest)
+    other -> ops
+  handler-strip-evidence :: CoreTerm -> CoreTerm
+  handler-strip-evidence term = case term of
+    CHandler sp ty returned operations -> CHandler sp ty returned (handler-strip-ops operations)
+    other -> term
+  type-has-bound-id :: Nat -> UType -> Bool
+  type-has-bound-id want ty = case ty of
+    UBound id name kind -> id == want
+    UApp f x -> type-has-bound-id want f || type-has-bound-id want x
+    UFun a b -> type-has-bound-id want a || type-has-bound-id want b
+    UFunEff a r b -> type-has-bound-id want a || type-has-bound-id want r || type-has-bound-id want b
+    UPi id name a r b -> type-has-bound-id want a || type-has-bound-id want r || type-has-bound-id want b
+    UProofFun p r b -> type-has-bound-id want p || type-has-bound-id want r || type-has-bound-id want b
+    UUsageArrow u a -> type-has-bound-id want a
+    UTuple xs -> type-has-bound-id want xs
+    UArg a b -> type-has-bound-id want a || type-has-bound-id want b
+    URow xs -> type-has-bound-id want xs
+    URowJoin a b -> type-has-bound-id want a || type-has-bound-id want b
+    other -> False
+  quant-has-id :: Nat -> List Quant -> Bool
+  quant-has-id want qs = case qs of
+    [] -> False
+    q : rest -> q.id == want || quant-has-id want rest
+  scheme-domains-and-ret :: UType -> List UType -> (List UType, UType)
+  scheme-domains-and-ret ty doms = case ty of
+    UUsageArrow u a -> scheme-domains-and-ret a doms
+    UFun a b -> scheme-domains-and-ret b (a : doms)
+    UFunEff a r b -> scheme-domains-and-ret b (a : doms)
+    UPi id name a r b -> scheme-domains-and-ret b (a : doms)
+    UProofFun p r b -> scheme-domains-and-ret b doms
+    other -> (doms, ty)
+  any-type-has-bound :: Nat -> List UType -> Bool
+  any-type-has-bound want tys = case tys of
+    [] -> False
+    first : rest -> type-has-bound-id want first || any-type-has-bound want rest
+  scheme-is-uninhabited-op :: Scheme -> Bool
+  scheme-is-uninhabited-op sc = case scheme-domains-and-ret (scheme-body sc) [] of
+    (doms, UBound id name KType) -> quant-has-id id (scheme-params sc) && not (any-type-has-bound id doms)
+    other -> False
+  effect-ops-have-uninhabited :: List CoreOperation -> Bool
+  effect-ops-have-uninhabited ops = case ops of
+    [] -> False
+    op : rest -> scheme-is-uninhabited-op (op.operation-scheme) || effect-ops-have-uninhabited rest
+  lookup-op-in-ops :: String -> List CoreOperation -> Option Bool
+  lookup-op-in-ops name ops = case ops of
+    [] -> None
+    op : rest -> if op.operation-name == name then Some (scheme-is-uninhabited-op (op.operation-scheme)) else lookup-op-in-ops name rest
+  lookup-op-is-uninhabited :: String -> List CoreEffect -> Bool
+  lookup-op-is-uninhabited name effects = case effects of
+    [] -> False
+    decl : rest -> case lookup-op-in-ops name (decl.effect-operations) of
+      Some flag -> flag
+      None -> lookup-op-is-uninhabited name rest
+  label-head-name-core :: UType -> Option String
+  label-head-name-core ty = case ty of
+    UCon name kind -> Some name
+    UApp f x -> label-head-name-core f
+    other -> None
+  effect-decl-uninhabited :: String -> List CoreEffect -> Bool
+  effect-decl-uninhabited name effects = case effects of
+    [] -> False
+    decl : rest -> if decl.effect-name == name then effect-ops-have-uninhabited (decl.effect-operations) else effect-decl-uninhabited name rest
+  label-is-uninhabited-effect :: List CoreEffect -> UType -> Bool
+  label-is-uninhabited-effect effects label = case label-head-name-core label of
+    Some name -> name == "Effect.Throw.Throw" || effect-decl-uninhabited name effects
+    None -> False
+  labels-have-uninhabited-effect :: List CoreEffect -> UType -> Bool
+  labels-have-uninhabited-effect effects labels = case labels of
+    UArg first rest -> label-is-uninhabited-effect effects first || labels-have-uninhabited-effect effects rest
+    other -> False
+  row-has-uninhabited-effect :: List CoreEffect -> UType -> Bool
+  row-has-uninhabited-effect effects row = case row of
+    URow labels -> labels-have-uninhabited-effect effects labels
+    URowJoin a b -> row-has-uninhabited-effect effects a || row-has-uninhabited-effect effects b
+    other -> False
+  op-head-is-uninhabited :: List CoreEffect -> CoreTerm -> Bool
+  op-head-is-uninhabited effects term = case term of
+    CUse sp ty name role actuals -> role == "operation" && lookup-op-is-uninhabited name effects
+    CApply sp ty f x -> op-head-is-uninhabited effects f
+    CApplyEff sp ty row f x -> op-head-is-uninhabited effects f
+    CDischarge sp ty ev _ f -> op-head-is-uninhabited effects f
+    other -> False
+  term-aborts-uninhabited :: List CoreEffect -> CoreTerm -> Bool
+  term-aborts-uninhabited effects term = case term of
+    CApplyEff sp ty row f x -> op-head-is-uninhabited effects f
+    CApply sp ty f x -> op-head-is-uninhabited effects f
+    CLet sp ty id name sc rhs body -> term-aborts-uninhabited effects rhs || term-aborts-uninhabited effects body
+    CRecursiveFunctions sp ty members body -> term-aborts-uninhabited effects body
+    CIf sp ty cond yes no -> term-aborts-uninhabited effects yes && term-aborts-uninhabited effects no
+    CProved sp ty ev body -> term-aborts-uninhabited effects body
+    CRefine sp ty ev body -> term-aborts-uninhabited effects body
+    CRefineProof sp ty witness body -> term-aborts-uninhabited effects body
+    CForget sp ty body -> term-aborts-uninhabited effects body
+    CCast sp ty body -> term-aborts-uninhabited effects body
+    CRequire sp ty body -> term-aborts-uninhabited effects body
+    CDischarge sp ty ev _ body -> term-aborts-uninhabited effects body
+    other -> False
+
   record CoreClause where
     field0 :: Span
     field1 :: List CorePattern
@@ -716,6 +954,8 @@ module Cinch.Core where
     CTuple sp ty fields -> [fields]
     CPolyIntro sp ty poly-ids fields -> [fields]
     CPolyElim sp ty fields poly-args -> [fields]
+    CQualIntro sp ty givens body -> [body]
+    CQualElim sp ty value evidence -> [value]
     CPrimitive sp ty op args -> [args]
     CProved sp ty certificate body -> [body]
     CRefine sp ty certificate body -> [body]
@@ -868,6 +1108,8 @@ module Cinch.Core where
     CTuple s ty fields -> ty
     CPolyIntro s ty ids body -> ty
     CPolyElim s ty value args -> ty
+    CQualIntro s ty givens body -> ty
+    CQualElim s ty value evidence -> ty
     CPrimitive s ty name args -> ty
     CProved s ty evidence body -> ty
     CRefine s ty evidence body -> ty
@@ -988,6 +1230,8 @@ module Cinch.Core where
     -- Building a polymorphic value performs nothing; its body was checked pure.
     CPolyIntro s ty ids body -> URow UEnd
     CPolyElim s ty value args -> core-effects value
+    CQualIntro s ty givens body -> URow UEnd
+    CQualElim s ty value evidence -> core-effects value
     CPrimitive s ty name args -> if name == "thunk-force" then
       (case args of
         CArgument at thunk (CArgumentsEnd end) -> (case deferral-parts (core-type thunk) of Some (row, result) -> union-effects (core-effects thunk) row; None -> UError)
@@ -1246,6 +1490,8 @@ module Cinch.Core where
     CTuple s ty fields -> CTuple s (f ty) (map-term-types f fields)
     CPolyIntro s ty ids body -> CPolyIntro s (f ty) ids (map-term-types f body)
     CPolyElim s ty value args -> CPolyElim s (f ty) (map-term-types f value) (map-types f args)
+    CQualIntro s ty givens body -> CQualIntro s (f ty) (map-givens f givens) (map-term-types f body)
+    CQualElim s ty value evidence -> CQualElim s (f ty) (map-term-types f value) (map-evidences f evidence)
     CPrimitive s ty name args -> CPrimitive s (f ty) name (map-term-types f args)
     CProved s ty evidence body -> CProved s (f ty) evidence (map-term-types f body)
     CRefine s ty evidence body -> CRefine s (f ty) evidence (map-term-types f body)
@@ -1313,6 +1559,7 @@ module Cinch.Core where
     UTuple fields -> UTuple (freeze fields)
     USigma id name domain body -> USigma id name (freeze domain) (freeze body)
     UForall qs body -> UForall (quants-of (map-quant-kinds freeze (quants-list qs))) (freeze body)
+    UQual qs body -> UQual (map-uquals freeze qs) (freeze body)
     UArg x rest -> UArg (freeze x) (freeze rest)
     other -> ty
 
@@ -1364,8 +1611,13 @@ module Cinch.Core where
     UTuple fields -> collect-type-metas st fields tail
     USigma id name domain body -> collect-type-metas st domain (collect-type-metas st body tail)
     UForall qs body -> collect-type-metas st body tail
+    UQual qs body -> collect-uqual-metas st qs (collect-type-metas st body tail)
     UArg x rest -> collect-type-metas st x (collect-type-metas st rest tail)
     other -> tail
+  collect-uqual-metas :: Store -> UQuals -> List (Nat, Kind) -> List (Nat, Kind)
+  collect-uqual-metas st qs tail = case qs of
+    UQEnd -> tail
+    UQCons name ty rest -> collect-type-metas st ty (collect-uqual-metas st rest tail)
   index-type-metas :: UType -> List Nat -> List (Nat, Kind) -> List (Nat, Kind)
   index-type-metas carrier ids tail = case ids of
     [] -> tail
@@ -1442,6 +1694,8 @@ module Cinch.Core where
     CTuple s ty fields -> type-metas st ty <> term-metas st fields
     CPolyIntro s ty poly-ids fields -> type-metas st ty <> term-metas st fields
     CPolyElim s ty fields poly-args -> type-metas st ty <> term-metas st fields
+    CQualIntro s ty givens body -> type-metas st ty <> given-metas st givens <> term-metas st body
+    CQualElim s ty value evidence -> type-metas st ty <> term-metas st value <> evidences-metas st evidence
     CPrimitive s ty name args -> type-metas st ty <> term-metas st args
     CProved s ty evidence body -> type-metas st ty <> term-metas st body
     CRefine s ty evidence body -> type-metas st ty <> term-metas st body
@@ -1531,6 +1785,7 @@ module Cinch.Core where
     UTuple fields -> closed-type fields
     USigma id name domain body -> closed-type domain && closed-type body
     UForall qs body -> valid-type ty && closed-type body
+    UQual qs body -> valid-type ty && requirements-closed (uquals-list qs) && closed-type body
     UArg x rest -> closed-type x && closed-type rest
     other -> True
   closed-kind :: Kind -> Bool
@@ -1655,6 +1910,8 @@ module Cinch.Core where
     CTuple s ty fields -> closed-runtime-type ty && valid-term fields
     CPolyIntro s ty poly-ids fields -> closed-runtime-type ty && valid-term fields
     CPolyElim s ty fields poly-args -> closed-runtime-type ty && valid-term fields
+    CQualIntro s ty givens body -> closed-runtime-type ty && givens-closed givens && valid-term body
+    CQualElim s ty value evidence -> closed-runtime-type ty && valid-term value && evidences-closed evidence
     CPrimitive s ty name args -> closed-runtime-type ty && valid-term args
     CProved s ty evidence body -> closed-runtime-type ty && valid-term body
     CRefine s ty evidence body -> closed-runtime-type ty && valid-term body
@@ -1750,6 +2007,7 @@ module Cinch.Core where
     UTuple fields -> type-index-scope bound rigid fields
     USigma id name domain body -> type-index-scope bound rigid domain && type-index-scope (id : bound) rigid body
     UForall qs body -> type-index-scope bound rigid body
+    UQual qs body -> requirements-index-scope bound rigid (uquals-list qs) && type-index-scope bound rigid body
     UArg a rest -> type-index-scope bound rigid a && type-index-scope bound rigid rest
     UEnd -> True
     UError -> False
@@ -1871,6 +2129,8 @@ module Cinch.Core where
       CTuple s ty fields -> scoped-term-with universals values scope fields
       CPolyIntro s ty poly-ids fields -> scoped-term-with universals values scope fields
       CPolyElim s ty fields poly-args -> scoped-term-with universals values scope fields
+      CQualIntro s ty givens body -> givens-index-scope rigid givens && scoped-term-with universals values scope body
+      CQualElim s ty value evidence -> scoped-term-with universals values scope value && evidences-index-scope-with universals rigid evidence
       CPrimitive s ty name args -> scoped-term-with universals values scope args
       CProved s ty evidence body -> scoped-term-with universals values scope body
       CRefine s ty evidence body -> scoped-term-with universals values scope body
@@ -2108,7 +2368,12 @@ module Cinch.Core where
     UTuple fields -> borrow-index-regions fields
     USigma id name domain body -> borrow-index-regions domain <> borrow-index-regions body
     UForall qs body -> borrow-index-regions body
+    UQual qs body -> uquals-borrow-index-regions qs <> borrow-index-regions body
     other -> []
+  uquals-borrow-index-regions :: UQuals -> List UType
+  uquals-borrow-index-regions qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> borrow-index-regions ty <> uquals-borrow-index-regions rest
   volatile-borrow-index :: UType -> Bool
   volatile-borrow-index ty = case borrow-index-regions ty of [] -> False; other -> True
   predicate-written :: Option UType -> List UType -> Bool
@@ -2901,6 +3166,8 @@ module Cinch.Core where
     CTuple s ty fields -> proof-term gamma facts fields
     CPolyIntro s ty poly-ids fields -> proof-term gamma facts fields
     CPolyElim s ty fields poly-args -> proof-term gamma facts fields
+    CQualIntro s ty givens body -> proof-term gamma facts body
+    CQualElim s ty value evidence -> proof-term gamma facts value
     CGuard s ty guard rhs -> proof-term gamma facts guard
       && proof-term (proof-after-writes gamma (scoped-branch-writes guard True)) (scoped-branch-facts gamma facts guard True) rhs
     CArgument s first rest -> proof-term gamma facts first && proof-after-term gamma facts first rest
@@ -3174,6 +3441,8 @@ module Cinch.Core where
     CTuple s ty fields -> CTuple s ty (refresh-certificates gamma facts fields)
     CPolyIntro s ty ids body -> CPolyIntro s ty ids (refresh-certificates gamma facts body)
     CPolyElim s ty value args -> CPolyElim s ty (refresh-certificates gamma facts value) args
+    CQualIntro s ty givens body -> CQualIntro s ty givens (refresh-certificates gamma facts body)
+    CQualElim s ty value evidence -> CQualElim s ty (refresh-certificates gamma facts value) evidence
     CPrimitive s ty op args -> CPrimitive s ty op (refresh-certificates gamma facts args)
     CGuard s ty condition body -> let c = refresh-certificates gamma facts condition in
       CGuard s ty c (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c True)) (scoped-branch-facts gamma facts c True) body)

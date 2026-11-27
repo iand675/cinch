@@ -109,11 +109,18 @@ fn impredicative_instantiation_is_refused() {
 }
 
 #[test]
-fn nested_using_constraints_are_refused() {
-    refused(
+fn nested_using_constraints_work() {
+    run_leak_checked(
         "rank-n-using",
-        include_str!("fixtures/rank_n/bad_using.cinch"),
-        "a nested forall cannot carry `using` constraints yet",
+        r#"module Main where
+  import Data.String (String)
+
+  same-twice :: (forall a. using (e :: Eq a) => a -> a -> Bool) -> Bool
+  same-twice f = f 7 7 && f "hi" "hi" && not (f "hi" "bye")
+
+  main :: Int
+  main = if same-twice (\x y -> x == y) then 42 else 1
+"#,
     );
 }
 

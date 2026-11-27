@@ -221,8 +221,10 @@ impl VarPath {
 
 #[derive(Clone, Debug)]
 pub struct EffectRow {
-    /// Effect labels: a constructor path with at most one region argument.
+    /// Effect labels: a constructor path with at most one region or type argument.
     pub labels: Vec<(ConPath, Vec<Name>)>,
+    /// Optional structured type argument per label (parallel to `labels`, or empty).
+    pub label_tys: Vec<Option<Type>>,
     pub tail: Option<Name>,
     pub span: Span,
 }
@@ -587,6 +589,8 @@ pub struct HandlerExpr {
     pub effect: ConPath,
     /// The region argument of a label like `Async r`.
     pub region: Option<Name>,
+    /// The type argument of a type-parameterized label like `Throw ParseErr`.
+    pub type_arg: Option<Type>,
     pub ret_pat: Pat,
     pub ret_body: Term,
     pub clauses: Vec<OpClause>,
@@ -874,6 +878,7 @@ impl Term {
                 handler.visit_types_mut(visit);
             }
             Term::Handler(handler) => {
+                if let Some(ty) = &mut handler.type_arg { ty.visit_mut(visit); }
                 handler.ret_body.visit_types_mut(visit);
                 for clause in &mut handler.clauses { clause.body.visit_types_mut(visit); }
             }
@@ -1435,6 +1440,8 @@ pub struct DataInstanceDecl {
 pub struct EffectDecl {
     pub name: Name,
     pub params: Vec<Name>,
+    /// Optional explicit kind annotation per parameter (`"Region"` or `"Type"`).
+    pub param_kinds: Vec<Option<String>>,
     pub ops: Vec<(Name, Type)>,
     pub span: Span,
 }
@@ -1838,6 +1845,7 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
         }
         Term::Handler(h) => {
             out.push(ref_of_path(RefKind::Effect, &h.effect.segments, h.effect.span()));
+            if let Some(ty) = &h.type_arg { collect_type_refs(ty, out); }
             collect_term_refs(&h.ret_body, out);
             for c in &h.clauses {
                 collect_term_refs(&c.body, out);
@@ -2574,16 +2582,48 @@ fn hyg_effect_path(path: &ConPath, cx: &HygCx, sc: &HygScope) -> Result<ConPath>
     Ok(out)
 }
 
-fn hyg_effect_row(row: &EffectRow, cx: &HygCx, sc: &HygScope) -> Result<EffectRow> {
-    let rename = |name: &Name| {
-        if name.local_binding().is_none() && name.scoped_reference().is_none() && name.resolved_binding().is_none() {
-            if let Some(fresh) = sc.lookup_type(&name.text) { return Name::new(fresh, name.span); }
+fn hyg_effect_row(row: &EffectRow, cx: &mut HygCx, sc: &mut HygScope) -> Result<EffectRow> {
+    let mut label_tys = Vec::with_capacity(row.label_tys.len());
+    for ty in &row.label_tys {
+        label_tys.push(ty.as_ref().map(|t| hyg_type_scoped(t, cx, sc)).transpose()?);
+    }
+    let labels = row
+        .labels
+        .iter()
+        .map(|(label, arguments)| {
+            let hlabel = hyg_effect_path(label, cx, sc)?;
+            let hargs = arguments
+                .iter()
+                .map(|name| {
+                    if name.local_binding().is_none()
+                        && name.scoped_reference().is_none()
+                        && name.resolved_binding().is_none()
+                    {
+                        if let Some(fresh) = sc.lookup_type(&name.text) {
+                            return Name::new(fresh, name.span);
+                        }
+                    }
+                    name.clone()
+                })
+                .collect();
+            Ok((hlabel, hargs))
+        })
+        .collect::<Result<_>>()?;
+    let tail = row.tail.as_ref().map(|name| {
+        if name.local_binding().is_none()
+            && name.scoped_reference().is_none()
+            && name.resolved_binding().is_none()
+        {
+            if let Some(fresh) = sc.lookup_type(&name.text) {
+                return Name::new(fresh, name.span);
+            }
         }
         name.clone()
-    };
+    });
     Ok(EffectRow {
-        labels: row.labels.iter().map(|(label, arguments)| Ok((hyg_effect_path(label, cx, sc)?, arguments.iter().map(rename).collect()))).collect::<Result<_>>()?,
-        tail: row.tail.as_ref().map(rename),
+        labels,
+        label_tys,
+        tail,
         span: row.span,
     })
 }
@@ -3148,6 +3188,7 @@ fn hyg_term_scoped(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> 
         Term::Handler(h) => {
             let mut h = (**h).clone();
             h.effect = hyg_effect_path(&h.effect, cx, sc)?;
+            h.type_arg = h.type_arg.as_ref().map(|t| hyg_type(t, cx, sc)).transpose()?;
             let mut ret_scope = sc.clone();
             h.ret_pat = hyg_pat(&h.ret_pat, cx, &mut ret_scope)?;
             h.ret_body = hyg_term(&h.ret_body, cx, &mut ret_scope)?;

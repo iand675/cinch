@@ -21,7 +21,7 @@ module Cinch.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, Eq_ArrowUsage, Show_ArrowUsage, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
-  export UType, Show_UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
+  export UType, Show_UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UQual, UArg, UEnd, UError
   export copy-marker-carrier, kernel-marker-carrier
   export foreign-pointer
   export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier
@@ -35,6 +35,7 @@ module Cinch.Type where
   export include-effects, union-effects
   export Quant
   export Quants, QEnd, QCons, quants-of, quants-list, quants-length
+  export UQuals, UQEnd, UQCons, uquals-of, uquals-list, uquals-length, map-uquals
   export Requirement, map-requirements
   export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
   export map-scheme-types, open-qualified
@@ -124,6 +125,10 @@ module Cinch.Type where
     QEnd :: Quants
     QCons :: Quant -> Quants -> Quants
 
+  data UQuals where
+    UQEnd :: UQuals
+    UQCons :: String -> UType -> UQuals -> UQuals
+
   record Quant where
     id :: Nat
     name :: String
@@ -198,6 +203,9 @@ module Cinch.Type where
     -- so substitution never captures one. No metavariable is ever bound
     -- to a type containing it (predicativity, `bind-other`).
     UForall :: Quants -> UType -> UType
+    -- A first-class `using (...) => body` qualified type (higher-rank
+    -- capability/dictionary abstraction). Predicative like `UForall`.
+    UQual :: UQuals -> UType -> UType
     UArg :: UType -> UType -> UType
     UEnd :: UType
     UError :: UType
@@ -352,9 +360,22 @@ module Cinch.Type where
     UTuple fields -> tree "tuple" [carrier-tree fields]
     USigma id name domain body -> tree "sigma" [JNum (nat-to-int id), JStr name, carrier-tree domain, carrier-tree body]
     UForall qs body -> tree "forall" [quant-trees (quants-list qs), carrier-tree body]
+    UQual qs body -> tree "qual" [uqual-trees qs, carrier-tree body]
     UArg a rest -> tree "arg" [carrier-tree a, carrier-tree rest]
     UEnd -> JStr "end"
     UError -> JStr "error"
+  uqual-trees :: UQuals -> Json
+  uqual-trees qs = case qs of
+    UQEnd -> JArrEnd
+    UQCons name ty rest -> JArr (tree "qual-item" [JStr name, carrier-tree ty]) (uqual-trees rest)
+  read-uqual-trees :: Json -> Option UQuals
+  read-uqual-trees doc = case doc of
+    JArrEnd -> Some UQEnd
+    JArr (JArr (JStr tag) (JArr (JStr name) (JArr t JArrEnd))) rest ->
+      if same-tag tag "qual-item" then (case (read-carrier-tree t, read-uqual-trees rest) of
+        (Some ty, Some more) -> Some (UQCons name ty more)
+        other -> None) else None
+    other -> None
   quant-trees :: List Quant -> Json
   quant-trees qs = case qs of
     [] -> JArrEnd
@@ -402,6 +423,9 @@ module Cinch.Type where
       else if same-tag tag "index" then (case (read-carrier-tree a, index-from-tree b) of (Some carrier, Some value) -> Some (UIndex carrier value); other -> None)
       else if same-tag tag "forall" then (case (read-quant-trees a, read-carrier-tree b) of
         (Some qs, Some body) -> Some (UForall (quants-of qs) body)
+        other -> None)
+      else if same-tag tag "qual" then (case (read-uqual-trees a, read-carrier-tree b) of
+        (Some qs, Some body) -> Some (UQual qs body)
         other -> None)
       else if same-tag tag "usage-fun" then (case (a, read-carrier-tree b) of
         (JStr marker, Some arrow) -> case parse-arrow-usage marker of
@@ -499,6 +523,7 @@ module Cinch.Type where
     UTuple fields -> UTuple (opaque-carrier fields)
     USigma id name domain body -> USigma id name (opaque-carrier domain) (opaque-carrier body)
     UForall qs body -> UForall qs (opaque-carrier body)
+    UQual qs body -> UQual (map-uquals opaque-carrier qs) (opaque-carrier body)
     UArg first rest -> UArg (opaque-carrier first) (opaque-carrier rest)
     other -> ty
   opaque-index :: IndexTerm -> IndexTerm
@@ -583,6 +608,15 @@ module Cinch.Type where
   quants-list qs = case qs of QEnd -> []; QCons q rest -> q : (quants-list rest)
   quants-length :: Quants -> Nat
   quants-length qs = case qs of QEnd -> 0; QCons q rest -> 1 + quants-length rest
+
+  uquals-of :: List Requirement -> UQuals
+  uquals-of rs = case rs of [] -> UQEnd; (Requirement name ty) : rest -> UQCons name ty (uquals-of rest)
+  uquals-list :: UQuals -> List Requirement
+  uquals-list qs = case qs of UQEnd -> []; UQCons name ty rest -> (Requirement name ty) : (uquals-list rest)
+  uquals-length :: UQuals -> Nat
+  uquals-length qs = case qs of UQEnd -> 0; UQCons name ty rest -> 1 + uquals-length rest
+  map-uquals :: (UType -> UType) -> UQuals -> UQuals
+  map-uquals f qs = case qs of UQEnd -> UQEnd; UQCons name ty rest -> UQCons name (f ty) (map-uquals f rest)
 
   record Requirement where
     name :: String
@@ -948,6 +982,7 @@ module Cinch.Type where
     UTuple xs -> UTuple (normalize-with fuel st xs)
     USigma id name domain body -> USigma id name (normalize-with fuel st domain) (normalize-with fuel st body)
     UForall qs body -> UForall qs (normalize-with fuel st body)
+    UQual qs body -> UQual (map-uquals (normalize-with fuel st) qs) (normalize-with fuel st body)
     UArg x rest -> UArg (normalize-with fuel st x) (normalize-with fuel st rest)
     other -> ty
 
@@ -1396,6 +1431,7 @@ module Cinch.Type where
       other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UForall qs body -> quants-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
+    UQual qs body -> uquals-length qs > 0 && valid-uquals qs && valid-type body && kind-equal (type-kind body) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
     UUsageArrow usage arrow -> computational-arrow arrow && not (later-unrestricted usage arrow) && valid-type arrow
     UProofFun predicate row result -> proposition-type predicate && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
@@ -1508,10 +1544,28 @@ module Cinch.Type where
     UTuple xs -> string-concat-all ["(", type-text xs, ")"]
     USigma id name domain body -> string-concat-all ["(Sigma (", name, " :: ", type-text domain, "). ", type-text body, ")"]
     UForall qs body -> string-concat-all ["(forall", quant-names-text (quants-list qs), ". ", type-text body, ")"]
+    UQual qs body -> string-concat-all ["(using (", uquals-text qs, ") => ", type-text body, ")"]
     UArg x UEnd -> type-text x
     UArg x rest -> string-concat-all [type-text x, ", ", type-text rest]
     UEnd -> ""
     UError -> "_"
+  valid-uquals :: UQuals -> Bool
+  valid-uquals qs = case qs of
+    UQEnd -> True
+    UQCons name ty rest -> valid-type ty && kind-equal (type-kind ty) KType && valid-uquals rest
+  uquals-text :: UQuals -> String
+  uquals-text qs = case qs of
+    UQEnd -> ""
+    UQCons name ty UQEnd -> string-concat-all [name, " :: ", type-text ty]
+    UQCons name ty rest -> string-concat-all [name, " :: ", type-text ty, ", ", uquals-text rest]
+  uquals-metas :: Store -> UQuals -> List Nat
+  uquals-metas st qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> merge-ids (normalized-free-metas st ty) (uquals-metas st rest)
+  uquals-escapes :: Nat -> UQuals -> Bool
+  uquals-escapes level qs = case qs of
+    UQEnd -> False
+    UQCons name ty rest -> escapes level ty || uquals-escapes level rest
   promoted-list-text :: List UType -> String
   promoted-list-text elems = case elems of
     [] -> ""
@@ -1568,6 +1622,7 @@ module Cinch.Type where
     UTuple xs -> normalized-free-metas st xs
     USigma id name domain body -> merge-ids (normalized-free-metas st domain) (normalized-free-metas st body)
     UForall qs body -> merge-ids (quant-metas st (quants-list qs)) (normalized-free-metas st body)
+    UQual qs body -> merge-ids (uquals-metas st qs) (normalized-free-metas st body)
     UArg x rest -> merge-ids (normalized-free-metas st x) (normalized-free-metas st rest)
     other -> []
   normalized-kind-metas :: Store -> Kind -> List Nat
@@ -1592,6 +1647,7 @@ module Cinch.Type where
   has-forall :: UType -> Bool
   has-forall ty = case ty of
     UForall qs body -> True
+    UQual qs body -> True
     UApp f x -> has-forall f || has-forall x
     UFun a b -> has-forall a || has-forall b
     UFunEff a row b -> has-forall a || has-forall b
@@ -1647,6 +1703,7 @@ module Cinch.Type where
     UTuple xs -> escapes level xs
     USigma id name domain body -> escapes level domain || escapes level body
     UForall qs body -> escapes level body
+    UQual qs body -> uquals-escapes level qs || escapes level body
     UArg x rest -> escapes level x || escapes level rest
     other -> False
   kind-escapes :: Nat -> Kind -> Bool
@@ -1882,6 +1939,7 @@ module Cinch.Type where
       USigma key other input output -> unify-pi sp (sigma-pi id name domain body) (sigma-pi key other input output) st
       other -> mismatch sp a b st
     UForall qs x -> case b of UForall rs y -> unify-forall sp a b st; other -> mismatch sp a b st
+    UQual qs x -> case b of UQual rs y -> unify-qual sp qs x rs y st; other -> mismatch sp a b st
     UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
     other -> mismatch sp a b st
@@ -1991,9 +2049,16 @@ module Cinch.Type where
         && same-quant-kinds (quants-list qs) (quants-list rs)
         && same-shape a (substitute (rename-quants (quants-list rs) (quants-list qs)) b)
       other -> False
+    UQual qs a -> case second of
+      UQual rs b -> same-uquals qs rs && same-shape a b
+      other -> False
     UArg a rest -> case second of UArg b more -> same-shape a b && same-shape rest more; other -> False
     UEnd -> case second of UEnd -> True; other -> False
     other -> False
+  same-uquals :: UQuals -> UQuals -> Bool
+  same-uquals xs ys = case xs of
+    UQEnd -> case ys of UQEnd -> True; other -> False
+    UQCons n1 t1 r1 -> case ys of UQCons n2 t2 r2 -> same-shape t1 t2 && same-uquals r1 r2; other -> False
   has-effect :: UType -> UType -> Bool
   has-effect label labels = case labels of UArg first rest -> same-shape label first || has-effect label rest; other -> False
   unique-effects :: UType -> UType
@@ -2133,6 +2198,7 @@ module Cinch.Type where
     -- A polytype's own binders shadow a bound-variable substitution.
     UForall qs body -> UForall (quants-of (map-quant-kinds (transform-type mode pairs) (quants-list qs)))
       (transform-type mode (case mode of ReplaceBound -> without-type-pairs (quant-id-list (quants-list qs)) pairs; other -> pairs) body)
+    UQual qs body -> UQual (map-uquals (transform-type mode pairs) qs) (transform-type mode pairs body)
     UArg x rest -> UArg (transform-type mode pairs x) (transform-type mode pairs rest)
     other -> ty
   -- `transform-type` over a kind: the kind arms of the map, direct rather
@@ -2639,8 +2705,13 @@ module Cinch.Type where
       UTuple fields -> borrow-regions fields
       USigma id name domain body -> borrow-regions domain <> borrow-regions body
       UForall qs body -> borrow-regions body
+      UQual qs body -> uquals-borrow-regions qs <> borrow-regions body
       UArg first rest -> borrow-regions first <> borrow-regions rest
       other -> [])
+  uquals-borrow-regions :: UQuals -> List (Bool, UType)
+  uquals-borrow-regions qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> borrow-regions ty <> uquals-borrow-regions rest
   region-already-borrowed :: Bool -> UType -> List (Bool, UType) -> Bool
   region-already-borrowed mutable region loans = case loans of
     [] -> False
@@ -2815,8 +2886,13 @@ module Cinch.Type where
     UTuple fields -> validate-type-indices sp fields st
     USigma id name domain body -> validate-type-indices sp body (validate-type-indices sp domain st)
     UForall qs body -> validate-type-indices sp body st
+    UQual qs body -> validate-type-indices sp body (validate-uquals-indices sp qs st)
     UArg a b -> validate-type-indices sp b (validate-type-indices sp a st)
     other -> st
+  validate-uquals-indices :: Span -> UQuals -> Store -> Store
+  validate-uquals-indices sp qs st = case qs of
+    UQEnd -> st
+    UQCons name ty rest -> validate-uquals-indices sp rest (validate-type-indices sp ty st)
   validate-index-references :: Span -> Option UType -> IndexTerm -> Store -> Store
   validate-index-references sp expected term st = case term of
     IMeta id -> case find-cell id st of
@@ -2934,8 +3010,17 @@ module Cinch.Type where
     UTuple fields -> type-all-ids fields
     USigma id name domain body -> merge-ids [id] (merge-ids (type-all-ids domain) (type-all-ids body))
     UForall qs body -> merge-ids (quant-id-list (quants-list qs)) (type-all-ids body)
+    UQual qs body -> merge-ids (uquals-all-ids qs) (type-all-ids body)
     UArg a rest -> merge-ids (type-all-ids a) (type-all-ids rest)
     other -> []
+  uquals-all-ids :: UQuals -> List Nat
+  uquals-all-ids qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> merge-ids (type-all-ids ty) (uquals-all-ids rest)
+  uquals-free-bound :: UQuals -> List Nat
+  uquals-free-bound qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> merge-ids (type-free-bound ty) (uquals-free-bound rest)
   largest-id :: List Nat -> Nat
   largest-id ids = case ids of [] -> 0; id : rest -> let more = largest-id rest in if id > more then id else more
   kind-free-bound :: Kind -> List Nat
@@ -2984,6 +3069,7 @@ module Cinch.Type where
     UTuple fields -> type-free-bound fields
     USigma id name domain body -> merge-ids (type-free-bound domain) (remove-id id (type-free-bound body))
     UForall qs body -> remove-ids (quant-id-list (quants-list qs)) (type-free-bound body)
+    UQual qs body -> merge-ids (uquals-free-bound qs) (type-free-bound body)
     UArg a rest -> merge-ids (type-free-bound a) (type-free-bound rest)
     other -> []
   pair-all-ids :: List (Nat, UType) -> List Nat
@@ -3080,6 +3166,16 @@ module Cinch.Type where
   shared-rigids rs pairs = case (rs, pairs) of
     (r : rest, (id, rigid) : more) -> (r.id, rigid) : (shared-rigids rest more)
     other -> []
+  unify-qual :: Span -> UQuals -> UType -> UQuals -> UType -> Store -> Store
+  unify-qual sp qs x rs y st =
+    if uquals-length qs /= uquals-length rs then
+      mismatch sp (UQual qs x) (UQual rs y) st
+    else unify sp x y (unify-uquals sp qs rs st)
+  unify-uquals :: Span -> UQuals -> UQuals -> Store -> Store
+  unify-uquals sp qs rs st = case (qs, rs) of
+    (UQEnd, UQEnd) -> st
+    (UQCons n1 t1 r1, UQCons n2 t2 r2) -> unify-uquals sp r1 r2 (unify sp t1 t2 st)
+    other -> st
   unify-pi :: Span -> UType -> UType -> Store -> Store
   unify-pi sp first second st = case (first, second) of
     (UPi id name domain row result, UPi key other input effects output) ->
@@ -3181,8 +3277,13 @@ module Cinch.Type where
     UTuple fields -> type-pi-ids fields
     USigma id name domain body -> merge-ids [id] (merge-ids (type-pi-ids domain) (type-pi-ids body))
     UForall qs body -> type-pi-ids body
+    UQual qs body -> merge-ids (uquals-pi-ids qs) (type-pi-ids body)
     UArg a rest -> merge-ids (type-pi-ids a) (type-pi-ids rest)
     other -> []
+  uquals-pi-ids :: UQuals -> List Nat
+  uquals-pi-ids qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> merge-ids (type-pi-ids ty) (uquals-pi-ids rest)
   pi-escaping-metas :: List Nat -> List Nat -> Store -> List Nat -> List Nat
   pi-escaping-metas binders ordered st escaped = case ordered of
     [] -> escaped
@@ -3240,6 +3341,7 @@ module Cinch.Type where
     UTuple fields -> UTuple (without-index-levels fields)
     USigma id name domain body -> USigma id name (without-index-levels domain) (without-index-levels body)
     UForall qs body -> UForall qs (without-index-levels body)
+    UQual qs body -> UQual (map-uquals without-index-levels qs) (without-index-levels body)
     UArg x rest -> UArg (without-index-levels x) (without-index-levels rest)
     UIndex carrier value -> UIndex (without-index-levels carrier) (index-without-levels value)
     UCon name k -> UCon name (map-kind-types without-index-levels k)

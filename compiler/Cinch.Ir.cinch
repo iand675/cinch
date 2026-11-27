@@ -562,6 +562,7 @@ module Cinch.Ir where
     -- A contract emits no code: it is a claim about the definition it
     -- names, verified before lowering.
     DWrapperLayout s name repr label -> []
+    DCapability s name -> []
     DUnpackFields s name fields -> []
     DInlineHint s name hint -> []
     DUnrollHint s name hint -> []

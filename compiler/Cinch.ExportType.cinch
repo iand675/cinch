@@ -356,7 +356,13 @@ module Cinch.ExportType where
     -- the reader parses back through the nested-forall conversion.
     UForall qs body -> case forall-binder-names (quants-list qs) scope of
       (names, bound) -> join [Ok "(forall", Ok names, Ok ". ", type-in-style display bound body, Ok ")"]
+    UQual qs body -> join [Ok "(using (", uquals-in display scope qs, Ok ") => ", type-in-style display scope body, Ok ")"]
     other -> Err "checked type has no portable interface representation"
+  uquals-in :: Bool -> List (Nat, String) -> UQuals -> Result String String
+  uquals-in display scope qs = case qs of
+    UQEnd -> Ok ""
+    UQCons name ty UQEnd -> join [Ok name, Ok " :: ", type-in-style display scope ty]
+    UQCons name ty rest -> join [Ok name, Ok " :: ", type-in-style display scope ty, Ok ", ", uquals-in display scope rest]
   export-type :: UType -> Result String String
   export-type ty = type-in [] ty
   promoted-list-in :: Bool -> List (Nat, String) -> List UType -> Result String String

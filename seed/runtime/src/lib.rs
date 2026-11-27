@@ -592,7 +592,9 @@ mod entropy;
 /// Owned public entropy boundary checks for the isolated provider candidate.
 #[cfg(all(test, not(target_os = "unknown")))]
 mod entropy_boundary_tests;
+pub mod effects;
 pub mod error;
+pub mod escape;
 pub mod heap;
 pub mod eval;
 pub mod evolution;

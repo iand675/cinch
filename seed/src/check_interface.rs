@@ -490,6 +490,8 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => Self::interface_type_mentions_cell_effect(dom)
                 || Self::interface_type_mentions_cell_effect(cod),
             Ty::Forall(scheme) => Self::interface_type_mentions_cell_effect(&scheme.ty),
+            Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(Self::interface_type_mentions_cell_effect))
+                || Self::interface_type_mentions_cell_effect(body),
             Ty::Handler { label, input, output, eff, .. } => matches!(label.head.as_str(), "MVar" | "STM")
                 || row(eff) || Self::interface_type_mentions_cell_effect(input)
                 || Self::interface_type_mentions_cell_effect(output),
@@ -901,7 +903,8 @@ impl Checker {
                 _ => true,
             }) { return None }
             let refinement = if refined { Some(self.resolved_refinement_template(info)?) } else { None };
-            let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()));
+            let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()))
+                && !self.is_user_capability(&self.signature_key(module, name));
             let params = info.refine.as_ref().map(|r| r.params.as_slice()).unwrap_or(&[]);
             let parameters = self.interface_parameters(module, name, params, &info.param_kinds);
             let usage = self.interface_usage_nominal(info, &parameters).and_then(|proof| proof.usage);
@@ -929,6 +932,7 @@ mod mvar_effect_contract_tests {
                 ast::ConPath { segments: head.split('.').map(|part| ast::Name::new(part, span)).collect() },
                 args.iter().map(|arg| ast::Name::new(*arg, span)).collect(),
             )).collect(),
+            label_tys: Vec::new(),
             tail: None,
             span,
         }

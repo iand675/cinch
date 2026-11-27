@@ -139,6 +139,9 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
             return p;
         }
     }
+    if !immortal {
+        unsafe { crate::arena::check_escape_heap_budget(layout.size()) };
+    }
     let base = unsafe { crate::heap::alloc_block(layout, immortal, zeroed) };
     crate::alloc_kinds::note(header_kind(header), layout.size());
     let p = match ext {
@@ -149,6 +152,9 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
         None => unsafe { base.add(HEADER_BYTES) },
     };
     unsafe { write_header(p, header) };
+    if !immortal {
+        unsafe { crate::arena::note_escape_heap_alloc(p, layout.size()) };
+    }
     p
 }
 
@@ -603,6 +609,7 @@ pub unsafe fn free(p: *mut u8) {
 /// As for [`free`]; `local` is the calling thread's heap, or `None`.
 #[inline(always)]
 pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::Heap>) {
+    crate::arena::note_escape_heap_free(p);
     #[cfg(test)]
     if kind(h) == KIND_ARRAY {
         crate::cycle::retire_array(p as usize);

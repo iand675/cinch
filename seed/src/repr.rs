@@ -218,7 +218,7 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
         }
         // A polymorphic value is its family's dictionary block
         // (design/rank-n-polymorphism.md section 2).
-        Ty::Forall(_) => Class::Obj,
+        Ty::Forall(_) | Ty::Qual(_, _) => Class::Obj,
     }
 }
 

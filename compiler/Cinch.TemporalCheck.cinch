@@ -29,7 +29,7 @@ module Cinch.TemporalCheck where
   import Cinch.Type (UType, UApp, borrow-type-parts, without-index-levels, empty-store, store-errors, unify, index-of-type, type-text)
   import Cinch.Index (IndexTerm, IRigid, index-equal)
   import Cinch.Proof (Arithmetic, AInteger, AVariable, APlus, AMinus, ATimes, ACall, AArgument, AArgumentsEnd, Proposition, PTruth, PFalsehood, PCompare, PBoth, PEither, PNegate, Comparison, Less, AtMost, Equal, Unequal, AtLeast, Greater, prove, disproved, proposition-equal)
-  import Cinch.Core (CPolyIntro, CPolyElim, mutable-borrow, CoreClause, term-children, core-type, borrow-read-variable, proof-variable, CoreTerm, CUse, CLocal, CProofRef, CProofRefl, CProofSearch, CQualifiedUse, CMethod, CInt, CString, CChar, CUnit, CApply, CApplyEff, CErasedApply, CDecision, CScope, CMemoScope, CSpawn, CJoin, CWith, CHandler, CHandle, CHandlerOperation, CHandlerEnd, CLambda, CLet, CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd, CIf, CCase, CTuple, CPrimitive, CProved, CRefine, CRefineProof, CForget, CCast, CRequire, CDischarge, CGuard, CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError, CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone)
+  import Cinch.Core (CPolyIntro, CPolyElim, CQualIntro, CQualElim, mutable-borrow, CoreClause, term-children, core-type, borrow-read-variable, proof-variable, CoreTerm, CUse, CLocal, CProofRef, CProofRefl, CProofSearch, CQualifiedUse, CMethod, CInt, CString, CChar, CUnit, CApply, CApplyEff, CErasedApply, CDecision, CScope, CMemoScope, CSpawn, CJoin, CWith, CHandler, CHandle, CHandlerOperation, CHandlerEnd, CLambda, CLet, CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd, CIf, CCase, CTuple, CPrimitive, CProved, CRefine, CRefineProof, CForget, CCast, CRequire, CDischarge, CGuard, CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError, CorePattern, CPWild, CPVar, CPProof, CPErasedValue, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone)
 
   export Parameter
   export TemporalStep, TemporalWrite, TemporalOpaque, TemporalDischarge, TemporalCall
@@ -753,6 +753,8 @@ module Cinch.TemporalCheck where
     CTuple sp ty fields -> temporal-scope-sites fields
     CPolyIntro sp ty poly-ids fields -> temporal-scope-sites fields
     CPolyElim sp ty fields poly-args -> temporal-scope-sites fields
+    CQualIntro sp ty givens body -> temporal-scope-sites body
+    CQualElim sp ty value evidence -> temporal-scope-sites value
     CArgument sp value rest -> temporal-scope-sites value <> temporal-scope-sites rest
     CApply sp ty f x -> temporal-scope-sites f <> temporal-scope-sites x
     CApplyEff sp ty row f x -> row-concurrency-sites row <> temporal-scope-sites f <> temporal-scope-sites x

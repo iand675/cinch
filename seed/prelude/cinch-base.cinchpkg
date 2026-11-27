@@ -195,6 +195,21 @@
       "embedded": true
     },
     {
+      "name": "Effect.Reader",
+      "path": "Effect/Reader.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Arena",
+      "path": "Effect/Arena.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Throw",
+      "path": "Effect/Throw.cinch",
+      "embedded": true
+    },
+    {
       "name": "Data.FromList",
       "path": "Data/FromList.cinch",
       "embedded": true
@@ -395,6 +410,9 @@
     "Effect.Fs",
     "Effect.Process",
     "Effect.Io",
+    "Effect.Reader",
+    "Effect.Arena",
+    "Effect.Throw",
     "Data.FromList",
     "Data.FromMap",
     "Text.Show",

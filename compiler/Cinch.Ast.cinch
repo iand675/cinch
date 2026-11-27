@@ -727,6 +727,7 @@ module Cinch.Ast where
     -- Where a clause does not hold the name is absent from the interface,
     -- from the module's exports and from code generation.
     DWrapperLayout :: Span -> String -> String -> List String -> Decl
+    DCapability :: Span -> String -> Decl
     DUnpackFields :: Span -> String -> List (String, Bool) -> Decl
     DInlineHint :: Span -> String -> Result String String -> Decl
     DUnrollHint :: Span -> String -> Result String String -> Decl
@@ -830,6 +831,7 @@ module Cinch.Ast where
     DDecl s x rest -> s
     DDeclsEnd s -> s
     DWrapperLayout s name repr label -> s
+    DCapability s name -> s
     DUnpackFields s name fields -> s
     DInlineHint s name hint -> s
     DUnrollHint s name hint -> s
@@ -868,6 +870,7 @@ module Cinch.Ast where
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DWrapperLayout s name repr label -> None
+    DCapability s name -> None
     DUnpackFields s name fields -> None
     DInlineHint s name hint -> None
     DUnrollHint s name hint -> None
@@ -1210,6 +1213,7 @@ module Cinch.Ast where
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DWrapperLayout s name repr label -> 0
+    DCapability s name -> 0
     DUnpackFields s name fields -> 0
     DInlineHint s name hint -> 0
     DUnrollHint s name hint -> 0

@@ -900,7 +900,8 @@ module Cinch.Parse where
         if p == ";" then decls-loop rest src fix acc
         else if p == "}" then POk (reverse acc) rest
         else decl-step toks src fix acc
-      TAttr text -> (case repr-arguments text of
+      TAttr text -> (if string-strip text == "capability" then capability-decl (sp-of t) rest src fix acc
+        else case repr-arguments text of
         Some args | (args == "unboxed") || args == "transparent" -> wrapper-decl (sp-of t) args rest src fix acc
         Some args | has-repr-item "unboxed" (string-split-on "," args) -> wrapper-decl (sp-of t) "unboxed" rest src fix
           ((DUnmodeled (sp-of t) "repr(unboxed) must appear on its own") : acc)
@@ -928,15 +929,42 @@ module Cinch.Parse where
     [] -> False
     arg : rest -> string-strip arg == item || has-repr-item item rest
 
-  wrapper-decl :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
-  wrapper-decl site repr toks src fix acc = case toks of
-    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then wrapper-decl site repr rest src fix acc else
+  capability-decl :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  capability-decl site toks src fix acc = case toks of
+    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then capability-decl site rest src fix acc
+      else case lt-token t of
+        TAttr text -> (case repr-arguments text of
+          Some args | (args == "unboxed") || args == "transparent" -> wrapper-decl-cap site (Some (sp-of t, args)) rest src fix acc
+          other -> wrapper-decl-cap site None toks src fix acc)
+        _ -> wrapper-decl-cap site None toks src fix acc
+    [] -> PBad
+
+  wrapper-decl-cap :: Span -> Option (Span, String) -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  wrapper-decl-cap cap-site repr-opt toks src fix acc = case toks of
+    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then wrapper-decl-cap cap-site repr-opt rest src fix acc else
       (case parse-decl-recover toks src fix of
         POk d tail -> (case d of
-          DData sp name params constructors -> decls-loop tail src fix (d : (DWrapperLayout site name repr []) : acc)
-          DRecord sp name params fields -> decls-loop tail src fix (d : ((DWrapperLayout site name repr (map (\field -> case field of (label, ty) -> label) fields)) : acc))
-          other -> decls-loop tail src fix (d : (DUnmodeled site ("repr(" <> repr <> ") requires a data or record declaration")) : acc))
+          DData sp name params constructors ->
+            let with-repr = case repr-opt of Some (rs, r) -> (DWrapperLayout rs name r []) : acc; None -> acc in
+            decls-loop tail src fix (d : (DCapability cap-site name) : with-repr)
+          DRecord sp name params fields ->
+            let with-repr = case repr-opt of Some (rs, r) -> (DWrapperLayout rs name r (map (\field -> case field of (label, ty) -> label) fields)) : acc; None -> acc in
+            decls-loop tail src fix (d : (DCapability cap-site name) : with-repr)
+          other -> decls-loop tail src fix (d : (DUnmodeled cap-site "`#[capability]` attaches to a `data` or `record` declaration") : acc))
         PBad -> PBad)
+    [] -> PBad
+
+  wrapper-decl :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  wrapper-decl site repr toks src fix acc = case toks of
+    t : rest -> if lt-virtual t && is-punct-t (lt-token t) ";" then wrapper-decl site repr rest src fix acc
+      else case lt-token t of
+        TAttr text | string-strip text == "capability" -> wrapper-decl-cap (sp-of t) (Some (site, repr)) rest src fix acc
+        _ -> (case parse-decl-recover toks src fix of
+          POk d tail -> (case d of
+            DData sp name params constructors -> decls-loop tail src fix (d : (DWrapperLayout site name repr []) : acc)
+            DRecord sp name params fields -> decls-loop tail src fix (d : ((DWrapperLayout site name repr (map (\field -> case field of (label, ty) -> label) fields)) : acc))
+            other -> decls-loop tail src fix (d : (DUnmodeled site ("repr(" <> repr <> ") requires a data or record declaration")) : acc))
+          PBad -> PBad)
     [] -> PBad
 
   inline-attribute :: String -> Option (String, Result String String)
@@ -3906,7 +3934,7 @@ module Cinch.Parse where
             POk bounds rest2 -> case rest2 of
               a : rest3 ->
                 if is-punct-t (lt-token a) "=>" then
-                  case parse-type-using rest3 src of
+                  case parse-type rest3 src of
                     POk body rest4 -> POk (TUsing (sp-of t) bounds body) rest4
                     PBad -> PBad
                 else PBad

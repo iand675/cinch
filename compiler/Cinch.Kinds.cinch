@@ -145,6 +145,7 @@ module Cinch.Kinds where
     UTuple fields -> type-level fields
     USigma id name domain body -> highest (type-level domain) (type-level body)
     UForall qs body -> type-level body
+    UQual qs body -> highest (uquals-level qs) (type-level body)
     UArg a b -> highest (type-level a) (type-level b)
     UCompare op a b -> highest (type-level a) (type-level b)
     UPropAnd a b -> highest (type-level a) (type-level b)
@@ -167,6 +168,14 @@ module Cinch.Kinds where
     UIndexCall function args -> type-level args
     UIndexMath op a b -> highest (type-level a) (type-level b)
     other -> 0
+  uquals-level :: UQuals -> Nat
+  uquals-level qs = case qs of
+    UQEnd -> 0
+    UQCons name ty rest -> highest (type-level ty) (uquals-level rest)
+  uquals-authorized :: KindIndex -> TypeScope -> UQuals -> Bool
+  uquals-authorized kinds scope qs = case qs of
+    UQEnd -> True
+    UQCons name ty rest -> type-authorized kinds scope ty && uquals-authorized kinds scope rest
   local-carrier :: UType -> Nat -> TypeScope -> Bool
   local-carrier carrier id scope = case lookup-local id (scope.locals) of
     Some sc -> (case scheme-requirements sc of
@@ -254,6 +263,7 @@ module Cinch.Kinds where
     UTuple fields -> type-authorized kinds scope fields
     USigma id name domain body -> binder-body kinds scope id domain body
     UForall qs body -> type-authorized kinds (bind-quant-scope (quants-list qs) scope) body
+    UQual qs body -> uquals-authorized kinds scope qs && type-authorized kinds scope body
     UArg first rest -> type-authorized kinds scope first && type-authorized kinds scope rest
     UCompare relation a b -> type-authorized kinds scope a && type-authorized kinds scope b
     UPropAnd a b -> type-authorized kinds scope a && type-authorized kinds scope b

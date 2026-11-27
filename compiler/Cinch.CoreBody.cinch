@@ -117,6 +117,7 @@ module Cinch.CoreBody where
     UTuple fields -> dense-mix 173 (dense-type-digest fields) 0
     USigma id name domain body -> dense-mix 175 (string-length name) (dense-mix 177 (dense-type-digest domain) (dense-type-digest body))
     UForall qs body -> dense-mix 181 (quants-length qs) (dense-type-digest body)
+    UQual qs body -> dense-mix 183 (uquals-length qs) (dense-type-digest body)
     UArg first rest -> dense-mix 179 (dense-type-digest first) (dense-type-digest rest)
     UEnd -> 181
     UError -> 191

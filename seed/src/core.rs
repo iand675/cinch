@@ -686,6 +686,10 @@ pub enum PlatformOp {
     ArenaEnterPhase,
     /// `arenaExitPhase :: I64 -> I64`: leave and free a phase arena.
     ArenaExitPhase,
+    /// `arenaEscapeRun :: forall e a r. I64 -> (I64 -> a) -> (a -> r) -> (e -> r) -> (Unit -> r) -> r`
+    ArenaEscapeRun,
+    /// `arenaEscapeAbort :: forall e a. I64 -> e -> a`
+    ArenaEscapeAbort,
 }
 
 impl PlatformOp {
@@ -703,6 +707,8 @@ impl PlatformOp {
             PlatformOp::ArenaLeave => "arenaLeave",
             PlatformOp::ArenaEnterPhase => "arenaEnterPhase",
             PlatformOp::ArenaExitPhase => "arenaExitPhase",
+            PlatformOp::ArenaEscapeRun => "arenaEscapeRun",
+            PlatformOp::ArenaEscapeAbort => "arenaEscapeAbort",
         }
     }
 
@@ -721,6 +727,8 @@ impl PlatformOp {
             PlatformOp::ArenaLeave => "cinch_arena_leave",
             PlatformOp::ArenaEnterPhase => "cinch_arena_enter_phase",
             PlatformOp::ArenaExitPhase => "cinch_arena_exit_phase",
+            PlatformOp::ArenaEscapeRun => "cinch_arena_escape_run",
+            PlatformOp::ArenaEscapeAbort => "cinch_arena_escape_abort",
         }
     }
 }
@@ -1203,11 +1211,83 @@ pub enum PrimOp {
     /// body (`cinch.runtime.parBoth@RO`), exactly as a specialized unit's
     /// name carries its class vector.
     Par { op: ParOp, classes: [Class; 2] },
+    /// Evidence-passing algebraic effect runtime operations (`seed/runtime/src/effects.rs`).
+    Ev { op: EvOp, class: Class },
     /// `eval q`: evaluate a typed quotation at runtime (supercompilation
     /// and JIT specification section 7). The quote is typed by its
     /// `Code a` type when constructed; `eval` carries no capability or
     /// effect of its own and is never evidence.
     Eval,
+}
+
+/// Low-level runtime operations for Koka-style evidence-passing algebraic
+/// effect handlers (`seed/runtime/src/effects.rs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EvOp {
+    Push,
+    Pop,
+    Lookup,
+    VtableSlot,
+    EntryMarker,
+    EntrySlotAborts,
+    Abort,
+    IsYielding,
+    IsCaught,
+    YieldSlot,
+    TakeYieldArg,
+    IdClosure,
+}
+
+impl EvOp {
+    pub fn name(self) -> &'static str {
+        match self {
+            EvOp::Push => "evPush",
+            EvOp::Pop => "evPop",
+            EvOp::Lookup => "evLookup",
+            EvOp::VtableSlot => "evVtableSlot",
+            EvOp::EntryMarker => "evEntryMarker",
+            EvOp::EntrySlotAborts => "evEntrySlotAborts",
+            EvOp::Abort => "evAbort",
+            EvOp::IsYielding => "evIsYielding",
+            EvOp::IsCaught => "evIsCaught",
+            EvOp::YieldSlot => "evYieldSlot",
+            EvOp::TakeYieldArg => "evTakeYieldArg",
+            EvOp::IdClosure => "evIdClosure",
+        }
+    }
+
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            EvOp::Push => "cinch_ev_push",
+            EvOp::Pop => "cinch_ev_pop",
+            EvOp::Lookup => "cinch_ev_lookup",
+            EvOp::VtableSlot => "cinch_ev_vtable_slot",
+            EvOp::EntryMarker => "cinch_ev_entry_marker",
+            EvOp::EntrySlotAborts => "cinch_ev_entry_slot_aborts",
+            EvOp::Abort => "cinch_ev_abort",
+            EvOp::IsYielding => "cinch_ev_is_yielding",
+            EvOp::IsCaught => "cinch_ev_is_caught",
+            EvOp::YieldSlot => "cinch_ev_yield_slot",
+            EvOp::TakeYieldArg => "cinch_ev_take_yield_arg",
+            EvOp::IdClosure => "cinch_ev_id_closure",
+        }
+    }
+
+    pub fn arity(self) -> usize {
+        match self {
+            EvOp::Push => 4,
+            EvOp::Abort => 3,
+            EvOp::VtableSlot | EvOp::EntrySlotAborts => 2,
+            EvOp::Pop | EvOp::Lookup | EvOp::EntryMarker | EvOp::IsCaught => 1,
+            // Zero-arg runtime queries take a dummy Unit/0 arg in Core::App so
+            // they are never treated as unapplied zero-arg values.
+            EvOp::IsYielding | EvOp::YieldSlot | EvOp::TakeYieldArg | EvOp::IdClosure => 1,
+        }
+    }
+
+    pub fn uses_class(self) -> bool {
+        matches!(self, EvOp::Abort | EvOp::TakeYieldArg)
+    }
 }
 
 impl PrimOp {
@@ -1383,6 +1463,8 @@ impl PrimOp {
                 "arenaLeave" => Platform(PlatformOp::ArenaLeave),
                 "arenaEnterPhase" => Platform(PlatformOp::ArenaEnterPhase),
                 "arenaExitPhase" => Platform(PlatformOp::ArenaExitPhase),
+                "arenaEscapeRun" => Platform(PlatformOp::ArenaEscapeRun),
+                "arenaEscapeAbort" => Platform(PlatformOp::ArenaEscapeAbort),
                 "netTcpConnect" => Net(NetOp::TcpConnect),
                 "netTcpListen" => Net(NetOp::TcpListen),
                 "netTcpAccept" => Net(NetOp::TcpAccept),
@@ -1474,6 +1556,12 @@ impl PrimOp {
                 // immediate in the unit's body): `cinch.runtime.parBoth@RO`.
                 let used = &classes[..op.class_count()];
                 return format!("cinch.runtime.{}@{}", op.name(), crate::repr::letters(used));
+            }
+            Ev { op, class } => {
+                if op.uses_class() {
+                    return format!("cinch.runtime.{}@{}", op.name(), crate::repr::letters(&[class]));
+                }
+                return format!("cinch.runtime.{}", op.name());
             }
             Bound { ty, max } => {
                 format!("{}Bound{}", if max { "max" } else { "min" }, ty.name())
@@ -1568,7 +1656,7 @@ impl PrimOp {
                     | PlatformOp::ArenaExitPhase
                     | PlatformOp::PackageOffset,
             ) => 1,
-            Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
+            Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText | PlatformOp::ArenaEscapeRun | PlatformOp::ArenaEscapeAbort) => self.sig().0.len(),
             Bytes(
                 BytesOp::Set
                 | BytesOp::SetU8
@@ -1591,6 +1679,7 @@ impl PrimOp {
             // immediates in the body, not parameters.
             Par { op: ParOp::Workers, .. } => 1,
             Par { .. } => 2,
+            Ev { op, .. } => op.arity(),
             _ => 2,
         }
     }
@@ -1723,6 +1812,26 @@ impl PrimOp {
                     | PlatformOp::ArenaEnterPhase
                     | PlatformOp::ArenaExitPhase,
             ) => (vec![i64t.clone()], i64t),
+            Platform(PlatformOp::ArenaEscapeRun) => {
+                let e = Ty::Param("e".into());
+                let a = Ty::Param("a".into());
+                let r = Ty::Param("r".into());
+                (
+                    vec![
+                        i64t.clone(),
+                        Ty::fun(i64t, a.clone()),
+                        Ty::fun(a, r.clone()),
+                        Ty::fun(e, r.clone()),
+                        Ty::fun(Ty::Unit, r.clone()),
+                    ],
+                    r,
+                )
+            }
+            Platform(PlatformOp::ArenaEscapeAbort) => {
+                let e = Ty::Param("e".into());
+                let a = Ty::Param("a".into());
+                (vec![i64t, e], a)
+            }
             Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
             Net(NetOp::TcpListen) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
             Net(NetOp::TcpAccept) => (vec![i64t.clone()], res(i64t.clone())),
@@ -1793,6 +1902,7 @@ impl PrimOp {
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
             Par { op: ParOp::Workers, .. } => (vec![Ty::Nat], Ty::Unit),
             Par { .. } => unreachable!("the parallel callback builtins are not foreign imports"),
+            Ev { .. } => unreachable!("evidence-passing effect primitives are not foreign imports"),
             Conv { from, to, mode } => {
                 let res = if mode == ConvMode::Checked { opt(prim(to)) } else { prim(to) };
                 (vec![prim(from)], res)
@@ -2195,6 +2305,15 @@ pub enum Core {
     /// The runtime fault path: exit 70 through `__cinch_blackhole`,
     /// reached when a match falls through with pattern coverage unprovable.
     Fault,
+    /// Stack-allocate a 6-word (48-byte) `EvEntry` slot for an evidence-passing
+    /// effect handler and return its address as a raw `i64`.
+    EvAllocEntry,
+    /// Cooperative abort return: drop all owned locals (inserted by `rc.rs`)
+    /// and return a zero sentinel of the enclosing function's LLVM return type.
+    Bubble,
+    /// Zero sentinel word of the given class (used for early-exit inside an
+    /// evidence-passing `handle` body).
+    Zero(Class),
     /// Reference counting (design/reclamation.md section 4, inserted by
     /// `crate::rc` after specialization): add one reference to the
     /// binder's word (counted by its class), then evaluate the body.
@@ -4192,7 +4311,7 @@ fn calls_walk(
     match e {
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
         | Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
-        | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
+        | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(..) | Core::StrLit(_) => {}
         Core::Reuse { ctor, args, .. } => {
             if callees.contains(&ctor.0) {
@@ -5126,7 +5245,8 @@ fn core_eq(a: &Core, b: &Core) -> bool {
             c1 == c2 && b1 == b2
         }
         (Core::Bool(x), Core::Bool(y)) => x == y,
-        (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
+        (Core::Zero(x), Core::Zero(y)) => x == y,
+        (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::EvAllocEntry, Core::EvAllocEntry) | (Core::Bubble, Core::Bubble) | (Core::LazyAlloc, Core::LazyAlloc) => true,
         (Core::Var(x), Core::Var(y)) => x == y,
         (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => x == y && v1 == v2,
         (Core::Prim(x), Core::Prim(y)) => x == y,
@@ -5193,7 +5313,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => walk_locals(d, f),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
@@ -5303,7 +5423,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             }
         }
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => use_range(d, l),
         Core::Reuse { token, args, .. } => {
@@ -5440,7 +5560,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         match e {
             Core::Var(l) => note(*l, map, next),
             Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => assign(d, map, next),
             Core::InstDict(_, args, _) | Core::App(_, args) => {
@@ -5557,6 +5677,9 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::Prim(p) => Core::Prim(*p),
         Core::Foreign(n) => Core::Foreign(n.clone()),
         Core::Fault => Core::Fault,
+        Core::EvAllocEntry => Core::EvAllocEntry,
+        Core::Bubble => Core::Bubble,
+        Core::Zero(c) => Core::Zero(*c),
         Core::LazyAlloc => Core::LazyAlloc,
         Core::BoxAlloc => Core::BoxAlloc,
         Core::SyntaxLit(t, scope) => Core::SyntaxLit(t.clone(), scope.clone()),
@@ -5720,6 +5843,9 @@ fn instantiate(
             Core::Prim(p) => Core::Prim(*p),
             Core::Foreign(n) => Core::Foreign(n.clone()),
             Core::Fault => Core::Fault,
+        Core::EvAllocEntry => Core::EvAllocEntry,
+        Core::Bubble => Core::Bubble,
+        Core::Zero(c) => Core::Zero(*c),
             Core::LazyAlloc => Core::LazyAlloc,
             Core::BoxAlloc => Core::BoxAlloc,
             Core::SyntaxLit(t, scope) => Core::SyntaxLit(t.clone(), scope.clone()),
@@ -5904,7 +6030,8 @@ fn match_pat(
             c1 == c2 && b1 == b2
         }
         (Core::Bool(x), Core::Bool(y)) => x == y,
-        (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => {
+        (Core::Zero(x), Core::Zero(y)) => x == y,
+        (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::EvAllocEntry, Core::EvAllocEntry) | (Core::Bubble, Core::Bubble) | (Core::LazyAlloc, Core::LazyAlloc) => {
             true
         }
         (Core::Var(x), Core::Var(y)) => x == y,
@@ -6490,7 +6617,7 @@ fn prim_is_pure(op: PrimOp) -> bool {
     // A zero-word application runs a closure with its own effect row.
     // The platform ops mutate the filesystem, consume entropy and
     // deliver signals, so they are effects too.
-    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. })
+    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. } | PrimOp::Ev { .. })
 }
 
 /// A term's allocation and demand structure (supercompilation section 3:
@@ -6506,13 +6633,13 @@ fn has_alloc(e: &Core) -> bool {
             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
             | Core::RefSet(_, _, _)
             | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
-            | Core::DeclsQuote { .. } => *found = true,
-            Core::Prim(PrimOp::Delay) => *found = true,
+            | Core::DeclsQuote { .. } | Core::EvAllocEntry | Core::Bubble => *found = true,
+            Core::Prim(PrimOp::Delay | PrimOp::Ev { .. }) => *found = true,
             Core::Reuse { .. } => *found = true,
             Core::App(head, _) if matches!(&**head, Core::Ctor(id, _) if id.0 == MUTABLE_CELL) => *found = true,
             Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
-            | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
+            | Core::Fault | Core::Zero(_) | Core::SyntaxLit(..) | Core::StrLit(_)
             | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) => go(d, found),
             Core::Join { body, rest, .. } => {
@@ -6575,7 +6702,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g, _) => f(g),
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
-        | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..) | Core::StrLit(_)
+        | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => scan_calls(d, f),
         Core::Reuse { args, .. } => {
@@ -6649,7 +6776,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) => *n += 1,
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
-        | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
+        | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) => scan_memo(d, n),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => scan_memo(body, n),
@@ -6727,7 +6854,7 @@ fn weights_ok(e: &Core) -> bool {
                 }
             }
             Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
                 go(d, ok)
@@ -6772,7 +6899,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
             Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => true,
             Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
                 go(d, bound)
@@ -6916,7 +7043,8 @@ fn body_impure(e: &Core) -> bool {
             return;
         }
         match e {
-            Core::Fault => *bad = true,
+            Core::Fault | Core::EvAllocEntry | Core::Bubble => *bad = true,
+            Core::Zero(_) => {}
             // A real foreign call is opaque and effectful by contract
             // (foreign function interface specification section 4).
             Core::Foreign(_) => *bad = true,
@@ -7810,7 +7938,7 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
             out.push(&mut **d)
@@ -7886,6 +8014,8 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
                 *c = c.subst(cv);
             }
         }
+        Core::Prim(PrimOp::Ev { op, class }) if op.uses_class() => *class = class.subst(cv),
+        Core::Zero(c) => *c = c.subst(cv),
         Core::Case { alts, .. } => {
             for a in alts.iter_mut() {
                 match &mut a.pat {
@@ -7997,7 +8127,8 @@ pub(crate) fn alpha_eq(a: &Core, b: &Core) -> bool {
                 Core::ConstBig { nat: n2, digits: d2 },
             ) => n1 == n2 && d1 == d2,
             (Core::Bool(x), Core::Bool(y)) => x == y,
-            (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
+        (Core::Zero(x), Core::Zero(y)) => x == y,
+            (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::EvAllocEntry, Core::EvAllocEntry) | (Core::Bubble, Core::Bubble) | (Core::LazyAlloc, Core::LazyAlloc) => true,
             (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => x == y && v1 == v2,
             (Core::Prim(x), Core::Prim(y)) => x == y,
             (Core::Foreign(x), Core::Foreign(y)) => x == y,
@@ -8504,7 +8635,7 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
 fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
     match e {
         Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
-        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => visit(d),
         Core::BoxInit(_, v, _) => visit(v),
@@ -8834,7 +8965,7 @@ fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
         }
         Core::Jump { id, args } => (id, args.len()).hash(h),
         Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => holes.len().hash(h),
-        Core::Unit | Core::Var(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::LazyInit(..) | Core::SyntaxLit(..) => {}
+        Core::Unit | Core::Var(_) | Core::Fault | Core::EvAllocEntry | Core::Bubble | Core::Zero(_) | Core::LazyAlloc | Core::BoxAlloc | Core::LazyInit(..) | Core::SyntaxLit(..) => {}
     }
 }
 
@@ -8976,7 +9107,8 @@ fn share_match(a: &Core, b: &Core, classes: &HashMap<usize, Class>) -> Option<Ha
                 (Core::ConstString { ctor: c1, bytes: b1 }, Core::ConstString { ctor: c2, bytes: b2 }) => c1 == c2 && b1 == b2,
                 (Core::ConstSym(x), Core::ConstSym(y)) | (Core::Foreign(x), Core::Foreign(y)) => x == y,
                 (Core::Bool(x), Core::Bool(y)) => x == y,
-                (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) | (Core::BoxAlloc, Core::BoxAlloc) => true,
+        (Core::Zero(x), Core::Zero(y)) => x == y,
+                (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::EvAllocEntry, Core::EvAllocEntry) | (Core::Bubble, Core::Bubble) | (Core::LazyAlloc, Core::LazyAlloc) | (Core::BoxAlloc, Core::BoxAlloc) => true,
                 (Core::Var(x), Core::Var(y)) => self.local(*x, *y),
                 (Core::Global(i1, c1), Core::Global(i2, c2)) | (Core::Ctor(i1, c1), Core::Ctor(i2, c2)) => i1 == i2 && c1 == c2,
                 (Core::Prim(x), Core::Prim(y)) => x == y,

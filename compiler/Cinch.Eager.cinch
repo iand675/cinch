@@ -16,6 +16,7 @@ module Cinch.Eager where
     CQualifiedUse sp ty symbol role actuals evidence -> symbol : rest
     CLambda sp ty pattern body -> if immediate then rest else references False body rest
     CPolyIntro sp ty ids body -> if immediate then rest else references False body rest
+    CQualIntro sp ty givens body -> if immediate then rest else references False body rest
     CPrimitive sp ty op args | immediate && op == "thunk-delay" -> rest
     other -> children immediate (term-children term) rest
   children :: Bool -> List CoreTerm -> List String -> List String

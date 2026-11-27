@@ -486,6 +486,8 @@ pub struct TypeExport {
     /// Record field names in declaration order.
     pub fields: Vec<String>,
     pub refinement: Option<RefinementExport>,
+    /// True when the type was declared with `#[capability]`.
+    pub capability: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1034,6 +1036,11 @@ impl Iface {
                     if let (JsonValue::Obj(row), Some(contract)) = (&mut value, &t.ownership) {
                         row.insert("ownership".into(), nominal_contract_json(contract));
                     }
+                    if t.capability {
+                        if let JsonValue::Obj(row) = &mut value {
+                            row.insert("capability".into(), JsonValue::Bool(true));
+                        }
+                    }
                     value
                 }),
             ),
@@ -1412,6 +1419,10 @@ impl Iface {
                         })
                     }
                     None => return Err(ParseError("refinement".into())),
+                },
+                capability: match o.get("capability") {
+                    Some(v) => v.as_bool()?,
+                    None => false,
                 },
             };
             if let Some(proof) = &exported.ownership {
@@ -2697,6 +2708,7 @@ mod tests {
         });
         f.exports.types.push(TypeExport {
             ownership: None,
+            capability: false,
             name: "Tree".into(),
             identity: "Main.Tree".into(),
             params: vec!["a".into()],
@@ -2887,6 +2899,7 @@ mod tests {
         iface.exports.types.push(TypeExport {
             name: "Cell".into(), identity: proof.identity.clone(), params: vec!["a".into()], parameters,
             kind: "data".into(), ctors: vec![], ownership: Some(proof), fields: vec![], refinement: None,
+            capability: false,
         });
         let text = iface.to_json();
         let decoded = Iface::from_json(&text).expect("complete private field proof");

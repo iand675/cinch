@@ -298,12 +298,13 @@ module Cinch.Infer where
     MkErasedBinding :: String -> UType -> Nat -> Span -> Option Span -> CheckedBinding
     MkOverloadBinding :: String -> List String -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
+    MkCapabilityBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context names index cache -> ""; MkBindingIndex half left right -> ""; MkRegistrationLookup names trie -> ""; MkRegNode value zero one -> ""; MkRegistrationMissing -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkRefinedLocal name orig ref id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context names index cache -> ""; MkBindingIndex half left right -> ""; MkRegistrationLookup names trie -> ""; MkRegNode value zero one -> ""; MkRegistrationMissing -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkRefinedLocal name orig ref id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name; MkCapabilityBinding name -> ""
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context names index cache -> mono UError; MkBindingIndex half left right -> mono UError; MkRegistrationLookup names trie -> mono UError; MkRegNode value zero one -> mono UError; MkRegistrationMissing -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkRefinedLocal name orig ref id level -> mono ref; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context names index cache -> mono UError; MkBindingIndex half left right -> mono UError; MkRegistrationLookup names trie -> mono UError; MkRegNode value zero one -> mono UError; MkRegistrationMissing -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkRefinedLocal name orig ref id level -> mono ref; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError; MkCapabilityBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context names index cache -> "body-context"; MkBindingIndex half left right -> "binding-index"; MkRegistrationLookup names trie -> "registration-lookup"; MkRegNode value zero one -> "registration-node"; MkRegistrationMissing -> "registration-missing"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkRefinedLocal name orig ref id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context names index cache -> "body-context"; MkBindingIndex half left right -> "binding-index"; MkRegistrationLookup names trie -> "registration-lookup"; MkRegNode value zero one -> "registration-node"; MkRegistrationMissing -> "registration-missing"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkRefinedLocal name orig ref id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"; MkCapabilityBinding name -> "capability"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -1208,7 +1209,7 @@ module Cinch.Infer where
     TList s elems -> convert-promoted external kinds locals None ty st
     TStrLit s text -> (UCon (string-concat-all ["\"", text, "\""]) KType, st)
     TForall s binders body -> convert-nested-forall external kinds locals s binders body st
-    TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
+    TUsing s bounds body -> convert-nested-using external kinds locals s bounds body st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
     TUsageArrow s usage arrow -> check-usage-arrow s usage (convert external kinds locals arrow st)
     TRow s labels tail -> convert-row kinds locals ty st
@@ -1217,6 +1218,24 @@ module Cinch.Infer where
     TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
     TUnmodeled s message -> bad s message st
     other -> bad (type-expr-span ty) "dependent or unmodeled type needs kernel elaboration" st
+  convert-nested-using :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-nested-using external kinds locals sp bounds body st =
+    case convert-nested-bounds kinds locals bounds [] st of
+      (reqs, sr) -> case convert external kinds locals body sr of
+        (inner, done) -> case reqs of
+          [] -> (inner, done)
+          more -> (UQual (uquals-of more) inner, done)
+  convert-nested-bounds :: TypeContext -> List (String, UType) -> TypeExpr -> List String -> Store -> (List Requirement, Store)
+  convert-nested-bounds kinds locals bounds seen st = case bounds of
+    TBoundsEnd s -> ([], st)
+    TBound s name app rest ->
+      if predicate-syntax app then ([], add-error s "a higher-rank using clause cannot carry proof predicates" st)
+      else case convert False kinds locals app st of
+        (ty, sc) ->
+          let checked = if has name seen then add-error s "duplicate dictionary binder" sc else sc in
+          case convert-nested-bounds kinds locals rest (name : seen) checked of
+            (more, done) -> ((Requirement name ty) : more, done)
+    other -> ([], add-error (type-expr-span bounds) "malformed higher-rank using clause" st)
   -- A nested quantifier (design/rank-n-polymorphism.md section 8): its
   -- binders classify by use exactly as a signature's do, and they bind
   -- only types, type constructors, rows and regions. Their ids follow
@@ -1225,17 +1244,14 @@ module Cinch.Infer where
   convert-nested-forall :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-nested-forall external kinds locals sp binders body st =
     if not (quantifiers-ok binders) then bad sp "malformed quantified parameter spine" st else
-    case body of
-      TUsing at bounds inner -> bad at "a nested forall cannot carry `using` constraints yet; lift them to the signature (design/rank-n-polymorphism.md section 7)" st
-      other ->
-        let params = inferred-forall-parameters kinds locals (region-parameters (forall-params-of binders) (region-names body)) body in
-        case shadowed-parameter locals params of
-          Some name -> bad sp (string-concat-all ["the nested forall binder `", name, "` shadows a type variable already in scope; rename it"]) st
-          None -> case parameters external kinds locals params (next-bound-id locals) [] st of
-            (qs, checked) -> case nested-value-binder qs of
-              Some name -> bad sp (string-concat-all ["the nested forall binder `", name, "` is a value or proposition; a nested quantifier binds only types, effect rows and regions"]) checked
-              None -> case convert external kinds (quant-locals qs <> locals) body checked of
-                (converted, done) -> (nested-forall-type qs converted, done)
+      let params = inferred-forall-parameters kinds locals (region-parameters (forall-params-of binders) (region-names body)) body in
+      case shadowed-parameter locals params of
+        Some name -> bad sp (string-concat-all ["the nested forall binder `", name, "` shadows a type variable already in scope; rename it"]) st
+        None -> case parameters external kinds locals params (next-bound-id locals) [] st of
+          (qs, checked) -> case nested-value-binder qs of
+            Some name -> bad sp (string-concat-all ["the nested forall binder `", name, "` is a value or proposition; a nested quantifier binds only types, effect rows and regions"]) checked
+            None -> case convert external kinds (quant-locals qs <> locals) body checked of
+              (converted, done) -> (nested-forall-type qs converted, done)
   nested-forall-type :: List Quant -> UType -> UType
   nested-forall-type qs body = case qs of [] -> body; more -> UForall (quants-of qs) body
   shadowed-parameter :: List (String, UType) -> List TypeParam -> Option String
@@ -4115,6 +4131,7 @@ module Cinch.Infer where
     UTuple fields -> imported-cell-effect-in-type fields
     USigma id name domain body -> imported-cell-effect-in-type domain || imported-cell-effect-in-type body
     UForall parameters body -> imported-cell-effect-in-quants (quants-list parameters) || imported-cell-effect-in-type body
+    UQual rs body -> imported-cell-effect-in-requirements (uquals-list rs) || imported-cell-effect-in-type body
     UArg first rest -> imported-cell-effect-in-type first || imported-cell-effect-in-type rest
     other -> False
 
@@ -4425,8 +4442,13 @@ module Cinch.Infer where
     UTuple xs -> occurs-owner name xs
     USigma id binder domain body -> occurs-owner name domain || occurs-owner name body
     UForall qs body -> occurs-quant-owner name qs || occurs-owner name body
+    UQual rs body -> occurs-uquals-owner name rs || occurs-owner name body
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
+  occurs-uquals-owner :: String -> UQuals -> Bool
+  occurs-uquals-owner name qs = case qs of UQEnd -> False; UQCons n ty rest -> occurs-owner name ty || occurs-uquals-owner name rest
+  positive-uquals :: List String -> UQuals -> Bool
+  positive-uquals group qs = case qs of UQEnd -> True; UQCons n ty rest -> not (occurs-group group ty) && positive-uquals group rest
   -- | Inspect implicit value domains carried by nested quantifier kinds.
   occurs-kind-owner :: String -> Kind -> Bool
   occurs-kind-owner name kind = case kind of
@@ -4473,6 +4495,7 @@ module Cinch.Infer where
     UTuple xs -> positive kinds group xs
     USigma id name domain body -> positive kinds group domain && positive kinds group body
     UForall qs body -> positive-quantifiers group qs && positive kinds group body
+    UQual rs body -> positive-uquals group rs && positive kinds group body
     UArg x rest -> positive kinds group x && positive kinds group rest
     -- A refinement's carrier is the value, so a group occurrence there is a
     -- structural occurrence and the former is not established as
@@ -4576,7 +4599,32 @@ module Cinch.Infer where
         Some existing | string-starts-with "i." name && kind-equal existing kind -> source-class-kinds rest kinds seen
         other -> source-class-kinds rest kinds ((name, kind) : seen))
       None -> source-class-kinds rest kinds seen
+    (DCapability sp name) : rest -> case context-kind name kinds of
+      Some kind -> (case lookup-kind name seen of
+        Some existing -> source-class-kinds rest kinds seen
+        None -> source-class-kinds rest kinds ((name, kind) : seen))
+      None -> source-class-kinds rest kinds seen
+    (DInterface sp home hash metadata) : rest ->
+      source-class-kinds rest kinds (imported-capability-kinds (field "types" (field "exports" metadata)) kinds seen)
     other : rest -> source-class-kinds rest kinds seen
+  imported-capability-kinds :: Json -> TypeContext -> List (String, Kind) -> List (String, Kind)
+  imported-capability-kinds rows kinds seen = case rows of
+    JArr row rest -> case (field "capability" row, field "identity" row) of
+      (JBool True, JStr identity) ->
+        let name = interface-global identity in
+        case context-kind name kinds of
+          Some kind -> (case lookup-kind name seen of
+            Some existing -> imported-capability-kinds rest kinds seen
+            None -> imported-capability-kinds rest kinds ((name, kind) : seen))
+          None -> imported-capability-kinds rest kinds seen
+      other -> imported-capability-kinds rest kinds seen
+    other -> seen
+  imported-capability-bindings :: Json -> List CheckedBinding -> List CheckedBinding
+  imported-capability-bindings rows env = case rows of
+    JArr row rest -> case (field "capability" row, field "identity" row) of
+      (JBool True, JStr identity) -> imported-capability-bindings rest ((MkCapabilityBinding (interface-global identity)) : env)
+      other -> imported-capability-bindings rest env
+    other -> env
   class-parameter-prefix :: Nat -> List Quant -> List Quant
   class-parameter-prefix count qs = if count == 0 then [] else case qs of
     [] -> []
@@ -4880,7 +4928,7 @@ module Cinch.Infer where
       else if category == "type" || category == "signature" || category == "instance" then (env, st)
       else (env, add-error s (unsupported-import category name) st)
     DSource s name metadata -> (env, st)
-    DInterface s name hash metadata -> (env, st)
+    DInterface s name hash metadata -> (imported-capability-bindings (field "types" (field "exports" metadata)) env, st)
     DFun s name clauses -> (env, st)
     DProof s body -> (env, st)
     DRewrite s name syntax -> (env, st)
@@ -4889,6 +4937,7 @@ module Cinch.Infer where
     DRefine s name params binder predicate -> (env, st)
     DExport s text items -> (env, st)
     DWrapperLayout s name repr label -> (env, st)
+    DCapability s name -> ((MkCapabilityBinding name) : env, st)
     DUnpackFields s name labels -> (env, st)
     DInlineHint s name hint -> (env, case hint of Ok value -> st; Err message -> add-error s message st)
     DUnrollHint s name hint -> (env, case hint of Ok value -> st; Err message -> add-error s message st)
@@ -5962,6 +6011,13 @@ module Cinch.Infer where
       None -> env) in
     if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (scoped-branch-writes term positive) st
     else introduced
+  proof-abort-narrowing :: Span -> List CoreEffect -> List CheckedBinding -> CoreTerm -> Store -> List CheckedBinding
+  proof-abort-narrowing origin effects env value st = case value of
+    CIf s ty cond yes no ->
+      let y-ab = term-aborts-uninhabited effects yes in
+      let n-ab = term-aborts-uninhabited effects no in
+      if y-ab /= n-ab then proof-branch origin env cond n-ab st else env
+    other -> env
   prepend-proof-facts :: Span -> List Proposition -> List CheckedBinding -> List CheckedBinding
   prepend-proof-facts origin facts env = case facts of
     [] -> env
@@ -6340,11 +6396,18 @@ module Cinch.Infer where
   -- application head, a projection or a constructor field alike.
   infer :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer classes kinds families env locals expr st = case infer-raw classes kinds families env locals expr st of
-    (term, checked) -> poly-elim-all (expr-span expr) term checked
-  poly-elim-all :: Span -> CoreTerm -> Store -> (CoreTerm, Store)
-  poly-elim-all sp term st = case normalize st (core-type term) of
+    (term, checked) -> poly-elim-all (expr-span expr) env term checked
+  qual-evidence-holes :: Span -> List CoreGiven -> List Requirement -> List CoreEvidence
+  qual-evidence-holes sp givens reqs = case reqs of
+    [] -> []
+    r : rest -> (CENeeded sp (r.ty) givens) : (qual-evidence-holes sp givens rest)
+  poly-elim-all :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
+  poly-elim-all sp env term st = case normalize st (core-type term) of
     UForall qs inner -> case open-scheme False (MkScheme (quants-list qs) inner) st of
-      (opened, pairs, next) -> poly-elim-all sp (CPolyElim sp opened term (pair-types pairs)) next
+      (opened, pairs, next) -> poly-elim-all sp env (CPolyElim sp opened term (pair-types pairs)) next
+    UQual qs inner ->
+      let holes = qual-evidence-holes sp (env-givens env) (uquals-list qs) in
+      poly-elim-all sp env (CQualElim sp inner term holes) st
     other -> (term, st)
   pair-types :: List (Nat, UType) -> List UType
   pair-types pairs = case pairs of [] -> []; (id, ty) : rest -> ty : (pair-types rest)
@@ -6352,6 +6415,46 @@ module Cinch.Infer where
   rigid-ids pairs = case pairs of
     [] -> []
     (id, ty) : rest -> case ty of URigid key name level kind -> key : (rigid-ids rest); other -> rigid-ids rest
+  bind-qual-givens :: Span -> List (String, Kind) -> List Requirement -> List CheckedBinding -> Store -> (List CoreGiven, List CheckedBinding, Store)
+  bind-qual-givens sp classes reqs env st = case reqs of
+    [] -> ([], env, st)
+    (Requirement name ty) : rest ->
+      let checked = if checked-class-type classes (normalize st ty) then st else add-error sp "using constraint needs a saturated checked signature type" st in
+      case fresh-id checked of
+        (id, fresh) ->
+          let symbol = "#qual_" <> nat-to-string id in
+          let given = CoreGiven sp symbol ty in
+          case bind-qual-givens sp classes rest ((MkGivenBinding name ty symbol) : env) fresh of
+            (more, env2, done) -> (given : more, env2, done)
+  check-qual-intro :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-qual-intro classes kinds families env locals expr expected st = case expected of
+    UQual qs inner ->
+      let sp = expr-span expr in
+      if synthesizes-qual env st expr then
+        (case infer-raw classes kinds families env locals expr st of
+          (term, checked) -> (term, unify sp expected (core-type term) checked))
+      else case bind-qual-givens sp classes (uquals-list qs) env st of
+        (givens, env2, ready) -> case check classes kinds families env2 locals expr inner ready of
+          (body, checked) ->
+            let pure = include-effects sp (core-effects body) (URow UEnd) checked in
+            if store-error-count pure > store-error-count checked then
+              (CQualIntro sp expected givens body, add-error sp "a qualified value must be pure to build" checked)
+            else (CQualIntro sp expected givens body, pure)
+    other -> check classes kinds families env locals expr expected st
+  synthesizes-qual :: List CheckedBinding -> Store -> Expr -> Bool
+  synthesizes-qual env st expr = case poly-head expr 0 of
+    Some (name, arguments) -> (case lookup-binding name env of
+      Some binding -> (case checked-scheme binding of
+        MkScheme [] ty -> qual-after st arguments ty
+        other -> False)
+      None -> False)
+    None -> False
+  qual-after :: Store -> Nat -> UType -> Bool
+  qual-after st arguments ty = case normalize st ty of
+    UQual qs inner -> arguments == 0
+    UFun a b -> arguments > 0 && qual-after st (arguments - 1) b
+    UFunEff a row b -> arguments > 0 && qual-after st (arguments - 1) b
+    other -> False
   -- Check against a polytype: open its binders as rigid variables one level
   -- deeper than every existing metavariable, check the body there, and
   -- require it to be pure. `bind-other` refuses any older metavariable
@@ -6398,7 +6501,7 @@ module Cinch.Infer where
   infer-callee classes kinds families env locals expr st = case expr of
     EVar sp name -> (case lookup-expression-value sp kinds name env st of
       (term, opened) -> case discharge-call classes sp env term opened of
-        (callee, checked) -> poly-elim-all sp callee checked)
+        (callee, checked) -> poly-elim-all sp env callee checked)
     other -> infer classes kinds families env locals expr st
 
   -- =========================================================================
@@ -6406,6 +6509,10 @@ module Cinch.Infer where
   -- direct singleton pattern matching, and direct singleton-lifted calls).
   -- =========================================================================
 
+  uquals-contains-rigid-id :: Nat -> UQuals -> Bool
+  uquals-contains-rigid-id wanted qs = case qs of
+    UQEnd -> False
+    UQCons name ty rest -> type-contains-rigid-id wanted ty || uquals-contains-rigid-id wanted rest
   type-contains-rigid-id :: Nat -> UType -> Bool
   type-contains-rigid-id wanted ty = case ty of
     URigid id _ _ _ -> id == wanted
@@ -6424,6 +6531,7 @@ module Cinch.Infer where
     UProofFun p r b -> type-contains-rigid-id wanted p || type-contains-rigid-id wanted r || type-contains-rigid-id wanted b
     UUsageArrow _ a -> type-contains-rigid-id wanted a
     UForall _ b -> type-contains-rigid-id wanted b
+    UQual qs b -> uquals-contains-rigid-id wanted qs || type-contains-rigid-id wanted b
     UIndexMath _ l r -> type-contains-rigid-id wanted l || type-contains-rigid-id wanted r
     other -> False
 
@@ -7044,6 +7152,7 @@ module Cinch.Infer where
   check :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check classes kinds families env locals expr expected st = case normalize st expected of
     UForall qs inner -> check-poly-intro classes kinds families env locals expr (UForall qs inner) st
+    UQual qs inner -> check-qual-intro classes kinds families env locals expr (UQual qs inner) st
     other -> check-monotype classes kinds families env locals expr expected st
   check-monotype :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-monotype classes kinds families env locals expr expected st = case expr of
@@ -7187,6 +7296,7 @@ module Cinch.Infer where
       -- A polytype mid-spine is instantiated by the application itself;
       -- the hint stops rather than equate it with an arrow.
       UForall qs inner -> st
+      UQual qs inner -> st
       other -> case arrow-parts sp ty st of
         (domain, row, result, shaped) -> hint-independent-result binders sp result rest expected shaped
   apply-spine :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> CoreTerm -> List Expr -> Store -> (CoreTerm, Store)
@@ -7532,6 +7642,7 @@ module Cinch.Infer where
     UTuple fields -> UTuple (relocate-local-index binding new-level fields)
     USigma id name domain body -> USigma id name (relocate-local-index binding new-level domain) (relocate-local-index binding new-level body)
     UForall qs body -> UForall qs (relocate-local-index binding new-level body)
+    UQual qs body -> UQual (map-uquals (relocate-local-index binding new-level) qs) (relocate-local-index binding new-level body)
     UArg x rest -> UArg (relocate-local-index binding new-level x) (relocate-local-index binding new-level rest)
     UIndex carrier value -> UIndex (relocate-local-index binding new-level carrier) (relocate-local-index-term binding new-level value)
     UCon name k -> UCon name (map-kind-types (relocate-local-index binding new-level) k)
@@ -7622,7 +7733,7 @@ module Cinch.Infer where
       else let (scheme, pairs) = strict-value-scheme eligible level env value st in
         case fresh-id (restore-level level st) of
           (id, fresh) -> case let-binding at env name scheme id level value fresh of
-            (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
+            (binding, prepared) -> case check-refined-let classes kinds families (proof-abort-narrowing at (kinds.effects) (proof-let-env env binding id scheme value prepared) value prepared) locals sp rest body expected prepared of
               (result, done) -> (CLet at expected id name scheme (abstract-term st pairs value) result, done)
   infer-arguments :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   infer-arguments classes kinds families env locals term args st = case args of
@@ -7687,9 +7798,11 @@ module Cinch.Infer where
           (row, sr) -> (a, row, b, unify sp ty (UFunEff a row b) sr)
   apply-argument :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
-    -- A call whose result is a polytype is instantiated before the next
-    -- argument applies (design/rank-n-polymorphism.md section 3).
-    UForall qs inner -> (case poly-elim-all sp fun st of
+    -- A call whose result is a polytype or qualified type is instantiated
+    -- before the next argument applies (design/rank-n-polymorphism.md section 3).
+    UForall qs inner -> (case poly-elim-all sp env fun st of
+      (opened, next) -> apply-argument classes kinds families env locals sp opened arg next)
+    UQual qs inner -> (case poly-elim-all sp env fun st of
       (opened, next) -> apply-argument classes kinds families env locals sp opened arg next)
     other -> apply-monotype-argument classes kinds families env locals sp fun arg st
   apply-monotype-argument :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
@@ -7993,7 +8106,7 @@ module Cinch.Infer where
     EAnn sp value ty -> handled-do-error value
     other -> None
   infer-handle :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
-  infer-handle classes kinds families env locals sp body handled-by st = case infer classes (handling-context True kinds) families env locals body (case handled-do-error body of Some (site, reason) -> add-error site reason st; None -> st) of
+  infer-handle classes kinds families env locals sp body handled-by st = case infer classes (handling-context True kinds) families env locals body st of
     (value, checked) -> case fresh-meta KType checked of
       (output, fresh) -> case (case handled-by of
         EHandler at label clauses -> infer-source-handler classes kinds families env locals at label clauses (core-type value) output fresh
@@ -8002,8 +8115,14 @@ module Cinch.Infer where
           Some (label, input, result, row) -> let matched = align-handler-row sp label (core-effects value) (unify sp input (core-type value) next) in
             case handler-residual (normalize matched label) (normalize matched (core-effects value)) of
               Some residual -> case source-effect (normalize matched label) (kinds.effects) of
-                Some declaration -> if handler-body-direct (normalize matched label) (source-operation-names (declaration.effect-operations)) (map-term-types (normalize matched) value) then (CHandle sp result label residual value h, matched)
-                  else term-error sp "handled effect is performed through a called computation" matched
+                Some declaration ->
+                  let norm-h = map-term-types (normalize matched) h in
+                  let norm-val = map-term-types (normalize matched) value in
+                  if handler-is-evidence norm-h then (CHandle sp result label residual value h, matched)
+                  else
+                    let checked-do = case handled-do-error body of Some (site, reason) -> add-error site reason matched; None -> matched in
+                    if handler-body-direct (normalize matched label) (source-operation-names (declaration.effect-operations)) norm-val then (CHandle sp result label residual value h, checked-do)
+                    else term-error sp "handled effect is performed through a called computation" checked-do
                 None -> term-error sp "handler needs its actual checked effect declaration" matched
               None -> term-error sp "handler body needs a resolved effect row" matched
           None -> term-error sp "handle expects a checked handler value" next
@@ -8020,7 +8139,12 @@ module Cinch.Infer where
             CQualifiedUse pos ty owner role actuals holes -> apply holes (\evidence -> CQualifiedUse pos ty owner role actuals evidence) opened
             CMethod pos ty method owner slot actuals holes -> apply holes (\evidence -> CMethod pos ty method owner slot actuals evidence) opened
             CUse pos ty owner role actuals -> apply [] (\unused -> callee) opened
-            other -> term-error at "explicit capability supplies apply to a named function" opened))
+            other -> case normalize opened (core-type callee) of
+              UQual qs inner ->
+                let reqs = uquals-list qs in
+                let holes = qual-evidence-holes at (env-givens env) reqs in
+                supply-context classes kinds families env locals sp name supplies reqs holes (\evidence -> CQualElim at inner callee evidence) opened
+              non-qual -> term-error at "explicit capability supplies apply to a named function" opened))
       None -> term-error at ("unknown name " <> name) st)
     other -> term-error sp "explicit capability supplies apply to a named function" st
   take-supply :: String -> List (String, Expr) -> Option (Expr, List (String, Expr))
@@ -8028,6 +8152,10 @@ module Cinch.Infer where
     [] -> None
     (label, value) : rest -> if wanted == label then Some (value, rest) else
       (case take-supply wanted rest of Some (found, remaining) -> Some (found, (label, value) : remaining); None -> None)
+  is-capability-target :: List String -> UType -> Bool
+  is-capability-target caps ty = case with-region ty of
+    Some r -> True
+    None -> case root-name ty of Some name -> has name caps; None -> False
   supply-context :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> String -> List (String, Expr) -> List Requirement -> List CoreEvidence -> (List CoreEvidence -> CoreTerm) -> Store -> (CoreTerm, Store)
   supply-context classes kinds families env locals sp name supplies requirements holes build st = case (requirements, holes) of
     ([], []) -> (case supplies of
@@ -8035,10 +8163,12 @@ module Cinch.Infer where
       (label, value) : rest -> term-error (expr-span value) (name <> " has no capability parameter " <> label <> " available to supply") st)
     (requirement : rest, (CENeeded pos wanted candidates) : more) ->
       let keep = CENeeded pos wanted candidates in
-      (case (with-region (normalize st wanted), take-supply (requirement.name) supplies) of
-        (Some region, Some (rhs, remaining)) -> (case check classes kinds families env locals rhs wanted st of
+      let norm = normalize st wanted in
+      let caps = (env-inventory env).capabilities in
+      (case (is-capability-target caps norm, take-supply (requirement.name) supplies) of
+        (True, Some (rhs, remaining)) -> (case check classes kinds families env locals rhs wanted st of
           (value, checked) -> (case store-errors checked of
-            error : prior -> term-error (expr-span rhs) ("checking the supplied value against the declared capability type: got Io " <> display-type-text (normalize st region) <> " for " <> requirement.name) checked
+            error : prior -> term-error (expr-span rhs) ("checking the supplied value against the declared capability type: got " <> display-type-text norm <> " for " <> requirement.name) checked
             [] -> case fresh-id checked of
               (id, fresh) -> let symbol = "#capability_" <> nat-to-string id in
                 let given = CoreGiven pos symbol wanted in
@@ -8094,7 +8224,7 @@ module Cinch.Infer where
       else let (scheme, pairs) = strict-value-scheme eligible level env value st in
         case fresh-id (restore-level level st) of
           (id, fresh) -> case let-binding at env name scheme id level value fresh of
-            (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
+            (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-abort-narrowing at (kinds.effects) (proof-let-env env binding id scheme value prepared) value prepared) locals sp rest body wanted prepared of
               (result, done) -> (CLet at (core-type result) id name scheme (abstract-term st pairs value) result, done)
   memo-demand-head :: List CheckedBinding -> Expr -> Bool
   memo-demand-head env expression = case expression of
@@ -8498,6 +8628,8 @@ module Cinch.Infer where
     CTuple sp ty fields -> stable-recursive-initializer group fields
     CPolyIntro sp ty poly-ids fields -> stable-recursive-initializer group fields
     CPolyElim sp ty fields poly-args -> stable-recursive-initializer group fields
+    CQualIntro sp ty givens body -> True
+    CQualElim sp ty val evs -> stable-recursive-initializer group val
     CLet sp ty id name sc rhs body -> stable-recursive-initializer group rhs && stable-recursive-initializer group body
     CIf sp ty condition yes no -> stable-recursive-initializer group condition && stable-recursive-initializer group yes && stable-recursive-initializer group no
     CProved sp ty evidence body -> stable-recursive-initializer group body
@@ -8824,6 +8956,7 @@ module Cinch.Infer where
       UProofFun pred row res -> UProofFun (substitute-rigids refs pred) (substitute-rigids refs row) (substitute-rigids refs res)
       UUsageArrow u arrow -> UUsageArrow u (substitute-rigids refs arrow)
       UForall qs body -> UForall qs (substitute-rigids refs body)
+      UQual qs body -> UQual (map-uquals (substitute-rigids refs) qs) (substitute-rigids refs body)
       UCompare rel a b -> UCompare rel (substitute-rigids refs a) (substitute-rigids refs b)
       UPropAnd a b -> UPropAnd (substitute-rigids refs a) (substitute-rigids refs b)
       UPropOr a b -> UPropOr (substitute-rigids refs a) (substitute-rigids refs b)
@@ -9484,7 +9617,8 @@ module Cinch.Infer where
     (id, fresh) -> let ready = check-discard at (name == "_") (core-type value) fresh in
       let scheme = mono (normalize ready (core-type value)) in
       let bound = proof-let-env env (MkLocalBinding name scheme id (ready.level)) id scheme value ready in
-      case check-do classes kinds families (if name == "_" then env else bound) locals sp rest expected (check-borrow-binding at env (scheme-body scheme) ready) of
+      let next-env = proof-abort-narrowing at (kinds.effects) (if name == "_" then env else bound) value ready in
+      case check-do classes kinds families next-env locals sp rest expected (check-borrow-binding at env (scheme-body scheme) ready) of
         (body, done) -> (CLet at expected id name scheme value body, done)
   -- | Keep do-let values pure and apply the same source value restriction as ordinary lets.
   check-do-lets :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
@@ -10188,6 +10322,7 @@ module Cinch.Infer where
     MkErasedBinding name predicate id origin invalidated -> MkErasedBinding name (normalize st predicate) id origin invalidated
     MkOverloadBinding name candidates -> b
     MkSyntaxBinding name -> b
+    MkCapabilityBinding name -> b
     MkForeignExport name plan -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of [] -> []; (MkBodyContext context names index cache) : rest -> finish-bindings st rest; b : rest -> (finish-binding st b) : (finish-bindings st rest)
@@ -10745,8 +10880,11 @@ module Cinch.Infer where
     UTuple fields -> rewrite-mentions-task fields
     USigma id name domain body -> rewrite-mentions-task domain || rewrite-mentions-task body
     UForall qs body -> rewrite-mentions-task body
+    UQual qs body -> uquals-mention-task qs || rewrite-mentions-task body
     UArg first rest -> rewrite-mentions-task first || rewrite-mentions-task rest
     other -> False
+  uquals-mention-task :: UQuals -> Bool
+  uquals-mention-task qs = case qs of UQEnd -> False; UQCons name ty rest -> rewrite-mentions-task ty || uquals-mention-task rest
   rewrite-restricted-type :: UType -> Bool
   rewrite-restricted-type ty = let view = refinement-view ty in case later-parts view of
     Some _ -> True
@@ -13143,12 +13281,14 @@ module Cinch.Infer where
   env-instances env = (env-inventory env).candidates
   env-inventory :: List CheckedBinding -> InstanceInventory
   env-inventory env = case env of
-    [] -> InstanceInventory [] []
+    [] -> InstanceInventory [] [] []
     (MkCheckedBinding name sc role) : rest -> if role == "implicit-instance" then
-      (case env-inventory rest of InstanceInventory factories guarded -> InstanceInventory ((name, sc) : factories) guarded)
+      (case env-inventory rest of InstanceInventory factories guarded caps -> InstanceInventory ((name, sc) : factories) guarded caps)
       else env-inventory rest
     (MkConditionalBinding origin method owner slot dictionary head sc body) : rest -> (case env-inventory rest of
-      InstanceInventory factories guarded -> InstanceInventory factories (if implicit-method origin then (dictionary, head) : guarded else guarded))
+      InstanceInventory factories guarded caps -> InstanceInventory factories (if implicit-method origin then (dictionary, head) : guarded else guarded) caps)
+    (MkCapabilityBinding name) : rest -> (case env-inventory rest of
+      InstanceInventory factories guarded caps -> InstanceInventory factories guarded (name : caps))
     (MkBodyContext context names index cache) : rest -> cache.instances
     other : rest -> env-inventory rest
   register-instance-rows :: List (String, Kind) -> TypeContext -> Span -> Json -> List CheckedBinding -> Option (HashMap String CheckedBinding) -> Store -> (List CheckedBinding, Option (HashMap String CheckedBinding), Store)

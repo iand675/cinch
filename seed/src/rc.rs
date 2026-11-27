@@ -1542,6 +1542,15 @@ impl Pass<'_> {
         if matches!(e, Core::Fault) {
             return Core::Fault;
         }
+        // Cooperative abort bubble returns early from the enclosing function:
+        // drop every currently owned local, then bubble out.
+        if matches!(e, Core::Bubble) {
+            let mut core = Core::Bubble;
+            for x in owned.iter().copied().rev() {
+                core = self.rc(true, x, core);
+            }
+            return core;
+        }
         let mut need = self.need(e);
         need.extend(live.iter().copied());
         let kept: Set = owned.intersection(&need).copied().collect();
@@ -2147,7 +2156,8 @@ impl Verifier<'_, '_, '_> {
             Core::Proj(_, access) => Some(access.class),
             Core::DictProj(_, _, _, c) | Core::Demand(_, c) | Core::BoxGet(_, c)
             | Core::BoxInit(_, _, c) => Some(*c),
-            Core::RefSet(..) | Core::LazyInit(..) | Core::BoxClear(..) | Core::Fault => Some(Class::Raw),
+            Core::RefSet(..) | Core::LazyInit(..) | Core::BoxClear(..) | Core::Fault | Core::EvAllocEntry | Core::Bubble => Some(Class::Raw),
+            Core::Zero(c) => Some(*c),
             _ => None,
         };
         if let Some(c) = class { return raw(c); }
@@ -2230,6 +2240,13 @@ impl Verifier<'_, '_, '_> {
     fn value(&mut self, e: &Core, st: &mut State) -> Result<bool, String> {
         match e {
             Core::Fault => Ok(false),
+            Core::Bubble => {
+                if let Some((&x, &n)) = st.cnt.iter().find(|(_, n)| **n > 0) {
+                    return Err(format!("bubble leaks v{x} (count {n})"));
+                }
+                Ok(false)
+            }
+            Core::EvAllocEntry | Core::Zero(_) => Ok(true),
             Core::Var(x) => {
                 self.take(st, x.0, "owned use")?;
                 Ok(true)

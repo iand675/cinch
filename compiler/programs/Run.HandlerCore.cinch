@@ -55,11 +55,14 @@ module Main where
         let run = CoreDefinition sp "run" (mono (UFunEff unit other-row int)) Nil Nil Nil [CoreClause sp [CPWild sp unit] with-other] in
         let condition = CPrimitive sp (UCon "Bool" KType) "<" (CArgument sp call (CArgument sp one (CArgumentsEnd sp))) in
         let guarded test first = CCase sp int (CUnit sp unit) (CAlternative sp (CPWild sp unit) (CGuard sp int test first) (CAlternative sp (CPWild sp unit) call (CAlternativesEnd sp))) in
+        let nontail-call = CPrimitive sp int "+" (CArgument sp call (CArgument sp one (CArgumentsEnd sp))) in
+        let nontail = make-handler ret (slots nontail-call) empty in
         [ not (check creation)
         , typing-definition-closed context creation-run
         , not (check (handled (make-handler ret (slots (guarded condition one)) empty) empty))
         , check (handled (make-handler ret (slots (guarded (CPrimitive sp (UCon "Bool" KType) "decision-true" (CArgumentsEnd sp)) call)) empty) empty)
-        , not (check (CHandle sp int label empty (CApplyEff sp int row (CUse sp (UFunEff unit row int) "hidden" "external" Nil) (CUnit sp unit)) good))
+        , check (CHandle sp int label empty (CApplyEff sp int row (CUse sp (UFunEff unit row int) "hidden" "external" Nil) (CUnit sp unit)) good)
+        , not (check (CHandle sp int label empty (CApplyEff sp int row (CUse sp (UFunEff unit row int) "hidden" "external" Nil) (CUnit sp unit)) nontail))
         , check (handled good empty)
         , check (handled (make-handler ret (slots one) empty) empty)
         , not (typing-definition-closed unregistered (answer (handled good empty)))

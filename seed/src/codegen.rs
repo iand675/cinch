@@ -397,6 +397,8 @@ fn emit_module(
         if !profile.no_cpr {
             reg.products = product_ctors(program, &reg);
             reg.cpr = cpr_units(program, &reg);
+            reg.sum_variants = sum_ctors(program, &reg);
+            reg.csr = csr_units(program, &reg);
         }
         reg.tailcc = tail_units(program, &reg);
     }
@@ -641,6 +643,22 @@ fn emit_module(
         "declare i64 @cinch_arena_leave(i64)",
         "declare i64 @cinch_arena_enter_phase(i64)",
         "declare i64 @cinch_arena_exit_phase(i64)",
+        "declare i64 @cinch_arena_escape_run(i64, i64, i64, i64, i64)",
+        "declare i64 @cinch_arena_escape_abort(i64, i64)",
+        // Cross-call algebraic effect evidence & cooperative bubbling (`seed/runtime/src/effects.rs`).
+        "declare i64 @cinch_ev_push(ptr, i64, i64, i64)",
+        "declare i64 @cinch_ev_pop(ptr)",
+        "declare ptr @cinch_ev_lookup(i64)",
+        "declare i64 @cinch_ev_entry_vtable(ptr)",
+        "declare i64 @cinch_ev_vtable_slot(ptr, i64)",
+        "declare i64 @cinch_ev_entry_marker(ptr)",
+        "declare i64 @cinch_ev_entry_slot_aborts(ptr, i64)",
+        "declare i64 @cinch_ev_abort(i64, i64, i64)",
+        "declare i64 @cinch_ev_is_yielding()",
+        "declare i64 @cinch_ev_is_caught(i64)",
+        "declare i64 @cinch_ev_yield_slot()",
+        "declare i64 @cinch_ev_take_yield_arg()",
+        "declare i64 @cinch_ev_id_closure()",
         // The networking family (`seed/runtime/src/net.rs`): TCP
         // sockets by handle and platform name resolution.
         "declare i64 @cinch_net_tcp_connect(i64, i64)",
@@ -1370,6 +1388,11 @@ struct Registry {
     /// The constructors a product result may return in registers, by unit
     /// name ([`product_ctors`]).
     products: HashMap<String, Cpr>,
+    /// The units of this module whose body `<unit>#cc` returns a two-variant
+    /// constructed sum (`{ i64, i64 }`) in registers ([`csr_units`]).
+    csr: HashMap<String, Csr>,
+    /// Constructors eligible to be one arm of a [`Csr`] ([`sum_ctors`]).
+    sum_variants: HashMap<String, CsrVariant>,
     /// Each unit's parameter classes (concrete after the collector): the
     /// classes of the words a closure over the unit saves.
     unit_params: HashMap<String, Vec<Class>>,
@@ -2228,7 +2251,7 @@ impl Registry {
         // A product result's body returns an aggregate, so a caller that
         // wants the word and cannot box it beside the call (an apply stub)
         // calls the C wrapper, which boxes it.
-        if self.tailcc.contains(unit) && !self.cpr.contains_key(unit) {
+        if self.tailcc.contains(unit) && !self.cpr.contains_key(unit) && !self.csr.contains_key(unit) {
             (tailcc_body(unit), "tailcc ")
         } else {
             (sym, "")
@@ -2398,6 +2421,11 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
         PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::RwLock { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        PrimOp::Ev { op, class } => Some(match op {
+            crate::core::EvOp::VtableSlot | crate::core::EvOp::IdClosure => Class::Obj,
+            crate::core::EvOp::TakeYieldArg => class,
+            _ => Class::Raw,
+        }),
         _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
     }
 }
@@ -2481,6 +2509,11 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
             crate::core::ParOp::Tabulate => vec![Class::TObj, Class::Obj],
             crate::core::ParOp::Workers => vec![Class::TObj],
         },
+        PrimOp::Ev { op, class } => match op {
+            crate::core::EvOp::Push => vec![Class::Raw, Class::Raw, Class::Obj, Class::Raw],
+            crate::core::EvOp::Abort => vec![Class::Raw, Class::Raw, class],
+            _ => vec![Class::Raw; op.arity()],
+        },
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
         PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
@@ -2510,6 +2543,7 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
         PrimOp::RwLock { op, .. } => op.consumes(i),
         PrimOp::Slots { op, .. } => op.consumes(i),
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
+        PrimOp::Ev { op: crate::core::EvOp::Abort, .. } => i == 2,
         _ => false,
     }
 }
@@ -3383,7 +3417,7 @@ fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     if matches!(op, Par { op: crate::core::ParOp::Workers, .. }) {
         return Some(op.sig());
     }
-    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. }) {
+    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. } | PrimOp::Ev { .. }) {
         return None;
     }
     Some(op.sig())
@@ -4097,6 +4131,55 @@ impl Cpr {
     }
 }
 
+/// One constructor variant of a Constructed Sum Result ([`Csr`]): either
+/// nullary (`field: None`, payload word `0`) or unary with one single-word
+/// (`i64`) field.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CsrVariant {
+    ctor: String,
+    tag: usize,
+    field: Option<Class>,
+}
+
+impl CsrVariant {
+    fn arity(&self) -> usize {
+        usize::from(self.field.is_some())
+    }
+}
+
+/// Constructed Sum Result: a two-variant uniform sum (`Option`, `Result`, or
+/// any user 2-variant sum whose variants have 0 or 1 single-word field, with
+/// at least one variant carrying a payload). Returned as `{ i64, i64 }` =
+/// `(tag, payload)` in registers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Csr {
+    v0: CsrVariant,
+    v1: CsrVariant,
+}
+
+impl Csr {
+    fn new(a: CsrVariant, b: CsrVariant) -> Option<Self> {
+        if a.tag == b.tag || (a.field.is_none() && b.field.is_none()) {
+            return None;
+        }
+        if a.tag < b.tag {
+            Some(Self { v0: a, v1: b })
+        } else {
+            Some(Self { v0: b, v1: a })
+        }
+    }
+
+    fn variant(&self, ctor: &str) -> Option<&CsrVariant> {
+        if self.v0.ctor == ctor {
+            Some(&self.v0)
+        } else if self.v1.ctor == ctor {
+            Some(&self.v1)
+        } else {
+            None
+        }
+    }
+}
+
 /// The most fields a product result returns in registers. Three is what
 /// x86-64 returns in `rax`, `rdx` and `rcx`; a fourth word makes LLVM
 /// return the aggregate through memory, which is no better than the block.
@@ -4110,8 +4193,8 @@ const CPR_MAX_FIELDS: usize = 3;
 ///   the target has apply twins), or
 /// - makes a saturated known tail call to another member: a function unit
 ///   of this module whose result crosses like its own (the same product,
-///   or the same word or narrowed type). `tailcc` lets the parameter lists
-///   differ.
+///   the same unboxed sum, or the same word or narrowed type). `tailcc`
+///   lets the parameter lists differ.
 ///
 /// The set is the greatest fixed point of that rule, so a cycle of known
 /// tail calls (mutual recursion) keeps all of its members. A tail call to a
@@ -4126,9 +4209,10 @@ const CPR_MAX_FIELDS: usize = 3;
 /// enters a unit outside the set with an ordinary call, which adds one
 /// frame that the next call does not grow.
 fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
-    fn result(reg: &Registry, unit: &str) -> (Option<String>, &'static str) {
+    fn result(reg: &Registry, unit: &str) -> (Option<String>, Option<(String, String)>, &'static str) {
         (
             reg.cpr.get(unit).map(|c| c.ctor.clone()),
+            reg.csr.get(unit).map(|c| (c.v0.ctor.clone(), c.v1.ctor.clone())),
             reg.narrow_sigs.get(unit).map_or(Cross::WORD, |s| s.ret).ty(),
         )
     }
@@ -4150,7 +4234,7 @@ fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
                 _ => {
                     if reg.tail_apply
                         && (1..=TAIL_ARGS).contains(&args.len())
-                        && result(reg, unit) == (None, Cross::WORD.ty())
+                        && result(reg, unit) == (None, None, Cross::WORD.ty())
                     {
                         *unknown = true;
                     }
@@ -4237,6 +4321,29 @@ fn product_ctors(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
         .collect()
 }
 
+/// Constructors eligible to be one arm of a Constructed Sum Result ([`Csr`]):
+/// uniform layout, 0 or 1 single-word (`i64`) field with concrete class.
+fn sum_ctors(p: &Program, reg: &Registry) -> HashMap<String, CsrVariant> {
+    p.fns
+        .iter()
+        .filter_map(|f| {
+            f.ctor?;
+            let ctor = f.id.0.as_str();
+            let (tag, n) = *reg.ctors.get(ctor)?;
+            let fields = &f.repr.fields;
+            if n > 1 || fields.len() != n || reg.plan_of(ctor).is_some() {
+                return None;
+            }
+            let field = match fields.first() {
+                None => None,
+                Some(c) if !c.is_param() && *c != Class::Wide => Some(*c),
+                Some(_) => return None,
+            };
+            Some((ctor.to_string(), CsrVariant { ctor: ctor.to_string(), tag, field }))
+        })
+        .collect()
+}
+
 /// The units whose result is a constructed product ([`Cpr`]). A candidate
 /// is a function unit of this module ([`Registry::fn_units`]), other than
 /// the program's entry, whose every tail leaf (the forms [`CoreEmitter::emit_to`]
@@ -4261,7 +4368,7 @@ fn cpr_units(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
             Core::If(_, a, b) => leaves(&a.body, unit, reg, out) && leaves(&b.body, unit, reg, out),
             Core::Case { alts, .. } => alts.iter().all(|a| leaves(&a.body, unit, reg, out)),
             Core::Join { body, rest, .. } => leaves(body, unit, reg, out) && leaves(rest, unit, reg, out),
-            Core::Jump { .. } | Core::Fault => true,
+            Core::Jump { .. } | Core::Fault | Core::Bubble | Core::Zero(_) => true,
             Core::Reuse { ctor, args, .. } => {
                 out.push(Leaf::Ctor(ctor.0.clone()));
                 reg.ctors.get(&ctor.0).map(|c| c.1) == Some(args.len())
@@ -4360,6 +4467,135 @@ fn cpr_units(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
     }
 }
 
+/// The units whose result is a two-variant Constructed Sum Result ([`Csr`]).
+/// Disjoint from [`Registry::cpr`]: runs after [`cpr_units`] and skips any unit
+/// already handled by CPR.
+fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
+    enum Leaf {
+        Ctor(String),
+        Call(String),
+    }
+    fn leaves(e: &Core, unit: &str, reg: &Registry, out: &mut Vec<Leaf>) -> bool {
+        match e {
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => leaves(b, unit, reg, out),
+            Core::Release { body, .. } => leaves(body, unit, reg, out),
+            Core::If(_, a, b) => leaves(&a.body, unit, reg, out) && leaves(&b.body, unit, reg, out),
+            Core::Case { alts, .. } => alts.iter().all(|a| leaves(&a.body, unit, reg, out)),
+            Core::Join { body, rest, .. } => leaves(body, unit, reg, out) && leaves(rest, unit, reg, out),
+            Core::Jump { .. } | Core::Fault | Core::Bubble | Core::Zero(_) => true,
+            Core::Ctor(id, _) if reg.ctors.get(&id.0).map(|c| c.1) == Some(0) => {
+                out.push(Leaf::Ctor(id.0.clone()));
+                true
+            }
+            Core::Reuse { ctor, args, .. } => {
+                out.push(Leaf::Ctor(ctor.0.clone()));
+                reg.ctors.get(&ctor.0).map(|c| c.1) == Some(args.len())
+            }
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) if reg.ctors.get(&id.0).map(|c| c.1) == Some(args.len()) => {
+                    out.push(Leaf::Ctor(id.0.clone()));
+                    true
+                }
+                Core::Global(g, _) if reg.arity.get(&g.0) == Some(&args.len()) => {
+                    if g.0 != unit {
+                        out.push(Leaf::Call(g.0.clone()));
+                    }
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let mut calls: HashMap<String, Vec<String>> = HashMap::new();
+    let mut direct_ctors: HashMap<String, Vec<String>> = HashMap::new();
+    let mut out: HashMap<String, Csr> = HashMap::new();
+    let mut open: Vec<String> = Vec::new();
+    for f in &p.fns {
+        let name = &f.id.0;
+        if !reg.fn_units.contains(name)
+            || p.main.as_ref() == Some(&f.id)
+            || reg.cpr.contains_key(name)
+            || reg.narrow_sigs.get(name).is_some_and(|s| !s.ret.is_word())
+        {
+            continue;
+        }
+        let mut found = Vec::new();
+        if !leaves(&f.body, name, reg, &mut found) {
+            continue;
+        }
+        let mut ctors: Vec<String> = Vec::new();
+        let mut called = Vec::new();
+        let mut valid = true;
+        for leaf in found {
+            match leaf {
+                Leaf::Ctor(c) => {
+                    if !reg.sum_variants.contains_key(&c) {
+                        valid = false;
+                        break;
+                    }
+                    if !ctors.contains(&c) {
+                        ctors.push(c);
+                    }
+                }
+                Leaf::Call(g) => called.push(g),
+            }
+        }
+        if !valid || ctors.len() > 2 {
+            continue;
+        }
+        match ctors.len() {
+            2 => {
+                let v0 = reg.sum_variants[&ctors[0]].clone();
+                let v1 = reg.sum_variants[&ctors[1]].clone();
+                let Some(csr) = Csr::new(v0, v1) else { continue };
+                out.insert(name.clone(), csr);
+            }
+            1 | 0 => {
+                if called.is_empty() {
+                    continue;
+                }
+                open.push(name.clone());
+            }
+            _ => continue,
+        }
+        direct_ctors.insert(name.clone(), ctors);
+        calls.insert(name.clone(), called);
+    }
+    // Propagate CSR to units that construct 0 or 1 variant directly and tail-call a CSR unit.
+    loop {
+        let mut progress = false;
+        open.retain(|u| {
+            let known = calls[u].iter().find_map(|g| out.get(g).cloned());
+            match known {
+                Some(csr) if direct_ctors[u].iter().all(|c| csr.variant(c).is_some()) => {
+                    out.insert(u.clone(), csr);
+                    progress = true;
+                    false
+                }
+                _ => true,
+            }
+        });
+        if !progress {
+            break;
+        }
+    }
+    // Greatest fixed point: every called leaf must return the exact same CSR.
+    loop {
+        let bad: Vec<String> = out
+            .iter()
+            .filter(|(u, csr)| calls[*u].iter().any(|g| out.get(g) != Some(csr)))
+            .map(|(u, _)| u.clone())
+            .collect();
+        if bad.is_empty() {
+            return out;
+        }
+        for u in bad {
+            out.remove(&u);
+        }
+    }
+}
+
 /// The product a value-position expression always builds, when it does
 /// ([`CoreEmitter::virtual_let`]): every leaf the destination-passing
 /// emitter delivers is a saturated application of one product constructor
@@ -4381,7 +4617,7 @@ fn product_leaves(e: &Core, reg: &Registry) -> Option<Cpr> {
             Core::If(_, a, b) => go(&a.body, reg, found) && go(&b.body, reg, found),
             Core::Case { alts, .. } => alts.iter().all(|a| go(&a.body, reg, found)),
             Core::Join { body, rest, .. } => go(body, reg, found) && go(rest, reg, found),
-            Core::Jump { .. } | Core::Fault => true,
+            Core::Jump { .. } | Core::Fault | Core::Bubble | Core::Zero(_) => true,
             Core::Reuse { ctor, args, .. } => {
                 reg.products.get(&ctor.0).is_some_and(|c| c.fields.len() == args.len() && agree(c))
             }
@@ -4397,6 +4633,83 @@ fn product_leaves(e: &Core, reg: &Registry) -> Option<Cpr> {
     }
     let mut found = None;
     (go(e, reg, &mut found) && found.is_some()).then(|| found.cloned()).flatten()
+}
+
+/// The two-variant sum a value-position expression always builds, when it does
+/// ([`CoreEmitter::virtual_let`]).
+fn sum_leaves(e: &Core, reg: &Registry) -> Option<Csr> {
+    fn go(e: &Core, reg: &Registry, ctors: &mut Vec<String>, csr: &mut Option<Csr>) -> bool {
+        match e {
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => go(b, reg, ctors, csr),
+            Core::Release { body, .. } => go(body, reg, ctors, csr),
+            Core::If(_, a, b) => go(&a.body, reg, ctors, csr) && go(&b.body, reg, ctors, csr),
+            Core::Case { alts, .. } => alts.iter().all(|a| go(&a.body, reg, ctors, csr)),
+            Core::Join { body, rest, .. } => go(body, reg, ctors, csr) && go(rest, reg, ctors, csr),
+            Core::Jump { .. } | Core::Fault | Core::Bubble | Core::Zero(_) => true,
+            Core::Ctor(id, _) => {
+                if reg.sum_variants.get(&id.0).is_some_and(|v| v.arity() == 0) {
+                    if !ctors.contains(&id.0) {
+                        ctors.push(id.0.clone());
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            Core::Reuse { ctor, args, .. } => {
+                if reg.sum_variants.get(&ctor.0).is_some_and(|v| v.arity() == args.len()) {
+                    if !ctors.contains(&ctor.0) {
+                        ctors.push(ctor.0.clone());
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) => {
+                    if reg.sum_variants.get(&id.0).is_some_and(|v| v.arity() == args.len()) {
+                        if !ctors.contains(&id.0) {
+                            ctors.push(id.0.clone());
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Core::Global(g, _) => {
+                    if reg.arity.get(&g.0) != Some(&args.len()) {
+                        return false;
+                    }
+                    let Some(c) = reg.csr.get(&g.0) else { return false };
+                    match csr {
+                        Some(prev) => prev == c,
+                        None => {
+                            *csr = Some(c.clone());
+                            true
+                        }
+                    }
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let mut ctors = Vec::new();
+    let mut csr = None;
+    if !go(e, reg, &mut ctors, &mut csr) {
+        return None;
+    }
+    match csr {
+        Some(c) if ctors.iter().all(|k| c.variant(k).is_some()) => Some(c),
+        Some(_) => None,
+        None if ctors.len() == 2 => {
+            let v0 = reg.sum_variants.get(&ctors[0])?.clone();
+            let v1 = reg.sum_variants.get(&ctors[1])?.clone();
+            Csr::new(v0, v1)
+        }
+        None => None,
+    }
 }
 
 /// Whether `body` mentions the product-result local `x` only to take it
@@ -4475,6 +4788,82 @@ fn product_uses_only_take_apart(body: &Core, x: LocalId, cpr: &Cpr) -> bool {
     ok && allowed > 0 && total == allowed
 }
 
+/// Whether `body` mentions the sum-result local `x` only to take it apart
+/// (`case` matching its constructors or `_`, `Release` inside a `Con` arm, or `drop`).
+fn sum_uses_only_take_apart(body: &Core, x: LocalId, csr: &Csr) -> bool {
+    fn visit(e: &Core, x: LocalId, csr: &Csr, inside: bool, allowed: &mut usize, ok: &mut bool) {
+        match e {
+            Core::Case { scrut, alts } => {
+                let on_x = match &**scrut {
+                    Core::Var(v) if *v == x => {
+                        *allowed += 1;
+                        let valid = !alts.is_empty()
+                            && alts.iter().all(|a| match &a.pat {
+                                CPat::Con { tag, fields, .. } => {
+                                    (*tag == csr.v0.tag && fields.len() == csr.v0.arity())
+                                        || (*tag == csr.v1.tag && fields.len() == csr.v1.arity())
+                                }
+                                CPat::Wild => true,
+                                _ => false,
+                            });
+                        if !valid {
+                            *ok = false;
+                        }
+                        true
+                    }
+                    other => {
+                        visit(other, x, csr, inside, allowed, ok);
+                        false
+                    }
+                };
+                for a in alts {
+                    let alt_inside = inside || (on_x && matches!(a.pat, CPat::Con { .. }));
+                    visit(&a.body, x, csr, alt_inside, allowed, ok);
+                }
+            }
+            Core::Release { block, body, .. } => {
+                if *block == x {
+                    *allowed += 1;
+                    if !inside {
+                        *ok = false;
+                    }
+                }
+                visit(body, x, csr, inside, allowed, ok);
+            }
+            Core::Drop(l, _, b) => {
+                if *l == x {
+                    *allowed += 1;
+                }
+                visit(b, x, csr, inside, allowed, ok);
+            }
+            Core::Dup(_, _, b) => visit(b, x, csr, inside, allowed, ok),
+            Core::Let(_, _, v, b) => {
+                visit(v, x, csr, inside, allowed, ok);
+                visit(b, x, csr, inside, allowed, ok);
+            }
+            Core::If(c, t, f) => {
+                visit(c, x, csr, inside, allowed, ok);
+                visit(&t.body, x, csr, inside, allowed, ok);
+                visit(&f.body, x, csr, inside, allowed, ok);
+            }
+            Core::Join { body, rest, .. } => {
+                visit(body, x, csr, inside, allowed, ok);
+                visit(rest, x, csr, inside, allowed, ok);
+            }
+            _ => {}
+        }
+    }
+    let mut total = 0;
+    crate::core::walk_locals(body, &mut |l| {
+        if l == x {
+            total += 1;
+        }
+    });
+    let (mut allowed, mut ok) = (0, true);
+    visit(body, x, csr, false, &mut allowed, &mut ok);
+    ok && allowed > 0 && total == allowed
+}
+
 /// Box the product aggregate `r` (of `cpr`'s type) into its constructor's
 /// block through the constructor's own unit, answering the block word.
 fn box_product(b: &mut Builder, cpr: &Cpr, r: &str) -> String {
@@ -4487,6 +4876,34 @@ fn box_product(b: &mut Builder, cpr: &Cpr, r: &str) -> String {
     let block = b.reg();
     b.line(&format!("{block} = call i64 @{}({})", quote(&cpr.ctor), words.join(", ")));
     block
+}
+
+/// Box the `{ i64, i64 }` sum aggregate `r` into its constructor's block.
+fn box_sum(b: &mut Builder, csr: &Csr, r: &str) -> String {
+    let tag = b.reg();
+    b.line(&format!("{tag} = extractvalue {{ i64, i64 }} {r}, 0"));
+    let val = b.reg();
+    b.line(&format!("{val} = extractvalue {{ i64, i64 }} {r}, 1"));
+    let cmp = b.reg();
+    b.line(&format!("{cmp} = icmp eq i64 {tag}, {}", csr.v0.tag));
+    let l0 = b.label();
+    let l1 = b.label();
+    let ljoin = b.label();
+    b.line(&format!("br i1 {cmp}, label %{l0}, label %{l1}"));
+    b.start(&l0);
+    let b0 = b.reg();
+    let a0 = if csr.v0.field.is_some() { format!("i64 {val}") } else { String::new() };
+    b.line(&format!("{b0} = call i64 @{}({a0})", quote(&csr.v0.ctor)));
+    b.line(&format!("br label %{ljoin}"));
+    b.start(&l1);
+    let b1 = b.reg();
+    let a1 = if csr.v1.field.is_some() { format!("i64 {val}") } else { String::new() };
+    b.line(&format!("{b1} = call i64 @{}({a1})", quote(&csr.v1.ctor)));
+    b.line(&format!("br label %{ljoin}"));
+    b.start(&ljoin);
+    let res = b.reg();
+    b.line(&format!("{res} = phi i64 [ {b0}, %{l0} ], [ {b1}, %{l1} ]"));
+    res
 }
 
 /// The separate body of a [`Registry::tailcc`] unit or a product result
@@ -4591,7 +5008,7 @@ fn build_unit(
     };
     match &body {
         UnitBody::Prim(op) => {
-            if matches!(op, PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. }) { lang.pure = false; }
+            if matches!(op, PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. } | PrimOp::Ev { .. }) { lang.pure = false; }
             // Always inline pure single-instruction scalar/wide/float/bit/cmp/
             // conversion primitives and direct Bytes/Nat fast paths so LLVM
             // never hits its inline budget inside large crypto/math kernels.
@@ -4761,17 +5178,20 @@ fn build_unit(
     let fn_body = matches!(body, UnitBody::Fn(_));
     let tailcc = fn_body && reg.tailcc.contains(name);
     let cpr = if fn_body { reg.cpr.get(name) } else { None };
+    let csr = if fn_body { reg.csr.get(name) } else { None };
     let cc = if tailcc { "tailcc " } else { "" };
-    let header = match cpr {
+    let header = match (cpr, csr) {
         // A product result's body returns the constructor's fields: the
         // header's result is the aggregate, and a word's `range` does not
         // apply to it.
-        Some(cpr) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
+        (Some(cpr), _) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
             .replacen("define i64 ", &format!("define {cc}{} ", cpr.ty()), 1),
-        None if tailcc => {
+        (None, Some(_)) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
+            .replacen("define i64 ", &format!("define {cc}{{ i64, i64 }} "), 1),
+        (None, None) if tailcc => {
             fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
         }
-        None => fn_header(name, arity, ret_range, &noundef_params, narrow),
+        (None, None) => fn_header(name, arity, ret_range, &noundef_params, narrow),
     };
     // The C wrapper keeps the unit's boundary exactly as it was, narrowed
     // positions included: the object ABI, a foreign consumer and the JIT
@@ -4800,6 +5220,19 @@ fn build_unit(
             words.join(", ")
         ));
         text
+    } else if let Some(csr) = csr {
+        let args: Vec<String> = (0..arity).map(|i| format!("{} %p{i}", cross(i).ty())).collect();
+        let a0 = if csr.v0.field.is_some() { "i64 %v" } else { "" };
+        let a1 = if csr.v1.field.is_some() { "i64 %v" } else { "" };
+        format!(
+            "{} {{\nentry:\n  %r = call {cc}{{ i64, i64 }} @{}({})\n  %t = extractvalue {{ i64, i64 }} %r, 0\n  %v = extractvalue {{ i64, i64 }} %r, 1\n  %c = icmp eq i64 %t, {}\n  br i1 %c, label %csr0, label %csr1\ncsr0:\n  %b0 = call i64 @{}({a0})\n  br label %csrjoin\ncsr1:\n  %b1 = call i64 @{}({a1})\n  br label %csrjoin\ncsrjoin:\n  %b = phi i64 [ %b0, %csr0 ], [ %b1, %csr1 ]\n  ret i64 %b\n}}\n\n",
+            fn_header(name, arity, None, &noundef_params, narrow),
+            quote(&tailcc_body(name)),
+            args.join(", "),
+            csr.v0.tag,
+            quote(&csr.v0.ctor),
+            quote(&csr.v1.ctor),
+        )
     } else if tailcc {
         let ret = narrow.map_or(Cross::WORD, |s| s.ret).ty();
         let args: Vec<String> = (0..arity).map(|i| format!("{} %p{i}", cross(i).ty())).collect();
@@ -4829,10 +5262,14 @@ fn build_unit(
         .extend(closures_named(&body_text, reg.unit_symbols()));
     scan.closures_taken
         .extend(closures_named(&unit_globals, reg.unit_symbols()));
-    // The boxing wrapper calls the constructor's unit, which the body
+    // The boxing wrapper calls the constructor's unit(s), which the body
     // itself no longer reaches.
     if let Some(cpr) = cpr {
         scan.refs.insert(cpr.ctor.clone());
+    }
+    if let Some(csr) = csr {
+        scan.refs.insert(csr.v0.ctor.clone());
+        scan.refs.insert(csr.v1.ctor.clone());
     }
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
@@ -4857,7 +5294,7 @@ fn build_unit(
         wrapper,
         // The body's attributes describe the body. A boxing wrapper
         // allocates where its body does not, so it carries none of them.
-        wrapper_group: cpr.is_none(),
+        wrapper_group: cpr.is_none() && csr.is_none(),
         scan,
         lang_facts: lang,
     })
@@ -5134,6 +5571,13 @@ fn call_unit(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) -> St
         b.line(&format!("{r} = call {cc}{} @{}({})", cpr.ty(), quote(&tailcc_body(name)), typed.join(", ")));
         drop_lent(b, reg, name, args);
         return box_product(b, cpr, &r);
+    }
+    if let Some(csr) = reg.csr.get(name) {
+        let cc = if reg.tailcc.contains(name) { "tailcc " } else { "" };
+        let r = b.reg();
+        b.line(&format!("{r} = call {cc}{{ i64, i64 }} @{}({})", quote(&tailcc_body(name)), typed.join(", ")));
+        drop_lent(b, reg, name, args);
+        return box_sum(b, csr, &r);
     }
     let ret = sig.map_or(Cross::WORD, |s| s.ret);
     let (sym, cc) = reg.direct(name, name.to_string());
@@ -5418,6 +5862,7 @@ fn stub_saturate(
     if tail
         && reg.tailcc.contains(name)
         && !reg.cpr.contains_key(name)
+        && !reg.csr.contains_key(name)
         && !reg.lends_counted(name)
         && narrow.is_none_or(|s| s.ret.is_word())
     {
@@ -8047,6 +8492,28 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     ret(b, &r);
                 }
+                ArenaEscapeRun => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[
+                            "i64 %p0".to_string(),
+                            "i64 %p1".to_string(),
+                            "i64 %p2".to_string(),
+                            "i64 %p3".to_string(),
+                            "i64 %p4".to_string(),
+                        ],
+                    );
+                    ret(b, &r);
+                }
+                ArenaEscapeAbort => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    ret(b, &r);
+                }
                 MapPackageBytes | PackageText => {
                     let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
                     let r = rt_call(b, k.extern_name(), &args);
@@ -8271,6 +8738,65 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     );
                     let w = freeze_word(b, &r);
                     ret_result(b, reg, op, &w, |_| "0".to_string());
+                }
+            }
+        }
+        Ev { op: ev_op, .. } => {
+            use crate::core::EvOp::*;
+            match ev_op {
+                Push => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = inttoptr i64 %p0 to ptr"));
+                    let r = rt_call(
+                        b,
+                        ev_op.extern_name(),
+                        &[
+                            format!("ptr {p}"),
+                            "i64 %p1".to_string(),
+                            "i64 %p2".to_string(),
+                            "i64 %p3".to_string(),
+                        ],
+                    );
+                    ret(b, &r);
+                }
+                Pop | EntryMarker => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = inttoptr i64 %p0 to ptr"));
+                    let r = rt_call(b, ev_op.extern_name(), &[format!("ptr {p}")]);
+                    ret(b, &r);
+                }
+                Lookup => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = call ptr @{}(i64 %p0)", ev_op.extern_name()));
+                    let r = b.reg();
+                    b.line(&format!("{r} = ptrtoint ptr {p} to i64"));
+                    ret(b, &r);
+                }
+                VtableSlot | EntrySlotAborts => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = inttoptr i64 %p0 to ptr"));
+                    let r = rt_call(
+                        b,
+                        ev_op.extern_name(),
+                        &[format!("ptr {p}"), "i64 %p1".to_string()],
+                    );
+                    ret(b, &r);
+                }
+                Abort => {
+                    let r = rt_call(
+                        b,
+                        ev_op.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string(), "i64 %p2".to_string()],
+                    );
+                    ret(b, &r);
+                }
+                IsCaught => {
+                    let r = rt_call(b, ev_op.extern_name(), &["i64 %p0".to_string()]);
+                    ret(b, &r);
+                }
+                IsYielding | YieldSlot | TakeYieldArg | IdClosure => {
+                    let r = rt_call(b, ev_op.extern_name(), &[]);
+                    ret(b, &r);
                 }
             }
         }
@@ -10205,7 +10731,9 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         frame_bases: HashMap::new(),
         pending: Vec::new(),
         cpr: reg.cpr.get(&f.id.0).cloned(),
+        csr: reg.csr.get(&f.id.0).cloned(),
         virt: HashMap::new(),
+        virt_sum: HashMap::new(),
     };
     // A narrowed parameter arrives at its own width and the body reads a
     // slot word, so the entry widens it once (design/narrow-value-
@@ -10341,6 +10869,9 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         | Core::Foreign(_)
         | Core::SpliceVal(_)
         | Core::Fault
+        | Core::EvAllocEntry
+        | Core::Bubble
+        | Core::Zero(_)
         | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::DeclsQuote { .. }
@@ -10424,6 +10955,9 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::Foreign(_)
         | Core::SpliceVal(_)
         | Core::Fault
+        | Core::EvAllocEntry
+        | Core::Bubble
+        | Core::Zero(_)
         | Core::Quote { .. }
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(..)
@@ -10550,12 +11084,17 @@ struct CoreEmitter<'a, 'b> {
     /// This unit's own product result ([`Cpr`]): every tail leaf returns
     /// the constructor's fields as an aggregate.
     cpr: Option<Cpr>,
+    /// This unit's own two-variant sum result ([`Csr`]): every tail leaf
+    /// returns `{ i64, i64 }` = `(tag, payload)` in registers.
+    csr: Option<Csr>,
     /// The results of product-result calls that were never boxed, by the
     /// local the `let` bound: the slot of each field word and the field's
     /// class. The local's only uses are a `case` on it, which binds the
     /// fields from the slots, and the count operations of the block that
     /// does not exist, which act on the fields.
     virt: HashMap<LocalId, (Vec<String>, Vec<Class>)>,
+    /// The results of sum-result calls that were never boxed: `(tag_slot, val_slot, csr)`.
+    virt_sum: HashMap<LocalId, (String, String, Csr)>,
 }
 
 /// A join's code generation site: the block its body starts at, the slot
@@ -10592,6 +11131,10 @@ enum Dest {
     /// builds the product (or calls a unit returning it) delivers here;
     /// [`product_leaves`] admitted the value on that condition.
     Fields { slots: Vec<String>, tys: Vec<&'static str>, label: String, base: usize },
+    /// A two-variant sum that is never boxed ([`CoreEmitter::virtual_let`]):
+    /// each leaf stores `(tag, payload)` into `(tag_slot, val_slot)` and
+    /// branches to `label`.
+    Sum { tag_slot: String, val_slot: String, label: String, base: usize, csr: Csr },
 }
 
 impl Dest {
@@ -10610,9 +11153,9 @@ impl Dest {
                 b.line(&format!("store {ty} {v}, ptr {slot}"));
                 b.line(&format!("br label %{label}"));
             }
-            // A word cannot be a product's fields; the emitter refuses
+            // A word cannot be an unboxed product/sum; the emitter refuses
             // such a leaf before it gets here.
-            Dest::Fields { .. } => b.line("unreachable"),
+            Dest::Fields { .. } | Dest::Sum { .. } => b.line("unreachable"),
         }
     }
 
@@ -10626,6 +11169,15 @@ impl Dest {
         }
     }
 
+    /// Deliver a two-variant sum's `(tag, payload)` words.
+    fn settle_sum(&self, b: &mut Builder, tag: &str, val: &str) {
+        if let Dest::Sum { tag_slot, val_slot, label, .. } = self {
+            b.line(&format!("store i64 {tag}, ptr {tag_slot}"));
+            b.line(&format!("store i64 {val}, ptr {val_slot}"));
+            b.line(&format!("br label %{label}"));
+        }
+    }
+
     /// How deep the `Release` scope was when this destination was made:
     /// the tokens a path delivering here is leaving, and so the ones it
     /// must settle ([`CoreEmitter::settle_tokens`]). The return leaves the
@@ -10633,7 +11185,7 @@ impl Dest {
     fn base(&self) -> usize {
         match self {
             Dest::Ret => 0,
-            Dest::Slot { base, .. } | Dest::Fields { base, .. } => *base,
+            Dest::Slot { base, .. } | Dest::Fields { base, .. } | Dest::Sum { base, .. } => *base,
         }
     }
 }
@@ -11065,6 +11617,36 @@ impl CoreEmitter<'_, '_> {
                 self.b.start(&l);
                 Ok("0".to_string())
             }
+            Core::EvAllocEntry => {
+                let slot = self.b.alloca_words(6);
+                let addr = self.b.reg();
+                self.b.line(&format!("{addr} = ptrtoint ptr {slot} to i64"));
+                Ok(addr)
+            }
+            Core::Zero(c) => {
+                let _ = c;
+                Ok("0".to_string())
+            }
+            Core::Bubble => {
+                self.settle_tokens(0);
+                if let Some(cpr) = &self.cpr {
+                    let ty = cpr.ty();
+                    self.b.line(&format!("ret {ty} zeroinitializer"));
+                } else if self.csr.is_some() {
+                    self.b.line("ret { i64, i64 } zeroinitializer");
+                } else {
+                    let ret_ty = self.ret.ty();
+                    let zero = if self.ret.is_wide() {
+                        "0".to_string()
+                    } else {
+                        self.ret.narrow(self.b, "0")
+                    };
+                    self.b.line(&format!("ret {ret_ty} {zero}"));
+                }
+                let l = self.b.label();
+                self.b.start(&l);
+                Ok("0".to_string())
+            }
             Core::InstDict(id, subs, _) => {
                 let info = self
                     .reg
@@ -11299,6 +11881,45 @@ impl CoreEmitter<'_, '_> {
             }
             return Ok(());
         }
+        if let Some((tag_slot, val_slot, csr)) = self.virt_sum.get(&x).cloned() {
+            let drop = matches!(e, Core::Drop(..));
+            let c0 = csr.v0.field.filter(|c| !matches!(c, Class::Raw | Class::Wide));
+            let c1 = csr.v1.field.filter(|c| !matches!(c, Class::Raw | Class::Wide));
+            match (c0, c1) {
+                (None, None) => {}
+                (Some(a), Some(b)) if a == b => {
+                    let w = self.b.reg();
+                    self.b.line(&format!("{w} = load i64, ptr {val_slot}"));
+                    rc_op(self.b, self.reg.rc_debug, drop, &w, a);
+                }
+                _ => {
+                    let tagv = self.b.reg();
+                    self.b.line(&format!("{tagv} = load i64, ptr {tag_slot}"));
+                    let cmp = self.b.reg();
+                    self.b.line(&format!("{cmp} = icmp eq i64 {tagv}, {}", csr.v0.tag));
+                    let l0 = self.b.label();
+                    let l1 = self.b.label();
+                    let ldone = self.b.label();
+                    self.b.line(&format!("br i1 {cmp}, label %{l0}, label %{l1}"));
+                    self.b.start(&l0);
+                    if let Some(c) = c0 {
+                        let w = self.b.reg();
+                        self.b.line(&format!("{w} = load i64, ptr {val_slot}"));
+                        rc_op(self.b, self.reg.rc_debug, drop, &w, c);
+                    }
+                    self.b.line(&format!("br label %{ldone}"));
+                    self.b.start(&l1);
+                    if let Some(c) = c1 {
+                        let w = self.b.reg();
+                        self.b.line(&format!("{w} = load i64, ptr {val_slot}"));
+                        rc_op(self.b, self.reg.rc_debug, drop, &w, c);
+                    }
+                    self.b.line(&format!("br label %{ldone}"));
+                    self.b.start(&ldone);
+                }
+            }
+            return Ok(());
+        }
         // A frame block carries no count: a `dup` is a second static
         // reference (which the pass refuses unless the payload holds
         // nothing counted, so this arm is the backstop), and a `drop`
@@ -11360,10 +11981,10 @@ impl CoreEmitter<'_, '_> {
         }
         // The token's slot first: both paths write it before the body runs.
         let tslot = token.map(|t| self.slot(t));
-        // A product result that was never boxed is the unique path without
+        // A product or sum result that was never boxed is the unique path without
         // a cell: the moved fields already hold their references, the rest
         // are dropped, and there is nothing to keep for a reuse.
-        if self.virt.contains_key(&block) {
+        if self.virt.contains_key(&block) || self.virt_sum.contains_key(&block) {
             for (r, c) in rest {
                 let v = self.load_local(*r);
                 rc_op(self.b, self.reg.rc_debug, true, &v, *c);
@@ -11717,6 +12338,11 @@ impl CoreEmitter<'_, '_> {
                 let r = self.call_product(&unit, args)?;
                 return Ok(box_product(self.b, &cpr, &r));
             }
+            if arity == args.len() && self.reg.csr.contains_key(&unit) {
+                let csr = self.reg.csr[&unit].clone();
+                let r = self.call_sum(&unit, args)?;
+                return Ok(box_sum(self.b, &csr, &r));
+            }
             if arity == args.len() {
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
@@ -11831,7 +12457,7 @@ impl CoreEmitter<'_, '_> {
         *budget -= 1;
         match e {
             Core::Int(_) | Core::Bool(_) | Core::Unit => true,
-            Core::Var(x) => !self.virt.contains_key(x),
+            Core::Var(x) => !self.virt.contains_key(x) && !self.virt_sum.contains_key(x),
             Core::App(h, args) => match &**h {
                 Core::Prim(op) if op.is_trivial_pure() && args.len() == op.arity() => {
                     args.iter().all(|a| self.select_trivial(a, budget))
@@ -11921,6 +12547,62 @@ impl CoreEmitter<'_, '_> {
                 dest.settle_fields(self.b, &vals);
                 Ok(())
             }
+            // A sum delivered unboxed into `(tag_slot, val_slot)`.
+            Core::Ctor(id, _) if matches!(dest, Dest::Sum { .. }) => {
+                let Dest::Sum { csr, .. } = dest else { unreachable!() };
+                let Some(v) = csr.variant(&id.0) else {
+                    return err(format!("internal error: unboxed sum leaf in {} builds unexpected ctor {}", self.unit, id.0));
+                };
+                self.settle_tokens(dest.base());
+                dest.settle_sum(self.b, &v.tag.to_string(), "0");
+                Ok(())
+            }
+            Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Sum { .. }) => {
+                let Dest::Sum { csr, .. } = dest else { unreachable!() };
+                let Some(v) = csr.variant(&ctor.0) else {
+                    return err(format!("internal error: unboxed sum reuse in {} builds unexpected ctor {}", self.unit, ctor.0));
+                };
+                let payload = match args.first() {
+                    Some(a) => self.emit_expr(a)?,
+                    None => "0".to_string(),
+                };
+                self.settle_tokens(dest.base());
+                dest.settle_sum(self.b, &v.tag.to_string(), &payload);
+                Ok(())
+            }
+            Core::App(f, args) if matches!(dest, Dest::Sum { .. }) => {
+                let Dest::Sum { csr, .. } = dest else { unreachable!() };
+                let known = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
+                let (tag_str, val_str) = match known {
+                    Some((unit, _)) if matches!(&**f, Core::Ctor(..)) => {
+                        let Some(v) = csr.variant(&unit) else {
+                            return err(format!("internal error: unboxed sum leaf in {} builds unexpected ctor {}", self.unit, unit));
+                        };
+                        let payload = match args.first() {
+                            Some(a) => self.emit_expr(a)?,
+                            None => "0".to_string(),
+                        };
+                        (v.tag.to_string(), payload)
+                    }
+                    Some((unit, _)) if self.reg.csr.get(&unit) == Some(csr) => {
+                        let r = self.call_sum(&unit, args)?;
+                        let t = self.b.reg();
+                        self.b.line(&format!("{t} = extractvalue {{ i64, i64 }} {r}, 0"));
+                        let v = self.b.reg();
+                        self.b.line(&format!("{v} = extractvalue {{ i64, i64 }} {r}, 1"));
+                        (t, v)
+                    }
+                    _ => {
+                        return err(format!(
+                            "internal error: an unboxed sum's leaf in {} neither builds it nor calls a unit returning it",
+                            self.unit
+                        ));
+                    }
+                };
+                self.settle_tokens(dest.base());
+                dest.settle_sum(self.b, &tag_str, &val_str);
+                Ok(())
+            }
             Core::App(f, args) if matches!(dest, Dest::Fields { .. }) => {
                 let known = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
                 let mut vals = Vec::with_capacity(args.len());
@@ -11950,6 +12632,39 @@ impl CoreEmitter<'_, '_> {
                 dest.settle_fields(self.b, &vals);
                 Ok(())
             }
+            // A sum result's nullary constructor or reuse leaf.
+            Core::Ctor(id, _) if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                let tag = match self.csr.as_ref().and_then(|c| c.variant(&id.0)) {
+                    Some(v) => v.tag,
+                    None => {
+                        return err(format!(
+                            "internal error: a sum result of {} builds unexpected ctor {}",
+                            self.unit, id.0
+                        ));
+                    }
+                };
+                self.settle_tokens(dest.base());
+                self.ret_sum(&tag.to_string(), "0");
+                Ok(())
+            }
+            Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                let tag = match self.csr.as_ref().and_then(|c| c.variant(&ctor.0)) {
+                    Some(v) => v.tag,
+                    None => {
+                        return err(format!(
+                            "internal error: a sum result of {} reuses a cell for {}",
+                            self.unit, ctor.0
+                        ));
+                    }
+                };
+                let payload = match args.first() {
+                    Some(a) => self.emit_expr(a)?,
+                    None => "0".to_string(),
+                };
+                self.settle_tokens(dest.base());
+                self.ret_sum(&tag.to_string(), &payload);
+                Ok(())
+            }
             // A product result's leaf never needs the cell: the fields are
             // the result, and the kept cell is freed with the other tokens.
             Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
@@ -11976,7 +12691,7 @@ impl CoreEmitter<'_, '_> {
             }
             Core::If(c, t, f) => {
                 if matches!(dest, Dest::Slot { .. })
-                    || (matches!(dest, Dest::Ret) && self.cpr.is_none())
+                    || (matches!(dest, Dest::Ret) && self.cpr.is_none() && self.csr.is_none())
                 {
                     if let Some(ty) = self.can_select_if(t, f) {
                         let cv = self.emit_expr(c)?;
@@ -12151,6 +12866,55 @@ impl CoreEmitter<'_, '_> {
                         "internal error: {} returns a product, and one of its tail leaves is a call that does not",
                         self.unit
                     )),
+                    // A sum result's own constructor: returns `(tag, payload)` in registers.
+                    Some((unit, _))
+                        if matches!(&**f, Core::Ctor(..))
+                            && self.csr.as_ref().is_some_and(|c| c.variant(&unit).is_some()) =>
+                    {
+                        let tag = self.csr.as_ref().and_then(|c| c.variant(&unit)).unwrap().tag;
+                        let payload = match args.first() {
+                            Some(a) => self.emit_expr(a)?,
+                            None => "0".to_string(),
+                        };
+                        self.settle_tokens(dest.base());
+                        self.ret_sum(&tag.to_string(), &payload);
+                        Ok(())
+                    }
+                    // A sum result tail-calling another returning the same sum under `tailcc`.
+                    Some((unit, _))
+                        if self.csr.is_some()
+                            && self.reg.csr.get(&unit) == self.csr.as_ref()
+                            && self.reg.tailcc.contains(&self.unit)
+                            && self.reg.tailcc.contains(&unit) =>
+                    {
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        let sig = self.reg.narrow_sigs.get(&unit);
+                        let mut typed = Vec::with_capacity(vals.len());
+                        for (i, v) in vals.iter().enumerate() {
+                            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+                            let n = c.narrow(self.b, v);
+                            typed.push(format!("{} {n}", c.ty()));
+                        }
+                        self.settle_tokens(dest.base());
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = musttail call tailcc {{ i64, i64 }} @{}({})", quote(&tailcc_body(&unit)), typed.join(", ")));
+                        self.b.line(&format!("ret {{ i64, i64 }} {r}"));
+                        Ok(())
+                    }
+                    // The same, to a sum result outside `tailcc`.
+                    Some((unit, _)) if self.csr.is_some() && self.reg.csr.get(&unit) == self.csr.as_ref() => {
+                        let r = self.call_sum(&unit, args)?;
+                        self.settle_tokens(dest.base());
+                        self.b.line(&format!("ret {{ i64, i64 }} {r}"));
+                        Ok(())
+                    }
+                    _ if self.csr.is_some() => err(format!(
+                        "internal error: {} returns an unboxed sum, and one of its tail leaves is a call that does not",
+                        self.unit
+                    )),
                     // A `tailcc` body tail-calling another body of this
                     // module. `tailcc` lets `musttail` cross prototypes, so
                     // the arities and the narrowed parameters may differ;
@@ -12161,6 +12925,7 @@ impl CoreEmitter<'_, '_> {
                         if self.reg.tailcc.contains(&self.unit)
                             && self.reg.tailcc.contains(&unit)
                             && !self.reg.cpr.contains_key(&unit)
+                            && !self.reg.csr.contains_key(&unit)
                             && self.reg.narrow_sigs.get(&unit).map_or(Cross::WORD, |s| s.ret).ty() == self.ret.ty() =>
                     {
                         let mut vals = Vec::with_capacity(args.len());
@@ -12269,6 +13034,7 @@ impl CoreEmitter<'_, '_> {
                                 groups.get(&self.unit).is_some_and(|group| groups.get(&unit) == Some(group))
                             })
                             && !self.reg.cpr.contains_key(&unit)
+                            && !self.reg.csr.contains_key(&unit)
                             && self.reg.tail_sig(&unit, arity).1 == self.width
                             // `musttail` needs the callee's prototype to be
                             // the caller's exactly, parameters included, so
@@ -12326,9 +13092,8 @@ impl CoreEmitter<'_, '_> {
                     }
                 }
             }
-            // A product result's fault leaf: the path never returns, so the
-            // aggregate after it only keeps the block well formed.
-            Core::Fault if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
+            // A product or sum result's fault or bubble leaf.
+            Core::Fault | Core::Bubble if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
                 self.emit_expr(e)?;
                 if !self.b.terminated {
                     let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
@@ -12336,20 +13101,51 @@ impl CoreEmitter<'_, '_> {
                 }
                 Ok(())
             }
-            Core::Fault if matches!(dest, Dest::Fields { .. }) => {
+            Core::Fault | Core::Bubble if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                self.emit_expr(e)?;
+                if !self.b.terminated {
+                    self.b.line("ret { i64, i64 } zeroinitializer");
+                }
+                Ok(())
+            }
+            Core::Zero(_) if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
+                let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+                self.b.line(&format!("ret {ty} zeroinitializer"));
+                self.b.terminated = true;
+                Ok(())
+            }
+            Core::Zero(_) if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                self.b.line("ret { i64, i64 } zeroinitializer");
+                self.b.terminated = true;
+                Ok(())
+            }
+            Core::Fault | Core::Bubble if matches!(dest, Dest::Fields { .. } | Dest::Sum { .. }) => {
                 self.emit_expr(e)?;
                 if !self.b.terminated {
                     self.b.line("unreachable");
                 }
                 Ok(())
             }
-            other if matches!(dest, Dest::Fields { .. }) => err(format!(
-                "internal error: an unboxed product's leaf in {} does not build it: {:?}",
+            Core::Zero(_) if matches!(dest, Dest::Fields { .. }) => {
+                if let Dest::Fields { slots, .. } = dest {
+                    let zeros = vec!["0".to_string(); slots.len()];
+                    self.settle_tokens(dest.base());
+                    dest.settle_fields(self.b, &zeros);
+                }
+                Ok(())
+            }
+            Core::Zero(_) if matches!(dest, Dest::Sum { .. }) => {
+                self.settle_tokens(dest.base());
+                dest.settle_sum(self.b, "0", "0");
+                Ok(())
+            }
+            other if matches!(dest, Dest::Fields { .. } | Dest::Sum { .. }) => err(format!(
+                "internal error: an unboxed aggregate's leaf in {} does not build it: {:?}",
                 self.unit,
                 std::mem::discriminant(other)
             )),
-            other if matches!(dest, Dest::Ret) && self.cpr.is_some() => err(format!(
-                "internal error: {} returns a product, and one of its tail leaves does not build it",
+            other if matches!(dest, Dest::Ret) && (self.cpr.is_some() || self.csr.is_some()) => err(format!(
+                "internal error: {} returns an unboxed aggregate, and one of its tail leaves does not build it",
                 self.unit
             )),
             other => {
@@ -12397,6 +13193,15 @@ impl CoreEmitter<'_, '_> {
     /// can; in a value position it is a slot and a block. Each alternative
     /// goes through [`CoreEmitter::emit_to`], so a `Jump` in an alternative
     /// reaches the same destination through its join's block.
+    /// Return `(tag, payload)` as this sum result's `{ i64, i64 }` aggregate.
+    fn ret_sum(&mut self, tag: &str, payload: &str) {
+        let r0 = self.b.reg();
+        self.b.line(&format!("{r0} = insertvalue {{ i64, i64 }} poison, i64 {tag}, 0"));
+        let r1 = self.b.reg();
+        self.b.line(&format!("{r1} = insertvalue {{ i64, i64 }} {r0}, i64 {payload}, 1"));
+        self.b.line(&format!("ret {{ i64, i64 }} {r1}"));
+    }
+
     /// Return `vals` as this product result's aggregate.
     fn ret_product(&mut self, vals: &[String]) {
         let Some(cpr) = self.cpr.clone() else { return };
@@ -12411,32 +13216,50 @@ impl CoreEmitter<'_, '_> {
         self.b.line(&format!("ret {ty} {agg}"));
     }
 
-    /// `let x = f args in body` where `f` returns a product ([`Cpr`]) and
-    /// `body` only takes `x` apart: call `f`'s body, keep the field values
-    /// in slots, and never build the block. Answers whether it did.
+    /// `let x = f args in body` where `f` returns a product ([`Cpr`]) or a
+    /// two-variant sum ([`Csr`]) and `body` only takes `x` apart: call `f`'s
+    /// body, keep the field/tag-payload values in slots, and never build the
+    /// block. Answers whether it did.
     ///
-    /// `body` may mention `x` only as the scrutinee of a `case` with the
-    /// constructor's one alternative, as the block of a `Release`, or in a
-    /// `drop`. Any other mention (an argument, a stored value, a `dup`, a
-    /// capture) needs the block, so the ordinary call boxes it.
+    /// `body` may mention `x` only as the scrutinee of a `case` matching the
+    /// unboxed constructor(s) (or `_` for a sum), as the block of a `Release`,
+    /// or in a `drop`. Any other mention (an argument, a stored value, a `dup`,
+    /// a capture) needs the block, so the ordinary call boxes it.
     fn virtual_let(&mut self, x: LocalId, v: &Core, body: &Core) -> Result<bool> {
         if self.frame_site(x).is_some() {
             return Ok(false);
         }
-        let Some(cpr) = product_leaves(v, self.reg) else {
-            return Ok(false);
-        };
-        if !product_uses_only_take_apart(body, x, &cpr) {
-            return Ok(false);
+        if let Some(cpr) = product_leaves(v, self.reg) {
+            if product_uses_only_take_apart(body, x, &cpr) {
+                let tys: Vec<&'static str> = cpr.fields.iter().map(|c| Cpr::field_ty(*c)).collect();
+                let slots: Vec<String> = tys.iter().map(|ty| self.b.alloca_ty(ty)).collect();
+                let label = self.b.label();
+                let dest = Dest::Fields { slots: slots.clone(), tys, label: label.clone(), base: self.pending.len() };
+                self.emit_to(v, &dest)?;
+                self.b.start(&label);
+                self.virt.insert(x, (slots, cpr.fields.clone()));
+                return Ok(true);
+            }
         }
-        let tys: Vec<&'static str> = cpr.fields.iter().map(|c| Cpr::field_ty(*c)).collect();
-        let slots: Vec<String> = tys.iter().map(|ty| self.b.alloca_ty(ty)).collect();
-        let label = self.b.label();
-        let dest = Dest::Fields { slots: slots.clone(), tys, label: label.clone(), base: self.pending.len() };
-        self.emit_to(v, &dest)?;
-        self.b.start(&label);
-        self.virt.insert(x, (slots, cpr.fields.clone()));
-        Ok(true)
+        if let Some(csr) = sum_leaves(v, self.reg) {
+            if sum_uses_only_take_apart(body, x, &csr) {
+                let tag_slot = self.b.alloca_ty("i64");
+                let val_slot = self.b.alloca_ty("i64");
+                let label = self.b.label();
+                let dest = Dest::Sum {
+                    tag_slot: tag_slot.clone(),
+                    val_slot: val_slot.clone(),
+                    label: label.clone(),
+                    base: self.pending.len(),
+                    csr: csr.clone(),
+                };
+                self.emit_to(v, &dest)?;
+                self.b.start(&label);
+                self.virt_sum.insert(x, (tag_slot, val_slot, csr));
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Call product-result `unit`'s body with `args`, answering the
@@ -12457,6 +13280,26 @@ impl CoreEmitter<'_, '_> {
         let cc = if self.reg.tailcc.contains(unit) { "tailcc " } else { "" };
         let r = self.b.reg();
         self.b.line(&format!("{r} = call {cc}{ty} @{}({})", quote(&tailcc_body(unit)), typed.join(", ")));
+        Ok(r)
+    }
+
+    /// Call sum-result `unit`'s body with `args`, answering the `{ i64, i64 }`
+    /// aggregate register.
+    fn call_sum(&mut self, unit: &str, args: &[Core]) -> Result<String> {
+        let mut vals = Vec::with_capacity(args.len());
+        for a in args {
+            vals.push(self.emit_expr(a)?);
+        }
+        let sig = self.reg.narrow_sigs.get(unit);
+        let mut typed = Vec::with_capacity(vals.len());
+        for (i, v) in vals.iter().enumerate() {
+            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+            let n = c.narrow(self.b, v);
+            typed.push(format!("{} {n}", c.ty()));
+        }
+        let cc = if self.reg.tailcc.contains(unit) { "tailcc " } else { "" };
+        let r = self.b.reg();
+        self.b.line(&format!("{r} = call {cc}{{ i64, i64 }} @{}({})", quote(&tailcc_body(unit)), typed.join(", ")));
         Ok(r)
     }
 
@@ -12490,6 +13333,94 @@ impl CoreEmitter<'_, '_> {
                     self.b.line(&format!("store {fty} {w}, ptr {slot}"));
                 }
                 return self.emit_to(&alt.body, dest);
+            }
+            if let Some((tag_slot, val_slot, csr)) = self.virt_sum.get(t).cloned() {
+                let mut alt0: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
+                let mut alt1: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
+                let mut wild: Option<(&Core, Option<u32>)> = None;
+                for a in alts {
+                    match &a.pat {
+                        CPat::Con { tag, fields, .. } if *tag == csr.v0.tag => {
+                            alt0 = Some((fields.first().copied(), &a.body, a.weight));
+                        }
+                        CPat::Con { tag, fields, .. } if *tag == csr.v1.tag => {
+                            alt1 = Some((fields.first().copied(), &a.body, a.weight));
+                        }
+                        CPat::Wild => {
+                            wild = Some((&a.body, a.weight));
+                        }
+                        _ => {
+                            return err("internal error: unexpected pattern on unboxed sum result");
+                        }
+                    }
+                }
+                if alt0.is_none() && alt1.is_none() {
+                    if let Some((body, _)) = wild {
+                        return self.emit_to(body, dest);
+                    }
+                }
+                let tagv = self.b.reg();
+                self.b.line(&format!("{tagv} = load i64, ptr {tag_slot}"));
+                let cmp = self.b.reg();
+                self.b.line(&format!("{cmp} = icmp eq i64 {tagv}, {}", csr.v0.tag));
+                let l0 = self.b.label();
+                let l1 = self.b.label();
+                let w0 = alt0.as_ref().and_then(|a| a.2).or_else(|| wild.and_then(|w| w.1));
+                let w1 = alt1.as_ref().and_then(|a| a.2).or_else(|| wild.and_then(|w| w.1));
+                let prof = match (w0, w1) {
+                    (Some(a), Some(b)) => format!(", !prof {}", self.reg.branch_weights(&[a, b])),
+                    _ => String::new(),
+                };
+                self.b.line(&format!("br i1 {cmp}, label %{l0}, label %{l1}{prof}"));
+
+                let mut emit_arm = |this: &mut Self, arm: Option<(Option<LocalId>, &Core, Option<u32>)>, var: &CsrVariant| -> Result<()> {
+                    if let Some((binder, body, _)) = arm {
+                        if let Some(x) = binder {
+                            if !this.bound.contains(&x) {
+                                return err(format!("pattern binds unknown local {}", x.0));
+                            }
+                            if var.field.is_some() {
+                                let lty = this.local_ty(x);
+                                if lty != "i64" {
+                                    return err(format!(
+                                        "{}: an unboxed sum pattern binder's width ({lty}) disagrees with i64",
+                                        this.unit
+                                    ));
+                                }
+                                let w = this.b.reg();
+                                this.b.line(&format!("{w} = load i64, ptr {val_slot}"));
+                                let slot = this.slot(x);
+                                this.b.line(&format!("store i64 {w}, ptr {slot}"));
+                            }
+                        }
+                        this.emit_to(body, dest)
+                    } else if let Some((body, _)) = wild {
+                        this.emit_to(body, dest)
+                    } else {
+                        this.settle_tokens(dest.base());
+                        match (&this.cpr, &this.csr, dest) {
+                            (_, _, Dest::Fields { .. } | Dest::Sum { .. } | Dest::Slot { .. }) => {
+                                this.b.line("unreachable");
+                            }
+                            (Some(cpr), _, Dest::Ret) => {
+                                this.b.line(&format!("ret {} zeroinitializer", cpr.ty()));
+                            }
+                            (_, Some(_), Dest::Ret) => {
+                                this.b.line("ret { i64, i64 } zeroinitializer");
+                            }
+                            (None, None, Dest::Ret) => {
+                                this.b.line(&format!("ret {} 0", this.ret.ty()));
+                            }
+                        }
+                        Ok(())
+                    }
+                };
+
+                self.b.start(&l0);
+                emit_arm(self, alt0, &csr.v0)?;
+                self.b.start(&l1);
+                emit_arm(self, alt1, &csr.v1)?;
+                return Ok(());
             }
         }
         let sv = self.emit_expr(scrut)?;
@@ -12634,9 +13565,10 @@ impl CoreEmitter<'_, '_> {
                 // return leaves every `Release` in scope, so it settles
                 // their tokens first.
                 self.settle_tokens(dest.base());
-                match &self.cpr {
-                    Some(cpr) => self.b.line(&format!("ret {} zeroinitializer", cpr.ty())),
-                    None => self.b.line(&format!("ret {} 0", self.ret.ty())),
+                match (&self.cpr, &self.csr) {
+                    (Some(cpr), _) => self.b.line(&format!("ret {} zeroinitializer", cpr.ty())),
+                    (_, Some(_)) => self.b.line("ret { i64, i64 } zeroinitializer"),
+                    (None, None) => self.b.line(&format!("ret {} 0", self.ret.ty())),
                 }
             }
         }
@@ -15146,6 +16078,9 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
         }
         Core::Fault => q_imm(out, quote_op::FAULT),
+        Core::EvAllocEntry | Core::Bubble | Core::Zero(_) => {
+            return err("algebraic effect evidence handlers cannot be reified in a quotation")
+        }
         Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) | Core::BoxClear(..) => {
             return Err(crate::Error::plain(
                 "a recursive `letrec` value cannot be reified into a quotation body",

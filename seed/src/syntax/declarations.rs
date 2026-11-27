@@ -705,7 +705,7 @@ mod owned_effect_tests {
         let span = Span::new(1, 1);
         let mut declarations = vec![
             Decl::Data(DataDecl { name: Name::new("Event", span), params: vec![], ctors: vec![], span }),
-            Decl::Effect(EffectDecl { name: Name::new("Event", span), params: vec![], ops: vec![], span }),
+            Decl::Effect(EffectDecl { name: Name::new("Event", span), params: vec![], param_kinds: vec![], ops: vec![], span }),
         ];
         let members = bind_group(&mut declarations);
         let datatype = members.iter().find(|(kind, _)| *kind == RefKind::Type).unwrap().1.declaration_binding().unwrap();

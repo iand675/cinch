@@ -34,6 +34,12 @@ fn prim_scheme(op: PrimOp) -> Scheme {
         PrimOp::MVar { op, .. } => scheme.params = op.params(),
         PrimOp::RwLock { op, .. } => scheme.params = op.params(),
         PrimOp::Slots { op, .. } => scheme.params = op.params(),
+        PrimOp::Platform(crate::core::PlatformOp::ArenaEscapeRun) => {
+            scheme.params = vec!["e".into(), "a".into(), "r".into()];
+        }
+        PrimOp::Platform(crate::core::PlatformOp::ArenaEscapeAbort) => {
+            scheme.params = vec!["e".into(), "a".into()];
+        }
         _ => {}
     }
     scheme
@@ -221,6 +227,12 @@ fn check_group_positivity(
                 }
                 go(types, group, label, field, ctor, &scheme.ty, span, positive)
             },
+            Ty::Qual(ctx, body) => {
+                if ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, group))) {
+                    return bad("nested inside another type constructor");
+                }
+                go(types, group, label, field, ctor, body, span, positive)
+            }
             Ty::Tuple(items) => {
                 for i in items {
                     go(types, group, label, field, ctor, i, span, positive)?;
@@ -272,6 +284,10 @@ fn mentions_group(t: &Ty, group: &[String]) -> bool {
             mentions_group(&scheme.ty, &visible)
                 || scheme.val_params.iter().any(|(_, ty)| mentions_group(ty, &visible))
                 || scheme.ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, &visible)))
+        }
+        Ty::Qual(ctx, body) => {
+            ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, group)))
+                || mentions_group(body, group)
         }
         Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. }
         | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => mentions_group(inner, group),
@@ -326,6 +342,9 @@ fn ty_mentions(t: &Ty, name: &str) -> bool {
         }
         Ty::Sigma { dom, cod, .. } => ty_mentions(dom, name) || ty_mentions(cod, name),
         Ty::Forall(scheme) => !scheme.params.iter().any(|p| p == name) && ty_mentions(&scheme.ty, name),
+        Ty::Qual(ctx, body) => {
+            ctx.iter().any(|(_, c)| c.args.iter().any(|a| ty_mentions(a, name))) || ty_mentions(body, name)
+        }
         Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => ty_mentions(inner, name),
         Ty::Ref(_, i) | Ty::Mut(_, i) => ty_mentions(i, name),
         Ty::Handler { input, output, .. } => {
@@ -3246,9 +3265,11 @@ impl Checker {
             reserved: bool,
             fields: Option<Vec<String>>,
             field_erased: Vec<bool>,
+            capability: bool,
         }
         let mut heads: Vec<Head> = Vec::new();
-        for (_, d) in flat {
+        for (decl_attrs, d) in flat {
+            let is_cap = decl_attrs.iter().any(|a| a.name() == "capability");
             match d {
                 ast::Decl::Data(data) => {
                     let mut references = Vec::new();
@@ -3263,6 +3284,7 @@ impl Checker {
                         reserved: reserved_data_type_name(&data.name.text),
                         fields: None,
                         field_erased: Vec::new(),
+                        capability: is_cap,
                     });
                 }
                 ast::Decl::DataFamily(df) => {
@@ -3276,6 +3298,7 @@ impl Checker {
                         reserved: reserved_data_type_name(&df.name.text),
                         fields: None,
                         field_erased: Vec::new(),
+                        capability: false,
                     });
                 }
                 ast::Decl::TypeFamily(tf) => {
@@ -3300,6 +3323,7 @@ impl Checker {
                         reserved: reserved_data_type_name(&tf.name.text),
                         fields: None,
                         field_erased: Vec::new(),
+                        capability: false,
                     });
                 }
                 ast::Decl::Record(rec) => {
@@ -3315,6 +3339,7 @@ impl Checker {
                         reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"),
                         fields: Some(rec.fields.iter().map(|f| f.name.text.clone()).collect()),
                         field_erased: rec.fields.iter().map(|f| f.erased).collect(),
+                        capability: is_cap,
                     });
                 }
                 _ => {}
@@ -3382,13 +3407,29 @@ impl Checker {
                     name: h.name.text.clone(),
                     identity: nominal_identity(module, h.name),
                     arity: params.len(),
-                    param_kinds,
+                    param_kinds: param_kinds.clone(),
                     ctors: Vec::new(),
                     fields: h.fields,
                     field_erased: h.field_erased,
                     opaque: false,
                     refine: None,
                 });
+            if h.capability {
+                let sig_key = self.signature_key(module, &h.name.text);
+                let info = SigInfo {
+                    module: module.to_string(),
+                    name: h.name.text.clone(),
+                    params,
+                    param_kinds,
+                    methods: Vec::new(),
+                    defaults: Vec::new(),
+                    laws: Vec::new(),
+                };
+                self.capability_types.insert(sig_key.clone());
+                self.sigs.entry(h.name.text.clone()).or_default().push(info.clone());
+                self.class_sigs.entry(sig_key).or_default().push(info.clone());
+                self.qualified_sigs.insert((module.to_string(), h.name.text.clone()), info);
+            }
         }
         Ok(())
     }
@@ -3521,6 +3562,9 @@ impl Checker {
                 let head = declared_effect_head(&module, &effect.name);
                 if self.effects.contains_key(&head) {
                     return Err(Error::at(effect.name.span, format!("duplicate effect {}", effect.name.text)));
+                }
+                if effect_decl_is_type_param(effect) {
+                    self.type_param_effects.insert(head.clone());
                 }
                 self.effect_bindings.insert(site, head);
             }
@@ -5784,13 +5828,24 @@ impl Checker {
                         return Err(Error::at(eff.name.span, format!("duplicate effect {}", eff.name.text)));
                     }
                     self.effect_bindings.insert(site, head.clone());
-                    let region_param = eff.params.first().map(|p| p.text.clone());
+                    let is_ty_param = effect_decl_is_type_param(eff);
+                    if is_ty_param {
+                        self.type_param_effects.insert(head.clone());
+                    }
+                    let param_name = eff.params.first().map(|p| p.text.clone());
+                    let region_param = if is_ty_param { None } else { param_name.clone() };
+                    let type_param = if is_ty_param { param_name.clone() } else { None };
                     let base_vars: Vec<String> =
                         eff.params.iter().map(|p| p.text.clone()).collect();
-                    // The effect's label: `L` or `L r`.
-                    let label = EffLabel {
-                        head: head.clone().into(),
-                        arg: region_param.clone().map(Into::into),
+                    // The effect's label: `L`, `L (r :: Region)`, or `L (e :: Type)`.
+                    let label = if let Some(tp) = &type_param {
+                        EffLabel::with_ty(head.clone(), Ty::Param(tp.clone().into()))
+                    } else {
+                        EffLabel {
+                            head: head.clone().into(),
+                            arg: region_param.clone().map(Into::into),
+                            ty_arg: None,
+                        }
                     };
                     let mut ops: Vec<(String, Scheme)> = Vec::new();
                     for (mname, mty) in &eff.ops {
@@ -5896,6 +5951,7 @@ impl Checker {
                         EffectInfo {
                             module: module.clone(), name: eff.name.text.clone(),
                             region_param,
+                            type_param,
                             ops,
                         },
                     );
@@ -6177,6 +6233,15 @@ impl Checker {
                         ));
                     }
                     out.repr = Some(spec);
+                }
+                "capability" => {
+                    if site != AttrSite::TypeDecl {
+                        return Err(Error::at(a.span, "`#[capability]` attaches to a `data` or `record` declaration"));
+                    }
+                    if !arg_text(args).is_empty() {
+                        return Err(Error::at(a.span, "`#[capability]` takes no arguments"));
+                    }
+                    out.capability = true;
                 }
                 // P20: the safety assertion vocabulary (attribute
                 // annotations specification section 10). Every
@@ -8298,14 +8363,22 @@ impl Checker {
             if let Some(binding) = syntax_name.as_ref().and_then(ast::Name::local_binding) {
                 env.syntax_dictionaries.insert(binding.clone(), l);
             }
-            self.note_local_class(l, Checker::dict_class(&c.class));
-            dict_meta.push((l, c.class.clone()));
-            if is_capability_class(&c.class) {
-                // A capability binder is a term-level value too: `f @{io =
-                // io}` and `with (io = io) in ...` name it (decision D21).
+            if self.is_user_capability(&c.class) {
                 let ty = Ty::Adt(c.class.clone().into(), c.args.clone());
+                self.note_local_ty(l, &ty);
+                dict_meta.push((l, c.class.clone()));
                 let syntax_name = syntax_name.unwrap_or_else(|| ast::Name::new(n, eqs[0].span));
                 self.bind_syntax_local(&mut env, &syntax_name, l, Scheme::mono(ty), None, eqs[0].span)?;
+            } else {
+                self.note_local_class(l, Checker::dict_class(&c.class));
+                dict_meta.push((l, c.class.clone()));
+                if is_capability_class(&c.class) {
+                    // A capability binder is a term-level value too: `f @{io =
+                    // io}` and `with (io = io) in ...` name it (decision D21).
+                    let ty = Ty::Adt(c.class.clone().into(), c.args.clone());
+                    let syntax_name = syntax_name.unwrap_or_else(|| ast::Name::new(n, eqs[0].span));
+                    self.bind_syntax_local(&mut env, &syntax_name, l, Scheme::mono(ty), None, eqs[0].span)?;
+                }
             }
             param_ids.push(l);
         }
@@ -8962,8 +9035,37 @@ impl Checker {
             let hints = self.fn_hints.get(&id.0).copied().unwrap_or_default();
             // The definition, its hoisted lambdas and its `letrec` members
             // share the definition's type parameters.
-            let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
+            let mut own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
             let tparams = self.cur_tparams.clone();
+            if !self.compile_time && !tparams.is_empty() {
+                let uses_poly_ev = ecore_uses_poly_ev(&body, &tparams, &self.ev_poly_defs)
+                    || hoisted.iter().any(|h| ecore_uses_poly_ev(&h.body, &tparams, &self.ev_poly_defs));
+                if uses_poly_ev {
+                    self.ev_poly_defs.insert(
+                        id.clone(),
+                        EvPolyDef {
+                            tparams: tparams.clone(),
+                            param_ids: param_ids.clone(),
+                            body: body.clone(),
+                            hoisted: hoisted.clone(),
+                            hints,
+                            meta: meta.clone(),
+                            local_tys: self.local_tys.clone(),
+                        },
+                    );
+                }
+            }
+            if !self.compile_time && !self.ev_poly_defs.is_empty() {
+                let mut body_mut = body;
+                self.specialize_ev_poly_ecore(&mut body_mut)?;
+                let mut hoisted_mut = hoisted;
+                for h in &mut hoisted_mut {
+                    self.specialize_ev_poly_ecore(&mut h.body)?;
+                }
+                body = body_mut;
+                hoisted = hoisted_mut;
+                own = hoisted.iter().map(|h| h.id.clone()).collect();
+            }
             if self.compile_time {
                 if let Some((source, _)) = self.stage_definition_scopes.get(&id.0).cloned() {
                     let scope = (source, self.code_quantifiers.clone());
@@ -9008,6 +9110,150 @@ impl Checker {
             }
             self.fns.extend(done);
             self.instance_defs.extend(polys);
+        }
+        Ok(())
+    }
+
+    /// Rewrite calls to polymorphic type-parameterized effect functions
+    /// (`Effect.Throw.catch`, `ensure`, etc.) whose concrete type arguments
+    /// resolve the effect label's type argument, cloning a specialized unit
+    /// with the concrete effect label hash baked in.
+    fn specialize_ev_poly_ecore(&mut self, e: &mut ECore) -> Result<()> {
+        match e {
+            ECore::Global(g, tys) if self.ev_poly_defs.contains_key(g) => {
+                let zonked: Vec<Ty> = tys.iter().map(|t| self.uni.zonk(t)).collect();
+                let def = self.ev_poly_defs.get(g).unwrap().clone();
+                // Only specialize when every effect-parameter type is concrete (no Param/Meta).
+                let all_concrete = def.tparams.len() == zonked.len()
+                    && zonked.iter().any(|t| !matches!(t, Ty::Param(_) | Ty::Meta(_)));
+                if !all_concrete {
+                    return Ok(());
+                }
+                let mut map: HashMap<String, Ty> = HashMap::new();
+                let mut hash_key = String::new();
+                for (p, t) in def.tparams.iter().zip(&zonked) {
+                    if !matches!(t, Ty::Param(_) | Ty::Meta(_)) {
+                        map.insert(p.clone(), t.clone());
+                        use std::fmt::Write;
+                        let _ = write!(hash_key, "{p}={t};");
+                    }
+                }
+                if map.is_empty() {
+                    return Ok(());
+                }
+                let tag = crate::types::effect_label_hash(&hash_key, None) as u64;
+                let suffix = format!("$ev_{tag:x}");
+                let spec_id = GlobalId(format!("{}{}", g.0, suffix));
+                if self.ev_poly_emitted.insert(spec_id.clone()) {
+                    let mut rename_units: HashMap<GlobalId, GlobalId> = HashMap::new();
+                    rename_units.insert(g.clone(), spec_id.clone());
+                    for h in &def.hoisted {
+                        rename_units.insert(h.id.clone(), GlobalId(format!("{}{}", h.id.0, suffix)));
+                    }
+                    let mut spec_body = subst_ev_ecore(&def.body, &map, &rename_units);
+                    let mut spec_hoisted: Vec<HoistedFn> = def
+                        .hoisted
+                        .iter()
+                        .map(|h| HoistedFn {
+                            id: rename_units.get(&h.id).cloned().unwrap_or_else(|| h.id.clone()),
+                            params: h.params.clone(),
+                            body: subst_ev_ecore(&h.body, &map, &rename_units),
+                            extra: h.extra.clone(),
+                            poly: h.poly,
+                            result: h.result.as_ref().map(|t| Checker::subst_ty(t, &map)),
+                        })
+                        .collect();
+                    self.specialize_ev_poly_ecore(&mut spec_body)?;
+                    for h in &mut spec_hoisted {
+                        self.specialize_ev_poly_ecore(&mut h.body)?;
+                    }
+                    let saved_local_tys = std::mem::replace(
+                        &mut self.local_tys,
+                        def.local_tys
+                            .iter()
+                            .map(|(k, v)| (*k, Checker::subst_ty(v, &map)))
+                            .collect(),
+                    );
+                    let own: HashSet<GlobalId> = spec_hoisted.iter().map(|h| h.id.clone()).collect();
+                    let mut done = Vec::with_capacity(spec_hoisted.len() + 1);
+                    {
+                        let mut cx = LowerCx::new(self, &def.tparams, &own);
+                        done.push(finalize_fn(
+                            spec_id.clone(),
+                            def.param_ids.clone(),
+                            spec_body,
+                            None,
+                            None,
+                            def.hints,
+                            def.meta.clone(),
+                            &mut cx,
+                        )?);
+                        for h in spec_hoisted {
+                            let unit_tparams: Vec<String> = def.tparams.iter().chain(&h.extra).cloned().collect();
+                            let result = h.result.as_ref().map(|ty| {
+                                crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {})
+                            });
+                            let mut unit = if h.extra.is_empty() {
+                                finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?
+                            } else {
+                                let mut unit_cx = LowerCx::new(self, &unit_tparams, &own);
+                                finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut unit_cx)?
+                            };
+                            if result.is_some() { unit.repr.result = result; }
+                            done.push(unit);
+                        }
+                    }
+                    self.local_tys = saved_local_tys;
+                    self.fns.extend(done);
+                }
+                *g = spec_id;
+            }
+            ECore::HandleEvidence { handler, body, .. } => {
+                self.specialize_ev_poly_ecore(handler)?;
+                self.specialize_ev_poly_ecore(body)?;
+            }
+            ECore::Perform { args, .. } => {
+                for a in args { self.specialize_ev_poly_ecore(a)?; }
+            }
+            ECore::EffCheck(inner, _) | ECore::LitFold { body: inner, .. } => {
+                self.specialize_ev_poly_ecore(inner)?;
+            }
+            ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _)
+            | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => self.specialize_ev_poly_ecore(d)?,
+            ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v, _) => {
+                self.specialize_ev_poly_ecore(v)?;
+            }
+            ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
+                for a in args { self.specialize_ev_poly_ecore(a)?; }
+            }
+            ECore::App(f, args) => {
+                self.specialize_ev_poly_ecore(f)?;
+                for a in args { self.specialize_ev_poly_ecore(a)?; }
+            }
+            ECore::Let(_, v, body) => {
+                self.specialize_ev_poly_ecore(v)?;
+                self.specialize_ev_poly_ecore(body)?;
+            }
+            ECore::If(c, t, f) => {
+                self.specialize_ev_poly_ecore(c)?;
+                self.specialize_ev_poly_ecore(&mut t.body)?;
+                self.specialize_ev_poly_ecore(&mut f.body)?;
+            }
+            ECore::Case { scrut, alts } => {
+                self.specialize_ev_poly_ecore(scrut)?;
+                for a in alts { self.specialize_ev_poly_ecore(&mut a.body)?; }
+            }
+            ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => {
+                self.specialize_ev_poly_ecore(body)?;
+            }
+            ECore::Quote { holes, body, .. } => {
+                for h in holes { self.specialize_ev_poly_ecore(h)?; }
+                self.specialize_ev_poly_ecore(body)?;
+            }
+            ECore::DeclsQuote { holes, .. } => {
+                for h in holes { self.specialize_ev_poly_ecore(h)?; }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -13725,6 +13971,7 @@ pub(crate) struct AttrSet {
     /// section 5.
     pub fn_cold: bool,
     pub repr: Option<ReprSpec>,
+    pub capability: bool,
     pub unpack: Option<bool>,
     /// The P20 safety assertions (attribute annotations specification
     /// section 10), verified at the definition.
@@ -15397,6 +15644,7 @@ fn ty_has_raw_ptr(t: &Ty, opaque: &HashSet<String>, out: &mut Option<String>) ->
             ty_has_raw_ptr(dom, opaque, out) || ty_has_raw_ptr(cod, opaque, out)
         }
         Ty::Forall(scheme) => ty_has_raw_ptr(&scheme.ty, opaque, out),
+        Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(|a| ty_has_raw_ptr(a, opaque, out))) || ty_has_raw_ptr(body, opaque, out),
         _ => false,
     }
 }
@@ -19256,6 +19504,9 @@ impl<'a> InterfaceMembers<'a> {
         let functions = checker.fns.iter().map(|function| &function.id).collect();
         let mut signatures = HashMap::<_, Vec<_>>::new();
         for (position, signature) in checker.qualified_sigs.values().enumerate() {
+            if checker.is_user_capability(&checker.signature_key(&signature.module, &signature.name)) {
+                continue;
+            }
             let owner = signature.module.as_str();
             for name in std::iter::once(&signature.name).chain(signature.methods.iter().map(|(name, _)| name)) {
                 signatures.entry((owner, name.as_str())).or_default().push((position, signature));
@@ -19486,7 +19737,8 @@ impl Checker {
                         "refinement".to_string()
                     } else if t.opaque {
                         "opaque".to_string()
-                    } else if self.qualified_sigs.contains_key(&(d.module.clone(), d.name.clone())) {
+                    } else if self.qualified_sigs.contains_key(&(d.module.clone(), d.name.clone()))
+                        && !self.is_user_capability(&self.signature_key(&d.module, &d.name)) {
                         "signature".to_string()
                     } else if codata {
                         "codata".to_string()
@@ -19503,6 +19755,7 @@ impl Checker {
                         carrier: r.base.to_string(),
                         predicate: r.pred.to_string(),
                     })),
+                    capability: self.is_user_capability(&self.signature_key(&d.module, &d.name)),
                 });
                 // Computed layout facts (attribute annotations
                 // specification section 4.3): part of the contract
@@ -23857,6 +24110,11 @@ impl Checker {
             Core::Fault => {
                 return Err(Error::plain(
                     "the compile-time computation faulted (the fault path ran)",
+                ))
+            }
+            Core::EvAllocEntry | Core::Bubble | Core::Zero(_) => {
+                return Err(Error::plain(
+                    "algebraic effect evidence handlers are not available at compile time",
                 ))
             }
             // Reference counting is inserted after this evaluator's

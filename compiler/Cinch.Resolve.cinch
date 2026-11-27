@@ -1381,6 +1381,7 @@ module Cinch.Resolve where
     -- the catch-all below would claim namespace work is missing when the
     -- real gap is a surface form the parser does not accept yet.
     DWrapperLayout s name repr label -> ([DWrapperLayout s (global-name home name) repr label], [])
+    DCapability s name -> ([DCapability s (global-name home name)], [])
     DUnpackFields s name fields -> ([DUnpackFields s (global-name home name) fields], [])
     DInlineHint s name hint -> (case hint of
       Err message -> ([], fail s message)
