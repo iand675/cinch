@@ -178,12 +178,14 @@ module Cinch.Layout where
   niche-int-const t = case t of
     UIndex carrier (IInteger n) -> Some n
     UIndexForget inner -> niche-int-const inner
+    UIndexPromote inner -> niche-int-const inner
     other -> None
 
   niche-is-binder :: Nat -> UType -> Bool
   niche-is-binder id t = case t of
     UIndex carrier (IBound bid name) -> bid == id
     UIndexForget inner -> niche-is-binder id inner
+    UIndexPromote inner -> niche-is-binder id inner
     other -> False
 
   niche-merge-lo :: Option Int -> Option Int -> Option Int

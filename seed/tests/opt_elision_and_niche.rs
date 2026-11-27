@@ -92,7 +92,11 @@ fn niche_refinement_i64_with_multiple_nullaries() {
     let ir = source_frontend::emit_ir(source).expect("emit IR");
     let score_fn = ir
         .split("\ndefine ")
-        .find(|d| d.contains("Main.score") && d.contains('{'))
+        .find(|d| {
+            d.lines()
+                .next()
+                .is_some_and(|hdr| hdr.contains("Main.score") && hdr.contains('{'))
+        })
         .expect("Main.score in IR");
     assert!(
         !score_fn.contains("cinch_alloc"),
@@ -378,20 +382,30 @@ fn refinement_proved_tobj_to_raw_elides_rc() {
     let source = r#"module Main where
   type SmallNat = refine (n :: Nat) with n < 1000
 
-  add-small :: SmallNat -> SmallNat -> Nat
-  add-small a b = a + b
+  -- Unused parameter `b` would require a `drop` if `SmallNat` were `TObj`;
+  -- refinement-proved `TObj -> Raw` elides every RC operation completely.
+  pick-first :: SmallNat -> SmallNat -> SmallNat
+  pick-first a b = a
 
   main :: Int
-  main = if add-small 20 22 == 42 then 42 else 1
+  main = if pick-first 42 99 == 42 then 42 else 1
 "#;
     run_checked_with_stats("refinement_tobj_raw", source, 42);
     let ir = source_frontend::emit_ir(source).expect("emit IR");
     let fn_ir = ir
         .split("\ndefine ")
-        .find(|d| d.contains("Main.add-small") && d.contains('{'))
-        .expect("Main.add-small in IR");
+        .find(|d| {
+            d.lines().next().is_some_and(|hdr| {
+                (hdr.contains("Main.pick-first") || hdr.contains("Main.pick$2dfirst"))
+                    && hdr.contains('{')
+            })
+        })
+        .expect("Main.pick-first in IR");
     assert!(
-        !fn_ir.contains("cinch.rc.dup.tobj") && !fn_ir.contains("cinch.rc.drop.tobj"),
+        !fn_ir.contains("cinch.rc.dup.tobj")
+            && !fn_ir.contains("cinch.rc.drop.tobj")
+            && !fn_ir.contains("cinch.typed.rc.dup")
+            && !fn_ir.contains("cinch.typed.rc.drop"),
         "bounded refined Nat parameters must be Raw with zero TObj RC ops:\n{fn_ir}"
     );
 }

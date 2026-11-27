@@ -83,6 +83,8 @@ module Cinch.RuntimeIr where
   data TailContext where
     LocalTail :: List RecursiveWorker -> List Local -> Nat -> TailContext
     GlobalTail :: Nat -> Nat -> Option (String, String) -> List Bool -> TailContext
+    -- self-name, self-classes, orig-arity, param-idx, ctor-name, field-count, new-width, loop
+    UnboxedAccTail :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Nat -> Option (String, String) -> TailContext
 
   data Demand where
     Demand :: String -> List Nat -> Demand
@@ -7126,19 +7128,21 @@ module Cinch.RuntimeIr where
   -- | Companion Small-Sum CSR analysis and lowering for 2-constructor uniform
   -- sums with 0..=2 i64 payload words (`Option`, `Result`, etc.) returned in
   -- registers as `{ i8, i64 }` or `{ i8, i64, i64 }`.
-  csr-term-ctors :: CoreTerm -> Option (List (String, List CoreTerm))
-  csr-term-ctors term = case term of
-    CIf sp ty test yes no -> csr-merge-ctors (csr-term-ctors yes) (csr-term-ctors no)
-    CCase sp ty value alts -> csr-alts-ctors alts
-    CGuard sp ty cond body -> csr-term-ctors body
-    CLet sp ty id name sc rhs body -> csr-term-ctors body
-    CRequire sp ty body -> csr-term-ctors body
-    CProved sp ty ev body -> csr-term-ctors body
-    CRefine sp ty ev body -> csr-term-ctors body
-    CRefineProof sp ty witness body -> csr-term-ctors body
-    CDischarge sp ty ev _ body -> csr-term-ctors body
-    CForget sp ty body -> csr-term-ctors body
-    CCast sp ty body -> csr-term-ctors body
+  csr-term-ctors :: RuntimeContext -> CoreTerm -> Option (List (String, List CoreTerm))
+  csr-term-ctors ctx term = case term of
+    CIf sp ty test yes no -> csr-merge-ctors (csr-term-ctors ctx yes) (csr-term-ctors ctx no)
+    CCase sp ty value alts -> csr-alts-ctors ctx alts
+    CGuard sp ty cond body -> csr-term-ctors ctx body
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      [] -> if scheme-supported ctx sc && word-type ctx (scheme-body sc) then csr-term-ctors ctx body else None
+      other -> None
+    CRequire sp ty body -> csr-term-ctors ctx body
+    CProved sp ty ev body -> csr-term-ctors ctx body
+    CRefine sp ty ev body -> csr-term-ctors ctx body
+    CRefineProof sp ty witness body -> csr-term-ctors ctx body
+    CDischarge sp ty ev _ body -> csr-term-ctors ctx body
+    CForget sp ty body -> csr-term-ctors ctx body
+    CCast sp ty body -> csr-term-ctors ctx body
     other -> case erased-constructor-call term [] of
       Some (name, actuals, args) -> Some [(name, args)]
       None -> case term of
@@ -7166,16 +7170,16 @@ module Cinch.RuntimeIr where
     (Some xs, Some ys) -> csr-merge-list xs ys
     other -> None
 
-  csr-alts-ctors :: CoreTerm -> Option (List (String, List CoreTerm))
-  csr-alts-ctors alts = case alts of
-    CAlternative sp pat body (CAlternativesEnd end) -> csr-term-ctors body
-    CAlternative sp pat body rest -> csr-merge-ctors (csr-term-ctors body) (csr-alts-ctors rest)
+  csr-alts-ctors :: RuntimeContext -> CoreTerm -> Option (List (String, List CoreTerm))
+  csr-alts-ctors ctx alts = case alts of
+    CAlternative sp pat body (CAlternativesEnd end) -> csr-term-ctors ctx body
+    CAlternative sp pat body rest -> csr-merge-ctors (csr-term-ctors ctx body) (csr-alts-ctors ctx rest)
     other -> None
 
-  csr-clauses-ctors :: List CoreClause -> Option (List (String, List CoreTerm))
-  csr-clauses-ctors clauses = case clauses of
-    [CoreClause sp pats body] -> csr-term-ctors body
-    (CoreClause sp pats body) : rest -> csr-merge-ctors (csr-term-ctors body) (csr-clauses-ctors rest)
+  csr-clauses-ctors :: RuntimeContext -> List CoreClause -> Option (List (String, List CoreTerm))
+  csr-clauses-ctors ctx clauses = case clauses of
+    [CoreClause sp pats body] -> csr-term-ctors ctx body
+    (CoreClause sp pats body) : rest -> csr-merge-ctors (csr-term-ctors ctx body) (csr-clauses-ctors ctx rest)
     [] -> None
 
   record CsrArm where
@@ -7215,7 +7219,7 @@ module Cinch.RuntimeIr where
       else case d.clauses of
         (CoreClause at patterns body) : rest ->
           if list-length (proof-stage-arities patterns 0) /= 1 || list-length (runtime-parameters patterns) == 0 then None
-          else (case csr-clauses-ctors (d.clauses) of
+          else (case csr-clauses-ctors (scoped.context) (d.clauses) of
             Some [(c0, a0), (c1, a1)] ->
               (case (csr-check-arm scoped c0 a0, csr-check-arm scoped c1 a1) of
                 (Some (o0, arm0), Some (o1, arm1)) | o0 == o1 && arm0.csr-tag /= arm1.csr-tag ->
@@ -7713,6 +7717,217 @@ module Cinch.RuntimeIr where
       else None
     None -> None
 
+  fold-field-roots :: CorePattern -> List String -> List Local
+  fold-field-roots fields words = case fields of
+    CPDone sp -> []
+    CPField sp (CPProof at predicate id binder) rest -> fold-field-roots rest words
+    CPField sp first rest -> case words of
+      [] -> []
+      word : more -> (Discard (pattern-type first) word) : (fold-field-roots rest more)
+    other -> []
+
+  tail-fold-csr-case :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> CoreTerm -> CoreTerm -> Option Writer
+  tail-fold-csr-case definitions locals roots context w failed value alternatives =
+    case call-spine value [] of
+      Some (name, actuals, args) -> case worker-definition name w of
+        Some d | list-length args == list-length (definition-parameters d) ->
+          (case source-scheme-classes (w.context) (scheme-params (d.scheme)) actuals of
+            Some classes -> case csr-plan w d classes of
+              None -> None
+              Some (CsrPlan arm0 arm1 words) ->
+                (case (fold-alternatives alternatives (arm0.csr-ctor) (list-length (arm0.csr-classes)),
+                       fold-alternatives alternatives (arm1.csr-ctor) (list-length (arm1.csr-classes))) of
+                  (FoldCase f0 b0, FoldCase f1 b1) | not (row-guarded b0) && not (row-guarded b1) ->
+                    let agg-ty = csr-agg-type words in
+                    let csr-sym = symbol (cat [specialized-name name classes, "#csr"]) in
+                    let arg-llvms = value-llvms (w.context) (term-types args) in
+                    (case expressions definitions locals (request-demand (CsrDemand name classes) w) args of
+                      (evaluated, arg-words) -> case typed-call evaluated agg-ty csr-sym (typed-values arg-llvms arg-words) of
+                        (called, agg) ->
+                          let (w1, tagv) = fresh called "%csrtag" in
+                          let (w2, is0) = fresh w1 "%csris0" in
+                          let (w3, l0) = fresh w2 "tcsra." in
+                          let (w4, l1) = fresh w3 "tcsrb." in
+                          let branched = emit-lines w4 [
+                            cat ["  ", tagv, " = extractvalue ", agg-ty, " ", agg, ", 0"],
+                            cat ["  ", is0, " = icmp eq i8 ", tagv, ", ", nat-to-string (arm0.csr-tag)],
+                            cat ["  br i1 ", is0, ", label %", l0, ", label %", l1],
+                            cat [l0, ":"]] in
+                          case csr-emit-extract-words branched agg-ty agg (list-length (arm0.csr-classes)) 0 of
+                            (e0, w0s) ->
+                              let done0 = tail-result definitions (fold-field-locals f0 w0s <> locals) (fold-field-roots f0 w0s <> roots) context e0 failed b0 in
+                              case csr-emit-extract-words (line done0 (cat [l1, ":"])) agg-ty agg (list-length (arm1.csr-classes)) 0 of
+                                (e1, w1s) ->
+                                  Some (tail-result definitions (fold-field-locals f1 w1s <> locals) (fold-field-roots f1 w1s <> roots) context e1 failed b1))
+                  other -> None)
+            None -> None)
+        other -> None
+      None -> None
+
+  -- | Product-accumulator self-loop unboxing for `global-tail-worker`:
+  -- when a single-clause self-loop immediately destructures a 1..=3 raw-field
+  -- uniform single-constructor product parameter `pi` and every self-tail call
+  -- passes `Ctor a1..ak` at `pi`, unpack the accumulator into scalar loop slots.
+  all-raw-flat :: RuntimeContext -> List (Option Nat, UType, Nat) -> Bool
+  all-raw-flat ctx flat = case flat of
+    [] -> True
+    (_, fty, _) : rest -> (case word-class ctx fty of Some 0 -> True; other -> False) && all-raw-flat ctx rest
+
+  flat-var-params :: List CorePattern -> Option (List (Nat, UType))
+  flat-var-params pats = case pats of
+    [] -> Some []
+    (CPVar sp ty id name) : rest -> (case flat-var-params rest of
+      Some more -> Some ((id, ty) : more)
+      None -> None)
+    other -> None
+
+  find-param-index :: Nat -> Nat -> List (Nat, UType) -> Option (Nat, UType)
+  find-param-index needle idx ps = case ps of
+    [] -> None
+    (id, ty) : rest -> if id == needle then Some (idx, ty) else find-param-index needle (idx + 1) rest
+
+  nth-core-term :: Nat -> List CoreTerm -> Option CoreTerm
+  nth-core-term idx xs = case xs of
+    [] -> None
+    first : rest -> if idx == 0 then Some first else nth-core-term (idx - 1) rest
+
+  splice-at-term :: Nat -> List CoreTerm -> List CoreTerm -> List CoreTerm
+  splice-at-term idx replacement xs = case xs of
+    [] -> []
+    first : rest -> if idx == 0 then replacement <> rest else first : (splice-at-term (idx - 1) replacement rest)
+
+  splice-at-str :: Nat -> List String -> List String -> List String
+  splice-at-str idx replacement xs = case xs of
+    [] -> []
+    first : rest -> if idx == 0 then replacement <> rest else first : (splice-at-str (idx - 1) replacement rest)
+
+  unboxed-self-call :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Writer -> CoreTerm -> Option (List CoreTerm)
+  unboxed-self-call self-name self-classes orig-arity pi cname k w term = case head term of
+    CUse sp ty name role actuals | role /= "foreign" && role /= "constructor" && name == self-name ->
+      let args = arguments term [] in
+      if list-length args == orig-arity then
+        (case worker-definition name w of
+          Some d -> (case source-scheme-classes (w.context) (scheme-params (d.scheme)) actuals of
+            Some call-classes | same-nat-list call-classes self-classes ->
+              (case nth-core-term pi args of
+                Some acc-arg -> (case erased-constructor-call acc-arg [] of
+                  Some (cn, cact, cargs) | cn == cname && list-length cargs == k ->
+                    Some (splice-at-term pi cargs args)
+                  other -> None)
+                None -> None)
+            other -> None)
+          None -> None)
+      else None
+    other -> None
+
+  unboxed-loop-bindings :: Nat -> Nat -> List (Nat, UType) -> List (Option Nat, UType, Nat) -> Nat -> (List Local, List Local)
+  unboxed-loop-bindings cur pi ps flat slot = case ps of
+    [] -> ([], [])
+    (pid, pty) : rest ->
+      if cur == pi then
+        let (flocs, next-slot) = unboxed-flat-bindings flat slot in
+        (case unboxed-loop-bindings (cur + 1) pi rest flat next-slot of
+          (mlocs, mroots) -> (flocs <> mlocs, mroots))
+      else
+        let word = cat ["%arg", nat-to-string slot] in
+        (case unboxed-loop-bindings (cur + 1) pi rest flat (slot + 1) of
+          (mlocs, mroots) -> ((Borrowed pid pty word) : mlocs, (Discard pty word) : mroots))
+
+  unboxed-flat-bindings :: List (Option Nat, UType, Nat) -> Nat -> (List Local, Nat)
+  unboxed-flat-bindings flat slot = case flat of
+    [] -> ([], slot)
+    (Some fid, fty, _) : rest ->
+      let word = cat ["%arg", nat-to-string slot] in
+      (case unboxed-flat-bindings rest (slot + 1) of
+        (more, end-slot) -> ((Borrowed fid fty word) : more, end-slot))
+    (None, fty, _) : rest -> unboxed-flat-bindings rest (slot + 1)
+
+  load-unboxed-fields :: String -> Nat -> Nat -> Writer -> (Writer, List String)
+  load-unboxed-fields ptr-reg idx count w =
+    if idx >= count then (w, [])
+    else
+      let (w1, gep) = fresh w "%up" in
+      let (w2, val) = fresh w1 "%uv" in
+      let w3 = emit-lines w2 [
+        cat ["  ", gep, " = getelementptr i64, ptr ", ptr-reg, ", i64 ", nat-to-string idx],
+        cat ["  ", val, " = load i64, ptr ", gep]] in
+      case load-unboxed-fields ptr-reg (idx + 1) count w3 of
+        (w4, more) -> (w4, val : more)
+
+  term-has-unboxed-self-tail :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Writer -> CoreTerm -> Bool
+  term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w term = case term of
+    CIf sp ty test yes no ->
+      term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w yes
+      || term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w no
+    CCase sp ty scrut alts -> alts-have-unboxed-self-tail self-name self-classes orig-arity pi cname k w alts
+    CLet sp ty id name sc rhs body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CGuard sp ty cond body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CRequire sp ty body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CProved sp ty ev body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CRefine sp ty ev body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CRefineProof sp ty witness body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CDischarge sp ty ev _ body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CForget sp ty body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CCast sp ty body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    other -> case unboxed-self-call self-name self-classes orig-arity pi cname k w term of
+      Some _ -> True
+      None -> False
+
+  alts-have-unboxed-self-tail :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Writer -> CoreTerm -> Bool
+  alts-have-unboxed-self-tail self-name self-classes orig-arity pi cname k w alts = case alts of
+    CAlternative sp pat body rest ->
+      term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+      || alts-have-unboxed-self-tail self-name self-classes orig-arity pi cname k w rest
+    other -> False
+
+  try-unboxed-acc-tail-worker :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> Writer -> Nat -> Option (String, String) -> Option Writer
+  try-unboxed-acc-tail-worker definitions d classes prefix w arity loop =
+    if arity > 6 then None
+    else case d.clauses of
+      [CoreClause sp pats body] ->
+        (case (flat-var-params pats, body) of
+          (Some ps, CCase csp cty (CLocal lsp lty sid sname []) (CAlternative asp (CPConstructor psp pty cname cact csc cfields) arm-body (CAlternativesEnd esp))) ->
+            (case find-param-index sid 0 ps of
+              Some (pi, pty0) | not (term-uses-id sid arm-body) ->
+                (case (constructor cname (writer-program w), flat-pattern-fields cfields 0) of
+                  (Some (owner, 0, ctor), Some flat) ->
+                    let k = list-length flat in
+                    (case data-declaration owner (writer-program w) of
+                      Some dd | k >= 1 && k <= 3 && list-length (core-data-constructors dd) == 1 && list-length (core-constructor-fields ctor) == k ->
+                        let uniform = (case core-data-layout dd of UniformData -> True; other -> False) in
+                        if uniform && all-raw-flat (w.context) flat && term-has-unboxed-self-tail (d.name) classes arity pi cname k w arm-body then
+                          let name = specialized-name (d.name) classes in
+                          let callee = tail-worker-name name in
+                          let hint = llvm-hint w (d.name) in
+                          let new-width = arity + (k - 1) in
+                          let entry-args = value-parameters arity 0 in
+                          let loop-args = value-parameters new-width 0 in
+                          let init-params = map (\word -> word <> ".initial") loop-args in
+                          let acc-word = cat ["%arg", nat-to-string pi] in
+                          let w0 = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words entry-args), ")", hint, worker-open w])) "entry:" in
+                          let (w1, ptr-reg) = fresh w0 "%uptr" in
+                          let w2 = line w1 (cat ["  ", ptr-reg, " = inttoptr i64 ", acc-word, " to ptr"]) in
+                          (case load-unboxed-fields ptr-reg 0 k w2 of
+                            (w3, fwords) ->
+                              let w4 = count-op False pty0 acc-word w3 in
+                              let call-words = splice-at-str pi fwords entry-args in
+                              (case call w4 (symbol callee) call-words of
+                                (called, res) ->
+                                  let wrapped = line (line called (cat ["  ret i64 ", res])) "}" in
+                                  let started = line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words init-params), ")", hint, worker-open w])) "entry:" in
+                                  let looped = load-loop-arguments loop-args (line (line (allocate-loop-arguments loop-args started) "  br label %self.loop") "self.loop:") in
+                                  let (blocs, broots) = unboxed-loop-bindings 0 pi ps flat 0 in
+                                  let (w5, failed) = fresh looped "nextunbox" in
+                                  let ctx = UnboxedAccTail (d.name) classes arity pi cname k new-width loop in
+                                  let body-done = tail-result definitions (blocs <> (LoopMarker : prefix)) broots ctx w5 failed arm-body in
+                                  Some (line (line (line body-done (cat [failed, ":"])) "  unreachable") "}")))
+                        else None
+                      other -> None)
+                  other -> None)
+              other -> None)
+          other -> None)
+      other -> None
+
   tail-result :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> CoreTerm -> Writer
   tail-result definitions locals roots context w failed term = case term of
     CIf sp ty test yes no -> case expression definitions locals w test of
@@ -7721,12 +7936,14 @@ module Cinch.RuntimeIr where
         let selected = continue-if one condition otherwise in
         let first = tail-result definitions locals roots context selected failed yes in
         tail-result definitions locals roots context (line first (cat [otherwise, ":"])) failed no
-    CCase sp ty value alternatives -> case parameter-value locals roots value of
-      Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word True alternatives
-      None -> case borrowed-local-word locals value of
-        Some word -> tail-rows definitions locals roots context w (core-type value) word False alternatives
-        None -> case expression definitions locals w value of
-          (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word True alternatives
+    CCase sp ty value alternatives -> case tail-fold-csr-case definitions locals roots context w failed value alternatives of
+      Some folded -> folded
+      None -> case parameter-value locals roots value of
+        Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word True alternatives
+        None -> case borrowed-local-word locals value of
+          Some word -> tail-rows definitions locals roots context w (core-type value) word False alternatives
+          None -> case expression definitions locals w value of
+            (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word True alternatives
     CGuard sp ty condition body -> if core-alternative-covers term then
       tail-result definitions locals roots context w failed body
       else (case expression definitions locals w condition of
@@ -7776,6 +7993,10 @@ module Cinch.RuntimeIr where
             (case evidences definitions locals (demand-worker name classes w) evidence of
               (ready, prefix) -> transfer-tail-prefix definitions locals roots [] width ready (tail-worker-name (specialized-name name classes)) prefix args loop [])
         None -> tail-return definitions locals roots w failed term
+      UnboxedAccTail self-name self-classes orig-arity pi cname k new-width loop ->
+        (case unboxed-self-call self-name self-classes orig-arity pi cname k w term of
+          Some flat-args -> transfer-tail-prefix definitions locals roots [] new-width w (tail-worker-name (specialized-name self-name self-classes)) [] flat-args loop []
+          None -> tail-return definitions locals roots w failed term)
 
   tail-return :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
   tail-return definitions locals roots w failed body = case worker-result definitions locals roots w failed body of
@@ -7904,8 +8125,15 @@ module Cinch.RuntimeIr where
         FunctionHints inline cold (Some count) ->
           (case loop-metadata count w of (next, metadata) -> (next, Some (tail-worker-name name, metadata)))
         other -> (w, Some (tail-worker-name name, ""))) in
-    let started = start-tail-worker (llvm-hint w (d.name)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
-    line (global-tail-clauses definitions (LoopMarker : prefix) roots offset (GlobalTail group width loop []) (d.clauses) started) "}"
+    if self-loop && offset == 0 && arity == width then
+      (case try-unboxed-acc-tail-worker definitions d classes prefix prepared arity loop of
+        Some emitted -> emitted
+        None ->
+          let started = start-tail-worker (llvm-hint w (d.name)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
+          line (global-tail-clauses definitions (LoopMarker : prefix) roots offset (GlobalTail group width loop []) (d.clauses) started) "}")
+    else
+      let started = start-tail-worker (llvm-hint w (d.name)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
+      line (global-tail-clauses definitions (LoopMarker : prefix) roots offset (GlobalTail group width loop []) (d.clauses) started) "}"
 
   -- | Build parameter roots omitting Discard entries for borrowed parameters (`True`).
   borrowed-parameter-roots :: List CorePattern -> Nat -> List Bool -> List Local
