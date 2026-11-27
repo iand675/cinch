@@ -31,6 +31,12 @@ pub enum Class {
     /// apply frame, a closure environment, a dictionary value slot, a
     /// cell) holds it boxed, as an `Obj` word (`crate::wide`).
     Wide,
+    /// A POD unboxed value aggregate (`#[repr(value)]` record or
+    /// `FixedArray n a`) of `size` bytes and `align` alignment. Never
+    /// refcounted; specialized by `(size, align)` across polymorphic units,
+    /// stored inline as raw words in ADTs/records/closures, and passed by
+    /// registers (`<= 16B, align <= 16`) or `readonly ptr` + `sret`.
+    Val { size: u32, align: u16 },
     /// The class of the enclosing unit's type parameter at this index.
     /// Only a polymorphic unit's generic body carries it; the collector
     /// substitutes every one before emission.
@@ -52,13 +58,26 @@ impl Class {
         matches!(self, Class::Param(_))
     }
 
-    /// The words this class occupies in a layout: two for `Wide`, one
-    /// for every word class.
+    pub fn is_val(self) -> bool {
+        matches!(self, Class::Val { .. })
+    }
+
+    pub fn val_layout(self) -> Option<(u64, u64)> {
+        match self {
+            Class::Val { size, align } => Some((u64::from(size), u64::from(align).max(1))),
+            _ => None,
+        }
+    }
+
+    /// The 8-byte words this class occupies in a constructor or closure
+    /// layout: two for `Wide`, `ceil(size/8).max(1)` for `Val` (at least
+    /// one word for zero-sized values so closure partial application
+    /// counts always advance), and one for every word class.
     pub fn words(self) -> usize {
-        if self == Class::Wide {
-            2
-        } else {
-            1
+        match self {
+            Class::Wide => 2,
+            Class::Val { size, .. } => (size as usize).div_ceil(8).max(1),
+            _ => 1,
         }
     }
 
@@ -73,15 +92,79 @@ impl Class {
         })
     }
 
-    fn letter(self) -> char {
+    pub fn append_token(self, out: &mut String) {
         match self {
-            Class::Raw => 'R',
-            Class::Obj => 'O',
-            Class::TObj => 'T',
-            Class::Wide => 'W',
-            Class::Param(_) => 'P',
+            Class::Raw => out.push('R'),
+            Class::Obj => out.push('O'),
+            Class::TObj => out.push('T'),
+            Class::Wide => out.push('W'),
+            Class::Val { size, align } => {
+                use std::fmt::Write as _;
+                let _ = write!(out, "V{size}a{align}");
+            }
+            Class::Param(i) => {
+                use std::fmt::Write as _;
+                let _ = write!(out, "P{i}_");
+            }
         }
     }
+}
+
+/// Parse a class vector encoded by [`letters`]. Accepts `R`, `O`, `T`, `W`,
+/// `V<size>a<align>`, and (when `allow_param` is true) `P<idx>_`.
+pub fn parse_classes(s: &str, allow_param: bool) -> Option<Vec<Class>> {
+    let b = s.as_bytes();
+    let mut i = 0;
+    let mut out = Vec::new();
+    while i < b.len() {
+        match b[i] {
+            b'R' => { out.push(Class::Raw); i += 1; }
+            b'O' => { out.push(Class::Obj); i += 1; }
+            b'T' => { out.push(Class::TObj); i += 1; }
+            b'W' => { out.push(Class::Wide); i += 1; }
+            b'V' => {
+                i += 1;
+                let s_start = i;
+                while i < b.len() && b[i].is_ascii_digit() { i += 1; }
+                if i == s_start || i >= b.len() || b[i] != b'a' { return None; }
+                let size: u32 = s[s_start..i].parse().ok()?;
+                i += 1;
+                let a_start = i;
+                while i < b.len() && b[i].is_ascii_digit() { i += 1; }
+                if i == a_start { return None; }
+                let align: u16 = s[a_start..i].parse().ok()?;
+                out.push(Class::Val { size, align });
+            }
+            b'P' if allow_param => {
+                i += 1;
+                let p_start = i;
+                while i < b.len() && b[i].is_ascii_digit() { i += 1; }
+                if i == p_start || i >= b.len() || b[i] != b'_' { return None; }
+                let idx: u16 = s[p_start..i].parse().ok()?;
+                i += 1;
+                out.push(Class::Param(idx));
+            }
+            _ => return None,
+        }
+    }
+    Some(out)
+}
+
+/// Whether `name` is a specialized unit whose class vector contains at least
+/// one `Class::Val` (e.g. `Lib.id@V24a8`, `Lib.MkBox@OV16a8`). Consumers emit
+/// external `Val` specializations privately so prebuilt dependency objects
+/// never need to anticipate downstream unboxed layouts.
+pub fn is_val_specialization(name: &str) -> bool {
+    let base = name
+        .strip_suffix("#tail")
+        .or_else(|| name.strip_suffix("#b"))
+        .unwrap_or(name);
+    let Some((_, suffix)) = base.rsplit_once('@') else {
+        return false;
+    };
+    let vec_part = suffix.split('$').next().unwrap_or(suffix);
+    let vec_part = vec_part.split('.').next().unwrap_or(vec_part);
+    parse_classes(vec_part, false).is_some_and(|cs| cs.iter().any(|c| c.is_val()))
 }
 
 /// Substitute a whole vector.
@@ -94,14 +177,18 @@ pub fn identity(n: usize) -> Vec<Class> {
     (0..n).map(|i| Class::Param(i as u16)).collect()
 }
 
-/// The suffix letters of a concrete vector (`RO` for `[Raw, Obj]`).
+/// The suffix tokens of a class vector (`RO` for `[Raw, Obj]`, `V24a8R` for `[Val(24,8), Raw]`).
 pub fn letters(v: &[Class]) -> String {
-    v.iter().map(|c| c.letter()).collect()
+    let mut out = String::with_capacity(v.len());
+    for c in v {
+        c.append_token(&mut out);
+    }
+    out
 }
 
 /// The unit name of one specialized copy: the generic name, `@`, and the
-/// vector's letters (`Main.pair@RO`). The copy's companion symbols
-/// (`.clo`, `.app`, `#tail`) follow the suffix, so the incremental
+/// vector's tokens (`Main.pair@RO`, `Main.id@V24a8`). The copy's companion
+/// symbols (`.clo`, `.app`, `#tail`) follow the suffix, so the incremental
 /// splitter's unit rule owns them, and [`base_unit`] recovers the
 /// declaration's own symbol.
 pub fn spec_name(base: &str, v: &[Class]) -> String {
@@ -109,19 +196,33 @@ pub fn spec_name(base: &str, v: &[Class]) -> String {
 }
 
 /// The generic symbol a specialized symbol was copied from: the one
-/// `@<letters>` segment followed by the end, `.` or `#` is removed. Source
+/// `@<tokens>` segment followed by the end, `.` or `#` is removed. Source
 /// operator names may contain `@`, but never `@` directly followed by a
-/// letter, so the segment is unambiguous.
+/// class token, so the segment is unambiguous.
 pub fn base_unit(sym: &str) -> std::borrow::Cow<'_, str> {
     let b = sym.as_bytes();
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'@' {
             let mut j = i + 1;
-            while j < b.len() && matches!(b[j], b'R' | b'O' | b'T' | b'W') {
-                j += 1;
+            let mut ok = true;
+            while j < b.len() && b[j] != b'.' && b[j] != b'#' {
+                match b[j] {
+                    b'R' | b'O' | b'T' | b'W' => j += 1,
+                    b'V' => {
+                        j += 1;
+                        let s0 = j;
+                        while j < b.len() && b[j].is_ascii_digit() { j += 1; }
+                        if j == s0 || j >= b.len() || b[j] != b'a' { ok = false; break; }
+                        j += 1;
+                        let a0 = j;
+                        while j < b.len() && b[j].is_ascii_digit() { j += 1; }
+                        if j == a0 { ok = false; break; }
+                    }
+                    _ => { ok = false; break; }
+                }
             }
-            if j > i + 1 && (j == b.len() || b[j] == b'.' || b[j] == b'#') {
+            if ok && j > i + 1 && (j == b.len() || b[j] == b'.' || b[j] == b'#') {
                 let mut out = String::with_capacity(sym.len());
                 out.push_str(&sym[..i]);
                 out.push_str(&sym[j..]);
@@ -141,8 +242,9 @@ pub enum AdtRepr {
     /// A foreign opaque type or a runtime handle: never counted.
     Raw,
     /// A POD unboxed value record (`#[repr(value)]`): never heap-allocated
-    /// or refcounted; references (`Ref`/`Mut`) to it are raw native pointers.
-    Value,
+    /// or refcounted; references (`Ref`/`Mut`) to it are raw native pointers,
+    /// and its by-value class is `Class::Val { size, align }`.
+    Value { size: u32, align: u16 },
     /// A refinement type: its runtime form is the container itself.
     Base(Ty),
 }
@@ -156,7 +258,7 @@ pub fn is_value_ty(ty: &Ty, types: &dyn TypeReprs) -> bool {
             "refined" => args.get(1).is_some_and(|b| is_value_ty(b, types)),
             "Sing" => args.first().is_some_and(|b| is_value_ty(b, types)),
             _ => match types.adt(name, args) {
-                AdtRepr::Value => true,
+                AdtRepr::Value { .. } => true,
                 AdtRepr::Base(b) => is_value_ty(&b, types),
                 _ => false,
             },
@@ -168,6 +270,9 @@ pub fn is_value_ty(ty: &Ty, types: &dyn TypeReprs) -> bool {
 /// The checker's view of named types, for [`repr_of`].
 pub trait TypeReprs {
     fn adt(&self, name: &str, args: &[Ty]) -> AdtRepr;
+    fn fixed_array_layout(&self, _args: &[Ty]) -> Option<(u32, u16)> {
+        None
+    }
 }
 
 /// The class of a zonked type, where `params` are the rigid names of the
@@ -219,7 +324,10 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             }
         }
         Ty::Adt(name, args) => match name.as_str() {
-            "FixedArray" => Class::Raw,
+            "FixedArray" => match types.fixed_array_layout(args) {
+                Some((size, align)) => Class::Val { size, align },
+                None => Class::Raw,
+            },
             "refined" => match args.as_slice() {
                 [_, base] => repr_of(base, params, types, miss),
                 _ => {
@@ -244,7 +352,8 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             | "Secret" | "SchemaSnapshot" | "Database" | "SchemaRead" => Class::Raw,
             _ => match types.adt(name, args) {
                 AdtRepr::Obj => Class::Obj,
-                AdtRepr::Raw | AdtRepr::Value => Class::Raw,
+                AdtRepr::Raw => Class::Raw,
+                AdtRepr::Value { size, align } => Class::Val { size, align },
                 AdtRepr::Base(b) => repr_of(&b, params, types, miss),
             },
         },

@@ -324,6 +324,7 @@ module Cinch.Global where
   evidence-valid fams proms globals givens evidence = case evidence of
     CECopy sp carrier -> copy-marker-carrier carrier
     CEKernel sp carrier -> kernel-marker-carrier carrier
+    CEBoxed sp carrier -> boxed-marker-carrier carrier
     CEGiven sp ty name -> case lookup-given name givens of Some expected -> equal-type-in fams proms ty expected; None -> False
     CEInstance sp ty name actuals arguments -> case lookup-base-global name globals of
       Some (GlobalValue symbol role sc) -> instance-role role && (case instantiate-contract sc actuals of

@@ -315,7 +315,7 @@ module Cinch.Nominal where
   global-stage-str-nat :: String
   global-stage-str-nat = "m.$23stage$2dquotation.strNat"
   kernel-type-name :: String -> Bool
-  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later", "RawPtr", "Borrowed", "MaybeNull", "FixedArray"]
+  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Boxed", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later", "RawPtr", "Borrowed", "MaybeNull", "FixedArray"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   indexed-name :: String -> HashMap String () -> Bool
@@ -460,6 +460,7 @@ module Cinch.Nominal where
     else if name == "Vec" then (TName sp "b.Vec", [])
     else if has name locals || kernel-type-name name then (TName sp name, [])
     else if contains-identity name refs then (TName sp (interface-global name), [])
+    else if name == "Box" then (TName sp "b.Box", [])
     else fail sp (string-concat "resolved scheme contains an unbound type name: " name)
   quantified-names :: TypeExpr -> List String
   quantified-names qs = case qs of TQuantifier s name only kind rest -> name : (quantified-names rest); other -> []
@@ -480,7 +481,7 @@ module Cinch.Nominal where
     TQuantifiersEnd s -> (qs, [])
     other -> fail (type-expr-span qs) "invalid resolved quantifier kinds or scope"
   signature-reference :: String -> Json -> Bool
-  signature-reference name refs = name == "Io" || name == "Copy" || name == "Kernel" || signature-in-rows name refs
+  signature-reference name refs = name == "Io" || name == "Copy" || name == "Kernel" || name == "Boxed" || signature-in-rows name refs
   signature-in-rows :: String -> Json -> Bool
   signature-in-rows name refs = case refs of
     JArr row rest -> (name == text (field "identity" row) && text (field "kind" row) == "signature") || signature-in-rows name rest

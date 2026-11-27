@@ -66,7 +66,7 @@ module Cinch.Core where
   export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type
-  export CoreGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEKernel, CEInstance
+  export CoreGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEKernel, CEBoxed, CEInstance
   export CEArgument, CEArgumentsEnd
   export CQualifiedUse, CMethod, evidence-type
   export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
@@ -311,11 +311,12 @@ module Cinch.Core where
     CEGiven :: Span -> UType -> String -> CoreEvidence
     CECopy :: Span -> UType -> CoreEvidence
     CEKernel :: Span -> UType -> CoreEvidence
+    CEBoxed :: Span -> UType -> CoreEvidence
     CEInstance :: Span -> UType -> String -> List UType -> CoreEvidence -> CoreEvidence
     CEArgument :: Span -> CoreEvidence -> CoreEvidence -> CoreEvidence
     CEArgumentsEnd :: Span -> CoreEvidence
   evidence-type :: CoreEvidence -> UType
-  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEKernel s carrier -> UApp (UCon "Kernel" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
+  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEKernel s carrier -> UApp (UCon "Kernel" (KFun KType KType)) carrier; CEBoxed s carrier -> UApp (UCon "Boxed" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
   map-givens :: (UType -> UType) -> List CoreGiven -> List CoreGiven
   map-givens f givens = case givens of [] -> []; (CoreGiven s name ty) : rest -> (CoreGiven s name (f ty)) : (map-givens f rest)
   map-evidence :: (UType -> UType) -> CoreEvidence -> CoreEvidence
@@ -324,6 +325,7 @@ module Cinch.Core where
     CEGiven s ty name -> CEGiven s (f ty) name
     CECopy s carrier -> CECopy s (f carrier)
     CEKernel s carrier -> CEKernel s (f carrier)
+    CEBoxed s carrier -> CEBoxed s (f carrier)
     CEInstance s ty name actuals args -> CEInstance s (f ty) name (map-types f actuals) (map-evidence f args)
     CEArgument s arg rest -> CEArgument s (map-evidence f arg) (map-evidence f rest)
     CEArgumentsEnd s -> evidence
@@ -923,6 +925,7 @@ module Cinch.Core where
   rewrite-evidence-equal first second = case first of
     CECopy sp carrier -> case second of CECopy at other -> same-shape carrier other; other -> False
     CEKernel sp carrier -> case second of CEKernel at other -> same-shape carrier other; other -> False
+    CEBoxed sp carrier -> case second of CEBoxed at other -> same-shape carrier other; other -> False
     CEGiven sp ty name -> case second of CEGiven at other symbol -> name == symbol && rewrite-type-equal ty other; other -> False
     CEInstance sp ty name types arguments -> case second of
       CEInstance at other symbol actuals supplied ->
@@ -1426,6 +1429,7 @@ module Cinch.Core where
     CEGiven s ty name -> type-metas st ty
     CECopy s carrier -> type-metas st carrier
     CEKernel s carrier -> type-metas st carrier
+    CEBoxed s carrier -> type-metas st carrier
     CEInstance s ty name actuals args -> type-metas st ty <> types-metas st actuals <> evidence-metas st args
     CEArgument s arg rest -> evidence-metas st arg <> evidence-metas st rest
     CEArgumentsEnd s -> []
@@ -1606,6 +1610,7 @@ module Cinch.Core where
     CEGiven s ty name -> closed-type ty
     CECopy s carrier -> copy-marker-carrier carrier
     CEKernel s carrier -> kernel-marker-carrier carrier
+    CEBoxed s carrier -> boxed-marker-carrier carrier
     CEInstance s ty name actuals args -> closed-type ty && closed-types actuals && evidence-arguments-closed args
     other -> False
   evidence-arguments-closed :: CoreEvidence -> Bool
@@ -1853,6 +1858,7 @@ module Cinch.Core where
     CEGiven s ty name -> type-index-scope universals rigid ty
     CECopy s carrier -> copy-marker-carrier carrier
     CEKernel s carrier -> kernel-marker-carrier carrier
+    CEBoxed s carrier -> boxed-marker-carrier carrier
     CEInstance s ty name actuals args -> type-index-scope universals rigid ty && types-index-scope universals rigid actuals && evidence-index-scope-with universals rigid args
     CEArgument s arg rest -> evidence-index-scope-with universals rigid arg && evidence-index-scope-with universals rigid rest
     CEArgumentsEnd s -> True

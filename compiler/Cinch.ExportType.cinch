@@ -47,7 +47,7 @@ module Cinch.ExportType where
     prefix : dot : rest -> if char-code dot == 46 && char-code prefix == 105 then decode rest
       else if char-code dot == 46 && char-code prefix == 109 then
         (case split-owner rest [] of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))
-      else if name == "b.Io" then Ok "Io" else if name == "b.Dec" then Ok "Dec" else if name == "b.Fin" then Ok "Fin" else if name == "b.Vec" then Ok "Vec" else if name == "b.Scope" then Ok "Scope" else if name == "b.Task" then Ok "Task"
+      else if name == "b.Io" then Ok "Io" else if name == "b.Dec" then Ok "Dec" else if name == "b.Fin" then Ok "Fin" else if name == "b.Vec" then Ok "Vec" else if name == "b.Box" then Ok "Box" else if name == "b.Scope" then Ok "Scope" else if name == "b.Task" then Ok "Task"
       else if char-code dot == 46 && char-code prefix == 98 then Err "unported kernel defining identity" else Ok name
     other -> Ok name
 

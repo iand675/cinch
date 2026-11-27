@@ -3,7 +3,7 @@
 -- creation and decision evidence here, before checker elaboration.
 module Cinch.Builtin where
 
-  import Cinch.Ast (Decl, TypeExpr, Program, Module, DExternal, DData, DClass, DMethod, DSig, TypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
+  import Cinch.Ast (Decl, TypeExpr, Program, Module, DExternal, DData, DClass, DMethod, DSig, DFun, PCon, PVar, PArg, PArgsEnd, EVar, TypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Cinch.RuntimeAbi (runtime-abi-int)
   import Cinch.Parse (parse-program, parse-scheme)
   import Cinch.Document
@@ -11,7 +11,7 @@ module Cinch.Builtin where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Scan (string-starts-with, string-drop)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, ad-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, box-declaration, unbox-declarations, intrinsic-contract, array-plan, ad-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
   export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation
@@ -317,6 +317,7 @@ module Cinch.Builtin where
     , ("laterPure", "b.laterPure"), ("laterAp", "b.laterAp"), ("laterFix", "b.laterFix"), ("forceClock", "b.forceClock")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Vec", "b.Vec"), ("Proof.search", "b.Proof.search")
+    , ("Box", "b.Box"), ("unbox", "b.unbox")
     ]
 
   entry :: String -> String -> String -> Bool -> Decl
@@ -462,6 +463,23 @@ module Cinch.Builtin where
       [("b.Vec.Nil", vector (TIndex sp "0")),
        ("b.Vec.Cons", TForall sp (forall-param-spine sp [TypeParam sp "k" (Some nat) False])
          (TFun sp element (TFun sp tail result)))]
+
+  box-declaration :: Decl
+  box-declaration =
+    let sp = Span 0 0 1 1 in
+    let a = TName sp "a" in
+    let boxed = TApp sp (TName sp "b.Box") (TArg sp a (TArgsEnd sp)) in
+    DData sp "b.Box" [TypeParam sp "a" None False]
+      [("b.Box", TFun sp a boxed)]
+
+  unbox-declarations :: List Decl
+  unbox-declarations =
+    let sp = Span 0 0 1 1 in
+    let a = TName sp "a" in
+    let boxed = TApp sp (TName sp "b.Box") (TArg sp a (TArgsEnd sp)) in
+    [ DSig sp "b.unbox" (TForall sp (forall-param-spine sp [TypeParam sp "a" None False]) (TFun sp boxed a))
+    , DFun sp "b.unbox" [([PCon sp "b.Box" (PArg sp (PVar sp "x") (PArgsEnd sp))], EVar sp "x")]
+    ]
 
   builtin-declarations :: List Decl
   builtin-declarations =

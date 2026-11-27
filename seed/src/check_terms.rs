@@ -1364,7 +1364,57 @@ impl Checker {
                     if apply_erased {
                         core = app_spine(ECore::Prim(PrimOp::ApplyErased), vec![core]);
                     } else if let Some(c) = arg_core {
-                        core = app_spine(core, vec![c]);
+                        let head = match &core {
+                            ECore::App(h, _) => &**h,
+                            other => other,
+                        };
+                        let head_direct = matches!(
+                            head,
+                            ECore::Global(..) | ECore::Ctor(..) | ECore::Prim(..) | ECore::Foreign(..)
+                        );
+                        let dom_maybe_val = call_args.last().is_some_and(|(_, dt, _)| {
+                            let dz = self.uni.zonk(dt);
+                            matches!(dz, Ty::Param(_))
+                                || self.is_unboxed_value_ty(&dz)
+                                || (matches!(dz, Ty::Meta(_)) && matches!(head, ECore::Var(_)))
+                        });
+                        if !head_direct
+                            && callee_obligs.is_empty()
+                            && dom_maybe_val
+                            && matches!(&c, ECore::App(..) | ECore::If(..) | ECore::Case { .. } | ECore::Let(..))
+                        {
+                            // Bind compound `Val`/`Param`-typed arguments to indirect calls
+                            // (e.g. `f (f x)` or `combine (combine x y) z`) so codegen has a
+                            // typed `Core::Let` binder with the argument's concrete `Class::Val`.
+                            if let ECore::App(_, prev_args) = &mut core {
+                                for (pi, pa) in prev_args.iter_mut().enumerate() {
+                                    if !matches!(
+                                        pa,
+                                        ECore::Var(_)
+                                            | ECore::Int(_)
+                                            | ECore::Wide(_)
+                                            | ECore::Bool(_)
+                                            | ECore::Unit
+                                            | ECore::StrLit(_)
+                                    ) {
+                                        let ptmp = self.fresh_local();
+                                        if let Some((_, pty, _)) = call_args.get(pi) {
+                                            self.note_local_ty(ptmp, pty);
+                                        }
+                                        let moved = std::mem::replace(pa, ECore::Var(ptmp));
+                                        call_binds.push((ptmp, moved));
+                                    }
+                                }
+                            }
+                            let tmp = self.fresh_local();
+                            if let Some((_, dt, _)) = call_args.last() {
+                                self.note_local_ty(tmp, dt);
+                            }
+                            call_binds.push((tmp, c));
+                            core = app_spine(core, vec![ECore::Var(tmp)]);
+                        } else {
+                            core = app_spine(core, vec![c]);
+                        }
                     }
                     ty = cod;
                     // An effectful arrow completes before the next argument is evaluated.
@@ -5382,7 +5432,8 @@ impl Checker {
                             // Surface gate (D143/D298/D308): a
                             // module-private constructor never crosses
                             // an import, in term or pattern position.
-                            if v.module != self.current_module
+                            if v.module != "<builtin>"
+                                && v.module != self.current_module
                                 && self.surface_def(&v.module, last).is_none()
                             {
                                 return Err(Error::at(
@@ -8134,6 +8185,23 @@ impl Checker {
             }
             None => {}
         }
+        let rz = self.uni.zonk(&rest);
+        let bcore = if (matches!(rz, Ty::Param(_) | Ty::Meta(_)) || self.is_unboxed_value_ty(&rz))
+            && matches!(
+                &bcore,
+                ECore::App(h, _)
+                    if !matches!(
+                        &**h,
+                        ECore::Global(..) | ECore::Ctor(..) | ECore::Prim(..) | ECore::Foreign(..)
+                    )
+            )
+        {
+            let tmp = self.fresh_local();
+            self.note_local_ty(tmp, &rz);
+            ECore::Let(tmp, Box::new(bcore), Box::new(ECore::Var(tmp)))
+        } else {
+            bcore
+        };
         if params.is_empty() {
             Ok(ECore::Lam { params: Vec::new(), body: Box::new(bcore) })
         } else {

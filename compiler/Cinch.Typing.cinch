@@ -347,6 +347,7 @@ module Cinch.Typing where
   evidence-types context scope evidence = case evidence of
     CECopy sp carrier -> wf context scope (evidence-type evidence) && copy-marker-carrier carrier
     CEKernel sp carrier -> wf context scope (evidence-type evidence) && kernel-marker-carrier carrier
+    CEBoxed sp carrier -> wf context scope (evidence-type evidence) && boxed-marker-carrier carrier
     CEGiven sp ty symbol -> wf context scope ty
     CEInstance sp ty symbol actuals args -> wf context scope ty && actual-types context scope actuals && evidence-types context scope args
     CEArgument sp first rest -> evidence-types context scope first && evidence-types context scope rest

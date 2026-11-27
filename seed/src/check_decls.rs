@@ -2364,6 +2364,69 @@ impl Checker {
                 ],
             )],
         );
+        // `data Box a where Box :: a -> Box a`: explicit heap-boxed wrapper
+        // (always a single Perceus-counted `Obj` pointer, satisfying `Boxed`,
+        // holding any `a` — including `#[repr(value)]` and `FixedArray` —
+        // inline inside its heap block). Not reserved, so user `data Box`
+        // declarations shadow it cleanly.
+        self.register_family(
+            "Box",
+            vec![("a".to_string(), ParamKind::Type)],
+            vec![(
+                "Box".to_string(),
+                0,
+                Vec::new(),
+                vec![("value".to_string(), Ty::Param("a".to_string().into()))],
+                vec![Ty::Param("a".to_string().into())],
+            )],
+        );
+        let unbox_scheme = Scheme {
+            evidence_params: Vec::new(),
+            con_params: Vec::new(),
+            obligs: Vec::new(),
+            params: vec!["a".to_string().into()],
+            idx_params: Vec::new(),
+            val_params: Vec::new(),
+            prop_params: Vec::new(),
+            row_params: Vec::new(),
+            region_params: Vec::new(),
+            ctx: Vec::new(),
+            ty: Ty::fun_mult(
+                Ty::Adt("Box".into(), vec![Ty::Param("a".to_string().into())]),
+                Mult::Many,
+                EffRow::pure(),
+                Ty::Param("a".to_string().into()),
+            ),
+        };
+        let unbox_gid = GlobalId("<builtin>.unbox".to_string());
+        self.add_value(
+            ValueInfo {
+                module: "<builtin>".to_string(),
+                name: "unbox".to_string(),
+                scheme: unbox_scheme,
+                kind: ValueKind::TopFn,
+            },
+            ast::Span::new(0, 0),
+        )
+        .expect("builtin unbox does not collide");
+        self.fns.push(FnDef {
+            id: unbox_gid,
+            params: vec!["b".to_string()],
+            body: crate::core::Core::Proj(
+                Box::new(crate::core::Core::Var(LocalId(0))),
+                crate::core::ProjField::slot(0, Class::Param(0)),
+            ),
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr {
+                tparams: 1,
+                params: vec![Class::Obj],
+                result: Some(Class::Param(0)),
+                ..Default::default()
+            },
+        });
         self.install_index_values();
     }
 
@@ -5503,10 +5566,10 @@ impl Checker {
                     self.codata_types.insert((module.clone(), rec.name.text.clone()));
                 }
                 ast::Decl::Signature(sig) => {
-                    if matches!(sig.name.text.as_str(), "Copy" | "Share") {
+                    if matches!(sig.name.text.as_str(), "Copy" | "Share" | "Boxed") {
                         return Err(Error::at(
                             sig.name.span,
-                            "Copy is a compiler-known class with structural instances (ownership and usage design, section 3); it cannot be declared",
+                            format!("{} is a compiler-known class with structural instances; it cannot be declared", sig.name.text),
                         ));
                     }
                     if self
@@ -6648,14 +6711,6 @@ impl Checker {
                         },
                     });
                     continue;
-                }
-                for ft in &non_erased_tys {
-                    if self.is_unboxed_value_ty(ft) {
-                        return Err(Error::plain(format!(
-                            "unboxed value type {} cannot be stored directly in boxed constructor `{}`; mark the enclosing record `#[repr(value)]` or pass via a reference/pointer",
-                            ft, cname
-                        )));
-                    }
                 }
                 self.fns.push(FnDef {
                     id: fn_id(module, cname),
@@ -9097,28 +9152,20 @@ impl Checker {
                             own: vec![k],
                         });
                     }
-                    // Reject capturing an unboxed value type directly in a closure
-                // (Item 3 deferred; pass a `Ref`/`Mut` or a scalar field instead).
-                if h.poly.is_none() {
-                    for p in &h.params {
-                        if let Some(t) = self.local_tys.get(p) {
-                            let z = self.uni.zonk(t);
-                            if self.is_unboxed_value_ty(&z) {
-                                return Err(Error::plain(format!(
-                                    "unboxed value type `{z}` cannot be captured in or passed through a closure yet (pass by `Ref`/`Mut` or bind in `withLocal`)"
-                                )));
-                            }
-                        }
-                    }
-                }
-                let result = h.result.as_ref().map(|ty| crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {}));
-                    let mut unit = if h.extra.is_empty() {
-                        finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?
+                    let result = h.result.as_ref().map(|ty| crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {}));
+                    let (mut unit, inferred_result) = if h.extra.is_empty() {
+                        let inf = if result.is_none() { cx.expr_class(&h.body) } else { None };
+                        (finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?, inf)
                     } else {
                         let mut unit_cx = LowerCx::new(self, &unit_tparams, &own);
-                        finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut unit_cx)?
+                        let inf = if result.is_none() { unit_cx.expr_class(&h.body) } else { None };
+                        (finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut unit_cx)?, inf)
                     };
-                    if result.is_some() { unit.repr.result = result; }
+                    if result.is_some() {
+                        unit.repr.result = result;
+                    } else if let Some(inf) = inferred_result.filter(|c| c.is_val() || c.is_param() || *c == Class::Wide) {
+                        unit.repr.result = Some(inf);
+                    }
                     done.push(unit);
                 }
             }
@@ -21522,7 +21569,7 @@ impl Checker {
     fn resolve_top(&self, module: &str, r: &ast::RefSite) -> Option<(String, String)> {
         let defined = |owner: &str, name: &str| match r.kind {
             ast::RefKind::Value => self.syntax_value_declared(owner, name),
-            ast::RefKind::Type => (owner == "<builtin>" && (builtin_type_name(name) || matches!(name, "Copy" | "Share")))
+            ast::RefKind::Type => (owner == "<builtin>" && (builtin_type_name(name) || matches!(name, "Copy" | "Share" | "Kernel" | "Boxed")))
                 || self.types.get(name).is_some_and(|ts| ts.iter().any(|t| t.module == owner && t.name == name)),
             ast::RefKind::Effect => self.effect_bindings.contains_key(&(owner.to_string(), name.to_string())),
         };
@@ -21577,7 +21624,7 @@ impl Checker {
 
     fn syntax_global_scope(&self, module: &str) -> std::sync::Arc<ast::GlobalScope> {
         let mut scope = ast::GlobalScope::new(module);
-        for name in ["Copy", "Share", "Io", "True", "False"] {
+        for name in ["Copy", "Share", "Kernel", "Boxed", "Io", "True", "False"] {
             scope.insert(ast::RefKind::Type, vec![name.into()], "<builtin>", name);
         }
         let defined = |kind, owner: &str, name: &str| match kind {
