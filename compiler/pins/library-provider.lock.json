@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 packed library provider with zero scalar unsafe div/rem, verified return refinements, SIMD verify, and formal proof-carrying prelude.",
-  "revision": "a9421bdc7ba6e42c011293d6d7ad6fd0ba5e2de9",
+  "commit": "ba70d7f1cf2fbd1d2944b0b8357f5835b4845f50",
+  "description": "ABI 10 packed library provider with 3-bit pointer-tagged TObj RC (Tier 1A), mixed/polymorphic niche sums (Tier 1B/1C), F64 NaN-sentinel boxing (Tier 3), and immediate-refined intrinsic ABI.",
+  "revision": "ba70d7f1cf2fbd1d2944b0b8357f5835b4845f50",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "6aa072549a5e9a0091bc84654f4e980c1698d76d025b8509ca13382703c58257",
-  "commit": "4ae40dfe7b6c2a68847503a5fe093b39fa9541b7",
-  "source_hash": "e7c4619bca57572f927bec7f9424916f8579d6d56bf5583a9762d17ba5b1371d"
+  "source_hash": "db8bf91b12ceb0856d12a20603d52dcec698883c0b25704bbb20df5225dd30e4",
+  "source_sha256": "db8bf91b12ceb0856d12a20603d52dcec698883c0b25704bbb20df5225dd30e4"
 }

@@ -777,12 +777,12 @@ fn tier1_polymorphic_outcome_and_maybe_sums() {
   loop-poly i s b acc =
     if i <= 0 then acc
     else
-      let o1 = map-good (\x -> x) (Good b) in
-      let o2 = map-good (\x -> x) (Fail s) in
+      let o1 = map-good (\x -> x) (Good b :: Outcome String Bytes) in
+      let o2 = map-good (\x -> x) (Fail s :: Outcome String Bytes) in
       let m1 = unwrap-maybe s (Just s) in
       let m2 = unwrap-maybe s Nothing in
-      let l1 = score-lookup (\_ -> 3) Missing in
-      let l2 = score-lookup (\_ -> 3) Denied in
+      let l1 = score-lookup (\_ -> 3) (Missing :: Lookup Bytes) in
+      let l2 = score-lookup (\_ -> 3) (Denied :: Lookup Bytes) in
       let l3 = score-lookup (\_ -> 3) (Found b) in
       let t = wrapping-add-i64 (tag-outcome o1) (tag-outcome o2) in
       let ls = wrapping-add-i64 l1 (wrapping-add-i64 l2 l3) in
@@ -795,8 +795,8 @@ fn tier1_polymorphic_outcome_and_maybe_sums() {
     let b = string-to-bytes "ok" in
     let total = loop-poly 2000 s b 0 in
     -- Also test boxed fallback (Raw payload) AND cross-representation conversion (Raw -> Obj)!
-    let raw-to-obj = map-good (\_ -> b) (Good (42 :: I64)) in
-    let raw-fail = map-good (\_ -> b) (Fail s) in
+    let raw-to-obj = map-good (\_ -> b) (Good (42 :: I64) :: Outcome String I64) in
+    let raw-fail = map-good (\_ -> b) (Fail s :: Outcome String I64) in
     let nested = case Just (Just s) of Nothing -> 0; Just Nothing -> 1; Just (Just _) -> 2 in
     -- Per iteration: (20+10) + (1+2+3) + 1 = 37 -> 2000 * 37 = 74000.
     if total == 74000 && tag-outcome raw-to-obj == 20 && tag-outcome raw-fail == 10 && nested == 2 then 42 else 1
