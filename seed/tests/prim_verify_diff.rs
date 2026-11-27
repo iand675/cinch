@@ -1054,3 +1054,205 @@ entry:
     assert_eq!(mod_reports.len(), 1);
     assert_eq!(mod_reports[0].status, "verified");
 }
+
+#[test]
+fn proof_producing_smt_alethe_cache_and_fp_arith_casts() {
+    use cinch::prim_verify::smt::{
+        emit_smtlib2, extract_alethe_proof, AletheCertificate, AletheProofChecker,
+        ExternalSmtProver, ALETHE_FORMAT_ID,
+    };
+    use cinch::prim_verify::{
+        Checker, Evidence, EvidenceStore, Policy, Prover, ProverOutcome, TrustTier,
+        VerificationStatus, VerifierEngine,
+    };
+    use cinch::prim_verify::sem::{FpFmt, Obligation, ObligationKind, SemParam, SemTy};
+    use cinch::prim_verify::llvm_ir::lower_llvm_fragment;
+
+    // 1. Verify QF_FPBV SMT-LIB 2 emission for FP arithmetic & FP<->int casts.
+    let params_add = vec![
+        SemParam { index: 0, name: "a".into(), ty: SemTy::Fp(FpFmt::F64), signed: false },
+        SemParam { index: 1, name: "b".into(), ty: SemTy::Fp(FpFmt::F64), signed: false },
+    ];
+    let mut lowered_add = lower_llvm_fragment(
+        "%r = fadd double %0, %1\nret double %r\n",
+        &params_add,
+        SemTy::Fp(FpFmt::F64),
+    )
+    .expect("fadd lowers");
+    let ret_add = lowered_add.result.as_scalar().unwrap().0;
+    let p0 = lowered_add.graph.param(0, "a", SemTy::Fp(FpFmt::F64));
+    let p1 = lowered_add.graph.param(1, "b", SemTy::Fp(FpFmt::F64));
+    let rev_add = lowered_add.graph.fp_add(p1, p0);
+    let comm_eq = lowered_add.graph.fp_cmp(cinch::prim_verify::sem::FpPred::Ueq, ret_add, rev_add);
+    let ob_add = Obligation::new(
+        "add-f64:comm",
+        "llvm-sem@21.1",
+        ObligationKind::FunctionalEquiv { spec_name: "add-f64-comm".to_string() },
+        params_add,
+        lowered_add.graph,
+        comm_eq,
+    );
+    let smt_add = emit_smtlib2(&ob_add);
+    assert!(smt_add.contains("(set-logic QF_FPBV)"), "got:\n{smt_add}");
+    assert!(smt_add.contains("fp.add"), "expected fp.add in:\n{smt_add}");
+
+    let params_cast = vec![SemParam {
+        index: 0,
+        name: "x".into(),
+        ty: SemTy::Bv(32),
+        signed: true,
+    }];
+    let mut lowered_cast = lower_llvm_fragment(
+        "%f = sitofp i32 %0 to double\n%i = fptosi double %f to i64\nret i64 %i\n",
+        &params_cast,
+        SemTy::Bv(64),
+    )
+    .expect("sitofp/fptosi lower");
+    let (cast_val, cast_poison) = lowered_cast.result.as_scalar().unwrap();
+    let not_poison = lowered_cast.graph.not(cast_poison);
+    let p0_cast = lowered_cast.graph.param(0, "x", SemTy::Bv(32));
+    let p0_i64 = lowered_cast.graph.bv_sext(p0_cast, 64);
+    let rt_eq = lowered_cast.graph.bv_eq(cast_val, p0_i64);
+    let rt_goal = lowered_cast.graph.and(not_poison, rt_eq);
+    let ob_cast = Obligation::new(
+        "i32-f64-roundtrip:spec",
+        "llvm-sem@21.1",
+        ObligationKind::FunctionalEquiv { spec_name: "i32-f64-i64-roundtrip".to_string() },
+        params_cast,
+        lowered_cast.graph,
+        rt_goal,
+    );
+    let smt_cast = emit_smtlib2(&ob_cast);
+    assert!(smt_cast.contains("(set-logic QF_FPBV)"), "got:\n{smt_cast}");
+    assert!(smt_cast.contains("to_fp"), "expected to_fp in:\n{smt_cast}");
+    assert!(smt_cast.contains("fp.roundToIntegral"), "expected fp.roundToIntegral in:\n{smt_cast}");
+    assert!(smt_cast.contains("fp.to_sbv"), "expected fp.to_sbv in:\n{smt_cast}");
+
+    // 2. Test extended cvc5 Alethe rules (implies, or, not_or, not_and, equiv_*, ite*, refl, symm, trans, cong, reordering).
+    let rich_alethe = r#"
+(assume h1 (=> a b))
+(assume h2 (and a (not b)))
+(step s1 (cl (not a) b) :rule implies :premises (h1))
+(step s2 (cl a) :rule and :premises (h2))
+(step s3 (cl (not b)) :rule and :premises (h2))
+(step s4 (cl b) :rule resolution :premises (s1 s2))
+(step s5 (cl (= x x)) :rule refl)
+(step s6 (cl (= (f x) (f x))) :rule cong :premises (s5))
+(step s7 (cl (not (ite c t e)) c e) :rule ite1)
+(step s8 (cl (not (= p q)) p (not q)) :rule equiv_pos1)
+(step s9 (cl) :rule resolution :premises (s4 s3))
+"#;
+    let checker = AletheProofChecker;
+    let good_ev = Evidence {
+        format: ALETHE_FORMAT_ID.to_string(),
+        prover_id: "smt-cvc5-alethe".to_string(),
+        payload: serde_json::to_string(&AletheCertificate {
+            goal_hash: ob_add.goal_hash.clone(),
+            semantics_id: ob_add.semantics_id.clone(),
+            proof: rich_alethe.to_string(),
+        })
+        .unwrap(),
+    };
+    let rcpt = checker
+        .check(&ob_add, &good_ev)
+        .expect("rich cvc5 Alethe proof should kernel-verify");
+    assert_eq!(rcpt.tier, TrustTier::KernelCert);
+    assert!(Policy::jpl_strict().admits(&rcpt).is_ok());
+
+    // Tampered / unverified `trust` / `hole` Alethe proof must be REJECTED fail-closed.
+    for bad_rule in ["hole", "trust"] {
+        let bad_ev = Evidence {
+            format: ALETHE_FORMAT_ID.to_string(),
+            prover_id: "smt-cvc5-alethe".to_string(),
+            payload: serde_json::to_string(&AletheCertificate {
+                goal_hash: ob_add.goal_hash.clone(),
+                semantics_id: ob_add.semantics_id.clone(),
+                proof: format!("(assume h1 p)\n(step t1 (cl) :rule {bad_rule} :premises (h1))\n"),
+            })
+            .unwrap(),
+        };
+        assert!(
+            checker.check(&ob_add, &bad_ev).is_err(),
+            "Alethe `{bad_rule}` step must be rejected"
+        );
+    }
+
+    // 3. End-to-end live `ExternalSmtProver::cvc5_alethe` -> `AletheProofChecker` -> disk `EvidenceStore`
+    //    -> offline `replay-only` under `Policy::jpl_strict()` using a deterministic mock cvc5 script.
+    let tmp = std::env::temp_dir().join(format!("cinch_mock_cvc5_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+    let mock_bin = tmp.join("mock-cvc5.sh");
+    let cache_dir = tmp.join("cache");
+    std::fs::write(
+        &mock_bin,
+        "#!/bin/sh\ncat >/dev/null\nprintf 'unsat\\n(\\n(assume h1 p)\\n(assume h2 (not p))\\n(step t1 (cl) :rule resolution :premises (h1 h2))\\n)\\n'\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&mock_bin).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&mock_bin, perms).unwrap();
+    }
+    let prover = ExternalSmtProver::cvc5_alethe(mock_bin.to_string_lossy().to_string());
+    assert!(prover.produce_alethe);
+    match prover.prove(&ob_add) {
+        ProverOutcome::Proved(ev) => {
+            assert_eq!(ev.format, ALETHE_FORMAT_ID);
+            let extracted = extract_alethe_proof("unsat\n(\n(assume h1 p)\n(step t1 (cl) :rule resolution :premises (h1))\n)\n");
+            assert!(extracted.is_some());
+        }
+        other => panic!("expected Proved(alethe/v1) from mock cvc5_alethe, got: {other:?}"),
+    }
+
+    // Populate persistent disk cache using live engine under JPL strict policy.
+    let mut live_engine = VerifierEngine::default_engine(Policy::jpl_strict())
+        .with_store(EvidenceStore::with_disk_dir(cache_dir.clone()));
+    live_engine.provers.clear();
+    live_engine.add_prover(Box::new(prover));
+    let live_rep = live_engine.verify(&ob_add);
+    match &live_rep.status {
+        VerificationStatus::Verified { receipt, from_cache } => {
+            assert!(!from_cache);
+            assert_eq!(receipt.tier, TrustTier::KernelCert);
+            assert_eq!(receipt.evidence_format, ALETHE_FORMAT_ID);
+        }
+        other => panic!("expected JPL-strict KernelCert from cvc5_alethe, got: {other:?}"),
+    }
+
+    // Offline `replay-only` build with ZERO provers replays the cached Alethe proof at KernelCert!
+    let mut replay_engine = VerifierEngine::default_engine(Policy::jpl_strict())
+        .with_store(EvidenceStore::with_disk_dir(cache_dir.clone()))
+        .with_replay_only(true);
+    let replay_rep = replay_engine.verify(&ob_add);
+    match &replay_rep.status {
+        VerificationStatus::Verified { receipt, from_cache } => {
+            assert!(*from_cache);
+            assert_eq!(receipt.tier, TrustTier::KernelCert);
+            assert_eq!(receipt.evidence_format, ALETHE_FORMAT_ID);
+        }
+        other => panic!("expected offline replay-only KernelCert, got: {other:?}"),
+    }
+
+    // Tamper the cached disk Alethe certificate -> offline replay MUST fail closed!
+    let disk_file = replay_engine
+        .store
+        .disk_path(&ob_add.goal_hash, ALETHE_FORMAT_ID)
+        .unwrap();
+    let tampered = std::fs::read_to_string(&disk_file)
+        .unwrap()
+        .replace(":rule resolution", ":rule hole");
+    std::fs::write(&disk_file, tampered).unwrap();
+    let mut tamper_engine = VerifierEngine::default_engine(Policy::jpl_strict())
+        .with_store(EvidenceStore::with_disk_dir(cache_dir))
+        .with_replay_only(true);
+    let tamper_rep = tamper_engine.verify(&ob_add);
+    assert!(
+        matches!(tamper_rep.status, VerificationStatus::Unverified { .. }),
+        "tampered cached Alethe proof MUST fail closed, got: {:?}",
+        tamper_rep.status
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}

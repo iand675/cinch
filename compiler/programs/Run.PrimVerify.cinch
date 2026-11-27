@@ -27,7 +27,7 @@ module Main where
   import Cinch.Infer (elaboration-core)
   import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-prim-body-cached, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-goal-hash, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
   import Cinch.Target (TargetProfile, host-profile, profile-of-triple, profile-with-prim-verify, target-view-program)
@@ -366,14 +366,34 @@ module Main where
           if string-contains "cross-target equivalence" msg2 then Ok ()
           else Err (string-concat-all ["wrong cross-target error: ", msg2])
 
-  -- 12. Alethe proof checker seam.
+  -- 12. Alethe proof checker seam + cached Alethe replay for FP arithmetic under strict/JPL replay-only mode.
   test-alethe :: Result String Unit
   test-alethe =
     let good = "(assume h1 p)\n(assume h2 (not p))\n(step t1 (cl) :rule resolution :premises (h1 h2))\n" in
     let bad-hole = "(assume h1 p)\n(step t1 (cl) :rule hole :premises (h1))\n" in
+    let bad-trust = "(assume h1 p)\n(step t1 (cl) :rule trust :premises (h1))\n" in
     let bad-prem = "(step t1 (cl) :rule resolution :premises (missing))\n" in
-    case (verify-alethe good, verify-alethe bad-hole, verify-alethe bad-prem) of
-      (Ok ok-msg, Err e1, Err e2) -> Ok ()
+    case (verify-alethe good, verify-alethe bad-hole, verify-alethe bad-trust, verify-alethe bad-prem) of
+      (Ok ok-msg, Err e1, Err e2, Err e3) ->
+        -- Replay cached Alethe certificate on `fadd double` in strict replay-only mode!
+        let fp-p0 = MkPrimParamSpec "a" "F64" 64 False True False in
+        let fp-p1 = MkPrimParamSpec "b" "F64" 64 False True False in
+        let fp-frag = "%r = fadd double %0, %1\nret double %r\n" in
+        case verify-prim-body "add-f64" False "lax" "verify" fp-frag [fp-p0, fp-p1] fp-p0 Nil None None Nil "well-defined" False of
+          OutcomeAssumed (Cons r1 (Cons r2 Nil)) ->
+            let good-entry = string-concat "ALETHE_V1\n" good in
+            let bad-entry = string-concat "ALETHE_V1\n" bad-hole in
+            let cache-ok = [(receipt-goal-hash r1, good-entry), (receipt-goal-hash r2, good-entry)] in
+            let cache-bad = [(receipt-goal-hash r1, bad-entry), (receipt-goal-hash r2, good-entry)] in
+            (case (verify-prim-body-cached "add-f64" True "strict" "verify" cache-ok True fp-frag [fp-p0, fp-p1] fp-p0 Nil Nil None None Nil "well-defined" False,
+                   verify-prim-body-cached "add-f64" True "strict" "verify" cache-bad True fp-frag [fp-p0, fp-p1] fp-p0 Nil Nil None None Nil "well-defined" False) of
+              (OutcomeVerified (Cons vr _), OutcomeOpen err-msg) ->
+                if same (receipt-checker-id vr) "cinch-alethe-checker@1"
+                  && same (receipt-tier vr) "kernel-cert"
+                  && string-contains "REJECTED" err-msg then Ok ()
+                else Err "cached Alethe replay receipt/rejection mismatch"
+              other -> Err "cached Alethe replay on FP arithmetic failed")
+          other -> Err "failed collecting FP goal hashes for Alethe cache test"
       other -> Err "Alethe checker test failed"
 
   -- 13. Verified `rewrite ... justify verify`.

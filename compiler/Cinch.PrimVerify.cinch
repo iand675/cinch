@@ -3504,9 +3504,24 @@ module Cinch.PrimVerify where
     if same verify-mode "off" then
       Ok (make-assumed-receipt goal-hash "cinch-verify-off@1" "assumed (prim-verify=off)")
     else if graph-has-fp-arith g then
-      if same verify-mode "lax" then
-        Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" "assumed (lax downgrade: floating-point obligation requires external SMT solver)")
-      else Err (OutcomeOpen (string-concat ob-name ": floating-point obligation requires an external SMT solver (use --prim-verify=lax to downgrade to assumed)"))
+      case lookup-cached-proof goal-hash proof-cache of
+        Some cached-alethe | string-starts-with "ALETHE_V1\n" cached-alethe ->
+          let proof-body = string-slice cached-alethe 10 (string-length cached-alethe) in
+          (case verify-alethe proof-body of
+            Err bad-alethe ->
+              Err (OutcomeOpen (string-concat-all [ob-name, ": cached Alethe proof REJECTED by kernel verification (tampered): ", bad-alethe]))
+            Ok ok-msg ->
+              if not (policy-allows-tier is-jpl verify-mode "kernel-cert") then
+                Err (OutcomeRejected (string-concat-all
+                  [ob-name, ": trust tier `kernel-cert` from `cinch-alethe-checker@1` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+              else
+                let ev-hash = sha256-hex (string-to-bytes cached-alethe) in
+                let tcb = insert-unique-sorted "cinch-alethe-checker@1" (insert-unique-sorted "cinch-smtlib2@1" (insert-unique-sorted semantics-id-llvm Nil)) in
+                Ok (MkTrustReceipt goal-hash semantics-id-llvm "cached-alethe-replay@1" "cinch-alethe-checker@1" "kernel-cert" "alethe/v1" ev-hash ok-msg tcb cached-alethe))
+        other ->
+          if same verify-mode "lax" then
+            Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" "assumed (lax downgrade: floating-point obligation requires external SMT solver)")
+          else Err (OutcomeOpen (string-concat ob-name ": floating-point obligation requires an external SMT solver (use --prim-verify=lax to downgrade to assumed)"))
     else
       -- Replay cached bitwise-decomposed LRAT proofs when present, or prove via bit-cone decomposition on cold builds.
       case (lookup-cached-proof goal-hash proof-cache, replay-only, try-decompose-bv-eq goal-id g) of
@@ -3845,9 +3860,9 @@ module Cinch.PrimVerify where
     has-str r
       [ "resolution", "th_resolution", "rup", "and", "or", "not_not"
       , "equiv_pos1", "equiv_pos2", "equiv_neg1", "equiv_neg2"
-      , "trans", "cong", "refl", "la_generic", "bv_bitblast", "bitblast"
-      , "false", "true", "not_or", "or_pos", "and_pos", "and_neg"
-      , "implies", "ite1", "ite2", "eq_reflexive", "eq_transitive"
+      , "trans", "cong", "refl", "symm", "la_generic", "bv_bitblast", "bitblast"
+      , "false", "true", "not_or", "not_and", "or_pos", "and_pos", "and_neg"
+      , "implies", "ite1", "ite2", "eq_reflexive", "eq_symmetric", "eq_transitive"
       , "eq_congruent", "contraction", "reordering"
       ]
 

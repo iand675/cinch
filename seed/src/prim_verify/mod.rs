@@ -471,13 +471,17 @@ impl VerifierEngine {
             replay_only: false,
         };
         // Auto-register any installed external SMT solver into the portfolio as fallback
-        // (for IEEE-754 floats and wide nonlinear bit-vectors). Probe PATH once per process
-        // so compiling dozens of verified prelude prims never forks `which` repeatedly.
+        // (for IEEE-754 floats and wide nonlinear bit-vectors). Prefer proof-producing
+        // `cvc5 --proof-format=alethe` first so SMT proofs upgrade to `TrustTier::KernelCert`
+        // via `AletheProofChecker` and cache cleanly for offline `replay-only` builds.
         for (kind, bin) in detected_external_smt_solvers() {
             match *kind {
+                "cvc5" => {
+                    engine.provers.push(Box::new(ExternalSmtProver::cvc5_alethe(*bin)));
+                    engine.provers.push(Box::new(ExternalSmtProver::cvc5(*bin)));
+                }
                 "bitwuzla" => engine.provers.push(Box::new(ExternalSmtProver::bitwuzla(*bin))),
                 "z3" => engine.provers.push(Box::new(ExternalSmtProver::z3(*bin))),
-                "cvc5" => engine.provers.push(Box::new(ExternalSmtProver::cvc5(*bin))),
                 _ => {}
             }
         }
@@ -675,7 +679,7 @@ fn detected_external_smt_solvers() -> &'static [(&'static str, &'static str)] {
         std::sync::OnceLock::new();
     DETECTED
         .get_or_init(|| {
-            [("bitwuzla", "bitwuzla"), ("z3", "z3"), ("cvc5", "cvc5")]
+            [("cvc5", "cvc5"), ("bitwuzla", "bitwuzla"), ("z3", "z3")]
                 .into_iter()
                 .filter(|(_, bin)| command_exists(bin))
                 .collect()
@@ -827,14 +831,14 @@ pub fn cli(args: &[String]) -> i32 {
             engine.provers.insert(0, Box::new(ExternalSatProver::cadical(bin)));
         }
         if let Some(bin) = smt_bin {
-            let solver = if bin.contains("bitwuzla") {
-                ExternalSmtProver::bitwuzla(bin)
-            } else if bin.contains("cvc5") {
-                ExternalSmtProver::cvc5(bin)
+            if bin.contains("cvc5") {
+                engine.add_prover(Box::new(ExternalSmtProver::cvc5_alethe(bin.clone())));
+                engine.add_prover(Box::new(ExternalSmtProver::cvc5(bin)));
+            } else if bin.contains("bitwuzla") {
+                engine.add_prover(Box::new(ExternalSmtProver::bitwuzla(bin)));
             } else {
-                ExternalSmtProver::z3(bin)
-            };
-            engine.add_prover(Box::new(solver));
+                engine.add_prover(Box::new(ExternalSmtProver::z3(bin)));
+            }
         }
     }
 
