@@ -397,6 +397,8 @@ fn emit_module(
         if !profile.no_cpr {
             reg.products = product_ctors(program, &reg);
             reg.cpr = cpr_units(program, &reg);
+            reg.sum_ctors = uniform_sum_ctors(program, &reg);
+            reg.csr = csr_units(program, &reg);
         }
         reg.tailcc = tail_units(program, &reg);
     }
@@ -1386,6 +1388,11 @@ struct Registry {
     /// The constructors a product result may return in registers, by unit
     /// name ([`product_ctors`]).
     products: HashMap<String, Cpr>,
+    /// Units whose body `<unit>#cc` returns a small 2-constructor sum in
+    /// registers (`{ i8, i64 }` or `{ i8, i64, i64 }`, [`csr_units`]).
+    csr: HashMap<String, Csr>,
+    /// Uniform constructors with 0..=2 non-wide fields eligible for small-sum CSR.
+    sum_ctors: HashMap<String, Cpr>,
     /// Each unit's parameter classes (concrete after the collector): the
     /// classes of the words a closure over the unit saves.
     unit_params: HashMap<String, Vec<Class>>,
@@ -2252,7 +2259,7 @@ impl Registry {
         // A product result's body returns an aggregate, so a caller that
         // wants the word and cannot box it beside the call (an apply stub)
         // calls the C wrapper, which boxes it.
-        if self.tailcc.contains(unit) && !self.cpr.contains_key(unit) {
+        if self.tailcc.contains(unit) && !self.cpr.contains_key(unit) && !self.csr.contains_key(unit) {
             (tailcc_body(unit), "tailcc ")
         } else {
             (sym, "")
@@ -4121,6 +4128,49 @@ impl Cpr {
     }
 }
 
+/// Small-sum constructed result: two uniform constructors with distinct tags
+/// (`0..=255`) and `0..=2` non-wide fields each, returned unboxed in registers
+/// as `{ i8, i64 }` or `{ i8, i64, i64 }`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Csr {
+    arms: [Cpr; 2],
+    words: usize,
+}
+
+impl Csr {
+    fn from_pair(mut a: Cpr, mut b: Cpr) -> Option<Csr> {
+        if a.tag == b.tag || a.tag > 255 || b.tag > 255 {
+            return None;
+        }
+        if a.tag > b.tag {
+            std::mem::swap(&mut a, &mut b);
+        }
+        let words = a.fields.len().max(b.fields.len());
+        if !(1..=2).contains(&words) {
+            return None;
+        }
+        Some(Csr { arms: [a, b], words })
+    }
+
+    fn ty(&self) -> &'static str {
+        if self.words == 1 {
+            "{ i8, i64 }"
+        } else {
+            "{ i8, i64, i64 }"
+        }
+    }
+
+    fn arm(&self, ctor: &str) -> Option<&Cpr> {
+        if self.arms[0].ctor == ctor {
+            Some(&self.arms[0])
+        } else if self.arms[1].ctor == ctor {
+            Some(&self.arms[1])
+        } else {
+            None
+        }
+    }
+}
+
 /// The most fields a product result returns in registers. Three is what
 /// x86-64 returns in `rax`, `rdx` and `rcx`; a fourth word makes LLVM
 /// return the aggregate through memory, which is no better than the block.
@@ -4150,9 +4200,10 @@ const CPR_MAX_FIELDS: usize = 3;
 /// enters a unit outside the set with an ordinary call, which adds one
 /// frame that the next call does not grow.
 fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
-    fn result(reg: &Registry, unit: &str) -> (Option<String>, &'static str) {
+    fn result(reg: &Registry, unit: &str) -> (Option<String>, Option<(String, String)>, &'static str) {
         (
             reg.cpr.get(unit).map(|c| c.ctor.clone()),
+            reg.csr.get(unit).map(|s| (s.arms[0].ctor.clone(), s.arms[1].ctor.clone())),
             reg.narrow_sigs.get(unit).map_or(Cross::WORD, |s| s.ret).ty(),
         )
     }
@@ -4174,7 +4225,7 @@ fn tail_units(p: &Program, reg: &Registry) -> HashSet<String> {
                 _ => {
                     if reg.tail_apply
                         && (1..=TAIL_ARGS).contains(&args.len())
-                        && result(reg, unit) == (None, Cross::WORD.ty())
+                        && result(reg, unit) == (None, None, Cross::WORD.ty())
                     {
                         *unknown = true;
                     }
@@ -4501,6 +4552,371 @@ fn product_uses_only_take_apart(body: &Core, x: LocalId, cpr: &Cpr) -> bool {
 
 /// Box the product aggregate `r` (of `cpr`'s type) into its constructor's
 /// block through the constructor's own unit, answering the block word.
+/// Uniform constructors with 0..=2 non-wide fields eligible for small-sum CSR.
+fn uniform_sum_ctors(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
+    p.fns
+        .iter()
+        .filter_map(|f| {
+            f.ctor?;
+            let ctor = f.id.0.as_str();
+            let (tag, n) = *reg.ctors.get(ctor)?;
+            let fields = &f.repr.fields;
+            (fields.len() <= 2
+                && fields.len() == n
+                && tag <= 255
+                && reg.plan_of(ctor).is_none()
+                && fields.iter().all(|c| !c.is_param() && *c != Class::Wide))
+            .then(|| (ctor.to_string(), Cpr { ctor: ctor.to_string(), tag, fields: fields.clone() }))
+        })
+        .collect()
+}
+
+/// Units whose every tail leaf builds one of two uniform constructors (with
+/// distinct tags and 0..=2 non-wide fields, at least one having >=1 field),
+/// returned unboxed in registers as `{ i8, i64 }` or `{ i8, i64, i64 }`.
+fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
+    enum Leaf {
+        Ctor(String),
+        Call(String),
+    }
+    fn leaves(e: &Core, unit: &str, reg: &Registry, out: &mut Vec<Leaf>) -> bool {
+        match e {
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => leaves(b, unit, reg, out),
+            Core::Release { body, .. } => leaves(body, unit, reg, out),
+            Core::If(_, a, b) => leaves(&a.body, unit, reg, out) && leaves(&b.body, unit, reg, out),
+            Core::Case { alts, .. } => alts.iter().all(|a| leaves(&a.body, unit, reg, out)),
+            Core::Join { body, rest, .. } => leaves(body, unit, reg, out) && leaves(rest, unit, reg, out),
+            Core::Jump { .. } | Core::Fault => true,
+            Core::Ctor(id, _) if reg.ctors.get(&id.0).map(|c| c.1) == Some(0) => {
+                out.push(Leaf::Ctor(id.0.clone()));
+                true
+            }
+            Core::Reuse { .. } => false,
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) if reg.ctors.get(&id.0).map(|c| c.1) == Some(args.len()) => {
+                    out.push(Leaf::Ctor(id.0.clone()));
+                    true
+                }
+                Core::Global(g, _) if reg.arity.get(&g.0) == Some(&args.len()) => {
+                    if g.0 != unit {
+                        out.push(Leaf::Call(g.0.clone()));
+                    }
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let mut calls: HashMap<String, Vec<String>> = HashMap::new();
+    let mut out: HashMap<String, Csr> = HashMap::new();
+    let mut open: Vec<String> = Vec::new();
+    for f in &p.fns {
+        let name = &f.id.0;
+        if !reg.fn_units.contains(name)
+            || reg.cpr.contains_key(name)
+            || p.main.as_ref() == Some(&f.id)
+        {
+            continue;
+        }
+        if reg.narrow_sigs.get(name).is_some_and(|s| !s.ret.is_word()) {
+            continue;
+        }
+        // Skip units that call themselves in non-tail position (e.g. recursive
+        // list/tree builders like `Cons h (step t)`): returning an unboxed sum
+        // would force boxing on every recursive frame.
+        fn has_nontail_self_call(e: &Core, unit: &str, in_tail: bool) -> bool {
+            match e {
+                Core::App(head, args) => {
+                    let is_self = matches!(&**head, Core::Global(g, _) if g.0 == unit);
+                    if is_self && !in_tail {
+                        return true;
+                    }
+                    has_nontail_self_call(head, unit, false)
+                        || args.iter().any(|a| has_nontail_self_call(a, unit, false))
+                }
+                Core::Let(_, _, v, b) => {
+                    has_nontail_self_call(v, unit, false) || has_nontail_self_call(b, unit, in_tail)
+                }
+                Core::Dup(_, _, b) | Core::Drop(_, _, b) => has_nontail_self_call(b, unit, in_tail),
+                Core::Release { body, .. } => has_nontail_self_call(body, unit, in_tail),
+                Core::If(c, a, b) => {
+                    has_nontail_self_call(c, unit, false)
+                        || has_nontail_self_call(&a.body, unit, in_tail)
+                        || has_nontail_self_call(&b.body, unit, in_tail)
+                }
+                Core::Case { scrut, alts } => {
+                    has_nontail_self_call(scrut, unit, false)
+                        || alts.iter().any(|a| has_nontail_self_call(&a.body, unit, in_tail))
+                }
+                Core::Join { body, rest, .. } => {
+                    has_nontail_self_call(body, unit, in_tail)
+                        || has_nontail_self_call(rest, unit, in_tail)
+                }
+                Core::Reuse { args, .. } => args.iter().any(|a| has_nontail_self_call(a, unit, false)),
+                Core::Proj(x, _) | Core::DictProj(x, _, _, _) | Core::Demand(x, _) => {
+                    has_nontail_self_call(x, unit, false)
+                }
+                Core::Lam { env, .. } | Core::InstDict(_, env, _) => {
+                    env.iter().any(|a| has_nontail_self_call(a, unit, false))
+                }
+                _ => false,
+            }
+        }
+        if has_nontail_self_call(&f.body, name, true) {
+            continue;
+        }
+        let mut found = Vec::new();
+        if !leaves(&f.body, name, reg, &mut found) {
+            continue;
+        }
+        let mut ctors: Vec<&str> = Vec::new();
+        let mut called = Vec::new();
+        let mut too_many = false;
+        for leaf in &found {
+            match leaf {
+                Leaf::Ctor(c) => {
+                    if !ctors.contains(&c.as_str()) {
+                        if ctors.len() >= 2 {
+                            too_many = true;
+                            break;
+                        }
+                        ctors.push(c.as_str());
+                    }
+                }
+                Leaf::Call(g) => called.push(g.clone()),
+            }
+        }
+        if too_many {
+            continue;
+        }
+        match ctors.as_slice() {
+            [a, b] => {
+                let (Some(ca), Some(cb)) = (reg.sum_ctors.get(*a), reg.sum_ctors.get(*b)) else {
+                    continue;
+                };
+                let Some(csr) = Csr::from_pair(ca.clone(), cb.clone()) else {
+                    continue;
+                };
+                out.insert(name.clone(), csr);
+            }
+            [] if !called.is_empty() => open.push(name.clone()),
+            _ => continue,
+        }
+        calls.insert(name.clone(), called);
+    }
+    loop {
+        let mut progress = false;
+        open.retain(|u| {
+            let known = calls[u].iter().find_map(|g| out.get(g).cloned());
+            match known {
+                Some(csr) => {
+                    out.insert(u.clone(), csr);
+                    progress = true;
+                    false
+                }
+                None => true,
+            }
+        });
+        if !progress {
+            break;
+        }
+    }
+    loop {
+        let bad: Vec<String> = out
+            .iter()
+            .filter(|(u, csr)| calls[*u].iter().any(|g| out.get(g) != Some(csr)))
+            .map(|(u, _)| u.clone())
+            .collect();
+        if bad.is_empty() {
+            return out;
+        }
+        for u in bad {
+            out.remove(&u);
+        }
+    }
+}
+
+/// The small sum a value-position expression always builds, when it does.
+fn sum_leaves(e: &Core, reg: &Registry) -> Option<Csr> {
+    fn go<'r>(
+        e: &Core,
+        reg: &'r Registry,
+        ctors: &mut Vec<&'r Cpr>,
+        csrs: &mut Vec<&'r Csr>,
+    ) -> bool {
+        match e {
+            Core::Let(_, _, _, b) | Core::Dup(_, _, b) | Core::Drop(_, _, b) => go(b, reg, ctors, csrs),
+            Core::Release { body, .. } => go(body, reg, ctors, csrs),
+            Core::If(_, a, b) => go(&a.body, reg, ctors, csrs) && go(&b.body, reg, ctors, csrs),
+            Core::Case { alts, .. } => alts.iter().all(|a| go(&a.body, reg, ctors, csrs)),
+            Core::Join { body, rest, .. } => go(body, reg, ctors, csrs) && go(rest, reg, ctors, csrs),
+            Core::Jump { .. } | Core::Fault => true,
+            Core::Ctor(id, _) => match reg.sum_ctors.get(&id.0) {
+                Some(c) if c.fields.is_empty() => {
+                    if !ctors.iter().any(|k| k.ctor == c.ctor) {
+                        ctors.push(c);
+                    }
+                    ctors.len() <= 2
+                }
+                _ => false,
+            },
+            Core::Reuse { ctor, args, .. } => match reg.sum_ctors.get(&ctor.0) {
+                Some(c) if c.fields.len() == args.len() => {
+                    if !ctors.iter().any(|k| k.ctor == c.ctor) {
+                        ctors.push(c);
+                    }
+                    ctors.len() <= 2
+                }
+                _ => false,
+            },
+            Core::App(head, args) => match &**head {
+                Core::Ctor(id, _) => match reg.sum_ctors.get(&id.0) {
+                    Some(c) if c.fields.len() == args.len() => {
+                        if !ctors.iter().any(|k| k.ctor == c.ctor) {
+                            ctors.push(c);
+                        }
+                        ctors.len() <= 2
+                    }
+                    _ => false,
+                },
+                Core::Global(g, _) if reg.arity.get(&g.0) == Some(&args.len()) => {
+                    if let Some(s) = reg.csr.get(&g.0) {
+                        csrs.push(s);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let mut ctors = Vec::new();
+    let mut csrs = Vec::new();
+    if !go(e, reg, &mut ctors, &mut csrs) {
+        return None;
+    }
+    let csr = if let Some(&first) = csrs.first() {
+        if csrs.iter().any(|&s| s != first) {
+            return None;
+        }
+        if ctors.iter().any(|c| first.arm(&c.ctor).is_none()) {
+            return None;
+        }
+        first.clone()
+    } else if ctors.len() == 2 {
+        Csr::from_pair(ctors[0].clone(), ctors[1].clone())?
+    } else {
+        return None;
+    };
+    Some(csr)
+}
+
+/// Whether `body` uses small-sum local `x` only to take it apart (`Case`, `Release`, `Drop`).
+fn sum_uses_only_take_apart(body: &Core, x: LocalId, csr: &Csr) -> bool {
+    fn visit(e: &Core, x: LocalId, csr: &Csr, inside: bool, allowed: &mut usize, ok: &mut bool) {
+        match e {
+            Core::Case { scrut, alts } => {
+                let on_x = match &**scrut {
+                    Core::Var(v) if *v == x => {
+                        *allowed += 1;
+                        let valid = !alts.is_empty()
+                            && alts.iter().all(|a| match &a.pat {
+                                CPat::Con { tag, fields, .. } => {
+                                    (csr.arms[0].tag == *tag && csr.arms[0].fields.len() == fields.len())
+                                        || (csr.arms[1].tag == *tag && csr.arms[1].fields.len() == fields.len())
+                                }
+                                CPat::Wild => true,
+                                CPat::Var(..) => false,
+                            });
+                        if !valid {
+                            *ok = false;
+                        }
+                        true
+                    }
+                    other => {
+                        visit(other, x, csr, inside, allowed, ok);
+                        false
+                    }
+                };
+                for a in alts {
+                    visit(&a.body, x, csr, inside || on_x, allowed, ok);
+                }
+            }
+            Core::Release { block, body, .. } => {
+                if *block == x {
+                    if inside {
+                        *allowed += 1;
+                    } else {
+                        *ok = false;
+                    }
+                }
+                visit(body, x, csr, inside, allowed, ok);
+            }
+            Core::Drop(v, _, body) => {
+                if *v == x {
+                    *allowed += 1;
+                }
+                visit(body, x, csr, inside, allowed, ok);
+            }
+            Core::Dup(v, _, body) => {
+                if *v == x {
+                    *ok = false;
+                }
+                visit(body, x, csr, inside, allowed, ok);
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    visit(child, x, csr, inside, allowed, ok);
+                }
+            }
+        }
+    }
+    let mut total = 0usize;
+    crate::core::walk_locals(body, &mut |l| {
+        if l == x {
+            total += 1;
+        }
+    });
+    let (mut allowed, mut ok) = (0usize, true);
+    visit(body, x, csr, false, &mut allowed, &mut ok);
+    ok && allowed > 0 && allowed == total
+}
+
+/// Box a small-sum aggregate `{ i8, i64 }` / `{ i8, i64, i64 }` into its heap/static block.
+fn box_sum(b: &mut Builder, csr: &Csr, r: &str) -> String {
+    let ty = csr.ty();
+    let tag = b.reg();
+    b.line(&format!("{tag} = extractvalue {ty} {r}, 0"));
+    let is0 = b.reg();
+    b.line(&format!("{is0} = icmp eq i8 {tag}, {}", csr.arms[0].tag));
+    let l0 = b.label();
+    let l1 = b.label();
+    let lj = b.label();
+    b.line(&format!("br i1 {is0}, label %{l0}, label %{l1}"));
+    let mut emit_arm = |b: &mut Builder, arm: &Cpr, lbl: &str| -> String {
+        b.start(lbl);
+        let mut words = Vec::with_capacity(arm.fields.len());
+        for i in 0..arm.fields.len() {
+            let w = b.reg();
+            b.line(&format!("{w} = extractvalue {ty} {r}, {}", i + 1));
+            words.push(format!("i64 {w}"));
+        }
+        let blk = b.reg();
+        b.line(&format!("{blk} = call i64 @{}({})", quote(&arm.ctor), words.join(", ")));
+        b.line(&format!("br label %{lj}"));
+        blk
+    };
+    let b0 = emit_arm(b, &csr.arms[0], &l0);
+    let b1 = emit_arm(b, &csr.arms[1], &l1);
+    b.start(&lj);
+    let out = b.reg();
+    b.line(&format!("{out} = phi i64 [ {b0}, %{l0} ], [ {b1}, %{l1} ]"));
+    out
+}
+
 fn box_product(b: &mut Builder, cpr: &Cpr, r: &str) -> String {
     let mut words = Vec::with_capacity(cpr.fields.len());
     for (i, c) in cpr.fields.iter().enumerate() {
@@ -4785,17 +5201,20 @@ fn build_unit(
     let fn_body = matches!(body, UnitBody::Fn(_));
     let tailcc = fn_body && reg.tailcc.contains(name);
     let cpr = if fn_body { reg.cpr.get(name) } else { None };
+    let csr = if fn_body && cpr.is_none() { reg.csr.get(name) } else { None };
     let cc = if tailcc { "tailcc " } else { "" };
-    let header = match cpr {
+    let header = match (cpr, csr) {
         // A product result's body returns the constructor's fields: the
         // header's result is the aggregate, and a word's `range` does not
         // apply to it.
-        Some(cpr) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
+        (Some(cpr), _) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
             .replacen("define i64 ", &format!("define {cc}{} ", cpr.ty()), 1),
-        None if tailcc => {
+        (None, Some(csr)) => fn_header(&tailcc_body(name), arity, None, &noundef_params, narrow)
+            .replacen("define i64 ", &format!("define {cc}{} ", csr.ty()), 1),
+        (None, None) if tailcc => {
             fn_header(&tailcc_body(name), arity, ret_range, &noundef_params, narrow).replacen("define ", "define tailcc ", 1)
         }
-        None => fn_header(name, arity, ret_range, &noundef_params, narrow),
+        (None, None) => fn_header(name, arity, ret_range, &noundef_params, narrow),
     };
     // The C wrapper keeps the unit's boundary exactly as it was, narrowed
     // positions included: the object ABI, a foreign consumer and the JIT
@@ -4823,6 +5242,31 @@ fn build_unit(
             quote(&cpr.ctor),
             words.join(", ")
         ));
+        text
+    } else if let Some(csr) = csr {
+        let args: Vec<String> = (0..arity).map(|i| format!("{} %p{i}", cross(i).ty())).collect();
+        let ty = csr.ty();
+        let mut text = format!(
+            "{} {{\nentry:\n  %r = call {cc}{ty} @{}({})\n  %tag = extractvalue {ty} %r, 0\n  %is0 = icmp eq i8 %tag, {}\n  br i1 %is0, label %a0, label %a1\n",
+            fn_header(name, arity, None, &noundef_params, narrow),
+            quote(&tailcc_body(name)),
+            args.join(", "),
+            csr.arms[0].tag
+        );
+        for (idx, arm) in csr.arms.iter().enumerate() {
+            text.push_str(&format!("a{idx}:\n"));
+            let mut words = Vec::with_capacity(arm.fields.len());
+            for i in 0..arm.fields.len() {
+                text.push_str(&format!("  %f{idx}_{i} = extractvalue {ty} %r, {}\n", i + 1));
+                words.push(format!("i64 %f{idx}_{i}"));
+            }
+            text.push_str(&format!(
+                "  %b{idx} = call i64 @{}({})\n  ret i64 %b{idx}\n",
+                quote(&arm.ctor),
+                words.join(", ")
+            ));
+        }
+        text.push_str("}\n\n");
         text
     } else if tailcc {
         let ret = narrow.map_or(Cross::WORD, |s| s.ret).ty();
@@ -4857,6 +5301,10 @@ fn build_unit(
     // itself no longer reaches.
     if let Some(cpr) = cpr {
         scan.refs.insert(cpr.ctor.clone());
+    }
+    if let Some(csr) = csr {
+        scan.refs.insert(csr.arms[0].ctor.clone());
+        scan.refs.insert(csr.arms[1].ctor.clone());
     }
     // A worker is never a first-class value: closures and the apply
     // stub reach it through the unit's own symbol.
@@ -5159,6 +5607,13 @@ fn call_unit(b: &mut Builder, reg: &Registry, name: &str, args: &[String]) -> St
         drop_lent(b, reg, name, args);
         return box_product(b, cpr, &r);
     }
+    if let Some(csr) = reg.csr.get(name) {
+        let cc = if reg.tailcc.contains(name) { "tailcc " } else { "" };
+        let r = b.reg();
+        b.line(&format!("{r} = call {cc}{} @{}({})", csr.ty(), quote(&tailcc_body(name)), typed.join(", ")));
+        drop_lent(b, reg, name, args);
+        return box_sum(b, csr, &r);
+    }
     let ret = sig.map_or(Cross::WORD, |s| s.ret);
     let (sym, cc) = reg.direct(name, name.to_string());
     let r = b.reg();
@@ -5442,6 +5897,7 @@ fn stub_saturate(
     if tail
         && reg.tailcc.contains(name)
         && !reg.cpr.contains_key(name)
+        && !reg.csr.contains_key(name)
         && !reg.lends_counted(name)
         && narrow.is_none_or(|s| s.ret.is_word())
     {
@@ -10237,7 +10693,9 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         frame_bases: HashMap::new(),
         pending: Vec::new(),
         cpr: reg.cpr.get(&f.id.0).cloned(),
+        csr: reg.csr.get(&f.id.0).cloned(),
         virt: HashMap::new(),
+        virt_sum: HashMap::new(),
         unique_releases: reg.unique_releases.get(&f.id.0),
         unique_tokens: HashSet::new(),
         immortal: f.meta.immortal_params.iter().copied().map(LocalId).collect(),
@@ -10587,12 +11045,17 @@ struct CoreEmitter<'a, 'b> {
     /// This unit's own product result ([`Cpr`]): every tail leaf returns
     /// the constructor's fields as an aggregate.
     cpr: Option<Cpr>,
+    /// This unit's own small-sum result ([`Csr`]): every tail leaf returns
+    /// `{ i8, i64 }` or `{ i8, i64, i64 }`.
+    csr: Option<Csr>,
     /// The results of product-result calls that were never boxed, by the
     /// local the `let` bound: the slot of each field word and the field's
     /// class. The local's only uses are a `case` on it, which binds the
     /// fields from the slots, and the count operations of the block that
     /// does not exist, which act on the fields.
     virt: HashMap<LocalId, (Vec<String>, Vec<Class>)>,
+    /// Unboxed small-sum `let` results: `(tag_slot, payload_slots, csr)`.
+    virt_sum: HashMap<LocalId, (String, Vec<String>, Csr)>,
     /// `Core::Release` block locals statically proven unique (`rc == 1`).
     unique_releases: Option<&'a BTreeSet<usize>>,
     /// Reuse token locals whose owning `Release` was statically unique, so
@@ -10636,6 +11099,9 @@ enum Dest {
     /// builds the product (or calls a unit returning it) delivers here;
     /// [`product_leaves`] admitted the value on that condition.
     Fields { slots: Vec<String>, tys: Vec<&'static str>, label: String, base: usize },
+    /// A small 2-constructor sum that is never boxed: stores `i8` tag into
+    /// `tag_slot` and `i64` payload words into `slots`, then branches to `label`.
+    Sum { tag_slot: String, slots: Vec<String>, label: String, base: usize, csr: Csr },
 }
 
 impl Dest {
@@ -10656,7 +11122,7 @@ impl Dest {
             }
             // A word cannot be a product's fields; the emitter refuses
             // such a leaf before it gets here.
-            Dest::Fields { .. } => b.line("unreachable"),
+            Dest::Fields { .. } | Dest::Sum { .. } => b.line("unreachable"),
         }
     }
 
@@ -10670,6 +11136,17 @@ impl Dest {
         }
     }
 
+    /// Deliver a small-sum tag and payload words.
+    fn settle_sum(&self, b: &mut Builder, tag: usize, vals: &[String]) {
+        if let Dest::Sum { tag_slot, slots, label, .. } = self {
+            b.line(&format!("store i8 {tag}, ptr {tag_slot}"));
+            for (v, slot) in vals.iter().zip(slots) {
+                b.line(&format!("store i64 {v}, ptr {slot}"));
+            }
+            b.line(&format!("br label %{label}"));
+        }
+    }
+
     /// How deep the `Release` scope was when this destination was made:
     /// the tokens a path delivering here is leaving, and so the ones it
     /// must settle ([`CoreEmitter::settle_tokens`]). The return leaves the
@@ -10677,7 +11154,7 @@ impl Dest {
     fn base(&self) -> usize {
         match self {
             Dest::Ret => 0,
-            Dest::Slot { base, .. } | Dest::Fields { base, .. } => *base,
+            Dest::Slot { base, .. } | Dest::Fields { base, .. } | Dest::Sum { base, .. } => *base,
         }
     }
 }
@@ -11343,6 +11820,32 @@ impl CoreEmitter<'_, '_> {
             }
             return Ok(());
         }
+        if let Some((tag_slot, slots, csr)) = self.virt_sum.get(&x).cloned() {
+            let any_counted = csr.arms.iter().any(|arm| arm.fields.iter().any(|c| counted_class(*c)));
+            if any_counted {
+                let tag = self.b.reg();
+                self.b.line(&format!("{tag} = load i8, ptr {tag_slot}"));
+                let is0 = self.b.reg();
+                self.b.line(&format!("{is0} = icmp eq i8 {tag}, {}", csr.arms[0].tag));
+                let l0 = self.b.label();
+                let l1 = self.b.label();
+                let lj = self.b.label();
+                self.b.line(&format!("br i1 {is0}, label %{l0}, label %{l1}"));
+                for (arm, lbl) in [(&csr.arms[0], &l0), (&csr.arms[1], &l1)] {
+                    self.b.start(lbl);
+                    for (s, &c) in slots.iter().zip(&arm.fields) {
+                        if counted_class(c) {
+                            let w = self.b.reg();
+                            self.b.line(&format!("{w} = load i64, ptr {s}"));
+                            rc_op(self.b, self.reg.rc_debug, matches!(e, Core::Drop(..)), &w, c);
+                        }
+                    }
+                    self.b.line(&format!("br label %{lj}"));
+                }
+                self.b.start(&lj);
+            }
+            return Ok(());
+        }
         // A frame block carries no count: a `dup` is a second static
         // reference (which the pass refuses unless the payload holds
         // nothing counted, so this arm is the backstop), and a `drop`
@@ -11410,7 +11913,7 @@ impl CoreEmitter<'_, '_> {
         // A product result that was never boxed is the unique path without
         // a cell: the moved fields already hold their references, the rest
         // are dropped, and there is nothing to keep for a reuse.
-        if self.virt.contains_key(&block) {
+        if self.virt.contains_key(&block) || self.virt_sum.contains_key(&block) {
             for (r, c) in rest {
                 let v = self.load_local(*r);
                 rc_op(self.b, self.reg.rc_debug, true, &v, *c);
@@ -11810,6 +12313,11 @@ impl CoreEmitter<'_, '_> {
                 let r = self.call_product(&unit, args)?;
                 return Ok(box_product(self.b, &cpr, &r));
             }
+            if arity == args.len() && self.reg.csr.contains_key(&unit) {
+                let csr = self.reg.csr[&unit].clone();
+                let r = self.call_sum(&unit, args)?;
+                return Ok(box_sum(self.b, &csr, &r));
+            }
             if arity == args.len() {
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
@@ -11924,7 +12432,7 @@ impl CoreEmitter<'_, '_> {
         *budget -= 1;
         match e {
             Core::Int(_) | Core::Bool(_) | Core::Unit => true,
-            Core::Var(x) => !self.virt.contains_key(x),
+            Core::Var(x) => !self.virt.contains_key(x) && !self.virt_sum.contains_key(x),
             Core::App(h, args) => match &**h {
                 Core::Prim(op) if op.is_trivial_pure() && args.len() == op.arity() => {
                     args.iter().all(|a| self.select_trivial(a, budget))
@@ -12043,6 +12551,93 @@ impl CoreEmitter<'_, '_> {
                 dest.settle_fields(self.b, &vals);
                 Ok(())
             }
+            Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Sum { .. }) => {
+                let Dest::Sum { csr, .. } = dest else { unreachable!() };
+                let Some(arm) = csr.arm(&ctor.0).cloned() else {
+                    return err(format!("internal error: unboxed sum leaf in {} builds unexpected ctor {}", self.unit, ctor.0));
+                };
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    vals.push(self.emit_expr(a)?);
+                }
+                self.settle_tokens(dest.base());
+                dest.settle_sum(self.b, arm.tag, &vals);
+                Ok(())
+            }
+            Core::Ctor(id, _) if matches!(dest, Dest::Sum { .. }) => {
+                let Dest::Sum { csr, .. } = dest else { unreachable!() };
+                let Some(arm) = csr.arm(&id.0).cloned() else {
+                    return err(format!("internal error: unboxed sum leaf in {} builds unexpected nullary ctor {}", self.unit, id.0));
+                };
+                self.settle_tokens(dest.base());
+                dest.settle_sum(self.b, arm.tag, &[]);
+                Ok(())
+            }
+            Core::App(f, args) if matches!(dest, Dest::Sum { .. }) => {
+                let Dest::Sum { csr, .. } = dest else { unreachable!() };
+                let known = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
+                match known {
+                    Some((unit, _)) if matches!(&**f, Core::Ctor(..)) => {
+                        let Some(arm) = csr.arm(&unit).cloned() else {
+                            return err(format!("internal error: unboxed sum leaf in {} builds unexpected ctor {unit}", self.unit));
+                        };
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        self.settle_tokens(dest.base());
+                        dest.settle_sum(self.b, arm.tag, &vals);
+                        Ok(())
+                    }
+                    Some((unit, _)) if self.reg.csr.get(&unit) == Some(csr) => {
+                        let r = self.call_sum(&unit, args)?;
+                        let ty = csr.ty();
+                        let tag = self.b.reg();
+                        self.b.line(&format!("{tag} = extractvalue {ty} {r}, 0"));
+                        let mut vals = Vec::with_capacity(csr.words);
+                        for i in 0..csr.words {
+                            let w = self.b.reg();
+                            self.b.line(&format!("{w} = extractvalue {ty} {r}, {}", i + 1));
+                            vals.push(w);
+                        }
+                        self.settle_tokens(dest.base());
+                        if let Dest::Sum { tag_slot, slots, label, .. } = dest {
+                            self.b.line(&format!("store i8 {tag}, ptr {tag_slot}"));
+                            for (v, slot) in vals.iter().zip(slots) {
+                                self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                            }
+                            self.b.line(&format!("br label %{label}"));
+                        }
+                        Ok(())
+                    }
+                    _ => err(format!(
+                        "internal error: unboxed sum leaf in {} neither builds it nor calls a unit returning it",
+                        self.unit
+                    )),
+                }
+            }
+            Core::Ctor(id, _) if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                let csr = self.csr.clone().unwrap();
+                let Some(arm) = csr.arm(&id.0) else {
+                    return err(format!("internal error: small-sum {} returns unexpected nullary ctor {}", self.unit, id.0));
+                };
+                self.settle_tokens(dest.base());
+                self.ret_sum(arm.tag, &[]);
+                Ok(())
+            }
+            Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                let csr = self.csr.clone().unwrap();
+                let Some(arm) = csr.arm(&ctor.0) else {
+                    return err(format!("internal error: small-sum {} reuses unexpected ctor {}", self.unit, ctor.0));
+                };
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    vals.push(self.emit_expr(a)?);
+                }
+                self.settle_tokens(dest.base());
+                self.ret_sum(arm.tag, &vals);
+                Ok(())
+            }
             // A product result's leaf never needs the cell: the fields are
             // the result, and the kept cell is freed with the other tokens.
             Core::Reuse { ctor, args, .. } if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
@@ -12069,7 +12664,7 @@ impl CoreEmitter<'_, '_> {
             }
             Core::If(c, t, f) => {
                 if matches!(dest, Dest::Slot { .. })
-                    || (matches!(dest, Dest::Ret) && self.cpr.is_none())
+                    || (matches!(dest, Dest::Ret) && self.cpr.is_none() && self.csr.is_none())
                 {
                     if let Some(ty) = self.can_select_if(t, f) {
                         let cv = self.emit_expr(c)?;
@@ -12244,6 +12839,54 @@ impl CoreEmitter<'_, '_> {
                         "internal error: {} returns a product, and one of its tail leaves is a call that does not",
                         self.unit
                     )),
+                    Some((unit, _))
+                        if matches!(&**f, Core::Ctor(..))
+                            && self.csr.as_ref().and_then(|s| s.arm(&unit)).is_some() =>
+                    {
+                        let tag = self.csr.as_ref().unwrap().arm(&unit).unwrap().tag;
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        self.settle_tokens(dest.base());
+                        self.ret_sum(tag, &vals);
+                        Ok(())
+                    }
+                    Some((unit, _))
+                        if self.csr.is_some()
+                            && self.reg.csr.get(&unit) == self.csr.as_ref()
+                            && self.reg.tailcc.contains(&self.unit)
+                            && self.reg.tailcc.contains(&unit) =>
+                    {
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        let sig = self.reg.narrow_sigs.get(&unit);
+                        let mut typed = Vec::with_capacity(vals.len());
+                        for (i, v) in vals.iter().enumerate() {
+                            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+                            let n = c.narrow(self.b, v);
+                            typed.push(format!("{} {n}", c.ty()));
+                        }
+                        self.settle_tokens(dest.base());
+                        let ty = self.csr.as_ref().unwrap().ty();
+                        let r = self.b.reg();
+                        self.b.line(&format!("{r} = musttail call tailcc {ty} @{}({})", quote(&tailcc_body(&unit)), typed.join(", ")));
+                        self.b.line(&format!("ret {ty} {r}"));
+                        Ok(())
+                    }
+                    Some((unit, _)) if self.csr.is_some() && self.reg.csr.get(&unit) == self.csr.as_ref() => {
+                        let r = self.call_sum(&unit, args)?;
+                        self.settle_tokens(dest.base());
+                        let ty = self.csr.as_ref().unwrap().ty();
+                        self.b.line(&format!("ret {ty} {r}"));
+                        Ok(())
+                    }
+                    _ if self.csr.is_some() => err(format!(
+                        "internal error: {} returns a small sum, and one of its tail leaves is a call that does not",
+                        self.unit
+                    )),
                     // A `tailcc` body tail-calling another body of this
                     // module. `tailcc` lets `musttail` cross prototypes, so
                     // the arities and the narrowed parameters may differ;
@@ -12254,6 +12897,7 @@ impl CoreEmitter<'_, '_> {
                         if self.reg.tailcc.contains(&self.unit)
                             && self.reg.tailcc.contains(&unit)
                             && !self.reg.cpr.contains_key(&unit)
+                            && !self.reg.csr.contains_key(&unit)
                             && self.reg.narrow_sigs.get(&unit).map_or(Cross::WORD, |s| s.ret).ty() == self.ret.ty() =>
                     {
                         let mut vals = Vec::with_capacity(args.len());
@@ -12362,6 +13006,7 @@ impl CoreEmitter<'_, '_> {
                                 groups.get(&self.unit).is_some_and(|group| groups.get(&unit) == Some(group))
                             })
                             && !self.reg.cpr.contains_key(&unit)
+                            && !self.reg.csr.contains_key(&unit)
                             && self.reg.tail_sig(&unit, arity).1 == self.width
                             // `musttail` needs the callee's prototype to be
                             // the caller's exactly, parameters included, so
@@ -12429,20 +13074,28 @@ impl CoreEmitter<'_, '_> {
                 }
                 Ok(())
             }
-            Core::Fault if matches!(dest, Dest::Fields { .. }) => {
+            Core::Fault if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                self.emit_expr(e)?;
+                if !self.b.terminated {
+                    let ty = self.csr.as_ref().unwrap().ty();
+                    self.b.line(&format!("ret {ty} zeroinitializer"));
+                }
+                Ok(())
+            }
+            Core::Fault if matches!(dest, Dest::Fields { .. } | Dest::Sum { .. }) => {
                 self.emit_expr(e)?;
                 if !self.b.terminated {
                     self.b.line("unreachable");
                 }
                 Ok(())
             }
-            other if matches!(dest, Dest::Fields { .. }) => err(format!(
-                "internal error: an unboxed product's leaf in {} does not build it: {:?}",
+            other if matches!(dest, Dest::Fields { .. } | Dest::Sum { .. }) => err(format!(
+                "internal error: an unboxed aggregate's leaf in {} does not build it: {:?}",
                 self.unit,
                 std::mem::discriminant(other)
             )),
-            other if matches!(dest, Dest::Ret) && self.cpr.is_some() => err(format!(
-                "internal error: {} returns a product, and one of its tail leaves does not build it",
+            other if matches!(dest, Dest::Ret) && (self.cpr.is_some() || self.csr.is_some()) => err(format!(
+                "internal error: {} returns an unboxed aggregate, and one of its tail leaves does not build it",
                 self.unit
             )),
             other => {
@@ -12504,32 +13157,79 @@ impl CoreEmitter<'_, '_> {
         self.b.line(&format!("ret {ty} {agg}"));
     }
 
-    /// `let x = f args in body` where `f` returns a product ([`Cpr`]) and
-    /// `body` only takes `x` apart: call `f`'s body, keep the field values
-    /// in slots, and never build the block. Answers whether it did.
-    ///
-    /// `body` may mention `x` only as the scrutinee of a `case` with the
-    /// constructor's one alternative, as the block of a `Release`, or in a
-    /// `drop`. Any other mention (an argument, a stored value, a `dup`, a
-    /// capture) needs the block, so the ordinary call boxes it.
+    /// Return `(tag, vals)` as this small-sum result's aggregate.
+    fn ret_sum(&mut self, tag: usize, vals: &[String]) {
+        let Some(csr) = self.csr.clone() else { return };
+        let ty = csr.ty();
+        let mut agg = self.b.reg();
+        self.b.line(&format!("{agg} = insertvalue {ty} poison, i8 {tag}, 0"));
+        for i in 0..csr.words {
+            let v = vals.get(i).map_or("0", String::as_str);
+            let r = self.b.reg();
+            self.b.line(&format!("{r} = insertvalue {ty} {agg}, i64 {v}, {}", i + 1));
+            agg = r;
+        }
+        self.b.line(&format!("ret {ty} {agg}"));
+    }
+
+    /// Call small-sum `unit`'s body with `args`, answering the aggregate register.
+    fn call_sum(&mut self, unit: &str, args: &[Core]) -> Result<String> {
+        let mut vals = Vec::with_capacity(args.len());
+        for a in args {
+            vals.push(self.emit_expr(a)?);
+        }
+        let sig = self.reg.narrow_sigs.get(unit);
+        let mut typed = Vec::with_capacity(vals.len());
+        for (i, v) in vals.iter().enumerate() {
+            let c = sig.map_or(Cross::WORD, |s| s.param(i));
+            let n = c.narrow(self.b, v);
+            typed.push(format!("{} {n}", c.ty()));
+        }
+        let ty = self.reg.csr[unit].ty();
+        let cc = if self.reg.tailcc.contains(unit) { "tailcc " } else { "" };
+        let r = self.b.reg();
+        self.b.line(&format!("{r} = call {cc}{ty} @{}({})", quote(&tailcc_body(unit)), typed.join(", ")));
+        Ok(r)
+    }
+
+    /// `let x = f args in body` where `f` returns a product ([`Cpr`]) or small
+    /// sum ([`Csr`]) and `body` only takes `x` apart: call `f`'s body, keep the
+    /// field values in slots, and never build the block. Answers whether it did.
     fn virtual_let(&mut self, x: LocalId, v: &Core, body: &Core) -> Result<bool> {
         if self.frame_site(x).is_some() {
             return Ok(false);
         }
-        let Some(cpr) = product_leaves(v, self.reg) else {
-            return Ok(false);
-        };
-        if !product_uses_only_take_apart(body, x, &cpr) {
-            return Ok(false);
+        if let Some(cpr) = product_leaves(v, self.reg) {
+            if product_uses_only_take_apart(body, x, &cpr) {
+                let tys: Vec<&'static str> = cpr.fields.iter().map(|c| Cpr::field_ty(*c)).collect();
+                let slots: Vec<String> = tys.iter().map(|ty| self.b.alloca_ty(ty)).collect();
+                let label = self.b.label();
+                let dest = Dest::Fields { slots: slots.clone(), tys, label: label.clone(), base: self.pending.len() };
+                self.emit_to(v, &dest)?;
+                self.b.start(&label);
+                self.virt.insert(x, (slots, cpr.fields.clone()));
+                return Ok(true);
+            }
         }
-        let tys: Vec<&'static str> = cpr.fields.iter().map(|c| Cpr::field_ty(*c)).collect();
-        let slots: Vec<String> = tys.iter().map(|ty| self.b.alloca_ty(ty)).collect();
-        let label = self.b.label();
-        let dest = Dest::Fields { slots: slots.clone(), tys, label: label.clone(), base: self.pending.len() };
-        self.emit_to(v, &dest)?;
-        self.b.start(&label);
-        self.virt.insert(x, (slots, cpr.fields.clone()));
-        Ok(true)
+        if let Some(csr) = sum_leaves(v, self.reg) {
+            if sum_uses_only_take_apart(body, x, &csr) {
+                let tag_slot = self.b.alloca_ty("i8");
+                let slots: Vec<String> = (0..csr.words).map(|_| self.b.alloca_ty("i64")).collect();
+                let label = self.b.label();
+                let dest = Dest::Sum {
+                    tag_slot: tag_slot.clone(),
+                    slots: slots.clone(),
+                    label: label.clone(),
+                    base: self.pending.len(),
+                    csr: csr.clone(),
+                };
+                self.emit_to(v, &dest)?;
+                self.b.start(&label);
+                self.virt_sum.insert(x, (tag_slot, slots, csr));
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Call product-result `unit`'s body with `args`, answering the
@@ -12583,6 +13283,38 @@ impl CoreEmitter<'_, '_> {
                     self.b.line(&format!("store {fty} {w}, ptr {slot}"));
                 }
                 return self.emit_to(&alt.body, dest);
+            }
+            if let Some((tag_slot, slots, csr)) = self.virt_sum.get(t).cloned() {
+                let tag = self.b.reg();
+                self.b.line(&format!("{tag} = load i8, ptr {tag_slot}"));
+                let is0 = self.b.reg();
+                self.b.line(&format!("{is0} = icmp eq i8 {tag}, {}", csr.arms[0].tag));
+                let l0 = self.b.label();
+                let l1 = self.b.label();
+                self.b.line(&format!("br i1 {is0}, label %{l0}, label %{l1}"));
+                let default_body = alts.iter().find(|a| matches!(a.pat, CPat::Wild)).map(|a| &a.body);
+                for (arm, lbl) in [(&csr.arms[0], &l0), (&csr.arms[1], &l1)] {
+                    self.b.start(lbl);
+                    if let Some(alt) = alts.iter().find(|a| matches!(&a.pat, CPat::Con { tag: atag, .. } if *atag == arm.tag)) {
+                        if let CPat::Con { fields, .. } = &alt.pat {
+                            for (x, s) in fields.iter().zip(&slots) {
+                                if !self.bound.contains(x) {
+                                    return err(format!("pattern binds unknown local {}", x.0));
+                                }
+                                let w = self.b.reg();
+                                self.b.line(&format!("{w} = load i64, ptr {s}"));
+                                let slot = self.slot(*x);
+                                self.b.line(&format!("store i64 {w}, ptr {slot}"));
+                            }
+                        }
+                        self.emit_to(&alt.body, dest)?;
+                    } else if let Some(rhs) = default_body {
+                        self.emit_to(rhs, dest)?;
+                    } else {
+                        self.b.line("unreachable");
+                    }
+                }
+                return Ok(());
             }
         }
         let sv = self.emit_expr(scrut)?;
@@ -12727,9 +13459,10 @@ impl CoreEmitter<'_, '_> {
                 // return leaves every `Release` in scope, so it settles
                 // their tokens first.
                 self.settle_tokens(dest.base());
-                match &self.cpr {
-                    Some(cpr) => self.b.line(&format!("ret {} zeroinitializer", cpr.ty())),
-                    None => self.b.line(&format!("ret {} 0", self.ret.ty())),
+                match (&self.cpr, &self.csr) {
+                    (Some(cpr), _) => self.b.line(&format!("ret {} zeroinitializer", cpr.ty())),
+                    (None, Some(csr)) => self.b.line(&format!("ret {} zeroinitializer", csr.ty())),
+                    (None, None) => self.b.line(&format!("ret {} 0", self.ret.ty())),
                 }
             }
         }

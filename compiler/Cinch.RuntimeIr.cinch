@@ -103,6 +103,7 @@ module Cinch.RuntimeIr where
     PrimitiveIntrinsicDemand :: String -> Demand
     PrimitiveUseDemand :: String -> String -> Demand
     CprDemand :: String -> List Nat -> Demand
+    CsrDemand :: String -> List Nat -> Demand
     BorrowDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
@@ -852,6 +853,7 @@ module Cinch.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
     PrimitiveUseDemand symbol decl -> cat ["prim use:", symbol]
     CprDemand name classes -> cat [specialized-name name classes, "#cpr"]
+    CsrDemand name classes -> cat [specialized-name name classes, "#csr"]
     BorrowDemand name classes -> cat [specialized-name name classes, "#b"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
   request-demand :: Demand -> Writer -> Writer
@@ -1907,6 +1909,28 @@ module Cinch.RuntimeIr where
             None -> case expression definitions ((Local id ty value) : locals) w body of
               (done, result) -> (count-op False ty value done, result)
 
+  -- | Partial escape split: when a let-bound constructor with trivial arguments
+  -- sits above an `if` whose condition does not mention it, sink the `let` into
+  -- only the branch(es) that mention it (when either only one branch uses it,
+  -- or at least one branch only scrutinizes it so `deferred-let` eliminates
+  -- the allocation on that branch).
+  try-sink-partial-escape :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> Option (Writer, String)
+  try-sink-partial-escape definitions locals w sp id name sc rhs body =
+    case (scheme-params sc, scheme-requirements sc, deferred-value (writer-program w) rhs, body) of
+      ([], [], Some plan, CIf isp ity cond yes no) | not (term-uses-id id cond) ->
+        let in-yes = term-uses-id id yes in
+        let in-no = term-uses-id id no in
+        let should-sink =
+              (in-yes && not in-no)
+              || (not in-yes && in-no)
+              || (in-yes && in-no && (case-scrutinee-only id yes || case-scrutinee-only id no)) in
+        if should-sink then
+          let yes2 = if in-yes then CLet sp (core-type yes) id name sc rhs yes else yes in
+          let no2 = if in-no then CLet sp (core-type no) id name sc rhs no else no in
+          Some (branch definitions locals w isp cond yes2 no2)
+        else None
+      other -> None
+
   emit-let :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
   emit-let definitions locals w sp id ty rhs body =
     if not (term-uses-id id body) then
@@ -1973,11 +1997,13 @@ module Cinch.RuntimeIr where
         else if deferred-let w id sc rhs body then (case deferred-value (writer-program w) rhs of
           Some (ctor, actuals, args) -> expression definitions ((DeferredConstructor id (scheme-body sc) ctor actuals args) : locals) w body
           None -> unsupported w sp "deferred constructor let failed its checked representation")
-        else if erased-region-parameters (scheme-params sc) && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
-          emit-let definitions locals w sp id (scheme-body sc) rhs body
-        else (case bundled-let sp id sc rhs body of
-          Some bundled -> expression definitions locals w bundled
-          None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")
+        else case try-sink-partial-escape definitions locals w sp id name sc rhs body of
+          Some sunk -> sunk
+          None -> if erased-region-parameters (scheme-params sc) && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
+            emit-let definitions locals w sp id (scheme-body sc) rhs body
+          else (case bundled-let sp id sc rhs body of
+            Some bundled -> expression definitions locals w bundled
+            None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
     CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
@@ -7030,10 +7056,288 @@ module Cinch.RuntimeIr where
                       (extracted, fwords) -> case expression definitions (fold-field-locals fields fwords <> locals) extracted body of
                         (done, result) -> Some (cpr-release-fields fclasses fwords done, result))
               other -> None
-            None -> None
+            None -> fold-csr-case definitions locals w name actuals args classes d alternatives
           None -> None)
       None -> None
     None -> None
+
+  -- | Companion Small-Sum CSR analysis and lowering for 2-constructor uniform
+  -- sums with 0..=2 i64 payload words (`Option`, `Result`, etc.) returned in
+  -- registers as `{ i8, i64 }` or `{ i8, i64, i64 }`.
+  csr-term-ctors :: CoreTerm -> Option (List (String, List CoreTerm))
+  csr-term-ctors term = case term of
+    CIf sp ty test yes no -> csr-merge-ctors (csr-term-ctors yes) (csr-term-ctors no)
+    CCase sp ty value alts -> csr-alts-ctors alts
+    CGuard sp ty cond body -> csr-term-ctors body
+    CLet sp ty id name sc rhs body -> csr-term-ctors body
+    CRequire sp ty body -> csr-term-ctors body
+    CProved sp ty ev body -> csr-term-ctors body
+    CRefine sp ty ev body -> csr-term-ctors body
+    CRefineProof sp ty witness body -> csr-term-ctors body
+    CDischarge sp ty ev _ body -> csr-term-ctors body
+    CForget sp ty body -> csr-term-ctors body
+    CCast sp ty body -> csr-term-ctors body
+    other -> case erased-constructor-call term [] of
+      Some (name, actuals, args) -> Some [(name, args)]
+      None -> case term of
+        CUse sp ty name role actuals | role == "constructor" -> Some [(name, [])]
+        other2 -> None
+
+  csr-add-ctor :: (String, List CoreTerm) -> List (String, List CoreTerm) -> Option (List (String, List CoreTerm))
+  csr-add-ctor item acc = case (item, acc) of
+    ((na, aa), []) -> Some [(na, aa)]
+    ((na, aa), (nb, ab) : rest) ->
+      if na == nb then (if list-length aa == list-length ab then Some ((nb, ab) : rest) else None)
+      else case csr-add-ctor item rest of
+        Some more -> if list-length more < 2 then Some ((nb, ab) : more) else None
+        None -> None
+
+  csr-merge-list :: List (String, List CoreTerm) -> List (String, List CoreTerm) -> Option (List (String, List CoreTerm))
+  csr-merge-list xs acc = case xs of
+    [] -> Some acc
+    first : rest -> case csr-add-ctor first acc of
+      Some next -> csr-merge-list rest next
+      None -> None
+
+  csr-merge-ctors :: Option (List (String, List CoreTerm)) -> Option (List (String, List CoreTerm)) -> Option (List (String, List CoreTerm))
+  csr-merge-ctors a b = case (a, b) of
+    (Some xs, Some ys) -> csr-merge-list xs ys
+    other -> None
+
+  csr-alts-ctors :: CoreTerm -> Option (List (String, List CoreTerm))
+  csr-alts-ctors alts = case alts of
+    CAlternative sp pat body (CAlternativesEnd end) -> csr-term-ctors body
+    CAlternative sp pat body rest -> csr-merge-ctors (csr-term-ctors body) (csr-alts-ctors rest)
+    other -> None
+
+  csr-clauses-ctors :: List CoreClause -> Option (List (String, List CoreTerm))
+  csr-clauses-ctors clauses = case clauses of
+    [CoreClause sp pats body] -> csr-term-ctors body
+    (CoreClause sp pats body) : rest -> csr-merge-ctors (csr-term-ctors body) (csr-clauses-ctors rest)
+    [] -> None
+
+  record CsrArm where
+    csr-ctor :: String
+    csr-tag :: Nat
+    csr-classes :: List Nat
+
+  record CsrPlan where
+    arm0 :: CsrArm
+    arm1 :: CsrArm
+    csr-words :: Nat
+
+  csr-agg-type :: Nat -> String
+  csr-agg-type words = if words == 1 then "{ i8, i64 }" else "{ i8, i64, i64 }"
+
+  csr-check-arm :: Writer -> String -> List CoreTerm -> Option (String, CsrArm)
+  csr-check-arm scoped cname args = case constructor cname (writer-program scoped) of
+    Some (owner, tag, c) | tag <= 255 && list-length args == list-length (core-constructor-fields c) && list-length args <= 2 ->
+      (case data-declaration owner (writer-program scoped) of
+        Some dd ->
+          let uniform = (case core-data-layout dd of UniformData -> True; other -> False) in
+          if uniform && list-length (core-data-constructors dd) == 2 then
+            (case class-vector (scoped.context) (term-types args) of
+              Some fclasses | not (wide-code fclasses) -> Some (owner, CsrArm cname tag fclasses)
+              other -> None)
+          else None
+        None -> None)
+    other -> None
+
+  csr-plan :: Writer -> CoreDefinition -> List Nat -> Option CsrPlan
+  csr-plan w d classes = case definition-context d classes w of
+    None -> None
+    Some ctx ->
+      let scoped = (case ctx of RuntimeContext datas bounds rigids queue inlining -> with-representations bounds rigids w) in
+      if not (scheme-supported (scoped.context) (d.scheme)) then None
+      else if list-length (runtime-givens scoped d) /= 0 || list-length (definition-value-dependencies scoped d) /= 0 || list-length (d.openings) /= 0 then None
+      else case d.clauses of
+        (CoreClause at patterns body) : rest ->
+          if list-length (proof-stage-arities patterns 0) /= 1 || list-length (runtime-parameters patterns) == 0 then None
+          else (case csr-clauses-ctors (d.clauses) of
+            Some [(c0, a0), (c1, a1)] ->
+              (case (csr-check-arm scoped c0 a0, csr-check-arm scoped c1 a1) of
+                (Some (o0, arm0), Some (o1, arm1)) | o0 == o1 && arm0.csr-tag /= arm1.csr-tag ->
+                  let n0 = list-length (arm0.csr-classes) in
+                  let n1 = list-length (arm1.csr-classes) in
+                  let maxw = if n0 > n1 then n0 else n1 in
+                  if maxw >= 1 && maxw <= 2 then
+                    if arm0.csr-tag < arm1.csr-tag then Some (CsrPlan arm0 arm1 maxw)
+                    else Some (CsrPlan arm1 arm0 maxw)
+                  else None
+                other -> None)
+            other -> None)
+        [] -> None
+
+  csr-emit-extract-words :: Writer -> String -> String -> Nat -> Nat -> (Writer, List String)
+  csr-emit-extract-words w agg-ty agg count index =
+    if index >= count then (w, [])
+    else
+      let (w1, v) = fresh w "%csr" in
+      let w2 = line w1 (cat ["  ", v, " = extractvalue ", agg-ty, " ", agg, ", ", nat-to-string (index + 1)]) in
+      case csr-emit-extract-words w2 agg-ty agg count (index + 1) of
+        (w3, more) -> (w3, v : more)
+
+  fold-csr-case :: List CoreDefinition -> List Local -> Writer -> String -> List UType -> List CoreTerm -> List Nat -> CoreDefinition -> CoreTerm -> Option (Writer, String)
+  fold-csr-case definitions locals w name actuals args classes d alternatives =
+    case csr-plan w d classes of
+      None -> None
+      Some (CsrPlan arm0 arm1 words) ->
+        case (fold-alternatives alternatives (arm0.csr-ctor) (list-length (arm0.csr-classes)),
+              fold-alternatives alternatives (arm1.csr-ctor) (list-length (arm1.csr-classes))) of
+          (FoldCase f0 b0, FoldCase f1 b1) | not (row-guarded b0) && not (row-guarded b1) ->
+            let agg-ty = csr-agg-type words in
+            let res-ty = value-llvm (w.context) (core-type b0) in
+            let csr-sym = symbol (cat [specialized-name name classes, "#csr"]) in
+            let arg-llvms = value-llvms (w.context) (term-types args) in
+            (case expressions definitions locals (request-demand (CsrDemand name classes) w) args of
+              (evaluated, arg-words) -> case typed-call evaluated agg-ty csr-sym (typed-values arg-llvms arg-words) of
+                (called, agg) ->
+                  let (w1, tagv) = fresh called "%csrtag" in
+                  let (w2, is0) = fresh w1 "%csris0" in
+                  let (w3, l0) = fresh w2 "csr0" in
+                  let (w4, l1) = fresh w3 "csr1" in
+                  let (w5, l0out) = fresh w4 "csr0out" in
+                  let (w6, l1out) = fresh w5 "csr1out" in
+                  let (w7, ljoin) = fresh w6 "csrjoin" in
+                  let branched = emit-lines w7 [
+                    cat ["  ", tagv, " = extractvalue ", agg-ty, " ", agg, ", 0"],
+                    cat ["  ", is0, " = icmp eq i8 ", tagv, ", ", nat-to-string (arm0.csr-tag)],
+                    cat ["  br i1 ", is0, ", label %", l0, ", label %", l1],
+                    cat [l0, ":"]] in
+                  case csr-emit-extract-words branched agg-ty agg (list-length (arm0.csr-classes)) 0 of
+                    (e0, w0s) -> case expression definitions (fold-field-locals f0 w0s <> locals) e0 b0 of
+                      (d0, r0) ->
+                        let r0rel = emit-lines (cpr-release-fields (arm0.csr-classes) w0s d0) [
+                          cat ["  br label %", l0out],
+                          cat [l0out, ":"],
+                          cat ["  br label %", ljoin],
+                          cat [l1, ":"]] in
+                        case csr-emit-extract-words r0rel agg-ty agg (list-length (arm1.csr-classes)) 0 of
+                          (e1, w1s) -> case expression definitions (fold-field-locals f1 w1s <> locals) e1 b1 of
+                            (d1, r1) ->
+                              let r1rel = emit-lines (cpr-release-fields (arm1.csr-classes) w1s d1) [
+                                cat ["  br label %", l1out],
+                                cat [l1out, ":"],
+                                cat ["  br label %", ljoin],
+                                cat [ljoin, ":"]] in
+                              let (done, outv) = fresh r1rel "%v" in
+                              Some (line done (cat ["  ", outv, " = phi ", res-ty, " [ ", r0, ", %", l0out, " ], [ ", r1, ", %", l1out, " ]"]), outv))
+          other -> None
+
+  csr-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
+  csr-worker definitions name classes w = case worker-definition name w of
+    None -> refuse w (Span 0 0 1 1) "CSR worker definition is absent"
+    Some d -> case class-bindings (scheme-params (d.scheme)) classes of
+      None -> refuse w (Span 0 0 1 1) "CSR worker needs representation classes"
+      Some bounds -> case definition-rigids d bounds of
+        None -> refuse w (Span 0 0 1 1) "CSR worker openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          case csr-plan scoped d classes of
+            None -> refuse scoped (Span 0 0 1 1) "CSR worker lost its checked sum plan"
+            Some plan -> case d.clauses of
+              (CoreClause at patterns body) : rest ->
+                let parameters = runtime-parameters patterns in
+                let types = pattern-types parameters in
+                let roots = parameter-roots parameters 0 in
+                let prefix = self-binding scoped d classes in
+                let agg-ty = csr-agg-type (plan.csr-words) in
+                let csr-name = cat [specialized-name name classes, "#csr"] in
+                let params = typed-arguments (typed-values (value-llvms (scoped.context) types) (value-parameters (list-length parameters) 0)) in
+                let started = line (line scoped (cat ["define private ", agg-ty, " ", symbol csr-name, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
+                line (csr-clauses definitions plan agg-ty prefix roots (d.clauses) started) "}"
+              [] -> refuse scoped (Span 0 0 1 1) "CSR worker has no clauses"
+
+  csr-clauses :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> List CoreClause -> Writer -> Writer
+  csr-clauses definitions plan agg-ty prefix roots clauses w = case clauses of
+    [] -> line w "  unreachable"
+    (CoreClause sp patterns body) : rest ->
+      let (one, failed) = fresh w "nextcsreq" in
+      case match-clause patterns body prefix 0 failed one of
+        (matched, bindings, rebuilt) ->
+          let done = csr-result definitions plan agg-ty (bindings <> prefix) roots matched failed rebuilt in
+          csr-clauses definitions plan agg-ty prefix roots rest (line done (cat [failed, ":"]))
+
+  csr-emit-return :: Writer -> CsrPlan -> String -> Nat -> List String -> Writer
+  csr-emit-return w plan agg-ty tag vals =
+    let (w1, t0) = fresh w "%csr" in
+    let w2 = line w1 (cat ["  ", t0, " = insertvalue ", agg-ty, " poison, i8 ", nat-to-string tag, ", 0"]) in
+    let pad-vals = case (plan.csr-words, vals) of
+          (1, []) -> ["0"]
+          (1, [a]) -> [a]
+          (2, []) -> ["0", "0"]
+          (2, [a]) -> [a, "0"]
+          (2, [a, b]) -> [a, b]
+          other -> vals in
+    case cpr-emit-insert w2 agg-ty t0 (typed-words pad-vals) 1 of
+      (built, agg) -> line built (cat ["  ret ", agg-ty, " ", agg])
+
+  csr-match-arm :: CsrPlan -> String -> Option CsrArm
+  csr-match-arm plan cname = case plan of
+    CsrPlan a0 a1 words ->
+      if a0.csr-ctor == cname then Some a0
+      else if a1.csr-ctor == cname then Some a1
+      else None
+
+  csr-result :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
+  csr-result definitions plan agg-ty locals roots w failed term = case term of
+    CIf sp ty test yes no -> case expression definitions locals w test of
+      (tested, condition) ->
+        let (one, otherwise) = fresh tested "csrno" in
+        let selected = continue-if one condition otherwise in
+        let first = csr-result definitions plan agg-ty locals roots selected failed yes in
+        csr-result definitions plan agg-ty locals roots (line first (cat [otherwise, ":"])) failed no
+    CCase sp ty value alts -> case parameter-value locals roots value of
+      Some (word, remaining) -> csr-case-chain definitions plan agg-ty locals remaining w (core-type value) word True alts
+      None -> case borrowed-local-word locals value of
+        Some word -> csr-case-chain definitions plan agg-ty locals roots w (core-type value) word False alts
+        None -> case expression definitions locals w value of
+          (ready, word) -> csr-case-chain definitions plan agg-ty locals roots ready (core-type value) word True alts
+    CGuard sp ty condition body -> if core-alternative-covers term then
+      csr-result definitions plan agg-ty locals roots w failed body
+      else (case expression definitions locals w condition of
+        (ready, value) -> csr-result definitions plan agg-ty locals roots (continue-if ready value failed) failed body)
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      [] -> if scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
+        (case expression definitions locals w rhs of
+          (ready, value) ->
+            let bound = Local id (scheme-body sc) value in
+            let scoped = bound : locals in
+            let owned = (Discard (scheme-body sc) value) : roots in
+            let (one, cleanup) = fresh ready "csrcleanup" in
+            let emitted = csr-result definitions plan agg-ty scoped owned one cleanup body in
+            let released = count-op False (scheme-body sc) value (line emitted (cat [cleanup, ":"])) in
+            line released (cat ["  br label %", failed]))
+        else line (refuse w sp "CSR worker let needs monomorphic representation") "  unreachable"
+      other -> line (refuse w sp "CSR worker let cannot be polymorphic") "  unreachable"
+    CRequire sp ty body -> csr-result definitions plan agg-ty locals roots w failed body
+    CProved sp ty ev body -> csr-result definitions plan agg-ty locals roots w failed body
+    CRefine sp ty ev body -> csr-result definitions plan agg-ty locals roots w failed body
+    CRefineProof sp ty witness body -> csr-result definitions plan agg-ty locals roots w failed body
+    CDischarge sp ty ev _ body -> csr-result definitions plan agg-ty locals roots w failed body
+    CForget sp ty body -> csr-result definitions plan agg-ty locals roots w failed body
+    CCast sp ty body -> csr-result definitions plan agg-ty locals roots w failed body
+    other -> case erased-constructor-call term [] of
+      Some (cname, actuals, args) -> case csr-match-arm plan cname of
+        Some arm -> case expressions definitions locals w args of
+          (evaluated, vals) -> csr-emit-return (drop-locals roots evaluated) plan agg-ty (arm.csr-tag) vals
+        None -> line (refuse w (Span 0 0 1 1) "CSR worker leaf disagrees with sum constructor") "  unreachable"
+      None -> case term of
+        CUse sp ty cname role actuals | role == "constructor" -> case csr-match-arm plan cname of
+          Some arm -> csr-emit-return (drop-locals roots w) plan agg-ty (arm.csr-tag) []
+          None -> line (refuse w (Span 0 0 1 1) "CSR worker nullary leaf disagrees with sum constructor") "  unreachable"
+        other2 -> line (refuse w (Span 0 0 1 1) "CSR worker leaf disagrees with sum constructor") "  unreachable"
+
+  csr-case-chain :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> Writer
+  csr-case-chain definitions plan agg-ty locals roots w ty value drop-scrut alts = case alts of
+    CAlternativesEnd end -> line w "  unreachable"
+    CAlternative sp pattern body rest ->
+      let (one, failed) = fresh w "nextcsralt" in
+      case match-alternative pattern body locals value failed one of
+        (matched, bindings, rebuilt) ->
+          let owned = if drop-scrut then (Discard ty value) : roots else roots in
+          let done = csr-result definitions plan agg-ty (bindings <> locals) owned matched failed rebuilt in
+          csr-case-chain definitions plan agg-ty locals roots (line done (cat [failed, ":"])) ty value drop-scrut rest
+    other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine in CSR worker") "  unreachable"
   cpr-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
   cpr-worker definitions name classes w = case worker-definition name w of
     None -> refuse w (Span 0 0 1 1) "CPR worker definition is absent"
@@ -7689,6 +7993,7 @@ module Cinch.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> primitive-intrinsic-worker symbol claimed
     PrimitiveUseDemand symbol decl -> global claimed decl
     CprDemand name classes -> cpr-worker definitions name classes claimed
+    CsrDemand name classes -> csr-worker definitions name classes claimed
     BorrowDemand name classes -> borrow-worker definitions name classes claimed
     BuiltinBorrowDemand name -> builtin-borrow-worker name claimed
 
@@ -7834,6 +8139,7 @@ module Cinch.RuntimeIr where
       None -> case demand of
         Demand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         CprDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        CsrDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         BorrowDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         DictionaryDemand name classes -> False
         other -> True
