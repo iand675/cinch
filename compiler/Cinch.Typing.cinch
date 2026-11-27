@@ -88,9 +88,9 @@ module Cinch.Typing where
     [] -> True
     arg : rest -> not (has-forall arg) && wf context scope arg && poly-arguments-wf context scope rest
   equal-type :: UType -> UType -> Bool
-  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) of [] -> True; other -> False)
+  equal-type a b = valid-type a && valid-type b && store-error-count (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) == 0
   equal-type-in :: TypingContext -> UType -> UType -> Bool
-  equal-type-in context a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted (context.type-families) (context.promoted) (empty-store "Core typing"))) of [] -> True; other -> False)
+  equal-type-in context a b = valid-type a && valid-type b && store-error-count (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted (context.type-families) (context.promoted) (empty-store "Core typing"))) == 0
   reduce-in :: TypingContext -> UType -> UType
   reduce-in context ty = reduce-types (context.type-families) (context.promoted) ty
   typing-type-head :: UType -> UType
@@ -305,10 +305,10 @@ module Cinch.Typing where
     None -> None
     Some shape -> usage-fields-for shape actuals
   -- | Run the existing structural property walk over imported fields under the actual type arguments.
-  task-usage-property :: TypingContext -> String -> List UType -> Bool -> List UType -> Nat -> Bool
-  task-usage-property context owner actuals sharing seen fuel = case task-usage-fields context owner actuals of
-    Some fields -> task-types-property context sharing seen fuel fields
-    None -> False
+  task-usage-walk :: TypingContext -> String -> List UType -> Bool -> List UType -> Nat -> Option (List UType)
+  task-usage-walk context owner actuals sharing seen fuel = case task-usage-fields context owner actuals of
+    Some fields -> task-types-walk context sharing seen fuel fields
+    None -> None
   -- | Retain the same transfer walk for hidden fields; mutable cells still require a shareable payload.
   task-usage-transfer :: TypingContext -> String -> List UType -> List UType -> Nat -> Bool
   task-usage-transfer context owner actuals seen fuel = case task-usage-fields context owner actuals of
@@ -690,7 +690,13 @@ module Cinch.Typing where
   task-actuals :: List Quant -> List UType -> List (Nat, UType)
   task-actuals qs args = case (qs, args) of (q : rest, a : more) -> (q.id, a) : (task-actuals rest more); other -> []
   task-seen-type :: UType -> List UType -> Bool
-  task-seen-type ty seen = case seen of [] -> False; old : rest -> equal-type ty old || task-seen-type ty rest
+  task-seen-type ty seen = case seen of
+    [] -> False
+    old : rest ->
+      (if same-shape ty old then valid-type ty
+       else (case (typing-type-head ty, typing-type-head old) of
+         (UCon na _, UCon nb _) -> na == nb && equal-type ty old
+         other -> equal-type ty old)) || task-seen-type ty rest
   -- A partial imported constructor table or an opaque resource supplies no
   -- structural Copy evidence.
   copyable-type :: TypingContext -> List UType -> Nat -> UType -> Bool
@@ -768,13 +774,16 @@ module Cinch.Typing where
           && equal-type row latent && equal-type carrier returned && scope-region-closed region row
         other -> False)
     other -> False
+  task-signature-decl :: String -> CoreGlobal -> Bool
+  task-signature-decl owner decl = case decl of
+    GlobalMethod name class slot sc -> owner == class
+    GlobalBody d body -> task-signature-decl owner d
+    GlobalGuardedBody d body -> task-signature-decl owner d
+    other -> False
   task-signature :: String -> List CoreGlobal -> Bool
   task-signature owner declarations = case declarations of
     [] -> False
-    (GlobalMethod name class slot sc) : rest -> owner == class || task-signature owner rest
-    (GlobalBody d body) : rest -> task-signature owner [d] || task-signature owner rest
-    (GlobalGuardedBody d body) : rest -> task-signature owner [d] || task-signature owner rest
-    other : rest -> task-signature owner rest
+    first : rest -> if task-signature-decl owner first then True else task-signature owner rest
   -- Structural Copy/Share uses checked complete data declarations. Unknown
   -- carriers and mutable buffers do not acquire sharing from a printed name.
   -- `Sym` is an immortal, immutable interned cell, and `Data.String.String`
@@ -792,58 +801,89 @@ module Cinch.Typing where
     name == interface-global "Data.HashMap.HashMap"
     || name == interface-global "Data.Map.Map"
   task-shareable :: TypingContext -> List UType -> Nat -> UType -> Bool
-  task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "Sym", "String", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then True else task-data-property context True seen fuel ty
-    UTuple fields -> task-fields-property context True seen fuel fields
-    USigma id name domain body -> task-property context True seen fuel domain && task-property context True seen fuel body
+  task-shareable context seen fuel ty = case task-shareable-walk context seen fuel ty of
+    Some _ -> True
+    None -> False
+  task-shareable-walk :: TypingContext -> List UType -> Nat -> UType -> Option (List UType)
+  task-shareable-walk context seen fuel ty = if fuel == 0 then None else case task-base ty of
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "Sym", "String", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then Some seen else task-data-walk context True seen fuel ty
+    UTuple fields -> task-fields-walk context True seen fuel fields
+    USigma id name domain body -> case task-property-walk context True seen fuel domain of
+      None -> None
+      Some seen1 -> task-property-walk context True seen1 fuel body
     -- `Array`, `Tensor` and `Columnar` are builtin type formers, not
     -- declarations, so no `CoreData` describes them and the structural walk
     -- below would have no field to read. Their element type decides sharing,
     -- exactly as it does in the seed's `structural_usage` and in
     -- `copyable-type` (design/parallel-evaluation.md section 2.3: an
     -- immutable `Array` is `Share` iff every element is).
-    UApp (UCon name kind) element -> if name == "b.Io" then True
-      else if (array-type-name name || cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
-      else task-data-property context True seen fuel ty
-    UApp (UApp (UCon name kind) owner) region -> if name == "b.Scope" then True
+    UApp (UCon name kind) element -> if name == "b.Io" then Some seen
+      else if (array-type-name name || cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) then task-shareable-walk context seen (fuel - 1) element
+      else task-data-walk context True seen fuel ty
+    UApp (UApp (UCon name kind) owner) region -> if name == "b.Scope" then Some seen
       else if shareable-stdlib-binary name then
-        task-shareable context seen (fuel - 1) owner && task-shareable context seen (fuel - 1) region
+        (case task-shareable-walk context seen (fuel - 1) owner of
+          None -> None
+          Some seen1 -> task-shareable-walk context seen1 (fuel - 1) region)
       else (case borrow-type-parts (task-base ty) of
-        Some (False, lifetime, carrier) -> task-shareable context seen (fuel - 1) carrier
-        other -> task-data-property context True seen fuel ty)
-    URigid id name level KRegion -> True
-    UBound id name KRegion -> True
-    other -> task-data-property context True seen fuel ty
+        Some (False, lifetime, carrier) -> task-shareable-walk context seen (fuel - 1) carrier
+        other -> task-data-walk context True seen fuel ty)
+    URigid id name level KRegion -> Some seen
+    UBound id name KRegion -> Some seen
+    other -> task-data-walk context True seen fuel ty
   -- A closed scalar/data value cannot hide a scoped closure. This allows
   -- ordinary saturated calls to return such values without inventing loans.
   task-region-free-type :: TypingContext -> List UType -> Nat -> UType -> Bool
-  task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then True else task-data-property context False seen fuel ty
-    UTuple fields -> task-fields-property context False seen fuel fields
-    USigma id name domain body -> task-property context False seen fuel domain && task-property context False seen fuel body
-    UApp (UCon name kind) element | (cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) -> task-region-free-type context seen (fuel - 1) element
+  task-region-free-type context seen fuel ty = case task-region-free-walk context seen fuel ty of
+    Some _ -> True
+    None -> False
+  task-region-free-walk :: TypingContext -> List UType -> Nat -> UType -> Option (List UType)
+  task-region-free-walk context seen fuel ty = if fuel == 0 then None else case task-base ty of
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then Some seen else task-data-walk context False seen fuel ty
+    UTuple fields -> task-fields-walk context False seen fuel fields
+    USigma id name domain body -> case task-property-walk context False seen fuel domain of
+      None -> None
+      Some seen1 -> task-property-walk context False seen1 fuel body
+    UApp (UCon name kind) element | (cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) -> task-region-free-walk context seen (fuel - 1) element
     UApp (UApp (UCon name kind) first) second | shareable-stdlib-binary name ->
-      task-region-free-type context seen (fuel - 1) first && task-region-free-type context seen (fuel - 1) second
-    other -> task-data-property context False seen fuel ty
-  task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
-  task-property context sharing seen fuel ty = if sharing then task-shareable context seen fuel ty else task-region-free-type context seen fuel ty
-  task-fields-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
-  task-fields-property context sharing seen fuel fields = case fields of UEnd -> True; UArg ty more -> task-property context sharing seen fuel ty && task-fields-property context sharing seen fuel more; other -> False
+      (case task-region-free-walk context seen (fuel - 1) first of
+        None -> None
+        Some seen1 -> task-region-free-walk context seen1 (fuel - 1) second)
+    other -> task-data-walk context False seen fuel ty
+  task-property-walk :: TypingContext -> Bool -> List UType -> Nat -> UType -> Option (List UType)
+  task-property-walk context sharing seen fuel ty = if sharing then task-shareable-walk context seen fuel ty else task-region-free-walk context seen fuel ty
+  task-fields-walk :: TypingContext -> Bool -> List UType -> Nat -> UType -> Option (List UType)
+  task-fields-walk context sharing seen fuel fields = case fields of
+    UEnd -> Some seen
+    UArg ty more -> case task-property-walk context sharing seen fuel ty of
+      None -> None
+      Some seen1 -> task-fields-walk context sharing seen1 fuel more
+    other -> None
   task-types-property :: TypingContext -> Bool -> List UType -> Nat -> List UType -> Bool
-  task-types-property context sharing seen fuel types = case types of [] -> True; ty : rest -> task-property context sharing seen fuel ty && task-types-property context sharing seen fuel rest
-  task-data-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
-  task-data-property context sharing seen fuel ty = if fuel == 0 then False else if task-seen-type ty seen then True else case task-type-spine ty [] of
-    (UCon name kind, args) -> if sharing && task-signature name (context-declarations context) then task-types-property context True seen (fuel - 1) args else
+  task-types-property context sharing seen fuel types = case task-types-walk context sharing seen fuel types of
+    Some _ -> True
+    None -> False
+  task-types-walk :: TypingContext -> Bool -> List UType -> Nat -> List UType -> Option (List UType)
+  task-types-walk context sharing seen fuel types = case types of
+    [] -> Some seen
+    ty : rest -> case task-property-walk context sharing seen fuel ty of
+      None -> None
+      Some seen1 -> task-types-walk context sharing seen1 fuel rest
+  task-data-walk :: TypingContext -> Bool -> List UType -> Nat -> UType -> Option (List UType)
+  task-data-walk context sharing seen fuel ty = if fuel == 0 then None else if task-seen-type ty seen then Some seen else case task-type-spine ty [] of
+    (UCon name kind, args) -> if sharing && task-signature name (context-declarations context) then task-types-walk context True (ty : seen) (fuel - 1) args else
       (case task-data name (context.datas) of
-        None -> task-usage-property context name args sharing (ty : seen) (fuel - 1)
-        Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of
-          [] -> task-usage-property context name args sharing (ty : seen) (fuel - 1)
-          constructors -> task-constructors-property context sharing (ty : seen) (fuel - 1) (task-actuals (core-data-params d) args) constructors))
-    other -> False
-  task-constructors-property :: TypingContext -> Bool -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
-  task-constructors-property context sharing seen fuel pairs ctors = case ctors of
-    [] -> True
-    ctor : rest -> task-types-property context sharing seen fuel (map-task-types pairs (core-constructor-fields ctor)) && task-constructors-property context sharing seen fuel pairs rest
+        None -> task-usage-walk context name args sharing (ty : seen) (fuel - 1)
+        Some d -> if list-length args == list-length (core-data-params d) then (case core-data-constructors d of
+          [] -> task-usage-walk context name args sharing (ty : seen) (fuel - 1)
+          constructors -> task-constructors-walk context sharing (ty : seen) (fuel - 1) (task-actuals (core-data-params d) args) constructors) else None)
+    other -> None
+  task-constructors-walk :: TypingContext -> Bool -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Option (List UType)
+  task-constructors-walk context sharing seen fuel pairs ctors = case ctors of
+    [] -> Some seen
+    ctor : rest -> case task-types-walk context sharing seen fuel (map-task-types pairs (core-constructor-fields ctor)) of
+      None -> None
+      Some seen1 -> task-constructors-walk context sharing seen1 fuel pairs rest
   map-task-types :: List (Nat, UType) -> List UType -> List UType
   map-task-types pairs types = case types of [] -> []; ty : rest -> (substitute-bound pairs ty) : (map-task-types pairs rest)
   data TaskLocal where
