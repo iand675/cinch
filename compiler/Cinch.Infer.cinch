@@ -397,12 +397,12 @@ module Cinch.Infer where
   elaboration-core-contracts-closed :: Elaboration -> Bool
   elaboration-core-contracts-closed result = case result of
     Elaboration [] bindings contexts definitions datas effects descriptions instances declarations observations rewrites temporal fams ->
-      closed-elaboration-definitions (env-body-context bindings) (env-guarded-bindings bindings) definitions
+      closed-elaboration-definitions (env-body-context bindings) (env-guarded-bindings bindings) effects definitions
     other -> False
-  closed-elaboration-definitions :: BodyBindings -> List GuardedBinding -> List CoreDefinition -> Bool
-  closed-elaboration-definitions bodies guards definitions = case definitions of
+  closed-elaboration-definitions :: BodyBindings -> List GuardedBinding -> List CoreEffect -> List CoreDefinition -> Bool
+  closed-elaboration-definitions bodies guards effects definitions = case definitions of
     [] -> True
-    definition : rest -> core-definition-checked-contracts-closed bodies guards definition && closed-elaboration-definitions bodies guards rest
+    definition : rest -> core-definition-checked-contracts-closed-with-effects [] [] bodies guards effects definition && closed-elaboration-definitions bodies guards effects rest
 
   -- Only a successful elaboration exposes its defining declarations.
   -- Interface provenance comes from these resolved, checked definitions.
@@ -8367,11 +8367,11 @@ module Cinch.Infer where
     PVar at name -> let (scheme, pairs) = strict-value-scheme eligible level env value st in
       (case fresh-id (restore-level level st) of
         (id, fresh) -> (case let-binding at env name scheme id level value fresh of
-          (binding, ready) -> (proof-let-env env binding id scheme value ready,
+          (binding, ready) -> (proof-abort-narrowing at (kinds.effects) (proof-let-env env binding id scheme value ready) value ready,
             StrictValueStep at id name scheme (abstract-term st pairs value), ready)))
     other -> let ty = core-type value in let written = proof-env-after-term env value st in
       (case bind-pattern classes kinds families written locals pattern ty (restore-level level st) of
-        (bound, checked, ready) -> (proof-case-env sp bound value checked True ready, StrictPatternStep sp checked value,
+        (bound, checked, ready) -> (proof-abort-narrowing sp (kinds.effects) (proof-case-env sp bound value checked True ready) value ready, StrictPatternStep sp checked value,
           ensure-coverage sp families env [ty] [[pattern]] ready))
   local-step-terms :: List LocalStep -> CoreTerm -> CoreTerm
   local-step-terms steps result = case steps of
@@ -10208,7 +10208,7 @@ module Cinch.Infer where
           None -> (hash-map-insert name 0 seen, None, ss)
           Some core -> case resolve-inventory-definition classes (env-inventory env) core ss of
             (resolved, checked) -> let completed = default-task-failure-clauses (resolved.clauses) checked in
-              (hash-map-insert name 0 seen, Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved), completed)
+              (hash-map-insert name 0 seen, Some (seal-definition-with-effects (env-body-context env) (env-guarded-bindings env) (kinds.effects) completed resolved), completed)
     DSig s name ty -> (seen, None, if indexed name clauses then st else add-error s (string-concat "missing defining equation for " (diagnostic-member-name name)) st)
     other -> (seen, None, st)
   -- Every equation of each defined name, in declaration order (what
@@ -10278,7 +10278,7 @@ module Cinch.Infer where
           Some core -> case resolve-inventory-definition classes (env-inventory env) core ss of
             (resolved, checked) -> let completed = default-task-failure-clauses (resolved.clauses) checked in
               case store-errors completed of
-                [] -> BodyOk (Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved))
+                [] -> BodyOk (Some (seal-definition-with-effects (env-body-context env) (env-guarded-bindings env) (kinds.effects) completed resolved))
                 errors -> BodyErr errors
 
   check-body-work-batch :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> HashMap String (List (List Pat, Expr)) -> HashMap String CoreDefinition -> Store -> List BodyWork -> List BodyOutcome -> List BodyOutcome
@@ -10845,7 +10845,7 @@ module Cinch.Infer where
               (None, failed) -> ([], failed)
               (Some definition, checked) -> case resolve-inventory-definition classes (env-inventory env) definition checked of
                 (resolved, final) -> case source-instance-fields instance-span classes kinds families env defaults imported description symbol factory declarations rest final of
-                  (more, done) -> ((CoreDictionaryField zero (class-method-slot member) (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) done resolved)) : more, done))
+                  (more, done) -> ((CoreDictionaryField zero (class-method-slot member) (seal-definition-with-effects (env-body-context env) (env-guarded-bindings env) (kinds.effects) done resolved)) : more, done))
   checked-source-instances :: ImportedClasses -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
   checked-source-instances rows classes kinds families env ds descriptions st = checked-source-instances-with rows classes kinds families env ds ds descriptions st
   checked-source-instances-with :: ImportedClasses -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)

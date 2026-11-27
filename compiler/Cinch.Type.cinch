@@ -2120,10 +2120,16 @@ module Cinch.Type where
   include-effect-rows :: Span -> UType -> UType -> Store -> Store
   include-effect-rows sp actual allowed st = case (actual, allowed) of
     (URow UEnd, other) -> st
+    (URow (UArg first (UArg second rest)), URowJoin a b) ->
+      include-effects sp (URow (UArg second rest)) allowed (include-effects sp (URow (UArg first UEnd)) allowed st)
     (URow labels, URow permitted) -> (case match-effects sp False labels permitted UEnd UEnd st of
       Some solved -> solved
       None -> add-error sp (string-concat-all ["effect rows do not match: performed effects exceed the declared row (performed ", type-text actual, ", declared ", type-text allowed, ")"]) st)
     (URowJoin first second, other) -> include-effects sp second allowed (include-effects sp first allowed st)
+    (UMeta id KRow, UMeta id2 KRow) -> unify sp actual allowed st
+    (UMeta id KRow, other) -> unify sp actual (URow UEnd) st
+    (other, UMeta id KRow) -> case fresh-meta KRow st of
+      (tail, next) -> unify sp allowed (union-effects actual tail) next
     (other, URowJoin first second) ->
       let trial = include-effects sp actual first st in
       if store-error-count trial == store-error-count st then trial

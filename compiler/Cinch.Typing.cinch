@@ -2256,7 +2256,7 @@ module Cinch.Typing where
     (CoreClause sp patterns body) : rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values []))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
   typing-definition-closed context definition =
-    core-definition-checked-contracts-closed-with (context.type-families) (context.promoted) (context-body-context context) (context-guarded-bodies context) definition
+    core-definition-checked-contracts-closed-with-effects (context.type-families) (context.promoted) (context-body-context context) (context-guarded-bodies context) (context.effects) definition
     && task-definition-safe context definition && (case par-definition-error context definition of None -> True; Some error -> False) && definition-structure-closed context definition
 
   -- On the compiler path the same checks also provide diagnostics. Keep
@@ -2267,9 +2267,10 @@ module Cinch.Typing where
     let proms = context.promoted in
     let bodies = context-body-context context in
     let guarded = context-guarded-bodies context in
+    let effs = context.effects in
     let at = Span 0 0 1 1 in
-    if not (core-definition-checked-contracts-closed-with fams proms bodies guarded definition) then
-      let reason = case core-definition-refusal-with fams proms bodies guarded definition of Some message -> message; None -> "the conjunction refused without a named clause" in
+    if not (core-definition-checked-contracts-closed-with-effects fams proms bodies guarded effs definition) then
+      let reason = case core-definition-refusal-with-effects fams proms bodies guarded effs definition of Some message -> message; None -> "the conjunction refused without a named clause" in
       Some (at, "typed core contains an unresolved scheme or error term: " <> definition.name <> ": " <> reason)
       else case par-definition-error context definition of
         Some error -> Some error

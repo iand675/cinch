@@ -61,7 +61,7 @@ module Cinch.Core where
   export CoreClause, CoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
-  export with-checked-body-bindings, core-definition-checked-contracts-closed, core-definition-checked-contracts-closed-with-families, core-definition-checked-contracts-closed-with, seal-definition-with-checked-contracts
+  export with-checked-body-bindings, with-proof-effects, core-definition-checked-contracts-closed, core-definition-checked-contracts-closed-with-families, core-definition-checked-contracts-closed-with, core-definition-checked-contracts-closed-with-effects, core-definition-refusal-with-effects, seal-definition-with-checked-contracts, seal-definition-with-effects
   export TotalCoreSources, total-core-sources, indexed-source-function
   export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
@@ -869,7 +869,7 @@ module Cinch.Core where
     other -> False
   op-head-is-uninhabited :: List CoreEffect -> CoreTerm -> Bool
   op-head-is-uninhabited effects term = case term of
-    CUse sp ty name role actuals -> role == "operation" && lookup-op-is-uninhabited name effects
+    CUse sp ty name role actuals -> role == "operation" && (name == "Effect.Throw.throw" || name == interface-global "Effect.Throw.throw" || lookup-op-is-uninhabited name effects)
     CApply sp ty f x -> op-head-is-uninhabited effects f
     CApplyEff sp ty row f x -> op-head-is-uninhabited effects f
     CDischarge sp ty ev _ f -> op-head-is-uninhabited effects f
@@ -1718,15 +1718,15 @@ module Cinch.Core where
   unique entries seen = case entries of [] -> []; (id, k) : rest -> if has-id id seen then unique rest seen else (id, k) : unique rest ((id, k) : seen)
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of [] -> []; p : rest -> (map-pattern-types (freeze-type st) p) : (seal-patterns st rest)
-  seal-clauses :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
-  seal-clauses bodies guards values st earlier clauses = case clauses of
+  seal-clauses :: BodyBindings -> List GuardedBinding -> List CoreEffect -> List (Nat, UType) -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards effs values st earlier clauses = case clauses of
     [] -> []
     (CoreClause s ps body) : rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values [])) in
+      let scope = with-proof-effects effs (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values []))) in
       let gamma = proof-patterns patterns scope in
       let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
-      (CoreClause s patterns checked) : (seal-clauses bodies guards values st (extend-equation-prefix patterns checked earlier) rest)
+      (CoreClause s patterns checked) : (seal-clauses bodies guards effs values st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -1738,10 +1738,12 @@ module Cinch.Core where
     Some checked -> seal-definition-with-checked-contracts checked guards st definition
     None -> seal-definition-with-checked-contracts empty-body-bindings guards st definition
   seal-definition-with-checked-contracts :: BodyBindings -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
-  seal-definition-with-checked-contracts bodies guards st definition = case definition of
+  seal-definition-with-checked-contracts bodies guards st definition = seal-definition-with-effects bodies guards [] st definition
+  seal-definition-with-effects :: BodyBindings -> List GuardedBinding -> List CoreEffect -> Store -> CoreDefinition -> CoreDefinition
+  seal-definition-with-effects bodies guards effs st definition = case definition of
     CoreDefinition s name sc openings givens private clauses ->
       CoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
-        (unique (private <> given-metas st givens <> clauses-metas st clauses) []) (seal-clauses bodies guards (opening-value-types openings) st [] clauses)
+        (unique (private <> given-metas st givens <> clauses-metas st clauses) []) (seal-clauses bodies guards effs (opening-value-types openings) st [] clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
@@ -2166,12 +2168,16 @@ module Cinch.Core where
     core-definition-checked-contracts-closed-with fams [] checked guards definition
 
   core-definition-checked-contracts-closed-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
-  core-definition-checked-contracts-closed-with fams proms checked guards definition = let bodies = checked.bindings-members in guarded-bindings-closed guards && (case definition of
+  core-definition-checked-contracts-closed-with fams proms checked guards definition =
+    core-definition-checked-contracts-closed-with-effects fams proms checked guards [] definition
+
+  core-definition-checked-contracts-closed-with-effects :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> List CoreEffect -> CoreDefinition -> Bool
+  core-definition-checked-contracts-closed-with-effects fams proms checked guards effs definition = let bodies = checked.bindings-members in guarded-bindings-closed guards && (case definition of
     -- A definition's scheme is a DECLARATION contract, so its body may be a
     -- proposition: `same v = refl` defines a proof former. `scheme-closed`
     -- would demand a value kind and refuse every proof former here.
     CoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      declaration-scheme-closed sc && scheme-index-scope [] sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
+      declaration-scheme-closed sc && scheme-index-scope [] sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked-in-effects fams proms checked guards effs (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
   -- The definition conjunction above folds nine tests into one `Bool`. This
   -- reports the first that refused, so a refusal names a clause instead of
@@ -2185,7 +2191,11 @@ module Cinch.Core where
     core-definition-refusal-with fams [] checked guards definition
 
   core-definition-refusal-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
-  core-definition-refusal-with fams proms checked guards definition = let bodies = checked.bindings-members in
+  core-definition-refusal-with fams proms checked guards definition =
+    core-definition-refusal-with-effects fams proms checked guards [] definition
+
+  core-definition-refusal-with-effects :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> List CoreEffect -> CoreDefinition -> Option String
+  core-definition-refusal-with-effects fams proms checked guards effs definition = let bodies = checked.bindings-members in
     if not (guarded-bindings-closed guards) then Some "a guarded binding is not closed"
     else case definition of
       CoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
@@ -2196,7 +2206,7 @@ module Cinch.Core where
         else if not (valid-clauses clauses) then Some "a clause pattern or term is invalid"
         else if not (scoped-clauses values clauses) then Some "a clause body is not scoped"
         else if not (body-scheme-authorized bodies sc) then Some "the scheme names a body it is not authorized to"
-        else if not (proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
+        else if not (proof-contract-clauses-checked-in-effects fams proms checked guards effs (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
         else None
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -2221,24 +2231,41 @@ module Cinch.Core where
     proofs :: List (Nat, UType)
     bodies :: BodyBindings
     guarded-bodies :: List GuardedBinding
+    proof-effects :: List CoreEffect
   empty-proof-scope :: ProofScope
-  empty-proof-scope = ProofScope [] [] [] empty-body-bindings []
+  empty-proof-scope = ProofScope [] [] [] empty-body-bindings [] []
   scope-bodies :: ProofScope -> List BodyBinding
-  scope-bodies scope = case scope of ProofScope types values proofs bodies guards -> bodies.bindings-members
+  scope-bodies scope = case scope of ProofScope types values proofs bodies guards effs -> bodies.bindings-members
+  scope-effects :: ProofScope -> List CoreEffect
+  scope-effects scope = case scope of ProofScope types values proofs bodies guards effs -> effs
+  with-proof-effects :: List CoreEffect -> ProofScope -> ProofScope
+  with-proof-effects effs scope = case scope of ProofScope types values proofs bodies guards old -> ProofScope types values proofs bodies guards effs
+  let-abort-narrowing-facts :: ProofScope -> List Proposition -> CoreTerm -> List Proposition
+  let-abort-narrowing-facts gamma facts rhs = case rhs of
+    CIf _ _ cond yes no ->
+      let effs = scope-effects gamma in
+      let y-ab = term-aborts-uninhabited effs yes in
+      let n-ab = term-aborts-uninhabited effs no in
+      if y-ab /= n-ab then
+        (case scoped-core-branch gamma facts cond n-ab of
+          Some p -> p : facts
+          None -> facts)
+      else facts
+    other -> facts
   with-body-bindings :: List BodyBinding -> ProofScope -> ProofScope
   with-body-bindings bindings scope = case check-body-bindings bindings of Some checked -> with-checked-body-bindings checked scope; None -> scope
   with-checked-body-bindings :: BodyBindings -> ProofScope -> ProofScope
-  with-checked-body-bindings bindings scope = case scope of ProofScope types values proofs old guards -> ProofScope types values proofs bindings guards
+  with-checked-body-bindings bindings scope = case scope of ProofScope types values proofs old guards effs -> ProofScope types values proofs bindings guards effs
   scope-entry :: Nat -> List (Nat, UType) -> Option UType
   scope-entry id entries = case entries of [] -> None; (key, value) : rest -> if id == key then Some value else scope-entry id rest
   scope-value :: Nat -> ProofScope -> Option UType
-  scope-value id scope = case scope of ProofScope types values proofs bodies guards -> scope-entry id values
+  scope-value id scope = case scope of ProofScope types values proofs bodies guards effs -> scope-entry id values
   scope-remove :: Nat -> List (Nat, UType) -> List (Nat, UType)
   scope-remove id entries = case entries of [] -> []; (key, value) : rest -> if id == key then scope-remove id rest else (key, value) : (scope-remove id rest)
   scope-without-value :: Nat -> ProofScope -> ProofScope
-  scope-without-value id scope = case scope of ProofScope types values proofs bodies guards -> ProofScope types (scope-remove id values) proofs bodies guards
+  scope-without-value id scope = case scope of ProofScope types values proofs bodies guards effs -> ProofScope types (scope-remove id values) proofs bodies guards effs
   scope-local :: Nat -> UType -> ProofScope -> ProofScope
-  scope-local id ty scope = case scope of ProofScope types values proofs bodies guards -> ProofScope ((id, ty) : types) (scope-remove id values) (scope-remove id proofs) bodies guards
+  scope-local id ty scope = case scope of ProofScope types values proofs bodies guards effs -> ProofScope ((id, ty) : types) (scope-remove id values) (scope-remove id proofs) bodies guards effs
   scope-index-valid :: UType -> UType -> Bool
   scope-index-valid carrier value = valid-type value && typed-index-admissible value && kind-equal (type-kind value) (value-kind carrier)
   scope-definitions :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
@@ -2248,7 +2275,7 @@ module Cinch.Core where
       Some carrier -> if scope-index-valid carrier value then (id, value) : (scope-definitions types rest) else scope-definitions types rest
       None -> scope-definitions types rest
   make-proof-scope :: List (Nat, UType) -> List (Nat, UType) -> ProofScope
-  make-proof-scope types values = ProofScope types (scope-definitions types values) [] empty-body-bindings []
+  make-proof-scope types values = ProofScope types (scope-definitions types values) [] empty-body-bindings [] []
   scope-index :: ProofScope -> Nat -> String -> UType -> Option UType
   scope-index scope id name ty = case proof-local id scope of
     Some declared -> if not (contract-equal ty declared) then None else case scope-value id scope of
@@ -2295,13 +2322,13 @@ module Cinch.Core where
     case (scheme-params scheme, scheme-requirements scheme) of
       ([], []) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
         Some value -> if not (volatile-borrow-index value) && scope-index-valid (scheme-body scheme) value then
-          (case bound of ProofScope types values proofs bodies guards -> ProofScope types ((id, value) : values) proofs bodies guards) else bound
+          (case bound of ProofScope types values proofs bodies guards effs -> ProofScope types ((id, value) : values) proofs bodies guards effs) else bound
         None -> bound
       other -> bound
 
   scope-erased :: Nat -> UType -> ProofScope -> ProofScope
   scope-erased id predicate gamma = case gamma of
-    ProofScope types values proofs bodies guards -> ProofScope (scope-remove id types) (scope-remove id values) ((id, predicate) : (scope-remove id proofs)) bodies guards
+    ProofScope types values proofs bodies guards effs -> ProofScope (scope-remove id types) (scope-remove id values) ((id, predicate) : (scope-remove id proofs)) bodies guards effs
 
   write-matches :: Option UType -> UType -> Bool
   write-matches region actual = case region of Some wanted -> contract-equal wanted actual; None -> True
@@ -2396,11 +2423,11 @@ module Cinch.Core where
   proof-after-writes :: ProofScope -> List (Span, Option UType) -> ProofScope
   proof-after-writes gamma writes = case (gamma, writes) of
     (scope, []) -> scope
-    (ProofScope types values proofs bodies guards, other) ->
-      ProofScope types values (erased-after-writes proofs writes) bodies guards
+    (ProofScope types values proofs bodies guards effs, other) ->
+      ProofScope types values (erased-after-writes proofs writes) bodies guards effs
   scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
   scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
-    (ProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
+    (ProofScope types values proofs bodies guards effs, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
       && (case scope-entry id proofs of Some declared -> valid-type declared && kind-equal (type-kind declared) KProp && contract-equal predicate declared; None -> False)
     (scope, CProofRefl s predicate) -> reflexive-equality predicate && contract-equal expected predicate
     other -> False)
@@ -2541,7 +2568,7 @@ module Cinch.Core where
   proof-assumptions :: ProofScope -> List Proposition -> List Proposition
   proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (gamma.types))) <> machine-facts (machine-ids (gamma.types)) (gamma.types) <> byte-length-facts (byte-buffer-ids (gamma.types)) <> refinement-facts gamma (gamma.types) <> erased-facts gamma <> facts
   erased-facts :: ProofScope -> List Proposition
-  erased-facts gamma = case gamma of ProofScope types values proofs bodies guards -> erased-predicates gamma proofs
+  erased-facts gamma = case gamma of ProofScope types values proofs bodies guards effs -> erased-predicates gamma proofs
   erased-predicates :: ProofScope -> List (Nat, UType) -> List Proposition
   erased-predicates gamma proofs = case proofs of
     [] -> []
@@ -3150,7 +3177,8 @@ module Cinch.Core where
       if contains-required ty then (case pattern-result ty pattern of Some result -> proof-expected scope live result body; None -> False)
       else proof-term scope live body
     CLet s ty id name sc rhs body -> let writes = core-mutable-writes rhs in
-      let introduced = case scoped-core-let-fact gamma facts id sc rhs of Some p -> p : facts; None -> facts in
+      let base = case scoped-core-let-fact gamma facts id sc rhs of Some p -> p : facts; None -> facts in
+      let introduced = let-abort-narrowing-facts gamma base rhs in
       proof-term gamma facts rhs && proof-term (proof-after-writes (scope-let gamma facts id sc rhs) writes)
         (facts-after-writes gamma introduced writes) body
     CRecursiveFunctions s ty members body -> let bound = recursive-proof-scope gamma members in
@@ -3425,7 +3453,8 @@ module Cinch.Core where
       CLambda s ty pattern (refresh-certificates (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in
       let writes = core-mutable-writes value in
-      let more = case scoped-core-let-fact gamma facts id sc value of Some p -> p : facts; None -> facts in
+      let base = case scoped-core-let-fact gamma facts id sc value of Some p -> p : facts; None -> facts in
+      let more = let-abort-narrowing-facts gamma base value in
       CLet s ty id name sc value (refresh-certificates (proof-after-writes (scope-let gamma facts id sc value) writes) (facts-after-writes gamma more writes) body)
     CRecursiveFunctions s ty members body -> let bound = recursive-proof-scope gamma members in
       CRecursiveFunctions s ty (map-recursive-functions (refresh-certificates bound facts) members) (refresh-certificates bound facts body)
@@ -3457,7 +3486,7 @@ module Cinch.Core where
   -- by their own definitions.
   writes-move-nothing :: ProofScope -> List Proposition -> Bool
   writes-move-nothing gamma facts = case (gamma, facts) of
-    (ProofScope types values proofs bodies guards, []) -> case proofs of [] -> True; other -> False
+    (ProofScope types values proofs bodies guards effs, []) -> case proofs of [] -> True; other -> False
     (other, rest) -> False
   -- The scope a refreshed term's writes leave behind. Asking whether writes
   -- can matter before computing them avoids a walk over the whole prefix at
@@ -3875,7 +3904,10 @@ module Cinch.Core where
     proof-contract-clauses-checked-in [] [] bodies guards values expected clauses
   proof-contract-clauses-checked-in :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
   proof-contract-clauses-checked-in fams proms bodies guards values expected clauses =
-    proof-equations-in fams proms (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values []))) expected [] clauses
+    proof-contract-clauses-checked-in-effects fams proms bodies guards [] values expected clauses
+  proof-contract-clauses-checked-in-effects :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> List CoreEffect -> List (Nat, UType) -> UType -> List CoreClause -> Bool
+  proof-contract-clauses-checked-in-effects fams proms bodies guards effs values expected clauses =
+    proof-equations-in fams proms (with-proof-effects effs (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values [])))) expected [] clauses
   proof-equations-in :: List TypeFamilyRuleSet -> List PromotedFn -> ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
   proof-equations-in fams proms scope expected earlier clauses = case clauses of
     [] -> True
@@ -4034,7 +4066,7 @@ module Cinch.Core where
     other -> None
 
   with-guarded-bindings :: List GuardedBinding -> ProofScope -> ProofScope
-  with-guarded-bindings bindings scope = if guarded-bindings-closed bindings then (case scope of ProofScope types values proofs bodies old -> ProofScope types values proofs bodies bindings) else scope
+  with-guarded-bindings bindings scope = if guarded-bindings-closed bindings then (case scope of ProofScope types values proofs bodies old effs -> ProofScope types values proofs bodies bindings effs) else scope
   guarded-call-spine :: ProofScope -> CoreTerm -> List CoreTerm -> Option (GuardedBinding, List CoreTerm)
   guarded-call-spine gamma term arguments = case term of
     CApply sp ty function argument -> guarded-call-spine gamma function (argument : arguments)
