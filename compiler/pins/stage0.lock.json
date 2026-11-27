@@ -1,11 +1,11 @@
 {
-  "commit": "4ae40dfe7b6c2a68847503a5fe093b39fa9541b7",
-  "description": "ABI 10 seed with zero scalar unsafe div/rem, verified return refinements, persistent LRAT proof cache, replay-only, acyclic CFGs, cross-target equiv, SIMD specs, Alethe checker, verified rewrites, Core/LLVM TV, and boundary contracts.",
+  "commit": "e1f010452e0910bbd4837b7c26fb34b452ea8443",
+  "description": "ABI 10 seed with Stage 3 prim parity, 450 verified integer/SIMD/IEEE-754 prelude prims, 24 verified prelude rewrites, wasm32 & repr(C) parity, verify-codegen CLI, and NotNaN/Finite/InRange float refinements.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "687b4e65993ab6782f49f654272dbd6a31f3ada1",
+  "revision": "e1f010452e0910bbd4837b7c26fb34b452ea8443",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "7a2bad7c7a116fdcc269aaf78f26d244e57491cb3153e5c9c9c97004bee62d71",
-  "source_sha256": "7a2bad7c7a116fdcc269aaf78f26d244e57491cb3153e5c9c9c97004bee62d71"
+  "source_hash": "c9acf478fb2185210acabe677fdf40d335fd9f11a077ba128e963f508d87a4bc",
+  "source_sha256": "c9acf478fb2185210acabe677fdf40d335fd9f11a077ba128e963f508d87a4bc"
 }

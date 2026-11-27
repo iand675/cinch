@@ -1,9 +1,9 @@
 {
-  "commit": "4ae40dfe7b6c2a68847503a5fe093b39fa9541b7",
-  "description": "ABI 10 packed library provider with zero scalar unsafe div/rem, verified return refinements, SIMD verify, and formal proof-carrying prelude.",
-  "revision": "687b4e65993ab6782f49f654272dbd6a31f3ada1",
+  "commit": "e1f010452e0910bbd4837b7c26fb34b452ea8443",
+  "description": "ABI 10 packed library provider with 450 verified integer/SIMD/IEEE-754 prelude prims, 24 verified prelude rewrites, and NotNaN/Finite float refinements.",
+  "revision": "e1f010452e0910bbd4837b7c26fb34b452ea8443",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "5e763f074664ac8fa6680e1abe8772f9bcd3fe0cd4a9e7a4fb92980f2ac92394",
-  "source_sha256": "5e763f074664ac8fa6680e1abe8772f9bcd3fe0cd4a9e7a4fb92980f2ac92394"
+  "source_hash": "92a94f7fd0c14c15fbfafb78292436e7434d013c4f7dae465478b2db1c50d43c",
+  "source_sha256": "92a94f7fd0c14c15fbfafb78292436e7434d013c4f7dae465478b2db1c50d43c"
 }
