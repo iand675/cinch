@@ -1947,6 +1947,16 @@ impl Checker {
                 if self.unboxed_payload(&info).is_some() {
                     return Ok((core, field_ty));
                 }
+                if let Some(plan) = self.niche_plan(&info).cloned() {
+                    if let Some((_, _, NicheCtorPlan::Packed { fields, .. })) = plan.by_tag.first() {
+                        if let Some(pf) = fields.get(runtime_idx) {
+                            let local = self.fresh_local();
+                            self.note_local_ty(local, &ty);
+                            let extracted = decode_packed_field_ecore(pf, local);
+                            return Ok((ECore::Let(local, Box::new(core), Box::new(extracted)), field_ty));
+                        }
+                    }
+                }
                 if self
                     .codata_types
                     .contains(&(info.module.clone(), info.name.clone()))
@@ -10062,7 +10072,7 @@ impl Checker {
                         }
                     };
                     let mut nullary_arms: Vec<(i64, ECore)> = Vec::new();
-                    let mut payload_arms: Vec<(NicheCtorPlan, LocalId, ECore)> = Vec::new();
+                    let mut payload_arms: Vec<(NicheCtorPlan, Vec<LocalId>, ECore)> = Vec::new();
                     let mut wild_arm: Option<ECore> = None;
                     for (pat, body) in alt_pats.into_iter().zip(alts) {
                         match pat {
@@ -10074,7 +10084,7 @@ impl Checker {
                                             nullary_arms.push((*sentinel, body));
                                         }
                                         _ => {
-                                            payload_arms.push((cplan.clone(), fields[0], body));
+                                            payload_arms.push((cplan.clone(), fields, body));
                                         }
                                     }
                                 }
@@ -10098,8 +10108,17 @@ impl Checker {
                             vec![masked, ECore::Int(wanted)],
                         )
                     };
-                    let bind_payload = |cplan: &NicheCtorPlan, slot: LocalId, body: ECore| -> ECore {
+                    let bind_payload = |cplan: &NicheCtorPlan, slots: &[LocalId], body: ECore| -> ECore {
                         use crate::core::WordOp as WO;
+                        if let NicheCtorPlan::Packed { fields, .. } = cplan {
+                            let mut cur = body;
+                            for (pf, slot) in fields.iter().zip(slots.iter()).rev() {
+                                let rhs = decode_packed_field_ecore(pf, scrut_var);
+                                cur = ECore::Let(*slot, Box::new(rhs), Box::new(cur));
+                            }
+                            return cur;
+                        }
+                        let slot = slots[0];
                         let rhs = match cplan {
                             NicheCtorPlan::Ptr { ptr_tag, .. } if *ptr_tag != 0 => ECore::App(
                                 Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Untag })),
@@ -10137,15 +10156,15 @@ impl Checker {
                     };
                     let mut acc = if let Some(w) = wild_arm {
                         w
-                    } else if let Some((cplan, slot, body)) = payload_arms.pop() {
-                        bind_payload(&cplan, slot, body)
+                    } else if let Some((cplan, slots, body)) = payload_arms.pop() {
+                        bind_payload(&cplan, &slots, body)
                     } else if let Some((_, body)) = nullary_arms.pop() {
                         body
                     } else {
                         ECore::Fault
                     };
-                    while let Some((cplan, slot, body)) = payload_arms.pop() {
-                        let bound = bind_payload(&cplan, slot, body);
+                    while let Some((cplan, slots, body)) = payload_arms.pop() {
+                        let bound = bind_payload(&cplan, &slots, body);
                         let checks: Vec<ECore> = match &cplan {
                             NicheCtorPlan::Payload { range: None, .. } | NicheCtorPlan::NanF64 { .. } => plan
                                 .nullary_sentinels
@@ -10186,6 +10205,13 @@ impl Checker {
                             }
                             NicheCtorPlan::Shifted { mask, tag_word, .. } => {
                                 vec![word_mask_eq(scrut_var, *mask, *tag_word)]
+                            }
+                            NicheCtorPlan::Packed { mask, tag_word, .. } => {
+                                if *mask == 0 {
+                                    Vec::new()
+                                } else {
+                                    vec![word_mask_eq(scrut_var, *mask, *tag_word)]
+                                }
                             }
                             NicheCtorPlan::Nullary { sentinel } => {
                                 vec![word_cmp(CmpOp::Eq, false, scrut_var, *sentinel)]

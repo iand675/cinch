@@ -789,7 +789,8 @@ module Cinch.RuntimeIr where
       NichePayload cname multi unsigned lo hi excluded -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
       NichePtr cname ptag chk -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
       NicheShifted cname mask tag-word shift signed bias -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
-      NicheNanF64 cname -> if cname == wanted then Some c else niche-ctor-lookup wanted rest)
+      NicheNanF64 cname -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NichePacked cname mask tag-word pfields -> if cname == wanted then Some c else niche-ctor-lookup wanted rest)
   niche-nullary-sentinels :: List NicheCtor -> List Int
   niche-nullary-sentinels ctors = case ctors of
     [] -> []
@@ -3380,13 +3381,16 @@ module Cinch.RuntimeIr where
               None -> unsupported w sp "constructor parameters need first-order representation classes"
               Some context -> if list-length args == list-length (core-constructor-fields c) then
                 (case (active-niche-layout d classes, core-data-layout d, args) of
-                  (Some (word, ctors), _, []) -> (case niche-ctor-lookup name ctors of
+                  (Some (word, ctors), _, _) -> (case niche-ctor-lookup name ctors of
                     Some (NicheNullary cname sentinel) -> (w, niche-word-literal False sentinel)
-                    other -> unsupported w sp "niche nullary constructor missing sentinel")
-                  (Some (word, ctors), _, [payload]) -> (case niche-ctor-lookup name ctors of
-                    Some cplan -> (case expression definitions locals w payload of
-                      (w1, pval) -> emit-niche-encode cplan pval w1)
-                    None -> expression definitions locals w payload)
+                    Some (NichePacked cname mask tag-word pfields) ->
+                      (case expressions definitions locals w args of
+                        (w1, vals) -> emit-niche-pack tag-word pfields vals w1)
+                    Some cplan -> (case args of
+                      [payload] -> (case expression definitions locals w payload of
+                        (w1, pval) -> emit-niche-encode cplan pval w1)
+                      other -> unsupported w sp "niche constructor arity mismatch")
+                    None -> unsupported w sp "niche constructor missing layout plan")
                   (None, UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
                   other -> if regular-constructor d c
                     then box-constructor definitions locals w sp d classes tag args
@@ -5277,6 +5281,92 @@ module Cinch.RuntimeIr where
         else w1) in
     check-not-sentinels excluded value failed w2
 
+  niche-pow2 :: Nat -> Int
+  niche-pow2 n = if n == 0 then 1 else 2 * niche-pow2 (n - 1)
+
+  emit-niche-pack-fields :: List PackedField -> List String -> Option String -> Writer -> (Writer, Option String)
+  emit-niche-pack-fields pfields vals acc w = case (pfields, vals) of
+    ([], []) -> (w, acc)
+    (pf : more-pfs, arg : more-vals) ->
+      if pf.pf-bits == 0 then emit-niche-pack-fields more-pfs more-vals acc w
+      else
+        let (w1, v0) = (if pf.pf-bias /= 0 then
+              let (wa, r) = fresh w "%pbias" in
+              (line wa (cat ["  ", r, " = sub i64 ", arg, ", ", int-to-string (pf.pf-bias)]), r)
+            else (w, arg)) in
+        let (w2, v1) = (if pf.pf-signed && pf.pf-bits < 64 then
+              let (wb, r) = fresh w1 "%pmask" in
+              let fmask = niche-pow2 (pf.pf-bits) - 1 in
+              (line wb (cat ["  ", r, " = and i64 ", v0, ", ", int-to-string fmask]), r)
+            else (w1, v0)) in
+        let (w3, v2) = (if pf.pf-shift /= 0 then
+              let (wc, r) = fresh w2 "%pshl" in
+              (line wc (cat ["  ", r, " = shl i64 ", v1, ", ", nat-to-string (pf.pf-shift)]), r)
+            else (w2, v1)) in
+        let (w4, next-acc) = (case acc of
+              None -> (w3, Some v2)
+              Some prev ->
+                let (wd, r) = fresh w3 "%por" in
+                (line wd (cat ["  ", r, " = or i64 ", prev, ", ", v2]), Some r)) in
+        emit-niche-pack-fields more-pfs more-vals next-acc w4
+    other -> (w, acc)
+
+  emit-niche-pack :: Int -> List PackedField -> List String -> Writer -> (Writer, String)
+  emit-niche-pack tag-word pfields vals w =
+    let init = if tag-word /= 0 then Some (int-to-string tag-word) else None in
+    case emit-niche-pack-fields pfields vals init w of
+      (w1, Some res) -> (w1, res)
+      (w1, None) -> (w1, "0")
+
+  emit-niche-unpack-field :: PackedField -> String -> Writer -> (Writer, String)
+  emit-niche-unpack-field pf word w =
+    let bits = pf.pf-bits in
+    let shift = pf.pf-shift in
+    let bias = pf.pf-bias in
+    if bits == 0 then (w, int-to-string bias)
+    else if pf.pf-signed then
+      let end-bit = shift + bits in
+      let left = if end-bit < 64 then 64 - end-bit else 0 in
+      let (w1, v0) = (if left > 0 then
+            let (wa, r) = fresh w "%psl" in
+            (line wa (cat ["  ", r, " = shl i64 ", word, ", ", nat-to-string left]), r)
+          else (w, word)) in
+      let right = if bits < 64 then 64 - bits else 0 in
+      let (w2, v1) = (if right > 0 then
+            let (wb, r) = fresh w1 "%psr" in
+            (line wb (cat ["  ", r, " = ashr i64 ", v0, ", ", nat-to-string right]), r)
+          else (w1, v0)) in
+      if bias /= 0 then
+        let (wc, r) = fresh w2 "%padd" in
+        (line wc (cat ["  ", r, " = add i64 ", v1, ", ", int-to-string bias]), r)
+      else (w2, v1)
+    else
+      let (w1, v0) = (if shift > 0 then
+            let (wa, r) = fresh w "%plsr" in
+            (line wa (cat ["  ", r, " = lshr i64 ", word, ", ", nat-to-string shift]), r)
+          else (w, word)) in
+      let (w2, v1) = (if bits < 64 then
+            let (wb, r) = fresh w1 "%pand" in
+            let fmask = niche-pow2 bits - 1 in
+            (line wb (cat ["  ", r, " = and i64 ", v0, ", ", int-to-string fmask]), r)
+          else (w1, v0)) in
+      if bias /= 0 then
+        let (wc, r) = fresh w2 "%padd" in
+        (line wc (cat ["  ", r, " = add i64 ", v1, ", ", int-to-string bias]), r)
+      else (w2, v1)
+
+  match-packed-fields :: List PackedField -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-packed-fields pfields fields value failed w = case fields of
+    CPDone end -> (w, [])
+    CPField sp (CPProof at predicate id name) rest -> match-packed-fields pfields rest value failed w
+    CPField sp first rest -> (case pfields of
+      [] -> (refuse w sp "packed field pattern exceeds packed layout", [])
+      pf : more-pfs -> (case emit-niche-unpack-field pf value w of
+        (w1, fval) -> (case match-pattern first fval failed w1 of
+          (w2, bindings) -> (case match-packed-fields more-pfs rest value failed w2 of
+            (w3, more) -> (w3, bindings <> more)))))
+    other -> (refuse w (Span 0 0 1 1) "malformed packed constructor pattern spine", [])
+
   emit-niche-encode :: NicheCtor -> String -> Writer -> (Writer, String)
   emit-niche-encode cplan pval w = case cplan of
     NicheNullary cname sentinel -> (w, niche-word-literal False sentinel)
@@ -5307,6 +5397,7 @@ module Cinch.RuntimeIr where
         cat ["  ", is-nan, " = fcmp uno double ", d, ", ", d],
         cat ["  ", res, " = select i1 ", is-nan, ", i64 9221120237041090560, i64 ", pval]] in
       (w4, res)
+    NichePacked cname mask tag-word pfields -> emit-niche-pack tag-word pfields [pval] w
 
   match-niche :: List NicheCtor -> String -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
   match-niche ctors cname fields value failed w = case niche-ctor-lookup cname ctors of
@@ -5346,6 +5437,13 @@ module Cinch.RuntimeIr where
     Some (NicheNanF64 n) ->
       let checked = check-not-sentinels (niche-nullary-sentinels ctors) value failed w in
       match-unboxed fields value failed checked
+    Some (NichePacked n mask tag-word pfields) ->
+      let checked = (if mask == 0 then w else
+            let (w1, masked) = fresh w "%nm" in
+            let w2 = line w1 (cat ["  ", masked, " = and i64 ", value, ", ", int-to-string mask]) in
+            (case compare-word w2 "eq" masked (int-to-string tag-word) of
+              (cmp, cond) -> continue-if cmp cond failed)) in
+      match-packed-fields pfields fields value failed checked
     None -> (refuse w (Span 0 0 1 1) "niche pattern missing constructor layout plan", [])
 
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
@@ -7651,6 +7749,13 @@ module Cinch.RuntimeIr where
         (case niche-owner-ctor owner name classes w of
           Some (NicheNullary cn sentinel) ->
             emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "()", worker-open w], "entry:", cat ["  ret i64 ", niche-word-literal False sentinel], "}"]
+          Some (NichePacked cn mask tag-word pfields) ->
+            let count = list-length pfields in
+            let values = value-parameters count 0 in
+            let typed = typed-values (value-llvms (w.context) (core-constructor-fields c)) values in
+            let started = emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(", join (typed-arguments typed), ")", worker-open w], "entry:"] in
+            (case emit-niche-pack tag-word pfields values started of
+              (done, res) -> emit-lines done [cat ["  ret i64 ", res], "}"])
           Some cplan ->
             let started = emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:"] in
             (case emit-niche-encode cplan "%arg0" started of

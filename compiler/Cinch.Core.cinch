@@ -73,7 +73,7 @@ module Cinch.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, NicheData, PolyNicheData, NicheCtor, NicheNullary, NichePayload, NichePtr, NicheShifted, NicheNanF64, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, NicheData, PolyNicheData, PackedField, NicheCtor, NicheNullary, NichePayload, NichePtr, NicheShifted, NicheNanF64, NichePacked, core-data-layout, with-data-layout
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   -- `WithLayout` is exported with `MkCoreData` because a family whose table
   -- is only partly exported is abstract to an importing module: it could
@@ -239,6 +239,12 @@ module Cinch.Core where
   physical-fields :: List RecordSlot -> List UType
   physical-fields slots = case slots of [] -> []; slot : rest -> slot-types slot <> physical-fields rest
 
+  record PackedField where
+    pf-shift :: Nat
+    pf-bits :: Nat
+    pf-signed :: Bool
+    pf-bias :: Int
+
   data NicheCtor where
     -- Constructor name and sentinel word value.
     NicheNullary :: String -> Int -> NicheCtor
@@ -250,6 +256,8 @@ module Cinch.Core where
     NicheShifted :: String -> Int -> Int -> Nat -> Bool -> Int -> NicheCtor
     -- NaN-canonicalized F64 payload constructor.
     NicheNanF64 :: String -> NicheCtor
+    -- Bit-packed multi-field product or sum arm (mask 0 for single-ctor product).
+    NichePacked :: String -> Int -> Int -> List PackedField -> NicheCtor
 
   data DataLayout where
     UniformData :: DataLayout

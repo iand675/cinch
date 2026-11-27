@@ -367,15 +367,87 @@ module Cinch.Layout where
                       other -> Ok (NicheNonNullObj [])))
               None -> Err "repr(niche) requires a concrete single-word payload type"
 
-  partition-niche-ctors :: List CoreConstructor -> Result String (List String, List (String, UType))
-  partition-niche-ctors ctors = case ctors of
-    [] -> Ok ([], [])
-    c : rest -> case partition-niche-ctors rest of
+  partition-all-niche-ctors :: List CoreConstructor -> (List String, List (String, List UType))
+  partition-all-niche-ctors ctors = case ctors of
+    [] -> ([], [])
+    c : rest -> case partition-all-niche-ctors rest of
+      (nulls, pays) -> case core-constructor-fields c of
+        [] -> ((c.constructor-name) : nulls, pays)
+        fs -> (nulls, ((c.constructor-name, fs) : pays))
+
+  has-multi-field :: List (String, List UType) -> Bool
+  has-multi-field pays = case pays of
+    [] -> False
+    (cname, fs) : rest -> niche-list-len fs >= 2 || has-multi-field rest
+
+  unwrap-single-payloads :: List (String, List UType) -> List (String, UType)
+  unwrap-single-payloads pays = case pays of
+    [] -> []
+    (cname, [pty]) : rest -> (cname, pty) : (unwrap-single-payloads rest)
+    other : rest -> unwrap-single-payloads rest
+
+  extract-field-domains :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> List UType -> Result String (List NicheDomain)
+  extract-field-domains word-bits layouts autos datas shapes seen ftys = case ftys of
+    [] -> Ok []
+    fty : rest -> case extract-niche-domain word-bits layouts autos datas shapes seen fty of
       Err msg -> Err msg
-      Ok (nulls, pays) -> case core-constructor-fields c of
-        [] -> Ok ((c.constructor-name) : nulls, pays)
-        [pty] -> Ok (nulls, ((c.constructor-name, pty) : pays))
-        other -> Err "repr(niche) constructors may have at most one represented field"
+      Ok dom -> (case extract-field-domains word-bits layouts autos datas shapes seen rest of
+        Err msg -> Err msg
+        Ok more -> Ok (dom : more))
+
+  extract-all-multi-domains :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> List (String, List UType) -> Result String (List (String, List NicheDomain))
+  extract-all-multi-domains word-bits layouts autos datas shapes seen pays = case pays of
+    [] -> Ok []
+    (cname, ftys) : rest -> case extract-field-domains word-bits layouts autos datas shapes seen ftys of
+      Err msg -> Err msg
+      Ok doms -> (case extract-all-multi-domains word-bits layouts autos datas shapes seen rest of
+        Err msg -> Err msg
+        Ok more -> Ok ((cname, doms) : more))
+
+  pack-field-list :: Nat -> List NicheDomain -> Option (List PackedField, Nat)
+  pack-field-list cur doms = case doms of
+    [] -> Some ([], cur)
+    dom : rest -> (case niche-small-raw dom of
+      None -> None
+      Some (bits, signed, bias) ->
+        if cur + bits > 64 then None
+        else (case pack-field-list (cur + bits) rest of
+          None -> None
+          Some (more, end-shift) -> Some ((PackedField cur bits signed bias) : more, end-shift)))
+
+  all-small-domains :: List NicheDomain -> Bool
+  all-small-domains doms = case doms of
+    [] -> True
+    d : rest -> (case niche-small-raw d of Some _ -> all-small-domains rest; None -> False)
+
+  partition-packed-arms :: List (String, List NicheDomain) -> Option (List String, List (String, List NicheDomain))
+  partition-packed-arms arms = case arms of
+    [] -> Some ([], [])
+    (cname, doms) : rest -> (case partition-packed-arms rest of
+      None -> None
+      Some (ptrs, packs) -> (case doms of
+        [NicheNonNullObj []] -> Some (cname : ptrs, packs)
+        other -> if all-small-domains doms then Some (ptrs, (cname, doms) : packs) else None))
+
+  make-odd-packed-ctors :: Int -> Nat -> Int -> List (String, List NicheDomain) -> Option (List NicheCtor)
+  make-odd-packed-ctors mask shift idx arms = case arms of
+    [] -> Some []
+    (cname, doms) : rest -> (case pack-field-list shift doms of
+      None -> None
+      Some (pfields, end-shift) -> (case make-odd-packed-ctors mask shift (idx + 1) rest of
+        None -> None
+        Some more -> Some ((NichePacked cname mask (idx * 2 + 1) pfields) : more)))
+
+  make-raw-packed-ctors :: Int -> Nat -> Int -> Nat -> List (String, List NicheDomain) -> Option (List NicheCtor, Nat)
+  make-raw-packed-ctors mask tag-bits idx max-b arms = case arms of
+    [] -> Some ([], max-b)
+    (cname, doms) : rest -> (case pack-field-list tag-bits doms of
+      None -> None
+      Some (pfields, end-shift) ->
+        let next-max = if end-shift > max-b then end-shift else max-b in
+        (case make-raw-packed-ctors mask tag-bits (idx + 1) next-max rest of
+          None -> None
+          Some (more, final-max) -> Some ((NichePacked cname mask idx pfields) : more, final-max)))
 
   build-nullary-enum :: Int -> List String -> List NicheCtor
   build-nullary-enum idx names = case names of
@@ -502,17 +574,23 @@ module Cinch.Layout where
         else None
       else None
     NicheSigned lo hi excl | lo <= hi ->
-      let half = pow2-int 59 in
-      if lo >= (0 - half) && hi < half then
-        let need-pos = if hi > 0 then bits-for-span hi else 0 in
-        let need-neg = if lo < 0 then bits-for-span ((0 - lo) - 1) else 0 in
-        let bits = (if need-pos > need-neg then need-pos else need-neg) + 1 in
-        if bits <= 60 then Some (bits, True, 0) else None
-      else
+      if lo >= 0 then
         let span = hi - lo in
-        if span < pow2-int 60 && lo >= (0 - 9223372036854775808) && lo <= 9223372036854775807 then
+        if span < pow2-int 60 && lo <= 9223372036854775807 then
           Some (bits-for-span span, False, lo)
         else None
+      else
+        let half = pow2-int 59 in
+        if lo >= (0 - half) && hi < half then
+          let need-pos = if hi > 0 then bits-for-span hi else 0 in
+          let need-neg = if lo < 0 then bits-for-span ((0 - lo) - 1) else 0 in
+          let bits = (if need-pos > need-neg then need-pos else need-neg) + 1 in
+          if bits <= 60 then Some (bits, True, 0) else None
+        else
+          let span = hi - lo in
+          if span < pow2-int 60 && lo >= (0 - 9223372036854775808) && lo <= 9223372036854775807 then
+            Some (bits-for-span span, False, lo)
+          else None
     other -> None
 
   alloc-tagged-sentinels :: Nat -> Bool -> Int -> List Int -> Bool -> List Int -> Result String (List Int, Bool, List Int)
@@ -630,15 +708,58 @@ module Cinch.Layout where
     [] -> []
     cn : rest -> (NicheNullary cn idx) : (make-raw-nulls (idx + 1) rest)
 
+  niche-multi-layout :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> List String -> List (String, List UType) -> Result String (Nat, List NicheCtor, NicheDomain)
+  niche-multi-layout word-bits layouts autos datas shapes seen nulls all-pays =
+    case extract-all-multi-domains word-bits layouts autos datas shapes seen all-pays of
+      Err msg -> Err msg
+      Ok multi-arms -> case (nulls, multi-arms) of
+        ([], [(cname, doms)]) ->
+          (case pack-field-list 0 doms of
+            Some (pfields, total-bits) ->
+              let hi = if total-bits < 64 then pow2-int total-bits - 1 else (18446744073709551615 :: Int) in
+              Ok (0, [NichePacked cname 0 0 pfields], NicheUnsigned 0 hi [])
+            None -> Err "bit-packed product fields exceed single 64-bit word")
+        other -> (case partition-packed-arms multi-arms of
+          None -> Err "repr(niche) multi-field constructors must bit-pack into a single 64-bit word"
+          Some (ptrs, packs) ->
+            let n-ptrs = niche-list-len ptrs in
+            if n-ptrs >= 1 && n-ptrs <= 3 && niche-list-len packs >= 1 then
+              let ordered-ptrs = order-ptr-arms ptrs in
+              let (used-null, null0-ctors, rem-nulls) = (case nulls of
+                    [] -> (False, [], [])
+                    n0 : more-n -> (True, [NicheNullary n0 0], more-n)) in
+              let n-odd = niche-list-len packs + niche-list-len rem-nulls in
+              let subtag-bits = bits-for-count n-odd in
+              let shift = 1 + subtag-bits in
+              let mask = pow2-int shift - 1 in
+              (case make-odd-packed-ctors mask shift 0 packs of
+                None -> Err "repr(niche) multi-field constructors must bit-pack into a single 64-bit word"
+                Some packed-ctors ->
+                  let rem-null-ctors = (if n-odd == 0 then [] else make-odd-rem-nulls (nat-to-int (n-odd - 1)) rem-nulls) in
+                  let (ptr-ctors, ptags) = make-ptr-ctors used-null 0 ordered-ptrs in
+                  Ok (2, null0-ctors <> rem-null-ctors <> packed-ctors <> ptr-ctors, NicheTaggedObj ptags used-null [] True))
+            else if n-ptrs == 0 && niche-list-len packs >= 1 then
+              let total = niche-list-len packs + niche-list-len nulls in
+              let tb0 = bits-for-count total in
+              let tag-bits = if tb0 == 0 then 1 else tb0 in
+              let mask = pow2-int tag-bits - 1 in
+              (case make-raw-packed-ctors mask tag-bits 0 tag-bits packs of
+                None -> Err "repr(niche) multi-field constructors must bit-pack into a single 64-bit word"
+                Some (packed-ctors, max-total) ->
+                  let null-ctors = make-raw-nulls (nat-to-int (niche-list-len packs)) nulls in
+                  let hi = if max-total < 64 then pow2-int max-total - 1 else (18446744073709551615 :: Int) in
+                  Ok (0, null-ctors <> packed-ctors, NicheUnsigned 0 hi []))
+            else Err "repr(niche) multi-field constructors must bit-pack into a single 64-bit word")
+
   niche-layout :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, List NicheCtor, NicheDomain)
   niche-layout word-bits layouts autos datas shapes seen d =
     let owner = core-data-name d in
     if member owner seen then Err "repr(niche) has a recursive layout"
     else case core-data-constructors d of
       [] -> Err "repr(niche) requires at least one constructor"
-      ctors -> case partition-niche-ctors ctors of
-        Err msg -> Err msg
-        Ok (nulls, pays) -> case pays of
+      ctors -> case partition-all-niche-ctors ctors of
+        (nulls, all-pays) | has-multi-field all-pays -> niche-multi-layout word-bits layouts autos datas shapes (owner : seen) nulls all-pays
+        (nulls, all-pays) -> let pays = unwrap-single-payloads all-pays in case pays of
           [] ->
             let n = niche-list-len nulls in
             let hi = if n == 0 then (0 :: Int) else nat-to-int (n - 1) in
@@ -803,12 +924,18 @@ module Cinch.Layout where
         && result-args-are-ktype-vars owner (ctor-result-ty (scheme-body sc)) arity
         && all-regular-ctors owner arity rest
 
-  auto-niche-candidates :: List Decl -> List Request -> List CoreData -> List String -> List String
-  auto-niche-candidates ds layouts datas exported = case ds of
+  unpack-owners :: List Decl -> List String
+  unpack-owners ds = case ds of
+    [] -> []
+    (DUnpackFields sp owner reqs) : rest -> owner : (unpack-owners rest)
+    other : rest -> unpack-owners rest
+
+  auto-niche-candidates :: List Decl -> List Request -> List CoreData -> List String -> List String -> List String
+  auto-niche-candidates ds layouts datas exported unpacks = case ds of
     [] -> []
     (DData sp name params ctors) : rest ->
-      let more = auto-niche-candidates rest layouts datas exported in
-      if is-builtin-data-name name then more
+      let more = auto-niche-candidates rest layouts datas exported unpacks in
+      if is-builtin-data-name name || member name unpacks then more
       else (case requested name layouts of
         Some _ -> more
         None -> (case data-for name datas of
@@ -818,20 +945,38 @@ module Cinch.Layout where
               let cs = core-data-constructors d in
               let ps = core-data-params d in
               let visible-ok = not (member name exported) || all-ctors-exported cs exported in
-              if niche-list-len cs >= 2
+              let arity-ok = niche-list-len cs >= 2
+                    || (case (ps, cs) of ([], [c0]) -> niche-list-len (core-constructor-fields c0) >= 2; other -> False) in
+              if arity-ok
                 && visible-ok
                 && all-ktype-quants ps
                 && all-regular-ctors name (niche-list-len ps) cs
               then name : more
               else more
             other -> more)))
-    other : rest -> auto-niche-candidates rest layouts datas exported
+    (DRecord sp name params fields) : rest ->
+      let more = auto-niche-candidates rest layouts datas exported unpacks in
+      if is-builtin-data-name name || member name unpacks then more
+      else (case requested name layouts of
+        Some _ -> more
+        None -> (case data-for name datas of
+          None -> more
+          Some d -> (case core-data-layout d of
+            UniformData ->
+              let cs = core-data-constructors d in
+              let ps = core-data-params d in
+              let visible-ok = not (member name exported) || all-ctors-exported cs exported in
+              let arity-ok = (case (ps, cs) of ([], [c0]) -> niche-list-len (core-constructor-fields c0) >= 2; other -> False) in
+              if arity-ok && visible-ok then name : more else more
+            other -> more)))
+    other : rest -> auto-niche-candidates rest layouts datas exported unpacks
 
   check-layouts :: Nat -> List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
   check-layouts word-bits ds datas shapes st =
     let layouts = requests ds in
     let exported = source-exported-symbols ds [] in
-    let autos = auto-niche-candidates ds layouts datas exported in
+    let unpacks = unpack-owners ds in
+    let autos = auto-niche-candidates ds layouts datas exported unpacks in
     case (layouts, autos) of
       ([], []) -> (datas, st)
       other -> attach-layouts word-bits layouts autos datas shapes datas st

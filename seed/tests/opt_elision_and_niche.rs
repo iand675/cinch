@@ -807,3 +807,153 @@ fn tier1_polymorphic_outcome_and_maybe_sums() {
         "2000-iteration loop over polymorphic Outcome/Maybe/Lookup @Obj must not allocate wrappers, got {blocks} blocks"
     );
 }
+
+#[test]
+fn tier2_bit_packed_products_and_multi_field_sums() {
+    let source = r#"
+module Main where
+  record Rgba where
+    r :: U8
+    g :: U8
+    b :: U8
+    a :: U8
+
+  data OptRgba where
+    NoRgba :: OptRgba
+    SomeRgba :: Rgba -> OptRgba
+
+  type Line = refine (n :: I64) with n >= 0 && n < 1048576
+  type Col = refine (n :: I64) with n >= 1 && n <= 4096
+
+  record SrcLoc where
+    line :: Line
+    col :: Col
+    file :: U16
+
+  data OptLoc where
+    NoLoc :: OptLoc
+    AtLoc :: SrcLoc -> OptLoc
+
+  data Event where
+    Quit :: Event
+    Key :: Char -> U8 -> Event
+    Click :: I16 -> I16 -> U8 -> Event
+
+  data OptEvent where
+    NoEvent :: OptEvent
+    SomeEvent :: Event -> OptEvent
+
+  data Node where
+    Empty :: Node
+    Ref :: String -> Node
+    Span :: U16 -> U16 -> Node
+
+  add64 :: I64 -> I64 -> I64
+  add64 a b = wrapping-add-i64 a b
+
+  sub64 :: I64 -> I64 -> I64
+  sub64 a b = wrapping-sub-i64 a b
+
+  #[noinline]
+  make-rgba :: U8 -> U8 -> U8 -> U8 -> Rgba
+  make-rgba r g b a = Rgba { r = r, g = g, b = b, a = a }
+
+  #[noinline]
+  sum-rgba :: OptRgba -> I64
+  sum-rgba opt = case opt of
+    NoRgba -> 0
+    SomeRgba c ->
+      let pr = u8-to-i64 c.r in
+      let pg = u8-to-i64 c.g in
+      let pb = u8-to-i64 c.b in
+      let pa = u8-to-i64 c.a in
+      let via-proj = add64 (add64 pr pg) (add64 pb pa) in
+      let via-pat = (case c of
+            Rgba r g b a ->
+              let xr = u8-to-i64 r in
+              let xg = u8-to-i64 g in
+              let xb = u8-to-i64 b in
+              let xa = u8-to-i64 a in
+              add64 (add64 xr xg) (add64 xb xa)) in
+      if via-proj == via-pat then via-proj else sub64 0 999
+
+  #[noinline]
+  make-loc :: Line -> Col -> U16 -> OptLoc
+  make-loc l c f = AtLoc (SrcLoc { line = l, col = c, file = f })
+
+  #[noinline]
+  read-loc :: OptLoc -> I64
+  read-loc opt = case opt of
+    NoLoc -> 0
+    AtLoc loc ->
+      let fl = u16-to-i64 loc.file in
+      add64 (add64 loc.line loc.col) fl
+
+  #[noinline]
+  mk-event :: I64 -> OptEvent
+  mk-event k =
+    if k == 0 then NoEvent
+    else if k == 1 then SomeEvent Quit
+    else if k == 2 then SomeEvent (Key 'A' (3 :: U8))
+    else SomeEvent (Click (wrapping-i64-to-i16 (sub64 0 12)) (34 :: I16) (7 :: U8))
+
+  #[noinline]
+  score-event :: OptEvent -> I64
+  score-event oe = case oe of
+    NoEvent -> 1
+    SomeEvent ev -> case ev of
+      Quit -> 2
+      Key ch mods ->
+        let c0 = u32-to-i64 (char-to-u32 ch) in
+        let m0 = u8-to-i64 mods in
+        add64 c0 m0
+      Click x y btn ->
+        let x0 = i16-to-i64 x in
+        let y0 = i16-to-i64 y in
+        let b0 = u8-to-i64 btn in
+        add64 (add64 x0 y0) b0
+
+  #[noinline]
+  mk-node :: I64 -> String -> Node
+  mk-node k s =
+    if k == 0 then Empty
+    else if k == 1 then Ref s
+    else Span (100 :: U16) (250 :: U16)
+
+  #[noinline]
+  score-node :: Node -> I64
+  score-node n = case n of
+    Empty -> 1
+    Ref s -> 2
+    Span lo hi ->
+      let lo0 = u16-to-i64 lo in
+      let hi0 = u16-to-i64 hi in
+      add64 lo0 hi0
+
+  loop :: I64 -> String -> I64 -> I64
+  loop i s acc =
+    if i == 0 then acc
+    else
+      let c = SomeRgba (make-rgba (10 :: U8) (20 :: U8) (30 :: U8) (40 :: U8)) in
+      let s1 = add64 (sum-rgba c) (sum-rgba NoRgba) in
+      let l = make-loc 500 42 (7 :: U16) in
+      let s2 = add64 (read-loc l) (read-loc NoLoc) in
+      let s3 = add64 (add64 (score-event (mk-event 0)) (score-event (mk-event 1)))
+                     (add64 (score-event (mk-event 2)) (score-event (mk-event 3))) in
+      let s4 = add64 (add64 (score-node (mk-node 0 s)) (score-node (mk-node 1 s))) (score-node (mk-node 2 s)) in
+      loop (sub64 i 1) s (add64 acc (add64 (add64 s1 s2) (add64 s3 s4)))
+
+  main :: Int
+  main =
+    let s = "hello" in
+    let total = loop 2000 s 0 in
+    -- s1 = 100, s2 = 549, s3 = 1 + 2 + (65 + 3) + (-12 + 34 + 7) = 100, s4 = 1 + 2 + 350 = 353
+    -- per iter = 1102 -> 2000 * 1102 = 2204000
+    if total == 2204000 then 42 else 1
+"#;
+    let (blocks, _) = run_checked_with_stats("tier2_bit_packed", source, 42);
+    assert!(
+        blocks < 100,
+        "2000-iteration loop over bit-packed products, sums, and nested niche wrappers must not allocate, got {blocks} blocks"
+    );
+}

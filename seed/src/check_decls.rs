@@ -4180,8 +4180,9 @@ impl Checker {
                     let mut ctors: Vec<(String, usize)> = Vec::new();
                     let mut auto_niche_eligible = !self.embedded_modules.contains(&module)
                         && set.repr.is_none()
-                        && data.ctors.len() >= 2
+                        && !data.ctors.is_empty()
                         && param_kinds.iter().all(|k| matches!(k, ParamKind::Type));
+                    let mut auto_niche_max_arity: usize = 0;
                     // The head is already registered: every data and record
                     // head in the module was registered before any
                     // constructor type converted, so a data declaration may
@@ -4349,9 +4350,10 @@ impl Checker {
                             field_tys.iter().map(|t| erased_ty(t)).collect();
                         let runtime_arity =
                             field_erased.iter().filter(|e| !**e).count();
-                        if auto_niche_eligible
-                            && (!local_idx.is_empty() || runtime_arity > 1)
-                        {
+                        if runtime_arity > auto_niche_max_arity {
+                            auto_niche_max_arity = runtime_arity;
+                        }
+                        if auto_niche_eligible && !local_idx.is_empty() {
                             auto_niche_eligible = false;
                         }
                         let mut all = field_tys.clone();
@@ -4472,7 +4474,10 @@ impl Checker {
                                 span: data.name.span,
                             },
                         );
-                    } else if auto_niche_eligible {
+                    } else if auto_niche_eligible
+                        && (data.ctors.len() >= 2
+                            || (data.ctors.len() == 1 && params.is_empty() && auto_niche_max_arity >= 2))
+                    {
                         self.auto_niche_candidates.push((
                             module.clone(),
                             data.name.text.clone(),
@@ -5241,6 +5246,16 @@ impl Checker {
                                 span: rec.name.span,
                             },
                         );
+                    } else if !self.embedded_modules.contains(&module)
+                        && !self.unpack_requests.contains_key(&fn_id(&module, &rec.name.text))
+                        && params.is_empty()
+                        && runtime_arity >= 2
+                    {
+                        self.auto_niche_candidates.push((
+                            module.clone(),
+                            rec.name.text.clone(),
+                            rec.name.span,
+                        ));
                     }
                     let res_args: Vec<Ty> = params
                         .iter()
@@ -6616,8 +6631,28 @@ impl Checker {
                                 },
                             });
                         }
+                        NicheCtorPlan::Packed { fields: pfields, .. } => {
+                            let param_names: Vec<String> = (0..pfields.len()).map(|i| format!("f{i}")).collect();
+                            let args: Vec<Core> = (0..pfields.len()).map(|i| Core::Var(LocalId(i))).collect();
+                            let body = lower_niche_ctor_apply(&cplan, args);
+                            self.fns.push(FnDef {
+                                id: fn_id(module, cname),
+                                params: param_names,
+                                body,
+                                prim: None,
+                                ctor: None,
+                                hints: Default::default(),
+                                meta: Default::default(),
+                                repr: crate::core::UnitRepr {
+                                    result: Some(carrier),
+                                    params: fields.0,
+                                    tparams: fields.1,
+                                    ..Default::default()
+                                },
+                            });
+                        }
                         _ => {
-                            let body = lower_niche_ctor_apply(&cplan, Core::Var(LocalId(0)));
+                            let body = lower_niche_ctor_apply(&cplan, vec![Core::Var(LocalId(0))]);
                             self.fns.push(FnDef {
                                 id: fn_id(module, cname),
                                 params: vec!["payload".into()],
@@ -11413,6 +11448,60 @@ impl Checker {
                         match cplan {
                             NicheCtorPlan::Nullary { sentinel } => {
                                 out.push(Value::Word(*sentinel));
+                            }
+                            NicheCtorPlan::Packed { tag_word, fields: pfields, .. } => {
+                                let Some(v) = self.qualified.get(&(tk.module.clone(), cname.clone())) else {
+                                    continue;
+                                };
+                                let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind else {
+                                    continue;
+                                };
+                                let mut map: HashMap<String, Ty> = HashMap::new();
+                                for (i, p) in ty_params.iter().enumerate() {
+                                    if let Some(a) = args.get(i) {
+                                        map.insert(p.clone(), a.clone());
+                                    }
+                                }
+                                let rftys: Vec<Ty> = field_tys
+                                    .iter()
+                                    .zip(field_erased.iter())
+                                    .filter(|(_, e)| !**e)
+                                    .map(|(t, _)| Self::subst_ty(t, &map))
+                                    .collect();
+                                let cap = if rftys.len() <= 2 { 3 } else { 2 };
+                                let mut words: Vec<i64> = vec![*tag_word];
+                                for (pf, fty) in pfields.iter().zip(rftys.iter()) {
+                                    let fvals: Vec<i64> = self
+                                        .law_samples(fty, depth - 1)
+                                        .into_iter()
+                                        .filter_map(|s| word_of(&s, "sample").ok())
+                                        .take(cap)
+                                        .collect();
+                                    if fvals.is_empty() {
+                                        words.clear();
+                                        break;
+                                    }
+                                    let mut next = Vec::new();
+                                    for acc in &words {
+                                        for &fv in &fvals {
+                                            if pf.bits == 0 {
+                                                next.push(*acc);
+                                            } else {
+                                                let v0 = fv.wrapping_sub(pf.bias);
+                                                let v1 = if pf.signed && pf.bits < 64 {
+                                                    v0 & (((1u64 << pf.bits) - 1) as i64)
+                                                } else {
+                                                    v0
+                                                };
+                                                next.push(*acc | v1.wrapping_shl(pf.shift));
+                                            }
+                                        }
+                                    }
+                                    words = next;
+                                }
+                                for w in words {
+                                    out.push(Value::Word(w));
+                                }
                             }
                             _ => {
                                 let Some(v) = self.qualified.get(&(tk.module.clone(), cname.clone())) else {
@@ -18788,7 +18877,7 @@ impl Checker {
         }
 
         let mut nullaries: Vec<(usize, String)> = Vec::new();
-        let mut payloads: Vec<(usize, String, Ty)> = Vec::new();
+        let mut all_payloads: Vec<(usize, String, Vec<Ty>)> = Vec::new();
         for (cname, tag) in &kind.ctors {
             let v = self
                 .qualified
@@ -18803,16 +18892,238 @@ impl Checker {
                     .collect(),
                 _ => Vec::new(),
             };
-            match runtime_fields.as_slice() {
-                [] => nullaries.push((*tag, cname.clone())),
-                [pty] => payloads.push((*tag, cname.clone(), pty.clone())),
-                _ => {
-                    return Err(err(
-                        "repr(niche) constructors may have at most one represented field".into(),
-                    ));
-                }
+            if runtime_fields.is_empty() {
+                nullaries.push((*tag, cname.clone()));
+            } else {
+                all_payloads.push((*tag, cname.clone(), runtime_fields));
             }
         }
+
+        // Helper: extract `(bits, signed, bias)` for a small scalar domain fitting in <= 60 bits.
+        let small_raw_shape = |dom: &NicheDomain| -> Option<(u32, bool, i64)> {
+            match dom {
+                NicheDomain::UnsignedRange { lo, hi, .. } if *lo <= *hi => {
+                    let span = *hi - *lo;
+                    if span < (1u128 << 60) {
+                        let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
+                        if *lo == 0 {
+                            Some((bits, false, 0))
+                        } else if *lo <= i64::MAX as u128 {
+                            Some((bits, false, *lo as i64))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+                NicheDomain::SignedRange { lo, hi, .. } if *lo <= *hi => {
+                    if *lo >= 0 {
+                        let span = (*hi - *lo) as u128;
+                        if span < (1u128 << 60) && *lo <= i64::MAX as i128 {
+                            let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
+                            Some((bits, false, *lo as i64))
+                        } else {
+                            None
+                        }
+                    } else if *lo >= -(1i128 << 59) && *hi < (1i128 << 59) {
+                        let need_pos = if *hi > 0 { 128 - (*hi as u128).leading_zeros() } else { 0 };
+                        let need_neg = if *lo < 0 { 128 - ((!*lo) as u128).leading_zeros() } else { 0 };
+                        let bits = need_pos.max(need_neg) + 1;
+                        if bits <= 60 { Some((bits, true, 0)) } else { None }
+                    } else {
+                        let span = (*hi - *lo) as u128;
+                        if span < (1u128 << 60) && *lo >= i64::MIN as i128 && *lo <= i64::MAX as i128 {
+                            let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
+                            Some((bits, false, *lo as i64))
+                        } else {
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            }
+        };
+        let bits_for_count = |count: usize| -> u32 {
+            if count <= 1 { 0 } else { usize::BITS - (count - 1).leading_zeros() }
+        };
+
+        // Tier 2: if any constructor has >= 2 runtime fields, try bit-packing into 1 word.
+        if all_payloads.iter().any(|(_, _, fs)| fs.len() >= 2) {
+            let mut extracted: Vec<(usize, String, Vec<(Ty, NicheDomain)>)> = Vec::with_capacity(all_payloads.len());
+            for (tag, cname, ftys) in all_payloads {
+                let mut fdoms = Vec::with_capacity(ftys.len());
+                for fty in ftys {
+                    let dom = self.extract_niche_domain(&fty, span, stack)?;
+                    fdoms.push((fty, dom));
+                }
+                extracted.push((tag, cname, fdoms));
+            }
+            let pack_fields = |start_shift: u32, fdoms: &[(Ty, NicheDomain)]| -> Option<(Vec<PackedField>, u32)> {
+                let mut cur = start_shift;
+                let mut out = Vec::with_capacity(fdoms.len());
+                for (_, dom) in fdoms {
+                    let (bits, signed, bias) = small_raw_shape(dom)?;
+                    if cur + bits > 64 {
+                        return None;
+                    }
+                    out.push(PackedField { shift: cur, bits, signed, bias });
+                    cur += bits;
+                }
+                Some((out, cur))
+            };
+
+            // Subcase M1: single-constructor bit-packed product (record or 1-ctor data).
+            if nullaries.is_empty() && extracted.len() == 1 {
+                let (tag, cname, fdoms) = extracted.remove(0);
+                if let Some((pfields, total_bits)) = pack_fields(0, &fdoms) {
+                    let hi = if total_bits < 64 { (1u128 << total_bits) - 1 } else { u64::MAX as u128 };
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag: vec![(
+                            tag,
+                            cname,
+                            NicheCtorPlan::Packed { mask: 0, tag_word: 0, fields: pfields },
+                        )],
+                        nullary_sentinels: Vec::new(),
+                        occupied: NicheDomain::UnsignedRange { lo: 0, hi, excluded: Vec::new() },
+                    });
+                }
+                return Err(err("bit-packed product fields exceed single 64-bit word".into()));
+            }
+
+            // Separate fresh NonNullObj single-field pointer arms from bit-packable arms.
+            let mut ptr_arms: Vec<(usize, String, Ty)> = Vec::new();
+            let mut pack_arms: Vec<(usize, String, Vec<(Ty, NicheDomain)>)> = Vec::new();
+            let mut all_packable = true;
+            for (tag, cname, fdoms) in extracted {
+                if fdoms.len() == 1
+                    && matches!(&fdoms[0].1, NicheDomain::NonNullObj { used } if used.is_empty())
+                {
+                    ptr_arms.push((tag, cname, fdoms[0].0.clone()));
+                } else if fdoms.iter().all(|(_, d)| small_raw_shape(d).is_some()) {
+                    pack_arms.push((tag, cname, fdoms));
+                } else {
+                    all_packable = false;
+                    break;
+                }
+            }
+
+            // Subcase M2a: 1..=3 NonNullObj pointer arms + bit-packed odd arms + nullaries -> TObj.
+            if all_packable && !ptr_arms.is_empty() && ptr_arms.len() <= 3 && !pack_arms.is_empty() {
+                if let Some(pref) = ptr_arms
+                    .iter()
+                    .position(|(_, cn, _)| matches!(cn.as_str(), "Ok" | "Right" | "Some" | "Found"))
+                {
+                    if pref != 0 {
+                        ptr_arms.swap(0, pref);
+                    }
+                }
+                let ptr_tags: Vec<i64> = (0..ptr_arms.len()).map(|i| (i as i64) * 2).collect();
+                let mut rem_nulls = nullaries.clone();
+                let mut used_null = false;
+                let mut sentinels = Vec::new();
+                let mut by_tag = Vec::new();
+                if !rem_nulls.is_empty() {
+                    let (ntag, nname) = rem_nulls.remove(0);
+                    used_null = true;
+                    sentinels.push(0);
+                    by_tag.push((ntag, nname, NicheCtorPlan::Nullary { sentinel: 0 }));
+                }
+                let n_odd = pack_arms.len() + rem_nulls.len();
+                let subtag_bits = bits_for_count(n_odd);
+                let shift = 1 + subtag_bits;
+                let mask = (1i64 << shift) - 1;
+                let mut packed_ok = true;
+                for (j, (tag, cname, fdoms)) in pack_arms.iter().enumerate() {
+                    if let Some((pfields, _end)) = pack_fields(shift, fdoms) {
+                        let tag_word = ((j as i64) << 1) | 1;
+                        by_tag.push((
+                            *tag,
+                            cname.clone(),
+                            NicheCtorPlan::Packed { mask, tag_word, fields: pfields },
+                        ));
+                    } else {
+                        packed_ok = false;
+                        break;
+                    }
+                }
+                if packed_ok {
+                    for (k, (tag, cname)) in rem_nulls.into_iter().enumerate() {
+                        let s = (((n_odd - k - 1) as i64) << 1) | 1;
+                        sentinels.push(s);
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    for ((tag, cname, pty), ptag) in ptr_arms.into_iter().zip(ptr_tags.iter().copied()) {
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Ptr {
+                                payload_ty: pty,
+                                ptr_tag: ptag,
+                                check_nonnull: ptag == 0 && used_null,
+                            },
+                        ));
+                    }
+                    return Ok(NichePlan {
+                        carrier: Class::TObj,
+                        by_tag,
+                        nullary_sentinels: sentinels,
+                        occupied: NicheDomain::TaggedObj { ptr_tags, used_null, used_odd: Vec::new(), odd_full: true },
+                    });
+                }
+            }
+
+            // Subcase M2b: all bit-packed scalar arms + nullaries -> Raw.
+            if all_packable && ptr_arms.is_empty() && !pack_arms.is_empty() {
+                let total = pack_arms.len() + nullaries.len();
+                let tag_bits = bits_for_count(total).max(1);
+                let mask = (1i64 << tag_bits) - 1;
+                let mut by_tag = Vec::new();
+                let mut sentinels = Vec::new();
+                let mut max_total_bits = tag_bits;
+                let mut packed_ok = true;
+                let n_pack = pack_arms.len();
+                for (j, (tag, cname, fdoms)) in pack_arms.into_iter().enumerate() {
+                    if let Some((pfields, end_shift)) = pack_fields(tag_bits, &fdoms) {
+                        if end_shift > max_total_bits {
+                            max_total_bits = end_shift;
+                        }
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Packed { mask, tag_word: j as i64, fields: pfields },
+                        ));
+                    } else {
+                        packed_ok = false;
+                        break;
+                    }
+                }
+                if packed_ok {
+                    for (k, (tag, cname)) in nullaries.into_iter().enumerate() {
+                        let s = (n_pack + k) as i64;
+                        sentinels.push(s);
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    let hi = if max_total_bits < 64 { (1u128 << max_total_bits) - 1 } else { u64::MAX as u128 };
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag,
+                        nullary_sentinels: sentinels,
+                        occupied: NicheDomain::UnsignedRange { lo: 0, hi, excluded: Vec::new() },
+                    });
+                }
+            }
+
+            return Err(err(
+                "repr(niche) multi-field constructors must bit-pack into a single 64-bit word".into(),
+            ));
+        }
+
+        let mut payloads: Vec<(usize, String, Ty)> = all_payloads
+            .into_iter()
+            .map(|(tag, cname, mut fs)| (tag, cname, fs.remove(0)))
+            .collect();
 
         // Case A: pure nullary enum -> unboxed Raw 0..k-1.
         if payloads.is_empty() {
@@ -19150,48 +19461,6 @@ impl Checker {
                 }
             }
         }
-
-        // Helper: extract `(bits, signed, bias)` for a small scalar domain fitting in <= 60 bits.
-        let small_raw_shape = |dom: &NicheDomain| -> Option<(u32, bool, i64)> {
-            match dom {
-                NicheDomain::UnsignedRange { lo, hi, .. } if *lo <= *hi => {
-                    let span = *hi - *lo;
-                    if span < (1u128 << 60) {
-                        let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
-                        if *lo == 0 {
-                            Some((bits, false, 0))
-                        } else if *lo <= i64::MAX as u128 {
-                            Some((bits, false, *lo as i64))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                }
-                NicheDomain::SignedRange { lo, hi, .. } if *lo <= *hi => {
-                    if *lo >= -(1i128 << 59) && *hi < (1i128 << 59) {
-                        // Signed value fits directly in two's complement without bias.
-                        let need_pos = if *hi > 0 { 128 - (*hi as u128).leading_zeros() } else { 0 };
-                        let need_neg = if *lo < 0 { 128 - ((!*lo) as u128).leading_zeros() } else { 0 };
-                        let bits = need_pos.max(need_neg) + 1;
-                        if bits <= 60 { Some((bits, true, 0)) } else { None }
-                    } else {
-                        let span = (*hi - *lo) as u128;
-                        if span < (1u128 << 60) && *lo >= i64::MIN as i128 && *lo <= i64::MAX as i128 {
-                            let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
-                            Some((bits, false, *lo as i64))
-                        } else {
-                            None
-                        }
-                    }
-                }
-                _ => None,
-            }
-        };
-        let bits_for_count = |count: usize| -> u32 {
-            if count <= 1 { 0 } else { usize::BITS - (count - 1).leading_zeros() }
-        };
 
         // Case C2: 1..=3 fresh NonNullObj pointer arms + 0.. SmallRaw odd arms + 0.. nullaries -> TObj.
         let mut ptr_arms: Vec<(usize, String, Ty)> = Vec::new();

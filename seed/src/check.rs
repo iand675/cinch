@@ -1462,7 +1462,16 @@ pub(crate) enum NicheDomain {
     F64Nan { used: Vec<i64> },
 }
 
-/// Per-constructor lowering plan inside a niche-fused sum type.
+/// One field's bit-packed slice inside a single 64-bit word.
+#[derive(Clone, Debug)]
+pub(crate) struct PackedField {
+    pub(crate) shift: u32,
+    pub(crate) bits: u32,
+    pub(crate) signed: bool,
+    pub(crate) bias: i64,
+}
+
+/// Per-constructor lowering plan inside a niche-fused sum or bit-packed product.
 #[derive(Clone, Debug)]
 pub(crate) enum NicheCtorPlan {
     Nullary { sentinel: i64 },
@@ -1490,6 +1499,13 @@ pub(crate) enum NicheCtorPlan {
     /// NaN-canonicalized `F64` payload (sentinels live in quiet-NaN space `0x7FF8_0000_0000_0001+`).
     NanF64 {
         payload_ty: Ty,
+    },
+    /// Bit-packed multi-field product or sum arm (`tag_word | ((f0 - bias0) & m0) << s0 | ...`).
+    /// When `mask == 0`, this is a single-constructor bit-packed product (no tag test).
+    Packed {
+        mask: i64,
+        tag_word: i64,
+        fields: Vec<PackedField>,
     },
 }
 
@@ -1554,12 +1570,77 @@ impl crate::repr::TypeReprs for Checker {
     }
 }
 
-fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, arg: Core) -> Core {
+fn niche_ctor_arity(cplan: &NicheCtorPlan) -> usize {
+    match cplan {
+        NicheCtorPlan::Nullary { .. } => 0,
+        NicheCtorPlan::Payload { .. }
+        | NicheCtorPlan::Ptr { .. }
+        | NicheCtorPlan::Shifted { .. }
+        | NicheCtorPlan::NanF64 { .. } => 1,
+        NicheCtorPlan::Packed { fields, .. } => fields.len(),
+    }
+}
+
+pub(crate) fn decode_packed_field_ecore(pf: &PackedField, scrut_var: LocalId) -> ECore {
+    use crate::core::WordOp as WO;
+    if pf.bits == 0 {
+        return ECore::Int(pf.bias);
+    }
+    let extracted = if pf.signed {
+        let left = 64u32.saturating_sub(pf.shift + pf.bits);
+        let shl = if left > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Shl })),
+                vec![ECore::Var(scrut_var), ECore::Int(left as i64)],
+            )
+        } else {
+            ECore::Var(scrut_var)
+        };
+        let right = 64u32.saturating_sub(pf.bits);
+        if right > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Shr })),
+                vec![shl, ECore::Int(right as i64)],
+            )
+        } else {
+            shl
+        }
+    } else {
+        let shifted = if pf.shift > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Ushr })),
+                vec![ECore::Var(scrut_var), ECore::Int(pf.shift as i64)],
+            )
+        } else {
+            ECore::Var(scrut_var)
+        };
+        if pf.bits < 64 {
+            let fmask = ((1u64 << pf.bits) - 1) as i64;
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Untag })),
+                vec![shifted, ECore::Int(fmask)],
+            )
+        } else {
+            shifted
+        }
+    };
+    if pf.bias != 0 {
+        ECore::App(
+            Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Add })),
+            vec![extracted, ECore::Int(pf.bias)],
+        )
+    } else {
+        extracted
+    }
+}
+
+fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, mut args: Vec<Core>) -> Core {
     use crate::core::WordOp as WO;
     match cplan {
         NicheCtorPlan::Nullary { sentinel } => Core::Int(*sentinel),
-        NicheCtorPlan::Payload { .. } => arg,
+        NicheCtorPlan::Payload { .. } => args.remove(0),
         NicheCtorPlan::Ptr { ptr_tag, .. } => {
+            let arg = args.remove(0);
             if *ptr_tag == 0 {
                 arg
             } else {
@@ -1570,6 +1651,7 @@ fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, arg: Core) -> Core {
             }
         }
         NicheCtorPlan::Shifted { tag_word, shift, bias, .. } => {
+            let arg = args.remove(0);
             let v = if *bias != 0 {
                 Core::App(
                     Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
@@ -1595,10 +1677,58 @@ fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, arg: Core) -> Core {
                 shifted
             }
         }
-        NicheCtorPlan::NanF64 { .. } => Core::App(
-            Box::new(Core::Prim(PrimOp::WordOp { op: WO::NanCanon })),
-            vec![arg],
-        ),
+        NicheCtorPlan::NanF64 { .. } => {
+            let arg = args.remove(0);
+            Core::App(
+                Box::new(Core::Prim(PrimOp::WordOp { op: WO::NanCanon })),
+                vec![arg],
+            )
+        }
+        NicheCtorPlan::Packed { tag_word, fields, .. } => {
+            let mut acc: Option<Core> = if *tag_word != 0 {
+                Some(Core::Int(*tag_word))
+            } else {
+                None
+            };
+            for (pf, arg) in fields.iter().zip(args.into_iter()) {
+                if pf.bits == 0 {
+                    continue;
+                }
+                let v0 = if pf.bias != 0 {
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
+                        vec![arg, Core::Int(pf.bias)],
+                    )
+                } else {
+                    arg
+                };
+                let v1 = if pf.signed && pf.bits < 64 {
+                    let fmask = ((1u64 << pf.bits) - 1) as i64;
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Untag })),
+                        vec![v0, Core::Int(fmask)],
+                    )
+                } else {
+                    v0
+                };
+                let v2 = if pf.shift != 0 {
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Shl })),
+                        vec![v1, Core::Int(pf.shift as i64)],
+                    )
+                } else {
+                    v1
+                };
+                acc = Some(match acc {
+                    None => v2,
+                    Some(prev) => Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                        vec![prev, v2],
+                    ),
+                });
+            }
+            acc.unwrap_or(Core::Int(0))
+        }
     }
 }
 
@@ -1707,18 +1837,11 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
         ECore::App(f, args) => {
-            if args.is_empty() {
-                if let ECore::Ctor(g, _) = &**f {
-                    if let Some((_, NicheCtorPlan::Nullary { sentinel })) = cx.ck.niche_ctors.get(g) {
-                        return C::Int(*sentinel);
-                    }
-                }
-            }
-            if args.len() == 1 {
-                if let ECore::Ctor(g, _) = &**f {
-                    if let Some((_, cplan)) = cx.ck.niche_ctors.get(g) {
-                        let a = low(&args[0]);
-                        return lower_niche_ctor_apply(cplan, a);
+            if let ECore::Ctor(g, _) = &**f {
+                if let Some((_, cplan)) = cx.ck.niche_ctors.get(g) {
+                    if args.len() == niche_ctor_arity(cplan) {
+                        let lowered: Vec<Core> = args.iter().map(low).collect();
+                        return lower_niche_ctor_apply(cplan, lowered);
                     }
                 }
             }
