@@ -522,4 +522,4 @@ module Cinch.Layout where
               Err message -> (d : more, add-error site message checked)
               Ok computed -> (case published of
                 Some row | not (matches-published-layout row computed) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
-                other -> ((with-data-layout computed d) : more, checked)))
+                other -> ((with-data-layout computed d) : more, checked))))
