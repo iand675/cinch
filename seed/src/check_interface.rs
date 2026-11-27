@@ -105,7 +105,10 @@ impl Checker {
             ITerm::Bin(op, a, b) => {
                 let (left, ls) = self.portable_index(a, scope)?;
                 let (right, rs) = self.portable_index(b, scope)?;
-                if ls != Mathematical || rs != Mathematical { return None }
+                // Machine scalars (e.g. `I64` offsets in `bytes-load-u128-at`) are
+                // read mathematically inside predicates (matching Stage 3's
+                // `predicate-math-carrier`), so arithmetic over them stays portable.
+                if ls == Bytes || rs == Bytes { return None }
                 (ITerm::Bin(*op, Box::new(left), Box::new(right)), Mathematical)
             }
             ITerm::App(f, args) if matches!(&**f, ITerm::Fn(n) if n == BYTE_LENGTH_INDEX) => {
