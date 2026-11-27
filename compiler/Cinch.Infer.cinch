@@ -4423,8 +4423,25 @@ module Cinch.Infer where
                   other -> (env, add-error sp "imported byte observation disagrees with its checked value scheme" checked))
               None -> (env, add-error sp "imported byte observation requires its monomorphic pure unary scheme" checked))
           else if category == "constructor" then add-binding sp name sc "constructor" env checked
+          else if category == "value" && context-imported-operation name (context-aliases kinds) then add-binding sp name sc "operation" env checked
           else register-total-value sp name sc kinds env checked
     else (env, add-error sp (unsupported-import category name) st)
+  imported-effect-has-op :: String -> String -> Json -> Bool
+  imported-effect-has-op wanted owner fields = case fields of
+    JArr (JStr op) rest ->
+      if interface-global (owner <> "." <> op) == wanted then True
+      else imported-effect-has-op wanted owner rest
+    other -> False
+  context-imported-operation :: String -> List Decl -> Bool
+  context-imported-operation wanted aliases = case aliases of
+    [] -> False
+    (DExternal _ _ category _ metadata) : rest | category == "type" ->
+      (case (field "kind" metadata, field "identity" metadata) of
+        (JStr "effect", JStr identity) ->
+          if imported-effect-has-op wanted (nominal-owner identity) (field "fields" metadata) then True
+          else context-imported-operation wanted rest
+        other -> context-imported-operation wanted rest)
+    other : rest -> context-imported-operation wanted rest
   self-requirement :: String -> Scheme -> Bool
   self-requirement owner sc = case scheme-requirements sc of
     requirement : rest -> (case root-name (requirement.ty) of Some name -> name == owner; None -> False)
@@ -10652,6 +10669,40 @@ module Cinch.Infer where
       Some binding -> case checked-operations (next + 1) rest env st of
         (more, checked) -> ((CoreOperation (type-expr-span syntax) name next (checked-scheme binding)) : more, checked)
       None -> checked-operations (next + 1) rest env (add-error (type-expr-span syntax) "effect operation has no checked binding" st)
+  take-quants :: Nat -> List Quant -> List Quant
+  take-quants n qs = if n == 0 then [] else case qs of
+    [] -> []
+    q : rest -> q : (take-quants (n - 1) rest)
+  align-quant-pairs :: List Quant -> List Quant -> List (Nat, UType)
+  align-quant-pairs expected actual = case (expected, actual) of
+    (e : erest, a : arest) ->
+      let replacement = case value-carrier (e.kind) of
+            Some carrier -> UIndex carrier (IBound (e.id) (e.name))
+            None -> UBound (e.id) (e.name) (e.kind) in
+      (a.id, replacement) : (align-quant-pairs erest arest)
+    other -> []
+  replace-quant-prefix :: List Quant -> List Quant -> List Quant
+  replace-quant-prefix expected actual = case (expected, actual) of
+    (e : erest, a : arest) -> e : (replace-quant-prefix erest arest)
+    ([], rest) -> rest
+    other -> actual
+  align-imported-operation :: List Quant -> CoreOperation -> CoreOperation
+  align-imported-operation expected op =
+    let sc = op.operation-scheme in
+    let ps = scheme-params sc in
+    let pairs = align-quant-pairs expected ps in
+    let aligned-params = replace-quant-prefix expected ps in
+    let aligned-reqs = map-requirements (substitute-bound pairs) (scheme-requirements sc) in
+    let aligned-body = substitute-bound pairs (scheme-body sc) in
+    CoreOperation (op.s) (op.operation-name) (op.operation-slot) (qualified aligned-params aligned-reqs aligned-body)
+  align-imported-operations :: List Quant -> List CoreOperation -> List CoreOperation
+  align-imported-operations expected ops = case ops of
+    [] -> []
+    op : rest -> (align-imported-operation expected op) : (align-imported-operations expected rest)
+  core-effect-seen :: String -> List CoreEffect -> Bool
+  core-effect-seen name effects = case effects of
+    [] -> False
+    e : rest -> e.effect-name == name || core-effect-seen name rest
   imported-effect-operations :: Span -> String -> Nat -> Json -> List CheckedBinding -> List CoreOperation
   imported-effect-operations sp owner next fields env = case fields of
     JArr (JStr op) rest ->
@@ -10675,12 +10726,20 @@ module Cinch.Infer where
         (case (field "kind" metadata, field "identity" metadata) of
           (JStr variety, JStr identity) | variety == "effect" ->
             case imported-kinds kinds (field "parameters" metadata) st of
-              (qs, sq) -> case context-kind name kinds of
+              (raw-qs, sq) -> case context-kind name kinds of
                 Some kind ->
-                  let ops = imported-effect-operations s (nominal-owner identity) 1 (field "fields" metadata) env in
-                  let declaration = CoreEffect s name kind qs ops in
+                  let raw-ops = imported-effect-operations s (nominal-owner identity) 1 (field "fields" metadata) env in
                   (case checked-effects kinds env rest sq of
-                    (more, final) -> (declaration : more, final))
+                    (more, final) -> case raw-ops of
+                      first-op : other-ops | not (core-effect-seen name more) ->
+                        let arity = list-length raw-qs in
+                        let aligned-qs = take-quants arity (scheme-params (first-op.operation-scheme)) in
+                        if list-length aligned-qs == arity then
+                          let aligned-ops = first-op : (align-imported-operations aligned-qs other-ops) in
+                          let declaration = CoreEffect s name kind aligned-qs aligned-ops in
+                          (if core-effect-closed declaration then declaration : more else more, final)
+                        else (more, final)
+                      other -> (more, final))
                 None -> checked-effects kinds env rest sq
           other -> checked-effects kinds env rest st)
       other -> checked-effects kinds env rest st

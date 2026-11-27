@@ -444,9 +444,13 @@ fn pure_functions_keep_zero_overhead_llvm_ir() {
         .expect("emit IR");
     let ir = std::fs::read_to_string(&ir_path).expect("read emitted IR");
     let pure_fn_start = ir
-        .find("pure-add\"")
-        .or_else(|| ir.find("pure_add"))
-        .expect("pure-add function should appear in emitted IR");
+        .match_indices("define ")
+        .find(|(idx, _)| {
+            let line = ir[*idx..].lines().next().unwrap_or("");
+            line.contains("pure-add") || line.contains("pure_add") || line.contains("pure$2dadd")
+        })
+        .map(|(idx, _)| idx)
+        .expect("pure-add function definition should appear in emitted IR");
     let pure_slice = &ir[pure_fn_start..];
     let pure_fn_body = &pure_slice[..pure_slice.find("\n}\n").unwrap_or(pure_slice.len())];
     assert!(
