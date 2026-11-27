@@ -18,7 +18,7 @@ module Cinch.Export where
   import Cinch.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Cinch.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Cinch.ExportType
-  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof)
+  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof, foreign-primitive-cache-entries)
   import Cinch.PrimVerify (PrimProofFact, prim-proof-fact-to-json)
   import Cinch.ExportNominal
   import Cinch.Load (contract-intrinsic, LoadedInterface, loaded-entry, nominal-owner)
@@ -31,7 +31,7 @@ module Cinch.Export where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
 
-  export export-interfaces, export-interfaces-aliased, export-object-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows, checked-temporal-rows
+  export export-interfaces, export-interfaces-aliased, export-object-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows, checked-temporal-rows, checked-proof-cache-entries
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if name == key then value else field name rest; other -> JNull
   text :: Json -> String
@@ -1395,6 +1395,14 @@ module Cinch.Export where
   build-profile-manifest entry target-facts interfaces rows = build-generated-manifest [] JArrEnd (JObj "contracts" JArrEnd JObjEnd) entry target-facts interfaces rows
   checked-primitive-rows :: CheckedProgram -> Json
   checked-primitive-rows checked = primitive-rows (elaboration-bindings (checked.elaboration)) JArrEnd
+  checked-proof-cache-entries :: CheckedProgram -> List (String, String, String)
+  checked-proof-cache-entries checked = binding-proof-cache-entries (elaboration-bindings (checked.elaboration))
+  binding-proof-cache-entries :: List CheckedBinding -> List (String, String, String)
+  binding-proof-cache-entries bindings = case bindings of
+    [] -> []
+    binding : rest -> case checked-foreign-plan binding of
+      Some plan -> foreign-primitive-cache-entries plan <> binding-proof-cache-entries rest
+      None -> binding-proof-cache-entries rest
   primitive-rows :: List CheckedBinding -> Json -> Json
   primitive-rows bindings rows = case bindings of
     [] -> rows
@@ -1412,15 +1420,28 @@ module Cinch.Export where
   generated-modules reports = case reports of
     [] -> JObjEnd
     (owner, names) : rest -> JObj owner (sort-list (sorted names [])) (generated-modules rest)
+  qualify-prim-proof-rows :: String -> Json -> Json
+  qualify-prim-proof-rows owner rows = case rows of
+    JArr row rest ->
+      let local = text (field "name" row) in
+      let qname = string-concat-all [owner, ".", local] in
+      JArr (JObj "module" (JStr owner) (JObj "qualified_name" (JStr qname) row)) (qualify-prim-proof-rows owner rest)
+    other -> JArrEnd
+  build-prim-proof-rows :: List (String, String, Json) -> Json
+  build-prim-proof-rows contracts = case contracts of
+    [] -> JArrEnd
+    (name, hash, doc) : rest -> append (qualify-prim-proof-rows name (field "prim_proofs" doc)) (build-prim-proof-rows rest)
   build-generated-manifest :: List (String, List String) -> Json -> Json -> String -> Json -> List LoadedInterface -> List (String, Json) -> Json
   build-generated-manifest generated primitives temporal entry target-facts interfaces rows =
     let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
     let trust = JObj "primitives" (build-assumptions "primitives" contracts)
           (JObj "foreign" (build-assumptions "foreign" contracts)
             (JObj "declared" (build-assumptions "declared" contracts) JObjEnd)) in
-    JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
-      (JObj "prims" primitives (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
-        (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "temporal" temporal (JObj "target" target-facts JObjEnd))))))))
+    let prim-proofs = build-prim-proof-rows contracts in
+    attach-optional-field "prim_proofs" prim-proofs
+      (JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
+        (JObj "prims" primitives (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
+          (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "temporal" temporal (JObj "target" target-facts JObjEnd)))))))))
 
   source-build-contracts :: List (String, Json) -> List (String, String, Json)
   source-build-contracts rows = case rows of

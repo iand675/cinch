@@ -6592,7 +6592,11 @@ module Cinch.Infer where
   decision-local :: Span -> String -> UType -> List CheckedBinding -> Store -> (CoreTerm, Store)
   decision-local sp name carrier env st = case lookup-value sp name env st of
     (value, checked) -> let projected = project-comparison sp value checked in
-      (projected, if integer-carrier (normalize checked (core-type projected)) then unify sp carrier (core-type projected) checked else add-error sp "decision operand is not a numeric runtime value" checked)
+      let actual = normalize checked (core-type projected) in
+      if integer-carrier actual then (projected, unify sp carrier (core-type projected) checked)
+      else case actual of
+        UMeta id KType | integer-carrier carrier -> (projected, unify sp carrier (core-type projected) checked)
+        other -> (projected, add-error sp "decision operand is not a numeric runtime value" checked)
   decision-index :: Span -> List CheckedBinding -> UType -> CoreTerm -> Store -> (UType, Store)
   decision-index sp env carrier value st = case reify-argument sp env (map-term-types (normalize st) value) st of
     (index, checked) -> predicate-index-value sp (if same-type carrier (primitive-type "Nat") then primitive-type "Nat" else primitive-type "Int") index checked

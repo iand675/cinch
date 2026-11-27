@@ -19,6 +19,7 @@
 module Main where
 
   import Algebra.Semigroup
+  import Cinch.Document (Json, JObj, JStr, parse-json)
   import Cinch.Driver (read-argv)
   import Cinch.Report (render-diagnostic)
   import Cinch.Parallel (CompileStrategy, Latency, Throughput, Release, CompileTuning, tuning-with-proof-cache, parse-compile-strategy, parse-nat-word, apply-worker-budget)
@@ -31,6 +32,7 @@ module Main where
   import Data.String (string-from-bytes, string-length, string-slice)
   import Effect.Fs (fs-list, fs-read)
   import Text.Args (ArgSpec, FlagSpec, ValueSpec, OptVal, opt-name, opt-value, args-options, args-values, parse-args)
+  import Text.Parse (Parsed, Failed)
   import Text.Scan (string-starts-with, string-ends-with, string-drop)
 
   data RequestedPlatform where
@@ -145,11 +147,25 @@ module Main where
           None -> 0 in
     CompileTuning strategy workers opts.prim-verify opts.jpl [] opts.replay-only 64
 
+  json-str-field :: String -> Json -> Option String
+  json-str-field wanted doc = case doc of
+    JObj k v rest -> if k == wanted then (case v of JStr s -> Some s; _ -> None) else json-str-field wanted rest
+    _ -> None
+
   load-proof-cache-files :: forall r. using (io :: Io r) => Path -> List String -> List (String, String) ->{IO r} List (String, String)
   load-proof-cache-files dir names acc = case names of
     [] -> acc
     nm : rest ->
-      if string-ends-with ".lrat" nm && string-length nm > 5 then
+      if string-ends-with ".lrat_v1.json" nm && string-length nm > 13 then
+        let key = string-slice nm 0 (string-length nm - 13) in
+        case fs-read (path-join dir (path-from-string nm)) of
+          Ok bs -> case parse-json nm bs of
+            Parsed doc [] -> case json-str-field "payload" doc of
+              Some payload -> load-proof-cache-files dir rest ((key, payload) : acc)
+              None -> load-proof-cache-files dir rest ((key, "<corrupt-proof-cache>") : acc)
+            _ -> load-proof-cache-files dir rest ((key, "<corrupt-proof-cache>") : acc)
+          Err _ -> load-proof-cache-files dir rest acc
+      else if string-ends-with ".lrat" nm && string-length nm > 5 then
         let key = string-slice nm 0 (string-length nm - 5) in
         case fs-read (path-join dir (path-from-string nm)) of
           Ok bs -> case string-from-bytes bs of

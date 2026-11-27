@@ -44,7 +44,7 @@ module Cinch.PrimVerify where
 
   export TrustReceipt, MkTrustReceipt, receipt-to-json, receipts-to-json
   export receipt-tier, receipt-checker-id, receipt-goal-hash, receipt-evidence-hash
-  export receipt-semantics-id, receipt-prover-id, receipt-tcb
+  export receipt-semantics-id, receipt-prover-id, receipt-tcb, receipt-evidence-payload
   export PrimProofFact, MkPrimProofFact, prim-proof-fact-to-json
   export VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen
   export PrimParamSpec, MkPrimParamSpec, param-spec-name, param-spec-width, param-spec-signed, param-spec-fp, param-spec-bool
@@ -133,32 +133,35 @@ module Cinch.PrimVerify where
     same w "verify" || same w "verify-lrat" || same w "verify-compiled-lrat"
 
   data TrustReceipt where
-    MkTrustReceipt :: String -> String -> String -> String -> String -> String -> String -> String -> List String -> TrustReceipt
+    MkTrustReceipt :: String -> String -> String -> String -> String -> String -> String -> String -> List String -> String -> TrustReceipt
 
   receipt-goal-hash :: TrustReceipt -> String
-  receipt-goal-hash r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> gh
+  receipt-goal-hash r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> gh
 
   receipt-semantics-id :: TrustReceipt -> String
-  receipt-semantics-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> sem
+  receipt-semantics-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> sem
 
   receipt-prover-id :: TrustReceipt -> String
-  receipt-prover-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> prv
+  receipt-prover-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> prv
 
   receipt-checker-id :: TrustReceipt -> String
-  receipt-checker-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> chk
+  receipt-checker-id r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> chk
 
   receipt-tier :: TrustReceipt -> String
-  receipt-tier r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> tier
+  receipt-tier r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> tier
 
   receipt-evidence-hash :: TrustReceipt -> String
-  receipt-evidence-hash r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> eh
+  receipt-evidence-hash r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> eh
 
   receipt-tcb :: TrustReceipt -> List String
-  receipt-tcb r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb -> tcb
+  receipt-tcb r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> tcb
+
+  receipt-evidence-payload :: TrustReceipt -> String
+  receipt-evidence-payload r = case r of MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay -> pay
 
   receipt-to-json :: TrustReceipt -> Json
   receipt-to-json r = case r of
-    MkTrustReceipt gh sem prv chk tier fmt eh verd tcb ->
+    MkTrustReceipt gh sem prv chk tier fmt eh verd tcb pay ->
       JObj "goal_hash" (JStr gh)
         (JObj "semantics_id" (JStr sem)
           (JObj "prover_id" (JStr prv)
@@ -2789,7 +2792,7 @@ module Cinch.PrimVerify where
 
   make-assumed-receipt :: String -> String -> String -> TrustReceipt
   make-assumed-receipt goal-hash checker-id reason =
-    MkTrustReceipt goal-hash semantics-id-llvm "none" checker-id "assumed" "none" "none" reason [checker-id, semantics-id-llvm]
+    MkTrustReceipt goal-hash semantics-id-llvm "none" checker-id "assumed" "none" "none" reason [checker-id, semantics-id-llvm] ""
 
   lookup-cached-proof :: String -> List (String, String) -> Option String
   lookup-cached-proof key entries = case entries of
@@ -2858,6 +2861,26 @@ module Cinch.PrimVerify where
         other -> None)
     other -> None
 
+  verify-bitwise-cached-loop :: Option Int -> List Int -> List Int -> BlastState -> List String -> Result String Unit
+  verify-bitwise-cached-loop assume-opt la lb base-st proofs = case (la, lb, proofs) of
+    (Nil, Nil, Nil) -> Ok ()
+    (Cons ai ar, Cons bi br, Cons pstr prest) ->
+      let (diff, st1) = bb-xor ai bi base-st in
+      if same pstr "trivial" then
+        if diff == lit-false then verify-bitwise-cached-loop assume-opt ar br base-st prest
+        else Err "cached bitwise LRAT proof claimed trivial for non-trivial bit"
+      else
+        let st2 = bb-add-clause [diff] st1 in
+        let st3 = case assume-opt of
+              Some la-lit -> bb-add-clause [la-lit] st2
+              None -> st2 in
+        case st3 of
+          MkBlastState max-var next-cid rev-cs memo vbits ->
+            case verify-lrat-text max-var rev-cs pstr of
+              Err bad -> Err bad
+              Ok verified -> verify-bitwise-cached-loop assume-opt ar br base-st prest
+    other -> Err "cached bitwise LRAT proof bit count mismatch"
+
   check-one-obligation-cached :: String -> Bool -> String -> String -> List (String, String) -> Bool -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt
   check-one-obligation-cached ob-name is-jpl verify-mode just-word proof-cache replay-only g goal-id =
     let goal-hash = sha256-hex (string-to-bytes (string-concat-all [ob-name, ":", serialize-sem goal-id g])) in
@@ -2871,8 +2894,42 @@ module Cinch.PrimVerify where
         Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" "assumed (lax downgrade: floating-point obligation requires external SMT solver)")
       else Err (OutcomeOpen (string-concat ob-name ": floating-point obligation requires an external SMT solver (use --prim-verify=lax to downgrade to assumed)"))
     else
-      -- Fast bit-cone decomposition for wide bitvector equalities when not replaying a single cached LRAT file.
+      -- Replay cached bitwise-decomposed LRAT proofs when present, or prove via bit-cone decomposition on cold builds.
       case (lookup-cached-proof goal-hash proof-cache, replay-only, try-decompose-bv-eq goal-id g) of
+        (Some cached-lrat, _, Some (assume-opt, w, lhs-id, rhs-id)) | string-starts-with "BITWISE_LRAT_V1\n" cached-lrat ->
+          let blast-res = case assume-opt of
+                None ->
+                  (case bb-node lhs-id g init-blast-state of
+                    Err e -> Err e
+                    Ok (la, st1) -> case bb-node rhs-id g st1 of
+                      Err e -> Err e
+                      Ok (lb, st2) -> Ok (None, la, lb, st2))
+                Some aid ->
+                  (case bb-node aid g init-blast-state of
+                    Err e -> Err e
+                    Ok (Cons alit Nil, st0) ->
+                      (case bb-node lhs-id g st0 of
+                        Err e -> Err e
+                        Ok (la, st1) -> case bb-node rhs-id g st1 of
+                          Err e -> Err e
+                          Ok (lb, st2) -> Ok (Some alit, la, lb, st2))
+                    Ok other -> Err "assumption did not bit-blast to 1 bit") in
+          (case blast-res of
+            Err reason -> Err (OutcomeOpen (string-concat-all [ob-name, ": ", reason]))
+            Ok (alit-opt, la, lb, st2) ->
+              let body-text = string-slice cached-lrat 16 (string-length cached-lrat) in
+              let bit-proofs = string-split-on "\n---BIT---\n" body-text in
+              case verify-bitwise-cached-loop alit-opt la lb st2 bit-proofs of
+                Err bad-proof ->
+                  Err (OutcomeOpen (string-concat-all [ob-name, ": cached LRAT proof REJECTED by kernel verification (tampered): ", bad-proof]))
+                Ok verified ->
+                  if not (policy-allows-tier is-jpl verify-mode tier) then
+                    Err (OutcomeRejected (string-concat-all
+                      [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
+                  else
+                    let ev-hash = sha256-hex (string-to-bytes cached-lrat) in
+                    let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
+                    Ok (MkTrustReceipt goal-hash semantics-id-llvm "cached-lrat-replay@1" checker-id tier "lrat/v1" ev-hash "verified" tcb cached-lrat))
         (None, False, Some (assume-opt, w, lhs-id, rhs-id)) ->
           let blast-res = case assume-opt of
                 None ->
@@ -2910,9 +2967,10 @@ module Cinch.PrimVerify where
                     Err (OutcomeRejected (string-concat-all
                       [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
                   else
-                    let ev-hash = sha256-hex (string-to-bytes (join-str "\n" bit-proofs)) in
+                    let payload = string-concat "BITWISE_LRAT_V1\n" (join-str "\n---BIT---\n" bit-proofs) in
+                    let ev-hash = sha256-hex (string-to-bytes payload) in
                     let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
-                    Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb)))
+                    Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb payload)))
         other ->
           case bb-node goal-id g init-blast-state of
             Err reason ->
@@ -2930,7 +2988,7 @@ module Cinch.PrimVerify where
                     Some cached-lrat ->
                       (case verify-lrat-text max-var clauses cached-lrat of
                         Err bad-proof ->
-                          Err (OutcomeOpen (string-concat-all [ob-name, ": cached LRAT proof failed kernel verification (tampered): ", bad-proof]))
+                          Err (OutcomeOpen (string-concat-all [ob-name, ": cached LRAT proof REJECTED by kernel verification (tampered): ", bad-proof]))
                         Ok verified ->
                           if not (policy-allows-tier is-jpl verify-mode tier) then
                             Err (OutcomeRejected (string-concat-all
@@ -2938,7 +2996,7 @@ module Cinch.PrimVerify where
                           else
                             let ev-hash = sha256-hex (string-to-bytes cached-lrat) in
                             let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
-                            Ok (MkTrustReceipt goal-hash semantics-id-llvm "cached-lrat-replay@1" checker-id tier "lrat/v1" ev-hash "verified" tcb))
+                            Ok (MkTrustReceipt goal-hash semantics-id-llvm "cached-lrat-replay@1" checker-id tier "lrat/v1" ev-hash "verified" tcb cached-lrat))
                     None ->
                       if replay-only then
                         Err (OutcomeOpen (string-concat-all [ob-name, ": replay-only mode has no cached LRAT proof for ", goal-hash]))
@@ -2962,9 +3020,10 @@ module Cinch.PrimVerify where
                                   Err (OutcomeRejected (string-concat-all
                                     [ob-name, ": trust tier `", tier, "` from `", checker-id, "` rejected by policy `", policy-name-for is-jpl verify-mode, "`"]))
                                 else
-                                  let ev-hash = sha256-hex (string-to-bytes (serialize-lrat-steps lrat-steps)) in
+                                  let payload = serialize-lrat-steps lrat-steps in
+                                  let ev-hash = sha256-hex (string-to-bytes payload) in
                                   let tcb = insert-unique-sorted checker-id (insert-unique-sorted semantics-id-llvm Nil) in
-                                  Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb))
+                                  Ok (MkTrustReceipt goal-hash semantics-id-llvm "cinch-cdcl-lrat@1" checker-id tier "lrat/v1" ev-hash "verified" tcb payload))
             Ok other -> Err (OutcomeOpen (string-concat ob-name ": goal did not bit-blast to a single boolean literal"))
 
   check-one-obligation :: String -> Bool -> String -> String -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt

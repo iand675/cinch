@@ -1433,7 +1433,7 @@ module Cinch.RuntimeIr where
   scoped-partial-name term = case term of
     CLet sp ty id name sc rhs body -> if name == "#argument-function" && list-length (scheme-params sc) == 0 then
       (case head rhs of
-        CUse at function symbol role [] -> if role == "constructor" || not (ordinary-call-type function) || list-length (arguments rhs []) == 0 then None else Some symbol
+        CUse at function symbol role [] -> if role == "constructor" || not (ordinary-call-type function) then None else Some symbol
         other -> None)
       else None
     other -> None
@@ -1569,7 +1569,7 @@ module Cinch.RuntimeIr where
     Some name -> case worker-definition name w of
       Some d -> case field-owner name ((writer-program w).instances) of
         Some owner -> None
-        None -> if list-length (d.givens) == 0 && list-length (d.openings) == 0 && not (wide-definition d)
+        None -> if list-length (d.givens) == 0 && list-length (d.openings) == 0
           && list-length (definition-parameters d) == list-length (definition-all-parameters d) then
           fuse-scoped-arity (list-length (definition-parameters d)) term
           else None
@@ -8776,7 +8776,7 @@ module Cinch.RuntimeIr where
 
   replace-placeholder :: String -> String -> String -> String
   replace-placeholder needle replacement text =
-    if not (string-contains text needle) then text
+    if not (string-contains needle text) then text
     else join-replaced replacement (string-split-on needle text)
 
   renumber-meta-loop :: Nat -> Nat -> Nat -> String -> String

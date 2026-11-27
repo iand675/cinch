@@ -4,7 +4,7 @@ module Cinch.Foreign where
   import Cinch.Type
   import Cinch.Target (condition-render, primitive-target, when-vocabulary, host-profile)
   import Cinch.Ast (PrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, RewriteTerm, Expr, EVar, source-identity-expr)
-  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body-cached, verify-prim-cross-target, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
+  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, receipt-goal-hash, receipt-prover-id, receipt-evidence-payload, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body-cached, verify-prim-cross-target, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
   import Cinch.Core (contract-scheme-closed)
   import Cinch.ExportType (export-type, export-global, export-display-scheme)
   import Cinch.Interface (fnv-source-hash)
@@ -20,7 +20,7 @@ module Cinch.Foreign where
   export foreign-blocking
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, primitive-plan, foreign-inline, foreign-primitive-assumptions
-  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof
+  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof, foreign-primitive-cache-entries
   export PrimitiveFragment
   export PrimUseContract
   export foreign-llvm-type, primitive-layout
@@ -56,9 +56,9 @@ module Cinch.Foreign where
     scheme :: Scheme
     parameters :: List ForeignParameter
     result :: ForeignParameter
-    inline :: Option (InlinePrimitive, Option String, List String, Json, Option PrimProofFact)
+    inline :: Option (InlinePrimitive, Option String, List String, Json, Option PrimProofFact, List TrustReceipt)
   foreign-inline :: ForeignPlan -> Option InlinePrimitive
-  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection, proof-fact) -> Some body; None -> None)
+  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection, proof-fact, receipts) -> Some body; None -> None)
   -- A public worker receives ordinary arguments. Immediate-only operands
   -- must still be checked at a direct call with their actual literal values.
   primitive-object-callable :: ForeignPlan -> Bool
@@ -75,15 +75,26 @@ module Cinch.Foreign where
   foreign-primitive-assumptions :: ForeignPlan -> Option (Option String, List String)
   foreign-primitive-assumptions plan = case plan of
     ForeignPlan symbol scheme params result inline ->
-      (case inline of Some (body, identity, trust, selection, proof-fact) -> Some (identity, trust); None -> None)
+      (case inline of Some (body, identity, trust, selection, proof-fact, receipts) -> Some (identity, trust); None -> None)
   foreign-primitive-selection :: ForeignPlan -> Option Json
   foreign-primitive-selection plan = case plan of
-    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact)) -> Some selection
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact, receipts)) -> Some selection
     other -> None
   foreign-primitive-proof :: ForeignPlan -> Option PrimProofFact
   foreign-primitive-proof plan = case plan of
-    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact)) -> proof-fact
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact, receipts)) -> proof-fact
     other -> None
+  extract-cache-entries :: List TrustReceipt -> List (String, String, String)
+  extract-cache-entries rs = case rs of
+    [] -> []
+    r : rest ->
+      let p = receipt-evidence-payload r in
+      if string-length p > 0 then (receipt-goal-hash r, receipt-prover-id r, p) : (extract-cache-entries rest)
+      else extract-cache-entries rest
+  foreign-primitive-cache-entries :: ForeignPlan -> List (String, String, String)
+  foreign-primitive-cache-entries plan = case plan of
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact, receipts)) -> extract-cache-entries receipts
+    other -> []
   nonempty-ir-lines :: List String -> List (List String)
   nonempty-ir-lines lines = case lines of
     [] -> []
@@ -831,11 +842,11 @@ module Cinch.Foreign where
                             let identity = string-concat-all ["prim:", symbol, ":", signature-text, ":spec[", spec-display, "]"] in
                             let proof-fact = MkPrimProofFact (local-symbol-name symbol) spec-display "llvm-sem@21.1" (worst-trust-tier receipts) (receipts-tcb-union receipts) in
                             Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                              (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact))))
+                              (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact, receipts))))
                       else
                         let identity = primitive-identity symbol (primitive-body-text bodies) in
                         Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                          (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None)))))
+                          (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None, receipts)))))
             else
               (case primitive-laws (check-law arity) bodies True [] of
                 Err message -> Err message
@@ -845,7 +856,7 @@ module Cinch.Foreign where
                     Ok identity -> let assumed = if justified then None else Some identity in
                       let declared = if justified then laws <> trust else trust in
                       Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                        (Some (body, assumed, declared, selection-document body condition identity justified trust bodies, None))))))
+                        (Some (body, assumed, declared, selection-document body condition identity justified trust bodies, None, []))))))
       (Err message, other) -> Err message
       (other, Err message) -> Err message
 

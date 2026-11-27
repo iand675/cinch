@@ -1636,7 +1636,10 @@ module Cinch.Parse where
     POk opened input -> (case parse-field input src of
       POk value (token : tail) ->
         if is-punct-t (lt-token token) "," then parse-prim-uses tail src (value : acc)
-        else if is-punct-t (lt-token token) ")" then POk (reverse (value : acc)) tail
+        else if is-punct-t (lt-token token) ")" then
+          (case tail of
+            comma : more | is-punct-t (lt-token comma) "," -> parse-prim-uses more src (value : acc)
+            other -> POk (reverse (value : acc)) tail)
         else PBad
       POk value [] -> PBad
       PBad -> PBad)

@@ -40,7 +40,7 @@ module Cinch.Pipeline where
   import Cinch.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, prepare-admitted-resolution, resolve-overlay-with, unshadowed-interfaces)
   import Cinch.Stage (expand-stages-with-report, explain-expansion-errors)
   import Cinch.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
-  import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows, checked-temporal-rows)
+  import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows, checked-temporal-rows, checked-proof-cache-entries)
   import Cinch.Interface (fnv-source-hash, sha256-hex)
   import Cinch.TargetLiterals (target-literal-errors)
   import Cinch.Target (TargetProfile, selection-arch, target-ir-header, target-profile, target-view-program, host-profile)
@@ -610,17 +610,19 @@ module Cinch.Pipeline where
     after-object-client-tuned default-tuning profile inlining debug reclaim publish admitted provider checked entry exported ir
   after-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> Bool -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Result String (List (String, Json)) -> Path ->{IO r, Diverge} Int
   after-object-client-tuned tuning profile inlining debug reclaim publish admitted provider checked entry exported ir =
-    if not publish then write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
-    else case exported of
-      Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
-      Ok rows -> case write-interface-output ir (Ok rows) of
-        0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
-          0 -> (case fs-write (build-manifest-path ir)
-              (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) entry (manifest-target profile) admitted rows)) of
-            Ok written -> pipeline-ok
-            Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
-          code -> code
-        code -> code
+    case write-proof-cache-entries profile (checked-proof-cache-entries checked) of
+      _ ->
+        if not publish then write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
+        else case exported of
+          Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
+          Ok rows -> case write-interface-output ir (Ok rows) of
+            0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
+              0 -> (case fs-write (build-manifest-path ir)
+                  (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) entry (manifest-target profile) admitted rows)) of
+                Ok written -> pipeline-ok
+                Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
+              code -> code
+            code -> code
 
   run-source-with-object :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
   run-source-with-object inlining debug reclaim manifest config runtime prefix source words = run-source-with-object-at inlining debug reclaim host-profile manifest config runtime prefix source words
@@ -1115,10 +1117,28 @@ module Cinch.Pipeline where
   -- `CINCH_ARENA=1` enables the scope; unset makes both entries no-ops,
   -- so the same build measures the same phase with every block back on
   -- the counted heap.
+  write-proof-cache-files :: forall r. using (io :: Io r) => String -> List (String, String, String) ->{IO r, Diverge} Unit
+  write-proof-cache-files dir entries = case entries of
+    [] -> ()
+    (gh, prv, payload) : rest ->
+      let doc = JObj "format" (JStr "lrat/v1") (JObj "payload" (JStr payload) (JObj "prover_id" (JStr prv) JObjEnd)) in
+      case fs-write (path-from-string (dir <> "/" <> gh <> ".lrat_v1.json")) (canonical-bytes doc) of
+        _ -> write-proof-cache-files dir rest
+
+  write-proof-cache-entries :: forall r. using (io :: Io r) => TargetProfile -> List (String, String, String) ->{IO r, Diverge} Unit
+  write-proof-cache-entries profile entries = case (profile.proof-cache, profile.replay-only, entries) of
+    (Some dir, False, first : rest) ->
+      case process-run (command (path-from-string "mkdir") ["-p", dir]) "" of
+        Ok (0, _) -> write-proof-cache-files dir entries
+        other -> ()
+    other -> ()
+
   serialize-exported :: forall r. using (io :: Io r) => CheckedProgram -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) -> Result String (List (String, Json)) ->{IO r, Diverge} Unit
-  serialize-exported checked profile entry admitted replaced exported = case exported of
-    Err message -> ()
-    Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) profile entry admitted (replaced <> rows)
+  serialize-exported checked profile entry admitted replaced exported =
+    case write-proof-cache-entries profile (checked-proof-cache-entries checked) of
+      _ -> case exported of
+        Err message -> ()
+        Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) profile entry admitted (replaced <> rows)
 
   serialize-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
   serialize-artifacts generated primitives temporal profile entry admitted rows =
