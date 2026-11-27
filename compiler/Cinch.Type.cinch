@@ -24,7 +24,7 @@ module Cinch.Type where
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, Eq_ArrowUsage, Show_ArrowUsage, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
   export UType, Show_UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
-  export copy-marker-carrier, kernel-marker-carrier
+  export copy-marker-carrier, kernel-marker-carrier, boxed-marker-carrier
   export foreign-pointer
   export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier
   export shared-pattern-carrier, pattern-constructor-type
@@ -2627,6 +2627,30 @@ module Cinch.Type where
   kernel-marker-fields fields = case fields of
     UEnd -> True
     UArg first rest -> kernel-marker-carrier first && kernel-marker-fields rest
+    other -> False
+  -- Structural Boxed marker evidence: concrete types except FixedArray
+  -- (and #[repr(value)] records, checked once layouts are resolved).
+  -- Bare type variables and metas must obtain Boxed from a lexical given.
+  boxed-app-head :: UType -> Bool
+  boxed-app-head ty = case ty of
+    UCon name k -> not (same-tag name "FixedArray")
+    UApp f x -> boxed-app-head f
+    other -> False
+  boxed-marker-carrier :: UType -> Bool
+  boxed-marker-carrier ty = case ty of
+    UCon name k -> not (same-tag name "FixedArray")
+    UApp f x -> boxed-app-head ty
+    UTuple fields -> True
+    USigma id name domain body -> True
+    UFun a b -> True
+    UFunEff a row b -> True
+    UProofFun p row b -> True
+    UPi id name domain row b -> True
+    UUsageArrow u inner -> boxed-marker-carrier inner
+    UForall qs inner -> True
+    URequire p body -> boxed-marker-carrier body
+    URefine id name carrier pred -> boxed-marker-carrier carrier
+    UIndex carrier idx -> boxed-marker-carrier carrier
     other -> False
   integer-carrier :: UType -> Bool
   integer-carrier carrier = mathematical-carrier carrier || promotable-carrier carrier

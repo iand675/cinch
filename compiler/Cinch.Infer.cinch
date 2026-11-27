@@ -16,7 +16,7 @@ module Cinch.Infer where
   import Cinch.Proof (Proposition, PNegate, PCompare, Equal, disproved)
   import Data.Nat (nat-from-int, nat-to-int, nat-rem, saturating-sub)
   import Text.Show (int-to-string)
-  import Text.Scan (string-words, string-starts-with, string-split-on)
+  import Text.Scan (string-words, string-starts-with, string-split-on, string-drop)
   import Data.Bytes (bytes-len, bytes-get)
   import Data.String (string-compare, string-byte-length, string-slice, string-utf8-first)
   import Prim.Machine (ge-i64, lt-i64)
@@ -648,7 +648,7 @@ module Cinch.Infer where
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
   primitive-kinds =
-    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType), ("Sing", KFun KType (KFun KType KType)), ("Same", KFun KType (KFun KType KType)), ("FixedArray", KFun (KValue (UCon "Nat" KType)) (KFun KType KType))] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> (("b.Scope", scope-kind) : ("b.Task", task-kind) : ("b.Io", KFun KRegion KType) : ("b.Dec", KFun KProp KType) : (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) in
+    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType), ("Boxed", KFun KType KType), ("Sing", KFun KType (KFun KType KType)), ("Same", KFun KType (KFun KType KType)), ("FixedArray", KFun (KValue (UCon "Nat" KType)) (KFun KType KType))] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> (("b.Scope", scope-kind) : ("b.Task", task-kind) : ("b.Io", KFun KRegion KType) : ("b.Dec", KFun KProp KType) : (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) in
     TypeContext False (kind-declarations builtins) ([], hash-map-empty, hash-map-empty, hash-map-empty, RecordIndex hash-map-empty None) [] [ByteObservation "#kernel.bytes-length" None] [] [] primitive-payloads empty-family-context
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
@@ -730,7 +730,7 @@ module Cinch.Infer where
     fs : rest -> name == fs.identity || is-type-family-in name rest
   is-promoted-data-type :: TypeContext -> String -> Bool
   is-promoted-data-type kinds name =
-    if is-scalar-carrier-name name || has name ["Type", "Prop", "Region", "Effect", "Row", "Ref", "Mut", "Thunk", "Lazy", "Later", "Copy", "Kernel", "Share", "Array", "Sing", "Same", "b.Io", "b.Scope", "b.Task", "b.Dec", "(->)"]
+    if is-scalar-carrier-name name || has name ["Type", "Prop", "Region", "Effect", "Row", "Ref", "Mut", "Thunk", "Lazy", "Later", "Copy", "Kernel", "Boxed", "Share", "Array", "Sing", "Same", "b.Io", "b.Scope", "b.Task", "b.Dec", "(->)"]
     then False
     else case find-refinement name kinds of
       Some _ -> False
@@ -12000,7 +12000,7 @@ module Cinch.Infer where
     let (family-kinds, family-store) = collect-family-metadata ds runtime-kinds runtime-store in
     -- Copy and Share are compiler-known structural classes: their evidence is
     -- the checked shape of a type, so no module declares them.
-    let classes = ("b.Io", KFun KRegion KType) : ("Copy", KFun KType KType) : ("Kernel", KFun KType KType) : ("Share", KFun KType KType) : (source-class-kinds ds family-kinds (class-kinds ordered-classes family-kinds hash-map-empty [])) in
+    let classes = ("b.Io", KFun KRegion KType) : ("Copy", KFun KType KType) : ("Kernel", KFun KType KType) : ("Boxed", KFun KType KType) : ("Share", KFun KType KType) : (source-class-kinds ds family-kinds (class-kinds ordered-classes family-kinds hash-map-empty [])) in
     let clauses = clause-index ds in
     let (identity-kinds, identity-store) = collect-source-identities clauses ds classes family-kinds family-store in
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
@@ -12076,76 +12076,95 @@ module Cinch.Infer where
     MkCoreData s name k qs cs -> s
     WithLayout layout bare -> core-data-span bare
 
-  check-boxed-data-fields :: List CoreData -> List CoreData -> Store -> Store
-  check-boxed-data-fields all-datas todo st = case todo of
-    [] -> st
-    d : rest ->
-      let next = (case core-data-layout d of
-        ValueData repr sz al fs -> st
-        other -> check-boxed-ctors all-datas (core-data-span d) (core-data-constructors d) st) in
-      check-boxed-data-fields all-datas rest next
+  ends-with-text :: String -> String -> Bool
+  ends-with-text s suf =
+    let n = string-length s in
+    let m = string-length suf in
+    n >= m && string-drop (n - m) s == suf
 
-  check-boxed-ctors :: List CoreData -> Span -> List CoreConstructor -> Store -> Store
-  check-boxed-ctors all-datas sp ctors st = case ctors of
-    [] -> st
-    c : rest ->
-      let next = if any-unboxed-value-type all-datas (core-constructor-fields c) then
-            add-error sp "unboxed value types cannot be stored directly in boxed data or record fields" st else st in
-      check-boxed-ctors all-datas sp rest next
+  uniform-container-name :: String -> Bool
+  uniform-container-name name =
+    has name ["TVar", "MVarCell", "RwLockCell", "Array", "Lazy", "Later"]
+    || ends-with-text name ".MVar" || ends-with-text name "$2eMVar"
+    || ends-with-text name ".RwLock" || ends-with-text name "$2eRwLock"
+    || ends-with-text name ".TVar" || ends-with-text name "$2eTVar"
 
-  check-value-terms :: Nat -> Bool -> Bool -> List CoreData -> List CoreTerm -> Store -> Store
-  check-value-terms word-bits no-alloc no-raw-ptr datas terms st = case terms of
-    [] -> st
-    first : rest -> check-value-terms word-bits no-alloc no-raw-ptr datas rest (check-value-term word-bits no-alloc no-raw-ptr datas first st)
+  has-unboxed-uniform-container :: List CoreData -> UType -> Bool
+  has-unboxed-uniform-container datas ty = case refinement-view ty of
+    URefine id nm base pred -> has-unboxed-uniform-container datas base
+    UApp (UCon name k) elem ->
+      (uniform-container-name name && is-unboxed-value-type datas elem)
+      || has-unboxed-uniform-container datas elem
+    UApp f x -> has-unboxed-uniform-container datas f || has-unboxed-uniform-container datas x
+    UTuple fields -> has-unboxed-uniform-container datas fields
+    UArg first rest -> has-unboxed-uniform-container datas first || has-unboxed-uniform-container datas rest
+    USigma id name dom body -> has-unboxed-uniform-container datas dom || has-unboxed-uniform-container datas body
+    UFun a b -> has-unboxed-uniform-container datas a || has-unboxed-uniform-container datas b
+    UFunEff a row b -> has-unboxed-uniform-container datas a || has-unboxed-uniform-container datas b
+    UUsageArrow u inner -> has-unboxed-uniform-container datas inner
+    URequire p body -> has-unboxed-uniform-container datas body
+    other -> False
 
-  check-value-term :: Nat -> Bool -> Bool -> List CoreData -> CoreTerm -> Store -> Store
-  check-value-term word-bits no-alloc no-raw-ptr datas term st = case term of
-    CPrimitive sp ty "val-mut-as-ptr" args ->
-      let s1 = if no-raw-ptr then add-error sp "mutAsPtr is forbidden in #[no-raw-ptr] functions" st else st in
-      check-value-term word-bits no-alloc no-raw-ptr datas args s1
-    CPrimitive sp ty "mut-borrow" args ->
-      let s1 = if no-alloc then add-error sp "heap allocation is forbidden in #[no-alloc] functions" st else st in
-      check-value-term word-bits no-alloc no-raw-ptr datas args s1
-    CPrimitive sp ty "val-place-subborrow" (CArgument at place (CArgument bt (CString st2 sty path) (CArgumentsEnd end))) ->
-      let s1 = (case borrow-type-parts (core-type place) of
-        Some (is-mut, region, carrier) -> (case resolve-value-field-path datas carrier (string-split-on "." path) 0 of
-          Some (off, fnat, fty) ->
-            if fnat > 1 && prelim-mod-nat off fnat /= 0 then
-              add-error sp "cannot take an interior reference to a misaligned field of a packed struct" st
-            else st
-          None -> st)
-        None -> st) in
-      check-value-term word-bits no-alloc no-raw-ptr datas place s1
-    CPrimitive sp ty "val-fixed-repeat" args ->
-      let s1 = (case fixed-array-parts ty of
-        Some (n, elem) -> (case pod-type-layout word-bits datas elem of
-          Some pair -> st
-          None -> add-error sp "FixedArray requires a POD (non-refcounted) element type" st)
-        None -> st) in
-      check-value-term word-bits no-alloc no-raw-ptr datas args s1
-    CUse sp ty name role actuals ->
-      if role /= "foreign" && any-unboxed-value-type datas actuals then
-        add-error sp "unboxed value types cannot instantiate polymorphic type parameters yet" st
+  check-boxed-evidence :: List CoreData -> CoreEvidence -> Store -> Store
+  check-boxed-evidence datas ev st = case ev of
+    CEBoxed sp carrier ->
+      if is-unboxed-value-type datas carrier then
+        add-error sp (string-concat-all ["no Boxed evidence for ", type-text carrier, ": unboxed value type (wrap in Box)"]) st
       else st
-    CQualifiedUse sp ty name role actuals evidence ->
-      if role /= "foreign" && any-unboxed-value-type datas actuals then
-        add-error sp "unboxed value types cannot instantiate polymorphic type parameters yet" st
-      else st
-    CPolyElim sp ty value actuals ->
-      let s1 = if any-unboxed-value-type datas actuals then
-            add-error sp "unboxed value types cannot instantiate polymorphic type parameters yet" st else st in
-      check-value-term word-bits no-alloc no-raw-ptr datas value s1
-    CLambda sp ty pat body ->
-      let s1 = if any-unboxed-free-local datas (task-free (task-pattern-ids pat) body) then
-            add-error sp "closures cannot capture unboxed value types yet" st else st in
-      check-value-term word-bits no-alloc no-raw-ptr datas body s1
-    other -> check-value-terms word-bits no-alloc no-raw-ptr datas (term-children other) st
+    CEInstance sp ty name actuals args -> check-boxed-evidence datas args st
+    CEArgument sp first rest -> check-boxed-evidence datas rest (check-boxed-evidence datas first st)
+    other -> st
+
+  check-boxed-evidences :: List CoreData -> List CoreEvidence -> Store -> Store
+  check-boxed-evidences datas evs st = case evs of
+    [] -> st
+    first : rest -> check-boxed-evidences datas rest (check-boxed-evidence datas first st)
+
+  check-value-terms :: Span -> Nat -> Bool -> Bool -> List CoreData -> List CoreTerm -> Store -> Store
+  check-value-terms def-sp word-bits no-alloc no-raw-ptr datas terms st = case terms of
+    [] -> st
+    first : rest -> check-value-terms def-sp word-bits no-alloc no-raw-ptr datas rest (check-value-term def-sp word-bits no-alloc no-raw-ptr datas first st)
+
+  check-value-term :: Span -> Nat -> Bool -> Bool -> List CoreData -> CoreTerm -> Store -> Store
+  check-value-term def-sp word-bits no-alloc no-raw-ptr datas term st =
+    let s0 = (if has-unboxed-uniform-container datas (core-type term) then add-error def-sp "unboxed value type cannot be stored in uniform-word runtime container (wrap in Box)" st else st) in
+    case term of
+      CPrimitive sp ty "val-mut-as-ptr" args ->
+        let s1 = if no-raw-ptr then add-error sp "mutAsPtr is forbidden in #[no-raw-ptr] functions" s0 else s0 in
+        check-value-term sp word-bits no-alloc no-raw-ptr datas args s1
+      CPrimitive sp ty "mut-borrow" args ->
+        let s1 = if no-alloc then add-error sp "heap allocation is forbidden in #[no-alloc] functions" s0 else s0 in
+        check-value-term sp word-bits no-alloc no-raw-ptr datas args s1
+      CPrimitive sp ty "val-place-subborrow" (CArgument at place (CArgument bt (CString st2 sty path) (CArgumentsEnd end))) ->
+        let s1 = (case borrow-type-parts (core-type place) of
+          Some (is-mut, region, carrier) -> (case resolve-value-field-path datas carrier (string-split-on "." path) 0 of
+            Some (off, fnat, fty) ->
+              if fnat > 1 && prelim-mod-nat off fnat /= 0 then
+                add-error sp "cannot take an interior reference to a misaligned field of a packed struct" s0
+              else s0
+            None -> s0)
+          None -> s0) in
+        check-value-term sp word-bits no-alloc no-raw-ptr datas place s1
+      CPrimitive sp ty "val-fixed-repeat" args ->
+        let s1 = (case fixed-array-parts ty of
+          Some (n, elem) -> (case pod-type-layout word-bits datas elem of
+            Some pair -> s0
+            None -> add-error sp "FixedArray requires a POD (non-refcounted) element type" s0)
+          None -> s0) in
+        check-value-term sp word-bits no-alloc no-raw-ptr datas args s1
+      CQualifiedUse sp ty name role actuals evidence ->
+        check-boxed-evidences datas evidence s0
+      CMethod sp ty name owner slot actuals evidence ->
+        check-boxed-evidences datas evidence s0
+      CScope sp ty region evidence callback ->
+        check-value-term sp word-bits no-alloc no-raw-ptr datas callback (check-boxed-evidence datas evidence s0)
+      other -> check-value-terms def-sp word-bits no-alloc no-raw-ptr datas (term-children other) s0
 
   check-value-clauses :: Nat -> Bool -> Bool -> List CoreData -> List CoreClause -> Store -> Store
   check-value-clauses word-bits no-alloc no-raw-ptr datas clauses st = case clauses of
     [] -> st
     (CoreClause sp ps body) : rest ->
-      check-value-clauses word-bits no-alloc no-raw-ptr datas rest (check-value-term word-bits no-alloc no-raw-ptr datas body st)
+      check-value-clauses word-bits no-alloc no-raw-ptr datas rest (check-value-term sp word-bits no-alloc no-raw-ptr datas body st)
 
   check-value-defs :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
   check-value-defs word-bits ds datas defs st = case defs of
@@ -12157,8 +12176,7 @@ module Cinch.Infer where
 
   check-value-rules :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
   check-value-rules word-bits ds datas core st =
-    let s1 = check-boxed-data-fields datas datas st in
-    check-value-defs word-bits ds datas core s1
+    check-value-defs word-bits ds datas core st
 
   finish-module-tuned :: CompileTuning -> HashMap String CoreDefinition -> ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module-tuned tuning cached imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =

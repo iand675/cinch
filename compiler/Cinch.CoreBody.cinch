@@ -256,6 +256,7 @@ module Cinch.CoreBody where
       (dense-node "evidence-needed" [doc, givens], t2)
     CECopy s carrier -> let (doc, next) = dense-type-doc dense carrier table in (dense-node "evidence-copy" [doc], next)
     CEKernel s carrier -> let (doc, next) = dense-type-doc dense carrier table in (dense-node "evidence-kernel" [doc], next)
+    CEBoxed s carrier -> let (doc, next) = dense-type-doc dense carrier table in (dense-node "evidence-boxed" [doc], next)
     CEGiven s ty name -> let (doc, t1) = dense-type-doc dense ty table in (dense-node "evidence-given" [doc, JStr name], t1)
     CEInstance s ty name actuals arguments ->
       let (doc, t1) = dense-type-doc dense ty table in
@@ -815,6 +816,11 @@ module Cinch.CoreBody where
       else if dense-same tag "evidence-kernel" then (case rest of
         JArr carrierDoc JArrEnd -> (case dense-type-of types carrierDoc of
           Some carrier -> if kernel-marker-carrier carrier then Some (CEKernel dense-zero carrier) else None
+          None -> None)
+        other -> None)
+      else if dense-same tag "evidence-boxed" then (case rest of
+        JArr carrierDoc JArrEnd -> (case dense-type-of types carrierDoc of
+          Some carrier -> if boxed-marker-carrier carrier then Some (CEBoxed dense-zero carrier) else None
           None -> None)
         other -> None)
       else if dense-same tag "evidence-given" then (case rest of

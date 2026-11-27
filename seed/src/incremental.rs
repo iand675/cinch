@@ -1381,6 +1381,7 @@ impl Session {
             &manifest_path,
             &stage,
             &opt_program,
+            None,
             &opt,
             &self.profile,
             &crate::core::BuildProfiles::of_target(&self.profile),

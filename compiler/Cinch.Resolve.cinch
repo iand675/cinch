@@ -6,7 +6,7 @@ module Cinch.Resolve where
 
   import Cinch.Ast
   import Cinch.Nominal (stage-quotation-module, interface-global, kernel-type-name, encode-identity, global-algebra-arithmetic-nonzero, global-data-bool-not, global-data-core-cons, global-data-core-nil)
-  import Cinch.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration, vector-declaration)
+  import Cinch.Builtin (cell-effect-name, builtin-bindings, builtin-declarations, finite-index-declaration, vector-declaration, box-declaration, unbox-declarations)
   import Cinch.Report (Diagnostic)
   import Cinch.Load (LoadedInterface, loaded-names, validate-interface-set, ValidatedInterfaces, canonical-interface-validation)
   import Cinch.Inputs (embedded-library-home)
@@ -1234,7 +1234,7 @@ module Cinch.Resolve where
   -- instance would claim a structural fact the compiler cannot verify.
   structural-class-head :: TypeExpr -> Bool
   structural-class-head ty = case ty of
-    TName s name -> name == "Copy" || name == "Share" || name == "Kernel"
+    TName s name -> name == "Copy" || name == "Share" || name == "Kernel" || name == "Boxed"
     TApp s head args -> structural-class-head head
     other -> False
   -- Generated names belong to the destination module. Their templates see
@@ -1289,7 +1289,7 @@ module Cinch.Resolve where
       else ([DCodata s (global-name home name) (rename-params visible [] params)
         (rename-record-fields False visible (parameter-names params) observations)], [])
     DClass s name params members ->
-      if name == "Copy" || name == "Share" || name == "Kernel" then ([], fail s "Copy, Share and Kernel are compiler-known classes and cannot be declared") else
+      if name == "Copy" || name == "Share" || name == "Kernel" || name == "Boxed" then ([], fail s "Copy, Share, Kernel and Boxed are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible [] params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell", "AtomicCell", "RwLockCell"] then ([], fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a refinement")) else
@@ -1769,7 +1769,9 @@ module Cinch.Resolve where
       -- a source mention of a prelude family would.
       let admitted = if referenced "b.Fin" all-reference-set then finite-index-declaration : declarations else declarations in
       let families = if referenced "b.Vec" all-reference-set then vector-declaration : admitted else admitted in
-      case materialize-externals all-reference-set families [] of
+      let boxed = if referenced "b.Box" all-reference-set || referenced "b.unbox" all-reference-set then box-declaration : families else families in
+      let all-families = if referenced "b.unbox" all-reference-set then unbox-declarations <> boxed else boxed in
+      case materialize-externals all-reference-set all-families [] of
         -- Source declaration resolution rejects DInterface. Positional
         -- selection and materialization keep every package DInterface.
         (body, errors) -> let retained = (case (prepared, errors) of

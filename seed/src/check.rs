@@ -1409,7 +1409,25 @@ impl<'a> LowerCx<'a> {
                 _ => self.expr_class(b),
             },
             ECore::LitFold { body, .. } => self.expr_class(body),
-            ECore::App(f, _) if matches!(&**f, ECore::Prim(PrimOp::Value(_))) => Some(Class::Raw),
+            ECore::App(f, _) if matches!(&**f, ECore::Prim(PrimOp::Value(_))) => {
+                let agg_cls = |lid: u32| -> Class {
+                    if let Some(vl) = self.ck.value_layouts.get(lid as usize) {
+                        if !matches!(vl.kind, crate::core::ValueLayoutKind::Scalar { .. }) {
+                            return Class::Val { size: vl.size as u32, align: vl.align.max(1) as u16 };
+                        }
+                    }
+                    Class::Raw
+                };
+                let ECore::Prim(PrimOp::Value(op)) = &**f else { unreachable!() };
+                Some(match op {
+                    crate::core::ValOp::Construct { layout, .. }
+                    | crate::core::ValOp::FixedArrayRepeat { layout } => agg_cls(*layout),
+                    crate::core::ValOp::Proj { field_layout, .. } => agg_cls(*field_layout),
+                    crate::core::ValOp::FixedArrayGet { elem_layout, .. } => agg_cls(*elem_layout),
+                    crate::core::ValOp::PlaceLoad { layout, .. } => agg_cls(*layout),
+                    _ => Class::Raw,
+                })
+            }
             ECore::Proj(_, _, t, _) | ECore::DictProj(.., t) | ECore::Demand(_, t) | ECore::BoxGet(_, t)
             | ECore::BoxInit(_, _, t) => Some(self.class(t)),
             ECore::ConstBig { .. } => Some(Class::TObj),
@@ -1417,8 +1435,59 @@ impl<'a> LowerCx<'a> {
             | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
             ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
-            ECore::App(f, _) => match &**f {
+            ECore::App(f, args) => match &**f {
                 ECore::Ctor(id, _) => Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t))),
+                ECore::Global(id, tys) => {
+                    if let Some(fd) = self.ck.fns.iter().find(|fd| fd.id == *id) {
+                        if args.len() == fd.arity() {
+                            if let Some(res) = fd.repr.result {
+                                let v = if !tys.is_empty() {
+                                    self.classes(tys)
+                                } else if self.own.contains(id) {
+                                    crate::repr::identity(self.tparams.len())
+                                } else {
+                                    Vec::new()
+                                };
+                                return Some(res.subst(&v));
+                            }
+                            if let Some(lid) = fd.repr.value_result {
+                                if let Some(vl) = self.ck.value_layouts.get(lid as usize) {
+                                    return Some(Class::Val { size: vl.size as u32, align: vl.align.max(1) as u16 });
+                                }
+                            }
+                        }
+                    }
+                    // Fallback for forward / mutually-recursive functions not yet in `self.ck.fns`:
+                    // inspect the declared value scheme's return type after peeling `args.len()` arrows.
+                    if let Some((mod_name, val_name)) = id.0.rsplit_once('.') {
+                        if let Some(vs) = self.ck.values.get(val_name) {
+                            if let Some(v) = vs.iter().find(|v| v.module == mod_name) {
+                                let mut t = v.scheme.ty.clone();
+                                let mut left = args.len();
+                                let mut peeled_all = true;
+                                while left > 0 {
+                                    match t {
+                                        Ty::Fun(_, m, _, cod) => {
+                                            if m != crate::types::Mult::Zero { left -= 1; }
+                                            t = *cod;
+                                        }
+                                        Ty::Pi { mult, cod, .. } => {
+                                            if mult != crate::types::Mult::Zero { left -= 1; }
+                                            t = *cod;
+                                        }
+                                        _ => { peeled_all = false; break; }
+                                    }
+                                }
+                                if peeled_all {
+                                    let res = crate::repr::repr_of(&t, &v.scheme.params, self.ck, &mut |_| {});
+                                    let cv = self.classes(tys);
+                                    return Some(res.subst(&cv));
+                                }
+                            }
+                        }
+                    }
+                    None
+                }
                 _ => None,
             },
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
@@ -1457,9 +1526,29 @@ impl crate::repr::TypeReprs for Checker {
             return crate::repr::AdtRepr::Raw;
         }
         if self.is_value_record(&kind.module, &kind.name) {
-            return crate::repr::AdtRepr::Value;
+            if let Some(&id) = self.value_records.get(&(kind.module.clone(), kind.name.clone())) {
+                if let Some(vl) = self.value_layouts.get(id as usize) {
+                    return crate::repr::AdtRepr::Value {
+                        size: vl.size as u32,
+                        align: vl.align.max(1) as u16,
+                    };
+                }
+            }
+            if let Some(tl) = self.type_layouts.get(&(kind.module.clone(), kind.name.clone())) {
+                return crate::repr::AdtRepr::Value {
+                    size: tl.size as u32,
+                    align: tl.align.max(1) as u16,
+                };
+            }
+            return crate::repr::AdtRepr::Value { size: 0, align: 1 };
         }
         crate::repr::AdtRepr::Obj
+    }
+
+    fn fixed_array_layout(&self, args: &[Ty]) -> Option<(u32, u16)> {
+        let ty = Ty::Adt("FixedArray".into(), args.to_vec());
+        let vl = self.pod_value_layout(&ty)?;
+        Some((vl.size as u32, vl.align.max(1) as u16))
     }
 }
 
@@ -1524,17 +1613,6 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::Unit => C::Unit,
         ECore::Var(l) => C::Var(*l),
         ECore::Global(g, tys) => {
-            if !tys.is_empty() && !cx.ck.is_prim_unit(&g.0) {
-                for t in tys {
-                    let z = cx.ck.uni.zonk(t);
-                    if cx.ck.is_unboxed_value_ty(&z) {
-                        cx.refuse(format!(
-                            "unboxed value type `{z}` cannot instantiate uniform-word polymorphic parameter of `{}` yet (polymorphism over unboxed value types is deferred)",
-                            g.0
-                        ));
-                    }
-                }
-            }
             let v = if !tys.is_empty() {
                 cx.classes(tys)
             } else if cx.own.contains(g) {
@@ -1542,31 +1620,47 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             } else {
                 Vec::new()
             };
+            if v.iter().any(|c| c.is_val()) {
+                if let Some(op) = cx.ck.fns.iter().find(|f| f.id == *g).and_then(|f| f.prim) {
+                    let container = match op {
+                        PrimOp::Stm { .. } => Some("a `TVar` cell"),
+                        PrimOp::MVar { .. } => Some("an `MVar` cell"),
+                        PrimOp::RwLock { .. } => Some("an `RwLock` cell"),
+                        PrimOp::Slots { .. } => Some("a uniform slot table"),
+                        PrimOp::Par { .. } => Some("a parallel task payload"),
+                        PrimOp::Array { packed: None, .. } => Some("a uniform `Array` element slot"),
+                        _ => None,
+                    };
+                    if let Some(what) = container {
+                        cx.refuse(format!(
+                            "unboxed value type cannot occupy uniform-word runtime container ({what}; `Boxed` required) — wrap it explicitly in `Box`"
+                        ));
+                    }
+                }
+            }
             C::Global(g.clone(), v)
         }
         ECore::Ctor(g, tys) if cx.ck.has_constructor_body(g) => C::Global(g.clone(), cx.classes(tys)),
-        ECore::Ctor(g, tys) => {
-            for t in tys {
-                let z = cx.ck.uni.zonk(t);
-                if cx.ck.is_unboxed_value_ty(&z) {
-                    cx.refuse(format!(
-                        "unboxed value type `{z}` cannot instantiate uniform-word polymorphic constructor `{}` yet (polymorphism over unboxed value types is deferred)",
-                        g.0
-                    ));
-                }
-            }
-            C::Ctor(g.clone(), cx.classes(tys))
-        }
+        ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
         ECore::Prim(p) => C::Prim(*p),
         ECore::Foreign(n) => C::Foreign(n.clone()),
-        ECore::DictProj(d, i, site, ty) => C::DictProj(
-            Box::new(low(d)),
-            *i,
-            site.as_ref().map(|(class, own)| {
-                Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
-            }),
-            cx.class(ty),
-        ),
+        ECore::DictProj(d, i, site, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform-word dictionary value slot (`Boxed` required) — wrap it explicitly in `Box`"
+                        .to_string(),
+                );
+            }
+            C::DictProj(
+                Box::new(low(d)),
+                *i,
+                site.as_ref().map(|(class, own)| {
+                    Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
+                }),
+                cls,
+            )
+        }
         ECore::Proj(d, f, ty, before) => C::Proj(
             Box::new(low(d)),
             crate::core::ProjField {
@@ -1626,14 +1720,59 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
                 body: Box::new(low(&f.body)),
             },
         ),
-        ECore::Demand(d, ty) => C::Demand(Box::new(low(d)), cx.class(ty)),
+        ECore::Demand(d, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a `Lazy` cell (`Boxed` required) — wrap it explicitly in `Box`"
+                        .to_string(),
+                );
+            }
+            C::Demand(Box::new(low(d)), cls)
+        }
         ECore::LazyAlloc => C::LazyAlloc,
         ECore::LazyInit(l, t) => C::LazyInit(*l, Box::new(low(t))),
         ECore::BoxAlloc => C::BoxAlloc,
-        ECore::BoxInit(l, v, ty) => C::BoxInit(*l, Box::new(low(v)), cx.class(ty)),
-        ECore::RefSet(l, v, ty) => C::RefSet(*l, Box::new(low(v)), cx.class(ty)),
-        ECore::BoxGet(v, ty) => C::BoxGet(Box::new(low(v)), cx.class(ty)),
-        ECore::BoxClear(v, ty) => C::BoxClear(Box::new(low(v)), cx.class(ty)),
+        ECore::BoxInit(l, v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::BoxInit(*l, Box::new(low(v)), cls)
+        }
+        ECore::RefSet(l, v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::RefSet(*l, Box::new(low(v)), cls)
+        }
+        ECore::BoxGet(v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::BoxGet(Box::new(low(v)), cls)
+        }
+        ECore::BoxClear(v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::BoxClear(Box::new(low(v)), cls)
+        }
         ECore::Case { scrut, alts } => C::Case {
             scrut: Box::new(low(scrut)),
             alts: alts
@@ -5093,7 +5232,7 @@ impl Checker {
     /// runtime evidence words and the `Copy` marker is the unit word;
     /// every other dictionary is a counted block.
     pub(crate) fn dict_class(class: &str) -> crate::repr::Class {
-        if is_capability_class(class) || class == "Copy" || class == "Kernel" {
+        if is_capability_class(class) || class == "Copy" || class == "Kernel" || class == "Boxed" {
             crate::repr::Class::Raw
         } else {
             crate::repr::Class::Obj
@@ -5673,7 +5812,7 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
                 || self.value_may_hide_scope(cod, seen, fuel - 1),
             Ty::Adt(name, args) => {
-                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" { return false; }
+                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" || name == "Boxed" { return false; }
                 if name == "Task" { return true; }
                 if matches!(name.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
@@ -7314,12 +7453,59 @@ impl Checker {
         }
     }
 
+    /// Structural `Boxed` evidence for uniform 1-word / pointer-compatible
+    /// boundaries (`TVar`, `Lazy`, `MVar`, `Par`, existentials, or explicit
+    /// `using (Boxed a)`): accepts all normal boxed ADTs/records, `Box a`,
+    /// closures, and builtin single-slot scalars/pointers; rejects unboxed
+    /// value aggregates (`#[repr(value)]` records and `FixedArray n a`)
+    /// target-independently so accidental heap boxing cannot happen silently.
+    pub(crate) fn boxed_structural<B>(
+        &self,
+        ty: &Ty,
+        scope: &[(B, ClassApp)],
+    ) -> std::result::Result<(), String> {
+        if scope
+            .iter()
+            .any(|(_, c)| c.class == "Boxed" && c.args.iter().any(|a| a == ty))
+        {
+            return Ok(());
+        }
+        match ty {
+            Ty::Adt(name, args) if name.as_str() == "refined" => {
+                if let Some(base) = args.get(1) {
+                    self.boxed_structural(base, scope)
+                } else {
+                    Ok(())
+                }
+            }
+            Ty::Adt(name, args) if name.as_str() == "Sing" => {
+                if let Some(base) = args.first() {
+                    self.boxed_structural(base, scope)
+                } else {
+                    Ok(())
+                }
+            }
+            Ty::Adt(name, _) if name.as_str() == "FixedArray" => Err(format!(
+                "unboxed `FixedArray` type `{ty}` does not satisfy `Boxed`; wrap it explicitly in `Box`"
+            )),
+            _ if crate::repr::is_value_ty(ty, self) => Err(format!(
+                "unboxed `#[repr(value)]` type `{ty}` does not satisfy `Boxed`; wrap it explicitly in `Box`"
+            )),
+            Ty::Param(p) => Err(format!(
+                "type parameter `{p}` is not known to satisfy `Boxed`; add a `using (b :: Boxed {p})` constraint or wrap in `Box`"
+            )),
+            _ => Ok(()),
+        }
+    }
+
     fn signature_at(&self, owner: &str, name: &str) -> Option<SigInfo> {
-        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Kernel" | "Io") {
+        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Kernel" | "Boxed" | "Io") {
             let (name, parameter) = if name == "Io" {
                 ("Io", "r")
             } else if name == "Kernel" {
                 ("Kernel", "a")
+            } else if name == "Boxed" {
+                ("Boxed", "a")
             } else {
                 ("Copy", "a")
             };
@@ -7373,7 +7559,7 @@ impl Checker {
                 // section 3). It is not user-extensible. `Io` is the
                 // runtime capability head (decision D21): its instances
                 // are runtime objects supplied lexically, never declared.
-                if matches!(*name, "Copy" | "Share" | "Kernel" | "Io") {
+                if matches!(*name, "Copy" | "Share" | "Kernel" | "Boxed" | "Io") {
                     return Ok(self.signature_at("<builtin>", name).unwrap());
                 }
                 self.sigs
@@ -8727,7 +8913,7 @@ impl Checker {
                 } else {
                     let class = resolver.uni.zonk_class(&request.class);
                     if self.collecting_declarations && !self.provisional_declarations && self.declaration_seed.is_none()
-                        && class.class != "Copy" && class.class != "Kernel" && !is_capability_class(&class.class) {
+                        && class.class != "Copy" && class.class != "Kernel" && class.class != "Boxed" && !is_capability_class(&class.class) {
                         self.declaration_needs_headers.set(true);
                         return Err(Error::at(request.span, "index declaration evidence needs the complete instance headers"));
                     }

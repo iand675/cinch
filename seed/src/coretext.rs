@@ -1060,6 +1060,7 @@ fn class_letter(class: Class) -> char {
         Class::Obj => 'O',
         Class::TObj => 'T',
         Class::Wide => 'W',
+        Class::Val { .. } => 'V',
         Class::Param(index) => char::from(b'0' + (index % 10) as u8),
     }
 }
@@ -1070,6 +1071,7 @@ fn class_text(class: Class) -> String {
     match class {
         Class::Raw => "uncounted".to_string(),
         Class::Wide => "uncounted wide".to_string(),
+        Class::Val { size, align } => format!("uncounted val({size},{align})"),
         // A counted object class, NOT the owned calling convention. The
         // dump once labelled this `@owned`, which reads as the opposite of
         // the `@borrow-modes` annotation beside it and sent a reader looking

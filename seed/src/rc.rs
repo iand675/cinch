@@ -176,7 +176,10 @@ fn insert_with(
         let wide: std::collections::HashSet<&str> = program
             .fns
             .iter()
-            .filter(|f| f.repr.result == Some(crate::repr::Class::Wide) || f.repr.params.contains(&crate::repr::Class::Wide))
+            .filter(|f| {
+                f.repr.result.is_some_and(|c| c == crate::repr::Class::Wide || c.is_val())
+                    || f.repr.params.iter().any(|c| *c == crate::repr::Class::Wide || c.is_val())
+            })
             .map(|f| f.id.0.as_str())
             .collect();
         if !wide.is_empty() {
@@ -1030,7 +1033,7 @@ impl Ctors {
             // interchangeable with a uniform constructor of its field count.
             let planned = program.plans.contains_key(&f.id.0)
                 || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref())
-                || f.repr.fields.contains(&Class::Wide);
+                || f.repr.fields.iter().any(|c| *c == Class::Wide || c.is_val());
             let fact = CtorFact { fields, planned, data: f.repr.data.clone(), classes: f.repr.fields.clone() };
             if let Some(d) = &f.repr.data {
                 by_data.entry(d.clone()).or_default().push((tag, fact.clone()));
@@ -2256,7 +2259,7 @@ impl Verifier<'_, '_, '_> {
     /// and constructor words are immortal; a zero-arity global executes.
     fn safe_borrow_argument(&self, head: &Core, index: usize, arg: &Core) -> bool {
         let globals = self.globals.expect("program verification has unit metadata");
-        let raw = |class: Class| matches!(class, Class::Raw | Class::Wide);
+        let raw = |class: Class| matches!(class, Class::Raw | Class::Wide | Class::Val { .. });
         let result = |name: &str| globals.get(name).and_then(|f| f.repr.result);
         match arg {
             Core::Let(_, _, _, body) => return self.safe_borrow_argument(head, index, body),

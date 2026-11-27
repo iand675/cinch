@@ -3259,10 +3259,13 @@ impl ProjField {
         ProjField { slot, access: None, class, mutable: false, before: Vec::new() }
     }
 
-    /// The payload word the field starts at: its slot, plus one word for
-    /// each wide field before it.
+    /// The payload word the field starts at: sum of word widths of all fields before it.
     pub fn word(&self) -> usize {
-        self.slot + self.before.iter().filter(|c| **c == Class::Wide).count()
+        if self.before.is_empty() {
+            self.slot
+        } else {
+            self.before.iter().map(|c| c.words()).sum()
+        }
     }
 }
 
@@ -8796,6 +8799,9 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>, wide_
             let Some(param_classes) = free.iter().map(|l| classes.get(&l.0).copied()).collect::<Option<Vec<Class>>>() else {
                 continue;
             };
+            if param_classes.iter().any(|c| c.is_val()) || classes.values().any(|c| c.is_val()) {
+                continue;
+            }
             let name = loop {
                 let candidate = format!("{}.shared{counter}", f.id.0);
                 counter += 1;

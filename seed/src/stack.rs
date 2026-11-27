@@ -677,6 +677,10 @@ struct Facts {
     ctors: HashMap<String, (Vec<Class>, usize, bool)>,
     /// Each unit's runtime parameter classes (`UnitRepr::params`).
     params: HashMap<String, Vec<Class>>,
+    /// Units whose calling convention includes any `Class::Val` / value-layout
+    /// parameter or result; their closures have multi-word frame layouts that
+    /// stack-frame lowering does not reproduce.
+    has_val_sig: BTreeSet<String>,
     /// Private frame-safe parameter facts derived from ARC borrowing plus
     /// actual noncapture evidence; never published as an ABI convention.
     borrowed: BTreeMap<String, Vec<bool>>,
@@ -696,9 +700,17 @@ impl Facts {
         let mut arity = HashMap::new();
         let mut ctors = HashMap::new();
         let mut params = HashMap::new();
+        let mut has_val_sig = BTreeSet::new();
         for f in &p.fns {
             arity.insert(f.id.0.clone(), f.arity());
             params.insert(f.id.0.clone(), f.repr.params.clone());
+            if f.repr.params.iter().any(|c| c.is_val())
+                || f.repr.result.is_some_and(|c| c.is_val())
+                || f.repr.value_params.iter().any(|v| v.is_some())
+                || f.repr.value_result.is_some()
+            {
+                has_val_sig.insert(f.id.0.clone());
+            }
             if let Some((_, fields)) = f.ctor {
                 let mut cs = f.repr.fields.clone();
                 if cs.len() != fields {
@@ -713,6 +725,7 @@ impl Facts {
             arity,
             ctors,
             params,
+            has_val_sig,
             borrowed: p.borrowed.clone(),
             lent: p.lent.clone(),
             // The parameter summaries are computed against the facts
@@ -1223,7 +1236,7 @@ fn cand_of(e: &Core, facts: &Facts) -> Option<Cand> {
             }
             let words = args.len() as u32;
             let bytes = u64::from(words) * 8;
-            if *boundary || fields.contains(&Class::Wide) {
+            if *boundary || fields.iter().any(|c| *c == Class::Wide || c.is_val()) {
                 // A boundary layout records its fields at offsets this
                 // lowering does not reproduce, and a wide field takes two
                 // payload words where this lowering stores one per field,
@@ -1252,6 +1265,9 @@ fn cand_of(e: &Core, facts: &Facts) -> Option<Cand> {
             let words = 3 + env.len() as u32;
             let saved = &params[..env.len().min(params.len())];
             let site = payload(words, 3, saved, Shape::Closure { fn_id: fn_id.clone(), env: env.len() as u32 });
+            if facts.has_val_sig.contains(&fn_id.0) {
+                return Some(Cand { site: Some(site), blocked: Some(Refusal::Layout), bytes: u64::from(words) * 8 });
+            }
             Some(Cand { site: Some(site), blocked: None, bytes: u64::from(words) * 8 })
         }
         _ => None,

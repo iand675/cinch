@@ -102,6 +102,11 @@ module Cinch.Dictionary where
             UMeta id KType -> let defaulted = default-numbers-for carrier st in
               checked-kernel-marker sp (normalize defaulted carrier) defaulted
             other -> checked-kernel-marker sp carrier st)
+        UApp (UCon name (KFun KType KType)) carrier | (name == "Boxed") ->
+          (case carrier of
+            UMeta id KType -> let defaulted = default-numbers-for carrier st in
+              checked-boxed-marker sp (normalize defaulted carrier) defaulted
+            other -> checked-boxed-marker sp carrier st)
         other -> choose-instance context allowed sp wanted st)
     candidate : rest -> case find-given (candidate.symbol) allowed of
       None -> fail-evidence sp wanted "dictionary evidence refers to an out-of-scope binder" st
@@ -118,6 +123,10 @@ module Cinch.Dictionary where
   checked-kernel-marker sp carrier st = if kernel-marker-carrier carrier then (CEKernel sp carrier, st)
     else fail-evidence sp (UApp (UCon "Kernel" (KFun KType KType)) carrier)
       (string-concat "no Kernel evidence for " (type-text carrier)) st
+  checked-boxed-marker :: Span -> UType -> Store -> (CoreEvidence, Store)
+  checked-boxed-marker sp carrier st = if boxed-marker-carrier carrier then (CEBoxed sp carrier, st)
+    else fail-evidence sp (UApp (UCon "Boxed" (KFun KType KType)) carrier)
+      (string-concat-all ["no Boxed evidence for ", type-text carrier, " (wrap in Box)"]) st
   resolve-evidence :: Resolution -> List CoreGiven -> CoreEvidence -> Store -> (CoreEvidence, Store)
   resolve-evidence context allowed evidence st = case evidence of
     CENeeded sp ty candidates -> if valid-goal (context.classes) (normalize st ty) then
@@ -132,6 +141,7 @@ module Cinch.Dictionary where
         else fail-evidence sp ty "dictionary evidence has no checked signature type" st
     CECopy sp carrier -> checked-copy-marker sp (normalize st carrier) st
     CEKernel sp carrier -> checked-kernel-marker sp (normalize st carrier) st
+    CEBoxed sp carrier -> checked-boxed-marker sp (normalize st carrier) st
     CEInstance sp ty name actuals args -> check-instance context allowed sp ty name actuals args st
     other -> fail-evidence (Span 0 0 1 1) UError "dictionary argument spine is not an evidence value" st
   resolve-evidences :: Resolution -> List CoreGiven -> List CoreEvidence -> Store -> (List CoreEvidence, Store)

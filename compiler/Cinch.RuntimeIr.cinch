@@ -96,7 +96,7 @@ module Cinch.RuntimeIr where
     ConstructorDemand :: String -> List Nat -> Demand
     LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Demand
     RecursiveDemand :: RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Demand
-    StubDemand :: String -> List Nat -> Demand
+    StubDemand :: String -> List Nat -> Nat -> Demand
     DictionaryDemand :: String -> List Nat -> Demand
     ArrayDemand :: String -> List Nat -> Demand
     -- | Request a checked MVar wrapper with its concrete payload representation.
@@ -600,16 +600,47 @@ module Cinch.RuntimeIr where
   program-word-bits info = if program-wasm32 info then 32 else 64
   program-ptr-bytes :: ProgramInfo -> Nat
   program-ptr-bytes info = if program-wasm32 info then 4 else 8
+  encode-val-class :: Nat -> Nat -> Nat
+  encode-val-class sz al = 4 + sz * 65536 + al
+  is-val-class :: Nat -> Bool
+  is-val-class code = code >= 4
+  val-class-size :: Nat -> Nat
+  val-class-size code = if 4 <= code then (code - 4) / 65536 else 0
+  val-class-align :: Nat -> Nat
+  val-class-align code = if 4 <= code then (code - 4) % 65536 else 1
+  val-size-words :: Nat -> Nat
+  val-size-words sz = if sz == 0 then 1 else (sz + 7) / 8
+  val-class-words :: Nat -> Nat
+  val-class-words code = val-size-words (val-class-size code)
+  val-needs-sret-apply :: Nat -> Nat -> Bool
+  val-needs-sret-apply sz al = sz > 8 || al > 16
+  val-code-needs-sret-apply :: Nat -> Bool
+  val-code-needs-sret-apply code = is-val-class code && val-needs-sret-apply (val-class-size code) (val-class-align code)
+  val-code :: List Nat -> Bool
+  val-code classes = case classes of [] -> False; code : rest -> is-val-class code || val-code rest
+  val-refusal :: String
+  val-refusal = "unboxed value type cannot occupy a uniform-word runtime container (wrap in Box)"
   type-value-size-align :: RuntimeContext -> UType -> Option (Nat, Nat)
   type-value-size-align context raw-ty =
     let ty = base (reduce-types (context.info.type-families) (context.info.promoted-fns) raw-ty) in
     case fixed-array-parts ty of
       Some pair -> pod-type-layout (program-word-bits (context.info)) (context.info.index-of.datas) ty
-      None -> case type-head ty of
-        UCon name KType -> (case value-layout-of name (context.info.index-of.datas) of
-          Some (repr, sz, al, fs) -> Some (sz, al)
-          None -> None)
-        other -> None
+      None -> case ty of
+        UBound id name KType -> (case context of
+          RuntimeContext datas bounds rigids queue inlining ->
+            case representation id bounds of
+              Some code | is-val-class code -> Some (val-class-size code, val-class-align code)
+              other -> None)
+        URigid id name level KType -> (case context of
+          RuntimeContext datas bounds rigids queue inlining ->
+            case representation id rigids of
+              Some code | is-val-class code -> Some (val-class-size code, val-class-align code)
+              other -> None)
+        other -> case type-head ty of
+          UCon name KType -> (case value-layout-of name (context.info.index-of.datas) of
+            Some (repr, sz, al, fs) -> Some (sz, al)
+            None -> None)
+          other -> None
   is-value-type :: RuntimeContext -> UType -> Bool
   is-value-type context ty = case type-value-size-align context ty of Some pair -> True; None -> False
   is-indirect-value :: RuntimeContext -> UType -> Bool
@@ -639,44 +670,47 @@ module Cinch.RuntimeIr where
       Some (carrier, val) -> value-word-class context carrier
       None -> case same-type-parts (base ty) of
         Some _ -> Some 0
-        None -> if is-value-type context ty || foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
-          RuntimeContext datas bounds rigids queue inlining -> case base ty of
-            -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
-            UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") -> Some 0
-            UApp (UCon name (KFun KType KType)) carrier | (name == "Kernel") -> Some 0
-            UBound id name KType -> representation id bounds
-            URigid id name level KType -> (case representation id rigids of
-              Some code -> Some code
-              None -> if (ge-i64 (string-compare name "$gadt_") 0 && lt-i64 (string-compare name "$gadt`") 0)
-                || (ge-i64 (string-compare name "$sing_") 0 && lt-i64 (string-compare name "$sing`") 0) then Some 1 else None)
-            UIndex carrier idx -> Some 0
-            UIndexMath op left right -> Some 0
-            UFun domain result -> Some 1
-            UFunEff domain row result -> Some 1
-            UUsageArrow usage arrow -> Some 1
-            UProofFun predicate row result -> Some 1
-            UPi id name domain row result -> Some 1
-            -- A polymorphic value is its class-indexed bundle: one block.
-            UForall qs body -> Some 1
-            UTuple fields -> if field-types context fields 0 then Some 1 else None
-            USigma id name domain body -> if field-types context (UArg domain (UArg body UEnd)) 0 then Some 1 else None
-            other -> case type-head ty of
-              UCon name kind -> if (name == "b.Io" && kind-equal kind (KFun KRegion KType)) || (name == "b.Scope" && kind-equal kind scope-kind) || (name == "b.Task" && kind-equal kind task-kind) then Some 0
-                else if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then Some 0
-                else if is-type-family-name name (datas.type-families) then Some 1
-                else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
-                else if (name == "Bytes" || name == "String" || name == "AtomicCell") && kind-equal kind KType then Some 1 else
-                (case data-declaration name datas of
-                  Some d -> Some (data-word-class d)
-                  None -> if kind-equal kind KType && checked-string-word name datas then Some 1
-                    else case find-class name (datas.classes) of Some description -> Some 1; None -> None)
-              UBound id name kind -> applied-former-class ty kind (representation id bounds)
-              URigid id name level kind -> applied-former-class ty kind (representation id rigids)
-              other -> None
+        None -> case type-value-size-align context ty of
+          Some (sz, al) -> Some (encode-val-class sz al)
+          None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+            RuntimeContext datas bounds rigids queue inlining -> case base ty of
+              -- Structural Copy/Kernel/Boxed witnesses travel as Unit, even in a polymorphic closure.
+              UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") -> Some 0
+              UApp (UCon name (KFun KType KType)) carrier | (name == "Kernel") -> Some 0
+              UApp (UCon name (KFun KType KType)) carrier | (name == "Boxed") -> Some 0
+              UBound id name KType -> representation id bounds
+              URigid id name level KType -> (case representation id rigids of
+                Some code -> Some code
+                None -> if (ge-i64 (string-compare name "$gadt_") 0 && lt-i64 (string-compare name "$gadt`") 0)
+                  || (ge-i64 (string-compare name "$sing_") 0 && lt-i64 (string-compare name "$sing`") 0) then Some 1 else None)
+              UIndex carrier idx -> Some 0
+              UIndexMath op left right -> Some 0
+              UFun domain result -> Some 1
+              UFunEff domain row result -> Some 1
+              UUsageArrow usage arrow -> Some 1
+              UProofFun predicate row result -> Some 1
+              UPi id name domain row result -> Some 1
+              -- A polymorphic value is its class-indexed bundle: one block.
+              UForall qs body -> Some 1
+              UTuple fields -> if field-types context fields 0 then Some 1 else None
+              USigma id name domain body -> if field-types context (UArg domain (UArg body UEnd)) 0 then Some 1 else None
+              other -> case type-head ty of
+                UCon name kind -> if (name == "b.Io" && kind-equal kind (KFun KRegion KType)) || (name == "b.Scope" && kind-equal kind scope-kind) || (name == "b.Task" && kind-equal kind task-kind) then Some 0
+                  else if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then Some 0
+                  else if is-type-family-name name (datas.type-families) then Some 1
+                  else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
+                  else if (name == "Bytes" || name == "String" || name == "AtomicCell") && kind-equal kind KType then Some 1 else
+                  (case data-declaration name datas of
+                    Some d -> Some (data-word-class d)
+                    None -> if kind-equal kind KType && checked-string-word name datas then Some 1
+                      else case find-class name (datas.classes) of Some description -> Some 1; None -> None)
+                UBound id name kind -> applied-former-class ty kind (representation id bounds)
+                URigid id name level kind -> applied-former-class ty kind (representation id rigids)
+                other -> None
   data-word-class :: CoreData -> Nat
   data-word-class d = case core-data-layout d of
     UnboxedData label word bytes align -> word
-    ValueData repr sz al fs -> 0
+    ValueData repr sz al fs -> encode-val-class sz al
     other -> 1
   uniform-owner :: String -> Writer -> Bool
   uniform-owner name w = case data-declaration name (writer-program w) of
@@ -756,9 +790,14 @@ module Cinch.RuntimeIr where
   wide-code :: List Nat -> Bool
   wide-code classes = case classes of [] -> False; code : rest -> code == 3 || wide-code rest
 
-  -- Payload words a field list occupies: a wide field takes two.
+  -- Payload words a field list occupies: a wide field takes two, a Val field takes ceil(size/8).max(1).
   payload-words :: RuntimeContext -> List UType -> Nat
-  payload-words context fields = case fields of [] -> 0; first : rest -> (if wide-type context first then 2 else 1) + payload-words context rest
+  payload-words context fields = case fields of
+    [] -> 0
+    first : rest -> (case word-class context first of
+      Some 3 -> 2
+      Some code | is-val-class code -> val-class-words code
+      other -> 1) + payload-words context rest
   wide-refusal :: String
   wide-refusal = "a wide scalar (I128 or U128) cannot occupy a word position; its class is Wide"
   field-types :: RuntimeContext -> UType -> Nat -> Bool
@@ -772,10 +811,17 @@ module Cinch.RuntimeIr where
     ty : rest -> case word-class context ty of
       Some code -> case class-vector context rest of Some more -> Some (code : more); None -> None
       None -> None
+  class-part :: Nat -> String
+  class-part code = if is-val-class code then cat ["V", nat-to-string (val-class-size code), "a", nat-to-string (val-class-align code)] else nat-to-string code
   class-text :: List Nat -> String
-  class-text classes = case classes of [] -> ""; code : rest -> cat [nat-to-string code, class-text rest]
+  class-text classes = case classes of
+    [] -> ""
+    [code] -> class-part code
+    code : rest -> if is-val-class code then cat [class-part code, "_", class-text rest] else cat [class-part code, class-text rest]
   native-classes :: List Nat -> String
-  native-classes classes = case classes of [] -> ""; code : rest -> cat [if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else "W", native-classes rest]
+  native-classes classes = case classes of
+    [] -> ""
+    code : rest -> cat [if code == 0 then "R" else if code == 1 then "O" else if code == 2 then "T" else if code == 3 then "W" else cat ["V", nat-to-string (val-class-size code), "a", nat-to-string (val-class-align code), "_"], native-classes rest]
   specialized-name :: String -> List Nat -> String
   specialized-name name classes = case classes of [] -> name; other -> cat [name, ".r", class-text classes]
   erased-kind :: Kind -> Bool
@@ -815,7 +861,7 @@ module Cinch.RuntimeIr where
     q : rest -> if erased-kind (q.kind) || (case value-carrier (q.kind) of Some carrier -> True; None -> False) then class-bindings rest classes else
       (case classes of
         code : more -> let kind = q.kind in
-          if (kind-equal kind KType && code < 4) || (former-kind kind && code == 1) then
+          if kind-equal kind KType || (former-kind kind && code == 1) then
           (case class-bindings rest more of Some tail -> Some ((q.id, code) : tail); None -> None) else None
         [] -> None)
   rigid-bindings :: List (Nat, UType) -> List (Nat, Nat) -> Option (List (Nat, Nat))
@@ -848,7 +894,7 @@ module Cinch.RuntimeIr where
     ConstructorDemand name classes -> specialized-name name classes
     LambdaDemand name bounds rigids saved parameter body -> name
     RecursiveDemand (RecursiveWorker id ty name parameters body) group bounds rigids saved -> name
-    StubDemand name classes -> cat [name, ".app"]
+    StubDemand name classes ret-class -> cat [name, ".app"]
     DictionaryDemand name classes -> dictionary-name name classes
     ArrayDemand name classes -> array-symbol name classes
     MVarDemand name classes -> specialized-name name classes
@@ -905,12 +951,14 @@ module Cinch.RuntimeIr where
   count-op duplicate ty value w = case word-class (w.context) ty of
     Some 0 -> w
     Some 3 -> w
+    Some code | is-val-class code -> w
     Some code -> if constant-word value || is-immortal-enum-type (w.context) ty then w else count-line duplicate value w
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
   count-op-local :: Bool -> UType -> String -> Writer -> Writer
   count-op-local duplicate ty value w = case word-class (w.context) ty of
     Some 0 -> w
     Some 3 -> w
+    Some code | is-val-class code -> w
     Some code -> if constant-word value || is-immortal-enum-type (w.context) ty then w else count-line-local duplicate value w
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
   drop-locals :: List Local -> Writer -> Writer
@@ -1037,8 +1085,14 @@ module Cinch.RuntimeIr where
   -- A payload's per-word codes from its per-field classes: a wide field
   -- is two raw words, so it adds two uncounted codes. Only an object
   -- payload expands; a word position refuses code 3 instead (wide-refusal).
+  repeat-zero :: Nat -> List Nat -> List Nat
+  repeat-zero n acc = if n == 0 then acc else 0 : (repeat-zero (n - 1) acc)
   word-codes :: List Nat -> List Nat
-  word-codes codes = case codes of [] -> []; code : rest -> if code == 3 then 0 : 0 : (word-codes rest) else code : (word-codes rest)
+  word-codes codes = case codes of
+    [] -> []
+    code : rest -> if code == 3 then 0 : 0 : (word-codes rest)
+      else if is-val-class code then repeat-zero (val-class-words code) (word-codes rest)
+      else code : (word-codes rest)
   term-types :: List CoreTerm -> List UType
   term-types terms = case terms of [] -> []; term : rest -> (core-type term) : (term-types rest)
   named-layout :: String -> List (String, List Nat) -> Option (List Nat)
@@ -1050,7 +1104,7 @@ module Cinch.RuntimeIr where
     Some classes -> request-tuple-shape sp classes w
   request-tuple-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
   request-tuple-shape sp classes w = let words = word-codes classes in
-    if list-length words > 16 then (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
+    if not (val-code classes) && list-length words > 16 then (refuse w sp "tuple layout needs an extended runtime descriptor", 0)
     else (w, shape-description 1 0 words)
   -- `b.Dec` is Yes (tag 0) or No (tag 1), with no fields.
   decision-constructor :: Span -> Bool -> Writer -> (Writer, String)
@@ -2070,12 +2124,12 @@ module Cinch.RuntimeIr where
                    case inline-total definitions locals noted (imported-native-body (unit.symbol) (writer-program w)) unit (mono function) [] (arguments term []) of
                      Some lowered -> lowered
                      None -> external-call-unit definitions locals noted sp unit (mono function) [] (arguments term []))
-                  else indirect-application definitions locals w f x
-                None -> indirect-application definitions locals w f x)
-            other -> indirect-application definitions locals w f x)
+                  else indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term)
+                None -> indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term))
+            other -> indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term))
       other -> (case erased-constructor-call term [] of
         Some (name, actuals, args) -> direct-call definitions locals w sp name actuals args
-        None -> indirect-application definitions locals w f x)
+        None -> indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term))
   -- A checked proposition argument occupies no runtime field. Continue
   -- gathering positional values through proof applications of constructors.
   erased-constructor-call :: CoreTerm -> List CoreTerm -> Option (String, List UType, List CoreTerm)
@@ -2092,8 +2146,13 @@ module Cinch.RuntimeIr where
   indirect-application :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> (Writer, String)
   indirect-application definitions locals w f x = if wide-type (w.context) (core-type x) || wide-type (w.context) (final-result (core-type f)) then unsupported w (Span 0 0 1 1) wide-refusal else
     case expression definitions locals w f of
-    (callee, function) -> case expression definitions locals callee x of
-      (ready, value) -> apply-one ready function value
+    (callee, function) -> apply-terms-class definitions locals callee function [x] 0
+  indirect-spine :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> List CoreTerm -> UType -> (Writer, String)
+  indirect-spine definitions locals w sp callee-term args result-ty =
+    if wide-type (w.context) result-ty then unsupported w sp wide-refusal else
+    let ret-class = (case word-class (w.context) result-ty of Some c -> c; None -> 0) in
+    case expression definitions locals w callee-term of
+      (callee, function) -> apply-terms-class definitions locals callee function args ret-class
   closed-method-unit :: Writer -> String -> String -> Nat -> List UType -> String -> Option RuntimeUnit
   closed-method-unit w name owner slot actuals factory = case ((writer-program w).object, find-class owner ((writer-program w).classes), instance-binding factory (writer-program w)) of
     (Some provider, Some description, Some binding) -> if not (method-reference name owner slot (writer-program w)) then None else
@@ -2176,34 +2235,51 @@ module Cinch.RuntimeIr where
     [] -> (w, [])
     term : rest -> case expression definitions locals w term of
       (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, value : values)
-  -- A closure's description covers every parameter class; its saved
+  -- A closure's description covers every parameter word; its saved
   -- fields follow the three raw prefix words (code, arity, filled count).
+  closure-word-classes :: List Nat -> Nat -> List Nat
+  closure-word-classes params ret-class =
+    word-codes params <> (if val-code-needs-sret-apply ret-class then [0] else [])
+  request-shape-for :: Span -> List Nat -> Nat -> Writer -> (Writer, Nat)
+  request-shape-for sp classes ret-class w =
+    let wclasses = closure-word-classes classes ret-class in
+    let has-val = val-code classes || val-code-needs-sret-apply ret-class in
+    if wide-code classes then (refuse w sp wide-refusal, 0)
+    else if not has-val && list-length wclasses > 13 then (refuse w sp "closure shape needs an extended runtime descriptor", 0)
+    else (w, shape-description 2 0 wclasses)
   request-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
-  request-shape sp classes w = if wide-code classes then (refuse w sp wide-refusal, 0) else if list-length classes > 13 then (refuse w sp "closure shape needs an extended runtime descriptor", 0)
-    else (w, shape-description 2 0 classes)
-  closure :: Span -> String -> List Nat -> List String -> Writer -> (Writer, String)
-  closure sp name classes values w = case values of
-    [] -> case static-closure sp name classes w of
+  request-shape sp classes w = request-shape-for sp classes 0 w
+  closure-with :: Span -> String -> List Nat -> Nat -> List UType -> List String -> Writer -> (Writer, String)
+  closure-with sp name classes ret-class saved-tys values w = case values of
+    [] -> case static-closure-with sp name classes ret-class w of
       (planned, payload) -> let (done, word) = fresh planned "%v" in
         (line done (cat ["  ", word, " = ptrtoint ptr ", payload, " to i64"]), word)
-    other -> case request-shape sp classes (request-demand (StubDemand name classes) w) of
+    other -> case request-shape-for sp classes ret-class (request-demand (StubDemand name classes ret-class) w) of
       (planned, descriptor) ->
+        let arity-words = list-length (closure-word-classes classes ret-class) in
+        let saved-words = payload-words (planned.context) saved-tys in
         let (one, pointer) = fresh planned "%ptr" in
-        let allocated = shaped-allocation one pointer (nat-to-string (8 * (3 + list-length values))) 2 descriptor in
-        let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), nat-to-string (list-length values)] in
-        let (done, word) = fresh (store-fields allocated pointer 0 (prefix <> values)) "%v" in
+        let allocated = shaped-allocation one pointer (nat-to-string (8 * (3 + saved-words))) 2 descriptor in
+        let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string arity-words, nat-to-string saved-words] in
+        let filled = store-typed-slots (store-fields allocated pointer 0 prefix) pointer 3 saved-tys values in
+        let (done, word) = fresh filled "%v" in
         (line done (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), word)
+  closure :: Span -> String -> List Nat -> List String -> Writer -> (Writer, String)
+  closure sp name classes values w = closure-with sp name classes 0 (map (\_ -> UCon "Unit" KType) values) values w
   -- A closure that saves nothing is one immortal data-section block
   -- { app; arity; 0 } (seed/src/codegen.rs, clo_def). The result is the
   -- constant payload address.
-  static-closure :: Span -> String -> List Nat -> Writer -> (Writer, String)
-  static-closure sp name classes w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
+  static-closure-with :: Span -> String -> List Nat -> Nat -> Writer -> (Writer, String)
+  static-closure-with sp name classes ret-class w = case request-shape-for sp classes ret-class (request-demand (StubDemand name classes ret-class) w) of
     (planned, descriptor) ->
+      let arity-words = list-length (closure-word-classes classes ret-class) in
       let (declared, storage) = fresh-scoped planned "closure" in
       let skip = static-prefix-words descriptor in
       let block = cat ["[", nat-to-string (4 + skip), " x i64]"] in
-      let stored = static-block declared storage descriptor 2 [StaticAddress (symbol (cat [name, ".app"])), StaticBits (list-length classes), StaticBits 0] in
+      let stored = static-block declared storage descriptor 2 [StaticAddress (symbol (cat [name, ".app"])), StaticBits arity-words, StaticBits 0] in
       (stored, cat ["getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 ", nat-to-string (1 + skip), ")"])
+  static-closure :: Span -> String -> List Nat -> Writer -> (Writer, String)
+  static-closure sp name classes w = static-closure-with sp name classes 0 w
   apply-one :: Writer -> String -> String -> (Writer, String)
   apply-one w function value =
     let (one, argv) = fresh w "%ptr" in
@@ -2217,6 +2293,58 @@ module Cinch.RuntimeIr where
     (callee, function) -> let (one, argv) = fresh callee "%ptr" in
       let (two, result) = fresh one "%v" in
       (line (line two (cat ["  ", argv, " = alloca i64"])) (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 0, ptr ", argv, ")"]), result)
+  any-wide-term :: RuntimeContext -> List CoreTerm -> Bool
+  any-wide-term context terms = case terms of
+    [] -> False
+    first : rest -> wide-type context (core-type first) || any-wide-term context rest
+  any-val-term :: RuntimeContext -> List CoreTerm -> Bool
+  any-val-term context terms = case terms of
+    [] -> False
+    first : rest -> is-value-type context (core-type first) || any-val-term context rest
+  peel-arrows :: Nat -> UType -> UType
+  peel-arrows n ty = if n == 0 then ty else case arrow-shape (base ty) of
+    UFun domain result -> peel-arrows (n - 1) result
+    UFunEff domain row result -> peel-arrows (n - 1) result
+    UPi id name domain row result -> peel-arrows (n - 1) result
+    UProofFun predicate row result -> peel-arrows n result
+    other -> ty
+  apply-terms-class :: List CoreDefinition -> List Local -> Writer -> String -> List CoreTerm -> Nat -> (Writer, String)
+  apply-terms-class definitions locals w function terms ret-class = case terms of
+    [] -> (w, function)
+    other ->
+      if any-wide-term (w.context) terms then unsupported w (Span 0 0 1 1) wide-refusal
+      else if not (any-val-term (w.context) terms) && not (val-code-needs-sret-apply ret-class) then
+        apply-terms definitions locals w function terms
+      else
+        case expressions definitions locals w terms of
+          (evaluated, values) ->
+            let arg-tys = term-types terms in
+            let arg-words = payload-words (evaluated.context) arg-tys in
+            let needs-sret = val-code-needs-sret-apply ret-class in
+            let total-words = arg-words + (if needs-sret then 1 else 0) in
+            let (w1, argv) = fresh evaluated "%argv" in
+            let w2 = line w1 (cat ["  ", argv, " = alloca [", nat-to-string total-words, " x i64], align 8"]) in
+            let w3 = store-typed-slots w2 argv 0 arg-tys values in
+            if needs-sret then
+              let sz = val-class-size ret-class in
+              let al = val-class-align ret-class in
+              let (w4, retbuf) = fresh w3 "%retbuf" in
+              let (w5, outw) = fresh w4 "%outw" in
+              let (w6, outslot) = fresh w5 "%ptr" in
+              let (w7, ignored) = fresh w6 "%v" in
+              let packed = emit-lines w7 [
+                cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al],
+                cat ["  ", outw, " = ptrtoint ptr ", retbuf, " to i64"],
+                cat ["  ", outslot, " = getelementptr i64, ptr ", argv, ", i64 ", nat-to-string arg-words],
+                cat ["  store i64 ", outw, ", ptr ", outslot],
+                cat ["  ", ignored, " = call i64 @__apply(i64 ", function, ", i64 ", nat-to-string total-words, ", ptr ", argv, ")"]] in
+              if sz > 16 || al > 16 then (packed, retbuf)
+              else
+                let (w8, pair) = fresh packed "%v" in
+                (line w8 (cat ["  ", pair, " = load { i64, i64 }, ptr ", retbuf, ", align 8"]), pair)
+            else
+              let (w4, result) = fresh w3 "%v" in
+              (line w4 (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 ", nat-to-string total-words, ", ptr ", argv, ")"]), result)
   apply-terms :: List CoreDefinition -> List Local -> Writer -> String -> List CoreTerm -> (Writer, String)
   apply-terms definitions locals w function terms = case terms of
     [] -> (w, function)
@@ -2347,6 +2475,7 @@ module Cinch.RuntimeIr where
       -- An array element is one scanned word.
       Some classes -> if wide-code classes then
         unsupported w sp (if operation == 13 then "`columnarZip` requires a wide tuple layout bridge for an I128/U128 tuple field" else wide-refusal)
+        else if val-code classes then unsupported w sp val-refusal
         else if list-length givens /= 0 || list-length classes /= (if format /= 0 then 0 else if operation == 13 || operation == 17 || operation == 18 then 2 else 1) then
         unsupported w sp "array intrinsic needs its exact checked representation parameters" else
         let parameters = array-argument-classes operation classes in
@@ -2714,6 +2843,7 @@ module Cinch.RuntimeIr where
                 (done, result) -> apply-terms definitions locals done result (drop-terms count args)))
       else case class-vector (w.context) actuals of
         Some [element] -> if element == 3 then unsupported w sp "MVar I128/U128 payload requires a checked boxed-wide bridge; it is not lowered yet"
+          else if is-val-class element then unsupported w sp val-refusal
           else if element > 2 || list-length givens /= 0 then unsupported w sp "MVar intrinsic needs its exact checked representation parameter"
           else let parameters = mvar-argument-classes operation element in
             let count = mvar-arity operation in let worker = specialized-name name [element] in
@@ -3270,15 +3400,20 @@ module Cinch.RuntimeIr where
   box-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> List Nat -> Nat -> List CoreTerm -> (Writer, String)
   box-constructor definitions locals w sp d classes tag args = case request-data sp d classes w of
     (planned, descriptor) -> case expressions definitions locals planned args of
-      (ready, values) -> allocate-constructor d ready (data-descriptor descriptor tag) (typed-values (value-llvms (ready.context) (term-types args)) values)
+      (ready, values) -> allocate-constructor-fields d ready (data-descriptor descriptor tag) (term-types args) values
   box-gadt-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> RuntimeContext -> CoreConstructor -> Nat -> List CoreTerm -> (Writer, String)
   box-gadt-constructor definitions locals w sp d cctx c tag args = case class-vector cctx (storage-fields d c) of
     None -> unsupported w sp "constructor field representation is unknown"
     Some codes ->
       let desc = shape-description 1 tag (word-codes codes) in
       case expressions definitions locals w args of
-        (ready, values) -> allocate-constructor d ready desc (typed-values (value-llvms (ready.context) (term-types args)) values)
+        (ready, values) -> allocate-constructor-fields d ready desc (term-types args) values
 
+  allocate-constructor-fields :: CoreData -> Writer -> Nat -> List UType -> List String -> (Writer, String)
+  allocate-constructor-fields d w descriptor tys values = case core-data-layout d of
+    UnpackedRecord slots -> allocate-constructor d w descriptor (typed-values (value-llvms (w.context) tys) values)
+    TransparentData label bytes align | bytes < 8 -> allocate-constructor d w descriptor (typed-values (value-llvms (w.context) tys) values)
+    other -> allocate-typed-fields w descriptor tys values
   allocate-constructor :: CoreData -> Writer -> Nat -> List (String, String) -> (Writer, String)
   allocate-constructor d w descriptor values = case core-data-layout d of
     UnpackedRecord slots -> (case flatten-values slots values w of (ready, physical) -> allocate-typed ready descriptor physical)
@@ -3338,7 +3473,7 @@ module Cinch.RuntimeIr where
                 else if list-length args < list-length (core-constructor-fields c) then
                   (case class-vector context (core-constructor-fields c) of
                     Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
-                      (ready, values) -> closure sp (specialized-name name classes) parameters values ready
+                      (ready, values) -> closure-with sp (specialized-name name classes) parameters 0 (term-types args) values ready
                     None -> unsupported w sp "constructor fields need known closure parameter representations")
                 else unsupported w sp "constructor application exceeds its checked arity"
           None -> unsupported w sp "constructor has no defining runtime declaration"
@@ -4119,13 +4254,28 @@ module Cinch.RuntimeIr where
         if list-length indices > 0 && (case field-owner (d.name) ((writer-program w).instances) of Some owner -> True; None -> False) then unsupported w sp "dictionary method value parameters need their checked runtime ABI" else
         case definition-self-values d locals w of
           (prepared, saved) -> case (if list-length indices == 0 then (prepared, []) else implicit-value-words locals prepared sp (scheme-params (d.scheme)) actuals) of
-            (indexed, witnesses) -> if list-length givens < list-length required || list-length args < count then
+            (indexed, witnesses) ->
+              let def-ret-class = (case d.clauses of
+                (CoreClause _ pats body) : _ -> (case proof-stage-arities pats 0 of
+                  [_] -> (case word-class context (core-type body) of Some c -> c; None -> 0)
+                  other -> 0)
+                [] -> 0) in
+              if list-length givens < list-length required || list-length args < count then
               (if wide-type context (final-result (scheme-body (d.scheme))) then unsupported indexed sp wide-refusal else
               case class-vector context all-types of
                 Some parameter-classes -> case expressions definitions locals (demand-worker (d.name) classes indexed) args of
-                  (ready, values) -> closure sp (specialized-name (d.name) classes) parameter-classes (saved <> givens <> witnesses <> values) ready
+                  (ready, values) ->
+                    let saved-vals = saved <> givens <> witnesses <> values in
+                    let saved-tys = take-types (list-length saved-vals) all-types in
+                    closure-with sp (specialized-name (d.name) classes) parameter-classes def-ret-class saved-tys saved-vals ready
                 None -> unsupported indexed sp "function parameters need known closure representations")
               else let non-word = definition-has-non-word context d all-types in
+                let rem-args = drop-terms count args in
+                let over-ret-class = (case rem-args of
+                  [] -> 0
+                  more -> case d.clauses of
+                    (CoreClause _ _ body) : _ -> (case word-class context (peel-arrows (list-length rem-args) (core-type body)) of Some c -> c; None -> 0)
+                    [] -> 0) in
                 case (if non-word then None else case saved of
                     [] -> (case givens of
                       [] -> (case witnesses of
@@ -4138,7 +4288,7 @@ module Cinch.RuntimeIr where
                     (case eval-borrow-args definitions locals planned (take-terms count args) mask of
                       (ready, values, post-drops) ->
                         case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
-                          (called, result) -> apply-terms definitions locals (drop-locals post-drops called) result (drop-terms count args))
+                          (called, result) -> apply-terms-class definitions locals (drop-locals post-drops called) result rem-args over-ret-class)
                   other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
                     (ready, values) ->
                       let call-args = typed-values (value-param-llvms context all-types) (saved <> givens <> witnesses <> values) in
@@ -4148,9 +4298,9 @@ module Cinch.RuntimeIr where
                           let w2 = line w1 (cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al]) in
                           let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", retbuf] in
                           let called = line w2 (cat ["  call void ", symbol (specialized-name (d.name) classes), "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
-                          apply-terms definitions locals called retbuf (drop-terms count args)
+                          apply-terms-class definitions locals called retbuf rem-args over-ret-class
                         None -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) call-args of
-                          (called, result) -> apply-terms definitions locals called result (drop-terms count args)
+                          (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
   -- Evaluate arguments for a borrowed-parameter worker call:
   -- local variables at borrowed positions pass directly without dup/drop;
@@ -4376,6 +4526,7 @@ module Cinch.RuntimeIr where
   evidence-value definitions locals w evidence = case evidence of
     CECopy sp carrier -> if copy-marker-carrier carrier then (w, "0") else unsupported w sp "invalid structural Copy marker"
     CEKernel sp carrier -> if kernel-marker-carrier carrier then (w, "0") else unsupported w sp "invalid structural Kernel marker"
+    CEBoxed sp carrier -> if boxed-marker-carrier carrier && not (is-value-type (w.context) carrier) then (w, "0") else unsupported w sp "invalid structural Boxed marker"
     CEGiven sp ty symbol -> (case known-self symbol locals of
       Some (KnownSelf name owner classes context) -> case instance-named owner ((writer-program w).instances) of
         Some factory -> if has-strict-values w factory (factory.fields) then unsupported w sp "materializing self evidence with strict value fields needs initialization dependencies" else
@@ -4551,7 +4702,7 @@ module Cinch.RuntimeIr where
   -- A dictionary's description covers its slots, which follow its raw
   -- method-count word.
   request-dictionary-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
-  request-dictionary-shape sp classes w = if wide-code classes then (refuse w sp wide-refusal, 0) else if list-length classes > 15 then (refuse w sp "dictionary needs an extended runtime descriptor", 0)
+  request-dictionary-shape sp classes w = if wide-code classes then (refuse w sp wide-refusal, 0) else if val-code classes then (refuse w sp val-refusal, 0) else if list-length classes > 15 then (refuse w sp "dictionary needs an extended runtime descriptor", 0)
     else (w, shape-description 3 0 classes)
   dictionary-map :: CoreInstance -> List MethodSlot -> Writer -> Option (List Nat)
   dictionary-map owner fields w = case fields of
@@ -4630,7 +4781,7 @@ module Cinch.RuntimeIr where
       Some field -> let d = field.field-definition in
         let actual = classes <> own-codes in
         (case static-method w d actual of
-          Some parameter-classes -> (case static-closure (Span 0 0 1 1) (specialized-name (d.name) actual) parameter-classes (demand-worker (d.name) actual w) of
+          Some (parameter-classes, ret-class) -> (case static-closure-with (Span 0 0 1 1) (specialized-name (d.name) actual) parameter-classes ret-class (demand-worker (d.name) actual w) of
             (planned, payload) -> case static-dictionary-fields owner classes count rest planned of
               Some (done, words) -> Some (done, (physical, payload) : words)
               None -> None)
@@ -4640,13 +4791,22 @@ module Cinch.RuntimeIr where
   -- context and no arguments, to a closure saving nothing: no self value
   -- dependencies, no implicit index values, and some given or parameter
   -- still to come.
-  static-method :: Writer -> CoreDefinition -> List Nat -> Option (List Nat)
+  static-method :: Writer -> CoreDefinition -> List Nat -> Option (List Nat, Nat)
   static-method w d classes = case definition-context d classes w of
     Some context ->
       let parameters = definition-parameters d in
       let required = runtime-givens w d in
       let quiet = list-length (definition-value-dependencies w d) == 0 && list-length (opening-value-types (d.openings)) == 0 in
-      if quiet && (list-length required > 0 || list-length parameters > 0) && not (wide-type context (final-result (scheme-body (d.scheme)))) then class-vector context (given-types required <> pattern-types parameters) else None
+      if quiet && (list-length required > 0 || list-length parameters > 0) && not (wide-type context (final-result (scheme-body (d.scheme)))) then
+        let ret-class = (case d.clauses of
+          (CoreClause _ pats body) : _ -> (case proof-stage-arities pats 0 of
+            [_] -> (case word-class context (core-type body) of Some c -> c; None -> 0)
+            other -> 0)
+          [] -> 0) in
+        (case class-vector context (given-types required <> pattern-types parameters) of
+          Some pcs -> Some (pcs, ret-class)
+          None -> None)
+      else None
     None -> None
   physical-words :: Nat -> Nat -> List (Nat, String) -> List StaticWord
   physical-words index count words = if index >= count then [] else (physical-word index words) : (physical-words (index + 1) count words)
@@ -4810,6 +4970,7 @@ module Cinch.RuntimeIr where
     let saved = captures-from parameter body locals locals in
     let parameters = if erased-pattern parameter then [] else [pattern-type parameter] in
     if wide-type (w.context) (final-result (core-type body)) then unsupported w sp wide-refusal else
+    let ret-class = (case word-class (w.context) (core-type body) of Some c -> c; None -> 0) in
     case class-vector (w.context) (capture-types saved <> parameters) of
       None -> unsupported w sp "lambda parameters need known runtime representations"
       Some classes -> let (named, name) = fresh-scoped w ".lambda" in
@@ -4817,7 +4978,7 @@ module Cinch.RuntimeIr where
           RuntimeContext datas bounds rigids queue inlining ->
             let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
             case capture-values saved planned of
-              (ready, values) -> closure sp name classes values ready)
+              (ready, values) -> closure-with sp name classes ret-class (capture-types saved) values ready)
   recursive-parameters :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
   recursive-parameters parameters term = case term of
     CLambda sp ty pattern body -> if erased-pattern pattern then
@@ -4846,10 +5007,11 @@ module Cinch.RuntimeIr where
     (RecursiveWorker id ty name patterns body) : rest -> if not (term-uses id used) then
       recursive-locals sp captures saved rest used w
       else if wide-type (w.context) (final-result ty) then (refuse w sp wide-refusal, [])
-      else (case class-vector (w.context) (captures <> pattern-types (runtime-parameters patterns)) of
+      else let ret-class = (case word-class (w.context) (core-type body) of Some c -> c; None -> 0) in
+        (case class-vector (w.context) (captures <> pattern-types (runtime-parameters patterns)) of
         None -> (refuse w sp "recursive closure needs checked runtime representations", [])
         Some classes -> case capture-values saved w of
-          (captured, values) -> case closure sp name classes values captured of
+          (captured, values) -> case closure-with sp name classes ret-class captures values captured of
             (ready, word) -> case recursive-locals sp captures saved rest used ready of
               (done, more) -> (done, (Local id ty word) : more))
   recursive-expression :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
@@ -4939,22 +5101,91 @@ module Cinch.RuntimeIr where
     let released = count-line False self-word (line nine (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
     let (ten, closure-word) = fresh released "%v" in
     line (line ten (cat ["  ", closure-word, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", closure-word])
+  unpack-app-arguments :: List Nat -> Nat -> String -> Writer -> (Writer, List (String, String), Nat)
+  unpack-app-arguments classes index frame w = case classes of
+    [] -> (w, [], index)
+    code : rest ->
+      if is-val-class code then
+        let sz = val-class-size code in
+        let al = val-class-align code in
+        let words = val-size-words sz in
+        if sz > 16 || al > 16 then
+          let (w1, slot) = fresh w "%ptr" in
+          let w2 = line w1 (cat ["  ", slot, " = getelementptr i64, ptr ", frame, ", i64 ", nat-to-string index]) in
+          let pty = cat ["ptr readonly align ", nat-to-string al, " dereferenceable(", nat-to-string sz, ")"] in
+          if al <= 8 then
+            case unpack-app-arguments rest (index + words) frame w2 of
+              (done, more, next-idx) -> (done, (pty, slot) : more, next-idx)
+          else
+            let (w3, tmp) = fresh (request-demand MemcpyDemand w2) "%valtmp" in
+            let w4 = emit-lines w3 [
+              cat ["  ", tmp, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al],
+              cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align ", nat-to-string al, " ", tmp, ", ptr align 1 ", slot, ", i64 ", nat-to-string sz, ", i1 false)"]] in
+            case unpack-app-arguments rest (index + words) frame w4 of
+              (done, more, next-idx) -> (done, (pty, tmp) : more, next-idx)
+        else if sz > 8 then
+          let (w1, slot) = fresh w "%ptr" in
+          let (w2, pair) = fresh w1 "%v" in
+          let w3 = emit-lines w2 [
+            cat ["  ", slot, " = getelementptr i64, ptr ", frame, ", i64 ", nat-to-string index],
+            cat ["  ", pair, " = load { i64, i64 }, ptr ", slot, ", align 8"]] in
+          case unpack-app-arguments rest (index + 2) frame w3 of
+            (done, more, next-idx) -> (done, ("{ i64, i64 }", pair) : more, next-idx)
+        else
+          case load-word w frame (nat-to-string index) of
+            (loaded, word) -> case unpack-app-arguments rest (index + 1) frame loaded of
+              (done, more, next-idx) -> (done, ("i64", word) : more, next-idx)
+      else
+        case load-word w frame (nat-to-string index) of
+          (loaded, word) -> case unpack-app-arguments rest (index + 1) frame loaded of
+            (done, more, next-idx) -> (done, ("i64", word) : more, next-idx)
   -- The saturated call: `frame` holds the merged words and `total` is the
   -- filled count plus the incoming one, so the excess continues at
   -- `argv + (arity - filled)` words, inside argv whenever there is one.
-  app-saturate :: String -> List Nat -> String -> String -> String -> String -> Writer -> Writer
-  app-saturate name classes frame filled saved-bytes total w = case load-arguments (list-length classes) 0 frame w of
+  app-saturate :: String -> List Nat -> Nat -> Nat -> String -> String -> String -> String -> Writer -> Writer
+  app-saturate name param-classes ret-class arity frame filled saved-bytes total w =
+    if val-code param-classes || val-code-needs-sret-apply ret-class then
+      case unpack-app-arguments param-classes 0 frame w of
+        (ready, args, out-index) ->
+          if val-code-needs-sret-apply ret-class then
+            let sz = val-class-size ret-class in
+            let al = val-class-align ret-class in
+            case load-word ready frame (nat-to-string out-index) of
+              (loaded, outw) ->
+                let (w1, outp) = fresh loaded "%outp" in
+                let w2 = line w1 (cat ["  ", outp, " = inttoptr i64 ", outw, " to ptr"]) in
+                if sz > 16 || al > 16 then
+                  let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", outp] in
+                  line (line (line w2 (cat ["  call void ", symbol name, "(", join (sret-arg : (typed-arguments args)), ")"])) "  ret i64 0") "}"
+                else
+                  case typed-call w2 "{ i64, i64 }" (symbol name) args of
+                    (called, pair) ->
+                      line (line (line called (cat ["  store { i64, i64 } ", pair, ", ptr ", outp, ", align 8"])) "  ret i64 0") "}"
+          else
+            case typed-call ready "i64" (symbol name) args of
+              (called, result) ->
+                let (one, excess) = fresh called "%v" in
+                let (two, more) = fresh one "%v" in
+                let (three, over-label) = fresh two "overapplied" in
+                let (four, return-label) = fresh three "appreturn" in
+                let saturated = line (line (line (line (line four (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string arity])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
+                let (five, tail-offset) = fresh (line saturated (cat [over-label, ":"])) "%v" in
+                let (six, tail) = fresh five "%ptr" in
+                let (seven, out) = fresh six "%v" in
+                line (line (line (line (line seven (cat ["  ", tail-offset, " = sub i64 ", nat-to-string (arity * 8), ", ", saved-bytes])) (cat ["  ", tail, " = getelementptr i8, ptr %argv, i64 ", tail-offset])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
+    else
+    case load-arguments arity 0 frame w of
     (ready, args) -> case call ready (symbol name) args of
       (called, result) ->
         let (one, excess) = fresh called "%v" in
         let (two, more) = fresh one "%v" in
         let (three, over-label) = fresh two "overapplied" in
         let (four, return-label) = fresh three "appreturn" in
-        let saturated = line (line (line (line (line four (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string (list-length classes)])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
+        let saturated = line (line (line (line (line four (cat ["  ", excess, " = sub i64 ", total, ", ", nat-to-string arity])) (cat ["  ", more, " = icmp ne i64 ", excess, ", 0"])) (cat ["  br i1 ", more, ", label %", over-label, ", label %", return-label])) (cat [return-label, ":"])) (cat ["  ret i64 ", result]) in
         let (five, tail-offset) = fresh (line saturated (cat [over-label, ":"])) "%v" in
         let (six, tail) = fresh five "%ptr" in
         let (seven, out) = fresh six "%v" in
-        line (line (line (line (line seven (cat ["  ", tail-offset, " = sub i64 ", nat-to-string (list-length classes * 8), ", ", saved-bytes])) (cat ["  ", tail, " = getelementptr i8, ptr %argv, i64 ", tail-offset])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
+        line (line (line (line (line seven (cat ["  ", tail-offset, " = sub i64 ", nat-to-string (arity * 8), ", ", saved-bytes])) (cat ["  ", tail, " = getelementptr i8, ptr %argv, i64 ", tail-offset])) (cat ["  ", out, " = call i64 @__apply(i64 ", result, ", i64 ", excess, ", ptr ", tail, ")"])) (cat ["  ret i64 ", out])) "}"
   -- The apply stub: one entry per function, whatever argument count it is
   -- handed. It reads the merged total, then branches once: at or above the
   -- arity it merges the filled words and the incoming ones into a frame of
@@ -4965,21 +5196,22 @@ module Cinch.RuntimeIr where
   -- LLVM's AArch64 stack probe mishandles a dynamic alloca once a caller
   -- inlines the stub. Saved fields are duplicated before the original
   -- closure is dropped; argv fields transfer directly.
-  app-stub :: String -> List Nat -> Writer -> Writer
-  app-stub name classes w = case request-shape (Span 0 0 1 1) classes w of
+  app-stub :: String -> List Nat -> Nat -> Writer -> Writer
+  app-stub name param-classes ret-class w = case request-shape-for (Span 0 0 1 1) param-classes ret-class w of
     (planned, descriptor) ->
-      let arity = list-length classes in
+      let wclasses = closure-word-classes param-classes ret-class in
+      let arity = list-length wclasses in
       let header = line (line planned (cat ["define ", worker-linkage planned (cat [name, ".app"]), "i64 ", symbol (cat [name, ".app"]), "(ptr %self, i64 %argc, ptr %argv)", worker-open w])) "entry:" in
       let (loaded, filled) = load-word header "%self" "2" in
       let (one, total) = fresh loaded "%v" in
       let total-line = line one (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
-      if arity == 0 then saturated-stub name classes filled total total-line else
+      if arity == 0 then saturated-stub name param-classes ret-class wclasses filled total total-line else
         let (two, full) = fresh total-line "%v" in
         let (three, partial-label) = fresh two "partial" in
         let (four, full-label) = fresh three "saturated" in
         let split = line (line (line four (cat ["  ", full, " = icmp uge i64 ", total, ", ", nat-to-string arity])) (cat ["  br i1 ", full, ", label %", full-label, ", label %", partial-label])) (cat [partial-label, ":"]) in
-        let partial = app-partial name classes descriptor total filled split in
-        saturated-stub name classes filled total (line partial (cat [full-label, ":"]))
+        let partial = app-partial name wclasses descriptor total filled split in
+        saturated-stub name param-classes ret-class wclasses filled total (line partial (cat [full-label, ":"]))
   -- The static frame the saturated path merges into: exactly `arity`
   -- words, allocated in the entry block.
   merged-frame :: Writer -> Nat -> String -> String -> (Writer, String)
@@ -4991,15 +5223,15 @@ module Cinch.RuntimeIr where
   -- it copied, drop the closure, then call the function. A nullary unit
   -- needs no frame: every slot count is zero, so `%self` stands in and no
   -- alloca is emitted.
-  saturated-stub :: String -> List Nat -> String -> String -> Writer -> Writer
-  saturated-stub name classes filled total started =
-    let arity = list-length classes in
+  saturated-stub :: String -> List Nat -> Nat -> List Nat -> String -> String -> Writer -> Writer
+  saturated-stub name param-classes ret-class wclasses filled total started =
+    let arity = list-length wclasses in
     let (one, saved-bytes) = fresh started "%v" in
     let saved-line = line one (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
     let (merged, frame) = if arity == 0 then (saved-line, "%self") else merged-frame saved-line arity filled saved-bytes in
-    let (two, self-word) = fresh (saved-dups classes 0 filled frame merged) "%v" in
+    let (two, self-word) = fresh (saved-dups wclasses 0 filled frame merged) "%v" in
     let released = count-line False self-word (line two (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) in
-    app-saturate name classes frame filled saved-bytes total released
+    app-saturate name param-classes ret-class arity frame filled saved-bytes total released
   term-fields :: CoreTerm -> Option (List CoreTerm)
   term-fields fields = case fields of
     CArgumentsEnd sp -> Some []
@@ -5084,7 +5316,7 @@ module Cinch.RuntimeIr where
       None -> unsupported w sp "an instantiation needs known runtime representations"
       -- A bundle holds one component per Raw/Obj/TObj vector; a Wide
       -- vector has none, and its base-3 index would name another's.
-      Some v -> if wide-code v then unsupported w sp wide-refusal else case expression definitions locals w value of
+      Some v -> if wide-code v then unsupported w sp wide-refusal else if val-code v then unsupported w sp val-refusal else case expression definitions locals w value of
         (evaluated, bundle) -> let (named, pointer) = fresh evaluated "%poly" in
           let addressed = line named (cat ["  ", pointer, " = inttoptr i64 ", bundle, " to ptr"]) in
           case load-word addressed pointer (nat-to-string (vector-index v)) of
@@ -5103,7 +5335,7 @@ module Cinch.RuntimeIr where
       (case expressions definitions locals w actual of
         (evaluated, values) ->
           let (planned, descriptor) = request-layout sp actual evaluated in
-          allocate-typed planned descriptor (typed-values (value-llvms (planned.context) (term-types actual)) values))
+          allocate-typed-fields planned descriptor (term-types actual) values)
     None -> unsupported w sp "malformed tuple argument spine"
   -- A fieldless value is a static Obj. The header uses rc=0 and kind=1,
   -- with the layout field in bits 40..63. An escaped block puts its
@@ -5141,6 +5373,41 @@ module Cinch.RuntimeIr where
   -- Fields are stored at their payload word offsets. A wide field's two
   -- words are 8-aligned, as every payload word is, so its access names
   -- that alignment rather than i128's natural 16.
+  allocate-typed-fields :: Writer -> Nat -> List UType -> List String -> (Writer, String)
+  allocate-typed-fields w descriptor tys values = case values of
+    [] -> static-constructor w descriptor
+    first : rest ->
+      let words = payload-words (w.context) tys in
+      let (allocated, pointer) = fresh w "%ptr" in
+      let ready = shaped-allocation allocated pointer (nat-to-string (8 * words)) 1 descriptor in
+      let filled = store-typed-slots ready pointer 0 tys values in
+      let (done, result) = fresh filled "%v" in
+      (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
+  store-typed-slots :: Writer -> String -> Nat -> List UType -> List String -> Writer
+  store-typed-slots w pointer index tys values = case (tys, values) of
+    (ty : ts, value : vs) ->
+      let (ready, slot) = fresh w "%ptr" in
+      let pointed = line ready (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
+      (case type-value-size-align (pointed.context) ty of
+        Some (sz, al) ->
+          let words = val-size-words sz in
+          if sz > 16 || al > 16 then
+            let zeroed = (if sz < words * 8 then
+              (let (z1, tail-slot) = fresh pointed "%ptr" in
+               emit-lines z1 [
+                 cat ["  ", tail-slot, " = getelementptr i64, ptr ", slot, ", i64 ", nat-to-string (if words > 0 then words - 1 else 0)],
+                 cat ["  store i64 0, ptr ", tail-slot]])
+              else pointed) in
+            let copied = line (request-demand MemcpyDemand zeroed) (cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align 1 ", slot, ", ptr align ", nat-to-string al, " ", value, ", i64 ", nat-to-string sz, ", i1 false)"]) in
+            store-typed-slots copied pointer (index + words) ts vs
+          else if sz > 8 then
+            store-typed-slots (line pointed (cat ["  store { i64, i64 } ", value, ", ptr ", slot, ", align 8"])) pointer (index + 2) ts vs
+          else
+            store-typed-slots (line pointed (cat ["  store i64 ", value, ", ptr ", slot])) pointer (index + 1) ts vs
+        None ->
+          let wide = wide-type (pointed.context) ty in
+          store-typed-slots (line pointed (cat ["  store ", if wide then "i128 " else "i64 ", value, ", ptr ", slot, if wide then ", align 8" else ""])) pointer (index + (if wide then 2 else 1)) ts vs)
+    other -> w
   allocate-typed :: Writer -> Nat -> List (String, String) -> (Writer, String)
   allocate-typed w descriptor values = case values of
     [] -> static-constructor w descriptor
@@ -5302,13 +5569,29 @@ module Cinch.RuntimeIr where
     other -> (refuse w (Span 0 0 1 1) "malformed tuple pattern spine", [])
   read-slot :: UType -> String -> Nat -> Writer -> (Writer, String, String, Nat)
   read-slot ty pointer index w =
-    let wide = wide-type (w.context) ty in
-    let access = if wide then "i128" else "i64" in
-    let alignment = if wide then ", align 8" else "" in
     let (one, slot) = fresh w "%ptr" in
-    let (two, value) = fresh one "%v" in
-    let pointed = line two (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
-    (line pointed (cat ["  ", value, " = load ", access, ", ptr ", slot, alignment]), access, value, index + (if wide then 2 else 1))
+    let pointed = line one (cat ["  ", slot, " = getelementptr i64, ptr ", pointer, ", i64 ", nat-to-string index]) in
+    case type-value-size-align (pointed.context) ty of
+      Some (sz, al) ->
+        let words = val-size-words sz in
+        if sz > 16 || al > 16 then
+          let (two, buf) = fresh (request-demand MemcpyDemand pointed) "%valslot" in
+          let copied = emit-lines two [
+            cat ["  ", buf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al],
+            cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align ", nat-to-string al, " ", buf, ", ptr align 1 ", slot, ", i64 ", nat-to-string sz, ", i1 false)"]] in
+          (copied, "ptr", buf, index + words)
+        else if sz > 8 then
+          let (two, value) = fresh pointed "%v" in
+          (line two (cat ["  ", value, " = load { i64, i64 }, ptr ", slot, ", align 8"]), "{ i64, i64 }", value, index + 2)
+        else
+          let (two, value) = fresh pointed "%v" in
+          (line two (cat ["  ", value, " = load i64, ptr ", slot]), "i64", value, index + 1)
+      None ->
+        let wide = wide-type (pointed.context) ty in
+        let access = if wide then "i128" else "i64" in
+        let alignment = if wide then ", align 8" else "" in
+        let (two, value) = fresh pointed "%v" in
+        (line two (cat ["  ", value, " = load ", access, ", ptr ", slot, alignment]), access, value, index + (if wide then 2 else 1))
   guarded-expression :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
   guarded-expression definitions locals w failed term = case term of
     CRequire sp ty body -> guarded-expression definitions locals w failed body
@@ -5901,7 +6184,7 @@ module Cinch.RuntimeIr where
     let (one, base) = fresh w "alt" in
     -- A switch names i64 cases and joins at an i64 phi; a wide scrutinee or
     -- result takes the chain, whose tests and slot are typed.
-    if wide-type (w.context) ty || alternatives-llvm w alternatives == "i128" then case-chain definitions locals one ty value owned alternatives else
+    if wide-type (w.context) ty || is-value-type (w.context) ty || alternatives-llvm w alternatives /= "i64" then case-chain definitions locals one ty value owned alternatives else
     case case-dispatch one alternatives base of
       HeaderDispatch entries -> switch-value definitions locals one ty value owned True base entries alternatives
       ImmediateDispatch entries -> switch-value definitions locals one ty value owned False base entries alternatives
@@ -6036,11 +6319,11 @@ module Cinch.RuntimeIr where
             Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
               Some d -> (case core-data-layout d of
                 UniformData -> case source-scheme-classes (w.context) (scheme-params (c.constructor-scheme)) params of
-                  Some classes -> (case rebuilding-fields definitions locals w fields args of
+                  Some classes | not (val-code classes) && all-i64-llvms (value-llvms (w.context) (term-types args)) -> (case rebuilding-fields definitions locals w fields args of
                     Some moves -> (case request-data sp d classes w of
                       (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
                     None -> None)
-                  None -> None
+                  other -> None
                 other -> None)
               None -> None)
             None -> None
@@ -6686,6 +6969,8 @@ module Cinch.RuntimeIr where
         (ready, closure-word) -> apply-one ready closure-word "0")
       else if wide-type (w.context) (core-type input) && (op == "mut-borrow" || op == "thunk-force") then unsupported w sp wide-refusal
       else if wide-type (w.context) ty && (op == "thunk-force" || op == "memo-demand") then unsupported w sp wide-refusal
+      else if is-value-type (w.context) (core-type input) && (op == "mut-borrow" || op == "thunk-force") then unsupported w sp val-refusal
+      else if is-value-type (w.context) ty && (op == "thunk-force" || op == "memo-demand") then unsupported w sp val-refusal
       else if op == "mut-borrow" then (case expression definitions locals w input of
         (ready, value) -> let (planned, descriptor) = request-layout sp [input] ready in allocate planned descriptor [value])
       else if op == "negate" && named (core-type input) "Int" then
@@ -6696,12 +6981,15 @@ module Cinch.RuntimeIr where
     CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
       if op == "par-both" then (case pair-classes (w.context) ty of
         Some classes | wide-code classes -> unsupported w sp wide-parallel-refusal
+        Some classes | val-code classes -> unsupported w sp val-refusal
         other -> par-both definitions locals w sp ty first second)
       else if op == "par-tabulate" then
         (if wide-array-element (w.context) ty then unsupported w sp wide-parallel-refusal
+         else if val-array-element (w.context) ty then unsupported w sp val-refusal
          else par-tabulate definitions locals w sp ty first second)
       else if op == "par-map" then
         (if wide-array-element (w.context) (core-type second) || wide-array-element (w.context) ty then unsupported w sp wide-parallel-refusal
+         else if val-array-element (w.context) (core-type second) || val-array-element (w.context) ty then unsupported w sp val-refusal
          else par-map definitions locals w sp ty first second)
       else if op == "#handler-field" && wide-type (w.context) ty then unsupported w sp wide-refusal
       else if op == "#handler-field" then
@@ -6819,10 +7107,14 @@ module Cinch.RuntimeIr where
   wide-array-element context ty = case ty of
     UApp (UCon name kind) element -> name == "Array" && kind-equal kind (KFun KType KType) && wide-type context element
     other -> False
+  val-array-element :: RuntimeContext -> UType -> Bool
+  val-array-element context ty = case ty of
+    UApp (UCon name kind) element -> name == "Array" && kind-equal kind (KFun KType KType) && is-value-type context element
+    other -> False
 
   array-element-class :: RuntimeContext -> UType -> Option Nat
   array-element-class context ty = case ty of
-    UApp (UCon name kind) element -> if name == "Array" && kind-equal kind (KFun KType KType) && not (wide-type context element) then word-class context element else None
+    UApp (UCon name kind) element -> if name == "Array" && kind-equal kind (KFun KType KType) && not (wide-type context element) && not (is-value-type context element) then word-class context element else None
     other -> None
   -- The leading lets hold the group's cells until the continuation exits.
   -- Clear their scanned slot in reverse allocation order, breaking cycles
@@ -6851,6 +7143,7 @@ module Cinch.RuntimeIr where
   memo-demand definitions locals w sp result cell = case word-class (w.context) result of
     None -> unsupported w sp "memo demand needs a checked result representation"
     Some 3 -> unsupported w sp wide-refusal
+    Some code | is-val-class code -> unsupported w sp val-refusal
     Some code -> case expression definitions locals (request-demand MemoWorker w) cell of
       (ready, word) -> case call ready "@cinch.typed.memo.demand" [word, if code == 0 then "0" else "1"] of
         (loaded, value) -> (count-op False (core-type cell) word (count-op True result value loaded), value)
@@ -7455,7 +7748,7 @@ module Cinch.RuntimeIr where
               -- specialization of a group member uses the typed self-loop
               -- worker when self-tail-recursive, or an ordinary worker otherwise.
               let non-word = definition-has-non-word (scoped.context) d types in
-              case (if wide-code classes || non-word then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
+              case (if wide-code classes || val-code classes || non-word then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
                 Some (group, width) -> global-tail-worker definitions d classes prefix roots scoped group width (list-length parameters)
                 None -> if not non-word && offset == 0 && list-length (proof-stage-arities patterns offset) == 1 && self-tail-present name classes (list-length parameters) (d.clauses) then
                     self-loop-worker definitions classes d prefix roots types (list-length parameters) scoped
@@ -7643,6 +7936,7 @@ module Cinch.RuntimeIr where
                   if uniform && list-length (core-data-constructors dd) == 1 && n == list-length (core-constructor-fields c) && n >= 1 && n <= 3 then
                     (case class-vector (scoped.context) (term-types sample-args) of
                       Some fclasses ->
+                        if val-code classes || val-code fclasses then None else
                         let maxw = if wide-code fclasses then (4 :: Nat) else 3 in
                         if cpr-words fclasses <= maxw then
                           Some (ctor, fclasses, value-llvms (scoped.context) (term-types sample-args))
@@ -7815,7 +8109,9 @@ module Cinch.RuntimeIr where
           case class-vector (started.context) (take-types next-count types) of
 
           None -> refuse started (Span 0 0 1 1) "proof continuation needs checked runtime parameter representations"
-          Some next-classes -> case closure (Span 0 0 1 1) (proof-stage-name (specialized-name (d.name) classes) (rung + 1)) next-classes (value-parameters count 0) started of
+          Some next-classes ->
+            let ret-class = (case word-class (started.context) (final-result (scheme-body (d.scheme))) of Some c -> c; None -> 0) in
+            case closure-with (Span 0 0 1 1) (proof-stage-name (specialized-name (d.name) classes) (rung + 1)) next-classes ret-class (take-types count types) (value-parameters count 0) started of
             (ready, result) -> let returned = line (line ready (cat ["  ret i64 ", result])) "}" in
               proof-worker-stages definitions classes d prefix roots offset types rest (rung + 1) returned)
   value-parameters :: Nat -> Nat -> List String
@@ -7829,14 +8125,15 @@ module Cinch.RuntimeIr where
         Some context -> case context of
           RuntimeContext datas bounds rigids queue inlining ->
             let scoped = with-representations bounds rigids w in
-            let count = list-length (core-constructor-fields c) in
+            let fields = core-constructor-fields c in
+            let count = list-length fields in
             let values = value-parameters count 0 in
-            let typed = typed-values (value-llvms context (core-constructor-fields c)) values in
+            let typed = typed-values (value-param-llvms context fields) values in
             if regular-constructor d c then
               case request-data (Span 0 0 1 1) d classes scoped of
                 (planned, descriptor) ->
                   let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ")", worker-open w])) "entry:" in
-                  case allocate-constructor d started (data-descriptor descriptor tag) typed of
+                  case allocate-constructor-fields d started (data-descriptor descriptor tag) fields values of
                     (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
             else
               case class-vector context (storage-fields d c) of
@@ -7844,7 +8141,7 @@ module Cinch.RuntimeIr where
                 Some codes ->
                   let desc = shape-description 1 tag (word-codes codes) in
                   let started = line (line scoped (cat ["define ", worker-linkage scoped (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ")", worker-open w])) "entry:" in
-                  case allocate-constructor d started desc typed of
+                  case allocate-constructor-fields d started desc fields values of
                     (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
       None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
@@ -7855,14 +8152,29 @@ module Cinch.RuntimeIr where
     if not (word-type (scoped.context) (core-type body)) then refuse scoped (Span 0 0 1 1) "lambda result needs a checked runtime representation" else
       let types = capture-types saved in
       let offset = list-length types in
+      let param-types = if erased-pattern parameter then types else types <> [pattern-type parameter] in
+      let base-params = typed-arguments (typed-values (value-param-llvms (scoped.context) param-types) (value-parameters (list-length param-types) 0)) in
+      let sret-opt = value-sret-info (scoped.context) (core-type body) in
+      let ret-llvm = (case sret-opt of Some info -> "void"; None -> value-llvm (scoped.context) (core-type body)) in
+      let full-params = (case sret-opt of Some (sret-attr, sz, al) -> (cat [sret-attr, " %sret"]) : base-params; None -> base-params) in
+      let started = line (line scoped (cat ["define ", worker-linkage w name, ret-llvm, " ", symbol name, "(", join full-params, ")", worker-open w])) "entry:" in
       if erased-pattern parameter then
-        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ")", worker-open w])) "entry:" in
         (case expression definitions (captured-bindings saved 0) started body of
-          (done, result) -> line (line (drop-locals (capture-roots types 0) done) (cat ["  ret ", value-llvm (done.context) (core-type body), " ", result])) "}")
+          (done, result) ->
+            let cleaned = drop-locals (capture-roots types 0) done in
+            case sret-opt of
+              Some (sret-attr, sz, al) ->
+                let w1 = request-demand MemcpyDemand cleaned in
+                let copied = line w1 (cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align ", nat-to-string al, " %sret, ptr align ", nat-to-string al, " ", result, ", i64 ", nat-to-string sz, ", i1 false)"]) in
+                line (line copied "  ret void") "}"
+              None -> line (line cleaned (cat ["  ret ", value-llvm (cleaned.context) (core-type body), " ", result])) "}")
       else
         let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
-        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ")", worker-open w])) "entry:" in
-        line (worker-clauses definitions (captured-bindings saved 0) roots offset [CoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+        case sret-opt of
+          Some (sret-attr, sz, al) ->
+            line (worker-clauses-sret definitions (captured-bindings saved 0) roots offset sz al [CoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+          None ->
+            line (worker-clauses definitions (captured-bindings saved 0) roots offset [CoreClause (Span 0 0 1 1) [parameter] body] started) "}"
   recursive-width :: List RecursiveWorker -> Nat
   recursive-width group = case group of
     [] -> 0
@@ -8343,6 +8655,20 @@ module Cinch.RuntimeIr where
       let width = recursive-width group in
       let prefix = captured-bindings saved 0 in
       if not (word-type (scoped.context) (core-type body)) then refuse scoped sp "recursive worker result needs a runtime representation" else
+        let all-param-tys = captures <> pattern-types parameters in
+        if not (all-i64-types (scoped.context) all-param-tys) || value-llvm (scoped.context) (core-type body) /= "i64" then
+          let sret-opt = value-sret-info (scoped.context) (core-type body) in
+          let ret-llvm = (case sret-opt of Some info -> "void"; None -> value-llvm (scoped.context) (core-type body)) in
+          let base-params = typed-arguments (typed-values (value-param-llvms (scoped.context) all-param-tys) (value-parameters (offset + arity) 0)) in
+          let full-params = (case sret-opt of Some (sret-attr, sz, al) -> (cat [sret-attr, " %sret"]) : base-params; None -> base-params) in
+          let started = line (line scoped (cat ["define ", worker-linkage scoped name, ret-llvm, " ", symbol name, "(", join full-params, ")", worker-open scoped])) "entry:" in
+          (case recursive-locals sp captures prefix group body started of
+            (ready, siblings) ->
+              let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
+              case sret-opt of
+                Some (sret-attr, sz, al) -> line (worker-clauses-sret definitions (siblings <> prefix) roots offset sz al [CoreClause sp patterns body] ready) "}"
+                None -> line (worker-clauses definitions (siblings <> prefix) roots offset [CoreClause sp patterns body] ready) "}")
+        else
         let (started, failed) = fresh (start-tail-worker "" name (offset + arity) (offset + width) False scoped) "tailmiss" in
         (case match-clause patterns body prefix offset failed started of
           (matched, bindings, rebuilt) -> case recursive-locals sp captures prefix group rebuilt matched of
@@ -8358,7 +8684,7 @@ module Cinch.RuntimeIr where
     ConstructorDemand name classes -> constructor-worker name classes claimed
     LambdaDemand name saved-bound saved-rigid saved parameter body -> lambda-worker definitions name saved-bound saved-rigid saved parameter body claimed
     RecursiveDemand member group saved-bound saved-rigid saved -> recursive-worker definitions member group saved-bound saved-rigid saved claimed
-    StubDemand name classes -> app-stub name classes claimed
+    StubDemand name classes ret-class -> app-stub name classes ret-class claimed
     DictionaryDemand name classes -> dictionary-worker definitions name classes claimed
     ArrayDemand name classes -> array-worker name classes claimed
     MVarDemand name classes -> mvar-worker name classes claimed
