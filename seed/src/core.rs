@@ -3001,6 +3001,13 @@ pub struct FnMeta {
     /// mult)`); every unlisted parameter behaves as `%many`. Driving
     /// never duplicates or drops these (section 3, linear values).
     pub linear: Vec<(usize, crate::types::Mult)>,
+    /// Owned `Obj` parameters whose type is statically non-`Copy` with `%1`/`%aff`
+    /// usage: any non-nullary heap block passed here is guaranteed uniquely owned
+    /// (`rc == 1`), enabling branchless `Release` and unconditional `Reuse`.
+    pub unique_params: Vec<usize>,
+    /// Parameters whose type is a closed uniform nullary-only `data` enum
+    /// (every inhabitant is an immortal static block, so dup/drop are no-ops).
+    pub immortal_params: Vec<usize>,
     /// Parameters whose function type's effect rows are empty (an honest
     /// pure callback may be reordered or fused; an effectful one may not:
     /// modules and compilation specification section 5).
@@ -3030,6 +3037,8 @@ impl Default for FnMeta {
         // optimizer's purity scan backstops this.
         FnMeta {
             linear: Vec::new(),
+            unique_params: Vec::new(),
+            immortal_params: Vec::new(),
             pure_arrows: Vec::new(),
             dicts: Vec::new(),
             pure: true,
@@ -3602,6 +3611,11 @@ pub struct Program {
     /// meet at link time. Empty for a whole program, where every module is
     /// simply emitted.
     pub private_modules: Vec<String>,
+    /// Per unit, the `Core::Release` block locals whose runtime refcount is
+    /// statically proven to be 1 (`crate::rc::prove_uniqueness`): code
+    /// generation emits branchless `Release` and unconditional `Reuse` for
+    /// them (when not in `--rc-debug` mode and not receiving a frame block).
+    pub unique_releases: std::collections::BTreeMap<String, std::collections::BTreeSet<usize>>,
 }
 
 /// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
@@ -3637,6 +3651,7 @@ impl Program {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            unique_releases: Default::default(),
         }
     }
 
@@ -3676,6 +3691,7 @@ impl Program {
             borrowed: self.borrowed.clone(),
             lent_entries: self.lent_entries.clone(),
             private_modules: self.private_modules.clone(),
+            unique_releases: self.unique_releases.clone(),
         }
     }
 }
@@ -9315,6 +9331,7 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            unique_releases: Default::default(),
             inline: Default::default(),
         };
         for reverse in [false, true] {
@@ -9373,6 +9390,7 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            unique_releases: Default::default(),
             inline: Default::default(),
         };
         share_repeated_subterms(&mut program);

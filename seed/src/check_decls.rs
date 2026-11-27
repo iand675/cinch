@@ -8531,6 +8531,9 @@ impl Checker {
                 if pure_arrow_ty(&doms[i]) {
                     meta.pure_arrows.push(pos);
                 }
+                if self.is_immortal_enum_ty(&doms[i]) {
+                    meta.immortal_params.push(pos);
+                }
             }
         }
         for (l, c) in &dict_meta {

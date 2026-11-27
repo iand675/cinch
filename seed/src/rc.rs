@@ -227,6 +227,8 @@ fn insert_with(
     if verifying() {
         verify_program(&program)?;
     }
+    let closed = boundary.is_some_and(|b| b.closed);
+    prove_uniqueness(&mut program, closed);
     Ok(program)
 }
 
@@ -2616,6 +2618,435 @@ fn expr_class_in(e: &Core, classes: &HashMap<usize, Class>) -> Option<Class> {
         }
         Core::App(f, _) if matches!(**f, Core::Ctor(..)) => Some(Class::Obj),
         _ => None,
+    }
+}
+
+/// Interprocedural static uniqueness analysis over post-RC Core:
+/// computes `returns_unique` (units whose every exit produces a fresh
+/// uniquely-owned non-nullary heap block) and `unique_params` (owned `Obj`
+/// parameters guaranteed unique either by non-duplicable linearity metadata
+/// or because every closed-program call site passes a statically-unique
+/// value), then marks `Core::Release` sites whose `block` is statically
+/// unique in `program.unique_releases`.
+fn prove_uniqueness(program: &mut Program, closed: bool) {
+    program.unique_releases.clear();
+    let non_nullary_ctors: HashSet<&str> = program
+        .fns
+        .iter()
+        .filter(|f| f.ctor.is_some_and(|(_, arity)| arity > 0))
+        .map(|f| f.id.0.as_str())
+        .collect();
+    let arities: HashMap<&str, usize> = program
+        .fns
+        .iter()
+        .map(|f| (f.id.0.as_str(), f.arity()))
+        .collect();
+    let exported: HashSet<&str> = program
+        .foreigns
+        .values()
+        .filter(|fp| fp.export)
+        .map(|fp| fp.unit.as_str())
+        .collect();
+    let foreign_imports: HashSet<&str> = program
+        .foreigns
+        .values()
+        .filter(|fp| !fp.export)
+        .map(|fp| fp.unit.as_str())
+        .collect();
+    let instance_methods: HashSet<&str> = program
+        .instances
+        .iter()
+        .flat_map(|inst| inst.methods.iter().map(|m| m.0.as_str()))
+        .collect();
+    let main_unit = program.main.as_ref().map(|g| g.0.as_str());
+
+    // Collect every unit that escapes as a first-class value (closure, partial
+    // application, or dictionary slot) and every unit with at least one direct call.
+    fn scan_refs(
+        e: &Core,
+        arities: &HashMap<&str, usize>,
+        indirect: &mut HashSet<String>,
+        direct_called: &mut HashSet<String>,
+    ) {
+        match e {
+            Core::Global(g, _) => {
+                indirect.insert(g.0.clone());
+            }
+            Core::Lam { fn_id, env, .. } => {
+                indirect.insert(fn_id.0.clone());
+                for a in env {
+                    scan_refs(a, arities, indirect, direct_called);
+                }
+            }
+            Core::App(h, args) => {
+                if let Core::Global(g, _) = &**h {
+                    if arities.get(g.0.as_str()) == Some(&args.len()) {
+                        direct_called.insert(g.0.clone());
+                    } else {
+                        indirect.insert(g.0.clone());
+                    }
+                } else {
+                    scan_refs(h, arities, indirect, direct_called);
+                }
+                for a in args {
+                    scan_refs(a, arities, indirect, direct_called);
+                }
+            }
+            Core::InstDict(_, args, _) => {
+                for a in args {
+                    scan_refs(a, arities, indirect, direct_called);
+                }
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    scan_refs(child, arities, indirect, direct_called);
+                }
+            }
+        }
+    }
+    let mut indirect: HashSet<String> = HashSet::new();
+    let mut direct_called: HashSet<String> = HashSet::new();
+    for f in &program.fns {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+            continue;
+        }
+        scan_refs(&f.body, &arities, &mut indirect, &mut direct_called);
+    }
+
+    let body_available = |f: &FnDef| {
+        f.prim.is_none()
+            && f.ctor.is_none()
+            && !f.meta.prim_body
+            && !foreign_imports.contains(f.id.0.as_str())
+            && !matches!(
+                program.lent_entries.get(&f.id.0),
+                Some(crate::core::LentEntry::Imported { .. })
+            )
+    };
+    let is_internal = |f: &FnDef| {
+        closed
+            && body_available(f)
+            && main_unit != Some(f.id.0.as_str())
+            && !exported.contains(f.id.0.as_str())
+            && !instance_methods.contains(f.id.0.as_str())
+            && !indirect.contains(&f.id.0)
+            && direct_called.contains(&f.id.0)
+    };
+
+    // Collect locals that are duplicated or could acquire an external alias
+    // before a Release (any Dup, mutable store, or argument to a borrowed
+    // primitive/unknown call).
+    fn collect_aliased(
+        e: &Core,
+        borrowed_map: &std::collections::BTreeMap<String, Vec<bool>>,
+        arities: &HashMap<&str, usize>,
+        out: &mut HashSet<usize>,
+    ) {
+        match e {
+            Core::Dup(x, _, body) => {
+                out.insert(x.0);
+                collect_aliased(body, borrowed_map, arities, out);
+            }
+            Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
+                out.insert(x.0);
+                if let Core::Var(y) = &**v {
+                    out.insert(y.0);
+                }
+                collect_aliased(v, borrowed_map, arities, out);
+            }
+            Core::App(h, args) => {
+                let is_known_local = match &**h {
+                    Core::Global(g, _) if arities.get(g.0.as_str()) == Some(&args.len()) => {
+                        Some(g.0.as_str())
+                    }
+                    _ => None,
+                };
+                for (i, a) in args.iter().enumerate() {
+                    if let Core::Var(x) = a {
+                        let is_borrowed = is_known_local
+                            .and_then(|g| borrowed_map.get(g))
+                            .and_then(|m| m.get(i))
+                            .copied()
+                            .unwrap_or(false);
+                        // Any borrowed argument or primitive/indirect argument may
+                        // inspect or retain the value before a later Release.
+                        if is_borrowed || matches!(&**h, Core::Prim(_)) {
+                            out.insert(x.0);
+                        }
+                    }
+                    collect_aliased(a, borrowed_map, arities, out);
+                }
+                if !matches!(&**h, Core::Global(..) | Core::Ctor(..) | Core::Prim(_)) {
+                    collect_aliased(h, borrowed_map, arities, out);
+                }
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    collect_aliased(child, borrowed_map, arities, out);
+                }
+            }
+        }
+    }
+
+    let mut aliased_by_unit: HashMap<String, HashSet<usize>> = HashMap::new();
+    for f in &program.fns {
+        if !body_available(f) {
+            continue;
+        }
+        let mut aliased = HashSet::new();
+        collect_aliased(&f.body, &program.borrowed, &arities, &mut aliased);
+        aliased_by_unit.insert(f.id.0.clone(), aliased);
+    }
+
+    // Greatest fixed point over `returns_unique` and `unique_params`.
+    let mut returns_unique: HashSet<String> = program
+        .fns
+        .iter()
+        .filter(|f| body_available(f) && f.repr.result == Some(Class::Obj))
+        .map(|f| f.id.0.clone())
+        .collect();
+
+    let mut unique_params: HashMap<String, Vec<bool>> = HashMap::new();
+    let mut fixed_unique_params: HashMap<String, Vec<bool>> = HashMap::new();
+    for f in &program.fns {
+        if !body_available(f) {
+            continue;
+        }
+        let borrowed = program.borrowed.get(&f.id.0);
+        let internal = is_internal(f);
+        let mut mask = vec![false; f.arity()];
+        let mut fixed = vec![false; f.arity()];
+        for i in 0..f.arity() {
+            let is_obj = f.repr.params.get(i).copied() == Some(Class::Obj);
+            let is_bor = borrowed.and_then(|m| m.get(i)).copied().unwrap_or(false);
+            if is_obj && !is_bor {
+                if f.meta.unique_params.contains(&i) {
+                    mask[i] = true;
+                    fixed[i] = true;
+                } else if internal {
+                    mask[i] = true;
+                }
+            }
+        }
+        if mask.iter().any(|&b| b) {
+            unique_params.insert(f.id.0.clone(), mask);
+        }
+        if fixed.iter().any(|&b| b) {
+            fixed_unique_params.insert(f.id.0.clone(), fixed);
+        }
+    }
+
+    fn is_unique_expr(
+        e: &Core,
+        unique_locals: &HashSet<usize>,
+        aliased: &HashSet<usize>,
+        returns_unique: &HashSet<String>,
+        non_nullary_ctors: &HashSet<&str>,
+        arities: &HashMap<&str, usize>,
+    ) -> bool {
+        match e {
+            Core::Var(x) => unique_locals.contains(&x.0),
+            Core::Reuse { .. } | Core::Fault => true,
+            Core::App(h, args) => match &**h {
+                Core::Ctor(g, _) => !args.is_empty() && non_nullary_ctors.contains(g.0.as_str()),
+                Core::Global(g, _) => {
+                    arities.get(g.0.as_str()) == Some(&args.len())
+                        && returns_unique.contains(&g.0)
+                }
+                _ => false,
+            },
+            Core::Let(x, c, v, body) => {
+                if *c == Class::Obj
+                    && !aliased.contains(&x.0)
+                    && is_unique_expr(v, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                {
+                    let mut next = unique_locals.clone();
+                    next.insert(x.0);
+                    is_unique_expr(body, &next, aliased, returns_unique, non_nullary_ctors, arities)
+                } else {
+                    is_unique_expr(body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                }
+            }
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => {
+                is_unique_expr(body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+            }
+            Core::If(_, t, f) => {
+                is_unique_expr(&t.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                    && is_unique_expr(&f.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+            }
+            Core::Case { scrut, alts } => {
+                let scrut_unique = matches!(&**scrut, Core::Var(s) if unique_locals.contains(&s.0));
+                !alts.is_empty()
+                    && alts.iter().all(|a| {
+                        if let CPat::Var(v, _) = a.pat {
+                            if scrut_unique && !aliased.contains(&v.0) {
+                                let mut next = unique_locals.clone();
+                                next.insert(v.0);
+                                return is_unique_expr(&a.body, &next, aliased, returns_unique, non_nullary_ctors, arities);
+                            }
+                        }
+                        is_unique_expr(&a.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                    })
+            }
+            _ => false,
+        }
+    }
+
+    fn walk_calls_and_releases(
+        e: &Core,
+        unique_locals: &mut HashSet<usize>,
+        aliased: &HashSet<usize>,
+        returns_unique: &HashSet<String>,
+        non_nullary_ctors: &HashSet<&str>,
+        arities: &HashMap<&str, usize>,
+        unique_params: &mut HashMap<String, Vec<bool>>,
+        fixed_unique_params: &HashMap<String, Vec<bool>>,
+        changed: &mut bool,
+        mut record_release: Option<&mut BTreeSet<usize>>,
+    ) {
+        match e {
+            Core::Let(x, c, v, body) => {
+                walk_calls_and_releases(
+                    v, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                );
+                let inserted = *c == Class::Obj
+                    && !aliased.contains(&x.0)
+                    && is_unique_expr(v, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                    && unique_locals.insert(x.0);
+                walk_calls_and_releases(
+                    body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release,
+                );
+                if inserted {
+                    unique_locals.remove(&x.0);
+                }
+            }
+            Core::Release { block, body, .. } => {
+                if let Some(rec) = record_release.as_deref_mut() {
+                    if unique_locals.contains(&block.0) {
+                        rec.insert(block.0);
+                    }
+                }
+                walk_calls_and_releases(
+                    body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release,
+                );
+            }
+            Core::Case { scrut, alts } => {
+                walk_calls_and_releases(
+                    scrut, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                );
+                let scrut_unique = matches!(&**scrut, Core::Var(s) if unique_locals.contains(&s.0));
+                for a in alts {
+                    let inserted = match a.pat {
+                        CPat::Var(v, _) if scrut_unique && !aliased.contains(&v.0) => unique_locals.insert(v.0),
+                        _ => false,
+                    };
+                    walk_calls_and_releases(
+                        &a.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                    if inserted {
+                        if let CPat::Var(v, _) = a.pat {
+                            unique_locals.remove(&v.0);
+                        }
+                    }
+                }
+            }
+            Core::App(h, args) => {
+                if let Core::Global(g, _) = &**h {
+                    if arities.get(g.0.as_str()) == Some(&args.len()) {
+                        if let Some(mask) = unique_params.get_mut(&g.0) {
+                            let fixed = fixed_unique_params.get(&g.0);
+                            for (i, a) in args.iter().enumerate() {
+                                if mask.get(i).copied().unwrap_or(false)
+                                    && !fixed.and_then(|f| f.get(i)).copied().unwrap_or(false)
+                                    && !is_unique_expr(a, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                                {
+                                    mask[i] = false;
+                                    *changed = true;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    walk_calls_and_releases(
+                        h, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                }
+                for a in args {
+                    walk_calls_and_releases(
+                        a, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                }
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    walk_calls_and_releases(
+                        child, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                }
+            }
+        }
+    }
+
+    let seed_locals = |f: &FnDef, aliased: &HashSet<usize>, up: &HashMap<String, Vec<bool>>| -> HashSet<usize> {
+        let mut s = HashSet::new();
+        if let Some(mask) = up.get(&f.id.0) {
+            for (i, &u) in mask.iter().enumerate() {
+                if u && !aliased.contains(&i) {
+                    s.insert(i);
+                }
+            }
+        }
+        s
+    };
+
+    loop {
+        let mut changed = false;
+        for f in &program.fns {
+            if !body_available(f) {
+                continue;
+            }
+            let aliased = &aliased_by_unit[&f.id.0];
+            let mut locals = seed_locals(f, aliased, &unique_params);
+            if returns_unique.contains(&f.id.0)
+                && !is_unique_expr(&f.body, &locals, aliased, &returns_unique, &non_nullary_ctors, &arities)
+            {
+                returns_unique.remove(&f.id.0);
+                changed = true;
+            }
+            walk_calls_and_releases(
+                &f.body, &mut locals, aliased, &returns_unique, &non_nullary_ctors, &arities,
+                &mut unique_params, &fixed_unique_params, &mut changed, None,
+            );
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    // Final pass: collect statically-unique `Core::Release` blocks per unit.
+    let mut dummy_changed = false;
+    for f in &program.fns {
+        if !body_available(f) {
+            continue;
+        }
+        let aliased = &aliased_by_unit[&f.id.0];
+        let mut locals = seed_locals(f, aliased, &unique_params);
+        let mut rec = BTreeSet::new();
+        walk_calls_and_releases(
+            &f.body, &mut locals, aliased, &returns_unique, &non_nullary_ctors, &arities,
+            &mut unique_params, &fixed_unique_params, &mut dummy_changed, Some(&mut rec),
+        );
+        if !rec.is_empty() {
+            program.unique_releases.insert(f.id.0.clone(), rec);
+        }
     }
 }
 

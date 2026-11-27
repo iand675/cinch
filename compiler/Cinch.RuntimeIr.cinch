@@ -30,7 +30,7 @@ module Cinch.RuntimeIr where
   import Data.Array
   import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
   import Cinch.Borrow (compute-borrow-modes, same-borrow-modes, any-borrowed)
-  import Cinch.Ownership (term-uses-id, terms-use-id, term-use-count, arm-has-reuse-alloc, compute-consumed-params, same-bool-maps, frame-let-mode, compute-arena-phases, same-arena-phases, program-uses-concurrency, is-immortal-enum-data)
+  import Cinch.Ownership (term-uses-id, terms-use-id, term-use-count, arm-has-reuse-alloc, compute-consumed-params, same-bool-maps, frame-let-mode, compute-arena-phases, same-arena-phases, program-uses-concurrency, is-immortal-enum-data, compute-returns-unique, term-is-unique-alloc)
   import Cinch.Document
   import Cinch.Target (TargetProfile, host-profile, selection-arch, target-ir-header)
   import Data.List (split-at)
@@ -139,8 +139,9 @@ module Cinch.RuntimeIr where
     consumed :: HashMap String (List Bool)
     arenas :: HashMap String Bool
     concurrent :: Bool
+    returns-unique :: HashMap String Bool
   empty-ownership-plan :: OwnershipPlan
-  empty-ownership-plan = OwnershipPlan hash-map-empty hash-map-empty hash-map-empty True
+  empty-ownership-plan = OwnershipPlan hash-map-empty hash-map-empty hash-map-empty True hash-map-empty
   record BindingIndex where
     field0 :: CallableBindings
     field1 :: ForeignBindings
@@ -376,23 +377,27 @@ module Cinch.RuntimeIr where
       ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions plan) versions provider exposed effects tail-groups reclaim wasm32 families promoted
   program-borrow-modes :: ProgramInfo -> HashMap String (List Bool)
   program-borrow-modes info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> borrows
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> borrows
   program-consumed-params :: ProgramInfo -> HashMap String (List Bool)
   program-consumed-params info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> consumed
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> consumed
   program-arena-phases :: ProgramInfo -> HashMap String Bool
   program-arena-phases info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> arenas
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> arenas
   program-concurrent :: ProgramInfo -> Bool
   program-concurrent info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> concurrent
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> concurrent
+  program-returns-unique :: ProgramInfo -> HashMap String Bool
+  program-returns-unique info = case program-ownership info of
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> ret-uniq
   same-ownership-plan :: List CoreDefinition -> OwnershipPlan -> OwnershipPlan -> Bool
   same-ownership-plan definitions left right = case (left, right) of
-    (OwnershipPlan b1 c1 a1 m1, OwnershipPlan b2 c2 a2 m2) ->
+    (OwnershipPlan b1 c1 a1 m1 u1, OwnershipPlan b2 c2 a2 m2 u2) ->
       (if m1 then m2 else not m2)
       && same-borrow-modes definitions b1 b2
       && same-bool-maps definitions c1 c2
       && same-arena-phases definitions a1 a2
+      && same-arena-phases definitions u1 u2
   prepend-binding :: forall a. String -> a -> HashMap String (List a) -> HashMap String (List a)
   prepend-binding key value entries = case hash-map-lookup key entries of
     Some found -> hash-map-insert key (value : found) entries
@@ -592,6 +597,84 @@ module Cinch.RuntimeIr where
         other -> Some 1
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
+  -- Extract integer constant from a refinement index operand.
+  refinement-int-const :: UType -> Option Int
+  refinement-int-const t = case t of
+    UIndex carrier (IInteger n) -> Some n
+    UIndexForget inner -> refinement-int-const inner
+    other -> None
+
+  -- True if `t` names the refinement binder `id`.
+  refinement-is-binder :: Nat -> UType -> Bool
+  refinement-is-binder id t = case t of
+    UIndex carrier (IBound bid name) -> bid == id
+    UIndexForget inner -> refinement-is-binder id inner
+    other -> False
+
+  -- Extract conservative `(Option Int, Option Int)` inclusive `[lo, hi]` bounds
+  -- on refinement binder `id` from a predicate conjunction.
+  merge-lo :: Option Int -> Option Int -> Option Int
+  merge-lo a b = case (a, b) of
+    (None, x) -> x
+    (x, None) -> x
+    (Some x, Some y) -> Some (if x > y then x else y)
+
+  merge-hi :: Option Int -> Option Int -> Option Int
+  merge-hi a b = case (a, b) of
+    (None, x) -> x
+    (x, None) -> x
+    (Some x, Some y) -> Some (if x < y then x else y)
+
+  refinement-bounds :: Nat -> UType -> (Option Int, Option Int)
+  refinement-bounds id pred = case pred of
+    UPropAnd a b -> case (refinement-bounds id a, refinement-bounds id b) of
+      ((la, ha), (lb, hb)) -> (merge-lo la lb, merge-hi ha hb)
+    UCompare op left right ->
+      if refinement-is-binder id left then
+        (case refinement-int-const right of
+          Some k ->
+            if op == "<" then (None, Some (k - 1))
+            else if op == "<=" then (None, Some k)
+            else if op == ">" then (Some (k + 1), None)
+            else if op == ">=" then (Some k, None)
+            else if op == "==" || op == "Eq" then (Some k, Some k)
+            else (None, None)
+          None -> (None, None))
+      else if refinement-is-binder id right then
+        (case refinement-int-const left of
+          Some k ->
+            if op == "<" then (Some (k + 1), None)
+            else if op == "<=" then (Some k, None)
+            else if op == ">" then (None, Some (k - 1))
+            else if op == ">=" then (None, Some k)
+            else if op == "==" || op == "Eq" then (Some k, Some k)
+            else (None, None)
+          None -> (None, None))
+      else (None, None)
+    other -> (None, None)
+
+  -- A refined `Nat` or `Int` whose predicate proves it strictly inside the
+  -- target immediate range always carries low bit 1 (never a heap bignum), so
+  -- its RC class is `0` (`Raw`) while keeping its exact tagged-immediate word.
+  refinement-fits-immediate :: Bool -> UType -> Bool
+  refinement-fits-immediate wasm32 ty = case refinement-view ty of
+    URefine id name carrier pred ->
+      let base-carrier = base carrier in
+      if named base-carrier "Nat" then
+        let max-nat = if wasm32 then (2147483647 :: Int) else (4611686018427387903 :: Int) in
+        (case refinement-bounds id pred of
+          (lo, Some hi) -> hi <= max-nat
+          other -> refinement-fits-immediate wasm32 carrier)
+      else if named base-carrier "Int" then
+        let max-int = if wasm32 then (1073741823 :: Int) else (4611686018427387903 :: Int) in
+        let min-int = 0 - max-int in
+        (case refinement-bounds id pred of
+          (Some lo, Some hi) -> lo >= min-int && hi <= max-int
+          other -> refinement-fits-immediate wasm32 carrier)
+      else False
+    URequire req body -> refinement-fits-immediate wasm32 body
+    other -> False
+
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
   value-word-class context raw-ty =
@@ -600,7 +683,7 @@ module Cinch.RuntimeIr where
       Some (carrier, val) -> value-word-class context carrier
       None -> case same-type-parts (base ty) of
         Some _ -> Some 0
-        None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+        None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then (if refinement-fits-immediate (program-wasm32 (context.info)) ty then Some 0 else Some 2) else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
           RuntimeContext datas bounds rigids queue inlining -> case base ty of
             -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
             UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") -> Some 0
@@ -1803,17 +1886,22 @@ module Cinch.RuntimeIr where
   --   4) Single-use direct move into a constructor or tuple field (0 dup, 0 drop)
   eval-let-body :: List CoreDefinition -> List Local -> Writer -> Nat -> UType -> String -> CoreTerm -> (Writer, String)
   eval-let-body definitions locals w id ty value body =
+    eval-let-body-u definitions locals w id ty value False body
+
+  eval-let-body-u :: List CoreDefinition -> List Local -> Writer -> Nat -> UType -> String -> Bool -> CoreTerm -> (Writer, String)
+  eval-let-body-u definitions locals w id ty value is-uniq body =
     if not (term-uses-id id body) then
       expression definitions locals (count-op False ty value w) body
     else case unwrap-let-var body of
       Some lid | lid == id -> (w, value)
       other -> case simple-word-let definitions w body of
         Some (sp2, id2, ty2, rhs2, body2) | id2 /= id && not (term-uses-id id body2) ->
-          (case eval-let-body definitions locals w id ty value rhs2 of
-            (ready, val2) -> eval-let-body definitions locals ready id2 ty2 val2 body2)
+          (let uniq2 = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs2 in
+           case eval-let-body-u definitions locals w id ty value is-uniq rhs2 of
+            (ready, val2) -> eval-let-body-u definitions locals ready id2 ty2 val2 uniq2 body2)
         other -> case body of
           CCase sp2 cty scrut alts | (case unwrap-let-var scrut of Some sid -> sid == id; None -> False) && not (term-uses-id id alts) ->
-            case-value definitions locals w ty value alts
+            case-value-mode-u definitions locals w ty value True is-uniq alts
           other -> case try-move-into-alloc definitions locals w id ty value body of
             Some moved -> moved
             None -> case expression definitions ((Local id ty value) : locals) w body of
@@ -1826,8 +1914,10 @@ module Cinch.RuntimeIr where
         (bound, value) -> expression definitions locals (count-op False ty value bound) body)
     else case try-frame-let definitions locals w sp id ty rhs body of
       Some framed -> framed
-      None -> case expression definitions locals w rhs of
-        (bound, value) -> eval-let-body definitions locals bound id ty value body
+      None ->
+        let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs in
+        (case expression definitions locals w rhs of
+          (bound, value) -> eval-let-body-u definitions locals bound id ty value is-uniq body)
 
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
@@ -1898,8 +1988,10 @@ module Cinch.RuntimeIr where
         Some fused -> fused
         None -> case borrowed-local-word locals value of
           Some word -> case-value-mode definitions locals w (core-type value) word False alternatives
-          None -> case expression definitions locals w value of
-            (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
+          None ->
+            let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] value in
+            (case expression definitions locals w value of
+              (ready, word) -> case-value-mode-u definitions locals ready (core-type value) word True is-uniq alternatives)
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
@@ -5559,6 +5651,7 @@ module Cinch.RuntimeIr where
     ty :: UType
     value :: String
     owned :: Bool
+    unique :: Bool
   -- A pattern that cannot fail once the switch has selected its arm, so the
   -- arm needs no test of its own.
   irrefutable-pattern :: CorePattern -> Bool
@@ -5633,16 +5726,19 @@ module Cinch.RuntimeIr where
     other -> False
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
-    case-value-mode definitions locals w ty value True alternatives
+    case-value-mode-u definitions locals w ty value True False alternatives
   case-value-mode :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> (Writer, String)
   case-value-mode definitions locals w ty value owned alternatives =
+    case-value-mode-u definitions locals w ty value owned False alternatives
+  case-value-mode-u :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> CoreTerm -> (Writer, String)
+  case-value-mode-u definitions locals w ty value owned is-uniq alternatives =
     let (one, base) = fresh w "alt" in
     -- A switch names i64 cases and joins at an i64 phi; a wide scrutinee or
     -- result takes the chain, whose tests and slot are typed.
     if wide-type (w.context) ty || alternatives-llvm w alternatives == "i128" then case-chain definitions locals one ty value owned alternatives else
     case case-dispatch one alternatives base of
-      HeaderDispatch entries -> switch-value definitions locals one ty value owned True base entries alternatives
-      ImmediateDispatch entries -> switch-value definitions locals one ty value owned False base entries alternatives
+      HeaderDispatch entries -> switch-value definitions locals one ty value owned is-uniq True base entries alternatives
+      ImmediateDispatch entries -> switch-value definitions locals one ty value owned is-uniq False base entries alternatives
       ChainDispatch -> case-chain definitions locals one ty value owned alternatives
   -- The chain tests one alternative at a time and stores the taken arm's
   -- word in the join's slot. Any shape reaches a slot, guarded or not, so
@@ -5675,17 +5771,17 @@ module Cinch.RuntimeIr where
   -- One switch for the whole case, then one block per arm. Each arm leaves
   -- through a block of its own, so the join names every predecessor and
   -- becomes a phi rather than a slot.
-  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> String -> String -> CoreTerm -> (Writer, String)
-  switch-value definitions locals w ty value owned header base entries alternatives =
+  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> Bool -> String -> String -> CoreTerm -> (Writer, String)
+  switch-value definitions locals w ty value owned is-uniq header base entries alternatives =
     let (one, missed) = fresh w "switchmiss" in
     let (two, joined) = fresh one "casejoin" in
-    let join = SwitchJoin joined missed base ty value owned in
+    let join = SwitchJoin joined missed base ty value owned is-uniq in
     if header then (case constructor-tag w value of
       (loaded, tag) -> switch-arms definitions locals (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False)
     else switch-arms definitions locals (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False
   switch-arms :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-arms definitions locals w join alternatives index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned -> case alternatives of
+    SwitchJoin joined missed base ty value owned is-uniq -> case alternatives of
       CAlternativesEnd sp -> if defaulted then switch-join w join incoming
         else switch-join (line (line w (cat [missed, ":"])) "  unreachable") join incoming
       CAlternative sp pattern body rest -> case pattern of
@@ -5698,12 +5794,12 @@ module Cinch.RuntimeIr where
       other -> (line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable", incoming)
   switch-join :: Writer -> SwitchJoin -> String -> (Writer, String)
   switch-join w join incoming = case join of
-    SwitchJoin joined missed base ty value owned -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
+    SwitchJoin joined missed base ty value owned is-uniq -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
       (line ready (cat ["  ", result, " = phi i64 ", incoming]), result)
   -- A default arm captures the scrutinee whole, so it needs no cell.
   switch-default-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> (Writer, String)
   switch-default-arm definitions locals w join body rest index incoming = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [missed, ":"]) in
       case guarded-expression definitions locals entry missed body of
@@ -5758,8 +5854,8 @@ module Cinch.RuntimeIr where
     [] -> (w, [])
     input : rest -> case evaluate-move input w of
       (ready, result) -> case evaluate-fields rest ready of (done, values) -> (done, result : values)
-  rebuild-case-cell :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
-  rebuild-case-cell definitions locals w ty value pointer pattern body = if not ((writer-program w).reclaim) then None else case (pattern, head body) of
+  rebuild-case-cell :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> Bool -> CorePattern -> CoreTerm -> Option (Writer, String)
+  rebuild-case-cell definitions locals w ty value pointer is-uniq pattern body = if not ((writer-program w).reclaim) then None else case (pattern, head body) of
     (CPConstructor sp subject name actuals sc fields, CUse at output ctor role params) | (name == ctor) && role == "constructor" && scheme-equivalent (mono ty) (mono (core-type body)) ->
       let args = arguments body [] in
       (case (args, constructor name (writer-program w)) of
@@ -5767,33 +5863,39 @@ module Cinch.RuntimeIr where
           Some d -> (case (core-data-layout d, source-scheme-classes (w.context) (scheme-params (c.constructor-scheme)) params) of
             (UniformData, Some classes) -> (case rebuilding-fields definitions locals w fields args of
               Some moves -> (case request-data sp d classes w of
-                (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
+                (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer is-uniq (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
               None -> None)
             other -> None)
           None -> None)
         other -> None)
     other -> None
-  emit-rebuilt-cell :: Writer -> UType -> String -> String -> Nat -> List String -> List FieldMove -> (Writer, String)
-  emit-rebuilt-cell w ty value pointer descriptor types moves =
-    let (one, unique) = fresh w "%unique" in
-    let (two, shared) = fresh one "shared" in
-    let (three, evaluate) = fresh two "fields" in
-    let tested = line three (cat ["  ", unique, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"]) in
-    let checked = line tested (cat ["  br i1 ", unique, ", label %", evaluate, ", label %", shared]) in
-    let retained = retain-fields moves (line checked (cat [shared, ":"])) in
-    let released = line (count-op False ty value retained) (cat ["  br label %", evaluate]) in
-    case evaluate-fields moves (line released (cat [evaluate, ":"])) of
-      (ready, values) -> let words = typed-values types values in
-        let (four, reuse) = fresh ready "reuse" in
-        let (five, create) = fresh four "allocate" in
-        let (six, join) = fresh five "rebuilt" in
-        let branched = line six (cat ["  br i1 ", unique, ", label %", reuse, ", label %", create]) in
-        let filled = store-typed (line branched (cat [reuse, ":"])) pointer 0 words in
-        let left = line filled (cat ["  br label %", join]) in
-        (case allocate-typed (line left (cat [create, ":"])) descriptor words of
-          (allocated, result) -> let both = line (line allocated (cat ["  br label %", join])) (cat [join, ":"]) in
-            let (done, selected) = fresh both "%v" in
-            (line done (cat ["  ", selected, " = phi i64 [ ", value, ", %", reuse, " ], [ ", result, ", %", create, " ]"]), selected))
+  emit-rebuilt-cell :: Writer -> UType -> String -> String -> Bool -> Nat -> List String -> List FieldMove -> (Writer, String)
+  emit-rebuilt-cell w ty value pointer is-uniq descriptor types moves =
+    if is-uniq then
+      (case evaluate-fields moves w of
+        (ready, values) ->
+          let words = typed-values types values in
+          (store-typed ready pointer 0 words, value))
+    else
+      let (one, unique) = fresh w "%unique" in
+      let (two, shared) = fresh one "shared" in
+      let (three, evaluate) = fresh two "fields" in
+      let tested = line three (cat ["  ", unique, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"]) in
+      let checked = line tested (cat ["  br i1 ", unique, ", label %", evaluate, ", label %", shared]) in
+      let retained = retain-fields moves (line checked (cat [shared, ":"])) in
+      let released = line (count-op False ty value retained) (cat ["  br label %", evaluate]) in
+      case evaluate-fields moves (line released (cat [evaluate, ":"])) of
+        (ready, values) -> let words = typed-values types values in
+          let (four, reuse) = fresh ready "reuse" in
+          let (five, create) = fresh four "allocate" in
+          let (six, join) = fresh five "rebuilt" in
+          let branched = line six (cat ["  br i1 ", unique, ", label %", reuse, ", label %", create]) in
+          let filled = store-typed (line branched (cat [reuse, ":"])) pointer 0 words in
+          let left = line filled (cat ["  br label %", join]) in
+          (case allocate-typed (line left (cat [create, ":"])) descriptor words of
+            (allocated, result) -> let both = line (line allocated (cat ["  br label %", join])) (cat [join, ":"]) in
+              let (done, selected) = fresh both "%v" in
+              (line done (cat ["  ", selected, " = phi i64 [ ", value, ", %", reuse, " ], [ ", result, ", %", create, " ]"]), selected))
 
   -- | Idea 2: Full Perceus reset/reuse across `let`, `if`, proof wrappers, and
   -- cross-constructor same-size cells (non-escaped uniform `i64` layouts).
@@ -5864,15 +5966,15 @@ module Cinch.RuntimeIr where
         other -> None)
     other -> None
 
-  expression-with-reuse :: List CoreDefinition -> List Local -> Writer -> Nat -> String -> CoreTerm -> (Writer, String)
-  expression-with-reuse definitions locals w arity tok term = case term of
-    CProved sp ty ev body -> expression-with-reuse definitions locals w arity tok body
-    CRefine sp ty ev body -> expression-with-reuse definitions locals w arity tok body
-    CRefineProof sp ty witness body -> expression-with-reuse definitions locals w arity tok body
-    CForget sp ty body -> expression-with-reuse definitions locals w arity tok body
-    CCast sp ty body -> expression-with-reuse definitions locals w arity tok body
-    CRequire sp ty body -> expression-with-reuse definitions locals w arity tok body
-    CDischarge sp ty ev _ body -> expression-with-reuse definitions locals w arity tok body
+  expression-with-reuse :: List CoreDefinition -> List Local -> Writer -> Bool -> Nat -> String -> CoreTerm -> (Writer, String)
+  expression-with-reuse definitions locals w is-uniq arity tok term = case term of
+    CProved sp ty ev body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CRefine sp ty ev body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CRefineProof sp ty witness body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CForget sp ty body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CCast sp ty body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CRequire sp ty body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CDischarge sp ty ev _ body -> expression-with-reuse definitions locals w is-uniq arity tok body
     CIf sp ty test yes no ->
       let result-ty = value-llvm (w.context) ty in
       case expression definitions locals w test of
@@ -5887,10 +5989,10 @@ module Cinch.RuntimeIr where
             cat ["  ", zero, " = icmp ne i64 ", cond, ", 0"],
             cat ["  br i1 ", zero, ", label %", yes-l, ", label %", no-l],
             cat [yes-l, ":"]] in
-          case expression-with-reuse definitions locals branched arity tok yes of
+          case expression-with-reuse definitions locals branched is-uniq arity tok yes of
             (left, yval) ->
               let after-yes = emit-lines left [cat ["  br label %", yes-out], cat [yes-out, ":"], cat ["  br label %", end-l], cat [no-l, ":"]] in
-              case expression-with-reuse definitions locals after-yes arity tok no of
+              case expression-with-reuse definitions locals after-yes is-uniq arity tok no of
                 (right, nval) ->
                   let joined = emit-lines right [cat ["  br label %", no-out], cat [no-out, ":"], cat ["  br label %", end-l], cat [end-l, ":"]] in
                   let (done, phi-v) = fresh joined "%v" in
@@ -5898,41 +6000,50 @@ module Cinch.RuntimeIr where
     other -> case simple-word-let definitions w term of
       Some (sp, id, lty, rhs, body) ->
         if arm-has-reuse-alloc arity rhs then
-          (case expression-with-reuse definitions locals w arity tok rhs of
+          (case expression-with-reuse definitions locals w is-uniq arity tok rhs of
             (bound, val) -> eval-let-body definitions locals bound id lty val body)
         else if arm-has-reuse-alloc arity body then
           (case expression definitions locals w rhs of
             (bound, val) ->
               if not (term-uses-id id body) then
-                expression-with-reuse definitions locals (count-op False lty val bound) arity tok body
-              else case expression-with-reuse definitions ((Local id lty val) : locals) bound arity tok body of
+                expression-with-reuse definitions locals (count-op False lty val bound) is-uniq arity tok body
+              else case expression-with-reuse definitions ((Local id lty val) : locals) bound is-uniq arity tok body of
                 (done, res) -> (count-op False lty val done, res))
         else expression definitions locals (free-reuse-token tok w) term
       None -> case matching-reuse-ctor w arity term of
         Some (planned, new-desc, args) ->
           case expressions definitions locals planned args of
             (ready, vals) ->
-              let (w1, can-r) = fresh ready "%canreuse" in
-              let (w2, hit-l) = fresh w1 "reusehit" in
-              let (w3, miss-l) = fresh w2 "reusemiss" in
-              let (w4, done-l) = fresh w3 "reusedone" in
-              let (w5, rptr) = fresh w4 "%rptr" in
-              let (w6, rhdr) = fresh w5 "%rhdr" in
               let new-hdr = static-header 1 (description-field new-desc) + 1 in
-              let split = emit-lines w6 [
-                cat ["  ", can-r, " = icmp ne i64 ", tok, ", 0"],
-                cat ["  br i1 ", can-r, ", label %", hit-l, ", label %", miss-l],
-                cat [hit-l, ":"],
-                cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
-                cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
-                cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
-              let filled = line (store-typed split rptr 0 (typed-words vals)) (cat ["  br label %", done-l]) in
-              let miss-start = line filled (cat [miss-l, ":"]) in
-              case allocate-typed miss-start new-desc (typed-words vals) of
-                (allocated, fresh-val) ->
-                  let merged = emit-lines allocated [cat ["  br label %", done-l], cat [done-l, ":"]] in
-                  let (done, out-v) = fresh merged "%v" in
-                  (line done (cat ["  ", out-v, " = phi i64 [ ", tok, ", %", hit-l, " ], [ ", fresh-val, ", %", miss-l, " ]"]), out-v)
+              if is-uniq then
+                let (w1, rptr) = fresh ready "%rptr" in
+                let (w2, rhdr) = fresh w1 "%rhdr" in
+                let stamped = emit-lines w2 [
+                  cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
+                  cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
+                  cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
+                (store-typed stamped rptr 0 (typed-words vals), tok)
+              else
+                let (w1, can-r) = fresh ready "%canreuse" in
+                let (w2, hit-l) = fresh w1 "reusehit" in
+                let (w3, miss-l) = fresh w2 "reusemiss" in
+                let (w4, done-l) = fresh w3 "reusedone" in
+                let (w5, rptr) = fresh w4 "%rptr" in
+                let (w6, rhdr) = fresh w5 "%rhdr" in
+                let split = emit-lines w6 [
+                  cat ["  ", can-r, " = icmp ne i64 ", tok, ", 0"],
+                  cat ["  br i1 ", can-r, ", label %", hit-l, ", label %", miss-l],
+                  cat [hit-l, ":"],
+                  cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
+                  cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
+                  cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
+                let filled = line (store-typed split rptr 0 (typed-words vals)) (cat ["  br label %", done-l]) in
+                let miss-start = line filled (cat [miss-l, ":"]) in
+                case allocate-typed miss-start new-desc (typed-words vals) of
+                  (allocated, fresh-val) ->
+                    let merged = emit-lines allocated [cat ["  br label %", done-l], cat [done-l, ":"]] in
+                    let (done, out-v) = fresh merged "%v" in
+                    (line done (cat ["  ", out-v, " = phi i64 [ ", tok, ", %", hit-l, " ], [ ", fresh-val, ", %", miss-l, " ]"]), out-v)
         None -> expression definitions locals (free-reuse-token tok w) term
 
   has-top-guard :: CoreTerm -> Bool
@@ -5947,8 +6058,8 @@ module Cinch.RuntimeIr where
     (Borrowed id ty v) : rest -> (v == word && term-uses-id id body) || value-live-in-body rest word body
     other : rest -> value-live-in-body rest word body
 
-  reset-reuse-arm :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
-  reset-reuse-arm definitions locals w ty value pointer pattern body =
+  reset-reuse-arm :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> Bool -> CorePattern -> CoreTerm -> Option (Writer, String)
+  reset-reuse-arm definitions locals w ty value pointer is-uniq pattern body =
     if not ((writer-program w).reclaim) || has-top-guard body || value-live-in-body locals value body then None
     else case pattern of
       CPConstructor sp aty name actuals sc fields ->
@@ -5973,23 +6084,28 @@ module Cinch.RuntimeIr where
                                 case load-reset-fields planned pointer flat of
                                   (loaded, fvals) -> case reset-partition-fields body fvals of
                                     (used-locals, unused-fields) ->
-                                      let (w1, uniq) = fresh loaded "%runiq" in
-                                      let (w2, uniq-l) = fresh w1 "resetuniq" in
-                                      let (w3, shared-l) = fresh w2 "resetshared" in
-                                      let (w4, join-l) = fresh w3 "resetjoin" in
-                                      let (w5, tok) = fresh w4 "%rtok" in
-                                      let checked = emit-lines w5 [
-                                        cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
-                                        cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
-                                        cat [uniq-l, ":"]] in
-                                      let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
-                                      let shared-start = line after-uniq (cat [shared-l, ":"]) in
-                                      let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
-                                      let joined = emit-lines after-shared [
-                                        cat [join-l, ":"],
-                                        cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
-                                      case expression-with-reuse definitions (used-locals <> locals) joined arity tok body of
-                                        (done, result) -> Some (drop-locals used-locals done, result))
+                                      if is-uniq then
+                                        let dropped = drop-unused-reset-fields unused-fields loaded in
+                                        (case expression-with-reuse definitions (used-locals <> locals) dropped True arity value body of
+                                          (done, result) -> Some (drop-locals used-locals done, result))
+                                      else
+                                        let (w1, uniq) = fresh loaded "%runiq" in
+                                        let (w2, uniq-l) = fresh w1 "resetuniq" in
+                                        let (w3, shared-l) = fresh w2 "resetshared" in
+                                        let (w4, join-l) = fresh w3 "resetjoin" in
+                                        let (w5, tok) = fresh w4 "%rtok" in
+                                        let checked = emit-lines w5 [
+                                          cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
+                                          cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
+                                          cat [uniq-l, ":"]] in
+                                        let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
+                                        let shared-start = line after-uniq (cat [shared-l, ":"]) in
+                                        let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
+                                        let joined = emit-lines after-shared [
+                                          cat [join-l, ":"],
+                                          cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
+                                        case expression-with-reuse definitions (used-locals <> locals) joined False arity tok body of
+                                          (done, result) -> Some (drop-locals used-locals done, result))
                         None -> None)
                       None -> None)
                     other -> None)
@@ -6002,23 +6118,23 @@ module Cinch.RuntimeIr where
   -- can reach the miss block.
   switch-tag-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-tag-arm definitions locals w join pattern body rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned -> case pattern of
+    SwitchJoin joined missed base ty value owned is-uniq -> case pattern of
       CPConstructor sp aty name actuals sc fields ->
         let (one, out) = fresh w "armout" in
         let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
         let (pointed, pointer) = fresh entry "%ptr" in
         let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
-        case (if owned then reset-reuse-arm definitions locals cell ty value pointer pattern body else None) of
+        case (if owned then reset-reuse-arm definitions locals cell ty value pointer is-uniq pattern body else None) of
           Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
           None -> case match-fields fields pointer 0 missed cell of
-            (bound, bindings) -> case (if owned then rebuild-case-cell definitions bindings bound ty value pointer pattern body else None) of
+            (bound, bindings) -> case (if owned then rebuild-case-cell definitions bindings bound ty value pointer is-uniq pattern body else None) of
               Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
               None -> (case guarded-expression definitions (bindings <> locals) bound missed body of
                 (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
       other -> (line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable", incoming)
   switch-word-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-word-arm definitions locals w join body rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
       case guarded-expression definitions locals entry missed body of
@@ -6027,12 +6143,12 @@ module Cinch.RuntimeIr where
   -- predecessor, so the join reaches it without a slot.
   switch-leave :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-leave definitions locals w join out result rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let cleaned = if owned then count-op False ty value w else w in
       switch-finish definitions locals cleaned join out result rest index incoming defaulted
   switch-finish :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-finish definitions locals w join out result rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let left = line (line w (cat ["  br label %", out])) (cat [out, ":"]) in
       switch-arms definitions locals (line left (cat ["  br label %", joined])) join rest (index + 1)
         (cat [incoming, if index == 0 then "" else ", ", "[ ", result, ", %", out, " ]"]) defaulted
@@ -8061,7 +8177,8 @@ module Cinch.RuntimeIr where
     let new-consumed = compute-consumed-params definitions new-borrows in
     let new-arenas = compute-arena-phases definitions new-tails in
     let new-concurrent = program-uses-concurrency definitions in
-    let new-ownership = OwnershipPlan new-borrows new-consumed new-arenas new-concurrent in
+    let new-ret-uniq = compute-returns-unique definitions in
+    let new-ownership = OwnershipPlan new-borrows new-consumed new-arenas new-concurrent new-ret-uniq in
     let planned = with-ownership-plan new-ownership planned-tails in
     let usable = case (plan, cache) of
           (NoInline, UnitIrCache old-units old-tails old-ownership old-versions old-count) ->

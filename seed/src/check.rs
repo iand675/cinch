@@ -1423,6 +1423,10 @@ impl<'a> LowerCx<'a> {
 }
 
 impl crate::repr::TypeReprs for Checker {
+    fn ptr_bits(&self) -> u32 {
+        self.usize_bits
+    }
+
     fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
         if self.uni.is_type_family(name) {
             let reduced = self.uni.zonk(&Ty::Adt(name.into(), args.to_vec()));
@@ -1443,7 +1447,12 @@ impl crate::repr::TypeReprs for Checker {
             for (p, a) in r.params.iter().zip(args) {
                 map.insert(p.clone(), a.clone());
             }
-            return crate::repr::AdtRepr::Base(Checker::subst_ty(&r.base, &map));
+            let base = Checker::subst_ty(&r.base, &map);
+            let pred = Checker::subst_pt(&r.pred, &map);
+            if crate::repr::refinement_fits_immediate(&base, &r.binder, &pred, self.usize_bits) {
+                return crate::repr::AdtRepr::Raw;
+            }
+            return crate::repr::AdtRepr::Base(base);
         }
         // A foreign opaque type's values come only from foreign calls:
         // they are handles the foreign side owns.
@@ -7067,6 +7076,46 @@ impl Checker {
         }
         let (ctor, _) = kind.ctors.first()?;
         self.unboxed_ctors.get(&fn_id(&kind.module, ctor))
+    }
+
+    /// True when `ty` is a closed, uniform, non-opaque `data` enum whose every
+    /// constructor has runtime arity 0 (every inhabitant is an immortal static
+    /// block, so dup/drop are no-ops).
+    pub(crate) fn is_immortal_enum_ty(&self, ty: &Ty) -> bool {
+        let ty = self.uni.zonk(ty);
+        match ty {
+            Ty::Ref(_, inner) => self.is_immortal_enum_ty(&inner),
+            Ty::Adt(ref name, ref args) if name == "refined" => {
+                args.get(1).is_some_and(|b| self.is_immortal_enum_ty(b))
+            }
+            Ty::Adt(ref name, ref args) if name == "Sing" => {
+                args.first().is_some_and(|b| self.is_immortal_enum_ty(b))
+            }
+            Ty::Adt(ref name, ref args) => {
+                let Some(kind) = self.known_type(name) else { return false };
+                if let Some(r) = kind.refine.as_ref() {
+                    let mut map = HashMap::new();
+                    for (p, a) in r.params.iter().zip(args) {
+                        map.insert(p.clone(), a.clone());
+                    }
+                    return self.is_immortal_enum_ty(&Checker::subst_ty(&r.base, &map));
+                }
+                if !kind.data_family
+                    || kind.opaque
+                    || kind.ctors.is_empty()
+                    || self.open_data_families.contains(&kind.identity)
+                    || self.layout_recipes.contains_key(&(kind.module.clone(), kind.name.clone()))
+                {
+                    return false;
+                }
+                kind.ctors.iter().all(|(cname, _)| {
+                    self.qualified
+                        .get(&(kind.module.clone(), cname.clone()))
+                        .is_some_and(|v| matches!(v.kind, ValueKind::Ctor { runtime_arity: 0, .. }))
+                })
+            }
+            _ => false,
+        }
     }
 
     fn known_type(&self, identity: &str) -> Option<&TypeKind> {
@@ -13458,6 +13507,8 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
             .iter()
             .filter_map(|(i, m)| shift(*i).map(|j| (j, *m)))
             .collect(),
+        unique_params: meta.unique_params.iter().filter_map(|i| shift(*i)).collect(),
+        immortal_params: meta.immortal_params.iter().filter_map(|i| shift(*i)).collect(),
         pure_arrows: meta.pure_arrows.iter().filter_map(|i| shift(*i)).collect(),
         dicts: meta
             .dicts

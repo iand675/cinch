@@ -1143,7 +1143,23 @@ fn emit_module(
     // They are `internal`, so the assembler deleted them anyway: this is
     // IR size and the assembler's parse, not code size.
     if reg.reclaim && !reg.rc_debug {
-        out.push_str(&rc_helpers(frame, &out));
+        // Static thread-locality specialization (parity with `Cinch.Ownership.program-uses-concurrency`):
+        // a closed executable with no concurrency primitives or C exports never marks any block
+        // atomic, so header loads stay plain non-atomic loads and MT branches are omitted.
+        let concurrent = object
+            || reg.foreigns.values().any(|plan| plan.export)
+            || reg.prims.iter().any(|op| {
+                matches!(
+                    op,
+                    PrimOp::Conc(_)
+                        | PrimOp::Par { .. }
+                        | PrimOp::MVar { .. }
+                        | PrimOp::RwLock { .. }
+                        | PrimOp::Stm { .. }
+                        | PrimOp::Atomic { .. }
+                )
+            });
+        out.push_str(&rc_helpers(frame, concurrent, &out));
     }
     // The C-callable entries (foreign function interface specification
     // section 2).
@@ -1412,6 +1428,12 @@ struct Registry {
     /// then need the count paths' frame arms even though they build no
     /// frame block of their own.
     frame_received: bool,
+    /// Units that may receive a caller's frame block via a consumed parameter
+    /// (`Program::stack.receives_frame`): static uniqueness must never bypass
+    /// the uniqueness check on their parameters.
+    frame_receivers: BTreeSet<String>,
+    /// Per unit, `Core::Release` block locals statically proven unique (`rc == 1`).
+    unique_releases: BTreeMap<String, BTreeSet<usize>>,
 }
 
 impl Registry {
@@ -1875,6 +1897,8 @@ impl Registry {
         reg.pointer_bytes = pointer_bytes;
         reg.frame = p.frame.clone();
         reg.frame_received = !p.stack.receives_frame.is_empty();
+        reg.frame_receivers = p.stack.receives_frame.clone();
+        reg.unique_releases = p.unique_releases.clone();
         let mut fn_arities: HashMap<String, usize> = HashMap::new();
         for f in &p.fns {
             if fn_arities.insert(f.id.0.clone(), f.arity()).is_some() {
@@ -7344,10 +7368,16 @@ const HEADER_RC_MASK: u64 = !((1u64 << block::RC_BITS) - 1);
 /// plain: only a positive count is written in place, and no other thread
 /// can reach that block.
 fn header_load(b: &mut Builder, hp: &str) -> String {
+    header_load_mt(b, hp, true)
+}
+
+fn header_load_mt(b: &mut Builder, hp: &str, concurrent: bool) -> String {
     let h = b.reg();
-    b.line(&format!(
-        "{h} = load atomic i64, ptr {hp} monotonic, align 8"
-    ));
+    if concurrent {
+        b.line(&format!("{h} = load atomic i64, ptr {hp} monotonic, align 8"));
+    } else {
+        b.line(&format!("{h} = load i64, ptr {hp}, align 8"));
+    }
     h
 }
 
@@ -7389,7 +7419,7 @@ fn rc_helper_name(drop: bool, class: Class) -> &'static str {
 /// (`cinch_frame_release`) instead of counting. A module that neither
 /// holds nor receives a frame block keeps the exact helper it always had,
 /// which is what leaves `--no-stack-alloc` byte-identical.
-fn rc_helpers(frame: bool, units: &str) -> String {
+fn rc_helpers(frame: bool, concurrent: bool, units: &str) -> String {
     let mut out = String::new();
     for class in [Class::Obj, Class::TObj] {
         for drop in [false, true] {
@@ -7401,7 +7431,7 @@ fn rc_helpers(frame: bool, units: &str) -> String {
             }
             let mut b = Builder::new();
             b.reclaim = true;
-            rc_inline(&mut b, drop, "%w", class, frame);
+            rc_inline(&mut b, drop, "%w", class, frame, concurrent);
             b.line("ret void");
             out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", name, b.code));
         }
@@ -7418,7 +7448,7 @@ fn rc_helpers(frame: bool, units: &str) -> String {
     b.start(&lblock);
     b.line("%p = inttoptr i64 %w to ptr");
     b.line("%hp = getelementptr inbounds i8, ptr %p, i64 -8");
-    let h = header_load(&mut b, "%hp");
+    let h = header_load_mt(&mut b, "%hp", concurrent);
     b.line(&format!("%top = shl i64 {h}, {RC_TOP_SHIFT}"));
     b.line(&format!("%u = icmp eq i64 %top, {}", 1i64 << RC_TOP_SHIFT));
     b.line("ret i1 %u");
@@ -7445,7 +7475,7 @@ const RC_UNIQUE: &str = "cinch.rc.unique";
 /// count above one after one compare, and hands a count of one to
 /// `cinch_drop_slow`, which releases the block and everything only it
 /// kept alive.
-fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
+fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool, concurrent: bool) {
     let lblock = b.label();
     let ldone = b.label();
     let skip = b.reg();
@@ -7469,12 +7499,13 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
     b.line(&format!(
         "{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"
     ));
-    let h = header_load(b, &hp);
+    let h = header_load_mt(b, &hp, concurrent);
     let top = b.reg();
     b.line(&format!("{top} = shl i64 {h}, {RC_TOP_SHIFT}"));
     let one = 1u64 << block::RC_SHIFT;
     let top_one = 1i64 << RC_TOP_SHIFT;
-    let (lplain, lother, lmt) = (b.label(), b.label(), b.label());
+    let (lplain, lother) = (b.label(), b.label());
+    let lmt = concurrent.then(|| b.label());
     // A frame block's count is `RC_FRAME`, and a released one's is
     // `RC_FRAME_RELEASED` (block_kinds.rs): neither is ever counted, so
     // neither is a plain or a shared count. One signed compare excludes
@@ -7512,11 +7543,6 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
     b.start(&lother);
     if drop {
         let lslow = b.label();
-        // A frame block's drop is its payload's release, once: the block
-        // itself is never freed (design/stack-allocation.md section 7.3),
-        // and a second drop of the same block finds the released marker
-        // and does nothing. A module that can neither hold nor receive a
-        // frame block emits the switch it always emitted.
         let lframe = not_frame.as_ref().map(|_| b.label());
         let frame_arm = match &lframe {
             Some(lf) => format!(
@@ -7524,8 +7550,9 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
             ),
             None => String::new(),
         };
+        let default_label = lmt.as_deref().unwrap_or(&ldone);
         b.line(&format!(
-            "switch i64 {top}, label %{lmt} [\n  i64 0, label %{ldone}\n  i64 {top_one}, label %{lslow}{frame_arm}\n]"
+            "switch i64 {top}, label %{default_label} [\n  i64 0, label %{ldone}\n  i64 {top_one}, label %{lslow}{frame_arm}\n]"
         ));
         b.start(&lslow);
         b.line(&format!("call void @cinch_drop_slow(i64 {w})"));
@@ -7535,7 +7562,7 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
             b.line(&format!("call void @cinch_frame_release(i64 {w})"));
             b.line(&format!("br label %{ldone}"));
         }
-    } else {
+    } else if let Some(lmt) = &lmt {
         let shared = b.reg();
         b.line(&format!("{shared} = icmp ne i64 {top}, 0"));
         let shared = match &not_frame {
@@ -7547,17 +7574,21 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
             None => shared,
         };
         b.line(&format!("br i1 {shared}, label %{lmt}, label %{ldone}"));
+    } else {
+        b.line(&format!("br label %{ldone}"));
     }
-    b.start(&lmt);
-    b.line(&format!(
-        "call void @{}(i64 {w})",
-        if drop {
-            "cinch_drop_mt"
-        } else {
-            "cinch_dup_mt"
-        }
-    ));
-    b.line(&format!("br label %{ldone}"));
+    if let Some(lmt) = lmt {
+        b.start(&lmt);
+        b.line(&format!(
+            "call void @{}(i64 {w})",
+            if drop {
+                "cinch_drop_mt"
+            } else {
+                "cinch_dup_mt"
+            }
+        ));
+        b.line(&format!("br label %{ldone}"));
+    }
     b.start(&ldone);
 }
 
@@ -10193,6 +10224,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         b,
         reg,
         unit: f.id.0.clone(),
+        arity: f.arity(),
         width,
         ret: narrow.map_or(Cross::WORD, |s| s.ret),
         loop_label: String::new(),
@@ -10206,6 +10238,9 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         pending: Vec::new(),
         cpr: reg.cpr.get(&f.id.0).cloned(),
         virt: HashMap::new(),
+        unique_releases: reg.unique_releases.get(&f.id.0),
+        unique_tokens: HashSet::new(),
+        immortal: f.meta.immortal_params.iter().copied().map(LocalId).collect(),
     };
     // A narrowed parameter arrives at its own width and the body reads a
     // slot word, so the entry widens it once (design/narrow-value-
@@ -10507,6 +10542,8 @@ struct CoreEmitter<'a, 'b> {
     reg: &'a Registry,
     /// The unit's name, for unique private constant names.
     unit: String,
+    /// The unit's declared arity (parameters are `LocalId(0..arity)`).
+    arity: usize,
     /// The unit's parameter count (its arity, or the group width of a
     /// widened worker): the tail-call rules compare callee tail
     /// signatures against it (decision D104).
@@ -10556,6 +10593,13 @@ struct CoreEmitter<'a, 'b> {
     /// fields from the slots, and the count operations of the block that
     /// does not exist, which act on the fields.
     virt: HashMap<LocalId, (Vec<String>, Vec<Class>)>,
+    /// `Core::Release` block locals statically proven unique (`rc == 1`).
+    unique_releases: Option<&'a BTreeSet<usize>>,
+    /// Reuse token locals whose owning `Release` was statically unique, so
+    /// `emit_reuse` can overwrite the cell unconditionally without a fallback.
+    unique_tokens: HashSet<LocalId>,
+    /// Locals statically known to hold an immortal nullary-enum static block.
+    immortal: HashSet<LocalId>,
 }
 
 /// A join's code generation site: the block its body starts at, the slot
@@ -11311,6 +11355,9 @@ impl CoreEmitter<'_, '_> {
             }
             return Ok(());
         }
+        if !self.reg.rc_debug && self.immortal.contains(&x) {
+            return Ok(());
+        }
         let slot = self.slot(x);
         let w = self.b.reg();
         self.b.line(&format!("{w} = load i64, ptr {slot}"));
@@ -11412,6 +11459,23 @@ impl CoreEmitter<'_, '_> {
             cold(self);
             return Ok(None);
         }
+        let is_param = block.0 < self.arity;
+        let statically_unique = !(is_param && self.reg.frame_receivers.contains(&self.unit))
+            && self.unique_releases.is_some_and(|s| s.contains(&block.0));
+        if statically_unique {
+            for (r, c) in rest {
+                let v = self.load_local(*r);
+                rc_op(self.b, false, true, &v, *c);
+            }
+            match (&tslot, token) {
+                (Some(slot), Some(tok)) => {
+                    self.b.line(&format!("store i64 {w}, ptr {slot}"));
+                    self.unique_tokens.insert(tok);
+                }
+                _ => self.b.line(&format!("call void @cinch_free(i64 {w})")),
+            }
+            return Ok(tslot);
+        }
         let (lunique, lshared, ljoin) = (self.b.label(), self.b.label(), self.b.label());
         let unique = self.b.reg();
         self.b.line(&format!("{unique} = call i1 @{RC_UNIQUE}(i64 {w})"));
@@ -11475,6 +11539,27 @@ impl CoreEmitter<'_, '_> {
         let slot = self.slot(token);
         let t = self.b.reg();
         self.b.line(&format!("{t} = load i64, ptr {slot}"));
+        if !self.reg.rc_debug && self.unique_tokens.contains(&token) {
+            // Statically unique cell: overwrite unconditionally without
+            // checking for zero or emitting the cold allocation fallback.
+            self.b.line(&format!("store i64 0, ptr {slot}"));
+            let cell = self.b.reg();
+            self.b.line(&format!("{cell} = inttoptr i64 {t} to ptr"));
+            let field = desc_field(desc);
+            let h = block::header(block::RC_FRESH, block::KIND_CTOR, field) as i64;
+            let hp = self.b.gep_dyn(&cell, "-8");
+            self.b.line(&format!("store i64 {h}, ptr {hp}"));
+            if desc_escaped(desc) {
+                let ep = self.b.gep_dyn(&cell, "-16");
+                self.b.line(&format!("store ptr {}, ptr {ep}", desc_symbol(desc)));
+            }
+            for (i, v) in vals.iter().enumerate() {
+                if !already_set.contains(&(i as u32)) {
+                    self.b.store_at(&cell, 8 * i, v);
+                }
+            }
+            return Ok(t);
+        }
         let (lcold, lhot, ljoin) = (self.b.label(), self.b.label(), self.b.label());
         let reusing = self.b.reg();
         self.b.line(&format!("{reusing} = icmp ne i64 {t}, 0"));
@@ -11540,6 +11625,14 @@ impl CoreEmitter<'_, '_> {
     /// The value of a `let`: its frame allocation lowered into the slot the
     /// pass reserved, or the ordinary expression.
     fn emit_let(&mut self, x: LocalId, e: &Core) -> Result<String> {
+        let is_immortal = match e {
+            Core::Ctor(g, _) => self.reg.ctors.get(&g.0).is_some_and(|(_, fields)| *fields == 0),
+            Core::Var(y) => self.immortal.contains(y),
+            _ => false,
+        };
+        if is_immortal {
+            self.immortal.insert(x);
+        }
         match self.frame_site(x).cloned() {
             Some(site) => self.emit_frame_alloc(&site, e),
             None => self.emit_expr(e),

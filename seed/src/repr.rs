@@ -147,6 +147,126 @@ pub enum AdtRepr {
 /// The checker's view of named types, for [`repr_of`].
 pub trait TypeReprs {
     fn adt(&self, name: &str, args: &[Ty]) -> AdtRepr;
+    /// Pointer width in bits for target-dependent immediate bounds (default 64).
+    fn ptr_bits(&self) -> u32 {
+        64
+    }
+}
+
+fn idx_int_const(t: &crate::types::ITerm) -> Option<i128> {
+    use crate::types::{ITerm, IdxOp};
+    match t {
+        ITerm::Num(s) => s.as_str().parse::<i128>().ok(),
+        ITerm::Bin(IdxOp::Sub, l, r) => {
+            if idx_int_const(l) == Some(0) {
+                idx_int_const(r).and_then(|v| v.checked_neg())
+            } else {
+                idx_int_const(l)?.checked_sub(idx_int_const(r)?)
+            }
+        }
+        ITerm::Bin(IdxOp::Add, l, r) => idx_int_const(l)?.checked_add(idx_int_const(r)?),
+        ITerm::Bin(IdxOp::Mul, l, r) => idx_int_const(l)?.checked_mul(idx_int_const(r)?),
+        _ => None,
+    }
+}
+
+fn merge_lo(a: Option<i128>, b: Option<i128>) -> Option<i128> {
+    match (a, b) {
+        (None, x) | (x, None) => x,
+        (Some(x), Some(y)) => Some(x.max(y)),
+    }
+}
+
+fn merge_hi(a: Option<i128>, b: Option<i128>) -> Option<i128> {
+    match (a, b) {
+        (None, x) | (x, None) => x,
+        (Some(x), Some(y)) => Some(x.min(y)),
+    }
+}
+
+/// Extract conservative inclusive `[lo, hi]` bounds on `binder` from a
+/// refinement predicate conjunction.
+pub fn extract_pred_bounds(binder: &str, pred: &crate::types::PTerm) -> (Option<i128>, Option<i128>) {
+    use crate::types::{ITerm, IdxCmp, PTerm};
+    match pred {
+        PTerm::And(a, b) => {
+            let (la, ha) = extract_pred_bounds(binder, a);
+            let (lb, hb) = extract_pred_bounds(binder, b);
+            (merge_lo(la, lb), merge_hi(ha, hb))
+        }
+        PTerm::Eq(l, r) => {
+            if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(r) {
+                    return (Some(k), Some(k));
+                }
+            } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(l) {
+                    return (Some(k), Some(k));
+                }
+            }
+            (None, None)
+        }
+        PTerm::Cmp(op, l, r) => {
+            if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(r) {
+                    return match op {
+                        IdxCmp::Lt => (None, k.checked_sub(1)),
+                        IdxCmp::Le => (None, Some(k)),
+                        IdxCmp::Gt => (k.checked_add(1), None),
+                        IdxCmp::Ge => (Some(k), None),
+                        IdxCmp::Eq => (Some(k), Some(k)),
+                        IdxCmp::Ne => (None, None),
+                    };
+                }
+            } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(l) {
+                    return match op {
+                        IdxCmp::Lt => (k.checked_add(1), None),
+                        IdxCmp::Le => (Some(k), None),
+                        IdxCmp::Gt => (None, k.checked_sub(1)),
+                        IdxCmp::Ge => (None, Some(k)),
+                        IdxCmp::Eq => (Some(k), Some(k)),
+                        IdxCmp::Ne => (None, None),
+                    };
+                }
+            }
+            (None, None)
+        }
+        _ => (None, None),
+    }
+}
+
+/// First free variable in a refinement predicate (matches `check::pred_binder`).
+fn anonymous_pred_binder(pred: &crate::types::PTerm) -> Option<String> {
+    let mut fv = Vec::new();
+    pred.free_vars(&mut fv);
+    fv.into_iter().next()
+}
+
+/// True when `base` is `Nat` or `Int` and `pred` proves every inhabitant fits
+/// strictly inside the target's tagged-immediate range (so the runtime word
+/// always carries low bit 1 and never allocates a heap bignum, giving RC class
+/// `Class::Raw` while keeping the tagged-immediate bit encoding).
+pub fn refinement_fits_immediate(
+    base: &Ty,
+    binder: &str,
+    pred: &crate::types::PTerm,
+    ptr_bits: u32,
+) -> bool {
+    let wasm32 = ptr_bits <= 32;
+    let (lo, hi) = extract_pred_bounds(binder, pred);
+    match base {
+        Ty::Nat => {
+            let max_nat: i128 = if wasm32 { 2_147_483_647 } else { 4_611_686_018_427_387_903 };
+            hi.is_some_and(|h| h <= max_nat)
+        }
+        Ty::Int => {
+            let max_int: i128 = if wasm32 { 1_073_741_823 } else { 4_611_686_018_427_387_903 };
+            let min_int: i128 = -max_int;
+            lo.is_some_and(|l| l >= min_int) && hi.is_some_and(|h| h <= max_int)
+        }
+        _ => false,
+    }
 }
 
 /// The class of a zonked type, where `params` are the rigid names of the
@@ -185,6 +305,14 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
         Ty::Mut(..) => Class::Obj,
         Ty::Adt(name, args) => match name.as_str() {
             "refined" => match args.as_slice() {
+                [Ty::Prp(pred), base] => {
+                    if let Some(binder) = anonymous_pred_binder(pred) {
+                        if refinement_fits_immediate(base, &binder, pred, types.ptr_bits()) {
+                            return Class::Raw;
+                        }
+                    }
+                    repr_of(base, params, types, miss)
+                }
                 [_, base] => repr_of(base, params, types, miss),
                 _ => {
                     miss(ty);
