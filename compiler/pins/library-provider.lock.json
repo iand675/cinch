@@ -1,9 +1,9 @@
 {
-  "commit": "e1f010452e0910bbd4837b7c26fb34b452ea8443",
-  "description": "ABI 10 packed library provider with 450 verified integer/SIMD/IEEE-754 prelude prims, 24 verified prelude rewrites, and NotNaN/Finite float refinements.",
-  "revision": "e1f010452e0910bbd4837b7c26fb34b452ea8443",
+  "commit": "35c030a7b6484da4dd06802484c67bba6a0fd552",
+  "description": "ABI 10 packed library provider with verified prelude, wasm32/repr(C), float refinements, and AIG/CDCL/LRAT prim_verify.",
+  "revision": "35c030a7b6484da4dd06802484c67bba6a0fd552",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "92a94f7fd0c14c15fbfafb78292436e7434d013c4f7dae465478b2db1c50d43c",
-  "source_sha256": "92a94f7fd0c14c15fbfafb78292436e7434d013c4f7dae465478b2db1c50d43c"
+  "source_hash": "6105abd5b0b088d1ca9e770ff91e5cccf089b6f43b4338a0dc7ffb2643b701d5",
+  "source_sha256": "6105abd5b0b088d1ca9e770ff91e5cccf089b6f43b4338a0dc7ffb2643b701d5"
 }
