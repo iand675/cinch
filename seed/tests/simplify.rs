@@ -1400,3 +1400,158 @@ fn projection_refuses_a_computed_field() {
     assert!(matches!(&p.fns[2].body, Core::Proj(..)));
     assert_eq!(report.projection, 0);
 }
+
+// ----------------------------------------- Tier 1 online PE & batched apply
+
+#[test]
+fn pe_specialises_static_bool_polyvariantly_and_folds_if() {
+    // `worker flag x = if flag then x else 0`; called with both True and False.
+    let worker_body = Core::If(
+        Box::new(Core::Var(LocalId(0))),
+        CBranch::new(Core::Var(LocalId(1))),
+        CBranch::new(Core::Int(0)),
+    );
+    let caller_body = Core::Let(
+        LocalId(1),
+        Class::Raw,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.worker"), vec![])),
+            vec![Core::Bool(true), Core::Var(LocalId(0))],
+        )),
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.worker"), vec![])),
+            vec![Core::Bool(false), Core::Var(LocalId(1))],
+        )),
+    );
+    let mut p = program(vec![
+        unit("Main.worker", vec![Class::Raw, Class::Raw], worker_body),
+        unit("Main.caller", vec![Class::Raw], caller_body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions { inline: false, ..SimplifyOptions::default() }, &mut report);
+    assert!(report.specialised >= 2, "expected 2 polyvariant Bool clones, got {}", report.specialised);
+    let sp_fns: Vec<&FnDef> = p.fns.iter().filter(|f| f.id.0.starts_with("Main.worker.sp")).collect();
+    assert_eq!(sp_fns.len(), 2, "expected 2 specialized clones for True and False");
+    for f in sp_fns {
+        assert!(!matches!(f.body, Core::If(..)), "static If should have folded in {}: {:?}", f.id.0, f.body);
+    }
+}
+
+#[test]
+fn pe_specialises_static_ctor_without_functions_and_folds_case() {
+    // `unwrap opt = case opt of None -> 0; Some v -> v`, called with `Some x` and `None`.
+    let unwrap_body = Core::Case {
+        scrut: Box::new(Core::Var(LocalId(0))),
+        alts: vec![
+            CAlt::new(con(0, &[]), Core::Int(0)),
+            CAlt::new(con(1, &[1]), Core::Var(LocalId(1))),
+        ],
+    };
+    let caller_body = Core::Let(
+        LocalId(1),
+        Class::Raw,
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.unwrap"), vec![])),
+            vec![Core::App(Box::new(Core::Ctor(gid("Some"), vec![])), vec![Core::Var(LocalId(0))])],
+        )),
+        Box::new(Core::App(
+            Box::new(Core::Global(gid("Main.unwrap"), vec![])),
+            vec![Core::Ctor(gid("None"), vec![])],
+        )),
+    );
+    let mut p = program(vec![
+        ctor_unit("None", 0, 0),
+        ctor_unit("Some", 1, 1),
+        unit("Main.unwrap", vec![Class::Obj], unwrap_body),
+        unit("Main.caller", vec![Class::Obj], caller_body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions { inline: false, ..SimplifyOptions::default() }, &mut report);
+    let sp_fns: Vec<&FnDef> = p.fns.iter().filter(|f| f.id.0.starts_with("Main.unwrap.sp")).collect();
+    assert_eq!(sp_fns.len(), 2, "expected 2 specialized clones for Some and None");
+    for f in sp_fns {
+        assert!(!matches!(f.body, Core::Case { .. }), "static Case should have folded in {}: {:?}", f.id.0, f.body);
+    }
+}
+
+#[test]
+fn pe_anti_unroll_guard_stops_recursive_int_growth() {
+    use cinch::core::{ArithMode, ArithOp, CmpOp, PrimOp};
+    use cinch::types::Scalar;
+    // `go n = if n == 0 then 0 else go (n - 1)`, called externally as `go 5`.
+    let go_body = Core::If(
+        Box::new(Core::App(
+            Box::new(Core::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Eq })),
+            vec![Core::Var(LocalId(0)), Core::Int(0)],
+        )),
+        CBranch::new(Core::Int(0)),
+        CBranch::new(Core::App(
+            Box::new(Core::Global(gid("Main.go"), vec![])),
+            vec![Core::App(
+                Box::new(Core::Prim(PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Sub, mode: ArithMode::Wrapping })),
+                vec![Core::Var(LocalId(0)), Core::Int(1)],
+            )],
+        )),
+    );
+    let caller_body = Core::App(Box::new(Core::Global(gid("Main.go"), vec![])), vec![Core::Int(5)]);
+    let mut p = program(vec![
+        unit("Main.go", vec![Class::Raw], go_body),
+        unit("Main.caller", vec![], caller_body),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions { inline: false, max_iterations: 4, ..SimplifyOptions::default() }, &mut report);
+    let sp_count = p.fns.iter().filter(|f| f.id.0.starts_with("Main.go.sp")).count();
+    assert_eq!(sp_count, 1, "anti-unrolling guard must allow the external call clone without unrolling go(n-1)");
+}
+
+#[test]
+fn saturate_partial_batches_chained_indirect_calls() {
+    // `((f a) b) c` -> `f a b c`
+    let body = Core::App(
+        Box::new(Core::App(
+            Box::new(Core::App(Box::new(Core::Var(LocalId(0))), vec![Core::Var(LocalId(1))])),
+            vec![Core::Var(LocalId(2))],
+        )),
+        vec![Core::Var(LocalId(3))],
+    );
+    let mut p = program(vec![unit(
+        "Main.apply3",
+        vec![Class::Obj, Class::Raw, Class::Raw, Class::Raw],
+        body,
+    )]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions::default(), &mut report);
+    let Core::App(head, args) = &p.fns[0].body else {
+        panic!("expected single batched App, got {:?}", p.fns[0].body);
+    };
+    assert!(matches!(&**head, Core::Var(LocalId(0))));
+    assert_eq!(args.len(), 3, "expected 3 batched arguments");
+}
+
+#[test]
+fn saturate_partial_unfolds_point_free_static_wrapper() {
+    // `add_ten = add_pair 10`; `caller x = add_ten x` -> `add_pair 10 x`.
+    let mut p = program(vec![
+        unit("Main.add_pair", vec![Class::Raw, Class::Raw], Core::Var(LocalId(0))),
+        unit(
+            "Main.add_ten",
+            vec![],
+            Core::App(Box::new(Core::Global(gid("Main.add_pair"), vec![])), vec![Core::Int(10)]),
+        ),
+        unit(
+            "Main.caller",
+            vec![Class::Raw],
+            Core::App(
+                Box::new(Core::App(Box::new(Core::Global(gid("Main.add_ten"), vec![])), vec![])),
+                vec![Core::Var(LocalId(0))],
+            ),
+        ),
+    ]);
+    let mut report = SimplifyReport::default();
+    simplify(&mut p, &SimplifyOptions { inline: false, ..SimplifyOptions::default() }, &mut report);
+    let Core::App(head, args) = &p.fns[2].body else {
+        panic!("expected direct saturated call to add_pair, got {:?}", p.fns[2].body);
+    };
+    assert!(matches!(&**head, Core::Global(g, _) if g.0 == "Main.add_pair"));
+    assert_eq!(args.len(), 2);
+}

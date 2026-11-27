@@ -14299,10 +14299,36 @@ impl CoreEmitter<'_, '_> {
         if args.iter().any(|a| self.expr_val_size_align(a).is_some()) {
             return self.emit_indirect_apply(f, args, None);
         }
-        let fv = self.emit_expr(f)?;
-        let mut vals = Vec::with_capacity(args.len());
-        for a in args {
-            vals.push(self.emit_expr(a)?);
+        // Batch chained indirect applications `(f a1) a2 a3` when the outer
+        // arguments are pure atomic words (no side effects, allocations, or
+        // RC ops): `@__apply` applies stages left-to-right if `f` saturates
+        // early, and invokes multi-argument closures directly in one call.
+        let mut head = f;
+        let mut arg_groups: Vec<&[Core]> = vec![args];
+        while let Core::App(inner_f, inner_args) = head {
+            let outer_atomic = arg_groups.last().is_some_and(|g| {
+                g.iter().all(|a| {
+                    matches!(a, Core::Var(_) | Core::Int(_) | Core::Bool(_) | Core::Unit)
+                        && !self.rep_wide(a)
+                        && self.expr_val_size_align(a).is_none()
+                })
+            });
+            let inner_word_only = !inner_args.is_empty()
+                && inner_args.iter().all(|a| !self.rep_wide(a) && self.expr_val_size_align(a).is_none());
+            if outer_atomic && inner_word_only && self.known_unit(inner_f).is_none() {
+                arg_groups.push(inner_args);
+                head = inner_f;
+            } else {
+                break;
+            }
+        }
+        let fv = self.emit_expr(head)?;
+        let total_args: usize = arg_groups.iter().map(|g| g.len()).sum();
+        let mut vals = Vec::with_capacity(total_args);
+        for group in arg_groups.into_iter().rev() {
+            for a in group {
+                vals.push(self.emit_expr(a)?);
+            }
         }
         Ok(apply_words(self.b, &fv, &vals))
     }

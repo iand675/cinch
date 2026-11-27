@@ -9,9 +9,10 @@ module Cinch.RuntimeIr where
   import Cinch.Promote (PromotedFn, is-promoted-fn-name)
   import Cinch.BodyContract (binding-name, binding-native, binding-function)
   import Cinch.Total (TotalFunction, TotalTerm, TotalArguments, total-term, total-parameters, total-result, term-node, argument-node, LocalTerm, NumberTerm, PrimitiveTerm, NextArgument, NoArguments)
-  import Cinch.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, llvm-object-symbol, llvm-data-bytes)
+  import Cinch.Object (RuntimeObject, RuntimeUnit, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-specialized-method-unit, object-string-layout, llvm-object-symbol, llvm-data-bytes)
   import Cinch.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Cinch.Ad (lower-ad-program)
+  import Cinch.PartialEval (partial-eval-program)
   import Cinch.Core
   import Cinch.Foreign
   import Cinch.Layout (fixed-array-parts, pod-type-layout, value-layout-of)
@@ -79,6 +80,9 @@ module Cinch.RuntimeIr where
     LoopMarker :: Local
     -- Native pointer to a stack-allocated scalar cell created by withLocal.
     StackCell :: Nat -> UType -> String -> Local
+    -- Known local worker (monomorphic lambda or local recursive helper) for
+    -- direct saturated calls without closure allocation or __apply.
+    KnownWorker :: Nat -> String -> List (UType, String) -> List UType -> UType -> Local
 
   record RecursiveWorker where
     id :: Nat
@@ -96,7 +100,7 @@ module Cinch.RuntimeIr where
   data Demand where
     Demand :: String -> List Nat -> Demand
     ConstructorDemand :: String -> List Nat -> Demand
-    LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Demand
+    LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> List CorePattern -> CoreTerm -> Demand
     RecursiveDemand :: RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Demand
     StubDemand :: String -> List Nat -> Nat -> Demand
     DictionaryDemand :: String -> List Nat -> Demand
@@ -1149,6 +1153,7 @@ module Cinch.RuntimeIr where
     (SelfValue owner slot ty word) : rest -> drop-locals rest w
     LoopMarker : rest -> drop-locals rest w
     (StackCell id ty ptr-reg) : rest -> drop-locals rest w
+    (KnownWorker id name caps param-tys ret-ty) : rest -> drop-locals rest w
   in-loop-locals :: List Local -> Bool
   in-loop-locals locals = case locals of
     [] -> False
@@ -1167,6 +1172,18 @@ module Cinch.RuntimeIr where
     (DeferredConstructor key ty name actuals args) : rest -> local id rest
     LoopMarker : rest -> local id rest
     (StackCell key ty ptr-reg) : rest -> local id rest
+    (KnownWorker key name caps param-tys ret-ty) : rest -> local id rest
+  lookup-known-worker :: Nat -> List Local -> Option (String, List (UType, String), List UType, UType)
+  lookup-known-worker id locals = case locals of
+    [] -> None
+    (KnownWorker key name caps param-tys ret-ty) : rest ->
+      if key == id then Some (name, caps, param-tys, ret-ty) else lookup-known-worker id rest
+    (Local key ty value) : rest -> if key == id then None else lookup-known-worker id rest
+    (Borrowed key ty value) : rest -> if key == id then None else lookup-known-worker id rest
+    (KnotLocal key region ty value) : rest -> if key == id then None else lookup-known-worker id rest
+    (DeferredConstructor key ty name actuals args) : rest -> if key == id then None else lookup-known-worker id rest
+    (StackCell key ty ptr-reg) : rest -> if key == id then None else lookup-known-worker id rest
+    other : rest -> lookup-known-worker id rest
 
   -- A shaped block describes itself (design/self-describing-blocks.md).
   -- Its description is the header's layout field, tag | counted-mask << 8,
@@ -2184,17 +2201,53 @@ module Cinch.RuntimeIr where
         else None
       other -> None
 
+  try-let-lambda :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> UType -> CoreTerm -> CoreTerm -> Option (Writer, String)
+  try-let-lambda definitions locals w sp id ty rhs body = case rhs of
+    CLambda lsp lty param lbody ->
+      if erased-pattern param then None else
+      let (peeled-pats, peeled-body) = lambda-parameters [param] lbody in
+      let arity = list-length peeled-pats in
+      if arity == 0 || wide-type (w.context) (final-result (core-type peeled-body)) then None else
+      let saved = captures-from-patterns peeled-pats peeled-body locals locals in
+      let cap-tys = capture-types saved in
+      let param-tys = pattern-types peeled-pats in
+      let ret-ty = core-type peeled-body in
+      let ret-class = (case word-class (w.context) ret-ty of Some c -> c; None -> 0) in
+      (case class-vector (w.context) (cap-tys <> param-tys) of
+        None -> None
+        Some classes ->
+          let needs-clo = rec-needs-closure id arity body in
+          let wclasses = closure-word-classes classes ret-class in
+          let has-val = val-code classes || val-code-needs-sret-apply ret-class in
+          if needs-clo && (wide-code classes || (not has-val && list-length wclasses > 13)) then None
+          else
+            let (named, name) = fresh-scoped w ".lambda" in
+            (case named.context of
+              RuntimeContext datas bounds rigids queue inlining ->
+                let planned = request-demand (LambdaDemand name bounds rigids saved peeled-pats peeled-body) named in
+                let kw = KnownWorker id name (capture-pairs saved) param-tys ret-ty in
+                if not needs-clo then
+                  Some (expression definitions (kw : locals) planned body)
+                else
+                  (case capture-values saved planned of
+                    (captured, cap-vals) -> case closure-with lsp name classes ret-class cap-tys cap-vals captured of
+                      (ready, clo-word) -> case expression definitions (kw : (Local id ty clo-word) : locals) ready body of
+                        (done, result) -> Some (count-op False ty clo-word done, result))))
+    other -> None
+
   emit-let :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
   emit-let definitions locals w sp id ty rhs body =
     if not (term-uses-id id body) then
       (case expression definitions locals w rhs of
         (bound, value) -> expression definitions locals (count-op False ty value bound) body)
-    else case try-frame-let definitions locals w sp id ty rhs body of
-      Some framed -> framed
-      None ->
-        let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs in
-        (case expression definitions locals w rhs of
-          (bound, value) -> eval-let-body-u definitions locals bound id ty value is-uniq body)
+    else case try-let-lambda definitions locals w sp id ty rhs body of
+      Some lowered -> lowered
+      None -> case try-frame-let definitions locals w sp id ty rhs body of
+        Some framed -> framed
+        None ->
+          let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs in
+          (case expression definitions locals w rhs of
+            (bound, value) -> eval-let-body-u definitions locals bound id ty value is-uniq body)
 
   stack-cell-local :: Nat -> List Local -> Option (UType, String)
   stack-cell-local id locals = case locals of
@@ -2312,29 +2365,142 @@ module Cinch.RuntimeIr where
     (if erased-value-arrow ty then CPErasedValue sp domain 0 "#operation-argument" else CPWild sp domain)
     (operation-closure sp result)
 
+  capture-pairs :: List Local -> List (UType, String)
+  capture-pairs locals = case locals of
+    [] -> []
+    (Local id ty value) : rest -> (ty, value) : (capture-pairs rest)
+    (Borrowed id ty value) : rest -> (ty, value) : (capture-pairs rest)
+    (KnotLocal id region ty slot) : rest -> (knot-slot-type region ty, slot) : (capture-pairs rest)
+    (GivenLocal name ty value) : rest -> (ty, value) : (capture-pairs rest)
+    (SelfValue owner slot ty value) : rest -> (ty, value) : (capture-pairs rest)
+    other : rest -> capture-pairs rest
+  dup-capture-pairs :: List (UType, String) -> Writer -> (Writer, List UType, List String)
+  dup-capture-pairs pairs w = case pairs of
+    [] -> (w, [], [])
+    (ty, value) : rest -> case dup-capture-pairs rest (count-op True ty value w) of
+      (done, tys, vals) -> (done, ty : tys, value : vals)
+  call-known-worker :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List (UType, String) -> List UType -> UType -> List CoreTerm -> (Writer, String)
+  call-known-worker definitions locals w sp wname caps param-tys ret-ty args =
+    let arity = list-length param-tys in
+    let rem-args = drop-terms arity args in
+    let over-ret-class = (case rem-args of
+      [] -> 0
+      more -> case word-class (w.context) (peel-arrows (list-length rem-args) ret-ty) of Some c -> c; None -> 0) in
+    case dup-capture-pairs caps w of
+      (captured, cap-tys, cap-vals) -> case expressions definitions locals captured (take-terms arity args) of
+        (ready, arg-vals) ->
+          let call-args = typed-values (value-param-llvms (ready.context) (cap-tys <> param-tys)) (cap-vals <> arg-vals) in
+          case value-sret-info (ready.context) ret-ty of
+            Some (sret-attr, sz, al) ->
+              let (w1, retbuf) = fresh ready "%sret" in
+              let w2 = line w1 (cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al]) in
+              let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", retbuf] in
+              let called = line w2 (cat ["  call void ", symbol wname, "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
+              apply-terms-class definitions locals called retbuf rem-args over-ret-class
+            None -> case typed-call ready (value-llvm (ready.context) ret-ty) (symbol wname) call-args of
+              (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
+
+  external-call-compatible :: Writer -> RuntimeUnit -> Scheme -> Bool
+  external-call-compatible w unit sc =
+    let evidence-count = list-length (scheme-requirements sc) in
+    let native-count = list-length (unit.params) in
+    if evidence-count > native-count then False
+    else case external-shape (native-count - evidence-count) (scheme-body sc) [] of
+      Some (params, result-type) -> case unit.result of
+        Some actual-result -> case class-vector (w.context) (requirement-types (scheme-requirements sc) <> params) of
+          Some expected -> case word-class (w.context) result-type of
+            Some result -> same-classes expected (unit.params) && result == actual-result
+            None -> False
+          None -> False
+        None -> False
+      None -> False
+
+  self-method-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> String -> Nat -> List UType -> List CoreEvidence -> List CoreTerm -> Option (Writer, String)
+  self-method-call definitions locals w sp name owner slot actuals evidence args = case evidence of
+    (CEGiven at given-ty given-name) : extra -> case known-self given-name locals of
+      Some (KnownSelf key instance-name classes context) -> case (find-class owner ((writer-program w).classes), instance-named instance-name ((writer-program w).instances)) of
+        (Some description, Some factory) ->
+          if not (method-reference name owner slot (writer-program w)) then None
+          else case (class-owner (scheme-body (factory.scheme)), method-at slot (description.methods), field-at slot (factory.fields)) of
+            (Some actual-owner, Some member, Some field) | owner == actual-owner && not (strict-value-field w factory field) ->
+              (case method-own-classes w member actuals of
+                Some own-codes ->
+                  let noted = note-version owner slot own-codes w in
+                  (case copy-givens context locals noted of
+                    (copied, prefix) -> case evidences definitions locals copied extra of
+                      (ready, more) -> Some (function-call definitions locals ready sp (field.field-definition) [] (classes <> own-codes) (prefix <> more) args))
+                None -> None)
+            other -> None
+        other -> None
+      other -> None
+    other -> None
+
+  imported-method-unit :: Writer -> String -> String -> Nat -> List UType -> String -> List UType -> Option (RuntimeUnit, List Nat, Scheme)
+  imported-method-unit w name owner slot actuals factory factory-actuals =
+    case ((writer-program w).object, find-class owner ((writer-program w).classes), instance-binding factory (writer-program w)) of
+      (Some provider, Some description, Some binding) ->
+        if not (method-reference name owner slot (writer-program w)) then None
+        else
+          let sc = concrete-scheme (checked-scheme binding) factory-actuals in
+          (case (class-owner (scheme-body sc), method-at slot (description.methods), scheme-classes (w.context) (scheme-params (checked-scheme binding)) factory-actuals) of
+            (Some actual-owner, Some member, Some factory-codes) | owner == actual-owner ->
+              (case method-own-classes w member actuals of
+                Some own-codes ->
+                  let ctx-arity = list-length (scheme-requirements sc) in
+                  (case object-specialized-method-unit owner factory factory-codes slot own-codes ctx-arity provider of
+                    Some unit -> Some (unit, own-codes, sc)
+                    None -> None)
+                None -> None)
+            other -> None)
+      other -> None
+
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
       CUse at function name role actuals -> if role == "operation" then
         (case expression definitions locals w f of (ready, closure-word) -> apply-terms definitions locals ready closure-word [x])
         else direct-call definitions locals w sp name actuals (arguments term [])
+      CLocal at function id name [] ->
+        let args = arguments term [] in
+        (case lookup-known-worker id locals of
+          Some (wname, caps, param-tys, ret-ty) | list-length args >= list-length param-tys ->
+            call-known-worker definitions locals w sp wname caps param-tys ret-ty args
+          other -> indirect-spine definitions locals w sp (head term) args (core-type term))
       -- Checked evidence is a prefix of the same known call, not an unknown
       -- closure application. Keep the complete argument spine for saturation.
       CQualifiedUse at function name role actuals evidence -> case evidences definitions locals w evidence of
         (ready, values) -> call-name definitions locals ready sp name actuals values (arguments term [])
       CMethod at function name owner slot actuals evidence ->
-        (case static-instance-method w name owner slot actuals evidence of
-          Some (codes, own-codes, d) -> function-call definitions locals (note-version owner slot own-codes w) sp d [] codes [] (arguments term [])
-          None -> case evidence of
-            [CEInstance location receiver factory [] (CEArgumentsEnd end)] ->
-              (case closed-method-unit w name owner slot actuals factory of
-                Some unit -> if list-length (arguments term []) == list-length (unit.params) then
-                  (let noted = note-version owner slot [] w in
-                   case inline-total definitions locals noted (imported-native-body (unit.symbol) (writer-program w)) unit (mono function) [] (arguments term []) of
-                     Some lowered -> lowered
-                     None -> external-call-unit definitions locals noted sp unit (mono function) [] (arguments term []))
-                  else indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term)
-                None -> indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term))
-            other -> indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term))
+        let args = arguments term [] in
+        (case static-instance-method-call w name owner slot actuals evidence of
+          Some (codes, own-codes, d, subdicts, extra) ->
+            let noted = note-version owner slot own-codes w in
+            (case evidence-values definitions locals noted subdicts of
+              (with-subs, sub-vals) -> case evidences definitions locals with-subs extra of
+                (ready, extra-vals) -> function-call definitions locals ready sp d [] codes (sub-vals <> extra-vals) args)
+          None -> case self-method-call definitions locals w sp name owner slot actuals evidence args of
+            Some lowered -> lowered
+            None -> case evidence of
+              [CEInstance location receiver factory factory-actuals subdicts] ->
+                (case imported-method-unit w name owner slot actuals factory factory-actuals of
+                  Some (unit, own-codes, inst-sc) ->
+                    let reqs = scheme-requirements inst-sc in
+                    let ctx-arity = list-length reqs in
+                    let ulen = list-length (unit.params) in
+                    let method-sc = qualified [] reqs function in
+                    if ulen >= ctx-arity
+                      && list-length args >= ulen - ctx-arity
+                      && external-call-compatible w unit method-sc then
+                      (let noted = note-version owner slot own-codes w in
+                       if ctx-arity == 0 && list-length args == ulen then
+                         (case inline-total definitions locals noted (imported-native-body (unit.symbol) (writer-program w)) unit method-sc [] args of
+                           Some lowered -> lowered
+                           None -> external-call-unit definitions locals noted sp unit method-sc [] args)
+                       else
+                         (case evidence-values definitions locals noted subdicts of
+                           (ready, givens) -> external-call-unit definitions locals ready sp unit method-sc givens args))
+                    else indirect-spine definitions locals w sp (head term) args (core-type term)
+                  None -> indirect-spine definitions locals w sp (head term) args (core-type term))
+              other -> indirect-spine definitions locals w sp (head term) args (core-type term))
       other -> (case erased-constructor-call term [] of
         Some (name, actuals, args) -> direct-call definitions locals w sp name actuals args
         None -> indirect-spine definitions locals w sp (head term) (arguments term []) (core-type term))
@@ -2553,13 +2719,49 @@ module Cinch.RuntimeIr where
             else
               let (w4, result) = fresh w3 "%v" in
               (line w4 (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 ", nat-to-string total-words, ", ptr ", argv, ")"]), result)
+  apply-word-batch :: Writer -> String -> List String -> (Writer, String)
+  apply-word-batch w function values = case values of
+    [] -> (w, function)
+    [single] -> apply-one w function single
+    other ->
+      let count = list-length values in
+      let (w1, argv) = fresh w "%argv" in
+      let w2 = line w1 (cat ["  ", argv, " = alloca [", nat-to-string count, " x i64], align 8"]) in
+      let w3 = store-fields w2 argv 0 values in
+      let (w4, result) = fresh w3 "%v" in
+      (line w4 (cat ["  ", result, " = call i64 @__apply(i64 ", function, ", i64 ", nat-to-string count, ", ptr ", argv, ")"]), result)
+  is-plain-local :: Nat -> List Local -> Bool
+  is-plain-local id locals = case locals of
+    [] -> False
+    (Local key _ _) : rest -> if key == id then True else is-plain-local id rest
+    (Borrowed key _ _) : rest -> if key == id then True else is-plain-local id rest
+    other : rest -> is-plain-local id rest
+  apply-atomic-arg :: List Local -> CoreTerm -> Bool
+  apply-atomic-arg locals term = case term of
+    CLocal _ _ id _ [] -> is-plain-local id locals
+    CInt _ _ _ -> True
+    CChar _ _ _ -> True
+    CUnit _ _ -> True
+    CString _ _ _ -> True
+    CSymbol _ _ _ -> True
+    other -> False
+  split-atomic-args :: List Local -> List CoreTerm -> (List CoreTerm, List CoreTerm)
+  split-atomic-args locals terms = case terms of
+    [] -> ([], [])
+    first : rest ->
+      if apply-atomic-arg locals first then
+        case split-atomic-args locals rest of (taken, after) -> (first : taken, after)
+      else ([], terms)
   apply-terms :: List CoreDefinition -> List Local -> Writer -> String -> List CoreTerm -> (Writer, String)
   apply-terms definitions locals w function terms = case terms of
     [] -> (w, function)
-    first : rest -> if wide-type (w.context) (core-type first) then unsupported w (Span 0 0 1 1) wide-refusal else
-      case expression definitions locals w first of
-      (ready, value) -> case apply-one ready function value of
-        (applied, result) -> apply-terms definitions locals applied result rest
+    first : rest ->
+      if any-wide-term (w.context) terms then unsupported w (Span 0 0 1 1) wide-refusal else
+      case split-atomic-args locals rest of
+        (batch-tail, after) ->
+          case expressions definitions locals w (first : batch-tail) of
+            (ready, values) -> case apply-word-batch ready function values of
+              (called, next-fn) -> apply-terms definitions locals called next-fn after
   take-terms :: Nat -> List CoreTerm -> List CoreTerm
   take-terms count terms = if count == 0 then [] else case terms of [] -> []; first : rest -> first : (take-terms (count - 1) rest)
   drop-terms :: Nat -> List CoreTerm -> List CoreTerm
@@ -4158,9 +4360,7 @@ module Cinch.RuntimeIr where
   requirement-types :: List Requirement -> List UType
   requirement-types requirements = case requirements of [] -> []; first : rest -> (first.ty) : (requirement-types rest)
   apply-words :: Writer -> String -> List String -> (Writer, String)
-  apply-words w function values = case values of
-    [] -> (w, function)
-    first : rest -> case apply-one w function first of (next, result) -> apply-words next result rest
+  apply-words w function values = apply-word-batch w function values
   actual-pairs :: List Quant -> List UType -> List (Nat, UType)
   actual-pairs qs actuals = case qs of
     [] -> []
@@ -4863,6 +5063,41 @@ module Cinch.RuntimeIr where
   -- result is the representation codes to specialize the unit with and the
   -- unit itself; a factory with a context, a strict value field or a
   -- method the unit cannot be reached from keeps the projection.
+  evidence-args-length :: CoreEvidence -> Nat
+  evidence-args-length args = case args of
+    CEArgument _ _ rest -> 1 + evidence-args-length rest
+    other -> 0
+  static-instance-method-call :: Writer -> String -> String -> Nat -> List UType -> List CoreEvidence -> Option (List Nat, List Nat, CoreDefinition, CoreEvidence, List CoreEvidence)
+  static-instance-method-call w name owner slot actuals evidence = case evidence of
+    (CEInstance sp ty factory factory-actuals subdicts) : extra ->
+      if not (method-reference name owner slot (writer-program w)) then None else
+      (case instance-named factory ((writer-program w).instances) of
+        Some candidate ->
+          let req-count = list-length (scheme-requirements (candidate.scheme)) in
+          if evidence-args-length subdicts /= req-count || has-strict-values w candidate (candidate.fields) then None else
+          (case class-owner (scheme-body (candidate.scheme)) of
+            Some actual | owner == actual ->
+              (case field-at slot (candidate.fields) of
+                Some field | not (strict-value-field w candidate field) ->
+                  (case method-at slot (class-methods-of owner w) of
+                    Some member -> case method-own-classes w member actuals of
+                      Some own-codes -> case scheme-classes (w.context) (scheme-params (candidate.scheme)) factory-actuals of
+                        Some classes ->
+                          let codes = classes <> own-codes in
+                          let d = field.field-definition in
+                          if list-length (runtime-givens w d) == req-count + list-length extra
+                            && (case definition-value-dependencies w d of [] -> True; other -> False)
+                            && (case opening-value-types (d.openings) of [] -> True; other -> False)
+                            && (case d.clauses of [] -> False; other -> True)
+                            && (case definition-context d codes w of Some context -> True; None -> False)
+                            then Some (codes, own-codes, d, subdicts, extra) else None
+                        None -> None
+                      None -> None
+                    None -> None)
+                other -> None)
+            other -> None)
+        None -> None)
+    other -> None
   static-instance-method :: Writer -> String -> String -> Nat -> List UType -> List CoreEvidence -> Option (List Nat, List Nat, CoreDefinition)
   static-instance-method w name owner slot actuals evidence = case evidence of
     [first] -> case first of
@@ -4955,7 +5190,7 @@ module Cinch.RuntimeIr where
           case evidences definitions locals released extra of
             (given, values) -> apply-values given field values
   apply-values :: Writer -> String -> List String -> (Writer, String)
-  apply-values w function values = case values of [] -> (w, function); first : rest -> case apply-one w function first of (done, result) -> apply-values done result rest
+  apply-values w function values = apply-word-batch w function values
   -- A dictionary's description covers its slots, which follow its raw
   -- method-count word.
   request-dictionary-shape :: Span -> List Nat -> Writer -> (Writer, Nat)
@@ -5188,6 +5423,23 @@ module Cinch.RuntimeIr where
     (DeferredConstructor id ty name actuals args) : rest -> captures-from parameter body all rest
     LoopMarker : rest -> captures-from parameter body all rest
     (StackCell id ty ptr-reg) : rest -> captures-from parameter body all rest
+    (KnownWorker id name caps param-tys ret-ty) : rest -> captures-from parameter body all rest
+  patterns-bind :: Nat -> List CorePattern -> Bool
+  patterns-bind id patterns = case patterns of
+    [] -> False
+    first : rest -> pattern-binds id first || patterns-bind id rest
+  captures-from-patterns :: List CorePattern -> CoreTerm -> List Local -> List Local -> List Local
+  captures-from-patterns patterns body all locals = case locals of
+    [] -> []
+    (Local id ty value) : rest -> if not (patterns-bind id patterns) && term-uses id body then (Local id ty value) : (captures-from-patterns patterns body all rest) else captures-from-patterns patterns body all rest
+    (Borrowed id ty value) : rest -> if not (patterns-bind id patterns) && term-uses id body then (Local id ty value) : (captures-from-patterns patterns body all rest) else captures-from-patterns patterns body all rest
+    (KnotLocal id region ty slot) : rest -> if not (patterns-bind id patterns) && recursive-member-use id body then
+      (KnotLocal id region ty slot) : (captures-from-patterns patterns body all rest)
+      else captures-from-patterns patterns body all rest
+    (GivenLocal name ty value) : rest -> if given-uses name body || self-context-uses name body all then (GivenLocal name ty value) : (captures-from-patterns patterns body all rest) else captures-from-patterns patterns body all rest
+    (KnownSelf key owner classes context) : rest -> if given-uses key body then (KnownSelf key owner classes context) : (captures-from-patterns patterns body all rest) else captures-from-patterns patterns body all rest
+    (SelfValue owner slot ty value) : rest -> if self-values-used owner body all then (SelfValue owner slot ty value) : (captures-from-patterns patterns body all rest) else captures-from-patterns patterns body all rest
+    other : rest -> captures-from-patterns patterns body all rest
   capture-types :: List Local -> List UType
   capture-types locals = case locals of
     [] -> []
@@ -5222,18 +5474,87 @@ module Cinch.RuntimeIr where
     other : rest -> captured-bindings rest index
   capture-roots :: List UType -> Nat -> List Local
   capture-roots types index = case types of [] -> []; ty : rest -> (Discard ty (cat ["%arg", nat-to-string index])) : (capture-roots rest (index + 1))
+  lambda-parameters :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
+  lambda-parameters acc term = case term of
+    CLambda sp ty pattern body ->
+      if erased-pattern pattern || list-length acc >= 8 then (reverse acc, term)
+      else lambda-parameters (pattern : acc) body
+    other -> (reverse acc, term)
+  any-rec-needs-closure :: Nat -> Nat -> List CoreTerm -> Bool
+  any-rec-needs-closure id arity terms = case terms of
+    [] -> False
+    first : rest -> rec-needs-closure id arity first || any-rec-needs-closure id arity rest
+  any-term-uses :: Nat -> List CoreTerm -> Bool
+  any-term-uses id terms = case terms of
+    [] -> False
+    first : rest -> term-uses id first || any-term-uses id rest
+  rec-needs-closure :: Nat -> Nat -> CoreTerm -> Bool
+  rec-needs-closure id arity term =
+    if arity == 0 then term-uses id term
+    else case term of
+      CLocal sp ty key name actuals -> key == id
+      CApply sp ty first second ->
+        (case head term of
+          CLocal _ _ key _ [] | key == id ->
+            let args = arguments term [] in
+            if list-length args >= arity then any-rec-needs-closure id arity args else True
+          other -> rec-needs-closure id arity (head term) || any-rec-needs-closure id arity (arguments term []))
+      CApplyEff sp ty row first second ->
+        (case head term of
+          CLocal _ _ key _ [] | key == id ->
+            let args = arguments term [] in
+            if list-length args >= arity then any-rec-needs-closure id arity args else True
+          other -> rec-needs-closure id arity (head term) || any-rec-needs-closure id arity (arguments term []))
+      CLambda sp ty pattern body -> not (pattern-binds id pattern) && term-uses id body
+      CRecursiveFunctions sp ty members body ->
+        not (local-in-recursive-functions id members) && (term-uses id body || any-term-uses id (recursive-functions members))
+      CRecursiveValues sp ty region members body ->
+        not (local-in-recursive-functions id members) && (term-uses id body || any-term-uses id (recursive-functions members))
+      CLet sp ty key name sc rhs body ->
+        rec-needs-closure id arity rhs || (key /= id && rec-needs-closure id arity body)
+      CIf sp ty test yes no ->
+        rec-needs-closure id arity test || rec-needs-closure id arity yes || rec-needs-closure id arity no
+      CCase sp ty value alts ->
+        rec-needs-closure id arity value || rec-needs-closure id arity alts
+      CAlternative sp pat body rest ->
+        (not (pattern-binds id pat) && rec-needs-closure id arity body) || rec-needs-closure id arity rest
+      CGuard sp ty guard body ->
+        rec-needs-closure id arity guard || rec-needs-closure id arity body
+      CWith sp ty given val body ->
+        rec-needs-closure id arity val || rec-needs-closure id arity body
+      CTuple sp ty fields -> rec-needs-closure id arity fields
+      CPrimitive sp ty op args -> rec-needs-closure id arity args
+      CArgument sp first rest -> rec-needs-closure id arity first || rec-needs-closure id arity rest
+      CProved sp ty ev body -> rec-needs-closure id arity body
+      CRefine sp ty ev body -> rec-needs-closure id arity body
+      CRefineProof sp ty witness body -> rec-needs-closure id arity witness || rec-needs-closure id arity body
+      CForget sp ty body -> rec-needs-closure id arity body
+      CCast sp ty body -> rec-needs-closure id arity body
+      CRequire sp ty body -> rec-needs-closure id arity body
+      CDischarge sp ty ev _ body -> rec-needs-closure id arity body
+      other -> term-uses id term
   lambda :: List CoreDefinition -> List Local -> Writer -> Span -> CorePattern -> CoreTerm -> (Writer, String)
   lambda definitions locals w sp parameter body =
-    let saved = captures-from parameter body locals locals in
-    let parameters = if erased-pattern parameter then [] else [pattern-type parameter] in
-    if wide-type (w.context) (final-result (core-type body)) then unsupported w sp wide-refusal else
-    let ret-class = (case word-class (w.context) (core-type body) of Some c -> c; None -> 0) in
+    let (peeled-pats, peeled-body) = if erased-pattern parameter then ([parameter], body) else lambda-parameters [parameter] body in
+    let saved-peeled = captures-from-patterns peeled-pats peeled-body locals locals in
+    let params-peeled = if erased-pattern parameter then [] else pattern-types peeled-pats in
+    let ret-peeled = (case word-class (w.context) (core-type peeled-body) of Some c -> c; None -> 0) in
+    let use-peeled = not (erased-pattern parameter) && (case class-vector (w.context) (capture-types saved-peeled <> params-peeled) of
+      Some cls -> let wcls = closure-word-classes cls ret-peeled in
+        not (wide-code cls) && (val-code cls || val-code-needs-sret-apply ret-peeled || list-length wcls <= 13)
+      None -> False) in
+    let patterns = if use-peeled then peeled-pats else [parameter] in
+    let actual-body = if use-peeled then peeled-body else body in
+    let saved = if use-peeled then saved-peeled else captures-from parameter body locals locals in
+    let parameters = if erased-pattern parameter then [] else pattern-types patterns in
+    if wide-type (w.context) (final-result (core-type actual-body)) then unsupported w sp wide-refusal else
+    let ret-class = (case word-class (w.context) (core-type actual-body) of Some c -> c; None -> 0) in
     case class-vector (w.context) (capture-types saved <> parameters) of
       None -> unsupported w sp "lambda parameters need known runtime representations"
       Some classes -> let (named, name) = fresh-scoped w ".lambda" in
         (case named.context of
           RuntimeContext datas bounds rigids queue inlining ->
-            let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
+            let planned = request-demand (LambdaDemand name bounds rigids saved patterns actual-body) named in
             case capture-values saved planned of
               (ready, values) -> closure-with sp name classes ret-class (capture-types saved) values ready)
   recursive-parameters :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
@@ -5256,16 +5577,34 @@ module Cinch.RuntimeIr where
     member : rest -> case w.context of
       RuntimeContext datas bounds rigids queue inlining ->
         request-recursive-workers group rest saved (request-demand (RecursiveDemand member group bounds rigids saved) w)
+  known-rec-locals :: List RecursiveWorker -> List UType -> List Local -> List Local
+  known-rec-locals group captures saved =
+    let caps = capture-pairs saved in
+    known-rec-locals-go group caps
+  known-rec-locals-go :: List RecursiveWorker -> List (UType, String) -> List Local
+  known-rec-locals-go group caps = case group of
+    [] -> []
+    (RecursiveWorker id ty name patterns body) : rest ->
+      let more = known-rec-locals-go rest caps in
+      let rparams = runtime-parameters patterns in
+      let is-erased = (case patterns of [p] | erased-pattern p -> True; other -> False) in
+      if is-erased || list-length rparams == 0 then more
+      else (KnownWorker id name caps (pattern-types rparams) (core-type body)) : more
   -- The sibling closures save only the group's outer environment. Rebuild
   -- a closure when its worker needs that value without an owning cycle.
+  -- Skip allocating the closure when every use in `used` is a direct saturated call.
   recursive-locals :: Span -> List UType -> List Local -> List RecursiveWorker -> CoreTerm -> Writer -> (Writer, List Local)
   recursive-locals sp captures saved group used w = case group of
     [] -> (w, [])
-    (RecursiveWorker id ty name patterns body) : rest -> if not (term-uses id used) then
-      recursive-locals sp captures saved rest used w
+    (RecursiveWorker id ty name patterns body) : rest ->
+      let rparams = runtime-parameters patterns in
+      let is-erased = (case patterns of [p] | erased-pattern p -> True; other -> False) in
+      let arity = if is-erased then 0 else list-length rparams in
+      if not (term-uses id used) || not (rec-needs-closure id arity used) then
+        recursive-locals sp captures saved rest used w
       else if wide-type (w.context) (final-result ty) then (refuse w sp wide-refusal, [])
       else let ret-class = (case word-class (w.context) (core-type body) of Some c -> c; None -> 0) in
-        (case class-vector (w.context) (captures <> pattern-types (runtime-parameters patterns)) of
+        (case class-vector (w.context) (captures <> pattern-types rparams) of
         None -> (refuse w sp "recursive closure needs checked runtime representations", [])
         Some classes -> case capture-values saved w of
           (captured, values) -> case closure-with sp name classes ret-class captures values captured of
@@ -5276,10 +5615,12 @@ module Cinch.RuntimeIr where
     let unit = UCon "Unit" KType in
     let scope = CRecursiveFunctions sp unit members (CUnit sp unit) in
     let saved = captures-from (CPWild sp unit) scope locals locals in
+    let cap-tys = capture-types saved in
     case plan-recursive-workers members w of
       (named, group) -> let planned = request-recursive-workers group group saved named in
-        (case recursive-locals sp (capture-types saved) saved group body planned of
-          (ready, bound) -> case expression definitions (bound <> locals) ready body of
+        let knowns = known-rec-locals group cap-tys saved in
+        (case recursive-locals sp cap-tys saved group body planned of
+          (ready, bound) -> case expression definitions (knowns <> bound <> locals) ready body of
             (done, result) -> (drop-locals bound done, result))
   -- App stubs consume the closure and argv. A closure's code word points at
   -- the `app` stub, which merges the filled words and the incoming words
@@ -9251,19 +9592,20 @@ module Cinch.RuntimeIr where
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
       None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
     None -> refuse w (Span 0 0 1 1) "constructor worker has no checked constructor"
-  lambda-worker :: List CoreDefinition -> String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Writer -> Writer
-  lambda-worker definitions name bounds rigids saved parameter body w =
+  lambda-worker :: List CoreDefinition -> String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> List CorePattern -> CoreTerm -> Writer -> Writer
+  lambda-worker definitions name bounds rigids saved parameters body w =
     let scoped = with-representations bounds rigids w in
     if not (word-type (scoped.context) (core-type body)) then refuse scoped (Span 0 0 1 1) "lambda result needs a checked runtime representation" else
       let types = capture-types saved in
       let offset = list-length types in
-      let param-types = if erased-pattern parameter then types else types <> [pattern-type parameter] in
+      let is-erased = (case parameters of [p] | erased-pattern p -> True; other -> False) in
+      let param-types = if is-erased then types else types <> pattern-types parameters in
       let base-params = typed-arguments (typed-values (value-param-llvms (scoped.context) param-types) (value-parameters (list-length param-types) 0)) in
       let sret-opt = value-sret-info (scoped.context) (core-type body) in
       let ret-llvm = (case sret-opt of Some info -> "void"; None -> value-llvm (scoped.context) (core-type body)) in
       let full-params = (case sret-opt of Some (sret-attr, sz, al) -> (cat [sret-attr, " %sret"]) : base-params; None -> base-params) in
       let started = line (line scoped (cat ["define ", worker-linkage w name, ret-llvm, " ", symbol name, "(", join full-params, ")", worker-open w])) "entry:" in
-      if erased-pattern parameter then
+      if is-erased then
         (case expression definitions (captured-bindings saved 0) started body of
           (done, result) ->
             let cleaned = drop-locals (capture-roots types 0) done in
@@ -9274,12 +9616,12 @@ module Cinch.RuntimeIr where
                 line (line copied "  ret void") "}"
               None -> line (line cleaned (cat ["  ret ", value-llvm (cleaned.context) (core-type body), " ", result])) "}")
       else
-        let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
+        let roots = capture-roots types 0 <> parameter-roots parameters offset in
         case sret-opt of
           Some (sret-attr, sz, al) ->
-            line (worker-clauses-sret definitions (captured-bindings saved 0) roots offset sz al [CoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+            line (worker-clauses-sret definitions (captured-bindings saved 0) roots offset sz al [CoreClause (Span 0 0 1 1) parameters body] started) "}"
           None ->
-            line (worker-clauses definitions (captured-bindings saved 0) roots offset [CoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+            line (worker-clauses definitions (captured-bindings saved 0) roots offset [CoreClause (Span 0 0 1 1) parameters body] started) "}"
   recursive-width :: List RecursiveWorker -> Nat
   recursive-width group = case group of
     [] -> 0
@@ -9991,19 +10333,22 @@ module Cinch.RuntimeIr where
           let base-params = typed-arguments (typed-values (value-param-llvms (scoped.context) all-param-tys) (value-parameters (offset + arity) 0)) in
           let full-params = (case sret-opt of Some (sret-attr, sz, al) -> (cat [sret-attr, " %sret"]) : base-params; None -> base-params) in
           let started = line (line scoped (cat ["define ", worker-linkage scoped name, ret-llvm, " ", symbol name, "(", join full-params, ")", worker-open scoped])) "entry:" in
+          let knowns = known-rec-locals group captures prefix in
           (case recursive-locals sp captures prefix group body started of
             (ready, siblings) ->
               let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
               case sret-opt of
-                Some (sret-attr, sz, al) -> line (worker-clauses-sret definitions (siblings <> prefix) roots offset sz al [CoreClause sp patterns body] ready) "}"
-                None -> line (worker-clauses definitions (siblings <> prefix) roots offset [CoreClause sp patterns body] ready) "}")
+                Some (sret-attr, sz, al) -> line (worker-clauses-sret definitions (knowns <> siblings <> prefix) roots offset sz al [CoreClause sp patterns body] ready) "}"
+                None -> line (worker-clauses definitions (knowns <> siblings <> prefix) roots offset [CoreClause sp patterns body] ready) "}")
         else
         let (started, failed) = fresh (start-tail-worker "" name (offset + arity) (offset + width) False scoped) "tailmiss" in
         (case match-clause patterns body prefix offset failed started of
-          (matched, bindings, rebuilt) -> case recursive-locals sp captures prefix group rebuilt matched of
+          (matched, bindings, rebuilt) ->
+            let knowns = known-rec-locals group captures prefix in
+            case recursive-locals sp captures prefix group rebuilt matched of
             (ready, siblings) ->
               let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
-              let done = tail-result definitions (bindings <> siblings <> prefix) roots (LocalTail group prefix width) ready failed rebuilt in
+              let done = tail-result definitions (bindings <> knowns <> siblings <> prefix) roots (LocalTail group prefix width) ready failed rebuilt in
               line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   dispatch-demand :: List CoreDefinition -> Demand -> Writer -> Writer
   dispatch-demand definitions demand claimed = case demand of
@@ -11023,7 +11368,8 @@ module Cinch.RuntimeIr where
     let raw-definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
     let binding-names = map checked-name (elaboration-bindings typed) in
-    let definitions = lower-ad-program datas (elaboration-type-families typed) (elaboration-promoted-fns typed) binding-names raw-definitions in
+    let ad-definitions = lower-ad-program datas (elaboration-type-families typed) (elaboration-promoted-fns typed) binding-names raw-definitions in
+    let definitions = partial-eval-program datas ad-definitions in
     let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) [] provider None (elaboration-effects typed) hash-map-empty reclaim caps (elaboration-type-families typed) (elaboration-promoted-fns typed) in
     let exports = checked-c-exports (elaboration-bindings typed) in
     let roots = foreign-export-roots exports in
@@ -11547,7 +11893,8 @@ module Cinch.RuntimeIr where
         let raw-definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
         let datas = elaboration-data typed in
         let binding-names = map checked-name (elaboration-bindings typed) in
-        let definitions = lower-ad-program datas (elaboration-type-families typed) (elaboration-promoted-fns typed) binding-names raw-definitions in
+        let ad-definitions = lower-ad-program datas (elaboration-type-families typed) (elaboration-promoted-fns typed) binding-names raw-definitions in
+        let definitions = partial-eval-program datas ad-definitions in
         let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) [] provider None (elaboration-effects typed) hash-map-empty reclaim caps (elaboration-type-families typed) (elaboration-promoted-fns typed) in
         let roots = test-worker-roots tests in
         let plan = inline-plan inlining definitions info in
