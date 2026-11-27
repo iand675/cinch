@@ -1,0 +1,209 @@
+module Runtime.String where
+  import Runtime.Mem
+  import Runtime.Error
+
+  export utf8ValidateSlice, utf8CountSlice
+  export cinchUtf8Validate, cinchUtf8CountChars, cinchUtf8DecodeAt, cinchUtf8Encode
+
+  -- Fast UTF-8 validation (RFC 3629) with 8-byte ASCII SWAR fast path.
+  asciiMask :: U64
+  asciiMask = 9259542123273814144 -- 0x8080808080808080
+
+  isCont :: U8 -> Bool
+  isCont b = bitAndU8 b 192 == 128
+
+  validateLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  validateLoop ptr len i =
+    if u64Ge i len then True
+    else if u64Le (u64Add i 8) len && bitAndU64 (loadU64Unaligned ptr (u64ToIsize i)) asciiMask == 0 then
+      validateLoop ptr len (u64Add i 8)
+    else
+      let b0 = loadU8 ptr (u64ToIsize i) in
+      if u8Lt b0 128 then
+        validateLoop ptr len (u64Add i 1)
+      else if u8Ge b0 194 && u8Le b0 223 then
+        -- 2-byte sequence: C2..DF 80..BF
+        if u64Gt (u64Add i 2) len then False
+        else
+          let b1 = loadU8 ptr (u64ToIsize (u64Add i 1)) in
+          if isCont b1 then validateLoop ptr len (u64Add i 2) else False
+      else if u8Ge b0 224 && u8Le b0 239 then
+        -- 3-byte sequence: E0 A0..BF 80..BF | E1..EC 80..BF 80..BF | ED 80..9F 80..BF | EE..EF 80..BF 80..BF
+        if u64Gt (u64Add i 3) len then False
+        else
+          let b1 = loadU8 ptr (u64ToIsize (u64Add i 1)) in
+          let b2 = loadU8 ptr (u64ToIsize (u64Add i 2)) in
+          if not (isCont b2) then False
+          else if b0 == 224 then
+            if u8Ge b1 160 && u8Le b1 191 then validateLoop ptr len (u64Add i 3) else False
+          else if b0 == 237 then
+            if u8Ge b1 128 && u8Le b1 159 then validateLoop ptr len (u64Add i 3) else False
+          else
+            if isCont b1 then validateLoop ptr len (u64Add i 3) else False
+      else if u8Ge b0 240 && u8Le b0 244 then
+        -- 4-byte sequence: F0 90..BF 80..BF 80..BF | F1..F3 80..BF 80..BF 80..BF | F4 80..8F 80..BF 80..BF
+        if u64Gt (u64Add i 4) len then False
+        else
+          let b1 = loadU8 ptr (u64ToIsize (u64Add i 1)) in
+          let b2 = loadU8 ptr (u64ToIsize (u64Add i 2)) in
+          let b3 = loadU8 ptr (u64ToIsize (u64Add i 3)) in
+          if not (isCont b2) || not (isCont b3) then False
+          else if b0 == 240 then
+            if u8Ge b1 144 && u8Le b1 191 then validateLoop ptr len (u64Add i 4) else False
+          else if b0 == 244 then
+            if u8Ge b1 128 && u8Le b1 143 then validateLoop ptr len (u64Add i 4) else False
+          else
+            if isCont b1 then validateLoop ptr len (u64Add i 4) else False
+      else
+        False
+
+  utf8ValidateSlice :: RawPtr U8 -> U64 ->{Global} Bool
+  utf8ValidateSlice ptr len =
+    if len == 0 then True else validateLoop ptr len 0
+
+  countLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} U64
+  countLoop ptr len i acc =
+    if u64Ge i len then acc
+    else if u64Le (u64Add i 8) len && bitAndU64 (loadU64Unaligned ptr (u64ToIsize i)) asciiMask == 0 then
+      countLoop ptr len (u64Add i 8) (u64Add acc 8)
+    else
+      let b = loadU8 ptr (u64ToIsize i) in
+      let inc = if isCont b then 0 else 1 in
+      countLoop ptr len (u64Add i 1) (u64Add acc inc)
+
+  utf8CountSlice :: RawPtr U8 -> U64 ->{Global} I64
+  utf8CountSlice ptr len =
+    if not (utf8ValidateSlice ptr len) then i64Sub 0 1
+    else u64ToI64 (countLoop ptr len 0 0)
+
+  cinchUtf8Validate :: MaybeNull U8 -> I64 ->{Global} I64
+  cinchUtf8Validate ptr len =
+    if i64Lt len 0 then 0
+    else if len == 0 then 1
+    else if ptrIsNull ptr then 0
+    else if utf8ValidateSlice (maybeToRaw ptr) (i64ToU64 len) then 1 else 0
+
+  cinchUtf8CountChars :: MaybeNull U8 -> I64 ->{Global} I64
+  cinchUtf8CountChars ptr len =
+    if i64Lt len 0 then i64Sub 0 1
+    else if len == 0 then 0
+    else if ptrIsNull ptr then i64Sub 0 1
+    else utf8CountSlice (maybeToRaw ptr) (i64ToU64 len)
+
+  packCpWidth :: U64 -> U64 -> I64
+  packCpWidth cp width = u64ToI64 (u64Add cp (shlU64 width 32))
+
+  cinchUtf8DecodeAt :: MaybeNull U8 -> I64 -> I64 ->{Global} I64
+  cinchUtf8DecodeAt ptr len index =
+    if i64Lt len 0 || i64Lt index 0 || i64Ge index len then i64Sub 0 1
+    else if ptrIsNull ptr then i64Sub 0 1
+    else
+      let p = maybeToRaw ptr in
+      let ulen = i64ToU64 len in
+      let idx = i64ToU64 index in
+      let b0 = loadU8 p (u64ToIsize idx) in
+      if u8Lt b0 128 then
+        packCpWidth (u8ToU64 b0) 1
+      else if u8Ge b0 194 && u8Le b0 223 then
+        if u64Gt (u64Add idx 2) ulen then i64Sub 0 1
+        else
+          let b1 = loadU8 p (u64ToIsize (u64Add idx 1)) in
+          if not (isCont b1) then i64Sub 0 1
+          else
+            let cp = bitOrU64 (shlU64 (u8ToU64 (bitAndU8 b0 31)) 6) (u8ToU64 (bitAndU8 b1 63)) in
+            packCpWidth cp 2
+      else if u8Ge b0 224 && u8Le b0 239 then
+        if u64Gt (u64Add idx 3) ulen then i64Sub 0 1
+        else
+          let b1 = loadU8 p (u64ToIsize (u64Add idx 1)) in
+          let b2 = loadU8 p (u64ToIsize (u64Add idx 2)) in
+          let ok1 =
+                (if b0 == 224 then u8Ge b1 160 && u8Le b1 191
+                else if b0 == 237 then u8Ge b1 128 && u8Le b1 159
+                else isCont b1) in
+          if not ok1 || not (isCont b2) then i64Sub 0 1
+          else
+            let cp = bitOrU64 (shlU64 (u8ToU64 (bitAndU8 b0 15)) 12)
+                       (bitOrU64 (shlU64 (u8ToU64 (bitAndU8 b1 63)) 6)
+                                 (u8ToU64 (bitAndU8 b2 63))) in
+            packCpWidth cp 3
+      else if u8Ge b0 240 && u8Le b0 244 then
+        if u64Gt (u64Add idx 4) ulen then i64Sub 0 1
+        else
+          let b1 = loadU8 p (u64ToIsize (u64Add idx 1)) in
+          let b2 = loadU8 p (u64ToIsize (u64Add idx 2)) in
+          let b3 = loadU8 p (u64ToIsize (u64Add idx 3)) in
+          let ok1 =
+                (if b0 == 240 then u8Ge b1 144 && u8Le b1 191
+                else if b0 == 244 then u8Ge b1 128 && u8Le b1 143
+                else isCont b1) in
+          if not ok1 || not (isCont b2) || not (isCont b3) then i64Sub 0 1
+          else
+            let cp = bitOrU64 (shlU64 (u8ToU64 (bitAndU8 b0 7)) 18)
+                       (bitOrU64 (shlU64 (u8ToU64 (bitAndU8 b1 63)) 12)
+                         (bitOrU64 (shlU64 (u8ToU64 (bitAndU8 b2 63)) 6)
+                                   (u8ToU64 (bitAndU8 b3 63)))) in
+            packCpWidth cp 4
+      else
+        i64Sub 0 1
+
+  panicNullUtf8Out :: Unit ->{Global} Unit
+  panicNullUtf8Out _ =
+    withLocal (fixedArrayRepeat 56 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: cinch_utf8_encode: null output buffer" (51 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 99 105 in
+      let _ = put8 p 16 110 99 104 95 117 116 102 56 in
+      let _ = put8 p 24 95 101 110 99 111 100 101 58 in
+      let _ = put8 p 32 32 110 117 108 108 32 111 117 in
+      let _ = put8 p 40 116 112 117 116 32 98 117 102 in
+      let _ = storeU8 p 48 102 in
+      let _ = storeU8 p 49 101 in
+      let _ = storeU8 p 50 114 in
+      panicExitBytes p 51
+    )
+
+  cinchUtf8Encode :: I64 -> MaybeNull U8 -> I64 ->{Global} I64
+  cinchUtf8Encode cp out cap =
+    if i64Lt cp 0 || i64Gt cp 1114111 || (i64Ge cp 55296 && i64Le cp 57343) then
+      i64Sub 0 1
+    else if i64Lt cap 0 then
+      i64Sub 0 1
+    else if cap == 0 then
+      i64Sub 0 1
+    else if ptrIsNull out then
+      let _ = panicNullUtf8Out () in
+      i64Sub 0 1
+    else
+      let p = maybeToRaw out in
+      let c = i64ToU64 cp in
+      if u64Lt c 128 then
+        let _ = storeU8 p 0 (u64ToU8 c) in
+        1
+      else if u64Lt c 2048 then
+        if i64Lt cap 2 then i64Sub 0 1
+        else
+          let _ = storeU8 p 0 (u64ToU8 (bitOrU64 192 (lshrU64 c 6))) in
+          let _ = storeU8 p 1 (u64ToU8 (bitOrU64 128 (bitAndU64 c 63))) in
+          2
+      else if u64Lt c 65536 then
+        if i64Lt cap 3 then i64Sub 0 1
+        else
+          let _ = storeU8 p 0 (u64ToU8 (bitOrU64 224 (lshrU64 c 12))) in
+          let _ = storeU8 p 1 (u64ToU8 (bitOrU64 128 (bitAndU64 (lshrU64 c 6) 63))) in
+          let _ = storeU8 p 2 (u64ToU8 (bitOrU64 128 (bitAndU64 c 63))) in
+          3
+      else
+        if i64Lt cap 4 then i64Sub 0 1
+        else
+          let _ = storeU8 p 0 (u64ToU8 (bitOrU64 240 (lshrU64 c 18))) in
+          let _ = storeU8 p 1 (u64ToU8 (bitOrU64 128 (bitAndU64 (lshrU64 c 12) 63))) in
+          let _ = storeU8 p 2 (u64ToU8 (bitOrU64 128 (bitAndU64 (lshrU64 c 6) 63))) in
+          let _ = storeU8 p 3 (u64ToU8 (bitOrU64 128 (bitAndU64 c 63))) in
+          4
+
+  foreign export ccall "cinch_utf8_validate" cinchUtf8Validate :: MaybeNull U8 -> I64 ->{Global} I64
+  foreign export ccall "cinch_utf8_count_chars" cinchUtf8CountChars :: MaybeNull U8 -> I64 ->{Global} I64
+  foreign export ccall "cinch_utf8_decode_at" cinchUtf8DecodeAt :: MaybeNull U8 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_utf8_encode" cinchUtf8Encode :: I64 -> MaybeNull U8 -> I64 ->{Global} I64

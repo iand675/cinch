@@ -51,9 +51,32 @@ module Runtime.Rc where
   checkHeader word h =
     if bitAndI64 word 7 /= 0 || not (liveKind (headerKind h)) then corruptRc () else ()
 
-  dropBoxPayload :: RawPtr U8 -> U8 ->{Global} Unit
+  dropBoxPayload :: RawPtr U8 -> U8 ->{Global, ThreadAffine} Unit
   dropBoxPayload p k =
-    if k == kindNat || k == kindInt || k == kindBytes || k == kindBytesMapped || k == kindMvar || k == kindRwlock then
+    if k == kindBytes then
+      let len = loadI64 p 0 in
+      let dataPtr = loadPtr p 8 in
+      let _ = (if i64Gt len 0 && not (ptrIsNull dataPtr) then
+          heapGlobalDealloc (maybeToRaw dataPtr) (u64ToUsize (i64ToU64 len)) 1
+        else ()) in
+      storeI64 p 0 0
+    else if k == kindBytesMapped then
+      let len = loadI64 p 0 in
+      let dataPtr = loadPtr p 8 in
+      let _ = (if i64Gt len 0 && not (ptrIsNull dataPtr) then
+          if sysMunmap (maybeToRaw dataPtr) (u64ToUsize (i64ToU64 len)) /= 0 then
+            panicUnmapFailed ()
+          else ()
+        else ()) in
+      storeI64 p 0 0
+    else if k == kindNat || k == kindInt then
+      let len = loadU64 p 0 in
+      let limbsPtr = loadPtr p 8 in
+      let _ = (if len /= 0 && not (ptrIsNull limbsPtr) then
+          heapGlobalDealloc (maybeToRaw limbsPtr) (u64ToUsize (u64Mul len 4)) 4
+        else ()) in
+      storeU64 p 0 0
+    else if k == kindMvar || k == kindRwlock then
       rustDropBoxPayload p k
     else ()
 

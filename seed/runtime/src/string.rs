@@ -13,8 +13,17 @@
 
 use crate::error::{Error, Result};
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_utf8_validate(ptr: *const u8, len: i64) -> i64;
+    pub fn cinch_utf8_count_chars(ptr: *const u8, len: i64) -> i64;
+    pub fn cinch_utf8_decode_at(ptr: *const u8, len: i64, index: i64) -> i64;
+    pub fn cinch_utf8_encode(cp: i64, out: *mut u8, cap: i64) -> i64;
+}
+
 /// Validate a UTF-8 buffer: 1 = valid, 0 = malformed. Never faults on
 /// malformed content.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_utf8_validate(ptr: *const u8, len: i64) -> i64 {
     match unsafe { bytes_slice(ptr, len) } {
@@ -25,6 +34,7 @@ pub unsafe extern "C" fn cinch_utf8_validate(ptr: *const u8, len: i64) -> i64 {
 
 /// Count Unicode scalar values in a valid UTF-8 buffer, or -1 when the
 /// buffer is malformed (the count is undefined then).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_utf8_count_chars(ptr: *const u8, len: i64) -> i64 {
     match unsafe { bytes_slice(ptr, len) } {
@@ -39,6 +49,7 @@ pub unsafe extern "C" fn cinch_utf8_count_chars(ptr: *const u8, len: i64) -> i64
 /// Decode the scalar value at a byte index of a valid UTF-8 buffer.
 /// Returns `codepoint + width * 2^32` (width 1..=4), or -1 when the
 /// index is out of range or the encoding is malformed at that index.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_utf8_decode_at(ptr: *const u8, len: i64, index: i64) -> i64 {
     let Ok(b) = (unsafe { bytes_slice(ptr, len) }) else {
@@ -58,6 +69,7 @@ pub unsafe extern "C" fn cinch_utf8_decode_at(ptr: *const u8, len: i64, index: i
 /// Returns the number of bytes written (1..=4), or -1 when the value is
 /// not a scalar value (surrogates and above 0x10FFFF) or `cap` is too
 /// small.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_utf8_encode(cp: i64, out: *mut u8, cap: i64) -> i64 {
     if cp < 0 || cp > 0x10FFFF || (0xD800..=0xDFFF).contains(&cp) {

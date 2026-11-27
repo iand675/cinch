@@ -146,6 +146,56 @@ pub(crate) fn box_bytes(v: crate::bytes::Bytes) -> i64 {
 ///
 /// A successful mapping requires an open, stable file with at least
 /// `length` bytes. Publishers replace the file with a new inode.
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_map_package_bytes(fd: i64, length: i64) -> i64;
+    pub fn cinch_package_text(owner: i64, offset: i64, length: i64) -> i64;
+    fn cinch_rt_nat_from_limbs(ptr: *const u32, len: usize) -> i64;
+    fn cinch_rt_int_from_parts(neg: u8, ptr: *const u32, len: usize) -> i64;
+    pub fn cinch_nat_from_i64(v: i64) -> i64;
+    pub fn cinch_nat_to_i64(word: i64) -> i64;
+    pub fn cinch_nat_from_u128(v: u128) -> i64;
+    pub fn cinch_nat_to_u128(word: i64) -> u128;
+    pub fn cinch_nat_low_word(word: i64) -> i64;
+    pub fn cinch_nat_fits_i64(word: i64) -> i64;
+    pub fn cinch_nat_add(a: i64, b: i64) -> i64;
+    pub fn cinch_nat_sub(a: i64, b: i64) -> i64;
+    pub fn cinch_nat_mul(a: i64, b: i64) -> i64;
+    pub fn cinch_nat_div(a: i64, b: i64) -> i64;
+    pub fn cinch_nat_rem(a: i64, b: i64) -> i64;
+    pub fn cinch_nat_cmp(a: i64, b: i64) -> i64;
+    pub fn cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i64;
+    pub fn cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize;
+    pub fn cinch_nat_decimal_len(word: i64) -> usize;
+    pub fn cinch_nat_to_len(word: i64) -> i64;
+    pub fn cinch_int_from_i64(v: i64) -> i64;
+    pub fn cinch_int_to_i64(word: i64) -> i64;
+    pub fn cinch_int_from_i128(v: i128) -> i64;
+    pub fn cinch_int_to_i128(word: i64) -> i128;
+    pub fn cinch_int_fits_i64(word: i64) -> i64;
+    pub fn cinch_int_from_nat(word: i64) -> i64;
+    pub fn cinch_int_to_nat(word: i64) -> i64;
+    pub fn cinch_int_add(a: i64, b: i64) -> i64;
+    pub fn cinch_int_sub(a: i64, b: i64) -> i64;
+    pub fn cinch_int_mul(a: i64, b: i64) -> i64;
+    pub fn cinch_int_div(a: i64, b: i64) -> i64;
+    pub fn cinch_int_rem(a: i64, b: i64) -> i64;
+    pub fn cinch_int_neg(a: i64) -> i64;
+    pub fn cinch_int_cmp(a: i64, b: i64) -> i64;
+    pub fn cinch_int_from_decimal(ptr: *const u8, len: usize) -> i64;
+    pub fn cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize;
+    pub fn cinch_int_decimal_len(word: i64) -> usize;
+    pub fn cinch_bytes_new(len: i64) -> i64;
+    pub fn cinch_bytes_len(word: i64) -> i64;
+    pub fn cinch_bytes_get(word: i64, index: i64) -> i64;
+    pub fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i64;
+    pub fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, n: i64) -> i64;
+    pub fn cinch_bytes_compare(a: i64, b: i64) -> i64;
+    pub fn cinch_bytes_data(word: i64) -> i64;
+    pub fn cinch_bytes_from_data(ptr: *const u8, len: i64) -> i64;
+}
+
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_map_package_bytes(fd: i64, length: i64) -> i64 {
     #[cfg(not(target_os = "unknown"))]
@@ -177,6 +227,7 @@ pub unsafe extern "C" fn cinch_map_package_bytes(fd: i64, length: i64) -> i64 {
 /// # Safety
 ///
 /// `owner` is a live byte buffer, with no concurrent mutation during the call.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_package_text(owner: i64, offset: i64, length: i64) -> i64 {
     use crate::block::{KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW, RC_FRESH};
@@ -232,11 +283,15 @@ pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
     }
 }
 
-/// Temporary bridge called from Cinch `Runtime.Rc` until box payload types move to Cinch (M3+M5).
+/// Temporary bridge called from Cinch `Runtime.Rc` until MVar/RwLock move to Cinch (M5).
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_rust_drop_box_payload(p: *mut u8, header_kind: u8) {
-    unsafe { drop_box_payload(p, header_kind) }
+    match header_kind {
+        crate::block::KIND_MVAR => unsafe { std::ptr::drop_in_place(p.cast::<crate::mvar::MVar>()) },
+        crate::block::KIND_RWLOCK => unsafe { std::ptr::drop_in_place(p.cast::<crate::rwlock::RwLockBox>()) },
+        _ => {}
+    }
 }
 
 /// The header kind of the block behind `word`, faulting on null. A
@@ -353,6 +408,12 @@ fn nat_word_u128(v: u128) -> i64 {
 
 /// The canonical word of a `Nat`: the immediate when it fits, else a box.
 pub(crate) fn nat_word(v: Nat) -> i64 {
+    #[cfg(not(test))]
+    {
+        let limbs = v.limbs();
+        unsafe { cinch_rt_nat_from_limbs(limbs.as_ptr(), limbs.len()) }
+    }
+    #[cfg(test)]
     match v.to_u64() {
         Some(u) if u <= NAT_IMMEDIATE_MAX => nat_immediate(u),
         _ => box_nat(v),
@@ -370,6 +431,12 @@ fn int_word_i128(v: i128) -> i64 {
 
 /// The canonical word of an `Int`: the immediate when it fits, else a box.
 pub(crate) fn int_word(v: Int) -> i64 {
+    #[cfg(not(test))]
+    {
+        let (neg, limbs) = v.parts();
+        unsafe { cinch_rt_int_from_parts(u8::from(neg), limbs.as_ptr(), limbs.len()) }
+    }
+    #[cfg(test)]
     match v.to_i64() {
         Ok(i) if (INT_IMMEDIATE_MIN..=INT_IMMEDIATE_MAX).contains(&i) => int_immediate(i),
         _ => box_int(v),
@@ -653,6 +720,7 @@ pub unsafe extern "C" fn cinch_free(word: i64) {
 /// non-negative `i64` fits, and a box above [`NAT_IMMEDIATE_MAX`] on a
 /// narrower one. Well-typed code proves `0 <= v` (`nat-from-i64`'s
 /// obligation), so a negative input is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_nat_from_i64(v: i64) -> i64 {
     if v < 0 {
@@ -664,6 +732,7 @@ pub extern "C" fn cinch_nat_from_i64(v: i64) -> i64 {
 /// The value of a `Nat` word as an `i64`. Well-typed code proves the
 /// value fits (`nat-to-i64`'s obligation), so one that does not is a
 /// compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
     if is_immediate(word) {
@@ -676,6 +745,7 @@ pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
 }
 
 /// A `u128` (`U128`) as a `Nat` word (design/wide-scalars.md section 5).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_nat_from_u128(v: u128) -> i64 {
     nat_word_u128(v)
@@ -684,6 +754,7 @@ pub extern "C" fn cinch_nat_from_u128(v: u128) -> i64 {
 /// The value of a `Nat` word as a `u128`. Well-typed code proves the
 /// value fits (`nat-to-u128`'s obligation), so one that does not is a
 /// compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_u128(word: i64) -> u128 {
     if is_immediate(word) {
@@ -699,6 +770,7 @@ pub unsafe extern "C" fn cinch_nat_to_u128(word: i64) -> u128 {
 /// of `slotsFoldNat`, which folds an immediate inline. Total: every `Nat`
 /// has low bits, so this is how a `Hash` digest of any size becomes the
 /// machine word a mutable table indexes by.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_low_word(word: i64) -> i64 {
     if is_immediate(word) {
@@ -708,6 +780,7 @@ pub unsafe extern "C" fn cinch_nat_low_word(word: i64) -> i64 {
 }
 
 /// 1 when the `Nat` word fits in an `i64`, else 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_fits_i64(word: i64) -> i64 {
     if is_immediate(word) {
@@ -717,6 +790,7 @@ pub unsafe extern "C" fn cinch_nat_fits_i64(word: i64) -> i64 {
 }
 
 /// `a + b` for `Nat` words.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_add(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -728,6 +802,7 @@ pub unsafe extern "C" fn cinch_nat_add(a: i64, b: i64) -> i64 {
 
 /// `a - b` for `Nat` words. Well-typed code proves `b <= a`, so a
 /// negative result is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_sub(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -740,6 +815,7 @@ pub unsafe extern "C" fn cinch_nat_sub(a: i64, b: i64) -> i64 {
 }
 
 /// `a * b` for `Nat` words.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_mul(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -752,6 +828,7 @@ pub unsafe extern "C" fn cinch_nat_mul(a: i64, b: i64) -> i64 {
 /// `a / b` for `Nat` words (the quotient; the remainder is available
 /// through [`cinch_nat_rem`]). The divisor is a `NonZero Nat` by its
 /// type; a zero here is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_div(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -764,6 +841,7 @@ pub unsafe extern "C" fn cinch_nat_div(a: i64, b: i64) -> i64 {
 }
 
 /// `a % b` for `Nat` words; a zero divisor is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_rem(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -776,6 +854,7 @@ pub unsafe extern "C" fn cinch_nat_rem(a: i64, b: i64) -> i64 {
 }
 
 /// Three-way comparison of `Nat` words: -1, 0 or 1.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_cmp(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -789,6 +868,7 @@ pub unsafe extern "C" fn cinch_nat_cmp(a: i64, b: i64) -> i64 {
 
 /// Parse ASCII decimal digits at `ptr` into a `Nat` word, faulting on
 /// malformed input.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i64 {
     let text = match unsafe { bytes(ptr, len) } {
@@ -807,6 +887,7 @@ pub unsafe extern "C" fn cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i
 /// Write the decimal digits of a `Nat` word into `buf`, returning the
 /// length written. Faults when `cap` is smaller than the digits (the
 /// buffer is then untouched).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize {
     let len = unsafe { cinch_nat_decimal_len(word) };
@@ -829,6 +910,7 @@ pub unsafe extern "C" fn cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usiz
 }
 
 /// Number of ASCII bytes [`cinch_nat_to_decimal`] would write.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_decimal_len(word: i64) -> usize {
     if is_immediate(word) {
@@ -842,6 +924,7 @@ pub unsafe extern "C" fn cinch_nat_decimal_len(word: i64) -> usize {
 // ---------------------------------------------------------------------------
 
 /// An `i64` as an `Int` word (an immediate inside the immediate range).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_int_from_i64(v: i64) -> i64 {
     int_word_i128(i128::from(v))
@@ -850,6 +933,7 @@ pub extern "C" fn cinch_int_from_i64(v: i64) -> i64 {
 /// The value of an `Int` word as an `i64`. Well-typed code proves the
 /// value fits (`int-to-i64`'s obligation), so one that does not is a
 /// compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_i64(word: i64) -> i64 {
     if is_immediate(word) {
@@ -863,6 +947,7 @@ pub unsafe extern "C" fn cinch_int_to_i64(word: i64) -> i64 {
 
 /// An `i128` (`I128`) as an `Int` word (design/wide-scalars.md section 5):
 /// an immediate inside the immediate range, a box above it.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_int_from_i128(v: i128) -> i64 {
     int_word_i128(v)
@@ -871,6 +956,7 @@ pub extern "C" fn cinch_int_from_i128(v: i128) -> i64 {
 /// The value of an `Int` word as an `i128`. Well-typed code proves the
 /// value fits (`int-to-i128`'s obligation), so one that does not is a
 /// compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_i128(word: i64) -> i128 {
     if is_immediate(word) {
@@ -883,6 +969,7 @@ pub unsafe extern "C" fn cinch_int_to_i128(word: i64) -> i128 {
 }
 
 /// 1 when the `Int` word fits in an `i64`, else 0.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_fits_i64(word: i64) -> i64 {
     if is_immediate(word) {
@@ -892,6 +979,7 @@ pub unsafe extern "C" fn cinch_int_fits_i64(word: i64) -> i64 {
 }
 
 /// A `Nat` word as the `Int` of the same value (total).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_from_nat(word: i64) -> i64 {
     if is_immediate(word) {
@@ -903,6 +991,7 @@ pub unsafe extern "C" fn cinch_int_from_nat(word: i64) -> i64 {
 /// A non-negative `Int` word as the `Nat` of the same value. Well-typed
 /// code proves `0 <= x` (`int-to-nat`'s obligation), so a negative input
 /// is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_nat(word: i64) -> i64 {
     let mut scratch = [0u32; 2];
@@ -914,6 +1003,7 @@ pub unsafe extern "C" fn cinch_int_to_nat(word: i64) -> i64 {
 }
 
 /// `a + b` for `Int` words.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_add(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -924,6 +1014,7 @@ pub unsafe extern "C" fn cinch_int_add(a: i64, b: i64) -> i64 {
 }
 
 /// `a - b` for `Int` words.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_sub(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -934,6 +1025,7 @@ pub unsafe extern "C" fn cinch_int_sub(a: i64, b: i64) -> i64 {
 }
 
 /// `a * b` for `Int` words.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_mul(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -945,6 +1037,7 @@ pub unsafe extern "C" fn cinch_int_mul(a: i64, b: i64) -> i64 {
 
 /// `a / b` for `Int` words, truncated toward zero. The divisor is a
 /// `NonZero Int` by its type; a zero here is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_div(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -961,6 +1054,7 @@ pub unsafe extern "C" fn cinch_int_div(a: i64, b: i64) -> i64 {
 
 /// `a % b` for `Int` words, with the sign of the dividend; a zero
 /// divisor is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_rem(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -973,6 +1067,7 @@ pub unsafe extern "C" fn cinch_int_rem(a: i64, b: i64) -> i64 {
 }
 
 /// `-a` for an `Int` word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_neg(a: i64) -> i64 {
     if is_immediate(a) {
@@ -983,6 +1078,7 @@ pub unsafe extern "C" fn cinch_int_neg(a: i64) -> i64 {
 }
 
 /// Three-way comparison of `Int` words: -1, 0 or 1.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_cmp(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -996,6 +1092,7 @@ pub unsafe extern "C" fn cinch_int_cmp(a: i64, b: i64) -> i64 {
 
 /// Parse an optionally signed ASCII decimal numeral at `ptr` into an `Int`
 /// word, faulting on malformed input.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_from_decimal(ptr: *const u8, len: usize) -> i64 {
     let text = match unsafe { bytes(ptr, len) } {
@@ -1020,6 +1117,7 @@ pub unsafe extern "C" fn cinch_int_from_decimal(ptr: *const u8, len: usize) -> i
 /// Write the decimal representation of an `Int` word (sign included) into
 /// `buf`, returning the length written. Faults when `cap` is too small
 /// (the buffer is then untouched).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize {
     let len = unsafe { cinch_int_decimal_len(word) };
@@ -1043,6 +1141,7 @@ pub unsafe extern "C" fn cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usiz
 }
 
 /// Number of ASCII bytes [`cinch_int_to_decimal`] would write.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_decimal_len(word: i64) -> usize {
     if is_immediate(word) {
@@ -1056,6 +1155,7 @@ pub unsafe extern "C" fn cinch_int_decimal_len(word: i64) -> usize {
 /// through [`cinch_nat_to_len`], so it is never negative (a negative one
 /// is the compiler-bug trap); a length no allocation can hold is the heap
 /// `Exhausted` exit, through the allocator.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_new(len: i64) -> i64 {
     match crate::bytes::Bytes::new(len) {
@@ -1068,6 +1168,7 @@ pub unsafe extern "C" fn cinch_bytes_new(len: i64) -> i64 {
 /// `i64::MAX` for a bignum. No buffer that large can be allocated, so the
 /// request it feeds takes the heap `Exhausted` exit, the outcome a
 /// too-large allocation has, rather than an `i64` conversion fault.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_len(word: i64) -> i64 {
     if is_immediate(word) {
@@ -1077,6 +1178,7 @@ pub unsafe extern "C" fn cinch_nat_to_len(word: i64) -> i64 {
 }
 
 /// The length in bytes of a `Bytes` word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_len(word: i64) -> i64 {
     unsafe { as_bytes(word) }.len()
@@ -1084,6 +1186,7 @@ pub unsafe extern "C" fn cinch_bytes_len(word: i64) -> i64 {
 
 /// The byte (0..=255) at `index`. The index carries evidence that it is
 /// below the length, so the bounds check is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_get(word: i64, index: i64) -> i64 {
     match unsafe { as_bytes(word) }.get(index) {
@@ -1097,6 +1200,7 @@ pub unsafe extern "C" fn cinch_bytes_get(word: i64, index: i64) -> i64 {
 /// `InRange 0 255 Nat`, so both checks are compiler-bug traps, as is a
 /// read-only `word` (a string literal's backing is never a `Bytes`
 /// value).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i64 {
     match unsafe { as_bytes_mut(word) }.set(index, value) {
@@ -1111,6 +1215,7 @@ pub unsafe extern "C" fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i
 /// inside their buffers, so the range check is a compiler-bug trap, as
 /// is a read-only `dst`. A zero count is a no-op, as the Cinch-level loop
 /// it replaces was.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, n: i64) -> i64 {
     if n == 0 {
@@ -1140,6 +1245,7 @@ pub unsafe extern "C" fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, 
 /// prefixes (`>= 16` bytes) dispatch to architecture SIMD (NEON on AArch64,
 /// AVX2/SSE2 on x86_64). Two words over one region are equal without reading
 /// a byte, and lengths break a prefix tie.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_compare(a: i64, b: i64) -> i64 {
     let a = unsafe { as_bytes(a) };
@@ -1408,6 +1514,7 @@ unsafe fn compare_bytes_simd(xp: *const u8, yp: *const u8, n: usize) -> i64 {
 /// pointer-and-length interfaces (the UTF-8 intrinsics and the canonical
 /// ABI glue). The pointer is valid as long as the word lives; words are
 /// never freed (see the module docs).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_data(word: i64) -> i64 {
     unsafe { as_bytes(word) }.as_slice().as_ptr() as usize as i64
@@ -1418,6 +1525,7 @@ pub unsafe extern "C" fn cinch_bytes_data(word: i64) -> i64 {
 /// sharing arrangement). The pointer and length come from generated
 /// code (a constant's data, a canonical-ABI list), so a negative length
 /// or a null pointer with a positive length is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_from_data(ptr: *const u8, len: i64) -> i64 {
     let Ok(n) = usize::try_from(len) else {

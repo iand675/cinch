@@ -8,10 +8,30 @@ module Runtime where
   import Runtime.Block
   import Runtime.Rc
   import Runtime.Arena
+  import Runtime.String
+  import Runtime.Bytes
+  import Runtime.Sym
+  import Runtime.BigNum
+  import Runtime.Text
 
   export cinchBlackhole, cinchPanic
-  export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc, cinchAllocCtorTagged
-  export cinchAllocShaped, cinchAllocShapedDesc, cinchFree
-  export cinchArenaNew, cinchArenaEnterPhase, cinchArenaLeave, cinchArenaExitPhase
+  export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc
+  export cinchAllocCtorTagged, cinchAllocShaped, cinchAllocShapedDesc
   export cinchReclaimEnable, cinchDup, cinchDrop, cinchDropSlow, cinchFrameRelease
-  export cinchDupMt, cinchDropMt, cinchMarkMt, cinchExitCheck
+  export cinchDupMt, cinchDropMt, cinchFree, cinchMarkMt, cinchExitCheck
+  export cinchArenaNew, cinchArenaEnterPhase, cinchArenaLeave, cinchArenaExitPhase
+  export cinchUtf8Validate, cinchUtf8CountChars, cinchUtf8DecodeAt, cinchUtf8Encode
+  export cinchBytesNew, cinchBytesLen, cinchBytesGet, cinchBytesSet
+  export cinchBytesCopy, cinchBytesCompare, cinchBytesData, cinchBytesFromData
+  export cinchMapPackageBytes, cinchPackageText
+  export cinchSymIntern, cinchSymName, cinchSymEq, cinchSymCmp
+  export cinchNatFromI64, cinchNatToI64, cinchNatFromU128, cinchNatToU128
+  export cinchNatLowWord, cinchNatFitsI64, cinchNatToLen
+  export cinchNatAdd, cinchNatSub, cinchNatMul, cinchNatDiv, cinchNatRem, cinchNatCmp
+  export cinchNatFromDecimal, cinchNatToDecimal, cinchNatDecimalLen
+  export cinchIntFromI64, cinchIntToI64, cinchIntFromI128, cinchIntToI128
+  export cinchIntFitsI64, cinchIntFromNat, cinchIntToNat
+  export cinchIntAdd, cinchIntSub, cinchIntMul, cinchIntDiv, cinchIntRem, cinchIntNeg, cinchIntCmp
+  export cinchIntFromDecimal, cinchIntToDecimal, cinchIntDecimalLen
+  export cinchTextSha256, cinchTextSha512, cinchTextSha1, cinchTextMd5
+  export cinchTextHmacSha256, cinchTextF64ToDecimal, cinchTextF64FromDecimal

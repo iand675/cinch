@@ -6,7 +6,8 @@ module Runtime.Sys where
   export cMmap, cMunmap, cMprotect, cAtexit, cSchedYield
   export cPthreadKeyCreate, cPthreadSetSpecific, cPthreadGetSpecific
   export sysProtNone, sysProtRead, sysProtWrite, sysMapPrivate, sysMapAnon
-  export sysMmapReserve, sysMprotect, sysMunmap, sysMmapAnon
+  export sysMmapReserve, sysMprotect, sysMunmap, sysMmapAnon, sysMmapFileReadonly, MmapRes
+  export sysErrno, sysEinval, cStrtod
   export sysNoThreadWord, sysThreadWord, sysSpinLoop
   export sysAlignedAlloc, sysSystemFree, sysSystemRealloc
 
@@ -31,6 +32,41 @@ module Runtime.Sys where
   foreign import ccall "pthread_key_create" cPthreadKeyCreate :: RawPtr U64 -> MaybeNull U8 ->{Global} I32
   foreign import ccall "pthread_setspecific" cPthreadSetSpecific :: U64 -> MaybeNull U8 ->{Global} I32
   foreign import ccall "pthread_getspecific" cPthreadGetSpecific :: U64 ->{Global} MaybeNull U8
+  foreign import ccall "strtod" cStrtod :: RawPtr U8 -> RawPtr (MaybeNull U8) ->{Global} F64
+
+  sysEinval :: I64
+  sysEinval = 22
+
+  prim sysErrnoPtrPrim :: I64 ->{Global} RawPtr I32 where
+    unsafe llvm {
+      %p = call ptr @__error()
+      ret ptr %p
+    } uses (__error :: I64 -> RawPtr I32) when os darwin
+    unsafe llvm {
+      %p = call ptr @__errno_location()
+      ret ptr %p
+    } uses (__errno_location :: I64 -> RawPtr I32) when os linux
+    unsafe llvm {
+      ret ptr null
+    }
+
+  sysErrno :: Unit ->{Global} I64
+  sysErrno _ =
+    let p = sysErrnoPtrPrim 0 in
+    if rawToU64 p == 0 then 0 else i32ToI64 (loadI32 p 0)
+
+  #[repr(value)]
+  record MmapRes where
+    mrAddr :: I64
+    mrErr :: I64
+
+  sysMmapFileReadonly :: I32 -> Usize ->{Global} MmapRes
+  sysMmapFileReadonly fd size =
+    let p = cMmap (ptrNull ()) size sysProtRead sysMapPrivate fd 0 in
+    let maxU = i64ToU64 (i64Sub 0 1) in
+    let u = ptrToU64 p in
+    if u == maxU then MmapRes (i64Sub 0 1) (sysErrno ())
+    else MmapRes (u64ToI64 u) 0
 
   sysProtNone :: I32
   sysProtNone = 0

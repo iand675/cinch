@@ -30,6 +30,13 @@ module Runtime.Mem where
   export u64Lt, u64Le, u64Gt, u64Ge, i64Lt, i64Le, i64Gt, i64Ge
   export usizeAdd, usizeSub, usizeLt, usizeLe, usizeGt, usizeGe
   export clzU64, ctzU64, bswapU64, bswapU32, f64ToBits, bitsToF64
+  export loadU32Unaligned, loadU64Unaligned, storeU32Unaligned, storeU64Unaligned
+  export u8Add, u8Sub, u8Lt, u8Le, u8Gt, u8Ge, bitAndU8, bitOrU8, bitXorU8, shlU8, lshrU8
+  export u8ToU32, u32ToU8, u32Add, u32Sub, u32Mul, u32Div, u32Rem
+  export u32Lt, u32Le, u32Gt, u32Ge, bitAndU32, bitOrU32, bitXorU32, u32BitNot, shlU32, lshrU32
+  export rotlU32, rotrU32, clzU32, rotlU64, rotrU64, i64Div, i64Rem
+  export u64MulHi, u128DivU64, u128RemU64
+  export u128Lo, u128Hi, u128FromHalves, i128Lo, i128Hi, i128FromHalves
 
   -- Pointer utilities
   prim ptrNullPrim :: forall a. I64 -> MaybeNull a where
@@ -890,4 +897,288 @@ module Runtime.Mem where
     unsafe llvm {
       %v = bitcast i64 %0 to double
       ret double %v
+    }
+
+  prim loadU32Unaligned :: forall a. RawPtr a -> Isize ->{Global} U32 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i32, ptr %p, align 1
+      ret i32 %v
+    }
+
+  prim loadU64Unaligned :: forall a. RawPtr a -> Isize ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load i64, ptr %p, align 1
+      ret i64 %v
+    }
+
+  prim storeU32Unaligned :: forall a. RawPtr a -> Isize -> U32 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i32 %2, ptr %p, align 1
+      ret void
+    }
+
+  prim storeU64Unaligned :: forall a. RawPtr a -> Isize -> U64 ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store i64 %2, ptr %p, align 1
+      ret void
+    }
+
+  prim u8Add :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = add i8 %0, %1
+      ret i8 %r }
+
+  prim u8Sub :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = sub i8 %0, %1
+      ret i8 %r }
+
+  prim u8Lt :: U8 -> U8 -> Bool where
+    unsafe llvm { %c = icmp ult i8 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u8Le :: U8 -> U8 -> Bool where
+    unsafe llvm { %c = icmp ule i8 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u8Gt :: U8 -> U8 -> Bool where
+    unsafe llvm { %c = icmp ugt i8 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u8Ge :: U8 -> U8 -> Bool where
+    unsafe llvm { %c = icmp uge i8 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim bitAndU8 :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = and i8 %0, %1
+      ret i8 %r }
+
+  prim bitOrU8 :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = or i8 %0, %1
+      ret i8 %r }
+
+  prim bitXorU8 :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = xor i8 %0, %1
+      ret i8 %r }
+
+  prim shlU8 :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = shl i8 %0, %1
+      ret i8 %r }
+
+  prim lshrU8 :: U8 -> U8 -> U8 where
+    unsafe llvm { %r = lshr i8 %0, %1
+      ret i8 %r }
+
+  prim u8ToU32 :: U8 -> U32 where
+    unsafe llvm { %r = zext i8 %0 to i32
+      ret i32 %r }
+
+  prim u32ToU8 :: U32 -> U8 where
+    unsafe llvm { %r = trunc i32 %0 to i8
+      ret i8 %r }
+
+  prim u32Add :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = add i32 %0, %1
+      ret i32 %r }
+
+  prim u32Sub :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = sub i32 %0, %1
+      ret i32 %r }
+
+  prim u32Mul :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = mul i32 %0, %1
+      ret i32 %r }
+
+  prim u32Div :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = udiv i32 %0, %1
+      ret i32 %r }
+
+  prim u32Rem :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = urem i32 %0, %1
+      ret i32 %r }
+
+  prim u32Lt :: U32 -> U32 -> Bool where
+    unsafe llvm { %c = icmp ult i32 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u32Le :: U32 -> U32 -> Bool where
+    unsafe llvm { %c = icmp ule i32 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u32Gt :: U32 -> U32 -> Bool where
+    unsafe llvm { %c = icmp ugt i32 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim u32Ge :: U32 -> U32 -> Bool where
+    unsafe llvm { %c = icmp uge i32 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r }
+
+  prim bitAndU32 :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = and i32 %0, %1
+      ret i32 %r }
+
+  prim bitOrU32 :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = or i32 %0, %1
+      ret i32 %r }
+
+  prim bitXorU32 :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = xor i32 %0, %1
+      ret i32 %r }
+
+  prim u32BitNot :: U32 -> U32 where
+    unsafe llvm { %r = xor i32 %0, -1
+      ret i32 %r }
+
+  prim shlU32 :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = shl i32 %0, %1
+      ret i32 %r }
+
+  prim lshrU32 :: U32 -> U32 -> U32 where
+    unsafe llvm { %r = lshr i32 %0, %1
+      ret i32 %r }
+
+  prim rotlU32 :: U32 -> U32 -> U32 where
+    unsafe llvm {
+      %s = and i32 %1, 31
+      %lo = shl i32 %0, %s
+      %ns = sub i32 32, %s
+      %nsm = and i32 %ns, 31
+      %hi = lshr i32 %0, %nsm
+      %r = or i32 %lo, %hi
+      ret i32 %r
+    }
+
+  prim rotrU32 :: U32 -> U32 -> U32 where
+    unsafe llvm {
+      %s = and i32 %1, 31
+      %lo = lshr i32 %0, %s
+      %ns = sub i32 32, %s
+      %nsm = and i32 %ns, 31
+      %hi = shl i32 %0, %nsm
+      %r = or i32 %lo, %hi
+      ret i32 %r
+    }
+
+  prim clzU32 :: U32 -> U32 where
+    unsafe llvm {
+      %r = call i32 @llvm.ctlz.i32(i32 %0, i1 false)
+      ret i32 %r
+    }
+
+  prim rotlU64 :: U64 -> U64 -> U64 where
+    unsafe llvm {
+      %s = and i64 %1, 63
+      %lo = shl i64 %0, %s
+      %ns = sub i64 64, %s
+      %nsm = and i64 %ns, 63
+      %hi = lshr i64 %0, %nsm
+      %r = or i64 %lo, %hi
+      ret i64 %r
+    }
+
+  prim rotrU64 :: U64 -> U64 -> U64 where
+    unsafe llvm {
+      %s = and i64 %1, 63
+      %lo = lshr i64 %0, %s
+      %ns = sub i64 64, %s
+      %nsm = and i64 %ns, 63
+      %hi = shl i64 %0, %nsm
+      %r = or i64 %lo, %hi
+      ret i64 %r
+    }
+
+  prim i64Div :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = sdiv i64 %0, %1
+      ret i64 %r }
+
+  prim i64Rem :: I64 -> I64 -> I64 where
+    unsafe llvm { %r = srem i64 %0, %1
+      ret i64 %r }
+
+  prim u64MulHi :: U64 -> U64 -> U64 where
+    unsafe llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %p = mul i128 %a, %b
+      %hi = lshr i128 %p, 64
+      %r = trunc i128 %hi to i64
+      ret i64 %r
+    }
+
+  prim u128DivU64 :: U64 -> U64 -> U64 -> U64 where
+    unsafe llvm {
+      %hi = zext i64 %0 to i128
+      %shi = shl i128 %hi, 64
+      %lo = zext i64 %1 to i128
+      %num = or i128 %shi, %lo
+      %den = zext i64 %2 to i128
+      %q = udiv i128 %num, %den
+      %r = trunc i128 %q to i64
+      ret i64 %r
+    }
+
+  prim u128RemU64 :: U64 -> U64 -> U64 -> U64 where
+    unsafe llvm {
+      %hi = zext i64 %0 to i128
+      %shi = shl i128 %hi, 64
+      %lo = zext i64 %1 to i128
+      %num = or i128 %shi, %lo
+      %den = zext i64 %2 to i128
+      %q = urem i128 %num, %den
+      %r = trunc i128 %q to i64
+      ret i64 %r
+    }
+
+  prim u128Lo :: U128 -> U64 where
+    unsafe llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+
+  prim u128Hi :: U128 -> U64 where
+    unsafe llvm {
+      %s = lshr i128 %0, 64
+      %r = trunc i128 %s to i64
+      ret i64 %r
+    }
+
+  prim u128FromHalves :: U64 -> U64 -> U128 where
+    unsafe llvm {
+      %lo = zext i64 %0 to i128
+      %hi = zext i64 %1 to i128
+      %shi = shl i128 %hi, 64
+      %r = or i128 %shi, %lo
+      ret i128 %r
+    }
+
+  prim i128Lo :: I128 -> U64 where
+    unsafe llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+
+  prim i128Hi :: I128 -> I64 where
+    unsafe llvm {
+      %s = lshr i128 %0, 64
+      %r = trunc i128 %s to i64
+      ret i64 %r
+    }
+
+  prim i128FromHalves :: U64 -> U64 -> I128 where
+    unsafe llvm {
+      %lo = zext i64 %0 to i128
+      %hi = zext i64 %1 to i128
+      %shi = shl i128 %hi, 64
+      %r = or i128 %shi, %lo
+      ret i128 %r
     }

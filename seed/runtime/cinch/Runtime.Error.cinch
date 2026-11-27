@@ -7,6 +7,9 @@ module Runtime.Error where
   export exhaustedHeap, exhaustedStack, exhaustedThreads
   export exhaustedHeapInSignal, exhaustedStackInSignal, isExhausting
   export cinchBlackhole, cinchPanic
+  export panicNegativeInput, panicNegativeResult, panicDivByZero, panicOutOfRange
+  export panicMalformedDecimal, panicBufferTooSmall, panicMalformedName
+  export panicOutOfBounds, panicReadOnly, panicCorruptValue, panicUnmapFailed
 
   exitBlackhole :: I32
   exitBlackhole = 70
@@ -221,3 +224,195 @@ module Runtime.Error where
 
   foreign export ccall "cinch_blackhole" cinchBlackhole :: Unit ->{Global} Unit
   foreign export ccall "cinch_panic" cinchPanic :: MaybeNull U8 -> Usize ->{Global} Unit
+
+  -- Standardized runtime error traps (matching seed/runtime/src/error.rs Display messages)
+  panicNegativeInput :: Unit ->{Global} Unit
+  panicNegativeInput _ =
+    withLocal (fixedArrayRepeat 128 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: natural number constructed from negative input (`nat-from-i64` carries evidence that its argument is non-negative)" (128 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 110 97 in
+      let _ = put8 p 16 116 117 114 97 108 32 110 117 in
+      let _ = put8 p 24 109 98 101 114 32 99 111 110 in
+      let _ = put8 p 32 115 116 114 117 99 116 101 100 in
+      let _ = put8 p 40 32 102 114 111 109 32 110 101 in
+      let _ = put8 p 48 103 97 116 105 118 101 32 105 in
+      let _ = put8 p 56 110 112 117 116 32 40 96 110 in
+      let _ = put8 p 64 97 116 45 102 114 111 109 45 in
+      let _ = put8 p 72 105 54 52 96 32 99 97 114 in
+      let _ = put8 p 80 114 105 101 115 32 101 118 105 in
+      let _ = put8 p 88 100 101 110 99 101 32 116 104 in
+      let _ = put8 p 96 97 116 32 105 116 115 32 97 in
+      let _ = put8 p 104 114 103 117 109 101 110 116 32 in
+      let _ = put8 p 112 105 115 32 110 111 110 45 110 in
+      let _ = put8 p 120 101 103 97 116 105 118 101 41 in
+      panicExitBytes p 128
+    )
+
+  panicNegativeResult :: Unit ->{Global} Unit
+  panicNegativeResult _ =
+    withLocal (fixedArrayRepeat 104 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: natural subtraction below zero (every `a - b` at `Nat` carries evidence that `b <= a`)" (100 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 110 97 in
+      let _ = put8 p 16 116 117 114 97 108 32 115 117 in
+      let _ = put8 p 24 98 116 114 97 99 116 105 111 in
+      let _ = put8 p 32 110 32 98 101 108 111 119 32 in
+      let _ = put8 p 40 122 101 114 111 32 40 101 118 in
+      let _ = put8 p 48 101 114 121 32 96 97 32 45 in
+      let _ = put8 p 56 32 98 96 32 97 116 32 96 in
+      let _ = put8 p 64 78 97 116 96 32 99 97 114 in
+      let _ = put8 p 72 114 105 101 115 32 101 118 105 in
+      let _ = put8 p 80 100 101 110 99 101 32 116 104 in
+      let _ = put8 p 88 97 116 32 96 98 32 60 61 in
+      let _ = put4 p 96 32 97 96 41 in
+      panicExitBytes p 100
+    )
+
+  panicDivByZero :: Unit ->{Global} Unit
+  panicDivByZero _ =
+    withLocal (fixedArrayRepeat 96 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: division or remainder by zero (every divisor is a `NonZero` by its type)" (86 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 100 105 in
+      let _ = put8 p 16 118 105 115 105 111 110 32 111 in
+      let _ = put8 p 24 114 32 114 101 109 97 105 110 in
+      let _ = put8 p 32 100 101 114 32 98 121 32 122 in
+      let _ = put8 p 40 101 114 111 32 40 101 118 101 in
+      let _ = put8 p 48 114 121 32 100 105 118 105 115 in
+      let _ = put8 p 56 111 114 32 105 115 32 97 32 in
+      let _ = put8 p 64 96 78 111 110 90 101 114 111 in
+      let _ = put8 p 72 96 32 98 121 32 105 116 115 in
+      let _ = put4 p 80 32 116 121 112 in
+      let _ = storeU8 p 84 101 in
+      let _ = storeU8 p 85 41 in
+      panicExitBytes p 86
+    )
+
+  panicOutOfRange :: Unit ->{Global} Unit
+  panicOutOfRange _ =
+    withLocal (fixedArrayRepeat 120 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: value does not fit in i64 (every conversion to `I64` carries evidence that its value is in range)" (111 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 118 97 in
+      let _ = put8 p 16 108 117 101 32 100 111 101 115 in
+      let _ = put8 p 24 32 110 111 116 32 102 105 116 in
+      let _ = put8 p 32 32 105 110 32 105 54 52 32 in
+      let _ = put8 p 40 40 101 118 101 114 121 32 99 in
+      let _ = put8 p 48 111 110 118 101 114 115 105 111 in
+      let _ = put8 p 56 110 32 116 111 32 96 73 54 in
+      let _ = put8 p 64 52 96 32 99 97 114 114 105 in
+      let _ = put8 p 72 101 115 32 101 118 105 100 101 in
+      let _ = put8 p 80 110 99 101 32 116 104 97 116 in
+      let _ = put8 p 88 32 105 116 115 32 118 97 108 in
+      let _ = put8 p 96 117 101 32 105 115 32 105 110 in
+      let _ = put4 p 104 32 114 97 110 in
+      let _ = storeU8 p 108 103 in
+      let _ = storeU8 p 109 101 in
+      let _ = storeU8 p 110 41 in
+      panicExitBytes p 111
+    )
+
+  panicMalformedDecimal :: Unit ->{Global} Unit
+  panicMalformedDecimal _ =
+    withLocal (fixedArrayRepeat 32 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "malformed decimal numeral" (25 bytes)
+      let _ = put8 p 0 109 97 108 102 111 114 109 101 in
+      let _ = put8 p 8 100 32 100 101 99 105 109 97 in
+      let _ = put8 p 16 108 32 110 117 109 101 114 97 in
+      let _ = storeU8 p 24 108 in
+      panicExitBytes p 25
+    )
+
+  panicBufferTooSmall :: Unit ->{Global} Unit
+  panicBufferTooSmall _ =
+    withLocal (fixedArrayRepeat 32 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "decimal buffer too small" (24 bytes)
+      let _ = put8 p 0 100 101 99 105 109 97 108 32 in
+      let _ = put8 p 8 98 117 102 102 101 114 32 116 in
+      let _ = put8 p 16 111 111 32 115 109 97 108 108 in
+      panicExitBytes p 24
+    )
+
+  panicMalformedName :: Unit ->{Global} Unit
+  panicMalformedName _ =
+    withLocal (fixedArrayRepeat 32 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "symbol name is not valid UTF-8" (30 bytes)
+      let _ = put8 p 0 115 121 109 98 111 108 32 110 in
+      let _ = put8 p 8 97 109 101 32 105 115 32 110 in
+      let _ = put8 p 16 111 116 32 118 97 108 105 100 in
+      let _ = put4 p 24 32 85 84 70 in
+      let _ = storeU8 p 28 45 in
+      let _ = storeU8 p 29 56 in
+      panicExitBytes p 30
+    )
+
+  panicOutOfBounds :: Unit ->{Global} Unit
+  panicOutOfBounds _ =
+    withLocal (fixedArrayRepeat 64 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: byte-buffer index, range or byte value out of range" (65 -> 65 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 98 121 in
+      let _ = put8 p 16 116 101 45 98 117 102 102 101 in
+      let _ = put8 p 24 114 32 105 110 100 101 120 44 in
+      let _ = put8 p 32 32 114 97 110 103 101 32 111 in
+      let _ = put8 p 40 114 32 98 121 116 101 32 118 in
+      let _ = put8 p 48 97 108 117 101 32 111 117 116 in
+      let _ = put8 p 56 32 111 102 32 114 97 110 103 in
+      panicExitBytes p 64
+    )
+
+  panicReadOnly :: Unit ->{Global} Unit
+  panicReadOnly _ =
+    withLocal (fixedArrayRepeat 56 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: a write reached a read-only buffer" (48 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 97 32 in
+      let _ = put8 p 16 119 114 105 116 101 32 114 101 in
+      let _ = put8 p 24 97 99 104 101 100 32 97 32 in
+      let _ = put8 p 32 114 101 97 100 45 111 110 108 in
+      let _ = put8 p 40 121 32 98 117 102 102 101 114 in
+      panicExitBytes p 48
+    )
+
+  panicCorruptValue :: Unit ->{Global} Unit
+  panicCorruptValue _ =
+    withLocal (fixedArrayRepeat 64 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: null or wrong-kind word or corrupt generated data" (63 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 110 117 in
+      let _ = put8 p 16 108 108 32 111 114 32 119 114 in
+      let _ = put8 p 24 111 110 103 45 107 105 110 100 in
+      let _ = put8 p 32 32 119 111 114 100 32 111 114 in
+      let _ = put8 p 40 32 99 111 114 114 117 112 116 in
+      let _ = put8 p 48 32 103 101 110 101 114 97 116 in
+      let _ = put4 p 56 101 100 32 100 in
+      let _ = storeU8 p 60 97 in
+      let _ = storeU8 p 61 116 in
+      let _ = storeU8 p 62 97 in
+      panicExitBytes p 63
+    )
+
+  panicUnmapFailed :: Unit ->{Global} Unit
+  panicUnmapFailed _ =
+    withLocal (fixedArrayRepeat 48 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: cannot release mapped bytes" (41 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 99 97 in
+      let _ = put8 p 16 110 110 111 116 32 114 101 108 in
+      let _ = put8 p 24 101 97 115 101 32 109 97 112 in
+      let _ = put8 p 32 112 101 100 32 98 121 116 101 in
+      let _ = storeU8 p 40 115 in
+      panicExitBytes p 41
+    )

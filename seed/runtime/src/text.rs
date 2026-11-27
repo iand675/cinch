@@ -512,8 +512,20 @@ fn hmac_sha256_portable(key: &[u8], message: &[u8]) -> [u8; 32] {
 // The extern "C" word ABI (runtime ABI, `seed/runtime/src/lib.rs`)
 // ---------------------------------------------------------------------------
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_text_sha256(word: i64) -> i64;
+    pub fn cinch_text_sha512(word: i64) -> i64;
+    pub fn cinch_text_sha1(word: i64) -> i64;
+    pub fn cinch_text_md5(word: i64) -> i64;
+    pub fn cinch_text_hmac_sha256(key: i64, message: i64) -> i64;
+    pub fn cinch_text_f64_to_decimal(v: f64) -> i64;
+    pub fn cinch_text_f64_from_decimal(word: i64) -> f64;
+}
+
 /// `textSha256 :: Bytes -> Bytes`: the SHA-256 digest of a buffer as a
 /// fresh 32-byte buffer.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_text_sha256(word: i64) -> i64 {
     let buf = unsafe { crate::abi::as_bytes(word) };
@@ -522,6 +534,7 @@ pub unsafe extern "C" fn cinch_text_sha256(word: i64) -> i64 {
 
 /// `textSha512 :: Bytes -> Bytes`: the SHA-512 digest of a buffer as a
 /// fresh 64-byte buffer (FIPS 180-4).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_text_sha512(word: i64) -> i64 {
     let buf = unsafe { crate::abi::as_bytes(word) };
@@ -530,6 +543,7 @@ pub unsafe extern "C" fn cinch_text_sha512(word: i64) -> i64 {
 
 /// `textSha1 :: Bytes -> Bytes`: the SHA-1 digest of a buffer as a
 /// fresh 20-byte buffer (FIPS 180-1).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_text_sha1(word: i64) -> i64 {
     let buf = unsafe { crate::abi::as_bytes(word) };
@@ -538,6 +552,7 @@ pub unsafe extern "C" fn cinch_text_sha1(word: i64) -> i64 {
 
 /// `textMd5 :: Bytes -> Bytes`: the MD5 digest of a buffer as a fresh
 /// 16-byte buffer (RFC 1321).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_text_md5(word: i64) -> i64 {
     let buf = unsafe { crate::abi::as_bytes(word) };
@@ -546,6 +561,7 @@ pub unsafe extern "C" fn cinch_text_md5(word: i64) -> i64 {
 
 /// `textHmacSha256 :: Bytes -> Bytes -> Bytes`: HMAC-SHA-256 of the
 /// message under the key as a fresh 32-byte buffer (RFC 2104).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_text_hmac_sha256(key: i64, message: i64) -> i64 {
     let key = unsafe { crate::abi::as_bytes(key) };
@@ -557,6 +573,7 @@ pub unsafe extern "C" fn cinch_text_hmac_sha256(key: i64, message: i64) -> i64 {
 
 /// `textF64ToDecimal :: F64 -> Bytes`: the shortest round-trip decimal
 /// text of one float (`{:e}` scientific form), as a fresh buffer.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_text_f64_to_decimal(v: f64) -> i64 {
     crate::abi::box_bytes(crate::bytes::Bytes::from(format!("{v:e}").into_bytes()))
@@ -565,6 +582,7 @@ pub extern "C" fn cinch_text_f64_to_decimal(v: f64) -> i64 {
 /// `textF64FromDecimal :: Bytes -> F64`: the float one decimal spelling
 /// stands for (correctly rounded). A spelling that is not a decimal
 /// number takes the defined `MalformedDecimal` fault.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_text_f64_from_decimal(word: i64) -> f64 {
     let buf = unsafe { crate::abi::as_bytes(word) };

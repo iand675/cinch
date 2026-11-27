@@ -1,0 +1,265 @@
+module Runtime.Bytes where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.String
+
+  export BytesSlice, bytesReadSlice, bytesReadMutSlice
+  export bytesBoxAlloc, bytesBoxCopy, bytesCompareRaw
+  export cinchBytesNew, cinchBytesLen, cinchBytesGet, cinchBytesSet
+  export cinchBytesCopy, cinchBytesCompare, cinchBytesData, cinchBytesFromData
+  export cinchMapPackageBytes, cinchPackageText
+
+  -- Stable #[repr(C)] Bytes block payload:
+  --   offset 0: len  :: I64
+  --   offset 8: data :: MaybeNull U8 (1 for empty slices)
+  -- For KIND_BYTES_VIEW (24 bytes):
+  --   offset 16: owner :: I64 (counted word)
+
+  #[repr(value)]
+  record BytesSlice where
+    bsLen :: I64
+    bsPtr :: RawPtr U8
+    bsKind :: U8
+
+  danglingBytePtr :: Unit -> MaybeNull U8
+  danglingBytePtr _ = ptrFromU64 1
+
+  boxKindOf :: I64 ->{Global} U8
+  boxKindOf word =
+    if word == 0 || bitAndI64 word 1 /= 0 then
+      let _ = panicCorruptValue () in
+      0
+    else
+      headerKind (readHeader (maybeToRaw (ptrFromU64 (i64ToU64 word))))
+
+  isBytesKind :: U8 -> Bool
+  isBytesKind k =
+    k == kindBytes || k == kindBytesStatic || k == kindBytesMapped || k == kindBytesView
+
+  bytesReadSlice :: I64 ->{Global} BytesSlice
+  bytesReadSlice word =
+    let k = boxKindOf word in
+    if not (isBytesKind k) then
+      let _ = panicCorruptValue () in
+      BytesSlice 0 (maybeToRaw (danglingBytePtr ())) 0
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      let len = loadI64 p 0 in
+      let ptr = loadPtr p 8 in
+      let rp = if len == 0 || ptrIsNull ptr then maybeToRaw (danglingBytePtr ()) else maybeToRaw ptr in
+      BytesSlice len rp k
+
+  bytesReadMutSlice :: I64 ->{Global} BytesSlice
+  bytesReadMutSlice word =
+    let k = boxKindOf word in
+    if k == kindBytes then
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      let len = loadI64 p 0 in
+      let ptr = loadPtr p 8 in
+      let rp = if len == 0 || ptrIsNull ptr then maybeToRaw (danglingBytePtr ()) else maybeToRaw ptr in
+      BytesSlice len rp k
+    else if k == kindBytesStatic || k == kindBytesMapped || k == kindBytesView then
+      let _ = panicReadOnly () in
+      BytesSlice 0 (maybeToRaw (danglingBytePtr ())) 0
+    else
+      let _ = panicCorruptValue () in
+      BytesSlice 0 (maybeToRaw (danglingBytePtr ())) 0
+
+  -- Allocate a fresh KIND_BYTES block of `len` bytes (zeroed if `zeroed`).
+  bytesBoxAlloc :: U64 -> Bool ->{Global, ThreadAffine} I64
+  bytesBoxAlloc len zeroed =
+    let z = if zeroed then (1 :: U8) else (0 :: U8) in
+    let bufPtr =
+          (if len == 0 then danglingBytePtr ()
+          else rawToMaybe (heapGlobalAlloc (u64ToUsize len) 1 z)) in
+    let blk = allocate 16 kindBytes rcFresh False in
+    let _ = storeI64 blk 0 (u64ToI64 len) in
+    let _ = storePtr blk 8 bufPtr in
+    u64ToI64 (rawToU64 blk)
+
+  bytesBoxCopy :: RawPtr U8 -> U64 ->{Global, ThreadAffine} I64
+  bytesBoxCopy src len =
+    let word = bytesBoxAlloc len False in
+    let _ = (if len /= 0 then
+        let blk = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+        let dst = maybeToRaw (loadPtr blk 8) in
+        memCopy dst src (u64ToUsize len)
+      else ()) in
+    word
+
+  -- Lexicographic byte comparison returning -1, 0, or 1.
+  cmpWordLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global} I64
+  cmpWordLoop xp yp n i =
+    if u64Gt (u64Add i 8) n then
+      cmpTailLoop xp yp n i
+    else
+      let a = bswapU64 (loadU64Unaligned xp (u64ToIsize i)) in
+      let b = bswapU64 (loadU64Unaligned yp (u64ToIsize i)) in
+      if a /= b then
+        if u64Lt a b then i64Sub 0 1 else 1
+      else
+        cmpWordLoop xp yp n (u64Add i 8)
+
+  cmpTailLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global} I64
+  cmpTailLoop xp yp n i =
+    if u64Ge i n then 0
+    else
+      let a = loadU8 xp (u64ToIsize i) in
+      let b = loadU8 yp (u64ToIsize i) in
+      if a /= b then
+        if u8Lt a b then i64Sub 0 1 else 1
+      else
+        cmpTailLoop xp yp n (u64Add i 1)
+
+  bytesCompareRaw :: RawPtr U8 -> U64 -> RawPtr U8 -> U64 ->{Global} I64
+  bytesCompareRaw xp xlen yp ylen =
+    if rawToU64 xp == rawToU64 yp && xlen == ylen then 0
+    else
+      let n = u64Min xlen ylen in
+      let c = cmpWordLoop xp yp n 0 in
+      if c /= 0 then c
+      else if u64Lt xlen ylen then i64Sub 0 1
+      else if u64Gt xlen ylen then 1
+      else 0
+
+  -- =========================================================================
+  -- Public C ABI Entry Points
+  -- =========================================================================
+
+  cinchBytesNew :: I64 ->{Global, ThreadAffine} I64
+  cinchBytesNew len =
+    if i64Lt len 0 then
+      let _ = panicOutOfBounds () in
+      0
+    else
+      bytesBoxAlloc (i64ToU64 len) True
+
+  cinchBytesLen :: I64 ->{Global} I64
+  cinchBytesLen word =
+    let s = bytesReadSlice word in
+    s.bsLen
+
+  cinchBytesGet :: I64 -> I64 ->{Global} I64
+  cinchBytesGet word index =
+    let s = bytesReadSlice word in
+    if i64Lt index 0 || i64Ge index (s.bsLen) then
+      let _ = panicOutOfBounds () in
+      0
+    else
+      u64ToI64 (u8ToU64 (loadU8 (s.bsPtr) (i64ToIsize index)))
+
+  cinchBytesSet :: I64 -> I64 -> I64 ->{Global} I64
+  cinchBytesSet word index val =
+    let s = bytesReadMutSlice word in
+    if i64Lt index 0 || i64Ge index (s.bsLen) || i64Lt val 0 || i64Gt val 255 then
+      let _ = panicOutOfBounds () in
+      0
+    else
+      let _ = storeU8 (s.bsPtr) (i64ToIsize index) (u64ToU8 (i64ToU64 val)) in
+      0
+
+  cinchBytesCopy :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} I64
+  cinchBytesCopy dst src di si n =
+    if n == 0 then 0
+    else
+      let ds = bytesReadMutSlice dst in
+      let ss = bytesReadSlice src in
+      if i64Lt di 0 || i64Lt si 0 || i64Lt n 0 then
+        let _ = panicOutOfBounds () in
+        0
+      else
+        let dEnd = u64Add (i64ToU64 di) (i64ToU64 n) in
+        let sEnd = u64Add (i64ToU64 si) (i64ToU64 n) in
+        if u64Lt dEnd (i64ToU64 di) || u64Gt dEnd (i64ToU64 (ds.bsLen))
+           || u64Lt sEnd (i64ToU64 si) || u64Gt sEnd (i64ToU64 (ss.bsLen)) then
+          let _ = panicOutOfBounds () in
+          0
+        else
+          let _ = memMove (ptrAddU64 (ds.bsPtr) (i64ToU64 di)) (ptrAddU64 (ss.bsPtr) (i64ToU64 si)) (u64ToUsize (i64ToU64 n)) in
+          0
+
+  cinchBytesCompare :: I64 -> I64 ->{Global} I64
+  cinchBytesCompare a b =
+    let sa = bytesReadSlice a in
+    let sb = bytesReadSlice b in
+    bytesCompareRaw (sa.bsPtr) (i64ToU64 (sa.bsLen)) (sb.bsPtr) (i64ToU64 (sb.bsLen))
+
+  cinchBytesData :: I64 ->{Global} I64
+  cinchBytesData word =
+    let s = bytesReadSlice word in
+    u64ToI64 (rawToU64 (s.bsPtr))
+
+  cinchBytesFromData :: MaybeNull U8 -> I64 ->{Global, ThreadAffine} I64
+  cinchBytesFromData ptr len =
+    if i64Lt len 0 then
+      let _ = panicCorruptValue () in
+      0
+    else if len == 0 then
+      bytesBoxAlloc 0 False
+    else if ptrIsNull ptr then
+      let _ = panicCorruptValue () in
+      0
+    else
+      bytesBoxCopy (maybeToRaw ptr) (i64ToU64 len)
+
+  cinchMapPackageBytes :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchMapPackageBytes fd length =
+    if i64Le length 0 || i64Gt length 4294967295 || i64Lt fd (i64Sub 0 2147483648) || i64Gt fd 2147483647 then
+      i64Sub 0 sysEinval
+    else
+      let res = sysMmapFileReadonly (i64ToI32 fd) (u64ToUsize (i64ToU64 length)) in
+      if res.mrErr /= 0 then
+        i64Sub 0 (res.mrErr)
+      else
+        let blk = allocate 16 kindBytesMapped rcFresh False in
+        let _ = storeI64 blk 0 length in
+        let _ = storePtr blk 8 (ptrFromU64 (i64ToU64 (res.mrAddr))) in
+        u64ToI64 (rawToU64 blk)
+
+  cinchPackageText :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchPackageText owner offset length =
+    if i64Lt offset 0 || i64Lt length 0 then
+      i64Sub 0 sysEinval
+    else
+      let s = bytesReadSlice owner in
+      let uStart = i64ToU64 offset in
+      let uLen = i64ToU64 length in
+      let uEnd = u64Add uStart uLen in
+      if u64Lt uEnd uStart || u64Gt uEnd (i64ToU64 (s.bsLen)) then
+        i64Sub 0 sysEinval
+      else
+        let spanPtr = ptrAddU64 (s.bsPtr) uStart in
+        if not (utf8ValidateSlice spanPtr uLen) then
+          i64Sub 0 sysEinval
+        else
+          let k = s.bsKind in
+          let bytesWord =
+                (if uLen /= 0 && (k == kindBytesMapped || k == kindBytesStatic || k == kindBytesView) then
+                  let _ = cinchDup owner in
+                  let vblk = allocate 24 kindBytesView rcFresh False in
+                  let _ = storeI64 vblk 0 length in
+                  let _ = storePtr vblk 8 (rawToMaybe spanPtr) in
+                  let _ = storeI64 vblk 16 owner in
+                  u64ToI64 (rawToU64 vblk)
+                else
+                  bytesBoxCopy spanPtr uLen) in
+          -- Data.String.StrBuf is tag 0 with 1 counted Bytes field.
+          let strBlk = allocateCtor 8 (shapeField 0 1) False in
+          let _ = storeI64 strBlk 0 bytesWord in
+          u64ToI64 (rawToU64 strBlk)
+
+  foreign export ccall "cinch_bytes_new" cinchBytesNew :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_bytes_len" cinchBytesLen :: I64 ->{Global} I64
+  foreign export ccall "cinch_bytes_get" cinchBytesGet :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_bytes_set" cinchBytesSet :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_bytes_copy" cinchBytesCopy :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_bytes_compare" cinchBytesCompare :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_bytes_data" cinchBytesData :: I64 ->{Global} I64
+  foreign export ccall "cinch_bytes_from_data" cinchBytesFromData :: MaybeNull U8 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_map_package_bytes" cinchMapPackageBytes :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_package_text" cinchPackageText :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64

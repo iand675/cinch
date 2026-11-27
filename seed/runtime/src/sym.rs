@@ -274,6 +274,15 @@ pub fn cmp(a: &SymCell, b: &SymCell) -> i64 {
 /// a null pointer with a positive length is a compiler-bug trap
 /// ([`Error::CorruptValue`]); a name that is not UTF-8 faults
 /// ([`Error::MalformedName`]).
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_sym_intern(ptr: *const u8, len: i64) -> i64;
+    pub fn cinch_sym_name(word: i64) -> i64;
+    pub fn cinch_sym_eq(a: i64, b: i64) -> i64;
+    pub fn cinch_sym_cmp(a: i64, b: i64) -> i64;
+}
+
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_sym_intern(ptr: *const u8, len: i64) -> i64 {
     let Ok(n) = usize::try_from(len) else {
@@ -295,6 +304,7 @@ pub unsafe extern "C" fn cinch_sym_intern(ptr: *const u8, len: i64) -> i64 {
 /// A fresh `Bytes` word holding the cell's name (`symName :: Sym ->
 /// Bytes`). The name is copied into the buffer, so the cell stays
 /// immutable behind the language's `Bytes` mutation.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_sym_name(word: i64) -> i64 {
     let cell = unsafe { abi::as_sym(word) };
@@ -303,6 +313,7 @@ pub unsafe extern "C" fn cinch_sym_name(word: i64) -> i64 {
 
 /// Identity (0 or 1): `symEq`, the O(1) pointer test over interned
 /// cells.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_sym_eq(a: i64, b: i64) -> i64 {
     let (ca, cb) = unsafe { (abi::as_sym(a), abi::as_sym(b)) };
@@ -310,6 +321,7 @@ pub unsafe extern "C" fn cinch_sym_eq(a: i64, b: i64) -> i64 {
 }
 
 /// The raw -1, 0 or 1 of the lexicographic name order (`symCmp`).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_sym_cmp(a: i64, b: i64) -> i64 {
     let (ca, cb) = unsafe { (abi::as_sym(a), abi::as_sym(b)) };

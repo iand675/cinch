@@ -1,0 +1,1427 @@
+module Runtime.BigNum where
+  import Runtime.Mem
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+
+  export LimbBuf, lbZero, lbAlloc, lbFree, lbFromU64, lbClone, lbNormalize
+  export lbCmp, lbAdd, lbSub, lbMul, lbShl, lbDivRem, lbDivRemWord, lbMulSmall, lbPow10
+  export cinchNatFromI64, cinchNatToI64, cinchNatFromU128, cinchNatToU128
+  export cinchNatLowWord, cinchNatFitsI64, cinchNatToLen
+  export cinchNatAdd, cinchNatSub, cinchNatMul, cinchNatDiv, cinchNatRem, cinchNatCmp
+  export cinchNatFromDecimal, cinchNatToDecimal, cinchNatDecimalLen
+  export cinchIntFromI64, cinchIntToI64, cinchIntFromI128, cinchIntToI128
+  export cinchIntFitsI64, cinchIntFromNat, cinchIntToNat
+  export cinchIntAdd, cinchIntSub, cinchIntMul, cinchIntDiv, cinchIntRem, cinchIntNeg, cinchIntCmp
+  export cinchIntFromDecimal, cinchIntToDecimal, cinchIntDecimalLen
+  export cinchRtNatFromLimbs, cinchRtIntFromParts
+
+  -- =========================================================================
+  -- Owned base-2^32 limb buffer (little-endian, normalized: top limb != 0)
+  -- =========================================================================
+
+  #[repr(value)]
+  record LimbBuf where
+    lbPtr :: MaybeNull U32
+    lbLen :: U64
+    lbCap :: U64
+
+  #[repr(value)]
+  record LimbView where
+    lvPtr :: MaybeNull U32
+    lvLen :: U64
+
+  #[repr(value)]
+  record IntView where
+    ivNeg :: Bool
+    ivPtr :: MaybeNull U32
+    ivLen :: U64
+
+  #[repr(value)]
+  record DivWordRes where
+    dwrQ :: LimbBuf
+    dwrR :: U32
+
+  #[repr(value)]
+  record DivRes where
+    drQ :: LimbBuf
+    drR :: LimbBuf
+
+  #[repr(value)]
+  record DivInPlaceRes where
+    dipLen :: U64
+    dipRem :: U32
+
+  lbZero :: Unit -> LimbBuf
+  lbZero _ = LimbBuf (ptrNull ()) 0 0
+
+  lbAlloc :: U64 -> Bool ->{Global, ThreadAffine} LimbBuf
+  lbAlloc cap zeroed =
+    if cap == 0 then lbZero ()
+    else
+      let bytes = u64Mul cap 4 in
+      let z = if zeroed then (1 :: U8) else (0 :: U8) in
+      let p = heapGlobalAlloc (u64ToUsize bytes) 4 z in
+      LimbBuf (rawToMaybe (ptrCast p)) 0 cap
+
+  lbFree :: LimbBuf ->{Global, ThreadAffine} Unit
+  lbFree b =
+    if b.lbCap == 0 || ptrIsNull (b.lbPtr) then ()
+    else heapGlobalDealloc (ptrCast (maybeToRaw (b.lbPtr))) (u64ToUsize (u64Mul (b.lbCap) 4)) 4
+
+  lbGet :: MaybeNull U32 -> U64 ->{Global} U32
+  lbGet p idx = loadU32 (maybeToRaw p) (u64ToIsize (u64Mul idx 4))
+
+  lbSet :: MaybeNull U32 -> U64 -> U32 ->{Global} Unit
+  lbSet p idx v = storeU32 (maybeToRaw p) (u64ToIsize (u64Mul idx 4)) v
+
+  normLoop :: MaybeNull U32 -> U64 ->{Global} U64
+  normLoop p n =
+    if n == 0 then 0
+    else
+      let lastIdx = u64Sub n 1 in
+      if lbGet p lastIdx == 0 then normLoop p lastIdx else n
+
+  lbNormalize :: LimbBuf ->{Global} LimbBuf
+  lbNormalize b =
+    if b.lbLen == 0 || ptrIsNull (b.lbPtr) then LimbBuf (b.lbPtr) 0 (b.lbCap)
+    else LimbBuf (b.lbPtr) (normLoop (b.lbPtr) (b.lbLen)) (b.lbCap)
+
+  lbFromU64 :: U64 ->{Global, ThreadAffine} LimbBuf
+  lbFromU64 v =
+    if v == 0 then lbZero ()
+    else
+      let lo = u64ToU32 v in
+      let hi = u64ToU32 (lshrU64 v 32) in
+      if hi == 0 then
+        let b = lbAlloc 1 False in
+        let _ = lbSet (b.lbPtr) 0 lo in
+        LimbBuf (b.lbPtr) 1 1
+      else
+        let b = lbAlloc 2 False in
+        let _ = lbSet (b.lbPtr) 0 lo in
+        let _ = lbSet (b.lbPtr) 1 hi in
+        LimbBuf (b.lbPtr) 2 2
+
+  lbFromU128Halves :: U64 -> U64 ->{Global, ThreadAffine} LimbBuf
+  lbFromU128Halves lo hi =
+    if hi == 0 then lbFromU64 lo
+    else
+      let w0 = u64ToU32 lo in
+      let w1 = u64ToU32 (lshrU64 lo 32) in
+      let w2 = u64ToU32 hi in
+      let w3 = u64ToU32 (lshrU64 hi 32) in
+      let len = if w3 /= 0 then 4 else 3 in
+      let b = lbAlloc len False in
+      let _ = lbSet (b.lbPtr) 0 w0 in
+      let _ = lbSet (b.lbPtr) 1 w1 in
+      let _ = lbSet (b.lbPtr) 2 w2 in
+      let _ = if len == 4 then lbSet (b.lbPtr) 3 w3 else () in
+      LimbBuf (b.lbPtr) len len
+
+  lbClone :: MaybeNull U32 -> U64 ->{Global, ThreadAffine} LimbBuf
+  lbClone p len =
+    if len == 0 || ptrIsNull p then lbZero ()
+    else
+      let b = lbAlloc len False in
+      let _ = memCopy (ptrCast (maybeToRaw (b.lbPtr))) (ptrCast (maybeToRaw p)) (u64ToUsize (u64Mul len 4)) in
+      LimbBuf (b.lbPtr) len len
+
+  -- =========================================================================
+  -- Limb Comparison, Addition, Subtraction
+  -- =========================================================================
+
+  cmpLimbsLoop :: MaybeNull U32 -> MaybeNull U32 -> U64 ->{Global} I64
+  cmpLimbsLoop ap bp i =
+    if i == 0 then 0
+    else
+      let j = u64Sub i 1 in
+      let a = lbGet ap j in
+      let b = lbGet bp j in
+      if u32Lt a b then i64Sub 0 1
+      else if u32Gt a b then 1
+      else cmpLimbsLoop ap bp j
+
+  cmpLimbsRaw :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global} I64
+  cmpLimbsRaw ap alen bp blen =
+    if u64Lt alen blen then i64Sub 0 1
+    else if u64Gt alen blen then 1
+    else cmpLimbsLoop ap bp alen
+
+  lbCmp :: LimbBuf -> LimbBuf ->{Global} I64
+  lbCmp a b = cmpLimbsRaw (a.lbPtr) (a.lbLen) (b.lbPtr) (b.lbLen)
+
+  addLimbsLoop :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> U64 -> U64 ->{Global} U64
+  addLimbsLoop ap alen bp blen out maxLen i carry =
+    if u64Ge i maxLen then
+      if carry /= 0 then
+        let _ = lbSet out maxLen (u64ToU32 carry) in
+        u64Add maxLen 1
+      else maxLen
+    else
+      let av = if u64Lt i alen then u32ToU64 (lbGet ap i) else 0 in
+      let bv = if u64Lt i blen then u32ToU64 (lbGet bp i) else 0 in
+      let s = u64Add (u64Add av bv) carry in
+      let _ = lbSet out i (u64ToU32 s) in
+      addLimbsLoop ap alen bp blen out maxLen (u64Add i 1) (lshrU64 s 32)
+
+  addLimbsRaw :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global, ThreadAffine} LimbBuf
+  addLimbsRaw ap alen bp blen =
+    if alen == 0 then lbClone bp blen
+    else if blen == 0 then lbClone ap alen
+    else
+      let maxLen = u64Max alen blen in
+      let out = lbAlloc (u64Add maxLen 1) False in
+      let n = addLimbsLoop ap alen bp blen (out.lbPtr) maxLen 0 0 in
+      lbNormalize (LimbBuf (out.lbPtr) n (out.lbCap))
+
+  lbAdd :: LimbBuf -> LimbBuf ->{Global, ThreadAffine} LimbBuf
+  lbAdd a b = addLimbsRaw (a.lbPtr) (a.lbLen) (b.lbPtr) (b.lbLen)
+
+  subLimbsLoop :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> I64 ->{Global} Unit
+  subLimbsLoop ap alen bp blen out i borrow =
+    if u64Ge i alen then ()
+    else
+      let av = u64ToI64 (u32ToU64 (lbGet ap i)) in
+      let bv = if u64Lt i blen then u64ToI64 (u32ToU64 (lbGet bp i)) else 0 in
+      let d = i64Sub (i64Sub av bv) borrow in
+      let nextBorrow = if i64Lt d 0 then 1 else 0 in
+      let digit = if i64Lt d 0 then i64Add d 4294967296 else d in
+      let _ = lbSet out i (u64ToU32 (i64ToU64 digit)) in
+      subLimbsLoop ap alen bp blen out (u64Add i 1) nextBorrow
+
+  -- Requires a >= b.
+  subLimbsRaw :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global, ThreadAffine} LimbBuf
+  subLimbsRaw ap alen bp blen =
+    if alen == 0 then lbZero ()
+    else
+      let out = lbAlloc alen False in
+      let _ = subLimbsLoop ap alen bp blen (out.lbPtr) 0 0 in
+      lbNormalize (LimbBuf (out.lbPtr) alen (out.lbCap))
+
+  lbSub :: LimbBuf -> LimbBuf ->{Global, ThreadAffine} LimbBuf
+  lbSub a b = subLimbsRaw (a.lbPtr) (a.lbLen) (b.lbPtr) (b.lbLen)
+
+  -- =========================================================================
+  -- Multiplication (schoolbook O(n*m) in base 2^32)
+  -- =========================================================================
+
+  mulInnerLoop :: U64 -> MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> U64 -> U64 ->{Global} U64
+  mulInnerLoop ai bp blen out i j carry =
+    if u64Ge j blen then
+      let _ = lbSet out (u64Add i j) (u64ToU32 carry) in
+      0
+    else
+      let idx = u64Add i j in
+      let cur = u32ToU64 (lbGet out idx) in
+      let bj = u32ToU64 (lbGet bp j) in
+      let prod = u64Add (u64Add cur (u64Mul ai bj)) carry in
+      let _ = lbSet out idx (u64ToU32 prod) in
+      mulInnerLoop ai bp blen out i (u64Add j 1) (lshrU64 prod 32)
+
+  mulOuterLoop :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global} Unit
+  mulOuterLoop ap alen bp blen out i =
+    if u64Ge i alen then ()
+    else
+      let ai = u32ToU64 (lbGet ap i) in
+      let _ = if ai /= 0 then mulInnerLoop ai bp blen out i 0 0 else 0 in
+      mulOuterLoop ap alen bp blen out (u64Add i 1)
+
+  mulLimbsRaw :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global, ThreadAffine} LimbBuf
+  mulLimbsRaw ap alen bp blen =
+    if alen == 0 || blen == 0 then lbZero ()
+    else
+      let outLen = u64Add alen blen in
+      let out = lbAlloc outLen True in
+      let _ = mulOuterLoop ap alen bp blen (out.lbPtr) 0 in
+      lbNormalize (LimbBuf (out.lbPtr) outLen (out.lbCap))
+
+  lbMul :: LimbBuf -> LimbBuf ->{Global, ThreadAffine} LimbBuf
+  lbMul a b = mulLimbsRaw (a.lbPtr) (a.lbLen) (b.lbPtr) (b.lbLen)
+
+  -- Multiply by single U32 + add single U32 (pure copy, returning new LimbBuf).
+  mulSmallLoop :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> U64 -> U64 ->{Global} U64
+  mulSmallLoop src len dst mult i carry =
+    if u64Ge i len then
+      if carry /= 0 then
+        let _ = lbSet dst len (u64ToU32 carry) in
+        u64Add len 1
+      else len
+    else
+      let p = u64Add (u64Mul (u32ToU64 (lbGet src i)) mult) carry in
+      let _ = lbSet dst i (u64ToU32 p) in
+      mulSmallLoop src len dst mult (u64Add i 1) (lshrU64 p 32)
+
+  lbMulSmall :: LimbBuf -> U32 -> U32 ->{Global, ThreadAffine} LimbBuf
+  lbMulSmall b mult add =
+    if b.lbLen == 0 then lbFromU64 (u32ToU64 add)
+    else
+      let out = lbAlloc (u64Add (b.lbLen) 1) False in
+      let n = mulSmallLoop (b.lbPtr) (b.lbLen) (out.lbPtr) (u32ToU64 mult) 0 (u32ToU64 add) in
+      lbNormalize (LimbBuf (out.lbPtr) n (out.lbCap))
+
+  -- Shift left by `bits`.
+  shlLoop :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 -> U64 -> U64 -> U32 ->{Global} U32
+  shlLoop src len dst wordShift bitShift i carry =
+    if u64Ge i len then carry
+    else
+      let w = lbGet src i in
+      let rshift = u64ToU32 (u64Sub 32 bitShift) in
+      let lshift = u64ToU32 bitShift in
+      let _ = lbSet dst (u64Add wordShift i) (bitOrU32 (shlU32 w lshift) carry) in
+      shlLoop src len dst wordShift bitShift (u64Add i 1) (lshrU32 w rshift)
+
+  lbShl :: LimbBuf -> U64 ->{Global, ThreadAffine} LimbBuf
+  lbShl b bits =
+    if b.lbLen == 0 || bits == 0 then lbClone (b.lbPtr) (b.lbLen)
+    else
+      let ws = lshrU64 bits 5 in
+      let bs = bitAndU64 bits 31 in
+      let extra = if bs /= 0 then 1 else 0 in
+      let outCap = u64Add (u64Add ws (b.lbLen)) extra in
+      let out = lbAlloc outCap True in
+      if bs == 0 then
+        let _ = memCopy (ptrAddU64 (ptrCast (maybeToRaw (out.lbPtr))) (u64Mul ws 4))
+                        (ptrCast (maybeToRaw (b.lbPtr)))
+                        (u64ToUsize (u64Mul (b.lbLen) 4)) in
+        LimbBuf (out.lbPtr) outCap outCap
+      else
+        let carry = shlLoop (b.lbPtr) (b.lbLen) (out.lbPtr) ws bs 0 0 in
+        let n =
+              (if carry /= 0 then
+                let _ = lbSet (out.lbPtr) (u64Add ws (b.lbLen)) carry in
+                outCap
+              else u64Sub outCap 1) in
+        lbNormalize (LimbBuf (out.lbPtr) n outCap)
+
+  -- =========================================================================
+  -- Division: single-word + Knuth Algorithm D (multi-limb)
+  -- =========================================================================
+
+  divWordLoop :: MaybeNull U32 -> MaybeNull U32 -> U64 -> U64 -> U64 ->{Global} U32
+  divWordLoop up qp d i rem =
+    if i == 0 then u64ToU32 rem
+    else
+      let j = u64Sub i 1 in
+      let cur = bitOrU64 (shlU64 rem 32) (u32ToU64 (lbGet up j)) in
+      let q = u64Div cur d in
+      let r = u64Rem cur d in
+      let _ = lbSet qp j (u64ToU32 q) in
+      divWordLoop up qp d j r
+
+  divRemByWordRaw :: MaybeNull U32 -> U64 -> U32 ->{Global, ThreadAffine} DivWordRes
+  divRemByWordRaw up ulen d =
+    if ulen == 0 then DivWordRes (lbZero ()) 0
+    else
+      let q = lbAlloc ulen False in
+      let rem = divWordLoop up (q.lbPtr) (u32ToU64 d) ulen 0 in
+      DivWordRes (lbNormalize (LimbBuf (q.lbPtr) ulen (q.lbCap))) rem
+
+  lbDivRemWord :: LimbBuf -> U32 ->{Global, ThreadAffine} DivWordRes
+  lbDivRemWord u d = divRemByWordRaw (u.lbPtr) (u.lbLen) d
+
+  divWordInPlace :: MaybeNull U32 -> U64 -> U32 ->{Global} DivInPlaceRes
+  divWordInPlace p len d =
+    if len == 0 then DivInPlaceRes 0 0
+    else
+      let rem = divWordLoop p p (u32ToU64 d) len 0 in
+      DivInPlaceRes (normLoop p len) rem
+
+  -- Knuth Algorithm D helpers
+  normShiftUpLoop :: MaybeNull U32 -> MaybeNull U32 -> U64 -> U64 ->{Global} Unit
+  normShiftUpLoop src dst s i =
+    if i == 0 then
+      lbSet dst 0 (shlU32 (lbGet src 0) (u64ToU32 s))
+    else
+      let hi = shlU32 (lbGet src i) (u64ToU32 s) in
+      let lo = lshrU32 (lbGet src (u64Sub i 1)) (u64ToU32 (u64Sub 32 s)) in
+      let _ = lbSet dst i (bitOrU32 hi lo) in
+      normShiftUpLoop src dst s (u64Sub i 1)
+
+  unnormShiftLoop :: MaybeNull U32 -> MaybeNull U32 -> U64 -> U64 -> U64 ->{Global} Unit
+  unnormShiftLoop un r n s i =
+    if u64Ge (u64Add i 1) n then
+      lbSet r (u64Sub n 1) (lshrU32 (lbGet un (u64Sub n 1)) (u64ToU32 s))
+    else
+      let lo = lshrU32 (lbGet un i) (u64ToU32 s) in
+      let hi = shlU32 (lbGet un (u64Add i 1)) (u64ToU32 (u64Sub 32 s)) in
+      let _ = lbSet r i (bitOrU32 lo hi) in
+      unnormShiftLoop un r n s (u64Add i 1)
+
+  #[repr(value)]
+  record QhatPair where
+    qhVal :: U64
+    qhRem :: U64
+
+  knuthD5Loop :: U64 -> U64 -> U64 -> U64 -> U64 -> QhatPair
+  knuthD5Loop qhat rhat vn1 vn2 un2 =
+    let base = 4294967296 in
+    if u64Ge rhat base then QhatPair qhat rhat
+    else if u64Gt (u64Mul qhat vn2) (u64Add (shlU64 rhat 32) un2) then
+      let q2 = u64Sub qhat 1 in
+      let r2 = u64Add rhat vn1 in
+      knuthD5Loop q2 r2 vn1 vn2 un2
+    else
+      QhatPair qhat rhat
+
+  knuthMulSubLoop :: MaybeNull U32 -> MaybeNull U32 -> U64 -> U64 -> U64 -> U64 -> I64 ->{Global} I64
+  knuthMulSubLoop un vn n j qhat i k =
+    if u64Ge i n then k
+    else
+      let p = u64Mul qhat (u32ToU64 (lbGet vn i)) in
+      let idx = u64Add i j in
+      let t = i64Sub (i64Sub (u64ToI64 (u32ToU64 (lbGet un idx))) k) (u64ToI64 (bitAndU64 p 4294967295)) in
+      let _ = lbSet un idx (u64ToU32 (i64ToU64 t)) in
+      let kNext = i64Sub (u64ToI64 (lshrU64 p 32)) (ashrI64 t 32) in
+      knuthMulSubLoop un vn n j qhat (u64Add i 1) kNext
+
+  knuthAddBackLoop :: MaybeNull U32 -> MaybeNull U32 -> U64 -> U64 -> U64 -> U64 ->{Global} U64
+  knuthAddBackLoop un vn n j i c =
+    if u64Ge i n then c
+    else
+      let idx = u64Add i j in
+      let t2 = u64Add (u64Add (u32ToU64 (lbGet un idx)) (u32ToU64 (lbGet vn i))) c in
+      let _ = lbSet un idx (u64ToU32 t2) in
+      knuthAddBackLoop un vn n j (u64Add i 1) (lshrU64 t2 32)
+
+  knuthMainLoop :: MaybeNull U32 -> MaybeNull U32 -> MaybeNull U32 -> U64 -> U64 ->{Global} Unit
+  knuthMainLoop un vn qp n j =
+    let base = 4294967296 in
+    let unjn = u32ToU64 (lbGet un (u64Add j n)) in
+    let unjn1 = u32ToU64 (lbGet un (u64Sub (u64Add j n) 1)) in
+    let unjn2 = u32ToU64 (lbGet un (u64Sub (u64Add j n) 2)) in
+    let vn1 = u32ToU64 (lbGet vn (u64Sub n 1)) in
+    let vn2 = u32ToU64 (lbGet vn (u64Sub n 2)) in
+    let top = bitOrU64 (shlU64 unjn 32) unjn1 in
+    let initQ = if unjn == vn1 then u64Sub base 1 else u64Div top vn1 in
+    let initR = if unjn == vn1 then u64Add unjn unjn1 else u64Rem top vn1 in
+    let refined = knuthD5Loop initQ initR vn1 vn2 unjn2 in
+    let qhat = refined.qhVal in
+    let k = knuthMulSubLoop un vn n j qhat 0 0 in
+    let t = i64Sub (u64ToI64 (u32ToU64 (lbGet un (u64Add j n)))) k in
+    let _ = lbSet un (u64Add j n) (u64ToU32 (i64ToU64 t)) in
+    let qj =
+          (if i64Lt t 0 then
+            let c = knuthAddBackLoop un vn n j 0 0 in
+            let _ = lbSet un (u64Add j n) (u64ToU32 (u64Add (u32ToU64 (lbGet un (u64Add j n))) c)) in
+            u64ToU32 (u64Sub qhat 1)
+          else
+            u64ToU32 qhat) in
+    let _ = lbSet qp j qj in
+    if j == 0 then () else knuthMainLoop un vn qp n (u64Sub j 1)
+
+  divRemLimbsRaw :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global, ThreadAffine} DivRes
+  divRemLimbsRaw up m vp n =
+    if n == 0 then
+      let _ = panicDivByZero () in
+      DivRes (lbZero ()) (lbZero ())
+    else if cmpLimbsRaw up m vp n == i64Sub 0 1 then
+      DivRes (lbZero ()) (lbClone up m)
+    else if n == 1 then
+      let res = divRemByWordRaw up m (lbGet vp 0) in
+      let rBuf = if res.dwrR == 0 then lbZero () else lbFromU64 (u32ToU64 (res.dwrR)) in
+      DivRes (res.dwrQ) rBuf
+    else
+      let topV = lbGet vp (u64Sub n 1) in
+      let s = u32ToU64 (clzU32 topV) in
+      let vn = lbAlloc n True in
+      let un = lbAlloc (u64Add m 1) True in
+      let _ = (if s == 0 then
+          let _ = memCopy (ptrCast (maybeToRaw (vn.lbPtr))) (ptrCast (maybeToRaw vp)) (u64ToUsize (u64Mul n 4)) in
+          let _ = memCopy (ptrCast (maybeToRaw (un.lbPtr))) (ptrCast (maybeToRaw up)) (u64ToUsize (u64Mul m 4)) in
+          lbSet (un.lbPtr) m 0
+        else
+          let _ = normShiftUpLoop vp (vn.lbPtr) s (u64Sub n 1) in
+          let _ = normShiftUpLoop up (un.lbPtr) s (u64Sub m 1) in
+          lbSet (un.lbPtr) m (lshrU32 (lbGet up (u64Sub m 1)) (u64ToU32 (u64Sub 32 s)))) in
+      let qLen = u64Add (u64Sub m n) 1 in
+      let q = lbAlloc qLen True in
+      let _ = knuthMainLoop (un.lbPtr) (vn.lbPtr) (q.lbPtr) n (u64Sub m n) in
+      let r = lbAlloc n True in
+      let _ = (if s == 0 then
+          memCopy (ptrCast (maybeToRaw (r.lbPtr))) (ptrCast (maybeToRaw (un.lbPtr))) (u64ToUsize (u64Mul n 4))
+        else
+          unnormShiftLoop (un.lbPtr) (r.lbPtr) n s 0) in
+      let _ = lbFree vn in
+      let _ = lbFree un in
+      DivRes (lbNormalize (LimbBuf (q.lbPtr) qLen (q.lbCap))) (lbNormalize (LimbBuf (r.lbPtr) n (r.lbCap)))
+
+  lbDivRem :: LimbBuf -> LimbBuf ->{Global, ThreadAffine} DivRes
+  lbDivRem a b = divRemLimbsRaw (a.lbPtr) (a.lbLen) (b.lbPtr) (b.lbLen)
+
+  -- Power of 10 helper (used by Dragon4 float formatting in Runtime.Text)
+  powLoop :: LimbBuf -> LimbBuf -> U64 ->{Global, ThreadAffine} LimbBuf
+  powLoop acc base exp =
+    if exp == 0 then
+      let _ = lbFree base in
+      acc
+    else
+      let acc2 =
+            (if bitAndU64 exp 1 /= 0 then
+              let prod = lbMul acc base in
+              let _ = lbFree acc in
+              prod
+            else acc) in
+      let e2 = lshrU64 exp 1 in
+      if e2 == 0 then
+        let _ = lbFree base in
+        acc2
+      else
+        let sq = lbMul base base in
+        let _ = lbFree base in
+        powLoop acc2 sq e2
+
+  lbPow10 :: U64 ->{Global, ThreadAffine} LimbBuf
+  lbPow10 exp =
+    if exp == 0 then lbFromU64 1
+    else powLoop (lbFromU64 1) (lbFromU64 10) exp
+
+  -- =========================================================================
+  -- Canonical Immediate & Box Representation for Nat and Int
+  -- =========================================================================
+
+  natImmMax :: U64
+  natImmMax = 9223372036854775807 -- 2^63 - 1
+
+  intImmMin :: I64
+  intImmMin = i64Sub 0 4611686018427387904 -- -2^62
+
+  intImmMax :: I64
+  intImmMax = 4611686018427387903 -- 2^62 - 1
+
+  isImm :: I64 -> Bool
+  isImm w = bitAndI64 w 1 /= 0
+
+  natImm :: U64 -> I64
+  natImm v = u64ToI64 (bitOrU64 (shlU64 v 1) 1)
+
+  natImmVal :: I64 -> U64
+  natImmVal w = lshrU64 (i64ToU64 w) 1
+
+  intImm :: I64 -> I64
+  intImm v = bitOrI64 (shlI64 v 1) 1
+
+  intImmVal :: I64 -> I64
+  intImmVal w = ashrI64 w 1
+
+  -- Shrink/adopt an owned LimbBuf into an exact-sized buffer for boxing.
+  adoptExactLimbs :: LimbBuf ->{Global, ThreadAffine} MaybeNull U32
+  adoptExactLimbs b =
+    if b.lbLen == 0 then
+      let _ = lbFree b in
+      ptrNull ()
+    else if b.lbLen == b.lbCap then
+      b.lbPtr
+    else
+      let exact = lbClone (b.lbPtr) (b.lbLen) in
+      let _ = lbFree b in
+      exact.lbPtr
+
+  boxNatOwned :: LimbBuf ->{Global, ThreadAffine} I64
+  boxNatOwned b =
+    let len = b.lbLen in
+    let ptr = adoptExactLimbs b in
+    let blk = allocate 16 kindNat rcFresh False in
+    let _ = storeU64 blk 0 len in
+    let _ = storePtr blk 8 (maybeCast ptr) in
+    u64ToI64 (rawToU64 blk)
+
+  boxIntOwned :: Bool -> LimbBuf ->{Global, ThreadAffine} I64
+  boxIntOwned neg b =
+    let len = b.lbLen in
+    let ptr = adoptExactLimbs b in
+    let blk = allocate 24 kindInt rcFresh False in
+    let _ = storeU64 blk 0 len in
+    let _ = storePtr blk 8 (maybeCast ptr) in
+    let _ = storeU64 blk 16 (if neg && len /= 0 then 1 else 0) in
+    u64ToI64 (rawToU64 blk)
+
+  limbsToU64Exact :: MaybeNull U32 -> U64 ->{Global} U64
+  limbsToU64Exact p len =
+    if len == 0 then 0
+    else if len == 1 then u32ToU64 (lbGet p 0)
+    else bitOrU64 (u32ToU64 (lbGet p 0)) (shlU64 (u32ToU64 (lbGet p 1)) 32)
+
+  natWordFromOwned :: LimbBuf ->{Global, ThreadAffine} I64
+  natWordFromOwned b0 =
+    let b = lbNormalize b0 in
+    if u64Le (b.lbLen) 2 then
+      let u = limbsToU64Exact (b.lbPtr) (b.lbLen) in
+      if u64Le u natImmMax then
+        let _ = lbFree b in
+        natImm u
+      else
+        boxNatOwned b
+    else
+      boxNatOwned b
+
+  intWordFromOwned :: Bool -> LimbBuf ->{Global, ThreadAffine} I64
+  intWordFromOwned neg0 b0 =
+    let b = lbNormalize b0 in
+    let neg = neg0 && b.lbLen /= 0 in
+    if u64Le (b.lbLen) 2 then
+      let u = limbsToU64Exact (b.lbPtr) (b.lbLen) in
+      let fitsImm =
+            (if neg then u64Le u 4611686018427387904
+            else u64Le u 4611686018427387903) in
+      if fitsImm then
+        let _ = lbFree b in
+        let sv = if neg then i64Sub 0 (u64ToI64 u) else u64ToI64 u in
+        intImm sv
+      else
+        boxIntOwned neg b
+    else
+      boxIntOwned neg b
+
+  natWordU64 :: U64 ->{Global, ThreadAffine} I64
+  natWordU64 v =
+    if u64Le v natImmMax then natImm v
+    else boxNatOwned (lbFromU64 v)
+
+  natWordU128Halves :: U64 -> U64 ->{Global, ThreadAffine} I64
+  natWordU128Halves lo hi =
+    if hi == 0 && u64Le lo natImmMax then natImm lo
+    else boxNatOwned (lbFromU128Halves lo hi)
+
+  intWordI64 :: I64 ->{Global, ThreadAffine} I64
+  intWordI64 v =
+    if i64Ge v intImmMin && i64Le v intImmMax then intImm v
+    else
+      let neg = i64Lt v 0 in
+      let mag = if neg then u64Sub 0 (i64ToU64 v) else i64ToU64 v in
+      boxIntOwned neg (lbFromU64 mag)
+
+  intWordI128Halves :: U64 -> I64 ->{Global, ThreadAffine} I64
+  intWordI128Halves lo hi =
+    if hi == 0 && u64Le lo 4611686018427387903 then
+      intImm (u64ToI64 lo)
+    else if hi == i64Sub 0 1 && u64Ge lo (i64ToU64 intImmMin) then
+      intImm (u64ToI64 lo)
+    else if i64Lt hi 0 then
+      -- Two's complement negate 128-bit (lo, hi) -> magnitude (mlo, mhi)
+      let mlo = u64Sub 0 lo in
+      let borrow = if lo /= 0 then 1 else 0 in
+      let mhi = u64Sub (u64Sub 0 (i64ToU64 hi)) borrow in
+      boxIntOwned True (lbFromU128Halves mlo mhi)
+    else
+      boxIntOwned False (lbFromU128Halves lo (i64ToU64 hi))
+
+  readBoxNat :: I64 ->{Global} LimbView
+  readBoxNat word =
+    if word == 0 || isImm word then
+      let _ = panicCorruptValue () in
+      LimbView (ptrNull ()) 0
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindNat then
+        let _ = panicCorruptValue () in
+        LimbView (ptrNull ()) 0
+      else
+        LimbView (maybeCast (loadPtr p 8)) (loadU64 p 0)
+
+  readBoxInt :: I64 ->{Global} IntView
+  readBoxInt word =
+    if word == 0 || isImm word then
+      let _ = panicCorruptValue () in
+      IntView False (ptrNull ()) 0
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindInt then
+        let _ = panicCorruptValue () in
+        IntView False (ptrNull ()) 0
+      else
+        IntView (loadU64 p 16 /= 0) (maybeCast (loadPtr p 8)) (loadU64 p 0)
+
+  fillSmallLimbs :: U64 -> RawPtr U32 ->{Global} LimbView
+  fillSmallLimbs v scratch =
+    if v == 0 then LimbView (rawToMaybe scratch) 0
+    else
+      let lo = u64ToU32 v in
+      let hi = u64ToU32 (lshrU64 v 32) in
+      let _ = storeU32 scratch 0 lo in
+      if hi == 0 then LimbView (rawToMaybe scratch) 1
+      else
+        let _ = storeU32 scratch 4 hi in
+        LimbView (rawToMaybe scratch) 2
+
+  natView :: I64 -> RawPtr U32 ->{Global} LimbView
+  natView word scratch =
+    if isImm word then fillSmallLimbs (natImmVal word) scratch
+    else readBoxNat word
+
+  intView :: I64 -> RawPtr U32 ->{Global} IntView
+  intView word scratch =
+    if isImm word then
+      let v = intImmVal word in
+      let neg = i64Lt v 0 in
+      let mag = if neg then u64Sub 0 (i64ToU64 v) else i64ToU64 v in
+      let lv = fillSmallLimbs mag scratch in
+      IntView neg (lv.lvPtr) (lv.lvLen)
+    else readBoxInt word
+
+  -- =========================================================================
+  -- Decimal Parse & Format
+  -- =========================================================================
+
+  u64DigitCount :: U64 -> U64
+  u64DigitCount v =
+    if u64Lt v 10 then 1
+    else if u64Lt v 100 then 2
+    else if u64Lt v 1000 then 3
+    else if u64Lt v 10000 then 4
+    else if u64Lt v 100000 then 5
+    else if u64Lt v 1000000 then 6
+    else if u64Lt v 10000000 then 7
+    else if u64Lt v 100000000 then 8
+    else if u64Lt v 1000000000 then 9
+    else if u64Lt v 10000000000 then 10
+    else if u64Lt v 100000000000 then 11
+    else if u64Lt v 1000000000000 then 12
+    else if u64Lt v 10000000000000 then 13
+    else if u64Lt v 100000000000000 then 14
+    else if u64Lt v 1000000000000000 then 15
+    else if u64Lt v 10000000000000000 then 16
+    else if u64Lt v 100000000000000000 then 17
+    else if u64Lt v 1000000000000000000 then 18
+    else if u64Lt v 10000000000000000000 then 19
+    else 20
+
+  writeU64Back :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  writeU64Back buf pos v =
+    let q = u64Div v 10 in
+    let r = u64Rem v 10 in
+    let p = u64Sub pos 1 in
+    let _ = storeU8 buf (u64ToIsize p) (u64ToU8 (u64Add 48 r)) in
+    if q == 0 then () else writeU64Back buf p q
+
+  writeZeroPad9 :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} Unit
+  writeZeroPad9 buf pos v rem =
+    if rem == 0 then ()
+    else
+      let q = u64Div v 10 in
+      let r = u64Rem v 10 in
+      let p = u64Sub pos 1 in
+      let _ = storeU8 buf (u64ToIsize p) (u64ToU8 (u64Add 48 r)) in
+      writeZeroPad9 buf p q (u64Sub rem 1)
+
+  -- Extract base-10^9 chunks from a cloned LimbBuf into a newly allocated U32 chunk array.
+  #[repr(value)]
+  record DecChunks where
+    dcPtr :: MaybeNull U32
+    dcLen :: U64
+    dcCap :: U64
+
+  decChunksLoop :: MaybeNull U32 -> U64 -> MaybeNull U32 -> U64 ->{Global} U64
+  decChunksLoop work wlen chunks count =
+    if wlen == 0 then count
+    else
+      let res = divWordInPlace work wlen 1000000000 in
+      let _ = lbSet chunks count (res.dipRem) in
+      decChunksLoop work (res.dipLen) chunks (u64Add count 1)
+
+  limbsToDecChunks :: MaybeNull U32 -> U64 ->{Global, ThreadAffine} DecChunks
+  limbsToDecChunks p len =
+    if len == 0 then DecChunks (ptrNull ()) 0 0
+    else
+      -- Each 32-bit limb is <= 9.633 decimal digits -> at most ceil(len * 11 / 10) + 2 chunks of 10^9
+      let maxChunks = u64Add (u64Div (u64Mul len 11) 10) 2 in
+      let work = lbClone p len in
+      let chunksBuf = lbAlloc maxChunks False in
+      let count = decChunksLoop (work.lbPtr) (work.lbLen) (chunksBuf.lbPtr) 0 in
+      let _ = lbFree work in
+      DecChunks (chunksBuf.lbPtr) count (chunksBuf.lbCap)
+
+  decChunksFree :: DecChunks ->{Global, ThreadAffine} Unit
+  decChunksFree dc =
+    if dc.dcCap == 0 || ptrIsNull (dc.dcPtr) then ()
+    else heapGlobalDealloc (ptrCast (maybeToRaw (dc.dcPtr))) (u64ToUsize (u64Mul (dc.dcCap) 4)) 4
+
+  limbsDecimalLen :: MaybeNull U32 -> U64 ->{Global, ThreadAffine} U64
+  limbsDecimalLen p len =
+    if len == 0 then 1
+    else
+      let dc = limbsToDecChunks p len in
+      let top = u32ToU64 (lbGet (dc.dcPtr) (u64Sub (dc.dcLen) 1)) in
+      let total = u64Add (u64DigitCount top) (u64Mul (u64Sub (dc.dcLen) 1) 9) in
+      let _ = decChunksFree dc in
+      total
+
+  writeChunksLoop :: MaybeNull U32 -> U64 -> RawPtr U8 -> U64 ->{Global} U64
+  writeChunksLoop chunks idx dst pos =
+    if idx == 0 then pos
+    else
+      let j = u64Sub idx 1 in
+      let v = u32ToU64 (lbGet chunks j) in
+      let nextPos = u64Add pos 9 in
+      let _ = writeZeroPad9 dst nextPos v 9 in
+      writeChunksLoop chunks j dst nextPos
+
+  writeLimbsDecimal :: MaybeNull U32 -> U64 -> Bool -> RawPtr U8 -> U64 ->{Global, ThreadAffine} U64
+  writeLimbsDecimal p len neg dst cap =
+    if len == 0 then
+      if u64Lt cap 1 then
+        let _ = panicBufferTooSmall () in
+        0
+      else
+        let _ = storeU8 dst 0 48 in
+        1
+    else
+      let dc = limbsToDecChunks p len in
+      let topIdx = u64Sub (dc.dcLen) 1 in
+      let top = u32ToU64 (lbGet (dc.dcPtr) topIdx) in
+      let topDigits = u64DigitCount top in
+      let signBytes = if neg then 1 else 0 in
+      let total = u64Add signBytes (u64Add topDigits (u64Mul topIdx 9)) in
+      if u64Lt cap total then
+        let _ = decChunksFree dc in
+        let _ = panicBufferTooSmall () in
+        0
+      else
+        let _ = if neg then storeU8 dst 0 45 else () in
+        let posAfterTop = u64Add signBytes topDigits in
+        let _ = writeU64Back dst posAfterTop top in
+        let _ = writeChunksLoop (dc.dcPtr) topIdx dst posAfterTop in
+        let _ = decChunksFree dc in
+        total
+
+  -- Parse decimal digits (len > 0) into an owned LimbBuf.
+  #[repr(value)]
+  record ParseSmallRes where
+    psrOk :: Bool
+    psrVal :: U64
+
+  parseSmallLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} ParseSmallRes
+  parseSmallLoop ptr len i acc =
+    if u64Ge i len then ParseSmallRes True acc
+    else
+      let b = loadU8 ptr (u64ToIsize i) in
+      if u8Lt b 48 || u8Gt b 57 then ParseSmallRes False 0
+      else
+        let d = u8ToU64 (u8Sub b 48) in
+        parseSmallLoop ptr len (u64Add i 1) (u64Add (u64Mul acc 10) d)
+
+  pow10Small :: U64 -> U32
+  pow10Small k =
+    if k == 1 then 10
+    else if k == 2 then 100
+    else if k == 3 then 1000
+    else if k == 4 then 10000
+    else if k == 5 then 100000
+    else if k == 6 then 1000000
+    else if k == 7 then 10000000
+    else if k == 8 then 100000000
+    else 1000000000
+
+  parseChunkDigits :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} ParseSmallRes
+  parseChunkDigits ptr end i acc =
+    if u64Ge i end then ParseSmallRes True acc
+    else
+      let b = loadU8 ptr (u64ToIsize i) in
+      if u8Lt b 48 || u8Gt b 57 then ParseSmallRes False 0
+      else
+        let d = u8ToU64 (u8Sub b 48) in
+        parseChunkDigits ptr end (u64Add i 1) (u64Add (u64Mul acc 10) d)
+
+  parseBigLoop :: RawPtr U8 -> U64 -> U64 -> LimbBuf ->{Global, ThreadAffine} LimbBuf
+  parseBigLoop ptr len i acc =
+    if u64Ge i len then acc
+    else
+      let rem = u64Sub len i in
+      let step = u64Min rem 9 in
+      let r = parseChunkDigits ptr (u64Add i step) i 0 in
+      if not (r.psrOk) then
+        let _ = lbFree acc in
+        let _ = panicMalformedDecimal () in
+        lbZero ()
+      else
+        let next = lbMulSmall acc (pow10Small step) (u64ToU32 (r.psrVal)) in
+        let _ = lbFree acc in
+        parseBigLoop ptr len (u64Add i step) next
+
+  -- =========================================================================
+  -- Public C ABI Entry Points: Nat (16 exports)
+  -- =========================================================================
+
+  cinchNatFromI64 :: I64 ->{Global, ThreadAffine} I64
+  cinchNatFromI64 v =
+    if i64Lt v 0 then
+      let _ = panicNegativeInput () in
+      0
+    else
+      natWordU64 (i64ToU64 v)
+
+  cinchNatToI64 :: I64 ->{Global} I64
+  cinchNatToI64 word =
+    if isImm word then u64ToI64 (natImmVal word)
+    else
+      let lv = readBoxNat word in
+      if u64Gt (lv.lvLen) 2 then
+        let _ = panicOutOfRange () in
+        0
+      else
+        let u = limbsToU64Exact (lv.lvPtr) (lv.lvLen) in
+        if u64Gt u 9223372036854775807 then
+          let _ = panicOutOfRange () in
+          0
+        else u64ToI64 u
+
+  cinchNatFromU128 :: U128 ->{Global, ThreadAffine} I64
+  cinchNatFromU128 v = natWordU128Halves (u128Lo v) (u128Hi v)
+
+  cinchNatToU128 :: I64 ->{Global} U128
+  cinchNatToU128 word =
+    if isImm word then u128FromHalves (natImmVal word) 0
+    else
+      let lv = readBoxNat word in
+      if u64Gt (lv.lvLen) 4 then
+        let _ = panicOutOfRange () in
+        u128FromHalves 0 0
+      else
+        let w0 = if u64Gt (lv.lvLen) 0 then u32ToU64 (lbGet (lv.lvPtr) 0) else 0 in
+        let w1 = if u64Gt (lv.lvLen) 1 then u32ToU64 (lbGet (lv.lvPtr) 1) else 0 in
+        let w2 = if u64Gt (lv.lvLen) 2 then u32ToU64 (lbGet (lv.lvPtr) 2) else 0 in
+        let w3 = if u64Gt (lv.lvLen) 3 then u32ToU64 (lbGet (lv.lvPtr) 3) else 0 in
+        u128FromHalves (bitOrU64 w0 (shlU64 w1 32)) (bitOrU64 w2 (shlU64 w3 32))
+
+  cinchNatLowWord :: I64 ->{Global} I64
+  cinchNatLowWord word =
+    if isImm word then u64ToI64 (natImmVal word)
+    else
+      let lv = readBoxNat word in
+      let w0 = if u64Gt (lv.lvLen) 0 then u32ToU64 (lbGet (lv.lvPtr) 0) else 0 in
+      let w1 = if u64Gt (lv.lvLen) 1 then u32ToU64 (lbGet (lv.lvPtr) 1) else 0 in
+      u64ToI64 (bitOrU64 w0 (shlU64 w1 32))
+
+  cinchNatFitsI64 :: I64 ->{Global} I64
+  cinchNatFitsI64 word =
+    if isImm word then 1
+    else
+      let lv = readBoxNat word in
+      if u64Gt (lv.lvLen) 2 then 0
+      else
+        let u = limbsToU64Exact (lv.lvPtr) (lv.lvLen) in
+        if u64Le u 9223372036854775807 then 1 else 0
+
+  cinchNatToLen :: I64 ->{Global} I64
+  cinchNatToLen word =
+    if isImm word then u64ToI64 (natImmVal word)
+    else
+      let lv = readBoxNat word in
+      if u64Gt (lv.lvLen) 2 then 9223372036854775807
+      else
+        let u = limbsToU64Exact (lv.lvPtr) (lv.lvLen) in
+        if u64Gt u 9223372036854775807 then 9223372036854775807 else u64ToI64 u
+
+  cinchNatAdd :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNatAdd a b =
+    if isImm (bitAndI64 a b) then
+      let av = natImmVal a in
+      let bv = natImmVal b in
+      -- av, bv <= 2^63 - 1, so av + bv <= 2^64 - 2 (fits in U64 without overflow!)
+      natWordU64 (u64Add av bv)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = natView a (mutAsPtr sa) in
+          let vb = natView b (mutAsPtr sb) in
+          natWordFromOwned (addLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen))
+        )
+      )
+
+  cinchNatSub :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNatSub a b =
+    if isImm (bitAndI64 a b) then
+      let av = natImmVal a in
+      let bv = natImmVal b in
+      if u64Lt av bv then
+        let _ = panicNegativeResult () in
+        0
+      else natImm (u64Sub av bv)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = natView a (mutAsPtr sa) in
+          let vb = natView b (mutAsPtr sb) in
+          if cmpLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen) == i64Sub 0 1 then
+            let _ = panicNegativeResult () in
+            0
+          else
+            natWordFromOwned (subLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen))
+        )
+      )
+
+  cinchNatMul :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNatMul a b =
+    if isImm (bitAndI64 a b) then
+      let av = natImmVal a in
+      let bv = natImmVal b in
+      let lo = u64Mul av bv in
+      let hi = u64MulHi av bv in
+      natWordU128Halves lo hi
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = natView a (mutAsPtr sa) in
+          let vb = natView b (mutAsPtr sb) in
+          natWordFromOwned (mulLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen))
+        )
+      )
+
+  cinchNatDiv :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNatDiv a b =
+    if isImm (bitAndI64 a b) then
+      let av = natImmVal a in
+      let bv = natImmVal b in
+      if bv == 0 then
+        let _ = panicDivByZero () in
+        0
+      else natImm (u64Div av bv)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = natView a (mutAsPtr sa) in
+          let vb = natView b (mutAsPtr sb) in
+          let res = divRemLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen) in
+          let _ = lbFree (res.drR) in
+          natWordFromOwned (res.drQ)
+        )
+      )
+
+  cinchNatRem :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchNatRem a b =
+    if isImm (bitAndI64 a b) then
+      let av = natImmVal a in
+      let bv = natImmVal b in
+      if bv == 0 then
+        let _ = panicDivByZero () in
+        0
+      else natImm (u64Rem av bv)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = natView a (mutAsPtr sa) in
+          let vb = natView b (mutAsPtr sb) in
+          let res = divRemLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen) in
+          let _ = lbFree (res.drQ) in
+          natWordFromOwned (res.drR)
+        )
+      )
+
+  cinchNatCmp :: I64 -> I64 ->{Global} I64
+  cinchNatCmp a b =
+    if isImm (bitAndI64 a b) then
+      let av = natImmVal a in
+      let bv = natImmVal b in
+      if u64Lt av bv then i64Sub 0 1
+      else if u64Gt av bv then 1
+      else 0
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = natView a (mutAsPtr sa) in
+          let vb = natView b (mutAsPtr sb) in
+          cmpLimbsRaw (va.lvPtr) (va.lvLen) (vb.lvPtr) (vb.lvLen)
+        )
+      )
+
+  cinchNatFromDecimal :: MaybeNull U8 -> Usize ->{Global, ThreadAffine} I64
+  cinchNatFromDecimal ptr len =
+    let ulen = usizeToU64 len in
+    if ulen == 0 then
+      let _ = panicMalformedDecimal () in
+      0
+    else if ptrIsNull ptr then
+      let _ = panicCorruptValue () in
+      0
+    else
+      let p = maybeToRaw ptr in
+      if u64Le ulen 19 then
+        let r = parseSmallLoop p ulen 0 0 in
+        if r.psrOk then natWordU64 (r.psrVal)
+        else
+          let _ = panicMalformedDecimal () in
+          0
+      else
+        let b = parseBigLoop p ulen 0 (lbZero ()) in
+        natWordFromOwned b
+
+  cinchNatDecimalLen :: I64 ->{Global, ThreadAffine} Usize
+  cinchNatDecimalLen word =
+    if isImm word then u64ToUsize (u64DigitCount (natImmVal word))
+    else
+      let lv = readBoxNat word in
+      u64ToUsize (limbsDecimalLen (lv.lvPtr) (lv.lvLen))
+
+  cinchNatToDecimal :: I64 -> MaybeNull U8 -> Usize ->{Global, ThreadAffine} Usize
+  cinchNatToDecimal word buf cap =
+    if ptrIsNull buf then
+      let _ = panicCorruptValue () in
+      0
+    else if isImm word then
+      let v = natImmVal word in
+      let need = u64DigitCount v in
+      if u64Lt (usizeToU64 cap) need then
+        let _ = panicBufferTooSmall () in
+        0
+      else
+        let _ = writeU64Back (maybeToRaw buf) need v in
+        u64ToUsize need
+    else
+      let lv = readBoxNat word in
+      u64ToUsize (writeLimbsDecimal (lv.lvPtr) (lv.lvLen) False (maybeToRaw buf) (usizeToU64 cap))
+
+  -- =========================================================================
+  -- Public C ABI Entry Points: Int (17 exports)
+  -- =========================================================================
+
+  cinchIntFromI64 :: I64 ->{Global, ThreadAffine} I64
+  cinchIntFromI64 v = intWordI64 v
+
+  cinchIntToI64 :: I64 ->{Global} I64
+  cinchIntToI64 word =
+    if isImm word then intImmVal word
+    else
+      let iv = readBoxInt word in
+      if u64Gt (iv.ivLen) 2 then
+        let _ = panicOutOfRange () in
+        0
+      else
+        let u = limbsToU64Exact (iv.ivPtr) (iv.ivLen) in
+        if iv.ivNeg then
+          if u64Gt u 9223372036854775808 then
+            let _ = panicOutOfRange () in
+            0
+          else if u == 9223372036854775808 then
+            u64ToI64 9223372036854775808 -- i64::MIN
+          else i64Sub 0 (u64ToI64 u)
+        else
+          if u64Gt u 9223372036854775807 then
+            let _ = panicOutOfRange () in
+            0
+          else u64ToI64 u
+
+  cinchIntFromI128 :: I128 ->{Global, ThreadAffine} I64
+  cinchIntFromI128 v = intWordI128Halves (i128Lo v) (i128Hi v)
+
+  cinchIntToI128 :: I64 ->{Global} I128
+  cinchIntToI128 word =
+    if isImm word then
+      let v = intImmVal word in
+      let hi = if i64Lt v 0 then i64ToU64 (i64Sub 0 1) else 0 in
+      i128FromHalves (i64ToU64 v) hi
+    else
+      let iv = readBoxInt word in
+      if u64Gt (iv.ivLen) 4 then
+        let _ = panicOutOfRange () in
+        i128FromHalves 0 0
+      else
+        let w0 = if u64Gt (iv.ivLen) 0 then u32ToU64 (lbGet (iv.ivPtr) 0) else 0 in
+        let w1 = if u64Gt (iv.ivLen) 1 then u32ToU64 (lbGet (iv.ivPtr) 1) else 0 in
+        let w2 = if u64Gt (iv.ivLen) 2 then u32ToU64 (lbGet (iv.ivPtr) 2) else 0 in
+        let w3 = if u64Gt (iv.ivLen) 3 then u32ToU64 (lbGet (iv.ivPtr) 3) else 0 in
+        let lo = bitOrU64 w0 (shlU64 w1 32) in
+        let hi = bitOrU64 w2 (shlU64 w3 32) in
+        if iv.ivNeg then
+          -- Max magnitude for negative i128 is 2^127 (hi == 2^63, lo == 0)
+          if u64Gt hi 9223372036854775808 || (hi == 9223372036854775808 && lo /= 0) then
+            let _ = panicOutOfRange () in
+            i128FromHalves 0 0
+          else
+            let nlo = u64Sub 0 lo in
+            let borrow = if lo /= 0 then 1 else 0 in
+            let nhi = u64Sub (u64Sub 0 hi) borrow in
+            i128FromHalves nlo nhi
+        else
+          if u64Gt hi 9223372036854775807 then
+            let _ = panicOutOfRange () in
+            i128FromHalves 0 0
+          else
+            i128FromHalves lo hi
+
+  cinchIntFitsI64 :: I64 ->{Global} I64
+  cinchIntFitsI64 word =
+    if isImm word then 1
+    else
+      let iv = readBoxInt word in
+      if u64Gt (iv.ivLen) 2 then 0
+      else
+        let u = limbsToU64Exact (iv.ivPtr) (iv.ivLen) in
+        let lim = if iv.ivNeg then 9223372036854775808 else 9223372036854775807 in
+        if u64Le u lim then 1 else 0
+
+  cinchIntFromNat :: I64 ->{Global, ThreadAffine} I64
+  cinchIntFromNat word =
+    if isImm word then intWordI64 (u64ToI64 (natImmVal word))
+    else
+      let lv = readBoxNat word in
+      intWordFromOwned False (lbClone (lv.lvPtr) (lv.lvLen))
+
+  cinchIntToNat :: I64 ->{Global, ThreadAffine} I64
+  cinchIntToNat word =
+    if isImm word then
+      let v = intImmVal word in
+      if i64Lt v 0 then
+        let _ = panicNegativeInput () in
+        0
+      else natImm (i64ToU64 v)
+    else
+      let iv = readBoxInt word in
+      if iv.ivNeg then
+        let _ = panicNegativeInput () in
+        0
+      else
+        natWordFromOwned (lbClone (iv.ivPtr) (iv.ivLen))
+
+  intAddParts :: Bool -> MaybeNull U32 -> U64 -> Bool -> MaybeNull U32 -> U64 ->{Global, ThreadAffine} I64
+  intAddParts an ap alen bn bp blen =
+    if an == bn then
+      intWordFromOwned an (addLimbsRaw ap alen bp blen)
+    else
+      let c = cmpLimbsRaw ap alen bp blen in
+      if c == 0 then intImm 0
+      else if c == 1 then intWordFromOwned an (subLimbsRaw ap alen bp blen)
+      else intWordFromOwned bn (subLimbsRaw bp blen ap alen)
+
+  cinchIntAdd :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchIntAdd a b =
+    if isImm (bitAndI64 a b) then
+      -- intImmVal in [-2^62, 2^62 - 1], so sum in [-2^63, 2^63 - 2]: fits in I64 without overflow!
+      intWordI64 (i64Add (intImmVal a) (intImmVal b))
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = intView a (mutAsPtr sa) in
+          let vb = intView b (mutAsPtr sb) in
+          intAddParts (va.ivNeg) (va.ivPtr) (va.ivLen) (vb.ivNeg) (vb.ivPtr) (vb.ivLen)
+        )
+      )
+
+  cinchIntSub :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchIntSub a b =
+    if isImm (bitAndI64 a b) then
+      -- intImmVal in [-2^62, 2^62 - 1], so diff in [-2^63 + 1, 2^63 - 1]: fits in I64 without overflow!
+      intWordI64 (i64Sub (intImmVal a) (intImmVal b))
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = intView a (mutAsPtr sa) in
+          let vb = intView b (mutAsPtr sb) in
+          intAddParts (va.ivNeg) (va.ivPtr) (va.ivLen) (not (vb.ivNeg)) (vb.ivPtr) (vb.ivLen)
+        )
+      )
+
+  cinchIntMul :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchIntMul a b =
+    if isImm (bitAndI64 a b) then
+      let av = intImmVal a in
+      let bv = intImmVal b in
+      let neg = (i64Lt av 0) /= (i64Lt bv 0) in
+      let am = if i64Lt av 0 then u64Sub 0 (i64ToU64 av) else i64ToU64 av in
+      let bm = if i64Lt bv 0 then u64Sub 0 (i64ToU64 bv) else i64ToU64 bv in
+      let lo = u64Mul am bm in
+      let hi = u64MulHi am bm in
+      if hi == 0 && (if neg then u64Le lo 4611686018427387904 else u64Le lo 4611686018427387903) then
+        intImm (if neg then i64Sub 0 (u64ToI64 lo) else u64ToI64 lo)
+      else
+        boxIntOwned neg (lbFromU128Halves lo hi)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = intView a (mutAsPtr sa) in
+          let vb = intView b (mutAsPtr sb) in
+          intWordFromOwned ((va.ivNeg) /= (vb.ivNeg)) (mulLimbsRaw (va.ivPtr) (va.ivLen) (vb.ivPtr) (vb.ivLen))
+        )
+      )
+
+  cinchIntDiv :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchIntDiv a b =
+    if isImm (bitAndI64 a b) then
+      let av = intImmVal a in
+      let bv = intImmVal b in
+      if bv == 0 then
+        let _ = panicDivByZero () in
+        0
+      else
+        -- av in [-2^62, 2^62 - 1], so av / bv never overflows I64 (even -2^62 / -1 = +2^62 fits I64!)
+        intWordI64 (i64Div av bv)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = intView a (mutAsPtr sa) in
+          let vb = intView b (mutAsPtr sb) in
+          let res = divRemLimbsRaw (va.ivPtr) (va.ivLen) (vb.ivPtr) (vb.ivLen) in
+          let _ = lbFree (res.drR) in
+          intWordFromOwned ((va.ivNeg) /= (vb.ivNeg)) (res.drQ)
+        )
+      )
+
+  cinchIntRem :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchIntRem a b =
+    if isImm (bitAndI64 a b) then
+      let av = intImmVal a in
+      let bv = intImmVal b in
+      if bv == 0 then
+        let _ = panicDivByZero () in
+        0
+      else
+        intImm (i64Rem av bv)
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = intView a (mutAsPtr sa) in
+          let vb = intView b (mutAsPtr sb) in
+          let res = divRemLimbsRaw (va.ivPtr) (va.ivLen) (vb.ivPtr) (vb.ivLen) in
+          let _ = lbFree (res.drQ) in
+          intWordFromOwned (va.ivNeg) (res.drR)
+        )
+      )
+
+  cinchIntNeg :: I64 ->{Global, ThreadAffine} I64
+  cinchIntNeg a =
+    if isImm a then
+      intWordI64 (i64Sub 0 (intImmVal a))
+    else
+      let iv = readBoxInt a in
+      intWordFromOwned (not (iv.ivNeg)) (lbClone (iv.ivPtr) (iv.ivLen))
+
+  cinchIntCmp :: I64 -> I64 ->{Global} I64
+  cinchIntCmp a b =
+    if isImm (bitAndI64 a b) then
+      let av = intImmVal a in
+      let bv = intImmVal b in
+      if i64Lt av bv then i64Sub 0 1
+      else if i64Gt av bv then 1
+      else 0
+    else
+      withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sa ->
+        withLocal (fixedArrayRepeat 2 (0 :: U32)) (\sb ->
+          let va = intView a (mutAsPtr sa) in
+          let vb = intView b (mutAsPtr sb) in
+          let an = va.ivNeg && va.ivLen /= 0 in
+          let bn = vb.ivNeg && vb.ivLen /= 0 in
+          if not an && bn then 1
+          else if an && not bn then i64Sub 0 1
+          else if not an then cmpLimbsRaw (va.ivPtr) (va.ivLen) (vb.ivPtr) (vb.ivLen)
+          else cmpLimbsRaw (vb.ivPtr) (vb.ivLen) (va.ivPtr) (va.ivLen)
+        )
+      )
+
+  cinchIntFromDecimal :: MaybeNull U8 -> Usize ->{Global, ThreadAffine} I64
+  cinchIntFromDecimal ptr len =
+    let ulen = usizeToU64 len in
+    if ulen == 0 then
+      let _ = panicMalformedDecimal () in
+      0
+    else if ptrIsNull ptr then
+      let _ = panicCorruptValue () in
+      0
+    else
+      let p = maybeToRaw ptr in
+      let b0 = loadU8 p 0 in
+      let neg = b0 == 45 in
+      let hasSign = b0 == 45 || b0 == 43 in
+      let dPtr = if hasSign then ptrAddU64 p 1 else p in
+      let dLen = if hasSign then u64Sub ulen 1 else ulen in
+      if dLen == 0 then
+        let _ = panicMalformedDecimal () in
+        0
+      else if u64Le dLen 19 then
+        let r = parseSmallLoop dPtr dLen 0 0 in
+        if not (r.psrOk) then
+          let _ = panicMalformedDecimal () in
+          0
+        else
+          let mag = r.psrVal in
+          if neg then
+            if u64Le mag 4611686018427387904 then intImm (i64Sub 0 (u64ToI64 mag))
+            else boxIntOwned True (lbFromU64 mag)
+          else
+            if u64Le mag 4611686018427387903 then intImm (u64ToI64 mag)
+            else boxIntOwned False (lbFromU64 mag)
+      else
+        let b = parseBigLoop dPtr dLen 0 (lbZero ()) in
+        intWordFromOwned neg b
+
+  cinchIntDecimalLen :: I64 ->{Global, ThreadAffine} Usize
+  cinchIntDecimalLen word =
+    if isImm word then
+      let v = intImmVal word in
+      let neg = i64Lt v 0 in
+      let mag = if neg then u64Sub 0 (i64ToU64 v) else i64ToU64 v in
+      let signBytes = if neg then 1 else 0 in
+      u64ToUsize (u64Add signBytes (u64DigitCount mag))
+    else
+      let iv = readBoxInt word in
+      let signBytes = if iv.ivNeg && iv.ivLen /= 0 then 1 else 0 in
+      u64ToUsize (u64Add signBytes (limbsDecimalLen (iv.ivPtr) (iv.ivLen)))
+
+  cinchIntToDecimal :: I64 -> MaybeNull U8 -> Usize ->{Global, ThreadAffine} Usize
+  cinchIntToDecimal word buf cap =
+    if ptrIsNull buf then
+      let _ = panicCorruptValue () in
+      0
+    else if isImm word then
+      let v = intImmVal word in
+      let neg = i64Lt v 0 in
+      let mag = if neg then u64Sub 0 (i64ToU64 v) else i64ToU64 v in
+      let signBytes = if neg then 1 else 0 in
+      let need = u64Add signBytes (u64DigitCount mag) in
+      if u64Lt (usizeToU64 cap) need then
+        let _ = panicBufferTooSmall () in
+        0
+      else
+        let dst = maybeToRaw buf in
+        let _ = if neg then storeU8 dst 0 45 else () in
+        let _ = writeU64Back dst need mag in
+        u64ToUsize need
+    else
+      let iv = readBoxInt word in
+      u64ToUsize (writeLimbsDecimal (iv.ivPtr) (iv.ivLen) (iv.ivNeg) (maybeToRaw buf) (usizeToU64 cap))
+
+  -- Temporary bridge for Rust eval.rs until Milestone 8
+  cinchRtNatFromLimbs :: MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
+  cinchRtNatFromLimbs ptr len =
+    natWordFromOwned (lbClone ptr (usizeToU64 len))
+
+  cinchRtIntFromParts :: U8 -> MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
+  cinchRtIntFromParts neg ptr len =
+    intWordFromOwned (neg /= 0) (lbClone ptr (usizeToU64 len))
+
+  foreign export ccall "cinch_nat_from_i64" cinchNatFromI64 :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_to_i64" cinchNatToI64 :: I64 ->{Global} I64
+  foreign export ccall "cinch_nat_from_u128" cinchNatFromU128 :: U128 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_to_u128" cinchNatToU128 :: I64 ->{Global} U128
+  foreign export ccall "cinch_nat_low_word" cinchNatLowWord :: I64 ->{Global} I64
+  foreign export ccall "cinch_nat_fits_i64" cinchNatFitsI64 :: I64 ->{Global} I64
+  foreign export ccall "cinch_nat_to_len" cinchNatToLen :: I64 ->{Global} I64
+  foreign export ccall "cinch_nat_add" cinchNatAdd :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_sub" cinchNatSub :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_mul" cinchNatMul :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_div" cinchNatDiv :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_rem" cinchNatRem :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_cmp" cinchNatCmp :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_nat_from_decimal" cinchNatFromDecimal :: MaybeNull U8 -> Usize ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_nat_to_decimal" cinchNatToDecimal :: I64 -> MaybeNull U8 -> Usize ->{Global, ThreadAffine} Usize
+  foreign export ccall "cinch_nat_decimal_len" cinchNatDecimalLen :: I64 ->{Global, ThreadAffine} Usize
+
+  foreign export ccall "cinch_int_from_i64" cinchIntFromI64 :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_to_i64" cinchIntToI64 :: I64 ->{Global} I64
+  foreign export ccall "cinch_int_from_i128" cinchIntFromI128 :: I128 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_to_i128" cinchIntToI128 :: I64 ->{Global} I128
+  foreign export ccall "cinch_int_fits_i64" cinchIntFitsI64 :: I64 ->{Global} I64
+  foreign export ccall "cinch_int_from_nat" cinchIntFromNat :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_to_nat" cinchIntToNat :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_add" cinchIntAdd :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_sub" cinchIntSub :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_mul" cinchIntMul :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_div" cinchIntDiv :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_rem" cinchIntRem :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_neg" cinchIntNeg :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_cmp" cinchIntCmp :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_int_from_decimal" cinchIntFromDecimal :: MaybeNull U8 -> Usize ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_int_to_decimal" cinchIntToDecimal :: I64 -> MaybeNull U8 -> Usize ->{Global, ThreadAffine} Usize
+  foreign export ccall "cinch_int_decimal_len" cinchIntDecimalLen :: I64 ->{Global, ThreadAffine} Usize
+
+  foreign export ccall "cinch_rt_nat_from_limbs" cinchRtNatFromLimbs :: MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_rt_int_from_parts" cinchRtIntFromParts :: U8 -> MaybeNull U32 -> Usize ->{Global, ThreadAffine} I64

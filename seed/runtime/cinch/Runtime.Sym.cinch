@@ -1,0 +1,238 @@
+module Runtime.Sym where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.String
+  import Runtime.Bytes
+
+  export cinchSymIntern, cinchSymName, cinchSymEq, cinchSymCmp
+
+  -- 64-shard concurrent interned symbol table.
+  -- Each SymCell is an immortal KIND_SYM block (16 bytes):
+  --   offset 0: len :: U64
+  --   offset 8: ptr :: MaybeNull U8 (immortal byte buffer, 1 when empty)
+  -- Each hash table slot is 32 bytes:
+  --   offset 0:  hash :: U64
+  --   offset 8:  ptr  :: MaybeNull U8
+  --   offset 16: len  :: U64
+  --   offset 24: cell :: U64 (0 = empty)
+
+  #[static_mut]
+  #[align(128)]
+  static symLocks :: FixedArray 64 U64
+
+  #[static_mut]
+  static symSlots :: FixedArray 64 U64
+
+  #[static_mut]
+  static symCaps :: FixedArray 64 U64
+
+  #[static_mut]
+  static symLens :: FixedArray 64 U64
+
+  shardLock :: U64 ->{Global} Unit
+  shardLock idx =
+    let off = u64ToIsize (u64Mul idx 8) in
+    let prev = atomicSwapU64AcqRel (symLocks ()) off 1 in
+    if prev == 0 then ()
+    else
+      let _ = sysSpinLoop () in
+      shardLock idx
+
+  shardUnlock :: U64 ->{Global} Unit
+  shardUnlock idx =
+    atomicStoreU64Release (symLocks ()) (u64ToIsize (u64Mul idx 8)) 0
+
+  -- SplitMix64 finalizer over FNV-1a 64-bit hash (uniform top 6 bits for sharding).
+  fnvOffset :: U64
+  fnvOffset = 14695981039346656037 -- 0xcbf29ce484222325
+
+  fnvPrime :: U64
+  fnvPrime = 1099511628211 -- 0x100000001b3
+
+  mix64 :: U64 -> U64
+  mix64 z0 =
+    let z1 = u64Mul (bitXorU64 z0 (lshrU64 z0 30)) 13787848793156543929 in -- 0xbf58476d1ce4e5b9
+    let z2 = u64Mul (bitXorU64 z1 (lshrU64 z1 27)) 10723151780598845931 in -- 0x94d049bb133111eb
+    bitXorU64 z2 (lshrU64 z2 31)
+
+  hashLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} U64
+  hashLoop ptr len i h =
+    if u64Ge i len then mix64 (bitXorU64 h len)
+    else
+      let b = u8ToU64 (loadU8 ptr (u64ToIsize i)) in
+      hashLoop ptr len (u64Add i 1) (u64Mul (bitXorU64 h b) fnvPrime)
+
+  hashBytes :: RawPtr U8 -> U64 ->{Global} U64
+  hashBytes ptr len = hashLoop ptr len 0 fnvOffset
+
+  slotOff :: U64 -> Isize
+  slotOff idx = u64ToIsize (u64Mul idx 32)
+
+  bytesEqual :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global} Bool
+  bytesEqual a b len =
+    if len == 0 then True
+    else bytesCompareRaw a len b len == 0
+
+  tableLookupLoop :: RawPtr U8 -> U64 -> U64 -> U64 -> RawPtr U8 -> U64 ->{Global} U64
+  tableLookupLoop slots mask idx hash namePtr nameLen =
+    let off = slotOff idx in
+    let cell = loadU64 slots (i64ToIsize (i64Add (isizeToI64 off) 24)) in
+    if cell == 0 then 0
+    else
+      let sh = loadU64 slots off in
+      let slen = loadU64 slots (i64ToIsize (i64Add (isizeToI64 off) 16)) in
+      if sh == hash && slen == nameLen then
+        let sptr = loadPtr slots (i64ToIsize (i64Add (isizeToI64 off) 8)) in
+        if slen == 0 || bytesEqual (maybeToRaw sptr) namePtr nameLen then cell
+        else tableLookupLoop slots mask (bitAndU64 (u64Add idx 1) mask) hash namePtr nameLen
+      else
+        tableLookupLoop slots mask (bitAndU64 (u64Add idx 1) mask) hash namePtr nameLen
+
+  tableInsertRaw :: RawPtr U8 -> U64 -> U64 -> U64 -> MaybeNull U8 -> U64 -> U64 ->{Global} Unit
+  tableInsertRaw slots mask idx hash ptr len cell =
+    let off = slotOff idx in
+    let existing = loadU64 slots (i64ToIsize (i64Add (isizeToI64 off) 24)) in
+    if existing == 0 then
+      let _ = storeU64 slots off hash in
+      let _ = storePtr slots (i64ToIsize (i64Add (isizeToI64 off) 8)) ptr in
+      let _ = storeU64 slots (i64ToIsize (i64Add (isizeToI64 off) 16)) len in
+      storeU64 slots (i64ToIsize (i64Add (isizeToI64 off) 24)) cell
+    else
+      tableInsertRaw slots mask (bitAndU64 (u64Add idx 1) mask) hash ptr len cell
+
+  rehashLoop :: RawPtr U8 -> U64 -> U64 -> RawPtr U8 -> U64 ->{Global} Unit
+  rehashLoop oldSlots oldCap i newSlots newMask =
+    if u64Ge i oldCap then ()
+    else
+      let off = slotOff i in
+      let cell = loadU64 oldSlots (i64ToIsize (i64Add (isizeToI64 off) 24)) in
+      let _ = (if cell /= 0 then
+          let h = loadU64 oldSlots off in
+          let p = loadPtr oldSlots (i64ToIsize (i64Add (isizeToI64 off) 8)) in
+          let l = loadU64 oldSlots (i64ToIsize (i64Add (isizeToI64 off) 16)) in
+          tableInsertRaw newSlots newMask (bitAndU64 h newMask) h p l cell
+        else ()) in
+      rehashLoop oldSlots oldCap (u64Add i 1) newSlots newMask
+
+  growShard :: U64 ->{Global, ThreadAffine} Unit
+  growShard sidx =
+    let soff = u64ToIsize (u64Mul sidx 8) in
+    let oldCap = loadU64 (symCaps ()) soff in
+    let newCap = if oldCap == 0 then 16 else u64Mul oldCap 2 in
+    let newBytes = u64ToUsize (u64Mul newCap 32) in
+    let newSlots = heapGlobalAlloc newBytes 8 1 in
+    let newMask = u64Sub newCap 1 in
+    let oldRaw = loadU64 (symSlots ()) soff in
+    let _ = (if oldCap /= 0 && oldRaw /= 0 then
+        let oldSlots = maybeToRaw (ptrFromU64 oldRaw) in
+        let _ = rehashLoop oldSlots oldCap 0 newSlots newMask in
+        heapGlobalDealloc oldSlots (u64ToUsize (u64Mul oldCap 32)) 8
+      else ()) in
+    let _ = storeU64 (symSlots ()) soff (rawToU64 newSlots) in
+    storeU64 (symCaps ()) soff newCap
+
+  readSymCell :: I64 ->{Global} RawPtr U8
+  readSymCell word =
+    if word == 0 || bitAndI64 word 1 /= 0 then
+      let _ = panicCorruptValue () in
+      maybeToRaw (ptrFromU64 1)
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindSym then
+        let _ = panicCorruptValue () in
+        p
+      else p
+
+  internSlice :: RawPtr U8 -> U64 ->{Global, ThreadAffine} I64
+  internSlice namePtr nameLen =
+    let hash = hashBytes namePtr nameLen in
+    let sidx = lshrU64 hash 58 in
+    let soff = u64ToIsize (u64Mul sidx 8) in
+    let _ = shardLock sidx in
+    let cap = loadU64 (symCaps ()) soff in
+    let hit =
+          (if cap == 0 then 0
+          else
+            let slots = maybeToRaw (ptrFromU64 (loadU64 (symSlots ()) soff)) in
+            let mask = u64Sub cap 1 in
+            tableLookupLoop slots mask (bitAndU64 hash mask) hash namePtr nameLen) in
+    if hit /= 0 then
+      let _ = shardUnlock sidx in
+      u64ToI64 hit
+    else if not (utf8ValidateSlice namePtr nameLen) then
+      let _ = shardUnlock sidx in
+      let _ = panicMalformedName () in
+      0
+    else
+      -- Allocate immortal byte buffer + immortal SymCell block
+      let bufPtr =
+            (if nameLen == 0 then ptrFromU64 1
+            else
+              let raw = heapGlobalAlloc (u64ToUsize nameLen) 1 0 in
+              let _ = memCopy raw namePtr (u64ToUsize nameLen) in
+              rawToMaybe raw) in
+      let cellBlk = allocate 16 kindSym rcImmortal False in
+      let _ = storeU64 cellBlk 0 nameLen in
+      let _ = storePtr cellBlk 8 bufPtr in
+      let cellU = rawToU64 cellBlk in
+      let curLen = loadU64 (symLens ()) soff in
+      let _ = (if cap == 0 || u64Ge (u64Mul (u64Add curLen 1) 10) (u64Mul cap 7) then
+          growShard sidx
+        else ()) in
+      let newCap = loadU64 (symCaps ()) soff in
+      let newSlots = maybeToRaw (ptrFromU64 (loadU64 (symSlots ()) soff)) in
+      let newMask = u64Sub newCap 1 in
+      let _ = tableInsertRaw newSlots newMask (bitAndU64 hash newMask) hash bufPtr nameLen cellU in
+      let _ = storeU64 (symLens ()) soff (u64Add curLen 1) in
+      let _ = shardUnlock sidx in
+      u64ToI64 cellU
+
+  cinchSymIntern :: MaybeNull U8 -> I64 ->{Global, ThreadAffine} I64
+  cinchSymIntern ptr len =
+    if i64Lt len 0 then
+      let _ = panicCorruptValue () in
+      0
+    else if len == 0 then
+      internSlice (maybeToRaw (ptrFromU64 1)) 0
+    else if ptrIsNull ptr then
+      let _ = panicCorruptValue () in
+      0
+    else
+      internSlice (maybeToRaw ptr) (i64ToU64 len)
+
+  cinchSymName :: I64 ->{Global, ThreadAffine} I64
+  cinchSymName word =
+    let cell = readSymCell word in
+    let len = loadU64 cell 0 in
+    let ptr = loadPtr cell 8 in
+    let rp = if len == 0 || ptrIsNull ptr then maybeToRaw (ptrFromU64 1) else maybeToRaw ptr in
+    bytesBoxCopy rp len
+
+  cinchSymEq :: I64 -> I64 ->{Global} I64
+  cinchSymEq a b =
+    let ca = readSymCell a in
+    let cb = readSymCell b in
+    if rawToU64 ca == rawToU64 cb then 1 else 0
+
+  cinchSymCmp :: I64 -> I64 ->{Global} I64
+  cinchSymCmp a b =
+    let ca = readSymCell a in
+    let cb = readSymCell b in
+    if rawToU64 ca == rawToU64 cb then 0
+    else
+      let la = loadU64 ca 0 in
+      let pa = loadPtr ca 8 in
+      let rpa = if la == 0 || ptrIsNull pa then maybeToRaw (ptrFromU64 1) else maybeToRaw pa in
+      let lb = loadU64 cb 0 in
+      let pb = loadPtr cb 8 in
+      let rpb = if lb == 0 || ptrIsNull pb then maybeToRaw (ptrFromU64 1) else maybeToRaw pb in
+      bytesCompareRaw rpa la rpb lb
+
+  foreign export ccall "cinch_sym_intern" cinchSymIntern :: MaybeNull U8 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_sym_name" cinchSymName :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_sym_eq" cinchSymEq :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_sym_cmp" cinchSymCmp :: I64 -> I64 ->{Global} I64

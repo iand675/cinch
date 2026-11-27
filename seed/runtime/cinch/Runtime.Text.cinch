@@ -1,0 +1,918 @@
+module Runtime.Text where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+  import Runtime.Bytes
+  import Runtime.BigNum
+
+  export cinchTextSha256, cinchTextSha512, cinchTextSha1, cinchTextMd5
+  export cinchTextHmacSha256, cinchTextF64ToDecimal, cinchTextF64FromDecimal
+
+  -- =========================================================================
+  -- Constant table helpers (lazy one-time init into #[static_mut] arrays)
+  -- =========================================================================
+
+  put4U32 :: RawPtr U32 -> Isize -> U32 -> U32 -> U32 -> U32 ->{Global} Unit
+  put4U32 p off a b c d =
+    let q = ptrAdd p off in
+    let _ = storeU32 q 0 a in
+    let _ = storeU32 q 4 b in
+    let _ = storeU32 q 8 c in
+    storeU32 q 12 d
+
+  put4U64 :: RawPtr U64 -> Isize -> U64 -> U64 -> U64 -> U64 ->{Global} Unit
+  put4U64 p off a b c d =
+    let q = ptrAdd p off in
+    let _ = storeU64 q 0 a in
+    let _ = storeU64 q 8 b in
+    let _ = storeU64 q 16 c in
+    storeU64 q 24 d
+
+  #[static_mut]
+  static kTablesReady :: U64
+
+  #[static_mut]
+  static sha256K :: FixedArray 64 U32
+
+  #[static_mut]
+  static sha512K :: FixedArray 80 U64
+
+  #[static_mut]
+  static md5K :: FixedArray 64 U32
+
+  initSha256K :: Unit ->{Global} Unit
+  initSha256K _ =
+    let p = ptrCast (sha256K ()) in
+    let _ = put4U32 p 0 1116352408 1899447441 3049323471 3921009573 in
+    let _ = put4U32 p 16 961987163 1508970993 2453635748 2870763221 in
+    let _ = put4U32 p 32 3624381080 310598401 607225278 1426881987 in
+    let _ = put4U32 p 48 1925078388 2162078206 2614888103 3248222580 in
+    let _ = put4U32 p 64 3835390401 4022224774 264347078 604807628 in
+    let _ = put4U32 p 80 770255983 1249150122 1555081692 1996064986 in
+    let _ = put4U32 p 96 2554220882 2821834349 2952996808 3210313671 in
+    let _ = put4U32 p 112 3336571891 3584528711 113926993 338241895 in
+    let _ = put4U32 p 128 666307205 773529912 1294757372 1396182291 in
+    let _ = put4U32 p 144 1695183700 1986661051 2177026350 2456956037 in
+    let _ = put4U32 p 160 2730485921 2820302411 3259730800 3345764771 in
+    let _ = put4U32 p 176 3516065817 3600352804 4094571909 275423344 in
+    let _ = put4U32 p 192 430227734 506948616 659060556 883997877 in
+    let _ = put4U32 p 208 958139571 1322822218 1537002063 1747873779 in
+    let _ = put4U32 p 224 1955562222 2024104815 2227730452 2361852424 in
+    put4U32 p 240 2428436474 2756734187 3204031479 3329325298
+
+  initSha512K1 :: Unit ->{Global} Unit
+  initSha512K1 _ =
+    let p = ptrCast (sha512K ()) in
+    let _ = put4U64 p 0 4794697086780616226 8158064640168781261 13096744586834688815 16840607885511220156 in
+    let _ = put4U64 p 32 4131703408338449720 6480981068601479193 10538285296894168987 12329834152419229976 in
+    let _ = put4U64 p 64 15566598209576043074 1334009975649890238 2608012711638119052 6128411473006802146 in
+    let _ = put4U64 p 96 8268148722764581231 9286055187155687089 11230858885718282805 13951009754708518548 in
+    let _ = put4U64 p 128 16472876342353939154 17275323862435702243 1135362057144423861 2597628984639134821 in
+    let _ = put4U64 p 160 3308224258029322869 5365058923640841347 6679025012923562964 8573033837759648693 in
+    let _ = put4U64 p 192 10970295158949994411 12119686244451234320 12683024718118986047 13788192230050041572 in
+    let _ = put4U64 p 224 14330467153632333762 15395433587784984357 489312712824947311 1452737877330783856 in
+    let _ = put4U64 p 256 2861767655752347644 3322285676063803686 5560940570517711597 5996557281743188959 in
+    put4U64 p 288 7280758554555802590 8532644243296465576 9350256976987008742 10552545826968843579
+
+  initSha512K2 :: Unit ->{Global} Unit
+  initSha512K2 _ =
+    let p = ptrCast (sha512K ()) in
+    let _ = put4U64 p 320 11727347734174303076 12113106623233404929 14000437183269869457 14369950271660146224 in
+    let _ = put4U64 p 352 15101387698204529176 15463397548674623760 17586052441742319658 1182934255886127544 in
+    let _ = put4U64 p 384 1847814050463011016 2177327727835720531 2830643537854262169 3796741975233480872 in
+    let _ = put4U64 p 416 4115178125766777443 5681478168544905931 6601373596472566643 7507060721942968483 in
+    let _ = put4U64 p 448 8399075790359081724 8693463985226723168 9568029438360202098 10144078919501101548 in
+    let _ = put4U64 p 480 10430055236837252648 11840083180663258601 13761210420658862357 14299343276471374635 in
+    let _ = put4U64 p 512 14566680578165727644 15097957966210449927 16922976911328602910 17689382322260857208 in
+    let _ = put4U64 p 544 500013540394364858 748580250866718886 1242879168328830382 1977374033974150939 in
+    let _ = put4U64 p 576 2944078676154940804 3659926193048069267 4368137639120453308 4836135668995329356 in
+    put4U64 p 608 5532061633213252278 6448918945643986474 6902733635092675308 7801388544844847127
+
+  initMd5K :: Unit ->{Global} Unit
+  initMd5K _ =
+    let p = ptrCast (md5K ()) in
+    let _ = put4U32 p 0 3614090360 3905402710 606105819 3250441966 in
+    let _ = put4U32 p 16 4118548399 1200080426 2821735955 4249261313 in
+    let _ = put4U32 p 32 1770035416 2336552879 4294925233 2304563134 in
+    let _ = put4U32 p 48 1804603682 4254626195 2792965006 1236535329 in
+    let _ = put4U32 p 64 4129170786 3225465664 643717713 3921069994 in
+    let _ = put4U32 p 80 3593408605 38016083 3634488961 3889429448 in
+    let _ = put4U32 p 96 568446438 3275163606 4107603335 1163531501 in
+    let _ = put4U32 p 112 2850285829 4243563512 1735328473 2368359562 in
+    let _ = put4U32 p 128 4294588738 2272392833 1839030562 4259657740 in
+    let _ = put4U32 p 144 2763975236 1272893353 4139469664 3200236656 in
+    let _ = put4U32 p 160 681279174 3936430074 3572445317 76029189 in
+    let _ = put4U32 p 176 3654602809 3873151461 530742520 3299628645 in
+    let _ = put4U32 p 192 4096336452 1126891415 2878612391 4237533241 in
+    let _ = put4U32 p 208 1700485571 2399980690 4293915773 2240044497 in
+    let _ = put4U32 p 224 1873313359 4264355552 2734768916 1309151649 in
+    put4U32 p 240 4149444226 3174756917 718787259 3951481745
+
+  ensureKTables :: Unit ->{Global} Unit
+  ensureKTables _ =
+    if atomicLoadU64Acquire (kTablesReady ()) 0 == 2 then ()
+    else if atomicCasU64Bool (kTablesReady ()) 0 0 1 then
+      let _ = initSha256K () in
+      let _ = initSha512K1 () in
+      let _ = initSha512K2 () in
+      let _ = initMd5K () in
+      atomicStoreU64Release (kTablesReady ()) 0 2
+    else
+      let _ = sysSpinLoop () in
+      ensureKTables ()
+
+  -- =========================================================================
+  -- SHA-256 (FIPS 180-4)
+  -- =========================================================================
+
+  sha256InitH :: RawPtr U32 ->{Global} Unit
+  sha256InitH h =
+    let _ = put4U32 h 0 1779033703 3144134277 1013904242 2773480762 in
+    put4U32 h 16 1359893119 2600822924 528734635 1541459225
+
+  sha256LoadW :: RawPtr U32 -> RawPtr U8 -> U64 ->{Global} Unit
+  sha256LoadW w chunk i =
+    if u64Ge i 16 then ()
+    else
+      let off = u64ToIsize (u64Mul i 4) in
+      let v = bswapU32 (loadU32Unaligned chunk off) in
+      let _ = storeU32 w off v in
+      sha256LoadW w chunk (u64Add i 1)
+
+  sha256ExpandW :: RawPtr U32 -> U64 ->{Global} Unit
+  sha256ExpandW w i =
+    if u64Ge i 64 then ()
+    else
+      let w15 = loadU32 w (u64ToIsize (u64Mul (u64Sub i 15) 4)) in
+      let w2 = loadU32 w (u64ToIsize (u64Mul (u64Sub i 2) 4)) in
+      let s0 = bitXorU32 (bitXorU32 (rotrU32 w15 7) (rotrU32 w15 18)) (lshrU32 w15 3) in
+      let s1 = bitXorU32 (bitXorU32 (rotrU32 w2 17) (rotrU32 w2 19)) (lshrU32 w2 10) in
+      let w16 = loadU32 w (u64ToIsize (u64Mul (u64Sub i 16) 4)) in
+      let w7 = loadU32 w (u64ToIsize (u64Mul (u64Sub i 7) 4)) in
+      let _ = storeU32 w (u64ToIsize (u64Mul i 4)) (u32Add (u32Add w16 s0) (u32Add w7 s1)) in
+      sha256ExpandW w (u64Add i 1)
+
+  sha256RoundLoop :: RawPtr U32 -> RawPtr U32 -> U64 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 ->{Global} Unit
+  sha256RoundLoop h w i a b c d e f g hh =
+    if u64Ge i 64 then
+      let _ = storeU32 h 0 (u32Add (loadU32 h 0) a) in
+      let _ = storeU32 h 4 (u32Add (loadU32 h 4) b) in
+      let _ = storeU32 h 8 (u32Add (loadU32 h 8) c) in
+      let _ = storeU32 h 12 (u32Add (loadU32 h 12) d) in
+      let _ = storeU32 h 16 (u32Add (loadU32 h 16) e) in
+      let _ = storeU32 h 20 (u32Add (loadU32 h 20) f) in
+      let _ = storeU32 h 24 (u32Add (loadU32 h 24) g) in
+      storeU32 h 28 (u32Add (loadU32 h 28) hh)
+    else
+      let off = u64ToIsize (u64Mul i 4) in
+      let s1 = bitXorU32 (bitXorU32 (rotrU32 e 6) (rotrU32 e 11)) (rotrU32 e 25) in
+      let ch = bitXorU32 (bitAndU32 e f) (bitAndU32 (u32BitNot e) g) in
+      let ki = loadU32 (sha256K ()) off in
+      let wi = loadU32 w off in
+      let t1 = u32Add (u32Add (u32Add hh s1) (u32Add ch ki)) wi in
+      let s0 = bitXorU32 (bitXorU32 (rotrU32 a 2) (rotrU32 a 13)) (rotrU32 a 22) in
+      let maj = bitXorU32 (bitXorU32 (bitAndU32 a b) (bitAndU32 a c)) (bitAndU32 b c) in
+      let t2 = u32Add s0 maj in
+      sha256RoundLoop h w (u64Add i 1) (u32Add t1 t2) a b c (u32Add d t1) e f g
+
+  sha256Compress :: RawPtr U32 -> RawPtr U8 ->{Global} Unit
+  sha256Compress h chunk =
+    withLocal (fixedArrayRepeat 64 (0 :: U32)) (\wArr ->
+      let w = mutAsPtr wArr in
+      let _ = sha256LoadW w chunk 0 in
+      let _ = sha256ExpandW w 16 in
+      sha256RoundLoop h w 0
+        (loadU32 h 0) (loadU32 h 4) (loadU32 h 8) (loadU32 h 12)
+        (loadU32 h 16) (loadU32 h 20) (loadU32 h 24) (loadU32 h 28)
+    )
+
+  sha256BlocksLoop :: RawPtr U32 -> RawPtr U8 -> U64 -> U64 ->{Global} U64
+  sha256BlocksLoop h ptr len off =
+    if u64Gt (u64Add off 64) len then off
+    else
+      let _ = sha256Compress h (ptrAddU64 ptr off) in
+      sha256BlocksLoop h ptr len (u64Add off 64)
+
+  sha256FinishStream :: RawPtr U32 -> RawPtr U8 -> U64 -> U64 -> RawPtr U8 ->{Global} Unit
+  sha256FinishStream h ptr len totalBytes out =
+    let off = sha256BlocksLoop h ptr len 0 in
+    let rem = u64Sub len off in
+    let _ = withLocal (fixedArrayRepeat 128 (0 :: U8)) (\padArr ->
+      let pad = mutAsPtr padArr in
+      let _ = if rem /= 0 then memCopy pad (ptrAddU64 ptr off) (u64ToUsize rem) else () in
+      let _ = storeU8 pad (u64ToIsize rem) 128 in
+      let endPos = if u64Lt rem 56 then 64 else 128 in
+      let bits = u64Mul totalBytes 8 in
+      let _ = storeU64Unaligned pad (u64ToIsize (u64Sub endPos 8)) (bswapU64 bits) in
+      let _ = sha256Compress h pad in
+      if endPos == 128 then sha256Compress h (ptrAddU64 pad 64) else ()
+    ) in
+    let _ = storeU32Unaligned out 0 (bswapU32 (loadU32 h 0)) in
+    let _ = storeU32Unaligned out 4 (bswapU32 (loadU32 h 4)) in
+    let _ = storeU32Unaligned out 8 (bswapU32 (loadU32 h 8)) in
+    let _ = storeU32Unaligned out 12 (bswapU32 (loadU32 h 12)) in
+    let _ = storeU32Unaligned out 16 (bswapU32 (loadU32 h 16)) in
+    let _ = storeU32Unaligned out 20 (bswapU32 (loadU32 h 20)) in
+    let _ = storeU32Unaligned out 24 (bswapU32 (loadU32 h 24)) in
+    storeU32Unaligned out 28 (bswapU32 (loadU32 h 28))
+
+  sha256Raw :: RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  sha256Raw ptr len out =
+    let _ = ensureKTables () in
+    withLocal (fixedArrayRepeat 8 (0 :: U32)) (\hArr ->
+      let h = mutAsPtr hArr in
+      let _ = sha256InitH h in
+      sha256FinishStream h ptr len len out
+    )
+
+  -- =========================================================================
+  -- SHA-512 (FIPS 180-4)
+  -- =========================================================================
+
+  sha512InitH :: RawPtr U64 ->{Global} Unit
+  sha512InitH h =
+    let _ = put4U64 h 0 7640891576956012808 13503953896175478587 4354685564936845355 11912009170470909681 in
+    put4U64 h 32 5840696475078001361 11170449401992604703 2270897969802886507 6620516959819538809
+
+  sha512LoadW :: RawPtr U64 -> RawPtr U8 -> U64 ->{Global} Unit
+  sha512LoadW w chunk i =
+    if u64Ge i 16 then ()
+    else
+      let off = u64ToIsize (u64Mul i 8) in
+      let _ = storeU64 w off (bswapU64 (loadU64Unaligned chunk off)) in
+      sha512LoadW w chunk (u64Add i 1)
+
+  sha512ExpandW :: RawPtr U64 -> U64 ->{Global} Unit
+  sha512ExpandW w i =
+    if u64Ge i 80 then ()
+    else
+      let w15 = loadU64 w (u64ToIsize (u64Mul (u64Sub i 15) 8)) in
+      let w2 = loadU64 w (u64ToIsize (u64Mul (u64Sub i 2) 8)) in
+      let s0 = bitXorU64 (bitXorU64 (rotrU64 w15 1) (rotrU64 w15 8)) (lshrU64 w15 7) in
+      let s1 = bitXorU64 (bitXorU64 (rotrU64 w2 19) (rotrU64 w2 61)) (lshrU64 w2 6) in
+      let w16 = loadU64 w (u64ToIsize (u64Mul (u64Sub i 16) 8)) in
+      let w7 = loadU64 w (u64ToIsize (u64Mul (u64Sub i 7) 8)) in
+      let _ = storeU64 w (u64ToIsize (u64Mul i 8)) (u64Add (u64Add w16 s0) (u64Add w7 s1)) in
+      sha512ExpandW w (u64Add i 1)
+
+  sha512RoundLoop :: RawPtr U64 -> RawPtr U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 ->{Global} Unit
+  sha512RoundLoop h w i a b c d e f g hh =
+    if u64Ge i 80 then
+      let _ = storeU64 h 0 (u64Add (loadU64 h 0) a) in
+      let _ = storeU64 h 8 (u64Add (loadU64 h 8) b) in
+      let _ = storeU64 h 16 (u64Add (loadU64 h 16) c) in
+      let _ = storeU64 h 24 (u64Add (loadU64 h 24) d) in
+      let _ = storeU64 h 32 (u64Add (loadU64 h 32) e) in
+      let _ = storeU64 h 40 (u64Add (loadU64 h 40) f) in
+      let _ = storeU64 h 48 (u64Add (loadU64 h 48) g) in
+      storeU64 h 56 (u64Add (loadU64 h 56) hh)
+    else
+      let off = u64ToIsize (u64Mul i 8) in
+      let s1 = bitXorU64 (bitXorU64 (rotrU64 e 14) (rotrU64 e 18)) (rotrU64 e 41) in
+      let ch = bitXorU64 (bitAndU64 e f) (bitAndU64 (u64BitNot e) g) in
+      let ki = loadU64 (sha512K ()) off in
+      let wi = loadU64 w off in
+      let t1 = u64Add (u64Add (u64Add hh s1) (u64Add ch ki)) wi in
+      let s0 = bitXorU64 (bitXorU64 (rotrU64 a 28) (rotrU64 a 34)) (rotrU64 a 39) in
+      let maj = bitXorU64 (bitXorU64 (bitAndU64 a b) (bitAndU64 a c)) (bitAndU64 b c) in
+      let t2 = u64Add s0 maj in
+      sha512RoundLoop h w (u64Add i 1) (u64Add t1 t2) a b c (u64Add d t1) e f g
+
+  sha512Compress :: RawPtr U64 -> RawPtr U8 ->{Global} Unit
+  sha512Compress h chunk =
+    withLocal (fixedArrayRepeat 80 (0 :: U64)) (\wArr ->
+      let w = mutAsPtr wArr in
+      let _ = sha512LoadW w chunk 0 in
+      let _ = sha512ExpandW w 16 in
+      sha512RoundLoop h w 0
+        (loadU64 h 0) (loadU64 h 8) (loadU64 h 16) (loadU64 h 24)
+        (loadU64 h 32) (loadU64 h 40) (loadU64 h 48) (loadU64 h 56)
+    )
+
+  sha512BlocksLoop :: RawPtr U64 -> RawPtr U8 -> U64 -> U64 ->{Global} U64
+  sha512BlocksLoop h ptr len off =
+    if u64Gt (u64Add off 128) len then off
+    else
+      let _ = sha512Compress h (ptrAddU64 ptr off) in
+      sha512BlocksLoop h ptr len (u64Add off 128)
+
+  sha512Raw :: RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  sha512Raw ptr len out =
+    let _ = ensureKTables () in
+    withLocal (fixedArrayRepeat 8 (0 :: U64)) (\hArr ->
+      let h = mutAsPtr hArr in
+      let _ = sha512InitH h in
+      let off = sha512BlocksLoop h ptr len 0 in
+      let rem = u64Sub len off in
+      let _ = withLocal (fixedArrayRepeat 256 (0 :: U8)) (\padArr ->
+        let pad = mutAsPtr padArr in
+        let _ = if rem /= 0 then memCopy pad (ptrAddU64 ptr off) (u64ToUsize rem) else () in
+        let _ = storeU8 pad (u64ToIsize rem) 128 in
+        let endPos = if u64Lt rem 112 then 128 else 256 in
+        let bitsHi = lshrU64 len 61 in
+        let bitsLo = shlU64 len 3 in
+        let _ = storeU64Unaligned pad (u64ToIsize (u64Sub endPos 16)) (bswapU64 bitsHi) in
+        let _ = storeU64Unaligned pad (u64ToIsize (u64Sub endPos 8)) (bswapU64 bitsLo) in
+        let _ = sha512Compress h pad in
+        if endPos == 256 then sha512Compress h (ptrAddU64 pad 128) else ()
+      ) in
+      let _ = storeU64Unaligned out 0 (bswapU64 (loadU64 h 0)) in
+      let _ = storeU64Unaligned out 8 (bswapU64 (loadU64 h 8)) in
+      let _ = storeU64Unaligned out 16 (bswapU64 (loadU64 h 16)) in
+      let _ = storeU64Unaligned out 24 (bswapU64 (loadU64 h 24)) in
+      let _ = storeU64Unaligned out 32 (bswapU64 (loadU64 h 32)) in
+      let _ = storeU64Unaligned out 40 (bswapU64 (loadU64 h 40)) in
+      let _ = storeU64Unaligned out 48 (bswapU64 (loadU64 h 48)) in
+      storeU64Unaligned out 56 (bswapU64 (loadU64 h 56))
+    )
+
+  -- =========================================================================
+  -- SHA-1 (FIPS 180-1)
+  -- =========================================================================
+
+  sha1ExpandW :: RawPtr U32 -> U64 ->{Global} Unit
+  sha1ExpandW w i =
+    if u64Ge i 80 then ()
+    else
+      let x = bitXorU32
+                (bitXorU32 (loadU32 w (u64ToIsize (u64Mul (u64Sub i 3) 4)))
+                           (loadU32 w (u64ToIsize (u64Mul (u64Sub i 8) 4))))
+                (bitXorU32 (loadU32 w (u64ToIsize (u64Mul (u64Sub i 14) 4)))
+                           (loadU32 w (u64ToIsize (u64Mul (u64Sub i 16) 4)))) in
+      let _ = storeU32 w (u64ToIsize (u64Mul i 4)) (rotlU32 x 1) in
+      sha1ExpandW w (u64Add i 1)
+
+  sha1RoundLoop :: RawPtr U32 -> RawPtr U32 -> U64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{Global} Unit
+  sha1RoundLoop h w i a b c d e =
+    if u64Ge i 80 then
+      let _ = storeU32 h 0 (u32Add (loadU32 h 0) a) in
+      let _ = storeU32 h 4 (u32Add (loadU32 h 4) b) in
+      let _ = storeU32 h 8 (u32Add (loadU32 h 8) c) in
+      let _ = storeU32 h 12 (u32Add (loadU32 h 12) d) in
+      storeU32 h 16 (u32Add (loadU32 h 16) e)
+    else
+      let f =
+            (if u64Lt i 20 then bitXorU32 d (bitAndU32 b (bitXorU32 c d))
+            else if u64Lt i 40 then bitXorU32 (bitXorU32 b c) d
+            else if u64Lt i 60 then bitOrU32 (bitAndU32 b c) (bitAndU32 d (bitOrU32 b c))
+            else bitXorU32 (bitXorU32 b c) d) in
+      let k =
+            (if u64Lt i 20 then 1518500249
+            else if u64Lt i 40 then 1859775393
+            else if u64Lt i 60 then 2400959708
+            else 3395469782) in
+      let wi = loadU32 w (u64ToIsize (u64Mul i 4)) in
+      let temp = u32Add (u32Add (rotlU32 a 5) f) (u32Add (u32Add e k) wi) in
+      sha1RoundLoop h w (u64Add i 1) temp a (rotlU32 b 30) c d
+
+  sha1Compress :: RawPtr U32 -> RawPtr U8 ->{Global} Unit
+  sha1Compress h chunk =
+    withLocal (fixedArrayRepeat 80 (0 :: U32)) (\wArr ->
+      let w = mutAsPtr wArr in
+      let _ = sha256LoadW w chunk 0 in
+      let _ = sha1ExpandW w 16 in
+      sha1RoundLoop h w 0
+        (loadU32 h 0) (loadU32 h 4) (loadU32 h 8) (loadU32 h 12) (loadU32 h 16)
+    )
+
+  sha1BlocksLoop :: RawPtr U32 -> RawPtr U8 -> U64 -> U64 ->{Global} U64
+  sha1BlocksLoop h ptr len off =
+    if u64Gt (u64Add off 64) len then off
+    else
+      let _ = sha1Compress h (ptrAddU64 ptr off) in
+      sha1BlocksLoop h ptr len (u64Add off 64)
+
+  sha1Raw :: RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  sha1Raw ptr len out =
+    withLocal (fixedArrayRepeat 5 (0 :: U32)) (\hArr ->
+      let h = mutAsPtr hArr in
+      let _ = put4U32 h 0 1732584193 4023233417 2562383102 271733878 in
+      let _ = storeU32 h 16 3285377520 in
+      let off = sha1BlocksLoop h ptr len 0 in
+      let rem = u64Sub len off in
+      let _ = withLocal (fixedArrayRepeat 128 (0 :: U8)) (\padArr ->
+        let pad = mutAsPtr padArr in
+        let _ = if rem /= 0 then memCopy pad (ptrAddU64 ptr off) (u64ToUsize rem) else () in
+        let _ = storeU8 pad (u64ToIsize rem) 128 in
+        let endPos = if u64Lt rem 56 then 64 else 128 in
+        let _ = storeU64Unaligned pad (u64ToIsize (u64Sub endPos 8)) (bswapU64 (u64Mul len 8)) in
+        let _ = sha1Compress h pad in
+        if endPos == 128 then sha1Compress h (ptrAddU64 pad 64) else ()
+      ) in
+      let _ = storeU32Unaligned out 0 (bswapU32 (loadU32 h 0)) in
+      let _ = storeU32Unaligned out 4 (bswapU32 (loadU32 h 4)) in
+      let _ = storeU32Unaligned out 8 (bswapU32 (loadU32 h 8)) in
+      let _ = storeU32Unaligned out 12 (bswapU32 (loadU32 h 12)) in
+      storeU32Unaligned out 16 (bswapU32 (loadU32 h 16))
+    )
+
+  -- =========================================================================
+  -- MD5 (RFC 1321)
+  -- =========================================================================
+
+  md5Shift :: U64 -> U32
+  md5Shift i =
+    let r = bitAndU64 i 3 in
+    if u64Lt i 16 then
+      if r == 0 then 7 else if r == 1 then 12 else if r == 2 then 17 else 22
+    else if u64Lt i 32 then
+      if r == 0 then 5 else if r == 1 then 9 else if r == 2 then 14 else 20
+    else if u64Lt i 48 then
+      if r == 0 then 4 else if r == 1 then 11 else if r == 2 then 16 else 23
+    else
+      if r == 0 then 6 else if r == 1 then 10 else if r == 2 then 15 else 21
+
+  md5RoundLoop :: RawPtr U32 -> RawPtr U8 -> U64 -> U32 -> U32 -> U32 -> U32 ->{Global} Unit
+  md5RoundLoop h chunk i a b c d =
+    if u64Ge i 64 then
+      let _ = storeU32 h 0 (u32Add (loadU32 h 0) a) in
+      let _ = storeU32 h 4 (u32Add (loadU32 h 4) b) in
+      let _ = storeU32 h 8 (u32Add (loadU32 h 8) c) in
+      storeU32 h 12 (u32Add (loadU32 h 12) d)
+    else
+      let f =
+            (if u64Lt i 16 then bitXorU32 d (bitAndU32 b (bitXorU32 c d))
+            else if u64Lt i 32 then bitXorU32 c (bitAndU32 d (bitXorU32 b c))
+            else if u64Lt i 48 then bitXorU32 (bitXorU32 b c) d
+            else bitXorU32 c (bitOrU32 b (u32BitNot d))) in
+      let g =
+            (if u64Lt i 16 then i
+            else if u64Lt i 32 then bitAndU64 (u64Add (u64Mul 5 i) 1) 15
+            else if u64Lt i 48 then bitAndU64 (u64Add (u64Mul 3 i) 5) 15
+            else bitAndU64 (u64Mul 7 i) 15) in
+      let mg = loadU32Unaligned chunk (u64ToIsize (u64Mul g 4)) in
+      let ki = loadU32 (md5K ()) (u64ToIsize (u64Mul i 4)) in
+      let sum = u32Add (u32Add a f) (u32Add ki mg) in
+      let nextB = u32Add b (rotlU32 sum (md5Shift i)) in
+      md5RoundLoop h chunk (u64Add i 1) d nextB b c
+
+  md5BlocksLoop :: RawPtr U32 -> RawPtr U8 -> U64 -> U64 ->{Global} U64
+  md5BlocksLoop h ptr len off =
+    if u64Gt (u64Add off 64) len then off
+    else
+      let _ = md5RoundLoop h (ptrAddU64 ptr off) 0 (loadU32 h 0) (loadU32 h 4) (loadU32 h 8) (loadU32 h 12) in
+      md5BlocksLoop h ptr len (u64Add off 64)
+
+  md5Raw :: RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  md5Raw ptr len out =
+    let _ = ensureKTables () in
+    withLocal (fixedArrayRepeat 4 (0 :: U32)) (\hArr ->
+      let h = mutAsPtr hArr in
+      let _ = put4U32 h 0 1732584193 4023233417 2562383102 271733878 in
+      let off = md5BlocksLoop h ptr len 0 in
+      let rem = u64Sub len off in
+      let _ = withLocal (fixedArrayRepeat 128 (0 :: U8)) (\padArr ->
+        let pad = mutAsPtr padArr in
+        let _ = if rem /= 0 then memCopy pad (ptrAddU64 ptr off) (u64ToUsize rem) else () in
+        let _ = storeU8 pad (u64ToIsize rem) 128 in
+        let endPos = if u64Lt rem 56 then 64 else 128 in
+        -- Little-endian 64-bit bit length
+        let _ = storeU64Unaligned pad (u64ToIsize (u64Sub endPos 8)) (u64Mul len 8) in
+        let _ = md5RoundLoop h pad 0 (loadU32 h 0) (loadU32 h 4) (loadU32 h 8) (loadU32 h 12) in
+        if endPos == 128 then
+          md5RoundLoop h (ptrAddU64 pad 64) 0 (loadU32 h 0) (loadU32 h 4) (loadU32 h 8) (loadU32 h 12)
+        else ()
+      ) in
+      let _ = storeU32Unaligned out 0 (loadU32 h 0) in
+      let _ = storeU32Unaligned out 4 (loadU32 h 4) in
+      let _ = storeU32Unaligned out 8 (loadU32 h 8) in
+      storeU32Unaligned out 12 (loadU32 h 12)
+    )
+
+  -- =========================================================================
+  -- HMAC-SHA-256 (RFC 2104)
+  -- =========================================================================
+
+  xorPadLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> U64 ->{Global} Unit
+  xorPadLoop k ipad opad i =
+    if u64Ge i 64 then ()
+    else
+      let kb = loadU8 k (u64ToIsize i) in
+      let _ = storeU8 ipad (u64ToIsize i) (bitXorU8 kb 54) in
+      let _ = storeU8 opad (u64ToIsize i) (bitXorU8 kb 92) in
+      xorPadLoop k ipad opad (u64Add i 1)
+
+  hmacSha256Raw :: RawPtr U8 -> U64 -> RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  hmacSha256Raw keyPtr keyLen msgPtr msgLen out =
+    let _ = ensureKTables () in
+    withLocal (fixedArrayRepeat 64 (0 :: U8)) (\kArr ->
+      withLocal (fixedArrayRepeat 64 (0 :: U8)) (\ipadArr ->
+        withLocal (fixedArrayRepeat 96 (0 :: U8)) (\outerArr ->
+          withLocal (fixedArrayRepeat 8 (0 :: U32)) (\hArr ->
+            let k = mutAsPtr kArr in
+            let ipad = mutAsPtr ipadArr in
+            let outer = mutAsPtr outerArr in
+            let h = mutAsPtr hArr in
+            let _ = (if u64Gt keyLen 64 then sha256Raw keyPtr keyLen k
+                     else if keyLen /= 0 then memCopy k keyPtr (u64ToUsize keyLen)
+                     else ()) in
+            let _ = xorPadLoop k ipad outer 0 in
+            let _ = sha256InitH h in
+            let _ = sha256Compress h ipad in
+            let _ = sha256FinishStream h msgPtr msgLen (u64Add 64 msgLen) (ptrAddU64 outer 64) in
+            sha256Raw outer 96 out
+          )
+        )
+      )
+    )
+
+  -- =========================================================================
+  -- Exact F64 <-> Shortest Round-Trip Scientific Decimal (Dragon4 + strtod)
+  -- =========================================================================
+
+  #[repr(value)]
+  record DragonState where
+    dsR :: LimbBuf
+    dsS :: LimbBuf
+    dsPlus :: LimbBuf
+    dsMinus :: LimbBuf
+    dsK :: I64
+
+  -- Check (r + mPlus) > s (or >= s when even)
+  dragonCheckHigh :: LimbBuf -> LimbBuf -> LimbBuf -> Bool ->{Global, ThreadAffine} Bool
+  dragonCheckHigh r mPlus s even =
+    let sum = lbAdd r mPlus in
+    let c = lbCmp sum s in
+    let _ = lbFree sum in
+    if even then i64Ge c 0 else c == 1
+
+  -- Check 10 * (r + mPlus) < s (or <= s when even)
+  dragonCheckLowScale :: LimbBuf -> LimbBuf -> LimbBuf -> Bool ->{Global, ThreadAffine} Bool
+  dragonCheckLowScale r mPlus s even =
+    let sum = lbAdd r mPlus in
+    let sum10 = lbMulSmall sum 10 0 in
+    let c = lbCmp sum10 s in
+    let _ = lbFree sum in
+    let _ = lbFree sum10 in
+    if even then c == i64Sub 0 1 else i64Le c 0
+
+  dragonScaleUp :: DragonState -> Bool ->{Global, ThreadAffine} DragonState
+  dragonScaleUp st even =
+    if dragonCheckHigh (st.dsR) (st.dsPlus) (st.dsS) even then
+      let s10 = lbMulSmall (st.dsS) 10 0 in
+      let _ = lbFree (st.dsS) in
+      dragonScaleUp (DragonState (st.dsR) s10 (st.dsPlus) (st.dsMinus) (i64Add (st.dsK) 1)) even
+    else st
+
+  dragonScaleDown :: DragonState -> Bool ->{Global, ThreadAffine} DragonState
+  dragonScaleDown st even =
+    if dragonCheckLowScale (st.dsR) (st.dsPlus) (st.dsS) even then
+      let r10 = lbMulSmall (st.dsR) 10 0 in
+      let p10 = lbMulSmall (st.dsPlus) 10 0 in
+      let m10 = lbMulSmall (st.dsMinus) 10 0 in
+      let _ = lbFree (st.dsR) in
+      let _ = lbFree (st.dsPlus) in
+      let _ = lbFree (st.dsMinus) in
+      dragonScaleDown (DragonState r10 (st.dsS) p10 m10 (i64Sub (st.dsK) 1)) even
+    else st
+
+  dragonDigitLoop :: LimbBuf -> LimbBuf -> LimbBuf -> LimbBuf -> Bool -> RawPtr U8 -> U64 ->{Global, ThreadAffine} U64
+  dragonDigitLoop r s mPlus mMinus even digits count =
+    let r10 = lbMulSmall r 10 0 in
+    let dr = lbDivRem r10 s in
+    let _ = lbFree r10 in
+    let _ = lbFree r in
+    let q = dr.drQ in
+    let rNext = dr.drR in
+    let d = if q.lbLen == 0 then 0 else u32ToU64 (loadU32 (maybeToRaw (q.lbPtr)) 0) in
+    let _ = lbFree q in
+    let pNext = lbMulSmall mPlus 10 0 in
+    let mNext = lbMulSmall mMinus 10 0 in
+    let _ = lbFree mPlus in
+    let _ = lbFree mMinus in
+    let cLow = lbCmp rNext mNext in
+    let low = if even then i64Le cLow 0 else cLow == i64Sub 0 1 in
+    let high = dragonCheckHigh rNext pNext s even in
+    if not low && not high then
+      let _ = storeU8 digits (u64ToIsize count) (u64ToU8 (u64Add 48 d)) in
+      dragonDigitLoop rNext s pNext mNext even digits (u64Add count 1)
+    else
+      let finalD =
+            (if low && not high then d
+            else if not low && high then u64Add d 1
+            else
+              let r2 = lbShl rNext 1 in
+              let c2 = lbCmp r2 s in
+              let _ = lbFree r2 in
+              if c2 == i64Sub 0 1 then d
+              else if c2 == 1 then u64Add d 1
+              else if bitAndU64 d 1 == 0 then d else u64Add d 1) in
+      let _ = lbFree rNext in
+      let _ = lbFree s in
+      let _ = lbFree pNext in
+      let _ = lbFree mNext in
+      let _ = storeU8 digits (u64ToIsize count) (u64ToU8 (u64Add 48 finalD)) in
+      u64Add count 1
+
+  writeExpDigits :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  writeExpDigits buf pos v =
+    if u64Ge v 100 then
+      let d0 = u64Div v 100 in
+      let rem = u64Rem v 100 in
+      let d1 = u64Div rem 10 in
+      let d2 = u64Rem rem 10 in
+      let _ = storeU8 buf (u64ToIsize pos) (u64ToU8 (u64Add 48 d0)) in
+      let _ = storeU8 buf (u64ToIsize (u64Add pos 1)) (u64ToU8 (u64Add 48 d1)) in
+      let _ = storeU8 buf (u64ToIsize (u64Add pos 2)) (u64ToU8 (u64Add 48 d2)) in
+      u64Add pos 3
+    else if u64Ge v 10 then
+      let d0 = u64Div v 10 in
+      let d1 = u64Rem v 10 in
+      let _ = storeU8 buf (u64ToIsize pos) (u64ToU8 (u64Add 48 d0)) in
+      let _ = storeU8 buf (u64ToIsize (u64Add pos 1)) (u64ToU8 (u64Add 48 d1)) in
+      u64Add pos 2
+    else
+      let _ = storeU8 buf (u64ToIsize pos) (u64ToU8 (u64Add 48 v)) in
+      u64Add pos 1
+
+  formatFiniteF64 :: U64 -> Bool -> U64 -> U64 ->{Global, ThreadAffine} I64
+  formatFiniteF64 bits neg rawExp rawFrac =
+    let isSub = rawExp == 0 in
+    let m = if isSub then rawFrac else bitOrU64 rawFrac 4503599627370496 in
+    let e = if isSub then i64Sub 0 1074 else i64Sub (u64ToI64 rawExp) 1075 in
+    let lowUnequal = not isSub && rawFrac == 0 && u64Gt rawExp 1 in
+    let even = bitAndU64 m 1 == 0 in
+    let mBuf = lbFromU64 m in
+    let oneBuf = lbFromU64 1 in
+    let initSt =
+          (if i64Ge e 0 then
+            let eu = i64ToU64 e in
+            if lowUnequal then
+              let r = lbShl mBuf (u64Add eu 2) in
+              let s = lbFromU64 4 in
+              let mp = lbShl oneBuf (u64Add eu 1) in
+              let mm = lbShl oneBuf eu in
+              DragonState r s mp mm 0
+            else
+              let r = lbShl mBuf (u64Add eu 1) in
+              let s = lbFromU64 2 in
+              let mp = lbShl oneBuf eu in
+              let mm = lbShl oneBuf eu in
+              DragonState r s mp mm 0
+          else
+            let negE = i64ToU64 (i64Sub 0 e) in
+            if lowUnequal then
+              let r = lbShl mBuf 2 in
+              let s = lbShl oneBuf (u64Add negE 2) in
+              let mp = lbFromU64 2 in
+              let mm = lbFromU64 1 in
+              DragonState r s mp mm 0
+            else
+              let r = lbShl mBuf 1 in
+              let s = lbShl oneBuf (u64Add negE 1) in
+              let mp = lbFromU64 1 in
+              let mm = lbFromU64 1 in
+              DragonState r s mp mm 0) in
+    let _ = lbFree mBuf in
+    let _ = lbFree oneBuf in
+    -- Estimate k0 = floor((e + bitLen(m) - 1) * 0.30103)
+    let bitLenM = u64ToI64 (u64Sub 64 (clzU64 m)) in
+    let log2Est = i64Add e (i64Sub bitLenM 1) in
+    let prod = i64Mul log2Est 30103 in
+    let k0 = if i64Ge prod 0 then i64Div prod 100000 else i64Div (i64Sub prod 99999) 100000 in
+    let scaled0 =
+          (if i64Gt k0 0 then
+            let p10 = lbPow10 (i64ToU64 k0) in
+            let s2 = lbMul (initSt.dsS) p10 in
+            let _ = lbFree (initSt.dsS) in
+            let _ = lbFree p10 in
+            DragonState (initSt.dsR) s2 (initSt.dsPlus) (initSt.dsMinus) k0
+          else if i64Lt k0 0 then
+            let p10 = lbPow10 (i64ToU64 (i64Sub 0 k0)) in
+            let r2 = lbMul (initSt.dsR) p10 in
+            let mp2 = lbMul (initSt.dsPlus) p10 in
+            let mm2 = lbMul (initSt.dsMinus) p10 in
+            let _ = lbFree (initSt.dsR) in
+            let _ = lbFree (initSt.dsPlus) in
+            let _ = lbFree (initSt.dsMinus) in
+            let _ = lbFree p10 in
+            DragonState r2 (initSt.dsS) mp2 mm2 k0
+          else initSt) in
+    let scaled1 = dragonScaleUp scaled0 even in
+    let scaled2 = dragonScaleDown scaled1 even in
+    let exp10 = i64Sub (scaled2.dsK) 1 in
+    withLocal (fixedArrayRepeat 32 (0 :: U8)) (\digArr ->
+      withLocal (fixedArrayRepeat 48 (0 :: U8)) (\outArr ->
+        let digits = mutAsPtr digArr in
+        let out = mutAsPtr outArr in
+        let nDig = dragonDigitLoop (scaled2.dsR) (scaled2.dsS) (scaled2.dsPlus) (scaled2.dsMinus) even digits 0 in
+        let p0 =
+              (if neg then
+                let _ = storeU8 out 0 45 in
+                1
+              else 0) in
+        let _ = storeU8 out (u64ToIsize p0) (loadU8 digits 0) in
+        let p1 = u64Add p0 1 in
+        let p2 =
+              (if u64Gt nDig 1 then
+                let _ = storeU8 out (u64ToIsize p1) 46 in
+                let _ = memCopy (ptrAddU64 out (u64Add p1 1)) (ptrAddU64 digits 1) (u64ToUsize (u64Sub nDig 1)) in
+                u64Add (u64Add p1 1) (u64Sub nDig 1)
+              else p1) in
+        let _ = storeU8 out (u64ToIsize p2) 101 in -- 'e'
+        let p3 = u64Add p2 1 in
+        let total =
+              (if i64Lt exp10 0 then
+                let _ = storeU8 out (u64ToIsize p3) 45 in -- '-'
+                writeExpDigits out (u64Add p3 1) (i64ToU64 (i64Sub 0 exp10))
+              else
+                writeExpDigits out p3 (i64ToU64 exp10)) in
+        bytesBoxCopy out total
+      )
+    )
+
+  -- Strict Rust f64::parse syntax validation
+  asciiLower :: U8 -> U8
+  asciiLower b = if u8Ge b 65 && u8Le b 90 then u8Add b 32 else b
+
+  isDigit :: U8 -> Bool
+  isDigit b = u8Ge b 48 && u8Le b 57
+
+  matchWord3 :: RawPtr U8 -> U8 -> U8 -> U8 ->{Global} Bool
+  matchWord3 p a b c =
+    asciiLower (loadU8 p 0) == a && asciiLower (loadU8 p 1) == b && asciiLower (loadU8 p 2) == c
+
+  matchInfinity :: RawPtr U8 ->{Global} Bool
+  matchInfinity p =
+    matchWord3 p 105 110 102
+      && asciiLower (loadU8 p 3) == 105
+      && asciiLower (loadU8 p 4) == 110
+      && asciiLower (loadU8 p 5) == 105
+      && asciiLower (loadU8 p 6) == 116
+      && asciiLower (loadU8 p 7) == 121
+
+  scanDigits :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  scanDigits p len i =
+    if u64Ge i len then i
+    else if isDigit (loadU8 p (u64ToIsize i)) then scanDigits p len (u64Add i 1)
+    else i
+
+  validateDecimalFloat :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  validateDecimalFloat p len start =
+    if u64Ge start len then False
+    else
+      let afterInt = scanDigits p len start in
+      let intDigits = u64Sub afterInt start in
+      let hasDot = u64Lt afterInt len && loadU8 p (u64ToIsize afterInt) == 46 in
+      let afterFrac = if hasDot then scanDigits p len (u64Add afterInt 1) else afterInt in
+      let fracDigits = if hasDot then u64Sub afterFrac (u64Add afterInt 1) else 0 in
+      if u64Add intDigits fracDigits == 0 then False
+      else if afterFrac == len then True
+      else
+        let ec = loadU8 p (u64ToIsize afterFrac) in
+        if ec /= 101 && ec /= 69 then False
+        else
+          let eStart0 = u64Add afterFrac 1 in
+          if u64Ge eStart0 len then False
+          else
+            let sc = loadU8 p (u64ToIsize eStart0) in
+            let eStart = if sc == 43 || sc == 45 then u64Add eStart0 1 else eStart0 in
+            let eEnd = scanDigits p len eStart in
+            u64Gt eEnd eStart && eEnd == len
+
+  -- =========================================================================
+  -- Public C ABI Entry Points (7 exports)
+  -- =========================================================================
+
+  cinchTextSha256 :: I64 ->{Global, ThreadAffine} I64
+  cinchTextSha256 word =
+    let s = bytesReadSlice word in
+    let outWord = bytesBoxAlloc 32 False in
+    let outS = bytesReadSlice outWord in
+    let _ = sha256Raw (s.bsPtr) (i64ToU64 (s.bsLen)) (outS.bsPtr) in
+    outWord
+
+  cinchTextSha512 :: I64 ->{Global, ThreadAffine} I64
+  cinchTextSha512 word =
+    let s = bytesReadSlice word in
+    let outWord = bytesBoxAlloc 64 False in
+    let outS = bytesReadSlice outWord in
+    let _ = sha512Raw (s.bsPtr) (i64ToU64 (s.bsLen)) (outS.bsPtr) in
+    outWord
+
+  cinchTextSha1 :: I64 ->{Global, ThreadAffine} I64
+  cinchTextSha1 word =
+    let s = bytesReadSlice word in
+    let outWord = bytesBoxAlloc 20 False in
+    let outS = bytesReadSlice outWord in
+    let _ = sha1Raw (s.bsPtr) (i64ToU64 (s.bsLen)) (outS.bsPtr) in
+    outWord
+
+  cinchTextMd5 :: I64 ->{Global, ThreadAffine} I64
+  cinchTextMd5 word =
+    let s = bytesReadSlice word in
+    let outWord = bytesBoxAlloc 16 False in
+    let outS = bytesReadSlice outWord in
+    let _ = md5Raw (s.bsPtr) (i64ToU64 (s.bsLen)) (outS.bsPtr) in
+    outWord
+
+  cinchTextHmacSha256 :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchTextHmacSha256 keyWord msgWord =
+    let ks = bytesReadSlice keyWord in
+    let ms = bytesReadSlice msgWord in
+    let outWord = bytesBoxAlloc 32 False in
+    let outS = bytesReadSlice outWord in
+    let _ = hmacSha256Raw (ks.bsPtr) (i64ToU64 (ks.bsLen)) (ms.bsPtr) (i64ToU64 (ms.bsLen)) (outS.bsPtr) in
+    outWord
+
+  cinchTextF64ToDecimal :: F64 ->{Global, ThreadAffine} I64
+  cinchTextF64ToDecimal v =
+    let bits = f64ToBits v in
+    let neg = lshrU64 bits 63 /= 0 in
+    let rawExp = bitAndU64 (lshrU64 bits 52) 2047 in
+    let rawFrac = bitAndU64 bits 4503599627370495 in
+    if rawExp == 2047 then
+      if rawFrac /= 0 then
+        withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+          let p = mutAsPtr arr in
+          let _ = storeU8 p 0 78 in -- 'N'
+          let _ = storeU8 p 1 97 in -- 'a'
+          let _ = storeU8 p 2 78 in -- 'N'
+          bytesBoxCopy p 3
+        )
+      else if neg then
+        withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+          let p = mutAsPtr arr in
+          let _ = put4 p 0 45 105 110 102 in -- "-inf"
+          bytesBoxCopy p 4
+        )
+      else
+        withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+          let p = mutAsPtr arr in
+          let _ = storeU8 p 0 105 in -- 'i'
+          let _ = storeU8 p 1 110 in -- 'n'
+          let _ = storeU8 p 2 102 in -- 'f'
+          bytesBoxCopy p 3
+        )
+    else if rawExp == 0 && rawFrac == 0 then
+      if neg then
+        withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+          let p = mutAsPtr arr in
+          let _ = put4 p 0 45 48 101 48 in -- "-0e0"
+          bytesBoxCopy p 4
+        )
+      else
+        withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+          let p = mutAsPtr arr in
+          let _ = storeU8 p 0 48 in -- '0'
+          let _ = storeU8 p 1 101 in -- 'e'
+          let _ = storeU8 p 2 48 in -- '0'
+          bytesBoxCopy p 3
+        )
+    else
+      formatFiniteF64 bits neg rawExp rawFrac
+
+  cinchTextF64FromDecimal :: I64 ->{Global, ThreadAffine} F64
+  cinchTextF64FromDecimal word =
+    let s = bytesReadSlice word in
+    let len = i64ToU64 (s.bsLen) in
+    if len == 0 then
+      let _ = panicMalformedDecimal () in
+      bitsToF64 0
+    else
+      let p = s.bsPtr in
+      let b0 = loadU8 p 0 in
+      let hasSign = b0 == 43 || b0 == 45 in
+      let neg = b0 == 45 in
+      let start = if hasSign then 1 else 0 in
+      let restLen = u64Sub len start in
+      let restPtr = ptrAddU64 p start in
+      if restLen == 3 && matchWord3 restPtr 105 110 102 then
+        -- "inf"
+        bitsToF64 (if neg then 18442240474082181120 else 9218868437227405312)
+      else if restLen == 8 && matchInfinity restPtr then
+        -- "infinity"
+        bitsToF64 (if neg then 18442240474082181120 else 9218868437227405312)
+      else if restLen == 3 && matchWord3 restPtr 110 97 110 then
+        -- "nan"
+        bitsToF64 (if neg then 18444492273895866368 else 9221120237041090560)
+      else if not (validateDecimalFloat p len start) then
+        let _ = panicMalformedDecimal () in
+        bitsToF64 0
+      else if u64Lt len 128 then
+        withLocal (fixedArrayRepeat 128 (0 :: U8)) (\bufArr ->
+          withLocal (ptrNull () :: MaybeNull U8) (\endSlot ->
+            let buf = mutAsPtr bufArr in
+            let _ = memCopy buf p (u64ToUsize len) in
+            let _ = storeU8 buf (u64ToIsize len) 0 in
+            cStrtod buf (mutAsPtr endSlot)
+          )
+        )
+      else
+        let buf = heapGlobalAlloc (u64ToUsize (u64Add len 1)) 1 0 in
+        let _ = memCopy buf p (u64ToUsize len) in
+        let _ = storeU8 buf (u64ToIsize len) 0 in
+        let res = withLocal (ptrNull () :: MaybeNull U8) (\endSlot ->
+          cStrtod buf (mutAsPtr endSlot)
+        ) in
+        let _ = heapGlobalDealloc buf (u64ToUsize (u64Add len 1)) 1 in
+        res
+
+  foreign export ccall "cinch_text_sha256" cinchTextSha256 :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_text_sha512" cinchTextSha512 :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_text_sha1" cinchTextSha1 :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_text_md5" cinchTextMd5 :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_text_hmac_sha256" cinchTextHmacSha256 :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_text_f64_to_decimal" cinchTextF64ToDecimal :: F64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_text_f64_from_decimal" cinchTextF64FromDecimal :: I64 ->{Global, ThreadAffine} F64
