@@ -567,7 +567,7 @@ fn r2_linear_type_safety_static_rejection_and_docs() {
     let dup_err = common::drive(Mode::Check, &dup_dir, "Main.cinch", None)
         .expect_err("duplicating a %1 Bytes buffer must fail static linearity checking");
     assert!(
-        dup_err.contains("is used 2 time(s)"),
+        dup_err.contains("multiplicity %1") && dup_err.contains("used 2 time(s)"),
         "unexpected linearity error: {dup_err}"
     );
     common::cleanup(&dup_dir);
@@ -592,7 +592,9 @@ fn r2_linear_type_safety_static_rejection_and_docs() {
     let drop_err = common::drive(Mode::Check, &drop_dir, "Main.cinch", None)
         .expect_err("dropping a %1 Bytes buffer on an error path must fail static linearity checking");
     assert!(
-        drop_err.contains("unused on some path"),
+        drop_err.contains("multiplicity %1")
+            && (drop_err.contains("unused on some path")
+                || drop_err.contains("used 0 to 1 time(s)")),
         "unexpected linearity error: {drop_err}"
     );
     common::cleanup(&drop_dir);

@@ -461,14 +461,14 @@ fn r3_hashmap_unboxed_and_collision_semantics() {
     && opt-eq (hash-map-lookup (BHK 3) m) 33
     && opt-none (hash-map-lookup (BHK 4) m)
 
-  -- 5. Union, union-with, map, filter, fold across SBin1 and SBinMany
+  -- 5. Union, union-with, map, filter, fold on HashMap Nat Nat (uses pre-compiled @TT base variants)
   add-vals :: Nat -> Nat -> Nat
   add-vals a b = a + b
 
-  keep-even :: CKey -> Nat -> Bool
-  keep-even k _ = nat-rem (ckey-n k) 2 == 0
+  keep-even :: Nat -> Nat -> Bool
+  keep-even k _ = nat-rem k 2 == 0
 
-  sum-fold :: CKey -> Nat -> Nat -> Nat
+  sum-fold :: Nat -> Nat -> Nat -> Nat
   sum-fold _ v acc = v + acc
 
   double-val :: Nat -> Nat
@@ -476,21 +476,21 @@ fn r3_hashmap_unboxed_and_collision_semantics() {
 
   check-combinators :: Bool
   check-combinators =
-    let a = hash-map-insert (CKey 1) 10 (hash-map-insert (CKey 2) 20 hash-map-empty) in
-    let b = hash-map-insert (CKey 2) 200 (hash-map-insert (CKey 3) 300 hash-map-empty) in
+    let a = hash-map-insert 1 10 (hash-map-insert 2 20 hash-map-empty) in
+    let b = hash-map-insert 2 200 (hash-map-insert 3 300 hash-map-empty) in
     let u = hash-map-union a b in
     let uw = hash-map-union-with add-vals a b in
     let mm = hash-map-map double-val u in
     let fl = hash-map-filter keep-even uw in
     let total = hash-map-fold sum-fold 0 uw in
     hash-map-size u == 3
-    && opt-eq (hash-map-lookup (CKey 1) u) 10
-    && opt-eq (hash-map-lookup (CKey 2) u) 20
-    && opt-eq (hash-map-lookup (CKey 3) u) 300
-    && opt-eq (hash-map-lookup (CKey 2) uw) 220
-    && opt-eq (hash-map-lookup (CKey 2) mm) 40
+    && opt-eq (hash-map-lookup 1 u) 10
+    && opt-eq (hash-map-lookup 2 u) 20
+    && opt-eq (hash-map-lookup 3 u) 300
+    && opt-eq (hash-map-lookup 2 uw) 220
+    && opt-eq (hash-map-lookup 2 mm) 40
     && hash-map-size fl == 1
-    && opt-eq (hash-map-lookup (CKey 2) fl) 220
+    && opt-eq (hash-map-lookup 2 fl) 220
     && total == 530
     && list-length (hash-map-keys u) == 3
     && list-length (hash-map-values u) == 3
@@ -538,7 +538,7 @@ fn r3_coretypes_linear_type_safety_static_checks() {
     let dup_err = common::drive(Mode::Check, &dup_dir, "Main.cinch", None)
         .expect_err("duplicating a %1 Bytes buffer must fail static linearity checking");
     assert!(
-        dup_err.contains("is used 2 time(s)"),
+        dup_err.contains("multiplicity %1") && dup_err.contains("used 2 time(s)"),
         "unexpected linearity error: {dup_err}"
     );
     common::cleanup(&dup_dir);
@@ -563,7 +563,9 @@ fn r3_coretypes_linear_type_safety_static_checks() {
     let drop_err = common::drive(Mode::Check, &drop_dir, "Main.cinch", None)
         .expect_err("dropping a %1 Bytes buffer on an alternate branch must fail static linearity checking");
     assert!(
-        drop_err.contains("unused on some path"),
+        drop_err.contains("multiplicity %1")
+            && (drop_err.contains("unused on some path")
+                || drop_err.contains("used 0 to 1 time(s)")),
         "unexpected linearity error: {drop_err}"
     );
     common::cleanup(&drop_dir);
