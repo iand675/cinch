@@ -25,12 +25,12 @@ module Cinch.PrimVerify where
 
   import Algebra.Semigroup
   import Cinch.Ast (Expr, EVar, ECon, ELitInt, EApp, EBin, ENeg, EIf, ELet, ELetScope, ELam, EAnn, EBinding, EBindingsEnd, EArg, EArgsEnd, EUnit, Pat, PVar, exprs-of)
-  import Cinch.Core (CoreDefinition, CoreClause, CorePattern, CPVar, CPWild, CoreTerm, CUse, CLocal, CInt, CUnit, CApply, CApplyEff, CLet, CIf, CProved, CRefine, CForget, CCast, CRequire, CDischarge, CPolyElim, core-type)
+  import Cinch.Core (CoreDefinition, CoreClause, CorePattern, CPVar, CPWild, CoreTerm, CUse, CLocal, CInt, CUnit, CApply, CApplyEff, CLet, CIf, CPrimitive, CArgument, CArgumentsEnd, CMethod, CProved, CRefine, CForget, CCast, CRequire, CDischarge, CPolyElim, core-type)
   import Cinch.Document
   import Cinch.Interface (fnv-source-hash, sha256-hex, u64-decimal)
   import Cinch.Index (IndexTerm, IInteger, IBound, IRigid, IAdd, ISubtract, IMultiply)
   import Cinch.Nominal (decode-identity)
-  import Cinch.Type (UType, KType, UCon, UApp, UFun, UFunEff, UPi, URefine, URequire, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNotNaN, UPropFinite, UIndex, UIndexMath, UIndexForget, UIndexPromote, refinement-view, float-literal-bits, float-string-bits)
+  import Cinch.Type (UType, KType, UCon, UApp, UFun, UFunEff, UPi, UBound, URigid, URefine, URequire, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNotNaN, UPropFinite, UIndex, UIndexMath, UIndexForget, UIndexPromote, refinement-view, float-literal-bits, float-string-bits)
   import Data.Bool
   import Data.Char (is-ascii-digit, char-code, char-from-code)
   import Data.Int
@@ -53,7 +53,7 @@ module Cinch.PrimVerify where
   export LratStep, LratAdd, verify-lrat, parse-lrat-steps, verify-lrat-text, serialize-lrat-steps
   export SemGraph, SemType, SBool, SBv, SFp, SVec, obligation-to-smtlib2
   export verify-prim-body, verify-prim-body-cached, verify-prim-cross-target
-  export verify-alethe, verify-rewrite-rule, verify-rewrite-rule-for, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv
+  export verify-alethe, verify-rewrite-rule, verify-rewrite-rule-for, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety
   export TvReport, MkTvReport, tv-report-fn, tv-report-stage, tv-report-status, tv-report-details, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved
   export is-verify-justification-word, worst-trust-tier, receipts-tcb-union
 
@@ -2094,6 +2094,8 @@ module Cinch.PrimVerify where
 
   lower-fp-ref-var :: List (String, Nat, SemType, Bool) -> UType -> Option (Nat, Nat)
   lower-fp-ref-var env u = case refinement-view u of
+    UBound id nm kind -> lookup-fp-var nm env
+    URigid id nm lvl kind -> lookup-fp-var nm env
     UIndex carrier (IBound id nm) -> lookup-fp-var nm env
     UIndex carrier (IRigid id nm lvl) -> lookup-fp-var nm env
     UIndexForget inner -> lower-fp-ref-var env inner
@@ -2164,6 +2166,14 @@ module Cinch.PrimVerify where
 
   lower-index-utype :: List (String, Nat, SemType, Bool) -> UType -> SemGraph -> Option (Nat, Nat, Bool, SemGraph)
   lower-index-utype env u g = case refinement-view u of
+    UBound id nm kind ->
+      (case lookup-ref-var nm env of
+        Some (nid, w, sg) -> Some (nid, w, sg, g)
+        None -> None)
+    URigid id nm lvl kind ->
+      (case lookup-ref-var nm env of
+        Some (nid, w, sg) -> Some (nid, w, sg, g)
+        None -> None)
     UIndex carrier term -> lower-index-term env term g
     UIndexForget inner -> lower-index-utype env inner g
     UIndexPromote inner -> lower-index-utype env inner g
@@ -3667,7 +3677,10 @@ module Cinch.PrimVerify where
     Nil -> (acc, g)
     Cons (pidx, pred) rest ->
       let local-env = case lookup-param-ref-entry pidx ref-env of
-            Some (nid, ty, sg) -> Cons ("r", nid, ty, sg) ref-env
+            Some (nid, ty, sg) ->
+              Cons ("cinch-result", nid, ty, sg)
+                (Cons ("#result", nid, ty, sg)
+                  (Cons ("r", nid, ty, sg) ref-env))
             None -> ref-env in
       case lower-refinement-pred local-env pred g of
         Some (np, g1) ->
@@ -3740,7 +3753,11 @@ module Cinch.PrimVerify where
                       (case postcond of
                         None -> run-obligations-cached is-jpl verify-mode just-word proof-cache replay-only g10 base-obs Nil
                         Some post-pred ->
-                          let post-env = Cons ("r", ret-val-id, ret-val-ty, param-spec-signed result) ref-env in
+                          let post-env =
+                                Cons (param-spec-name result, ret-val-id, ret-val-ty, param-spec-signed result)
+                                  (Cons ("cinch-result", ret-val-id, ret-val-ty, param-spec-signed result)
+                                    (Cons ("#result", ret-val-id, ret-val-ty, param-spec-signed result)
+                                      (Cons ("r", ret-val-id, ret-val-ty, param-spec-signed result) ref-env))) in
                           (case lower-refinement-pred post-env post-pred g10 of
                             Some (post-id, g11) ->
                               let (ob-post, g12) = g-implies assume-id post-id g11 in
@@ -4155,6 +4172,17 @@ module Cinch.PrimVerify where
 
   -- ==========================================================================
   -- 14. Core -> LLVM Translation Validation (`cinch verify-codegen`)
+  --
+  -- Covers:
+  --   * Pure scalar & branching functions (`core->llvm`)
+  --   * Interprocedural same-module scalar callee inlining & Ackermann UF congruence
+  --   * Tail-recursive / bounded loops via inductive loop-step bisimulation (`core->llvm(loop-step)`)
+  --   * Aggregate / #[repr(C)] / #[repr(value)] struct & FixedArray stack GEP/load/store forwarding
+  --   * Perceus RC / drop-insertion safety validation (`rc-safety`)
+  --
+  -- TODO(verify-opt): Add Alive2-style LLVM IR-to-IR translation validation across
+  -- `opt -O2` / clang optimization passes (`validate-llvm-opt-pass`), comparing
+  -- pre-optimization and post-optimization LLVM IR modules for UB/poison refinement.
   -- ==========================================================================
 
   data TvReport where
@@ -4418,6 +4446,41 @@ module Cinch.PrimVerify where
             Err e -> Err e
             Ok (more, g2) -> Ok (Cons (av, aty) more, g2)
 
+  tv-prim-args-list :: CoreTerm -> List CoreTerm
+  tv-prim-args-list tm = case tm of
+    CArgument _ a rest -> Cons a (tv-prim-args-list rest)
+    CArgumentsEnd _ -> Nil
+    other -> Nil
+
+  tv-lower-core-binop :: Nat -> UType -> String -> (Nat, SemType) -> (Nat, SemType) -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  tv-lower-core-binop word-bits arg-ty op pa pb g =
+    let (w, sg) = case tv-word-ty-for word-bits arg-ty of
+          Some (SBv bw, s) -> (bw, s)
+          other -> (64, False) in
+    case (pa, pb) of
+      ((va, ta), (vb, tb)) ->
+        case tv-coerce-bv va ta (SBv w) g of
+          Err e -> Err e
+          Ok (a, g1) ->
+            case tv-coerce-bv vb tb (SBv w) g1 of
+              Err e -> Err e
+              Ok (b, g2) ->
+                let out-ty = if w == 128 then SBv 128 else SBv 64 in
+                if same op "+" then let (r, g3) = g-bv-bin "add" w a b g2 in Ok (r, out-ty, g3)
+                else if same op "-" then let (r, g3) = g-bv-bin "sub" w a b g2 in Ok (r, out-ty, g3)
+                else if same op "*" then let (r, g3) = g-bv-bin "mul" w a b g2 in Ok (r, out-ty, g3)
+                else if same op "==" || same op "/=" || same op "<" || same op "<=" || same op ">" || same op ">=" then
+                  let cmp-op =
+                        if same op "==" then "eq"
+                        else if same op "/=" then "ne"
+                        else if same op "<" then (if sg then "slt" else "ult")
+                        else if same op "<=" then (if sg then "sle" else "ule")
+                        else if same op ">" then (if sg then "sgt" else "ugt")
+                        else if sg then "sge" else "uge" in
+                  let (c, g3) = g-bv-cmp cmp-op w a b g2 in
+                  (case tv-coerce-bv c SBool (SBv 64) g3 of Err e -> Err e; Ok (rv, g4) -> Ok (rv, SBv 64, g4))
+                else Err (string-concat "unsupported core primitive op in scalar TV: " op)
+
   tv-lower-core-term :: Nat -> List (Nat, Nat, SemType) -> CoreTerm -> SemGraph -> Result String (Nat, SemType, SemGraph)
   tv-lower-core-term word-bits env tm g = case tm of
     CProved sp ty pf inner -> tv-lower-core-term word-bits env inner g
@@ -4427,6 +4490,16 @@ module Cinch.PrimVerify where
     CRequire sp ty inner -> tv-lower-core-term word-bits env inner g
     CDischarge sp ty pfs flag inner -> tv-lower-core-term word-bits env inner g
     CPolyElim sp ty inner tys -> tv-lower-core-term word-bits env inner g
+    CPrimitive sp ty op arg-spine ->
+      case tv-prim-args-list arg-spine of
+        Cons a (Cons b Nil) ->
+          case tv-lower-core-term word-bits env a g of
+            Err e -> Err e
+            Ok (va, ta, g1) ->
+              case tv-lower-core-term word-bits env b g1 of
+                Err e -> Err e
+                Ok (vb, tb, g2) -> tv-lower-core-binop word-bits (core-type a) op (va, ta) (vb, tb) g2
+        other -> Err (string-concat "unsupported CPrimitive arity in scalar TV: " op)
     CUnit sp ty ->
       let (v, g1) = g-bv 64 0 g in Ok (v, SBv 64, g1)
     CInt sp ty digits ->
@@ -4466,6 +4539,13 @@ module Cinch.PrimVerify where
                           let (res, g6) = g-ite cb tv evc g5 in Ok (res, tty, g6)
     CApply sp ty f a ->
       case tv-unroll-core-app tm Nil of
+        (CMethod msp mty cls meth slot tys evs, Cons a1 (Cons a2 Nil)) ->
+          case tv-lower-core-term word-bits env a1 g of
+            Err e -> Err e
+            Ok (va, ta, g1) ->
+              case tv-lower-core-term word-bits env a2 g1 of
+                Err e -> Err e
+                Ok (vb, tb, g2) -> tv-lower-core-binop word-bits (core-type a1) meth (va, ta) (vb, tb) g2
         (CUse hsp hty fn-name role actuals, args) ->
           case tv-lower-core-args word-bits env args g of
             Err e -> Err e
@@ -4702,18 +4782,98 @@ module Cinch.PrimVerify where
             ])
       other -> None
 
-  tv-expand-lines :: Nat -> List String -> List String -> Nat -> List String
-  tv-expand-lines word-bits all-lines body idx = case body of
+  tv-flatten-linear-lines :: List String -> List String
+  tv-flatten-linear-lines ls = case ls of
     Nil -> Nil
-    Cons line rest ->
+    Cons l rest ->
+      let t = string-strip l in
+      if string-starts-with "br label %" t then
+        let tgt = string-concat (string-strip (string-slice t 10 (string-length t))) ":" in
+        case rest of
+          Cons nxt more | same (string-strip nxt) tgt -> tv-flatten-linear-lines more
+          other -> Cons l (tv-flatten-linear-lines rest)
+      else if string-ends-with ":" t then tv-flatten-linear-lines rest
+      else Cons l (tv-flatten-linear-lines rest)
+
+  tv-has-cfg-branch :: List String -> Bool
+  tv-has-cfg-branch ls = case ls of
+    Nil -> False
+    Cons l rest ->
+      let t = string-strip l in
+      if string-starts-with "br " t || string-starts-with "switch " t || string-contains "= phi " t then True
+      else tv-has-cfg-branch rest
+
+  tv-split-callee-ret :: List String -> List String -> Option (List String, String)
+  tv-split-callee-ret ls acc = case ls of
+    Nil -> None
+    Cons l rest ->
+      let t = string-strip l in
+      if string-starts-with "ret " t then
+        case string-words t of
+          Cons "ret" (Cons _ (Cons rv _)) -> Some (reverse acc, rv)
+          other -> None
+      else tv-split-callee-ret rest (Cons t acc)
+
+  tv-prefix-callee-defs :: String -> List String -> List (String, String)
+  tv-prefix-callee-defs pfx ls = case ls of
+    Nil -> Nil
+    Cons l rest ->
+      let more = tv-prefix-callee-defs pfx rest in
+      case string-split-on "=" l of
+        Cons lhs (Cons _ _) | string-starts-with "%" (string-strip lhs) ->
+          let reg = string-strip lhs in
+          let bare = string-slice reg 1 (string-length reg) in
+          Cons (reg, string-concat pfx bare) more
+        other -> more
+
+  tv-bind-arg-renames :: List String -> Nat -> List (String, String)
+  tv-bind-arg-renames args idx = case args of
+    Nil -> Nil
+    Cons a rest -> Cons (string-concat "%" (nat-to-string idx), a) (tv-bind-arg-renames rest (idx + 1))
+
+  tv-try-inline-same-module :: Nat -> List String -> Nat -> String -> String -> List String -> Option (List String, String)
+  tv-try-inline-same-module word-bits all-lines idx dst raw-callee args =
+    let needle = string-concat-all ["@\"", raw-callee, "\"("] in
+    case tv-find-define-body all-lines needle of
+      None -> None
+      Some (renames, raw-body) ->
+        let renamed = tv-map-str (tv-apply-renames renames) raw-body in
+        let ssa-lines = case tv-mem2reg-step renamed Nil Nil Nil Nil Nil of Ok ok -> ok; Err _ -> renamed in
+        let flat = tv-flatten-linear-lines ssa-lines in
+        if tv-has-cfg-branch flat then None
+        else case tv-split-callee-ret flat Nil of
+          None -> None
+          Some (insts, rv) ->
+            let pfx = string-concat-all ["%in", nat-to-string idx, "_"] in
+            let def-ren = tv-prefix-callee-defs pfx insts in
+            let arg-ren = tv-bind-arg-renames args 0 in
+            let all-ren = def-ren <> arg-ren in
+            let rewritten = tv-map-str (tv-apply-renames all-ren) insts in
+            let mapped-rv = tv-apply-renames all-ren rv in
+            Some (rewritten, mapped-rv)
+
+  tv-expand-lines-aliased :: Nat -> List String -> List String -> Nat -> List (String, String) -> List String
+  tv-expand-lines-aliased word-bits all-lines body idx aliases = case body of
+    Nil -> Nil
+    Cons raw-line rest ->
+      let line = tv-apply-renames aliases raw-line in
       case tv-parse-quoted-call line of
         Some (dst, ret-ty, raw-callee, args) ->
           let decoded = tv-unescape-llvm-name raw-callee in
           let base = strip-module-prefix decoded in
           (case tv-expand-known-call word-bits idx dst ret-ty base args of
-            Some expanded -> expanded <> tv-expand-lines word-bits all-lines rest (idx + 1)
-            None -> Cons line (tv-expand-lines word-bits all-lines rest (idx + 1)))
-        None -> Cons line (tv-expand-lines word-bits all-lines rest idx)
+            Some expanded -> expanded <> tv-expand-lines-aliased word-bits all-lines rest (idx + 1) aliases
+            None ->
+              (case tv-try-inline-same-module word-bits all-lines idx dst raw-callee args of
+                Some (inlined-insts, mapped-rv) ->
+                  let next-insts = tv-expand-lines-aliased word-bits all-lines inlined-insts (idx + 100) Nil in
+                  next-insts <> tv-expand-lines-aliased word-bits all-lines rest (idx + 1) (Cons (dst, mapped-rv) aliases)
+                None -> Cons line (tv-expand-lines-aliased word-bits all-lines rest (idx + 1) aliases)))
+        None -> Cons line (tv-expand-lines-aliased word-bits all-lines rest idx aliases)
+
+  tv-expand-lines :: Nat -> List String -> List String -> Nat -> List String
+  tv-expand-lines word-bits all-lines body idx =
+    tv-expand-lines-aliased word-bits all-lines body idx Nil
 
   tv-join-lines :: List String -> String
   tv-join-lines ls = case ls of
@@ -4746,18 +4906,954 @@ module Cinch.PrimVerify where
     if string-starts-with "m." raw then string-slice raw 2 (string-length raw)
     else raw
 
-  tv-validate-one-def :: Nat -> String -> CoreDefinition -> TvReport
-  tv-validate-one-def word-bits ir-text def =
+  -- --------------------------------------------------------------------------
+  -- 14a. Symbolic Stack Aggregate & FixedArray Memory Forwarding (`mem2reg`)
+  -- --------------------------------------------------------------------------
+
+  tv-scalar-bytes :: String -> Option Nat
+  tv-scalar-bytes ty =
+    let t = string-strip ty in
+    if same t "i1" || same t "i8" then Some 1
+    else if same t "i16" then Some 2
+    else if same t "i32" || same t "float" then Some 4
+    else if same t "i64" || same t "double" || same t "ptr" then Some 8
+    else if same t "i128" then Some 16
+    else None
+
+  data TvSlotLayout where
+    MkTvSlotLayout :: Nat -> Option (Nat, Nat) -> List (Nat, String) -> TvSlotLayout
+
+  tv-slot-size :: TvSlotLayout -> Nat
+  tv-slot-size s = case s of MkTvSlotLayout sz arr fs -> sz
+
+  tv-slot-array :: TvSlotLayout -> Option (Nat, Nat)
+  tv-slot-array s = case s of MkTvSlotLayout sz arr fs -> arr
+
+  tv-slot-fields :: TvSlotLayout -> List (Nat, String)
+  tv-slot-fields s = case s of MkTvSlotLayout sz arr fs -> fs
+
+  tv-align-up :: Nat -> Nat -> Nat
+  tv-align-up off al =
+    if al <= 1 then off
+    else
+      let rem = off % al in
+      if rem == 0 then off else off + (saturating-sub al rem)
+
+  tv-parse-struct-fields :: List String -> Nat -> List (Nat, String) -> Option (Nat, List (Nat, String))
+  tv-parse-struct-fields parts off acc = case parts of
+    Nil -> Some (if off == 0 then 1 else off, reverse acc)
+    Cons raw rest ->
+      let fty = string-strip raw in
+      if string-length fty == 0 then tv-parse-struct-fields rest off acc
+      else case tv-scalar-bytes fty of
+        None -> None
+        Some sz ->
+          let al = if sz > 16 then 16 else sz in
+          let aligned = tv-align-up off al in
+          tv-parse-struct-fields rest (aligned + sz) (Cons (aligned, fty) acc)
+
+  tv-parse-alloca-layout :: String -> Option TvSlotLayout
+  tv-parse-alloca-layout rest =
+    let t = string-strip rest in
+    if string-starts-with "{" t then
+      case string-split-on "}" (string-slice t 1 (string-length t)) of
+        Cons inner more ->
+          (case tv-parse-struct-fields (string-split-on "," inner) 0 Nil of
+            Some (sz, fields) -> Some (MkTvSlotLayout sz None fields)
+            None -> None)
+        Nil -> None
+    else if string-starts-with "[" t then
+      case string-split-on "]" (string-slice t 1 (string-length t)) of
+        Cons inner more ->
+          (case string-split-on " x " inner of
+            Cons cnt-s (Cons ety-s tail) ->
+              (case (parse-nat-str (string-strip cnt-s), tv-scalar-bytes (string-strip ety-s)) of
+                (Some cnt, Some esz) | cnt <= 1024 ->
+                  let total = if cnt * esz == 0 then 1 else cnt * esz in
+                  Some (MkTvSlotLayout total (Some (esz, cnt)) Nil)
+                other -> None)
+            other -> None)
+        Nil -> None
+    else
+      let ty-tok = case string-split-on "," t of Cons h _ -> string-strip h; Nil -> t in
+      case tv-scalar-bytes ty-tok of
+        Some sz -> Some (MkTvSlotLayout sz None [(0, ty-tok)])
+        None -> None
+
+  tv-lookup-layout :: String -> List (String, TvSlotLayout) -> Option TvSlotLayout
+  tv-lookup-layout k xs = case xs of
+    Nil -> None
+    Cons (nm, lay) rest -> if same k nm then Some lay else tv-lookup-layout k rest
+
+  tv-lookup-ptr :: String -> List (String, String, Nat) -> Option (String, Nat)
+  tv-lookup-ptr k xs = case xs of
+    Nil -> None
+    Cons (reg, base, off) rest -> if same k reg then Some (base, off) else tv-lookup-ptr k rest
+
+  tv-lookup-cell :: String -> Nat -> List (String, Nat, String) -> Option String
+  tv-lookup-cell base off xs = case xs of
+    Nil -> None
+    Cons (b, o, val) rest -> if same base b && off == o then Some val else tv-lookup-cell base off rest
+
+  tv-nth-field :: Nat -> List (Nat, String) -> Option (Nat, String)
+  tv-nth-field idx xs = case xs of
+    Nil -> None
+    Cons h rest -> if idx == 0 then Some h else tv-nth-field (saturating-sub idx 1) rest
+
+  tv-split-commas-top :: List Char -> Nat -> List Char -> List String -> List String
+  tv-split-commas-top cs depth cur acc = case cs of
+    Nil ->
+      let s = string-strip (pack (reverse cur)) in
+      reverse (if string-length s == 0 then acc else Cons s acc)
+    Cons c rest ->
+      let k = char-code c in
+      if k == 123 || k == 91 || k == 40 || k == 60 then
+        tv-split-commas-top rest (depth + 1) (Cons c cur) acc
+      else if k == 125 || k == 93 || k == 41 || k == 62 then
+        tv-split-commas-top rest (saturating-sub depth 1) (Cons c cur) acc
+      else if k == 44 && depth == 0 then
+        let s = string-strip (pack (reverse cur)) in
+        tv-split-commas-top rest 0 Nil (if string-length s == 0 then acc else Cons s acc)
+      else tv-split-commas-top rest depth (Cons c cur) acc
+
+  tv-parse-gep-idx :: String -> Option Nat
+  tv-parse-gep-idx item =
+    case last-nonempty (string-words (string-strip item)) of
+      Some tok -> parse-nat-str tok
+      None -> None
+
+  tv-resolve-gep :: String -> List (String, TvSlotLayout) -> List (String, String, Nat) -> Result String (Option (String, Nat))
+  tv-resolve-gep rhs layouts ptrs =
+    let rest0 = if string-starts-with "getelementptr " rhs then string-strip (string-slice rhs 14 (string-length rhs)) else "" in
+    let rest1 = if string-starts-with "inbounds " rest0 then string-strip (string-slice rest0 9 (string-length rest0)) else rest0 in
+    let parts = tv-split-commas-top (unpack rest1) 0 Nil Nil in
+    case parts of
+      Cons gty (Cons ptr-part (Cons idx0-part more-idxs)) ->
+        if string-starts-with "ptr " ptr-part then
+          let base-reg = string-strip (string-slice ptr-part 4 (string-length ptr-part)) in
+          case (tv-lookup-ptr base-reg ptrs, tv-parse-gep-idx idx0-part) of
+            (Some (base-slot, base-off), Some i0) ->
+              (case tv-lookup-layout base-slot layouts of
+                None -> Ok None
+                Some lay ->
+                  let delta-res =
+                        if string-starts-with "{" gty then
+                          (case tv-parse-alloca-layout gty of
+                            None -> Err "unsupported struct GEP type"
+                            Some glay ->
+                              let outer = i0 * tv-slot-size glay in
+                              case more-idxs of
+                                Cons idx1-part _ ->
+                                  (case tv-parse-gep-idx idx1-part of
+                                    Some fidx ->
+                                      (case tv-nth-field fidx (tv-slot-fields glay) of
+                                        Some (foff, _) -> Ok (outer + foff)
+                                        None -> Err (string-concat "out-of-bounds struct GEP field index on " base-slot))
+                                    None -> Err "non-constant struct GEP index")
+                                Nil -> Ok outer)
+                        else if string-starts-with "[" gty then
+                          (case tv-parse-alloca-layout gty of
+                            None -> Err "unsupported FixedArray GEP type"
+                            Some glay ->
+                              let outer = i0 * tv-slot-size glay in
+                              case (more-idxs, tv-slot-array glay) of
+                                (Cons idx1-part _, Some (esz, cnt)) ->
+                                  (case tv-parse-gep-idx idx1-part of
+                                    Some eidx ->
+                                      if eidx >= cnt then Err (string-concat "out-of-bounds FixedArray GEP index on " base-slot)
+                                      else Ok (outer + eidx * esz)
+                                    None -> Err "non-constant FixedArray GEP index")
+                                other -> Ok outer)
+                        else
+                          (case tv-scalar-bytes gty of
+                            Some esz -> Ok (i0 * esz)
+                            None -> Err "unsupported scalar GEP type") in
+                  case delta-res of
+                    Err e -> Err e
+                    Ok delta ->
+                      let new-off = base-off + delta in
+                      if new-off >= tv-slot-size lay then
+                        Err (string-concat "out-of-bounds stack GEP offset on " base-slot)
+                      else Ok (Some (base-slot, new-off)))
+            other -> Ok None
+        else Ok None
+      other -> Ok None
+
+  tv-parse-load-op :: String -> Option (String, String, Option Nat)
+  tv-parse-load-op rhs =
+    if string-starts-with "load " rhs then
+      let rest = string-slice rhs 5 (string-length rhs) in
+      let parts = tv-split-commas-top (unpack rest) 0 Nil Nil in
+      case parts of
+        Cons ty-s (Cons ptr-s more) | string-starts-with "ptr " ptr-s ->
+          let preg = string-strip (string-slice ptr-s 4 (string-length ptr-s)) in
+          let al = find-align-nat (ir-words rhs) in
+          Some (string-strip ty-s, preg, al)
+        other -> None
+    else None
+
+  tv-parse-store-op :: String -> Option (String, String, String, Option Nat)
+  tv-parse-store-op line =
+    if string-starts-with "store " line then
+      let rest = string-slice line 6 (string-length line) in
+      let parts = tv-split-commas-top (unpack rest) 0 Nil Nil in
+      case parts of
+        Cons val-s (Cons ptr-s more) | string-starts-with "ptr " ptr-s ->
+          let preg = string-strip (string-slice ptr-s 4 (string-length ptr-s)) in
+          let vws = string-words val-s in
+          (case vws of
+            Cons ty-tok (Cons v-tok _) -> Some (ty-tok, v-tok, preg, find-align-nat (ir-words line))
+            other -> None)
+        other -> None
+    else None
+
+  tv-mem2reg-step :: List String -> List (String, TvSlotLayout) -> List (String, String, Nat) -> List (String, Nat, String) -> List (String, String) -> List String -> Result String (List String)
+  tv-mem2reg-step lines layouts ptrs cells aliases acc = case lines of
+    Nil -> Ok (reverse acc)
+    Cons raw rest ->
+      let line = tv-apply-renames aliases (string-strip raw) in
+      if string-length line == 0 || string-starts-with ";" line then
+        tv-mem2reg-step rest layouts ptrs cells aliases acc
+      else case tv-parse-store-op line of
+        Some (sty, sval, preg, al-opt) ->
+          (case tv-lookup-ptr preg ptrs of
+            Some (base-slot, off) ->
+              (case tv-lookup-layout base-slot layouts of
+                Some lay ->
+                  let sz = case tv-scalar-bytes sty of Some n -> n; None -> 8 in
+                  if off + sz > tv-slot-size lay then
+                    Err (string-concat "out-of-bounds stack store on " base-slot)
+                  else case al-opt of
+                    Some al | al == 0 || not (is-power-of-two-nat al) || (off % al /= 0) ->
+                      Err (string-concat "misaligned stack store on " base-slot)
+                    other ->
+                      tv-mem2reg-step rest layouts ptrs (Cons (base-slot, off, sval) cells) aliases acc
+                None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+            None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+        None ->
+          case string-split-on "=" line of
+            Cons lhs-raw (Cons rhs-raw more) | string-starts-with "%" (string-strip lhs-raw) ->
+              let reg = string-strip lhs-raw in
+              let rhs = string-strip rhs-raw in
+              if string-starts-with "alloca " rhs then
+                (case tv-parse-alloca-layout (string-slice rhs 7 (string-length rhs)) of
+                  Some lay ->
+                    tv-mem2reg-step rest (Cons (reg, lay) layouts) (Cons (reg, reg, 0) ptrs) cells aliases acc
+                  None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+              else if string-starts-with "getelementptr " rhs then
+                (case tv-resolve-gep rhs layouts ptrs of
+                  Err e -> Err e
+                  Ok (Some (base-slot, off)) ->
+                    tv-mem2reg-step rest layouts (Cons (reg, base-slot, off) ptrs) cells aliases acc
+                  Ok None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+              else case tv-parse-load-op rhs of
+                Some (lty, preg, al-opt) ->
+                  (case tv-lookup-ptr preg ptrs of
+                    Some (base-slot, off) ->
+                      (case tv-lookup-layout base-slot layouts of
+                        Some lay ->
+                          let sz = case tv-scalar-bytes lty of Some n -> n; None -> 8 in
+                          if off + sz > tv-slot-size lay then
+                            Err (string-concat "out-of-bounds stack load on " base-slot)
+                          else case al-opt of
+                            Some al | al == 0 || not (is-power-of-two-nat al) || (off % al /= 0) ->
+                              Err (string-concat "misaligned stack load on " base-slot)
+                            other ->
+                              (case tv-lookup-cell base-slot off cells of
+                                Some val ->
+                                  tv-mem2reg-step rest layouts ptrs cells (Cons (reg, val) aliases) acc
+                                None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+                        None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+                    None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc))
+                None -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc)
+            other -> tv-mem2reg-step rest layouts ptrs cells aliases (Cons line acc)
+
+  tv-symbolic-mem2reg :: String -> Result String String
+  tv-symbolic-mem2reg frag =
+    case tv-mem2reg-step (string-split-on "\n" frag) Nil Nil Nil Nil Nil of
+      Err e -> Err e
+      Ok out -> Ok (tv-join-lines out)
+
+  -- Prove two LLVM fragments with local #[repr(C)] / #[repr(value)] struct or
+  -- FixedArray stack alloca/getelementptr/load/store ops are bounds-safe,
+  -- alignment-safe, UB/poison-free, and bit-for-bit identical via LRAT.
+  validate-llvm-memory-equiv :: String -> String -> String -> List PrimParamSpec -> PrimParamSpec -> VerifyOutcome
+  validate-llvm-memory-equiv fn-name frag-before frag-after params result =
+    case tv-symbolic-mem2reg frag-before of
+      Err e -> OutcomeDisproved (string-concat-all [fn-name, " memory safety violation (lhs): ", e])
+      Ok ssa-before ->
+        case tv-symbolic-mem2reg frag-after of
+          Err e -> OutcomeDisproved (string-concat-all [fn-name, " memory safety violation (rhs): ", e])
+          Ok ssa-after -> validate-llvm-equiv fn-name ssa-before ssa-after params result
+
+  -- --------------------------------------------------------------------------
+  -- 14b. Perceus RC / Drop-Insertion Safety Validator (`stage: "rc-safety"`)
+  -- --------------------------------------------------------------------------
+
+  tv-classify-rc-call :: String -> Option (String, String)
+  tv-classify-rc-call line =
+    let t = string-strip line in
+    if not (string-contains "call " t) then None
+    else
+      let kind =
+            if string-contains "@cinch.rc.dup.obj(" t || string-contains "@\"cinch.rc.dup.obj\"(" t
+              || string-contains "@cinch.rc.dup.tobj(" t || string-contains "@\"cinch.rc.dup.tobj\"(" t
+              || string-contains "@cinch_dup(" t || string-contains "@cinch_dup_mt(" t then Some "dup"
+            else if string-contains "@cinch.rc.drop.obj(" t || string-contains "@\"cinch.rc.drop.obj\"(" t
+              || string-contains "@cinch.rc.drop.tobj(" t || string-contains "@\"cinch.rc.drop.tobj\"(" t
+              || string-contains "@cinch_drop(" t || string-contains "@cinch_drop_slow(" t
+              || string-contains "@cinch_drop_mt(" t || string-contains "@cinch_free(" t
+              || string-contains "@cinch_frame_release(" t then Some "drop"
+            else None in
+      case kind of
+        None -> None
+        Some k ->
+          (case string-split-on "(" t of
+            Cons pre (Cons inside _) ->
+              (case string-split-on ")" inside of
+                Cons arg-str _ ->
+                  let first-arg = case string-split-on "," arg-str of Cons h _ -> h; Nil -> arg-str in
+                  (case last-nonempty (string-words (string-strip first-arg)) of
+                    Some reg -> Some (k, reg)
+                    None -> None)
+                Nil -> None)
+            other -> None)
+
+  tv-lookup-str :: String -> List (String, String) -> Option String
+  tv-lookup-str k xs = case xs of
+    Nil -> None
+    Cons (a, b) rest -> if same k a then Some b else tv-lookup-str k rest
+
+  tv-lookup-rc :: String -> List (String, (Int, Int)) -> Option (Int, Int)
+  tv-lookup-rc k xs = case xs of
+    Nil -> None
+    Cons (a, b) rest -> if same k a then Some b else tv-lookup-rc k rest
+
+  tv-set-rc :: String -> (Int, Int) -> List (String, (Int, Int)) -> List (String, (Int, Int))
+  tv-set-rc k v xs = case xs of
+    Nil -> [(k, v)]
+    Cons (a, b) rest -> if same k a then Cons (a, v) rest else Cons (a, b) (tv-set-rc k v rest)
+
+  tv-dec-lo :: Int -> Int
+  tv-dec-lo lo = if lo > 0 then lo - 1 else 0
+
+  tv-rc-check-leaks :: List String -> List (String, (Int, Int)) -> List String
+  tv-rc-check-leaks touched rc-map = case touched of
+    Nil -> Nil
+    Cons h rest ->
+      let lo = case tv-lookup-rc h rc-map of Some (l, _) -> l; None -> 0 in
+      let more = tv-rc-check-leaks rest rc-map in
+      if lo > 0 then Cons (string-concat-all ["RC leak on ", h, " at ret (remaining rc>=", int-to-string lo, ")"]) more
+      else more
+
+  tv-rc-check-call-args :: List String -> List (String, String) -> List String -> List (String, (Int, Int)) -> (List (String, (Int, Int)), List String)
+  tv-rc-check-call-args args reg-h touched rc-map = case args of
+    Nil -> (rc-map, Nil)
+    Cons a rest ->
+      let (rc1, errs1) = case tv-lookup-str a reg-h of
+            Some h | has-str h touched ->
+              let (lo, hi) = case tv-lookup-rc h rc-map of Some p -> p; None -> (1, 1) in
+              if hi <= 0 then (rc-map, [string-concat-all ["use-after-free passing dropped handle ", h, " to call"]])
+              else (tv-set-rc h (tv-dec-lo lo, hi) rc-map, Nil)
+            other -> (rc-map, Nil) in
+      let (rc2, more) = tv-rc-check-call-args rest reg-h touched rc1 in
+      (rc2, errs1 <> more)
+
+  tv-rc-walk-lines :: List String -> List (String, String) -> List (String, String) -> List String -> List (String, (Int, Int)) -> List String -> Nat -> Nat -> List String -> (Nat, Nat, List String)
+  tv-rc-walk-lines lines reg-h slot-h local-allocas rc-map touched dups drops errs = case lines of
+    Nil -> (dups, drops, reverse errs)
+    Cons raw rest ->
+      let line = string-strip raw in
+      if string-length line == 0 || string-starts-with ";" line || string-ends-with ":" line then
+        tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs
+      else case tv-classify-rc-call line of
+        Some (kind, arg-reg) ->
+          let hdl = case tv-lookup-str arg-reg reg-h of Some h -> h; None -> arg-reg in
+          let touched1 = if has-str hdl touched then touched else Cons hdl touched in
+          let (lo, hi) = case tv-lookup-rc hdl rc-map of
+                Some p -> p
+                None -> if same kind "dup" then (0, 1) else (1, 1) in
+          if same kind "dup" then
+            if hi <= 0 then
+              tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched1 (dups + 1) drops
+                (Cons (string-concat-all ["use-after-free on dup of ", hdl]) errs)
+            else
+              tv-rc-walk-lines rest reg-h slot-h local-allocas (tv-set-rc hdl (lo + 1, hi + 1) rc-map) touched1 (dups + 1) drops errs
+          else
+            if hi <= 0 then
+              tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched1 dups (drops + 1)
+                (Cons (string-concat-all ["double-free / over-release on drop of ", hdl]) errs)
+            else
+              tv-rc-walk-lines rest reg-h slot-h local-allocas (tv-set-rc hdl (tv-dec-lo lo, hi - 1) rc-map) touched1 dups (drops + 1) errs
+        None ->
+          case tv-parse-store-op line of
+            Some (sty, sval, slot, _) ->
+              (case tv-lookup-str sval reg-h of
+                Some h ->
+                  let (lo, hi) = case tv-lookup-rc h rc-map of Some p -> p; None -> (1, 1) in
+                  let errs1 =
+                        if has-str h touched && hi <= 0 then
+                          Cons (string-concat-all ["use-after-free storing dropped handle ", h]) errs
+                        else errs in
+                  if has-str slot local-allocas then
+                    tv-rc-walk-lines rest reg-h (Cons (slot, h) slot-h) local-allocas rc-map touched dups drops errs1
+                  else
+                    -- Store into heap field transfers ownership.
+                    let rc1 = if has-str h touched then tv-set-rc h (tv-dec-lo lo, hi) rc-map else rc-map in
+                    tv-rc-walk-lines rest reg-h slot-h local-allocas rc1 touched dups drops errs1
+                None -> tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs)
+            None ->
+              if string-starts-with "ret " line then
+                let ws = string-words line in
+                let (rc1, errs1) = case ws of
+                      Cons "ret" (Cons rty (Cons rreg _)) ->
+                        (case tv-lookup-str rreg reg-h of
+                          Some h | has-str h touched ->
+                            let (lo, hi) = case tv-lookup-rc h rc-map of Some p -> p; None -> (1, 1) in
+                            if hi <= 0 then (rc-map, Cons (string-concat-all ["use-after-free returning dropped handle ", h]) errs)
+                            else (tv-set-rc h (tv-dec-lo lo, hi - 1) rc-map, errs)
+                          other -> (rc-map, errs))
+                      other -> (rc-map, errs) in
+                let leak-errs = tv-rc-check-leaks touched rc1 in
+                tv-rc-walk-lines rest reg-h slot-h local-allocas rc1 touched dups drops (leak-errs <> errs1)
+              else if string-starts-with "call " line || string-starts-with "tail call " line then
+                let call-args = case string-split-on "(" line of
+                      Cons _ (Cons inside _) ->
+                        (case string-split-on ")" inside of Cons astr _ -> tv-parse-call-args astr; Nil -> Nil)
+                      other -> Nil in
+                let (rc1, arg-errs) = tv-rc-check-call-args call-args reg-h touched rc-map in
+                tv-rc-walk-lines rest reg-h slot-h local-allocas rc1 touched dups drops (arg-errs <> errs)
+              else case string-split-on "=" line of
+                Cons lhs-raw (Cons rhs-raw _) | string-starts-with "%" (string-strip lhs-raw) ->
+                  let dst = string-strip lhs-raw in
+                  let rhs = string-strip rhs-raw in
+                  if string-starts-with "alloca " rhs then
+                    tv-rc-walk-lines rest reg-h slot-h (Cons dst local-allocas) rc-map touched dups drops errs
+                  else (case tv-parse-load-op rhs of
+                    Some (lty, slot, _) ->
+                      (case tv-lookup-str slot slot-h of
+                        Some h -> tv-rc-walk-lines rest (Cons (dst, h) reg-h) slot-h local-allocas rc-map touched dups drops errs
+                        None -> tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs)
+                    None ->
+                      if string-starts-with "inttoptr " rhs || string-starts-with "bitcast " rhs then
+                        let ws = string-words rhs in
+                        (case ws of
+                          Cons _ (Cons _ (Cons src _)) ->
+                            (case tv-lookup-str src reg-h of
+                              Some h ->
+                                let (lo, hi) = case tv-lookup-rc h rc-map of Some p -> p; None -> (1, 1) in
+                                let errs1 =
+                                      if has-str h touched && hi <= 0 then
+                                        Cons (string-concat-all ["use-after-free dereferencing dropped handle ", h]) errs
+                                      else errs in
+                                tv-rc-walk-lines rest (Cons (dst, h) reg-h) slot-h local-allocas rc-map touched dups drops errs1
+                              None -> tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs)
+                          other -> tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs)
+                      else if string-contains "call " rhs then
+                        let call-args = case string-split-on "(" rhs of
+                              Cons _ (Cons inside _) ->
+                                (case string-split-on ")" inside of Cons astr _ -> tv-parse-call-args astr; Nil -> Nil)
+                              other -> Nil in
+                        let (rc1, arg-errs) = tv-rc-check-call-args call-args reg-h touched rc-map in
+                        tv-rc-walk-lines rest (Cons (dst, dst) reg-h) slot-h local-allocas (tv-set-rc dst (1, 1) rc1) touched dups drops (arg-errs <> errs)
+                      else tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs)
+                other -> tv-rc-walk-lines rest reg-h slot-h local-allocas rc-map touched dups drops errs
+
+  tv-init-rc-params :: List String -> (List (String, String), List (String, (Int, Int)))
+  tv-init-rc-params ps = case ps of
+    Nil -> (Nil, Nil)
+    Cons p rest ->
+      case tv-init-rc-params rest of
+        (rh, rm) -> (Cons (p, p) rh, Cons (p, (1, 1)) rm)
+
+  tv-extract-header-params :: List String -> List String
+  tv-extract-header-params items = case items of
+    Nil -> Nil
+    Cons item rest ->
+      case last-nonempty (string-words (string-strip item)) of
+        Some p | string-starts-with "%" p -> Cons p (tv-extract-header-params rest)
+        other -> tv-extract-header-params rest
+
+  tv-find-define-with-params :: List String -> String -> Option (List String, List String)
+  tv-find-define-with-params lines needle = case lines of
+    Nil -> None
+    Cons raw rest ->
+      let t = string-strip raw in
+      if string-starts-with "define " t && string-contains needle t then
+        case string-split-on "(" t of
+          Cons pre (Cons after _) ->
+            (case string-split-on ")" after of
+              Cons pstr _ ->
+                let items = if string-length (string-strip pstr) == 0 then Nil else string-split-on "," pstr in
+                Some (tv-extract-header-params items, tv-collect-body-lines rest Nil)
+              Nil -> None)
+          other -> None
+      else tv-find-define-with-params rest needle
+
+  -- Audit one emitted LLVM function for Perceus RC / drop-insertion safety.
+  validate-fn-rc-safety :: String -> String -> Option TvReport
+  validate-fn-rc-safety fn-name ir-text =
+    let all-lines = string-split-on "\n" ir-text in
+    let needle-s3 = string-concat-all ["@\"cinch.typed.m.", fn-name, "\"("] in
+    let needle-seed = string-concat-all ["@\"", fn-name, "\"("] in
+    let found = case tv-find-define-with-params all-lines needle-s3 of
+          Some res -> Some res
+          None -> tv-find-define-with-params all-lines needle-seed in
+    case found of
+      None -> None
+      Some (pnames, body-lines) ->
+        let (rh0, rm0) = tv-init-rc-params pnames in
+        case tv-rc-walk-lines body-lines rh0 Nil Nil rm0 Nil 0 0 Nil of
+          (dups, drops, errs) ->
+            if dups == 0 && drops == 0 then None
+            else case errs of
+              Nil -> Some (MkTvReport fn-name "rc-safety" "verified"
+                (string-concat-all ["balanced Perceus RC (", nat-to-string dups, " dup, ", nat-to-string drops, " drop)"]))
+              Cons _ _ -> Some (MkTvReport fn-name "rc-safety" "disproved" (join-str "; " errs))
+
+  tv-collect-define-names :: List String -> String -> List String
+  tv-collect-define-names lines prefix = case lines of
+    Nil -> Nil
+    Cons raw rest ->
+      let t = string-strip raw in
+      let more = tv-collect-define-names rest prefix in
+      if string-starts-with "define " t && string-contains "@\"" t then
+        case string-split-on "@\"" t of
+          Cons _ (Cons after _) ->
+            (case string-split-on "\"" after of
+              Cons fname _ ->
+                let disp = if string-starts-with "cinch.typed.m." fname then string-slice fname 14 (string-length fname) else fname in
+                if string-starts-with prefix disp
+                  && not (string-ends-with ".app" disp)
+                  && not (string-ends-with ".exit" disp)
+                  && not (string-ends-with ".wrap" disp) then Cons disp more else more
+              Nil -> more)
+          other -> more
+      else more
+
+  tv-audit-rc-names :: List String -> String -> List TvReport
+  tv-audit-rc-names names ir-text = case names of
+    Nil -> Nil
+    Cons nm rest ->
+      case validate-fn-rc-safety nm ir-text of
+        Some rep -> Cons rep (tv-audit-rc-names rest ir-text)
+        None -> tv-audit-rc-names rest ir-text
+
+  validate-module-rc-safety :: String -> String -> List TvReport
+  validate-module-rc-safety ir-text prefix =
+    tv-audit-rc-names (tv-collect-define-names (string-split-on "\n" ir-text) prefix) ir-text
+
+  -- --------------------------------------------------------------------------
+  -- 14c. Interprocedural Inlining & Tail-Loop Bisimulation in Core -> LLVM TV
+  -- --------------------------------------------------------------------------
+
+  tv-find-core-def :: String -> List CoreDefinition -> Option CoreDefinition
+  tv-find-core-def tgt-nm defs = case defs of
+    Nil -> None
+    Cons d rest ->
+      if same (tv-display-name d.name) tgt-nm || same (strip-module-prefix (tv-display-name d.name)) tgt-nm then Some d
+      else tv-find-core-def tgt-nm rest
+
+  tv-has-self-tail-call :: String -> CoreTerm -> Bool
+  tv-has-self-tail-call self-disp tm = case tm of
+    CProved sp ty pf inner -> tv-has-self-tail-call self-disp inner
+    CRefine sp ty pf inner -> tv-has-self-tail-call self-disp inner
+    CForget sp ty inner -> tv-has-self-tail-call self-disp inner
+    CCast sp ty inner -> tv-has-self-tail-call self-disp inner
+    CRequire sp ty inner -> tv-has-self-tail-call self-disp inner
+    CDischarge sp ty pfs flag inner -> tv-has-self-tail-call self-disp inner
+    CPolyElim sp ty inner tys -> tv-has-self-tail-call self-disp inner
+    CLet sp ty lid nm sch rhs body -> tv-has-self-tail-call self-disp body
+    CIf sp ty cond th el -> tv-has-self-tail-call self-disp th || tv-has-self-tail-call self-disp el
+    CApply sp ty f a ->
+      case tv-unroll-core-app tm Nil of
+        (CUse hsp hty fn-name role actuals, args) ->
+          same (tv-display-name fn-name) self-disp || same (strip-module-prefix (tv-display-name fn-name)) (strip-module-prefix self-disp)
+        other -> False
+    other -> False
+
+  tv-bind-inline-params :: Nat -> List CorePattern -> List (Nat, SemType) -> SemGraph -> Result String (List (Nat, Nat, SemType), SemGraph)
+  tv-bind-inline-params word-bits pats args g = case (pats, args) of
+    (Nil, Nil) -> Ok (Nil, g)
+    (Cons (CPVar sp ty lid nm) pr, Cons (av, aty) ar) ->
+      (case tv-word-ty-for word-bits ty of
+        None -> Err "non-scalar inlined callee parameter"
+        Some (pty, _) ->
+          (case tv-coerce-bv av aty pty g of
+            Err e -> Err e
+            Ok (ac, g1) ->
+              (case tv-bind-inline-params word-bits pr ar g1 of
+                Err e -> Err e
+                Ok (more, g2) -> Ok (Cons (lid, ac, pty) more, g2))))
+    other -> Err "inlined callee arity mismatch"
+
+  tv-lower-core-args-defs :: Nat -> Nat -> List CoreDefinition -> List (Nat, Nat, SemType) -> List CoreTerm -> SemGraph -> Result String (List (Nat, SemType), SemGraph)
+  tv-lower-core-args-defs word-bits depth all-defs env args g = case args of
+    Nil -> Ok (Nil, g)
+    Cons a rest ->
+      case tv-lower-core-term-defs word-bits depth all-defs env a g of
+        Err e -> Err e
+        Ok (av, aty, g1) ->
+          case tv-lower-core-args-defs word-bits depth all-defs env rest g1 of
+            Err e -> Err e
+            Ok (more, g2) -> Ok (Cons (av, aty) more, g2)
+
+  tv-lower-core-term-defs :: Nat -> Nat -> List CoreDefinition -> List (Nat, Nat, SemType) -> CoreTerm -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  tv-lower-core-term-defs word-bits depth all-defs env tm g = case tm of
+    CProved sp ty pf inner -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CRefine sp ty pf inner -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CForget sp ty inner -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CCast sp ty inner -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CRequire sp ty inner -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CDischarge sp ty pfs flag inner -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CPolyElim sp ty inner tys -> tv-lower-core-term-defs word-bits depth all-defs env inner g
+    CLet sp ty lid nm sch rhs body ->
+      case tv-lower-core-term-defs word-bits depth all-defs env rhs g of
+        Err e -> Err e
+        Ok (rv, rty, g1) -> tv-lower-core-term-defs word-bits depth all-defs (Cons (lid, rv, rty) env) body g1
+    CIf sp ty cond th el ->
+      case tv-lower-core-term-defs word-bits depth all-defs env cond g of
+        Err e -> Err e
+        Ok (cv, cty, g1) ->
+          case tv-coerce-bv cv cty SBool g1 of
+            Err e -> Err e
+            Ok (cb, g2) ->
+              case tv-lower-core-term-defs word-bits depth all-defs env th g2 of
+                Err e -> Err e
+                Ok (tv, tty, g3) ->
+                  case tv-lower-core-term-defs word-bits depth all-defs env el g3 of
+                    Err e -> Err e
+                    Ok (ev, ety, g4) ->
+                      case tv-coerce-bv ev ety tty g4 of
+                        Err e -> Err e
+                        Ok (evc, g5) ->
+                          let (res, g6) = g-ite cb tv evc g5 in Ok (res, tty, g6)
+    CPrimitive sp ty op arg-spine ->
+      case tv-prim-args-list arg-spine of
+        Cons a (Cons b Nil) ->
+          case tv-lower-core-term-defs word-bits depth all-defs env a g of
+            Err e -> Err e
+            Ok (va, ta, g1) ->
+              case tv-lower-core-term-defs word-bits depth all-defs env b g1 of
+                Err e -> Err e
+                Ok (vb, tb, g2) -> tv-lower-core-binop word-bits (core-type a) op (va, ta) (vb, tb) g2
+        other -> Err (string-concat "unsupported CPrimitive arity in scalar TV: " op)
+    CApply sp ty f a ->
+      case tv-unroll-core-app tm Nil of
+        (CMethod msp mty cls meth slot tys evs, Cons a1 (Cons a2 Nil)) ->
+          case tv-lower-core-term-defs word-bits depth all-defs env a1 g of
+            Err e -> Err e
+            Ok (va, ta, g1) ->
+              case tv-lower-core-term-defs word-bits depth all-defs env a2 g1 of
+                Err e -> Err e
+                Ok (vb, tb, g2) -> tv-lower-core-binop word-bits (core-type a1) meth (va, ta) (vb, tb) g2
+        (CUse hsp hty fn-name role actuals, args) ->
+          case tv-lower-core-args-defs word-bits depth all-defs env args g of
+            Err e -> Err e
+            Ok (arg-vals, g1) ->
+              let base = strip-module-prefix fn-name in
+              (case tv-lower-scalar-call word-bits base arg-vals g1 of
+                Ok res -> Ok res
+                Err scalar-err ->
+                  if depth < 4 then
+                    let tgt-nm = tv-display-name fn-name in
+                    (case tv-find-core-def tgt-nm all-defs of
+                      Some cdef ->
+                        (case cdef.clauses of
+                          Cons (CoreClause csp cpats cbody) Nil ->
+                            (case tv-bind-inline-params word-bits cpats arg-vals g1 of
+                              Err e -> Err scalar-err
+                              Ok (sub-env, g2) ->
+                                tv-lower-core-term-defs word-bits (depth + 1) all-defs sub-env cbody g2)
+                          other -> Err scalar-err)
+                      None -> Err scalar-err)
+                  else Err scalar-err)
+        other -> Err "unsupported non-direct application in Core TV"
+    other -> tv-lower-core-term word-bits env tm g
+
+  -- Inductive 1-step Core lowering for tail-recursive functions:
+  -- returns `(done, ret-val, next-params)` where `done=True` on base-case return
+  -- and `done=False` on self tail-call with updated loop arguments.
+  tv-coerce-list :: List (Nat, SemType) -> List SemType -> SemGraph -> Result String (List Nat, SemGraph)
+  tv-coerce-list vals tys g = case (vals, tys) of
+    (Nil, Nil) -> Ok (Nil, g)
+    (Cons (v, vt) vr, Cons want tr) ->
+      case tv-coerce-bv v vt want g of
+        Err e -> Err e
+        Ok (vc, g1) ->
+          case tv-coerce-list vr tr g1 of
+            Err e -> Err e
+            Ok (more, g2) -> Ok (Cons vc more, g2)
+    other -> Err "tail-call arity mismatch"
+
+  tv-ite-list :: Nat -> List Nat -> List Nat -> SemGraph -> (List Nat, SemGraph)
+  tv-ite-list cond xs ys g = case (xs, ys) of
+    (Cons x xr, Cons y yr) ->
+      let (z, g1) = g-ite cond x y g in
+      let (more, g2) = tv-ite-list cond xr yr g1 in
+      (Cons z more, g2)
+    other -> (Nil, g)
+
+  tv-zero-for-ty :: SemType -> SemGraph -> (Nat, SemGraph)
+  tv-zero-for-ty ty g = case ty of
+    SBool -> g-bool False g
+    SBv w -> g-bv w 0 g
+    other -> g-bv 64 0 g
+
+  tv-lower-core-tail-step :: Nat -> String -> List CoreDefinition -> List (Nat, SemType) -> SemType -> List (Nat, Nat, SemType) -> CoreTerm -> SemGraph -> Result String (Nat, Nat, List Nat, SemGraph)
+  tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env tm g = case tm of
+    CProved sp ty pf inner -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CRefine sp ty pf inner -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CForget sp ty inner -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CCast sp ty inner -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CRequire sp ty inner -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CDischarge sp ty pfs flag inner -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CPolyElim sp ty inner tys -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env inner g
+    CLet sp ty lid nm sch rhs body ->
+      case tv-lower-core-term-defs word-bits 0 all-defs env rhs g of
+        Err e -> Err e
+        Ok (rv, rty, g1) -> tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty (Cons (lid, rv, rty) env) body g1
+    CIf sp ty cond th el ->
+      case tv-lower-core-term-defs word-bits 0 all-defs env cond g of
+        Err e -> Err e
+        Ok (cv, cty, g1) ->
+          case tv-coerce-bv cv cty SBool g1 of
+            Err e -> Err e
+            Ok (cb, g2) ->
+              case tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env th g2 of
+                Err e -> Err e
+                Ok (td, tr, tnext, g3) ->
+                  case tv-lower-core-tail-step word-bits self-disp all-defs param-nodes ret-sty env el g3 of
+                    Err e -> Err e
+                    Ok (ed, er, enext, g4) ->
+                      let (d, g5) = g-ite cb td ed g4 in
+                      let (r, g6) = g-ite cb tr er g5 in
+                      let (nx, g7) = tv-ite-list cb tnext enext g6 in
+                      Ok (d, r, nx, g7)
+    CApply sp ty f a ->
+      case tv-unroll-core-app tm Nil of
+        (CUse hsp hty fn-name role actuals, args) | same (tv-display-name fn-name) self-disp || same (strip-module-prefix (tv-display-name fn-name)) (strip-module-prefix self-disp) ->
+          case tv-lower-core-args-defs word-bits 0 all-defs env args g of
+            Err e -> Err e
+            Ok (arg-vals, g1) ->
+              let ptys = map-snd param-nodes in
+              case tv-coerce-list arg-vals ptys g1 of
+                Err e -> Err e
+                Ok (next-ids, g2) ->
+                  let (done-f, g3) = g-bool False g2 in
+                  let (zret, g4) = tv-zero-for-ty ret-sty g3 in
+                  Ok (done-f, zret, next-ids, g4)
+        other ->
+          case tv-lower-core-term-defs word-bits 0 all-defs env tm g of
+            Err e -> Err e
+            Ok (rv, rty, g1) ->
+              case tv-coerce-bv rv rty ret-sty g1 of
+                Err e -> Err e
+                Ok (rc, g2) ->
+                  let (done-t, g3) = g-bool True g2 in
+                  Ok (done-t, rc, map-fst param-nodes, g3)
+    other ->
+      case tv-lower-core-term-defs word-bits 0 all-defs env tm g of
+        Err e -> Err e
+        Ok (rv, rty, g1) ->
+          case tv-coerce-bv rv rty ret-sty g1 of
+            Err e -> Err e
+            Ok (rc, g2) ->
+              let (done-t, g3) = g-bool True g2 in
+              Ok (done-t, rc, map-fst param-nodes, g3)
+
+  map-fst :: forall a b. List (a, b) -> List a
+  map-fst xs = case xs of Nil -> Nil; Cons (a, _) r -> Cons a (map-fst r)
+
+  map-snd :: forall a b. List (a, b) -> List b
+  map-snd xs = case xs of Nil -> Nil; Cons (_, b) r -> Cons b (map-snd r)
+
+  tv-sem-ty-ir-str :: SemType -> String
+  tv-sem-ty-ir-str ty = case ty of
+    SBool -> "i1"
+    SBv w -> string-concat "i" (nat-to-string w)
+    other -> "i64"
+
+  -- Find the backedge header label (a label L that appears before a `br label %L`).
+  tv-find-backedge-header :: List String -> List String -> Option String
+  tv-find-backedge-header ls seen-labels = case ls of
+    Nil -> None
+    Cons raw rest ->
+      let t = string-strip raw in
+      if string-ends-with ":" t then
+        let lbl = string-slice t 0 (saturating-sub (string-length t) 1) in
+        tv-find-backedge-header rest (Cons lbl seen-labels)
+      else if string-starts-with "br label %" t then
+        let tgt = string-strip (string-slice t 10 (string-length t)) in
+        if has-str tgt seen-labels then Some tgt
+        else tv-find-backedge-header rest seen-labels
+      else tv-find-backedge-header rest seen-labels
+
+  -- Collect initial `store <ty> %i, ptr %slot` mappings before the loop header.
+  tv-collect-init-param-slots :: List String -> String -> List (String, String) -> List (String, String)
+  tv-collect-init-param-slots ls hdr acc = case ls of
+    Nil -> acc
+    Cons raw rest ->
+      let t = string-strip raw in
+      if same t (string-concat hdr ":") then acc
+      else case tv-parse-store-op t of
+        Some (_, sval, slot, _) | string-starts-with "%" sval ->
+          tv-collect-init-param-slots rest hdr (Cons (sval, slot) acc)
+        other -> tv-collect-init-param-slots rest hdr acc
+
+  -- Rewrite a tail-loop LLVM function into a single-output acyclic fragment for:
+  --   mode == "done" -> returns i1 (1 on ret, 0 on backedge)
+  --   mode == "ret"  -> returns ret-ty (%v on ret, 0 on backedge)
+  --   mode == "next" -> returns param-ty (%p_i on ret, load %slot_i on backedge)
+  -- Only rewrites `br label %hdr` AFTER seeing `hdr:` (the backedge, not the entry jump).
+  tv-rewrite-loop-output :: List String -> String -> Bool -> String -> String -> String -> String -> Nat -> List String -> List String
+  tv-rewrite-loop-output ls hdr seen-hdr mode out-ty param-reg slot-reg ctr acc = case ls of
+    Nil -> reverse acc
+    Cons raw rest ->
+      let t = string-strip raw in
+      let seen1 = seen-hdr || same t (string-concat hdr ":") in
+      if seen-hdr && same t (string-concat "br label %" hdr) then
+        if same mode "done" then
+          tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg ctr (Cons "  ret i1 0" acc)
+        else if same mode "ret" then
+          tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg ctr (Cons (string-concat-all ["  ret ", out-ty, " 0"]) acc)
+        else
+          let tmp = string-concat "%tv_next_" (nat-to-string ctr) in
+          let ld = string-concat-all ["  ", tmp, " = load ", out-ty, ", ptr ", slot-reg, ", align 8"] in
+          let rt = string-concat-all ["  ret ", out-ty, " ", tmp] in
+          tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg (ctr + 1) (Cons rt (Cons ld acc))
+      else if string-starts-with "ret " t then
+        if same mode "done" then
+          tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg ctr (Cons "  ret i1 1" acc)
+        else if same mode "ret" then
+          tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg ctr (Cons raw acc)
+        else
+          tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg ctr (Cons (string-concat-all ["  ret ", out-ty, " ", param-reg]) acc)
+      else tv-rewrite-loop-output rest hdr seen1 mode out-ty param-reg slot-reg ctr (Cons raw acc)
+
+  tv-lower-loop-nexts :: List String -> String -> List (String, String) -> List SemType -> Nat -> List (String, SemVal) -> Nat -> SemGraph -> Result String (List Nat, Nat, Nat, SemGraph)
+  tv-lower-loop-nexts raw-lines hdr slot-map ptys idx lbinds ub-acc g = case ptys of
+    Nil ->
+      let (f0, g1) = g-bool False g in Ok (Nil, ub-acc, f0, g1)
+    Cons pty rest ->
+      let preg = string-concat "%" (nat-to-string idx) in
+      case tv-lookup-str preg slot-map of
+        None -> Err (string-concat "missing loop param slot for " preg)
+        Some sreg ->
+          let frag-raw = join-str "\n" (tv-rewrite-loop-output raw-lines hdr False "next" (tv-sem-ty-ir-str pty) preg sreg 0 Nil) in
+          let frag = case tv-symbolic-mem2reg frag-raw of Ok ssa -> ssa; Err _ -> frag-raw in
+          case lower-ir-fragment frag lbinds ub-acc g of
+            Err e -> Err e
+            Ok (MkLlvmEnv _ _ _ None) -> Err "loop-next fragment has no ret"
+            Ok (MkLlvmEnv _ ub1 g1 (Some rv)) ->
+              case tv-coerce-bv (sv-val rv) (sv-type rv) pty g1 of
+                Err e -> Err e
+                Ok (vc, g2) ->
+                  case tv-lower-loop-nexts raw-lines hdr slot-map rest (idx + 1) lbinds ub1 g2 of
+                    Err e -> Err e
+                    Ok (more, ub2, p2, g3) ->
+                      let (p-all, g4) = g-or (sv-poison rv) p2 g3 in
+                      Ok (Cons vc more, ub2, p-all, g4)
+
+  tv-next-obligations :: String -> Nat -> List Nat -> List Nat -> List SemType -> Nat -> SemGraph -> (List (String, Nat), SemGraph)
+  tv-next-obligations disp not-done xs ys tys idx g = case (xs, ys, tys) of
+    (Cons x xr, Cons y yr, Cons ty tr) ->
+      let (eq1, g1) = case ty of
+            SBv w -> g-bv-cmp "eq" w x y g
+            SBool -> g-intern (NEqBool x y) g
+            other -> g-bool False g in
+      let (ob1, g2) = g-implies not-done eq1 g1 in
+      let (more, g3) = tv-next-obligations disp not-done xr yr tr (idx + 1) g2 in
+      (Cons (string-concat-all ["tv-loop-next", nat-to-string idx, ":", disp], ob1) more, g3)
+    other -> (Nil, g)
+
+  tv-extract-param-nodes :: List (Nat, Nat, SemType) -> List (Nat, SemType)
+  tv-extract-param-nodes cenv = case cenv of
+    Nil -> Nil
+    Cons (_, nid, ty) rest -> tv-extract-param-nodes rest <> [(nid, ty)]
+
+  tv-validate-tail-loop :: Nat -> String -> List CoreDefinition -> String -> List CorePattern -> CoreTerm -> SemType -> TvReport
+  tv-validate-tail-loop word-bits ir-text all-defs disp pats body ret-sty =
+    case tv-init-core-params word-bits pats 0 empty-sem-graph of
+      Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" reason
+      Ok (cenv, lbinds, g1) ->
+        let pnodes = tv-extract-param-nodes cenv in
+        let ptys = map-snd pnodes in
+        case tv-lower-core-tail-step word-bits disp all-defs pnodes ret-sty cenv body g1 of
+          Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" reason
+          Ok (c-done, c-ret, c-nexts, g2) ->
+            case tv-extract-llvm-fragment word-bits ir-text disp of
+              None -> MkTvReport disp "core->llvm(loop-step)" "skipped" "no matching emitted LLVM define"
+              Some raw-frag ->
+                let raw-lines = string-split-on "\n" raw-frag in
+                case tv-find-backedge-header raw-lines Nil of
+                  None -> MkTvReport disp "core->llvm(loop-step)" "skipped" "no tail-loop backedge header found"
+                  Some hdr ->
+                    let slot-map = tv-collect-init-param-slots raw-lines hdr Nil in
+                    let done-raw = join-str "\n" (tv-rewrite-loop-output raw-lines hdr False "done" "i1" "%0" "" 0 Nil) in
+                    let ret-raw = join-str "\n" (tv-rewrite-loop-output raw-lines hdr False "ret" (tv-sem-ty-ir-str ret-sty) "%0" "" 0 Nil) in
+                    let done-frag = case tv-symbolic-mem2reg done-raw of Ok ssa -> ssa; Err _ -> done-raw in
+                    let ret-frag = case tv-symbolic-mem2reg ret-raw of Ok ssa -> ssa; Err _ -> ret-raw in
+                    let (ub0, g3) = g-bool False g2 in
+                    case lower-ir-fragment done-frag lbinds ub0 g3 of
+                      Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" (string-concat "loop-done lowering: " reason)
+                      Ok (MkLlvmEnv _ _ _ None) -> MkTvReport disp "core->llvm(loop-step)" "skipped" "loop-done has no ret"
+                      Ok (MkLlvmEnv _ ub1 g4 (Some l-done-sv)) ->
+                        case tv-coerce-bv (sv-val l-done-sv) (sv-type l-done-sv) SBool g4 of
+                          Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" reason
+                          Ok (l-done, g5) ->
+                            case lower-ir-fragment ret-frag lbinds ub1 g5 of
+                              Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" (string-concat "loop-ret lowering: " reason)
+                              Ok (MkLlvmEnv _ _ _ None) -> MkTvReport disp "core->llvm(loop-step)" "skipped" "loop-ret has no ret"
+                              Ok (MkLlvmEnv _ ub2 g6 (Some l-ret-sv)) ->
+                                case tv-coerce-bv (sv-val l-ret-sv) (sv-type l-ret-sv) ret-sty g6 of
+                                  Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" reason
+                                  Ok (l-ret, g7) ->
+                                    case tv-lower-loop-nexts raw-lines hdr slot-map ptys 0 lbinds ub2 g7 of
+                                      Err reason -> MkTvReport disp "core->llvm(loop-step)" "skipped" reason
+                                      Ok (l-nexts, ub3, p-nexts, g8) ->
+                                        let (p1, g9) = g-or (sv-poison l-done-sv) (sv-poison l-ret-sv) g8 in
+                                        let (p-all, g10) = g-or p1 p-nexts g9 in
+                                        let (not-ub, g11) = g-not ub3 g10 in
+                                        let (not-p, g12) = g-not p-all g11 in
+                                        let (done-eq, g13) = g-intern (NEqBool c-done l-done) g12 in
+                                        let (ret-eq, g14) = case ret-sty of
+                                              SBv w -> g-bv-cmp "eq" w c-ret l-ret g13
+                                              SBool -> g-intern (NEqBool c-ret l-ret) g13
+                                              other -> g-bool False g13 in
+                                        let (ret-match, g15) = g-implies c-done ret-eq g14 in
+                                        let (not-done, g16) = g-not c-done g15 in
+                                        let (next-obs, g17) = tv-next-obligations disp not-done c-nexts l-nexts ptys 0 g16 in
+                                        let obs = [ (string-concat "tv-loop-no-ub:" disp, not-ub)
+                                                  , (string-concat "tv-loop-no-poison:" disp, not-p)
+                                                  , (string-concat "tv-loop-done:" disp, done-eq)
+                                                  , (string-concat "tv-loop-ret:" disp, ret-match)
+                                                  ] <> next-obs in
+                                        (case run-obligations-cached True "strict" "verify" Nil False g17 obs Nil of
+                                          OutcomeVerified (Cons rcpt _) ->
+                                            MkTvReport disp "core->llvm(loop-step)" "verified" (string-concat-all [receipt-checker-id rcpt, ": ", receipt-tier rcpt])
+                                          OutcomeVerified Nil ->
+                                            MkTvReport disp "core->llvm(loop-step)" "verified" "cinch-kernel-lrat@1: kernel-cert"
+                                          OutcomeAssumed _ -> MkTvReport disp "core->llvm(loop-step)" "open" "assumed"
+                                          OutcomeDisproved detail -> MkTvReport disp "core->llvm(loop-step)" "disproved" detail
+                                          OutcomeRejected detail -> MkTvReport disp "core->llvm(loop-step)" "rejected" detail
+                                          OutcomeOpen detail -> MkTvReport disp "core->llvm(loop-step)" "open" detail)
+
+  tv-validate-one-def-with-defs :: Nat -> String -> List CoreDefinition -> CoreDefinition -> TvReport
+  tv-validate-one-def-with-defs word-bits ir-text all-defs def =
     let disp = tv-display-name def.name in
     case def.clauses of
       Cons (CoreClause csp pats body) Nil ->
         case tv-word-ty-for word-bits (core-type body) of
           None -> MkTvReport disp "core->llvm" "skipped" "non-scalar result type"
           Some (ret-sty, ret-sg) ->
+            if tv-has-self-tail-call disp body then
+              tv-validate-tail-loop word-bits ir-text all-defs disp pats body ret-sty
+            else
             case tv-init-core-params word-bits pats 0 empty-sem-graph of
               Err reason -> MkTvReport disp "core->llvm" "skipped" reason
               Ok (cenv, lbinds, g1) ->
-                case tv-lower-core-term word-bits cenv body g1 of
+                case tv-lower-core-term-defs word-bits 0 all-defs cenv body g1 of
                   Err reason -> MkTvReport disp "core->llvm" "skipped" reason
                   Ok (cv, cty, g2) ->
                     case tv-coerce-bv cv cty ret-sty g2 of
@@ -4765,7 +5861,8 @@ module Cinch.PrimVerify where
                       Ok (cv-coerced, g3) ->
                         (case tv-extract-llvm-fragment word-bits ir-text disp of
                           None -> MkTvReport disp "core->llvm" "skipped" "no matching emitted LLVM define"
-                          Some frag ->
+                          Some raw-frag ->
+                            let frag = case tv-symbolic-mem2reg raw-frag of Ok ssa -> ssa; Err _ -> raw-frag in
                             let (ub0, g4) = g-bool False g3 in
                             (case lower-ir-fragment frag lbinds ub0 g4 of
                               Err reason -> MkTvReport disp "core->llvm" "skipped" (string-concat "LLVM lowering: " reason)
@@ -4776,12 +5873,15 @@ module Cinch.PrimVerify where
                                   Ok (lv-coerced, g6) ->
                                     let (not-ub, g7) = g-not ub-l g6 in
                                     let (not-p, g8) = g-not (sv-poison ret-l) g7 in
-                                    let (wd, g9) = g-and not-ub not-p g8 in
-                                    let (eq-v, g10) = case ret-sty of
-                                          SBv w -> g-bv-cmp "eq" w cv-coerced lv-coerced g9
-                                          other -> g-bool False g9 in
-                                    let (goal, g11) = g-and wd eq-v g10 in
-                                    (case run-obligations-cached True "strict" "verify" Nil False g11 [(string-concat "tv:" disp, goal)] Nil of
+                                    let (eq-v, g9) = case ret-sty of
+                                          SBv w -> g-bv-cmp "eq" w cv-coerced lv-coerced g8
+                                          SBool -> g-intern (NEqBool cv-coerced lv-coerced) g8
+                                          other -> g-bool False g8 in
+                                    let obs = [ (string-concat "tv-no-ub:" disp, not-ub)
+                                              , (string-concat "tv-no-poison:" disp, not-p)
+                                              , (string-concat "tv:" disp, eq-v)
+                                              ] in
+                                    (case run-obligations-cached True "strict" "verify" Nil False g9 obs Nil of
                                       OutcomeVerified (Cons rcpt rest) ->
                                         MkTvReport disp "core->llvm" "verified" (string-concat-all [receipt-checker-id rcpt, ": ", receipt-tier rcpt])
                                       OutcomeVerified Nil ->
@@ -4796,11 +5896,15 @@ module Cinch.PrimVerify where
                                         MkTvReport disp "core->llvm" "open" detail))))
       other -> MkTvReport disp "core->llvm" "skipped" "multi-clause function"
 
-  validate-program-codegen-for-word-bits :: Nat -> String -> List CoreDefinition -> String -> List TvReport
-  validate-program-codegen-for-word-bits word-bits prefix defs ir-text = case defs of
+  tv-validate-defs-loop :: Nat -> String -> List CoreDefinition -> String -> List CoreDefinition -> List TvReport
+  tv-validate-defs-loop word-bits prefix all-defs ir-text defs = case defs of
     Nil -> Nil
     Cons def rest ->
       let disp = tv-display-name def.name in
       if string-starts-with prefix disp then
-        Cons (tv-validate-one-def word-bits ir-text def) (validate-program-codegen-for-word-bits word-bits prefix rest ir-text)
-      else validate-program-codegen-for-word-bits word-bits prefix rest ir-text
+        Cons (tv-validate-one-def-with-defs word-bits ir-text all-defs def) (tv-validate-defs-loop word-bits prefix all-defs ir-text rest)
+      else tv-validate-defs-loop word-bits prefix all-defs ir-text rest
+
+  validate-program-codegen-for-word-bits :: Nat -> String -> List CoreDefinition -> String -> List TvReport
+  validate-program-codegen-for-word-bits word-bits prefix defs ir-text =
+    tv-validate-defs-loop word-bits prefix defs ir-text defs <> validate-module-rc-safety ir-text prefix

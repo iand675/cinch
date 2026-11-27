@@ -9,8 +9,9 @@ use cinch::prim_verify::llvm_ir::lower_llvm_fragment;
 use cinch::prim_verify::mem_contract::{audit_file_contracts, audit_source_contracts};
 use cinch::prim_verify::sem::{eval_node, ConcreteVal, SemParam, SemTy};
 use cinch::prim_verify::translate_val::{
-    build_core_transform_obligation, build_core_vs_llvm_obligation, collect_program_prim_bodies,
-    validate_program_codegen,
+    build_core_transform_obligation, build_core_vs_llvm_obligation,
+    build_core_vs_llvm_obligation_with_fns, collect_program_prim_bodies, validate_fn_rc_safety,
+    validate_llvm_memory_equiv, validate_module_rc_safety, validate_program_codegen,
 };
 use cinch::prim_verify::{Policy, TrustReceipt, TrustTier, VerificationStatus, VerifierEngine};
 use std::path::PathBuf;
@@ -843,4 +844,213 @@ module Main where
         err.to_string().contains("failed formal verification"),
         "expected formal verification counterexample, got: {err}"
     );
+}
+
+#[test]
+fn verify_codegen_interproc_tail_loops_aggregates_and_perceus_rc() {
+    use cinch::prim_verify::sem::SemParam;
+    use std::collections::HashMap;
+
+    // 1. Real Cinch program with:
+    //    - interprocedural call (`caller` -> `#[inline(never)] helper`),
+    //    - self-tail-recursive loop (`sum-down`),
+    //    - heap allocation + Perceus RC (`pair-sum` / `main`).
+    let src = r#"
+module Main where
+  import Data.Machine
+  export helper, caller, sum-down, pair-sum, main
+
+  #[inline(never)]
+  helper :: U64 -> U64
+  helper x = wrapping-add-u64 x x
+
+  caller :: U64 -> U64
+  caller x = wrapping-add-u64 (helper x) 1
+
+  sum-down :: U64 -> U64 -> U64
+  sum-down n acc =
+    if eq-u64 n 0 then acc
+    else sum-down (wrapping-sub-u64 n 1) (wrapping-add-u64 acc n)
+
+  #[repr(C)]
+  data Pair where
+    MkPair :: U64 -> U64 -> Pair
+
+  #[inline(never)]
+  pair-sum :: Pair -> U64
+  pair-sum p = case p of
+    MkPair x y -> wrapping-add-u64 x y
+
+  main :: Int
+  main =
+    let p = MkPair 1 2 in
+    let s = wrapping-add-u64 (caller 3) (wrapping-add-u64 (sum-down 5 0) (pair-sum p)) in
+    if eq-u64 s 0 then 1 else 0
+"#;
+    let program = check_sources(src, "<tv-ext>").expect("extended TV sample should check");
+    let program = cinch::rc::insert(program, &cinch::core::TargetProfile::native()).expect("rc insert");
+    let ir = cinch::codegen::emit(&program).expect("emit IR");
+
+    let reports = validate_program_codegen(&program, &ir, "Main.");
+    assert!(
+        reports.iter().any(|r| r.fn_name == "Main.helper" && r.status == "verified"),
+        "Main.helper should be LRAT-verified, got: {reports:?}"
+    );
+    assert!(
+        reports.iter().any(|r| r.fn_name == "Main.caller" && r.status == "verified"),
+        "interprocedural Main.caller should be LRAT-verified, got: {reports:?}"
+    );
+    assert!(
+        reports.iter().any(|r| {
+            r.fn_name == "Main.sum-down"
+                && r.stage == "core->llvm(loop-step)"
+                && r.status == "verified"
+        }),
+        "tail-recursive Main.sum-down should be LRAT loop-step bisimulation verified, got: {reports:?}"
+    );
+    assert!(
+        reports.iter().any(|r| r.stage == "rc-safety" && r.status == "verified"),
+        "Perceus RC-managed function should pass rc-safety, got: {reports:?}"
+    );
+    assert!(
+        reports.iter().all(|r| r.status != "disproved"),
+        "valid emitted IR must have zero disproved reports, got: {reports:?}"
+    );
+
+    // 2. Tamper with the tail-recursive loop latch (`wrapping-sub-u64` -> `wrapping-add-u64`):
+    //    inductive loop-step bisimulation MUST DISPROVE it with a counterexample!
+    let sum_fn = program.fns.iter().find(|f| f.id.0 == "Main.sum-down").unwrap();
+    let prim_bodies = collect_program_prim_bodies(&program);
+    let all_fns: HashMap<String, _> = program.fns.iter().map(|f| (f.id.0.clone(), f)).collect();
+    let sd_pos = ir.find("@\"Main.sum-down\"").expect("Main.sum-down in IR");
+    let tampered_loop_ir = format!(
+        "{}{}",
+        &ir[..sd_pos],
+        ir[sd_pos..].replacen(
+            "call i64 @\"Prim.Machine.wrapping-sub-u64\"",
+            "call i64 @\"Prim.Machine.wrapping-add-u64\"",
+            1,
+        )
+    );
+    let ob_bad_loop = build_core_vs_llvm_obligation_with_fns(
+        sum_fn,
+        &tampered_loop_ir,
+        &prim_bodies,
+        &all_fns,
+        64,
+    )
+    .expect("tampered loop should still build bisimulation obligation");
+    let mut engine = VerifierEngine::default_engine(Policy::jpl_strict());
+    let rep_bad_loop = engine.verify(&ob_bad_loop);
+    assert!(
+        matches!(rep_bad_loop.status, VerificationStatus::Disproved { .. }),
+        "tampered tail-loop latch MUST be disproved, got: {:?}",
+        rep_bad_loop.status
+    );
+
+    // 3. Aggregate #[repr(C)] struct + FixedArray symbolic memory equivalence (LRAT) + OOB rejection!
+    let p0 = SemParam { index: 0, name: "a".into(), ty: SemTy::Bv(64), signed: false };
+    let p1 = SemParam { index: 1, name: "b".into(), ty: SemTy::Bv(64), signed: false };
+    let struct_ir = r#"
+      %s = alloca { i64, i64 }, align 8
+      %f0 = getelementptr inbounds { i64, i64 }, ptr %s, i64 0, i32 0
+      store i64 %0, ptr %f0, align 8
+      %f1 = getelementptr inbounds { i64, i64 }, ptr %s, i64 0, i32 1
+      store i64 %1, ptr %f1, align 8
+      %a = load i64, ptr %f0, align 8
+      %b = load i64, ptr %f1, align 8
+      %sum = add i64 %a, %b
+      ret i64 %sum
+    "#;
+    let array_ir = r#"
+      %arr = alloca [2 x i64], align 8
+      %e0 = getelementptr inbounds [2 x i64], ptr %arr, i64 0, i64 0
+      store i64 %0, ptr %e0, align 8
+      %e1 = getelementptr inbounds [2 x i64], ptr %arr, i64 0, i64 1
+      store i64 %1, ptr %e1, align 8
+      %x = load i64, ptr %e1, align 8
+      %y = load i64, ptr %e0, align 8
+      %sum = add i64 %x, %y
+      ret i64 %sum
+    "#;
+    let ob_mem = validate_llvm_memory_equiv(
+        "repr_c_vs_fixed_array",
+        struct_ir,
+        array_ir,
+        &[p0.clone(), p1.clone()],
+        SemTy::Bv(64),
+    )
+    .expect("valid struct vs FixedArray memory fragments should lower");
+    assert!(
+        matches!(engine.verify(&ob_mem).status, VerificationStatus::Verified { .. }),
+        "#[repr(C)] struct and FixedArray commutative add should verify with LRAT"
+    );
+
+    let oob_array_ir = r#"
+      %arr = alloca [2 x i64], align 8
+      %bad = getelementptr inbounds [2 x i64], ptr %arr, i64 0, i64 2
+      store i64 %0, ptr %bad, align 8
+      ret i64 %0
+    "#;
+    let oob_err = validate_llvm_memory_equiv(
+        "oob_array",
+        struct_ir,
+        oob_array_ir,
+        &[p0.clone(), p1.clone()],
+        SemTy::Bv(64),
+    )
+    .expect_err("out-of-bounds FixedArray GEP MUST be rejected");
+    assert!(
+        oob_err.contains("out-of-bounds"),
+        "expected out-of-bounds error, got: {oob_err}"
+    );
+
+    // 4. Perceus RC safety validator: catches double-free, use-after-free, and RC leak!
+    let rc_double_free = r#"
+define i64 @"Main.bad-double-free"(i64 %p0) {
+entry:
+  call void @cinch.rc.drop.obj(i64 %p0)
+  call void @cinch.rc.drop.obj(i64 %p0)
+  ret i64 0
+}
+"#;
+    let rep_df = validate_fn_rc_safety("Main.bad-double-free", rc_double_free).unwrap();
+    assert_eq!(rep_df.status, "disproved");
+    assert!(rep_df.details.contains("double-free"), "got: {}", rep_df.details);
+
+    let rc_uaf = r#"
+define i64 @"Main.bad-uaf"(i64 %p0) {
+entry:
+  call void @cinch.rc.drop.obj(i64 %p0)
+  %x = call i64 @"Main.use"(i64 %p0)
+  ret i64 %x
+}
+"#;
+    let rep_uaf = validate_fn_rc_safety("Main.bad-uaf", rc_uaf).unwrap();
+    assert_eq!(rep_uaf.status, "disproved");
+    assert!(rep_uaf.details.contains("use-after-free"), "got: {}", rep_uaf.details);
+
+    let rc_leak = r#"
+define i64 @"Main.bad-leak"(i64 %p0) {
+entry:
+  call void @cinch.rc.dup.obj(i64 %p0)
+  call void @cinch.rc.drop.obj(i64 %p0)
+  ret i64 0
+}
+"#;
+    let rep_leak = validate_fn_rc_safety("Main.bad-leak", rc_leak).unwrap();
+    assert_eq!(rep_leak.status, "disproved");
+    assert!(rep_leak.details.contains("RC leak"), "got: {}", rep_leak.details);
+
+    let rc_good = r#"
+define i64 @"Main.good-rc"(i64 %p0) {
+entry:
+  call void @cinch.rc.dup.obj(i64 %p0)
+  call void @cinch.rc.drop.obj(i64 %p0)
+  ret i64 %p0
+}
+"#;
+    let mod_reports = validate_module_rc_safety(rc_good, "Main.");
+    assert_eq!(mod_reports.len(), 1);
+    assert_eq!(mod_reports[0].status, "verified");
 }

@@ -27,7 +27,7 @@ module Main where
   import Cinch.Infer (elaboration-core)
   import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
   import Cinch.Target (TargetProfile, host-profile, profile-of-triple, profile-with-prim-verify, target-view-program)
@@ -742,6 +742,66 @@ module Main where
       Ok (h, iface, prims) ->
         if string-contains "\"tier\":\"kernel-cert\"" prims && string-contains "\"prim_proofs\":" iface then Ok ()
         else Err (string-concat-all ["AIG/1-UIP CDCL identities missing kernel-cert/prim_proofs: ", prims, "\n", iface])
+  -- 22. Extended verify-codegen: #[repr(C)] struct + FixedArray memory TV, OOB rejection, and Perceus RC safety.
+  test-extended-tv-and-rc :: Result String Unit
+  test-extended-tv-and-rc =
+    let p0 = MkPrimParamSpec "a" "U64" 64 False False False in
+    let p1 = MkPrimParamSpec "b" "U64" 64 False False False in
+    let struct-ir = "%s = alloca { i64, i64 }, align 8\n%f0 = getelementptr inbounds { i64, i64 }, ptr %s, i64 0, i32 0\nstore i64 %0, ptr %f0, align 8\n%f1 = getelementptr inbounds { i64, i64 }, ptr %s, i64 0, i32 1\nstore i64 %1, ptr %f1, align 8\n%a = load i64, ptr %f0, align 8\n%b = load i64, ptr %f1, align 8\n%sum = add i64 %a, %b\nret i64 %sum\n" in
+    let array-ir = "%arr = alloca [2 x i64], align 8\n%e0 = getelementptr inbounds [2 x i64], ptr %arr, i64 0, i64 0\nstore i64 %0, ptr %e0, align 8\n%e1 = getelementptr inbounds [2 x i64], ptr %arr, i64 0, i64 1\nstore i64 %1, ptr %e1, align 8\n%x = load i64, ptr %e1, align 8\n%y = load i64, ptr %e0, align 8\n%sum = add i64 %x, %y\nret i64 %sum\n" in
+    let oob-ir = "%arr = alloca [2 x i64], align 8\n%bad = getelementptr inbounds [2 x i64], ptr %arr, i64 0, i64 2\nstore i64 %0, ptr %bad, align 8\nret i64 %0\n" in
+    let rc-good = "define i64 @\"Main.good-rc\"(i64 %p0) {\nentry:\n  call void @cinch.rc.dup.obj(i64 %p0)\n  call void @cinch.rc.drop.obj(i64 %p0)\n  ret i64 %p0\n}\n" in
+    let rc-df = "define i64 @\"Main.bad-df\"(i64 %p0) {\nentry:\n  call void @cinch.rc.drop.obj(i64 %p0)\n  call void @cinch.rc.drop.obj(i64 %p0)\n  ret i64 0\n}\n" in
+    let rc-uaf = "define i64 @\"Main.bad-uaf\"(i64 %p0) {\nentry:\n  call void @cinch.rc.drop.obj(i64 %p0)\n  %x = call i64 @\"Main.use\"(i64 %p0)\n  ret i64 %x\n}\n" in
+    let rc-leak = "define i64 @\"Main.bad-leak\"(i64 %p0) {\nentry:\n  call void @cinch.rc.dup.obj(i64 %p0)\n  call void @cinch.rc.drop.obj(i64 %p0)\n  ret i64 0\n}\n" in
+    let src-loop = string-concat-all [
+          "module Main where\n",
+          "  prim wrapping-add-u64 :: U64 -> U64 -> U64 where\n",
+          "    llvm {\n      %r = add i64 %0, %1\n      ret i64 %r\n    } justify verify\n",
+          "  prim wrapping-sub-u64 :: U64 -> U64 -> U64 where\n",
+          "    llvm {\n      %r = sub i64 %0, %1\n      ret i64 %r\n    } justify verify\n",
+          "  helper :: U64 -> U64\n",
+          "  helper x = wrapping-add-u64 x 1\n",
+          "  caller :: U64 -> U64\n",
+          "  caller x = wrapping-add-u64 (helper x) (helper x)\n",
+          "  sumdown :: U64 -> U64 -> U64\n",
+          "  sumdown n acc = if n == 0 then acc else sumdown (wrapping-sub-u64 n 1) (wrapping-add-u64 acc n)\n",
+          "  main :: Int\n",
+          "  main = 0\n"
+        ] in
+    let loop-ir-ok = string-concat-all [
+          "define i64 @\"cinch.typed.m.Main.helper\"(i64 %p0) {\nentry:\n  %r = add i64 %p0, 1\n  ret i64 %r\n}\n",
+          "define i64 @\"cinch.typed.m.Main.caller\"(i64 %p0) {\nentry:\n  %a = call i64 @\"cinch.typed.m.Main.helper\"(i64 %p0)\n  %b = call i64 @\"cinch.typed.m.Main.helper\"(i64 %p0)\n  %r = add i64 %a, %b\n  ret i64 %r\n}\n",
+          "define i64 @\"cinch.typed.m.Main.sumdown\"(i64 %p0, i64 %p1) {\nentry:\n  %sn = alloca i64, align 8\n  store i64 %p0, ptr %sn, align 8\n  %sa = alloca i64, align 8\n  store i64 %p1, ptr %sa, align 8\n  br label %tail.h\ntail.h:\n  %n = load i64, ptr %sn, align 8\n  %a = load i64, ptr %sa, align 8\n  %z = icmp eq i64 %n, 0\n  br i1 %z, label %done, label %step\ndone:\n  ret i64 %a\nstep:\n  %n1 = sub i64 %n, 1\n  %a1 = add i64 %a, %n\n  store i64 %n1, ptr %sn, align 8\n  store i64 %a1, ptr %sa, align 8\n  br label %tail.h\n}\n"
+        ] in
+    let loop-ir-bad = string-concat-all [
+          "define i64 @\"cinch.typed.m.Main.sumdown\"(i64 %p0, i64 %p1) {\nentry:\n  %sn = alloca i64, align 8\n  store i64 %p0, ptr %sn, align 8\n  %sa = alloca i64, align 8\n  store i64 %p1, ptr %sa, align 8\n  br label %tail.h\ntail.h:\n  %n = load i64, ptr %sn, align 8\n  %a = load i64, ptr %sa, align 8\n  %z = icmp eq i64 %n, 0\n  br i1 %z, label %done, label %step\ndone:\n  ret i64 %a\nstep:\n  %n1 = sub i64 %n, 2\n  %a1 = add i64 %a, %n\n  store i64 %n1, ptr %sn, align 8\n  store i64 %a1, ptr %sa, align 8\n  br label %tail.h\n}\n"
+        ] in
+    case (validate-llvm-memory-equiv "struct_vs_array" struct-ir array-ir [p0, p1] p0, validate-llvm-memory-equiv "oob" struct-ir oob-ir [p0, p1] p0) of
+      (OutcomeVerified _, OutcomeDisproved oob-msg) ->
+        if not (string-contains "out-of-bounds" oob-msg) then Err (string-concat "wrong OOB message: " oob-msg)
+        else case (validate-fn-rc-safety "Main.good-rc" rc-good, validate-fn-rc-safety "Main.bad-df" rc-df, validate-fn-rc-safety "Main.bad-uaf" rc-uaf, validate-fn-rc-safety "Main.bad-leak" rc-leak) of
+          (Some r-ok, Some r-df, Some r-uaf, Some r-lk) ->
+            if not (same (tv-report-status r-ok) "verified"
+              && same (tv-report-status r-df) "disproved"
+              && same (tv-report-status r-uaf) "disproved"
+              && same (tv-report-status r-lk) "disproved")
+              then Err "RC safety statuses mismatched"
+            else case self-check-profile host-profile "default" src-loop of
+              Err e -> Err (string-concat "extended TV source failed: " e)
+              Ok (checked, _) ->
+                let defs = elaboration-core (checked.elaboration) in
+                let reps-ok = validate-program-codegen-for-word-bits 64 "Main." defs loop-ir-ok in
+                let txt-ok = render-tv-reports reps-ok in
+                let reps-bad = validate-program-codegen-for-word-bits 64 "Main." defs loop-ir-bad in
+                if tv-reports-disproved reps-ok > 0 then Err (string-concat "extended TV unexpectedly disproved: " txt-ok)
+                else if not (string-contains "[VERIFIED] Main.caller" txt-ok) then Err (string-concat "interproc caller not verified: " txt-ok)
+                else if not (string-contains "[VERIFIED] Main.sumdown" txt-ok) then Err (string-concat "tail-loop sumdown not verified: " txt-ok)
+                else if tv-reports-disproved reps-bad == 0 then Err "tampered tail-loop was not disproved"
+                else Ok ()
+          other -> Err "RC safety returned None unexpectedly"
+      other -> Err "aggregate/FixedArray memory TV check failed"
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -784,11 +844,13 @@ module Main where
                                           Err e -> Err e
                                           Ok u19 -> case test-float-refinements-and-ieee754 of
                                             Err e -> Err e
-                                            Ok u20 -> test-aig-cdcl-identities
+                                            Ok u20 -> case test-aig-cdcl-identities of
+                                              Err e -> Err e
+                                              Ok u21 -> test-extended-tv-and-rc
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 21 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 22 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

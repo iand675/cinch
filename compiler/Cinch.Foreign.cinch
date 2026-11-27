@@ -683,7 +683,7 @@ module Cinch.Foreign where
     let is-bool = cname == "Bool" in
     MkPrimParamSpec pname cname (p.width * 8) (p.signed) is-fp is-bool
 
-  extract-scheme-meta :: UType -> Nat -> (List String, List UType, List (Nat, UType), Option UType)
+  extract-scheme-meta :: UType -> Nat -> (List String, List UType, List (Nat, UType), Option (String, UType))
   extract-scheme-meta ty idx = case ty of
     URequire preds rest ->
       case extract-scheme-meta rest idx of
@@ -703,7 +703,7 @@ module Cinch.Foreign where
         (names, reqs, ppreds, post) -> (dname : names, reqs, dpreds <> ppreds, post)
     other ->
       case refinement-view ty of
-        URefine id name base pred -> ([], [], [], Some pred)
+        URefine id name base pred -> ([], [], [], Some (name, pred))
         other2 -> ([], [], [], None)
 
   collect-require-preds :: UType -> List UType
@@ -829,9 +829,12 @@ module Cinch.Foreign where
             let trust = primitive-trust symbol bodies in
             let family = case body of InlinePrimitive owner chosen immediates llvm assembly -> chosen in
             if bodies-use-verify bodies then
-              let (pnames, req-preds, param-preds, postcond) = extract-scheme-meta (scheme-body scheme) 0 in
+              let (pnames, req-preds, param-preds, post-meta) = extract-scheme-meta (scheme-body scheme) 0 in
+              let (post-binder, postcond) = case post-meta of
+                    Some (bn, pr) -> (if string-length bn > 0 then bn else "r", Some pr)
+                    None -> ("result", None) in
               let pspecs = build-param-specs pnames arguments in
-              let rspec = param-to-verify-spec "result" result in
+              let rspec = param-to-verify-spec post-binder result in
               let spec-id-opt = spec-identity-string spec-opt in
               let spec-display = case spec-id-opt of Some s -> s; None -> "well-defined" in
               (case verify-prim-bodies-loop fb-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of

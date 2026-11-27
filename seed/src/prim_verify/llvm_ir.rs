@@ -93,7 +93,23 @@ fn strip_comment(line: &str) -> &str {
 pub fn lower_llvm_fragment(
     fragment: &str,
     params: &[SemParam],
+    ret_ty: SemTy,
+) -> Result<SemProgram, SemError> {
+    lower_llvm_fragment_with_uf(fragment, params, ret_ty, &mut None)
+}
+
+/// Callback invoked for direct non-intrinsic scalar calls (`call <ty> @"<callee>"(...)`)
+/// during translation validation, allowing Ackermann uninterpreted-function congruence.
+pub type UfCallHook<'a> =
+    &'a mut dyn FnMut(&mut SemGraph, &str, &[NodeId], SemTy) -> Result<NodeId, SemError>;
+
+/// Lower an acyclic LLVM IR fragment into `SemProgram`, optionally routing non-intrinsic
+/// direct scalar calls through `uf_hook` for interprocedural Ackermann congruence.
+pub fn lower_llvm_fragment_with_uf(
+    fragment: &str,
+    params: &[SemParam],
     _ret_ty: SemTy,
+    uf_hook: &mut Option<UfCallHook<'_>>,
 ) -> Result<SemProgram, SemError> {
     let mut g = SemGraph::new();
     let mut env: HashMap<String, (LlvmTy, SemVal)> = HashMap::new();
@@ -469,6 +485,28 @@ pub fn lower_llvm_fragment(
                         }
                     }
                 }
+                "insertvalue" => {
+                    let (agg_ty, rest) = parse_ty(rest)?;
+                    let (agg_op, rest) = parse_operand_until_comma(rest)?;
+                    let (elt_ty, rest) = parse_ty(rest)?;
+                    let (elt_op, rest) = parse_operand_until_comma(rest)?;
+                    let idx: usize = rest.trim().parse().map_err(|_| {
+                        SemError::Parse(format!("invalid insertvalue index: `{rest}`"))
+                    })?;
+                    let agg = eval_operand(&mut g, &env, &agg_ty, &agg_op)?;
+                    let elt = eval_operand(&mut g, &env, &elt_ty, &elt_op)?;
+                    match (&agg_ty, agg) {
+                        (LlvmTy::Struct(tys), SemVal::Tuple(mut vals)) if idx < tys.len() => {
+                            vals[idx] = elt;
+                            bind_dst(&mut env, dst, agg_ty, SemVal::Tuple(vals))?;
+                        }
+                        _ => {
+                            return Err(SemError::Parse(format!(
+                                "invalid insertvalue index {idx} on {agg_ty:?}"
+                            )));
+                        }
+                    }
+                }
                 "call" => {
                     if rest.contains(" asm ") || rest.starts_with("asm ") {
                         return Err(SemError::Unsupported(
@@ -494,7 +532,34 @@ pub fn lower_llvm_fragment(
                         let av = eval_operand(&mut g, &env, &aty, &aop)?;
                         eval_args.push((aty, aop, av));
                     }
-                    let res = lower_intrinsic(&mut g, sym, &ret_t, &eval_args)?;
+                    let res = match lower_intrinsic(&mut g, sym, &ret_t, &eval_args) {
+                        Ok(v) => v,
+                        Err(orig_err) => {
+                            if let (Some(hook), Some(r_sem_ty)) = (uf_hook.as_deref_mut(), ret_t.to_sem_ty()) {
+                                let clean_sym = sym.trim_matches('"');
+                                let mut arg_nodes = Vec::with_capacity(eval_args.len());
+                                let mut arg_poison = g.bool_const(false);
+                                let mut all_scalar = true;
+                                for (_, _, av) in &eval_args {
+                                    if let Some((v, p)) = av.as_scalar() {
+                                        arg_nodes.push(v);
+                                        arg_poison = g.or(arg_poison, p);
+                                    } else {
+                                        all_scalar = false;
+                                        break;
+                                    }
+                                }
+                                if all_scalar {
+                                    let out = hook(&mut g, clean_sym, &arg_nodes, r_sem_ty)?;
+                                    SemVal::Scalar { val: out, poison: arg_poison }
+                                } else {
+                                    return Err(orig_err);
+                                }
+                            } else {
+                                return Err(orig_err);
+                            }
+                        }
+                    };
                     bind_dst(&mut env, dst, ret_t, res)?;
                 }
                 other => {
@@ -599,6 +664,17 @@ fn merge_guarded_semvals(
                     .map(|(&(tv, tp), &(ev, ep))| (g.ite(*cond, tv, ev), g.ite(*cond, tp, ep)))
                     .collect();
                 SemVal::Vector { elem_ty: *elem_ty, lanes }
+            }
+            (SemVal::Tuple(ts), SemVal::Tuple(es)) if ts.len() == es.len() => {
+                let mut merged = Vec::with_capacity(ts.len());
+                for (t_item, e_item) in ts.iter().zip(es.iter()) {
+                    let t_true = g.bool_const(true);
+                    merged.push(merge_guarded_semvals(
+                        g,
+                        &[(*cond, t_item.clone()), (t_true, e_item.clone())],
+                    )?);
+                }
+                SemVal::Tuple(merged)
             }
             _ => {
                 return Err(SemError::Parse(
@@ -1560,6 +1636,13 @@ fn eval_operand(
                     let z = default_zero_for_ty(g, elem)?;
                     Ok(SemVal::Vector { elem_ty, lanes: vec![(z, p); *n as usize] })
                 }
+                LlvmTy::Struct(fields) => {
+                    let mut vals = Vec::with_capacity(fields.len());
+                    for ft in fields {
+                        vals.push(eval_operand(g, env, ft, op)?);
+                    }
+                    Ok(SemVal::Tuple(vals))
+                }
                 _ => {
                     let z = default_zero_for_ty(g, ty)?;
                     Ok(SemVal::Scalar { val: z, poison: p })
@@ -1575,6 +1658,13 @@ fn eval_operand(
                         .ok_or_else(|| SemError::Unsupported("nested vector".to_string()))?;
                     let z = default_zero_for_ty(g, elem)?;
                     Ok(SemVal::Vector { elem_ty, lanes: vec![(z, p); *n as usize] })
+                }
+                LlvmTy::Struct(fields) => {
+                    let mut vals = Vec::with_capacity(fields.len());
+                    for ft in fields {
+                        vals.push(eval_operand(g, env, ft, op)?);
+                    }
+                    Ok(SemVal::Tuple(vals))
                 }
                 _ => {
                     let z = default_zero_for_ty(g, ty)?;
