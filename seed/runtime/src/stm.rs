@@ -79,6 +79,18 @@
 //! change; it runs again, reaches `retry` again and waits again.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_stm_cell_new(value: i64, format: i64) -> i64;
+    pub fn cinch_stm_publish(target: i64, staged: i64) -> i64;
+    pub fn cinch_stm_state(_unused: i64) -> i64;
+    pub fn cinch_stm_wait_begin(filter: i64) -> i64;
+    pub fn cinch_stm_wait_cancel(_unused: i64) -> i64;
+    pub fn cinch_stm_wait_park(cancellable: i64) -> i64;
+    pub fn cinch_stm_wake(filter: i64) -> i64;
+    pub fn cinch_stm_yield(_unused: i64) -> i64;
+}
 use std::sync::{Arc, Mutex};
 
 use crate::block::{self, SCAN_RAW, SCAN_TOBJ, TVAR_FORMAT_WORD, TVAR_LOCK_WORD, TVAR_VALUE_WORD, TVAR_WORDS};
@@ -111,6 +123,7 @@ unsafe fn cell(word: i64) -> *mut i64 {
 /// # Safety
 ///
 /// `value` is an owned word of the class `format` names.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_stm_cell_new(value: i64, format: i64) -> i64 {
     if !(SCAN_RAW as i64..=SCAN_TOBJ as i64).contains(&format) {
@@ -140,6 +153,7 @@ pub unsafe extern "C" fn cinch_stm_cell_new(value: i64, format: i64) -> i64 {
 /// `target` and `staged` are live cell words; `staged` and everything
 /// unmarked its value reaches are reachable from the calling thread
 /// only.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_stm_publish(target: i64, staged: i64) -> i64 {
     if !rc::reclaiming() {
@@ -183,6 +197,7 @@ const _: () = assert!(std::mem::size_of::<Line>() == STATE_SLEEPERS_OFFSET);
 /// ignored here and in the two entry points below that have nothing to
 /// take: the prelude reaches them through a `uses` contract, which
 /// states a function of at least one machine word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_stm_state(_unused: i64) -> i64 {
     STATE.as_ptr() as usize as i64
@@ -241,6 +256,7 @@ fn deregister(w: &Arc<Waiter>) {
 /// variable in `filter` (module docs, step 1). The caller validates its
 /// read set next and ends the wait with exactly one of
 /// [`cinch_stm_wait_park`] and [`cinch_stm_wait_cancel`].
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_stm_wait_begin(filter: i64) -> i64 {
     let w = Arc::new(Waiter { parker: park::current(), filter: filter as u64, woken: AtomicBool::new(false) });
@@ -258,6 +274,7 @@ pub extern "C" fn cinch_stm_wait_begin(filter: i64) -> i64 {
 }
 
 /// End a wait whose read set turned out to have changed already.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_stm_wait_cancel(_unused: i64) -> i64 {
     deregister(&take_wait());
@@ -268,6 +285,7 @@ pub extern "C" fn cinch_stm_wait_cancel(_unused: i64) -> i64 {
 /// `cancellable` is not 0, a cancellation request for the running task
 /// ends the wait as well: 1. A request resumes the task's context
 /// (`crate::task`), so the wait observes it without polling.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_stm_wait_park(cancellable: i64) -> i64 {
     let w = take_wait();
@@ -306,6 +324,7 @@ fn suspend(w: &Waiter) {
 /// Resume every suspended transaction whose filter intersects `filter`
 /// (module docs). A committer calls it after releasing its locks, and
 /// only when it read a nonzero sleeper count.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_stm_wake(filter: i64) -> i64 {
     let all = waiters();
@@ -322,6 +341,7 @@ pub extern "C" fn cinch_stm_wake(filter: i64) -> i64 {
 
 /// Give the processor to another runnable context: the last step of a
 /// transaction's contention backoff, after spinning has not helped.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_stm_yield(_unused: i64) -> i64 {
     std::thread::yield_now();

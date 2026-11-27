@@ -16,6 +16,12 @@
 
 use std::sync::RwLock;
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_rwlock_new(value: i64, format: i64) -> i64;
+    pub fn cinch_rwlock_access(word: i64, value: i64, op: i64, out: *mut i64) -> i64;
+}
+
 use crate::{abi, block, rc};
 
 // ABI operation codes shared with compiler intrinsics.
@@ -81,6 +87,7 @@ unsafe fn cell<'a>(word: i64) -> &'a RwLockBox {
 }
 
 /// Allocate a new `RwLock` initialized with owned `value` of scan code `format`.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_rwlock_new(value: i64, format: i64) -> i64 {
     if !(block::SCAN_RAW as i64..=block::SCAN_TOBJ as i64).contains(&format) {
@@ -107,6 +114,7 @@ pub unsafe extern "C" fn cinch_rwlock_new(value: i64, format: i64) -> i64 {
 ///   success, or 0 without writing `*out` if write-locked.
 /// * `OP_TRY_WRITE` (4): consumes `value` on every outcome; returns 1 on
 ///   success, or 0 (dropping `value`) if contended.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_rwlock_access(
     word: i64,

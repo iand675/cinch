@@ -906,7 +906,11 @@ fn emit_module(
         }
         for plan in program.foreigns.values() {
             if !plan.export && declared.insert(plan.symbol.clone()) {
-                out.push_str(&foreign_declare(plan, &reg)?);
+                let bare = format!("@{}(", plan.symbol);
+                let quoted = format!("@{}(", quote(&plan.symbol));
+                if !out.contains(&bare) && !out.contains(&quoted) {
+                    out.push_str(&foreign_declare(plan, &reg)?);
+                }
             }
         }
         // The bracket around a `Blocking` import's call (`foreign_call`).

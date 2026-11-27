@@ -16,6 +16,21 @@
 
 use std::sync::atomic::{fence, AtomicI64, Ordering};
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_atomic_new(initial: i64) -> i64;
+    pub fn cinch_atomic_load(word: i64, order: i64) -> i64;
+    pub fn cinch_atomic_store(word: i64, value: i64, order: i64) -> i64;
+    pub fn cinch_atomic_swap(word: i64, value: i64, order: i64) -> i64;
+    pub fn cinch_atomic_fetch_add(word: i64, delta: i64, order: i64) -> i64;
+    pub fn cinch_atomic_fetch_sub(word: i64, delta: i64, order: i64) -> i64;
+    pub fn cinch_atomic_fetch_and(word: i64, mask: i64, order: i64) -> i64;
+    pub fn cinch_atomic_fetch_or(word: i64, mask: i64, order: i64) -> i64;
+    pub fn cinch_atomic_fetch_xor(word: i64, mask: i64, order: i64) -> i64;
+    pub fn cinch_atomic_cas(word: i64, expected: i64, desired: i64, success_order: i64, failure_order: i64) -> i64;
+    pub fn cinch_atomic_fence(order: i64) -> i64;
+}
+
 use crate::{abi, block};
 
 pub(crate) struct AtomicCell {
@@ -78,6 +93,7 @@ unsafe fn cell<'a>(word: i64) -> &'a AtomicCell {
 }
 
 /// Allocate a fresh atomic 64-bit word initialized to `initial`.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_new(initial: i64) -> i64 {
     block::allocate_value(
@@ -90,12 +106,14 @@ pub unsafe extern "C" fn cinch_atomic_new(initial: i64) -> i64 {
 }
 
 /// Load the 64-bit value with ordering `order`.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_load(word: i64, order: i64) -> i64 {
     unsafe { cell(word) }.value.load(load_ordering(order))
 }
 
 /// Store `value` with ordering `order`. Returns 0 (`Unit`).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_store(word: i64, value: i64, order: i64) -> i64 {
     unsafe { cell(word) }.value.store(value, store_ordering(order));
@@ -103,12 +121,14 @@ pub unsafe extern "C" fn cinch_atomic_store(word: i64, value: i64, order: i64) -
 }
 
 /// Atomically replace the stored word with `value`, returning the previous word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_swap(word: i64, value: i64, order: i64) -> i64 {
     unsafe { cell(word) }.value.swap(value, rmw_ordering(order))
 }
 
 /// Wrapping atomic fetch-add, returning the previous word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_fetch_add(word: i64, delta: i64, order: i64) -> i64 {
     unsafe { cell(word) }
@@ -117,6 +137,7 @@ pub unsafe extern "C" fn cinch_atomic_fetch_add(word: i64, delta: i64, order: i6
 }
 
 /// Wrapping atomic fetch-sub, returning the previous word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_fetch_sub(word: i64, delta: i64, order: i64) -> i64 {
     unsafe { cell(word) }
@@ -125,6 +146,7 @@ pub unsafe extern "C" fn cinch_atomic_fetch_sub(word: i64, delta: i64, order: i6
 }
 
 /// Bitwise atomic fetch-and, returning the previous word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_fetch_and(word: i64, mask: i64, order: i64) -> i64 {
     unsafe { cell(word) }
@@ -133,6 +155,7 @@ pub unsafe extern "C" fn cinch_atomic_fetch_and(word: i64, mask: i64, order: i64
 }
 
 /// Bitwise atomic fetch-or, returning the previous word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_fetch_or(word: i64, mask: i64, order: i64) -> i64 {
     unsafe { cell(word) }
@@ -141,6 +164,7 @@ pub unsafe extern "C" fn cinch_atomic_fetch_or(word: i64, mask: i64, order: i64)
 }
 
 /// Bitwise atomic fetch-xor, returning the previous word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_fetch_xor(word: i64, mask: i64, order: i64) -> i64 {
     unsafe { cell(word) }
@@ -150,6 +174,7 @@ pub unsafe extern "C" fn cinch_atomic_fetch_xor(word: i64, mask: i64, order: i64
 
 /// Strong compare-and-exchange. Returns 1 if the cell equaled `expected` and
 /// was replaced with `desired`, or 0 otherwise.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_cas(
     word: i64,
@@ -170,6 +195,7 @@ pub unsafe extern "C" fn cinch_atomic_cas(
 }
 
 /// Issue a hardware/compiler atomic memory fence. Returns 0 (`Unit`).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_atomic_fence(order: i64) -> i64 {
     fence(fence_ordering(order));

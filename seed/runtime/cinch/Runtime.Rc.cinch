@@ -10,9 +10,6 @@ module Runtime.Rc where
   export cinchReclaimEnable, cinchDropSlow, cinchFrameRelease, cinchDupMt, cinchDropMt
   export cinchFree, cinchExitCheck, markMtArray, fieldCounted, takeField
 
-  -- Temporary hook to drop payloads of box kinds still in Rust (removed once M3+M5 migrate them)
-  foreign import ccall "cinch_rust_drop_box_payload" rustDropBoxPayload :: RawPtr U8 -> U8 ->{Global} Unit
-
   #[static_mut]
   static reclaimEnabled :: U64
 
@@ -76,8 +73,23 @@ module Runtime.Rc where
           heapGlobalDealloc (maybeToRaw limbsPtr) (u64ToUsize (u64Mul len 4)) 4
         else ()) in
       storeU64 p 0 0
-    else if k == kindMvar || k == kindRwlock then
-      rustDropBoxPayload p k
+    else if k == kindMvar then
+      -- KIND_MVAR layout: offset 0 = format, offset 8 = hasVal, offset 16 = val
+      let fmt = loadI64 p 0 in
+      let hasVal = loadU64 p 8 in
+      if hasVal /= 0 && fmt /= 0 && rcReclaiming () then
+        let val = loadI64 p 16 in
+        let _ = storeU64 p 8 0 in
+        cinchDrop val
+      else ()
+    else if k == kindRwlock then
+      -- KIND_RWLOCK layout: offset 0 = format, offset 8 = value
+      let fmt = loadI64 p 0 in
+      if fmt /= 0 && rcReclaiming () then
+        let val = loadI64 p 8 in
+        let _ = storeI64 p 8 0 in
+        cinchDrop val
+      else ()
     else ()
 
   disposeBlock :: RawPtr U8 -> U64 -> Bool -> MaybeNull U8 ->{Global, ThreadAffine} Unit

@@ -283,17 +283,6 @@ pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
     }
 }
 
-/// Temporary bridge called from Cinch `Runtime.Rc` until MVar/RwLock move to Cinch (M5).
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_rust_drop_box_payload(p: *mut u8, header_kind: u8) {
-    match header_kind {
-        crate::block::KIND_MVAR => unsafe { std::ptr::drop_in_place(p.cast::<crate::mvar::MVar>()) },
-        crate::block::KIND_RWLOCK => unsafe { std::ptr::drop_in_place(p.cast::<crate::rwlock::RwLockBox>()) },
-        _ => {}
-    }
-}
-
 /// The header kind of the block behind `word`, faulting on null. A
 /// corrupt word faults here instead of being misinterpreted.
 unsafe fn box_kind(word: i64) -> u8 {

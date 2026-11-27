@@ -15,6 +15,7 @@ module Runtime where
   import Runtime.Text
   import Runtime.Arrays
   import Runtime.Slots
+  import Runtime.Sync
 
   export cinchBlackhole, cinchPanic
   export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc
@@ -44,3 +45,10 @@ module Runtime where
   export cinchColumnarColumn, cinchColumnarRows, cinchColumnarColumns
   export cinchColumnarChild, cinchColumnarArray, cinchColumnarZip, cinchColumnarGet
   export cinchSlotsNew, cinchSlotsMove, cinchSlotsClear, cinchSlotsFault
+  export cinchAtomicNew, cinchAtomicLoad, cinchAtomicStore, cinchAtomicSwap
+  export cinchAtomicFetchAdd, cinchAtomicFetchSub, cinchAtomicFetchAnd
+  export cinchAtomicFetchOr, cinchAtomicFetchXor, cinchAtomicCas, cinchAtomicFence
+  export cinchRwlockNew, cinchRwlockAccess
+  export cinchMvarNew, cinchMvarAccess
+  export cinchStmCellNew, cinchStmPublish, cinchStmState
+  export cinchStmWaitBegin, cinchStmWaitCancel, cinchStmWaitPark, cinchStmWake, cinchStmYield

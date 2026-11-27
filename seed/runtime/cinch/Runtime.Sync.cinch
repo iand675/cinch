@@ -1,0 +1,747 @@
+module Runtime.Sync where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+
+  export cinchAtomicNew, cinchAtomicLoad, cinchAtomicStore, cinchAtomicSwap
+  export cinchAtomicFetchAdd, cinchAtomicFetchSub, cinchAtomicFetchAnd
+  export cinchAtomicFetchOr, cinchAtomicFetchXor, cinchAtomicCas, cinchAtomicFence
+  export cinchRwlockNew, cinchRwlockAccess
+  export cinchMvarNew, cinchMvarAccess
+  export cinchStmCellNew, cinchStmPublish, cinchStmState
+  export cinchStmWaitBegin, cinchStmWaitCancel, cinchStmWaitPark, cinchStmWake, cinchStmYield
+
+  -- Suspension & cancellation seam (bridged to Rust sched/task until M6 migrates them to Cinch)
+  foreign import ccall "cinch_rt_park_current" rtParkCurrent :: Unit ->{Global} U64
+  foreign import ccall "cinch_rt_park_unpark" rtParkUnpark :: U64 ->{Global} Unit
+  foreign import ccall "cinch_rt_park_drop" rtParkDrop :: U64 ->{Global} Unit
+  foreign import ccall "cinch_rt_park" rtPark :: Unit ->{Global} Unit
+  foreign import ccall "cinch_rt_current_task_canceled" rtTaskCanceled :: Unit ->{Global} U8
+
+  taskCanceled :: Unit ->{Global} Bool
+  taskCanceled _ = rtTaskCanceled () /= 0
+
+  -- =========================================================================
+  -- Shared panic helpers
+  -- =========================================================================
+
+  panicSync :: U64 ->{Global} Unit
+  panicSync which =
+    withLocal (fixedArrayRepeat 56 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      if which == 0 then
+        -- "compiler bug: invalid atomic ordering" (37 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 105 110 in
+        let _ = put8 p 16 118 97 108 105 100 32 97 116 in
+        let _ = put8 p 24 111 109 105 99 32 111 114 100 in
+        let _ = put4 p 32 101 114 105 110 in
+        let _ = storeU8 p 36 103 in
+        panicExitBytes p 37
+      else if which == 1 then
+        -- "compiler bug: corrupt Atomic cell" (33 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 99 111 in
+        let _ = put8 p 16 114 114 117 112 116 32 65 116 in
+        let _ = put8 p 24 111 109 105 99 32 99 101 108 in
+        let _ = storeU8 p 32 108 in
+        panicExitBytes p 33
+      else if which == 2 then
+        -- "compiler bug: corrupt RwLock box" (32 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 99 111 in
+        let _ = put8 p 16 114 114 117 112 116 32 82 119 in
+        let _ = put8 p 24 76 111 99 107 32 98 111 120 in
+        panicExitBytes p 32
+      else if which == 3 then
+        -- "compiler bug: corrupt MVar" (26 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 99 111 in
+        let _ = put8 p 16 114 114 117 112 116 32 77 86 in
+        let _ = storeU8 p 24 97 in
+        let _ = storeU8 p 25 114 in
+        panicExitBytes p 26
+      else
+        -- "compiler bug: corrupt transactional variable cell" (49 bytes)
+        let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+        let _ = put8 p 8 32 98 117 103 58 32 99 111 in
+        let _ = put8 p 16 114 114 117 112 116 32 116 114 in
+        let _ = put8 p 24 97 110 115 97 99 116 105 111 in
+        let _ = put8 p 32 110 97 108 32 118 97 114 105 in
+        let _ = put8 p 40 97 98 108 101 32 99 101 108 in
+        let _ = storeU8 p 48 108 in
+        panicExitBytes p 49
+    )
+
+  spinAcquire :: RawPtr U8 -> Isize -> U64 ->{Global} Unit
+  spinAcquire ptr off spins =
+    if atomicSwapU64AcqRel ptr off 1 == 0 then ()
+    else if u64Lt spins 64 then
+      let _ = sysSpinLoop () in
+      spinAcquire ptr off (u64Add spins 1)
+    else
+      let _ = cSchedYield () in
+      spinAcquire ptr off 0
+
+  spinRelease :: RawPtr U8 -> Isize ->{Global} Unit
+  spinRelease ptr off = atomicStoreU64Release ptr off 0
+
+  -- =========================================================================
+  -- 1. Atomic (11 exports)
+  -- =========================================================================
+
+  validLoadOrd :: I64 -> Bool
+  validLoadOrd o = o == 0 || o == 1 || o == 4
+
+  validStoreOrd :: I64 -> Bool
+  validStoreOrd o = o == 0 || o == 2 || o == 4
+
+  validRmwOrd :: I64 -> Bool
+  validRmwOrd o = i64Ge o 0 && i64Le o 4
+
+  validFenceOrd :: I64 -> Bool
+  validFenceOrd o = i64Ge o 1 && i64Le o 4
+
+  atomicCellPtr :: I64 ->{Global} RawPtr U8
+  atomicCellPtr word =
+    if word == 0 || bitAndI64 word 7 /= 0 then
+      let _ = panicSync 1 in
+      maybeToRaw (ptrFromU64 1)
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindAtomic then
+        let _ = panicSync 1 in
+        p
+      else p
+
+  cinchAtomicNew :: I64 ->{Global, ThreadAffine} I64
+  cinchAtomicNew initial =
+    let p = allocate 8 kindAtomic rcFresh False in
+    let _ = storeI64 p 0 initial in
+    u64ToI64 (rawToU64 p)
+
+  cinchAtomicLoad :: I64 -> I64 ->{Global} I64
+  cinchAtomicLoad word ord =
+    let _ = if not (validLoadOrd ord) then panicSync 0 else () in
+    let p = atomicCellPtr word in
+    if ord == 0 then atomicLoadI64Relaxed p 0
+    else if ord == 1 then atomicLoadI64Acquire p 0
+    else atomicLoadI64SeqCst p 0
+
+  cinchAtomicStore :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicStore word val ord =
+    let _ = if not (validStoreOrd ord) then panicSync 0 else () in
+    let p = atomicCellPtr word in
+    let _ = (if ord == 0 then atomicStoreI64Relaxed p 0 val
+             else if ord == 2 then atomicStoreI64Release p 0 val
+             else atomicStoreI64SeqCst p 0 val) in
+    0
+
+  cinchAtomicSwap :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicSwap word val ord =
+    let _ = if not (validRmwOrd ord) then panicSync 0 else () in
+    atomicSwapI64Ord (atomicCellPtr word) 0 val ord
+
+  cinchAtomicFetchAdd :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicFetchAdd word delta ord =
+    let _ = if not (validRmwOrd ord) then panicSync 0 else () in
+    atomicAddI64Ord (atomicCellPtr word) 0 delta ord
+
+  cinchAtomicFetchSub :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicFetchSub word delta ord =
+    let _ = if not (validRmwOrd ord) then panicSync 0 else () in
+    atomicSubI64Ord (atomicCellPtr word) 0 delta ord
+
+  cinchAtomicFetchAnd :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicFetchAnd word mask ord =
+    let _ = if not (validRmwOrd ord) then panicSync 0 else () in
+    atomicAndI64Ord (atomicCellPtr word) 0 mask ord
+
+  cinchAtomicFetchOr :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicFetchOr word mask ord =
+    let _ = if not (validRmwOrd ord) then panicSync 0 else () in
+    atomicOrI64Ord (atomicCellPtr word) 0 mask ord
+
+  cinchAtomicFetchXor :: I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicFetchXor word mask ord =
+    let _ = if not (validRmwOrd ord) then panicSync 0 else () in
+    atomicXorI64Ord (atomicCellPtr word) 0 mask ord
+
+  cinchAtomicCas :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} I64
+  cinchAtomicCas word expected desired succOrd failOrd =
+    let _ = if not (validRmwOrd succOrd) || not (validLoadOrd failOrd) then panicSync 0 else () in
+    if atomicCasI64Ord (atomicCellPtr word) 0 expected desired succOrd failOrd then 1 else 0
+
+  cinchAtomicFence :: I64 ->{Global} I64
+  cinchAtomicFence ord =
+    let _ = if not (validFenceOrd ord) then panicSync 0 else () in
+    let _ = (if ord == 1 then fenceAcquire ()
+             else if ord == 2 then fenceRelease ()
+             else if ord == 3 then fenceAcqRel ()
+             else fenceSeqCst ()) in
+    0
+
+  -- =========================================================================
+  -- 2. RwLock (2 exports)
+  -- Layout of KIND_RWLOCK (24 bytes):
+  --   offset 0:  format  :: I64 (0=RAW, 1=OBJ, 2=TOBJ)
+  --   offset 8:  value   :: I64 (owned word, marked MT if counted)
+  --   offset 16: rwState :: U64 (bit 63 = write-locked, bits 0..62 = readers)
+  -- =========================================================================
+
+  rwWriteBit :: U64
+  rwWriteBit = 9223372036854775808 -- 1 << 63
+
+  rwCellPtr :: I64 ->{Global} RawPtr U8
+  rwCellPtr word =
+    if word == 0 || bitAndI64 word 7 /= 0 then
+      let _ = panicSync 2 in
+      maybeToRaw (ptrFromU64 1)
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindRwlock then
+        let _ = panicSync 2 in
+        p
+      else p
+
+  rwTryReadLock :: RawPtr U8 ->{Global} Bool
+  rwTryReadLock p =
+    let cur = atomicLoadU64Acquire p 16 in
+    if bitAndU64 cur rwWriteBit /= 0 then False
+    else if atomicCasU64Bool p 16 cur (u64Add cur 1) then True
+    else rwTryReadLock p
+
+  rwReadLock :: RawPtr U8 -> U64 ->{Global} Unit
+  rwReadLock p spins =
+    let cur = atomicLoadU64Relaxed p 16 in
+    if bitAndU64 cur rwWriteBit == 0 then
+      if atomicCasU64Bool p 16 cur (u64Add cur 1) then ()
+      else rwReadLock p (u64Add spins 1)
+    else if u64Lt spins 64 then
+      let _ = sysSpinLoop () in
+      rwReadLock p (u64Add spins 1)
+    else
+      let _ = cSchedYield () in
+      rwReadLock p 0
+
+  rwReadUnlock :: RawPtr U8 ->{Global} Unit
+  rwReadUnlock p =
+    let _ = atomicSubU64AcqRel p 16 1 in ()
+
+  rwTryWriteLock :: RawPtr U8 ->{Global} Bool
+  rwTryWriteLock p =
+    atomicCasU64Bool p 16 0 rwWriteBit
+
+  rwWriteLock :: RawPtr U8 -> U64 ->{Global} Unit
+  rwWriteLock p spins =
+    if atomicCasU64Bool p 16 0 rwWriteBit then ()
+    else if u64Lt spins 64 then
+      let _ = sysSpinLoop () in
+      rwWriteLock p (u64Add spins 1)
+    else
+      let _ = cSchedYield () in
+      rwWriteLock p 0
+
+  rwWriteUnlock :: RawPtr U8 ->{Global} Unit
+  rwWriteUnlock p = atomicStoreU64Release p 16 0
+
+  markSharedValue :: I64 -> I64 ->{Global} Unit
+  markSharedValue word fmt =
+    if fmt /= 0 && rcReclaiming () then cinchMarkMt word else ()
+
+  dupValue :: I64 -> I64 ->{Global} I64
+  dupValue word fmt =
+    let _ = if fmt /= 0 && rcReclaiming () then cinchDup word else () in
+    word
+
+  dropValue :: I64 -> I64 ->{Global, ThreadAffine} Unit
+  dropValue word fmt =
+    if fmt /= 0 && rcReclaiming () then cinchDrop word else ()
+
+  cinchRwlockNew :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchRwlockNew val fmt =
+    let _ = if i64Lt fmt 0 || i64Gt fmt 2 then panicSync 2 else () in
+    let _ = markSharedValue val fmt in
+    let p = allocate 24 kindRwlock rcFresh False in
+    let _ = storeI64 p 0 fmt in
+    let _ = storeI64 p 8 val in
+    let _ = storeU64 p 16 0 in
+    u64ToI64 (rawToU64 p)
+
+  cinchRwlockAccess :: I64 -> I64 -> I64 -> RawPtr I64 ->{Global, ThreadAffine} I64
+  cinchRwlockAccess word val op out =
+    let p = rwCellPtr word in
+    let fmt = loadI64 p 0 in
+    if op == 0 then
+      -- OP_READ
+      let _ = rwReadLock p 0 in
+      let dup = dupValue (loadI64 p 8) fmt in
+      let _ = rwReadUnlock p in
+      let _ = storeI64 out 0 dup in
+      1
+    else if op == 3 then
+      -- OP_TRY_READ
+      if rwTryReadLock p then
+        let dup = dupValue (loadI64 p 8) fmt in
+        let _ = rwReadUnlock p in
+        let _ = storeI64 out 0 dup in
+        1
+      else 0
+    else if op == 1 then
+      -- OP_WRITE
+      let _ = markSharedValue val fmt in
+      let _ = rwWriteLock p 0 in
+      let old = loadI64 p 8 in
+      let _ = storeI64 p 8 val in
+      let _ = rwWriteUnlock p in
+      let _ = dropValue old fmt in
+      let _ = storeI64 out 0 0 in
+      1
+    else if op == 2 then
+      -- OP_SWAP
+      let _ = markSharedValue val fmt in
+      let _ = rwWriteLock p 0 in
+      let old = loadI64 p 8 in
+      let _ = storeI64 p 8 val in
+      let _ = rwWriteUnlock p in
+      let _ = storeI64 out 0 old in
+      1
+    else if op == 4 then
+      -- OP_TRY_WRITE
+      let _ = markSharedValue val fmt in
+      if rwTryWriteLock p then
+        let old = loadI64 p 8 in
+        let _ = storeI64 p 8 val in
+        let _ = rwWriteUnlock p in
+        let _ = dropValue old fmt in
+        1
+      else
+        let _ = dropValue val fmt in
+        0
+    else
+      let _ = panicSync 2 in
+      0
+
+  -- =========================================================================
+  -- 3. MVar (2 exports)
+  -- Layout of KIND_MVAR (80 bytes):
+  --   0:  format       :: I64
+  --   8:  hasVal       :: U64 (0=empty, 1=full)
+  --   16: val          :: I64
+  --   24: spinLock     :: U64
+  --   32: takersHead   :: MaybeNull U8
+  --   40: takersTail   :: MaybeNull U8
+  --   48: readersHead  :: MaybeNull U8
+  --   56: readersTail  :: MaybeNull U8
+  --   64: writersHead  :: MaybeNull U8
+  --   72: writersTail  :: MaybeNull U8
+  -- Waiter node (56 bytes):
+  --   0:  next     :: MaybeNull U8
+  --   8:  parker   :: U64
+  --   16: done     :: U64 (0=waiting, 1=completed)
+  --   24: result   :: I64
+  --   32: hasRepl  :: U64 (1 for SWAP/PUT)
+  --   40: replWord :: I64
+  --   48: refs     :: U64 (atomic refcount, starts at 2)
+  -- =========================================================================
+
+  mvarCellPtr :: I64 ->{Global} RawPtr U8
+  mvarCellPtr word =
+    if word == 0 || bitAndI64 word 7 /= 0 then
+      let _ = panicSync 3 in
+      maybeToRaw (ptrFromU64 1)
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindMvar then
+        let _ = panicSync 3 in
+        p
+      else p
+
+  mvarWaiterAlloc :: U64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  mvarWaiterAlloc hasRepl replWord =
+    let w = heapGlobalAlloc 56 8 0 in
+    let _ = storePtr w 0 (ptrNull ()) in
+    let _ = storeU64 w 8 (rtParkCurrent ()) in
+    let _ = storeU64 w 16 0 in
+    let _ = storeI64 w 24 0 in
+    let _ = storeU64 w 32 hasRepl in
+    let _ = storeI64 w 40 replWord in
+    let _ = storeU64 w 48 2 in
+    w
+
+  mvarWaiterRelease :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  mvarWaiterRelease w =
+    if atomicSubU64AcqRel w 48 1 == 1 then
+      let _ = rtParkDrop (loadU64 w 8) in
+      heapGlobalDealloc w 56 8
+    else ()
+
+  -- Enqueue waiter at queue (headOff, tailOff)
+  qPush :: RawPtr U8 -> Isize -> Isize -> RawPtr U8 ->{Global} Unit
+  qPush m headOff tailOff w =
+    let _ = storePtr w 0 (ptrNull ()) in
+    let tail = loadPtr m tailOff in
+    if ptrIsNull tail then
+      let _ = storePtr m headOff (rawToMaybe w) in
+      storePtr m tailOff (rawToMaybe w)
+    else
+      let _ = storePtr (maybeToRaw tail) 0 (rawToMaybe w) in
+      storePtr m tailOff (rawToMaybe w)
+
+  qPop :: RawPtr U8 -> Isize -> Isize ->{Global} MaybeNull U8
+  qPop m headOff tailOff =
+    let head = loadPtr m headOff in
+    if ptrIsNull head then ptrNull ()
+    else
+      let h = maybeToRaw head in
+      let next = loadPtr h 0 in
+      let _ = storePtr m headOff next in
+      let _ = if ptrIsNull next then storePtr m tailOff (ptrNull ()) else () in
+      let _ = storePtr h 0 (ptrNull ()) in
+      head
+
+  -- Remove specific waiter `tgt` from queue (headOff, tailOff); returns True if found.
+  qRemoveLoop :: RawPtr U8 -> Isize -> Isize -> MaybeNull U8 -> MaybeNull U8 -> RawPtr U8 ->{Global} Bool
+  qRemoveLoop m headOff tailOff prev cur tgt =
+    if ptrIsNull cur then False
+    else
+      let c = maybeToRaw cur in
+      let next = loadPtr c 0 in
+      if rawToU64 c == rawToU64 tgt then
+        let _ = (if ptrIsNull prev then storePtr m headOff next
+                 else storePtr (maybeToRaw prev) 0 next) in
+        let _ = if ptrIsNull next then storePtr m tailOff prev else () in
+        let _ = storePtr c 0 (ptrNull ()) in
+        True
+      else
+        qRemoveLoop m headOff tailOff cur next tgt
+
+  mvarCompleteWaiter :: RawPtr U8 -> I64 ->{Global, ThreadAffine} Unit
+  mvarCompleteWaiter w resWord =
+    let _ = storeI64 w 24 resWord in
+    let _ = atomicStoreU64Release w 16 1 in
+    let _ = rtParkUnpark (loadU64 w 8) in
+    mvarWaiterRelease w
+
+  mvarDrainReaders :: RawPtr U8 -> I64 -> I64 ->{Global, ThreadAffine} Unit
+  mvarDrainReaders m val fmt =
+    let r = qPop m 48 56 in
+    if ptrIsNull r then ()
+    else
+      let dup = dupValue val fmt in
+      let _ = mvarCompleteWaiter (maybeToRaw r) dup in
+      mvarDrainReaders m val fmt
+
+  mvarDrainTakers :: RawPtr U8 -> I64 ->{Global, ThreadAffine} Unit
+  mvarDrainTakers m val =
+    let t = qPop m 32 40 in
+    if ptrIsNull t then
+      let _ = storeI64 m 16 val in
+      storeU64 m 8 1
+    else
+      let tw = maybeToRaw t in
+      let hasRepl = loadU64 tw 32 in
+      let repl = loadI64 tw 40 in
+      let _ = mvarCompleteWaiter tw val in
+      if hasRepl == 0 then ()
+      else mvarDrainTakers m repl
+
+  mvarFill :: RawPtr U8 -> I64 -> I64 ->{Global, ThreadAffine} Unit
+  mvarFill m val fmt =
+    let _ = mvarDrainReaders m val fmt in
+    mvarDrainTakers m val
+
+  cinchMvarNew :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchMvarNew val fmt full =
+    let _ = if i64Lt fmt 0 || i64Gt fmt 2 then panicSync 3 else () in
+    let _ = if full /= 0 then markSharedValue val fmt else () in
+    let p = allocate 80 kindMvar rcFresh True in
+    let _ = storeI64 p 0 fmt in
+    let _ = storeU64 p 8 (if full /= 0 then 1 else 0) in
+    let _ = storeI64 p 16 (if full /= 0 then val else 0) in
+    u64ToI64 (rawToU64 p)
+
+  mvarWaitLoop :: RawPtr U8 -> I64 -> I64 -> RawPtr U8 -> I64 -> RawPtr I64 ->{Global, ThreadAffine} I64
+  mvarWaitLoop m op mode w fmt out =
+    if atomicLoadU64Acquire w 16 /= 0 then
+      let res = loadI64 w 24 in
+      let _ = spinRelease m 24 in
+      let _ = mvarWaiterRelease w in
+      let _ = storeI64 out 0 res in
+      1
+    else if mode == 2 && taskCanceled () then
+      let removed =
+            (if op == 0 || op == 3 then qRemoveLoop m 32 40 (ptrNull ()) (loadPtr m 32) w
+            else if op == 2 then qRemoveLoop m 48 56 (ptrNull ()) (loadPtr m 48) w
+            else qRemoveLoop m 64 72 (ptrNull ()) (loadPtr m 64) w) in
+      let _ = spinRelease m 24 in
+      if removed then
+        -- We removed the queue's entry before anyone completed it: drop our replacement if any, and release both refs.
+        let _ = if loadU64 w 32 /= 0 then dropValue (loadI64 w 40) fmt else () in
+        let _ = mvarWaiterRelease w in
+        let _ = mvarWaiterRelease w in
+        0
+      else
+        -- Completed right before removal (cannot happen under lock since we checked done==0, defensive)
+        let _ = mvarWaiterRelease w in
+        0
+    else
+      let _ = spinRelease m 24 in
+      let _ = rtPark () in
+      let _ = spinAcquire m 24 0 in
+      mvarWaitLoop m op mode w fmt out
+
+  cinchMvarAccess :: I64 -> I64 -> I64 -> I64 -> RawPtr I64 ->{Global, ThreadAffine} I64
+  cinchMvarAccess word val op mode out =
+    let _ = if i64Lt op 0 || i64Gt op 4 || i64Lt mode 0 || i64Gt mode 2 then panicSync 3 else () in
+    let m = mvarCellPtr word in
+    let fmt = loadI64 m 0 in
+    let hasInput = op == 1 || op == 3 in
+    let _ = if hasInput then markSharedValue val fmt else () in
+    let _ = spinAcquire m 24 0 in
+    if op == 4 then
+      -- IS_EMPTY
+      let empty = loadU64 m 8 == 0 in
+      let _ = spinRelease m 24 in
+      if empty then 1 else 0
+    else
+      let full = loadU64 m 8 /= 0 in
+      if op == 0 && full then
+        -- TAKE fast path
+        let v = loadI64 m 16 in
+        let w = qPop m 64 72 in
+        let _ = (if ptrIsNull w then
+            storeU64 m 8 0
+          else
+            let ww = maybeToRaw w in
+            let nextVal = loadI64 ww 40 in
+            let _ = storeI64 m 16 nextVal in
+            let _ = storeU64 m 8 1 in
+            mvarCompleteWaiter ww 0) in
+        let _ = spinRelease m 24 in
+        let _ = storeI64 out 0 v in
+        1
+      else if op == 2 && full then
+        -- READ fast path
+        let v = dupValue (loadI64 m 16) fmt in
+        let _ = spinRelease m 24 in
+        let _ = storeI64 out 0 v in
+        1
+      else if op == 3 && full then
+        -- SWAP fast path
+        let old = loadI64 m 16 in
+        let _ = storeI64 m 16 val in
+        let _ = spinRelease m 24 in
+        let _ = storeI64 out 0 old in
+        1
+      else if op == 1 && not full then
+        -- PUT fast path
+        let _ = mvarFill m val fmt in
+        let _ = spinRelease m 24 in
+        let _ = storeI64 out 0 0 in
+        1
+      else if mode == 1 || (mode == 2 && taskCanceled ()) then
+        let _ = spinRelease m 24 in
+        let _ = if hasInput then dropValue val fmt else () in
+        0
+      else
+        let w = mvarWaiterAlloc (if hasInput then 1 else 0) (if hasInput then val else 0) in
+        let _ = (if op == 0 || op == 3 then qPush m 32 40 w
+                 else if op == 2 then qPush m 48 56 w
+                 else qPush m 64 72 w) in
+        mvarWaitLoop m op mode w fmt out
+
+  -- =========================================================================
+  -- 4. STM (8 exports)
+  -- =========================================================================
+
+  #[static_mut]
+  #[align(128)]
+  static stmState :: FixedArray 32 U64
+
+  #[static_mut]
+  #[align(128)]
+  static stmWaitersLock :: U64
+
+  #[static_mut]
+  static stmWaitersHead :: U64
+
+  #[thread_local]
+  static stmWaitingTls :: U64
+
+  tvarCellPtr :: I64 ->{Global} RawPtr U8
+  tvarCellPtr word =
+    if word == 0 || bitAndI64 word 7 /= 0 then
+      let _ = panicSync 4 in
+      maybeToRaw (ptrFromU64 1)
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 word)) in
+      if headerKind (readHeader p) /= kindTvar then
+        let _ = panicSync 4 in
+        p
+      else p
+
+  cinchStmCellNew :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchStmCellNew val fmt =
+    let _ = if i64Lt fmt 0 || i64Gt fmt 2 then panicSync 4 else () in
+    let p = allocate 24 kindTvar rcFresh False in
+    let _ = storeI64 p 0 0 in
+    let _ = storeI64 p 8 val in
+    let _ = storeI64 p 16 fmt in
+    u64ToI64 (rawToU64 p)
+
+  cinchStmPublish :: I64 -> I64 ->{Global} I64
+  cinchStmPublish tgt staged =
+    if not (rcReclaiming ()) then 0
+    else
+      let t = tvarCellPtr tgt in
+      if i64Ge (headerRc (readHeader t)) 0 then 0
+      else
+        let s = tvarCellPtr staged in
+        if loadI64 s 16 == 0 then 0
+        else
+          let v = loadI64 s 8 in
+          if v == 0 || bitAndI64 v 1 /= 0 then 0
+          else
+            let vp = maybeToRaw (ptrFromU64 (i64ToU64 v)) in
+            if i64Le (headerRc (readHeader vp)) 0 then 0
+            else
+              let _ = cinchMarkMt v in
+              1
+
+  cinchStmState :: I64 ->{Global} I64
+  cinchStmState _unused = u64ToI64 (rawToU64 (ptrCast (stmState ())))
+
+  -- StmWaiter layout (32 bytes):
+  --   0:  next   :: MaybeNull U8
+  --   8:  parker :: U64
+  --   16: filter :: U64
+  --   24: woken  :: U64 (atomic)
+
+  stmTakeWaitTls :: Unit ->{Global, ThreadAffine} RawPtr U8
+  stmTakeWaitTls _ =
+    let raw = loadU64 (stmWaitingTls ()) 0 in
+    let _ = storeU64 (stmWaitingTls ()) 0 0 in
+    if raw == 0 then
+      let _ = panicSync 4 in
+      maybeToRaw (ptrFromU64 1)
+    else maybeToRaw (ptrFromU64 raw)
+
+  stmUnlinkLoop :: MaybeNull U8 -> MaybeNull U8 -> RawPtr U8 ->{Global} Bool
+  stmUnlinkLoop prev cur tgt =
+    if ptrIsNull cur then False
+    else
+      let c = maybeToRaw cur in
+      let next = loadPtr c 0 in
+      if rawToU64 c == rawToU64 tgt then
+        let _ = (if ptrIsNull prev then storeU64 (stmWaitersHead ()) 0 (ptrToU64 next)
+                 else storePtr (maybeToRaw prev) 0 next) in
+        True
+      else
+        stmUnlinkLoop cur next tgt
+
+  stmDeregister :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  stmDeregister w =
+    let _ = spinAcquire (ptrCast (stmWaitersLock ())) 0 0 in
+    let head = ptrFromU64 (loadU64 (stmWaitersHead ()) 0) in
+    let removed = stmUnlinkLoop (ptrNull ()) head w in
+    let _ = (if removed then
+        let _ = atomicSubU64SeqCst (ptrCast (stmState ())) 128 1 in ()
+      else ()) in
+    let _ = spinRelease (ptrCast (stmWaitersLock ())) 0 in
+    let _ = rtParkDrop (loadU64 w 8) in
+    heapGlobalDealloc w 32 8
+
+  cinchStmWaitBegin :: I64 ->{Global, ThreadAffine} I64
+  cinchStmWaitBegin filter =
+    let w = heapGlobalAlloc 32 8 0 in
+    let _ = storeU64 w 8 (rtParkCurrent ()) in
+    let _ = storeU64 w 16 (i64ToU64 filter) in
+    let _ = storeU64 w 24 0 in
+    let _ = spinAcquire (ptrCast (stmWaitersLock ())) 0 0 in
+    let oldHead = ptrFromU64 (loadU64 (stmWaitersHead ()) 0) in
+    let _ = storePtr w 0 oldHead in
+    let _ = storeU64 (stmWaitersHead ()) 0 (rawToU64 w) in
+    let _ = atomicAddU64SeqCst (ptrCast (stmState ())) 128 1 in
+    let _ = spinRelease (ptrCast (stmWaitersLock ())) 0 in
+    let prev = loadU64 (stmWaitingTls ()) 0 in
+    let _ = if prev /= 0 then panicSync 4 else () in
+    let _ = storeU64 (stmWaitingTls ()) 0 (rawToU64 w) in
+    0
+
+  cinchStmWaitCancel :: I64 ->{Global, ThreadAffine} I64
+  cinchStmWaitCancel _unused =
+    let w = stmTakeWaitTls () in
+    let _ = stmDeregister w in
+    0
+
+  stmParkLoop :: RawPtr U8 -> I64 ->{Global} I64
+  stmParkLoop w cancellable =
+    if atomicLoadU64SeqCst w 24 /= 0 then 0
+    else if cancellable /= 0 && taskCanceled () then 1
+    else
+      let _ = rtPark () in
+      stmParkLoop w cancellable
+
+  cinchStmWaitPark :: I64 ->{Global, ThreadAffine} I64
+  cinchStmWaitPark cancellable =
+    let w = stmTakeWaitTls () in
+    let canceled = stmParkLoop w cancellable in
+    let _ = stmDeregister w in
+    canceled
+
+  stmWakeLoop :: MaybeNull U8 -> U64 ->{Global} Unit
+  stmWakeLoop cur mask =
+    if ptrIsNull cur then ()
+    else
+      let w = maybeToRaw cur in
+      let next = loadPtr w 0 in
+      let _ = (if bitAndU64 (loadU64 w 16) mask /= 0 then
+          let _ = atomicStoreU64SeqCst w 24 1 in
+          rtParkUnpark (loadU64 w 8)
+        else ()) in
+      stmWakeLoop next mask
+
+  cinchStmWake :: I64 ->{Global} I64
+  cinchStmWake filter =
+    let _ = spinAcquire (ptrCast (stmWaitersLock ())) 0 0 in
+    let head = ptrFromU64 (loadU64 (stmWaitersHead ()) 0) in
+    let _ = stmWakeLoop head (i64ToU64 filter) in
+    let _ = spinRelease (ptrCast (stmWaitersLock ())) 0 in
+    0
+
+  cinchStmYield :: I64 ->{Global} I64
+  cinchStmYield _unused =
+    let _ = cSchedYield () in
+    0
+
+  foreign export ccall "cinch_atomic_new" cinchAtomicNew :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_atomic_load" cinchAtomicLoad :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_store" cinchAtomicStore :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_swap" cinchAtomicSwap :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_fetch_add" cinchAtomicFetchAdd :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_fetch_sub" cinchAtomicFetchSub :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_fetch_and" cinchAtomicFetchAnd :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_fetch_or" cinchAtomicFetchOr :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_fetch_xor" cinchAtomicFetchXor :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_cas" cinchAtomicCas :: I64 -> I64 -> I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_atomic_fence" cinchAtomicFence :: I64 ->{Global} I64
+
+  foreign export ccall "cinch_rwlock_new" cinchRwlockNew :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_rwlock_access" cinchRwlockAccess :: I64 -> I64 -> I64 -> RawPtr I64 ->{Global, ThreadAffine} I64
+
+  foreign export ccall "cinch_mvar_new" cinchMvarNew :: I64 -> I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_mvar_access" cinchMvarAccess :: I64 -> I64 -> I64 -> I64 -> RawPtr I64 ->{Global, ThreadAffine} I64
+
+  foreign export ccall "cinch_stm_cell_new" cinchStmCellNew :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_stm_publish" cinchStmPublish :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_stm_state" cinchStmState :: I64 ->{Global} I64
+  foreign export ccall "cinch_stm_wait_begin" cinchStmWaitBegin :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_stm_wait_cancel" cinchStmWaitCancel :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_stm_wait_park" cinchStmWaitPark :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_stm_wake" cinchStmWake :: I64 ->{Global} I64
+  foreign export ccall "cinch_stm_yield" cinchStmYield :: I64 ->{Global} I64

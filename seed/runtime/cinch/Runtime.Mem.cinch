@@ -14,6 +14,8 @@ module Runtime.Mem where
   export atomicLoadI64Relaxed, atomicLoadI64Acquire, atomicLoadI64SeqCst
   export atomicStoreI64Relaxed, atomicStoreI64Release, atomicStoreI64SeqCst
   export atomicAddI64AcqRel, atomicSubI64AcqRel, atomicSwapI64SeqCst, atomicCasI64Bool
+  export atomicSwapI64Ord, atomicAddI64Ord, atomicSubI64Ord
+  export atomicAndI64Ord, atomicOrI64Ord, atomicXorI64Ord, atomicCasI64Ord
   export atomicLoadU32Relaxed, atomicLoadU32Acquire, atomicStoreU32Release
   export atomicAddU32AcqRel, atomicSwapU32AcqRel, atomicCasU32Bool
   export atomicLoadPtrRelaxed, atomicLoadPtrAcquire, atomicStorePtrRelaxed, atomicStorePtrRelease
@@ -1182,3 +1184,201 @@ module Runtime.Mem where
       %r = or i128 %shi, %lo
       ret i128 %r
     }
+
+  -- Full-ordering I64 atomics (0=Relaxed, 1=Acquire, 2=Release, 3=AcqRel, 4=SeqCst)
+  prim atomicSwapI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v }
+  prim atomicSwapI64Acquire :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 acquire, align 8
+      ret i64 %v }
+  prim atomicSwapI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 release, align 8
+      ret i64 %v }
+  prim atomicSwapI64AcqRel :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v }
+
+  atomicSwapI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} I64
+  atomicSwapI64Ord p off v ord =
+    if ord == 0 then atomicSwapI64Relaxed p off v
+    else if ord == 1 then atomicSwapI64Acquire p off v
+    else if ord == 2 then atomicSwapI64Release p off v
+    else if ord == 3 then atomicSwapI64AcqRel p off v
+    else atomicSwapI64SeqCst p off v
+
+  prim atomicAddI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v }
+  prim atomicAddI64Acquire :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 acquire, align 8
+      ret i64 %v }
+  prim atomicAddI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 release, align 8
+      ret i64 %v }
+  prim atomicAddI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v }
+
+  atomicAddI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} I64
+  atomicAddI64Ord p off v ord =
+    if ord == 0 then atomicAddI64Relaxed p off v
+    else if ord == 1 then atomicAddI64Acquire p off v
+    else if ord == 2 then atomicAddI64Release p off v
+    else if ord == 3 then atomicAddI64AcqRel p off v
+    else atomicAddI64SeqCst p off v
+
+  prim atomicSubI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v }
+  prim atomicSubI64Acquire :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 acquire, align 8
+      ret i64 %v }
+  prim atomicSubI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 release, align 8
+      ret i64 %v }
+  prim atomicSubI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw sub ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v }
+
+  atomicSubI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} I64
+  atomicSubI64Ord p off v ord =
+    if ord == 0 then atomicSubI64Relaxed p off v
+    else if ord == 1 then atomicSubI64Acquire p off v
+    else if ord == 2 then atomicSubI64Release p off v
+    else if ord == 3 then atomicSubI64AcqRel p off v
+    else atomicSubI64SeqCst p off v
+
+  prim atomicAndI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw and ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v }
+  prim atomicAndI64Acquire :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw and ptr %p, i64 %2 acquire, align 8
+      ret i64 %v }
+  prim atomicAndI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw and ptr %p, i64 %2 release, align 8
+      ret i64 %v }
+  prim atomicAndI64AcqRel :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw and ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v }
+  prim atomicAndI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw and ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v }
+
+  atomicAndI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} I64
+  atomicAndI64Ord p off v ord =
+    if ord == 0 then atomicAndI64Relaxed p off v
+    else if ord == 1 then atomicAndI64Acquire p off v
+    else if ord == 2 then atomicAndI64Release p off v
+    else if ord == 3 then atomicAndI64AcqRel p off v
+    else atomicAndI64SeqCst p off v
+
+  prim atomicOrI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw or ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v }
+  prim atomicOrI64Acquire :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw or ptr %p, i64 %2 acquire, align 8
+      ret i64 %v }
+  prim atomicOrI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw or ptr %p, i64 %2 release, align 8
+      ret i64 %v }
+  prim atomicOrI64AcqRel :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw or ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v }
+  prim atomicOrI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw or ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v }
+
+  atomicOrI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} I64
+  atomicOrI64Ord p off v ord =
+    if ord == 0 then atomicOrI64Relaxed p off v
+    else if ord == 1 then atomicOrI64Acquire p off v
+    else if ord == 2 then atomicOrI64Release p off v
+    else if ord == 3 then atomicOrI64AcqRel p off v
+    else atomicOrI64SeqCst p off v
+
+  prim atomicXorI64Relaxed :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xor ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v }
+  prim atomicXorI64Acquire :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xor ptr %p, i64 %2 acquire, align 8
+      ret i64 %v }
+  prim atomicXorI64Release :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xor ptr %p, i64 %2 release, align 8
+      ret i64 %v }
+  prim atomicXorI64AcqRel :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xor ptr %p, i64 %2 acq_rel, align 8
+      ret i64 %v }
+  prim atomicXorI64SeqCst :: forall a. RawPtr a -> Isize -> I64 ->{Global} I64 where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xor ptr %p, i64 %2 seq_cst, align 8
+      ret i64 %v }
+
+  atomicXorI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} I64
+  atomicXorI64Ord p off v ord =
+    if ord == 0 then atomicXorI64Relaxed p off v
+    else if ord == 1 then atomicXorI64Acquire p off v
+    else if ord == 2 then atomicXorI64Release p off v
+    else if ord == 3 then atomicXorI64AcqRel p off v
+    else atomicXorI64SeqCst p off v
+
+  prim atomicCasI64Monotonic :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} Bool where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 monotonic monotonic, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %r = zext i1 %ok to i8
+      ret i8 %r }
+  prim atomicCasI64Acquire :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} Bool where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 acquire acquire, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %r = zext i1 %ok to i8
+      ret i8 %r }
+  prim atomicCasI64Release :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} Bool where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 release monotonic, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %r = zext i1 %ok to i8
+      ret i8 %r }
+  prim atomicCasI64SeqCst :: forall a. RawPtr a -> Isize -> I64 -> I64 ->{Global} Bool where
+    unsafe llvm { %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 seq_cst seq_cst, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %r = zext i1 %ok to i8
+      ret i8 %r }
+
+  atomicCasI64Ord :: forall a. RawPtr a -> Isize -> I64 -> I64 -> I64 -> I64 ->{Global} Bool
+  atomicCasI64Ord p off expected desired succOrd failOrd =
+    if succOrd == 4 || failOrd == 4 then atomicCasI64SeqCst p off expected desired
+    else if succOrd == 3 then atomicCasI64Bool p off expected desired
+    else if succOrd == 2 then
+      if failOrd == 0 then atomicCasI64Release p off expected desired
+      else atomicCasI64Bool p off expected desired
+    else if succOrd == 1 || failOrd == 1 then atomicCasI64Acquire p off expected desired
+    else atomicCasI64Monotonic p off expected desired

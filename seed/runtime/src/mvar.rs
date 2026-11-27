@@ -13,6 +13,12 @@
 
 #[cfg(not(target_family = "wasm"))]
 use crate::park;
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_mvar_new(value: i64, format: i64, full: i64) -> i64;
+    pub fn cinch_mvar_access(word: i64, value: i64, op: i64, mode: i64, out: *mut i64) -> i64;
+}
 use crate::{abi, block, rc};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -281,6 +287,7 @@ unsafe fn cell<'a>(word: i64) -> &'a MVar {
 ///
 /// # Safety
 /// `value` is an owned ABI word with scan code `format` when `full != 0`.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_mvar_new(value: i64, format: i64, full: i64) -> i64 {
     if !(block::SCAN_RAW as i64..=block::SCAN_TOBJ as i64).contains(&format) {
@@ -312,6 +319,7 @@ pub unsafe extern "C" fn cinch_mvar_new(value: i64, format: i64, full: i64) -> i
 /// # Safety
 /// `word` is a live MVar box; PUT/SWAP's `value` is owned with its format;
 /// `out` points at writable word storage that stays live across a park.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_mvar_access(
     word: i64,
