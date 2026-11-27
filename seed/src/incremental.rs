@@ -326,7 +326,7 @@ fn surface_rows(iface: &Iface, id: &str) -> String {
                 // Matching an unboxed constructor binds its payload directly.
                 // A constructor-only dependency must see that ABI change.
                 if c.name != t.name {
-                    if let Some(layout) = iface.layouts.iter().find(|l| l.name == t.name && l.repr == "unboxed") {
+                    if let Some(layout) = iface.layouts.iter().find(|l| l.name == t.name && (l.repr == "unboxed" || l.repr == "niche")) {
                         out.push_str(&format!("|layout={layout:?}"));
                     }
                 }

@@ -598,10 +598,12 @@ fn borrow_modes(
 
 /// The modes of a saturated call's head, when it is a unit that has
 /// borrowed parameters.
-fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m Vec<bool>> {
+fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m [bool]> {
+    static WORD_CMP_MODES: [bool; 2] = [true, false];
     match head {
-        Core::Global(g, _) => modes.get(&g.0),
-        Core::Prim(op) => modes.get(&op.symbol()),
+        Core::Global(g, _) => modes.get(&g.0).map(Vec::as_slice),
+        Core::Prim(crate::core::PrimOp::WordCmp { .. }) if args == 2 => Some(&WORD_CMP_MODES[..]),
+        Core::Prim(op) => modes.get(&op.symbol()).map(Vec::as_slice),
         _ => None,
     }
     .filter(|m| m.len() == args)
@@ -1586,7 +1588,7 @@ impl Pass<'_> {
             }
             Core::App(f, args) => {
                 if let Some(m) = callee_modes(self.modes, f, args.len()) {
-                    return self.borrowing_call(f, args, &m.clone(), owned, live);
+                    return self.borrowing_call(f, args, &m.to_vec(), owned, live);
                 }
                 let mut es: Vec<&Core> = vec![&**f];
                 es.extend(args.iter());

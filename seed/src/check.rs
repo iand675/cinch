@@ -1412,14 +1412,58 @@ impl<'a> LowerCx<'a> {
             ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
             ECore::App(f, _) => match &**f {
-                ECore::Ctor(id, _) => Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t))),
+                ECore::Ctor(id, _) => {
+                    if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
+                        Some(*carrier)
+                    } else {
+                        Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t)))
+                    }
+                }
                 _ => None,
             },
+            ECore::Ctor(id, _) => {
+                if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
+                    Some(*carrier)
+                } else {
+                    Some(Class::Obj)
+                }
+            }
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
             ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
             _ => None,
         }
     }
+}
+
+/// Niche-optimized domain of a single-word payload type.
+#[derive(Clone, Debug)]
+pub(crate) enum NicheDomain {
+    SignedRange { lo: i128, hi: i128, excluded: Vec<i128> },
+    UnsignedRange { lo: u128, hi: u128, excluded: Vec<u128> },
+    OddImmediate { used: Vec<i64> },
+    NonNullObj { used: Vec<i64> },
+    NonZeroTObj { used: Vec<i64> },
+}
+
+/// Per-constructor lowering plan inside a `#[repr(niche)]` sum type.
+#[derive(Clone, Debug)]
+pub(crate) enum NicheCtorPlan {
+    Nullary { sentinel: i64 },
+    Payload {
+        payload_ty: Ty,
+        /// `None` when sole payload constructor; `Some((unsigned, lo, hi, excluded))`
+        /// when multiple disjoint payload constructors share the single word.
+        range: Option<(bool, i128, i128, Vec<i128>)>,
+    },
+}
+
+/// Validated layout plan for a `#[repr(niche)]` `data` type.
+#[derive(Clone, Debug)]
+pub(crate) struct NichePlan {
+    pub(crate) carrier: Class,
+    pub(crate) by_tag: Vec<(usize, String, NicheCtorPlan)>,
+    pub(crate) nullary_sentinels: Vec<i64>,
+    pub(crate) occupied: NicheDomain,
 }
 
 impl crate::repr::TypeReprs for Checker {
@@ -1441,6 +1485,14 @@ impl crate::repr::TypeReprs for Checker {
         };
         if let Some(t) = self.unboxed_payload(kind) {
             return crate::repr::AdtRepr::Base(t.clone());
+        }
+        if let Some(plan) = self.niche_plan(kind) {
+            return match plan.carrier {
+                Class::Raw => crate::repr::AdtRepr::Raw,
+                Class::Obj => crate::repr::AdtRepr::Obj,
+                Class::TObj => crate::repr::AdtRepr::TObj,
+                _ => crate::repr::AdtRepr::Obj,
+            };
         }
         if let Some(r) = kind.refine.as_ref() {
             let mut map: HashMap<String, Ty> = HashMap::new();
@@ -1533,6 +1585,10 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             };
             C::Global(g.clone(), v)
         }
+        ECore::Ctor(g, _) if matches!(cx.ck.niche_ctors.get(g), Some((_, NicheCtorPlan::Nullary { .. }))) => {
+            let (_, NicheCtorPlan::Nullary { sentinel }) = &cx.ck.niche_ctors[g] else { unreachable!() };
+            C::Int(*sentinel)
+        }
         ECore::Ctor(g, tys) if cx.ck.has_constructor_body(g) => C::Global(g.clone(), cx.classes(tys)),
         ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
         ECore::Prim(p) => C::Prim(*p),
@@ -1563,7 +1619,23 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
             C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
-        ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
+        ECore::App(f, args) => {
+            if args.is_empty() {
+                if let ECore::Ctor(g, _) = &**f {
+                    if let Some((_, NicheCtorPlan::Nullary { sentinel })) = cx.ck.niche_ctors.get(g) {
+                        return C::Int(*sentinel);
+                    }
+                }
+            }
+            if args.len() == 1 {
+                if let ECore::Ctor(g, _) = &**f {
+                    if matches!(cx.ck.niche_ctors.get(g), Some((_, NicheCtorPlan::Payload { .. }))) {
+                        return low(&args[0]);
+                    }
+                }
+            }
+            C::App(Box::new(low(f)), args.iter().map(low).collect())
+        }
         ECore::Lam { .. } | ECore::PolyIntro { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
@@ -3627,6 +3699,10 @@ struct Checker {
     unpacked_records: HashMap<GlobalId, UnpackedRecord>,
     /// Identity constructors and their validated runtime payload types.
     unboxed_ctors: HashMap<GlobalId, Ty>,
+    /// Validated `#[repr(niche)]` plans keyed by `(module, type_name)`.
+    niche_plans: HashMap<(String, String), NichePlan>,
+    /// Per-constructor niche lowering metadata keyed by constructor `GlobalId`.
+    niche_ctors: HashMap<GlobalId, (Class, NicheCtorPlan)>,
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
@@ -4229,6 +4305,8 @@ impl Checker {
             unpack_requests: HashMap::new(),
             unpacked_records: HashMap::new(),
             unboxed_ctors: HashMap::new(),
+            niche_plans: HashMap::new(),
+            niche_ctors: HashMap::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
             safety_attrs: HashMap::new(),
@@ -7067,7 +7145,16 @@ impl Checker {
 
     /// Both lowering and compile-time evaluation must call the checked builder.
     fn has_constructor_body(&self, id: &GlobalId) -> bool {
-        self.unboxed_ctors.contains_key(id) || self.unpacked_records.contains_key(id)
+        self.unboxed_ctors.contains_key(id)
+            || self.niche_ctors.contains_key(id)
+            || self.unpacked_records.contains_key(id)
+    }
+
+    pub(crate) fn niche_plan(&self, kind: &TypeKind) -> Option<&NichePlan> {
+        if self.niche_plans.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
+        self.niche_plans.get(&(kind.module.clone(), kind.name.clone()))
     }
 
     fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {

@@ -1184,6 +1184,10 @@ pub enum PrimOp {
     /// `eq`/`ne`/`lt`/`le`/`gt`/`ge` for integer types, `Usize`, `Isize`
     /// and `Char` (sections 6 and 8).
     Cmp { ty: Scalar, op: CmpOp },
+    /// Raw 64-bit word comparison for `#[repr(niche)]` tag/range dispatch.
+    /// Borrows its first operand without reference-count traffic so it works
+    /// uniformly on `Raw`, `Obj`, and `TObj` carriers.
+    WordCmp { op: CmpOp, unsigned: bool },
     /// `charToU32 :: Char -> U32` (section 6), total.
     CharToU32,
     /// `u32ToChar :: U32 -> Option Char` (sections 6 and 7): rejects
@@ -1499,6 +1503,11 @@ impl PrimOp {
             BitNot { ty } => format!("bitNot{}", ty.name()),
             BitScan { ty, op } => format!("{}{}", op.name(), ty.name()),
             Cmp { ty, op } => format!("{}{}", op.name(), ty.name()),
+            WordCmp { op, unsigned } => format!(
+                "wordCmp{}{}",
+                op.name(),
+                if unsigned { "U" } else { "S" }
+            ),
             Conv { from, to, mode } => conv_name(from, to, mode),
         };
         format!("cinch.prim.{n}")
@@ -1515,7 +1524,7 @@ impl PrimOp {
         match self {
             Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. }
             | Div { .. } | Rem { .. } | Shift { .. } | Rotate { .. } | Bit { .. }
-            | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
+            | BitNot { .. } | BitScan { .. } | Cmp { .. } | WordCmp { .. } => true,
             Conv { from, to, .. } => !from.is_float() && !to.is_float(),
             _ => false,
         }
@@ -1535,6 +1544,7 @@ impl PrimOp {
             | BitNot { .. }
             | BitScan { .. }
             | Cmp { .. }
+            | WordCmp { .. }
             | Conv { mode: ConvMode::Total | ConvMode::Wrapping | ConvMode::Saturating, .. } => true,
             _ => false,
         }
@@ -1788,6 +1798,7 @@ impl PrimOp {
                 (vec![prim(ty)], res)
             }
             Cmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
+            WordCmp { .. } => (vec![prim(Scalar::I64), prim(Scalar::I64)], Ty::Bool),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
@@ -6363,6 +6374,30 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
                 CmpOp::Le => x <= y,
                 CmpOp::Gt => x > y,
                 CmpOp::Ge => x >= y,
+            };
+            Some(Core::Bool(b))
+        }
+        PrimOp::WordCmp { op: cop, unsigned } => {
+            let b = if unsigned {
+                let (x, y) = (words[0] as u64, words[1] as u64);
+                match cop {
+                    CmpOp::Eq => x == y,
+                    CmpOp::Ne => x != y,
+                    CmpOp::Lt => x < y,
+                    CmpOp::Le => x <= y,
+                    CmpOp::Gt => x > y,
+                    CmpOp::Ge => x >= y,
+                }
+            } else {
+                let (x, y) = (words[0], words[1]);
+                match cop {
+                    CmpOp::Eq => x == y,
+                    CmpOp::Ne => x != y,
+                    CmpOp::Lt => x < y,
+                    CmpOp::Le => x <= y,
+                    CmpOp::Gt => x > y,
+                    CmpOp::Ge => x >= y,
+                }
             };
             Some(Core::Bool(b))
         }

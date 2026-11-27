@@ -138,6 +138,9 @@ pub enum AdtRepr {
     /// A data or record type: constructor blocks (nullary ones are
     /// static blocks, still `Obj`).
     Obj,
+    /// A tagged union word (heap pointer or odd immediate, e.g. `#[repr(niche)]`
+    /// over a heap pointer with 2+ nullary constructors or over `Nat`/`Int`).
+    TObj,
     /// A foreign opaque type or a runtime handle: never counted.
     Raw,
     /// A refinement type: its runtime form is the container itself.
@@ -236,8 +239,58 @@ pub fn extract_pred_bounds(binder: &str, pred: &crate::types::PTerm) -> (Option<
     }
 }
 
+/// Extract constant integer values explicitly excluded from `binder` by `pred`
+/// (e.g. `x /= 0`, `NonZero x`, `not (x == 0)`).
+pub fn extract_pred_exclusions(binder: &str, pred: &crate::types::PTerm) -> Vec<i128> {
+    use crate::types::{ITerm, IdxCmp, PTerm, PredFn};
+    let mut out = Vec::new();
+    fn go(binder: &str, pred: &PTerm, out: &mut Vec<i128>) {
+        match pred {
+            PTerm::And(a, b) => {
+                go(binder, a, out);
+                go(binder, b, out);
+            }
+            PTerm::Pred(PredFn::NonZero, x) => {
+                if matches!(x.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                    out.push(0);
+                }
+            }
+            PTerm::Cmp(IdxCmp::Ne, l, r) => {
+                if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                    if let Some(k) = idx_int_const(r) {
+                        out.push(k);
+                    }
+                } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                    if let Some(k) = idx_int_const(l) {
+                        out.push(k);
+                    }
+                }
+            }
+            PTerm::Not(inner) => match inner.as_ref() {
+                PTerm::Eq(l, r) | PTerm::Cmp(IdxCmp::Eq, l, r) => {
+                    if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                        if let Some(k) = idx_int_const(r) {
+                            out.push(k);
+                        }
+                    } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                        if let Some(k) = idx_int_const(l) {
+                            out.push(k);
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    go(binder, pred, &mut out);
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
 /// First free variable in a refinement predicate (matches `check::pred_binder`).
-fn anonymous_pred_binder(pred: &crate::types::PTerm) -> Option<String> {
+pub fn anonymous_pred_binder(pred: &crate::types::PTerm) -> Option<String> {
     let mut fv = Vec::new();
     pred.free_vars(&mut fv);
     fv.into_iter().next()
@@ -336,6 +389,7 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             | "Secret" | "SchemaSnapshot" | "Database" | "SchemaRead" => Class::Raw,
             _ => match types.adt(name, args) {
                 AdtRepr::Obj => Class::Obj,
+                AdtRepr::TObj => Class::TObj,
                 AdtRepr::Raw => Class::Raw,
                 AdtRepr::Base(b) => repr_of(&b, params, types, miss),
             },

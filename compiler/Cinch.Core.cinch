@@ -73,7 +73,7 @@ module Cinch.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, NicheData, NicheCtor, NicheNullary, NichePayload, core-data-layout, with-data-layout
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   -- `WithLayout` is exported with `MkCoreData` because a family whose table
   -- is only partly exported is abstract to an importing module: it could
@@ -239,12 +239,20 @@ module Cinch.Core where
   physical-fields :: List RecordSlot -> List UType
   physical-fields slots = case slots of [] -> []; slot : rest -> slot-types slot <> physical-fields rest
 
+  data NicheCtor where
+    -- Constructor name and sentinel word value.
+    NicheNullary :: String -> Int -> NicheCtor
+    -- Constructor name, multi-payload flag, unsigned flag, lo, hi, excluded values.
+    NichePayload :: String -> Bool -> Bool -> Int -> Int -> List Int -> NicheCtor
+
   data DataLayout where
     UniformData :: DataLayout
     TransparentData :: String -> Nat -> Nat -> DataLayout
     UnpackedRecord :: List RecordSlot -> DataLayout
     -- Represented field name, runtime word class, ABI size and alignment.
     UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
+    -- Runtime word class (`0` Raw, `1` Obj, `2` TObj) and per-constructor niche plans.
+    NicheData :: Nat -> List NicheCtor -> DataLayout
   data CoreData where
     MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
     WithLayout :: DataLayout -> CoreData -> CoreData

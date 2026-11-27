@@ -10006,6 +10006,105 @@ impl Checker {
                 // section 2.2): each constructor's alternative sums the
                 // weights of the rows reachable through it.
                 let sums = self.decision_weights(&branch_weights, "this `case`", ctx_span)?;
+                if let Some(plan) = self.niche_plan(&info).cloned() {
+                    let (scrut_var, wrap_let) = match &observed {
+                        ECore::Var(l) => (*l, false),
+                        _ => {
+                            let l = self.fresh_local();
+                            self.note_local_ty(l, &ty0);
+                            (l, true)
+                        }
+                    };
+                    let mut nullary_arms: Vec<(i64, ECore)> = Vec::new();
+                    let mut payload_arms: Vec<(Option<(bool, i128, i128, Vec<i128>)>, LocalId, ECore)> = Vec::new();
+                    let mut wild_arm: Option<ECore> = None;
+                    for (pat, body) in alt_pats.into_iter().zip(alts) {
+                        match pat {
+                            CPat::Wild => wild_arm = Some(body),
+                            CPat::Con { tag, fields, .. } => {
+                                if let Some((_, _, cplan)) = plan.by_tag.iter().find(|(t, _, _)| *t == tag) {
+                                    match cplan {
+                                        NicheCtorPlan::Nullary { sentinel } => {
+                                            nullary_arms.push((*sentinel, body));
+                                        }
+                                        NicheCtorPlan::Payload { range, .. } => {
+                                            payload_arms.push((range.clone(), fields[0], body));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    let word_cmp = |op: CmpOp, unsigned: bool, lhs: LocalId, rhs: i64| -> ECore {
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordCmp { op, unsigned })),
+                            vec![ECore::Var(lhs), ECore::Int(rhs)],
+                        )
+                    };
+                    let mk_if = |cond: ECore, th: ECore, el: ECore| -> ECore {
+                        ECore::If(
+                            Box::new(cond),
+                            CBranch::new(th),
+                            CBranch::new(el),
+                        )
+                    };
+                    let mut acc = if let Some(w) = wild_arm {
+                        w
+                    } else if let Some((_, slot, body)) = payload_arms.pop() {
+                        ECore::Let(slot, Box::new(ECore::Var(scrut_var)), Box::new(body))
+                    } else if let Some((_, body)) = nullary_arms.pop() {
+                        body
+                    } else {
+                        ECore::Fault
+                    };
+                    while let Some((range, slot, body)) = payload_arms.pop() {
+                        let bound = ECore::Let(slot, Box::new(ECore::Var(scrut_var)), Box::new(body));
+                        let checks: Vec<ECore> = match range {
+                            None => plan
+                                .nullary_sentinels
+                                .iter()
+                                .map(|s| word_cmp(CmpOp::Ne, false, scrut_var, *s))
+                                .collect(),
+                            Some((unsigned, lo, hi, excluded)) => {
+                                let mut cs = Vec::new();
+                                if unsigned {
+                                    if lo > 0 {
+                                        cs.push(word_cmp(CmpOp::Ge, true, scrut_var, (lo as u64) as i64));
+                                    }
+                                    if hi < u64::MAX as i128 {
+                                        cs.push(word_cmp(CmpOp::Le, true, scrut_var, (hi as u64) as i64));
+                                    }
+                                    for ex in excluded {
+                                        cs.push(word_cmp(CmpOp::Ne, true, scrut_var, (ex as u64) as i64));
+                                    }
+                                } else {
+                                    if lo > i64::MIN as i128 {
+                                        cs.push(word_cmp(CmpOp::Ge, false, scrut_var, lo as i64));
+                                    }
+                                    if hi < i64::MAX as i128 {
+                                        cs.push(word_cmp(CmpOp::Le, false, scrut_var, hi as i64));
+                                    }
+                                    for ex in excluded {
+                                        cs.push(word_cmp(CmpOp::Ne, false, scrut_var, ex as i64));
+                                    }
+                                }
+                                cs
+                            }
+                        };
+                        acc = checks.into_iter().rev().fold(bound, |then_e, cond| {
+                            mk_if(cond, then_e, acc.clone())
+                        });
+                    }
+                    while let Some((sentinel, body)) = nullary_arms.pop() {
+                        acc = mk_if(word_cmp(CmpOp::Eq, false, scrut_var, sentinel), body, acc);
+                    }
+                    return Ok(if wrap_let {
+                        ECore::Let(scrut_var, Box::new(observed), Box::new(acc))
+                    } else {
+                        acc
+                    });
+                }
                 let alts = alt_pats
                     .into_iter()
                     .zip(alts)

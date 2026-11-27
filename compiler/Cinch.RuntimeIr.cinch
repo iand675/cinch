@@ -718,7 +718,31 @@ module Cinch.RuntimeIr where
               URigid id name level kind -> applied-former-class ty kind (representation id rigids)
               other -> None
   data-word-class :: CoreData -> Nat
-  data-word-class d = case core-data-layout d of UnboxedData label word bytes align -> word; other -> 1
+  data-word-class d = case core-data-layout d of
+    UnboxedData label word bytes align -> word
+    NicheData word ctors -> word
+    other -> 1
+  niche-ctor-lookup :: String -> List NicheCtor -> Option NicheCtor
+  niche-ctor-lookup target ctors = case ctors of
+    [] -> None
+    c : rest -> (case c of
+      NicheNullary cname sentinel -> if cname == target then Some c else niche-ctor-lookup target rest
+      NichePayload cname multi unsigned lo hi excluded -> if cname == target then Some c else niche-ctor-lookup target rest)
+  niche-nullary-sentinels :: List NicheCtor -> List Int
+  niche-nullary-sentinels ctors = case ctors of
+    [] -> []
+    (NicheNullary cname sentinel) : rest -> sentinel : (niche-nullary-sentinels rest)
+    other : rest -> niche-nullary-sentinels rest
+  niche-word-literal :: Bool -> Int -> String
+  niche-word-literal unsigned v =
+    if unsigned && v >= 9223372036854775808 then int-to-string (v - 18446744073709551616)
+    else int-to-string v
+  niche-owner-ctor :: String -> String -> Writer -> Option NicheCtor
+  niche-owner-ctor owner cname w = case data-declaration owner (writer-program w) of
+    Some d -> (case core-data-layout d of
+      NicheData word ctors -> niche-ctor-lookup cname ctors
+      other -> None)
+    None -> None
   uniform-owner :: String -> Writer -> Bool
   uniform-owner name w = case data-declaration name (writer-program w) of
     Some d -> (case core-data-layout d of UniformData -> True; other -> False)
@@ -3295,6 +3319,10 @@ module Cinch.RuntimeIr where
               Some context -> if list-length args == list-length (core-constructor-fields c) then
                 (case (core-data-layout d, args) of
                   (UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
+                  (NicheData word ctors, []) -> (case niche-ctor-lookup name ctors of
+                    Some (NicheNullary cname sentinel) -> (w, niche-word-literal False sentinel)
+                    other -> unsupported w sp "niche nullary constructor missing sentinel")
+                  (NicheData word ctors, [payload]) -> expression definitions locals w payload
                   other -> if regular-constructor d c
                     then box-constructor definitions locals w sp d classes tag args
                     else box-gadt-constructor definitions locals w sp d context c tag args)
@@ -5113,6 +5141,7 @@ module Cinch.RuntimeIr where
           Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
             Some d -> case core-data-layout d of
               UnboxedData label word bytes align -> match-unboxed fields value failed w
+              NicheData word ctors -> match-niche ctors name fields value failed w
               layout -> if tag < 16777216 then
                 (case constructor-tag w value of
                   (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
@@ -5157,6 +5186,39 @@ module Cinch.RuntimeIr where
     CPField sp (CPProof at predicate id name) rest -> match-unboxed rest value failed w
     CPField sp first rest -> match-pattern first value failed w
     other -> (refuse w (Span 0 0 1 1) "unboxed pattern lacks its checked payload", [])
+
+  check-not-sentinels :: List Int -> String -> String -> Writer -> Writer
+  check-not-sentinels sentinels value failed w = case sentinels of
+    [] -> w
+    s : rest -> case compare-word w "ne" value (niche-word-literal False s) of
+      (compared, cond) -> check-not-sentinels rest value failed (continue-if compared cond failed)
+
+  check-niche-range :: Bool -> Int -> Int -> List Int -> String -> String -> Writer -> Writer
+  check-niche-range unsigned lo hi excluded value failed w =
+    let min-bound = if unsigned then (0 :: Int) else (0 - 9223372036854775808) in
+    let max-bound = if unsigned then (18446744073709551615 :: Int) else (9223372036854775807 :: Int) in
+    let ge-pred = if unsigned then "uge" else "sge" in
+    let le-pred = if unsigned then "ule" else "sle" in
+    let w1 = if lo > min-bound then
+          (case compare-word w ge-pred value (niche-word-literal unsigned lo) of
+            (compared, cond) -> continue-if compared cond failed)
+        else w in
+    let w2 = if hi < max-bound then
+          (case compare-word w1 le-pred value (niche-word-literal unsigned hi) of
+            (compared, cond) -> continue-if compared cond failed)
+        else w1 in
+    check-not-sentinels excluded value failed w2
+
+  match-niche :: List NicheCtor -> String -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-niche ctors cname fields value failed w = case niche-ctor-lookup cname ctors of
+    Some (NicheNullary n sentinel) ->
+      (case compare-word w "eq" value (niche-word-literal False sentinel) of
+        (ready, cond) -> (continue-if ready cond failed, []))
+    Some (NichePayload n multi unsigned lo hi excluded) ->
+      let checked = if multi then check-niche-range unsigned lo hi excluded value failed w
+                    else check-not-sentinels (niche-nullary-sentinels ctors) value failed w in
+      match-unboxed fields value failed checked
+    None -> (refuse w (Span 0 0 1 1) "niche pattern missing constructor layout plan", [])
 
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
   match-fields fields pointer index failed w = case fields of
@@ -7454,6 +7516,13 @@ module Cinch.RuntimeIr where
     Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
       Some d | unboxed-owner owner w -> let worker = specialized-name name classes in
         emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"]
+      Some d | (case niche-owner-ctor owner name w of Some c -> True; None -> False) ->
+        let worker = specialized-name name classes in
+        (case niche-owner-ctor owner name w of
+          Some (NicheNullary cn sentinel) ->
+            emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "()", worker-open w], "entry:", cat ["  ret i64 ", niche-word-literal False sentinel], "}"]
+          other ->
+            emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"])
       Some d -> case constructor-call-context d c classes w of
         Some context -> case context of
           RuntimeContext datas bounds rigids queue inlining ->

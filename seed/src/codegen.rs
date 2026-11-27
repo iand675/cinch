@@ -9249,6 +9249,25 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             b.line(&format!("{r} = zext i1 {c} to i64"));
             ret(b, &r);
         }
+        WordCmp { op: cop, unsigned } => {
+            let pred = match (cop, !unsigned) {
+                (CmpOp::Eq, _) => "eq",
+                (CmpOp::Ne, _) => "ne",
+                (CmpOp::Lt, true) => "slt",
+                (CmpOp::Le, true) => "sle",
+                (CmpOp::Gt, true) => "sgt",
+                (CmpOp::Ge, true) => "sge",
+                (CmpOp::Lt, false) => "ult",
+                (CmpOp::Le, false) => "ule",
+                (CmpOp::Gt, false) => "ugt",
+                (CmpOp::Ge, false) => "uge",
+            };
+            let c = b.reg();
+            b.line(&format!("{c} = icmp {pred} i64 %p0, %p1"));
+            let r = b.reg();
+            b.line(&format!("{r} = zext i1 {c} to i64"));
+            ret(b, &r);
+        }
 
         CharToU32 => {
             // A `Char` word already is its `U32` code point.
