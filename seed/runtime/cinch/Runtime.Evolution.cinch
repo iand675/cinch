@@ -1,0 +1,1015 @@
+module Runtime.Evolution where
+  import Runtime.Mem
+  import Runtime.Sys
+
+  export cinchEvoModuleNew, cinchEvoVersionNew, cinchEvoFeatureAvail
+  export cinchEvoUpdateBegin, cinchEvoAddReplacement, cinchEvoAddDependent
+  export cinchEvoRequireFeature, cinchEvoSetMigration, cinchEvoMarkComplete
+  export cinchEvoActivate, cinchEvoStateSeed, cinchEvoStateRepr, cinchEvoStatePayload
+  export cinchEvoCurrentVersion, cinchEvoEpoch
+  export cinchEvoFrameEnter, cinchEvoFrameExit, cinchEvoFrameVersion, cinchEvoFrameResume
+  export cinchEvoVersionLive, cinchEvoVersionRetired, cinchEvoVersionResident, cinchEvoVersionTryDrop
+  export cinchEvoVariantInstall, cinchEvoVariantEnter, cinchEvoVariantRetire
+  export cinchEvoVariantRetired, cinchEvoVariantResident, cinchEvoVariantCheckGuard
+  export cinchEvoDeopt
+
+  -- =========================================================================
+  -- Error Codes (matching evolution.rs EvoError::code)
+  -- =========================================================================
+
+  errNoHandle :: I64
+  errNoHandle = i64Sub 0 1
+  errIncompleteUpdateSet :: I64
+  errIncompleteUpdateSet = i64Sub 0 2
+  errTargetUnavailable :: I64
+  errTargetUnavailable = i64Sub 0 3
+  errOldOverNewState :: I64
+  errOldOverNewState = i64Sub 0 4
+  errInvalidUpdate :: I64
+  errInvalidUpdate = i64Sub 0 5
+  errRetainedCode :: I64
+  errRetainedCode = i64Sub 0 6
+  errUnsafeDeopt :: I64
+  errUnsafeDeopt = i64Sub 0 7
+
+  -- =========================================================================
+  -- Struct Layouts
+  -- =========================================================================
+
+  -- CodeVersion (40 bytes)
+  offVerId :: Isize
+  offVerId = 0
+  offVerReqMask :: Isize
+  offVerReqMask = 8
+  offVerStateRepr :: Isize
+  offVerStateRepr = 16
+  offVerLive :: Isize
+  offVerLive = 24
+  offVerRetired :: Isize
+  offVerRetired = 32
+  verBytes :: U64
+  verBytes = 40
+
+  -- Module (88 bytes)
+  offModId :: Isize
+  offModId = 0
+  offModCurrent :: Isize
+  offModCurrent = 8
+  offModEpoch :: Isize
+  offModEpoch = 16
+  offModStateRepr :: Isize
+  offModStateRepr = 24
+  offModStatePayload :: Isize
+  offModStatePayload = 32
+  offModVersPtr :: Isize
+  offModVersPtr = 40
+  offModVersLen :: Isize
+  offModVersLen = 48
+  offModVersCap :: Isize
+  offModVersCap = 56
+  offModRevPtr :: Isize
+  offModRevPtr = 64
+  offModRevLen :: Isize
+  offModRevLen = 72
+  offModRevCap :: Isize
+  offModRevCap = 80
+  modBytes :: U64
+  modBytes = 88
+
+  -- UpdateSet (120 bytes)
+  offUpdId :: Isize
+  offUpdId = 0
+  offUpdMod :: Isize
+  offUpdMod = 8
+  offUpdTgt :: Isize
+  offUpdTgt = 16
+  offUpdReqMask :: Isize
+  offUpdReqMask = 24
+  offUpdComplete :: Isize
+  offUpdComplete = 32
+  offUpdHasMig :: Isize
+  offUpdHasMig = 40
+  offUpdMigFrom :: Isize
+  offUpdMigFrom = 48
+  offUpdMigTo :: Isize
+  offUpdMigTo = 56
+  offUpdReverse :: Isize
+  offUpdReverse = 64
+  offUpdReplPtr :: Isize
+  offUpdReplPtr = 72
+  offUpdReplLen :: Isize
+  offUpdReplLen = 80
+  offUpdReplCap :: Isize
+  offUpdReplCap = 88
+  offUpdDepPtr :: Isize
+  offUpdDepPtr = 96
+  offUpdDepLen :: Isize
+  offUpdDepLen = 104
+  offUpdDepCap :: Isize
+  offUpdDepCap = 112
+  updBytes :: U64
+  updBytes = 120
+
+  -- Frame (40 bytes)
+  offFrmId :: Isize
+  offFrmId = 0
+  offFrmMod :: Isize
+  offFrmMod = 8
+  offFrmVer :: Isize
+  offFrmVer = 16
+  offFrmAdmittedRepr :: Isize
+  offFrmAdmittedRepr = 24
+  offFrmExited :: Isize
+  offFrmExited = 32
+  frmBytes :: U64
+  frmBytes = 40
+
+  -- Variant (56 bytes)
+  offVarId :: Isize
+  offVarId = 0
+  offVarMod :: Isize
+  offVarMod = 8
+  offVarGeneric :: Isize
+  offVarGeneric = 16
+  offVarSpec :: Isize
+  offVarSpec = 24
+  offVarGuard :: Isize
+  offVarGuard = 32
+  offVarRetired :: Isize
+  offVarRetired = 40
+  offVarLive :: Isize
+  offVarLive = 48
+  varBytes :: U64
+  varBytes = 56
+
+  -- =========================================================================
+  -- Process-Global Arena + Mutex
+  -- =========================================================================
+
+  #[static_mut]
+  static evoInitState :: U64
+
+  #[static_mut]
+  static evoMutexBuf :: FixedArray 8 U64
+
+  -- Arena header (112 bytes):
+  -- [0]  nextId :: I64
+  -- [1]  availMask :: U64
+  -- [2..4]   modsPtr, modsLen, modsCap
+  -- [5..7]   updsPtr, updsLen, updsCap
+  -- [8..10]  frmsPtr, frmsLen, frmsCap
+  -- [11..13] varsPtr, varsLen, varsCap
+  #[static_mut]
+  static evoArenaBuf :: FixedArray 14 U64
+
+  offArenaNext :: Isize
+  offArenaNext = 0
+  offArenaAvail :: Isize
+  offArenaAvail = 8
+  offArenaModsPtr :: Isize
+  offArenaModsPtr = 16
+  offArenaModsLen :: Isize
+  offArenaModsLen = 24
+  offArenaModsCap :: Isize
+  offArenaModsCap = 32
+  offArenaUpdsPtr :: Isize
+  offArenaUpdsPtr = 40
+  offArenaUpdsLen :: Isize
+  offArenaUpdsLen = 48
+  offArenaUpdsCap :: Isize
+  offArenaUpdsCap = 56
+  offArenaFrmsPtr :: Isize
+  offArenaFrmsPtr = 64
+  offArenaFrmsLen :: Isize
+  offArenaFrmsLen = 72
+  offArenaFrmsCap :: Isize
+  offArenaFrmsCap = 80
+  offArenaVarsPtr :: Isize
+  offArenaVarsPtr = 88
+  offArenaVarsLen :: Isize
+  offArenaVarsLen = 96
+  offArenaVarsCap :: Isize
+  offArenaVarsCap = 104
+
+  evoArena :: Unit ->{Global} RawPtr U8
+  evoArena _ = ptrCast (evoArenaBuf ())
+
+  evoWaitInit :: Unit ->{Global} Unit
+  evoWaitInit _ =
+    if atomicLoadU64Acquire (evoInitState ()) 0 == 2 then ()
+    else
+      let _ = sysSpinLoop () in
+      evoWaitInit ()
+
+  evoEnsureInit :: Unit ->{Global} Unit
+  evoEnsureInit _ =
+    if atomicLoadU64Acquire (evoInitState ()) 0 == 2 then ()
+    else if atomicCasU64Bool (evoInitState ()) 0 0 1 then
+      let _ = cPthreadMutexInit (ptrCast (evoMutexBuf ())) (ptrNull ()) in
+      atomicStoreU64Release (evoInitState ()) 0 2
+    else
+      evoWaitInit ()
+
+  evoLock :: Unit ->{Global} Unit
+  evoLock _ =
+    let _ = evoEnsureInit () in
+    let _ = cPthreadMutexLock (ptrCast (evoMutexBuf ())) in
+    ()
+
+  evoUnlock :: Unit ->{Global} Unit
+  evoUnlock _ =
+    let _ = cPthreadMutexUnlock (ptrCast (evoMutexBuf ())) in
+    ()
+
+  arenaFresh :: Unit ->{Global} I64
+  arenaFresh _ =
+    let a = evoArena () in
+    let id = loadI64 a offArenaNext in
+    let _ = storeI64 a offArenaNext (i64Add id 1) in
+    id
+
+  -- Dynamic array grow helper: vec at (hdr + ptrOff, hdr + lenOff, hdr + capOff)
+  vecGrow :: RawPtr U8 -> Isize -> Isize -> Isize -> U64 ->{Global} RawPtr U8
+  vecGrow hdr ptrOff lenOff capOff elemSize =
+    let len = loadU64 hdr lenOff in
+    let cap = loadU64 hdr capOff in
+    let curPtr = loadU64 hdr ptrOff in
+    let p = (
+      if u64Lt len cap then maybeToRaw (ptrFromU64 curPtr)
+      else
+        let newCap = if cap == 0 then 8 else u64Mul cap 2 in
+        let bytes = u64ToUsize (u64Mul newCap elemSize) in
+        let mem = if curPtr == 0 then cMalloc bytes else cRealloc (ptrFromU64 curPtr) bytes in
+        let mp = maybeToRaw mem in
+        let _ = storeU64 hdr ptrOff (rawToU64 mp) in
+        let _ = storeU64 hdr capOff newCap in
+        mp
+    ) in
+    let _ = storeU64 hdr lenOff (u64Add len 1) in
+    ptrAddU64 p (u64Mul len elemSize)
+
+  -- =========================================================================
+  -- Lookup Helpers
+  -- =========================================================================
+
+  findByIdLoop :: RawPtr U8 -> U64 -> U64 -> U64 -> I64 ->{Global} MaybeNull U8
+  findByIdLoop base len elemSize i wanted =
+    if u64Ge i len then ptrNull ()
+    else
+      let p = ptrAddU64 base (u64Mul i elemSize) in
+      if loadI64 p 0 == wanted then rawToMaybe p
+      else findByIdLoop base len elemSize (u64Add i 1) wanted
+
+  findMod :: I64 ->{Global} MaybeNull U8
+  findMod id =
+    let a = evoArena () in
+    let len = loadU64 a offArenaModsLen in
+    if len == 0 then ptrNull ()
+    else findByIdLoop (maybeToRaw (ptrFromU64 (loadU64 a offArenaModsPtr))) len modBytes 0 id
+
+  findUpdIdxLoop :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} I64
+  findUpdIdxLoop base len i wanted =
+    if u64Ge i len then i64Sub 0 1
+    else
+      let p = ptrAddU64 base (u64Mul i updBytes) in
+      if loadI64 p offUpdId == wanted then u64ToI64 i
+      else findUpdIdxLoop base len (u64Add i 1) wanted
+
+  findUpd :: I64 ->{Global} MaybeNull U8
+  findUpd id =
+    let a = evoArena () in
+    let len = loadU64 a offArenaUpdsLen in
+    if len == 0 then ptrNull ()
+    else findByIdLoop (maybeToRaw (ptrFromU64 (loadU64 a offArenaUpdsPtr))) len updBytes 0 id
+
+  findFrm :: I64 ->{Global} MaybeNull U8
+  findFrm id =
+    let a = evoArena () in
+    let len = loadU64 a offArenaFrmsLen in
+    if len == 0 then ptrNull ()
+    else findByIdLoop (maybeToRaw (ptrFromU64 (loadU64 a offArenaFrmsPtr))) len frmBytes 0 id
+
+  findVar :: I64 ->{Global} MaybeNull U8
+  findVar id =
+    let a = evoArena () in
+    let len = loadU64 a offArenaVarsLen in
+    if len == 0 then ptrNull ()
+    else findByIdLoop (maybeToRaw (ptrFromU64 (loadU64 a offArenaVarsPtr))) len varBytes 0 id
+
+  findVerInMod :: RawPtr U8 -> I64 ->{Global} MaybeNull U8
+  findVerInMod m vid =
+    let len = loadU64 m offModVersLen in
+    if len == 0 then ptrNull ()
+    else findByIdLoop (maybeToRaw (ptrFromU64 (loadU64 m offModVersPtr))) len verBytes 0 vid
+
+  findVerIdxInModLoop :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} I64
+  findVerIdxInModLoop base len i vid =
+    if u64Ge i len then i64Sub 0 1
+    else
+      let p = ptrAddU64 base (u64Mul i verBytes) in
+      if loadI64 p offVerId == vid then u64ToI64 i
+      else findVerIdxInModLoop base len (u64Add i 1) vid
+
+  findVerAcrossModsLoop :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} MaybeNull U8
+  findVerAcrossModsLoop base mlen i vid =
+    if u64Ge i mlen then ptrNull ()
+    else
+      let m = ptrAddU64 base (u64Mul i modBytes) in
+      let v = findVerInMod m vid in
+      if not (ptrIsNull v) then v
+      else findVerAcrossModsLoop base mlen (u64Add i 1) vid
+
+  findVerGlobal :: I64 ->{Global} MaybeNull U8
+  findVerGlobal vid =
+    let a = evoArena () in
+    let mlen = loadU64 a offArenaModsLen in
+    if mlen == 0 then ptrNull ()
+    else findVerAcrossModsLoop (maybeToRaw (ptrFromU64 (loadU64 a offArenaModsPtr))) mlen 0 vid
+
+  hasI64InArrLoop :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} Bool
+  hasI64InArrLoop base len i wanted =
+    if u64Ge i len then False
+    else if loadI64 base (u64ToIsize (u64Mul i 8)) == wanted then True
+    else hasI64InArrLoop base len (u64Add i 1) wanted
+
+  revOkContains :: RawPtr U8 -> I64 ->{Global} Bool
+  revOkContains m r =
+    let len = loadU64 m offModRevLen in
+    if len == 0 then False
+    else hasI64InArrLoop (maybeToRaw (ptrFromU64 (loadU64 m offModRevPtr))) len 0 r
+
+  revOkInsert :: RawPtr U8 -> I64 ->{Global} Unit
+  revOkInsert m r =
+    if revOkContains m r then ()
+    else
+      let slot = vecGrow m offModRevPtr offModRevLen offModRevCap 8 in
+      storeI64 slot 0 r
+
+  replFindLoop :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} MaybeNull U8
+  replFindLoop base len i sym =
+    if u64Ge i len then ptrNull ()
+    else
+      let p = ptrAddU64 base (u64Mul i 16) in
+      if loadI64 p 0 == sym then rawToMaybe p
+      else replFindLoop base len (u64Add i 1) sym
+
+  replInsert :: RawPtr U8 -> I64 -> I64 ->{Global} Unit
+  replInsert u sym repl =
+    let len = loadU64 u offUpdReplLen in
+    let existing = (
+      if len == 0 then ptrNull ()
+      else replFindLoop (maybeToRaw (ptrFromU64 (loadU64 u offUpdReplPtr))) len 0 sym
+    ) in
+    if not (ptrIsNull existing) then
+      storeI64 (maybeToRaw existing) 8 repl
+    else
+      let slot = vecGrow u offUpdReplPtr offUpdReplLen offUpdReplCap 16 in
+      let _ = storeI64 slot 0 sym in
+      storeI64 slot 8 repl
+
+  replContainsKey :: RawPtr U8 -> I64 ->{Global} Bool
+  replContainsKey u sym =
+    let len = loadU64 u offUpdReplLen in
+    if len == 0 then False
+    else not (ptrIsNull (replFindLoop (maybeToRaw (ptrFromU64 (loadU64 u offUpdReplPtr))) len 0 sym))
+
+  depInsert :: RawPtr U8 -> I64 ->{Global} Unit
+  depInsert u dep =
+    let len = loadU64 u offUpdDepLen in
+    let exists = (
+      if len == 0 then False
+      else hasI64InArrLoop (maybeToRaw (ptrFromU64 (loadU64 u offUpdDepPtr))) len 0 dep
+    ) in
+    if exists then ()
+    else
+      let slot = vecGrow u offUpdDepPtr offUpdDepLen offUpdDepCap 8 in
+      storeI64 slot 0 dep
+
+  allDepsHaveReplLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  allDepsHaveReplLoop u depBase dlen i =
+    if u64Ge i dlen then True
+    else
+      let d = loadI64 depBase (u64ToIsize (u64Mul i 8)) in
+      if not (replContainsKey u d) then False
+      else allDepsHaveReplLoop u depBase dlen (u64Add i 1)
+
+  allReplValsInModLoop :: RawPtr U8 -> RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  allReplValsInModLoop m replBase rlen i =
+    if u64Ge i rlen then True
+    else
+      let p = ptrAddU64 replBase (u64Mul i 16) in
+      let r = loadI64 p 8 in
+      if ptrIsNull (findVerInMod m r) then False
+      else allReplValsInModLoop m replBase rlen (u64Add i 1)
+
+  findVarBySpecLoop :: RawPtr U8 -> U64 -> U64 -> I64 ->{Global} MaybeNull U8
+  findVarBySpecLoop base len i specId =
+    if u64Ge i len then ptrNull ()
+    else
+      let p = ptrAddU64 base (u64Mul i varBytes) in
+      if loadI64 p offVarSpec == specId then rawToMaybe p
+      else findVarBySpecLoop base len (u64Add i 1) specId
+
+  satSubI64 :: I64 -> I64 -> I64
+  satSubI64 a b =
+    if i64Le a b then 0 else i64Sub a b
+
+  -- =========================================================================
+  -- Exported C ABI (30 exports)
+  -- =========================================================================
+
+  cinchEvoModuleNew :: I64 ->{Global} I64
+  cinchEvoModuleNew _name =
+    let _ = evoLock () in
+    let a = evoArena () in
+    let id = arenaFresh () in
+    let m = vecGrow a offArenaModsPtr offArenaModsLen offArenaModsCap modBytes in
+    let _ = memZero m (u64ToUsize modBytes) in
+    let _ = storeI64 m offModId id in
+    let _ = storeI64 m offModCurrent (i64Sub 0 1) in
+    let _ = evoUnlock () in
+    id
+
+  cinchEvoVersionNew :: I64 -> I64 -> I64 ->{Global} I64
+  cinchEvoVersionNew modId stRepr reqMask =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = (
+      if ptrIsNull mp then errNoHandle
+      else
+        let m = maybeToRaw mp in
+        let id = arenaFresh () in
+        let v = vecGrow m offModVersPtr offModVersLen offModVersCap verBytes in
+        let _ = storeI64 v offVerId id in
+        let _ = storeU64 v offVerReqMask (bitAndU64 (i64ToU64 reqMask) 255) in
+        let _ = storeI64 v offVerStateRepr stRepr in
+        let _ = storeI64 v offVerLive 0 in
+        let _ = storeU64 v offVerRetired 0 in
+        id
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoFeatureAvail :: I64 -> I64 ->{Global} I64
+  cinchEvoFeatureAvail feat avail =
+    if i64Lt feat 0 || i64Ge feat 8 then errInvalidUpdate
+    else
+      let _ = evoLock () in
+      let a = evoArena () in
+      let bit = shlU64 1 (i64ToU64 feat) in
+      let cur = loadU64 a offArenaAvail in
+      let nxt = if avail /= 0 then bitOrU64 cur bit else bitAndU64 cur (bitXorU64 bit (i64ToU64 (i64Sub 0 1))) in
+      let _ = storeU64 a offArenaAvail nxt in
+      let _ = evoUnlock () in
+      0
+
+  cinchEvoUpdateBegin :: I64 -> I64 ->{Global} I64
+  cinchEvoUpdateBegin modId tgt =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = (
+      if ptrIsNull mp then errNoHandle
+      else
+        let a = evoArena () in
+        let id = arenaFresh () in
+        let u = vecGrow a offArenaUpdsPtr offArenaUpdsLen offArenaUpdsCap updBytes in
+        let _ = memZero u (u64ToUsize updBytes) in
+        let _ = storeI64 u offUpdId id in
+        let _ = storeI64 u offUpdMod modId in
+        let _ = storeI64 u offUpdTgt tgt in
+        id
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoAddReplacement :: I64 -> I64 -> I64 ->{Global} I64
+  cinchEvoAddReplacement updId sym repl =
+    let _ = evoLock () in
+    let up = findUpd updId in
+    let res = (
+      if ptrIsNull up then errNoHandle
+      else
+        let u = maybeToRaw up in
+        let mp = findMod (loadI64 u offUpdMod) in
+        if ptrIsNull mp then errNoHandle
+        else if ptrIsNull (findVerInMod (maybeToRaw mp) repl) then errInvalidUpdate
+        else
+          let _ = replInsert u sym repl in
+          0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoAddDependent :: I64 -> I64 ->{Global} I64
+  cinchEvoAddDependent updId dep =
+    let _ = evoLock () in
+    let up = findUpd updId in
+    let res = (
+      if ptrIsNull up then errNoHandle
+      else
+        let _ = depInsert (maybeToRaw up) dep in
+        0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoRequireFeature :: I64 -> I64 ->{Global} I64
+  cinchEvoRequireFeature updId feat =
+    if i64Lt feat 0 || i64Ge feat 8 then errInvalidUpdate
+    else
+      let _ = evoLock () in
+      let up = findUpd updId in
+      let res = (
+        if ptrIsNull up then errNoHandle
+        else
+          let u = maybeToRaw up in
+          let bit = shlU64 1 (i64ToU64 feat) in
+          let _ = storeU64 u offUpdReqMask (bitOrU64 (loadU64 u offUpdReqMask) bit) in
+          0
+      ) in
+      let _ = evoUnlock () in
+      res
+
+  cinchEvoSetMigration :: I64 -> I64 -> I64 -> I64 ->{Global} I64
+  cinchEvoSetMigration updId fromRepr toRepr rev =
+    let _ = evoLock () in
+    let up = findUpd updId in
+    let res = (
+      if ptrIsNull up then errNoHandle
+      else
+        let u = maybeToRaw up in
+        let _ = storeU64 u offUpdHasMig 1 in
+        let _ = storeI64 u offUpdMigFrom fromRepr in
+        let _ = storeI64 u offUpdMigTo toRepr in
+        let _ = storeU64 u offUpdReverse (if rev /= 0 then 1 else 0) in
+        0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoMarkComplete :: I64 -> I64 -> I64 ->{Global} I64
+  cinchEvoMarkComplete updId changed deps =
+    let _ = evoLock () in
+    let up = findUpd updId in
+    let res = (
+      if ptrIsNull up then errNoHandle
+      else if i64Lt changed 0 || i64Lt deps 0 then errInvalidUpdate
+      else
+        let u = maybeToRaw up in
+        let dlen = loadU64 u offUpdDepLen in
+        let depsOk = (
+          if dlen == 0 then True
+          else allDepsHaveReplLoop u (maybeToRaw (ptrFromU64 (loadU64 u offUpdDepPtr))) dlen 0
+        ) in
+        if not depsOk then errInvalidUpdate
+        else
+          let rlen = loadU64 u offUpdReplLen in
+          let expected = i64ToU64 (i64Add changed deps) in
+          if rlen /= expected then errInvalidUpdate
+          else
+            let _ = storeU64 u offUpdComplete 1 in
+            0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoActivate :: I64 ->{Global} I64
+  cinchEvoActivate updId =
+    let _ = evoLock () in
+    let a = evoArena () in
+    let ulen = loadU64 a offArenaUpdsLen in
+    let ubase = maybeToRaw (ptrFromU64 (loadU64 a offArenaUpdsPtr)) in
+    let idx = if ulen == 0 then i64Sub 0 1 else findUpdIdxLoop ubase ulen 0 updId in
+    let res = (
+      if i64Lt idx 0 then errNoHandle
+      else
+        let u = ptrAddU64 ubase (u64Mul (i64ToU64 idx) updBytes) in
+        let modId = loadI64 u offUpdMod in
+        let tgt = loadI64 u offUpdTgt in
+        let updReq = loadU64 u offUpdReqMask in
+        let complete = loadU64 u offUpdComplete in
+        let hasMig = loadU64 u offUpdHasMig in
+        let migFrom = loadI64 u offUpdMigFrom in
+        let migTo = loadI64 u offUpdMigTo in
+        let rev = loadU64 u offUpdReverse in
+        let replPtr = loadU64 u offUpdReplPtr in
+        let replLen = loadU64 u offUpdReplLen in
+        let depPtr = loadU64 u offUpdDepPtr in
+        -- Remove update from pending list immediately (swap-remove)
+        let lastIdx = u64Sub ulen 1 in
+        let _ = (if i64ToU64 idx /= lastIdx then
+            memCopy u (ptrAddU64 ubase (u64Mul lastIdx updBytes)) (u64ToUsize updBytes)
+          else ()) in
+        let _ = storeU64 a offArenaUpdsLen lastIdx in
+        let r = (
+          if complete == 0 then errIncompleteUpdateSet
+          else
+            let mp = findMod modId in
+            if ptrIsNull mp then errNoHandle
+            else
+              let m = maybeToRaw mp in
+              let tvp = findVerInMod m tgt in
+              if ptrIsNull tvp then errInvalidUpdate
+              else
+                let replsOk = (
+                  if replLen == 0 then True
+                  else allReplValsInModLoop m (maybeToRaw (ptrFromU64 replPtr)) replLen 0
+                ) in
+                if not replsOk then errInvalidUpdate
+                else
+                  let tv = maybeToRaw tvp in
+                  let reqAll = bitOrU64 (loadU64 tv offVerReqMask) updReq in
+                  let avail = loadU64 a offArenaAvail in
+                  if bitAndU64 reqAll avail /= reqAll then errTargetUnavailable
+                  else if hasMig /= 0 && loadI64 m offModStateRepr /= migFrom then errInvalidUpdate
+                  else
+                    let _ = (if hasMig /= 0 then
+                        let _ = storeI64 m offModStateRepr migTo in
+                        if rev /= 0 then revOkInsert m migTo else ()
+                      else ()) in
+                    let old = loadI64 m offModCurrent in
+                    let _ = (if i64Ge old 0 then
+                        let ovp = findVerInMod m old in
+                        if not (ptrIsNull ovp) then storeU64 (maybeToRaw ovp) offVerRetired 1 else ()
+                      else ()) in
+                    let _ = storeI64 m offModCurrent tgt in
+                    let newEpoch = i64Add (loadI64 m offModEpoch) 1 in
+                    let _ = storeI64 m offModEpoch newEpoch in
+                    newEpoch
+        ) in
+        let _ = if replPtr /= 0 then cFree (ptrFromU64 replPtr) else () in
+        let _ = if depPtr /= 0 then cFree (ptrFromU64 depPtr) else () in
+        r
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoStateSeed :: I64 -> I64 -> I64 ->{Global} I64
+  cinchEvoStateSeed modId stRepr payload =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = (
+      if ptrIsNull mp then errNoHandle
+      else
+        let m = maybeToRaw mp in
+        let _ = storeI64 m offModStateRepr stRepr in
+        let _ = storeI64 m offModStatePayload payload in
+        0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoStateRepr :: I64 ->{Global} I64
+  cinchEvoStateRepr modId =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = if ptrIsNull mp then i64Sub 0 1 else loadI64 (maybeToRaw mp) offModStateRepr in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoStatePayload :: I64 ->{Global} I64
+  cinchEvoStatePayload modId =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = if ptrIsNull mp then i64Sub 0 1 else loadI64 (maybeToRaw mp) offModStatePayload in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoCurrentVersion :: I64 ->{Global} I64
+  cinchEvoCurrentVersion modId =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = if ptrIsNull mp then i64Sub 0 1 else loadI64 (maybeToRaw mp) offModCurrent in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoEpoch :: I64 ->{Global} I64
+  cinchEvoEpoch modId =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = if ptrIsNull mp then i64Sub 0 1 else loadI64 (maybeToRaw mp) offModEpoch in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoFrameEnter :: I64 ->{Global} I64
+  cinchEvoFrameEnter modId =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = (
+      if ptrIsNull mp then errNoHandle
+      else
+        let m = maybeToRaw mp in
+        let cur = loadI64 m offModCurrent in
+        if i64Lt cur 0 then errNoHandle
+        else
+          let admRepr = loadI64 m offModStateRepr in
+          let vp = findVerInMod m cur in
+          let _ = (if not (ptrIsNull vp) then
+              let v = maybeToRaw vp in
+              storeI64 v offVerLive (i64Add (loadI64 v offVerLive) 1)
+            else ()) in
+          let a = evoArena () in
+          let id = arenaFresh () in
+          let f = vecGrow a offArenaFrmsPtr offArenaFrmsLen offArenaFrmsCap frmBytes in
+          let _ = storeI64 f offFrmId id in
+          let _ = storeI64 f offFrmMod modId in
+          let _ = storeI64 f offFrmVer cur in
+          let _ = storeI64 f offFrmAdmittedRepr admRepr in
+          let _ = storeU64 f offFrmExited 0 in
+          id
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoFrameExit :: I64 ->{Global} I64
+  cinchEvoFrameExit frmId =
+    let _ = evoLock () in
+    let fp = findFrm frmId in
+    let res = (
+      if ptrIsNull fp then errNoHandle
+      else
+        let f = maybeToRaw fp in
+        if loadU64 f offFrmExited /= 0 then errInvalidUpdate
+        else
+          let _ = storeU64 f offFrmExited 1 in
+          let modId = loadI64 f offFrmMod in
+          let verId = loadI64 f offFrmVer in
+          let mp = findMod modId in
+          let _ = (if not (ptrIsNull mp) then
+              let vp = findVerInMod (maybeToRaw mp) verId in
+              if not (ptrIsNull vp) then
+                let v = maybeToRaw vp in
+                storeI64 v offVerLive (satSubI64 (loadI64 v offVerLive) 1)
+              else ()
+            else ()) in
+          0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoFrameVersion :: I64 ->{Global} I64
+  cinchEvoFrameVersion frmId =
+    let _ = evoLock () in
+    let fp = findFrm frmId in
+    let res = if ptrIsNull fp then i64Sub 0 1 else loadI64 (maybeToRaw fp) offFrmVer in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoFrameResume :: I64 -> I64 ->{Global} I64
+  cinchEvoFrameResume frmId overRepr =
+    let _ = evoLock () in
+    let fp = findFrm frmId in
+    let res = (
+      if ptrIsNull fp then errNoHandle
+      else
+        let f = maybeToRaw fp in
+        if loadU64 f offFrmExited /= 0 then errInvalidUpdate
+        else if loadI64 f offFrmAdmittedRepr == overRepr then 0
+        else
+          let mp = findMod (loadI64 f offFrmMod) in
+          if ptrIsNull mp then errNoHandle
+          else if revOkContains (maybeToRaw mp) overRepr then 0
+          else errOldOverNewState
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVersionLive :: I64 ->{Global} I64
+  cinchEvoVersionLive verId =
+    let _ = evoLock () in
+    let vp = findVerGlobal verId in
+    let res = if ptrIsNull vp then i64Sub 0 1 else loadI64 (maybeToRaw vp) offVerLive in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVersionRetired :: I64 ->{Global} I64
+  cinchEvoVersionRetired verId =
+    let _ = evoLock () in
+    let vp = findVerGlobal verId in
+    let res = if ptrIsNull vp then 0 else if loadU64 (maybeToRaw vp) offVerRetired /= 0 then 1 else 0 in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVersionResident :: I64 ->{Global} I64
+  cinchEvoVersionResident verId =
+    let _ = evoLock () in
+    let res = if ptrIsNull (findVerGlobal verId) then 0 else 1 in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVersionTryDrop :: I64 -> I64 ->{Global} I64
+  cinchEvoVersionTryDrop modId verId =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = (
+      if ptrIsNull mp then errNoHandle
+      else
+        let m = maybeToRaw mp in
+        let vlen = loadU64 m offModVersLen in
+        if vlen == 0 then 1
+        else
+          let vbase = maybeToRaw (ptrFromU64 (loadU64 m offModVersPtr)) in
+          let idx = findVerIdxInModLoop vbase vlen 0 verId in
+          if i64Lt idx 0 then 1
+          else
+            let vp = ptrAddU64 vbase (u64Mul (i64ToU64 idx) verBytes) in
+            if i64Gt (loadI64 vp offVerLive) 0 then errRetainedCode
+            else
+              let lastIdx = u64Sub vlen 1 in
+              let _ = (if i64ToU64 idx /= lastIdx then
+                  memCopy vp (ptrAddU64 vbase (u64Mul lastIdx verBytes)) (u64ToUsize verBytes)
+                else ()) in
+              let _ = storeU64 m offModVersLen lastIdx in
+              1
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVariantInstall :: I64 -> I64 -> I64 -> I64 ->{Global} I64
+  cinchEvoVariantInstall modId genericVer specVer guardVal =
+    let _ = evoLock () in
+    let mp = findMod modId in
+    let res = (
+      if ptrIsNull mp then errNoHandle
+      else
+        let m = maybeToRaw mp in
+        if ptrIsNull (findVerInMod m genericVer) || ptrIsNull (findVerInMod m specVer) then
+          errInvalidUpdate
+        else
+          let a = evoArena () in
+          let id = arenaFresh () in
+          let v = vecGrow a offArenaVarsPtr offArenaVarsLen offArenaVarsCap varBytes in
+          let _ = storeI64 v offVarId id in
+          let _ = storeI64 v offVarMod modId in
+          let _ = storeI64 v offVarGeneric genericVer in
+          let _ = storeI64 v offVarSpec specVer in
+          let _ = storeI64 v offVarGuard guardVal in
+          let _ = storeU64 v offVarRetired 0 in
+          let _ = storeI64 v offVarLive 0 in
+          id
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVariantEnter :: I64 ->{Global} I64
+  cinchEvoVariantEnter varId =
+    let _ = evoLock () in
+    let vp = findVar varId in
+    let res = (
+      if ptrIsNull vp then errNoHandle
+      else
+        let v = maybeToRaw vp in
+        if loadU64 v offVarRetired /= 0 then errInvalidUpdate
+        else
+          let modId = loadI64 v offVarMod in
+          let specVer = loadI64 v offVarSpec in
+          let mp = findMod modId in
+          if ptrIsNull mp then errNoHandle
+          else
+            let m = maybeToRaw mp in
+            let admRepr = loadI64 m offModStateRepr in
+            let cvp = findVerInMod m specVer in
+            let _ = (if not (ptrIsNull cvp) then
+                let cv = maybeToRaw cvp in
+                storeI64 cv offVerLive (i64Add (loadI64 cv offVerLive) 1)
+              else ()) in
+            let _ = storeI64 v offVarLive (i64Add (loadI64 v offVarLive) 1) in
+            let a = evoArena () in
+            let id = arenaFresh () in
+            let f = vecGrow a offArenaFrmsPtr offArenaFrmsLen offArenaFrmsCap frmBytes in
+            let _ = storeI64 f offFrmId id in
+            let _ = storeI64 f offFrmMod modId in
+            let _ = storeI64 f offFrmVer specVer in
+            let _ = storeI64 f offFrmAdmittedRepr admRepr in
+            let _ = storeU64 f offFrmExited 0 in
+            id
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVariantRetire :: I64 ->{Global} I64
+  cinchEvoVariantRetire varId =
+    let _ = evoLock () in
+    let vp = findVar varId in
+    let res = (
+      if ptrIsNull vp then errNoHandle
+      else
+        let _ = storeU64 (maybeToRaw vp) offVarRetired 1 in
+        0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVariantRetired :: I64 ->{Global} I64
+  cinchEvoVariantRetired varId =
+    let _ = evoLock () in
+    let vp = findVar varId in
+    let res = if ptrIsNull vp then 0 else if loadU64 (maybeToRaw vp) offVarRetired /= 0 then 1 else 0 in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVariantResident :: I64 ->{Global} I64
+  cinchEvoVariantResident varId =
+    let _ = evoLock () in
+    let vp = findVar varId in
+    let res = (
+      if ptrIsNull vp then 0
+      else
+        let v = maybeToRaw vp in
+        let mp = findMod (loadI64 v offVarMod) in
+        if ptrIsNull mp then 0
+        else if ptrIsNull (findVerInMod (maybeToRaw mp) (loadI64 v offVarSpec)) then 0
+        else 1
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoVariantCheckGuard :: I64 -> I64 ->{Global} I64
+  cinchEvoVariantCheckGuard varId observed =
+    let _ = evoLock () in
+    let vp = findVar varId in
+    let res = (
+      if ptrIsNull vp then errNoHandle
+      else if loadI64 (maybeToRaw vp) offVarGuard == observed then 0
+      else errUnsafeDeopt
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  cinchEvoDeopt :: I64 -> I64 ->{Global} I64
+  cinchEvoDeopt frmId heldLinear =
+    let _ = evoLock () in
+    let fp = findFrm frmId in
+    let res = (
+      if ptrIsNull fp then errNoHandle
+      else
+        let f = maybeToRaw fp in
+        if loadU64 f offFrmExited /= 0 then errInvalidUpdate
+        else if i64Lt heldLinear 0 then errUnsafeDeopt
+        else
+          let a = evoArena () in
+          let vlen = loadU64 a offArenaVarsLen in
+          let specVer = loadI64 f offFrmVer in
+          let vp = (
+            if vlen == 0 then ptrNull ()
+            else findVarBySpecLoop (maybeToRaw (ptrFromU64 (loadU64 a offArenaVarsPtr))) vlen 0 specVer
+          ) in
+          if ptrIsNull vp then errUnsafeDeopt
+          else
+            let v = maybeToRaw vp in
+            if i64Lt (loadI64 v offVarLive) heldLinear then errUnsafeDeopt
+            else
+              let genericVer = loadI64 v offVarGeneric in
+              let modId = loadI64 f offFrmMod in
+              let _ = storeI64 f offFrmVer genericVer in
+              let mp = findMod modId in
+              let _ = (if not (ptrIsNull mp) then
+                  let m = maybeToRaw mp in
+                  let sp = findVerInMod m specVer in
+                  let _ = (if not (ptrIsNull sp) then
+                      let scv = maybeToRaw sp in
+                      storeI64 scv offVerLive (satSubI64 (loadI64 scv offVerLive) 1)
+                    else ()) in
+                  let gp = findVerInMod m genericVer in
+                  if not (ptrIsNull gp) then
+                    let gcv = maybeToRaw gp in
+                    storeI64 gcv offVerLive (i64Add (loadI64 gcv offVerLive) 1)
+                  else ()
+                else ()) in
+              let dec = if i64Gt heldLinear 1 then heldLinear else 1 in
+              let _ = storeI64 v offVarLive (satSubI64 (loadI64 v offVarLive) dec) in
+              0
+    ) in
+    let _ = evoUnlock () in
+    res
+
+  foreign export ccall "cinch_evo_module_new" cinchEvoModuleNew :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_version_new" cinchEvoVersionNew :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_feature_avail" cinchEvoFeatureAvail :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_update_begin" cinchEvoUpdateBegin :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_add_replacement" cinchEvoAddReplacement :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_add_dependent" cinchEvoAddDependent :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_require_feature" cinchEvoRequireFeature :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_set_migration" cinchEvoSetMigration :: I64 -> I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_mark_complete" cinchEvoMarkComplete :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_activate" cinchEvoActivate :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_state_seed" cinchEvoStateSeed :: I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_state_repr" cinchEvoStateRepr :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_state_payload" cinchEvoStatePayload :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_current_version" cinchEvoCurrentVersion :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_epoch" cinchEvoEpoch :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_frame_enter" cinchEvoFrameEnter :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_frame_exit" cinchEvoFrameExit :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_frame_version" cinchEvoFrameVersion :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_frame_resume" cinchEvoFrameResume :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_version_live" cinchEvoVersionLive :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_version_retired" cinchEvoVersionRetired :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_version_resident" cinchEvoVersionResident :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_version_try_drop" cinchEvoVersionTryDrop :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_variant_install" cinchEvoVariantInstall :: I64 -> I64 -> I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_variant_enter" cinchEvoVariantEnter :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_variant_retire" cinchEvoVariantRetire :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_variant_retired" cinchEvoVariantRetired :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_variant_resident" cinchEvoVariantResident :: I64 ->{Global} I64
+  foreign export ccall "cinch_evo_variant_check_guard" cinchEvoVariantCheckGuard :: I64 -> I64 ->{Global} I64
+  foreign export ccall "cinch_evo_deopt" cinchEvoDeopt :: I64 -> I64 ->{Global} I64

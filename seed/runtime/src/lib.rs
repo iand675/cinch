@@ -595,6 +595,7 @@ mod entropy_boundary_tests;
 pub mod error;
 pub mod heap;
 pub mod eval;
+#[cfg(test)]
 pub mod evolution;
 mod int;
 mod limbs;

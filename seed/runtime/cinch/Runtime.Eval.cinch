@@ -1,0 +1,1239 @@
+module Runtime.Eval where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.Bytes
+  import Runtime.BigNum
+  import Runtime.Sched
+
+  export cinchEval
+
+  -- =========================================================================
+  -- Constants & Error Codes
+  -- =========================================================================
+
+  quoteKindCode :: I64
+  quoteKindCode = 3
+
+  maxNesting :: U64
+  maxNesting = 1024
+
+  maxCodeWords :: U64
+  maxCodeWords = 67108864 -- 1 << 26
+
+  maxHoles :: U64
+  maxHoles = 1048576 -- 1 << 20
+
+  -- Error codes
+  errOk :: U64
+  errOk = 0
+  errCorrupt :: U64
+  errCorrupt = 1
+  errBlackHole :: U64
+  errBlackHole = 2
+  errNesting :: U64
+  errNesting = 3
+  errMalformedDec :: U64
+  errMalformedDec = 4
+
+  -- Opcodes (mirror quote_op in seed/src/codegen.rs)
+  opInt :: U64
+  opInt = 1
+  opBig :: U64
+  opBig = 2
+  opBool :: U64
+  opBool = 3
+  opUnit :: U64
+  opUnit = 4
+  opLocal :: U64
+  opLocal = 5
+  opHole :: U64
+  opHole = 6
+  opLet :: U64
+  opLet = 7
+  opIf :: U64
+  opIf = 8
+  opCase :: U64
+  opCase = 9
+  opApp :: U64
+  opApp = 10
+  opLam :: U64
+  opLam = 11
+  opCtor :: U64
+  opCtor = 12
+  opProj :: U64
+  opProj = 13
+  opFault :: U64
+  opFault = 14
+  opLazyAlloc :: U64
+  opLazyAlloc = 15
+  opLazyInit :: U64
+  opLazyInit = 16
+  opDemand :: U64
+  opDemand = 17
+  opUnitRef :: U64
+  opUnitRef = 18
+  opConstBytes :: U64
+  opConstBytes = 19
+  opDup :: U64
+  opDup = 21
+  opDrop :: U64
+  opDrop = 22
+  opSet :: U64
+  opSet = 23
+
+  -- =========================================================================
+  -- Result Records (unboxed value types)
+  -- =========================================================================
+
+  #[repr(value)]
+  record EvalRes where
+    erErr :: U64
+    erVal :: I64
+
+  #[repr(value)]
+  record DecRes where
+    drErr :: U64
+    drId :: U64
+
+  #[repr(value)]
+  record WordRes where
+    wrErr :: U64
+    wrVal :: U64
+
+  evalOk :: I64 -> EvalRes
+  evalOk v = EvalRes errOk v
+
+  evalErr :: U64 -> EvalRes
+  evalErr e = EvalRes e 0
+
+  decOk :: U64 -> DecRes
+  decOk id = DecRes errOk id
+
+  decErr :: U64 -> DecRes
+  decErr e = DecRes e 0
+
+  -- =========================================================================
+  -- Per-Context Eval State (16 bytes stored inside Runtime.Sched Run/Fiber)
+  --   offset 0: frames (low 32 bits) | runs (high 32 bits)
+  --   offset 8: pending error code (0 = None)
+  -- =========================================================================
+
+  stateEnterFrame :: Unit ->{Global, ThreadAffine} U64
+  stateEnterFrame _ =
+    let st = schedEvalStatePtr () in
+    let lo = loadU64 st 0 in
+    let frames = bitAndU64 lo 4294967295 in
+    if u64Ge frames maxNesting then errNesting
+    else
+      let _ = storeU64 st 0 (u64Add lo 1) in
+      errOk
+
+  stateLeaveFrame :: Unit ->{Global, ThreadAffine} Unit
+  stateLeaveFrame _ =
+    let st = schedEvalStatePtr () in
+    let lo = loadU64 st 0 in
+    storeU64 st 0 (u64Sub lo 1)
+
+  stateEnterRun :: Unit ->{Global, ThreadAffine} U64
+  stateEnterRun _ =
+    let st = schedEvalStatePtr () in
+    let lo = loadU64 st 0 in
+    let runs = lshrU64 lo 32 in
+    let _ = storeU64 st 0 (u64Add lo 4294967296) in
+    runs
+
+  stateLeaveRun :: U64 -> U64 ->{Global, ThreadAffine} Unit
+  stateLeaveRun outer err =
+    let st = schedEvalStatePtr () in
+    let lo = loadU64 st 0 in
+    let _ = storeU64 st 0 (u64Sub lo 4294967296) in
+    if err /= errOk then
+      if outer == 0 then
+        storeU64 st 8 0
+      else if loadU64 st 8 == 0 then
+        storeU64 st 8 err
+      else ()
+    else ()
+
+  stateTakePending :: Unit ->{Global, ThreadAffine} U64
+  stateTakePending _ =
+    let st = schedEvalStatePtr () in
+    let p = loadU64 st 8 in
+    let _ = if p /= 0 then storeU64 st 8 0 else () in
+    p
+
+  -- =========================================================================
+  -- Node Arena & Decoder Context
+  -- =========================================================================
+
+  -- Each decoded Node is 48 bytes (6 U64 words):
+  --   off 0: tag (op*)
+  --   off 8: a
+  --   off 16: b
+  --   off 24: c
+  --   off 32: d
+  --   off 40: e
+  nodeBytes :: U64
+  nodeBytes = 48
+
+  -- DecCtx struct (128 bytes):
+  --   off 0:   wordsPtr (RawPtr U8)
+  --   off 8:   wordsLen (U64)
+  --   off 16:  pos (U64)
+  --   off 24:  holesLen (U64)
+  --   off 32:  nextDense (U64)
+  --   off 40:  nodesPtr (U64)
+  --   off 48:  nodesLen (U64)
+  --   off 56:  nodesCap (U64)
+  --   off 64:  extraPtr (U64)
+  --   off 72:  extraLen (U64)
+  --   off 80:  extraCap (U64)
+  --   off 88:  bytesPtr (U64)
+  --   off 96:  bytesLen (U64)
+  --   off 104: bytesCap (U64)
+  --   off 112: slotsPtr (U64)
+  --   off 120: slotsLen (U64)
+  --   off 128: slotsCap (U64)
+  offCtxWordsPtr :: Isize
+  offCtxWordsPtr = 0
+  offCtxWordsLen :: Isize
+  offCtxWordsLen = 8
+  offCtxPos :: Isize
+  offCtxPos = 16
+  offCtxHolesLen :: Isize
+  offCtxHolesLen = 24
+  offCtxNextDense :: Isize
+  offCtxNextDense = 32
+  offCtxNodesPtr :: Isize
+  offCtxNodesPtr = 40
+  offCtxNodesLen :: Isize
+  offCtxNodesLen = 48
+  offCtxNodesCap :: Isize
+  offCtxNodesCap = 56
+  offCtxExtraPtr :: Isize
+  offCtxExtraPtr = 64
+  offCtxExtraLen :: Isize
+  offCtxExtraLen = 72
+  offCtxExtraCap :: Isize
+  offCtxExtraCap = 80
+  offCtxBytesPtr :: Isize
+  offCtxBytesPtr = 88
+  offCtxBytesLen :: Isize
+  offCtxBytesLen = 96
+  offCtxBytesCap :: Isize
+  offCtxBytesCap = 104
+  offCtxSlotsPtr :: Isize
+  offCtxSlotsPtr = 112
+  offCtxSlotsLen :: Isize
+  offCtxSlotsLen = 120
+  offCtxSlotsCap :: Isize
+  offCtxSlotsCap = 128
+  ctxBytes :: Usize
+  ctxBytes = 136
+
+  ctxAlloc :: U64 -> U64 -> U64 ->{Global} RawPtr U8
+  ctxAlloc wordsPtr wordsLen holesLen =
+    let p = maybeToRaw (cCalloc 1 ctxBytes) in
+    let _ = storeU64 p offCtxWordsPtr wordsPtr in
+    let _ = storeU64 p offCtxWordsLen wordsLen in
+    let _ = storeU64 p offCtxHolesLen holesLen in
+    p
+
+  ctxFree :: RawPtr U8 ->{Global} Unit
+  ctxFree ctx =
+    let np = loadU64 ctx offCtxNodesPtr in
+    let ep = loadU64 ctx offCtxExtraPtr in
+    let bp = loadU64 ctx offCtxBytesPtr in
+    let sp = loadU64 ctx offCtxSlotsPtr in
+    let _ = if np /= 0 then cFree (ptrFromU64 np) else () in
+    let _ = if ep /= 0 then cFree (ptrFromU64 ep) else () in
+    let _ = if bp /= 0 then cFree (ptrFromU64 bp) else () in
+    let _ = if sp /= 0 then cFree (ptrFromU64 sp) else () in
+    cFree (rawToMaybe ctx)
+
+  vecEnsure :: RawPtr U8 -> Isize -> Isize -> Isize -> U64 -> U64 ->{Global} RawPtr U8
+  vecEnsure ctx ptrOff lenOff capOff elemSize need =
+    let curLen = loadU64 ctx lenOff in
+    let targetLen = u64Add curLen need in
+    let cap = loadU64 ctx capOff in
+    let curPtr = loadU64 ctx ptrOff in
+    if u64Le targetLen cap && curPtr /= 0 then
+      maybeToRaw (ptrFromU64 curPtr)
+    else
+      let baseCap = if cap == 0 then 16 else cap in
+      let newCap = growCapLoop baseCap targetLen in
+      let bytes = u64ToUsize (u64Mul newCap elemSize) in
+      let mem = if curPtr == 0 then cMalloc bytes else cRealloc (ptrFromU64 curPtr) bytes in
+      let mp = maybeToRaw mem in
+      let _ = storeU64 ctx ptrOff (rawToU64 mp) in
+      let _ = storeU64 ctx capOff newCap in
+      mp
+
+  growCapLoop :: U64 -> U64 -> U64
+  growCapLoop cap targetLen =
+    if u64Ge cap targetLen then cap else growCapLoop (u64Mul cap 2) targetLen
+
+  pushNode :: RawPtr U8 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 ->{Global} U64
+  pushNode ctx tag a b c d e =
+    let base = vecEnsure ctx offCtxNodesPtr offCtxNodesLen offCtxNodesCap nodeBytes 1 in
+    let id = loadU64 ctx offCtxNodesLen in
+    let _ = storeU64 ctx offCtxNodesLen (u64Add id 1) in
+    let np = ptrAddU64 base (u64Mul id nodeBytes) in
+    let _ = storeU64 np 0 tag in
+    let _ = storeU64 np 8 a in
+    let _ = storeU64 np 16 b in
+    let _ = storeU64 np 24 c in
+    let _ = storeU64 np 32 d in
+    let _ = storeU64 np 40 e in
+    id
+
+  nodePtr :: RawPtr U8 -> U64 ->{Global} RawPtr U8
+  nodePtr ctx id =
+    ptrAddU64 (maybeToRaw (ptrFromU64 (loadU64 ctx offCtxNodesPtr))) (u64Mul id nodeBytes)
+
+  reserveExtra :: RawPtr U8 -> U64 ->{Global} U64
+  reserveExtra ctx count =
+    if count == 0 then loadU64 ctx offCtxExtraLen
+    else
+      let _ = vecEnsure ctx offCtxExtraPtr offCtxExtraLen offCtxExtraCap 8 count in
+      let start = loadU64 ctx offCtxExtraLen in
+      let _ = storeU64 ctx offCtxExtraLen (u64Add start count) in
+      start
+
+  extraSet :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  extraSet ctx idx val =
+    let base = maybeToRaw (ptrFromU64 (loadU64 ctx offCtxExtraPtr)) in
+    storeU64 base (u64ToIsize (u64Mul idx 8)) val
+
+  extraGet :: RawPtr U8 -> U64 ->{Global} U64
+  extraGet ctx idx =
+    let base = maybeToRaw (ptrFromU64 (loadU64 ctx offCtxExtraPtr)) in
+    loadU64 base (u64ToIsize (u64Mul idx 8))
+
+  reserveBytes :: RawPtr U8 -> U64 ->{Global} U64
+  reserveBytes ctx count =
+    if count == 0 then loadU64 ctx offCtxBytesLen
+    else
+      let _ = vecEnsure ctx offCtxBytesPtr offCtxBytesLen offCtxBytesCap 1 count in
+      let start = loadU64 ctx offCtxBytesLen in
+      let _ = storeU64 ctx offCtxBytesLen (u64Add start count) in
+      start
+
+  bytesPtrAt :: RawPtr U8 -> U64 ->{Global} RawPtr U8
+  bytesPtrAt ctx off =
+    let bp = loadU64 ctx offCtxBytesPtr in
+    if bp == 0 then maybeToRaw (ptrFromU64 1)
+    else ptrAddU64 (maybeToRaw (ptrFromU64 bp)) off
+
+  -- Slot lexical scope binding / lookup (each entry is 16 bytes: slot U64, dense U64)
+  slotBind :: RawPtr U8 -> U64 ->{Global} U64
+  slotBind ctx slot =
+    let dense = loadU64 ctx offCtxNextDense in
+    let _ = storeU64 ctx offCtxNextDense (u64Add dense 1) in
+    let base = vecEnsure ctx offCtxSlotsPtr offCtxSlotsLen offCtxSlotsCap 16 1 in
+    let len = loadU64 ctx offCtxSlotsLen in
+    let _ = storeU64 ctx offCtxSlotsLen (u64Add len 1) in
+    let ep = ptrAddU64 base (u64Mul len 16) in
+    let _ = storeU64 ep 0 slot in
+    let _ = storeU64 ep 8 dense in
+    dense
+
+  slotLookupLoop :: RawPtr U8 -> U64 -> U64 ->{Global} WordRes
+  slotLookupLoop base idx wanted =
+    if idx == 0 then WordRes errCorrupt 0
+    else
+      let i = u64Sub idx 1 in
+      let ep = ptrAddU64 base (u64Mul i 16) in
+      if loadU64 ep 0 == wanted then WordRes errOk (loadU64 ep 8)
+      else slotLookupLoop base i wanted
+
+  slotLookup :: RawPtr U8 -> U64 ->{Global} WordRes
+  slotLookup ctx slot =
+    let len = loadU64 ctx offCtxSlotsLen in
+    if len == 0 then WordRes errCorrupt 0
+    else slotLookupLoop (maybeToRaw (ptrFromU64 (loadU64 ctx offCtxSlotsPtr))) len slot
+
+  -- Stream reading helpers
+  decWord :: RawPtr U8 ->{Global} WordRes
+  decWord ctx =
+    let pos = loadU64 ctx offCtxPos in
+    let len = loadU64 ctx offCtxWordsLen in
+    if u64Ge pos len then WordRes errCorrupt 0
+    else
+      let base = maybeToRaw (ptrFromU64 (loadU64 ctx offCtxWordsPtr)) in
+      let w = loadU64 base (u64ToIsize (u64Mul pos 8)) in
+      let _ = storeU64 ctx offCtxPos (u64Add pos 1) in
+      WordRes errOk w
+
+  decBudget :: RawPtr U8 -> U64 ->{Global} U64
+  decBudget ctx n =
+    let pos = loadU64 ctx offCtxPos in
+    let len = loadU64 ctx offCtxWordsLen in
+    if u64Gt n (u64Sub len pos) then errCorrupt else errOk
+
+  decCountWord :: RawPtr U8 ->{Global} WordRes
+  decCountWord ctx =
+    let r = decWord ctx in
+    if r.wrErr /= errOk then r
+    else if decBudget ctx (r.wrVal) /= errOk then WordRes errCorrupt 0
+    else r
+
+  decFlag :: RawPtr U8 ->{Global} WordRes
+  decFlag ctx =
+    let r = decWord ctx in
+    if r.wrErr /= errOk then r
+    else if u64Gt (r.wrVal) 1 then WordRes errCorrupt 0
+    else r
+
+  -- =========================================================================
+  -- Decoder
+  -- =========================================================================
+
+  decExpr :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decExpr ctx =
+    let fe = stateEnterFrame () in
+    if fe /= errOk then decErr fe
+    else
+      let res = decExprBody ctx in
+      let _ = stateLeaveFrame () in
+      res
+
+  decExprBody :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decExprBody ctx =
+    let ow = decWord ctx in
+    if ow.wrErr /= errOk then decErr (ow.wrErr)
+    else
+      let op = ow.wrVal in
+      if op == opInt then
+        let w = decWord ctx in
+        if w.wrErr /= errOk then decErr (w.wrErr)
+        else decOk (pushNode ctx opInt (w.wrVal) 0 0 0 0)
+      else if op == opBig then decBig ctx
+      else if op == opBool then
+        let w = decFlag ctx in
+        if w.wrErr /= errOk then decErr (w.wrErr)
+        else decOk (pushNode ctx opBool (w.wrVal) 0 0 0 0)
+      else if op == opUnit then
+        decOk (pushNode ctx opUnit 0 0 0 0 0)
+      else if op == opLocal then
+        let sw = decWord ctx in
+        if sw.wrErr /= errOk then decErr (sw.wrErr)
+        else
+          let lk = slotLookup ctx (sw.wrVal) in
+          if lk.wrErr /= errOk then decErr (lk.wrErr)
+          else decOk (pushNode ctx opLocal (lk.wrVal) 0 0 0 0)
+      else if op == opHole then
+        let iw = decWord ctx in
+        if iw.wrErr /= errOk then decErr (iw.wrErr)
+        else if u64Ge (iw.wrVal) (loadU64 ctx offCtxHolesLen) then decErr errCorrupt
+        else decOk (pushNode ctx opHole (iw.wrVal) 0 0 0 0)
+      else if op == opLet then decLet ctx
+      else if op == opIf then decIf ctx
+      else if op == opCase then decCase ctx
+      else if op == opApp then decApp ctx
+      else if op == opLam then decLam ctx
+      else if op == opCtor then decCtor ctx
+      else if op == opProj then decProj ctx
+      else if op == opFault then
+        decOk (pushNode ctx opFault 0 0 0 0 0)
+      else if op == opLazyAlloc then
+        decOk (pushNode ctx opLazyAlloc 0 0 0 0 0)
+      else if op == opLazyInit then decLazyInit ctx
+      else if op == opDemand then decDemand ctx
+      else if op == opUnitRef then
+        let w = decWord ctx in
+        if w.wrErr /= errOk then decErr (w.wrErr)
+        else decOk (pushNode ctx opUnitRef (w.wrVal) 0 0 0 0)
+      else if op == opConstBytes then decConstBytes ctx
+      else if op == opDup || op == opDrop then decRc ctx op
+      else if op == opSet then decSet ctx
+      else decErr errCorrupt
+
+  decLet :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decLet ctx =
+    let sw = decWord ctx in
+    if sw.wrErr /= errOk then decErr (sw.wrErr)
+    else
+      let val = decExpr ctx in
+      if val.drErr /= errOk then val
+      else
+        let saved = loadU64 ctx offCtxSlotsLen in
+        let dense = slotBind ctx (sw.wrVal) in
+        let body = decExpr ctx in
+        let _ = storeU64 ctx offCtxSlotsLen saved in
+        if body.drErr /= errOk then body
+        else decOk (pushNode ctx opLet dense (val.drId) (body.drId) 0 0)
+
+  decIf :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decIf ctx =
+    let c = decExpr ctx in
+    if c.drErr /= errOk then c
+    else
+      let t = decExpr ctx in
+      if t.drErr /= errOk then t
+      else
+        let e = decExpr ctx in
+        if e.drErr /= errOk then e
+        else decOk (pushNode ctx opIf (c.drId) (t.drId) (e.drId) 0 0)
+
+  decExprListLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global, ThreadAffine} U64
+  decExprListLoop ctx base n i =
+    if u64Ge i n then errOk
+    else
+      let r = decExpr ctx in
+      if r.drErr /= errOk then r.drErr
+      else
+        let _ = extraSet ctx (u64Add base i) (r.drId) in
+        decExprListLoop ctx base n (u64Add i 1)
+
+  decApp :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decApp ctx =
+    let fn = decExpr ctx in
+    if fn.drErr /= errOk then fn
+    else
+      let nw = decCountWord ctx in
+      if nw.wrErr /= errOk then decErr (nw.wrErr)
+      else
+        let n = nw.wrVal in
+        let start = reserveExtra ctx n in
+        let err = decExprListLoop ctx start n 0 in
+        if err /= errOk then decErr err
+        else decOk (pushNode ctx opApp (fn.drId) start n 0 0)
+
+  decLam :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decLam ctx =
+    let stubW = decWord ctx in
+    if stubW.wrErr /= errOk then decErr (stubW.wrErr)
+    else if stubW.wrVal == 0 then decErr errCorrupt
+    else
+      let shapeW = decWord ctx in
+      if shapeW.wrErr /= errOk then decErr (shapeW.wrErr)
+      else
+        let arityW = decWord ctx in
+        if arityW.wrErr /= errOk then decErr (arityW.wrErr)
+        else
+          let nenvW = decCountWord ctx in
+          if nenvW.wrErr /= errOk then decErr (nenvW.wrErr)
+          else if u64Gt (nenvW.wrVal) (arityW.wrVal) then decErr errCorrupt
+          else
+            let nenv = nenvW.wrVal in
+            let start = reserveExtra ctx nenv in
+            let err = decExprListLoop ctx start nenv 0 in
+            if err /= errOk then decErr err
+            else decOk (pushNode ctx opLam (stubW.wrVal) (shapeW.wrVal) (arityW.wrVal) start nenv)
+
+  decCtor :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decCtor ctx =
+    let descW = decWord ctx in
+    if descW.wrErr /= errOk then decErr (descW.wrErr)
+    else
+      let nw = decCountWord ctx in
+      if nw.wrErr /= errOk then decErr (nw.wrErr)
+      else
+        let n = nw.wrVal in
+        let start = reserveExtra ctx n in
+        let err = decExprListLoop ctx start n 0 in
+        if err /= errOk then decErr err
+        else decOk (pushNode ctx opCtor (descW.wrVal) start n 0 0)
+
+  decProj :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decProj ctx =
+    let val = decExpr ctx in
+    if val.drErr /= errOk then val
+    else
+      let mw = decWord ctx in
+      if mw.wrErr /= errOk then decErr (mw.wrErr)
+      else
+        let mode = mw.wrVal in
+        if mode == 0 then
+          let sw = decWord ctx in
+          if sw.wrErr /= errOk then decErr (sw.wrErr)
+          else
+            let cw = decFlag ctx in
+            if cw.wrErr /= errOk then decErr (cw.wrErr)
+            else decOk (pushNode ctx opProj (val.drId) 0 (sw.wrVal) (cw.wrVal) 0)
+        else if mode == 1 then
+          let ow = decWord ctx in
+          if ow.wrErr /= errOk then decErr (ow.wrErr)
+          else
+            let szw = decWord ctx in
+            if szw.wrErr /= errOk then decErr (szw.wrErr)
+            else if u64Gt (szw.wrVal) 8 then decErr errCorrupt
+            else
+              let sgw = decFlag ctx in
+              if sgw.wrErr /= errOk then decErr (sgw.wrErr)
+              else
+                let cw = decFlag ctx in
+                if cw.wrErr /= errOk then decErr (cw.wrErr)
+                else if cw.wrVal /= 0 then decErr errCorrupt
+                else
+                  let packed = bitOrU64 (szw.wrVal) (shlU64 (sgw.wrVal) 8) in
+                  decOk (pushNode ctx opProj (val.drId) 1 (ow.wrVal) packed 0)
+        else if mode == 2 then
+          let ow = decWord ctx in
+          if ow.wrErr /= errOk then decErr (ow.wrErr)
+          else
+            let cw = decFlag ctx in
+            if cw.wrErr /= errOk then decErr (cw.wrErr)
+            else decOk (pushNode ctx opProj (val.drId) 2 (ow.wrVal) (cw.wrVal) 0)
+        else decErr errCorrupt
+
+  decLazyInit :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decLazyInit ctx =
+    let sw = decWord ctx in
+    if sw.wrErr /= errOk then decErr (sw.wrErr)
+    else
+      let lk = slotLookup ctx (sw.wrVal) in
+      if lk.wrErr /= errOk then decErr (lk.wrErr)
+      else
+        let th = decExpr ctx in
+        if th.drErr /= errOk then th
+        else decOk (pushNode ctx opLazyInit (lk.wrVal) (th.drId) 0 0 0)
+
+  decDemand :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decDemand ctx =
+    let cell = decExpr ctx in
+    if cell.drErr /= errOk then cell
+    else
+      let cw = decFlag ctx in
+      if cw.wrErr /= errOk then decErr (cw.wrErr)
+      else decOk (pushNode ctx opDemand (cell.drId) (cw.wrVal) 0 0 0)
+
+  decSet :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decSet ctx =
+    let sw = decWord ctx in
+    if sw.wrErr /= errOk then decErr (sw.wrErr)
+    else
+      let lk = slotLookup ctx (sw.wrVal) in
+      if lk.wrErr /= errOk then decErr (lk.wrErr)
+      else
+        let cw = decFlag ctx in
+        if cw.wrErr /= errOk then decErr (cw.wrErr)
+        else
+          let val = decExpr ctx in
+          if val.drErr /= errOk then val
+          else decOk (pushNode ctx opSet (lk.wrVal) (cw.wrVal) (val.drId) 0 0)
+
+  decRc :: RawPtr U8 -> U64 ->{Global, ThreadAffine} DecRes
+  decRc ctx op =
+    let sw = decWord ctx in
+    if sw.wrErr /= errOk then decErr (sw.wrErr)
+    else
+      let lk = slotLookup ctx (sw.wrVal) in
+      if lk.wrErr /= errOk then decErr (lk.wrErr)
+      else
+        let body = decExpr ctx in
+        if body.drErr /= errOk then body
+        else decOk (pushNode ctx op (lk.wrVal) (body.drId) 0 0 0)
+
+  -- CASE arm fields & arms
+  decCaseFieldsLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} U64
+  decCaseFieldsLoop ctx base nf i =
+    if u64Ge i nf then errOk
+    else
+      let sw = decWord ctx in
+      if sw.wrErr /= errOk then sw.wrErr
+      else
+        let dense = slotBind ctx (sw.wrVal) in
+        let _ = extraSet ctx (u64Add base i) dense in
+        decCaseFieldsLoop ctx base nf (u64Add i 1)
+
+  caseTagDupCheckLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} Bool
+  caseTagDupCheckLoop ctx armsStart count tag =
+    if count == 0 then False
+    else
+      let idx = u64Sub count 1 in
+      let prevTag = extraGet ctx (u64Add armsStart (u64Mul idx 4)) in
+      if prevTag == tag then True
+      else caseTagDupCheckLoop ctx armsStart idx tag
+
+  decCaseArmsLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global, ThreadAffine} U64
+  decCaseArmsLoop ctx armsStart ncon i =
+    if u64Ge i ncon then errOk
+    else
+      let tw = decWord ctx in
+      if tw.wrErr /= errOk then tw.wrErr
+      else if caseTagDupCheckLoop ctx armsStart i (tw.wrVal) then errCorrupt
+      else
+        let nfw = decCountWord ctx in
+        if nfw.wrErr /= errOk then nfw.wrErr
+        else
+          let nf = nfw.wrVal in
+          let fStart = reserveExtra ctx nf in
+          let saved = loadU64 ctx offCtxSlotsLen in
+          let ferr = decCaseFieldsLoop ctx fStart nf 0 in
+          if ferr /= errOk then
+            let _ = storeU64 ctx offCtxSlotsLen saved in
+            ferr
+          else
+            let body = decExpr ctx in
+            let _ = storeU64 ctx offCtxSlotsLen saved in
+            if body.drErr /= errOk then body.drErr
+            else
+              let slotBase = u64Add armsStart (u64Mul i 4) in
+              let _ = extraSet ctx slotBase (tw.wrVal) in
+              let _ = extraSet ctx (u64Add slotBase 1) fStart in
+              let _ = extraSet ctx (u64Add slotBase 2) nf in
+              let _ = extraSet ctx (u64Add slotBase 3) (body.drId) in
+              decCaseArmsLoop ctx armsStart ncon (u64Add i 1)
+
+  decCase :: RawPtr U8 ->{Global, ThreadAffine} DecRes
+  decCase ctx =
+    let scrut = decExpr ctx in
+    if scrut.drErr /= errOk then scrut
+    else
+      let ncw = decCountWord ctx in
+      if ncw.wrErr /= errOk then decErr (ncw.wrErr)
+      else
+        let ncon = ncw.wrVal in
+        let armsStart = reserveExtra ctx (u64Mul ncon 4) in
+        let aerr = decCaseArmsLoop ctx armsStart ncon 0 in
+        if aerr /= errOk then decErr aerr
+        else
+          let akw = decWord ctx in
+          if akw.wrErr /= errOk then decErr (akw.wrErr)
+          else
+            let ak = akw.wrVal in
+            if ak == 0 then
+              decOk (pushNode ctx opCase (scrut.drId) armsStart ncon 0 0)
+            else if ak == 1 then
+              let body = decExpr ctx in
+              if body.drErr /= errOk then body
+              else decOk (pushNode ctx opCase (scrut.drId) armsStart ncon 1 (body.drId))
+            else if ak == 2 then
+              let sw = decWord ctx in
+              if sw.wrErr /= errOk then decErr (sw.wrErr)
+              else
+                let saved = loadU64 ctx offCtxSlotsLen in
+                let dense = slotBind ctx (sw.wrVal) in
+                let body = decExpr ctx in
+                let _ = storeU64 ctx offCtxSlotsLen saved in
+                if body.drErr /= errOk then body
+                else
+                  let altStart = reserveExtra ctx 2 in
+                  let _ = extraSet ctx altStart dense in
+                  let _ = extraSet ctx (u64Add altStart 1) (body.drId) in
+                  decOk (pushNode ctx opCase (scrut.drId) armsStart ncon 2 altStart)
+            else decErr errCorrupt
+
+  -- Unpack little-endian packed bytes and verify zero padding in last word
+  unpackWordsLoop :: RawPtr U8 -> U64 -> U64 -> U64 -> U64 -> U64 ->{Global} U64
+  unpackWordsLoop ctx dstOff nd wordIdx nwords written =
+    if u64Ge wordIdx nwords then errOk
+    else
+      let w = decWord ctx in
+      if w.wrErr /= errOk then w.wrErr
+      else
+        let err = unpackOneWordLoop (bytesPtrAt ctx dstOff) (w.wrVal) nd written 0 in
+        if err /= errOk then err
+        else unpackWordsLoop ctx dstOff nd (u64Add wordIdx 1) nwords (u64Add written 8)
+
+  unpackOneWordLoop :: RawPtr U8 -> U64 -> U64 -> U64 -> U64 ->{Global} U64
+  unpackOneWordLoop dst word nd baseWritten bi =
+    if u64Ge bi 8 then errOk
+    else
+      let byte = u64ToU8 (bitAndU64 (lshrU64 word (u64Mul bi 8)) 255) in
+      let idx = u64Add baseWritten bi in
+      if u64Lt idx nd then
+        let _ = storeU8 dst (u64ToIsize idx) byte in
+        unpackOneWordLoop dst word nd baseWritten (u64Add bi 1)
+      else if byte /= 0 then errCorrupt
+      else unpackOneWordLoop dst word nd baseWritten (u64Add bi 1)
+
+  allAsciiDigitsLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  allAsciiDigitsLoop p len i =
+    if u64Ge i len then True
+    else
+      let b = loadU8 p (u64ToIsize i) in
+      if u8Lt b 48 || u8Gt b 57 then False
+      else allAsciiDigitsLoop p len (u64Add i 1)
+
+  validateDecimal :: RawPtr U8 -> U64 -> U64 ->{Global} Bool
+  validateDecimal p len isNat =
+    if len == 0 then False
+    else if isNat /= 0 then allAsciiDigitsLoop p len 0
+    else
+      let b0 = loadU8 p 0 in
+      if b0 == 45 || b0 == 43 then
+        if len == 1 then False else allAsciiDigitsLoop p len 1
+      else allAsciiDigitsLoop p len 0
+
+  decBig :: RawPtr U8 ->{Global} DecRes
+  decBig ctx =
+    let natW = decFlag ctx in
+    if natW.wrErr /= errOk then decErr (natW.wrErr)
+    else
+      let ndW = decWord ctx in
+      if ndW.wrErr /= errOk then decErr (ndW.wrErr)
+      else
+        let nd = ndW.wrVal in
+        if nd == 0 then decErr errMalformedDec
+        else
+          let sum = u64Add nd 7 in
+          if u64Lt sum nd then decErr errCorrupt
+          else
+            let nwords = lshrU64 sum 3 in
+            if decBudget ctx nwords /= errOk then decErr errCorrupt
+            else
+              let dstOff = reserveBytes ctx nd in
+              let uerr = unpackWordsLoop ctx dstOff nd 0 nwords 0 in
+              if uerr /= errOk then decErr uerr
+              else if not (validateDecimal (bytesPtrAt ctx dstOff) nd (natW.wrVal)) then
+                decErr errMalformedDec
+              else decOk (pushNode ctx opBig dstOff nd (natW.wrVal) 0 0)
+
+  decConstBytes :: RawPtr U8 ->{Global} DecRes
+  decConstBytes ctx =
+    let ndW = decWord ctx in
+    if ndW.wrErr /= errOk then decErr (ndW.wrErr)
+    else
+      let nd = ndW.wrVal in
+      let sum = u64Add nd 7 in
+      if u64Lt sum nd then decErr errCorrupt
+      else
+        let nwords = lshrU64 sum 3 in
+        if decBudget ctx nwords /= errOk then decErr errCorrupt
+        else
+          let dstOff = reserveBytes ctx nd in
+          let uerr = unpackWordsLoop ctx dstOff nd 0 nwords 0 in
+          if uerr /= errOk then decErr uerr
+          else decOk (pushNode ctx opConstBytes dstOff nd 0 0 0)
+
+  -- =========================================================================
+  -- Evaluator Helpers
+  -- =========================================================================
+
+  isValidBlockPtr :: I64 -> Bool
+  isValidBlockPtr w = w /= 0 && bitAndI64 w 7 == 0
+
+  envGet :: RawPtr U8 -> U64 ->{Global} I64
+  envGet env idx = loadI64 env (u64ToIsize (u64Mul idx 8))
+
+  envSet :: RawPtr U8 -> U64 -> I64 ->{Global} Unit
+  envSet env idx val = storeI64 env (u64ToIsize (u64Mul idx 8)) val
+
+  applyChecked :: I64 -> I64 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  applyChecked clo argc argv =
+    let v = sysApplyClosureN clo argc argv in
+    let p = stateTakePending () in
+    if p /= errOk then evalErr p else evalOk v
+
+  readLeBytesLoop :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} U64
+  readLeBytesLoop p count i acc =
+    if u64Ge i count then acc
+    else
+      let b = u8ToU64 (loadU8 p (u64ToIsize i)) in
+      readLeBytesLoop p count (u64Add i 1) (bitOrU64 acc (shlU64 b (u64Mul i 8)))
+
+  scalarAt :: RawPtr U8 -> U64 -> U64 -> Bool ->{Global} I64
+  scalarAt base off sz signed =
+    let p = ptrAddU64 base off in
+    if sz == 0 then 0
+    else if sz == 1 then
+      let v = u8ToU64 (loadU8 p 0) in
+      if signed && bitAndU64 v 128 /= 0 then u64ToI64 (bitOrU64 v 18446744073709551360)
+      else u64ToI64 v
+    else if sz == 2 then
+      let v = readLeBytesLoop p 2 0 0 in
+      if signed && bitAndU64 v 32768 /= 0 then u64ToI64 (bitOrU64 v 18446744073709486080)
+      else u64ToI64 v
+    else if sz == 4 then
+      let v = readLeBytesLoop p 4 0 0 in
+      if signed && bitAndU64 v 2147483648 /= 0 then u64ToI64 (bitOrU64 v 18446744069414584320)
+      else u64ToI64 v
+    else
+      u64ToI64 (readLeBytesLoop p 8 0 0)
+
+  -- =========================================================================
+  -- Evaluator
+  -- =========================================================================
+
+  evalNode :: RawPtr U8 -> U64 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalNode ctx nid env holes =
+    let fe = stateEnterFrame () in
+    if fe /= errOk then evalErr fe
+    else
+      let res = evalNodeBody ctx nid env holes in
+      let _ = stateLeaveFrame () in
+      res
+
+  evalRcLoop :: RawPtr U8 -> U64 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalRcLoop ctx nid env holes =
+    let np = nodePtr ctx nid in
+    let tag = loadU64 np 0 in
+    if tag == opDup then
+      let _ = cinchDup (envGet env (loadU64 np 8)) in
+      evalRcLoop ctx (loadU64 np 16) env holes
+    else if tag == opDrop then
+      let _ = cinchDrop (envGet env (loadU64 np 8)) in
+      evalRcLoop ctx (loadU64 np 16) env holes
+    else
+      evalNode ctx nid env holes
+
+  evalNodeBody :: RawPtr U8 -> U64 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalNodeBody ctx nid env holes =
+    let np = nodePtr ctx nid in
+    let tag = loadU64 np 0 in
+    if tag == opInt || tag == opBool || tag == opUnitRef then
+      evalOk (u64ToI64 (loadU64 np 8))
+    else if tag == opUnit then
+      evalOk 0
+    else if tag == opLocal then
+      evalOk (envGet env (loadU64 np 8))
+    else if tag == opHole then
+      let idx = loadU64 np 8 in
+      let hword = loadI64 holes (u64ToIsize (u64Mul idx 8)) in
+      evalRun hword
+    else if tag == opBig then
+      let off = loadU64 np 8 in
+      let nd = loadU64 np 16 in
+      let isNat = loadU64 np 24 in
+      let bp = rawToMaybe (bytesPtrAt ctx off) in
+      if isNat /= 0 then evalOk (cinchNatFromDecimal bp (u64ToUsize nd))
+      else evalOk (cinchIntFromDecimal bp (u64ToUsize nd))
+    else if tag == opConstBytes then
+      let off = loadU64 np 8 in
+      let nd = loadU64 np 16 in
+      evalOk (bytesBoxCopy (bytesPtrAt ctx off) nd)
+    else if tag == opLet then
+      let slot = loadU64 np 8 in
+      let val = evalNode ctx (loadU64 np 16) env holes in
+      if val.erErr /= errOk then val
+      else
+        let _ = envSet env slot (val.erVal) in
+        evalNode ctx (loadU64 np 24) env holes
+    else if tag == opIf then
+      let c = evalNode ctx (loadU64 np 8) env holes in
+      if c.erErr /= errOk then c
+      else if c.erVal /= 0 then evalNode ctx (loadU64 np 16) env holes
+      else evalNode ctx (loadU64 np 24) env holes
+    else if tag == opCase then evalCase ctx np env holes
+    else if tag == opApp then evalApp ctx np env holes
+    else if tag == opLam then evalLam ctx np env holes
+    else if tag == opCtor then evalCtor ctx np env holes
+    else if tag == opProj then evalProj ctx np env holes
+    else if tag == opFault then evalErr errBlackHole
+    else if tag == opLazyAlloc then
+      evalOk (cinchAlloc 24 (u64ToI64 (u8ToU64 kindMemo)))
+    else if tag == opLazyInit then
+      let slot = loadU64 np 8 in
+      let th = evalNode ctx (loadU64 np 16) env holes in
+      if th.erErr /= errOk then th
+      else
+        let cw = envGet env slot in
+        if not (isValidBlockPtr cw) then evalErr errCorrupt
+        else
+          let cp = maybeToRaw (ptrFromU64 (i64ToU64 cw)) in
+          let _ = storeI64 cp 8 (th.erVal) in
+          evalOk 0
+    else if tag == opDemand then evalDemand ctx np env holes
+    else if tag == opSet then
+      let slot = loadU64 np 8 in
+      let counted = loadU64 np 16 /= 0 in
+      let val = evalNode ctx (loadU64 np 24) env holes in
+      if val.erErr /= errOk then val
+      else
+        let cw = envGet env slot in
+        if not (isValidBlockPtr cw) then evalErr errCorrupt
+        else
+          let cp = maybeToRaw (ptrFromU64 (i64ToU64 cw)) in
+          let old = loadI64 cp 0 in
+          let _ = storeI64 cp 0 (val.erVal) in
+          let _ = if counted then cinchDrop old else () in
+          evalOk 0
+    else if tag == opDup || tag == opDrop then
+      evalRcLoop ctx nid env holes
+    else evalErr errCorrupt
+
+  evalCaseBindLoop :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> U64 -> U64 -> U64 ->{Global} Unit
+  evalCaseBindLoop ctx scrutP env fStart nf i =
+    if u64Ge i nf then ()
+    else
+      let dense = extraGet ctx (u64Add fStart i) in
+      let fieldVal = loadI64 scrutP (u64ToIsize (u64Mul i 8)) in
+      let _ = envSet env dense fieldVal in
+      evalCaseBindLoop ctx scrutP env fStart nf (u64Add i 1)
+
+  evalCaseFindArmLoop :: RawPtr U8 -> U64 -> U64 -> U64 -> U64 ->{Global} I64
+  evalCaseFindArmLoop ctx armsStart ncon i wantedTag =
+    if u64Ge i ncon then i64Sub 0 1
+    else
+      let slotBase = u64Add armsStart (u64Mul i 4) in
+      if extraGet ctx slotBase == wantedTag then u64ToI64 i
+      else evalCaseFindArmLoop ctx armsStart ncon (u64Add i 1) wantedTag
+
+  evalCase :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalCase ctx np env holes =
+    let scrutId = loadU64 np 8 in
+    let armsStart = loadU64 np 16 in
+    let ncon = loadU64 np 24 in
+    let altKind = loadU64 np 32 in
+    let altData = loadU64 np 40 in
+    let sw = evalNode ctx scrutId env holes in
+    if sw.erErr /= errOk then sw
+    else
+      let w = sw.erVal in
+      if ncon /= 0 then
+        if not (isValidBlockPtr w) then evalErr errCorrupt
+        else
+          let sp = maybeToRaw (ptrFromU64 (i64ToU64 w)) in
+          let tag = ctorTagOf sp in
+          let matched = evalCaseFindArmLoop ctx armsStart ncon 0 tag in
+          if i64Ge matched 0 then
+            let slotBase = u64Add armsStart (u64Mul (i64ToU64 matched) 4) in
+            let fStart = extraGet ctx (u64Add slotBase 1) in
+            let nf = extraGet ctx (u64Add slotBase 2) in
+            let bodyId = extraGet ctx (u64Add slotBase 3) in
+            let _ = evalCaseBindLoop ctx sp env fStart nf 0 in
+            evalNode ctx bodyId env holes
+          else evalCaseAlt ctx altKind altData w env holes
+      else evalCaseAlt ctx altKind altData w env holes
+
+  evalCaseAlt :: RawPtr U8 -> U64 -> U64 -> I64 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalCaseAlt ctx altKind altData w env holes =
+    if altKind == 0 then evalErr errCorrupt
+    else if altKind == 1 then evalNode ctx altData env holes
+    else
+      let dense = extraGet ctx altData in
+      let bodyId = extraGet ctx (u64Add altData 1) in
+      let _ = envSet env dense w in
+      evalNode ctx bodyId env holes
+
+  evalExprListToBuf :: RawPtr U8 -> U64 -> U64 -> U64 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} U64
+  evalExprListToBuf ctx start n i outBuf env holes =
+    if u64Ge i n then errOk
+    else
+      let nid = extraGet ctx (u64Add start i) in
+      let r = evalNode ctx nid env holes in
+      if r.erErr /= errOk then r.erErr
+      else
+        let _ = storeI64 outBuf (u64ToIsize (u64Mul i 8)) (r.erVal) in
+        evalExprListToBuf ctx start n (u64Add i 1) outBuf env holes
+
+  evalApp :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalApp ctx np env holes =
+    let fnId = loadU64 np 8 in
+    let argsStart = loadU64 np 16 in
+    let nargs = loadU64 np 24 in
+    let fRes = evalNode ctx fnId env holes in
+    if fRes.erErr /= errOk then fRes
+    else
+      let clo = fRes.erVal in
+      if not (isValidBlockPtr clo) then evalErr errCorrupt
+      else
+        let bufWords = if nargs == 0 then 1 else nargs in
+        let argv = maybeToRaw (cMalloc (u64ToUsize (u64Mul bufWords 8))) in
+        let err = evalExprListToBuf ctx argsStart nargs 0 argv env holes in
+        let res = (
+          if err /= errOk then evalErr err
+          else applyChecked clo (u64ToI64 nargs) argv
+        ) in
+        let _ = cFree (rawToMaybe argv) in
+        res
+
+  copyWordsLoop :: RawPtr U8 -> Isize -> RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  copyWordsLoop dst baseOff src n i =
+    if u64Ge i n then ()
+    else
+      let v = loadI64 src (u64ToIsize (u64Mul i 8)) in
+      let _ = storeI64 dst (i64ToIsize (i64Add (isizeToI64 baseOff) (u64ToI64 (u64Mul i 8)))) v in
+      copyWordsLoop dst baseOff src n (u64Add i 1)
+
+  evalLam :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalLam ctx np env holes =
+    let stub = u64ToI64 (loadU64 np 8) in
+    let shape = loadU64 np 16 in
+    let arity = u64ToI64 (loadU64 np 24) in
+    let envStart = loadU64 np 32 in
+    let nenv = loadU64 np 40 in
+    let bufWords = if nenv == 0 then 1 else nenv in
+    let saved = maybeToRaw (cMalloc (u64ToUsize (u64Mul bufWords 8))) in
+    let err = evalExprListToBuf ctx envStart nenv 0 saved env holes in
+    if err /= errOk then
+      let _ = cFree (rawToMaybe saved) in
+      evalErr err
+    else
+      let totalWords = u64Add closurePrefixWords nenv in
+      let p = allocateDescribed (u64Mul totalWords 8) kindClosure shape False in
+      let _ = storeI64 p 0 stub in
+      let _ = storeI64 p 8 arity in
+      let _ = storeI64 p 16 (u64ToI64 nenv) in
+      let _ = copyWordsLoop p 24 saved nenv 0 in
+      let _ = cFree (rawToMaybe saved) in
+      evalOk (u64ToI64 (rawToU64 p))
+
+  evalCtor :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalCtor ctx np env holes =
+    let desc = loadU64 np 8 in
+    let fStart = loadU64 np 16 in
+    let nf = loadU64 np 24 in
+    let bufWords = if nf == 0 then 1 else nf in
+    let vals = maybeToRaw (cMalloc (u64ToUsize (u64Mul bufWords 8))) in
+    let err = evalExprListToBuf ctx fStart nf 0 vals env holes in
+    if err /= errOk then
+      let _ = cFree (rawToMaybe vals) in
+      evalErr err
+    else
+      let p = allocateDescribed (u64Mul nf 8) kindCtor desc False in
+      let _ = copyWordsLoop p 0 vals nf 0 in
+      let _ = cFree (rawToMaybe vals) in
+      evalOk (u64ToI64 (rawToU64 p))
+
+  evalProj :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalProj ctx np env holes =
+    let valId = loadU64 np 8 in
+    let mode = loadU64 np 16 in
+    let slotOrOff = loadU64 np 24 in
+    let extra = loadU64 np 32 in
+    let vr = evalNode ctx valId env holes in
+    if vr.erErr /= errOk then vr
+    else
+      let w = vr.erVal in
+      if not (isValidBlockPtr w) then evalErr errCorrupt
+      else
+        let p = maybeToRaw (ptrFromU64 (i64ToU64 w)) in
+        if mode == 0 then
+          if u64Gt slotOrOff 2305843009213693951 then evalErr errCorrupt
+          else
+            let loaded = loadI64 p (u64ToIsize (u64Mul slotOrOff 8)) in
+            let _ = if extra /= 0 then cinchDup loaded else () in
+            evalOk loaded
+        else if mode == 1 then
+          let sz = bitAndU64 extra 255 in
+          let signed = bitAndU64 (lshrU64 extra 8) 255 /= 0 in
+          evalOk (scalarAt p slotOrOff sz signed)
+        else if mode == 2 then
+          let loaded = loadI64 p (u64ToIsize slotOrOff) in
+          let _ = if extra /= 0 then cinchDup loaded else () in
+          evalOk loaded
+        else evalErr errCorrupt
+
+  evalDemand :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} EvalRes
+  evalDemand ctx np env holes =
+    let cellId = loadU64 np 8 in
+    let counted = loadU64 np 16 /= 0 in
+    let cr = evalNode ctx cellId env holes in
+    if cr.erErr /= errOk then cr
+    else
+      let cw = cr.erVal in
+      if not (isValidBlockPtr cw) then evalErr errCorrupt
+      else
+        let p = maybeToRaw (ptrFromU64 (i64ToU64 cw)) in
+        let st = loadI64 p 0 in
+        if st == 0 then
+          let thunk = loadI64 p 8 in
+          if thunk == 0 then evalErr errBlackHole
+          else if not (isValidBlockPtr thunk) then evalErr errCorrupt
+          else
+            let _ = storeI64 p 0 1 in
+            let _ = storeI64 p 8 0 in
+            withLocal (0 :: I64) (\argSlot ->
+              let ar = applyChecked thunk 1 (ptrCast (mutAsPtr argSlot)) in
+              if ar.erErr /= errOk then ar
+              else
+                let v = ar.erVal in
+                let owned = if counted && bitAndI64 v 1 == 0 then v else 0 in
+                let _ = storeI64 p 8 owned in
+                let _ = storeI64 p 16 v in
+                let _ = storeI64 p 0 2 in
+                let _ = if counted then cinchDup v else () in
+                evalOk v
+            )
+        else if st == 2 then
+          let v = loadI64 p 16 in
+          let _ = if counted then cinchDup v else () in
+          evalOk v
+        else evalErr errBlackHole
+
+  -- =========================================================================
+  -- Entry Points
+  -- =========================================================================
+
+  evalRunBody :: I64 ->{Global, ThreadAffine} EvalRes
+  evalRunBody quote =
+    let fe = stateEnterFrame () in
+    if fe /= errOk then evalErr fe
+    else
+      let res = evalRunBodyInner quote in
+      let _ = stateLeaveFrame () in
+      res
+
+  evalRunBodyInner :: I64 ->{Global, ThreadAffine} EvalRes
+  evalRunBodyInner quote =
+    if not (isValidBlockPtr quote) then evalErr errCorrupt
+    else
+      let p = maybeToRaw (ptrFromU64 (i64ToU64 quote)) in
+      if loadI64 p 0 /= quoteKindCode then evalErr errCorrupt
+      else
+        let code = loadI64 p 8 in
+        if not (isValidBlockPtr code) then evalErr errCorrupt
+        else
+          let len = loadU64 p 16 in
+          let nh = loadU64 p 24 in
+          if len == 0 || u64Gt len maxCodeWords || u64Gt nh maxHoles then
+            evalErr errCorrupt
+          else
+            let ctx = ctxAlloc (i64ToU64 code) len nh in
+            let root = decExpr ctx in
+            let res = (
+              if root.drErr /= errOk then evalErr (root.drErr)
+              else if loadU64 ctx offCtxPos /= len then evalErr errCorrupt
+              else
+                let envCount = loadU64 ctx offCtxNextDense in
+                let envWords = if envCount == 0 then 1 else envCount in
+                let env = maybeToRaw (cCalloc (u64ToUsize envWords) 8) in
+                let holes = ptrAdd p 32 in
+                let r = evalNode ctx (root.drId) env holes in
+                let _ = cFree (rawToMaybe env) in
+                r
+            ) in
+            let _ = ctxFree ctx in
+            res
+
+  evalRun :: I64 ->{Global, ThreadAffine} EvalRes
+  evalRun quote =
+    let outer = stateEnterRun () in
+    let res = evalRunBody quote in
+    let _ = stateLeaveRun outer (res.erErr) in
+    res
+
+  panicEvalMsg :: U64 ->{Global} Unit
+  panicEvalMsg err =
+    withLocal (fixedArrayRepeat 40 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "cinch_eval: " (12 bytes)
+      let _ = put8 p 0 99 105 110 99 104 95 101 118 in
+      let _ = put4 p 8 97 108 58 32 in
+      if err == errMalformedDec then
+        -- "malformed decimal" (17 bytes)
+        let _ = put8 p 12 109 97 108 102 111 114 109 101 in
+        let _ = put8 p 20 100 32 100 101 99 105 109 97 in
+        let _ = storeU8 p 28 108 in
+        panicExitBytes p 29
+      else
+        -- "corrupt value" (13 bytes)
+        let _ = put8 p 12 99 111 114 114 117 112 116 32 in
+        let _ = put4 p 20 118 97 108 117 in
+        let _ = storeU8 p 24 101 in
+        panicExitBytes p 25
+    )
+
+  cinchEval :: I64 ->{Global, ThreadAffine} I64
+  cinchEval quote =
+    let res = evalRun quote in
+    if res.erErr == errOk then res.erVal
+    else if res.erErr == errBlackHole then
+      let _ = cinchBlackhole () in
+      0
+    else if res.erErr == errNesting then
+      let _ = exhaustedStack () in
+      0
+    else
+      let _ = panicEvalMsg (res.erErr) in
+      0
+
+  foreign export ccall "cinch_eval" cinchEval :: I64 ->{Global, ThreadAffine} I64

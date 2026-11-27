@@ -20,7 +20,7 @@ module Runtime.Sys where
   export sysOpen, sysFcntlSetFd, sysIoctl, sysStat, sysLstat, sysGetrandom
   export sysIsLinux, sysIsAarch64, sysMainImageSlide, sysFramePointer, sysThisThreadStack
   export sysAvailableParallelism, sysMonotonicNs, sysRealtimeNs, sysCondTimedWaitNs
-  export sysCallFn0, sysCallFn1, sysCallParExec, sysApplyClosure1
+  export sysCallFn0, sysCallFn1, sysCallParExec, sysApplyClosure1, sysApplyClosureN
   export sysProtNone, sysProtRead, sysProtWrite, sysMapPrivate, sysMapAnon
   export sysMmapReserve, sysMprotect, sysMunmap, sysMmapAnon, sysMmapFileReadonly, MmapRes
   export sysErrno, sysEinval, cStrtod
@@ -333,6 +333,23 @@ module Runtime.Sys where
       store i64 %1, ptr %argv, align 8
       %argvI = ptrtoint ptr %argv to i64
       %r = call i64 asm sideeffect "callq *$4", "={rax},{rdi},{rsi},{rdx},{r11},~{rcx},~{r8},~{r9},~{r10},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %0, i64 1, i64 %argvI, i64 %code)
+      ret i64 %r
+    } when arch x86_64
+    unsafe llvm { ret i64 0 }
+
+  prim sysApplyClosureN :: I64 -> I64 -> RawPtr U8 ->{Global} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %code = load i64, ptr %p, align 8
+      %argvI = ptrtoint ptr %2 to i64
+      %r = call i64 asm sideeffect "blr $4", "={x0},0,{x1},{x2},{x9},~{x3},~{x4},~{x5},~{x6},~{x7},~{x8},~{x10},~{x11},~{x12},~{x13},~{x14},~{x15},~{x16},~{x17},~{x30},~{v0},~{v1},~{v2},~{v3},~{v4},~{v5},~{v6},~{v7},~{v16},~{v17},~{v18},~{v19},~{v20},~{v21},~{v22},~{v23},~{v24},~{v25},~{v26},~{v27},~{v28},~{v29},~{v30},~{v31},~{cc},~{memory}"(i64 %0, i64 %1, i64 %argvI, i64 %code)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %code = load i64, ptr %p, align 8
+      %argvI = ptrtoint ptr %2 to i64
+      %r = call i64 asm sideeffect "callq *$4", "={rax},{rdi},{rsi},{rdx},{r11},~{rcx},~{r8},~{r9},~{r10},~{xmm0},~{xmm1},~{xmm2},~{xmm3},~{xmm4},~{xmm5},~{xmm6},~{xmm7},~{xmm8},~{xmm9},~{xmm10},~{xmm11},~{xmm12},~{xmm13},~{xmm14},~{xmm15},~{cc},~{memory}"(i64 %0, i64 %1, i64 %argvI, i64 %code)
       ret i64 %r
     } when arch x86_64
     unsafe llvm { ret i64 0 }

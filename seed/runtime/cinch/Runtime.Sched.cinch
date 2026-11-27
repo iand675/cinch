@@ -14,12 +14,9 @@ module Runtime.Sched where
   export schedYieldNow, schedBlockingEnter, schedBlockingExit, schedHelpFloor
   export taskCurrentCanceled, taskOkTag, taskErrTag
   export joinFailed, joinSucceeded, discardResult, resultTag
-  export cinchRunMain, cinchSchedBlockingEnter, cinchSchedBlockingExit
+  export cinchRunMain, cinchSchedBlockingEnter, cinchSchedBlockingExit, schedEvalStatePtr
   export cinchScopeOpen, cinchScopeClose, cinchTaskSpawn, cinchTaskJoinAllOrCancel, cinchTaskPollCancel
   export cinchIoWrite, cinchIoRead, cinchIoSleep
-
-  -- Temporary bridge to Rust eval::TLS until Milestone 8 migrates eval.rs to Cinch
-  foreign import ccall "cinch_rt_eval_swap_state" rtEvalSwapState :: RawPtr U8 ->{Global} Unit
 
   -- Non-inlined C boundary for context switch (prevents red-zone use and TLS hoisting)
   foreign import ccall "cinch_rt_fiber_switch" callFiberSwitch :: U64 -> U64 ->{Global} Unit
@@ -137,7 +134,7 @@ module Runtime.Sched where
   fiberCtxBytes :: Usize
   fiberCtxBytes = 176
 
-  -- Per-thread Run struct (64 bytes, stored in pthread_key_t)
+  -- Per-thread Run struct (80 bytes, stored in pthread_key_t)
   offRunSchedSp :: Isize
   offRunSchedSp = 0
   offRunFiber :: Isize
@@ -152,8 +149,12 @@ module Runtime.Sched where
   offRunTask = 40
   offRunThreadCtx :: Isize
   offRunThreadCtx = 48
+  offRunEvalLo :: Isize
+  offRunEvalLo = 56
+  offRunEvalHi :: Isize
+  offRunEvalHi = 64
   runStructBytes :: Usize
-  runStructBytes = 64
+  runStructBytes = 80
 
   -- TaskState (32 bytes, leaked by design like Rust Arc::into_raw)
   offTaskCancel :: Isize
@@ -389,6 +390,9 @@ module Runtime.Sched where
   getRunIfExists _ =
     let key = schedEnsureInit () in
     cPthreadGetSpecific key
+
+  schedEvalStatePtr :: Unit ->{Global, ThreadAffine} RawPtr U8
+  schedEvalStatePtr _ = ptrAdd (getRun ()) offRunEvalLo
 
   -- =========================================================================
   -- Context Refcounting & Lifecycle
@@ -814,15 +818,23 @@ module Runtime.Sched where
     let _ = storeU64 f offFiberLocalTask 0 in
     let ownArena = arenaReplaceCurrent (ptrFromU64 (loadU64 f offFiberLocalArena)) in
     let _ = storeU64 f offFiberLocalArena 0 in
-    -- Swap eval state via fiber's 16-byte buffer at offFiberEvalLo
-    let _ = rtEvalSwapState (ptrAdd f offFiberEvalLo) in
+    -- Swap eval state natively between Run and Fiber
+    let ownEvalLo = loadU64 run offRunEvalLo in
+    let ownEvalHi = loadU64 run offRunEvalHi in
+    let _ = storeU64 run offRunEvalLo (loadU64 f offFiberEvalLo) in
+    let _ = storeU64 run offRunEvalHi (loadU64 f offFiberEvalHi) in
+    let _ = storeU64 f offFiberEvalLo 0 in
+    let _ = storeU64 f offFiberEvalHi 0 in
     let ownZone = stackSwapZone (rawToMaybe (ptrAdd f offFiberZoneLo)) in
     let _ = storeU64 run offRunFiber fiberAddr in
     let _ = callFiberSwitch (rawToU64 (ptrAdd run offRunSchedSp)) (loadU64 f offFiberSp) in
     let _ = storeU64 run offRunFiber 0 in
     -- Restore thread's own state, saving fiber's state back into fiber
     let _ = stackSwapZone ownZone in
-    let _ = rtEvalSwapState (ptrAdd f offFiberEvalLo) in
+    let _ = storeU64 f offFiberEvalLo (loadU64 run offRunEvalLo) in
+    let _ = storeU64 f offFiberEvalHi (loadU64 run offRunEvalHi) in
+    let _ = storeU64 run offRunEvalLo ownEvalLo in
+    let _ = storeU64 run offRunEvalHi ownEvalHi in
     let fibArena = arenaReplaceCurrent ownArena in
     let _ = storeU64 f offFiberLocalArena (ptrToU64 fibArena) in
     let fibTask = loadU64 run offRunTask in

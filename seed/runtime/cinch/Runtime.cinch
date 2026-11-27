@@ -23,6 +23,8 @@ module Runtime where
   import Runtime.Platform
   import Runtime.Net
   import Runtime.Pty
+  import Runtime.Eval
+  import Runtime.Evolution
 
   export cinchBlackhole, cinchPanic
   export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc
@@ -82,3 +84,14 @@ module Runtime where
   export cinchNetRead, cinchNetWrite, cinchNetClose, cinchNetResolve
   export cinchPtyOpen, cinchPtySpawn, cinchPtyRead, cinchPtyWrite
   export cinchPtyWait, cinchPtyResize, cinchPtyClose
+  export cinchEval
+  export cinchEvoModuleNew, cinchEvoVersionNew, cinchEvoFeatureAvail
+  export cinchEvoUpdateBegin, cinchEvoAddReplacement, cinchEvoAddDependent
+  export cinchEvoRequireFeature, cinchEvoSetMigration, cinchEvoMarkComplete
+  export cinchEvoActivate, cinchEvoStateSeed, cinchEvoStateRepr, cinchEvoStatePayload
+  export cinchEvoCurrentVersion, cinchEvoEpoch
+  export cinchEvoFrameEnter, cinchEvoFrameExit, cinchEvoFrameVersion, cinchEvoFrameResume
+  export cinchEvoVersionLive, cinchEvoVersionRetired, cinchEvoVersionResident, cinchEvoVersionTryDrop
+  export cinchEvoVariantInstall, cinchEvoVariantEnter, cinchEvoVariantRetire
+  export cinchEvoVariantRetired, cinchEvoVariantResident, cinchEvoVariantCheckGuard
+  export cinchEvoDeopt
