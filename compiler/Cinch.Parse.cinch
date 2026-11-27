@@ -901,9 +901,11 @@ module Cinch.Parse where
         else if p == "}" then POk (reverse acc) rest
         else decl-step toks src fix acc
       TAttr text -> (case repr-arguments text of
-        Some args | (args == "unboxed") || args == "transparent" -> wrapper-decl (sp-of t) args rest src fix acc
+        Some args | (args == "unboxed") || args == "transparent" || args == "niche" -> wrapper-decl (sp-of t) args rest src fix acc
         Some args | has-repr-item "unboxed" (string-split-on "," args) -> wrapper-decl (sp-of t) "unboxed" rest src fix
           ((DUnmodeled (sp-of t) "repr(unboxed) must appear on its own") : acc)
+        Some args | has-repr-item "niche" (string-split-on "," args) -> wrapper-decl (sp-of t) "niche" rest src fix
+          ((DUnmodeled (sp-of t) "repr(niche) must appear on its own") : acc)
         Some args | has-repr-item "transparent" (string-split-on "," args) -> wrapper-decl (sp-of t) "transparent" rest src fix
           ((DUnmodeled (sp-of t) "repr(transparent) combines with no other representation") : acc)
         Some args | has-repr-item "value" (string-split-on "," args) -> wrapper-decl (sp-of t) args rest src fix acc
@@ -947,7 +949,9 @@ module Cinch.Parse where
       (case parse-decl-recover toks src fix of
         POk d tail -> (case d of
           DData sp name params constructors -> decls-loop tail src fix (d : (DWrapperLayout site name repr []) : acc)
-          DRecord sp name params fields -> decls-loop tail src fix (d : ((DWrapperLayout site name repr (map (\field -> case field of (label, ty) -> label) fields)) : acc))
+          DRecord sp name params fields ->
+            if repr == "niche" then decls-loop tail src fix (d : (DUnmodeled site "repr(niche) applies only to data declarations") : acc)
+            else decls-loop tail src fix (d : ((DWrapperLayout site name repr (map (\field -> case field of (label, ty) -> label) fields)) : acc))
           other -> decls-loop tail src fix (d : (DUnmodeled site ("repr(" <> repr <> ") requires a data or record declaration")) : acc))
         PBad -> PBad)
     [] -> PBad

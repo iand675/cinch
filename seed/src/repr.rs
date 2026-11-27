@@ -41,6 +41,10 @@ pub enum Class {
     /// Only a polymorphic unit's generic body carries it; the collector
     /// substitutes every one before emission.
     Param(u16),
+    /// Polymorphic `Obj`-pointer niche sum whose required type parameters are
+    /// the bitmask `u16`: substitutes to `TObj` when every bit resolves to
+    /// `Obj`, or falls back to boxed `Obj` otherwise (resolved in `specialize.rs`).
+    PolyNiche(u16),
 }
 
 impl Class {
@@ -50,12 +54,29 @@ impl Class {
     pub fn subst(self, v: &[Class]) -> Class {
         match self {
             Class::Param(i) => v.get(i as usize).copied().unwrap_or(self),
+            Class::PolyNiche(mask) => {
+                let mut unresolved: u16 = 0;
+                for i in 0..16u16 {
+                    if (mask & (1u16 << i)) != 0 {
+                        match v.get(i as usize).copied() {
+                            Some(Class::Obj) => {}
+                            Some(Class::Param(j)) if j < 16 => unresolved |= 1u16 << j,
+                            _ => return Class::Obj,
+                        }
+                    }
+                }
+                if unresolved != 0 {
+                    Class::PolyNiche(unresolved)
+                } else {
+                    Class::TObj
+                }
+            }
             c => c,
         }
     }
 
     pub fn is_param(self) -> bool {
-        matches!(self, Class::Param(_))
+        matches!(self, Class::Param(_) | Class::PolyNiche(_))
     }
 
     pub fn is_val(self) -> bool {
@@ -105,6 +126,10 @@ impl Class {
             Class::Param(i) => {
                 use std::fmt::Write as _;
                 let _ = write!(out, "P{i}_");
+            }
+            Class::PolyNiche(mask) => {
+                use std::fmt::Write as _;
+                let _ = write!(out, "N{mask}_");
             }
         }
     }
@@ -239,6 +264,9 @@ pub enum AdtRepr {
     /// A data or record type: constructor blocks (nullary ones are
     /// static blocks, still `Obj`).
     Obj,
+    /// A tagged union word (heap pointer or odd immediate, e.g. `#[repr(niche)]`
+    /// over a heap pointer with 2+ nullary constructors or over `Nat`/`Int`).
+    TObj,
     /// A foreign opaque type or a runtime handle: never counted.
     Raw,
     /// A POD unboxed value record (`#[repr(value)]`): never heap-allocated
@@ -247,6 +275,9 @@ pub enum AdtRepr {
     Value { size: u32, align: u16 },
     /// A refinement type: its runtime form is the container itself.
     Base(Ty),
+    /// A polymorphic pointer-tagged niche sum requiring all type arguments
+    /// at set bit positions in `u16` to have class `Obj`.
+    PolyNiche(u16),
 }
 
 /// Whether `ty` is a POD unboxed value type (`#[repr(value)]` record or
@@ -272,6 +303,176 @@ pub trait TypeReprs {
     fn adt(&self, name: &str, args: &[Ty]) -> AdtRepr;
     fn fixed_array_layout(&self, _args: &[Ty]) -> Option<(u32, u16)> {
         None
+    }
+    /// Pointer width in bits for target-dependent immediate bounds (default 64).
+    fn ptr_bits(&self) -> u32 {
+        64
+    }
+}
+
+fn idx_int_const(t: &crate::types::ITerm) -> Option<i128> {
+    use crate::types::{ITerm, IdxOp};
+    match t {
+        ITerm::Num(s) => s.as_str().parse::<i128>().ok(),
+        ITerm::Bin(IdxOp::Sub, l, r) => {
+            if idx_int_const(l) == Some(0) {
+                idx_int_const(r).and_then(|v| v.checked_neg())
+            } else {
+                idx_int_const(l)?.checked_sub(idx_int_const(r)?)
+            }
+        }
+        ITerm::Bin(IdxOp::Add, l, r) => idx_int_const(l)?.checked_add(idx_int_const(r)?),
+        ITerm::Bin(IdxOp::Mul, l, r) => idx_int_const(l)?.checked_mul(idx_int_const(r)?),
+        _ => None,
+    }
+}
+
+fn merge_lo(a: Option<i128>, b: Option<i128>) -> Option<i128> {
+    match (a, b) {
+        (None, x) | (x, None) => x,
+        (Some(x), Some(y)) => Some(x.max(y)),
+    }
+}
+
+fn merge_hi(a: Option<i128>, b: Option<i128>) -> Option<i128> {
+    match (a, b) {
+        (None, x) | (x, None) => x,
+        (Some(x), Some(y)) => Some(x.min(y)),
+    }
+}
+
+/// Extract conservative inclusive `[lo, hi]` bounds on `binder` from a
+/// refinement predicate conjunction.
+pub fn extract_pred_bounds(binder: &str, pred: &crate::types::PTerm) -> (Option<i128>, Option<i128>) {
+    use crate::types::{ITerm, IdxCmp, PTerm};
+    match pred {
+        PTerm::And(a, b) => {
+            let (la, ha) = extract_pred_bounds(binder, a);
+            let (lb, hb) = extract_pred_bounds(binder, b);
+            (merge_lo(la, lb), merge_hi(ha, hb))
+        }
+        PTerm::Eq(l, r) => {
+            if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(r) {
+                    return (Some(k), Some(k));
+                }
+            } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(l) {
+                    return (Some(k), Some(k));
+                }
+            }
+            (None, None)
+        }
+        PTerm::Cmp(op, l, r) => {
+            if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(r) {
+                    return match op {
+                        IdxCmp::Lt => (None, k.checked_sub(1)),
+                        IdxCmp::Le => (None, Some(k)),
+                        IdxCmp::Gt => (k.checked_add(1), None),
+                        IdxCmp::Ge => (Some(k), None),
+                        IdxCmp::Eq => (Some(k), Some(k)),
+                        IdxCmp::Ne => (None, None),
+                    };
+                }
+            } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                if let Some(k) = idx_int_const(l) {
+                    return match op {
+                        IdxCmp::Lt => (k.checked_add(1), None),
+                        IdxCmp::Le => (Some(k), None),
+                        IdxCmp::Gt => (None, k.checked_sub(1)),
+                        IdxCmp::Ge => (None, Some(k)),
+                        IdxCmp::Eq => (Some(k), Some(k)),
+                        IdxCmp::Ne => (None, None),
+                    };
+                }
+            }
+            (None, None)
+        }
+        _ => (None, None),
+    }
+}
+
+/// Extract constant integer values explicitly excluded from `binder` by `pred`
+/// (e.g. `x /= 0`, `NonZero x`, `not (x == 0)`).
+pub fn extract_pred_exclusions(binder: &str, pred: &crate::types::PTerm) -> Vec<i128> {
+    use crate::types::{ITerm, IdxCmp, PTerm, PredFn};
+    let mut out = Vec::new();
+    fn go(binder: &str, pred: &PTerm, out: &mut Vec<i128>) {
+        match pred {
+            PTerm::And(a, b) => {
+                go(binder, a, out);
+                go(binder, b, out);
+            }
+            PTerm::Pred(PredFn::NonZero, x) => {
+                if matches!(x.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                    out.push(0);
+                }
+            }
+            PTerm::Cmp(IdxCmp::Ne, l, r) => {
+                if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                    if let Some(k) = idx_int_const(r) {
+                        out.push(k);
+                    }
+                } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                    if let Some(k) = idx_int_const(l) {
+                        out.push(k);
+                    }
+                }
+            }
+            PTerm::Not(inner) => match inner.as_ref() {
+                PTerm::Eq(l, r) | PTerm::Cmp(IdxCmp::Eq, l, r) => {
+                    if matches!(l.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                        if let Some(k) = idx_int_const(r) {
+                            out.push(k);
+                        }
+                    } else if matches!(r.as_ref(), ITerm::Var(v) if v.as_str() == binder) {
+                        if let Some(k) = idx_int_const(l) {
+                            out.push(k);
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    go(binder, pred, &mut out);
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// First free variable in a refinement predicate (matches `check::pred_binder`).
+pub fn anonymous_pred_binder(pred: &crate::types::PTerm) -> Option<String> {
+    let mut fv = Vec::new();
+    pred.free_vars(&mut fv);
+    fv.into_iter().next()
+}
+
+/// True when `base` is `Nat` or `Int` and `pred` proves every inhabitant fits
+/// strictly inside the target's tagged-immediate range (so the runtime word
+/// always carries low bit 1 and never allocates a heap bignum, giving RC class
+/// `Class::Raw` while keeping the tagged-immediate bit encoding).
+pub fn refinement_fits_immediate(
+    base: &Ty,
+    binder: &str,
+    pred: &crate::types::PTerm,
+    ptr_bits: u32,
+) -> bool {
+    let wasm32 = ptr_bits <= 32;
+    let (lo, hi) = extract_pred_bounds(binder, pred);
+    match base {
+        Ty::Nat => {
+            let max_nat: i128 = if wasm32 { 2_147_483_647 } else { 4_611_686_018_427_387_903 };
+            hi.is_some_and(|h| h <= max_nat)
+        }
+        Ty::Int => {
+            let max_int: i128 = if wasm32 { 1_073_741_823 } else { 4_611_686_018_427_387_903 };
+            let min_int: i128 = -max_int;
+            lo.is_some_and(|l| l >= min_int) && hi.is_some_and(|h| h <= max_int)
+        }
+        _ => false,
     }
 }
 
@@ -329,6 +530,14 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
                 None => Class::Raw,
             },
             "refined" => match args.as_slice() {
+                [Ty::Prp(pred), base] => {
+                    if let Some(binder) = anonymous_pred_binder(pred) {
+                        if refinement_fits_immediate(base, &binder, pred, types.ptr_bits()) {
+                            return Class::Raw;
+                        }
+                    }
+                    repr_of(base, params, types, miss)
+                }
                 [_, base] => repr_of(base, params, types, miss),
                 _ => {
                     miss(ty);
@@ -352,9 +561,28 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             | "Secret" | "SchemaSnapshot" | "Database" | "SchemaRead" => Class::Raw,
             _ => match types.adt(name, args) {
                 AdtRepr::Obj => Class::Obj,
+                AdtRepr::TObj => Class::TObj,
                 AdtRepr::Raw => Class::Raw,
                 AdtRepr::Value { size, align } => Class::Val { size, align },
                 AdtRepr::Base(b) => repr_of(&b, params, types, miss),
+                AdtRepr::PolyNiche(req_mask) => {
+                    let mut unresolved: u16 = 0;
+                    for i in 0..16usize {
+                        if (req_mask & (1u16 << i)) != 0 {
+                            let Some(arg) = args.get(i) else { return Class::Obj; };
+                            match repr_of(arg, params, types, miss) {
+                                Class::Obj => {}
+                                Class::Param(j) if j < 16 => unresolved |= 1u16 << j,
+                                _ => return Class::Obj,
+                            }
+                        }
+                    }
+                    if unresolved != 0 {
+                        Class::PolyNiche(unresolved)
+                    } else {
+                        Class::TObj
+                    }
+                }
             },
         },
         Ty::Tuple(_) | Ty::Sigma { .. } | Ty::App(..) | Ty::Former(_) => Class::Obj,

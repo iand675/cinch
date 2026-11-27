@@ -1062,6 +1062,7 @@ fn class_letter(class: Class) -> char {
         Class::Wide => 'W',
         Class::Val { .. } => 'V',
         Class::Param(index) => char::from(b'0' + (index % 10) as u8),
+        Class::PolyNiche(_) => 'N',
     }
 }
 
@@ -1078,6 +1079,7 @@ fn class_text(class: Class) -> String {
         // for a lending analysis result that was never printed.
         Class::Obj | Class::TObj => "obj".to_string(),
         Class::Param(index) => format!("param({index})"),
+        Class::PolyNiche(mask) => format!("polyniche({mask})"),
     }
 }
 

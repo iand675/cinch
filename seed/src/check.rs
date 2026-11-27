@@ -1436,7 +1436,22 @@ impl<'a> LowerCx<'a> {
             ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
             ECore::App(f, args) => match &**f {
-                ECore::Ctor(id, _) => Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t))),
+                ECore::Global(id, _) if id.0.starts_with("$poly_niche_scrut$") && args.len() == 1 => {
+                    self.expr_class(&args[0])
+                }
+                ECore::Ctor(id, tys) => {
+                    if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
+                        Some(*carrier)
+                    } else if let Some((dname, _)) = self.ck.poly_niche_ctors.get(id) {
+                        let req_mask = dname
+                            .rsplit_once('.')
+                            .and_then(|(m, n)| self.ck.poly_niche_plans.get(&(m.to_string(), n.to_string())))
+                            .map_or(0, |p| p.req_mask);
+                        Some(Class::PolyNiche(req_mask).subst(&self.classes(tys)))
+                    } else {
+                        Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t)))
+                    }
+                }
                 ECore::Global(id, tys) => {
                     if let Some(fd) = self.ck.fns.iter().find(|fd| fd.id == *id) {
                         if args.len() == fd.arity() {
@@ -1490,6 +1505,19 @@ impl<'a> LowerCx<'a> {
                 }
                 _ => None,
             },
+            ECore::Ctor(id, tys) => {
+                if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
+                    Some(*carrier)
+                } else if let Some((dname, _)) = self.ck.poly_niche_ctors.get(id) {
+                    let req_mask = dname
+                        .rsplit_once('.')
+                        .and_then(|(m, n)| self.ck.poly_niche_plans.get(&(m.to_string(), n.to_string())))
+                        .map_or(0, |p| p.req_mask);
+                    Some(Class::PolyNiche(req_mask).subst(&self.classes(tys)))
+                } else {
+                    Some(Class::Obj)
+                }
+            }
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
             ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
             _ => None,
@@ -1497,7 +1525,79 @@ impl<'a> LowerCx<'a> {
     }
 }
 
+/// Niche-optimized domain of a single-word payload type.
+#[derive(Clone, Debug)]
+pub(crate) enum NicheDomain {
+    SignedRange { lo: i128, hi: i128, excluded: Vec<i128> },
+    UnsignedRange { lo: u128, hi: u128, excluded: Vec<u128> },
+    OddImmediate { used: Vec<i64> },
+    NonNullObj { used: Vec<i64> },
+    TaggedObj { ptr_tags: Vec<i64>, used_null: bool, used_odd: Vec<i64>, odd_full: bool },
+    NonZeroTObj { used: Vec<i64> },
+    F64Nan { used: Vec<i64> },
+}
+
+/// One field's bit-packed slice inside a single 64-bit word.
+#[derive(Clone, Debug)]
+pub(crate) struct PackedField {
+    pub(crate) shift: u32,
+    pub(crate) bits: u32,
+    pub(crate) signed: bool,
+    pub(crate) bias: i64,
+}
+
+/// Per-constructor lowering plan inside a niche-fused sum or bit-packed product.
+#[derive(Clone, Debug)]
+pub(crate) enum NicheCtorPlan {
+    Nullary { sentinel: i64 },
+    Payload {
+        payload_ty: Ty,
+        /// `None` when sole payload constructor; `Some((unsigned, lo, hi, excluded))`
+        /// when multiple disjoint payload constructors share the single word.
+        range: Option<(bool, i128, i128, Vec<i128>)>,
+    },
+    /// Pointer-tagged `NonNullObj` payload (`ptr | ptr_tag`, where `ptr_tag ∈ {0, 2, 4}`).
+    Ptr {
+        payload_ty: Ty,
+        ptr_tag: i64,
+        check_nonnull: bool,
+    },
+    /// Shifted/tagged small scalar payload (`(((x - bias) << shift) | tag_word)`).
+    Shifted {
+        payload_ty: Ty,
+        mask: i64,
+        tag_word: i64,
+        shift: u32,
+        signed: bool,
+        bias: i64,
+    },
+    /// NaN-canonicalized `F64` payload (sentinels live in quiet-NaN space `0x7FF8_0000_0000_0001+`).
+    NanF64 {
+        payload_ty: Ty,
+    },
+    /// Bit-packed multi-field product or sum arm (`tag_word | ((f0 - bias0) & m0) << s0 | ...`).
+    /// When `mask == 0`, this is a single-constructor bit-packed product (no tag test).
+    Packed {
+        mask: i64,
+        tag_word: i64,
+        fields: Vec<PackedField>,
+    },
+}
+
+/// Validated layout plan for a `#[repr(niche)]` `data` type.
+#[derive(Clone, Debug)]
+pub(crate) struct NichePlan {
+    pub(crate) carrier: Class,
+    pub(crate) by_tag: Vec<(usize, String, NicheCtorPlan)>,
+    pub(crate) nullary_sentinels: Vec<i64>,
+    pub(crate) occupied: NicheDomain,
+}
+
 impl crate::repr::TypeReprs for Checker {
+    fn ptr_bits(&self) -> u32 {
+        self.usize_bits
+    }
+
     fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
         if self.uni.is_type_family(name) {
             let reduced = self.uni.zonk(&Ty::Adt(name.into(), args.to_vec()));
@@ -1513,12 +1613,28 @@ impl crate::repr::TypeReprs for Checker {
         if let Some(t) = self.unboxed_payload(kind) {
             return crate::repr::AdtRepr::Base(t.clone());
         }
+        if let Some(plan) = self.niche_plan(kind) {
+            return match plan.carrier {
+                Class::Raw => crate::repr::AdtRepr::Raw,
+                Class::Obj => crate::repr::AdtRepr::Obj,
+                Class::TObj => crate::repr::AdtRepr::TObj,
+                _ => crate::repr::AdtRepr::Obj,
+            };
+        }
+        if let Some(plan) = self.poly_niche_plan(kind) {
+            return crate::repr::AdtRepr::PolyNiche(plan.req_mask);
+        }
         if let Some(r) = kind.refine.as_ref() {
             let mut map: HashMap<String, Ty> = HashMap::new();
             for (p, a) in r.params.iter().zip(args) {
                 map.insert(p.clone(), a.clone());
             }
-            return crate::repr::AdtRepr::Base(Checker::subst_ty(&r.base, &map));
+            let base = Checker::subst_ty(&r.base, &map);
+            let pred = Checker::subst_pt(&r.pred, &map);
+            if crate::repr::refinement_fits_immediate(&base, &r.binder, &pred, self.usize_bits) {
+                return crate::repr::AdtRepr::Raw;
+            }
+            return crate::repr::AdtRepr::Base(base);
         }
         // A foreign opaque type's values come only from foreign calls:
         // they are handles the foreign side owns.
@@ -1552,6 +1668,168 @@ impl crate::repr::TypeReprs for Checker {
     }
 }
 
+fn niche_ctor_arity(cplan: &NicheCtorPlan) -> usize {
+    match cplan {
+        NicheCtorPlan::Nullary { .. } => 0,
+        NicheCtorPlan::Payload { .. }
+        | NicheCtorPlan::Ptr { .. }
+        | NicheCtorPlan::Shifted { .. }
+        | NicheCtorPlan::NanF64 { .. } => 1,
+        NicheCtorPlan::Packed { fields, .. } => fields.len(),
+    }
+}
+
+pub(crate) fn decode_packed_field_ecore(pf: &PackedField, scrut_var: LocalId) -> ECore {
+    use crate::core::WordOp as WO;
+    if pf.bits == 0 {
+        return ECore::Int(pf.bias);
+    }
+    let extracted = if pf.signed {
+        let left = 64u32.saturating_sub(pf.shift + pf.bits);
+        let shl = if left > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Shl })),
+                vec![ECore::Var(scrut_var), ECore::Int(left as i64)],
+            )
+        } else {
+            ECore::Var(scrut_var)
+        };
+        let right = 64u32.saturating_sub(pf.bits);
+        if right > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Shr })),
+                vec![shl, ECore::Int(right as i64)],
+            )
+        } else {
+            shl
+        }
+    } else {
+        let shifted = if pf.shift > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Ushr })),
+                vec![ECore::Var(scrut_var), ECore::Int(pf.shift as i64)],
+            )
+        } else {
+            ECore::Var(scrut_var)
+        };
+        if pf.bits < 64 {
+            let fmask = ((1u64 << pf.bits) - 1) as i64;
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Untag })),
+                vec![shifted, ECore::Int(fmask)],
+            )
+        } else {
+            shifted
+        }
+    };
+    if pf.bias != 0 {
+        ECore::App(
+            Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Add })),
+            vec![extracted, ECore::Int(pf.bias)],
+        )
+    } else {
+        extracted
+    }
+}
+
+fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, mut args: Vec<Core>) -> Core {
+    use crate::core::WordOp as WO;
+    match cplan {
+        NicheCtorPlan::Nullary { sentinel } => Core::Int(*sentinel),
+        NicheCtorPlan::Payload { .. } => args.remove(0),
+        NicheCtorPlan::Ptr { ptr_tag, .. } => {
+            let arg = args.remove(0);
+            if *ptr_tag == 0 {
+                arg
+            } else {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                    vec![arg, Core::Int(*ptr_tag)],
+                )
+            }
+        }
+        NicheCtorPlan::Shifted { tag_word, shift, bias, .. } => {
+            let arg = args.remove(0);
+            let v = if *bias != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
+                    vec![arg, Core::Int(*bias)],
+                )
+            } else {
+                arg
+            };
+            let shifted = if *shift != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Shl })),
+                    vec![v, Core::Int(*shift as i64)],
+                )
+            } else {
+                v
+            };
+            if *tag_word != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                    vec![shifted, Core::Int(*tag_word)],
+                )
+            } else {
+                shifted
+            }
+        }
+        NicheCtorPlan::NanF64 { .. } => {
+            let arg = args.remove(0);
+            Core::App(
+                Box::new(Core::Prim(PrimOp::WordOp { op: WO::NanCanon })),
+                vec![arg],
+            )
+        }
+        NicheCtorPlan::Packed { tag_word, fields, .. } => {
+            let mut acc: Option<Core> = if *tag_word != 0 {
+                Some(Core::Int(*tag_word))
+            } else {
+                None
+            };
+            for (pf, arg) in fields.iter().zip(args.into_iter()) {
+                if pf.bits == 0 {
+                    continue;
+                }
+                let v0 = if pf.bias != 0 {
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
+                        vec![arg, Core::Int(pf.bias)],
+                    )
+                } else {
+                    arg
+                };
+                let v1 = if pf.signed && pf.bits < 64 {
+                    let fmask = ((1u64 << pf.bits) - 1) as i64;
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Untag })),
+                        vec![v0, Core::Int(fmask)],
+                    )
+                } else {
+                    v0
+                };
+                let v2 = if pf.shift != 0 {
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Shl })),
+                        vec![v1, Core::Int(pf.shift as i64)],
+                    )
+                } else {
+                    v1
+                };
+                acc = Some(match acc {
+                    None => v2,
+                    Some(prev) => Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                        vec![prev, v2],
+                    ),
+                });
+            }
+            acc.unwrap_or(Core::Int(0))
+        }
+    }
+}
+
 fn finalize_fn(
     id: GlobalId,
     params: Vec<LocalId>,
@@ -1559,7 +1837,7 @@ fn finalize_fn(
     prim: Option<PrimOp>,
     ctor: Option<(usize, usize)>,
     hints: crate::core::FnHints,
-    meta: crate::core::FnMeta,
+    mut meta: crate::core::FnMeta,
     cx: &mut LowerCx,
 ) -> Result<FnDef> {
     cx.orig.clear();
@@ -1640,6 +1918,10 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             }
             C::Global(g.clone(), v)
         }
+        ECore::Ctor(g, _) if matches!(cx.ck.niche_ctors.get(g), Some((_, NicheCtorPlan::Nullary { .. }))) => {
+            let (_, NicheCtorPlan::Nullary { sentinel }) = &cx.ck.niche_ctors[g] else { unreachable!() };
+            C::Int(*sentinel)
+        }
         ECore::Ctor(g, tys) if cx.ck.has_constructor_body(g) => C::Global(g.clone(), cx.classes(tys)),
         ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
         ECore::Prim(p) => C::Prim(*p),
@@ -1679,7 +1961,17 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
             C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
-        ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
+        ECore::App(f, args) => {
+            if let ECore::Ctor(g, _) = &**f {
+                if let Some((_, cplan)) = cx.ck.niche_ctors.get(g) {
+                    if args.len() == niche_ctor_arity(cplan) {
+                        let lowered: Vec<Core> = args.iter().map(low).collect();
+                        return lower_niche_ctor_apply(cplan, lowered);
+                    }
+                }
+            }
+            C::App(Box::new(low(f)), args.iter().map(low).collect())
+        }
         ECore::Lam { .. } | ECore::PolyIntro { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
@@ -3785,9 +4077,21 @@ struct Checker {
     /// Layout computation pending per type (attribute annotations
     /// specification section 4.3).
     unpack_requests: HashMap<GlobalId, HashMap<String, ast::Span>>,
+    nounpack_requests: HashMap<GlobalId, HashSet<String>>,
+    auto_unpack_candidates: Vec<(String, String, ast::Span)>,
     unpacked_records: HashMap<GlobalId, UnpackedRecord>,
     /// Identity constructors and their validated runtime payload types.
     unboxed_ctors: HashMap<GlobalId, Ty>,
+    /// Validated `#[repr(niche)]` and auto-niched plans keyed by `(module, type_name)`.
+    niche_plans: HashMap<(String, String), NichePlan>,
+    /// Per-constructor niche lowering metadata keyed by constructor `GlobalId`.
+    niche_ctors: HashMap<GlobalId, (Class, NicheCtorPlan)>,
+    /// Polymorphic pointer-tagged niche plans keyed by `(module, type_name)`.
+    poly_niche_plans: HashMap<(String, String), crate::core::PolyNichePlan>,
+    /// Polymorphic niche constructor metadata keyed by constructor `GlobalId`.
+    poly_niche_ctors: HashMap<GlobalId, (String, crate::core::PolyNicheCtor)>,
+    /// Closed multi-constructor source `data` declarations eligible for default auto-niche.
+    auto_niche_candidates: Vec<(String, String, ast::Span)>,
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
@@ -4394,8 +4698,15 @@ impl Checker {
             diags: Vec::new(),
             fn_hints: HashMap::new(),
             unpack_requests: HashMap::new(),
+            nounpack_requests: HashMap::new(),
+            auto_unpack_candidates: Vec::new(),
             unpacked_records: HashMap::new(),
             unboxed_ctors: HashMap::new(),
+            niche_plans: HashMap::new(),
+            niche_ctors: HashMap::new(),
+            poly_niche_plans: HashMap::new(),
+            poly_niche_ctors: HashMap::new(),
+            auto_niche_candidates: Vec::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
             value_layouts: Vec::new(),
@@ -7370,7 +7681,23 @@ impl Checker {
 
     /// Both lowering and compile-time evaluation must call the checked builder.
     fn has_constructor_body(&self, id: &GlobalId) -> bool {
-        self.unboxed_ctors.contains_key(id) || self.unpacked_records.contains_key(id)
+        self.unboxed_ctors.contains_key(id)
+            || self.niche_ctors.contains_key(id)
+            || self.unpacked_records.contains_key(id)
+    }
+
+    pub(crate) fn niche_plan(&self, kind: &TypeKind) -> Option<&NichePlan> {
+        if self.niche_plans.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
+        self.niche_plans.get(&(kind.module.clone(), kind.name.clone()))
+    }
+
+    pub(crate) fn poly_niche_plan(&self, kind: &TypeKind) -> Option<&crate::core::PolyNichePlan> {
+        if self.poly_niche_plans.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
+        self.poly_niche_plans.get(&(kind.module.clone(), kind.name.clone()))
     }
 
     fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {
@@ -7379,6 +7706,46 @@ impl Checker {
         }
         let (ctor, _) = kind.ctors.first()?;
         self.unboxed_ctors.get(&fn_id(&kind.module, ctor))
+    }
+
+    /// True when `ty` is a closed, uniform, non-opaque `data` enum whose every
+    /// constructor has runtime arity 0 (every inhabitant is an immortal static
+    /// block, so dup/drop are no-ops).
+    pub(crate) fn is_immortal_enum_ty(&self, ty: &Ty) -> bool {
+        let ty = self.uni.zonk(ty);
+        match ty {
+            Ty::Ref(_, inner) => self.is_immortal_enum_ty(&inner),
+            Ty::Adt(ref name, ref args) if name == "refined" => {
+                args.get(1).is_some_and(|b| self.is_immortal_enum_ty(b))
+            }
+            Ty::Adt(ref name, ref args) if name == "Sing" => {
+                args.first().is_some_and(|b| self.is_immortal_enum_ty(b))
+            }
+            Ty::Adt(ref name, ref args) => {
+                let Some(kind) = self.known_type(name) else { return false };
+                if let Some(r) = kind.refine.as_ref() {
+                    let mut map = HashMap::new();
+                    for (p, a) in r.params.iter().zip(args) {
+                        map.insert(p.clone(), a.clone());
+                    }
+                    return self.is_immortal_enum_ty(&Checker::subst_ty(&r.base, &map));
+                }
+                if !kind.data_family
+                    || kind.opaque
+                    || kind.ctors.is_empty()
+                    || self.open_data_families.contains(&kind.identity)
+                    || self.layout_recipes.contains_key(&(kind.module.clone(), kind.name.clone()))
+                {
+                    return false;
+                }
+                kind.ctors.iter().all(|(cname, _)| {
+                    self.qualified
+                        .get(&(kind.module.clone(), cname.clone()))
+                        .is_some_and(|v| matches!(v.kind, ValueKind::Ctor { runtime_arity: 0, .. }))
+                })
+            }
+            _ => false,
+        }
     }
 
     fn known_type(&self, identity: &str) -> Option<&TypeKind> {
@@ -13825,6 +14192,8 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
             .iter()
             .filter_map(|(i, m)| shift(*i).map(|j| (j, *m)))
             .collect(),
+        unique_params: meta.unique_params.iter().filter_map(|i| shift(*i)).collect(),
+        immortal_params: meta.immortal_params.iter().filter_map(|i| shift(*i)).collect(),
         pure_arrows: meta.pure_arrows.iter().filter_map(|i| shift(*i)).collect(),
         dicts: meta
             .dicts

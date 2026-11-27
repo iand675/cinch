@@ -35,7 +35,7 @@ module Cinch.RuntimeIr where
   import Data.Array
   import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
   import Cinch.Borrow (compute-borrow-modes, same-borrow-modes, any-borrowed)
-  import Cinch.Ownership (term-uses-id, terms-use-id, term-use-count, arm-has-reuse-alloc, compute-consumed-params, same-bool-maps, frame-let-mode, compute-arena-phases, same-arena-phases, program-uses-concurrency, is-immortal-enum-data)
+  import Cinch.Ownership (term-uses-id, terms-use-id, term-use-count, arm-has-reuse-alloc, compute-consumed-params, same-bool-maps, frame-let-mode, compute-arena-phases, same-arena-phases, program-uses-concurrency, is-immortal-enum-data, compute-returns-unique, term-is-unique-alloc)
   import Cinch.Document
   import Cinch.Target (TargetProfile, host-profile, selection-arch, target-ir-header)
   import Data.List (split-at)
@@ -90,6 +90,8 @@ module Cinch.RuntimeIr where
   data TailContext where
     LocalTail :: List RecursiveWorker -> List Local -> Nat -> TailContext
     GlobalTail :: Nat -> Nat -> Option (String, String) -> List Bool -> TailContext
+    -- self-name, self-classes, orig-arity, param-idx, ctor-name, field-count, new-width, loop
+    UnboxedAccTail :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Nat -> Option (String, String) -> TailContext
 
   data Demand where
     Demand :: String -> List Nat -> Demand
@@ -110,6 +112,9 @@ module Cinch.RuntimeIr where
     PrimitiveIntrinsicDemand :: String -> Demand
     PrimitiveUseDemand :: String -> String -> Demand
     CprDemand :: String -> List Nat -> Demand
+    CprWwDemand :: String -> List Nat -> Demand
+    CsrDemand :: String -> List Nat -> Demand
+    WwDemand :: String -> List Nat -> Demand
     BorrowDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
     MemcpyDemand :: Demand
@@ -148,8 +153,9 @@ module Cinch.RuntimeIr where
     consumed :: HashMap String (List Bool)
     arenas :: HashMap String Bool
     concurrent :: Bool
+    returns-unique :: HashMap String Bool
   empty-ownership-plan :: OwnershipPlan
-  empty-ownership-plan = OwnershipPlan hash-map-empty hash-map-empty hash-map-empty True
+  empty-ownership-plan = OwnershipPlan hash-map-empty hash-map-empty hash-map-empty True hash-map-empty
   record BindingIndex where
     field0 :: CallableBindings
     field1 :: ForeignBindings
@@ -385,24 +391,28 @@ module Cinch.RuntimeIr where
       ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions plan) versions provider exposed effects tail-groups reclaim wasm32 families promoted
   program-borrow-modes :: ProgramInfo -> HashMap String (List Bool)
   program-borrow-modes info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> borrows
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> borrows
   program-consumed-params :: ProgramInfo -> HashMap String (List Bool)
   program-consumed-params info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> consumed
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> consumed
   program-arena-phases :: ProgramInfo -> HashMap String Bool
   program-arena-phases info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> arenas
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> arenas
   program-concurrent :: ProgramInfo -> Bool
   program-concurrent info = case program-ownership info of
-    OwnershipPlan borrows consumed arenas concurrent -> concurrent
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> concurrent
+  program-returns-unique :: ProgramInfo -> HashMap String Bool
+  program-returns-unique info = case program-ownership info of
+    OwnershipPlan borrows consumed arenas concurrent ret-uniq -> ret-uniq
   same-ownership-plan :: List CoreDefinition -> OwnershipPlan -> OwnershipPlan -> Bool
   same-ownership-plan definitions left right = case left of
-    OwnershipPlan b1 c1 a1 m1 -> case right of
-      OwnershipPlan b2 c2 a2 m2 ->
+    OwnershipPlan b1 c1 a1 m1 u1 -> case right of
+      OwnershipPlan b2 c2 a2 m2 u2 ->
         (if m1 then m2 else not m2)
         && same-borrow-modes definitions b1 b2
         && same-bool-maps definitions c1 c2
         && same-arena-phases definitions a1 a2
+        && same-arena-phases definitions u1 u2
   prepend-binding :: forall a. String -> a -> HashMap String (List a) -> HashMap String (List a)
   prepend-binding key value entries = case hash-map-lookup key entries of
     Some found -> hash-map-insert key (value : found) entries
@@ -662,6 +672,102 @@ module Cinch.RuntimeIr where
           None -> value-word-class context ty
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
+  index-term-int-const :: IndexTerm -> Option Int
+  index-term-int-const term = case term of
+    IInteger n -> Some n
+    IAdd a b -> (case (index-term-int-const a, index-term-int-const b) of (Some x, Some y) -> Some (x + y); other -> None)
+    ISubtract a b -> (case (index-term-int-const a, index-term-int-const b) of (Some x, Some y) -> Some (x - y); other -> None)
+    IMultiply a b -> (case (index-term-int-const a, index-term-int-const b) of (Some x, Some y) -> Some (x * y); other -> None)
+    other -> None
+
+  -- Extract integer constant from a refinement index operand.
+  refinement-int-const :: UType -> Option Int
+  refinement-int-const t = case t of
+    UIndex carrier term -> index-term-int-const term
+    UIndexForget inner -> refinement-int-const inner
+    UIndexPromote inner -> refinement-int-const inner
+    UIndexMath op left right -> (case (refinement-int-const left, refinement-int-const right) of
+      (Some a, Some b) ->
+        if op == "+" then Some (a + b)
+        else if op == "-" then Some (a - b)
+        else if op == "*" then Some (a * b)
+        else None
+      other -> None)
+    other -> None
+
+  -- True if `t` names the refinement binder `id`.
+  refinement-is-binder :: Nat -> UType -> Bool
+  refinement-is-binder id t = case t of
+    UBound bid name kind -> bid == id
+    UIndex carrier (IBound bid name) -> bid == id
+    UIndexForget inner -> refinement-is-binder id inner
+    UIndexPromote inner -> refinement-is-binder id inner
+    other -> False
+
+  -- Extract conservative `(Option Int, Option Int)` inclusive `[lo, hi]` bounds
+  -- on refinement binder `id` from a predicate conjunction.
+  merge-lo :: Option Int -> Option Int -> Option Int
+  merge-lo a b = case (a, b) of
+    (None, x) -> x
+    (x, None) -> x
+    (Some x, Some y) -> Some (if x > y then x else y)
+
+  merge-hi :: Option Int -> Option Int -> Option Int
+  merge-hi a b = case (a, b) of
+    (None, x) -> x
+    (x, None) -> x
+    (Some x, Some y) -> Some (if x < y then x else y)
+
+  refinement-bounds :: Nat -> UType -> (Option Int, Option Int)
+  refinement-bounds id pred = case pred of
+    UPropAnd a b -> case (refinement-bounds id a, refinement-bounds id b) of
+      ((la, ha), (lb, hb)) -> (merge-lo la lb, merge-hi ha hb)
+    UCompare op left right ->
+      if refinement-is-binder id left then
+        (case refinement-int-const right of
+          Some k ->
+            if op == "<" then (None, Some (k - 1))
+            else if op == "<=" then (None, Some k)
+            else if op == ">" then (Some (k + 1), None)
+            else if op == ">=" then (Some k, None)
+            else if op == "==" || op == "Eq" then (Some k, Some k)
+            else (None, None)
+          None -> (None, None))
+      else if refinement-is-binder id right then
+        (case refinement-int-const left of
+          Some k ->
+            if op == "<" then (Some (k + 1), None)
+            else if op == "<=" then (Some k, None)
+            else if op == ">" then (None, Some (k - 1))
+            else if op == ">=" then (None, Some k)
+            else if op == "==" || op == "Eq" then (Some k, Some k)
+            else (None, None)
+          None -> (None, None))
+      else (None, None)
+    other -> (None, None)
+
+  -- A refined `Nat` or `Int` whose predicate proves it strictly inside the
+  -- target immediate range always carries low bit 1 (never a heap bignum), so
+  -- its RC class is `0` (`Raw`) while keeping its exact tagged-immediate word.
+  refinement-fits-immediate :: Bool -> UType -> Bool
+  refinement-fits-immediate wasm32 ty = case refinement-view ty of
+    URefine id name carrier pred ->
+      let base-carrier = base carrier in
+      if named base-carrier "Nat" then
+        let max-nat = if wasm32 then (2147483647 :: Int) else (4611686018427387903 :: Int) in
+        (case refinement-bounds id pred of
+          (lo, Some hi) -> hi <= max-nat
+          other -> refinement-fits-immediate wasm32 carrier)
+      else if named base-carrier "Int" then
+        let max-int = if wasm32 then (1073741823 :: Int) else (4611686018427387903 :: Int) in
+        let min-int = 0 - max-int in
+        (case refinement-bounds id pred of
+          (Some lo, Some hi) -> lo >= min-int && hi <= max-int
+          other -> refinement-fits-immediate wasm32 carrier)
+      else False
+    URequire req body -> refinement-fits-immediate wasm32 body
+    other -> False
+
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
   value-word-class context raw-ty =
@@ -672,7 +778,7 @@ module Cinch.RuntimeIr where
         Some _ -> Some 0
         None -> case type-value-size-align context ty of
           Some (sz, al) -> Some (encode-val-class sz al)
-          None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+          None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then (if refinement-fits-immediate (program-wasm32 (context.info)) ty then Some 0 else Some 2) else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
             RuntimeContext datas bounds rigids queue inlining -> case base ty of
               -- Structural Copy/Kernel/Boxed witnesses travel as Unit, even in a polymorphic closure.
               UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") -> Some 0
@@ -701,17 +807,83 @@ module Cinch.RuntimeIr where
                   else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
                   else if (name == "Bytes" || name == "String" || name == "AtomicCell") && kind-equal kind KType then Some 1 else
                   (case data-declaration name datas of
-                    Some d -> Some (data-word-class d)
+                    Some d -> Some (data-applied-word-class context d ty)
                     None -> if kind-equal kind KType && checked-string-word name datas then Some 1
                       else case find-class name (datas.classes) of Some description -> Some 1; None -> None)
                 UBound id name kind -> applied-former-class ty kind (representation id bounds)
                 URigid id name level kind -> applied-former-class ty kind (representation id rigids)
                 other -> None
+  type-arg-list :: UType -> List UType -> List UType
+  type-arg-list ty acc = case ty of
+    UApp f a -> type-arg-list f (a : acc)
+    other -> acc
+
+  nth-nat-opt :: Nat -> List Nat -> Option Nat
+  nth-nat-opt idx xs = case xs of
+    [] -> None
+    first : rest -> if idx == 0 then Some first else nth-nat-opt (idx - 1) rest
+
+  all-obj-at :: List Nat -> List Nat -> Bool
+  all-obj-at req classes = case req of
+    [] -> True
+    idx : rest -> (case nth-nat-opt idx classes of
+      Some 1 -> all-obj-at rest classes
+      other -> False)
+
+  arg-word-classes :: RuntimeContext -> List UType -> Option (List Nat)
+  arg-word-classes context args = case args of
+    [] -> Some []
+    a : rest -> (case (value-word-class context a, arg-word-classes context rest) of
+      (Some c, Some more) -> Some (c : more)
+      other -> None)
+
+  active-niche-layout :: CoreData -> List Nat -> Option (Nat, List NicheCtor)
+  active-niche-layout d classes = case core-data-layout d of
+    NicheData word ctors -> Some (word, ctors)
+    PolyNicheData req ctors -> if all-obj-at req classes then Some (2, ctors) else None
+    other -> None
+
+  data-applied-word-class :: RuntimeContext -> CoreData -> UType -> Nat
+  data-applied-word-class context d ty = case core-data-layout d of
+    UnboxedData label word bytes align -> word
+    ValueData repr sz al fs -> encode-val-class sz al
+    NicheData word ctors -> word
+    PolyNicheData req ctors -> (case arg-word-classes context (type-arg-list (base ty) []) of
+      Some classes | all-obj-at req classes -> 2
+      other -> 1)
+    other -> 1
+
   data-word-class :: CoreData -> Nat
   data-word-class d = case core-data-layout d of
     UnboxedData label word bytes align -> word
     ValueData repr sz al fs -> encode-val-class sz al
+    NicheData word ctors -> word
     other -> 1
+  niche-ctor-lookup :: String -> List NicheCtor -> Option NicheCtor
+  niche-ctor-lookup wanted ctors = case ctors of
+    [] -> None
+    c : rest -> (case c of
+      NicheNullary cname sentinel -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NichePayload cname multi unsigned lo hi excluded -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NichePtr cname ptag chk -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NicheShifted cname mask tag-word shift signed bias -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NicheNanF64 cname -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NichePacked cname mask tag-word pfields -> if cname == wanted then Some c else niche-ctor-lookup wanted rest)
+  niche-nullary-sentinels :: List NicheCtor -> List Int
+  niche-nullary-sentinels ctors = case ctors of
+    [] -> []
+    (NicheNullary cname sentinel) : rest -> sentinel : (niche-nullary-sentinels rest)
+    other : rest -> niche-nullary-sentinels rest
+  niche-word-literal :: Bool -> Int -> String
+  niche-word-literal unsigned v =
+    if unsigned && v >= 9223372036854775808 then int-to-string (v - 18446744073709551616)
+    else int-to-string v
+  niche-owner-ctor :: String -> String -> List Nat -> Writer -> Option NicheCtor
+  niche-owner-ctor owner cname classes w = case data-declaration owner (writer-program w) of
+    Some d -> (case active-niche-layout d classes of
+      Some (word, ctors) -> niche-ctor-lookup cname ctors
+      None -> None)
+    None -> None
   uniform-owner :: String -> Writer -> Bool
   uniform-owner name w = case data-declaration name (writer-program w) of
     Some d -> (case core-data-layout d of UniformData -> True; other -> False)
@@ -907,6 +1079,9 @@ module Cinch.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
     PrimitiveUseDemand symbol decl -> cat ["prim use:", symbol]
     CprDemand name classes -> cat [specialized-name name classes, "#cpr"]
+    CprWwDemand name classes -> cat [specialized-name name classes, "#cprww"]
+    CsrDemand name classes -> cat [specialized-name name classes, "#csr"]
+    WwDemand name classes -> cat [specialized-name name classes, "#ww"]
     BorrowDemand name classes -> cat [specialized-name name classes, "#b"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
     MemcpyDemand -> "intrinsic:llvm.memcpy"
@@ -1966,21 +2141,48 @@ module Cinch.RuntimeIr where
   --   4) Single-use direct move into a constructor or tuple field (0 dup, 0 drop)
   eval-let-body :: List CoreDefinition -> List Local -> Writer -> Nat -> UType -> String -> CoreTerm -> (Writer, String)
   eval-let-body definitions locals w id ty value body =
+    eval-let-body-u definitions locals w id ty value False body
+
+  eval-let-body-u :: List CoreDefinition -> List Local -> Writer -> Nat -> UType -> String -> Bool -> CoreTerm -> (Writer, String)
+  eval-let-body-u definitions locals w id ty value is-uniq body =
     if not (term-uses-id id body) then
       expression definitions locals (count-op False ty value w) body
     else case unwrap-let-var body of
       Some lid | lid == id -> (w, value)
       other -> case simple-word-let definitions w body of
         Some (sp2, id2, ty2, rhs2, body2) | id2 /= id && not (term-uses-id id body2) ->
-          (case eval-let-body definitions locals w id ty value rhs2 of
-            (ready, val2) -> eval-let-body definitions locals ready id2 ty2 val2 body2)
+          (let uniq2 = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs2 in
+           case eval-let-body-u definitions locals w id ty value is-uniq rhs2 of
+            (ready, val2) -> eval-let-body-u definitions locals ready id2 ty2 val2 uniq2 body2)
         other -> case body of
           CCase sp2 cty scrut alts | (case unwrap-let-var scrut of Some sid -> sid == id; None -> False) && not (term-uses-id id alts) ->
-            case-value definitions locals w ty value alts
+            case-value-mode-u definitions locals w ty value True is-uniq alts
           other -> case try-move-into-alloc definitions locals w id ty value body of
             Some moved -> moved
             None -> case expression definitions ((Local id ty value) : locals) w body of
               (done, result) -> (count-op False ty value done, result)
+
+  -- | Partial escape split: when a let-bound constructor with trivial arguments
+  -- sits above an `if` whose condition does not mention it, sink the `let` into
+  -- only the branch(es) that mention it (when either only one branch uses it,
+  -- or at least one branch only scrutinizes it so `deferred-let` eliminates
+  -- the allocation on that branch).
+  try-sink-partial-escape :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> Option (Writer, String)
+  try-sink-partial-escape definitions locals w sp id name sc rhs body =
+    case (scheme-params sc, scheme-requirements sc, deferred-value (writer-program w) rhs, body) of
+      ([], [], Some plan, CIf isp ity cond yes no) | not (term-uses-id id cond) ->
+        let in-yes = term-uses-id id yes in
+        let in-no = term-uses-id id no in
+        let should-sink =
+              (in-yes && not in-no)
+              || (not in-yes && in-no)
+              || (in-yes && in-no && (case-scrutinee-only id yes || case-scrutinee-only id no)) in
+        if should-sink then
+          let yes2 = if in-yes then CLet sp (core-type yes) id name sc rhs yes else yes in
+          let no2 = if in-no then CLet sp (core-type no) id name sc rhs no else no in
+          Some (branch definitions locals w isp cond yes2 no2)
+        else None
+      other -> None
 
   emit-let :: List CoreDefinition -> List Local -> Writer -> Span -> Nat -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
   emit-let definitions locals w sp id ty rhs body =
@@ -1989,8 +2191,10 @@ module Cinch.RuntimeIr where
         (bound, value) -> expression definitions locals (count-op False ty value bound) body)
     else case try-frame-let definitions locals w sp id ty rhs body of
       Some framed -> framed
-      None -> case expression definitions locals w rhs of
-        (bound, value) -> eval-let-body definitions locals bound id ty value body
+      None ->
+        let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs in
+        (case expression definitions locals w rhs of
+          (bound, value) -> eval-let-body-u definitions locals bound id ty value is-uniq body)
 
   stack-cell-local :: Nat -> List Local -> Option (UType, String)
   stack-cell-local id locals = case locals of
@@ -2056,11 +2260,13 @@ module Cinch.RuntimeIr where
         else if deferred-let w id sc rhs body then (case deferred-value (writer-program w) rhs of
           Some (ctor, actuals, args) -> expression definitions ((DeferredConstructor id (scheme-body sc) ctor actuals args) : locals) w body
           None -> unsupported w sp "deferred constructor let failed its checked representation")
-        else if erased-region-parameters (scheme-params sc) && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
-          emit-let definitions locals w sp id (scheme-body sc) rhs body
-        else (case bundled-let sp id sc rhs body of
-          Some bundled -> expression definitions locals w bundled
-          None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")
+        else (case try-sink-partial-escape definitions locals w sp id name sc rhs body of
+          Some sunk -> sunk
+          None -> (if erased-region-parameters (scheme-params sc) && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
+              emit-let definitions locals w sp id (scheme-body sc) rhs body
+            else (case bundled-let sp id sc rhs body of
+              Some bundled -> expression definitions locals w bundled
+              None -> unsupported w sp "polymorphic or aggregate let needs runtime lowering")))
     CIf sp ty test yes no -> branch definitions locals w sp test yes no
     CTuple sp ty fields -> tuple definitions locals w sp fields
     CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
@@ -2071,8 +2277,10 @@ module Cinch.RuntimeIr where
         Some fused -> fused
         None -> case borrowed-local-word locals value of
           Some word -> case-value-mode definitions locals w (core-type value) word False alternatives
-          None -> case expression definitions locals w value of
-            (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
+          None ->
+            let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] value in
+            (case expression definitions locals w value of
+              (ready, word) -> case-value-mode-u definitions locals ready (core-type value) word True is-uniq alternatives)
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
@@ -3399,8 +3607,38 @@ module Cinch.RuntimeIr where
     case lowered of (done, result) -> line (line done (cat ["  ret ", builtin-result-llvm name, " ", result])) "}"
   box-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> List Nat -> Nat -> List CoreTerm -> (Writer, String)
   box-constructor definitions locals w sp d classes tag args = case request-data sp d classes w of
-    (planned, descriptor) -> case expressions definitions locals planned args of
-      (ready, values) -> allocate-constructor-fields d ready (data-descriptor descriptor tag) (term-types args) values
+    (planned, descriptor) -> case core-data-layout d of
+      UnpackedRecord slots -> case flatten-unpacked-terms definitions locals planned slots args of
+        (ready, physical) -> allocate-typed ready (data-descriptor descriptor tag) physical
+      other -> case expressions definitions locals planned args of
+        (ready, values) -> allocate-constructor-fields d ready (data-descriptor descriptor tag) (term-types args) values
+
+  flatten-unpacked-terms :: List CoreDefinition -> List Local -> Writer -> List RecordSlot -> List CoreTerm -> (Writer, List (String, String))
+  flatten-unpacked-terms definitions locals w slots args = case (slots, args) of
+    ([], []) -> (w, [])
+    ((OrdinarySlot label ty) : more, arg : rest) ->
+      (case expression definitions locals w arg of
+        (w1, val) -> case flatten-unpacked-terms definitions locals w1 more rest of
+          (w2, tail) -> (w2, (value-llvm (w1.context) (core-type arg), val) : tail))
+    ((ProductSlot label ty ctor actuals fields) : more, arg : rest) ->
+      let direct = (case erased-constructor-call arg [] of
+            Some (cname, _, cargs) | cname == ctor.constructor-name && list-length cargs == list-length fields -> Some cargs
+            other -> case arg of
+              CLocal _ _ id _ [] -> (case deferred-constructor id locals of
+                Some (cname, _, cargs) | cname == ctor.constructor-name && list-length cargs == list-length fields -> Some cargs
+                other2 -> None)
+              other2 -> None) in
+      (case direct of
+        Some cargs -> (case expressions definitions locals w cargs of
+          (w1, cvals) -> case flatten-unpacked-terms definitions locals w1 more rest of
+            (w2, tail) -> (w2, typed-values (value-llvms (w1.context) (term-types cargs)) cvals <> tail))
+        None -> (case expression definitions locals w arg of
+          (w1, word) ->
+            let (one, ptr) = fresh w1 "%ptr" in
+            (case owned-payload fields ptr 0 (line one (cat ["  ", ptr, " = inttoptr i64 ", word, " to ptr"])) of
+              (loaded, physical) -> case flatten-unpacked-terms definitions locals (count-op False ty word loaded) more rest of
+                (ready, tail) -> (ready, physical <> tail))))
+    other -> (refuse w (Span 0 0 1 1) "logical constructor arity disagrees with unpack layout", [])
   box-gadt-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> RuntimeContext -> CoreConstructor -> Nat -> List CoreTerm -> (Writer, String)
   box-gadt-constructor definitions locals w sp d cctx c tag args = case class-vector cctx (storage-fields d c) of
     None -> unsupported w sp "constructor field representation is unknown"
@@ -3464,9 +3702,19 @@ module Cinch.RuntimeIr where
             Some classes -> case constructor-call-context d c classes w of
               None -> unsupported w sp "constructor parameters need first-order representation classes"
               Some context -> if list-length args == list-length (core-constructor-fields c) then
-                (case (core-data-layout d, args) of
-                  (UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
-                  (ValueData repr sz al vfields, actuals-args) -> construct-value-data definitions locals w sz al vfields actuals-args
+                (case (active-niche-layout d classes, core-data-layout d, args) of
+                  (Some (word, ctors), _, _) -> (case niche-ctor-lookup name ctors of
+                    Some (NicheNullary cname sentinel) -> (w, niche-word-literal False sentinel)
+                    Some (NichePacked cname mask tag-word pfields) ->
+                      (case expressions definitions locals w args of
+                        (w1, vals) -> emit-niche-pack tag-word pfields vals w1)
+                    Some cplan -> (case args of
+                      [payload] -> (case expression definitions locals w payload of
+                        (w1, pval) -> emit-niche-encode cplan pval w1)
+                      other -> unsupported w sp "niche constructor arity mismatch")
+                    None -> unsupported w sp "niche constructor missing layout plan")
+                  (None, UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
+                  (None, ValueData repr sz al vfields, actuals-args) -> construct-value-data definitions locals w sz al vfields actuals-args
                   other -> if regular-constructor d c
                     then box-constructor definitions locals w sp d classes tag args
                     else box-gadt-constructor definitions locals w sp d context c tag args)
@@ -4276,31 +4524,40 @@ module Cinch.RuntimeIr where
                   more -> case d.clauses of
                     (CoreClause _ _ body) : _ -> (case word-class context (peel-arrows (list-length rem-args) (core-type body)) of Some c -> c; None -> 0)
                     [] -> 0) in
-                case (if non-word then None else case saved of
+                let ww-hit = (if non-word then None else case saved of
                     [] -> (case givens of
                       [] -> (case witnesses of
-                        [] -> hash-map-lookup (d.name) (program-borrow-modes (writer-program indexed))
+                        [] -> try-ww-call definitions locals indexed d classes (take-terms count args)
                         other -> None)
                       other -> None)
-                    other -> None) of
-                  Some mask | list-length mask == count && any-borrowed mask ->
-                    let planned = request-demand (BorrowDemand (d.name) classes) indexed in
-                    (case eval-borrow-args definitions locals planned (take-terms count args) mask of
-                      (ready, values, post-drops) ->
-                        case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
-                          (called, result) -> apply-terms-class definitions locals (drop-locals post-drops called) result rem-args over-ret-class)
-                  other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
-                    (ready, values) ->
-                      let call-args = typed-values (value-param-llvms context all-types) (saved <> givens <> witnesses <> values) in
-                      case definition-sret-result context d of
-                        Some (sret-attr, sz, al) ->
-                          let (w1, retbuf) = fresh ready "%sret" in
-                          let w2 = line w1 (cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al]) in
-                          let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", retbuf] in
-                          let called = line w2 (cat ["  call void ", symbol (specialized-name (d.name) classes), "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
-                          apply-terms-class definitions locals called retbuf rem-args over-ret-class
-                        None -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) call-args of
-                          (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
+                    other -> None) in
+                case ww-hit of
+                  Some (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
+                  None -> case (if non-word then None else case saved of
+                      [] -> (case givens of
+                        [] -> (case witnesses of
+                          [] -> hash-map-lookup (d.name) (program-borrow-modes (writer-program indexed))
+                          other -> None)
+                        other -> None)
+                      other -> None) of
+                    Some mask | list-length mask == count && any-borrowed mask ->
+                      let planned = request-demand (BorrowDemand (d.name) classes) indexed in
+                      (case eval-borrow-args definitions locals planned (take-terms count args) mask of
+                        (ready, values, post-drops) ->
+                          case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
+                            (called, result) -> apply-terms-class definitions locals (drop-locals post-drops called) result rem-args over-ret-class)
+                    other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
+                      (ready, values) ->
+                        let call-args = typed-values (value-param-llvms context all-types) (saved <> givens <> witnesses <> values) in
+                        case definition-sret-result context d of
+                          Some (sret-attr, sz, al) ->
+                            let (w1, retbuf) = fresh ready "%sret" in
+                            let w2 = line w1 (cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al]) in
+                            let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", retbuf] in
+                            let called = line w2 (cat ["  call void ", symbol (specialized-name (d.name) classes), "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
+                            apply-terms-class definitions locals called retbuf rem-args over-ret-class
+                          None -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) call-args of
+                            (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
   -- Evaluate arguments for a borrowed-parameter worker call:
   -- local variables at borrowed positions pass directly without dup/drop;
@@ -5509,18 +5766,22 @@ module Cinch.RuntimeIr where
         else if name == "Refl" then (w, [])
         else case constructor name (writer-program w) of
           Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
-            Some d -> case core-data-layout d of
-              UnboxedData label word bytes align -> match-unboxed fields value failed w
-              ValueData repr sz al vfields -> match-value-data ty sz al vfields fields value failed w
-              layout -> if tag < 16777216 then
-                (case constructor-tag w value of
-                  (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
-                    (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
-                      let pointed = line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
-                      (case layout of
-                        TransparentData field bytes align | bytes < 8 -> match-transparent fields pointer bytes align failed pointed
-                        other -> match-fields fields pointer 0 failed pointed))
-                else (refuse w sp "constructor pattern needs a specialized runtime representation", [])
+            Some d ->
+              let pat-classes = (case arg-word-classes (w.context) (type-arg-list (base (shared-pattern-carrier ty)) []) of Some cs -> cs; None -> []) in
+              case active-niche-layout d pat-classes of
+                Some (word, ctors) -> match-niche ctors name fields value failed w
+                None -> case core-data-layout d of
+                  UnboxedData label word bytes align -> match-unboxed fields value failed w
+                  ValueData repr sz al vfields -> match-value-data ty sz al vfields fields value failed w
+                  layout -> if tag < 16777216 then
+                    (case constructor-tag w value of
+                      (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
+                        (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
+                          let pointed = line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
+                          (case layout of
+                            TransparentData field bytes align | bytes < 8 -> match-transparent fields pointer bytes align failed pointed
+                            other -> match-fields fields pointer 0 failed pointed))
+                    else (refuse w sp "constructor pattern needs a specialized runtime representation", [])
             None -> (refuse w sp "constructor pattern has no defining runtime declaration", []))
           None -> (refuse w sp "constructor pattern has no defining runtime declaration", [])
       CPInt sp ty text -> if number ty then
@@ -5556,6 +5817,193 @@ module Cinch.RuntimeIr where
     CPField sp (CPProof at predicate id name) rest -> match-unboxed rest value failed w
     CPField sp first rest -> match-pattern first value failed w
     other -> (refuse w (Span 0 0 1 1) "unboxed pattern lacks its checked payload", [])
+
+  check-not-sentinels :: List Int -> String -> String -> Writer -> Writer
+  check-not-sentinels sentinels value failed w = case sentinels of
+    [] -> w
+    s : rest -> case compare-word w "ne" value (niche-word-literal False s) of
+      (compared, cond) -> check-not-sentinels rest value failed (continue-if compared cond failed)
+
+  check-niche-range :: Bool -> Int -> Int -> List Int -> String -> String -> Writer -> Writer
+  check-niche-range unsigned lo hi excluded value failed w =
+    let min-bound = if unsigned then (0 :: Int) else (0 - 9223372036854775808) in
+    let max-bound = if unsigned then (18446744073709551615 :: Int) else (9223372036854775807 :: Int) in
+    let ge-pred = if unsigned then "uge" else "sge" in
+    let le-pred = if unsigned then "ule" else "sle" in
+    let w1 = (if lo > min-bound then
+          (case compare-word w ge-pred value (niche-word-literal unsigned lo) of
+            (compared, cond) -> continue-if compared cond failed)
+        else w) in
+    let w2 = (if hi < max-bound then
+          (case compare-word w1 le-pred value (niche-word-literal unsigned hi) of
+            (compared, cond) -> continue-if compared cond failed)
+        else w1) in
+    check-not-sentinels excluded value failed w2
+
+  niche-pow2 :: Nat -> Int
+  niche-pow2 n = if n == 0 then 1 else 2 * niche-pow2 (n - 1)
+
+  emit-niche-pack-fields :: List PackedField -> List String -> Option String -> Writer -> (Writer, Option String)
+  emit-niche-pack-fields pfields vals acc w = case (pfields, vals) of
+    ([], []) -> (w, acc)
+    (pf : more-pfs, arg : more-vals) ->
+      if pf.pf-bits == 0 then emit-niche-pack-fields more-pfs more-vals acc w
+      else
+        let (w1, v0) = (if pf.pf-bias /= 0 then
+              let (wa, r) = fresh w "%pbias" in
+              (line wa (cat ["  ", r, " = sub i64 ", arg, ", ", int-to-string (pf.pf-bias)]), r)
+            else (w, arg)) in
+        let (w2, v1) = (if pf.pf-signed && pf.pf-bits < 64 then
+              let (wb, r) = fresh w1 "%pmask" in
+              let fmask = niche-pow2 (pf.pf-bits) - 1 in
+              (line wb (cat ["  ", r, " = and i64 ", v0, ", ", int-to-string fmask]), r)
+            else (w1, v0)) in
+        let (w3, v2) = (if pf.pf-shift /= 0 then
+              let (wc, r) = fresh w2 "%pshl" in
+              (line wc (cat ["  ", r, " = shl i64 ", v1, ", ", nat-to-string (pf.pf-shift)]), r)
+            else (w2, v1)) in
+        let (w4, next-acc) = (case acc of
+              None -> (w3, Some v2)
+              Some prev ->
+                let (wd, r) = fresh w3 "%por" in
+                (line wd (cat ["  ", r, " = or i64 ", prev, ", ", v2]), Some r)) in
+        emit-niche-pack-fields more-pfs more-vals next-acc w4
+    other -> (w, acc)
+
+  emit-niche-pack :: Int -> List PackedField -> List String -> Writer -> (Writer, String)
+  emit-niche-pack tag-word pfields vals w =
+    let init = if tag-word /= 0 then Some (int-to-string tag-word) else None in
+    case emit-niche-pack-fields pfields vals init w of
+      (w1, Some res) -> (w1, res)
+      (w1, None) -> (w1, "0")
+
+  emit-niche-unpack-field :: PackedField -> String -> Writer -> (Writer, String)
+  emit-niche-unpack-field pf word w =
+    let bits = pf.pf-bits in
+    let shift = pf.pf-shift in
+    let bias = pf.pf-bias in
+    if bits == 0 then (w, int-to-string bias)
+    else if pf.pf-signed then
+      let end-bit = shift + bits in
+      let left = if end-bit < 64 then 64 - end-bit else 0 in
+      let (w1, v0) = (if left > 0 then
+            let (wa, r) = fresh w "%psl" in
+            (line wa (cat ["  ", r, " = shl i64 ", word, ", ", nat-to-string left]), r)
+          else (w, word)) in
+      let right = if bits < 64 then 64 - bits else 0 in
+      let (w2, v1) = (if right > 0 then
+            let (wb, r) = fresh w1 "%psr" in
+            (line wb (cat ["  ", r, " = ashr i64 ", v0, ", ", nat-to-string right]), r)
+          else (w1, v0)) in
+      if bias /= 0 then
+        let (wc, r) = fresh w2 "%padd" in
+        (line wc (cat ["  ", r, " = add i64 ", v1, ", ", int-to-string bias]), r)
+      else (w2, v1)
+    else
+      let (w1, v0) = (if shift > 0 then
+            let (wa, r) = fresh w "%plsr" in
+            (line wa (cat ["  ", r, " = lshr i64 ", word, ", ", nat-to-string shift]), r)
+          else (w, word)) in
+      let (w2, v1) = (if bits < 64 then
+            let (wb, r) = fresh w1 "%pand" in
+            let fmask = niche-pow2 bits - 1 in
+            (line wb (cat ["  ", r, " = and i64 ", v0, ", ", int-to-string fmask]), r)
+          else (w1, v0)) in
+      if bias /= 0 then
+        let (wc, r) = fresh w2 "%padd" in
+        (line wc (cat ["  ", r, " = add i64 ", v1, ", ", int-to-string bias]), r)
+      else (w2, v1)
+
+  match-packed-fields :: List PackedField -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-packed-fields pfields fields value failed w = case fields of
+    CPDone end -> (w, [])
+    CPField sp (CPProof at predicate id name) rest -> match-packed-fields pfields rest value failed w
+    CPField sp first rest -> (case pfields of
+      [] -> (refuse w sp "packed field pattern exceeds packed layout", [])
+      pf : more-pfs -> (case emit-niche-unpack-field pf value w of
+        (w1, fval) -> (case match-pattern first fval failed w1 of
+          (w2, bindings) -> (case match-packed-fields more-pfs rest value failed w2 of
+            (w3, more) -> (w3, bindings <> more)))))
+    other -> (refuse w (Span 0 0 1 1) "malformed packed constructor pattern spine", [])
+
+  emit-niche-encode :: NicheCtor -> String -> Writer -> (Writer, String)
+  emit-niche-encode cplan pval w = case cplan of
+    NicheNullary cname sentinel -> (w, niche-word-literal False sentinel)
+    NichePayload cname multi unsigned lo hi excluded -> (w, pval)
+    NichePtr cname ptag chk ->
+      if ptag == 0 then (w, pval)
+      else let (w1, r) = fresh w "%nptr" in
+        (line w1 (cat ["  ", r, " = or i64 ", pval, ", ", int-to-string ptag]), r)
+    NicheShifted cname mask tag-word shift signed bias ->
+      let (w1, v1) = (if bias /= 0 then
+            let (wa, r) = fresh w "%nbias" in
+            (line wa (cat ["  ", r, " = sub i64 ", pval, ", ", int-to-string bias]), r)
+          else (w, pval)) in
+      let (w2, v2) = (if shift /= 0 then
+            let (wb, r) = fresh w1 "%nshl" in
+            (line wb (cat ["  ", r, " = shl i64 ", v1, ", ", nat-to-string shift]), r)
+          else (w1, v1)) in
+      if tag-word /= 0 then
+        let (w3, r) = fresh w2 "%ntag" in
+        (line w3 (cat ["  ", r, " = or i64 ", v2, ", ", int-to-string tag-word]), r)
+      else (w2, v2)
+    NicheNanF64 cname ->
+      let (w1, d) = fresh w "%nf64" in
+      let (w2, is-nan) = fresh w1 "%nnan" in
+      let (w3, res) = fresh w2 "%ncan" in
+      let w4 = emit-lines w3 [
+        cat ["  ", d, " = bitcast i64 ", pval, " to double"],
+        cat ["  ", is-nan, " = fcmp uno double ", d, ", ", d],
+        cat ["  ", res, " = select i1 ", is-nan, ", i64 9221120237041090560, i64 ", pval]] in
+      (w4, res)
+    NichePacked cname mask tag-word pfields -> emit-niche-pack tag-word pfields [pval] w
+
+  match-niche :: List NicheCtor -> String -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-niche ctors cname fields value failed w = case niche-ctor-lookup cname ctors of
+    Some (NicheNullary n sentinel) ->
+      (case compare-word w "eq" value (niche-word-literal False sentinel) of
+        (ready, cond) -> (continue-if ready cond failed, []))
+    Some (NichePayload n multi unsigned lo hi excluded) ->
+      let checked = (if multi then check-niche-range unsigned lo hi excluded value failed w
+                    else check-not-sentinels (niche-nullary-sentinels ctors) value failed w) in
+      match-unboxed fields value failed checked
+    Some (NichePtr n ptag chk) ->
+      let (w1, masked) = fresh w "%nm" in
+      let w2 = line w1 (cat ["  ", masked, " = and i64 ", value, ", 7"]) in
+      let w3 = (case compare-word w2 "eq" masked (int-to-string ptag) of
+            (cmp, cond) -> continue-if cmp cond failed) in
+      let w4 = (if chk then
+            (case compare-word w3 "ne" value "0" of
+              (cmp, cond) -> continue-if cmp cond failed)
+          else w3) in
+      let (w5, extracted) = (if ptag == 0 then (w4, value) else
+            let (wu, r) = fresh w4 "%nuntag" in
+            (line wu (cat ["  ", r, " = and i64 ", value, ", -7"]), r)) in
+      match-unboxed fields extracted failed w5
+    Some (NicheShifted n mask tag-word shift signed bias) ->
+      let (w1, masked) = fresh w "%nm" in
+      let w2 = line w1 (cat ["  ", masked, " = and i64 ", value, ", ", int-to-string mask]) in
+      let w3 = (case compare-word w2 "eq" masked (int-to-string tag-word) of
+            (cmp, cond) -> continue-if cmp cond failed) in
+      let (w4, unshifted) = (if shift == 0 then (w3, value) else
+            let (ws, r) = fresh w3 "%nshr" in
+            let op = if signed then "ashr" else "lshr" in
+            (line ws (cat ["  ", r, " = ", op, " i64 ", value, ", ", nat-to-string shift]), r)) in
+      let (w5, extracted) = (if bias == 0 then (w4, unshifted) else
+            let (wa, r) = fresh w4 "%nunb" in
+            (line wa (cat ["  ", r, " = add i64 ", unshifted, ", ", int-to-string bias]), r)) in
+      match-unboxed fields extracted failed w5
+    Some (NicheNanF64 n) ->
+      let checked = check-not-sentinels (niche-nullary-sentinels ctors) value failed w in
+      match-unboxed fields value failed checked
+    Some (NichePacked n mask tag-word pfields) ->
+      let checked = (if mask == 0 then w else
+            let (w1, masked) = fresh w "%nm" in
+            let w2 = line w1 (cat ["  ", masked, " = and i64 ", value, ", ", int-to-string mask]) in
+            (case compare-word w2 "eq" masked (int-to-string tag-word) of
+              (cmp, cond) -> continue-if cmp cond failed)) in
+      match-packed-fields pfields fields value failed checked
+    None -> (refuse w (Span 0 0 1 1) "niche pattern missing constructor layout plan", [])
 
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
   match-fields fields pointer index failed w = case fields of
@@ -5664,7 +6112,34 @@ module Cinch.RuntimeIr where
   deferred-let w id sc rhs body =
     (case scheme-params sc of [] -> True; other -> False) && (case scheme-requirements sc of [] -> True; other -> False)
       && scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc)
-      && case-scrutinee-only id body && (case deferred-value (writer-program w) rhs of Some plan -> True; None -> False)
+      && (case deferred-value (writer-program w) rhs of
+        Some (cname, _, _) -> case-scrutinee-only id body || unpacked-arg-only (writer-program w) id cname body
+        None -> False)
+
+  unpacked-arg-only :: ProgramInfo -> Nat -> String -> CoreTerm -> Bool
+  unpacked-arg-only datas id cname body = case body of
+    CLet sp ty bid bname sc rhs inner ->
+      not (term-uses id rhs) && unpacked-arg-only datas id cname inner
+    other -> case erased-constructor-call body [] of
+      Some (rec-ctor, _, args) -> (case constructor rec-ctor datas of
+        Some (owner, _, _) -> (case data-declaration owner datas of
+          Some d -> (case core-data-layout d of
+            UnpackedRecord slots -> unpacked-arg-slots-ok id cname slots args 0
+            other2 -> False)
+          None -> False)
+        None -> False)
+      None -> False
+
+  unpacked-arg-slots-ok :: Nat -> String -> List RecordSlot -> List CoreTerm -> Nat -> Bool
+  unpacked-arg-slots-ok id cname slots args hits = case (slots, args) of
+    ([], []) -> hits == 1
+    ((OrdinarySlot _ _) : more-s, arg : more-a) ->
+      not (term-uses id arg) && unpacked-arg-slots-ok id cname more-s more-a hits
+    ((ProductSlot _ _ ctor _ _) : more-s, arg : more-a) -> case arg of
+      CLocal _ _ lid _ [] | lid == id && ctor.constructor-name == cname ->
+        unpacked-arg-slots-ok id cname more-s more-a (hits + 1)
+      other -> not (term-uses id arg) && unpacked-arg-slots-ok id cname more-s more-a hits
+    other -> False
   deferred-value :: ProgramInfo -> CoreTerm -> Option (String, List UType, List CoreTerm)
   deferred-value datas rhs = case erased-constructor-call rhs [] of
     Some (name, actuals, args) -> if trivial-arguments args && (case constructor name datas of Some found -> True; None -> False) then Some (name, actuals, args) else None
@@ -6104,6 +6579,7 @@ module Cinch.RuntimeIr where
     ty :: UType
     value :: String
     owned :: Bool
+    unique :: Bool
   -- A pattern that cannot fail once the switch has selected its arm, so the
   -- arm needs no test of its own.
   irrefutable-pattern :: CorePattern -> Bool
@@ -6178,16 +6654,19 @@ module Cinch.RuntimeIr where
     other -> False
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
-    case-value-mode definitions locals w ty value True alternatives
+    case-value-mode-u definitions locals w ty value True False alternatives
   case-value-mode :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> (Writer, String)
   case-value-mode definitions locals w ty value owned alternatives =
+    case-value-mode-u definitions locals w ty value owned False alternatives
+  case-value-mode-u :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> CoreTerm -> (Writer, String)
+  case-value-mode-u definitions locals w ty value owned is-uniq alternatives =
     let (one, base) = fresh w "alt" in
     -- A switch names i64 cases and joins at an i64 phi; a wide scrutinee or
     -- result takes the chain, whose tests and slot are typed.
     if wide-type (w.context) ty || is-value-type (w.context) ty || alternatives-llvm w alternatives /= "i64" then case-chain definitions locals one ty value owned alternatives else
     case case-dispatch one alternatives base of
-      HeaderDispatch entries -> switch-value definitions locals one ty value owned True base entries alternatives
-      ImmediateDispatch entries -> switch-value definitions locals one ty value owned False base entries alternatives
+      HeaderDispatch entries -> switch-value definitions locals one ty value owned is-uniq True base entries alternatives
+      ImmediateDispatch entries -> switch-value definitions locals one ty value owned is-uniq False base entries alternatives
       ChainDispatch -> case-chain definitions locals one ty value owned alternatives
   -- The chain tests one alternative at a time and stores the taken arm's
   -- word in the join's slot. Any shape reaches a slot, guarded or not, so
@@ -6220,17 +6699,17 @@ module Cinch.RuntimeIr where
   -- One switch for the whole case, then one block per arm. Each arm leaves
   -- through a block of its own, so the join names every predecessor and
   -- becomes a phi rather than a slot.
-  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> String -> String -> CoreTerm -> (Writer, String)
-  switch-value definitions locals w ty value owned header base entries alternatives =
+  switch-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> Bool -> Bool -> Bool -> String -> String -> CoreTerm -> (Writer, String)
+  switch-value definitions locals w ty value owned is-uniq header base entries alternatives =
     let (one, missed) = fresh w "switchmiss" in
     let (two, joined) = fresh one "casejoin" in
-    let join = SwitchJoin joined missed base ty value owned in
+    let join = SwitchJoin joined missed base ty value owned is-uniq in
     if header then (case constructor-tag w value of
       (loaded, tag) -> switch-arms definitions locals (line loaded (cat ["  switch i64 ", tag, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False)
     else switch-arms definitions locals (line w (cat ["  switch i64 ", value, ", label %", missed, " [", entries, "\n]"])) join alternatives 0 "" False
   switch-arms :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-arms definitions locals w join alternatives index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned -> case alternatives of
+    SwitchJoin joined missed base ty value owned is-uniq -> case alternatives of
       CAlternativesEnd sp -> if defaulted then switch-join w join incoming
         else switch-join (line (line w (cat [missed, ":"])) "  unreachable") join incoming
       CAlternative sp pattern body rest -> case pattern of
@@ -6243,12 +6722,12 @@ module Cinch.RuntimeIr where
       other -> (line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable", incoming)
   switch-join :: Writer -> SwitchJoin -> String -> (Writer, String)
   switch-join w join incoming = case join of
-    SwitchJoin joined missed base ty value owned -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
+    SwitchJoin joined missed base ty value owned is-uniq -> let (ready, result) = fresh (line w (cat [joined, ":"])) "%v" in
       (line ready (cat ["  ", result, " = phi i64 ", incoming]), result)
   -- A default arm captures the scrutinee whole, so it needs no cell.
   switch-default-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> (Writer, String)
   switch-default-arm definitions locals w join body rest index incoming = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [missed, ":"]) in
       case guarded-expression definitions locals entry missed body of
@@ -6309,8 +6788,8 @@ module Cinch.RuntimeIr where
     [] -> (w, [])
     input : rest -> case evaluate-move input w of
       (ready, result) -> case evaluate-fields rest ready of (done, values) -> (done, result : values)
-  rebuild-case-cell :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
-  rebuild-case-cell definitions locals w ty value pointer pattern body = if not ((writer-program w).reclaim) then None else case pattern of
+  rebuild-case-cell :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> Bool -> CorePattern -> CoreTerm -> Option (Writer, String)
+  rebuild-case-cell definitions locals w ty value pointer is-uniq pattern body = if not ((writer-program w).reclaim) then None else case pattern of
     CPConstructor sp subject name actuals sc fields -> case head body of
       CUse at output ctor role params | (name == ctor) && role == "constructor" && scheme-equivalent (mono ty) (mono (core-type body)) ->
         let args = arguments body [] in
@@ -6321,7 +6800,7 @@ module Cinch.RuntimeIr where
                 UniformData -> case source-scheme-classes (w.context) (scheme-params (c.constructor-scheme)) params of
                   Some classes | not (val-code classes) && all-i64-llvms (value-llvms (w.context) (term-types args)) -> (case rebuilding-fields definitions locals w fields args of
                     Some moves -> (case request-data sp d classes w of
-                      (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
+                      (planned, descriptor) -> Some (emit-rebuilt-cell planned ty value pointer is-uniq (data-descriptor descriptor tag) (value-llvms (w.context) (term-types args)) moves))
                     None -> None)
                   other -> None
                 other -> None)
@@ -6330,27 +6809,33 @@ module Cinch.RuntimeIr where
           [] -> None)
       other -> None
     other -> None
-  emit-rebuilt-cell :: Writer -> UType -> String -> String -> Nat -> List String -> List FieldMove -> (Writer, String)
-  emit-rebuilt-cell w ty value pointer descriptor types moves =
-    let (one, unique) = fresh w "%unique" in
-    let (two, shared) = fresh one "shared" in
-    let (three, evaluate) = fresh two "fields" in
-    let tested = line three (cat ["  ", unique, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"]) in
-    let checked = line tested (cat ["  br i1 ", unique, ", label %", evaluate, ", label %", shared]) in
-    let retained = retain-fields moves (line checked (cat [shared, ":"])) in
-    let released = line (count-op False ty value retained) (cat ["  br label %", evaluate]) in
-    case evaluate-fields moves (line released (cat [evaluate, ":"])) of
-      (ready, values) -> let words = typed-values types values in
-        let (four, reuse) = fresh ready "reuse" in
-        let (five, create) = fresh four "allocate" in
-        let (six, join) = fresh five "rebuilt" in
-        let branched = line six (cat ["  br i1 ", unique, ", label %", reuse, ", label %", create]) in
-        let filled = store-typed (line branched (cat [reuse, ":"])) pointer 0 words in
-        let left = line filled (cat ["  br label %", join]) in
-        (case allocate-typed (line left (cat [create, ":"])) descriptor words of
-          (allocated, result) -> let both = line (line allocated (cat ["  br label %", join])) (cat [join, ":"]) in
-            let (done, selected) = fresh both "%v" in
-            (line done (cat ["  ", selected, " = phi i64 [ ", value, ", %", reuse, " ], [ ", result, ", %", create, " ]"]), selected))
+  emit-rebuilt-cell :: Writer -> UType -> String -> String -> Bool -> Nat -> List String -> List FieldMove -> (Writer, String)
+  emit-rebuilt-cell w ty value pointer is-uniq descriptor types moves =
+    if is-uniq then
+      (case evaluate-fields moves w of
+        (ready, values) ->
+          let words = typed-values types values in
+          (store-typed ready pointer 0 words, value))
+    else
+      let (one, unique) = fresh w "%unique" in
+      let (two, shared) = fresh one "shared" in
+      let (three, evaluate) = fresh two "fields" in
+      let tested = line three (cat ["  ", unique, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"]) in
+      let checked = line tested (cat ["  br i1 ", unique, ", label %", evaluate, ", label %", shared]) in
+      let retained = retain-fields moves (line checked (cat [shared, ":"])) in
+      let released = line (count-op False ty value retained) (cat ["  br label %", evaluate]) in
+      case evaluate-fields moves (line released (cat [evaluate, ":"])) of
+        (ready, values) -> let words = typed-values types values in
+          let (four, reuse) = fresh ready "reuse" in
+          let (five, create) = fresh four "allocate" in
+          let (six, join) = fresh five "rebuilt" in
+          let branched = line six (cat ["  br i1 ", unique, ", label %", reuse, ", label %", create]) in
+          let filled = store-typed (line branched (cat [reuse, ":"])) pointer 0 words in
+          let left = line filled (cat ["  br label %", join]) in
+          (case allocate-typed (line left (cat [create, ":"])) descriptor words of
+            (allocated, result) -> let both = line (line allocated (cat ["  br label %", join])) (cat [join, ":"]) in
+              let (done, selected) = fresh both "%v" in
+              (line done (cat ["  ", selected, " = phi i64 [ ", value, ", %", reuse, " ], [ ", result, ", %", create, " ]"]), selected))
 
   -- | Idea 2: Full Perceus reset/reuse across `let`, `if`, proof wrappers, and
   -- cross-constructor same-size cells (non-escaped uniform `i64` layouts).
@@ -6421,15 +6906,15 @@ module Cinch.RuntimeIr where
         other -> None)
     other -> None
 
-  expression-with-reuse :: List CoreDefinition -> List Local -> Writer -> Nat -> String -> CoreTerm -> (Writer, String)
-  expression-with-reuse definitions locals w arity tok term = case term of
-    CProved sp ty ev body -> expression-with-reuse definitions locals w arity tok body
-    CRefine sp ty ev body -> expression-with-reuse definitions locals w arity tok body
-    CRefineProof sp ty witness body -> expression-with-reuse definitions locals w arity tok body
-    CForget sp ty body -> expression-with-reuse definitions locals w arity tok body
-    CCast sp ty body -> expression-with-reuse definitions locals w arity tok body
-    CRequire sp ty body -> expression-with-reuse definitions locals w arity tok body
-    CDischarge sp ty ev _ body -> expression-with-reuse definitions locals w arity tok body
+  expression-with-reuse :: List CoreDefinition -> List Local -> Writer -> Bool -> Nat -> String -> CoreTerm -> (Writer, String)
+  expression-with-reuse definitions locals w is-uniq arity tok term = case term of
+    CProved sp ty ev body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CRefine sp ty ev body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CRefineProof sp ty witness body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CForget sp ty body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CCast sp ty body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CRequire sp ty body -> expression-with-reuse definitions locals w is-uniq arity tok body
+    CDischarge sp ty ev _ body -> expression-with-reuse definitions locals w is-uniq arity tok body
     CIf sp ty test yes no ->
       let result-ty = value-llvm (w.context) ty in
       case expression definitions locals w test of
@@ -6444,10 +6929,10 @@ module Cinch.RuntimeIr where
             cat ["  ", zero, " = icmp ne i64 ", cond, ", 0"],
             cat ["  br i1 ", zero, ", label %", yes-l, ", label %", no-l],
             cat [yes-l, ":"]] in
-          case expression-with-reuse definitions locals branched arity tok yes of
+          case expression-with-reuse definitions locals branched is-uniq arity tok yes of
             (left, yval) ->
               let after-yes = emit-lines left [cat ["  br label %", yes-out], cat [yes-out, ":"], cat ["  br label %", end-l], cat [no-l, ":"]] in
-              case expression-with-reuse definitions locals after-yes arity tok no of
+              case expression-with-reuse definitions locals after-yes is-uniq arity tok no of
                 (right, nval) ->
                   let joined = emit-lines right [cat ["  br label %", no-out], cat [no-out, ":"], cat ["  br label %", end-l], cat [end-l, ":"]] in
                   let (done, phi-v) = fresh joined "%v" in
@@ -6455,41 +6940,50 @@ module Cinch.RuntimeIr where
     other -> case simple-word-let definitions w term of
       Some (sp, id, lty, rhs, body) ->
         if arm-has-reuse-alloc arity rhs then
-          (case expression-with-reuse definitions locals w arity tok rhs of
+          (case expression-with-reuse definitions locals w is-uniq arity tok rhs of
             (bound, val) -> eval-let-body definitions locals bound id lty val body)
         else if arm-has-reuse-alloc arity body then
           (case expression definitions locals w rhs of
             (bound, val) ->
               if not (term-uses-id id body) then
-                expression-with-reuse definitions locals (count-op False lty val bound) arity tok body
-              else case expression-with-reuse definitions ((Local id lty val) : locals) bound arity tok body of
+                expression-with-reuse definitions locals (count-op False lty val bound) is-uniq arity tok body
+              else case expression-with-reuse definitions ((Local id lty val) : locals) bound is-uniq arity tok body of
                 (done, res) -> (count-op False lty val done, res))
         else expression definitions locals (free-reuse-token tok w) term
       None -> case matching-reuse-ctor w arity term of
         Some (planned, new-desc, args) ->
           case expressions definitions locals planned args of
             (ready, vals) ->
-              let (w1, can-r) = fresh ready "%canreuse" in
-              let (w2, hit-l) = fresh w1 "reusehit" in
-              let (w3, miss-l) = fresh w2 "reusemiss" in
-              let (w4, done-l) = fresh w3 "reusedone" in
-              let (w5, rptr) = fresh w4 "%rptr" in
-              let (w6, rhdr) = fresh w5 "%rhdr" in
               let new-hdr = static-header 1 (description-field new-desc) + 1 in
-              let split = emit-lines w6 [
-                cat ["  ", can-r, " = icmp ne i64 ", tok, ", 0"],
-                cat ["  br i1 ", can-r, ", label %", hit-l, ", label %", miss-l],
-                cat [hit-l, ":"],
-                cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
-                cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
-                cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
-              let filled = line (store-typed split rptr 0 (typed-words vals)) (cat ["  br label %", done-l]) in
-              let miss-start = line filled (cat [miss-l, ":"]) in
-              case allocate-typed miss-start new-desc (typed-words vals) of
-                (allocated, fresh-val) ->
-                  let merged = emit-lines allocated [cat ["  br label %", done-l], cat [done-l, ":"]] in
-                  let (done, out-v) = fresh merged "%v" in
-                  (line done (cat ["  ", out-v, " = phi i64 [ ", tok, ", %", hit-l, " ], [ ", fresh-val, ", %", miss-l, " ]"]), out-v)
+              if is-uniq then
+                let (w1, rptr) = fresh ready "%rptr" in
+                let (w2, rhdr) = fresh w1 "%rhdr" in
+                let stamped = emit-lines w2 [
+                  cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
+                  cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
+                  cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
+                (store-typed stamped rptr 0 (typed-words vals), tok)
+              else
+                let (w1, can-r) = fresh ready "%canreuse" in
+                let (w2, hit-l) = fresh w1 "reusehit" in
+                let (w3, miss-l) = fresh w2 "reusemiss" in
+                let (w4, done-l) = fresh w3 "reusedone" in
+                let (w5, rptr) = fresh w4 "%rptr" in
+                let (w6, rhdr) = fresh w5 "%rhdr" in
+                let split = emit-lines w6 [
+                  cat ["  ", can-r, " = icmp ne i64 ", tok, ", 0"],
+                  cat ["  br i1 ", can-r, ", label %", hit-l, ", label %", miss-l],
+                  cat [hit-l, ":"],
+                  cat ["  ", rptr, " = inttoptr i64 ", tok, " to ptr"],
+                  cat ["  ", rhdr, " = getelementptr inbounds i8, ptr ", rptr, ", i64 -8"],
+                  cat ["  store i64 ", nat-to-string new-hdr, ", ptr ", rhdr, ", align 8"]] in
+                let filled = line (store-typed split rptr 0 (typed-words vals)) (cat ["  br label %", done-l]) in
+                let miss-start = line filled (cat [miss-l, ":"]) in
+                case allocate-typed miss-start new-desc (typed-words vals) of
+                  (allocated, fresh-val) ->
+                    let merged = emit-lines allocated [cat ["  br label %", done-l], cat [done-l, ":"]] in
+                    let (done, out-v) = fresh merged "%v" in
+                    (line done (cat ["  ", out-v, " = phi i64 [ ", tok, ", %", hit-l, " ], [ ", fresh-val, ", %", miss-l, " ]"]), out-v)
         None -> expression definitions locals (free-reuse-token tok w) term
 
   has-top-guard :: CoreTerm -> Bool
@@ -6527,41 +7021,46 @@ module Cinch.RuntimeIr where
       None -> False)
     other -> False
 
-  emit-reset-reuse :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
-  emit-reset-reuse definitions locals w ty value pointer fvals arity body =
+  emit-reset-reuse :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> Bool -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
+  emit-reset-reuse definitions locals w ty value pointer is-uniq fvals arity body =
     case reset-partition-fields body fvals of
       (used-locals, unused-fields) ->
-        let (w1, uniq) = fresh w "%runiq" in
-        let (w2, uniq-l) = fresh w1 "resetuniq" in
-        let (w3, shared-l) = fresh w2 "resetshared" in
-        let (w4, join-l) = fresh w3 "resetjoin" in
-        let (w5, tok) = fresh w4 "%rtok" in
-        let checked = emit-lines w5 [
-          cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
-          cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
-          cat [uniq-l, ":"]] in
-        let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
-        let shared-start = line after-uniq (cat [shared-l, ":"]) in
-        let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
-        let joined = emit-lines after-shared [
-          cat [join-l, ":"],
-          cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
-        case expression-with-reuse definitions (used-locals <> locals) joined arity tok body of
-          (done, result) -> (drop-locals used-locals done, result)
+        if is-uniq then
+          let dropped = drop-unused-reset-fields unused-fields w in
+          (case expression-with-reuse definitions (used-locals <> locals) dropped True arity value body of
+            (done, result) -> (drop-locals used-locals done, result))
+        else
+          let (w1, uniq) = fresh w "%runiq" in
+          let (w2, uniq-l) = fresh w1 "resetuniq" in
+          let (w3, shared-l) = fresh w2 "resetshared" in
+          let (w4, join-l) = fresh w3 "resetjoin" in
+          let (w5, tok) = fresh w4 "%rtok" in
+          let checked = emit-lines w5 [
+            cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
+            cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
+            cat [uniq-l, ":"]] in
+          let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
+          let shared-start = line after-uniq (cat [shared-l, ":"]) in
+          let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
+          let joined = emit-lines after-shared [
+            cat [join-l, ":"],
+            cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
+          case expression-with-reuse definitions (used-locals <> locals) joined False arity tok body of
+            (done, result) -> (drop-locals used-locals done, result)
 
-  sink-reset-reuse-branch :: List CoreDefinition -> List Local -> List Local -> Writer -> UType -> String -> String -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
-  sink-reset-reuse-branch definitions locals borrowed-fvals w ty value pointer fvals arity branch =
+  sink-reset-reuse-branch :: List CoreDefinition -> List Local -> List Local -> Writer -> UType -> String -> String -> Bool -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
+  sink-reset-reuse-branch definitions locals borrowed-fvals w ty value pointer is-uniq fvals arity branch =
     if not (value-live-in-body locals value branch) && arm-has-reuse-alloc arity branch then
-      emit-reset-reuse definitions locals w ty value pointer fvals arity branch
+      emit-reset-reuse definitions locals w ty value pointer is-uniq fvals arity branch
     else if can-sink-reset-reuse locals value arity branch then
-      sink-reset-reuse-arm definitions locals borrowed-fvals w ty value pointer fvals arity branch
+      sink-reset-reuse-arm definitions locals borrowed-fvals w ty value pointer is-uniq fvals arity branch
     else if is-bare-value-local locals value branch then
       (w, value)
     else case expression definitions (borrowed-fvals <> locals) w branch of
       (done, res) -> (count-op False ty value done, res)
 
-  sink-reset-reuse-arm :: List CoreDefinition -> List Local -> List Local -> Writer -> UType -> String -> String -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
-  sink-reset-reuse-arm definitions locals borrowed-fvals w ty value pointer fvals arity term = case term of
+  sink-reset-reuse-arm :: List CoreDefinition -> List Local -> List Local -> Writer -> UType -> String -> String -> Bool -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
+  sink-reset-reuse-arm definitions locals borrowed-fvals w ty value pointer is-uniq fvals arity term = case term of
     CIf sp rty test yes no ->
       let result-ty = value-llvm (w.context) rty in
       case expression definitions (borrowed-fvals <> locals) w test of
@@ -6576,10 +7075,10 @@ module Cinch.RuntimeIr where
             cat ["  ", zero, " = icmp ne i64 ", cond, ", 0"],
             cat ["  br i1 ", zero, ", label %", yes-l, ", label %", no-l],
             cat [yes-l, ":"]] in
-          case sink-reset-reuse-branch definitions locals borrowed-fvals branched ty value pointer fvals arity yes of
+          case sink-reset-reuse-branch definitions locals borrowed-fvals branched ty value pointer is-uniq fvals arity yes of
             (left, yval) ->
               let after-yes = emit-lines left [cat ["  br label %", yes-out], cat [yes-out, ":"], cat ["  br label %", end-l], cat [no-l, ":"]] in
-              case sink-reset-reuse-branch definitions locals borrowed-fvals after-yes ty value pointer fvals arity no of
+              case sink-reset-reuse-branch definitions locals borrowed-fvals after-yes ty value pointer is-uniq fvals arity no of
                 (right, nval) ->
                   let joined = emit-lines right [cat ["  br label %", no-out], cat [no-out, ":"], cat ["  br label %", end-l], cat [end-l, ":"]] in
                   let (done, phi-v) = fresh joined "%v" in
@@ -6588,8 +7087,8 @@ module Cinch.RuntimeIr where
       case expression definitions (borrowed-fvals <> locals) w term of
         (done, res) -> (count-op False ty value done, res)
 
-  reset-reuse-arm :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
-  reset-reuse-arm definitions locals w ty value pointer pattern body =
+  reset-reuse-arm :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> Bool -> CorePattern -> CoreTerm -> Option (Writer, String)
+  reset-reuse-arm definitions locals w ty value pointer is-uniq pattern body =
     if not ((writer-program w).reclaim) || has-top-guard body then None
     else case pattern of
       CPConstructor sp aty name actuals sc fields ->
@@ -6616,9 +7115,9 @@ module Cinch.RuntimeIr where
                                 case load-reset-fields planned pointer flat of
                                   (loaded, fvals) ->
                                     if not live-val then
-                                      Some (emit-reset-reuse definitions locals loaded ty value pointer fvals arity body)
+                                      Some (emit-reset-reuse definitions locals loaded ty value pointer is-uniq fvals arity body)
                                     else
-                                      Some (sink-reset-reuse-arm definitions locals (fvals-as-borrowed fvals) loaded ty value pointer fvals arity body))
+                                      Some (sink-reset-reuse-arm definitions locals (fvals-as-borrowed fvals) loaded ty value pointer is-uniq fvals arity body))
                         None -> None)
                       None -> None)
                     other -> None)
@@ -6631,23 +7130,23 @@ module Cinch.RuntimeIr where
   -- can reach the miss block.
   switch-tag-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CorePattern -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-tag-arm definitions locals w join pattern body rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned -> case pattern of
+    SwitchJoin joined missed base ty value owned is-uniq -> case pattern of
       CPConstructor sp aty name actuals sc fields ->
         let (one, out) = fresh w "armout" in
         let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
         let (pointed, pointer) = fresh entry "%ptr" in
         let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
-        case (if owned then reset-reuse-arm definitions locals cell ty value pointer pattern body else None) of
+        case (if owned then reset-reuse-arm definitions locals cell ty value pointer is-uniq pattern body else None) of
           Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
           None -> case match-fields fields pointer 0 missed cell of
-            (bound, bindings) -> case (if owned then rebuild-case-cell definitions bindings bound ty value pointer pattern body else None) of
+            (bound, bindings) -> case (if owned then rebuild-case-cell definitions bindings bound ty value pointer is-uniq pattern body else None) of
               Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
               None -> (case guarded-expression definitions (bindings <> locals) bound missed body of
                 (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
       other -> (line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable", incoming)
   switch-word-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-word-arm definitions locals w join body rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
       case guarded-expression definitions locals entry missed body of
@@ -6656,12 +7155,12 @@ module Cinch.RuntimeIr where
   -- predecessor, so the join reaches it without a slot.
   switch-leave :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-leave definitions locals w join out result rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let cleaned = if owned then count-op False ty value w else w in
       switch-finish definitions locals cleaned join out result rest index incoming defaulted
   switch-finish :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> String -> String -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-finish definitions locals w join out result rest index incoming defaulted = case join of
-    SwitchJoin joined missed base ty value owned ->
+    SwitchJoin joined missed base ty value owned is-uniq ->
       let left = line (line w (cat ["  br label %", out])) (cat [out, ":"]) in
       switch-arms definitions locals (line left (cat ["  br label %", joined])) join rest (index + 1)
         (cat [incoming, if index == 0 then "" else ", ", "[ ", result, ", %", out, " ]"]) defaulted
@@ -7993,18 +8492,588 @@ module Cinch.RuntimeIr where
             Some (ctor, fclasses, fllvms) -> case fold-alternatives alternatives ctor (list-length fclasses) of
               FoldCase fields body -> if row-guarded body then None else
                 let agg-ty = cpr-agg-type fllvms in
-                let cpr-sym = symbol (cat [specialized-name name classes, "#cpr"]) in
-                let arg-llvms = value-llvms (w.context) (term-types args) in
-                (case expressions definitions locals (request-demand (CprDemand name classes) w) args of
-                  (evaluated, arg-words) -> case typed-call evaluated agg-ty cpr-sym (typed-values arg-llvms arg-words) of
+                let (cpr-sym, demand, call-args, call-llvms) = (case ww-plan w d classes of
+                      Some (wparams, _) -> (case ww-flatten-args locals wparams args of
+                        Some flat-args -> (symbol (cat [specialized-name name classes, "#cprww"]), CprWwDemand name classes, flat-args, ww-param-llvms wparams)
+                        None -> (symbol (cat [specialized-name name classes, "#cpr"]), CprDemand name classes, args, value-llvms (w.context) (term-types args)))
+                      None -> (symbol (cat [specialized-name name classes, "#cpr"]), CprDemand name classes, args, value-llvms (w.context) (term-types args))) in
+                (case expressions definitions locals (request-demand demand w) call-args of
+                  (evaluated, arg-words) -> case typed-call evaluated agg-ty cpr-sym (typed-values call-llvms arg-words) of
                     (called, agg) -> case cpr-emit-extract called agg-ty agg fllvms 0 of
                       (extracted, fwords) -> case expression definitions (fold-field-locals fields fwords <> locals) extracted body of
                         (done, result) -> Some (cpr-release-fields fclasses fwords done, result))
               other -> None
-            None -> None
+            None -> fold-csr-case definitions locals w name actuals args classes d alternatives
           None -> None)
       None -> None
     None -> None
+
+  -- | Companion Small-Sum CSR analysis and lowering for 2-constructor uniform
+  -- sums with 0..=2 i64 payload words (`Option`, `Result`, etc.) returned in
+  -- registers as `{ i8, i64 }` or `{ i8, i64, i64 }`, including chained CSR
+  -- tail calls and intermediate CSR case scrutiny.
+  record CsrArm where
+    csr-ctor :: String
+    csr-tag :: Nat
+    csr-classes :: List Nat
+
+  record CsrPlan where
+    arm0 :: CsrArm
+    arm1 :: CsrArm
+    csr-words :: Nat
+
+  csr-agg-type :: Nat -> String
+  csr-agg-type words = if words == 1 then "{ i8, i64 }" else "{ i8, i64, i64 }"
+
+  csr-arm-eq :: CsrArm -> CsrArm -> Bool
+  csr-arm-eq a b = a.csr-ctor == b.csr-ctor && a.csr-tag == b.csr-tag && same-nat-list (a.csr-classes) (b.csr-classes)
+
+  csr-plan-eq :: CsrPlan -> CsrPlan -> Bool
+  csr-plan-eq a b = a.csr-words == b.csr-words && csr-arm-eq (a.arm0) (b.arm0) && csr-arm-eq (a.arm1) (b.arm1)
+
+  csr-add-ctor :: (String, List CoreTerm) -> List (String, List CoreTerm) -> Option (List (String, List CoreTerm))
+  csr-add-ctor item acc = case (item, acc) of
+    ((na, aa), []) -> Some [(na, aa)]
+    ((na, aa), (nb, ab) : rest) ->
+      if na == nb then (if list-length aa == list-length ab then Some ((nb, ab) : rest) else None)
+      else case csr-add-ctor item rest of
+        Some more -> if list-length more < 2 then Some ((nb, ab) : more) else None
+        None -> None
+
+  csr-merge-list :: List (String, List CoreTerm) -> List (String, List CoreTerm) -> Option (List (String, List CoreTerm))
+  csr-merge-list xs acc = case xs of
+    [] -> Some acc
+    first : rest -> case csr-add-ctor first acc of
+      Some next -> csr-merge-list rest next
+      None -> None
+
+  csr-merge-leaves :: Option (List (String, List CoreTerm), List CsrPlan) -> Option (List (String, List CoreTerm), List CsrPlan) -> Option (List (String, List CoreTerm), List CsrPlan)
+  csr-merge-leaves a b = case (a, b) of
+    (Some (ca, pa), Some (cb, pb)) -> (case csr-merge-list ca cb of
+      Some cs -> Some (cs, pa <> pb)
+      None -> None)
+    other -> None
+
+  csr-term-leaves :: Nat -> Writer -> String -> CoreTerm -> Option (List (String, List CoreTerm), List CsrPlan)
+  csr-term-leaves fuel scoped self-name term = case term of
+    CIf sp ty test yes no -> csr-merge-leaves (csr-term-leaves fuel scoped self-name yes) (csr-term-leaves fuel scoped self-name no)
+    CCase sp ty value alts -> csr-alts-leaves fuel scoped self-name alts
+    CGuard sp ty cond body -> csr-term-leaves fuel scoped self-name body
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      [] -> if scheme-supported (scoped.context) sc && word-type (scoped.context) (scheme-body sc) then csr-term-leaves fuel scoped self-name body else None
+      other -> None
+    CRequire sp ty body -> csr-term-leaves fuel scoped self-name body
+    CProved sp ty ev body -> csr-term-leaves fuel scoped self-name body
+    CRefine sp ty ev body -> csr-term-leaves fuel scoped self-name body
+    CRefineProof sp ty witness body -> csr-term-leaves fuel scoped self-name body
+    CDischarge sp ty ev _ body -> csr-term-leaves fuel scoped self-name body
+    CForget sp ty body -> csr-term-leaves fuel scoped self-name body
+    CCast sp ty body -> csr-term-leaves fuel scoped self-name body
+    other -> case erased-constructor-call term [] of
+      Some (name, actuals, args) -> Some ([(name, args)], [])
+      None -> case term of
+        CUse sp ty name role actuals | role == "constructor" -> Some ([(name, [])], [])
+        other2 -> if fuel == 0 then None else (case call-spine term [] of
+          Some (g, actuals, args) | g /= self-name -> (case worker-definition g scoped of
+            Some gd | list-length args == list-length (definition-parameters gd) ->
+              (case source-scheme-classes (scoped.context) (scheme-params (gd.scheme)) actuals of
+                Some gclasses -> (case csr-plan-depth (fuel - 1) scoped gd gclasses of
+                  Some gplan -> Some ([], [gplan])
+                  None -> None)
+                None -> None)
+            other3 -> None)
+          other3 -> None)
+
+  csr-alts-leaves :: Nat -> Writer -> String -> CoreTerm -> Option (List (String, List CoreTerm), List CsrPlan)
+  csr-alts-leaves fuel scoped self-name alts = case alts of
+    CAlternative sp pat body (CAlternativesEnd end) -> csr-term-leaves fuel scoped self-name body
+    CAlternative sp pat body rest -> csr-merge-leaves (csr-term-leaves fuel scoped self-name body) (csr-alts-leaves fuel scoped self-name rest)
+    other -> None
+
+  csr-clauses-leaves :: Nat -> Writer -> String -> List CoreClause -> Option (List (String, List CoreTerm), List CsrPlan)
+  csr-clauses-leaves fuel scoped self-name clauses = case clauses of
+    [CoreClause sp pats body] -> csr-term-leaves fuel scoped self-name body
+    (CoreClause sp pats body) : rest -> csr-merge-leaves (csr-term-leaves fuel scoped self-name body) (csr-clauses-leaves fuel scoped self-name rest)
+    [] -> None
+
+  csr-all-plans-eq :: CsrPlan -> List CsrPlan -> Bool
+  csr-all-plans-eq wanted plans = case plans of
+    [] -> True
+    p : rest -> csr-plan-eq wanted p && csr-all-plans-eq wanted rest
+
+  csr-ctors-match-plan :: Writer -> CsrPlan -> List (String, List CoreTerm) -> Bool
+  csr-ctors-match-plan scoped plan ctors = case ctors of
+    [] -> True
+    (cn, args) : rest -> (case csr-check-arm scoped cn args of
+      Some (_, arm) -> (csr-arm-eq arm (plan.arm0) || csr-arm-eq arm (plan.arm1)) && csr-ctors-match-plan scoped plan rest
+      None -> False)
+
+  csr-check-arm :: Writer -> String -> List CoreTerm -> Option (String, CsrArm)
+  csr-check-arm scoped cname args = case constructor cname (writer-program scoped) of
+    Some (owner, tag, c) | tag <= 255 && list-length args == list-length (core-constructor-fields c) && list-length args <= 2 ->
+      (case data-declaration owner (writer-program scoped) of
+        Some dd ->
+          let uniform = (case core-data-layout dd of UniformData -> True; other -> False) in
+          if uniform && list-length (core-data-constructors dd) == 2 then
+            (case class-vector (scoped.context) (term-types args) of
+              Some fclasses | not (wide-code fclasses) -> Some (owner, CsrArm cname tag fclasses)
+              other -> None)
+          else None
+        None -> None)
+    other -> None
+
+  csr-plan :: Writer -> CoreDefinition -> List Nat -> Option CsrPlan
+  csr-plan w d classes = csr-plan-depth 4 w d classes
+
+  csr-plan-depth :: Nat -> Writer -> CoreDefinition -> List Nat -> Option CsrPlan
+  csr-plan-depth fuel w d classes = case definition-context d classes w of
+    None -> None
+    Some ctx ->
+      let scoped = (case ctx of RuntimeContext datas bounds rigids queue inlining -> with-representations bounds rigids w) in
+      if not (scheme-supported (scoped.context) (d.scheme)) then None
+      else if list-length (runtime-givens scoped d) /= 0 || list-length (definition-value-dependencies scoped d) /= 0 || list-length (d.openings) /= 0 then None
+      else case d.clauses of
+        (CoreClause at patterns body) : rest ->
+          if list-length (proof-stage-arities patterns 0) /= 1 || list-length (runtime-parameters patterns) == 0 then None
+          else (case csr-clauses-leaves fuel scoped (d.name) (d.clauses) of
+            Some (ctors, p0 : more-plans) ->
+              if csr-all-plans-eq p0 more-plans && csr-ctors-match-plan scoped p0 ctors then Some p0 else None
+            Some ([(c0, a0), (c1, a1)], []) ->
+              (case (csr-check-arm scoped c0 a0, csr-check-arm scoped c1 a1) of
+                (Some (o0, arm0), Some (o1, arm1)) | o0 == o1 && arm0.csr-tag /= arm1.csr-tag ->
+                  let n0 = list-length (arm0.csr-classes) in
+                  let n1 = list-length (arm1.csr-classes) in
+                  let maxw = if n0 > n1 then n0 else n1 in
+                  if maxw >= 1 && maxw <= 2 then
+                    if arm0.csr-tag < arm1.csr-tag then Some (CsrPlan arm0 arm1 maxw)
+                    else Some (CsrPlan arm1 arm0 maxw)
+                  else None
+                other -> None)
+            other -> None)
+        [] -> None
+
+  csr-emit-extract-words :: Writer -> String -> String -> Nat -> Nat -> (Writer, List String)
+  csr-emit-extract-words w agg-ty agg count index =
+    if index >= count then (w, [])
+    else
+      let (w1, v) = fresh w "%csrw" in
+      let w2 = line w1 (cat ["  ", v, " = extractvalue ", agg-ty, " ", agg, ", ", nat-to-string (index + 1)]) in
+      case csr-emit-extract-words w2 agg-ty agg count (index + 1) of
+        (w3, more) -> (w3, v : more)
+
+  fold-csr-case :: List CoreDefinition -> List Local -> Writer -> String -> List UType -> List CoreTerm -> List Nat -> CoreDefinition -> CoreTerm -> Option (Writer, String)
+  fold-csr-case definitions locals w name actuals args classes d alternatives =
+    case csr-plan w d classes of
+      None -> None
+      Some (CsrPlan arm0 arm1 words) ->
+        case (fold-alternatives alternatives (arm0.csr-ctor) (list-length (arm0.csr-classes)),
+              fold-alternatives alternatives (arm1.csr-ctor) (list-length (arm1.csr-classes))) of
+          (FoldCase f0 b0, FoldCase f1 b1) | not (row-guarded b0) && not (row-guarded b1) ->
+            let agg-ty = csr-agg-type words in
+            let res-ty = value-llvm (w.context) (core-type b0) in
+            let csr-sym = symbol (cat [specialized-name name classes, "#csr"]) in
+            let arg-llvms = value-llvms (w.context) (term-types args) in
+            (case expressions definitions locals (request-demand (CsrDemand name classes) w) args of
+              (evaluated, arg-words) -> case typed-call evaluated agg-ty csr-sym (typed-values arg-llvms arg-words) of
+                (called, agg) ->
+                  let (w1, tagv) = fresh called "%csrtag" in
+                  let (w2, is0) = fresh w1 "%csris0" in
+                  let (w3, l0) = fresh w2 "csra." in
+                  let (w4, l1) = fresh w3 "csrb." in
+                  let (w5, l0out) = fresh w4 "csraout." in
+                  let (w6, l1out) = fresh w5 "csrbout." in
+                  let (w7, ljoin) = fresh w6 "csrjoin." in
+                  let branched = emit-lines w7 [
+                    cat ["  ", tagv, " = extractvalue ", agg-ty, " ", agg, ", 0"],
+                    cat ["  ", is0, " = icmp eq i8 ", tagv, ", ", nat-to-string (arm0.csr-tag)],
+                    cat ["  br i1 ", is0, ", label %", l0, ", label %", l1],
+                    cat [l0, ":"]] in
+                  case csr-emit-extract-words branched agg-ty agg (list-length (arm0.csr-classes)) 0 of
+                    (e0, w0s) -> case expression definitions (fold-field-locals f0 w0s <> locals) e0 b0 of
+                      (d0, r0) ->
+                        let r0rel = emit-lines (cpr-release-fields (arm0.csr-classes) w0s d0) [
+                          cat ["  br label %", l0out],
+                          cat [l0out, ":"],
+                          cat ["  br label %", ljoin],
+                          cat [l1, ":"]] in
+                        case csr-emit-extract-words r0rel agg-ty agg (list-length (arm1.csr-classes)) 0 of
+                          (e1, w1s) -> case expression definitions (fold-field-locals f1 w1s <> locals) e1 b1 of
+                            (d1, r1) ->
+                              let r1rel = emit-lines (cpr-release-fields (arm1.csr-classes) w1s d1) [
+                                cat ["  br label %", l1out],
+                                cat [l1out, ":"],
+                                cat ["  br label %", ljoin],
+                                cat [ljoin, ":"]] in
+                              let (done, outv) = fresh r1rel "%v" in
+                              Some (line done (cat ["  ", outv, " = phi ", res-ty, " [ ", r0, ", %", l0out, " ], [ ", r1, ", %", l1out, " ]"]), outv))
+          other -> None
+
+  csr-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
+  csr-worker definitions name classes w = case worker-definition name w of
+    None -> refuse w (Span 0 0 1 1) "CSR worker definition is absent"
+    Some d -> case class-bindings (scheme-params (d.scheme)) classes of
+      None -> refuse w (Span 0 0 1 1) "CSR worker needs representation classes"
+      Some bounds -> case definition-rigids d bounds of
+        None -> refuse w (Span 0 0 1 1) "CSR worker openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          case csr-plan scoped d classes of
+            None -> refuse scoped (Span 0 0 1 1) "CSR worker lost its checked sum plan"
+            Some plan -> case d.clauses of
+              (CoreClause at patterns body) : rest ->
+                let parameters = runtime-parameters patterns in
+                let types = pattern-types parameters in
+                let roots = parameter-roots parameters 0 in
+                let prefix = self-binding scoped d classes in
+                let agg-ty = csr-agg-type (plan.csr-words) in
+                let csr-name = cat [specialized-name name classes, "#csr"] in
+                let params = typed-arguments (typed-values (value-llvms (scoped.context) types) (value-parameters (list-length parameters) 0)) in
+                let started = line (line scoped (cat ["define private ", agg-ty, " ", symbol csr-name, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
+                line (csr-clauses definitions plan agg-ty prefix roots (d.clauses) started) "}"
+              [] -> refuse scoped (Span 0 0 1 1) "CSR worker has no clauses"
+
+  csr-clauses :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> List CoreClause -> Writer -> Writer
+  csr-clauses definitions plan agg-ty prefix roots clauses w = case clauses of
+    [] -> line w "  unreachable"
+    (CoreClause sp patterns body) : rest ->
+      let (one, failed) = fresh w "nextcsreq" in
+      case match-clause patterns body prefix 0 failed one of
+        (matched, bindings, rebuilt) ->
+          let done = csr-result definitions plan agg-ty (bindings <> prefix) roots matched failed rebuilt in
+          csr-clauses definitions plan agg-ty prefix roots rest (line done (cat [failed, ":"]))
+
+  csr-emit-return :: Writer -> CsrPlan -> String -> Nat -> List String -> Writer
+  csr-emit-return w plan agg-ty tag vals =
+    let (w1, t0) = fresh w "%csr" in
+    let w2 = line w1 (cat ["  ", t0, " = insertvalue ", agg-ty, " poison, i8 ", nat-to-string tag, ", 0"]) in
+    let pad-vals = case (plan.csr-words, vals) of
+          (1, []) -> ["0"]
+          (1, [a]) -> [a]
+          (2, []) -> ["0", "0"]
+          (2, [a]) -> [a, "0"]
+          (2, [a, b]) -> [a, b]
+          other -> vals in
+    case cpr-emit-insert w2 agg-ty t0 (typed-words pad-vals) 1 of
+      (built, agg) -> line built (cat ["  ret ", agg-ty, " ", agg])
+
+  csr-match-arm :: CsrPlan -> String -> Option CsrArm
+  csr-match-arm plan cname = case plan of
+    CsrPlan a0 a1 words ->
+      if a0.csr-ctor == cname then Some a0
+      else if a1.csr-ctor == cname then Some a1
+      else None
+
+  csr-fold-csr-case :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> Writer -> String -> CoreTerm -> CoreTerm -> Option Writer
+  csr-fold-csr-case definitions plan agg-ty locals roots w failed value alternatives =
+    case call-spine value [] of
+      Some (name, actuals, args) -> case worker-definition name w of
+        Some d | list-length args == list-length (definition-parameters d) ->
+          (case source-scheme-classes (w.context) (scheme-params (d.scheme)) actuals of
+            Some classes -> case csr-plan w d classes of
+              None -> None
+              Some (CsrPlan arm0 arm1 words) ->
+                (case (fold-alternatives alternatives (arm0.csr-ctor) (list-length (arm0.csr-classes)),
+                       fold-alternatives alternatives (arm1.csr-ctor) (list-length (arm1.csr-classes))) of
+                  (FoldCase f0 b0, FoldCase f1 b1) | not (row-guarded b0) && not (row-guarded b1) ->
+                    let c-agg-ty = csr-agg-type words in
+                    let csr-sym = symbol (cat [specialized-name name classes, "#csr"]) in
+                    let arg-llvms = value-llvms (w.context) (term-types args) in
+                    (case expressions definitions locals (request-demand (CsrDemand name classes) w) args of
+                      (evaluated, arg-words) -> case typed-call evaluated c-agg-ty csr-sym (typed-values arg-llvms arg-words) of
+                        (called, agg) ->
+                          let (w1, tagv) = fresh called "%csrtag" in
+                          let (w2, is0) = fresh w1 "%csris0" in
+                          let (w3, l0) = fresh w2 "ccsra." in
+                          let (w4, l1) = fresh w3 "ccsrb." in
+                          let branched = emit-lines w4 [
+                            cat ["  ", tagv, " = extractvalue ", c-agg-ty, " ", agg, ", 0"],
+                            cat ["  ", is0, " = icmp eq i8 ", tagv, ", ", nat-to-string (arm0.csr-tag)],
+                            cat ["  br i1 ", is0, ", label %", l0, ", label %", l1],
+                            cat [l0, ":"]] in
+                          case csr-emit-extract-words branched c-agg-ty agg (list-length (arm0.csr-classes)) 0 of
+                            (e0, w0s) ->
+                              let done0 = csr-result definitions plan agg-ty (fold-field-locals f0 w0s <> locals) (fold-field-roots f0 w0s <> roots) e0 failed b0 in
+                              case csr-emit-extract-words (line done0 (cat [l1, ":"])) c-agg-ty agg (list-length (arm1.csr-classes)) 0 of
+                                (e1, w1s) ->
+                                  Some (csr-result definitions plan agg-ty (fold-field-locals f1 w1s <> locals) (fold-field-roots f1 w1s <> roots) e1 failed b1))
+                  other -> None)
+            None -> None)
+        other -> None
+      None -> None
+
+  csr-result :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
+  csr-result definitions plan agg-ty locals roots w failed term = case term of
+    CIf sp ty test yes no -> case expression definitions locals w test of
+      (tested, condition) ->
+        let (one, otherwise) = fresh tested "csrno" in
+        let selected = continue-if one condition otherwise in
+        let first = csr-result definitions plan agg-ty locals roots selected failed yes in
+        csr-result definitions plan agg-ty locals roots (line first (cat [otherwise, ":"])) failed no
+    CCase sp ty value alts -> case csr-fold-csr-case definitions plan agg-ty locals roots w failed value alts of
+      Some folded -> folded
+      None -> case parameter-value locals roots value of
+        Some (word, remaining) -> csr-case-chain definitions plan agg-ty locals remaining w (core-type value) word True alts
+        None -> case borrowed-local-word locals value of
+          Some word -> csr-case-chain definitions plan agg-ty locals roots w (core-type value) word False alts
+          None -> case expression definitions locals w value of
+            (ready, word) -> csr-case-chain definitions plan agg-ty locals roots ready (core-type value) word True alts
+    CGuard sp ty condition body -> if core-alternative-covers term then
+      csr-result definitions plan agg-ty locals roots w failed body
+      else (case expression definitions locals w condition of
+        (ready, value) -> csr-result definitions plan agg-ty locals roots (continue-if ready value failed) failed body)
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      [] -> if scheme-supported (w.context) sc && word-type (w.context) (scheme-body sc) then
+        (case expression definitions locals w rhs of
+          (ready, value) ->
+            let bound = Local id (scheme-body sc) value in
+            let scoped = bound : locals in
+            let owned = (Discard (scheme-body sc) value) : roots in
+            let (one, cleanup) = fresh ready "csrcleanup" in
+            let emitted = csr-result definitions plan agg-ty scoped owned one cleanup body in
+            let released = count-op False (scheme-body sc) value (line emitted (cat [cleanup, ":"])) in
+            line released (cat ["  br label %", failed]))
+        else line (refuse w sp "CSR worker let needs monomorphic representation") "  unreachable"
+      other -> line (refuse w sp "CSR worker let cannot be polymorphic") "  unreachable"
+    CRequire sp ty body -> csr-result definitions plan agg-ty locals roots w failed body
+    CProved sp ty ev body -> csr-result definitions plan agg-ty locals roots w failed body
+    CRefine sp ty ev body -> csr-result definitions plan agg-ty locals roots w failed body
+    CRefineProof sp ty witness body -> csr-result definitions plan agg-ty locals roots w failed body
+    CDischarge sp ty ev _ body -> csr-result definitions plan agg-ty locals roots w failed body
+    CForget sp ty body -> csr-result definitions plan agg-ty locals roots w failed body
+    CCast sp ty body -> csr-result definitions plan agg-ty locals roots w failed body
+    other -> case erased-constructor-call term [] of
+      Some (cname, actuals, args) -> case csr-match-arm plan cname of
+        Some arm -> case expressions definitions locals w args of
+          (evaluated, vals) -> csr-emit-return (drop-locals roots evaluated) plan agg-ty (arm.csr-tag) vals
+        None -> line (refuse w (Span 0 0 1 1) "CSR worker leaf disagrees with sum constructor") "  unreachable"
+      None -> case term of
+        CUse sp ty cname role actuals | role == "constructor" -> case csr-match-arm plan cname of
+          Some arm -> csr-emit-return (drop-locals roots w) plan agg-ty (arm.csr-tag) []
+          None -> line (refuse w (Span 0 0 1 1) "CSR worker nullary leaf disagrees with sum constructor") "  unreachable"
+        other2 -> case call-spine term [] of
+          Some (g, actuals, args) -> (case worker-definition g w of
+            Some gd | list-length args == list-length (definition-parameters gd) ->
+              (case source-scheme-classes (w.context) (scheme-params (gd.scheme)) actuals of
+                Some gclasses -> (case csr-plan w gd gclasses of
+                  Some gplan | csr-plan-eq plan gplan ->
+                    let csr-sym = symbol (cat [specialized-name g gclasses, "#csr"]) in
+                    let arg-llvms = value-llvms (w.context) (term-types args) in
+                    (case expressions definitions locals (request-demand (CsrDemand g gclasses) w) args of
+                      (evaluated, arg-words) -> case typed-call evaluated agg-ty csr-sym (typed-values arg-llvms arg-words) of
+                        (called, res) -> line (drop-locals roots called) (cat ["  ret ", agg-ty, " ", res]))
+                  other3 -> line (refuse w (Span 0 0 1 1) "CSR worker tail call disagrees with sum plan") "  unreachable")
+                None -> line (refuse w (Span 0 0 1 1) "CSR worker tail call needs specialization") "  unreachable")
+            other3 -> line (refuse w (Span 0 0 1 1) "CSR worker leaf disagrees with sum constructor") "  unreachable")
+          None -> line (refuse w (Span 0 0 1 1) "CSR worker leaf disagrees with sum constructor") "  unreachable"
+
+  csr-case-chain :: List CoreDefinition -> CsrPlan -> String -> List Local -> List Local -> Writer -> UType -> String -> Bool -> CoreTerm -> Writer
+  csr-case-chain definitions plan agg-ty locals roots w ty value drop-scrut alts = case alts of
+    CAlternativesEnd end -> line w "  unreachable"
+    CAlternative sp pattern body rest ->
+      let (one, failed) = fresh w "nextcsralt" in
+      case match-alternative pattern body locals value failed one of
+        (matched, bindings, rebuilt) ->
+          let owned = if drop-scrut then (Discard ty value) : roots else roots in
+          let done = csr-result definitions plan agg-ty (bindings <> locals) owned matched failed rebuilt in
+          csr-case-chain definitions plan agg-ty locals roots (line done (cat [failed, ":"])) ty value drop-scrut rest
+    other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine in CSR worker") "  unreachable"
+  -- | Tier 4 direct unboxed product-parameter worker-wrapper (`#ww`):
+  -- unpacks 1..=3 non-wide field uniform single-constructor product parameters
+  -- into scalar registers when callers pass saturated constructor arguments.
+  data WwParam where
+    WwKeep :: Option Nat -> UType -> String -> WwParam
+    WwUnboxed :: String -> List (Option Nat, UType, Nat) -> List String -> WwParam
+
+  ww-check-product :: Writer -> String -> CorePattern -> Option (List (Option Nat, UType, Nat), List String)
+  ww-check-product scoped cname cfields =
+    case (constructor cname (writer-program scoped), flat-pattern-fields cfields 0) of
+      (Some (owner, 0, ctor), Some flat) ->
+        let k = list-length flat in
+        (case data-declaration owner (writer-program scoped) of
+          Some dd | k >= 1 && k <= 3 && list-length (core-data-constructors dd) == 1 && list-length (core-constructor-fields ctor) == k ->
+            let uniform = (case core-data-layout dd of UniformData -> True; other -> False) in
+            let ftys = map (\entry -> case entry of (_, fty, _) -> fty) flat in
+            if uniform && not (wide-types (scoped.context) ftys) then
+              Some (flat, value-llvms (scoped.context) ftys)
+            else None
+          other -> None)
+      other -> None
+
+  wide-types :: RuntimeContext -> List UType -> Bool
+  wide-types ctx tys = case tys of [] -> False; t : rest -> wide-type ctx t || wide-types ctx rest
+
+  ww-peel-cases :: Writer -> List (Nat, CorePattern) -> CoreTerm -> (List (Nat, String, List (Option Nat, UType, Nat), List String), CoreTerm)
+  ww-peel-cases scoped var-pats body = case body of
+    CCase csp cty (CLocal lsp lty sid sname []) (CAlternative asp (CPConstructor psp pty cname cact csc cfields) arm-body (CAlternativesEnd esp)) ->
+      if has-var-pat sid var-pats && not (term-uses-id sid arm-body) then
+        (case ww-check-product scoped cname cfields of
+          Some (flat, llvms) ->
+            let (more, inner) = ww-peel-cases scoped (drop-var-pat sid var-pats) arm-body in
+            ((sid, cname, flat, llvms) : more, inner)
+          None -> ([], body))
+      else ([], body)
+    other -> ([], body)
+
+  has-var-pat :: Nat -> List (Nat, CorePattern) -> Bool
+  has-var-pat needle ps = case ps of [] -> False; (id, _) : rest -> id == needle || has-var-pat needle rest
+
+  drop-var-pat :: Nat -> List (Nat, CorePattern) -> List (Nat, CorePattern)
+  drop-var-pat needle ps = case ps of
+    [] -> []
+    (id, p) : rest -> if id == needle then rest else (id, p) : (drop-var-pat needle rest)
+
+  lookup-peeled :: Nat -> List (Nat, String, List (Option Nat, UType, Nat), List String) -> Option (String, List (Option Nat, UType, Nat), List String)
+  lookup-peeled needle ps = case ps of
+    [] -> None
+    (id, cname, flat, llvms) : rest -> if id == needle then Some (cname, flat, llvms) else lookup-peeled needle rest
+
+  collect-var-pats :: List CorePattern -> List (Nat, CorePattern)
+  collect-var-pats pats = case pats of
+    [] -> []
+    (CPVar sp ty id name) : rest -> (id, CPVar sp ty id name) : (collect-var-pats rest)
+    other : rest -> collect-var-pats rest
+
+  ww-classify-params :: Writer -> List CorePattern -> List (Nat, String, List (Option Nat, UType, Nat), List String) -> Option (List WwParam, Nat, Bool)
+  ww-classify-params scoped pats peeled = case pats of
+    [] -> Some ([], 0, False)
+    p : rest -> case ww-classify-params scoped rest peeled of
+      None -> None
+      Some (more, count, any-u) -> case p of
+        CPVar sp ty id name -> (case lookup-peeled id peeled of
+          Some (cname, flat, llvms) -> Some ((WwUnboxed cname flat llvms) : more, count + list-length flat, True)
+          None -> if wide-type (scoped.context) ty then None else Some ((WwKeep (Some id) ty (value-llvm (scoped.context) ty)) : more, count + 1, any-u))
+        CPWild sp ty -> if wide-type (scoped.context) ty then None else Some ((WwKeep None ty (value-llvm (scoped.context) ty)) : more, count + 1, any-u)
+        CPConstructor sp ty cname cact csc cfields -> (case ww-check-product scoped cname cfields of
+          Some (flat, llvms) -> Some ((WwUnboxed cname flat llvms) : more, count + list-length flat, True)
+          None -> None)
+        other -> None
+
+  ww-plan :: Writer -> CoreDefinition -> List Nat -> Option (List WwParam, CoreTerm)
+  ww-plan w d classes = case definition-context d classes w of
+    None -> None
+    Some ctx ->
+      let scoped = (case ctx of RuntimeContext datas bounds rigids queue inlining -> with-representations bounds rigids w) in
+      if not (scheme-supported (scoped.context) (d.scheme)) then None
+      else if list-length (runtime-givens scoped d) /= 0 || list-length (definition-value-dependencies scoped d) /= 0 || list-length (d.openings) /= 0 then None
+      else case d.clauses of
+        [CoreClause at patterns body] ->
+          let rparams = runtime-parameters patterns in
+          if list-length (proof-stage-arities patterns 0) /= 1 || list-length rparams == 0 then None
+          else
+            let (peeled, inner) = ww-peel-cases scoped (collect-var-pats rparams) body in
+            (case ww-classify-params scoped rparams peeled of
+              Some (wparams, total, True) | total <= 8 -> Some (wparams, inner)
+              other -> None)
+        other -> None
+
+  ww-flatten-args :: List Local -> List WwParam -> List CoreTerm -> Option (List CoreTerm)
+  ww-flatten-args locals wparams args = case (wparams, args) of
+    ([], []) -> Some []
+    (WwKeep _ _ _ : more-p, arg : more-a) -> (case ww-flatten-args locals more-p more-a of
+      Some rest -> Some (arg : rest)
+      None -> None)
+    (WwUnboxed cname flat llvms : more-p, arg : more-a) ->
+      let k = list-length flat in
+      let matched = (case erased-constructor-call arg [] of
+            Some (aname, actuals, cargs) | aname == cname && list-length cargs == k -> Some cargs
+            other -> case arg of
+              CLocal _ _ id _ [] -> (case deferred-constructor id locals of
+                Some (aname, actuals, cargs) | aname == cname && list-length cargs == k -> Some cargs
+                other2 -> None)
+              other2 -> None) in
+      (case (matched, ww-flatten-args locals more-p more-a) of
+        (Some cargs, Some rest) -> Some (cargs <> rest)
+        other -> None)
+    other -> None
+
+  ww-param-llvms :: List WwParam -> List String
+  ww-param-llvms wparams = case wparams of
+    [] -> []
+    (WwKeep _ _ ty) : rest -> ty : (ww-param-llvms rest)
+    (WwUnboxed _ _ llvms) : rest -> llvms <> ww-param-llvms rest
+
+  try-ww-call :: List CoreDefinition -> List Local -> Writer -> CoreDefinition -> List Nat -> List CoreTerm -> Option (Writer, String)
+  try-ww-call definitions locals w d classes args =
+    case ww-plan w d classes of
+      None -> None
+      Some (wparams, _) -> case ww-flatten-args locals wparams args of
+        None -> None
+        Some flat-args -> case definition-context d classes w of
+          None -> None
+          Some ctx ->
+            let ww-sym = symbol (cat [specialized-name (d.name) classes, "#ww"]) in
+            let planned = request-demand (WwDemand (d.name) classes) w in
+            let res-llvm = definition-result-llvm ctx d in
+            let fllvms = ww-param-llvms wparams in
+            (case expressions definitions locals planned flat-args of
+              (ready, values) -> Some (typed-call ready res-llvm ww-sym (typed-values fllvms values)))
+
+  ww-bind-params :: List WwParam -> Nat -> (List Local, List Local)
+  ww-bind-params wparams slot = case wparams of
+    [] -> ([], [])
+    (WwKeep (Some id) ty _) : rest ->
+      let reg = cat ["%arg", nat-to-string slot] in
+      let (blocs, broots) = ww-bind-params rest (slot + 1) in
+      ((Local id ty reg) : blocs, (Discard ty reg) : broots)
+    (WwKeep None ty _) : rest ->
+      let reg = cat ["%arg", nat-to-string slot] in
+      let (blocs, broots) = ww-bind-params rest (slot + 1) in
+      (blocs, (Discard ty reg) : broots)
+    (WwUnboxed _ flat _) : rest ->
+      let (flocs, next-slot) = unboxed-flat-bindings flat slot in
+      let froots = ww-flat-roots flat slot in
+      let (blocs, broots) = ww-bind-params rest next-slot in
+      (flocs <> blocs, froots <> broots)
+
+  ww-flat-roots :: List (Option Nat, UType, Nat) -> Nat -> List Local
+  ww-flat-roots flat slot = case flat of
+    [] -> []
+    (_, fty, _) : rest -> (Discard fty (cat ["%arg", nat-to-string slot])) : (ww-flat-roots rest (slot + 1))
+
+  ww-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
+  ww-worker definitions name classes w = case worker-definition name w of
+    None -> refuse w (Span 0 0 1 1) "WW worker definition is absent"
+    Some d -> case class-bindings (scheme-params (d.scheme)) classes of
+      None -> refuse w (Span 0 0 1 1) "WW worker needs representation classes"
+      Some bounds -> case definition-rigids d bounds of
+        None -> refuse w (Span 0 0 1 1) "WW worker openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          case ww-plan scoped d classes of
+            None -> refuse scoped (Span 0 0 1 1) "WW worker lost its checked product plan"
+            Some (wparams, inner-body) ->
+              let fllvms = ww-param-llvms wparams in
+              let total = list-length fllvms in
+              let params = typed-arguments (typed-values fllvms (value-parameters total 0)) in
+              let ww-name = cat [specialized-name name classes, "#ww"] in
+              let res-llvm = definition-result-llvm (scoped.context) d in
+              let prefix = self-binding scoped d classes in
+              let (blocs, broots) = ww-bind-params wparams 0 in
+              let started = line (line scoped (cat ["define private ", res-llvm, " ", symbol ww-name, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
+              case expression definitions (blocs <> prefix) started inner-body of
+                (done, res) -> line (line (drop-locals broots done) (cat ["  ret ", res-llvm, " ", res])) "}"
+
+  cpr-ww-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
+  cpr-ww-worker definitions name classes w = case worker-definition name w of
+    None -> refuse w (Span 0 0 1 1) "CPR-WW worker definition is absent"
+    Some d -> case class-bindings (scheme-params (d.scheme)) classes of
+      None -> refuse w (Span 0 0 1 1) "CPR-WW worker needs representation classes"
+      Some bounds -> case definition-rigids d bounds of
+        None -> refuse w (Span 0 0 1 1) "CPR-WW worker openings are invalid"
+        Some rigids -> let scoped = with-representations bounds rigids w in
+          case (cpr-plan scoped d classes, ww-plan scoped d classes) of
+            (Some (ctor, fclasses, fllvms), Some (wparams, inner-body)) ->
+              let param-llvms = ww-param-llvms wparams in
+              let total = list-length param-llvms in
+              let params = typed-arguments (typed-values param-llvms (value-parameters total 0)) in
+              let agg-ty = cpr-agg-type fllvms in
+              let cpr-ww-name = cat [specialized-name name classes, "#cprww"] in
+              let prefix = self-binding scoped d classes in
+              let (blocs, broots) = ww-bind-params wparams 0 in
+              let started = line (line scoped (cat ["define private ", agg-ty, " ", symbol cpr-ww-name, "(", join params, ")", llvm-hint scoped name, worker-open scoped])) "entry:" in
+              let (w1, failed) = fresh started "nextcprww" in
+              let done = cpr-result definitions ctor fllvms agg-ty (blocs <> prefix) broots w1 failed inner-body in
+              line (line (line done (cat [failed, ":"])) "  unreachable") "}"
+            other -> refuse scoped (Span 0 0 1 1) "CPR-WW worker lost its checked product plan"
+
   cpr-worker :: List CoreDefinition -> String -> List Nat -> Writer -> Writer
   cpr-worker definitions name classes w = case worker-definition name w of
     None -> refuse w (Span 0 0 1 1) "CPR worker definition is absent"
@@ -8140,6 +9209,23 @@ module Cinch.RuntimeIr where
     Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
       Some d | unboxed-owner owner w -> let worker = specialized-name name classes in
         emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"]
+      Some d | (case niche-owner-ctor owner name classes w of Some c -> True; None -> False) ->
+        let worker = specialized-name name classes in
+        (case niche-owner-ctor owner name classes w of
+          Some (NicheNullary cn sentinel) ->
+            emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "()", worker-open w], "entry:", cat ["  ret i64 ", niche-word-literal False sentinel], "}"]
+          Some (NichePacked cn mask tag-word pfields) ->
+            let count = list-length pfields in
+            let values = value-parameters count 0 in
+            let typed = typed-values (value-llvms (w.context) (core-constructor-fields c)) values in
+            let started = emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(", join (typed-arguments typed), ")", worker-open w], "entry:"] in
+            (case emit-niche-pack tag-word pfields values started of
+              (done, res) -> emit-lines done [cat ["  ret i64 ", res], "}"])
+          Some cplan ->
+            let started = emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:"] in
+            (case emit-niche-encode cplan "%arg0" started of
+              (done, res) -> emit-lines done [cat ["  ret i64 ", res], "}"])
+          None -> w)
       Some d -> case constructor-call-context d c classes w of
         Some context -> case context of
           RuntimeContext datas bounds rigids queue inlining ->
@@ -8348,6 +9434,217 @@ module Cinch.RuntimeIr where
       else None
     None -> None
 
+  fold-field-roots :: CorePattern -> List String -> List Local
+  fold-field-roots fields words = case fields of
+    CPDone sp -> []
+    CPField sp (CPProof at predicate id binder) rest -> fold-field-roots rest words
+    CPField sp first rest -> case words of
+      [] -> []
+      word : more -> (Discard (pattern-type first) word) : (fold-field-roots rest more)
+    other -> []
+
+  tail-fold-csr-case :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> CoreTerm -> CoreTerm -> Option Writer
+  tail-fold-csr-case definitions locals roots context w failed value alternatives =
+    case call-spine value [] of
+      Some (name, actuals, args) -> case worker-definition name w of
+        Some d | list-length args == list-length (definition-parameters d) ->
+          (case source-scheme-classes (w.context) (scheme-params (d.scheme)) actuals of
+            Some classes -> case csr-plan w d classes of
+              None -> None
+              Some (CsrPlan arm0 arm1 words) ->
+                (case (fold-alternatives alternatives (arm0.csr-ctor) (list-length (arm0.csr-classes)),
+                       fold-alternatives alternatives (arm1.csr-ctor) (list-length (arm1.csr-classes))) of
+                  (FoldCase f0 b0, FoldCase f1 b1) | not (row-guarded b0) && not (row-guarded b1) ->
+                    let agg-ty = csr-agg-type words in
+                    let csr-sym = symbol (cat [specialized-name name classes, "#csr"]) in
+                    let arg-llvms = value-llvms (w.context) (term-types args) in
+                    (case expressions definitions locals (request-demand (CsrDemand name classes) w) args of
+                      (evaluated, arg-words) -> case typed-call evaluated agg-ty csr-sym (typed-values arg-llvms arg-words) of
+                        (called, agg) ->
+                          let (w1, tagv) = fresh called "%csrtag" in
+                          let (w2, is0) = fresh w1 "%csris0" in
+                          let (w3, l0) = fresh w2 "tcsra." in
+                          let (w4, l1) = fresh w3 "tcsrb." in
+                          let branched = emit-lines w4 [
+                            cat ["  ", tagv, " = extractvalue ", agg-ty, " ", agg, ", 0"],
+                            cat ["  ", is0, " = icmp eq i8 ", tagv, ", ", nat-to-string (arm0.csr-tag)],
+                            cat ["  br i1 ", is0, ", label %", l0, ", label %", l1],
+                            cat [l0, ":"]] in
+                          case csr-emit-extract-words branched agg-ty agg (list-length (arm0.csr-classes)) 0 of
+                            (e0, w0s) ->
+                              let done0 = tail-result definitions (fold-field-locals f0 w0s <> locals) (fold-field-roots f0 w0s <> roots) context e0 failed b0 in
+                              case csr-emit-extract-words (line done0 (cat [l1, ":"])) agg-ty agg (list-length (arm1.csr-classes)) 0 of
+                                (e1, w1s) ->
+                                  Some (tail-result definitions (fold-field-locals f1 w1s <> locals) (fold-field-roots f1 w1s <> roots) context e1 failed b1))
+                  other -> None)
+            None -> None)
+        other -> None
+      None -> None
+
+  -- | Product-accumulator self-loop unboxing for `global-tail-worker`:
+  -- when a single-clause self-loop immediately destructures a 1..=3 raw-field
+  -- uniform single-constructor product parameter `pi` and every self-tail call
+  -- passes `Ctor a1..ak` at `pi`, unpack the accumulator into scalar loop slots.
+  all-raw-flat :: RuntimeContext -> List (Option Nat, UType, Nat) -> Bool
+  all-raw-flat ctx flat = case flat of
+    [] -> True
+    (_, fty, _) : rest -> (case word-class ctx fty of Some 0 -> True; other -> False) && all-raw-flat ctx rest
+
+  flat-var-params :: List CorePattern -> Option (List (Nat, UType))
+  flat-var-params pats = case pats of
+    [] -> Some []
+    (CPVar sp ty id name) : rest -> (case flat-var-params rest of
+      Some more -> Some ((id, ty) : more)
+      None -> None)
+    other -> None
+
+  find-param-index :: Nat -> Nat -> List (Nat, UType) -> Option (Nat, UType)
+  find-param-index needle idx ps = case ps of
+    [] -> None
+    (id, ty) : rest -> if id == needle then Some (idx, ty) else find-param-index needle (idx + 1) rest
+
+  nth-core-term :: Nat -> List CoreTerm -> Option CoreTerm
+  nth-core-term idx xs = case xs of
+    [] -> None
+    first : rest -> if idx == 0 then Some first else nth-core-term (idx - 1) rest
+
+  splice-at-term :: Nat -> List CoreTerm -> List CoreTerm -> List CoreTerm
+  splice-at-term idx replacement xs = case xs of
+    [] -> []
+    first : rest -> if idx == 0 then replacement <> rest else first : (splice-at-term (idx - 1) replacement rest)
+
+  splice-at-str :: Nat -> List String -> List String -> List String
+  splice-at-str idx replacement xs = case xs of
+    [] -> []
+    first : rest -> if idx == 0 then replacement <> rest else first : (splice-at-str (idx - 1) replacement rest)
+
+  unboxed-self-call :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Writer -> CoreTerm -> Option (List CoreTerm)
+  unboxed-self-call self-name self-classes orig-arity pi cname k w term = case head term of
+    CUse sp ty name role actuals | role /= "foreign" && role /= "constructor" && name == self-name ->
+      let args = arguments term [] in
+      if list-length args == orig-arity then
+        (case worker-definition name w of
+          Some d -> (case source-scheme-classes (w.context) (scheme-params (d.scheme)) actuals of
+            Some call-classes | same-nat-list call-classes self-classes ->
+              (case nth-core-term pi args of
+                Some acc-arg -> (case erased-constructor-call acc-arg [] of
+                  Some (cn, cact, cargs) | cn == cname && list-length cargs == k ->
+                    Some (splice-at-term pi cargs args)
+                  other -> None)
+                None -> None)
+            other -> None)
+          None -> None)
+      else None
+    other -> None
+
+  unboxed-loop-bindings :: Nat -> Nat -> List (Nat, UType) -> List (Option Nat, UType, Nat) -> Nat -> (List Local, List Local)
+  unboxed-loop-bindings cur pi ps flat slot = case ps of
+    [] -> ([], [])
+    (pid, pty) : rest ->
+      if cur == pi then
+        let (flocs, next-slot) = unboxed-flat-bindings flat slot in
+        (case unboxed-loop-bindings (cur + 1) pi rest flat next-slot of
+          (mlocs, mroots) -> (flocs <> mlocs, mroots))
+      else
+        let word = cat ["%arg", nat-to-string slot] in
+        (case unboxed-loop-bindings (cur + 1) pi rest flat (slot + 1) of
+          (mlocs, mroots) -> ((Borrowed pid pty word) : mlocs, (Discard pty word) : mroots))
+
+  unboxed-flat-bindings :: List (Option Nat, UType, Nat) -> Nat -> (List Local, Nat)
+  unboxed-flat-bindings flat slot = case flat of
+    [] -> ([], slot)
+    (Some fid, fty, _) : rest ->
+      let word = cat ["%arg", nat-to-string slot] in
+      (case unboxed-flat-bindings rest (slot + 1) of
+        (more, end-slot) -> ((Borrowed fid fty word) : more, end-slot))
+    (None, fty, _) : rest -> unboxed-flat-bindings rest (slot + 1)
+
+  load-unboxed-fields :: String -> Nat -> Nat -> Writer -> (Writer, List String)
+  load-unboxed-fields ptr-reg idx count w =
+    if idx >= count then (w, [])
+    else
+      let (w1, gep) = fresh w "%up" in
+      let (w2, val) = fresh w1 "%uv" in
+      let w3 = emit-lines w2 [
+        cat ["  ", gep, " = getelementptr i64, ptr ", ptr-reg, ", i64 ", nat-to-string idx],
+        cat ["  ", val, " = load i64, ptr ", gep]] in
+      case load-unboxed-fields ptr-reg (idx + 1) count w3 of
+        (w4, more) -> (w4, val : more)
+
+  term-has-unboxed-self-tail :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Writer -> CoreTerm -> Bool
+  term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w term = case term of
+    CIf sp ty test yes no ->
+      term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w yes
+      || term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w no
+    CCase sp ty scrut alts -> alts-have-unboxed-self-tail self-name self-classes orig-arity pi cname k w alts
+    CLet sp ty id name sc rhs body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CGuard sp ty cond body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CRequire sp ty body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CProved sp ty ev body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CRefine sp ty ev body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CRefineProof sp ty witness body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CDischarge sp ty ev _ body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CForget sp ty body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    CCast sp ty body -> term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+    other -> case unboxed-self-call self-name self-classes orig-arity pi cname k w term of
+      Some _ -> True
+      None -> False
+
+  alts-have-unboxed-self-tail :: String -> List Nat -> Nat -> Nat -> String -> Nat -> Writer -> CoreTerm -> Bool
+  alts-have-unboxed-self-tail self-name self-classes orig-arity pi cname k w alts = case alts of
+    CAlternative sp pat body rest ->
+      term-has-unboxed-self-tail self-name self-classes orig-arity pi cname k w body
+      || alts-have-unboxed-self-tail self-name self-classes orig-arity pi cname k w rest
+    other -> False
+
+  try-unboxed-acc-tail-worker :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> Writer -> Nat -> Option (String, String) -> Option Writer
+  try-unboxed-acc-tail-worker definitions d classes prefix w arity loop =
+    if arity > 6 then None
+    else case d.clauses of
+      [CoreClause sp pats body] ->
+        (case (flat-var-params pats, body) of
+          (Some ps, CCase csp cty (CLocal lsp lty sid sname []) (CAlternative asp (CPConstructor psp pty cname cact csc cfields) arm-body (CAlternativesEnd esp))) ->
+            (case find-param-index sid 0 ps of
+              Some (pi, pty0) | not (term-uses-id sid arm-body) ->
+                (case (constructor cname (writer-program w), flat-pattern-fields cfields 0) of
+                  (Some (owner, 0, ctor), Some flat) ->
+                    let k = list-length flat in
+                    (case data-declaration owner (writer-program w) of
+                      Some dd | k >= 1 && k <= 3 && list-length (core-data-constructors dd) == 1 && list-length (core-constructor-fields ctor) == k ->
+                        let uniform = (case core-data-layout dd of UniformData -> True; other -> False) in
+                        if uniform && all-raw-flat (w.context) flat && term-has-unboxed-self-tail (d.name) classes arity pi cname k w arm-body then
+                          let name = specialized-name (d.name) classes in
+                          let callee = tail-worker-name name in
+                          let hint = llvm-hint w (d.name) in
+                          let new-width = arity + (k - 1) in
+                          let entry-args = value-parameters arity 0 in
+                          let loop-args = value-parameters new-width 0 in
+                          let init-params = map (\word -> word <> ".initial") loop-args in
+                          let acc-word = cat ["%arg", nat-to-string pi] in
+                          let w0 = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words entry-args), ")", hint, worker-open w])) "entry:" in
+                          let (w1, ptr-reg) = fresh w0 "%uptr" in
+                          let w2 = line w1 (cat ["  ", ptr-reg, " = inttoptr i64 ", acc-word, " to ptr"]) in
+                          (case load-unboxed-fields ptr-reg 0 k w2 of
+                            (w3, fwords) ->
+                              let w4 = count-op False pty0 acc-word w3 in
+                              let call-words = splice-at-str pi fwords entry-args in
+                              (case call w4 (symbol callee) call-words of
+                                (called, res) ->
+                                  let wrapped = line (line called (cat ["  ret i64 ", res])) "}" in
+                                  let started = line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words init-params), ")", hint, worker-open w])) "entry:" in
+                                  let looped = load-loop-arguments loop-args (line (line (allocate-loop-arguments loop-args started) "  br label %self.loop") "self.loop:") in
+                                  let (blocs, broots) = unboxed-loop-bindings 0 pi ps flat 0 in
+                                  let (w5, failed) = fresh looped "nextunbox" in
+                                  let ctx = UnboxedAccTail (d.name) classes arity pi cname k new-width loop in
+                                  let body-done = tail-result definitions (blocs <> (LoopMarker : prefix)) broots ctx w5 failed arm-body in
+                                  Some (line (line (line body-done (cat [failed, ":"])) "  unreachable") "}")))
+                        else None
+                      other -> None)
+                  other -> None)
+              other -> None)
+          other -> None)
+      other -> None
+
   tail-result :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> CoreTerm -> Writer
   tail-result definitions locals roots context w failed term = case term of
     CIf sp ty test yes no -> case expression definitions locals w test of
@@ -8356,12 +9653,14 @@ module Cinch.RuntimeIr where
         let selected = continue-if one condition otherwise in
         let first = tail-result definitions locals roots context selected failed yes in
         tail-result definitions locals roots context (line first (cat [otherwise, ":"])) failed no
-    CCase sp ty value alternatives -> case parameter-value locals roots value of
-      Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word True alternatives
-      None -> case borrowed-local-word locals value of
-        Some word -> tail-rows definitions locals roots context w (core-type value) word False alternatives
-        None -> case expression definitions locals w value of
-          (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word True alternatives
+    CCase sp ty value alternatives -> case tail-fold-csr-case definitions locals roots context w failed value alternatives of
+      Some folded -> folded
+      None -> case parameter-value locals roots value of
+        Some (word, remaining) -> tail-rows definitions locals remaining context w (core-type value) word True alternatives
+        None -> case borrowed-local-word locals value of
+          Some word -> tail-rows definitions locals roots context w (core-type value) word False alternatives
+          None -> case expression definitions locals w value of
+            (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word True alternatives
     CGuard sp ty condition body -> if core-alternative-covers term then
       tail-result definitions locals roots context w failed body
       else (case expression definitions locals w condition of
@@ -8413,6 +9712,10 @@ module Cinch.RuntimeIr where
             (case evidences definitions locals (demand-worker name classes w) evidence of
               (ready, prefix) -> transfer-tail-prefix definitions locals roots [] width ready (tail-worker-name (specialized-name name classes)) prefix args loop [])
         None -> tail-return definitions locals roots w failed term
+      UnboxedAccTail self-name self-classes orig-arity pi cname k new-width loop ->
+        (case unboxed-self-call self-name self-classes orig-arity pi cname k w term of
+          Some flat-args -> transfer-tail-prefix definitions locals roots [] new-width w (tail-worker-name (specialized-name self-name self-classes)) [] flat-args loop []
+          None -> tail-return definitions locals roots w failed term)
 
   tail-return :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
   tail-return definitions locals roots w failed body = case worker-result definitions locals roots w failed body of
@@ -8541,8 +9844,15 @@ module Cinch.RuntimeIr where
         FunctionHints inline cold (Some count) ->
           (case loop-metadata count w of (next, metadata) -> (next, Some (tail-worker-name name, metadata)))
         other -> (w, Some (tail-worker-name name, ""))) in
-    let started = start-tail-worker (llvm-hint w (d.name)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
-    line (global-tail-clauses definitions (LoopMarker : prefix) roots offset (GlobalTail group width loop []) (d.clauses) started) "}"
+    if self-loop && offset == 0 && arity == width then
+      (case try-unboxed-acc-tail-worker definitions d classes prefix prepared arity loop of
+        Some emitted -> emitted
+        None ->
+          let started = start-tail-worker (llvm-hint w (d.name)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
+          line (global-tail-clauses definitions (LoopMarker : prefix) roots offset (GlobalTail group width loop []) (d.clauses) started) "}")
+    else
+      let started = start-tail-worker (llvm-hint w (d.name)) name (offset + arity) width (case loop of Some value -> True; None -> False) prepared in
+      line (global-tail-clauses definitions (LoopMarker : prefix) roots offset (GlobalTail group width loop []) (d.clauses) started) "}"
 
   -- | Build parameter roots omitting Discard entries for borrowed parameters (`True`).
   borrowed-parameter-roots :: List CorePattern -> Nat -> List Bool -> List Local
@@ -8716,6 +10026,9 @@ module Cinch.RuntimeIr where
     PrimitiveIntrinsicDemand symbol -> primitive-intrinsic-worker symbol claimed
     PrimitiveUseDemand symbol decl -> global claimed decl
     CprDemand name classes -> cpr-worker definitions name classes claimed
+    CprWwDemand name classes -> cpr-ww-worker definitions name classes claimed
+    CsrDemand name classes -> csr-worker definitions name classes claimed
+    WwDemand name classes -> ww-worker definitions name classes claimed
     BorrowDemand name classes -> borrow-worker definitions name classes claimed
     BuiltinBorrowDemand name -> builtin-borrow-worker name claimed
     MemcpyDemand -> global claimed "declare void @llvm.memcpy.p0.p0.i64(ptr noalias writeonly, ptr noalias readonly, i64, i1 immarg)"
@@ -8863,6 +10176,9 @@ module Cinch.RuntimeIr where
       None -> case demand of
         Demand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         CprDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        CprWwDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        CsrDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        WwDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         BorrowDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         DictionaryDemand name classes -> False
         other -> True
@@ -9035,35 +10351,35 @@ module Cinch.RuntimeIr where
       "  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
       "  %top = shl i64 %h, 29\n  %single = icmp eq i64 %top, 536870912\n  ret i1 %single\n}\n",
       "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %pos = icmp sgt i64 %top, 0\n  %plain = and i1 %pos, %nf\n",
       "  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
       if concurrent then
-        "other:\n  %nz = icmp ne i64 %top, 0\n  %shared = and i1 %nz, %nf\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"
+        "other:\n  %nz = icmp ne i64 %top, 0\n  %shared = and i1 %nz, %nf\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %u)\n  br label %done\ndone:\n  ret void\n}\n"
       else
         "other:\n  br label %done\ndone:\n  ret void\n}\n",
       "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %gt1 = icmp sgt i64 %top, 536870912\n  %plain = and i1 %gt1, %nf\n",
       "  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
       "other:\n  switch i64 %top, label %", if concurrent then "mt" else "done", " [\n    i64 0, label %done\n    i64 536870912, label %slow\n    i64 9223372036317904896, label %frame\n    i64 9223372035781033984, label %done\n  ]\n",
-      "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %w)\n  br label %done\n",
-      if concurrent then "mt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\n" else "",
+      "slow:\n  call void @cinch_drop_slow(i64 %u)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %u)\n  br label %done\n",
+      if concurrent then "mt:\n  call void @cinch_drop_mt(i64 %u)\n  br label %done\n" else "",
       "done:\n  ret void\n}\n",
       "define internal void @cinch.typed.rc.dup.local(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %pos = icmp sgt i64 %top, 0\n  %plain = and i1 %pos, %nf\n",
       "  br i1 %plain, label %inc, label %done\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\ndone:\n  ret void\n}\n",
       "define internal void @cinch.typed.rc.drop.local(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %gt1 = icmp sgt i64 %top, 536870912\n  %plain = and i1 %gt1, %nf\n",
       "  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
       "other:\n  switch i64 %top, label %done [\n    i64 536870912, label %slow\n    i64 9223372036317904896, label %frame\n  ]\n",
-      "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
+      "slow:\n  call void @cinch_drop_slow(i64 %u)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %u)\n  br label %done\ndone:\n  ret void\n}\n"]
   -- The reference count debugging build (TargetProfile::rc_debug in
   -- seed/src/core.rs): all helpers call the runtime's out-of-line
   -- cinch_dup and cinch_drop, so CINCH_RC_DEBUG=1 checks every count
@@ -9206,7 +10522,8 @@ module Cinch.RuntimeIr where
     let new-consumed = compute-consumed-params definitions new-borrows in
     let new-arenas = compute-arena-phases definitions new-tails in
     let new-concurrent = program-uses-concurrency definitions in
-    let new-ownership = OwnershipPlan new-borrows new-consumed new-arenas new-concurrent in
+    let new-ret-uniq = compute-returns-unique definitions in
+    let new-ownership = OwnershipPlan new-borrows new-consumed new-arenas new-concurrent new-ret-uniq in
     let planned = with-ownership-plan new-ownership planned-tails in
     let usable = case (plan, cache) of
           (NoInline, UnitIrCache old-units old-tails old-ownership old-versions old-count) ->

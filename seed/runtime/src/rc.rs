@@ -129,8 +129,20 @@ use std::sync::atomic::{fence, AtomicBool, Ordering};
 use crate::block::{self, Scan, SCAN_OBJ, SCAN_RAW};
 
 /// The low bits of a slot [`cinch_mark_mt`] reversed: the parent link,
-/// a block address or 0, with this tag in its two low bits.
-const MARK_LINK: i64 = 2;
+/// a block address or 0, with this tag in its low three bits (`0b110`).
+/// Even pointer tags `0`, `2`, and `4` are available for pointer-tagged
+/// `TObj` sums (Tier 1), so `6` (`0b110`) never collides with any live slot.
+const MARK_LINK: i64 = 6;
+
+/// Low-bit pointer tag mask (`0b110`) for 8-byte-aligned heap blocks
+/// stored in `TObj` words (tags `0`, `2`, and `4`).
+const PTR_TAG_MASK: i64 = 6;
+
+/// Strip low pointer tag bits (`0b110`) from a `TObj` block word.
+#[inline]
+fn untag_block(word: i64) -> i64 {
+    word & !PTR_TAG_MASK
+}
 
 /// Local stack capacity for [`cinch_mark_mt`]'s fast path before spilling
 /// deeper subtrees to O(1)-stack pointer reversal.
@@ -202,10 +214,11 @@ pub fn reclaiming() -> bool {
     RECLAIM.load(Ordering::Relaxed)
 }
 
-/// Whether `word` is a block pointer rather than 0 or an immediate.
+/// Whether `word` is a block pointer (possibly pointer-tagged in bits 1..2)
+/// rather than 0 or an immediate (bit 0 set).
 #[inline]
 fn is_block_word(word: i64) -> bool {
-    word != 0 && word & 1 == 0
+    word & 1 == 0 && untag_block(word) != 0
 }
 
 /// Whether `kind` is the kind of a live block.
@@ -239,10 +252,11 @@ pub unsafe extern "C" fn cinch_dup(word: i64) {
     if !is_block_word(word) {
         return;
     }
-    let p = word as usize as *mut u8;
+    let raw = untag_block(word);
+    let p = raw as usize as *mut u8;
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
-        check(word, h);
+        check(raw, h);
     }
     match block::rc(h) {
         // Static blocks and frame blocks are never counted, released or
@@ -273,17 +287,18 @@ pub unsafe extern "C" fn cinch_drop(word: i64) {
     if !is_block_word(word) {
         return;
     }
-    let p = word as usize as *mut u8;
+    let raw = untag_block(word);
+    let p = raw as usize as *mut u8;
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
-        check(word, h);
+        check(raw, h);
     }
     match block::rc(h) {
         // A static block is never counted and never freed: the process
         // owns it. A frame block is released once (`cinch_frame_release`)
         // and never freed: the activation's frame owns its memory.
         block::RC_IMMORTAL | block::RC_FRAME_RELEASED => {}
-        block::RC_FRAME => unsafe { cinch_frame_release(word) },
+        block::RC_FRAME => unsafe { cinch_frame_release(raw) },
         block::RC_FRESH => unsafe { release(p, h) },
         n if n > 1 => {
             let next = h.wrapping_sub(1);
@@ -313,17 +328,18 @@ pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
     if !is_block_word(word) {
         corrupt();
     }
-    let p = word as usize as *mut u8;
+    let raw = untag_block(word);
+    let p = raw as usize as *mut u8;
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
-        check(word, h);
+        check(raw, h);
     }
     match block::rc(h) {
         // A frame block under `CINCH_RC_DEBUG=1` is a compiler bug: the
         // debug paths call `cinch_drop`, which releases a frame payload
         // without a count, so this path should never see one.
         block::RC_FRAME | block::RC_FRAME_RELEASED if crate::heap::rc_debug() => corrupt(),
-        block::RC_FRAME => unsafe { cinch_frame_release(word) },
+        block::RC_FRAME => unsafe { cinch_frame_release(raw) },
         block::RC_FRAME_RELEASED => {}
         block::RC_FRESH => unsafe { release(p, h) },
         _ => corrupt(),
@@ -373,7 +389,8 @@ pub unsafe extern "C" fn cinch_frame_release(word: i64) {
         }
         return;
     }
-    let p = word as usize as *mut u8;
+    let raw = untag_block(word);
+    let p = raw as usize as *mut u8;
     let h = unsafe { block::read_header(p) };
     let n = block::rc(h);
     if n == block::RC_FRAME_RELEASED {
@@ -381,7 +398,7 @@ pub unsafe extern "C" fn cinch_frame_release(word: i64) {
         return;
     }
     if crate::heap::rc_debug() {
-        check(word, h);
+        check(raw, h);
         // A frame release of a heap block is a compiler bug: the block's
         // count is live and `cinch_drop` owns its release.
         if n != block::RC_FRAME {
@@ -440,10 +457,11 @@ pub(crate) unsafe fn release_children(p: *mut u8, h: u64, debug: bool) {
 /// `word` is a live block word with a negative count.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_dup_mt(word: i64) {
-    let p = word as usize as *mut u8;
+    let raw = untag_block(word);
+    let p = raw as usize as *mut u8;
     if crate::heap::rc_debug() {
         let h = unsafe { block::read_header(p) };
-        check(word, h);
+        check(raw, h);
         if block::rc(h) >= 0 {
             corrupt();
         }
@@ -461,10 +479,11 @@ pub unsafe extern "C" fn cinch_dup_mt(word: i64) {
 /// caller owns and does not use again.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_drop_mt(word: i64) {
-    let p = word as usize as *mut u8;
+    let raw = untag_block(word);
+    let p = raw as usize as *mut u8;
     if crate::heap::rc_debug() {
         let h = unsafe { block::read_header(p) };
-        check(word, h);
+        check(raw, h);
         if block::rc(h) >= 0 {
             corrupt();
         }
@@ -549,10 +568,11 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
     if !is_block_word(word) {
         return;
     }
-    let Some(mut h) = (unsafe { claim(word) }) else {
+    let root = untag_block(word);
+    let Some(mut h) = (unsafe { claim(root) }) else {
         return;
     };
-    let mut cur = word as usize as *mut u8;
+    let mut cur = root as usize as *mut u8;
     if unsafe { is_leaf_block(cur, h) } {
         return;
     }
@@ -568,8 +588,9 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
             next = at;
             let w = unsafe { cur.cast::<i64>().add(at).read() };
             if is_block_word(w) {
-                if let Some(ch) = unsafe { claim(w) } {
-                    let c = w as usize as *mut u8;
+                let cw = untag_block(w);
+                if let Some(ch) = unsafe { claim(cw) } {
+                    let c = cw as usize as *mut u8;
                     if unsafe { is_leaf_block(c, ch) } {
                         continue;
                     }
@@ -635,16 +656,23 @@ unsafe fn mark_mt_pointer_reversal(root: *mut u8, mut h: u64) {
             next = at;
             let slot = unsafe { cur.cast::<i64>().add(at) };
             let w = unsafe { slot.read() };
-            if is_block_word(w) {
-                if let Some(ch) = unsafe { claim(w) } {
-                    let c = w as usize as *mut u8;
-                    if unsafe { is_leaf_block(c, ch) } {
-                        continue;
-                    }
-                    unsafe { slot.write(parent as usize as i64 | MARK_LINK) };
-                    child = Some((c, ch));
-                    break;
+            if !is_block_word(w) {
+                continue;
+            }
+            if (w & PTR_TAG_MASK) != 0 {
+                // Pointer-tagged `TObj` child (tag 2 or 4): recurse on the
+                // untagged pointer without overwriting the slot's tag bits.
+                unsafe { cinch_mark_mt(untag_block(w)) };
+                continue;
+            }
+            if let Some(ch) = unsafe { claim(w) } {
+                let c = w as usize as *mut u8;
+                if unsafe { is_leaf_block(c, ch) } {
+                    continue;
                 }
+                unsafe { slot.write(parent as usize as i64 | MARK_LINK) };
+                child = Some((c, ch));
+                break;
             }
         }
         if let Some((c, ch)) = child {
@@ -669,12 +697,12 @@ unsafe fn mark_mt_pointer_reversal(root: *mut u8, mut h: u64) {
             };
             at = slot;
             let w = unsafe { cur.cast::<i64>().add(at).read() };
-            if w & 3 == MARK_LINK {
+            if w & 7 == MARK_LINK {
                 break w;
             }
         };
         unsafe { cur.cast::<i64>().add(at).write(done as usize as i64) };
-        parent = (link & !3) as usize as *mut u8;
+        parent = (link & !7) as usize as *mut u8;
         resume = Some(at);
     }
 }
@@ -848,10 +876,15 @@ unsafe fn release_graph(
                 }
                 continue;
             }
-            let c = w as usize as *mut u8;
+            if debug && code == SCAN_OBJ && w & PTR_TAG_MASK != 0 {
+                // An `Obj` slot never holds a pointer-tagged `TObj`.
+                corrupt();
+            }
+            let c_raw = untag_block(w);
+            let c = c_raw as usize as *mut u8;
             let ch = unsafe { block::read_header(c) };
             if debug {
-                check(w, ch);
+                check(c_raw, ch);
             }
             let dying = match block::rc(ch) {
                 block::RC_IMMORTAL => None,
@@ -1614,4 +1647,39 @@ mod tests {
         crate::heap::FORCE_RC_DEBUG.with(|d| d.set(false));
     }
 
+    #[test]
+    fn tagged_pointer_rc_and_mark_mt_preserve_tags_and_free_cleanly() {
+        crate::block::install_test_layouts();
+        // Two mortal children stored with low pointer tags 2 and 4 inside a
+        // TObj-scanned container block (`CONS_T`: [TObj, Obj]).
+        let c2 = ctor(NIL, &[]);
+        let c4 = ctor(NIL, &[]);
+        let t2 = c2 | 2;
+        let t4 = c4 | 4;
+        // Dup and drop through tagged pointers act on the underlying block.
+        unsafe { cinch_dup(t2) };
+        assert_eq!(rc_of(c2), 2);
+        unsafe { cinch_drop(t2) };
+        assert_eq!(rc_of(c2), 1);
+
+        let inner = ctor(CONS_T, &[t4, immortal_nil()]);
+        let outer = ctor(CONS_T, &[t2, inner]);
+        // `cinch_mark_mt` must mark both tagged children atomic while
+        // preserving their exact tag bits (`2` and `4`) in the container slots.
+        unsafe { cinch_mark_mt(outer) };
+        assert_eq!(rc_of(outer), -1);
+        assert_eq!(rc_of(inner), -1);
+        assert_eq!(rc_of(c2), -1);
+        assert_eq!(rc_of(c4), -1);
+        let read_slot = |w: i64, idx: usize| unsafe { (w as usize as *const i64).add(idx).read() };
+        assert_eq!(read_slot(outer, 0), t2, "tag 2 preserved across cinch_mark_mt");
+        assert_eq!(read_slot(inner, 0), t4, "tag 4 preserved across cinch_mark_mt");
+
+        // Releasing the root drops and frees every tagged child cleanly.
+        let freed = freed_by(|| unsafe { cinch_drop(outer) });
+        assert!(freed.contains(&(c2 as usize)));
+        assert!(freed.contains(&(c4 as usize)));
+        assert!(freed.contains(&(inner as usize)));
+        assert!(freed.contains(&(outer as usize)));
+    }
 }

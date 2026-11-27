@@ -967,6 +967,8 @@ fn pass(
             Some(Rule::PrimFold)
         } else if opts.case_of_case && case_of_case(e, classes, opts, fresh, t) {
             Some(Rule::CaseOfCase)
+        } else if sink_partial_escape(e, tables, fresh) {
+            Some(Rule::KnownConstructor)
         } else {
             None
         };
@@ -3361,6 +3363,9 @@ pub fn simplify_with_foreign(
     let mut specs = SpecState::default();
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
+        if opts.inline && unbox_product_params(program, &mut tables, &mut fresh) {
+            ticks.changed = true;
+        }
         if opts.inline && spec_static_args(program, &mut tables, &mut fresh, &mut dict_specs) {
             ticks.changed = true;
         }
@@ -5075,6 +5080,435 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
             }
         }
     }
+}
+
+/// True when every mention of `l` inside `e` is only as the scrutinee of a
+/// `Case` or the container of a `Proj` (so sinking `let l = Ctor a1..ak` into
+/// `e` lets `known_constructor` / `projection` fold away the allocation).
+fn only_scrutinized_or_proj(e: &Core, l: LocalId) -> bool {
+    match e {
+        Core::Var(x) => *x != l,
+        Core::Case { scrut, alts } => {
+            let scrut_ok = matches!(&**scrut, Core::Var(x) if *x == l)
+                || only_scrutinized_or_proj(scrut, l);
+            scrut_ok && alts.iter().all(|a| only_scrutinized_or_proj(&a.body, l))
+        }
+        Core::Proj(d, _) => {
+            matches!(&**d, Core::Var(x) if *x == l) || only_scrutinized_or_proj(d, l)
+        }
+        Core::App(h, args) => {
+            only_scrutinized_or_proj(h, l)
+                && args.iter().all(|a| only_scrutinized_or_proj(a, l))
+        }
+        Core::Quote { .. } | Core::DeclsQuote { .. } => false,
+        _ => {
+            let mut ok = true;
+            visit_children(e, &mut |child| {
+                if ok && !only_scrutinized_or_proj(child, l) {
+                    ok = false;
+                }
+            });
+            ok
+        }
+    }
+}
+
+/// Partial escape split (pre-RC SROA): sink `let l = Ctor a1..ak in If/Case`
+/// into only the branches that mention `l` when either at least one branch does
+/// not mention `l` (dead-branch sinking) or at least one branch only scrutinizes
+/// `l` in `Case`/`Proj` (allowing `known_constructor` + `DeadBinder` to remove
+/// the allocation completely on the non-escaping path).
+fn sink_partial_escape(e: &mut Core, tables: &Tables, fresh: &mut Fresh) -> bool {
+    let Core::Let(l, c, value, body) = e else { return false };
+    if ctor_app(value, tables).is_none() || carries_quote(body) {
+        return false;
+    }
+    let l = *l;
+    let c = *c;
+    match &**body {
+        Core::If(cond, th, el) if !mentions(cond, l) => {
+            let in_t = mentions(&th.body, l);
+            let in_e = mentions(&el.body, l);
+            let should_sink = (in_t ^ in_e)
+                || (in_t && in_e && (only_scrutinized_or_proj(&th.body, l) || only_scrutinized_or_proj(&el.body, l)));
+            if !should_sink {
+                return false;
+            }
+            let val = (**value).clone();
+            let Core::If(cond, mut th, mut el) = std::mem::replace(&mut **body, Core::Unit) else {
+                unreachable!()
+            };
+            if in_t {
+                th.body = Box::new(Core::Let(l, c, Box::new(val.clone()), th.body));
+            }
+            if in_e {
+                let target_l = if in_t {
+                    let nl = fresh.local();
+                    subst(&mut el.body, l, &Core::Var(nl));
+                    nl
+                } else {
+                    l
+                };
+                el.body = Box::new(Core::Let(target_l, c, Box::new(val), el.body));
+            }
+            *e = Core::If(cond, th, el);
+            true
+        }
+        Core::Case { scrut, alts } if !mentions(scrut, l) && alts.len() >= 2 && alts.len() <= 4 => {
+            let flags: Vec<(bool, bool)> = alts
+                .iter()
+                .map(|a| {
+                    let used = mentions(&a.body, l);
+                    let elim = used && only_scrutinized_or_proj(&a.body, l);
+                    (used, elim)
+                })
+                .collect();
+            let used_count = flags.iter().filter(|(u, _)| *u).count();
+            let any_elim = flags.iter().any(|(_, el)| *el);
+            if used_count == 0 || (used_count == alts.len() && !any_elim) {
+                return false;
+            }
+            let val = (**value).clone();
+            let Core::Case { scrut, mut alts } = std::mem::replace(&mut **body, Core::Unit) else {
+                unreachable!()
+            };
+            let mut used_first = false;
+            for (alt, (used, _)) in alts.iter_mut().zip(flags) {
+                if !used {
+                    continue;
+                }
+                let target_l = if used_first {
+                    let nl = fresh.local();
+                    subst(&mut alt.body, l, &Core::Var(nl));
+                    nl
+                } else {
+                    used_first = true;
+                    l
+                };
+                let prev = std::mem::replace(&mut alt.body, Box::new(Core::Unit));
+                alt.body = Box::new(Core::Let(target_l, c, Box::new(val.clone()), prev));
+            }
+            *e = Core::Case { scrut, alts };
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Worker/wrapper product-parameter unboxing (dual of CPR):
+/// for a unit `f` whose body immediately destructures a uniform single-constructor
+/// product parameter `p` (1..=3 non-wide fields) without otherwise using `p`, and
+/// that has at least one saturated call site passing a matching constructor
+/// application at `p` (especially self-recursive accumulator loops), emit an
+/// unboxed worker `f#ww` taking the unpacked fields directly, rewrite direct
+/// constructor-argument calls inside `f#ww` and across the program to `f#ww`,
+/// and turn `f` into a tiny non-recursive wrapper so `inline` + `known_constructor`
+/// unfold any remaining calls.
+fn unbox_product_params(program: &mut Program, tables: &mut Tables, fresh: &mut Fresh) -> bool {
+    struct Candidate {
+        fn_idx: usize,
+        name: String,
+        param_idx: usize,
+        tag: usize,
+        fields: Vec<LocalId>,
+        classes: Vec<Class>,
+    }
+
+    fn has_matching_ctor_call(
+        e: &Core,
+        target: &str,
+        arity: usize,
+        param_idx: usize,
+        tag: usize,
+        k: usize,
+        tables: &Tables,
+        plans: &std::collections::BTreeMap<String, crate::core::CtorLayout>,
+    ) -> bool {
+        if let Core::App(h, args) = e {
+            if matches!(&**h, Core::Global(g, _) if g.0 == target) && args.len() == arity {
+                if let Core::App(ch, cargs) = &args[param_idx] {
+                    if let Core::Ctor(cid, _) = &**ch {
+                        if tables.ctors.get(&cid.0) == Some(&(tag, k))
+                            && cargs.len() == k
+                            && !plans.contains_key(&cid.0)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        let mut found = false;
+        visit_children(e, &mut |child| {
+            if !found && has_matching_ctor_call(child, target, arity, param_idx, tag, k, tables, plans) {
+                found = true;
+            }
+        });
+        found
+    }
+
+    fn rewrite_direct_calls(
+        e: &mut Core,
+        target: &str,
+        ww: &str,
+        arity: usize,
+        param_idx: usize,
+        tag: usize,
+        k: usize,
+        tables: &Tables,
+        plans: &std::collections::BTreeMap<String, crate::core::CtorLayout>,
+    ) {
+        if let Core::App(h, args) = e {
+            for a in args.iter_mut() {
+                rewrite_direct_calls(a, target, ww, arity, param_idx, tag, k, tables, plans);
+            }
+            if matches!(&**h, Core::Global(g, _) if g.0 == target) && args.len() == arity {
+                let matches_ctor = match &args[param_idx] {
+                    Core::App(ch, cargs) => matches!(&**ch, Core::Ctor(cid, _)
+                        if tables.ctors.get(&cid.0) == Some(&(tag, k))
+                            && cargs.len() == k
+                            && !plans.contains_key(&cid.0)),
+                    _ => false,
+                };
+                if matches_ctor {
+                    let Core::App(_, cargs) = std::mem::replace(&mut args[param_idx], Core::Unit) else {
+                        unreachable!()
+                    };
+                    let mut new_args = Vec::with_capacity(args.len() - 1 + k);
+                    let old_args = std::mem::take(args);
+                    for (i, a) in old_args.into_iter().enumerate() {
+                        if i == param_idx {
+                            new_args.extend(cargs.clone());
+                        } else {
+                            new_args.push(a);
+                        }
+                    }
+                    *h = Box::new(Core::Global(GlobalId(ww.to_string()), vec![]));
+                    *args = new_args;
+                }
+            } else {
+                rewrite_direct_calls(h, target, ww, arity, param_idx, tag, k, tables, plans);
+            }
+            return;
+        }
+        for child in child_slots(e) {
+            rewrite_direct_calls(child, target, ww, arity, param_idx, tag, k, tables, plans);
+        }
+    }
+
+    let existing: HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+    let mut candidates: Vec<Candidate> = Vec::new();
+    for (idx, f) in program.fns.iter().enumerate() {
+        if f.prim.is_some()
+            || f.ctor.is_some()
+            || f.meta.prim_body
+            || program.main.as_ref() == Some(&f.id)
+            || f.id.0.matches("#ww").count() >= 2
+            || f.repr.params.len() != f.arity()
+            || f.repr.params.contains(&Class::Wide)
+            || f.repr.result == Some(Class::Wide)
+            || carries_quote(&f.body)
+        {
+            continue;
+        }
+        let ww_name = format!("{}#ww", f.id.0);
+        if existing.contains(&ww_name) {
+            continue;
+        }
+        let Core::Case { scrut, alts } = &f.body else { continue };
+        let Core::Var(LocalId(pi)) = &**scrut else { continue };
+        let pi = *pi;
+        if pi >= f.arity() || f.repr.params[pi] != Class::Obj {
+            continue;
+        }
+        if f.meta.dicts.iter().any(|(d, _)| *d == pi) {
+            continue;
+        }
+        if alts.len() != 1 || alts[0].weight.is_some() {
+            continue;
+        }
+        let CPat::Con { tag, fields, classes } = &alts[0].pat else { continue };
+        let k = fields.len();
+        if k == 0 || k > 3 || classes.len() != k || classes.contains(&Class::Wide) {
+            continue;
+        }
+        if f.arity() - 1 + k > 8 {
+            continue;
+        }
+        if mentions(&alts[0].body, LocalId(pi)) {
+            continue;
+        }
+        // Only unbox when there is an actual direct constructor-argument call site
+        // (self-recursive accumulator loop or direct caller).
+        let called_with_ctor = program.fns.iter().any(|caller| {
+            caller.prim.is_none()
+                && caller.ctor.is_none()
+                && !caller.meta.prim_body
+                && has_matching_ctor_call(&caller.body, &f.id.0, f.arity(), pi, *tag, k, tables, &program.plans)
+        });
+        if !called_with_ctor {
+            continue;
+        }
+        candidates.push(Candidate {
+            fn_idx: idx,
+            name: f.id.0.clone(),
+            param_idx: pi,
+            tag: *tag,
+            fields: fields.clone(),
+            classes: classes.clone(),
+        });
+    }
+    if candidates.is_empty() {
+        return false;
+    }
+
+    let mut new_workers: Vec<FnDef> = Vec::new();
+    let mut rewrites: Vec<(String, String, usize, usize, usize, usize)> = Vec::new();
+    for cand in candidates {
+        let f = &mut program.fns[cand.fn_idx];
+        let arity = f.arity();
+        let k = cand.fields.len();
+        let pi = cand.param_idx;
+        let ww_name = format!("{}#ww", cand.name);
+
+        let Core::Case { mut alts, .. } = std::mem::replace(&mut f.body, Core::Unit) else {
+            unreachable!()
+        };
+        let mut ww_body = alts.remove(0).body;
+
+        // Build clean parameter remapping for `ww_body`:
+        // old params 0..pi -> 0..pi
+        // unpacked fields[0..k] -> pi..(pi+k)
+        // old params (pi+1)..arity -> (pi+k)..(arity-1+k)
+        let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
+        for j in 0..arity {
+            if j < pi {
+                renames.insert(LocalId(j), LocalId(j));
+            } else if j > pi {
+                renames.insert(LocalId(j), LocalId(j + k - 1));
+            }
+        }
+        for (m, fld) in cand.fields.iter().enumerate() {
+            renames.insert(*fld, LocalId(pi + m));
+        }
+        let mut ww_fresh = Fresh { local: arity + k - 1, join: fresh.join };
+        rename_binders(&mut ww_body, &mut renames, &mut ww_fresh);
+        fresh.join = ww_fresh.join;
+        fresh.local = fresh.local.max(ww_fresh.local);
+
+        let mut ww_params: Vec<String> = Vec::with_capacity(arity - 1 + k);
+        let mut ww_param_classes: Vec<Class> = Vec::with_capacity(arity - 1 + k);
+        for j in 0..arity {
+            if j == pi {
+                for m in 0..k {
+                    ww_params.push(format!("v{}", pi + m));
+                    ww_param_classes.push(cand.classes[m]);
+                }
+            } else {
+                let nj = if j < pi { j } else { j + k - 1 };
+                ww_params.push(format!("v{nj}"));
+                ww_param_classes.push(f.repr.params[j]);
+            }
+        }
+
+        let map_idx = |old: usize| -> Option<usize> {
+            if old < pi {
+                Some(old)
+            } else if old > pi {
+                Some(old + k - 1)
+            } else {
+                None
+            }
+        };
+        let mut ww_meta = crate::core::FnMeta {
+            linear: f.meta.linear.iter().filter_map(|(i, m)| map_idx(*i).map(|j| (j, *m))).collect(),
+            unique_params: f.meta.unique_params.iter().filter_map(|i| map_idx(*i)).collect(),
+            immortal_params: f.meta.immortal_params.iter().filter_map(|i| map_idx(*i)).collect(),
+            pure_arrows: f.meta.pure_arrows.iter().filter_map(|i| map_idx(*i)).collect(),
+            dicts: f.meta.dicts.iter().filter_map(|(i, c)| map_idx(*i).map(|j| (j, c.clone()))).collect(),
+            pure: f.meta.pure,
+            prim_body: false,
+            contract: crate::core::FnContract {
+                params: {
+                    let mut ps = Vec::with_capacity(arity - 1 + k);
+                    for j in 0..arity {
+                        if j == pi {
+                            for _ in 0..k {
+                                ps.push(crate::core::ParamContract::default());
+                            }
+                        } else {
+                            ps.push(f.meta.contract.params.get(j).cloned().unwrap_or_default());
+                        }
+                    }
+                    ps
+                },
+                ..f.meta.contract.clone()
+            },
+        };
+        // Avoid stale narrow widths on the newly unpacked parameters.
+        for pc in &mut ww_meta.contract.params {
+            pc.narrow = None;
+        }
+
+        let ww_def = FnDef {
+            id: GlobalId(ww_name.clone()),
+            params: ww_params,
+            body: *ww_body,
+            prim: None,
+            ctor: None,
+            hints: f.hints.clone(),
+            meta: ww_meta,
+            repr: crate::core::UnitRepr {
+                tparams: 0,
+                params: ww_param_classes.clone(),
+                fields: Vec::new(),
+                result: f.repr.result,
+                ..Default::default()
+            },
+        };
+
+        // Rebuild `f` as a tiny non-recursive wrapper calling `ww`.
+        let wrapper_fields: Vec<LocalId> = (0..k).map(|m| LocalId(arity + m)).collect();
+        let mut call_args: Vec<Core> = Vec::with_capacity(arity - 1 + k);
+        for j in 0..arity {
+            if j == pi {
+                for &wf in &wrapper_fields {
+                    call_args.push(Core::Var(wf));
+                }
+            } else {
+                call_args.push(Core::Var(LocalId(j)));
+            }
+        }
+        f.body = Core::Case {
+            scrut: Box::new(Core::Var(LocalId(pi))),
+            alts: vec![CAlt {
+                pat: CPat::Con {
+                    tag: cand.tag,
+                    fields: wrapper_fields,
+                    classes: cand.classes,
+                },
+                body: Box::new(Core::App(Box::new(Core::Global(GlobalId(ww_name.clone()), vec![])), call_args)),
+                weight: None,
+            }],
+        };
+        fresh.local = fresh.local.max(arity + k);
+
+        tables.arity.insert(ww_name.clone(), arity - 1 + k);
+        tables.params.insert(ww_name.clone(), ww_param_classes);
+        rewrites.push((cand.name, ww_name, arity, pi, cand.tag, k));
+        new_workers.push(ww_def);
+    }
+
+    program.fns.extend(new_workers);
+    for (target, ww, arity, pi, tag, k) in &rewrites {
+        for f in program.fns.iter_mut() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || f.id.0 == *target {
+                continue;
+            }
+            rewrite_direct_calls(&mut f.body, target, ww, *arity, *pi, *tag, *k, tables, &program.plans);
+        }
+    }
+    true
 }
 
 /// One past the largest local any unit mentions: every fresh local the pass

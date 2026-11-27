@@ -75,7 +75,7 @@ module Cinch.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, CStructData, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, CStructData, NicheData, PolyNicheData, PackedField, NicheCtor, NicheNullary, NichePayload, NichePtr, NicheShifted, NicheNanF64, NichePacked, core-data-layout, with-data-layout
   export state-label, state-residual
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   -- `WithLayout` is exported with `MkCoreData` because a family whose table
@@ -251,6 +251,25 @@ module Cinch.Core where
     vf-align :: Nat
     vf-type :: UType
 
+  record PackedField where
+    pf-shift :: Nat
+    pf-bits :: Nat
+    pf-signed :: Bool
+    pf-bias :: Int
+
+  data NicheCtor where
+    -- Constructor name and sentinel word value.
+    NicheNullary :: String -> Int -> NicheCtor
+    -- Constructor name, multi-payload flag, unsigned flag, lo, hi, excluded values.
+    NichePayload :: String -> Bool -> Bool -> Int -> Int -> List Int -> NicheCtor
+    -- Constructor name, even pointer tag (0, 2, or 4), and non-null check flag.
+    NichePtr :: String -> Int -> Bool -> NicheCtor
+    -- Constructor name, tag mask, tag word, shift bits, signed flag, bias.
+    NicheShifted :: String -> Int -> Int -> Nat -> Bool -> Int -> NicheCtor
+    -- NaN-canonicalized F64 payload constructor.
+    NicheNanF64 :: String -> NicheCtor
+    -- Bit-packed multi-field product or sum arm (mask 0 for single-ctor product).
+    NichePacked :: String -> Int -> Int -> List PackedField -> NicheCtor
   data DataLayout where
     UniformData :: DataLayout
     TransparentData :: String -> Nat -> Nat -> DataLayout
@@ -261,6 +280,10 @@ module Cinch.Core where
     ValueData :: String -> Nat -> Nat -> List ValueField -> DataLayout
     -- Repr spelling, total size, type alignment, and per-field (name, offset, size, natural-align).
     CStructData :: String -> Nat -> Nat -> List (String, Nat, Nat, Nat) -> DataLayout
+    -- Runtime word class (`0` Raw, `1` Obj, `2` TObj) and per-constructor niche plans.
+    NicheData :: Nat -> List NicheCtor -> DataLayout
+    -- Required 0-based `Obj` type parameter indices and per-constructor niche plans (Tier 1C).
+    PolyNicheData :: List Nat -> List NicheCtor -> DataLayout
   data CoreData where
     MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
     WithLayout :: DataLayout -> CoreData -> CoreData

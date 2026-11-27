@@ -2084,6 +2084,16 @@ impl Checker {
                         ));
                     }
                 }
+                if let Some(plan) = self.niche_plan(&info).cloned() {
+                    if let Some((_, _, NicheCtorPlan::Packed { fields, .. })) = plan.by_tag.first() {
+                        if let Some(pf) = fields.get(runtime_idx) {
+                            let local = self.fresh_local();
+                            self.note_local_ty(local, &ty);
+                            let extracted = decode_packed_field_ecore(pf, local);
+                            return Ok((ECore::Let(local, Box::new(core), Box::new(extracted)), field_ty));
+                        }
+                    }
+                }
                 if self
                     .codata_types
                     .contains(&(info.module.clone(), info.name.clone()))
@@ -11021,12 +11031,236 @@ impl Checker {
                 // section 2.2): each constructor's alternative sums the
                 // weights of the rows reachable through it.
                 let sums = self.decision_weights(&branch_weights, "this `case`", ctx_span)?;
+                if let Some(plan) = self.niche_plan(&info).cloned() {
+                    let all_nullary = plan
+                        .by_tag
+                        .iter()
+                        .all(|(_, _, cplan)| matches!(cplan, NicheCtorPlan::Nullary { .. }));
+                    if all_nullary {
+                        let (scrut_var, wrap_let) = match &observed {
+                            ECore::Var(l) => (*l, false),
+                            _ => {
+                                let l = self.fresh_local();
+                                self.note_local_ty(l, &ty0);
+                                (l, true)
+                            }
+                        };
+                        let switch_alts = alt_pats
+                            .into_iter()
+                            .zip(alts)
+                            .zip(alt_branch)
+                            .map(|((pat, body), branch)| {
+                                let pat = match pat {
+                                    CPat::Con { tag, .. } => {
+                                        let sentinel = plan
+                                            .by_tag
+                                            .iter()
+                                            .find(|(t, _, _)| *t == tag)
+                                            .and_then(|(_, _, p)| match p {
+                                                NicheCtorPlan::Nullary { sentinel } => Some(*sentinel as usize),
+                                                _ => None,
+                                            })
+                                            .unwrap_or(tag);
+                                        CPat::con(sentinel, Vec::new())
+                                    }
+                                    other => other,
+                                };
+                                CAlt::weighted(pat, sums[branch], body)
+                            })
+                            .collect();
+                        let sw = ECore::Case {
+                            scrut: Box::new(ECore::Var(scrut_var)),
+                            alts: switch_alts,
+                        };
+                        return Ok(if wrap_let {
+                            ECore::Let(scrut_var, Box::new(observed), Box::new(sw))
+                        } else {
+                            sw
+                        });
+                    }
+                    let (scrut_var, wrap_let) = match &observed {
+                        ECore::Var(l) => (*l, false),
+                        _ => {
+                            let l = self.fresh_local();
+                            self.note_local_ty(l, &ty0);
+                            (l, true)
+                        }
+                    };
+                    let mut nullary_arms: Vec<(i64, ECore)> = Vec::new();
+                    let mut payload_arms: Vec<(NicheCtorPlan, Vec<LocalId>, ECore)> = Vec::new();
+                    let mut wild_arm: Option<ECore> = None;
+                    for (pat, body) in alt_pats.into_iter().zip(alts) {
+                        match pat {
+                            CPat::Wild => wild_arm = Some(body),
+                            CPat::Con { tag, fields, .. } => {
+                                if let Some((_, _, cplan)) = plan.by_tag.iter().find(|(t, _, _)| *t == tag) {
+                                    match cplan {
+                                        NicheCtorPlan::Nullary { sentinel } => {
+                                            nullary_arms.push((*sentinel, body));
+                                        }
+                                        _ => {
+                                            payload_arms.push((cplan.clone(), fields, body));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    let word_cmp = |op: CmpOp, unsigned: bool, lhs: LocalId, rhs: i64| -> ECore {
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordCmp { op, unsigned })),
+                            vec![ECore::Var(lhs), ECore::Int(rhs)],
+                        )
+                    };
+                    let word_mask_eq = |lhs: LocalId, mask: i64, wanted: i64| -> ECore {
+                        let masked = ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordOp { op: crate::core::WordOp::TestMask })),
+                            vec![ECore::Var(lhs), ECore::Int(mask)],
+                        );
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordCmp { op: CmpOp::Eq, unsigned: false })),
+                            vec![masked, ECore::Int(wanted)],
+                        )
+                    };
+                    let bind_payload = |cplan: &NicheCtorPlan, slots: &[LocalId], body: ECore| -> ECore {
+                        use crate::core::WordOp as WO;
+                        if let NicheCtorPlan::Packed { fields, .. } = cplan {
+                            let mut cur = body;
+                            for (pf, slot) in fields.iter().zip(slots.iter()).rev() {
+                                let rhs = decode_packed_field_ecore(pf, scrut_var);
+                                cur = ECore::Let(*slot, Box::new(rhs), Box::new(cur));
+                            }
+                            return cur;
+                        }
+                        let slot = slots[0];
+                        let rhs = match cplan {
+                            NicheCtorPlan::Ptr { ptr_tag, .. } if *ptr_tag != 0 => ECore::App(
+                                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Untag })),
+                                vec![ECore::Var(scrut_var), ECore::Int(!6i64)],
+                            ),
+                            NicheCtorPlan::Shifted { shift, signed, bias, .. } => {
+                                let unshifted = if *shift != 0 {
+                                    let op = if *signed { WO::Shr } else { WO::Ushr };
+                                    ECore::App(
+                                        Box::new(ECore::Prim(PrimOp::WordOp { op })),
+                                        vec![ECore::Var(scrut_var), ECore::Int(*shift as i64)],
+                                    )
+                                } else {
+                                    ECore::Var(scrut_var)
+                                };
+                                if *bias != 0 {
+                                    ECore::App(
+                                        Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Add })),
+                                        vec![unshifted, ECore::Int(*bias)],
+                                    )
+                                } else {
+                                    unshifted
+                                }
+                            }
+                            _ => ECore::Var(scrut_var),
+                        };
+                        ECore::Let(slot, Box::new(rhs), Box::new(body))
+                    };
+                    let mk_if = |cond: ECore, th: ECore, el: ECore| -> ECore {
+                        ECore::If(
+                            Box::new(cond),
+                            CBranch::new(th),
+                            CBranch::new(el),
+                        )
+                    };
+                    let mut acc = if let Some(w) = wild_arm {
+                        w
+                    } else if let Some((cplan, slots, body)) = payload_arms.pop() {
+                        bind_payload(&cplan, &slots, body)
+                    } else if let Some((_, body)) = nullary_arms.pop() {
+                        body
+                    } else {
+                        ECore::Fault
+                    };
+                    while let Some((cplan, slots, body)) = payload_arms.pop() {
+                        let bound = bind_payload(&cplan, &slots, body);
+                        let checks: Vec<ECore> = match &cplan {
+                            NicheCtorPlan::Payload { range: None, .. } | NicheCtorPlan::NanF64 { .. } => plan
+                                .nullary_sentinels
+                                .iter()
+                                .map(|s| word_cmp(CmpOp::Ne, false, scrut_var, *s))
+                                .collect(),
+                            NicheCtorPlan::Payload { range: Some((unsigned, lo, hi, excluded)), .. } => {
+                                let mut cs = Vec::new();
+                                if *unsigned {
+                                    if *lo > 0 {
+                                        cs.push(word_cmp(CmpOp::Ge, true, scrut_var, (*lo as u64) as i64));
+                                    }
+                                    if *hi < u64::MAX as i128 {
+                                        cs.push(word_cmp(CmpOp::Le, true, scrut_var, (*hi as u64) as i64));
+                                    }
+                                    for ex in excluded {
+                                        cs.push(word_cmp(CmpOp::Ne, true, scrut_var, (*ex as u64) as i64));
+                                    }
+                                } else {
+                                    if *lo > i64::MIN as i128 {
+                                        cs.push(word_cmp(CmpOp::Ge, false, scrut_var, *lo as i64));
+                                    }
+                                    if *hi < i64::MAX as i128 {
+                                        cs.push(word_cmp(CmpOp::Le, false, scrut_var, *hi as i64));
+                                    }
+                                    for ex in excluded {
+                                        cs.push(word_cmp(CmpOp::Ne, false, scrut_var, *ex as i64));
+                                    }
+                                }
+                                cs
+                            }
+                            NicheCtorPlan::Ptr { ptr_tag, check_nonnull, .. } => {
+                                let mut cs = vec![word_mask_eq(scrut_var, 7, *ptr_tag)];
+                                if *check_nonnull {
+                                    cs.push(word_cmp(CmpOp::Ne, false, scrut_var, 0));
+                                }
+                                cs
+                            }
+                            NicheCtorPlan::Shifted { mask, tag_word, .. } => {
+                                vec![word_mask_eq(scrut_var, *mask, *tag_word)]
+                            }
+                            NicheCtorPlan::Packed { mask, tag_word, .. } => {
+                                if *mask == 0 {
+                                    Vec::new()
+                                } else {
+                                    vec![word_mask_eq(scrut_var, *mask, *tag_word)]
+                                }
+                            }
+                            NicheCtorPlan::Nullary { sentinel } => {
+                                vec![word_cmp(CmpOp::Eq, false, scrut_var, *sentinel)]
+                            }
+                        };
+                        acc = checks.into_iter().rev().fold(bound, |then_e, cond| {
+                            mk_if(cond, then_e, acc.clone())
+                        });
+                    }
+                    while let Some((sentinel, body)) = nullary_arms.pop() {
+                        acc = mk_if(word_cmp(CmpOp::Eq, false, scrut_var, sentinel), body, acc);
+                    }
+                    return Ok(if wrap_let {
+                        ECore::Let(scrut_var, Box::new(observed), Box::new(acc))
+                    } else {
+                        acc
+                    });
+                }
                 let alts = alt_pats
                     .into_iter()
                     .zip(alts)
                     .zip(alt_branch)
                     .map(|((pat, body), branch)| CAlt::weighted(pat, sums[branch], body))
                     .collect();
+                if self.poly_niche_plan(&info).is_some() {
+                    let wrapped = ECore::App(
+                        Box::new(ECore::Global(
+                            GlobalId(format!("$poly_niche_scrut${}", info.identity)),
+                            ty_args.clone(),
+                        )),
+                        vec![observed],
+                    );
+                    return Ok(ECore::Case { scrut: Box::new(wrapped), alts });
+                }
                 Ok(ECore::Case { scrut: Box::new(observed), alts })
             }
             Ty::Tuple(items) => {

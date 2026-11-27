@@ -22,6 +22,83 @@ impl Checker {
         self.unpacked_records.get(&fn_id(&info.module, &info.name))
     }
 
+    fn is_name_exported_in(&self, module: &str, name: &str) -> bool {
+        match self.module_exports.get(module) {
+            Some(items) if !items.is_empty() => items.iter().any(|item| match item {
+                ast::ExportItem::Name(n) => n.text == name,
+                ast::ExportItem::Member(p) => p.parts().last().copied() == Some(name),
+                _ => false,
+            }),
+            _ => true,
+        }
+    }
+
+    fn is_single_ctor_uniform_product(&self, ty: &Ty) -> bool {
+        let Ty::Adt(n, _) = ty else { return false };
+        let Ok(kind) = self.lookup_known_type(n) else { return false };
+        let key = (kind.module.clone(), kind.name.clone());
+        kind.ctors.len() == 1
+            && (kind.data_family || kind.fields.is_some())
+            && !self.layout_recipes.contains_key(&key)
+            && !self.niche_plans.contains_key(&key)
+            && !self.codata_types.contains(&key)
+    }
+
+    fn try_auto_unpack_field(
+        &self,
+        module: &str,
+        rec_id: &GlobalId,
+        rec_exported: bool,
+        field: &str,
+        ty: &Ty,
+    ) -> Option<UnpackedField> {
+        let Ty::Adt(n, args) = ty else { return None };
+        let kind = self.lookup_known_type(n).ok()?;
+        if kind.module != module {
+            return None;
+        }
+        let [(cname, _)] = kind.ctors.as_slice() else { return None };
+        let key = (kind.module.clone(), kind.name.clone());
+        let ctor = fn_id(&kind.module, cname);
+        if ctor == *rec_id {
+            return None;
+        }
+        if rec_exported && !self.is_name_exported_in(module, cname) {
+            return None;
+        }
+        if (!kind.data_family && kind.fields.is_none())
+            || kind.param_kinds.iter().any(|p| !matches!(p, ParamKind::Type))
+            || self.layout_recipes.contains_key(&key)
+            || self.niche_plans.contains_key(&key)
+            || self.codata_types.contains(&key)
+            || self.unpack_requests.contains_key(&ctor)
+            || self.unpacked_records.contains_key(&ctor)
+        {
+            return None;
+        }
+        let v = self.qualified.get(&(kind.module, cname.clone()))?;
+        let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind else { return None };
+        let subst: HashMap<_, _> = ty_params.iter().cloned().zip(args.iter().cloned()).collect();
+        let slots: Vec<_> = field_tys
+            .iter()
+            .zip(field_erased)
+            .filter(|(_, erased)| !**erased)
+            .map(|(t, _)| Self::subst_ty(t, &subst))
+            .collect();
+        if slots.len() < 2 || slots.len() > 4 {
+            return None;
+        }
+        if slots.iter().any(|s| matches!(s, Ty::Prim(Scalar::I128 | Scalar::U128))) {
+            return None;
+        }
+        // Require leaf product: guarantees non-recursive and declaration-order independent.
+        if slots.iter().any(|s| self.is_single_ctor_uniform_product(s)) {
+            return None;
+        }
+        let instantiation = v.scheme.params.iter().map(|p| subst.get(p).cloned()).collect::<Option<Vec<_>>>()?;
+        Some(UnpackedField { name: field.to_owned(), ctor: Some(ECore::Ctor(ctor, instantiation)), slots })
+    }
+
     fn compute_unpack_plans(&mut self) -> Result<()> {
         for (record, requested) in self.unpack_requests.clone() {
             let (module, name) = record.0.rsplit_once('.').expect("qualified constructor");
@@ -44,6 +121,47 @@ impl Checker {
                 fields.push(field);
             }
             self.unpacked_records.insert(record, UnpackedRecord { fields });
+        }
+        for (module, name, _span) in self.auto_unpack_candidates.clone() {
+            let key = (module.clone(), name.clone());
+            let record = fn_id(&module, &name);
+            if self.layout_recipes.contains_key(&key)
+                || self.niche_plans.contains_key(&key)
+                || self.codata_types.contains(&key)
+                || self.unpack_requests.contains_key(&record)
+                || self.unpacked_records.contains_key(&record)
+            {
+                continue;
+            }
+            let Some(info) = self.qualified.get(&(module.clone(), name.clone())).cloned() else {
+                continue;
+            };
+            let ValueKind::Ctor { field_binders, field_tys, field_erased, .. } = &info.kind else {
+                continue;
+            };
+            let rec_exported = self.is_name_exported_in(&module, &name);
+            let nounpack = self.nounpack_requests.get(&record).cloned().unwrap_or_default();
+            let mut fields = Vec::new();
+            let mut unpacked_any = false;
+            let mut total_slots = 0usize;
+            for ((fname, ty), erased) in field_binders.iter().zip(field_tys).zip(field_erased) {
+                if *erased {
+                    continue;
+                }
+                if !nounpack.contains(fname) {
+                    if let Some(uf) = self.try_auto_unpack_field(&module, &record, rec_exported, fname, ty) {
+                        total_slots += uf.slots.len();
+                        fields.push(uf);
+                        unpacked_any = true;
+                        continue;
+                    }
+                }
+                total_slots += 1;
+                fields.push(UnpackedField { name: fname.clone(), ctor: None, slots: vec![ty.clone()] });
+            }
+            if unpacked_any && total_slots <= 12 {
+                self.unpacked_records.insert(record, UnpackedRecord { fields });
+            }
         }
         Ok(())
     }
