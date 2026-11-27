@@ -1166,8 +1166,16 @@ fn emit_module(
         closure_taken.extend(u.scan.closures_taken.iter().map(String::as_str));
     }
     let primitive_symbols: HashSet<String> = reg.prims.iter().map(|op| op.symbol()).collect();
+    let mut decl_prim_symbols: HashSet<String> = HashSet::new();
+    for p in &program.prims {
+        decl_prim_symbols.insert(p.unit.clone());
+        for (fam, _) in &p.family_units {
+            decl_prim_symbols.insert(format!("{}.{}", p.unit, fam));
+        }
+    }
     for u in &units {
         let primitive = primitive_symbols.contains(&u.name);
+        let linkonce_prim = primitive || decl_prim_symbols.contains(&u.name);
         if !emitted_symbol(&u.name, emit_modules) && !primitive {
             continue;
         }
@@ -1199,7 +1207,7 @@ fn emit_module(
                 // Its entry points stay externally visible in a static object.
                 Some("dso_local")
             } else {
-                (object && primitive).then_some("linkonce_odr")
+                (object && linkonce_prim).then_some("linkonce_odr")
             },
             // An object is a link-time artifact: any consumer may take
             // any of its exported functions as a value, and the module
@@ -1218,7 +1226,7 @@ fn emit_module(
             // that belongs to this module.
             out.push_str(&format!(
                 "define {}i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr {} to i64)\n}}\n",
-                if primitive { "linkonce_odr " } else { "" },
+                if linkonce_prim { "linkonce_odr " } else { "" },
                 quote(&format!("{}.object-closure", u.name)),
                 static_payload(&format!("{}.clo", u.name), reg.closure_desc(&u.name))
             ));
@@ -3840,12 +3848,14 @@ fn scan_body(text: &str, units: &HashSet<String>, extra: Option<&str>) -> UnitSc
 /// terminator), so a successor set is complete: a `br` names all of its
 /// targets, a `switch` names every case and its default, and a `ret` or
 /// `unreachable` names none.
-fn body_never_returns(text: &str) -> bool {
+fn body_never_returns(text: &str, noreturn_callees: &HashSet<&str>) -> bool {
     use std::collections::HashMap;
-    // One entry per block: the successors its terminator names, and
-    // whether that terminator is a return.
+    // One entry per block: the successors its terminator names, whether
+    // that terminator is a return, and whether a prior `unreachable` or
+    // `noreturn` call in the block already ended execution.
     let mut succ: HashMap<&str, Vec<&str>> = HashMap::new();
     let mut returns: HashMap<&str, bool> = HashMap::new();
+    let mut diverges: HashMap<&str, bool> = HashMap::new();
     // The emitted body starts in `entry`, and `Builder::finish` writes
     // that label explicitly. A body with no further labels is one block,
     // so `entry` is the current block from the first line: an
@@ -3853,6 +3863,7 @@ fn body_never_returns(text: &str) -> bool {
     let mut current: &str = "entry";
     succ.entry("entry").or_default();
     returns.entry("entry").or_insert(false);
+    diverges.entry("entry").or_insert(false);
     for line in text.lines() {
         let line = line.trim();
         if let Some(label) = line.strip_suffix(':') {
@@ -3862,9 +3873,25 @@ fn body_never_returns(text: &str) -> bool {
             current = label;
             succ.entry(label).or_default();
             returns.entry(label).or_insert(false);
+            diverges.entry(label).or_insert(false);
             continue;
         }
         let block = current;
+        if diverges.get(block).copied().unwrap_or(false) {
+            continue;
+        }
+        if line == "unreachable" {
+            diverges.insert(block, true);
+            continue;
+        }
+        if line.contains("call ") {
+            if let Some(sym) = callee_symbol(line) {
+                if noreturn_callees.contains(sym.as_str()) {
+                    diverges.insert(block, true);
+                    continue;
+                }
+            }
+        }
         if line.starts_with("ret ") || line == "ret void" {
             returns.insert(block, true);
         }
@@ -3986,12 +4013,22 @@ fn recursive_units(units: &[EmittedUnit]) -> HashSet<String> {
 fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
     let mut out: HashMap<String, UnitClass> = HashMap::new();
     let recursive = recursive_units(units);
+    let base_noreturn: HashSet<&str> =
+        ["exit", "cinch_panic", "cinch_blackhole", "__cinch_blackhole"]
+            .into_iter()
+            .collect();
+    let bodies: Vec<String> = units
+        .iter()
+        .map(|u| format!("{}{}", u.allocas, u.code))
+        .collect();
     // A unit whose body has no returning path at all. This is the local
-    // half of `noreturn`; the call-graph half is a call to a callee that
-    // itself never returns, which the fixed point below folds in.
+    // half of `noreturn`; the call-graph half re-walks blocks when a
+    // callee is proven `noreturn`, so a conditional call in one branch
+    // never marks a returning sibling branch `noreturn`.
     let local_noreturn: HashMap<&str, bool> = units
         .iter()
-        .map(|u| (u.name.as_str(), body_never_returns(&format!("{}{}", u.allocas, u.code))))
+        .zip(bodies.iter())
+        .map(|(u, body)| (u.name.as_str(), body_never_returns(body, &base_noreturn)))
         .collect();
     for u in units {
         let mem = if u.scan.writes {
@@ -4025,7 +4062,17 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
     }
     loop {
         let mut changed = false;
-        for u in units {
+        let noreturn_set: HashSet<&str> = base_noreturn
+            .iter()
+            .copied()
+            .chain(
+                units
+                    .iter()
+                    .filter(|u| out[&u.name].noreturn)
+                    .map(|u| u.name.as_str()),
+            )
+            .collect();
+        for (idx, u) in units.iter().enumerate() {
             let mut c = out[&u.name];
             for g in &u.scan.callees {
                 let Some(gc) = out.get(g) else {
@@ -4036,11 +4083,17 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
                 c.speculatable = c.speculatable && gc.speculatable;
                 c.willreturn = c.willreturn && (g == &u.name || gc.willreturn);
                 c.nofree = c.nofree && gc.nofree;
-                // A body that would return only after a callee returns
-                // never returns when that callee never does. This is the
-                // one direction the local walk cannot see: the walk stops
-                // at the call, so the callee's answer has to fold in.
-                c.noreturn = c.noreturn || gc.noreturn;
+            }
+            if !c.noreturn
+                && u.scan
+                    .callees
+                    .iter()
+                    .any(|g| noreturn_set.contains(g.as_str()))
+                && body_never_returns(&bodies[idx], &noreturn_set)
+            {
+                c.noreturn = true;
+                c.willreturn = false;
+                c.speculatable = false;
             }
             if c.mem != out[&u.name].mem
                 || c.externs != out[&u.name].externs
@@ -10025,6 +10078,13 @@ fn prim_use_declares(program: &Program, so_far: &str) -> Vec<String> {
         for b in &p.bodies {
             for u in &b.uses {
                 if !seen.insert(u.symbol.as_str()) {
+                    continue;
+                }
+                if program
+                    .foreigns
+                    .values()
+                    .any(|f| f.export && f.symbol == u.symbol)
+                {
                     continue;
                 }
                 // The preamble spells its runtime declarations bare

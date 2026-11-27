@@ -232,6 +232,13 @@ pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
     }
 }
 
+/// Temporary bridge called from Cinch `Runtime.Rc` until box payload types move to Cinch (M3+M5).
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_rust_drop_box_payload(p: *mut u8, header_kind: u8) {
+    unsafe { drop_box_payload(p, header_kind) }
+}
+
 /// The header kind of the block behind `word`, faulting on null. A
 /// corrupt word faults here instead of being misinterpreted.
 unsafe fn box_kind(word: i64) -> u8 {
@@ -520,6 +527,19 @@ fn alloc_request(size: i64, kind: i64, negative: &[u8], bad_kind: &[u8]) -> (usi
 /// word). A negative size or an unknown kind is a compiler-bug trap
 /// (generated code passes constant sizes and kinds); allocation failure
 /// is the heap `Exhausted` exit.
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_alloc(size: i64, kind: i64) -> i64;
+    pub fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8;
+    pub fn cinch_alloc_ctor(size: i64, field: i64) -> *mut u8;
+    pub fn cinch_alloc_ctor_desc(size: i64, desc: *const u64) -> *mut u8;
+    pub fn cinch_alloc_ctor_tagged(size: i64, tag: i64, mask: i64) -> *mut u8;
+    pub fn cinch_alloc_shaped(size: i64, kind: i64, field: i64) -> *mut u8;
+    pub fn cinch_alloc_shaped_desc(size: i64, kind: i64, desc: *const u64) -> *mut u8;
+    pub fn cinch_free(word: i64);
+}
+
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc(size: i64, kind: i64) -> i64 {
     let (size, kind) = alloc_request(
@@ -531,15 +551,7 @@ pub unsafe extern "C" fn cinch_alloc(size: i64, kind: i64) -> i64 {
     (unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, true) }) as usize as i64
 }
 
-/// Allocate a block of `size` uninitialised bytes (8-byte aligned, minimum
-/// one word) with header kind `kind` and return the payload pointer: the
-/// allocator generated code calls in place of `malloc`, so every block it
-/// builds is counted and capped by [`crate::heap`]. The header at offset -8
-/// gets `rc = 1`, `kind`, and the payload size ([`crate::block`]). Every
-/// call site initialises each word it reads, so the payload is not
-/// zero-filled (the same contract as the `malloc` it replaces). Negative
-/// sizes and an unknown kind are compiler-bug traps; size overflow and
-/// allocation failure are the heap `Exhausted` exit.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
     let (size, kind) = alloc_request(
@@ -551,11 +563,7 @@ pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
     unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, false) }
 }
 
-/// Allocate a constructor block of `size` uninitialised payload bytes
-/// whose layout field is `field` (its tag and the counted mask of its
-/// fields, `block_kinds.rs`'s `shape_field`) and return the payload pointer.
-/// The block gets `rc = 1` and kind `KIND_CTOR`; the payload is the fields
-/// alone, with no tag word. A negative size is a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, field: i64) -> *mut u8 {
     if size < 0 {
@@ -564,9 +572,7 @@ pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, field: i64) -> *mut u8 {
     unsafe { crate::block::allocate_ctor(size as usize, field as u32, false) }
 }
 
-/// [`cinch_alloc_ctor`] of an escaped constructor: its tag, size and
-/// counted mask are in the static descriptor `desc` (`block_kinds.rs`'s
-/// `DESC_*`), which goes in the word before the header.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_ctor_desc(size: i64, desc: *const u64) -> *mut u8 {
     if size < 0 {
@@ -575,10 +581,7 @@ pub unsafe extern "C" fn cinch_alloc_ctor_desc(size: i64, desc: *const u64) -> *
     unsafe { crate::block::allocate_ctor_desc(size as usize, desc, false) }
 }
 
-/// Allocate a constructor block of `size` payload bytes whose tag arrives at
-/// run time (an enum lifted from canonical memory), with `mask` the counted
-/// mask of its payload words: inline when the tag, mask and size fit the
-/// header, otherwise escaped to a descriptor interned for the description.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_ctor_tagged(size: i64, tag: i64, mask: i64) -> *mut u8 {
     if size < 0 || tag < 0 {
@@ -594,7 +597,7 @@ pub unsafe extern "C" fn cinch_alloc_ctor_tagged(size: i64, tag: i64, mask: i64)
     unsafe { crate::block::allocate_ctor_desc(size as usize, desc, false) }
 }
 
-/// The kind of a closure or dictionary allocation, or a compiler-bug trap.
+#[cfg(test)]
 fn shaped_kind(kind: i64) -> u8 {
     let closure = i64::from(crate::block::KIND_CLOSURE);
     let dict = i64::from(crate::block::KIND_DICT);
@@ -604,11 +607,7 @@ fn shaped_kind(kind: i64) -> u8 {
     kind as u8
 }
 
-/// Allocate a closure (`KIND_CLOSURE`) or dictionary (`KIND_DICT`) block
-/// of `size` uninitialised payload bytes whose layout field is `field`
-/// (tag 0 and the counted mask of its saved words or slots), with `rc = 1`,
-/// and return the payload pointer. A negative size or any other kind is
-/// a compiler-bug trap.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, field: i64) -> *mut u8 {
     if size < 0 {
@@ -617,8 +616,7 @@ pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, field: i64) ->
     unsafe { crate::block::allocate_shaped(size as usize, shaped_kind(kind), field as u32, false) }
 }
 
-/// [`cinch_alloc_shaped`] of an escaped closure or dictionary, described by
-/// the static descriptor `desc`.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_shaped_desc(size: i64, kind: i64, desc: *const u64) -> *mut u8 {
     if size < 0 {
@@ -627,18 +625,7 @@ pub unsafe extern "C" fn cinch_alloc_shaped_desc(size: i64, kind: i64, desc: *co
     unsafe { crate::block::allocate_shaped_desc(size as usize, shaped_kind(kind), desc, false) }
 }
 
-/// Deallocate the header block behind `word`: the raw release of a block
-/// whose count has reached zero. It does not visit the block's children
-/// (that is [`crate::rc::cinch_drop_slow`]); it only releases what a
-/// runtime box owns outside its block (a `Nat`'s limbs, a heap buffer's
-/// data), then returns the block to the allocator with the size its
-/// header records (a shaped block's from the small heap or its descriptor).
-///
-/// An immediate word (low bit 1), the null word, an immortal block
-/// (`rc == 0`: static blocks and interned `Sym` cells) and a frame block
-/// (either frame marker: memory the stack owns, and `cinch_frame_release`
-/// owns its release) are ignored. Any other word must be a live heap block
-/// allocated by this runtime.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_free(word: i64) {
     if word == 0 || word & 1 != 0 {

@@ -183,23 +183,41 @@ unsafe fn is_leaf_block(p: *const u8, h: u64) -> bool {
 }
 
 /// Whether the program counts references ([`cinch_reclaim_enable`]).
+#[cfg(not(test))]
+unsafe extern "C" {
+    pub fn cinch_reclaim_enable();
+    pub fn cinch_dup(word: i64);
+    pub fn cinch_drop(word: i64);
+    pub fn cinch_drop_slow(word: i64);
+    pub fn cinch_frame_release(word: i64);
+    pub fn cinch_dup_mt(word: i64);
+    pub fn cinch_drop_mt(word: i64);
+    pub fn cinch_mark_mt(word: i64);
+    pub fn cinch_exit_check(code: i64) -> i64;
+    fn cinch_rt_reclaiming() -> u8;
+    fn cinch_rt_mark_mt_array(word: i64);
+    fn cinch_rt_field_counted(word: i64, slot: usize) -> u8;
+    fn cinch_rt_take_field(word: i64, slot: usize) -> i64;
+}
+
+#[cfg(test)]
 static RECLAIM: AtomicBool = AtomicBool::new(false);
 
-/// Record that the running program counts references (it was compiled
-/// with `TargetProfile::reclaim`). The code generator's global
-/// constructor calls it before any generated code runs. Without it the
-/// program owns no counts, so the runtime never marks a task body and
-/// never drops a task result: every block leaks, as the program expects.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_reclaim_enable() {
-    // Relaxed suffices: the constructor runs before `main`, and every
-    // thread that reads the flag is spawned after it.
     RECLAIM.store(true, Ordering::Relaxed);
 }
 
-/// Whether the program counts references ([`cinch_reclaim_enable`]).
 pub fn reclaiming() -> bool {
-    RECLAIM.load(Ordering::Relaxed)
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_reclaiming() != 0 }
+    }
+    #[cfg(test)]
+    {
+        RECLAIM.load(Ordering::Relaxed)
+    }
 }
 
 /// Whether `word` is a block pointer rather than 0 or an immediate.
@@ -234,6 +252,7 @@ fn check(word: i64, h: u64) {
 /// # Safety
 ///
 /// `word` is 0, an immediate, or a live block word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_dup(word: i64) {
     if !is_block_word(word) {
@@ -268,6 +287,7 @@ pub unsafe extern "C" fn cinch_dup(word: i64) {
 ///
 /// `word` is 0, an immediate, or a live block word whose reference the
 /// caller owns and does not use again.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_drop(word: i64) {
     if !is_block_word(word) {
@@ -308,6 +328,7 @@ pub unsafe extern "C" fn cinch_drop(word: i64) {
 ///
 /// `word` is a live mortal block word with `rc == 1` whose reference the
 /// caller owns and does not use again, or a frame block word.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
     if !is_block_word(word) {
@@ -365,6 +386,7 @@ pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
 /// `word` is a frame block word whose payload the caller's activation
 /// owns (the header is still readable, and the payload words are live
 /// until the frame returns).
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_frame_release(word: i64) {
     if !is_block_word(word) {
@@ -438,6 +460,7 @@ pub(crate) unsafe fn release_children(p: *mut u8, h: u64, debug: bool) {
 /// # Safety
 ///
 /// `word` is a live block word with a negative count.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_dup_mt(word: i64) {
     let p = word as usize as *mut u8;
@@ -459,6 +482,7 @@ pub unsafe extern "C" fn cinch_dup_mt(word: i64) {
 ///
 /// `word` is a live block word with a negative count whose reference the
 /// caller owns and does not use again.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_drop_mt(word: i64) {
     let p = word as usize as *mut u8;
@@ -544,6 +568,7 @@ unsafe fn take_atomic(p: *mut u8) -> Option<u64> {
 /// `word` is 0, an immediate, or a live block word, and every block
 /// reachable from it that is not marked is reachable from this thread
 /// only.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
     if !is_block_word(word) {
@@ -689,6 +714,13 @@ unsafe fn mark_mt_pointer_reversal(root: *mut u8, mut h: u64) {
 ///
 /// As for [`cinch_mark_mt`]; `word` is 0 or an array block word.
 pub(crate) unsafe fn mark_mt_array(word: i64) {
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_mark_mt_array(word) };
+        return;
+    }
+    #[cfg(test)]
+    {
     if !is_block_word(word) {
         return;
     }
@@ -704,6 +736,7 @@ pub(crate) unsafe fn mark_mt_array(word: i64) {
     while let Some((slot, _)) = scan.counted_below(at) {
         at = slot;
         unsafe { cinch_mark_mt(p.cast::<i64>().add(slot).read()) };
+    }
     }
 }
 
@@ -749,20 +782,24 @@ unsafe fn claim(word: i64) -> Option<u64> {
 ///
 /// `word` is a live constructor block word with more than `slot` fields.
 pub(crate) unsafe fn field_counted(word: i64, slot: usize) -> bool {
-    let p = word as usize as *const u8;
-    unsafe { Scan::of(p, block::read_header(p)) }.code(slot) != SCAN_RAW
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_field_counted(word, slot) != 0 }
+    }
+    #[cfg(test)]
+    {
+        let p = word as usize as *const u8;
+        unsafe { Scan::of(p, block::read_header(p)) }.code(slot) != SCAN_RAW
+    }
 }
 
-/// Move field `slot` out of the owned constructor block behind `word`
-/// and drop the block: the caller receives the field's reference. A
-/// unique block gives its field up without count traffic; a shared one
-/// keeps its own, so the field is dupped first.
-///
-/// # Safety
-///
-/// `word` is a live constructor block word with more than `slot` fields,
-/// whose reference the caller owns and does not use again.
 pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_take_field(word, slot) }
+    }
+    #[cfg(test)]
+    {
     let p = word as usize as *mut u8;
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
@@ -771,8 +808,6 @@ pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
     let at = unsafe { p.cast::<i64>().add(slot) };
     let field = unsafe { at.read() };
     if block::rc(h) == block::RC_FRESH {
-        // Only the caller can reach the block: the slot gives its
-        // reference up, and 0 is a word the release skips.
         unsafe {
             at.write(0);
             release(p, h);
@@ -784,6 +819,7 @@ pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
         unsafe { cinch_drop(word) };
     }
     field
+    }
 }
 
 /// Release `root` (header `h`) and every block only it kept alive, children
@@ -959,6 +995,7 @@ thread_local! {
 /// [`crate::abi::EXIT_LEAK`] when it is not zero. Otherwise `code`, the
 /// program's own exit word, is returned unchanged. The generated entry
 /// glue calls it after `main` returns, so a fault keeps its own exit code.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_exit_check(code: i64) -> i64 {
     if !crate::heap::leak_check() {

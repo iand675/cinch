@@ -2,5 +2,16 @@ module Runtime where
   import Runtime.Mem
   import Runtime.Sys
   import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.AllocKinds
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+  import Runtime.Arena
 
   export cinchBlackhole, cinchPanic
+  export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc, cinchAllocCtorTagged
+  export cinchAllocShaped, cinchAllocShapedDesc, cinchFree
+  export cinchArenaNew, cinchArenaEnterPhase, cinchArenaLeave, cinchArenaExitPhase
+  export cinchReclaimEnable, cinchDup, cinchDrop, cinchDropSlow, cinchFrameRelease
+  export cinchDupMt, cinchDropMt, cinchMarkMt, cinchExitCheck

@@ -232,9 +232,22 @@ thread_local! {
 /// the count of entered arenas; the scheduler uses it bare at a switch,
 /// because a task's arena stays entered while the task is switched out
 /// ([`ENTERED`] counts the arenas that are entered, running or not).
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn cinch_rt_arena_replace_current(arena: *mut u8) -> *mut u8;
+    fn cinch_rt_arena_mark_mt_all_active();
+}
+
 #[inline]
 pub(crate) fn replace_current(arena: *mut Arena) -> *mut Arena {
-    CURRENT.with(|c| c.replace(arena))
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_arena_replace_current(arena.cast()).cast() }
+    }
+    #[cfg(test)]
+    {
+        CURRENT.with(|c| c.replace(arena))
+    }
 }
 
 /// The arenas entered across the process, so a thread can skip the
@@ -266,6 +279,13 @@ fn enter(arena: *mut Arena) {
 /// counted once so workers reading those leaves cannot race on plain RCs.
 /// Each served block is scanned at most once per arena lifetime.
 pub(crate) unsafe fn mark_mt_all_active() {
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_arena_mark_mt_all_active() };
+        return;
+    }
+    #[cfg(test)]
+    {
     if ENTERED.load(Relaxed) == 0 || !crate::rc::reclaiming() {
         return;
     }
@@ -289,6 +309,7 @@ pub(crate) unsafe fn mark_mt_all_active() {
             }
         }
         ptr = arena.prev;
+    }
     }
 }
 
@@ -431,6 +452,7 @@ pub unsafe fn leave(arena: *mut Arena) {
 ///
 /// The handle is a machine word, never a block: generated code holds it
 /// in an `I64` and emits no count operation for it.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_arena_new(bytes: i64) -> i64 {
     if bytes < 0 {
@@ -442,10 +464,7 @@ pub unsafe extern "C" fn cinch_arena_new(bytes: i64) -> i64 {
     unsafe { new(bytes as usize) as usize as i64 }
 }
 
-/// Always enter a fresh phase arena (regardless of `CINCH_ARENA`), returning
-/// its handle. Used by compiler batch phases whose only escaping value is a
-/// scalar exit code or heap `Bytes`, giving parallel workers `RC_IMMORTAL`
-/// zero-contention reads over shared AST/type/IR tables.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_arena_enter_phase(bytes: i64) -> i64 {
     if bytes < 0 {
@@ -457,10 +476,7 @@ pub unsafe extern "C" fn cinch_arena_enter_phase(bytes: i64) -> i64 {
     unsafe { new(bytes as usize) as usize as i64 }
 }
 
-/// Leave and free the arena `handle` names, restoring the arena entered
-/// before it, and return 0. The null handle (a disabled arena) is a
-/// no-op. Leaving an arena that is not the current one is a compiler bug:
-/// nesting is a stack discipline.
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_arena_leave(handle: i64) -> i64 {
     if handle == 0 {
@@ -474,7 +490,7 @@ pub unsafe extern "C" fn cinch_arena_leave(handle: i64) -> i64 {
     0
 }
 
-/// Leave a phase arena entered with [`cinch_arena_enter_phase`].
+#[cfg(test)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_arena_exit_phase(handle: i64) -> i64 {
     unsafe { cinch_arena_leave(handle) }

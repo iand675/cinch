@@ -1,6 +1,14 @@
 module Runtime.Sys where
+  import Runtime.Mem
+
   export cWrite, cRead, cExit, cRawExit, cPause, cGetenv
-  export cMalloc, cCalloc, cRealloc, cFree, cStrlen, cMemcmp
+  export cMalloc, cCalloc, cRealloc, cFree, cPosixMemalign, cStrlen, cMemcmp
+  export cMmap, cMunmap, cMprotect, cAtexit, cSchedYield
+  export cPthreadKeyCreate, cPthreadSetSpecific, cPthreadGetSpecific
+  export sysProtNone, sysProtRead, sysProtWrite, sysMapPrivate, sysMapAnon
+  export sysMmapReserve, sysMprotect, sysMunmap, sysMmapAnon
+  export sysNoThreadWord, sysThreadWord, sysSpinLoop
+  export sysAlignedAlloc, sysSystemFree, sysSystemRealloc
 
   foreign import ccall "write" cWrite :: I32 -> RawPtr U8 -> Usize ->{Global} Isize
   foreign import ccall "read" cRead :: I32 -> RawPtr U8 -> Usize ->{Global} Isize
@@ -12,5 +20,130 @@ module Runtime.Sys where
   foreign import ccall "calloc" cCalloc :: Usize -> Usize ->{Global} MaybeNull U8
   foreign import ccall "realloc" cRealloc :: MaybeNull U8 -> Usize ->{Global} MaybeNull U8
   foreign import ccall "free" cFree :: MaybeNull U8 ->{Global} Unit
+  foreign import ccall "posix_memalign" cPosixMemalign :: RawPtr (MaybeNull U8) -> Usize -> Usize ->{Global} I32
   foreign import ccall "strlen" cStrlen :: RawPtr U8 ->{Global} Usize
   foreign import ccall "memcmp" cMemcmp :: RawPtr U8 -> RawPtr U8 -> Usize ->{Global} I32
+  foreign import ccall "mmap" cMmap :: MaybeNull U8 -> Usize -> I32 -> I32 -> I32 -> I64 ->{Global} MaybeNull U8
+  foreign import ccall "munmap" cMunmap :: RawPtr U8 -> Usize ->{Global} I32
+  foreign import ccall "mprotect" cMprotect :: RawPtr U8 -> Usize -> I32 ->{Global} I32
+  foreign import ccall "atexit" cAtexit :: RawPtr U8 ->{Global} I32
+  foreign import ccall "sched_yield" cSchedYield :: Unit ->{Global} I32
+  foreign import ccall "pthread_key_create" cPthreadKeyCreate :: RawPtr U64 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_setspecific" cPthreadSetSpecific :: U64 -> MaybeNull U8 ->{Global} I32
+  foreign import ccall "pthread_getspecific" cPthreadGetSpecific :: U64 ->{Global} MaybeNull U8
+
+  sysProtNone :: I32
+  sysProtNone = 0
+
+  sysProtRead :: I32
+  sysProtRead = 1
+
+  sysProtWrite :: I32
+  sysProtWrite = 2
+
+  sysMapPrivate :: I32
+  sysMapPrivate = 2
+
+  prim sysMapAnonPrim :: I64 -> I32 where
+    unsafe llvm { ret i32 4096 } when os darwin
+    unsafe llvm { ret i32 32 } when os linux
+    unsafe llvm { ret i32 0 }
+
+  sysMapAnon :: I32
+  sysMapAnon = sysMapAnonPrim 0
+
+  sysMmapReserve :: Usize ->{Global} MaybeNull U8
+  sysMmapReserve size =
+    let flags = i64ToI32 (bitOrI64 (i32ToI64 sysMapPrivate) (i32ToI64 sysMapAnon)) in
+    let p = cMmap (ptrNull ()) size sysProtNone flags (i64ToI32 (i64Sub 0 1)) 0 in
+    let maxU = i64ToU64 (i64Sub 0 1) in
+    if ptrToU64 p == maxU then ptrNull () else p
+
+  sysMmapAnon :: Usize ->{Global} MaybeNull U8
+  sysMmapAnon size =
+    let prot = i64ToI32 (bitOrI64 (i32ToI64 sysProtRead) (i32ToI64 sysProtWrite)) in
+    let flags = i64ToI32 (bitOrI64 (i32ToI64 sysMapPrivate) (i32ToI64 sysMapAnon)) in
+    let p = cMmap (ptrNull ()) size prot flags (i64ToI32 (i64Sub 0 1)) 0 in
+    let maxU = i64ToU64 (i64Sub 0 1) in
+    if ptrToU64 p == maxU then ptrNull () else p
+
+  sysMprotect :: RawPtr U8 -> Usize -> I32 ->{Global} I32
+  sysMprotect addr size prot = cMprotect addr size prot
+
+  sysMunmap :: RawPtr U8 -> Usize ->{Global} I32
+  sysMunmap addr size = cMunmap addr size
+
+  sysNoThreadWord :: U64
+  sysNoThreadWord = 1
+
+  prim sysThreadWordPrim :: I64 -> U64 where
+    unsafe llvm {
+      %w = call i64 asm "mrs $0, tpidrro_el0", "=r"()
+      %m = and i64 %w, -8
+      ret i64 %m
+    } when arch aarch64 when os darwin
+    unsafe llvm {
+      %w = call i64 asm "mrs $0, tpidr_el0", "=r"()
+      ret i64 %w
+    } when arch aarch64 when os linux
+    unsafe llvm {
+      %w = call i64 asm "movq %fs:0, $0", "=r"()
+      ret i64 %w
+    } when arch x86_64 when os linux
+    unsafe llvm {
+      ret i64 1
+    }
+
+  sysThreadWord :: Unit -> U64
+  sysThreadWord _ = sysThreadWordPrim 0
+
+  prim sysSpinLoopPrim :: I64 ->{Global} Unit where
+    unsafe llvm {
+      call void asm sideeffect "yield", ""()
+      ret void
+    } when arch aarch64
+    unsafe llvm {
+      call void asm sideeffect "pause", ""()
+      ret void
+    } when arch x86_64
+    unsafe llvm {
+      ret void
+    }
+
+  sysSpinLoop :: Unit ->{Global} Unit
+  sysSpinLoop _ = sysSpinLoopPrim 0
+
+  sysAlignedAlloc :: Usize -> Usize -> Bool ->{Global} MaybeNull U8
+  sysAlignedAlloc size align zeroed =
+    let reqSize = if size == 0 then 1 else size in
+    if usizeLe align 16 then
+      if zeroed then cCalloc 1 reqSize else cMalloc reqSize
+    else
+      let effAlign = if usizeLt align 8 then 8 else align in
+      withLocal (ptrNull () :: MaybeNull U8) (\slot ->
+        let rc = cPosixMemalign (mutAsPtr slot) effAlign reqSize in
+        if rc /= 0 then ptrNull ()
+        else
+          let p = loadPtr (mutAsPtr slot) 0 in
+          if ptrIsNull p then ptrNull ()
+          else
+            let _ = if zeroed then memZero (maybeToRaw p) reqSize else () in
+            p
+      )
+
+  sysSystemFree :: RawPtr U8 ->{Global} Unit
+  sysSystemFree p = cFree (rawToMaybe p)
+
+  sysSystemRealloc :: RawPtr U8 -> Usize -> Usize -> Usize ->{Global} MaybeNull U8
+  sysSystemRealloc p oldSize align newSize =
+    let reqSize = if newSize == 0 then 1 else newSize in
+    if usizeLe align 16 then
+      cRealloc (rawToMaybe p) reqSize
+    else
+      let next = sysAlignedAlloc reqSize align False in
+      if ptrIsNull next then ptrNull ()
+      else
+        let copyLen = u64ToUsize (u64Min (usizeToU64 oldSize) (usizeToU64 reqSize)) in
+        let _ = if copyLen /= 0 then memCopy (maybeToRaw next) p copyLen else () in
+        let _ = cFree (rawToMaybe p) in
+        next

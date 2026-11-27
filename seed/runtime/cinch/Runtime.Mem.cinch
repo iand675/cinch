@@ -7,15 +7,18 @@ module Runtime.Mem where
   export atomicStoreU64Relaxed, atomicStoreU64Release, atomicStoreU64SeqCst
   export atomicAddU64Relaxed, atomicAddU64AcqRel, atomicAddU64SeqCst
   export atomicSubU64Relaxed, atomicSubU64AcqRel, atomicSubU64SeqCst
+  export atomicAddU64Release, atomicMaxU64Relaxed
   export atomicAndU64AcqRel, atomicOrU64AcqRel, atomicXorU64AcqRel
   export atomicSwapU64AcqRel, atomicSwapU64SeqCst
-  export atomicCasU64Bool, atomicCasU64Val
+  export atomicCasU64Bool, atomicCasU64Val, atomicCasU64Relaxed
   export atomicLoadI64Relaxed, atomicLoadI64Acquire, atomicLoadI64SeqCst
   export atomicStoreI64Relaxed, atomicStoreI64Release, atomicStoreI64SeqCst
   export atomicAddI64AcqRel, atomicSubI64AcqRel, atomicSwapI64SeqCst, atomicCasI64Bool
   export atomicLoadU32Relaxed, atomicLoadU32Acquire, atomicStoreU32Release
   export atomicAddU32AcqRel, atomicSwapU32AcqRel, atomicCasU32Bool
-  export atomicLoadPtrAcquire, atomicStorePtrRelease, atomicSwapPtrAcqRel, atomicCasPtrBool
+  export atomicLoadPtrRelaxed, atomicLoadPtrAcquire, atomicStorePtrRelaxed, atomicStorePtrRelease
+  export atomicSwapPtrAcquire, atomicSwapPtrAcqRel, atomicCasPtrBool, atomicCasPtrRelease
+  export u64BitNot, u64Min, u64Max, u64SatSub, u64SatAdd, u64SatMul
   export fenceAcquire, fenceRelease, fenceAcqRel, fenceSeqCst
   export memCopy, memMove, memSet, memZero
   export u64ToI64, i64ToU64, u64ToUsize, usizeToU64, u64ToIsize, isizeToU64
@@ -469,7 +472,37 @@ module Runtime.Mem where
       ret i8 %z
     }
 
+  prim atomicAddU64Release :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw add ptr %p, i64 %2 release, align 8
+      ret i64 %v
+    }
+
+  prim atomicMaxU64Relaxed :: forall a. RawPtr a -> Isize -> U64 ->{Global} U64 where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw umax ptr %p, i64 %2 monotonic, align 8
+      ret i64 %v
+    }
+
+  prim atomicCasU64Relaxed :: forall a. RawPtr a -> Isize -> U64 -> U64 ->{Global} Bool where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, i64 %2, i64 %3 monotonic monotonic, align 8
+      %ok = extractvalue { i64, i1 } %res, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
   -- Atomic Ptr operations
+  prim atomicLoadPtrRelaxed :: forall a b. RawPtr a -> Isize ->{Global} MaybeNull b where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = load atomic ptr, ptr %p monotonic, align 8
+      ret ptr %v
+    }
+
   prim atomicLoadPtrAcquire :: forall a b. RawPtr a -> Isize ->{Global} MaybeNull b where
     unsafe llvm {
       %p = getelementptr i8, ptr %0, i64 %1
@@ -477,11 +510,25 @@ module Runtime.Mem where
       ret ptr %v
     }
 
+  prim atomicStorePtrRelaxed :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} Unit where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      store atomic ptr %2, ptr %p monotonic, align 8
+      ret void
+    }
+
   prim atomicStorePtrRelease :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} Unit where
     unsafe llvm {
       %p = getelementptr i8, ptr %0, i64 %1
       store atomic ptr %2, ptr %p release, align 8
       ret void
+    }
+
+  prim atomicSwapPtrAcquire :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} MaybeNull b where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %v = atomicrmw xchg ptr %p, ptr %2 acquire, align 8
+      ret ptr %v
     }
 
   prim atomicSwapPtrAcqRel :: forall a b. RawPtr a -> Isize -> MaybeNull b ->{Global} MaybeNull b where
@@ -499,6 +546,39 @@ module Runtime.Mem where
       %z = zext i1 %ok to i8
       ret i8 %z
     }
+
+  prim atomicCasPtrRelease :: forall a b. RawPtr a -> Isize -> MaybeNull b -> MaybeNull b ->{Global} Bool where
+    unsafe llvm {
+      %p = getelementptr i8, ptr %0, i64 %1
+      %res = cmpxchg ptr %p, ptr %2, ptr %3 release monotonic, align 8
+      %ok = extractvalue { ptr, i1 } %res, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  u64BitNot :: U64 -> U64
+  u64BitNot x = bitXorU64 x (i64ToU64 (i64Sub 0 1))
+
+  u64Min :: U64 -> U64 -> U64
+  u64Min a b = if u64Lt a b then a else b
+
+  u64Max :: U64 -> U64 -> U64
+  u64Max a b = if u64Gt a b then a else b
+
+  u64SatSub :: U64 -> U64 -> U64
+  u64SatSub a b = if u64Lt a b then 0 else u64Sub a b
+
+  u64SatAdd :: U64 -> U64 -> U64
+  u64SatAdd a b =
+    let s = u64Add a b in
+    if u64Lt s a then i64ToU64 (i64Sub 0 1) else s
+
+  u64SatMul :: U64 -> U64 -> U64
+  u64SatMul a b =
+    if a == 0 then 0
+    else
+      let maxU = i64ToU64 (i64Sub 0 1) in
+      if u64Gt b (u64Div maxU a) then maxU else u64Mul a b
 
   -- Fences
   prim fenceAcquirePrim :: I64 ->{Global} Unit where

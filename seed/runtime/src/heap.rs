@@ -243,14 +243,32 @@ fn configured_limit(setting: Option<&[u8]>) -> u64 {
     limit.min(crate::block::HEAP_LIMIT_MAX)
 }
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn cinch_rt_global_alloc(size: usize, align: usize, zeroed: u8) -> *mut u8;
+    fn cinch_rt_global_dealloc(ptr: *mut u8, size: usize, align: usize);
+    fn cinch_rt_global_realloc(ptr: *mut u8, old_size: usize, align: usize, new_size: usize) -> *mut u8;
+    fn cinch_rt_alloc_block(size: usize, align: usize, immortal: u8, zeroed: u8) -> *mut u8;
+    fn cinch_rt_free_block(base: *mut u8, size: usize);
+    fn cinch_rt_rc_debug() -> u8;
+    fn cinch_rt_block_stats(out: *mut u64);
+    fn cinch_rt_heap_stats(out: *mut u64);
+}
+
 /// Whether `CINCH_RC_DEBUG=1`: freed blocks are poisoned and kept, and the
 /// count entry points validate headers ([`crate::rc`]).
 pub fn rc_debug() -> bool {
-    #[cfg(test)]
-    if FORCE_RC_DEBUG.with(std::cell::Cell::get) {
-        return true;
+    #[cfg(not(test))]
+    {
+        return unsafe { cinch_rt_rc_debug() != 0 };
     }
-    CONFIG.rc_debug
+    #[cfg(test)]
+    {
+        if FORCE_RC_DEBUG.with(std::cell::Cell::get) {
+            return true;
+        }
+        CONFIG.rc_debug
+    }
 }
 
 #[cfg(test)]
@@ -473,30 +491,36 @@ unsafe fn place_system(layout: Layout, zeroed: bool) -> *mut u8 {
 /// The caller writes every byte it later reads (unless `zeroed`).
 #[inline]
 pub(crate) unsafe fn alloc_block(layout: Layout, immortal: bool, zeroed: bool) -> *mut u8 {
-    let local = small::local();
-    account(local, layout.size(), Some(immortal));
-    unsafe { place(local, layout, zeroed) }
+    #[cfg(not(test))]
+    {
+        return unsafe { cinch_rt_alloc_block(layout.size(), layout.align(), u8::from(immortal), u8::from(zeroed)) };
+    }
+    #[cfg(test)]
+    {
+        let local = small::local();
+        account(local, layout.size(), Some(immortal));
+        unsafe { place(local, layout, zeroed) }
+    }
 }
 
-/// Free the backing memory at `base` of a header block from
-/// [`alloc_block`], counting the header block freed. `local` is the
-/// calling thread's small heap ([`small::local`]), or `None`. `layout`
-/// gives the block's allocation layout; it is only asked for when the
-/// block came from the system allocator, since a small block's page
-/// knows its size.
-///
-/// # Safety
-///
-/// `base` is the start of a live block [`alloc_block`] returned, not
-/// used again.
 #[inline(always)]
 pub(crate) unsafe fn free_block(local: Option<&Heap>, base: *mut u8, layout: impl FnOnce() -> Layout) {
-    count_freed(local);
-    if small::owns(base) {
-        discharge(local, unsafe { small::block_size(base) });
-        unsafe { small::free(base, local) }
-    } else {
-        unsafe { free_system(local, base, layout()) }
+    #[cfg(not(test))]
+    {
+        let _ = local;
+        let l = layout();
+        unsafe { cinch_rt_free_block(base, l.size()) };
+        return;
+    }
+    #[cfg(test)]
+    {
+        count_freed(local);
+        if small::owns(base) {
+            discharge(local, unsafe { small::block_size(base) });
+            unsafe { small::free(base, local) }
+        } else {
+            unsafe { free_system(local, base, layout()) }
+        }
     }
 }
 
@@ -572,6 +596,13 @@ pub(crate) static TEST_HEAVY: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Snapshot `(header_blocks, header_bytes, immortal, freed)`.
 pub fn block_stats() -> (u64, u64, u64, u64) {
+    #[cfg(not(test))]
+    {
+        let mut out = [0u64; 4];
+        unsafe { cinch_rt_block_stats(out.as_mut_ptr()) };
+        return (out[0], out[1], out[2], out[3]);
+    }
+    #[cfg(test)]
     (
         total(|t| &t.header_blocks),
         total(|t| &t.header_bytes),
@@ -590,6 +621,13 @@ pub fn live_blocks() -> u64 {
 /// `peak` its high-water mark as [`Live`] describes (exact under
 /// `CINCH_ALLOC_STATS=1`, an upper bound otherwise).
 pub fn stats() -> (u64, u64, u64, u64) {
+    #[cfg(not(test))]
+    {
+        let mut out = [0u64; 4];
+        unsafe { cinch_rt_heap_stats(out.as_mut_ptr()) };
+        return (out[0], out[1], out[2], out[3]);
+    }
+    #[cfg(test)]
     (
         total(|t| &t.blocks),
         total(|t| &t.bytes),
@@ -708,45 +746,72 @@ fn granted(p: *mut u8) -> *mut u8 {
 
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let local = small::local();
-        account(local, layout.size(), None);
-        unsafe { place(local, layout, false) }
+        #[cfg(not(test))]
+        {
+            return unsafe { cinch_rt_global_alloc(layout.size(), layout.align(), 0) };
+        }
+        #[cfg(test)]
+        {
+            let local = small::local();
+            account(local, layout.size(), None);
+            unsafe { place(local, layout, false) }
+        }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        let local = small::local();
-        account(local, layout.size(), None);
-        unsafe { place(local, layout, true) }
+        #[cfg(not(test))]
+        {
+            return unsafe { cinch_rt_global_alloc(layout.size(), layout.align(), 1) };
+        }
+        #[cfg(test)]
+        {
+            let local = small::local();
+            account(local, layout.size(), None);
+            unsafe { place(local, layout, true) }
+        }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        let local = small::local();
-        discharge(local, layout.size());
-        if small::owns(ptr) {
-            unsafe { small::free(ptr, local) }
-        } else {
-            unsafe { System.dealloc(ptr, layout) }
+        #[cfg(not(test))]
+        {
+            unsafe { cinch_rt_global_dealloc(ptr, layout.size(), layout.align()) };
+            return;
+        }
+        #[cfg(test)]
+        {
+            let local = small::local();
+            discharge(local, layout.size());
+            if small::owns(ptr) {
+                unsafe { small::free(ptr, local) }
+            } else {
+                unsafe { System.dealloc(ptr, layout) }
+            }
         }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let local = small::local();
-        discharge(local, layout.size());
-        account(local, new_size, None);
-        if !small::owns(ptr) {
-            return granted(unsafe { System.realloc(ptr, layout, new_size) });
+        #[cfg(not(test))]
+        {
+            return unsafe { cinch_rt_global_realloc(ptr, layout.size(), layout.align(), new_size) };
         }
-        // A small block stays put while its class still fits; otherwise
-        // it moves to wherever the new size is placed.
-        if small::class_of(new_size, layout.align()) == Some(unsafe { small::class_at(ptr) }) {
-            return ptr;
+        #[cfg(test)]
+        {
+            let local = small::local();
+            discharge(local, layout.size());
+            account(local, new_size, None);
+            if !small::owns(ptr) {
+                return granted(unsafe { System.realloc(ptr, layout, new_size) });
+            }
+            if small::class_of(new_size, layout.align()) == Some(unsafe { small::class_at(ptr) }) {
+                return ptr;
+            }
+            let new = unsafe { place(local, Layout::from_size_align_unchecked(new_size, layout.align()), false) };
+            unsafe {
+                std::ptr::copy_nonoverlapping(ptr, new, layout.size().min(new_size));
+                small::free(ptr, local);
+            }
+            new
         }
-        let new = unsafe { place(local, Layout::from_size_align_unchecked(new_size, layout.align()), false) };
-        unsafe {
-            std::ptr::copy_nonoverlapping(ptr, new, layout.size().min(new_size));
-            small::free(ptr, local);
-        }
-        new
     }
 }
 

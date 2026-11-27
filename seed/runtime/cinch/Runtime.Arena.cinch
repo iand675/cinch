@@ -1,0 +1,180 @@
+module Runtime.Arena where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.Heap
+  import Runtime.Block
+  import Runtime.Rc
+
+  export cinchArenaNew, cinchArenaEnterPhase, cinchArenaLeave, cinchArenaExitPhase
+  export arenaMarkMtAllActive
+
+  -- 0=UNREAD, 1=ON, 2=OFF
+  #[static_mut]
+  static arenaFlags :: FixedArray 2 U64 -- [0]=enabled, [1]=phaseEnabled
+
+  checkArenaEnv :: Bool ->{Global} Bool
+  checkArenaEnv checkZero =
+    withLocal (fixedArrayRepeat 16 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "CINCH_ARENA\0"
+      let _ = storeU8 p 0 67 in let _ = storeU8 p 1 73 in let _ = storeU8 p 2 78 in let _ = storeU8 p 3 67 in
+      let _ = storeU8 p 4 72 in let _ = storeU8 p 5 95 in let _ = storeU8 p 6 65 in let _ = storeU8 p 7 82 in
+      let _ = storeU8 p 8 69 in let _ = storeU8 p 9 78 in let _ = storeU8 p 10 65 in let _ = storeU8 p 11 0 in
+      if checkZero then heapEnvIsZero p else heapEnvIsOne p
+    )
+
+  arenaEnabled :: Unit ->{Global} Bool
+  arenaEnabled _ =
+    let f = ptrCast (arenaFlags ()) in
+    let v = atomicLoadU64Relaxed f 0 in
+    if v == 1 then True
+    else if v == 2 then False
+    else
+      let on = checkArenaEnv False in
+      let _ = atomicStoreU64Relaxed f 0 (if on then 1 else 2) in
+      on
+
+  phaseArenaEnabled :: Unit ->{Global} Bool
+  phaseArenaEnabled _ =
+    let f = ptrCast (arenaFlags ()) in
+    let v = atomicLoadU64Relaxed f 8 in
+    if v == 1 then True
+    else if v == 2 then False
+    else
+      let off = checkArenaEnv True in
+      let _ = atomicStoreU64Relaxed f 8 (if off then 2 else 1) in
+      not off
+
+  panicArena :: Bool ->{Global} Unit
+  panicArena isOrder =
+    withLocal (fixedArrayRepeat 40 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put4 p 8 32 98 117 103 in
+      let _ = storeU8 p 12 58 in
+      let _ = storeU8 p 13 32 in
+      if isOrder then
+        let _ = put8 p 14 97 114 101 110 97 32 111 114 in
+        let _ = storeU8 p 22 100 in let _ = storeU8 p 23 101 in let _ = storeU8 p 24 114 in
+        panicExitBytes p 25
+      else
+        let _ = put8 p 14 97 114 101 110 97 32 110 101 in
+        let _ = put4 p 22 103 32 115 105 in
+        let _ = storeU8 p 26 122 in let _ = storeU8 p 27 101 in
+        panicExitBytes p 28
+    )
+
+  -- Mark all unmarked heap children reachable from blocks in active arenas
+  markServedBlockSlots :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  markServedBlockSlots served h at =
+    let hit = scanCountedBelow served h at in
+    if not (hit.shFound) then ()
+    else
+      let slot = hit.shSlot in
+      let w = loadI64 served (u64ToIsize (u64Mul slot 8)) in
+      let _ = cinchMarkMt w in
+      markServedBlockSlots served h slot
+
+  markArenaRange :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  markArenaRange buf idx len =
+    if u64Ge idx len then ()
+    else
+      let served = maybeToRaw (ptrFromU64 (loadU64 buf (u64ToIsize (u64Mul idx 8)))) in
+      let h = readHeader served in
+      let _ = markServedBlockSlots served h (scanWords served h) in
+      markArenaRange buf (u64Add idx 1) len
+
+  markAllArenasLoop :: MaybeNull U8 ->{Global} Unit
+  markAllArenasLoop ap =
+    if ptrIsNull ap then ()
+    else
+      let arena = maybeToRaw ap in
+      let len = loadU64 arena offArenaServedLen in
+      let marked = loadU64 arena offArenaMarkedUpTo in
+      let _ =
+            (if u64Lt marked len then
+              let _ = storeU64 arena offArenaMarkedUpTo len in
+              let buf = loadPtr arena offArenaServedData in
+              if not (ptrIsNull buf) then markArenaRange (maybeToRaw buf) marked len else ()
+            else ()) in
+      markAllArenasLoop (loadPtr arena offArenaPrev)
+
+  arenaMarkMtAllActive :: Unit ->{Global, ThreadAffine} Unit
+  arenaMarkMtAllActive _ =
+    if arenaEnteredCount () == 0 || not (rcReclaiming ()) then ()
+    else markAllArenasLoop (arenaCurrent ())
+
+  -- Leave and free an arena
+  releaseServedLoop :: RawPtr U8 -> U64 -> U64 -> Bool ->{Global, ThreadAffine} Unit
+  releaseServedLoop buf idx len dbg =
+    if u64Ge idx len then ()
+    else
+      let served = maybeToRaw (ptrFromU64 (loadU64 buf (u64ToIsize (u64Mul idx 8)))) in
+      let h = readHeader served in
+      let _ = releaseChildren served h dbg in
+      releaseServedLoop buf (u64Add idx 1) len dbg
+
+  freeChunksLoop :: MaybeNull U8 -> MaybeNull U8 ->{Global} Unit
+  freeChunksLoop local chunk =
+    if ptrIsNull chunk then ()
+    else
+      let cp = maybeToRaw chunk in
+      let next = loadPtr cp offChunkNext in
+      let bytes = loadU64 cp offChunkBytes in
+      let total = u64Add chunkHeaderBytes bytes in
+      let _ = heapFreeBlock local cp total in
+      let _ = arenaLiveSubChunk total in
+      freeChunksLoop local next
+
+  arenaLeaveRaw :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  arenaLeaveRaw arena =
+    let local = heapLocal () in
+    let dbg = heapRcDebug () in
+    let servedLen = loadU64 arena offArenaServedLen in
+    let servedData = loadPtr arena offArenaServedData in
+    let _ = (if not (ptrIsNull servedData) && u64Gt servedLen 0 then
+        releaseServedLoop (maybeToRaw servedData) 0 servedLen dbg
+      else ()) in
+    let _ = freeChunksLoop local (loadPtr arena offArenaHead) in
+    let _ = heapArenaStatsAdd (loadU64 arena offArenaBlocks) (loadU64 arena offArenaBytes) in
+    let prev = loadPtr arena offArenaPrev in
+    let servedCap = loadU64 arena offArenaServedCap in
+    let _ = (if not (ptrIsNull servedData) && u64Gt servedCap 0 then
+        heapGlobalDealloc (maybeToRaw servedData) (u64ToUsize (u64Mul servedCap 8)) 8
+      else ()) in
+    let _ = heapFreeBlock local arena arenaStructBytes in
+    let _ = arenaLiveSubRecord () in
+    arenaEnter prev
+
+  cinchArenaNew :: I64 ->{Global, ThreadAffine} I64
+  cinchArenaNew bytes =
+    let _ = if i64Lt bytes 0 then panicArena False else () in
+    if not (arenaEnabled ()) then 0
+    else u64ToI64 (rawToU64 (arenaNewRaw (i64ToU64 bytes)))
+
+  cinchArenaEnterPhase :: I64 ->{Global, ThreadAffine} I64
+  cinchArenaEnterPhase bytes =
+    let _ = if i64Lt bytes 0 then panicArena False else () in
+    if not (phaseArenaEnabled ()) then 0
+    else u64ToI64 (rawToU64 (arenaNewRaw (i64ToU64 bytes)))
+
+  cinchArenaLeave :: I64 ->{Global, ThreadAffine} I64
+  cinchArenaLeave hdl =
+    if hdl == 0 then 0
+    else
+      let cur = arenaCurrent () in
+      let _ = if ptrToU64 cur /= i64ToU64 hdl then panicArena True else () in
+      let _ = arenaLeaveRaw (maybeToRaw cur) in
+      0
+
+  cinchArenaExitPhase :: I64 ->{Global, ThreadAffine} I64
+  cinchArenaExitPhase hdl = cinchArenaLeave hdl
+
+  foreign export ccall "cinch_arena_new" cinchArenaNew :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_arena_enter_phase" cinchArenaEnterPhase :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_arena_leave" cinchArenaLeave :: I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_arena_exit_phase" cinchArenaExitPhase :: I64 ->{Global, ThreadAffine} I64
+
+  -- Temporary Rust bridge export (removed in M6)
+  foreign export ccall "cinch_rt_arena_mark_mt_all_active" arenaMarkMtAllActive :: Unit ->{Global, ThreadAffine} Unit

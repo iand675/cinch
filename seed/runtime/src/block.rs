@@ -163,7 +163,20 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
 /// # Safety
 ///
 /// The caller initialises every payload word it later reads.
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn cinch_rt_allocate(size: usize, kind: u8, rc: i64, zeroed: u8) -> *mut u8;
+    fn cinch_rt_allocate_described(size: usize, kind: u8, desc: u64, zeroed: u8) -> *mut u8;
+    fn cinch_rt_free(p: *mut u8);
+}
+
 pub unsafe fn allocate(size: usize, kind: u8, rc: i64, zeroed: bool) -> *mut u8 {
+    #[cfg(not(test))]
+    {
+        return unsafe { cinch_rt_allocate(size, kind, rc, u8::from(zeroed)) };
+    }
+    #[cfg(test)]
+    {
     let Some(payload) = round_payload(size) else {
         crate::heap::request_too_large(size);
     };
@@ -174,18 +187,16 @@ pub unsafe fn allocate(size: usize, kind: u8, rc: i64, zeroed: bool) -> *mut u8 
         (words as u32, None)
     };
     unsafe { allocate_block(payload, header(rc, kind, field), ext, rc == RC_IMMORTAL, zeroed) }
+    }
 }
 
-/// Allocate a fresh block of a shaped kind (`kind_has_shape`) with `size`
-/// payload bytes whose layout field is `field` (its tag and counted mask,
-/// [`shape_field`]). Returns the payload pointer.
-///
-/// # Safety
-///
-/// As for [`allocate`]; `field` describes this payload, and a constructor
-/// or dictionary of more than [`SHAPED_SMALL_WORDS`] payload words is
-/// escaped instead ([`allocate_shaped_desc`]).
 pub unsafe fn allocate_shaped(size: usize, kind: u8, field: u32, zeroed: bool) -> *mut u8 {
+    #[cfg(not(test))]
+    {
+        return unsafe { cinch_rt_allocate_described(size, kind, inline_description(field), u8::from(zeroed)) };
+    }
+    #[cfg(test)]
+    {
     let Some(payload) = round_payload(size) else {
         crate::heap::request_too_large(size);
     };
@@ -193,11 +204,6 @@ pub unsafe fn allocate_shaped(size: usize, kind: u8, field: u32, zeroed: bool) -
         crate::abi::panic_exit(b"compiler bug: an escaped shaped block allocated without its descriptor");
     }
     let p = unsafe { allocate_block(payload, header(RC_FRESH, kind, field), None, false, zeroed) };
-    // A closure's size is its prefix and filled count; a constructor's or a
-    // dictionary's is the small heap's to know, and one the system holds
-    // instead is recorded for its free.
-    // An arena's blocks are immortal and freed with their chunk, so only a
-    // mortal block of the system allocator needs the record.
     if kind != KIND_CLOSURE
         && !crate::small::owns(unsafe { p.sub(HEADER_BYTES) })
         && rc(unsafe { read_header(p) }) != RC_IMMORTAL
@@ -205,20 +211,21 @@ pub unsafe fn allocate_shaped(size: usize, kind: u8, field: u32, zeroed: bool) -
         FALLBACK_SIZES.lock().unwrap_or_else(|e| e.into_inner()).insert(p as usize, payload);
     }
     p
+    }
 }
 
-/// [`allocate_shaped`] of an escaped block: its layout field is the escape
-/// tag and the word before its header points to `desc`, a static
-/// descriptor (`DESC_*`) that outlives the block.
-///
-/// # Safety
-///
-/// As for [`allocate`]; `desc` describes this payload.
 pub unsafe fn allocate_shaped_desc(size: usize, kind: u8, desc: *const u64, zeroed: bool) -> *mut u8 {
+    #[cfg(not(test))]
+    {
+        return unsafe { cinch_rt_allocate_described(size, kind, desc as usize as u64, u8::from(zeroed)) };
+    }
+    #[cfg(test)]
+    {
     let Some(payload) = round_payload(size) else {
         crate::heap::request_too_large(size);
     };
     unsafe { allocate_block(payload, header(RC_FRESH, kind, ESCAPED_FIELD), Some(desc as u64), false, zeroed) }
+    }
 }
 
 /// Allocate a fresh constructor block: [`allocate_shaped`] of `KIND_CTOR`.
@@ -590,6 +597,12 @@ pub const POISON: u64 = 0xdead_beef_dead_beef;
 /// `p` must be the payload pointer of a live, mortal heap block allocated
 /// by [`allocate`] or [`allocate_shaped`], not used again afterwards.
 pub unsafe fn free(p: *mut u8) {
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_free(p) };
+        return;
+    }
+    #[cfg(test)]
     unsafe { free_in(p, read_header(p), crate::heap::rc_debug(), crate::small::local()) }
 }
 

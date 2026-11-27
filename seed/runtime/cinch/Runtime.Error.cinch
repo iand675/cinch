@@ -3,7 +3,8 @@ module Runtime.Error where
   import Runtime.Sys
 
   export exitBlackhole, exitPanic, exitExhausted, exitLeak
-  export writeStderrRaw, writeStderrU64, panicExitBytes, exhaustedHeap, exhaustedStack, exhaustedThreads
+  export put4, put8, writeStderrRaw, writeStderrU64, panicExitBytes
+  export exhaustedHeap, exhaustedStack, exhaustedThreads
   export exhaustedHeapInSignal, exhaustedStackInSignal, isExhausting
   export cinchBlackhole, cinchPanic
 
@@ -34,6 +35,19 @@ module Runtime.Error where
   claimExhausted _ =
     let prev = atomicSwapU64SeqCst (exhaustingFlag ()) 0 1 in
     if prev /= 0 then waitForever () else ()
+
+  put4 :: RawPtr U8 -> Isize -> U8 -> U8 -> U8 -> U8 ->{Global} Unit
+  put4 p off a b c d =
+    let q = ptrAdd p off in
+    let _ = storeU8 q 0 a in
+    let _ = storeU8 q 1 b in
+    let _ = storeU8 q 2 c in
+    storeU8 q 3 d
+
+  put8 :: RawPtr U8 -> Isize -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{Global} Unit
+  put8 p off a b c d e f g h =
+    let _ = put4 p off a b c d in
+    put4 p (i64ToIsize (i64Add (isizeToI64 off) 4)) e f g h
 
   writeAllLoop :: I32 -> RawPtr U8 -> Usize ->{Global} Unit
   writeAllLoop fd ptr rem =
@@ -71,18 +85,8 @@ module Runtime.Error where
     withLocal (fixedArrayRepeat 16 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
       -- "cinchruntime: " (14 bytes)
-      let _ = storeU8 p 0 99 in
-      let _ = storeU8 p 1 105 in
-      let _ = storeU8 p 2 110 in
-      let _ = storeU8 p 3 99 in
-      let _ = storeU8 p 4 104 in
-      let _ = storeU8 p 5 114 in
-      let _ = storeU8 p 6 117 in
-      let _ = storeU8 p 7 110 in
-      let _ = storeU8 p 8 116 in
-      let _ = storeU8 p 9 105 in
-      let _ = storeU8 p 10 109 in
-      let _ = storeU8 p 11 101 in
+      let _ = put8 p 0 99 105 110 99 104 114 117 110 in
+      let _ = put4 p 8 116 105 109 101 in
       let _ = storeU8 p 12 58 in
       let _ = storeU8 p 13 32 in
       writeStderrRaw p 14
@@ -101,54 +105,12 @@ module Runtime.Error where
     withLocal (fixedArrayRepeat 64 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
       -- "compiler bug: panic with corrupt message pointer" (48 bytes)
-      let _ = storeU8 p 0 99 in
-      let _ = storeU8 p 1 111 in
-      let _ = storeU8 p 2 109 in
-      let _ = storeU8 p 3 112 in
-      let _ = storeU8 p 4 105 in
-      let _ = storeU8 p 5 108 in
-      let _ = storeU8 p 6 101 in
-      let _ = storeU8 p 7 114 in
-      let _ = storeU8 p 8 32 in
-      let _ = storeU8 p 9 98 in
-      let _ = storeU8 p 10 117 in
-      let _ = storeU8 p 11 103 in
-      let _ = storeU8 p 12 58 in
-      let _ = storeU8 p 13 32 in
-      let _ = storeU8 p 14 112 in
-      let _ = storeU8 p 15 97 in
-      let _ = storeU8 p 16 110 in
-      let _ = storeU8 p 17 105 in
-      let _ = storeU8 p 18 99 in
-      let _ = storeU8 p 19 32 in
-      let _ = storeU8 p 20 119 in
-      let _ = storeU8 p 21 105 in
-      let _ = storeU8 p 22 116 in
-      let _ = storeU8 p 23 104 in
-      let _ = storeU8 p 24 32 in
-      let _ = storeU8 p 25 99 in
-      let _ = storeU8 p 26 111 in
-      let _ = storeU8 p 27 114 in
-      let _ = storeU8 p 28 114 in
-      let _ = storeU8 p 29 117 in
-      let _ = storeU8 p 30 112 in
-      let _ = storeU8 p 31 116 in
-      let _ = storeU8 p 32 32 in
-      let _ = storeU8 p 33 109 in
-      let _ = storeU8 p 34 101 in
-      let _ = storeU8 p 35 115 in
-      let _ = storeU8 p 36 115 in
-      let _ = storeU8 p 37 97 in
-      let _ = storeU8 p 38 103 in
-      let _ = storeU8 p 39 101 in
-      let _ = storeU8 p 40 32 in
-      let _ = storeU8 p 41 112 in
-      let _ = storeU8 p 42 111 in
-      let _ = storeU8 p 43 105 in
-      let _ = storeU8 p 44 110 in
-      let _ = storeU8 p 45 116 in
-      let _ = storeU8 p 46 101 in
-      let _ = storeU8 p 47 114 in
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 112 97 in
+      let _ = put8 p 16 110 105 99 32 119 105 116 104 in
+      let _ = put8 p 24 32 99 111 114 114 117 112 116 in
+      let _ = put8 p 32 32 109 101 115 115 97 103 101 in
+      let _ = put8 p 40 32 112 111 105 110 116 101 114 in
       writeStderrRaw p 48
     )
 
@@ -157,22 +119,8 @@ module Runtime.Error where
     withLocal (fixedArrayRepeat 24 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
       -- "cinch: exhausted: " (18 bytes)
-      let _ = storeU8 p 0 99 in
-      let _ = storeU8 p 1 105 in
-      let _ = storeU8 p 2 110 in
-      let _ = storeU8 p 3 99 in
-      let _ = storeU8 p 4 104 in
-      let _ = storeU8 p 5 58 in
-      let _ = storeU8 p 6 32 in
-      let _ = storeU8 p 7 101 in
-      let _ = storeU8 p 8 120 in
-      let _ = storeU8 p 9 104 in
-      let _ = storeU8 p 10 97 in
-      let _ = storeU8 p 11 117 in
-      let _ = storeU8 p 12 115 in
-      let _ = storeU8 p 13 116 in
-      let _ = storeU8 p 14 101 in
-      let _ = storeU8 p 15 100 in
+      let _ = put8 p 0 99 105 110 99 104 58 32 101 in
+      let _ = put8 p 8 120 104 97 117 115 116 101 100 in
       let _ = storeU8 p 16 58 in
       let _ = storeU8 p 17 32 in
       writeStderrRaw p 18
@@ -182,11 +130,7 @@ module Runtime.Error where
   writeHeapSuffix bytes =
     let _ = withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
-      -- "heap (" (6 bytes)
-      let _ = storeU8 p 0 104 in
-      let _ = storeU8 p 1 101 in
-      let _ = storeU8 p 2 97 in
-      let _ = storeU8 p 3 112 in
+      let _ = put4 p 0 104 101 97 112 in
       let _ = storeU8 p 4 32 in
       let _ = storeU8 p 5 40 in
       writeStderrRaw p 6
@@ -194,15 +138,7 @@ module Runtime.Error where
     let _ = writeStderrU64 bytes in
     withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
-      -- " bytes)\n" (8 bytes)
-      let _ = storeU8 p 0 32 in
-      let _ = storeU8 p 1 98 in
-      let _ = storeU8 p 2 121 in
-      let _ = storeU8 p 3 116 in
-      let _ = storeU8 p 4 101 in
-      let _ = storeU8 p 5 115 in
-      let _ = storeU8 p 6 41 in
-      let _ = storeU8 p 7 10 in
+      let _ = put8 p 0 32 98 121 116 101 115 41 10 in
       writeStderrRaw p 8
     )
 
@@ -210,11 +146,7 @@ module Runtime.Error where
   writeStackSuffix _ =
     withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
-      -- "stack\n" (6 bytes)
-      let _ = storeU8 p 0 115 in
-      let _ = storeU8 p 1 116 in
-      let _ = storeU8 p 2 97 in
-      let _ = storeU8 p 3 99 in
+      let _ = put4 p 0 115 116 97 99 in
       let _ = storeU8 p 4 107 in
       let _ = storeU8 p 5 10 in
       writeStderrRaw p 6
@@ -224,15 +156,7 @@ module Runtime.Error where
   writeThreadsSuffix _ =
     withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
       let p = mutAsPtr arr in
-      -- "threads\n" (8 bytes)
-      let _ = storeU8 p 0 116 in
-      let _ = storeU8 p 1 104 in
-      let _ = storeU8 p 2 114 in
-      let _ = storeU8 p 3 101 in
-      let _ = storeU8 p 4 97 in
-      let _ = storeU8 p 5 100 in
-      let _ = storeU8 p 6 115 in
-      let _ = storeU8 p 7 10 in
+      let _ = put8 p 0 116 104 114 101 97 100 115 10 in
       writeStderrRaw p 8
     )
 

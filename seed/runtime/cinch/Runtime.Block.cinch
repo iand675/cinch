@@ -1,0 +1,764 @@
+module Runtime.Block where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.AllocKinds
+  import Runtime.Heap
+
+  export readHeader, writeHeader, headerAtomicAddRelease, headerAtomicSubRelaxed
+  export extWord, descriptorPtr, ctorTagOf, closureWords
+  export PayloadInfo, ScanHit
+  export blockPayloadBytes, blockFreeIn, blockFree
+  export isLeafBlock, scanWords, scanCountedBelow, scanCode
+  export allocate, allocateCtor, allocateCtorDesc, allocateShaped, allocateShapedDesc, allocateDescribed
+  export arenaCurrent, arenaReplaceCurrent, arenaEnter, arenaNewRaw, arenaGrow, arenaEnteredCount
+  export arenaLiveSubChunk, arenaLiveSubRecord
+  export offArenaPrev, offArenaHead, offArenaCurrent, offArenaUsed, offArenaNext
+  export offArenaBlocks, offArenaBytes, offArenaServedData, offArenaServedLen, offArenaServedCap, offArenaMarkedUpTo
+  export offChunkNext, offChunkBytes, chunkHeaderBytes, arenaStructBytes
+  export cinchAlloc, cinchAllocRaw, cinchAllocCtor, cinchAllocCtorDesc, cinchAllocCtorTagged
+  export cinchAllocShaped, cinchAllocShapedDesc
+
+  -- =========================================================================
+  -- Header helpers
+  -- =========================================================================
+
+  readHeader :: RawPtr U8 ->{Global} U64
+  readHeader p = loadU64 (ptrSubU64 p headerBytes) 0
+
+  writeHeader :: RawPtr U8 -> U64 ->{Global} Unit
+  writeHeader p h = storeU64 (ptrSubU64 p headerBytes) 0 h
+
+  headerAtomicAddRelease :: RawPtr U8 -> U64 ->{Global} U64
+  headerAtomicAddRelease p delta = atomicAddU64Release (ptrSubU64 p headerBytes) 0 delta
+
+  headerAtomicSubRelaxed :: RawPtr U8 -> U64 ->{Global} U64
+  headerAtomicSubRelaxed p delta = atomicSubU64Relaxed (ptrSubU64 p headerBytes) 0 delta
+
+  extWord :: RawPtr U8 ->{Global} U64
+  extWord p = loadU64 (ptrSubU64 p 16) 0
+
+  panicMsg :: U64 ->{Global} Unit
+  panicMsg which =
+    withLocal (fixedArrayRepeat 48 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: " (14 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put4 p 8 32 98 117 103 in
+      let _ = storeU8 p 12 58 in
+      let _ = storeU8 p 13 32 in
+      if which == 0 then
+        let _ = put8 p 14 101 115 99 97 112 101 100 32 in
+        let _ = put8 p 22 98 108 111 99 107 32 110 111 in
+        let _ = put4 p 30 32 100 101 115 in
+        let _ = storeU8 p 34 99 in
+        panicExitBytes p 35
+      else if which == 1 then
+        let _ = put8 p 14 98 108 111 99 107 32 104 101 in
+        let _ = put8 p 22 97 100 101 114 32 99 111 114 in
+        let _ = put4 p 30 114 117 112 116 in
+        panicExitBytes p 34
+      else if which == 2 then
+        let _ = put8 p 14 110 101 103 97 116 105 118 101 in
+        let _ = put4 p 22 32 115 105 122 in
+        let _ = storeU8 p 26 101 in
+        panicExitBytes p 27
+      else if which == 3 then
+        let _ = put8 p 14 98 97 100 32 107 105 110 100 in
+        panicExitBytes p 22
+      else if which == 4 then
+        let _ = put8 p 14 102 114 97 109 101 32 102 114 in
+        let _ = storeU8 p 22 101 in
+        let _ = storeU8 p 23 101 in
+        panicExitBytes p 24
+      else
+        let _ = put8 p 14 105 110 118 97 108 105 100 32 in
+        let _ = storeU8 p 22 109 in
+        let _ = storeU8 p 23 97 in
+        let _ = storeU8 p 24 112 in
+        panicExitBytes p 25
+    )
+
+  descriptorPtr :: RawPtr U8 ->{Global} RawPtr U64
+  descriptorPtr p =
+    let d = extWord p in
+    if d == 0 || bitAndU64 d 7 /= 0 then
+      let _ = panicMsg 0 in
+      maybeToRaw (ptrFromU64 d)
+    else
+      maybeToRaw (ptrFromU64 d)
+
+  ctorTagOf :: RawPtr U8 ->{Global} U64
+  ctorTagOf p =
+    let l = headerLayout (readHeader p) in
+    if shapeEscaped l then loadU64 (descriptorPtr p) 0
+    else shapeFieldTag l
+
+  closureWords :: RawPtr U8 ->{Global} U64
+  closureWords p =
+    let filled = loadU64 p (u64ToIsize (u64Mul closureFilledWord 8)) in
+    u64SatAdd closurePrefixWords filled
+
+  -- =========================================================================
+  -- Fallback size table (for rare inline shaped blocks outside small-heap)
+  -- Simple spin-locked linked list of nodes: { next: ptr, key: u64, bytes: u64 }
+  -- =========================================================================
+
+  #[static_mut]
+  static fallbackTable :: FixedArray 2 U64 -- [0]=lock, [1]=head
+
+  fbLock :: Unit ->{Global} Unit
+  fbLock _ = fbLockLoop 0
+
+  fbLockLoop :: U64 ->{Global} Unit
+  fbLockLoop s =
+    if atomicCasU64Bool (ptrCast (fallbackTable ())) 0 0 1 then ()
+    else
+      let _ = (if u64Lt s 100 then sysSpinLoop () else (let _ = cSchedYield () in ())) in
+      fbLockLoop (u64Add s 1)
+
+  fbUnlock :: Unit ->{Global} Unit
+  fbUnlock _ = atomicStoreU64Release (ptrCast (fallbackTable ())) 0 0
+
+  fallbackInsert :: U64 -> U64 ->{Global} Unit
+  fallbackInsert key bytes =
+    let node = cMalloc 24 in
+    if ptrIsNull node then ()
+    else
+      let np = maybeToRaw node in
+      let _ = fbLock () in
+      let head = loadU64 (ptrCast (fallbackTable ())) 8 in
+      let _ = storeU64 np 0 head in
+      let _ = storeU64 np 8 key in
+      let _ = storeU64 np 16 bytes in
+      let _ = storeU64 (ptrCast (fallbackTable ())) 8 (rawToU64 np) in
+      fbUnlock ()
+
+  fallbackLookupLoop :: U64 -> U64 ->{Global} I64
+  fallbackLookupLoop cur key =
+    if cur == 0 then i64Sub 0 1
+    else
+      let np = maybeToRaw (ptrFromU64 cur) in
+      if loadU64 np 8 == key then u64ToI64 (loadU64 np 16)
+      else fallbackLookupLoop (loadU64 np 0) key
+
+  fallbackLookup :: U64 ->{Global} I64
+  fallbackLookup key =
+    let _ = fbLock () in
+    let res = fallbackLookupLoop (loadU64 (ptrCast (fallbackTable ())) 8) key in
+    let _ = fbUnlock () in
+    res
+
+  fallbackRemoveLoop :: RawPtr U8 -> Isize -> U64 ->{Global} Unit
+  fallbackRemoveLoop prevPtr prevOff key =
+    let cur = loadU64 prevPtr prevOff in
+    if cur == 0 then ()
+    else
+      let np = maybeToRaw (ptrFromU64 cur) in
+      if loadU64 np 8 == key then
+        let next = loadU64 np 0 in
+        let _ = storeU64 prevPtr prevOff next in
+        cFree (rawToMaybe np)
+      else
+        fallbackRemoveLoop np 0 key
+
+  fallbackRemove :: U64 ->{Global} Unit
+  fallbackRemove key =
+    let _ = fbLock () in
+    let _ = fallbackRemoveLoop (ptrCast (fallbackTable ())) 8 key in
+    fbUnlock ()
+
+  -- =========================================================================
+  -- Interned runtime descriptors (for cinch_alloc_ctor_tagged)
+  -- Node: { next: ptr, tag: u64, words: u64, mask: u64, descPtr: ptr } (40 bytes)
+  -- =========================================================================
+
+  #[static_mut]
+  static internTable :: FixedArray 2 U64 -- [0]=lock, [1]=head
+
+  internLock :: Unit ->{Global} Unit
+  internLock _ = internLockLoop 0
+
+  internLockLoop :: U64 ->{Global} Unit
+  internLockLoop s =
+    if atomicCasU64Bool (ptrCast (internTable ())) 0 0 1 then ()
+    else
+      let _ = (if u64Lt s 100 then sysSpinLoop () else (let _ = cSchedYield () in ())) in
+      internLockLoop (u64Add s 1)
+
+  internUnlock :: Unit ->{Global} Unit
+  internUnlock _ = atomicStoreU64Release (ptrCast (internTable ())) 0 0
+
+  internFindLoop :: U64 -> U64 -> U64 -> U64 ->{Global} MaybeNull U64
+  internFindLoop cur tag words mask =
+    if cur == 0 then ptrNull ()
+    else
+      let np = maybeToRaw (ptrFromU64 cur) in
+      if loadU64 np 8 == tag && loadU64 np 16 == words && loadU64 np 24 == mask then
+        ptrFromU64 (loadU64 np 32)
+      else
+        internFindLoop (loadU64 np 0) tag words mask
+
+  internedDescriptor :: U64 -> U64 -> U64 ->{Global} RawPtr U64
+  internedDescriptor tag words mask =
+    let _ = internLock () in
+    let found = internFindLoop (loadU64 (ptrCast (internTable ())) 8) tag words mask in
+    if not (ptrIsNull found) then
+      let _ = internUnlock () in
+      maybeToRaw found
+    else
+      let dw = descWords words in
+      let dmem = cCalloc (u64ToUsize dw) 8 in
+      let dp = maybeToRaw dmem in
+      let _ = storeU64 dp 0 tag in
+      let _ = storeU64 dp 8 words in
+      let _ = (if u64Gt words 0 then
+          let masked = if u64Ge words 64 then mask else bitAndU64 mask (u64Sub (shlU64 1 words) 1) in
+          storeU64 dp 16 masked
+        else ()) in
+      let node = cMalloc 40 in
+      let _ = (if not (ptrIsNull node) then
+          let np = maybeToRaw node in
+          let head = loadU64 (ptrCast (internTable ())) 8 in
+          let _ = storeU64 np 0 head in
+          let _ = storeU64 np 8 tag in
+          let _ = storeU64 np 16 words in
+          let _ = storeU64 np 24 mask in
+          let _ = storeU64 np 32 (rawToU64 dp) in
+          storeU64 (ptrCast (internTable ())) 8 (rawToU64 np)
+        else ()) in
+      let _ = internUnlock () in
+      ptrCast dp
+
+  -- =========================================================================
+  -- Per-thread Bump Arena (allocation half — teardown lives in Runtime.Arena)
+  -- =========================================================================
+
+  chunkHeaderBytes :: U64
+  chunkHeaderBytes = 16
+  offChunkNext :: Isize
+  offChunkNext = 0
+  offChunkBytes :: Isize
+  offChunkBytes = 8
+
+  minChunkBytes :: U64
+  minChunkBytes = 65536
+  maxChunkBytes :: U64
+  maxChunkBytes = 67108864
+
+  -- Arena struct layout (88 bytes, multiple of 8):
+  offArenaPrev :: Isize
+  offArenaPrev = 0
+  offArenaHead :: Isize
+  offArenaHead = 8
+  offArenaCurrent :: Isize
+  offArenaCurrent = 16
+  offArenaUsed :: Isize
+  offArenaUsed = 24
+  offArenaNext :: Isize
+  offArenaNext = 32
+  offArenaBlocks :: Isize
+  offArenaBlocks = 40
+  offArenaBytes :: Isize
+  offArenaBytes = 48
+  offArenaServedData :: Isize
+  offArenaServedData = 56
+  offArenaServedLen :: Isize
+  offArenaServedLen = 64
+  offArenaServedCap :: Isize
+  offArenaServedCap = 72
+  offArenaMarkedUpTo :: Isize
+  offArenaMarkedUpTo = 80
+
+  arenaStructBytes :: U64
+  arenaStructBytes = 88
+
+  #[static_mut]
+  static arenaEntered :: U64
+
+  #[static_mut]
+  static arenaLiveChunks :: FixedArray 2 U64 -- [0]=chunks, [1]=bytes
+
+  #[thread_local]
+  static currentArenaTls :: U64
+
+  arenaEnteredCount :: Unit ->{Global} U64
+  arenaEnteredCount _ = atomicLoadU64Relaxed (arenaEntered ()) 0
+
+  arenaCurrent :: Unit ->{Global, ThreadAffine} MaybeNull U8
+  arenaCurrent _ =
+    if atomicLoadU64Relaxed (arenaEntered ()) 0 == 0 then ptrNull ()
+    else ptrFromU64 (loadU64 (currentArenaTls ()) 0)
+
+  arenaReplaceCurrent :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8
+  arenaReplaceCurrent a =
+    let prev = loadU64 (currentArenaTls ()) 0 in
+    let _ = storeU64 (currentArenaTls ()) 0 (ptrToU64 a) in
+    ptrFromU64 prev
+
+  arenaEnter :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+  arenaEnter a =
+    let prev = arenaReplaceCurrent a in
+    if ptrIsNull prev && not (ptrIsNull a) then
+      let _ = atomicAddU64Relaxed (arenaEntered ()) 0 1 in ()
+    else if not (ptrIsNull prev) && ptrIsNull a then
+      let _ = atomicSubU64Relaxed (arenaEntered ()) 0 1 in ()
+    else ()
+
+  arenaLiveSubChunk :: U64 ->{Global} Unit
+  arenaLiveSubChunk bytes =
+    let _ = atomicSubU64Relaxed (ptrCast (arenaLiveChunks ())) 0 1 in
+    let _ = atomicSubU64Relaxed (ptrCast (arenaLiveChunks ())) 8 bytes in
+    ()
+
+  arenaLiveSubRecord :: Unit ->{Global} Unit
+  arenaLiveSubRecord _ = arenaLiveSubChunk arenaStructBytes
+
+  roundUp8 :: U64 -> U64
+  roundUp8 n = bitAndU64 (u64Add n 7) (u64BitNot 7)
+
+  arenaGrow :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  arenaGrow arena need =
+    let curNext = loadU64 arena offArenaNext in
+    let wanted = roundUp8 (u64Max (u64Max curNext need) minChunkBytes) in
+    let total = u64Add chunkHeaderBytes wanted in
+    let _ = if u64Lt total wanted then heapRequestTooLarge wanted else () in
+    let chunk = heapAllocBlock total 8 False False in
+    let oldHead = loadPtr arena offArenaHead in
+    let _ = storePtr chunk offChunkNext oldHead in
+    let _ = storeU64 chunk offChunkBytes wanted in
+    let _ = storePtr arena offArenaHead (rawToMaybe chunk) in
+    let _ = storePtr arena offArenaCurrent (rawToMaybe chunk) in
+    let _ = storeU64 arena offArenaUsed 0 in
+    let _ = storeU64 arena offArenaNext (u64Min (u64SatMul wanted 2) maxChunkBytes) in
+    let _ = atomicAddU64Relaxed (ptrCast (arenaLiveChunks ())) 0 1 in
+    let _ = atomicAddU64Relaxed (ptrCast (arenaLiveChunks ())) 8 total in
+    ()
+
+  arenaServedPush :: RawPtr U8 -> RawPtr U8 ->{Global, ThreadAffine} Unit
+  arenaServedPush arena payload =
+    let len = loadU64 arena offArenaServedLen in
+    let cap = loadU64 arena offArenaServedCap in
+    let buf =
+          (if u64Lt len cap then maybeToRaw (loadPtr arena offArenaServedData)
+          else
+            let newCap = if cap == 0 then 256 else u64Mul cap 2 in
+            let oldData = loadPtr arena offArenaServedData in
+            let newData =
+                  (if ptrIsNull oldData then
+                    heapGlobalAlloc (u64ToUsize (u64Mul newCap 8)) 8 0
+                  else
+                    heapGlobalRealloc (maybeToRaw oldData) (u64ToUsize (u64Mul cap 8)) 8 (u64ToUsize (u64Mul newCap 8))) in
+            let _ = storePtr arena offArenaServedData (rawToMaybe newData) in
+            let _ = storeU64 arena offArenaServedCap newCap in
+            newData) in
+    let _ = storeU64 buf (u64ToIsize (u64Mul len 8)) (rawToU64 payload) in
+    storeU64 arena offArenaServedLen (u64Add len 1)
+
+  arenaServe :: U64 -> U64 ->{Global, ThreadAffine} MaybeNull U8
+  arenaServe rawTotal prefix =
+    let ap = arenaCurrent () in
+    if ptrIsNull ap then ptrNull ()
+    else
+      let arena = maybeToRaw ap in
+      let total = roundUp8 (u64Max rawTotal 8) in
+      let cur = loadPtr arena offArenaCurrent in
+      let used = loadU64 arena offArenaUsed in
+      let _ = (if ptrIsNull cur || u64Gt (u64Add used total) (loadU64 (maybeToRaw cur) offChunkBytes) then
+          arenaGrow arena total
+        else ()) in
+      let chunk = maybeToRaw (loadPtr arena offArenaCurrent) in
+      let u2 = loadU64 arena offArenaUsed in
+      let base = ptrAddU64 (ptrAddU64 chunk chunkHeaderBytes) u2 in
+      let _ = storeU64 arena offArenaUsed (u64Add u2 total) in
+      let _ = storeU64 arena offArenaBlocks (u64Add (loadU64 arena offArenaBlocks) 1) in
+      let _ = storeU64 arena offArenaBytes (u64Add (loadU64 arena offArenaBytes) total) in
+      let payload = ptrAddU64 base prefix in
+      let _ = arenaServedPush arena payload in
+      rawToMaybe payload
+
+  arenaNewRaw :: U64 ->{Global, ThreadAffine} RawPtr U8
+  arenaNewRaw bytes =
+    let arena = heapAllocBlock arenaStructBytes 8 False True in
+    let _ = atomicAddU64Relaxed (ptrCast (arenaLiveChunks ())) 0 1 in
+    let _ = atomicAddU64Relaxed (ptrCast (arenaLiveChunks ())) 8 arenaStructBytes in
+    let tgt = u64Min (roundUp8 (u64Max bytes minChunkBytes)) maxChunkBytes in
+    let _ = storePtr arena offArenaPrev (arenaCurrent ()) in
+    let _ = storeU64 arena offArenaNext tgt in
+    let _ = arenaGrow arena tgt in
+    let _ = arenaEnter (rawToMaybe arena) in
+    arena
+
+  -- =========================================================================
+  -- Block allocation (1-to-1 port of seed/runtime/src/block.rs)
+  -- =========================================================================
+
+  roundPayload :: U64 -> U64
+  roundPayload size =
+    if size == 0 then 8
+    else
+      let r = bitAndU64 (u64Add size 7) (u64BitNot 7) in
+      if u64Lt r size then 0 else r -- 0 signals overflow
+
+  allocateBlock :: U64 -> U64 -> U8 -> I64 -> U32 -> U64 -> Bool -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocateBlock payload total kind rc layout ext hasExt zeroed =
+    let prefix = if hasExt then 16 else 8 in
+    let served = if kindHasShape kind && rc /= rcImmortal then arenaServe total prefix else ptrNull () in
+    if not (ptrIsNull served) then
+      let p = maybeToRaw served in
+      let _ = if zeroed then memZero p (u64ToUsize payload) else () in
+      let _ = if hasExt then storeU64 (ptrSubU64 p 16) 0 ext else () in
+      let _ = writeHeader p (makeHeader rcImmortal kind layout) in
+      let _ = allocKindsNoteArena kind total in
+      p
+    else
+      let base = heapAllocBlock total 8 (rc == rcImmortal) zeroed in
+      let _ = allocKindsNote kind total in
+      let p = ptrAddU64 base prefix in
+      let _ = if hasExt then storeU64 base 0 ext else () in
+      let _ = writeHeader p (makeHeader rc kind layout) in
+      let _ = (if kindHasShape kind && not hasExt && kind /= kindClosure && not (smallOwns base) then
+          fallbackInsert (rawToU64 p) payload
+        else ()) in
+      p
+
+  allocate :: U64 -> U8 -> I64 -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocate size kind rc zeroed =
+    let payload = roundPayload size in
+    let _ = if payload == 0 then heapRequestTooLarge size else () in
+    let words = lshrU64 payload 3 in
+    let big = u64Ge words (u32ToU64 layoutBig) in
+    let prefix = if big then 16 else 8 in
+    let total = u64Add prefix payload in
+    let _ = if u64Lt total payload then heapRequestTooLarge size else () in
+    let layout = if big then layoutBig else u64ToU32 words in
+    allocateBlock payload total kind rc layout payload big zeroed
+
+  allocateShaped :: U64 -> U8 -> U32 -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocateShaped size kind field zeroed =
+    let payload = roundPayload size in
+    let _ = if payload == 0 then heapRequestTooLarge size else () in
+    let total = u64Add 8 payload in
+    let _ = if u64Lt total payload then heapRequestTooLarge size else () in
+    allocateBlock payload total kind rcFresh field 0 False zeroed
+
+  allocateShapedDesc :: U64 -> U8 -> RawPtr U64 -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocateShapedDesc size kind desc zeroed =
+    let payload = roundPayload size in
+    let _ = if payload == 0 then heapRequestTooLarge size else () in
+    let total = u64Add 16 payload in
+    let _ = if u64Lt total payload then heapRequestTooLarge size else () in
+    allocateBlock payload total kind rcFresh escapedField (rawToU64 desc) True zeroed
+
+  allocateCtor :: U64 -> U32 -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocateCtor size field zeroed = allocateShaped size kindCtor field zeroed
+
+  allocateCtorDesc :: U64 -> RawPtr U64 -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocateCtorDesc size desc zeroed = allocateShapedDesc size kindCtor desc zeroed
+
+  allocateDescribed :: U64 -> U8 -> U64 -> Bool ->{Global, ThreadAffine} RawPtr U8
+  allocateDescribed size kind description zeroed =
+    if bitAndU64 description 1 == 1 then
+      allocateShaped size kind (u64ToU32 (lshrU64 description 1)) zeroed
+    else
+      allocateShapedDesc size kind (maybeToRaw (ptrFromU64 description)) zeroed
+
+  -- =========================================================================
+  -- Payload size, Scan, and Free
+  -- Returns (found: Bool, payloadBytes: U64, hasExt: Bool)
+  -- =========================================================================
+
+  #[repr(value)]
+  record PayloadInfo where
+    piFound :: Bool
+    piBytes :: U64
+    piHasExt :: Bool
+
+  #[repr(value)]
+  record ScanHit where
+    shFound :: Bool
+    shSlot :: U64
+    shCode :: U64
+
+  #[repr(value)]
+  record AllocReq where
+    arSize :: U64
+    arKind :: U8
+
+  blockPayloadBytes :: RawPtr U8 -> U64 ->{Global} PayloadInfo
+  blockPayloadBytes p h =
+    let l = headerLayout h in
+    let k = headerKind h in
+    if kindHasShape k then
+      let escaped = shapeEscaped l in
+      if k == kindClosure then
+        let cw = closureWords p in
+        PayloadInfo True (u64Mul cw 8) escaped
+      else if escaped then
+        let words = u64Max (loadU64 (descriptorPtr p) 8) 1 in
+        PayloadInfo True (u64Mul words 8) True
+      else
+        let base = ptrSubU64 p headerBytes in
+        if smallOwns base then
+          PayloadInfo True (u64Sub (smallBlockSize base) headerBytes) False
+        else
+          let rec = fallbackLookup (rawToU64 p) in
+          if i64Lt rec 0 then PayloadInfo False 0 False
+          else PayloadInfo True (i64ToU64 rec) False
+    else
+      let big = l == layoutBig in
+      let bytes = if big then extWord p else u64Mul (u32ToU64 l) 8 in
+      PayloadInfo True bytes big
+
+  isLeafBlock :: RawPtr U8 -> U64 ->{Global} Bool
+  isLeafBlock p h =
+    let k = headerKind h in
+    if kindHasShape k then
+      let l = headerLayout h in
+      not (shapeEscaped l) && shapeFieldMask l == 0
+    else if k == kindArray then
+      let entry = loadU64 p 0 in
+      entry == scanRaw || u64Gt entry scanTobj
+    else
+      k == kindKnot || k == kindNat || k == kindInt || k == kindBytes
+      || k == kindBytesStatic || k == kindSym || k == kindBoxedScalar
+      || k == kindRaw || k == kindMvar || k == kindBytesMapped
+      || k == kindAtomic || k == kindRwlock
+
+  -- Scan representation: (words, inlineBool, mapWord, entryWord, kind, extDescPtr)
+  -- To avoid heap allocation in hot RC loops, we provide direct unboxed functions!
+
+  scanWords :: RawPtr U8 -> U64 ->{Global} U64
+  scanWords p h =
+    let k = headerKind h in
+    if kindHasShape k then
+      let l = headerLayout h in
+      if not (shapeEscaped l) then
+        let prefix = shapePrefixWords k in
+        let mask = shlU64 (shapeFieldMask l) prefix in
+        if k == kindClosure then closureWords p
+        else if mask == 0 then 0
+        else u64Sub 64 (clzU64 mask)
+      else
+        let d = descriptorPtr p in
+        let described = loadU64 d 8 in
+        if k == kindClosure then
+          let cw = closureWords p in
+          let _ = if u64Gt cw described then panicMsg 1 else () in
+          cw
+        else described
+    else
+      let pi = blockPayloadBytes p h in
+      let _ = if not (pi.piFound) then panicMsg 1 else () in
+      lshrU64 (pi.piBytes) 3
+
+  scanCode :: RawPtr U8 -> U64 -> U64 ->{Global} U64
+  scanCode p h slot =
+    let k = headerKind h in
+    if kindHasShape k then
+      let l = headerLayout h in
+      if not (shapeEscaped l) then
+        let prefix = shapePrefixWords k in
+        let mask = shlU64 (shapeFieldMask l) prefix in
+        if u64Lt slot 64 && bitAndU64 (lshrU64 mask slot) 1 /= 0 then scanTobj else scanRaw
+      else
+        let d = descriptorPtr p in
+        let wordIdx = u64Add descMaskWord (lshrU64 slot 6) in
+        let bitIdx = bitAndU64 slot 63 in
+        let mw = loadU64 d (u64ToIsize (u64Mul wordIdx 8)) in
+        if bitAndU64 (lshrU64 mw bitIdx) 1 /= 0 then scanTobj else scanRaw
+    else if k == kindArray then
+      let entry = loadU64 p 0 in
+      if u64Ge slot 2 && u64Le entry scanTobj then entry else scanRaw
+    else if k == kindTvar then
+      if slot == tvarValueWord then
+        let code = loadU64 p (u64ToIsize (u64Mul tvarFormatWord 8)) in
+        let _ = if u64Gt code scanTobj then panicMsg 1 else () in
+        code
+      else scanRaw
+    else if k == kindBytesView then
+      if slot == bytesViewOwnerWord then scanObj else scanRaw
+    else
+      fixedScanCode k slot
+
+  scanDecodeBelowLoop :: RawPtr U8 -> U64 -> U64 ->{Global} ScanHit
+  scanDecodeBelowLoop p h below =
+    if below == 0 then ScanHit False 0 0
+    else
+      let slot = u64Sub below 1 in
+      let code = scanCode p h slot in
+      if code /= scanRaw then ScanHit True slot code
+      else scanDecodeBelowLoop p h slot
+
+  -- Fast inline bit-search for <=32-word blocks, O(1) for arrays, fallback for wide escaped
+  scanCountedBelow :: RawPtr U8 -> U64 -> U64 ->{Global} ScanHit
+  scanCountedBelow p h below =
+    if below == 0 then ScanHit False 0 0
+    else
+      let k = headerKind h in
+      if kindHasShape k then
+        let l = headerLayout h in
+        if not (shapeEscaped l) then
+          let prefix = shapePrefixWords k in
+          let rawMask = shlU64 (shapeFieldMask l) prefix in
+          let limitMask = if u64Ge below 64 then u64BitNot 0 else u64Sub (shlU64 1 below) 1 in
+          let m = bitAndU64 rawMask limitMask in
+          if m == 0 then ScanHit False 0 0
+          else ScanHit True (u64Sub 63 (clzU64 m)) scanTobj
+        else
+          let d = descriptorPtr p in
+          let described = loadU64 d 8 in
+          if u64Le described 64 then
+            let rawMask = loadU64 d 16 in
+            let limitMask = if u64Ge below 64 then u64BitNot 0 else u64Sub (shlU64 1 below) 1 in
+            let m = bitAndU64 rawMask limitMask in
+            if m == 0 then ScanHit False 0 0
+            else ScanHit True (u64Sub 63 (clzU64 m)) scanTobj
+          else
+            scanDecodeBelowLoop p h below
+      else if k == kindArray then
+        let entry = loadU64 p 0 in
+        if entry == scanRaw || u64Gt entry scanTobj then ScanHit False 0 0
+        else if u64Gt below 2 then ScanHit True (u64Sub below 1) entry
+        else ScanHit False 0 0
+      else if k == kindMemo then
+        if u64Gt below memoOwnedWord then ScanHit True memoOwnedWord scanObj else ScanHit False 0 0
+      else if k == kindTvar then
+        let code = loadU64 p (u64ToIsize (u64Mul tvarFormatWord 8)) in
+        let _ = if u64Gt code scanTobj then panicMsg 1 else () in
+        if code /= scanRaw && u64Gt below tvarValueWord then ScanHit True tvarValueWord code else ScanHit False 0 0
+      else if k == kindBytesView then
+        if u64Gt below bytesViewOwnerWord then ScanHit True bytesViewOwnerWord scanObj else ScanHit False 0 0
+      else if k == kindTensor then
+        ScanHit True (u64Sub below 1) scanObj
+      else if k == kindColumnar then
+        if u64Gt below 3 then ScanHit True (u64Sub below 1) scanObj else ScanHit False 0 0
+      else if k == kindCode then
+        if u64Gt below codePrefixWords then ScanHit True (u64Sub below 1) scanObj else ScanHit False 0 0
+      else
+        ScanHit False 0 0
+
+  poisonLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  poisonLoop p idx words =
+    if u64Ge idx words then ()
+    else
+      let _ = storeU64 p (u64ToIsize (u64Mul idx 8)) poisonWord in
+      poisonLoop p (u64Add idx 1) words
+
+  blockFreeIn :: RawPtr U8 -> U64 -> Bool -> MaybeNull U8 ->{Global, ThreadAffine} Unit
+  blockFreeIn p h debug local =
+    if debug then
+      let r = headerRc h in
+      let _ = if r == rcFrame || r == rcFrameReleased then panicMsg 4 else () in
+      let pi = blockPayloadBytes p h in
+      let _ = if not (pi.piFound) then panicMsg 1 else () in
+      let _ = poisonLoop p 0 (lshrU64 (pi.piBytes) 3) in
+      let _ = writeHeader p (makeHeader rcImmortal kindFreed (headerLayout h)) in
+      heapAccountBlockFree ()
+    else
+      let k = headerKind h in
+      let l = headerLayout h in
+      let escaped = if kindHasShape k then shapeEscaped l else l == layoutBig in
+      let prefix = if escaped then 16 else 8 in
+      let base = ptrSubU64 p prefix in
+      if smallOwns base then
+        heapFreeBlock local base 0
+      else
+        let pi = blockPayloadBytes p h in
+        let _ = if not (pi.piFound) then panicMsg 1 else () in
+        let ext = pi.piHasExt in
+        let _ = if kindHasShape k && not ext && k /= kindClosure then fallbackRemove (rawToU64 p) else () in
+        let total = u64Add (if ext then 16 else 8) (roundPayload (pi.piBytes)) in
+        heapFreeBlock local base total
+
+  blockFree :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  blockFree p = blockFreeIn p (readHeader p) (heapRcDebug ()) (heapLocal ())
+
+  -- =========================================================================
+  -- C ABI Allocation Exports (7 exports)
+  -- =========================================================================
+
+  checkAllocRequest :: I64 -> I64 ->{Global} AllocReq
+  checkAllocRequest size kind =
+    let _ = if i64Lt size 0 then panicMsg 2 else () in
+    let _ = if i64Lt kind 1 || i64Gt kind (u64ToI64 (u8ToU64 kindLast)) then panicMsg 3 else () in
+    let ku = u64ToU8 (i64ToU64 kind) in
+    let _ = if kindHasShape ku then panicMsg 3 else () in
+    AllocReq (i64ToU64 size) ku
+
+  cinchAlloc :: I64 -> I64 ->{Global, ThreadAffine} I64
+  cinchAlloc size kind =
+    let req = checkAllocRequest size kind in
+    u64ToI64 (rawToU64 (allocate (req.arSize) (req.arKind) rcFresh True))
+
+  cinchAllocRaw :: I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  cinchAllocRaw size kind =
+    let req = checkAllocRequest size kind in
+    allocate (req.arSize) (req.arKind) rcFresh False
+
+  cinchAllocCtor :: I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  cinchAllocCtor size field =
+    let _ = if i64Lt size 0 then panicMsg 2 else () in
+    allocateCtor (i64ToU64 size) (u64ToU32 (i64ToU64 field)) False
+
+  cinchAllocCtorDesc :: I64 -> RawPtr U64 ->{Global, ThreadAffine} RawPtr U8
+  cinchAllocCtorDesc size desc =
+    let _ = if i64Lt size 0 then panicMsg 2 else () in
+    allocateCtorDesc (i64ToU64 size) desc False
+
+  cinchAllocCtorTagged :: I64 -> I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  cinchAllocCtorTagged size tag mask =
+    let _ = if i64Lt size 0 || i64Lt tag 0 then panicMsg 2 else () in
+    let sz = i64ToU64 size in
+    let tu = i64ToU64 tag in
+    let mu = i64ToU64 mask in
+    let words = if sz == 0 then 0 else u64Add (u64Div (u64Sub sz 1) 8) 1 in
+    if u64Lt tu shapeEscapedTag && lshrU64 mu shapeMaskBits == 0 && u64Le words shapedSmallWords then
+      allocateCtor sz (shapeField tu mu) False
+    else
+      let desc = internedDescriptor tu words mu in
+      allocateCtorDesc sz desc False
+
+  checkShapedKind :: I64 ->{Global} U8
+  checkShapedKind kind =
+    let kc = u64ToI64 (u8ToU64 kindClosure) in
+    let kd = u64ToI64 (u8ToU64 kindDict) in
+    let _ = if kind /= kc && kind /= kd then panicMsg 3 else () in
+    u64ToU8 (i64ToU64 kind)
+
+  cinchAllocShaped :: I64 -> I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  cinchAllocShaped size kind field =
+    let _ = if i64Lt size 0 then panicMsg 2 else () in
+    allocateShaped (i64ToU64 size) (checkShapedKind kind) (u64ToU32 (i64ToU64 field)) False
+
+  cinchAllocShapedDesc :: I64 -> I64 -> RawPtr U64 ->{Global, ThreadAffine} RawPtr U8
+  cinchAllocShapedDesc size kind desc =
+    let _ = if i64Lt size 0 then panicMsg 2 else () in
+    allocateShapedDesc (i64ToU64 size) (checkShapedKind kind) desc False
+
+  foreign export ccall "cinch_alloc" cinchAlloc :: I64 -> I64 ->{Global, ThreadAffine} I64
+  foreign export ccall "cinch_alloc_raw" cinchAllocRaw :: I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_alloc_ctor" cinchAllocCtor :: I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_alloc_ctor_desc" cinchAllocCtorDesc :: I64 -> RawPtr U64 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_alloc_ctor_tagged" cinchAllocCtorTagged :: I64 -> I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_alloc_shaped" cinchAllocShaped :: I64 -> I64 -> I64 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_alloc_shaped_desc" cinchAllocShapedDesc :: I64 -> I64 -> RawPtr U64 ->{Global, ThreadAffine} RawPtr U8
+
+  -- Temporary Rust bridge helpers (removed in M9)
+  rtAllocate :: Usize -> U8 -> I64 -> U8 ->{Global, ThreadAffine} RawPtr U8
+  rtAllocate size kind rc zeroed = allocate (usizeToU64 size) kind rc (zeroed /= 0)
+
+  rtAllocateDescribed :: Usize -> U8 -> U64 -> U8 ->{Global, ThreadAffine} RawPtr U8
+  rtAllocateDescribed size kind desc zeroed = allocateDescribed (usizeToU64 size) kind desc (zeroed /= 0)
+
+  rtFree :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  rtFree p = blockFree p
+
+  rtArenaReplaceCurrent :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8
+  rtArenaReplaceCurrent a = arenaReplaceCurrent a
+
+  foreign export ccall "cinch_rt_allocate" rtAllocate :: Usize -> U8 -> I64 -> U8 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_rt_allocate_described" rtAllocateDescribed :: Usize -> U8 -> U64 -> U8 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_rt_free" rtFree :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_rt_arena_replace_current" rtArenaReplaceCurrent :: MaybeNull U8 ->{Global, ThreadAffine} MaybeNull U8

@@ -1,0 +1,233 @@
+module Runtime.AllocKinds where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+
+  export allocKindsEnable, allocKindsNote, allocKindsNoteArena, allocKindsPrint
+  export fnAddrAtexitKinds
+
+  -- 24 kind buckets (0..22 + 23=other), 12 size classes (8,16,24,32,40,48,64,96,128,192,256,above)
+  #[static_mut]
+  static kindsEnabled :: U64
+
+  #[static_mut]
+  static kindBlocks :: FixedArray 24 U64
+
+  #[static_mut]
+  static kindBytes :: FixedArray 24 U64
+
+  #[static_mut]
+  static classBlocks :: FixedArray 12 U64
+
+  #[static_mut]
+  static classBytes :: FixedArray 12 U64
+
+  #[static_mut]
+  static arenaKindBlocks :: FixedArray 24 U64
+
+  #[static_mut]
+  static arenaKindBytes :: FixedArray 24 U64
+
+  #[static_mut]
+  static arenaClassBlocks :: FixedArray 12 U64
+
+  #[static_mut]
+  static arenaClassBytes :: FixedArray 12 U64
+
+  allocKindsEnable :: Unit ->{Global} Unit
+  allocKindsEnable _ = atomicStoreU64Relaxed (kindsEnabled ()) 0 1
+
+  sizeClassOf :: U64 -> U64
+  sizeClassOf b =
+    if u64Le b 8 then 0
+    else if u64Le b 16 then 1
+    else if u64Le b 24 then 2
+    else if u64Le b 32 then 3
+    else if u64Le b 40 then 4
+    else if u64Le b 48 then 5
+    else if u64Le b 64 then 6
+    else if u64Le b 96 then 7
+    else if u64Le b 128 then 8
+    else if u64Le b 192 then 9
+    else if u64Le b 256 then 10
+    else 11
+
+  sizeClassLimit :: U64 -> U64
+  sizeClassLimit c =
+    if c == 0 then 8
+    else if c == 1 then 16
+    else if c == 2 then 24
+    else if c == 3 then 32
+    else if c == 4 then 40
+    else if c == 5 then 48
+    else if c == 6 then 64
+    else if c == 7 then 96
+    else if c == 8 then 128
+    else if c == 9 then 192
+    else if c == 10 then 256
+    else 0
+
+  allocKindsNote :: U8 -> U64 ->{Global} Unit
+  allocKindsNote kind bytes =
+    if atomicLoadU64Relaxed (kindsEnabled ()) 0 == 0 then ()
+    else
+      let b = u64Min (u8ToU64 kind) 23 in
+      let boff = u64ToIsize (u64Mul b 8) in
+      let _ = atomicAddU64Relaxed (ptrCast (kindBlocks ())) boff 1 in
+      let _ = atomicAddU64Relaxed (ptrCast (kindBytes ())) boff bytes in
+      let c = sizeClassOf bytes in
+      let coff = u64ToIsize (u64Mul c 8) in
+      let _ = atomicAddU64Relaxed (ptrCast (classBlocks ())) coff 1 in
+      let _ = atomicAddU64Relaxed (ptrCast (classBytes ())) coff bytes in
+      ()
+
+  allocKindsNoteArena :: U8 -> U64 ->{Global} Unit
+  allocKindsNoteArena kind bytes =
+    if atomicLoadU64Relaxed (kindsEnabled ()) 0 == 0 then ()
+    else
+      let b = u64Min (u8ToU64 kind) 23 in
+      let boff = u64ToIsize (u64Mul b 8) in
+      let _ = atomicAddU64Relaxed (ptrCast (arenaKindBlocks ())) boff 1 in
+      let _ = atomicAddU64Relaxed (ptrCast (arenaKindBytes ())) boff bytes in
+      let c = sizeClassOf bytes in
+      let coff = u64ToIsize (u64Mul c 8) in
+      let _ = atomicAddU64Relaxed (ptrCast (arenaClassBlocks ())) coff 1 in
+      let _ = atomicAddU64Relaxed (ptrCast (arenaClassBytes ())) coff bytes in
+      ()
+
+  -- Stack-only stderr line builder helper
+  writeAsciiByte :: U8 ->{Global} Unit
+  writeAsciiByte ch =
+    withLocal (0 :: U8) (\c ->
+      let p = mutAsPtr c in
+      let _ = storeU8 p 0 ch in
+      writeStderrRaw p 1
+    )
+
+  writeStr4 :: U8 -> U8 -> U8 -> U8 ->{Global} Unit
+  writeStr4 a b c d =
+    withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      let _ = storeU8 p 0 a in
+      let _ = storeU8 p 1 b in
+      let _ = storeU8 p 2 c in
+      let _ = storeU8 p 3 d in
+      writeStderrRaw p 4
+    )
+
+  writeStr8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{Global} Unit
+  writeStr8 a b c d e f g h =
+    withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      let _ = storeU8 p 0 a in
+      let _ = storeU8 p 1 b in
+      let _ = storeU8 p 2 c in
+      let _ = storeU8 p 3 d in
+      let _ = storeU8 p 4 e in
+      let _ = storeU8 p 5 f in
+      let _ = storeU8 p 6 g in
+      let _ = storeU8 p 7 h in
+      writeStderrRaw p 8
+    )
+
+  writeKindName :: U64 ->{Global} Unit
+  writeKindName k =
+    if k == 0 then writeStr4 110 111 110 101 -- none
+    else if k == 1 then writeStr4 99 116 111 114 -- ctor
+    else if k == 2 then let _ = writeStr4 99 108 111 115 in let _ = writeAsciiByte 117 in let _ = writeAsciiByte 114 in writeAsciiByte 101 -- closure
+    else if k == 3 then writeStr4 100 105 99 116 -- dict
+    else if k == 4 then writeStr4 109 101 109 111 -- memo
+    else if k == 5 then writeStr4 107 110 111 116 -- knot
+    else if k == 6 then let _ = writeAsciiByte 110 in let _ = writeAsciiByte 97 in writeAsciiByte 116 -- nat
+    else if k == 7 then let _ = writeAsciiByte 105 in let _ = writeAsciiByte 110 in writeAsciiByte 116 -- int
+    else if k == 8 then let _ = writeStr4 98 121 116 101 in writeAsciiByte 115 -- bytes
+    else if k == 9 then let _ = writeStr8 98 121 116 101 115 45 115 116 in writeStr4 97 116 105 99 -- bytes-static
+    else if k == 10 then let _ = writeAsciiByte 115 in let _ = writeAsciiByte 121 in writeAsciiByte 109 -- sym
+    else if k == 11 then writeStr4 99 111 100 101 -- code
+    else if k == 12 then let _ = writeStr8 98 111 120 101 100 45 115 99 in writeStr4 97 108 97 114 -- boxed-scalar
+    else if k == 13 then let _ = writeAsciiByte 114 in let _ = writeAsciiByte 97 in writeAsciiByte 119 -- raw
+    else if k == 14 then let _ = writeStr4 97 114 114 97 in writeAsciiByte 121 -- array
+    else if k == 15 then let _ = writeStr4 116 101 110 115 in let _ = writeAsciiByte 111 in writeAsciiByte 114 -- tensor
+    else if k == 16 then writeStr8 99 111 108 117 109 110 97 114 -- columnar
+    else if k == 17 then writeStr4 116 118 97 114 -- tvar
+    else if k == 18 then writeStr4 109 118 97 114 -- mvar
+    else if k == 19 then let _ = writeStr8 109 97 112 112 101 100 45 98 in writeStr4 121 116 101 115 -- mapped-bytes
+    else if k == 20 then let _ = writeStr8 98 121 116 101 115 45 118 105 in let _ = writeAsciiByte 101 in writeAsciiByte 119 -- bytes-view
+    else if k == 21 then let _ = writeStr4 97 116 111 109 in let _ = writeAsciiByte 105 in writeAsciiByte 99 -- atomic
+    else if k == 22 then let _ = writeStr4 114 119 108 111 in let _ = writeAsciiByte 99 in writeAsciiByte 107 -- rwlock
+    else let _ = writeStr4 111 116 104 101 in writeAsciiByte 114 -- other
+
+  writeBlocksBytesTail :: U64 -> U64 ->{Global} Unit
+  writeBlocksBytesTail blocks bytes =
+    let _ = writeStr8 32 98 108 111 99 107 115 61 in -- " blocks="
+    let _ = writeStderrU64 blocks in
+    let _ = writeStr4 32 98 121 116 in
+    let _ = writeAsciiByte 101 in
+    let _ = writeAsciiByte 115 in
+    let _ = writeAsciiByte 61 in -- " bytes="
+    let _ = writeStderrU64 bytes in
+    writeAsciiByte 10
+
+  printKindLoop :: Bool -> U64 ->{Global} Unit
+  printKindLoop isArena idx =
+    if u64Ge idx 24 then ()
+    else
+      let off = u64ToIsize (u64Mul idx 8) in
+      let blocks = if isArena then atomicLoadU64Relaxed (ptrCast (arenaKindBlocks ())) off
+                   else atomicLoadU64Relaxed (ptrCast (kindBlocks ())) off in
+      let _ = (if blocks /= 0 then
+          let bytes = if isArena then atomicLoadU64Relaxed (ptrCast (arenaKindBytes ())) off
+                      else atomicLoadU64Relaxed (ptrCast (kindBytes ())) off in
+          -- "cinch-alloc-kind: kind=" or "cinch-arena-kind: kind="
+          let _ = writeStr4 99 105 110 99 in
+          let _ = writeAsciiByte 104 in
+          let _ = writeAsciiByte 45 in
+          let _ = (if isArena then let _ = writeStr4 97 114 101 110 in writeAsciiByte 97
+                  else let _ = writeStr4 97 108 108 111 in writeAsciiByte 99) in
+          let _ = writeStr8 45 107 105 110 100 58 32 107 in
+          let _ = writeStr4 105 110 100 61 in
+          let _ = writeKindName idx in
+          writeBlocksBytesTail blocks bytes
+        else ()) in
+      printKindLoop isArena (u64Add idx 1)
+
+  printClassLoop :: Bool -> U64 ->{Global} Unit
+  printClassLoop isArena idx =
+    if u64Ge idx 12 then ()
+    else
+      let off = u64ToIsize (u64Mul idx 8) in
+      let blocks = if isArena then atomicLoadU64Relaxed (ptrCast (arenaClassBlocks ())) off
+                   else atomicLoadU64Relaxed (ptrCast (classBlocks ())) off in
+      let _ = (if blocks /= 0 then
+          let bytes = if isArena then atomicLoadU64Relaxed (ptrCast (arenaClassBytes ())) off
+                      else atomicLoadU64Relaxed (ptrCast (classBytes ())) off in
+          -- "cinch-alloc-size: upto=" or "cinch-arena-size: upto="
+          let _ = writeStr4 99 105 110 99 in
+          let _ = writeAsciiByte 104 in
+          let _ = writeAsciiByte 45 in
+          let _ = (if isArena then let _ = writeStr4 97 114 101 110 in writeAsciiByte 97
+                  else let _ = writeStr4 97 108 108 111 in writeAsciiByte 99) in
+          let _ = writeStr8 45 115 105 122 101 58 32 117 in
+          let _ = writeStr4 112 116 111 61 in
+          let _ = (if idx == 11 then let _ = writeStr4 97 98 111 118 in writeAsciiByte 101
+                  else writeStderrU64 (sizeClassLimit idx)) in
+          writeBlocksBytesTail blocks bytes
+        else ()) in
+      printClassLoop isArena (u64Add idx 1)
+
+  allocKindsPrint :: Unit ->{Global} Unit
+  allocKindsPrint _ =
+    let _ = printKindLoop False 0 in
+    let _ = printClassLoop False 0 in
+    let _ = printKindLoop True 0 in
+    printClassLoop True 0
+
+  foreign export ccall "cinch_rt_atexit_kinds" allocKindsPrint :: Unit ->{Global} Unit
+
+  prim fnAddrAtexitKindsPrim :: I64 -> RawPtr U8 where
+    unsafe llvm {
+      ret ptr @cinch_rt_atexit_kinds
+    } uses (cinch_rt_atexit_kinds :: I64 -> Unit)
+
+  fnAddrAtexitKinds :: Unit -> RawPtr U8
+  fnAddrAtexitKinds _ = fnAddrAtexitKindsPrim 0

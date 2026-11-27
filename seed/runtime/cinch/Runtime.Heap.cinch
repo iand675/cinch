@@ -1,0 +1,1209 @@
+module Runtime.Heap where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.AllocKinds
+
+  export smallMax, smallClasses, smallPage, smallPageHeader
+  export smallOwns, smallBlockSize, smallClassOf, smallClassAt
+  export heapLocal, heapClaimSole, heapRcDebug, heapLeakCheck
+  export heapAllocBlock, heapFreeBlock, heapAccountBlockFree, heapRequestTooLarge
+  export BlockStats, heapBlockStats, heapLiveBlocks, heapArenaStatsAdd
+  export heapWriteLeakReport, heapParseLimit, heapEnvIsOne, heapEnvIsZero
+  export heapGlobalAlloc, heapGlobalDealloc, heapGlobalRealloc
+
+  -- Constants matching seed/runtime/src/small.rs & heap.rs
+  smallMax :: U64
+  smallMax = 256
+
+  smallClasses :: U64
+  smallClasses = 32
+
+  smallPage :: U64
+  smallPage = 65536
+
+  smallPageHeader :: U64
+  smallPageHeader = 128
+
+  smallCommitChunk :: U64
+  smallCommitChunk = 4194304
+
+  smallCachedPages :: U64
+  smallCachedPages = 8
+
+  stateHead :: U8
+  stateHead = 0
+  stateLinked :: U8
+  stateLinked = 1
+  stateFull :: U8
+  stateFull = 2
+
+  -- Page header field byte offsets (total 64 bytes <= 128)
+  offPageFree :: Isize
+  offPageFree = 0
+  offPageBump :: Isize
+  offPageBump = 8
+  offPageEnd :: Isize
+  offPageEnd = 16
+  offPageUsed :: Isize
+  offPageUsed = 24
+  offPageSize :: Isize
+  offPageSize = 28
+  offPageClass :: Isize
+  offPageClass = 32
+  offPageState :: Isize
+  offPageState = 33
+  offPageHeap :: Isize
+  offPageHeap = 40
+  offPagePrev :: Isize
+  offPagePrev = 48
+  offPageNext :: Isize
+  offPageNext = 56
+
+  -- Heap struct field byte offsets (total 512 bytes)
+  -- pages[32] at 0..256
+  offHeapCache :: Isize
+  offHeapCache = 256
+  offHeapCached :: Isize
+  offHeapCached = 264
+  offHeapParkedNext :: Isize
+  offHeapParkedNext = 272
+  offHeapAllNext :: Isize
+  offHeapAllNext = 280
+  offHeapBlocks :: Isize
+  offHeapBlocks = 288
+  offHeapBytes :: Isize
+  offHeapBytes = 296
+  offHeapHeaderBlocks :: Isize
+  offHeapHeaderBlocks = 304
+  offHeapHeaderBytes :: Isize
+  offHeapHeaderBytes = 312
+  offHeapImmortal :: Isize
+  offHeapImmortal = 320
+  offHeapFreed :: Isize
+  offHeapFreed = 328
+  offHeapCredit :: Isize
+  offHeapCredit = 336
+  -- remote atomic ptr on its own 128-byte cache line
+  offHeapRemote :: Isize
+  offHeapRemote = 384
+
+  heapStructBytes :: Usize
+  heapStructBytes = 512
+
+  -- Sentinel empty page (all zeros: free=null, bump=null, end=null)
+  #[static_mut]
+  #[align(128)]
+  static emptyPageBuf :: FixedArray 128 U8
+
+  emptyPage :: Unit ->{Global} RawPtr U8
+  emptyPage _ = ptrCast (emptyPageBuf ())
+
+  -- Hot read-mostly globals on one cache line:
+  -- [0]=sole_thread, [1]=sole_heap, [2]=range_base, [3]=range_len
+  #[static_mut]
+  #[align(128)]
+  static hotGlobals :: FixedArray 4 U64
+
+  soleUnclaimed :: U64
+  soleUnclaimed = 0
+  soleClaiming :: U64
+  soleClaiming = 2
+  soleRetired :: U64
+  soleRetired = 4
+
+  -- Live heap tracking on its own cache line:
+  -- [0]=reserved, [1]=peak, [2]=mode (0=UNREAD,1=BATCHED,2=EXACT), [3]=limit
+  #[static_mut]
+  #[align(128)]
+  static liveState :: FixedArray 4 U64
+
+  modeUnread :: U64
+  modeUnread = 0
+  modeBatched :: U64
+  modeBatched = 1
+  modeExact :: U64
+  modeExact = 2
+
+  creditChunk :: U64
+  creditChunk = 65536
+
+  defaultHeapLimit :: U64
+  defaultHeapLimit = shlU64 8 30
+
+  -- Config cache: [0]=initState(0=uninit,1=initing,2=ready), [1]=limit, [2]=stats, [3]=rcDebug, [4]=leakCheck, [5]=kinds
+  #[static_mut]
+  static configState :: FixedArray 6 U64
+
+  -- Fallback tally for threads without a small heap:
+  -- [0]=blocks, [1]=bytes, [2]=headerBlocks, [3]=headerBytes, [4]=immortal, [5]=freed
+  #[static_mut]
+  static fallbackTally :: FixedArray 6 U64
+
+  -- Arena cumulative counters (updated once per arena leave):
+  -- [0]=blocks, [1]=bytes
+  #[static_mut]
+  static arenaTotals :: FixedArray 2 U64
+
+  -- All heaps ever created (atomic linked list head)
+  #[static_mut]
+  static allHeapsHead :: U64
+
+  -- Shared state guarded by spinlock:
+  -- [0]=lock, [1]=base, [2]=limit, [3]=next, [4]=committed, [5]=reserved, [6]=pool, [7]=parked
+  #[static_mut]
+  #[align(128)]
+  static sharedState :: FixedArray 8 U64
+
+  -- pthread_key_t for thread-exit heap parking: [0]=state(0/1/2), [1]=key
+  #[static_mut]
+  static teardownKeyState :: FixedArray 2 U64
+
+  -- Per-thread heap pointer: 0=uninit, 1=STARTING, 2=GONE, >2=Heap*
+  #[thread_local]
+  static currentHeapTls :: U64
+
+  heapStarting :: U64
+  heapStarting = 1
+  heapGone :: U64
+  heapGone = 2
+
+  -- Spinlock on sharedState[0]
+  sharedLock :: Unit ->{Global} Unit
+  sharedLock _ = sharedLockLoop 0
+
+  sharedLockLoop :: U64 ->{Global} Unit
+  sharedLockLoop spins =
+    if atomicCasU64Bool (ptrCast (sharedState ())) 0 0 1 then ()
+    else
+      let _ = (if u64Lt spins 100 then sysSpinLoop () else (let _ = cSchedYield () in ())) in
+      sharedLockLoop (u64Add spins 1)
+
+  sharedUnlock :: Unit ->{Global} Unit
+  sharedUnlock _ = atomicStoreU64Release (ptrCast (sharedState ())) 0 0
+
+  -- Environment parsing helpers (allocation-free)
+  parseLimitDigits :: RawPtr U8 -> U64 -> U64 -> U64 ->{Global} I64
+  parseLimitDigits p idx end acc =
+    if idx == end then u64ToI64 acc
+    else
+      let b = u8ToU64 (loadU8 p (u64ToIsize idx)) in
+      if u64Lt b 48 || u64Gt b 57 then i64Sub 0 1
+      else
+        let d = u64Sub b 48 in
+        let maxDiv = u64Div (u64BitNot 0) 10 in
+        if u64Gt acc maxDiv then i64Sub 0 1
+        else
+          let a10 = u64Mul acc 10 in
+          let next = u64Add a10 d in
+          if u64Lt next a10 then i64Sub 0 1
+          else parseLimitDigits p (u64Add idx 1) end next
+
+  heapParseLimit :: RawPtr U8 -> U64 ->{Global} I64
+  heapParseLimit p len =
+    if len == 0 then i64Sub 0 1
+    else
+      let last = u8ToU64 (loadU8 p (u64ToIsize (u64Sub len 1))) in
+      let mult =
+            if last == 75 || last == 107 then shlU64 1 10 -- K/k
+            else if last == 77 || last == 109 then shlU64 1 20 -- M/m
+            else if last == 71 || last == 103 then shlU64 1 30 -- G/g
+            else 1 in
+      let digLen = if mult == 1 then len else u64Sub len 1 in
+      if digLen == 0 then i64Sub 0 1
+      else
+        let n = parseLimitDigits p 0 digLen 0 in
+        if i64Lt n 0 then i64Sub 0 1
+        else
+          let nu = i64ToU64 n in
+          let maxMul = u64Div (u64BitNot 0) mult in
+          if u64Gt nu maxMul then i64Sub 0 1
+          else u64ToI64 (u64Mul nu mult)
+
+  envCheckChar :: RawPtr U8 -> U8 ->{Global} Bool
+  envCheckChar name expected =
+    let v = cGetenv name in
+    if ptrIsNull v then False
+    else
+      let vp = maybeToRaw v in
+      let c0 = loadU8 vp 0 in
+      let c1 = loadU8 vp 1 in
+      c0 == expected && c1 == 0
+
+  heapEnvIsOne :: RawPtr U8 ->{Global} Bool
+  heapEnvIsOne name = envCheckChar name 49 -- '1'
+
+  heapEnvIsZero :: RawPtr U8 ->{Global} Bool
+  heapEnvIsZero name = envCheckChar name 48 -- '0'
+
+  -- Stack-built env names
+  readEnvHeapLimit :: Unit ->{Global} U64
+  readEnvHeapLimit _ =
+    withLocal (fixedArrayRepeat 20 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "CINCH_HEAP_LIMIT\0"
+      let _ = put8 p 0 67 73 78 67 72 95 72 69 in
+      let _ = put8 p 8 65 80 95 76 73 77 73 84 in
+      let _ = storeU8 p 16 0 in
+      let v = cGetenv p in
+      let raw = (if ptrIsNull v then defaultHeapLimit
+                else
+                  let vp = maybeToRaw v in
+                  let vlen = usizeToU64 (cStrlen vp) in
+                  let parsed = heapParseLimit vp vlen in
+                  if i64Lt parsed 0 then defaultHeapLimit else i64ToU64 parsed) in
+      u64Min raw heapLimitMax
+    )
+
+  readEnvFlag :: U64 ->{Global} Bool
+  readEnvFlag which =
+    withLocal (fixedArrayRepeat 24 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      let _ = put4 p 0 67 73 78 67 in
+      let _ = storeU8 p 4 72 in
+      let _ = storeU8 p 5 95 in
+      let _ =
+            (if which == 0 then -- ALLOC_STATS
+              let _ = put8 p 6 65 76 76 79 67 95 83 84 in
+              let _ = put4 p 14 65 84 83 0 in ()
+            else if which == 1 then -- ALLOC_KINDS
+              let _ = put8 p 6 65 76 76 79 67 95 75 73 in
+              let _ = put4 p 14 78 68 83 0 in ()
+            else if which == 2 then -- RC_DEBUG
+              let _ = put8 p 6 82 67 95 68 69 66 85 71 in
+              storeU8 p 14 0
+            else -- LEAK_CHECK
+              let _ = put8 p 6 76 69 65 75 95 67 72 69 in
+              let _ = storeU8 p 14 67 in let _ = storeU8 p 15 75 in storeU8 p 16 0) in
+      heapEnvIsOne p
+    )
+
+  -- Print stats atexit callback
+  writeCh :: U8 ->{Global} Unit
+  writeCh ch =
+    withLocal (0 :: U8) (\c ->
+      let p = mutAsPtr c in
+      let _ = storeU8 p 0 ch in
+      writeStderrRaw p 1
+    )
+
+  writeS4 :: U8 -> U8 -> U8 -> U8 ->{Global} Unit
+  writeS4 a b c d =
+    withLocal (fixedArrayRepeat 4 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      let _ = storeU8 p 0 a in let _ = storeU8 p 1 b in let _ = storeU8 p 2 c in let _ = storeU8 p 3 d in
+      writeStderrRaw p 4
+    )
+
+  writeS8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{Global} Unit
+  writeS8 a b c d e f g h =
+    withLocal (fixedArrayRepeat 8 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      let _ = storeU8 p 0 a in let _ = storeU8 p 1 b in let _ = storeU8 p 2 c in let _ = storeU8 p 3 d in
+      let _ = storeU8 p 4 e in let _ = storeU8 p 5 f in let _ = storeU8 p 6 g in let _ = storeU8 p 7 h in
+      writeStderrRaw p 8
+    )
+
+  sumHeapField :: MaybeNull U8 -> Isize -> U64 ->{Global} U64
+  sumHeapField cur off acc =
+    if ptrIsNull cur then acc
+    else
+      let hp = maybeToRaw cur in
+      let v = atomicLoadU64Relaxed hp off in
+      let next = loadPtr hp offHeapAllNext in
+      sumHeapField next off (u64Add acc v)
+
+  totalTally :: Isize -> Isize ->{Global} U64
+  totalTally heapOff fallbackOff =
+    let fb = atomicLoadU64Relaxed (ptrCast (fallbackTally ())) fallbackOff in
+    let head = ptrFromU64 (atomicLoadU64Acquire (allHeapsHead ()) 0) in
+    sumHeapField head heapOff fb
+
+  totalCredits :: Unit ->{Global} U64
+  totalCredits _ =
+    let head = ptrFromU64 (atomicLoadU64Acquire (allHeapsHead ()) 0) in
+    sumHeapField head offHeapCredit 0
+
+  liveNow :: Unit ->{Global} U64
+  liveNow _ =
+    let res = atomicLoadU64Relaxed (ptrCast (liveState ())) 0 in
+    u64SatSub res (totalCredits ())
+
+  #[repr(value)]
+  record BlockStats where
+    bsHeaderBlocks :: U64
+    bsHeaderBytes :: U64
+    bsImmortal :: U64
+    bsFreed :: U64
+
+  #[repr(value)]
+  record KeyInit where
+    kiOk :: Bool
+    kiKey :: U64
+
+  heapBlockStats :: Unit ->{Global} BlockStats
+  heapBlockStats _ =
+    let hb = totalTally offHeapHeaderBlocks 16 in
+    let hby = totalTally offHeapHeaderBytes 24 in
+    let imm = totalTally offHeapImmortal 32 in
+    let fr = totalTally offHeapFreed 40 in
+    BlockStats hb hby imm fr
+
+  heapLiveBlocks :: Unit ->{Global} U64
+  heapLiveBlocks _ =
+    let st = heapBlockStats () in
+    u64SatSub (st.bsHeaderBlocks) (st.bsFreed)
+
+  heapArenaStatsAdd :: U64 -> U64 ->{Global} Unit
+  heapArenaStatsAdd blocks bytes =
+    let _ = atomicAddU64Relaxed (ptrCast (arenaTotals ())) 0 blocks in
+    let _ = atomicAddU64Relaxed (ptrCast (arenaTotals ())) 8 bytes in
+    ()
+
+  printStatsAtexit :: Unit ->{Global} Unit
+  printStatsAtexit _ =
+    let blocks = totalTally offHeapBlocks 0 in
+    let bytes = totalTally offHeapBytes 8 in
+    let peak = atomicLoadU64Relaxed (ptrCast (liveState ())) 8 in
+    let st = heapBlockStats () in
+    let hb = st.bsHeaderBlocks in
+    let hby = st.bsHeaderBytes in
+    let imm = st.bsImmortal in
+    let fr = st.bsFreed in
+    let live = u64SatSub hb fr in
+    -- "cinch-alloc: blocks="
+    let _ = writeS8 99 105 110 99 104 45 97 108 in
+    let _ = writeS8 108 111 99 58 32 98 108 111 in
+    let _ = writeS4 99 107 115 61 in
+    let _ = writeStderrU64 blocks in
+    -- " bytes="
+    let _ = writeS4 32 98 121 116 in let _ = writeCh 101 in let _ = writeCh 115 in let _ = writeCh 61 in
+    let _ = writeStderrU64 bytes in
+    -- " peak="
+    let _ = writeS4 32 112 101 97 in let _ = writeCh 107 in let _ = writeCh 61 in
+    let _ = writeStderrU64 peak in
+    -- " header-blocks="
+    let _ = writeS8 32 104 101 97 100 101 114 45 in
+    let _ = writeS4 98 108 111 99 in let _ = writeCh 107 in let _ = writeCh 115 in let _ = writeCh 61 in
+    let _ = writeStderrU64 hb in
+    -- " header-bytes="
+    let _ = writeS8 32 104 101 97 100 101 114 45 in
+    let _ = writeS4 98 121 116 101 in let _ = writeCh 115 in let _ = writeCh 61 in
+    let _ = writeStderrU64 hby in
+    -- " immortal="
+    let _ = writeS8 32 105 109 109 111 114 116 97 in let _ = writeCh 108 in let _ = writeCh 61 in
+    let _ = writeStderrU64 imm in
+    -- " freed="
+    let _ = writeS4 32 102 114 101 in let _ = writeCh 101 in let _ = writeCh 100 in let _ = writeCh 61 in
+    let _ = writeStderrU64 fr in
+    -- " live="
+    let _ = writeS4 32 108 105 118 in let _ = writeCh 101 in let _ = writeCh 61 in
+    let _ = writeStderrU64 live in
+    let ab = atomicLoadU64Relaxed (ptrCast (arenaTotals ())) 0 in
+    let _ = (if u64Gt ab 0 then
+        let aby = atomicLoadU64Relaxed (ptrCast (arenaTotals ())) 8 in
+        -- " arena-blocks="
+        let _ = writeS8 32 97 114 101 110 97 45 98 in
+        let _ = writeS4 108 111 99 107 in let _ = writeCh 115 in let _ = writeCh 61 in
+        let _ = writeStderrU64 ab in
+        -- " arena-bytes="
+        let _ = writeS8 32 97 114 101 110 97 45 98 in
+        let _ = writeS4 121 116 101 115 in let _ = writeCh 61 in
+        writeStderrU64 aby
+      else ()) in
+    writeCh 10
+
+  foreign export ccall "cinch_rt_atexit_stats" printStatsAtexit :: Unit ->{Global} Unit
+
+  prim fnAddrAtexitStatsPrim :: I64 -> RawPtr U8 where
+    unsafe llvm {
+      ret ptr @cinch_rt_atexit_stats
+    } uses (cinch_rt_atexit_stats :: I64 -> Unit)
+
+  fnAddrAtexitStats :: Unit -> RawPtr U8
+  fnAddrAtexitStats _ = fnAddrAtexitStatsPrim 0
+
+  heapWriteLeakReport :: U64 -> U64 -> U64 ->{Global} Unit
+  heapWriteLeakReport live imm leaked =
+    -- "cinch-leak: live="
+    let _ = writeS8 99 105 110 99 104 45 108 101 in
+    let _ = writeS8 97 107 58 32 108 105 118 101 in
+    let _ = writeCh 61 in
+    let _ = writeStderrU64 live in
+    -- " immortal="
+    let _ = writeS8 32 105 109 109 111 114 116 97 in let _ = writeCh 108 in let _ = writeCh 61 in
+    let _ = writeStderrU64 imm in
+    -- " leaked="
+    let _ = writeS8 32 108 101 97 107 101 100 61 in
+    let _ = writeStderrU64 leaked in
+    writeCh 10
+
+  ensureConfig :: Unit ->{Global} Unit
+  ensureConfig _ =
+    let cfg = ptrCast (configState ()) in
+    if atomicLoadU64Acquire cfg 0 == 2 then ()
+    else if atomicCasU64Bool cfg 0 0 1 then
+      let lim = readEnvHeapLimit () in
+      let st = readEnvFlag 0 in
+      let ki = readEnvFlag 1 in
+      let dbg = readEnvFlag 2 in
+      let lk = readEnvFlag 3 in
+      let _ = storeU64 cfg 8 lim in
+      let _ = storeU64 cfg 16 (if st then 1 else 0) in
+      let _ = storeU64 cfg 24 (if dbg then 1 else 0) in
+      let _ = storeU64 cfg 32 (if lk then 1 else 0) in
+      let _ = storeU64 cfg 40 (if ki then 1 else 0) in
+      let _ = (if ki then let _ = allocKindsEnable () in let _ = cAtexit (fnAddrAtexitKinds ()) in () else ()) in
+      let _ = (if st then let _ = cAtexit (fnAddrAtexitStats ()) in () else ()) in
+      atomicStoreU64Release cfg 0 2
+    else
+      waitConfigLoop cfg
+
+  waitConfigLoop :: RawPtr U8 ->{Global} Unit
+  waitConfigLoop cfg =
+    if atomicLoadU64Acquire cfg 0 == 2 then ()
+    else let _ = sysSpinLoop () in waitConfigLoop cfg
+
+  heapRcDebug :: Unit ->{Global} Bool
+  heapRcDebug _ =
+    let _ = ensureConfig () in
+    loadU64 (ptrCast (configState ())) 24 /= 0
+
+  heapLeakCheck :: Unit ->{Global} Bool
+  heapLeakCheck _ =
+    let _ = ensureConfig () in
+    loadU64 (ptrCast (configState ())) 32 /= 0
+
+  configLimit :: Unit ->{Global} U64
+  configLimit _ =
+    let _ = ensureConfig () in
+    loadU64 (ptrCast (configState ())) 8
+
+  configStats :: Unit ->{Global} Bool
+  configStats _ =
+    let _ = ensureConfig () in
+    loadU64 (ptrCast (configState ())) 16 /= 0
+
+  -- =========================================================================
+  -- Small-object slab allocator (1-to-1 port of seed/runtime/src/small.rs)
+  -- =========================================================================
+
+  smallClassOf :: U64 -> U64 -> I64
+  smallClassOf size align =
+    if u64Gt size smallMax || u64Gt align 16 then i64Sub 0 1
+    else
+      let base = lshrU64 (u64SatSub size 1) 3 in
+      let extra = if u64Gt align 8 && u64Gt size 0 then 1 else 0 in
+      u64ToI64 (bitOrU64 base extra)
+
+  smallOwns :: RawPtr U8 ->{Global} Bool
+  smallOwns p =
+    let hg = ptrCast (hotGlobals ()) in
+    let base = atomicLoadU64Relaxed hg 16 in
+    let len = atomicLoadU64Relaxed hg 24 in
+    u64Lt (u64Sub (rawToU64 p) base) len
+
+  pageOf :: RawPtr U8 -> RawPtr U8
+  pageOf p = maybeToRaw (ptrFromU64 (bitAndU64 (rawToU64 p) (u64BitNot (u64Sub smallPage 1))))
+
+  smallBlockSize :: RawPtr U8 ->{Global} U64
+  smallBlockSize p = u32ToU64 (loadU32 (pageOf p) offPageSize)
+
+  smallClassAt :: RawPtr U8 ->{Global} U64
+  smallClassAt p = u8ToU64 (loadU8 (pageOf p) offPageClass)
+
+  -- Shared reservation / page pool helpers (called with sharedLock held)
+  sharedReserveTry :: U64 ->{Global} Bool
+  sharedReserveTry sz =
+    let sh = ptrCast (sharedState ()) in
+    let p = sysMmapReserve (u64ToUsize (u64Add sz smallPage)) in
+    if ptrIsNull p then False
+    else
+      let addr = ptrToU64 p in
+      let mask = u64BitNot (u64Sub smallPage 1) in
+      let base = bitAndU64 (u64Add addr (u64Sub smallPage 1)) mask in
+      let _ = storeU64 sh 8 base in
+      let _ = storeU64 sh 16 (u64Add base sz) in
+      let _ = storeU64 sh 24 base in
+      let _ = storeU64 sh 32 base in
+      let hg = ptrCast (hotGlobals ()) in
+      let _ = atomicStoreU64Release hg 16 base in
+      let _ = atomicStoreU64Release hg 24 sz in
+      True
+
+  sharedReserve :: Unit ->{Global} Unit
+  sharedReserve _ =
+    if sharedReserveTry (shlU64 64 30) then ()
+    else if sharedReserveTry (shlU64 16 30) then ()
+    else let _ = sharedReserveTry (shlU64 4 30) in ()
+
+  sharedPoolPush :: RawPtr U8 ->{Global} Unit
+  sharedPoolPush page =
+    let sh = ptrCast (sharedState ()) in
+    let old = ptrFromU64 (loadU64 sh 48) in
+    let _ = storePtr page offPageNext old in
+    storeU64 sh 48 (rawToU64 page)
+
+  sharedPoolPop :: Unit ->{Global} MaybeNull U8
+  sharedPoolPop _ =
+    let sh = ptrCast (sharedState ()) in
+    let p = ptrFromU64 (loadU64 sh 48) in
+    if ptrIsNull p then ptrNull ()
+    else
+      let next = loadPtr (maybeToRaw p) offPageNext in
+      let _ = storeU64 sh 48 (ptrToU64 next) in
+      p
+
+  sharedPark :: RawPtr U8 ->{Global} Unit
+  sharedPark h =
+    let sh = ptrCast (sharedState ()) in
+    let old = ptrFromU64 (loadU64 sh 56) in
+    let _ = storePtr h offHeapParkedNext old in
+    storeU64 sh 56 (rawToU64 h)
+
+  sharedAdopt :: Unit ->{Global} MaybeNull U8
+  sharedAdopt _ =
+    let sh = ptrCast (sharedState ()) in
+    let h = ptrFromU64 (loadU64 sh 56) in
+    if ptrIsNull h then ptrNull ()
+    else
+      let next = loadPtr (maybeToRaw h) offHeapParkedNext in
+      let _ = storeU64 sh 56 (ptrToU64 next) in
+      h
+
+  sharedUnparkPendingLoop :: RawPtr U8 -> Isize ->{Global} MaybeNull U8
+  sharedUnparkPendingLoop linkPtr linkOff =
+    let h = ptrFromU64 (loadU64 linkPtr linkOff) in
+    if ptrIsNull h then ptrNull ()
+    else
+      let hp = maybeToRaw h in
+      let rem = atomicLoadPtrRelaxed hp offHeapRemote in
+      if not (ptrIsNull rem) then
+        let next = loadPtr hp offHeapParkedNext in
+        let _ = storeU64 linkPtr linkOff (ptrToU64 next) in
+        h
+      else
+        sharedUnparkPendingLoop hp offHeapParkedNext
+
+  sharedFresh :: Unit ->{Global} MaybeNull U8
+  sharedFresh _ =
+    let sh = ptrCast (sharedState ()) in
+    let _ = (if loadU64 sh 40 == 0 then
+        let _ = storeU64 sh 40 1 in
+        sharedReserve ()
+      else ()) in
+    let limit = loadU64 sh 16 in
+    let next = loadU64 sh 24 in
+    if u64Lt (u64Sub limit next) smallPage then ptrNull ()
+    else
+      let committed = loadU64 sh 32 in
+      let ok = (if next == committed then
+          let chunk = u64Min smallCommitChunk (u64Sub limit committed) in
+          let prot = i64ToI32 (bitOrI64 (i32ToI64 sysProtRead) (i32ToI64 sysProtWrite)) in
+          let rc = sysMprotect (maybeToRaw (ptrFromU64 committed)) (u64ToUsize chunk) prot in
+          if rc /= 0 then False
+          else let _ = storeU64 sh 32 (u64Add committed chunk) in True
+        else True) in
+      if not ok then ptrNull ()
+      else
+        let _ = storeU64 sh 24 (u64Add next smallPage) in
+        ptrFromU64 next
+
+  -- Heap page list operations
+  heapPageOff :: U64 -> Isize
+  heapPageOff cls = u64ToIsize (u64Mul cls 8)
+
+  heapUnlink :: RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  heapUnlink heap cls page =
+    let prev = loadPtr page offPagePrev in
+    let next = loadPtr page offPageNext in
+    let _ = if not (ptrIsNull next) then storePtr (maybeToRaw next) offPagePrev prev else () in
+    let _ = (if ptrIsNull prev then
+        if ptrIsNull next then
+          storePtr heap (heapPageOff cls) (rawToMaybe (emptyPage ()))
+        else
+          let np = maybeToRaw next in
+          let _ = storeU8 np offPageState stateHead in
+          storePtr heap (heapPageOff cls) next
+      else
+        storePtr (maybeToRaw prev) offPageNext next) in
+    let _ = storePtr page offPagePrev (ptrNull ()) in
+    storePtr page offPageNext (ptrNull ())
+
+  heapLinkSecond :: RawPtr U8 -> U64 -> RawPtr U8 ->{Global} Unit
+  heapLinkSecond heap cls page =
+    let head = maybeToRaw (loadPtr heap (heapPageOff cls)) in
+    if rawToU64 head == rawToU64 (emptyPage ()) then
+      let _ = storePtr page offPagePrev (ptrNull ()) in
+      let _ = storePtr page offPageNext (ptrNull ()) in
+      let _ = storeU8 page offPageState stateHead in
+      storePtr heap (heapPageOff cls) (rawToMaybe page)
+    else
+      let next = loadPtr head offPageNext in
+      let _ = storePtr page offPagePrev (rawToMaybe head) in
+      let _ = storePtr page offPageNext next in
+      let _ = storeU8 page offPageState stateLinked in
+      let _ = if not (ptrIsNull next) then storePtr (maybeToRaw next) offPagePrev (rawToMaybe page) else () in
+      storePtr head offPageNext (rawToMaybe page)
+
+  heapRetire :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  heapRetire heap page =
+    let cached = loadU64 heap offHeapCached in
+    if u64Lt cached smallCachedPages then
+      let old = loadPtr heap offHeapCache in
+      let _ = storePtr page offPageNext old in
+      let _ = storePtr heap offHeapCache (rawToMaybe page) in
+      storeU64 heap offHeapCached (u64Add cached 1)
+    else
+      let _ = sharedLock () in
+      let _ = sharedPoolPush page in
+      sharedUnlock ()
+
+  heapPageFreed :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  heapPageFreed heap page =
+    let cls = u8ToU64 (loadU8 page offPageClass) in
+    let _ = if loadU8 page offPageState == stateFull then heapLinkSecond heap cls page else () in
+    if loadU32 page offPageUsed == 0 && loadU8 page offPageState /= stateHead then
+      let _ = heapUnlink heap cls page in
+      heapRetire heap page
+    else ()
+
+  heapFreeLocal :: RawPtr U8 -> RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  heapFreeLocal heap page b =
+    let oldFree = loadPtr page offPageFree in
+    let _ = storePtr b 0 oldFree in
+    let _ = storePtr page offPageFree (rawToMaybe b) in
+    let used = u64ToU32 (u64Sub (u32ToU64 (loadU32 page offPageUsed)) 1) in
+    let _ = storeU32 page offPageUsed used in
+    let st = loadU8 page offPageState in
+    if st /= stateHead && (used == 0 || st == stateFull) then heapPageFreed heap page else ()
+
+  heapDrainLoop :: RawPtr U8 -> MaybeNull U8 ->{Global} Unit
+  heapDrainLoop heap b =
+    if ptrIsNull b then ()
+    else
+      let bp = maybeToRaw b in
+      let next = loadPtr bp 0 in
+      let _ = heapFreeLocal heap (pageOf bp) bp in
+      heapDrainLoop heap next
+
+  heapDrain :: RawPtr U8 ->{Global} Unit
+  heapDrain heap =
+    let b = atomicSwapPtrAcquire heap offHeapRemote (ptrNull ()) in
+    heapDrainLoop heap b
+
+  heapPushRemoteLoop :: RawPtr U8 -> RawPtr U8 -> MaybeNull U8 ->{Global} Unit
+  heapPushRemoteLoop heap b head =
+    let _ = storePtr b 0 head in
+    if atomicCasPtrRelease heap offHeapRemote head (rawToMaybe b) then ()
+    else
+      let now = atomicLoadPtrRelaxed heap offHeapRemote in
+      heapPushRemoteLoop heap b now
+
+  heapPushRemote :: RawPtr U8 -> RawPtr U8 ->{Global} Unit
+  heapPushRemote heap b =
+    let head = atomicLoadPtrRelaxed heap offHeapRemote in
+    heapPushRemoteLoop heap b head
+
+  heapTidyClasses :: RawPtr U8 -> U64 -> MaybeNull U8 ->{Global} MaybeNull U8
+  heapTidyClasses heap cls pooled =
+    if u64Ge cls smallClasses then pooled
+    else
+      let head = maybeToRaw (loadPtr heap (heapPageOff cls)) in
+      let nextPooled =
+            (if rawToU64 head /= rawToU64 (emptyPage ()) && loadU32 head offPageUsed == 0 then
+              let _ = heapUnlink heap cls head in
+              let _ = storePtr head offPageNext pooled in
+              rawToMaybe head
+            else pooled) in
+      heapTidyClasses heap (u64Add cls 1) nextPooled
+
+  heapTidyCache :: MaybeNull U8 -> MaybeNull U8 ->{Global} MaybeNull U8
+  heapTidyCache cur pooled =
+    if ptrIsNull cur then pooled
+    else
+      let cp = maybeToRaw cur in
+      let next = loadPtr cp offPageNext in
+      let _ = storePtr cp offPageNext pooled in
+      heapTidyCache next cur
+
+  heapPushAllPooled :: MaybeNull U8 ->{Global} Unit
+  heapPushAllPooled cur =
+    if ptrIsNull cur then ()
+    else
+      let cp = maybeToRaw cur in
+      let next = loadPtr cp offPageNext in
+      let _ = sharedPoolPush cp in
+      heapPushAllPooled next
+
+  heapTidy :: RawPtr U8 ->{Global} Unit
+  heapTidy heap =
+    let _ = heapDrain heap in
+    let p1 = heapTidyClasses heap 0 (ptrNull ()) in
+    let cache = loadPtr heap offHeapCache in
+    let _ = storePtr heap offHeapCache (ptrNull ()) in
+    let _ = storeU64 heap offHeapCached 0 in
+    let p2 = heapTidyCache cache p1 in
+    if ptrIsNull p2 then ()
+    else
+      let _ = sharedLock () in
+      let _ = heapPushAllPooled p2 in
+      sharedUnlock ()
+
+  heapTakePageLoop :: U64 ->{Global} MaybeNull U8
+  heapTakePageLoop collections =
+    let collect = u64Lt collections 3 in
+    let _ = sharedLock () in
+    let sh = ptrCast (sharedState ()) in
+    let fromPool = sharedPoolPop () in
+    if not (ptrIsNull fromPool) then
+      let _ = sharedUnlock () in
+      fromPool
+    else
+      let parked = if collect then sharedUnparkPendingLoop sh 56 else ptrNull () in
+      if not (ptrIsNull parked) then
+        let _ = sharedUnlock () in
+        let pp = maybeToRaw parked in
+        let _ = heapTidy pp in
+        let _ = sharedLock () in
+        let _ = sharedPark pp in
+        let _ = sharedUnlock () in
+        heapTakePageLoop (u64Add collections 1)
+      else
+        let fresh = sharedFresh () in
+        let _ = sharedUnlock () in
+        fresh
+
+  heapTakePage :: RawPtr U8 ->{Global} MaybeNull U8
+  heapTakePage heap =
+    let cached = loadPtr heap offHeapCache in
+    if not (ptrIsNull cached) then
+      let cp = maybeToRaw cached in
+      let next = loadPtr cp offPageNext in
+      let _ = storePtr heap offHeapCache next in
+      let _ = storeU64 heap offHeapCached (u64Sub (loadU64 heap offHeapCached) 1) in
+      cached
+    else
+      heapTakePageLoop 0
+
+  heapFormatPage :: RawPtr U8 -> RawPtr U8 -> U64 ->{Global} Unit
+  heapFormatPage heap page cls =
+    let sz = u64Mul (u64Add cls 1) 8 in
+    let buf = ptrAddU64 page smallPageHeader in
+    let blocks = u64Div (u64Sub smallPage smallPageHeader) sz in
+    let end = ptrAddU64 buf (u64Mul blocks sz) in
+    let _ = storePtr page offPageFree (ptrNull ()) in
+    let _ = storePtr page offPageBump (rawToMaybe buf) in
+    let _ = storePtr page offPageEnd (rawToMaybe end) in
+    let _ = storeU32 page offPageUsed 0 in
+    let _ = storeU32 page offPageSize (u64ToU32 sz) in
+    let _ = storeU8 page offPageClass (u64ToU8 cls) in
+    let _ = storeU8 page offPageState stateHead in
+    let _ = atomicStorePtrRelaxed page offPageHeap (rawToMaybe heap) in
+    let _ = storePtr page offPagePrev (ptrNull ()) in
+    storePtr page offPageNext (ptrNull ())
+
+  heapAllocSmall :: RawPtr U8 -> U64 ->{Global} MaybeNull U8
+  heapAllocSmall heap cls =
+    let page = maybeToRaw (loadPtr heap (heapPageOff cls)) in
+    let b = loadPtr page offPageFree in
+    if not (ptrIsNull b) then
+      let bp = maybeToRaw b in
+      let _ = storePtr page offPageFree (loadPtr bp 0) in
+      let _ = storeU32 page offPageUsed (u64ToU32 (u64Add (u32ToU64 (loadU32 page offPageUsed)) 1)) in
+      b
+    else
+      let bump = loadPtr page offPageBump in
+      let end = loadPtr page offPageEnd in
+      if u64Lt (ptrToU64 bump) (ptrToU64 end) then
+        let step = shlU64 (u64Add cls 1) 3 in
+        let _ = storePtr page offPageBump (rawToMaybe (ptrAddU64 (maybeToRaw bump) step)) in
+        let _ = storeU32 page offPageUsed (u64ToU32 (u64Add (u32ToU64 (loadU32 page offPageUsed)) 1)) in
+        bump
+      else
+        heapRefill heap cls
+
+  heapRefill :: RawPtr U8 -> U64 ->{Global} MaybeNull U8
+  heapRefill heap cls =
+    let off = heapPageOff cls in
+    let head = maybeToRaw (loadPtr heap off) in
+    let _ = (if rawToU64 head /= rawToU64 (emptyPage ()) then
+        let _ = heapUnlink heap cls head in
+        storeU8 head offPageState stateFull
+      else ()) in
+    let _ = if ptrToU64 (loadPtr heap off) == rawToU64 (emptyPage ()) then heapDrain heap else () in
+    if ptrToU64 (loadPtr heap off) == rawToU64 (emptyPage ()) then
+      let p = heapTakePage heap in
+      if ptrIsNull p then ptrNull ()
+      else
+        let pp = maybeToRaw p in
+        let _ = heapFormatPage heap pp cls in
+        let _ = storePtr heap off p in
+        heapAllocSmall heap cls
+    else
+      heapAllocSmall heap cls
+
+  smallFree :: RawPtr U8 -> MaybeNull U8 ->{Global} Unit
+  smallFree p local =
+    let page = pageOf p in
+    let owner = atomicLoadPtrRelaxed page offPageHeap in
+    if ptrToU64 local == ptrToU64 owner then
+      heapFreeLocal (maybeToRaw owner) page p
+    else
+      heapPushRemote (maybeToRaw owner) p
+
+  -- Thread teardown via pthread_key_create
+  releaseCredit :: RawPtr U8 ->{Global} Unit
+  releaseCredit heap =
+    let c = atomicLoadU64Relaxed heap offHeapCredit in
+    if c /= 0 then
+      let _ = atomicStoreU64Relaxed heap offHeapCredit 0 in
+      let _ = atomicSubU64Relaxed (ptrCast (liveState ())) 0 c in
+      ()
+    else ()
+
+  heapTeardownDtor :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+  heapTeardownDtor arg =
+    let _ = storeU64 (currentHeapTls ()) 0 heapGone in
+    let hg = ptrCast (hotGlobals ()) in
+    let _ = (if atomicLoadU64Relaxed hg 0 == sysThreadWord () then
+        atomicStoreU64Relaxed hg 0 soleRetired
+      else ()) in
+    if u64Gt (ptrToU64 arg) heapGone then
+      let hp = maybeToRaw arg in
+      let _ = releaseCredit hp in
+      let _ = heapTidy hp in
+      let _ = sharedLock () in
+      let _ = sharedPark hp in
+      sharedUnlock ()
+    else ()
+
+  foreign export ccall "cinch_rt_heap_teardown" heapTeardownDtor :: MaybeNull U8 ->{Global, ThreadAffine} Unit
+
+  prim fnAddrHeapTeardownPrim :: I64 -> RawPtr U8 where
+    unsafe llvm {
+      ret ptr @cinch_rt_heap_teardown
+    } uses (cinch_rt_heap_teardown :: MaybeNull U8 -> Unit)
+
+  fnAddrHeapTeardown :: Unit -> RawPtr U8
+  fnAddrHeapTeardown _ = fnAddrHeapTeardownPrim 0
+
+  waitKeyInitLoop :: RawPtr U8 ->{Global} U64
+  waitKeyInitLoop st =
+    if atomicLoadU64Acquire st 0 == 2 then loadU64 st 8
+    else let _ = sysSpinLoop () in waitKeyInitLoop st
+
+  ensureTeardownKey :: Unit ->{Global} KeyInit
+  ensureTeardownKey _ =
+    let st = ptrCast (teardownKeyState ()) in
+    if atomicLoadU64Acquire st 0 == 2 then KeyInit True (loadU64 st 8)
+    else if atomicCasU64Bool st 0 0 1 then
+      let keyPtr = ptrCast (ptrAddU64 st 8) in
+      let rc = cPthreadKeyCreate keyPtr (rawToMaybe (fnAddrHeapTeardown ())) in
+      if rc /= 0 then
+        let _ = atomicStoreU64Release st 0 0 in
+        KeyInit False 0
+      else
+        let _ = atomicStoreU64Release st 0 2 in
+        KeyInit True (loadU64 st 8)
+    else
+      KeyInit True (waitKeyInitLoop st)
+
+  initHeapPages :: RawPtr U8 -> U64 ->{Global} Unit
+  initHeapPages heap cls =
+    if u64Ge cls smallClasses then ()
+    else
+      let _ = storePtr heap (heapPageOff cls) (rawToMaybe (emptyPage ())) in
+      initHeapPages heap (u64Add cls 1)
+
+  pushAllHeapsLoop :: RawPtr U8 -> U64 ->{Global} Unit
+  pushAllHeapsLoop h head =
+    let _ = storePtr h offHeapAllNext (ptrFromU64 head) in
+    if atomicCasU64Bool (allHeapsHead ()) 0 head (rawToU64 h) then ()
+    else
+      let now = atomicLoadU64Relaxed (allHeapsHead ()) 0 in
+      pushAllHeapsLoop h now
+
+  createHeap :: Unit ->{Global} MaybeNull U8
+  createHeap _ =
+    let h = cCalloc 1 heapStructBytes in
+    if ptrIsNull h then ptrNull ()
+    else
+      let hp = maybeToRaw h in
+      let _ = initHeapPages hp 0 in
+      let head = atomicLoadU64Relaxed (allHeapsHead ()) 0 in
+      let _ = pushAllHeapsLoop hp head in
+      h
+
+  startHeap :: Unit ->{Global, ThreadAffine} MaybeNull U8
+  startHeap _ =
+    let _ = storeU64 (currentHeapTls ()) 0 heapStarting in
+    let ki = ensureTeardownKey () in
+    if not (ki.kiOk) then
+      let _ = storeU64 (currentHeapTls ()) 0 heapGone in
+      ptrNull ()
+    else
+      let _ = sharedLock () in
+      let adopted = sharedAdopt () in
+      let _ = sharedUnlock () in
+      let h = if ptrIsNull adopted then createHeap () else adopted in
+      if ptrIsNull h then
+        let _ = storeU64 (currentHeapTls ()) 0 heapGone in
+        ptrNull ()
+      else
+        let _ = cPthreadSetSpecific (ki.kiKey) h in
+        let _ = storeU64 (currentHeapTls ()) 0 (ptrToU64 h) in
+        h
+
+  heapLocalSlow :: Unit ->{Global, ThreadAffine} MaybeNull U8
+  heapLocalSlow _ =
+    let h = loadU64 (currentHeapTls ()) 0 in
+    if u64Gt h heapGone then ptrFromU64 h
+    else if h == 0 then startHeap ()
+    else ptrNull ()
+
+  heapLocal :: Unit ->{Global, ThreadAffine} MaybeNull U8
+  heapLocal _ =
+    let hg = ptrCast (hotGlobals ()) in
+    if sysThreadWord () == atomicLoadU64Relaxed hg 0 then
+      ptrFromU64 (atomicLoadU64Relaxed hg 8)
+    else
+      heapLocalSlow ()
+
+  heapClaimSole :: Unit ->{Global, ThreadAffine} Unit
+  heapClaimSole _ =
+    let w = sysThreadWord () in
+    if w == sysNoThreadWord then ()
+    else
+      let h = heapLocal () in
+      if ptrIsNull h then ()
+      else
+        let hg = ptrCast (hotGlobals ()) in
+        if atomicCasU64Relaxed hg 0 soleUnclaimed soleClaiming then
+          let _ = atomicStoreU64Relaxed hg 8 (ptrToU64 h) in
+          atomicStoreU64Relaxed hg 0 w
+        else ()
+
+  -- =========================================================================
+  -- Live-heap accounting & cap enforcement
+  -- =========================================================================
+
+  raisePeak :: U64 ->{Global} Unit
+  raisePeak v =
+    let ls = ptrCast (liveState ()) in
+    if u64Gt v (atomicLoadU64Relaxed ls 8) then
+      let _ = atomicMaxU64Relaxed ls 8 v in ()
+    else ()
+
+  checkCap :: U64 ->{Global} Unit
+  checkCap reserved =
+    let lim = configLimit () in
+    if lim == 0 || isExhausting () then ()
+    else
+      let live = u64SatSub reserved (totalCredits ()) in
+      if u64Gt live lim then exhaustedHeap live else ()
+
+  reserveCredit :: RawPtr U8 -> U64 ->{Global} Unit
+  reserveCredit heap need =
+    let ls = ptrCast (liveState ()) in
+    let add = u64Add need creditChunk in
+    let reserved = u64Add (atomicAddU64Relaxed ls 0 add) add in
+    let _ = atomicStoreU64Relaxed heap offHeapCredit creditChunk in
+    let _ = raisePeak reserved in
+    if u64Gt reserved (atomicLoadU64Relaxed ls 24) then
+      let _ = atomicStoreU64Relaxed ls 16 modeExact in
+      let _ = atomicStoreU64Relaxed heap offHeapCredit 0 in
+      let r2 = u64Sub (atomicSubU64Relaxed ls 0 creditChunk) creditChunk in
+      checkCap r2
+    else ()
+
+  chargeExact :: U64 ->{Global} Unit
+  chargeExact size =
+    let ls = ptrCast (liveState ()) in
+    let _ = (if atomicLoadU64Relaxed ls 16 == modeUnread then
+        let lim = configLimit () in
+        let effLim = if lim == 0 then u64BitNot 0 else lim in
+        let _ = atomicStoreU64Relaxed ls 24 effLim in
+        let mode = if configStats () then modeExact else modeBatched in
+        let _ = atomicCasU64Relaxed ls 16 modeUnread mode in
+        ()
+      else ()) in
+    let reserved = u64Add (atomicAddU64Relaxed ls 0 size) size in
+    let _ = raisePeak reserved in
+    if u64Gt reserved (atomicLoadU64Relaxed ls 24) then checkCap reserved else ()
+
+  charge :: MaybeNull U8 -> U64 ->{Global} Unit
+  charge local size =
+    if not (ptrIsNull local) && atomicLoadU64Relaxed (ptrCast (liveState ())) 16 == modeBatched then
+      let hp = maybeToRaw local in
+      let c = atomicLoadU64Relaxed hp offHeapCredit in
+      if u64Ge c size then atomicStoreU64Relaxed hp offHeapCredit (u64Sub c size)
+      else reserveCredit hp (u64Sub size c)
+    else
+      chargeExact size
+
+  discharge :: MaybeNull U8 -> U64 ->{Global} Unit
+  discharge local size =
+    if not (ptrIsNull local) && atomicLoadU64Relaxed (ptrCast (liveState ())) 16 == modeBatched then
+      let hp = maybeToRaw local in
+      let c = u64Add (atomicLoadU64Relaxed hp offHeapCredit) size in
+      if u64Le c (u64Mul 2 creditChunk) then atomicStoreU64Relaxed hp offHeapCredit c
+      else
+        let _ = atomicStoreU64Relaxed hp offHeapCredit creditChunk in
+        let _ = atomicSubU64Relaxed (ptrCast (liveState ())) 0 (u64Sub c creditChunk) in
+        ()
+    else
+      let _ = atomicSubU64Relaxed (ptrCast (liveState ())) 0 size in
+      ()
+
+  tallyAdd :: MaybeNull U8 -> Isize -> Isize -> U64 ->{Global} Unit
+  tallyAdd local heapOff fbOff delta =
+    if not (ptrIsNull local) then
+      let hp = maybeToRaw local in
+      let v = atomicLoadU64Relaxed hp heapOff in
+      atomicStoreU64Relaxed hp heapOff (u64Add v delta)
+    else
+      let _ = atomicAddU64Relaxed (ptrCast (fallbackTally ())) fbOff delta in
+      ()
+
+  account :: MaybeNull U8 -> U64 -> Bool -> Bool ->{Global} Unit
+  account local size isHeader isImmortal =
+    let _ = tallyAdd local offHeapBlocks 0 1 in
+    let _ = tallyAdd local offHeapBytes 8 size in
+    let _ = (if isHeader then
+        let _ = tallyAdd local offHeapHeaderBlocks 16 1 in
+        let _ = tallyAdd local offHeapHeaderBytes 24 size in
+        if isImmortal then tallyAdd local offHeapImmortal 32 1 else ()
+      else ()) in
+    charge local size
+
+  refused :: Unit ->{Global} Unit
+  refused _ =
+    if isExhausting () then cRawExit exitExhausted
+    else exhaustedHeap (liveNow ())
+
+  heapRequestTooLarge :: U64 ->{Global} Unit
+  heapRequestTooLarge size = exhaustedHeap (u64SatAdd (liveNow ()) size)
+
+  place :: MaybeNull U8 -> U64 -> U64 -> Bool ->{Global} RawPtr U8
+  place local size align zeroed =
+    let cls = if ptrIsNull local then i64Sub 0 1 else smallClassOf size align in
+    if i64Ge cls 0 then
+      let p = heapAllocSmall (maybeToRaw local) (i64ToU64 cls) in
+      if not (ptrIsNull p) then
+        let rp = maybeToRaw p in
+        let _ = if zeroed && size /= 0 then memZero rp (u64ToUsize size) else () in
+        rp
+      else placeSystem size align zeroed
+    else placeSystem size align zeroed
+
+  placeSystem :: U64 -> U64 -> Bool ->{Global} RawPtr U8
+  placeSystem size align zeroed =
+    let p = sysAlignedAlloc (u64ToUsize size) (u64ToUsize align) zeroed in
+    if ptrIsNull p then let _ = refused () in maybeToRaw p
+    else maybeToRaw p
+
+  heapAllocBlock :: U64 -> U64 -> Bool -> Bool ->{Global, ThreadAffine} RawPtr U8
+  heapAllocBlock size align immortal zeroed =
+    let local = heapLocal () in
+    let _ = account local size True immortal in
+    place local size align zeroed
+
+  heapAccountBlockFree :: Unit ->{Global, ThreadAffine} Unit
+  heapAccountBlockFree _ =
+    let local = heapLocal () in
+    tallyAdd local offHeapFreed 40 1
+
+  heapFreeBlock :: MaybeNull U8 -> RawPtr U8 -> U64 ->{Global} Unit
+  heapFreeBlock local base fallbackSize =
+    let _ = tallyAdd local offHeapFreed 40 1 in
+    if smallOwns base then
+      let sz = smallBlockSize base in
+      let _ = discharge local sz in
+      smallFree base local
+    else
+      let _ = discharge local fallbackSize in
+      sysSystemFree base
+
+  -- Global allocator bridge for Rust's #[global_allocator] (and array accel crates)
+  heapGlobalAlloc :: Usize -> Usize -> U8 ->{Global, ThreadAffine} RawPtr U8
+  heapGlobalAlloc size align zeroed =
+    let sz = usizeToU64 size in
+    let al = usizeToU64 align in
+    let local = heapLocal () in
+    let _ = account local sz False False in
+    place local sz al (zeroed /= 0)
+
+  heapGlobalDealloc :: RawPtr U8 -> Usize -> Usize ->{Global, ThreadAffine} Unit
+  heapGlobalDealloc p size _ =
+    let sz = usizeToU64 size in
+    let local = heapLocal () in
+    let _ = discharge local sz in
+    if smallOwns p then smallFree p local
+    else sysSystemFree p
+
+  heapGlobalRealloc :: RawPtr U8 -> Usize -> Usize -> Usize ->{Global, ThreadAffine} RawPtr U8
+  heapGlobalRealloc p oldSize align newSize =
+    let oldSz = usizeToU64 oldSize in
+    let newSz = usizeToU64 newSize in
+    let al = usizeToU64 align in
+    let local = heapLocal () in
+    let _ = discharge local oldSz in
+    let _ = account local newSz False False in
+    if not (smallOwns p) then
+      let next = sysSystemRealloc p oldSize align newSize in
+      if ptrIsNull next then let _ = refused () in maybeToRaw next
+      else maybeToRaw next
+    else
+      let newCls = smallClassOf newSz al in
+      if i64Ge newCls 0 && i64ToU64 newCls == smallClassAt p then p
+      else
+        let next = place local newSz al False in
+        let copyLen = u64Min oldSz newSz in
+        let _ = if copyLen /= 0 then memCopy next p (u64ToUsize copyLen) else () in
+        let _ = smallFree p local in
+        next
+
+  -- Temporary C-ABI bridge exports for remaining Rust modules (removed in M9 except global_alloc)
+  foreign export ccall "cinch_rt_global_alloc" heapGlobalAlloc :: Usize -> Usize -> U8 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_rt_global_dealloc" heapGlobalDealloc :: RawPtr U8 -> Usize -> Usize ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_rt_global_realloc" heapGlobalRealloc :: RawPtr U8 -> Usize -> Usize -> Usize ->{Global, ThreadAffine} RawPtr U8
+
+  rtAllocBlock :: Usize -> Usize -> U8 -> U8 ->{Global, ThreadAffine} RawPtr U8
+  rtAllocBlock size align imm zeroed = heapAllocBlock (usizeToU64 size) (usizeToU64 align) (imm /= 0) (zeroed /= 0)
+
+  rtFreeBlock :: RawPtr U8 -> Usize ->{Global, ThreadAffine} Unit
+  rtFreeBlock base size = heapFreeBlock (heapLocal ()) base (usizeToU64 size)
+
+  rtRcDebug :: Unit ->{Global} U8
+  rtRcDebug _ = if heapRcDebug () then 1 else 0
+
+  rtClaimSole :: Unit ->{Global, ThreadAffine} Unit
+  rtClaimSole _ = heapClaimSole ()
+
+  rtBlockStats :: RawPtr U64 ->{Global} Unit
+  rtBlockStats out =
+    let st = heapBlockStats () in
+    let _ = storeU64 out 0 (st.bsHeaderBlocks) in
+    let _ = storeU64 out 8 (st.bsHeaderBytes) in
+    let _ = storeU64 out 16 (st.bsImmortal) in
+    storeU64 out 24 (st.bsFreed)
+
+  rtHeapStats :: RawPtr U64 ->{Global} Unit
+  rtHeapStats out =
+    let blocks = totalTally offHeapBlocks 0 in
+    let bytes = totalTally offHeapBytes 8 in
+    let live = liveNow () in
+    let peak = atomicLoadU64Relaxed (ptrCast (liveState ())) 8 in
+    let _ = storeU64 out 0 blocks in
+    let _ = storeU64 out 8 bytes in
+    let _ = storeU64 out 16 live in
+    storeU64 out 24 peak
+
+  foreign export ccall "cinch_rt_alloc_block" rtAllocBlock :: Usize -> Usize -> U8 -> U8 ->{Global, ThreadAffine} RawPtr U8
+  foreign export ccall "cinch_rt_free_block" rtFreeBlock :: RawPtr U8 -> Usize ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_rt_rc_debug" rtRcDebug :: Unit ->{Global} U8
+  foreign export ccall "cinch_rt_claim_sole" rtClaimSole :: Unit ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_rt_block_stats" rtBlockStats :: RawPtr U64 ->{Global} Unit
+  foreign export ccall "cinch_rt_heap_stats" rtHeapStats :: RawPtr U64 ->{Global} Unit

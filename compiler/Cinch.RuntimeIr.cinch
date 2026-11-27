@@ -9394,7 +9394,7 @@ module Cinch.RuntimeIr where
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
-      Writer next globals code [] layouts datas -> Ok (cat [filter-exported-declares exports declarations, filter-exported-declares exports (par-preamble info definitions), render-globals globals, apply-entry-with-linkage False "internal ", builder-run code])
+      Writer next globals code [] layouts datas -> Ok (cat [filter-exported-declares exports declarations, filter-exported-declares exports (par-preamble info definitions), filter-exported-declares exports (render-globals globals), apply-entry-with-linkage False "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
   -- The parameter prefix includes eager method values, dictionaries and
@@ -9690,7 +9690,7 @@ module Cinch.RuntimeIr where
     case library-bridges definitions roots [] (foreign-export-bridges exports (settled-workers-with-plan-tuned tuning plan definitions (selected <> foreign-export-roots exports) info)) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code [] layouts context ->
-          let ir = cat [header, filter-exported-declares exports (declarations-counting wasm32 False True), filter-exported-declares exports (par-preamble info definitions), render-globals globals, apply-entry-with-linkage wasm32 "internal ", builder-run code] in
+          let ir = cat [header, filter-exported-declares exports (declarations-counting wasm32 False True), filter-exported-declares exports (par-preamble info definitions), filter-exported-declares exports (render-globals globals), apply-entry-with-linkage wasm32 "internal ", builder-run code] in
           Ok (ir, units, if artifact then JObjEnd else library-object-facts (Writer next globals code [] layouts context))
         Writer next globals code errors layouts context -> Err errors
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String

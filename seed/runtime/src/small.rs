@@ -601,9 +601,21 @@ const SOLE_UNCLAIMED: usize = 0;
 const SOLE_CLAIMING: usize = 2;
 const SOLE_RETIRED: usize = 4;
 
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn cinch_rt_claim_sole();
+}
+
 /// Give the calling thread the sole heap's fast path, if no thread has
 /// had it.
 pub(crate) fn claim_sole() {
+    #[cfg(not(test))]
+    {
+        unsafe { cinch_rt_claim_sole() };
+        return;
+    }
+    #[cfg(test)]
+    {
     let word = crate::sys::thread_word();
     if word == crate::sys::NO_THREAD_WORD {
         return;
@@ -618,6 +630,7 @@ pub(crate) fn claim_sole() {
     {
         HOT.sole_heap.store(h as *const Heap as *mut Heap, Relaxed);
         HOT.sole_thread.store(word, Relaxed);
+    }
     }
 }
 

@@ -1,0 +1,260 @@
+module Runtime.BlockKinds where
+  import Runtime.Mem
+
+  export kindNone, kindCtor, kindClosure, kindDict, kindMemo, kindKnot
+  export kindNat, kindInt, kindBytes, kindBytesStatic, kindSym, kindCode
+  export kindBoxedScalar, kindRaw, kindArray, kindTensor, kindColumnar
+  export kindTvar, kindMvar, kindBytesMapped, kindBytesView, kindAtomic, kindRwlock
+  export kindLast, kindFreed
+  export rcBits, kindBits, layoutBits, rcShift, kindShift, layoutShift
+  export rcImmortal, rcFresh, rcMax, rcMin, rcFrame, rcFrameReleased, rcMask
+  export heapLimitMax, layoutBig, headerBytes, poisonWord
+  export shapeTagBits, shapeMaskBits, shapeEscapedTag, shapeTagMask, shapedSmallWords
+  export descTagWord, descWordsWord, descMaskWord, escapedField
+  export scanBits, scanRaw, scanObj, scanTobj, scanCodeMask, codeLowBits
+  export closurePrefixWords, closureFilledWord, dictPrefixWords, memoOwnedWord, codePrefixWords
+  export tvarLockWord, tvarValueWord, tvarFormatWord, tvarWords, bytesViewOwnerWord
+  export makeHeader, headerRc, headerKind, headerLayout, withRc, staticHeader
+  export kindHasShape, shapeField, shapeFieldTag, shapeFieldMask, shapeEscaped, shapePrefixWords
+  export descWords, fixedScanCode, scanSlot, scanCodeAt, countedCodes, slotsBelow, liveKind
+
+  kindNone :: U8
+  kindNone = 0
+  kindCtor :: U8
+  kindCtor = 1
+  kindClosure :: U8
+  kindClosure = 2
+  kindDict :: U8
+  kindDict = 3
+  kindMemo :: U8
+  kindMemo = 4
+  kindKnot :: U8
+  kindKnot = 5
+  kindNat :: U8
+  kindNat = 6
+  kindInt :: U8
+  kindInt = 7
+  kindBytes :: U8
+  kindBytes = 8
+  kindBytesStatic :: U8
+  kindBytesStatic = 9
+  kindSym :: U8
+  kindSym = 10
+  kindCode :: U8
+  kindCode = 11
+  kindBoxedScalar :: U8
+  kindBoxedScalar = 12
+  kindRaw :: U8
+  kindRaw = 13
+  kindArray :: U8
+  kindArray = 14
+  kindTensor :: U8
+  kindTensor = 15
+  kindColumnar :: U8
+  kindColumnar = 16
+  kindTvar :: U8
+  kindTvar = 17
+  kindMvar :: U8
+  kindMvar = 18
+  kindBytesMapped :: U8
+  kindBytesMapped = 19
+  kindBytesView :: U8
+  kindBytesView = 20
+  kindAtomic :: U8
+  kindAtomic = 21
+  kindRwlock :: U8
+  kindRwlock = 22
+  kindLast :: U8
+  kindLast = 22
+  kindFreed :: U8
+  kindFreed = 31
+
+  rcBits :: U64
+  rcBits = 35
+  kindBits :: U64
+  kindBits = 5
+  layoutBits :: U64
+  layoutBits = 24
+  rcShift :: U64
+  rcShift = 0
+  kindShift :: U64
+  kindShift = 35
+  layoutShift :: U64
+  layoutShift = 40
+
+  rcMask :: U64
+  rcMask = u64Sub (shlU64 1 35) 1
+
+  rcImmortal :: I64
+  rcImmortal = 0
+  rcFresh :: I64
+  rcFresh = 1
+  rcMax :: I64
+  rcMax = i64Sub (shlI64 1 34) 1
+  rcMin :: I64
+  rcMin = i64Sub 0 (shlI64 1 34)
+  rcFrame :: I64
+  rcFrame = rcMax
+  rcFrameReleased :: I64
+  rcFrameReleased = i64Sub rcMax 1
+
+  heapLimitMax :: U64
+  heapLimitMax = shlU64 1 36
+
+  layoutBig :: U32
+  layoutBig = u64ToU32 (u64Sub (shlU64 1 24) 1)
+
+  headerBytes :: U64
+  headerBytes = 8
+
+  poisonWord :: U64
+  poisonWord = u64Add (shlU64 3735928559 32) 3735928559
+
+  shapeTagBits :: U64
+  shapeTagBits = 8
+  shapeMaskBits :: U64
+  shapeMaskBits = 16
+  shapeEscapedTag :: U64
+  shapeEscapedTag = 255
+  shapeTagMask :: U64
+  shapeTagMask = 255
+  shapedSmallWords :: U64
+  shapedSmallWords = 31
+
+  descTagWord :: U64
+  descTagWord = 0
+  descWordsWord :: U64
+  descWordsWord = 1
+  descMaskWord :: U64
+  descMaskWord = 2
+
+  escapedField :: U32
+  escapedField = 255
+
+  scanBits :: U64
+  scanBits = 2
+  scanRaw :: U64
+  scanRaw = 0
+  scanObj :: U64
+  scanObj = 1
+  scanTobj :: U64
+  scanTobj = 2
+  scanCodeMask :: U64
+  scanCodeMask = 3
+
+  codeLowBits :: U64
+  codeLowBits = u64Add (shlU64 1431655765 32) 1431655765
+
+  closurePrefixWords :: U64
+  closurePrefixWords = 3
+  closureFilledWord :: U64
+  closureFilledWord = 2
+  dictPrefixWords :: U64
+  dictPrefixWords = 1
+  memoOwnedWord :: U64
+  memoOwnedWord = 1
+  codePrefixWords :: U64
+  codePrefixWords = 4
+  tvarLockWord :: U64
+  tvarLockWord = 0
+  tvarValueWord :: U64
+  tvarValueWord = 1
+  tvarFormatWord :: U64
+  tvarFormatWord = 2
+  tvarWords :: U64
+  tvarWords = 3
+  bytesViewOwnerWord :: U64
+  bytesViewOwnerWord = 2
+
+  makeHeader :: I64 -> U8 -> U32 -> U64
+  makeHeader rc kind layout =
+    let r = bitAndU64 (i64ToU64 rc) rcMask in
+    let k = shlU64 (bitAndU64 (u8ToU64 kind) 31) kindShift in
+    let l = shlU64 (bitAndU64 (u32ToU64 layout) 16777215) layoutShift in
+    bitOrU64 (bitOrU64 r k) l
+
+  headerRc :: U64 -> I64
+  headerRc h =
+    let raw = bitAndU64 h rcMask in
+    ashrI64 (shlI64 (u64ToI64 raw) 29) 29
+
+  headerKind :: U64 -> U8
+  headerKind h = u64ToU8 (bitAndU64 (lshrU64 h kindShift) 31)
+
+  headerLayout :: U64 -> U32
+  headerLayout h = u64ToU32 (bitAndU64 (lshrU64 h layoutShift) 16777215)
+
+  withRc :: U64 -> I64 -> U64
+  withRc h rc =
+    bitOrU64 (bitAndU64 h (u64BitNot rcMask)) (bitAndU64 (i64ToU64 rc) rcMask)
+
+  staticHeader :: U8 -> U32 -> U64
+  staticHeader kind layout = makeHeader rcImmortal kind layout
+
+  liveKind :: U8 -> Bool
+  liveKind k =
+    let ku = u8ToU64 k in
+    u64Ge ku 1 && u64Le ku (u8ToU64 kindLast)
+
+  kindHasShape :: U8 -> Bool
+  kindHasShape k = k == kindCtor || k == kindClosure || k == kindDict
+
+  shapeField :: U64 -> U64 -> U32
+  shapeField tag mask =
+    let t = bitAndU64 tag 255 in
+    let m = shlU64 (bitAndU64 mask 65535) 8 in
+    u64ToU32 (bitOrU64 t m)
+
+  shapeFieldTag :: U32 -> U64
+  shapeFieldTag layout = bitAndU64 (u32ToU64 layout) 255
+
+  shapeFieldMask :: U32 -> U64
+  shapeFieldMask layout = bitAndU64 (lshrU64 (u32ToU64 layout) 8) 65535
+
+  shapeEscaped :: U32 -> Bool
+  shapeEscaped layout = shapeFieldTag layout == shapeEscapedTag
+
+  shapePrefixWords :: U8 -> U64
+  shapePrefixWords k =
+    if k == kindClosure then closurePrefixWords
+    else if k == kindDict then dictPrefixWords
+    else 0
+
+  descWords :: U64 -> U64
+  descWords words =
+    let chunks = if words == 0 then 0 else u64Add (u64Div (u64Sub words 1) 64) 1 in
+    u64Add descMaskWord chunks
+
+  fixedScanCode :: U8 -> U64 -> U64
+  fixedScanCode k slot =
+    if k == kindTensor then scanObj
+    else if k == kindColumnar then if u64Ge slot 3 then scanObj else scanRaw
+    else if k == kindMemo then if slot == memoOwnedWord then scanObj else scanRaw
+    else if k == kindCode then if u64Lt slot codePrefixWords then scanRaw else scanObj
+    else scanRaw
+
+  scanSlot :: U64 -> U64 -> U64
+  scanSlot code slot = shlU64 (bitAndU64 code 3) (u64Mul 2 slot)
+
+  scanCodeAt :: U64 -> U64 -> U64
+  scanCodeAt mp slot = bitAndU64 (lshrU64 mp (u64Mul 2 slot)) 3
+
+  countedCodes :: U64 -> U64
+  countedCodes mask =
+    let m0 = bitAndU64 mask 4294967295 in
+    let c16 = u64Add (shlU64 65535 32) 65535 in
+    let m1 = bitAndU64 (bitOrU64 m0 (shlU64 m0 16)) c16 in
+    let c8 = u64Add (shlU64 16711935 32) 16711935 in
+    let m2 = bitAndU64 (bitOrU64 m1 (shlU64 m1 8)) c8 in
+    let c4 = u64Add (shlU64 252645135 32) 252645135 in
+    let m3 = bitAndU64 (bitOrU64 m2 (shlU64 m2 4)) c4 in
+    let c2 = u64Add (shlU64 858993459 32) 858993459 in
+    let m4 = bitAndU64 (bitOrU64 m3 (shlU64 m3 2)) c2 in
+    let c1 = codeLowBits in
+    let m5 = bitAndU64 (bitOrU64 m4 (shlU64 m4 1)) c1 in
+    shlU64 m5 1
+
+  slotsBelow :: U64 -> U64
+  slotsBelow words =
+    if u64Ge words 32 then u64BitNot 0
+    else u64Sub (shlU64 1 (u64Mul 2 words)) 1

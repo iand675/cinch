@@ -1,0 +1,508 @@
+module Runtime.Rc where
+  import Runtime.Mem
+  import Runtime.Sys
+  import Runtime.Error
+  import Runtime.BlockKinds
+  import Runtime.Heap
+  import Runtime.Block
+
+  export rcReclaiming, releaseChildren, cinchMarkMt, cinchDup, cinchDrop
+  export cinchReclaimEnable, cinchDropSlow, cinchFrameRelease, cinchDupMt, cinchDropMt
+  export cinchFree, cinchExitCheck, markMtArray, fieldCounted, takeField
+
+  -- Temporary hook to drop payloads of box kinds still in Rust (removed once M3+M5 migrate them)
+  foreign import ccall "cinch_rust_drop_box_payload" rustDropBoxPayload :: RawPtr U8 -> U8 ->{Global} Unit
+
+  #[static_mut]
+  static reclaimEnabled :: U64
+
+  rcReclaiming :: Unit ->{Global} Bool
+  rcReclaiming _ = atomicLoadU64Relaxed (reclaimEnabled ()) 0 /= 0
+
+  cinchReclaimEnable :: Unit ->{Global} Unit
+  cinchReclaimEnable _ = atomicStoreU64Relaxed (reclaimEnabled ()) 0 1
+
+  isBlockWord :: I64 -> Bool
+  isBlockWord w = w /= 0 && bitAndI64 w 1 == 0
+
+  wordToPtr :: I64 -> RawPtr U8
+  wordToPtr w = maybeToRaw (ptrFromU64 (i64ToU64 w))
+
+  corruptRc :: Unit ->{Global} Unit
+  corruptRc _ =
+    withLocal (fixedArrayRepeat 72 (0 :: U8)) (\arr ->
+      let p = mutAsPtr arr in
+      -- "compiler bug: reference count operation on a freed or corrupt block" (67 bytes)
+      let _ = put8 p 0 99 111 109 112 105 108 101 114 in
+      let _ = put8 p 8 32 98 117 103 58 32 114 101 in
+      let _ = put8 p 16 102 101 114 101 110 99 101 32 in
+      let _ = put8 p 24 99 111 117 110 116 32 111 112 in
+      let _ = put8 p 32 101 114 97 116 105 111 110 32 in
+      let _ = put8 p 40 111 110 32 97 32 102 114 101 in
+      let _ = put8 p 48 101 100 32 111 114 32 99 111 in
+      let _ = put8 p 56 114 114 117 112 116 32 98 108 in
+      let _ = storeU8 p 64 111 in
+      let _ = storeU8 p 65 99 in
+      let _ = storeU8 p 66 107 in
+      panicExitBytes p 67
+    )
+
+  checkHeader :: I64 -> U64 ->{Global} Unit
+  checkHeader word h =
+    if bitAndI64 word 7 /= 0 || not (liveKind (headerKind h)) then corruptRc () else ()
+
+  dropBoxPayload :: RawPtr U8 -> U8 ->{Global} Unit
+  dropBoxPayload p k =
+    if k == kindNat || k == kindInt || k == kindBytes || k == kindBytesMapped || k == kindMvar || k == kindRwlock then
+      rustDropBoxPayload p k
+    else ()
+
+  disposeBlock :: RawPtr U8 -> U64 -> Bool -> MaybeNull U8 ->{Global, ThreadAffine} Unit
+  disposeBlock p h debug local =
+    let _ = dropBoxPayload p (headerKind h) in
+    blockFreeIn p h debug local
+
+  dupAtomic :: RawPtr U8 ->{Global} Unit
+  dupAtomic p =
+    let _ = headerAtomicSubRelaxed p 1 in ()
+
+  #[repr(value)]
+  record AtomicTake where
+    atLast :: Bool
+    atHeader :: U64
+
+  #[repr(value)]
+  record ChildFound where
+    cfFound :: Bool
+    cfPtr :: MaybeNull U8
+    cfHeader :: U64
+
+  #[repr(value)]
+  record MarkClaim where
+    mcOk :: Bool
+    mcHeader :: U64
+
+  #[repr(value)]
+  record MarkPrHit where
+    mphSlot :: U64
+    mphLink :: I64
+
+  #[repr(value)]
+  record MarkStackHit where
+    mshFound :: Bool
+    mshPtr :: MaybeNull U8
+    mshHeader :: U64
+    mshAt :: U64
+
+  takeAtomic :: RawPtr U8 ->{Global} AtomicTake
+  takeAtomic p =
+    let old = headerAtomicAddRelease p 1 in
+    if headerRc old /= i64Sub 0 1 then AtomicTake False 0
+    else
+      let _ = fenceAcquire () in
+      let restored = withRc old rcFresh in
+      let _ = writeHeader p restored in
+      AtomicTake True restored
+
+  dropAtomic :: RawPtr U8 ->{Global, ThreadAffine} Unit
+  dropAtomic p =
+    let tk = takeAtomic p in
+    if tk.atLast then releaseBlock p (tk.atHeader) else ()
+
+  -- =========================================================================
+  -- Iterative O(1)-stack pointer-reversal release graph
+  -- =========================================================================
+
+  releaseScanSlots :: RawPtr U8 -> U64 -> MaybeNull U8 -> U64 -> Bool -> MaybeNull U8 ->{Global, ThreadAffine} ChildFound
+  releaseScanSlots cur h parent next debug local =
+    let hit = scanCountedBelow cur h next in
+    if not (hit.shFound) then ChildFound False (ptrNull ()) 0
+    else
+      let at = hit.shSlot in
+      let code = hit.shCode in
+      let slotOff = u64ToIsize (u64Mul at 8) in
+      let w = loadI64 cur slotOff in
+      if not (isBlockWord w) then
+        let _ = if debug && code == scanObj && bitAndI64 w 1 /= 0 then corruptRc () else () in
+        releaseScanSlots cur h parent at debug local
+      else
+        let c = wordToPtr w in
+        let ch = readHeader c in
+        let _ = if debug then checkHeader w ch else () in
+        let r = headerRc ch in
+        let tk =
+              (if r == rcImmortal || r == rcFrame || r == rcFrameReleased then AtomicTake False 0
+              else if r == rcFresh then AtomicTake True ch
+              else if i64Gt r 1 then
+                let _ = writeHeader c (u64Sub ch 1) in
+                AtomicTake False 0
+              else takeAtomic c) in
+        if not (tk.atLast) then
+          releaseScanSlots cur h parent at debug local
+        else
+          let dch = tk.atHeader in
+          if isLeafBlock c dch then
+            let _ = disposeBlock c dch debug local in
+            releaseScanSlots cur h parent at debug local
+          else
+            let _ = if not (liveKind (headerKind dch)) then corruptRc () else () in
+            let parked = withRc h (u64ToI64 at) in
+            let _ = writeHeader cur parked in
+            let _ = storeI64 cur slotOff (u64ToI64 (ptrToU64 parent)) in
+            ChildFound True (rawToMaybe c) dch
+
+  releaseGraphLoop :: RawPtr U8 -> U64 -> MaybeNull U8 -> Bool -> U64 -> Bool -> MaybeNull U8 ->{Global, ThreadAffine} Unit
+  releaseGraphLoop cur h parent hasResume resumeAt debug local =
+    let startAt = if hasResume then resumeAt else scanWords cur h in
+    let cf = releaseScanSlots cur h parent startAt debug local in
+    if cf.cfFound then
+      releaseGraphLoop (maybeToRaw (cf.cfPtr)) (cf.cfHeader) (rawToMaybe cur) False 0 debug local
+    else
+      let _ = disposeBlock cur h debug local in
+      if ptrIsNull parent then ()
+      else
+        let par = maybeToRaw parent in
+        let ph = readHeader par in
+        let at = i64ToU64 (headerRc ph) in
+        let grandParent = ptrFromU64 (i64ToU64 (loadI64 par (u64ToIsize (u64Mul at 8)))) in
+        releaseGraphLoop par ph grandParent True at debug local
+
+  releaseBlock :: RawPtr U8 -> U64 ->{Global, ThreadAffine} Unit
+  releaseBlock root h =
+    let debug = heapRcDebug () in
+    let local = heapLocal () in
+    if isLeafBlock root h then
+      disposeBlock root h debug local
+    else
+      let _ = if not (liveKind (headerKind h)) then corruptRc () else () in
+      releaseGraphLoop root h (ptrNull ()) False 0 debug local
+
+  -- =========================================================================
+  -- releaseChildren (used by cinch_frame_release and arena leave)
+  -- =========================================================================
+
+  releaseChildrenLoop :: RawPtr U8 -> U64 -> U64 -> Bool ->{Global, ThreadAffine} Unit
+  releaseChildrenLoop p h at debug =
+    let hit = scanCountedBelow p h at in
+    if not (hit.shFound) then ()
+    else
+      let slot = hit.shSlot in
+      let code = hit.shCode in
+      let w = loadI64 p (u64ToIsize (u64Mul slot 8)) in
+      let _ = if debug && code == scanObj && bitAndI64 w 1 /= 0 then corruptRc () else () in
+      let _ = cinchDrop w in
+      releaseChildrenLoop p h slot debug
+
+  releaseChildren :: RawPtr U8 -> U64 -> Bool ->{Global, ThreadAffine} Unit
+  releaseChildren p h debug = releaseChildrenLoop p h (scanWords p h) debug
+
+  -- =========================================================================
+  -- Mark-on-spawn (64-entry local stack + O(1)-stack pointer reversal)
+  -- =========================================================================
+
+  markLinkTag :: I64
+  markLinkTag = 2
+
+  markStackCap :: U64
+  markStackCap = 64
+
+  claimMark :: I64 ->{Global} MarkClaim
+  claimMark word =
+    let p = wordToPtr word in
+    let h = readHeader p in
+    let _ = if heapRcDebug () then checkHeader word h
+            else if not (liveKind (headerKind h)) then corruptRc () else () in
+    let n = headerRc h in
+    if i64Le n 0 || n == rcFrame || n == rcFrameReleased then MarkClaim False 0
+    else
+      let marked = withRc h (i64Sub 0 n) in
+      let _ = writeHeader p marked in
+      MarkClaim True marked
+
+  -- Pointer reversal fallback when depth exceeds 64
+  markPrFindSlot :: RawPtr U8 -> U64 -> U64 ->{Global} MarkPrHit
+  markPrFindSlot cur h at =
+    let hit = scanCountedBelow cur h at in
+    let _ = if not (hit.shFound) then corruptRc () else () in
+    let slot = hit.shSlot in
+    let w = loadI64 cur (u64ToIsize (u64Mul slot 8)) in
+    if bitAndI64 w 3 == markLinkTag then MarkPrHit slot w
+    else markPrFindSlot cur h slot
+
+  markPrScan :: RawPtr U8 -> U64 -> MaybeNull U8 -> U64 ->{Global} ChildFound
+  markPrScan cur h parent next =
+    let hit = scanCountedBelow cur h next in
+    if not (hit.shFound) then ChildFound False (ptrNull ()) 0
+    else
+      let at = hit.shSlot in
+      let off = u64ToIsize (u64Mul at 8) in
+      let w = loadI64 cur off in
+      if isBlockWord w then
+        let mc = claimMark w in
+        if mc.mcOk then
+          let c = wordToPtr w in
+          let ch = mc.mcHeader in
+          if isLeafBlock c ch then markPrScan cur h parent at
+          else
+            let tagged = bitOrI64 (u64ToI64 (ptrToU64 parent)) markLinkTag in
+            let _ = storeI64 cur off tagged in
+            ChildFound True (rawToMaybe c) ch
+        else markPrScan cur h parent at
+      else markPrScan cur h parent at
+
+  markPrLoop :: RawPtr U8 -> U64 -> MaybeNull U8 -> Bool -> U64 ->{Global} Unit
+  markPrLoop cur h parent hasResume resumeAt =
+    let startAt = if hasResume then resumeAt else scanWords cur h in
+    let cf = markPrScan cur h parent startAt in
+    if cf.cfFound then
+      markPrLoop (maybeToRaw (cf.cfPtr)) (cf.cfHeader) (rawToMaybe cur) False 0
+    else if ptrIsNull parent then ()
+    else
+      let done = cur in
+      let par = maybeToRaw parent in
+      let ph = readHeader par in
+      let mph = markPrFindSlot par ph (scanWords par ph) in
+      let at = mph.mphSlot in
+      let link = mph.mphLink in
+      let _ = storeI64 par (u64ToIsize (u64Mul at 8)) (u64ToI64 (rawToU64 done)) in
+      let grandParent = ptrFromU64 (i64ToU64 (bitAndI64 link (i64Sub 0 4))) in
+      markPrLoop par ph grandParent True at
+
+  -- Fast stack scan
+  markStackScan :: RawPtr U8 -> U64 -> U64 ->{Global} MarkStackHit
+  markStackScan cur h next =
+    let hit = scanCountedBelow cur h next in
+    if not (hit.shFound) then MarkStackHit False (ptrNull ()) 0 0
+    else
+      let at = hit.shSlot in
+      let w = loadI64 cur (u64ToIsize (u64Mul at 8)) in
+      if isBlockWord w then
+        let mc = claimMark w in
+        if mc.mcOk then
+          let c = wordToPtr w in
+          let ch = mc.mcHeader in
+          if isLeafBlock c ch then markStackScan cur h at
+          else MarkStackHit True (rawToMaybe c) ch at
+        else markStackScan cur h at
+      else markStackScan cur h at
+
+  markFastLoop :: RawPtr U64 -> U64 -> RawPtr U8 -> U64 -> Bool -> U64 ->{Global} Unit
+  markFastLoop stk sp cur h hasResume resumeAt =
+    let startAt = if hasResume then resumeAt else scanWords cur h in
+    let msh = markStackScan cur h startAt in
+    if msh.mshFound then
+      let c = maybeToRaw (msh.mshPtr) in
+      let ch = msh.mshHeader in
+      let at = msh.mshAt in
+      let more = scanCountedBelow cur h at in
+      if not (more.shFound) then
+        -- Tail-descend without consuming a stack entry
+        markFastLoop stk sp c ch False 0
+      else if u64Lt sp markStackCap then
+        let baseOff = u64ToIsize (u64Mul sp 16) in
+        let _ = storeU64 stk baseOff (rawToU64 cur) in
+        let _ = storeU64 stk (u64ToIsize (u64Add (u64Mul sp 16) 8)) at in
+        markFastLoop stk (u64Add sp 1) c ch False 0
+      else
+        let _ = markPrLoop c ch (ptrNull ()) False 0 in
+        markFastLoop stk sp cur h True at
+    else if sp == 0 then ()
+    else
+      let sp1 = u64Sub sp 1 in
+      let baseOff = u64ToIsize (u64Mul sp1 16) in
+      let par = maybeToRaw (ptrFromU64 (loadU64 stk baseOff)) in
+      let parAt = loadU64 stk (u64ToIsize (u64Add (u64Mul sp1 16) 8)) in
+      markFastLoop stk sp1 par (readHeader par) True parAt
+
+  cinchMarkMt :: I64 ->{Global} Unit
+  cinchMarkMt word =
+    if not (isBlockWord word) then ()
+    else
+      let mc = claimMark word in
+      if not (mc.mcOk) then ()
+      else
+        let cur = wordToPtr word in
+        let h = mc.mcHeader in
+        if isLeafBlock cur h then ()
+        else
+          withLocal (fixedArrayRepeat 128 (0 :: U64)) (\stkArr ->
+            markFastLoop (mutAsPtr stkArr) 0 cur h False 0
+          )
+
+  markMtArrayLoop :: RawPtr U8 -> U64 -> U64 ->{Global} Unit
+  markMtArrayLoop p h at =
+    let hit = scanCountedBelow p h at in
+    if not (hit.shFound) then ()
+    else
+      let slot = hit.shSlot in
+      let _ = cinchMarkMt (loadI64 p (u64ToIsize (u64Mul slot 8))) in
+      markMtArrayLoop p h slot
+
+  markMtArray :: I64 ->{Global} Unit
+  markMtArray word =
+    if not (isBlockWord word) then ()
+    else
+      let mc = claimMark word in
+      if not (mc.mcOk) then ()
+      else
+        let p = wordToPtr word in
+        let h = mc.mcHeader in
+        if isLeafBlock p h then ()
+        else markMtArrayLoop p h (scanWords p h)
+
+  fieldCounted :: I64 -> U64 ->{Global} Bool
+  fieldCounted word slot =
+    let p = wordToPtr word in
+    scanCode p (readHeader p) slot /= scanRaw
+
+  takeField :: I64 -> U64 ->{Global, ThreadAffine} I64
+  takeField word slot =
+    let p = wordToPtr word in
+    let h = readHeader p in
+    let _ = if heapRcDebug () then checkHeader word h else () in
+    let off = u64ToIsize (u64Mul slot 8) in
+    let field = loadI64 p off in
+    let _ = (if headerRc h == rcFresh then
+        let _ = storeI64 p off 0 in
+        releaseBlock p h
+      else
+        let _ = if fieldCounted word slot then cinchDup field else () in
+        cinchDrop word) in
+    field
+
+  -- =========================================================================
+  -- Public C ABI Entry Points
+  -- =========================================================================
+
+  cinchDup :: I64 ->{Global} Unit
+  cinchDup word =
+    if not (isBlockWord word) then ()
+    else
+      let p = wordToPtr word in
+      let h = readHeader p in
+      let _ = if heapRcDebug () then checkHeader word h else () in
+      let r = headerRc h in
+      if r == rcImmortal || r == rcFrame || r == rcFrameReleased then ()
+      else if i64Gt r 0 then writeHeader p (u64Add h 1)
+      else dupAtomic p
+
+  cinchDrop :: I64 ->{Global, ThreadAffine} Unit
+  cinchDrop word =
+    if not (isBlockWord word) then ()
+    else
+      let p = wordToPtr word in
+      let h = readHeader p in
+      let _ = if heapRcDebug () then checkHeader word h else () in
+      let r = headerRc h in
+      if r == rcImmortal || r == rcFrameReleased then ()
+      else if r == rcFrame then cinchFrameRelease word
+      else if r == rcFresh then releaseBlock p h
+      else if i64Gt r 1 then writeHeader p (u64Sub h 1)
+      else dropAtomic p
+
+  cinchDropSlow :: I64 ->{Global, ThreadAffine} Unit
+  cinchDropSlow word =
+    if not (isBlockWord word) then corruptRc ()
+    else
+      let p = wordToPtr word in
+      let h = readHeader p in
+      let dbg = heapRcDebug () in
+      let _ = if dbg then checkHeader word h else () in
+      let r = headerRc h in
+      if (r == rcFrame || r == rcFrameReleased) && dbg then corruptRc ()
+      else if r == rcFrame then cinchFrameRelease word
+      else if r == rcFrameReleased then ()
+      else if r == rcFresh then releaseBlock p h
+      else corruptRc ()
+
+  cinchFrameRelease :: I64 ->{Global, ThreadAffine} Unit
+  cinchFrameRelease word =
+    if not (isBlockWord word) then
+      if heapRcDebug () then corruptRc () else ()
+    else
+      let p = wordToPtr word in
+      let h = readHeader p in
+      let n = headerRc h in
+      if n == rcFrameReleased then ()
+      else
+        let dbg = heapRcDebug () in
+        let _ = (if dbg then
+            let _ = checkHeader word h in
+            if n /= rcFrame then corruptRc () else ()
+          else ()) in
+        if n /= rcFrame then ()
+        else
+          let _ = writeHeader p (u64Sub h 1) in
+          releaseChildren p h dbg
+
+  cinchDupMt :: I64 ->{Global} Unit
+  cinchDupMt word =
+    let p = wordToPtr word in
+    let _ = (if heapRcDebug () then
+        let h = readHeader p in
+        let _ = checkHeader word h in
+        if i64Ge (headerRc h) 0 then corruptRc () else ()
+      else ()) in
+    dupAtomic p
+
+  cinchDropMt :: I64 ->{Global, ThreadAffine} Unit
+  cinchDropMt word =
+    let p = wordToPtr word in
+    let _ = (if heapRcDebug () then
+        let h = readHeader p in
+        let _ = checkHeader word h in
+        if i64Ge (headerRc h) 0 then corruptRc () else ()
+      else ()) in
+    dropAtomic p
+
+  cinchFree :: I64 ->{Global, ThreadAffine} Unit
+  cinchFree word =
+    if not (isBlockWord word) then ()
+    else
+      let p = wordToPtr word in
+      let h = readHeader p in
+      let r = headerRc h in
+      if r == rcImmortal || r == rcFrame || r == rcFrameReleased then ()
+      else
+        let _ = dropBoxPayload p (headerKind h) in
+        blockFree p
+
+  cinchExitCheck :: I64 ->{Global} I64
+  cinchExitCheck code =
+    if not (heapLeakCheck ()) then code
+    else
+      let st = heapBlockStats () in
+      let live = u64SatSub (st.bsHeaderBlocks) (st.bsFreed) in
+      let imm = st.bsImmortal in
+      let leaked = u64SatSub live imm in
+      let _ = heapWriteLeakReport live imm leaked in
+      if leaked == 0 then code else i32ToI64 exitLeak
+
+  foreign export ccall "cinch_reclaim_enable" cinchReclaimEnable :: Unit ->{Global} Unit
+  foreign export ccall "cinch_dup" cinchDup :: I64 ->{Global} Unit
+  foreign export ccall "cinch_drop" cinchDrop :: I64 ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_drop_slow" cinchDropSlow :: I64 ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_frame_release" cinchFrameRelease :: I64 ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_dup_mt" cinchDupMt :: I64 ->{Global} Unit
+  foreign export ccall "cinch_drop_mt" cinchDropMt :: I64 ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_mark_mt" cinchMarkMt :: I64 ->{Global} Unit
+  foreign export ccall "cinch_free" cinchFree :: I64 ->{Global, ThreadAffine} Unit
+  foreign export ccall "cinch_exit_check" cinchExitCheck :: I64 ->{Global} I64
+
+  -- Temporary Rust bridge helpers (removed in M9)
+  rtReclaiming :: Unit ->{Global} U8
+  rtReclaiming _ = if rcReclaiming () then 1 else 0
+
+  rtMarkMtArray :: I64 ->{Global} Unit
+  rtMarkMtArray w = markMtArray w
+
+  rtFieldCounted :: I64 -> Usize ->{Global} U8
+  rtFieldCounted w s = if fieldCounted w (usizeToU64 s) then 1 else 0
+
+  rtTakeField :: I64 -> Usize ->{Global, ThreadAffine} I64
+  rtTakeField w s = takeField w (usizeToU64 s)
+
+  foreign export ccall "cinch_rt_reclaiming" rtReclaiming :: Unit ->{Global} U8
+  foreign export ccall "cinch_rt_mark_mt_array" rtMarkMtArray :: I64 ->{Global} Unit
+  foreign export ccall "cinch_rt_field_counted" rtFieldCounted :: I64 -> Usize ->{Global} U8
+  foreign export ccall "cinch_rt_take_field" rtTakeField :: I64 -> Usize ->{Global, ThreadAffine} I64
