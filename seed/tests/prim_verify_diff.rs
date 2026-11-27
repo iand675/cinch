@@ -592,3 +592,140 @@ module Main where
         "64-bit FFI declare must use i64 for Usize/Isize:\n{ir64}"
     );
 }
+
+#[test]
+fn wasm32_clang_backend_and_repr_c_layout_parity() {
+    use cinch::core::{ArtifactProfile, TargetProfile};
+    use cinch::driver::check_sources_profile;
+
+    let src = r#"
+module Main where
+  #[repr(C)]
+  record Mixed where
+    tag :: U8
+    ptr-idx :: Usize
+    count :: U32
+    delta :: Isize
+
+  #[repr(packed)]
+  record Tight where
+    a :: U8
+    b :: Usize
+
+  #[repr(C, align(16))]
+  record Aligned where
+    x :: U32
+
+  prim add-usize-word :: Usize -> Usize -> Usize where
+    llvm {
+      %r = add i32 %0, %1
+      ret i32 %r
+    } when word-size 32 justify verify
+    llvm {
+      %r = add i64 %0, %1
+      ret i64 %r
+    } justify verify
+
+  main :: Int
+  main = if add-usize-word 20 22 == 42 then 0 else 1
+"#;
+
+    let wasm_profile = TargetProfile::wasm32(ArtifactProfile::CoreWasm);
+    let native_profile = TargetProfile::native();
+
+    // 1. Check `abi.layouts` parity through `common::check_interfaces_profile` (runs on BOTH seed and Stage 3!).
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let dir32 = tmp.path().join("wasm32");
+    let dir64 = tmp.path().join("native64");
+    std::fs::create_dir_all(&dir32).unwrap();
+    std::fs::create_dir_all(&dir64).unwrap();
+    std::fs::write(dir32.join("Main.cinch"), src).unwrap();
+    std::fs::write(dir64.join("Main.cinch"), src).unwrap();
+
+    let ifaces32 = common::check_interfaces_profile(&dir32, "Main.cinch", &wasm_profile)
+        .expect("wasm32 repr(C) interfaces");
+    let main32 = ifaces32.iter().find(|i| i.module == "Main").expect("Main wasm32 iface");
+    let mixed32 = main32.layouts.iter().find(|l| l.name == "Mixed").expect("Mixed wasm32 layout");
+    assert_eq!(mixed32.repr, "C");
+    assert_eq!(mixed32.size, 16);
+    assert_eq!(mixed32.align, 4);
+    assert_eq!(mixed32.fields[0].offset, 0);
+    assert_eq!(mixed32.fields[1].offset, 4);
+    assert_eq!(mixed32.fields[1].size, 4);
+    assert_eq!(mixed32.fields[2].offset, 8);
+    assert_eq!(mixed32.fields[3].offset, 12);
+    assert_eq!(mixed32.fields[3].size, 4);
+
+    let tight32 = main32.layouts.iter().find(|l| l.name == "Tight").expect("Tight wasm32 layout");
+    assert_eq!(tight32.repr, "packed");
+    assert_eq!(tight32.size, 5);
+    assert_eq!(tight32.align, 1);
+
+    let aligned32 = main32.layouts.iter().find(|l| l.name == "Aligned").expect("Aligned wasm32 layout");
+    assert_eq!(aligned32.repr, "C, align(16)");
+    assert_eq!(aligned32.size, 16);
+    assert_eq!(aligned32.align, 16);
+
+    let ifaces64 = common::check_interfaces_profile(&dir64, "Main.cinch", &native_profile)
+        .expect("native64 repr(C) interfaces");
+    let main64 = ifaces64.iter().find(|i| i.module == "Main").expect("Main native64 iface");
+    let mixed64 = main64.layouts.iter().find(|l| l.name == "Mixed").expect("Mixed native64 layout");
+    assert_eq!(mixed64.repr, "C");
+    assert_eq!(mixed64.size, 32);
+    assert_eq!(mixed64.align, 8);
+    assert_eq!(mixed64.fields[1].offset, 8);
+    assert_eq!(mixed64.fields[1].size, 8);
+    assert_eq!(mixed64.fields[2].offset, 16);
+    assert_eq!(mixed64.fields[3].offset, 24);
+    let tight64 = main64.layouts.iter().find(|l| l.name == "Tight").expect("Tight native64 layout");
+    assert_eq!(tight64.size, 9);
+    assert_eq!(tight64.align, 1);
+
+    // 2. Emit real `wasm32` LLVM IR and compile it through clang's WebAssembly backend (`-S` and `-c`)!
+    let prog32 = check_sources_profile(src, "<wasm32-codegen>", &wasm_profile)
+        .expect("check wasm32 codegen module");
+    let ir32 = cinch::codegen::emit_for(&wasm_profile, &prog32).expect("emit wasm32 IR");
+    assert!(ir32.contains("target triple = \"wasm32-unknown-unknown\""));
+    let ll_path = tmp.path().join("wasm32_module.ll");
+    let s_path = tmp.path().join("wasm32_module.s");
+    let o_path = tmp.path().join("wasm32_module.o");
+    std::fs::write(&ll_path, &ir32).unwrap();
+
+    let s_out = std::process::Command::new("clang")
+        .args(["--target=wasm32-unknown-unknown", "-x", "ir", "-S"])
+        .arg(&ll_path)
+        .arg("-o")
+        .arg(&s_path)
+        .output()
+        .expect("run clang wasm32 -S");
+    assert!(
+        s_out.status.success(),
+        "clang --target=wasm32-unknown-unknown -S failed:\n{}",
+        String::from_utf8_lossy(&s_out.stderr)
+    );
+    let asm = std::fs::read_to_string(&s_path).expect("read wasm32 .s");
+    assert!(
+        asm.contains("i32.add"),
+        "expected real WebAssembly `i32.add` in wasm32 assembly:\n{}",
+        &asm[..asm.len().min(2000)]
+    );
+
+    let o_out = std::process::Command::new("clang")
+        .args(["--target=wasm32-unknown-unknown", "-x", "ir", "-c"])
+        .arg(&ll_path)
+        .arg("-o")
+        .arg(&o_path)
+        .output()
+        .expect("run clang wasm32 -c");
+    assert!(
+        o_out.status.success(),
+        "clang --target=wasm32-unknown-unknown -c failed:\n{}",
+        String::from_utf8_lossy(&o_out.stderr)
+    );
+    let obj_bytes = std::fs::read(&o_path).expect("read wasm32 .o");
+    assert!(
+        obj_bytes.starts_with(b"\0asm"),
+        "expected genuine WebAssembly binary magic (\\0asm), got {:?}",
+        &obj_bytes[..obj_bytes.len().min(8)]
+    );
+}

@@ -907,6 +907,7 @@ module Cinch.Parse where
         Some args | has-repr-item "transparent" (string-split-on "," args) -> wrapper-decl (sp-of t) "transparent" rest src fix
           ((DUnmodeled (sp-of t) "repr(transparent) combines with no other representation") : acc)
         Some args | has-repr-item "value" (string-split-on "," args) -> wrapper-decl (sp-of t) args rest src fix acc
+        Some args | is-c-layout-repr (string-split-on "," args) -> wrapper-decl (sp-of t) args rest src fix acc
         other -> (case inline-attribute text of
           Some (family, hint) -> function-hint-decl [(sp-of t, family, hint)] [] rest src fix acc
           None -> (case test-attribute text of
@@ -928,6 +929,17 @@ module Cinch.Parse where
   has-repr-item item args = case args of
     [] -> False
     arg : rest -> string-strip arg == item || has-repr-item item rest
+
+  is-c-layout-repr-item :: String -> Bool
+  is-c-layout-repr-item raw =
+    let s = string-strip raw in
+    s == "C" || s == "packed" || string-starts-with "packed(" s || string-starts-with "align(" s
+
+  is-c-layout-repr :: List String -> Bool
+  is-c-layout-repr args = case args of
+    [] -> False
+    [only] -> is-c-layout-repr-item only
+    first : rest -> is-c-layout-repr-item first && is-c-layout-repr rest
 
   wrapper-decl :: Span -> String -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
   wrapper-decl site repr toks src fix acc = case toks of

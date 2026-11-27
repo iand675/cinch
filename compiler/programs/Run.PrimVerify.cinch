@@ -536,6 +536,62 @@ module Main where
                                       else Err (string-concat-all ["64-bit foreign ABI did not record 8-byte ptr/Usize: ", txt64]))))
       other -> Err "32-bit vs 64-bit ptr atomic alignment audit failed"
 
+  -- 18. Self-hosted #[repr(C)], #[repr(packed)], #[repr(align(16))] struct layouts on 32-bit vs 64-bit targets.
+  test-repr-c-layouts :: Result String Unit
+  test-repr-c-layouts =
+    let src-layouts = string-concat-all [
+          "module Main where\n",
+          "  #[repr(C)]\n",
+          "  record Mixed where\n",
+          "    tag :: U8\n",
+          "    ptr-idx :: Usize\n",
+          "    count :: U32\n",
+          "    delta :: Isize\n",
+          "  #[repr(packed)]\n",
+          "  record Tight where\n",
+          "    a :: U8\n",
+          "    b :: Usize\n",
+          "  #[repr(C, align(16))]\n",
+          "  record Aligned where\n",
+          "    x :: U32\n",
+          "  main :: Int\n",
+          "  main = 0\n"
+        ] in
+    case profile-of-triple "wasm32-unknown-unknown" of
+      Err msg -> Err msg
+      Ok wasm-prof ->
+        case self-check-profile wasm-prof "default" src-layouts of
+          Err msg32 -> Err (string-concat-all ["wasm32 repr(C) check failed: ", msg32])
+          Ok (checked32, src32) ->
+            case export-interfaces-aliased checked32 Nil src32 of
+              Err msg -> Err msg
+              Ok rows32 -> case find-main-doc rows32 of
+                None -> Err "Main module interface not found (repr(C) wasm32)"
+                Some doc32 ->
+                  let txt32 = json-text doc32 in
+                  -- On 32-bit wasm32: Mixed = {size:16, align:4, tag@0, ptr-idx@4, count@8, delta@12}; Tight = {size:5, align:1}; Aligned = {size:16, align:16}.
+                  if not (string-contains "\"repr\":\"C\",\"size\":16" txt32 && string-contains "\"align\":4" txt32
+                       && string-contains "\"name\":\"ptr-idx\",\"offset\":4,\"size\":4" txt32
+                       && string-contains "\"repr\":\"packed\",\"size\":5" txt32
+                       && string-contains "\"repr\":\"C, align(16)\",\"size\":16" txt32) then
+                    Err (string-concat-all ["wasm32 repr(C) layout mismatch: ", txt32])
+                  else
+                    (case self-check-profile host-profile "default" src-layouts of
+                      Err msg64 -> Err (string-concat-all ["host64 repr(C) check failed: ", msg64])
+                      Ok (checked64, src64) ->
+                        case export-interfaces-aliased checked64 Nil src64 of
+                          Err msg -> Err msg
+                          Ok rows64 -> case find-main-doc rows64 of
+                            None -> Err "Main module interface not found (repr(C) host64)"
+                            Some doc64 ->
+                              let txt64 = json-text doc64 in
+                              -- On 64-bit host: Mixed = {size:32, align:8, tag@0, ptr-idx@8, count@16, delta@24}; Tight = {size:9, align:1}; Aligned = {size:16, align:16}.
+                              if string-contains "\"repr\":\"C\",\"size\":32" txt64 && string-contains "\"align\":8" txt64
+                                && string-contains "\"name\":\"ptr-idx\",\"offset\":8,\"size\":8" txt64
+                                && string-contains "\"repr\":\"packed\",\"size\":9" txt64
+                                && string-contains "\"repr\":\"C, align(16)\",\"size\":16" txt64 then Ok ()
+                              else Err (string-concat-all ["host64 repr(C) layout mismatch: ", txt64]))
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -570,11 +626,13 @@ module Main where
                                   Err e -> Err e
                                   Ok u15 -> case test-tv of
                                     Err e -> Err e
-                                    Ok u16 -> test-target-pointer-word-size
+                                    Ok u16 -> case test-target-pointer-word-size of
+                                      Err e -> Err e
+                                      Ok u17 -> test-repr-c-layouts
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 17 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 18 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

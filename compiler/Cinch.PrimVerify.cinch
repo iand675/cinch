@@ -2384,10 +2384,10 @@ module Cinch.PrimVerify where
     Cons _ rest -> 1 + list-len-int rest
 
   pad-bits-to :: Nat -> List Int -> List Int
-  pad-bits-to target xs =
+  pad-bits-to want xs =
     let n = list-len-int xs in
-    if n >= target then xs
-    else xs <> repeat-bit (saturating-sub target n) lit-false
+    if n >= want then xs
+    else xs <> repeat-bit (saturating-sub want n) lit-false
 
   bb-ctpop-pair-step :: List (List Int) -> BlastState -> (List (List Int), BlastState)
   bb-ctpop-pair-step chunks st = case chunks of
@@ -2396,9 +2396,9 @@ module Cinch.PrimVerify where
     Cons x (Cons y rest) ->
       let lx = list-len-int x in
       let ly = list-len-int y in
-      let target = (if lx > ly then lx else ly) + 1 in
-      let px = pad-bits-to target x in
-      let py = pad-bits-to target y in
+      let want = (if lx > ly then lx else ly) + 1 in
+      let px = pad-bits-to want x in
+      let py = pad-bits-to want y in
       case bb-add-ripple px py lit-false st of
         (s, _, st1) ->
           case bb-ctpop-pair-step rest st1 of

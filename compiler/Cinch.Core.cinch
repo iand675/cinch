@@ -75,7 +75,7 @@ module Cinch.Core where
 
   export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
-  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, core-data-layout, with-data-layout
+  export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, CStructData, core-data-layout, with-data-layout
   export state-label, state-residual
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
   -- `WithLayout` is exported with `MkCoreData` because a family whose table
@@ -257,6 +257,8 @@ module Cinch.Core where
     UnboxedData :: String -> Nat -> Nat -> Nat -> DataLayout
     -- POD unboxed multi-field record: repr spelling, size, align, field layouts.
     ValueData :: String -> Nat -> Nat -> List ValueField -> DataLayout
+    -- Repr spelling, total size, type alignment, and per-field (name, offset, size, natural-align).
+    CStructData :: String -> Nat -> Nat -> List (String, Nat, Nat, Nat) -> DataLayout
   data CoreData where
     MkCoreData :: Span -> String -> Kind -> List Quant -> List CoreConstructor -> CoreData
     WithLayout :: DataLayout -> CoreData -> CoreData

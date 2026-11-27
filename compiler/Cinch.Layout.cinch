@@ -1,5 +1,6 @@
--- A represented newtype keeps its checked nominal identity. The payload's
--- word class governs retention, independently of its published ABI size.
+-- Represented data layouts: unboxed/transparent wrappers and multi-field
+-- `#[repr(C)]`, `#[repr(packed)]`, `#[repr(packed(N))]`, `#[repr(align(N))]`
+-- C struct layouts parameterized by target `word-bits` (32 or 64).
 module Cinch.Layout where
   import Cinch.Ast
   import Cinch.Core
@@ -10,7 +11,10 @@ module Cinch.Layout where
   import Cinch.Usage (UsageShape, usage-single-field)
   import Cinch.Document
   import Algebra.Semigroup
-  import Data.Nat (nat-from-int, nat-div, nat-rem, nat-to-int)
+  import Data.Char (char-code)
+  import Data.List (reverse)
+  import Data.Nat (nat-from-int, nat-div, nat-rem, checked-div, checked-rem, nat-to-int)
+  import Data.String (string-length, unpack)
   import Text.Lex (Span)
   import Text.Scan (string-split-on, string-strip, string-starts-with, string-ends-with, string-index-of, string-take, string-drop)
   import Text.Show (nat-to-string)
@@ -44,6 +48,19 @@ module Cinch.Layout where
   is-value-repr :: String -> Bool
   is-value-repr repr = has-item "value" (string-split-on "," repr)
 
+  is-c-repr-item :: String -> Bool
+  is-c-repr-item raw =
+    let s = string-strip raw in
+    s == "C" || s == "packed" || string-starts-with "packed(" s || string-starts-with "align(" s
+
+  is-c-repr-items :: List String -> Bool
+  is-c-repr-items items = case items of
+    [] -> False
+    [only] -> is-c-repr-item only
+    first : rest -> is-c-repr-item first && is-c-repr-items rest
+
+  is-c-repr-str :: String -> Bool
+  is-c-repr-str repr = is-c-repr-items (string-split-on "," repr)
   requests :: List Decl -> List Request
   requests ds = case ds of
     [] -> []
@@ -56,7 +73,7 @@ module Cinch.Layout where
   abi-requests site home types layouts tail = case layouts of
     JArr row more -> let rest = abi-requests site home types more tail in
       (case (field "repr" row, field "type" row) of
-        (JStr repr, JStr name) | (repr == "unboxed") || repr == "transparent" || is-value-repr repr -> (case named-row name types of
+        (JStr repr, JStr name) | (repr == "unboxed") || repr == "transparent" || is-value-repr repr || is-c-repr-str repr -> (case named-row name types of
           Some ty -> (case field "identity" ty of
             JStr identity | (identity == home <> "." <> name) ->
               (Request site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) : rest
@@ -102,8 +119,22 @@ module Cinch.Layout where
     other -> None
   member :: String -> List String -> Bool
   member name names = case names of [] -> False; first : rest -> name == first || member name rest
+  unwrap-refined-carrier :: UType -> UType
+  unwrap-refined-carrier ty = case ty of
+    URefine id name base pred -> unwrap-refined-carrier base
+    other -> ty
   head-name :: UType -> Option String
-  head-name ty = case ty of UCon name kind -> Some name; UApp f a -> head-name f; other -> None
+  head-name ty = case unwrap-refined-carrier ty of
+    UCon name kind -> Some name
+    UApp f a -> head-name f
+    other -> None
+
+  is-type-param :: UType -> Bool
+  is-type-param ty = case unwrap-refined-carrier ty of
+    UBound _ _ _ -> True
+    URigid _ _ _ _ -> True
+    UMeta _ _ -> True
+    other -> False
 
   parse-nat-chars :: List Char -> Nat -> Option Nat
   parse-nat-chars cs acc = case cs of
@@ -256,7 +287,7 @@ module Cinch.Layout where
     else if member name ["Bool", "I8", "U8"] then Some (0, 1, 1)
     else if member name ["I16", "U16"] then Some (0, 2, 2)
     else if member name ["I32", "U32", "F32", "Char"] then Some (0, 4, 4)
-    else if member name ["Usize", "Isize"] then Some (0, ptr-bytes, ptr-bytes)
+    else if member name ["Usize", "Isize", "RawPtr", "Ptr", "Owned", "Borrowed", "MaybeNull", "Out"] then Some (0, ptr-bytes, ptr-bytes)
     else if member name ["I64", "U64", "F64", "Sym"] then Some (0, 8, 8)
     else if member name ["Int", "Nat"] then Some (2, 8, 8)
     else if name == "Bytes" then Some (1, 8, 8)
@@ -286,13 +317,184 @@ module Cinch.Layout where
           else Err "repr(transparent) field needs a known boundary layout")
       None -> Err "repr(transparent) field needs a fixed layout")
 
-  matches-published :: Json -> String -> Nat -> Nat -> Bool
-  matches-published row label size alignment = case (field "size" row, field "align" row, field "fields" row) of
-    (JNum bytes, JNum align, JArr entry JArrEnd) -> bytes == nat-to-int size && align == nat-to-int alignment &&
+  is-power-of-two :: Nat -> Bool
+  is-power-of-two n =
+    if n == 0 then False
+    else if n == 1 then True
+    else case checked-rem n 2 of
+      Some 0 -> (case checked-div n 2 of Some q -> is-power-of-two q; None -> False)
+      other -> False
+
+  parse-digits-nat :: List Char -> Nat -> Option Nat
+  parse-digits-nat cs acc = case cs of
+    [] -> Some acc
+    c : rest ->
+      let code = char-code c in
+      if code >= 48 && code <= 57 then parse-digits-nat rest (acc * 10 + (code - 48))
+      else None
+
+  parse-pos-nat :: String -> Option Nat
+  parse-pos-nat s = case unpack (string-strip s) of
+    [] -> None
+    cs -> parse-digits-nat cs 0
+
+  parse-paren-nat :: String -> String -> Option Nat
+  parse-paren-nat prefix raw =
+    let s = string-strip raw in
+    let plen = string-length prefix in
+    let slen = string-length s in
+    if string-starts-with prefix s && string-ends-with ")" s && slen > plen + 1 then
+      parse-pos-nat (string-take (slen - plen - 1) (string-drop plen s))
+    else None
+
+  parse-c-repr-items :: List String -> Bool -> Option Nat -> Option Nat -> Result String (Bool, Option Nat, Option Nat)
+  parse-c-repr-items items has-c packed-opt align-opt = case items of
+    [] ->
+      case (packed-opt, align-opt) of
+        (Some _, Some _) -> Err "`repr(packed)` removes padding and `repr(align(N))` raises alignment; they conflict"
+        other -> Ok (has-c, packed-opt, align-opt)
+    raw : rest ->
+      let s = string-strip raw in
+      if s == "C" then parse-c-repr-items rest True packed-opt align-opt
+      else if s == "packed" then parse-c-repr-items rest has-c (Some 1) align-opt
+      else if string-starts-with "packed(" s then
+        (case parse-paren-nat "packed(" s of
+          Some n | is-power-of-two n -> parse-c-repr-items rest has-c (Some n) align-opt
+          other -> Err "`repr(packed(N))` takes a non-zero power of two")
+      else if string-starts-with "align(" s then
+        (case parse-paren-nat "align(" s of
+          Some n | is-power-of-two n -> parse-c-repr-items rest has-c packed-opt (Some n)
+          other -> Err "`repr(align(N))` takes a non-zero power of two")
+      else Err ("unsupported representation modifier: " <> s)
+
+  canonical-repr-spelling :: Bool -> Option Nat -> Option Nat -> String
+  canonical-repr-spelling has-c packed-opt align-opt =
+    let base = if has-c then ["C"] else [] in
+    let with-p = case packed-opt of
+          None -> base
+          Some 1 -> base <> ["packed"]
+          Some n -> base <> ["packed(" <> nat-to-string n <> ")"] in
+    let parts = case align-opt of
+          None -> with-p
+          Some n -> with-p <> ["align(" <> nat-to-string n <> ")"] in
+    join-comma-space parts
+
+  join-comma-space :: List String -> String
+  join-comma-space xs = case xs of
+    [] -> ""
+    [only] -> only
+    first : rest -> first <> ", " <> join-comma-space rest
+
+  data-layout-size-align :: DataLayout -> Option (Nat, Nat)
+  data-layout-size-align layout = case layout of
+    UnboxedData _ _ sz al -> Some (sz, al)
+    TransparentData _ sz al -> Some (sz, al)
+    ValueData _ sz al _ -> Some (sz, al)
+    CStructData _ sz al _ -> Some (sz, al)
+    other -> None
+
+  field-size-align :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> UType -> Result String (Nat, Nat)
+  field-size-align ptr-bytes layouts datas shapes seen ty =
+    if is-type-param ty then
+      Err "a representation attribute fixes every field's layout, but this field's type is not fixed"
+    else case head-name ty of
+      Some name ->
+        if member name ["I128", "U128"] then Ok (16, 16)
+        else case scalar-layout ptr-bytes name of
+          Some (_, sz, al) -> Ok (sz, al)
+          None -> case (requested name layouts, data-for name datas) of
+            (Some (Request _ _ repr labels published), Some nested) ->
+              (case compute-data-layout ptr-bytes layouts datas shapes seen nested repr labels published of
+                Err msg -> Err msg
+                Ok nested-layout -> case data-layout-size-align nested-layout of
+                  Some pair -> Ok pair
+                  None -> Ok (8, 8))
+            other -> Ok (8, 8)
+      None -> Ok (8, 8)
+
+  c-struct-field-names :: List String -> Nat -> Nat -> List String
+  c-struct-field-names labels ordinal count =
+    if count == 0 then []
+    else case labels of
+      label : rest -> label : (c-struct-field-names rest (ordinal + 1) (count - 1))
+      [] -> ("$f" <> nat-to-string ordinal) : (c-struct-field-names [] (ordinal + 1) (count - 1))
+
+  c-struct-fields-loop :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> Option Nat -> List String -> List UType -> Nat -> Nat -> List (String, Nat, Nat, Nat) -> Result String (Nat, Nat, List (String, Nat, Nat, Nat))
+  c-struct-fields-loop word-bits layouts datas shapes seen packed-opt names types offset natural acc = case (names, types) of
+    ([], []) -> Ok (offset, natural, reverse acc)
+    (fname : nrest, fty : trest) ->
+      case field-size-align word-bits layouts datas shapes seen fty of
+        Err msg -> Err msg
+        Ok (fsize, nat) ->
+          let al = case packed-opt of
+                Some cap -> if cap < nat then cap else nat
+                None -> nat in
+          let aligned-off = align-up offset al in
+          let next-nat = if al > natural then al else natural in
+          c-struct-fields-loop word-bits layouts datas shapes seen packed-opt nrest trest (aligned-off + fsize) next-nat ((fname, aligned-off, fsize, nat) : acc)
+    other -> Err "C struct field label count disagrees with constructor fields"
+
+  c-struct-layout :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> List String -> String -> Result String DataLayout
+  c-struct-layout word-bits layouts datas shapes seen d labels repr =
+    let owner = core-data-name d in
+    if member owner seen then Err "repr(C) has a recursive layout"
+    else case parse-c-repr-items (string-split-on "," repr) False None None of
+      Err msg -> Err msg
+      Ok (has-c, packed-opt, align-opt) ->
+        case core-data-constructors d of
+          [ctor] ->
+            let ftypes = core-constructor-fields ctor in
+            let fnames = c-struct-field-names labels 0 (list-length ftypes) in
+            (case c-struct-fields-loop word-bits layouts datas shapes (owner : seen) packed-opt fnames ftypes 0 1 [] of
+              Err msg -> Err msg
+              Ok (raw-end, natural, fields) ->
+                let type-align-res = case align-opt of
+                      None -> Ok natural
+                      Some raise ->
+                        if raise < natural then
+                          Err ("`repr(align(" <> nat-to-string raise <> "))` only raises: natural alignment is " <> nat-to-string natural)
+                        else Ok raise in
+                (case type-align-res of
+                  Err msg -> Err msg
+                  Ok type-align ->
+                    let total-size = align-up raw-end type-align in
+                    let spelled = canonical-repr-spelling has-c packed-opt align-opt in
+                    Ok (CStructData spelled total-size type-align fields)))
+          other -> Err "a multi-constructor `data` has no field layout to compute: `repr(C)`, `align` and `packed` apply to one constructor's source-order fields"
+
+  compute-data-layout :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> String -> List String -> Option Json -> Result String DataLayout
+  compute-data-layout ptr-bytes layouts datas shapes seen d repr labels published =
+    if is-value-repr repr then
+      compute-value-data ptr-bytes layouts datas seen repr labels d
+    else if repr == "transparent" then
+      case transparent-layout ptr-bytes d shapes of
+        Err msg -> Err msg
+        Ok (_, bytes, align) -> Ok (TransparentData (layout-label labels published d) bytes align)
+    else if repr == "unboxed" then
+      case physical-layout ptr-bytes layouts datas shapes seen d of
+        Err msg -> Err msg
+        Ok (word, bytes, align) -> Ok (UnboxedData (layout-label labels published d) word bytes align)
+    else c-struct-layout ptr-bytes layouts datas shapes seen d labels repr
+
+  matches-published-fields :: Json -> List (String, Nat, Nat, Nat) -> Bool
+  matches-published-fields rows fields = case (rows, fields) of
+    (JArrEnd, []) -> True
+    (JArr entry more, (fname, off, sz, al) : rest) ->
       (case (field "name" entry, field "offset" entry, field "size" entry, field "align" entry) of
-        (JStr name, JNum offset, JNum width, JNum natural) -> name == label && offset == 0 && width == bytes && natural == align
+        (JStr n, JNum o, JNum w, JNum a) ->
+          n == fname && o == nat-to-int off && w == nat-to-int sz && a == nat-to-int al && matches-published-fields more rest
         other -> False)
     other -> False
+
+  matches-published-layout :: Json -> DataLayout -> Bool
+  matches-published-layout row layout = case layout of
+    UnboxedData label _ size align -> matches-published-fields (field "fields" row) [(label, 0, size, align)]
+      && (case (field "size" row, field "align" row) of (JNum s, JNum a) -> s == nat-to-int size && a == nat-to-int align; other -> False)
+    TransparentData label size align -> matches-published-fields (field "fields" row) [(label, 0, size, align)]
+      && (case (field "size" row, field "align" row) of (JNum s, JNum a) -> s == nat-to-int size && a == nat-to-int align; other -> False)
+    CStructData _ size align fields -> matches-published-fields (field "fields" row) fields
+      && (case (field "size" row, field "align" row) of (JNum s, JNum a) -> s == nat-to-int size && a == nat-to-int align; other -> False)
+    other -> True
 
   check-layouts :: Nat -> List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
   check-layouts word-bits ds datas shapes st = check-layouts-for word-bits ds datas shapes st
@@ -316,9 +518,8 @@ module Cinch.Layout where
               Err message -> (d : more, add-error site message checked)
               Ok vlayout -> ((with-data-layout vlayout d) : more, checked))
           else
-            let label = layout-label labels published d in
-            (case (if repr == "transparent" then transparent-layout ptr-bytes d shapes else physical-layout ptr-bytes layouts all shapes [] d) of
+            (case compute-data-layout ptr-bytes layouts all shapes [] d repr labels published of
               Err message -> (d : more, add-error site message checked)
-              Ok (word, bytes, align) -> (case published of
-                Some row | not (matches-published row label bytes align) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
-                other -> ((with-data-layout (if repr == "transparent" then TransparentData label bytes align else UnboxedData label word bytes align) d) : more, checked))))
+              Ok computed -> (case published of
+                Some row | not (matches-published-layout row computed) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
+                other -> ((with-data-layout computed d) : more, checked)))
