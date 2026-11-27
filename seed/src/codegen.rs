@@ -10707,6 +10707,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
         wide: wide_locals(f),
+        raw: raw_locals(f),
         joins: HashMap::new(),
         frame: reg.frame.get(&f.id.0),
         frame_bases: HashMap::new(),
@@ -10793,23 +10794,31 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
 /// wide binder in its body (`Let`, a case variable or constructor field,
 /// a join parameter). Their slots are `i128`.
 fn wide_locals(f: &FnDef) -> HashSet<LocalId> {
-    fn walk(e: &Core, out: &mut HashSet<LocalId>) {
+    locals_of_class(f, Class::Wide)
+}
+
+fn raw_locals(f: &FnDef) -> HashSet<LocalId> {
+    locals_of_class(f, Class::Raw)
+}
+
+fn locals_of_class(f: &FnDef, wanted: Class) -> HashSet<LocalId> {
+    fn walk(e: &Core, wanted: Class, out: &mut HashSet<LocalId>) {
         match e {
-            Core::Let(x, Class::Wide, _, _) => {
+            Core::Let(x, c, _, _) if *c == wanted => {
                 out.insert(*x);
             }
             Core::Join { params, .. } => {
-                out.extend(params.iter().filter(|(_, c)| *c == Class::Wide).map(|(x, _)| *x));
+                out.extend(params.iter().filter(|(_, c)| *c == wanted).map(|(x, _)| *x));
             }
             Core::Case { alts, .. } => {
                 for a in alts {
                     match &a.pat {
-                        CPat::Var(x, Class::Wide) => {
+                        CPat::Var(x, c) if *c == wanted => {
                             out.insert(*x);
                         }
                         CPat::Con { fields, classes, .. } => {
                             for (x, c) in fields.iter().zip(classes) {
-                                if *c == Class::Wide {
+                                if *c == wanted {
                                     out.insert(*x);
                                 }
                             }
@@ -10821,7 +10830,7 @@ fn wide_locals(f: &FnDef) -> HashSet<LocalId> {
             _ => {}
         }
         for k in crate::core::child_slots_imm(e) {
-            walk(k, out);
+            walk(k, wanted, out);
         }
     }
     let mut out: HashSet<LocalId> = f
@@ -10829,10 +10838,10 @@ fn wide_locals(f: &FnDef) -> HashSet<LocalId> {
         .params
         .iter()
         .enumerate()
-        .filter(|(_, c)| **c == Class::Wide)
+        .filter(|(_, c)| **c == wanted)
         .map(|(i, _)| LocalId(i))
         .collect();
-    walk(&f.body, &mut out);
+    walk(&f.body, wanted, &mut out);
     out
 }
 
@@ -11039,6 +11048,8 @@ struct CoreEmitter<'a, 'b> {
     /// The locals whose class is `Wide` (design/wide-scalars.md): their
     /// slots are `i128`, and every store and load of them is.
     wide: HashSet<LocalId>,
+    /// The locals whose class is `Raw`: unboxed scalars or pure-nullary niche enums.
+    raw: HashSet<LocalId>,
     /// The joins in scope, by id. A `Jump` branches to its join's block and
     /// stores its arguments in the parameter slots; the join's block reads
     /// them (the slots are entry allocas, so a jump from any depth is the
@@ -11236,6 +11247,22 @@ impl CoreEmitter<'_, '_> {
             "i128"
         } else {
             "i64"
+        }
+    }
+
+    fn rep_raw(&self, e: &Core) -> bool {
+        match e {
+            Core::Int(_) | Core::Bool(_) | Core::Unit => true,
+            Core::Var(x) => self.raw.contains(x),
+            Core::Proj(_, f) => f.class == Class::Raw,
+            Core::Let(_, _, _, body)
+            | Core::Dup(_, _, body)
+            | Core::Drop(_, _, body)
+            | Core::Release { body, .. } => self.rep_raw(body),
+            Core::If(_, t, f) => self.rep_raw(&t.body) && self.rep_raw(&f.body),
+            Core::Case { alts, .. } => !alts.is_empty() && alts.iter().all(|a| self.rep_raw(&a.body)),
+            Core::Join { body, rest, .. } => self.rep_raw(rest) && self.rep_raw(body),
+            _ => false,
         }
     }
 
@@ -13346,12 +13373,24 @@ impl CoreEmitter<'_, '_> {
                 return err(format!("{}: a constructor pattern cannot match an `I128`/`U128` scrutinee", self.unit));
             }
         }
-        let sp = self.b.reg();
-        if scrut_wide {
-            self.b.line(&format!("{sp} = inttoptr i64 0 to ptr"));
+        let scrut_raw = !scrut_wide
+            && alts.iter().any(|a| matches!(a.pat, CPat::Con { .. }))
+            && alts.iter().all(|a| match &a.pat {
+                CPat::Con { fields, .. } => fields.is_empty(),
+                _ => true,
+            })
+            && self.rep_raw(scrut);
+        let sp = if scrut_raw {
+            String::new()
         } else {
-            self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
-        }
+            let sp = self.b.reg();
+            if scrut_wide {
+                self.b.line(&format!("{sp} = inttoptr i64 0 to ptr"));
+            } else {
+                self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
+            }
+            sp
+        };
         let mut cons: Vec<(usize, &Vec<LocalId>, &Core, Option<u32>)> = Vec::new();
         // Each constructor alternative's field classes, by tag: a wide
         // field is two payload words and an `i128` binder.
@@ -13389,6 +13428,8 @@ impl CoreEmitter<'_, '_> {
         }
         let tagv = if cons.is_empty() {
             String::new()
+        } else if scrut_raw {
+            sv.clone()
         } else {
             ctor_tag(&mut self.b, &sp, self.reg.escapes())
         };

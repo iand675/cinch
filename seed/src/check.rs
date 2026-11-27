@@ -3699,10 +3699,12 @@ struct Checker {
     unpacked_records: HashMap<GlobalId, UnpackedRecord>,
     /// Identity constructors and their validated runtime payload types.
     unboxed_ctors: HashMap<GlobalId, Ty>,
-    /// Validated `#[repr(niche)]` plans keyed by `(module, type_name)`.
+    /// Validated `#[repr(niche)]` and auto-niched plans keyed by `(module, type_name)`.
     niche_plans: HashMap<(String, String), NichePlan>,
     /// Per-constructor niche lowering metadata keyed by constructor `GlobalId`.
     niche_ctors: HashMap<GlobalId, (Class, NicheCtorPlan)>,
+    /// Closed multi-constructor source `data` declarations eligible for default auto-niche.
+    auto_niche_candidates: Vec<(String, String, ast::Span)>,
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
@@ -4307,6 +4309,7 @@ impl Checker {
             unboxed_ctors: HashMap::new(),
             niche_plans: HashMap::new(),
             niche_ctors: HashMap::new(),
+            auto_niche_candidates: Vec::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
             safety_attrs: HashMap::new(),

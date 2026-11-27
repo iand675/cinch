@@ -4151,6 +4151,10 @@ impl Checker {
                     // section 5).
                     let (params, param_kinds) = self.nominal_params(&data.params)?;
                     let mut ctors: Vec<(String, usize)> = Vec::new();
+                    let mut auto_niche_eligible = !self.embedded_modules.contains(&module)
+                        && set.repr.is_none()
+                        && data.ctors.len() >= 2
+                        && param_kinds.iter().all(|k| matches!(k, ParamKind::Type));
                     // The head is already registered: every data and record
                     // head in the module was registered before any
                     // constructor type converted, so a data declaration may
@@ -4318,6 +4322,11 @@ impl Checker {
                             field_tys.iter().map(|t| erased_ty(t)).collect();
                         let runtime_arity =
                             field_erased.iter().filter(|e| !**e).count();
+                        if auto_niche_eligible
+                            && (!local_idx.is_empty() || runtime_arity > 1)
+                        {
+                            auto_niche_eligible = false;
+                        }
                         let mut all = field_tys.clone();
                         all.extend(res_args.iter().cloned());
                         let mut type_params: Vec<String> = Vec::new();
@@ -4436,6 +4445,12 @@ impl Checker {
                                 span: data.name.span,
                             },
                         );
+                    } else if auto_niche_eligible {
+                        self.auto_niche_candidates.push((
+                            module.clone(),
+                            data.name.text.clone(),
+                            data.name.span,
+                        ));
                     }
                     let entry = self
                         .types
@@ -11364,6 +11379,35 @@ impl Checker {
                 if let Some(payload) = self.unboxed_payload(tk) {
                     return self.law_samples(payload, depth);
                 }
+                if let Some(plan) = self.niche_plan(tk).cloned() {
+                    let mut out: Vec<Value> = Vec::new();
+                    for (_, cname, cplan) in &plan.by_tag {
+                        match cplan {
+                            NicheCtorPlan::Nullary { sentinel } => {
+                                out.push(Value::Word(*sentinel));
+                            }
+                            NicheCtorPlan::Payload { .. } => {
+                                let Some(v) = self.qualified.get(&(tk.module.clone(), cname.clone())) else {
+                                    continue;
+                                };
+                                let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind else {
+                                    continue;
+                                };
+                                let mut map: HashMap<String, Ty> = HashMap::new();
+                                for (i, p) in ty_params.iter().enumerate() {
+                                    if let Some(a) = args.get(i) {
+                                        map.insert(p.clone(), a.clone());
+                                    }
+                                }
+                                if let Some((pty, _)) = field_tys.iter().zip(field_erased.iter()).find(|(_, e)| !**e) {
+                                    let inst = Self::subst_ty(pty, &map);
+                                    out.extend(self.law_samples(&inst, depth - 1));
+                                }
+                            }
+                        }
+                    }
+                    return out;
+                }
                 if let Some(r) = &tk.refine {
                     // A refinement's samples are the container's samples
                     // its predicate decides true (refinement types
@@ -18056,7 +18100,55 @@ impl Checker {
                 self.unboxed_ctors.insert(fn_id(&m, &kind.ctors[0].0), payload.1.clone());
             }
         }
+        let candidates = self.auto_niche_candidates.clone();
+        for (m, n, span) in candidates {
+            let _ = self.try_auto_niche(&m, &n, span, &mut Vec::new());
+        }
         Ok(())
+    }
+
+    fn try_auto_niche(
+        &mut self,
+        module: &str,
+        name: &str,
+        span: ast::Span,
+        stack: &mut Vec<(String, String)>,
+    ) -> Option<NichePlan> {
+        let key = (module.to_string(), name.to_string());
+        if let Some(plan) = self.niche_plans.get(&key) {
+            return Some(plan.clone());
+        }
+        if self.type_layouts.contains_key(&key)
+            || self.layout_recipes.contains_key(&key)
+            || stack.contains(&key)
+        {
+            return None;
+        }
+        stack.push(key.clone());
+        let computed = self.compute_niche_plan(module, name, span, stack);
+        stack.pop();
+        match computed {
+            Ok(plan) => {
+                let carrier = plan.carrier;
+                for (_, cname, cplan) in &plan.by_tag {
+                    self.niche_ctors.insert(fn_id(module, cname), (carrier, cplan.clone()));
+                }
+                self.niche_plans.insert(key.clone(), plan.clone());
+                self.type_layouts.insert(
+                    key,
+                    crate::interface::AbiLayout {
+                        name: name.to_string(),
+                        repr: "niche".to_string(),
+                        size: WORD_SIZE,
+                        align: WORD_ALIGN,
+                        fields: Vec::new(),
+                        discriminant: None,
+                    },
+                );
+                Some(plan)
+            }
+            Err(_) => None,
+        }
     }
 
     /// The recorded ABI layout of a type, computed on demand: an
@@ -18179,9 +18271,17 @@ impl Checker {
                 Ty::Prim(s) => !s.is_wide(),
                 Ty::Adt(name, _) => {
                     let kind = self.lookup_known_type(name)?;
+                    let key = (kind.module.clone(), kind.name.clone());
                     self.layout_recipes
-                        .get(&(kind.module, kind.name))
+                        .get(&key)
                         .is_some_and(|r| r.repr.unboxed || r.repr.niche)
+                        || self.niche_plans.contains_key(&key)
+                        || self
+                            .auto_niche_candidates
+                            .iter()
+                            .find(|(m, n, _)| m == &key.0 && n == &key.1)
+                            .cloned()
+                            .is_some_and(|(m, n, cspan)| self.try_auto_niche(&m, &n, cspan, stack).is_some())
                 }
                 _ => false,
             };
@@ -18439,6 +18539,12 @@ impl Checker {
                     return Err(Error::at(span, "repr(niche) cannot derive a niche from an opaque type"));
                 }
                 let key = (kind.module.clone(), kind.name.clone());
+                if stack.contains(&key) {
+                    return Err(Error::at(span, "repr(niche) has a recursive layout"));
+                }
+                if let Some(plan) = self.niche_plans.get(&key).cloned() {
+                    return Ok(plan.occupied);
+                }
                 if let Some(r) = self.layout_recipes.get(&key).cloned() {
                     if r.repr.niche {
                         let _ = self.layout_of(&key.0, &key.1, stack)?;
@@ -18450,6 +18556,15 @@ impl Checker {
                         if let Some(inner) = r.fields.iter().find(|(_, _, erased, _)| !*erased).map(|(_, t, _, _)| t.clone()) {
                             return self.extract_niche_domain(&inner, span, stack);
                         }
+                    }
+                } else if let Some((_, _, cspan)) = self
+                    .auto_niche_candidates
+                    .iter()
+                    .find(|(m, n, _)| m == &key.0 && n == &key.1)
+                    .cloned()
+                {
+                    if let Some(plan) = self.try_auto_niche(&key.0, &key.1, cspan, stack) {
+                        return Ok(plan.occupied);
                     }
                 }
                 Ok(NicheDomain::NonNullObj { used: Vec::new() })
@@ -24364,6 +24479,7 @@ impl Checker {
                                 }
                                 true
                             }
+                            Value::Word(w) if fields.is_empty() && (*tag as i64) == *w => true,
                             _ => false,
                         },
                     };
@@ -24801,6 +24917,19 @@ impl Checker {
                 }))
             }
             PrimOp::WordCmp { op: cmp, unsigned } => {
+                // Niche-fused Obj sums compare a runtime value (which may be a
+                // heap-allocated Value::Adt/Bytes/Tuple/Clos/Big during compile-time
+                // evaluation) against a sentinel Value::Word (0 or odd). A heap
+                // value never equals a null/odd sentinel word.
+                if !matches!(args[0], Value::Word(_) | Value::Bool(_) | Value::Unit)
+                    && matches!(args[1], Value::Word(_))
+                {
+                    return match cmp {
+                        CmpOp::Eq => Ok(Value::Bool(false)),
+                        CmpOp::Ne => Ok(Value::Bool(true)),
+                        _ => Err(Error::plain("expected a runtime word for ordered WordCmp")),
+                    };
+                }
                 let a = word_of(&args[0], "a runtime word")?;
                 let b = word_of(&args[1], "a runtime word")?;
                 let ord = if unsigned {

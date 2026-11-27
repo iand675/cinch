@@ -1752,6 +1752,9 @@ impl Pass<'_> {
     /// it; otherwise the expression's own class where it shows one, else
     /// `Raw` (uncounted, which can only leak).
     fn scrut_class(&self, scrut: &Core, alts: &[CAlt<Core>]) -> Class {
+        if let Some(c) = self.expr_class(scrut) {
+            return c;
+        }
         if alts.iter().any(|a| matches!(a.pat, CPat::Con { .. })) {
             return Class::Obj;
         }

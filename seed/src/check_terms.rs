@@ -10007,6 +10007,52 @@ impl Checker {
                 // weights of the rows reachable through it.
                 let sums = self.decision_weights(&branch_weights, "this `case`", ctx_span)?;
                 if let Some(plan) = self.niche_plan(&info).cloned() {
+                    let all_nullary = plan
+                        .by_tag
+                        .iter()
+                        .all(|(_, _, cplan)| matches!(cplan, NicheCtorPlan::Nullary { .. }));
+                    if all_nullary {
+                        let (scrut_var, wrap_let) = match &observed {
+                            ECore::Var(l) => (*l, false),
+                            _ => {
+                                let l = self.fresh_local();
+                                self.note_local_ty(l, &ty0);
+                                (l, true)
+                            }
+                        };
+                        let switch_alts = alt_pats
+                            .into_iter()
+                            .zip(alts)
+                            .zip(alt_branch)
+                            .map(|((pat, body), branch)| {
+                                let pat = match pat {
+                                    CPat::Con { tag, .. } => {
+                                        let sentinel = plan
+                                            .by_tag
+                                            .iter()
+                                            .find(|(t, _, _)| *t == tag)
+                                            .and_then(|(_, _, p)| match p {
+                                                NicheCtorPlan::Nullary { sentinel } => Some(*sentinel as usize),
+                                                _ => None,
+                                            })
+                                            .unwrap_or(tag);
+                                        CPat::con(sentinel, Vec::new())
+                                    }
+                                    other => other,
+                                };
+                                CAlt::weighted(pat, sums[branch], body)
+                            })
+                            .collect();
+                        let sw = ECore::Case {
+                            scrut: Box::new(ECore::Var(scrut_var)),
+                            alts: switch_alts,
+                        };
+                        return Ok(if wrap_let {
+                            ECore::Let(scrut_var, Box::new(observed), Box::new(sw))
+                        } else {
+                            sw
+                        });
+                    }
                     let (scrut_var, wrap_let) = match &observed {
                         ECore::Var(l) => (*l, false),
                         _ => {

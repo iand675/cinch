@@ -480,3 +480,125 @@ fn product_accumulator_loop_unboxing() {
         "2000-iteration product accumulator loop should unbox Acc, got {blocks} blocks"
     );
 }
+
+#[test]
+fn auto_niche_default_without_attribute() {
+    let source = r#"module Main where
+  type NonNegI64 = refine (x :: I64) with x >= 0
+  type PosI64 = refine (x :: I64) with x > 0
+  type NegI64 = refine (x :: I64) with x < 0
+
+  -- Unannotated closed sums: all eligible shapes auto-niche by default.
+  data Lookup where
+    Found :: NonNegI64 -> Lookup
+    NotFound :: Lookup
+    Timeout :: Lookup
+
+  data TriSign where
+    Neg :: NegI64 -> TriSign
+    Zero :: TriSign
+    Pos :: PosI64 -> TriSign
+
+  data Color where
+    Red :: Color
+    Green :: Color
+    Blue :: Color
+
+  data OptColor where
+    NoColor :: OptColor
+    SomeColor :: Color -> OptColor
+
+  data OptStr where
+    NoStr :: OptStr
+    HasStr :: String -> OptStr
+
+  data OptOptStr where
+    OuterNone :: OptOptStr
+    OuterSome :: OptStr -> OptOptStr
+
+  -- Unannotated non-nicheable sums silently fall back to boxed uniform-word.
+  data MaybeI64 where
+    NothingI64 :: MaybeI64
+    JustI64 :: I64 -> MaybeI64
+
+  data Peano where
+    Z :: Peano
+    S :: Peano -> Peano
+
+  data TwoField where
+    EmptyTwo :: TwoField
+    PairTwo :: I64 -> I64 -> TwoField
+
+  step-lookup :: I64 -> Lookup
+  step-lookup i =
+    if i < 0 then NotFound
+    else if i == 1 then Timeout
+    else Found i
+
+  score-lookup :: Lookup -> I64
+  score-lookup r = case r of
+    Found v -> v
+    NotFound -> 10
+    Timeout -> 20
+
+  classify :: I64 -> TriSign
+  classify x =
+    if x < 0 then Neg x
+    else if x == 0 then Zero
+    else Pos x
+
+  score-sign :: TriSign -> I64
+  score-sign s = case s of
+    Neg n -> wrapping-sub-i64 0 n
+    Zero -> 100
+    Pos p -> p
+
+  color-code :: OptColor -> I64
+  color-code c = case c of
+    NoColor -> 0
+    SomeColor Red -> 1
+    SomeColor Green -> 2
+    SomeColor Blue -> 3
+
+  loop-auto :: I64 -> I64 -> I64
+  loop-auto i acc =
+    if i <= 0 then acc
+    else
+      let a = score-lookup (step-lookup (if i == 1 then wrapping-sub-i64 0 1 else if i == 2 then 1 else i)) in
+      let b = score-sign (classify (wrapping-sub-i64 i 1000)) in
+      let c = color-code (if i == 5 then NoColor else SomeColor Green) in
+      loop-auto (wrapping-sub-i64 i 1) (wrapping-add-i64 acc (wrapping-add-i64 a (wrapping-add-i64 b c)))
+
+  peano-to-i64 :: Peano -> I64
+  peano-to-i64 p = case p of
+    Z -> 0
+    S rest -> wrapping-add-i64 1 (peano-to-i64 rest)
+
+  check-nested-obj :: OptOptStr -> I64
+  check-nested-obj o = case o of
+    OuterNone -> 1
+    OuterSome NoStr -> 2
+    OuterSome (HasStr _) -> 3
+
+  check-fallbacks :: I64
+  check-fallbacks =
+    let m = case JustI64 7 of NothingI64 -> 0; JustI64 x -> x in
+    let p = peano-to-i64 (S (S (S Z))) in
+    let t = case PairTwo 3 4 of EmptyTwo -> 0; PairTwo x y -> wrapping-add-i64 x y in
+    let n1 = check-nested-obj OuterNone in
+    let n2 = check-nested-obj (OuterSome NoStr) in
+    let n3 = check-nested-obj (OuterSome (HasStr "hi")) in
+    wrapping-add-i64 (wrapping-add-i64 m p) (wrapping-add-i64 t (wrapping-add-i64 n1 (wrapping-add-i64 n2 n3)))
+
+  main :: Int
+  main =
+    let total = loop-auto 2000 0 in
+    let fb = check-fallbacks in
+    if total > 0 && fb == 23 then 42 else 1
+"#;
+    let (blocks, _) = run_checked_with_stats("auto_niche_default", source, 42);
+    assert!(
+        blocks < 100,
+        "2000-iteration loop over unannotated auto-niched sums should not allocate per iteration, got {blocks} blocks"
+    );
+}

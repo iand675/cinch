@@ -106,19 +106,23 @@ module Cinch.Layout where
     else if name == "Bytes" then Some (1, 8, 8)
     else None
 
-  physical-layout :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, Nat, Nat)
-  physical-layout word-bits layouts datas shapes seen d = let owner = core-data-name d in
+  physical-layout :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, Nat, Nat)
+  physical-layout word-bits layouts autos datas shapes seen d = let owner = core-data-name d in
     if member owner seen then Err "repr(unboxed) has a recursive layout" else case represented-field d shapes of
       None -> Err "repr(unboxed) requires one constructor with exactly one represented field"
       Some payload -> (case head-name payload of
         Some name -> (case scalar-layout word-bits name of
           Some physical -> Ok physical
           None -> (case (requested name layouts, data-for name datas) of
-            (Some (Request at wrapper repr labels row), Some nested) | (repr == "unboxed") -> physical-layout word-bits layouts datas shapes (owner : seen) nested
+            (Some (Request at wrapper repr labels row), Some nested) | (repr == "unboxed") -> physical-layout word-bits layouts autos datas shapes (owner : seen) nested
             (Some (Request at wrapper repr labels row), Some nested) | (repr == "niche") ->
-              (case niche-layout word-bits layouts datas shapes (owner : seen) nested of
+              (case niche-layout word-bits layouts autos datas shapes (owner : seen) nested of
                 Ok (word, ctors, dom) -> Ok (word, 8, 8)
                 Err msg -> Err msg)
+            (None, Some nested) | member name autos ->
+              (case niche-layout word-bits layouts autos datas shapes (owner : seen) nested of
+                Ok (word, ctors, dom) -> Ok (word, 8, 8)
+                Err msg -> Err "repr(unboxed) requires a fixed single-word payload")
             other -> Err "repr(unboxed) requires a fixed single-word payload"))
         None -> Err "repr(unboxed) requires a fixed single-word payload")
 
@@ -291,20 +295,20 @@ module Cinch.Layout where
     else if name == "Bytes" || name == "String" then Some (NicheNonNullObj [])
     else None
 
-  extract-niche-domain :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> UType -> Result String NicheDomain
-  extract-niche-domain word-bits layouts datas shapes seen ty =
+  extract-niche-domain :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> UType -> Result String NicheDomain
+  extract-niche-domain word-bits layouts autos datas shapes seen ty =
     case borrow-type-parts ty of
-      Some (is-mut, reg, inner) -> if is-mut then Ok (NicheNonNullObj []) else extract-niche-domain word-bits layouts datas shapes seen inner
+      Some (is-mut, reg, inner) -> if is-mut then Ok (NicheNonNullObj []) else extract-niche-domain word-bits layouts autos datas shapes seen inner
       None -> case refinement-view ty of
         URefine id name carrier pred ->
           if niche-fits-immediate word-bits carrier id pred then Ok (NicheOddImm [])
-          else (case extract-niche-domain word-bits layouts datas shapes seen carrier of
+          else (case extract-niche-domain word-bits layouts autos datas shapes seen carrier of
             Err msg -> Err msg
             Ok dom ->
               let (plo, phi) = niche-pred-bounds id pred in
               let pexcl = niche-pred-exclusions id pred in
               Ok (apply-niche-refinement plo phi pexcl dom))
-        URequire req body -> extract-niche-domain word-bits layouts datas shapes seen body
+        URequire req body -> extract-niche-domain word-bits layouts autos datas shapes seen body
         other -> case ty of
           UTuple _ -> Ok (NicheNonNullObj [])
           USigma _ _ _ _ -> Ok (NicheNonNullObj [])
@@ -322,16 +326,21 @@ module Cinch.Layout where
                   Err "repr(niche) payload must be a single-word integer, refinement, pointer, or boxed value"
                 else (case scalar-niche-domain word-bits name of
                   Some dom -> Ok dom
-                  None -> (case (requested name layouts, data-for name datas) of
-                    (Some (Request at wrapper repr labels row), Some nested) | repr == "niche" ->
-                      (case niche-layout word-bits layouts datas shapes seen nested of
-                        Ok (w, ctors, dom) -> Ok dom
-                        Err msg -> Err msg)
-                    (Some (Request at wrapper repr labels row), Some nested) | repr == "unboxed" ->
-                      (case represented-field nested shapes of
-                        Some inner -> extract-niche-domain word-bits layouts datas shapes seen inner
-                        None -> Err "repr(unboxed) requires one constructor with exactly one represented field")
-                    other -> Ok (NicheNonNullObj [])))
+                  None -> if member name seen then Err "repr(niche) has a recursive layout"
+                    else (case (requested name layouts, data-for name datas) of
+                      (Some (Request at wrapper repr labels row), Some nested) | repr == "niche" ->
+                        (case niche-layout word-bits layouts autos datas shapes seen nested of
+                          Ok (w, ctors, dom) -> Ok dom
+                          Err msg -> Err msg)
+                      (Some (Request at wrapper repr labels row), Some nested) | repr == "unboxed" ->
+                        (case represented-field nested shapes of
+                          Some inner -> extract-niche-domain word-bits layouts autos datas shapes seen inner
+                          None -> Err "repr(unboxed) requires one constructor with exactly one represented field")
+                      (None, Some nested) | member name autos ->
+                        (case niche-layout word-bits layouts autos datas shapes seen nested of
+                          Ok (w, ctors, dom) -> Ok dom
+                          Err msg -> Ok (NicheNonNullObj []))
+                      other -> Ok (NicheNonNullObj [])))
               None -> Err "repr(niche) requires a concrete single-word payload type"
 
   partition-niche-ctors :: List CoreConstructor -> Result String (List String, List (String, UType))
@@ -383,17 +392,17 @@ module Cinch.Layout where
     (n : ns, s : ss) -> (NicheNullary n s) : (pair-nullaries ns ss)
     other -> []
 
-  extract-multi-ranges :: Bool -> Nat -> List Request -> List CoreData -> List UsageShape -> List String -> List (String, UType) -> Result String (List (String, Int, Int, List Int))
-  extract-multi-ranges want-unsigned word-bits layouts datas shapes seen pays = case pays of
+  extract-multi-ranges :: Bool -> Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> List (String, UType) -> Result String (List (String, Int, Int, List Int))
+  extract-multi-ranges want-unsigned word-bits layouts autos datas shapes seen pays = case pays of
     [] -> Ok []
-    (cname, pty) : rest -> case extract-niche-domain word-bits layouts datas shapes seen pty of
+    (cname, pty) : rest -> case extract-niche-domain word-bits layouts autos datas shapes seen pty of
       Err msg -> Err msg
       Ok (NicheSigned lo hi excl) | not want-unsigned ->
-        (case extract-multi-ranges False word-bits layouts datas shapes seen rest of
+        (case extract-multi-ranges False word-bits layouts autos datas shapes seen rest of
           Err msg -> Err msg
           Ok more -> Ok ((cname, lo, hi, excl) : more))
       Ok (NicheUnsigned lo hi excl) | want-unsigned ->
-        (case extract-multi-ranges True word-bits layouts datas shapes seen rest of
+        (case extract-multi-ranges True word-bits layouts autos datas shapes seen rest of
           Err msg -> Err msg
           Ok more -> Ok ((cname, lo, hi, excl) : more))
       other -> Err "repr(niche) with multiple payload constructors requires provably disjoint refined integer domains of the same signedness"
@@ -444,8 +453,8 @@ module Cinch.Layout where
     [] -> []
     (cn, lo, hi, ex) : rest -> (NichePayload cn True unsigned lo hi ex) : (make-multi-payloads unsigned rest)
 
-  niche-layout :: Nat -> List Request -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, List NicheCtor, NicheDomain)
-  niche-layout word-bits layouts datas shapes seen d =
+  niche-layout :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, List NicheCtor, NicheDomain)
+  niche-layout word-bits layouts autos datas shapes seen d =
     let owner = core-data-name d in
     if member owner seen then Err "repr(niche) has a recursive layout"
     else case core-data-constructors d of
@@ -458,7 +467,7 @@ module Cinch.Layout where
             let hi = if n == 0 then (0 :: Int) else nat-to-int (n - 1) in
             Ok (0, build-nullary-enum 0 nulls, NicheUnsigned 0 hi [])
           [(pname, pty)] ->
-            (case extract-niche-domain word-bits layouts datas shapes (owner : seen) pty of
+            (case extract-niche-domain word-bits layouts autos datas shapes (owner : seen) pty of
               Err msg -> Err msg
               Ok dom ->
                 let n = niche-list-len nulls in
@@ -486,11 +495,11 @@ module Cinch.Layout where
                       Ok (2, pair-nullaries nulls [0] <> [NichePayload pname False False 0 0 []], NicheNonZeroTObj (0 : used))
                     else Err "repr(niche) cannot find enough unused niche values for nullary constructors")
           (p1name, p1ty) : more-pays ->
-            (case extract-niche-domain word-bits layouts datas shapes (owner : seen) p1ty of
+            (case extract-niche-domain word-bits layouts autos datas shapes (owner : seen) p1ty of
               Err msg -> Err msg
               Ok first-dom ->
                 let check-multi = (\unsigned min-b max-b ->
-                      case extract-multi-ranges unsigned word-bits layouts datas shapes (owner : seen) pays of
+                      case extract-multi-ranges unsigned word-bits layouts autos datas shapes (owner : seen) pays of
                         Err msg -> Err msg
                         Ok arms ->
                           if not (check-all-disjoint arms) then
@@ -510,25 +519,115 @@ module Cinch.Layout where
                   NicheUnsigned _ _ _ -> check-multi True 0 18446744073709551615
                   other -> Err "repr(niche) with multiple payload constructors requires provably disjoint refined integer domains of the same signedness")
 
-  check-layouts :: Nat -> List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
-  check-layouts word-bits ds datas shapes st = case requests ds of
-    [] -> (datas, st)
-    layouts -> attach-layouts word-bits layouts datas shapes datas st
+  is-builtin-data-name :: String -> Bool
+  is-builtin-data-name name = case unpack name of
+    c1 : c2 : rest -> char-code c1 == 98 && char-code c2 == 46
+    other -> False
 
-  attach-layouts :: Nat -> List Request -> List CoreData -> List UsageShape -> List CoreData -> Store -> (List CoreData, Store)
-  attach-layouts word-bits layouts all shapes todo st = case todo of
+  surface-export-symbols :: Json -> List String -> List String
+  surface-export-symbols rows acc = case rows of
+    JArr row rest -> (case field "symbol" row of
+      JStr sym -> surface-export-symbols rest (sym : acc)
+      other -> surface-export-symbols rest acc)
+    other -> acc
+
+  source-exported-symbols :: List Decl -> List String -> List String
+  source-exported-symbols ds acc = case ds of
+    [] -> acc
+    (DSource sp name doc) : rest ->
+      source-exported-symbols rest (surface-export-symbols (field "exports" doc) acc)
+    other : rest -> source-exported-symbols rest acc
+
+  all-ctors-exported :: List CoreConstructor -> List String -> Bool
+  all-ctors-exported ctors exported = case ctors of
+    [] -> True
+    c : rest -> member (c.constructor-name) exported && all-ctors-exported rest exported
+
+  all-ktype-quants :: List Quant -> Bool
+  all-ktype-quants qs = case qs of
+    [] -> True
+    q : rest -> (case q.kind of KType -> all-ktype-quants rest; other -> False)
+
+  ctor-result-ty :: UType -> UType
+  ctor-result-ty ty = case ty of
+    UFun a b -> ctor-result-ty b
+    UFunEff a r b -> ctor-result-ty b
+    UPi id n a r b -> ctor-result-ty b
+    UProofFun p r b -> ctor-result-ty b
+    URequire p b -> ctor-result-ty b
+    other -> ty
+
+  result-args-are-ktype-vars :: String -> UType -> Nat -> Bool
+  result-args-are-ktype-vars owner ty seen-args = case ty of
+    UCon name kind -> name == owner && seen-args == 0
+    UApp f a -> (case a of
+      UBound id n KType -> if seen-args == 0 then False else result-args-are-ktype-vars owner f (seen-args - 1)
+      other -> False)
+    other -> False
+
+  all-regular-ctors :: String -> Nat -> List CoreConstructor -> Bool
+  all-regular-ctors owner arity ctors = case ctors of
+    [] -> True
+    c : rest ->
+      let sc = c.constructor-scheme in
+      let qs = scheme-params sc in
+      niche-list-len qs <= arity
+        && all-ktype-quants qs
+        && result-args-are-ktype-vars owner (ctor-result-ty (scheme-body sc)) arity
+        && all-regular-ctors owner arity rest
+
+  auto-niche-candidates :: List Decl -> List Request -> List CoreData -> List String -> List String
+  auto-niche-candidates ds layouts datas exported = case ds of
+    [] -> []
+    (DData sp name params ctors) : rest ->
+      let more = auto-niche-candidates rest layouts datas exported in
+      if is-builtin-data-name name then more
+      else (case requested name layouts of
+        Some _ -> more
+        None -> (case data-for name datas of
+          None -> more
+          Some d -> (case core-data-layout d of
+            UniformData ->
+              let cs = core-data-constructors d in
+              let ps = core-data-params d in
+              let visible-ok = not (member name exported) || all-ctors-exported cs exported in
+              if niche-list-len cs >= 2
+                && visible-ok
+                && all-ktype-quants ps
+                && all-regular-ctors name (niche-list-len ps) cs
+              then name : more
+              else more
+            other -> more)))
+    other : rest -> auto-niche-candidates rest layouts datas exported
+
+  check-layouts :: Nat -> List Decl -> List CoreData -> List UsageShape -> Store -> (List CoreData, Store)
+  check-layouts word-bits ds datas shapes st =
+    let layouts = requests ds in
+    let exported = source-exported-symbols ds [] in
+    let autos = auto-niche-candidates ds layouts datas exported in
+    case (layouts, autos) of
+      ([], []) -> (datas, st)
+      other -> attach-layouts word-bits layouts autos datas shapes datas st
+
+  attach-layouts :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List CoreData -> Store -> (List CoreData, Store)
+  attach-layouts word-bits layouts autos all shapes todo st = case todo of
     [] -> ([], st)
-    d : rest -> case attach-layouts word-bits layouts all shapes rest st of
+    d : rest -> case attach-layouts word-bits layouts autos all shapes rest st of
       (more, checked) -> (case requested (core-data-name d) layouts of
-        None -> (d : more, checked)
+        None ->
+          if member (core-data-name d) autos then
+            (case niche-layout word-bits layouts autos all shapes [] d of
+              Ok (word, ctors, dom) -> ((with-data-layout (NicheData word ctors) d) : more, checked)
+              Err msg -> (d : more, checked))
+          else (d : more, checked)
         Some (Request site owner repr labels published) ->
           (if repr == "niche" then
-            (case niche-layout word-bits layouts all shapes [] d of
+            (case niche-layout word-bits layouts autos all shapes [] d of
               Err message -> (d : more, add-error site message checked)
               Ok (word, ctors, dom) -> (case published of
                 Some row | not (matches-niche-published row) -> (d : more, add-error site "niche ABI layout disagrees with its represented field" checked)
                 other -> ((with-data-layout (NicheData word ctors) d) : more, checked)))
-          else let label = layout-label labels published d in (case (if repr == "transparent" then transparent-layout word-bits d shapes else physical-layout word-bits layouts all shapes [] d) of
+          else let label = layout-label labels published d in (case (if repr == "transparent" then transparent-layout word-bits d shapes else physical-layout word-bits layouts autos all shapes [] d) of
             Err message -> (d : more, add-error site message checked)
             Ok (word, bytes, align) -> (case published of
               Some row | not (matches-published row label bytes align) -> (d : more, add-error site (repr <> " ABI layout disagrees with its represented field") checked)
