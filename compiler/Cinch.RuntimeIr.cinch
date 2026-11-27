@@ -713,12 +713,51 @@ module Cinch.RuntimeIr where
                 else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
                 else if (name == "Bytes" || name == "String" || name == "AtomicCell") && kind-equal kind KType then Some 1 else
                 (case data-declaration name datas of
-                  Some d -> Some (data-word-class d)
+                  Some d -> Some (data-applied-word-class context d ty)
                   None -> if kind-equal kind KType && checked-string-word name datas then Some 1
                     else case find-class name (datas.classes) of Some description -> Some 1; None -> None)
               UBound id name kind -> applied-former-class ty kind (representation id bounds)
               URigid id name level kind -> applied-former-class ty kind (representation id rigids)
               other -> None
+  type-arg-list :: UType -> List UType -> List UType
+  type-arg-list ty acc = case ty of
+    UApp f a -> type-arg-list f (a : acc)
+    other -> acc
+
+  nth-nat-opt :: Nat -> List Nat -> Option Nat
+  nth-nat-opt idx xs = case xs of
+    [] -> None
+    first : rest -> if idx == 0 then Some first else nth-nat-opt (idx - 1) rest
+
+  all-obj-at :: List Nat -> List Nat -> Bool
+  all-obj-at req classes = case req of
+    [] -> True
+    idx : rest -> (case nth-nat-opt idx classes of
+      Some 1 -> all-obj-at rest classes
+      other -> False)
+
+  arg-word-classes :: RuntimeContext -> List UType -> Option (List Nat)
+  arg-word-classes context args = case args of
+    [] -> Some []
+    a : rest -> (case (value-word-class context a, arg-word-classes context rest) of
+      (Some c, Some more) -> Some (c : more)
+      other -> None)
+
+  active-niche-layout :: CoreData -> List Nat -> Option (Nat, List NicheCtor)
+  active-niche-layout d classes = case core-data-layout d of
+    NicheData word ctors -> Some (word, ctors)
+    PolyNicheData req ctors -> if all-obj-at req classes then Some (2, ctors) else None
+    other -> None
+
+  data-applied-word-class :: RuntimeContext -> CoreData -> UType -> Nat
+  data-applied-word-class context d ty = case core-data-layout d of
+    UnboxedData label word bytes align -> word
+    NicheData word ctors -> word
+    PolyNicheData req ctors -> (case arg-word-classes context (type-arg-list (base ty) []) of
+      Some classes | all-obj-at req classes -> 2
+      other -> 1)
+    other -> 1
+
   data-word-class :: CoreData -> Nat
   data-word-class d = case core-data-layout d of
     UnboxedData label word bytes align -> word
@@ -729,7 +768,10 @@ module Cinch.RuntimeIr where
     [] -> None
     c : rest -> (case c of
       NicheNullary cname sentinel -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
-      NichePayload cname multi unsigned lo hi excluded -> if cname == wanted then Some c else niche-ctor-lookup wanted rest)
+      NichePayload cname multi unsigned lo hi excluded -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NichePtr cname ptag chk -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NicheShifted cname mask tag-word shift signed bias -> if cname == wanted then Some c else niche-ctor-lookup wanted rest
+      NicheNanF64 cname -> if cname == wanted then Some c else niche-ctor-lookup wanted rest)
   niche-nullary-sentinels :: List NicheCtor -> List Int
   niche-nullary-sentinels ctors = case ctors of
     [] -> []
@@ -739,11 +781,11 @@ module Cinch.RuntimeIr where
   niche-word-literal unsigned v =
     if unsigned && v >= 9223372036854775808 then int-to-string (v - 18446744073709551616)
     else int-to-string v
-  niche-owner-ctor :: String -> String -> Writer -> Option NicheCtor
-  niche-owner-ctor owner cname w = case data-declaration owner (writer-program w) of
-    Some d -> (case core-data-layout d of
-      NicheData word ctors -> niche-ctor-lookup cname ctors
-      other -> None)
+  niche-owner-ctor :: String -> String -> List Nat -> Writer -> Option NicheCtor
+  niche-owner-ctor owner cname classes w = case data-declaration owner (writer-program w) of
+    Some d -> (case active-niche-layout d classes of
+      Some (word, ctors) -> niche-ctor-lookup cname ctors
+      None -> None)
     None -> None
   uniform-owner :: String -> Writer -> Bool
   uniform-owner name w = case data-declaration name (writer-program w) of
@@ -3319,12 +3361,15 @@ module Cinch.RuntimeIr where
             Some classes -> case constructor-call-context d c classes w of
               None -> unsupported w sp "constructor parameters need first-order representation classes"
               Some context -> if list-length args == list-length (core-constructor-fields c) then
-                (case (core-data-layout d, args) of
-                  (UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
-                  (NicheData word ctors, []) -> (case niche-ctor-lookup name ctors of
+                (case (active-niche-layout d classes, core-data-layout d, args) of
+                  (Some (word, ctors), _, []) -> (case niche-ctor-lookup name ctors of
                     Some (NicheNullary cname sentinel) -> (w, niche-word-literal False sentinel)
                     other -> unsupported w sp "niche nullary constructor missing sentinel")
-                  (NicheData word ctors, [payload]) -> expression definitions locals w payload
+                  (Some (word, ctors), _, [payload]) -> (case niche-ctor-lookup name ctors of
+                    Some cplan -> (case expression definitions locals w payload of
+                      (w1, pval) -> emit-niche-encode cplan pval w1)
+                    None -> expression definitions locals w payload)
+                  (None, UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
                   other -> if regular-constructor d c
                     then box-constructor definitions locals w sp d classes tag args
                     else box-gadt-constructor definitions locals w sp d context c tag args)
@@ -5141,18 +5186,21 @@ module Cinch.RuntimeIr where
         else if name == "Refl" then (w, [])
         else case constructor name (writer-program w) of
           Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
-            Some d -> case core-data-layout d of
-              UnboxedData label word bytes align -> match-unboxed fields value failed w
-              NicheData word ctors -> match-niche ctors name fields value failed w
-              layout -> if tag < 16777216 then
-                (case constructor-tag w value of
-                  (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
-                    (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
-                      let pointed = line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
-                      (case layout of
-                        TransparentData field bytes align | bytes < 8 -> match-transparent fields pointer bytes align failed pointed
-                        other -> match-fields fields pointer 0 failed pointed))
-                else (refuse w sp "constructor pattern needs a specialized runtime representation", [])
+            Some d ->
+              let pat-classes = (case arg-word-classes (w.context) (type-arg-list (base (shared-pattern-carrier ty)) []) of Some cs -> cs; None -> []) in
+              case active-niche-layout d pat-classes of
+                Some (word, ctors) -> match-niche ctors name fields value failed w
+                None -> case core-data-layout d of
+                  UnboxedData label word bytes align -> match-unboxed fields value failed w
+                  layout -> if tag < 16777216 then
+                    (case constructor-tag w value of
+                      (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
+                        (compared, condition) -> let (ready, pointer) = fresh (continue-if compared condition failed) "%ptr" in
+                          let pointed = line ready (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
+                          (case layout of
+                            TransparentData field bytes align | bytes < 8 -> match-transparent fields pointer bytes align failed pointed
+                            other -> match-fields fields pointer 0 failed pointed))
+                    else (refuse w sp "constructor pattern needs a specialized runtime representation", [])
             None -> (refuse w sp "constructor pattern has no defining runtime declaration", []))
           None -> (refuse w sp "constructor pattern has no defining runtime declaration", [])
       CPInt sp ty text -> if number ty then
@@ -5211,6 +5259,37 @@ module Cinch.RuntimeIr where
         else w1) in
     check-not-sentinels excluded value failed w2
 
+  emit-niche-encode :: NicheCtor -> String -> Writer -> (Writer, String)
+  emit-niche-encode cplan pval w = case cplan of
+    NicheNullary cname sentinel -> (w, niche-word-literal False sentinel)
+    NichePayload cname multi unsigned lo hi excluded -> (w, pval)
+    NichePtr cname ptag chk ->
+      if ptag == 0 then (w, pval)
+      else let (w1, r) = fresh w "%nptr" in
+        (line w1 (cat ["  ", r, " = or i64 ", pval, ", ", int-to-string ptag]), r)
+    NicheShifted cname mask tag-word shift signed bias ->
+      let (w1, v1) = (if bias /= 0 then
+            let (wa, r) = fresh w "%nbias" in
+            (line wa (cat ["  ", r, " = sub i64 ", pval, ", ", int-to-string bias]), r)
+          else (w, pval)) in
+      let (w2, v2) = (if shift /= 0 then
+            let (wb, r) = fresh w1 "%nshl" in
+            (line wb (cat ["  ", r, " = shl i64 ", v1, ", ", nat-to-string shift]), r)
+          else (w1, v1)) in
+      if tag-word /= 0 then
+        let (w3, r) = fresh w2 "%ntag" in
+        (line w3 (cat ["  ", r, " = or i64 ", v2, ", ", int-to-string tag-word]), r)
+      else (w2, v2)
+    NicheNanF64 cname ->
+      let (w1, d) = fresh w "%nf64" in
+      let (w2, is-nan) = fresh w1 "%nnan" in
+      let (w3, res) = fresh w2 "%ncan" in
+      let w4 = emit-lines w3 [
+        cat ["  ", d, " = bitcast i64 ", pval, " to double"],
+        cat ["  ", is-nan, " = fcmp uno double ", d, ", ", d],
+        cat ["  ", res, " = select i1 ", is-nan, ", i64 9221120237041090560, i64 ", pval]] in
+      (w4, res)
+
   match-niche :: List NicheCtor -> String -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
   match-niche ctors cname fields value failed w = case niche-ctor-lookup cname ctors of
     Some (NicheNullary n sentinel) ->
@@ -5219,6 +5298,35 @@ module Cinch.RuntimeIr where
     Some (NichePayload n multi unsigned lo hi excluded) ->
       let checked = (if multi then check-niche-range unsigned lo hi excluded value failed w
                     else check-not-sentinels (niche-nullary-sentinels ctors) value failed w) in
+      match-unboxed fields value failed checked
+    Some (NichePtr n ptag chk) ->
+      let (w1, masked) = fresh w "%nm" in
+      let w2 = line w1 (cat ["  ", masked, " = and i64 ", value, ", 7"]) in
+      let w3 = (case compare-word w2 "eq" masked (int-to-string ptag) of
+            (cmp, cond) -> continue-if cmp cond failed) in
+      let w4 = (if chk then
+            (case compare-word w3 "ne" value "0" of
+              (cmp, cond) -> continue-if cmp cond failed)
+          else w3) in
+      let (w5, extracted) = (if ptag == 0 then (w4, value) else
+            let (wu, r) = fresh w4 "%nuntag" in
+            (line wu (cat ["  ", r, " = and i64 ", value, ", -7"]), r)) in
+      match-unboxed fields extracted failed w5
+    Some (NicheShifted n mask tag-word shift signed bias) ->
+      let (w1, masked) = fresh w "%nm" in
+      let w2 = line w1 (cat ["  ", masked, " = and i64 ", value, ", ", int-to-string mask]) in
+      let w3 = (case compare-word w2 "eq" masked (int-to-string tag-word) of
+            (cmp, cond) -> continue-if cmp cond failed) in
+      let (w4, unshifted) = (if shift == 0 then (w3, value) else
+            let (ws, r) = fresh w3 "%nshr" in
+            let op = if signed then "ashr" else "lshr" in
+            (line ws (cat ["  ", r, " = ", op, " i64 ", value, ", ", nat-to-string shift]), r)) in
+      let (w5, extracted) = (if bias == 0 then (w4, unshifted) else
+            let (wa, r) = fresh w4 "%nunb" in
+            (line wa (cat ["  ", r, " = add i64 ", unshifted, ", ", int-to-string bias]), r)) in
+      match-unboxed fields extracted failed w5
+    Some (NicheNanF64 n) ->
+      let checked = check-not-sentinels (niche-nullary-sentinels ctors) value failed w in
       match-unboxed fields value failed checked
     None -> (refuse w (Span 0 0 1 1) "niche pattern missing constructor layout plan", [])
 
@@ -7520,13 +7628,16 @@ module Cinch.RuntimeIr where
     Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
       Some d | unboxed-owner owner w -> let worker = specialized-name name classes in
         emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"]
-      Some d | (case niche-owner-ctor owner name w of Some c -> True; None -> False) ->
+      Some d | (case niche-owner-ctor owner name classes w of Some c -> True; None -> False) ->
         let worker = specialized-name name classes in
-        (case niche-owner-ctor owner name w of
+        (case niche-owner-ctor owner name classes w of
           Some (NicheNullary cn sentinel) ->
             emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "()", worker-open w], "entry:", cat ["  ret i64 ", niche-word-literal False sentinel], "}"]
-          other ->
-            emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"])
+          Some cplan ->
+            let started = emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:"] in
+            (case emit-niche-encode cplan "%arg0" started of
+              (done, res) -> emit-lines done [cat ["  ret i64 ", res], "}"])
+          None -> w)
       Some d -> case constructor-call-context d c classes w of
         Some context -> case context of
           RuntimeContext datas bounds rigids queue inlining ->
@@ -8609,35 +8720,35 @@ module Cinch.RuntimeIr where
       "  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
       "  %top = shl i64 %h, 29\n  %single = icmp eq i64 %top, 536870912\n  ret i1 %single\n}\n",
       "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %pos = icmp sgt i64 %top, 0\n  %plain = and i1 %pos, %nf\n",
       "  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
       if concurrent then
-        "other:\n  %nz = icmp ne i64 %top, 0\n  %shared = and i1 %nz, %nf\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"
+        "other:\n  %nz = icmp ne i64 %top, 0\n  %shared = and i1 %nz, %nf\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %u)\n  br label %done\ndone:\n  ret void\n}\n"
       else
         "other:\n  br label %done\ndone:\n  ret void\n}\n",
       "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n", hdr-load,
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %gt1 = icmp sgt i64 %top, 536870912\n  %plain = and i1 %gt1, %nf\n",
       "  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
       "other:\n  switch i64 %top, label %", if concurrent then "mt" else "done", " [\n    i64 0, label %done\n    i64 536870912, label %slow\n    i64 9223372036317904896, label %frame\n    i64 9223372035781033984, label %done\n  ]\n",
-      "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %w)\n  br label %done\n",
-      if concurrent then "mt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\n" else "",
+      "slow:\n  call void @cinch_drop_slow(i64 %u)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %u)\n  br label %done\n",
+      if concurrent then "mt:\n  call void @cinch_drop_mt(i64 %u)\n  br label %done\n" else "",
       "done:\n  ret void\n}\n",
       "define internal void @cinch.typed.rc.dup.local(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %pos = icmp sgt i64 %top, 0\n  %plain = and i1 %pos, %nf\n",
       "  br i1 %plain, label %inc, label %done\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\ndone:\n  ret void\n}\n",
       "define internal void @cinch.typed.rc.drop.local(i64 %w) alwaysinline", function-open wasm32, "\nentry:\n",
-      "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
-      "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
+      "  %u = and i64 %w, -7\n  %lo = and i64 %w, 1\n  %null = icmp eq i64 %u, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+      "  %p = inttoptr i64 %u to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load i64, ptr %hp, align 8\n",
       "  %top = shl i64 %h, 29\n  %nf = icmp slt i64 %top, 9223372035781033984\n  %gt1 = icmp sgt i64 %top, 536870912\n  %plain = and i1 %gt1, %nf\n",
       "  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
       "other:\n  switch i64 %top, label %done [\n    i64 536870912, label %slow\n    i64 9223372036317904896, label %frame\n  ]\n",
-      "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
+      "slow:\n  call void @cinch_drop_slow(i64 %u)\n  br label %done\nframe:\n  call void @cinch_frame_release(i64 %u)\n  br label %done\ndone:\n  ret void\n}\n"]
   -- The reference count debugging build (TargetProfile::rc_debug in
   -- seed/src/core.rs): all helpers call the runtime's out-of-line
   -- cinch_dup and cinch_drop, so CINCH_RC_DEBUG=1 checks every count

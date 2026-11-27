@@ -1496,7 +1496,7 @@ impl Registry {
                 Class::Obj => "O",
                 Class::TObj => "T",
                 Class::Wide => "W",
-                Class::Param(_) => {
+                Class::Param(_) | Class::PolyNiche(_) => {
                     return err("object ABI contains an unresolved representation parameter")
                 }
             }))
@@ -2841,7 +2841,7 @@ fn scan_code(c: Class) -> u64 {
     match c {
         Class::Obj => block::SCAN_OBJ,
         Class::TObj => block::SCAN_TOBJ,
-        Class::Raw | Class::Wide | Class::Param(_) => block::SCAN_RAW,
+        Class::Raw | Class::Wide | Class::Param(_) | Class::PolyNiche(_) => block::SCAN_RAW,
     }
 }
 
@@ -7934,23 +7934,27 @@ const RC_UNIQUE: &str = "cinch.rc.unique";
 fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool, concurrent: bool) {
     let lblock = b.label();
     let ldone = b.label();
-    let skip = b.reg();
-    b.line(&format!("{skip} = icmp eq i64 {w}, 0"));
-    let skip = if class == Class::TObj {
+    let (word, skip) = if class == Class::TObj {
+        let u = b.reg();
+        b.line(&format!("{u} = and i64 {w}, -7"));
+        let z = b.reg();
+        b.line(&format!("{z} = icmp eq i64 {u}, 0"));
         let lo = b.reg();
         b.line(&format!("{lo} = and i64 {w}, 1"));
         let imm = b.reg();
         b.line(&format!("{imm} = icmp ne i64 {lo}, 0"));
         let either = b.reg();
-        b.line(&format!("{either} = or i1 {skip}, {imm}"));
-        either
+        b.line(&format!("{either} = or i1 {z}, {imm}"));
+        (u, either)
     } else {
-        skip
+        let z = b.reg();
+        b.line(&format!("{z} = icmp eq i64 {w}, 0"));
+        (w.to_string(), z)
     };
     b.line(&format!("br i1 {skip}, label %{ldone}, label %{lblock}"));
     b.start(&lblock);
     let p = b.reg();
-    b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+    b.line(&format!("{p} = inttoptr i64 {word} to ptr"));
     let hp = b.reg();
     b.line(&format!(
         "{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"
@@ -8011,11 +8015,11 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool, co
             "switch i64 {top}, label %{default_label} [\n  i64 0, label %{ldone}\n  i64 {top_one}, label %{lslow}{frame_arm}\n]"
         ));
         b.start(&lslow);
-        b.line(&format!("call void @cinch_drop_slow(i64 {w})"));
+        b.line(&format!("call void @cinch_drop_slow(i64 {word})"));
         b.line(&format!("br label %{ldone}"));
         if let Some(lf) = lframe {
             b.start(&lf);
-            b.line(&format!("call void @cinch_frame_release(i64 {w})"));
+            b.line(&format!("call void @cinch_frame_release(i64 {word})"));
             b.line(&format!("br label %{ldone}"));
         }
     } else if let Some(lmt) = &lmt {
@@ -8036,7 +8040,7 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool, co
     if let Some(lmt) = lmt {
         b.start(&lmt);
         b.line(&format!(
-            "call void @{}(i64 {w})",
+            "call void @{}(i64 {word})",
             if drop {
                 "cinch_drop_mt"
             } else {
@@ -9267,6 +9271,55 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             let r = b.reg();
             b.line(&format!("{r} = zext i1 {c} to i64"));
             ret(b, &r);
+        }
+        WordOp { op: wop } => {
+            use crate::core::WordOp as WO;
+            match wop {
+                WO::TestMask | WO::Untag => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = and i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::TagOr => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = or i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::Shl => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = shl i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::Shr => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = ashr i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::Ushr => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = lshr i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::Add => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = add i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::Sub => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = sub i64 %p0, %p1"));
+                    ret(b, &r);
+                }
+                WO::NanCanon => {
+                    let d = b.reg();
+                    b.line(&format!("{d} = bitcast i64 %p0 to double"));
+                    let is_nan = b.reg();
+                    b.line(&format!("{is_nan} = fcmp uno double {d}, {d}"));
+                    let r = b.reg();
+                    b.line(&format!("{r} = select i1 {is_nan}, i64 9221120237041090560, i64 %p0"));
+                    ret(b, &r);
+                }
+            }
         }
 
         CharToU32 => {

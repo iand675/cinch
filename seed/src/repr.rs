@@ -35,6 +35,10 @@ pub enum Class {
     /// Only a polymorphic unit's generic body carries it; the collector
     /// substitutes every one before emission.
     Param(u16),
+    /// Polymorphic `Obj`-pointer niche sum whose required type parameters are
+    /// the bitmask `u16`: substitutes to `TObj` when every bit resolves to
+    /// `Obj`, or falls back to boxed `Obj` otherwise (resolved in `specialize.rs`).
+    PolyNiche(u16),
 }
 
 impl Class {
@@ -44,12 +48,29 @@ impl Class {
     pub fn subst(self, v: &[Class]) -> Class {
         match self {
             Class::Param(i) => v.get(i as usize).copied().unwrap_or(self),
+            Class::PolyNiche(mask) => {
+                let mut unresolved: u16 = 0;
+                for i in 0..16u16 {
+                    if (mask & (1u16 << i)) != 0 {
+                        match v.get(i as usize).copied() {
+                            Some(Class::Obj) => {}
+                            Some(Class::Param(j)) if j < 16 => unresolved |= 1u16 << j,
+                            _ => return Class::Obj,
+                        }
+                    }
+                }
+                if unresolved != 0 {
+                    Class::PolyNiche(unresolved)
+                } else {
+                    Class::TObj
+                }
+            }
             c => c,
         }
     }
 
     pub fn is_param(self) -> bool {
-        matches!(self, Class::Param(_))
+        matches!(self, Class::Param(_) | Class::PolyNiche(_))
     }
 
     /// The words this class occupies in a layout: two for `Wide`, one
@@ -79,7 +100,7 @@ impl Class {
             Class::Obj => 'O',
             Class::TObj => 'T',
             Class::Wide => 'W',
-            Class::Param(_) => 'P',
+            Class::Param(_) | Class::PolyNiche(_) => 'P',
         }
     }
 }
@@ -145,6 +166,9 @@ pub enum AdtRepr {
     Raw,
     /// A refinement type: its runtime form is the container itself.
     Base(Ty),
+    /// A polymorphic pointer-tagged niche sum requiring all type arguments
+    /// at set bit positions in `u16` to have class `Obj`.
+    PolyNiche(u16),
 }
 
 /// The checker's view of named types, for [`repr_of`].
@@ -392,6 +416,24 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
                 AdtRepr::TObj => Class::TObj,
                 AdtRepr::Raw => Class::Raw,
                 AdtRepr::Base(b) => repr_of(&b, params, types, miss),
+                AdtRepr::PolyNiche(req_mask) => {
+                    let mut unresolved: u16 = 0;
+                    for i in 0..16usize {
+                        if (req_mask & (1u16 << i)) != 0 {
+                            let Some(arg) = args.get(i) else { return Class::Obj; };
+                            match repr_of(arg, params, types, miss) {
+                                Class::Obj => {}
+                                Class::Param(j) if j < 16 => unresolved |= 1u16 << j,
+                                _ => return Class::Obj,
+                            }
+                        }
+                    }
+                    if unresolved != 0 {
+                        Class::PolyNiche(unresolved)
+                    } else {
+                        Class::TObj
+                    }
+                }
             },
         },
         Ty::Tuple(_) | Ty::Sigma { .. } | Ty::App(..) | Ty::Former(_) => Class::Obj,

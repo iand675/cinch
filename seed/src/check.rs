@@ -1411,19 +1411,34 @@ impl<'a> LowerCx<'a> {
             | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
             ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
-            ECore::App(f, _) => match &**f {
-                ECore::Ctor(id, _) => {
+            ECore::App(f, args) => match &**f {
+                ECore::Global(id, _) if id.0.starts_with("$poly_niche_scrut$") && args.len() == 1 => {
+                    self.expr_class(&args[0])
+                }
+                ECore::Ctor(id, tys) => {
                     if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
                         Some(*carrier)
+                    } else if let Some((dname, _)) = self.ck.poly_niche_ctors.get(id) {
+                        let req_mask = dname
+                            .rsplit_once('.')
+                            .and_then(|(m, n)| self.ck.poly_niche_plans.get(&(m.to_string(), n.to_string())))
+                            .map_or(0, |p| p.req_mask);
+                        Some(Class::PolyNiche(req_mask).subst(&self.classes(tys)))
                     } else {
                         Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t)))
                     }
                 }
                 _ => None,
             },
-            ECore::Ctor(id, _) => {
+            ECore::Ctor(id, tys) => {
                 if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
                     Some(*carrier)
+                } else if let Some((dname, _)) = self.ck.poly_niche_ctors.get(id) {
+                    let req_mask = dname
+                        .rsplit_once('.')
+                        .and_then(|(m, n)| self.ck.poly_niche_plans.get(&(m.to_string(), n.to_string())))
+                        .map_or(0, |p| p.req_mask);
+                    Some(Class::PolyNiche(req_mask).subst(&self.classes(tys)))
                 } else {
                     Some(Class::Obj)
                 }
@@ -1442,10 +1457,12 @@ pub(crate) enum NicheDomain {
     UnsignedRange { lo: u128, hi: u128, excluded: Vec<u128> },
     OddImmediate { used: Vec<i64> },
     NonNullObj { used: Vec<i64> },
+    TaggedObj { ptr_tags: Vec<i64>, used_null: bool, used_odd: Vec<i64>, odd_full: bool },
     NonZeroTObj { used: Vec<i64> },
+    F64Nan { used: Vec<i64> },
 }
 
-/// Per-constructor lowering plan inside a `#[repr(niche)]` sum type.
+/// Per-constructor lowering plan inside a niche-fused sum type.
 #[derive(Clone, Debug)]
 pub(crate) enum NicheCtorPlan {
     Nullary { sentinel: i64 },
@@ -1454,6 +1471,25 @@ pub(crate) enum NicheCtorPlan {
         /// `None` when sole payload constructor; `Some((unsigned, lo, hi, excluded))`
         /// when multiple disjoint payload constructors share the single word.
         range: Option<(bool, i128, i128, Vec<i128>)>,
+    },
+    /// Pointer-tagged `NonNullObj` payload (`ptr | ptr_tag`, where `ptr_tag ∈ {0, 2, 4}`).
+    Ptr {
+        payload_ty: Ty,
+        ptr_tag: i64,
+        check_nonnull: bool,
+    },
+    /// Shifted/tagged small scalar payload (`(((x - bias) << shift) | tag_word)`).
+    Shifted {
+        payload_ty: Ty,
+        mask: i64,
+        tag_word: i64,
+        shift: u32,
+        signed: bool,
+        bias: i64,
+    },
+    /// NaN-canonicalized `F64` payload (sentinels live in quiet-NaN space `0x7FF8_0000_0000_0001+`).
+    NanF64 {
+        payload_ty: Ty,
     },
 }
 
@@ -1494,6 +1530,9 @@ impl crate::repr::TypeReprs for Checker {
                 _ => crate::repr::AdtRepr::Obj,
             };
         }
+        if let Some(plan) = self.poly_niche_plan(kind) {
+            return crate::repr::AdtRepr::PolyNiche(plan.req_mask);
+        }
         if let Some(r) = kind.refine.as_ref() {
             let mut map: HashMap<String, Ty> = HashMap::new();
             for (p, a) in r.params.iter().zip(args) {
@@ -1515,6 +1554,54 @@ impl crate::repr::TypeReprs for Checker {
     }
 }
 
+fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, arg: Core) -> Core {
+    use crate::core::WordOp as WO;
+    match cplan {
+        NicheCtorPlan::Nullary { sentinel } => Core::Int(*sentinel),
+        NicheCtorPlan::Payload { .. } => arg,
+        NicheCtorPlan::Ptr { ptr_tag, .. } => {
+            if *ptr_tag == 0 {
+                arg
+            } else {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                    vec![arg, Core::Int(*ptr_tag)],
+                )
+            }
+        }
+        NicheCtorPlan::Shifted { tag_word, shift, bias, .. } => {
+            let v = if *bias != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
+                    vec![arg, Core::Int(*bias)],
+                )
+            } else {
+                arg
+            };
+            let shifted = if *shift != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Shl })),
+                    vec![v, Core::Int(*shift as i64)],
+                )
+            } else {
+                v
+            };
+            if *tag_word != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                    vec![shifted, Core::Int(*tag_word)],
+                )
+            } else {
+                shifted
+            }
+        }
+        NicheCtorPlan::NanF64 { .. } => Core::App(
+            Box::new(Core::Prim(PrimOp::WordOp { op: WO::NanCanon })),
+            vec![arg],
+        ),
+    }
+}
+
 fn finalize_fn(
     id: GlobalId,
     params: Vec<LocalId>,
@@ -1522,7 +1609,7 @@ fn finalize_fn(
     prim: Option<PrimOp>,
     ctor: Option<(usize, usize)>,
     hints: crate::core::FnHints,
-    meta: crate::core::FnMeta,
+    mut meta: crate::core::FnMeta,
     cx: &mut LowerCx,
 ) -> Result<FnDef> {
     cx.orig.clear();
@@ -1629,8 +1716,9 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             }
             if args.len() == 1 {
                 if let ECore::Ctor(g, _) = &**f {
-                    if matches!(cx.ck.niche_ctors.get(g), Some((_, NicheCtorPlan::Payload { .. }))) {
-                        return low(&args[0]);
+                    if let Some((_, cplan)) = cx.ck.niche_ctors.get(g) {
+                        let a = low(&args[0]);
+                        return lower_niche_ctor_apply(cplan, a);
                     }
                 }
             }
@@ -3703,6 +3791,10 @@ struct Checker {
     niche_plans: HashMap<(String, String), NichePlan>,
     /// Per-constructor niche lowering metadata keyed by constructor `GlobalId`.
     niche_ctors: HashMap<GlobalId, (Class, NicheCtorPlan)>,
+    /// Polymorphic pointer-tagged niche plans keyed by `(module, type_name)`.
+    poly_niche_plans: HashMap<(String, String), crate::core::PolyNichePlan>,
+    /// Polymorphic niche constructor metadata keyed by constructor `GlobalId`.
+    poly_niche_ctors: HashMap<GlobalId, (String, crate::core::PolyNicheCtor)>,
     /// Closed multi-constructor source `data` declarations eligible for default auto-niche.
     auto_niche_candidates: Vec<(String, String, ast::Span)>,
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
@@ -4309,6 +4401,8 @@ impl Checker {
             unboxed_ctors: HashMap::new(),
             niche_plans: HashMap::new(),
             niche_ctors: HashMap::new(),
+            poly_niche_plans: HashMap::new(),
+            poly_niche_ctors: HashMap::new(),
             auto_niche_candidates: Vec::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
@@ -7158,6 +7252,13 @@ impl Checker {
             return None;
         }
         self.niche_plans.get(&(kind.module.clone(), kind.name.clone()))
+    }
+
+    pub(crate) fn poly_niche_plan(&self, kind: &TypeKind) -> Option<&crate::core::PolyNichePlan> {
+        if self.poly_niche_plans.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
+        self.poly_niche_plans.get(&(kind.module.clone(), kind.name.clone()))
     }
 
     fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {

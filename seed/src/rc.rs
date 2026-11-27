@@ -603,6 +603,7 @@ fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m [b
     match head {
         Core::Global(g, _) => modes.get(&g.0).map(Vec::as_slice),
         Core::Prim(crate::core::PrimOp::WordCmp { .. }) if args == 2 => Some(&WORD_CMP_MODES[..]),
+        Core::Prim(crate::core::PrimOp::WordOp { op: crate::core::WordOp::TestMask }) if args == 2 => Some(&WORD_CMP_MODES[..]),
         Core::Prim(op) => modes.get(&op.symbol()).map(Vec::as_slice),
         _ => None,
     }
@@ -2471,7 +2472,7 @@ fn name_call_arguments(program: &mut Program) {
         .fns
         .iter()
         .filter_map(|f| f.repr.result.map(|c| (f.id.0.clone(), c)))
-        .filter(|(_, c)| !matches!(c, Class::Param(_)))
+        .filter(|(_, c)| !c.is_param())
         .collect();
     let arity: HashMap<String, usize> = program.fns.iter().map(|f| (f.id.0.clone(), f.params.len())).collect();
     // A saturated call's argument has the callee's parameter class, which

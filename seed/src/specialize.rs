@@ -168,6 +168,8 @@ struct Cx<'a> {
     insts: HashMap<&'a str, &'a InstanceDef>,
     /// Generic units a foreign boundary names: kept under their own name.
     pinned: HashSet<&'a str>,
+    /// Constructors belonging to polymorphic pointer-tagged niche sums.
+    poly_niche_ctors: HashSet<&'a str>,
     units: BTreeMap<String, BTreeSet<Vector>>,
     inst_copies: BTreeMap<String, BTreeSet<Vector>>,
     /// Reached dictionaries per class.
@@ -196,7 +198,8 @@ impl<'a> Cx<'a> {
     /// A constructor unit whose field classes depend on its class vector.
     fn ctor_generic(&self, id: &str) -> Option<&'a FnDef> {
         let f = *self.fns.get(id)?;
-        let dependent = f.repr.fields.iter().any(|c| c.is_param());
+        let dependent = f.repr.fields.iter().any(|c| c.is_param())
+            || self.poly_niche_ctors.contains(id);
         (f.ctor.is_some() && f.repr.tparams > 0 && dependent && !self.pinned.contains(id)).then_some(f)
     }
 
@@ -422,6 +425,245 @@ fn inst_name(id: &str, iv: &[Class]) -> String {
     }
 }
 
+fn max_local_id(e: &Core, acc: &mut usize) {
+    match e {
+        Core::Var(l) => *acc = (*acc).max(l.0),
+        Core::Let(l, _, v, b) => {
+            *acc = (*acc).max(l.0);
+            max_local_id(v, acc);
+            max_local_id(b, acc);
+        }
+        Core::LazyInit(l, v) | Core::BoxInit(l, v, _) | Core::RefSet(l, v, _) => {
+            *acc = (*acc).max(l.0);
+            max_local_id(v, acc);
+        }
+        Core::Case { scrut, alts } => {
+            max_local_id(scrut, acc);
+            for a in alts {
+                match &a.pat {
+                    crate::core::CPat::Var(l, _) => *acc = (*acc).max(l.0),
+                    crate::core::CPat::Con { fields, .. } => {
+                        for l in fields {
+                            *acc = (*acc).max(l.0);
+                        }
+                    }
+                    crate::core::CPat::Wild => {}
+                }
+                max_local_id(&a.body, acc);
+            }
+        }
+        Core::App(f, args) => {
+            max_local_id(f, acc);
+            for a in args {
+                max_local_id(a, acc);
+            }
+        }
+        Core::Quote { body: Some(b), .. } => max_local_id(b, acc),
+        _ => {
+            for k in child_slots_imm(e) {
+                max_local_id(k, acc);
+            }
+        }
+    }
+}
+
+/// Lower active polymorphic pointer-tagged niche constructors and `Case` matches
+/// inside `f` after its class vector has been substituted (Tier 1C).
+fn lower_poly_niche_fn(f: &mut FnDef, program: &Program) {
+    if program.poly_niche.is_empty() {
+        return;
+    }
+    let mut next_local = f.params.len();
+    max_local_id(&f.body, &mut next_local);
+    next_local += 1;
+    rewrite_poly_niche(&mut f.body, program, &mut next_local);
+}
+
+fn rewrite_poly_niche(
+    e: &mut Core,
+    program: &Program,
+    next_local: &mut usize,
+) {
+    use crate::core::{CBranch, CPat, CmpOp, LocalId, PolyNicheCtor, PrimOp, WordOp};
+    // Handle `Core::App` before recursing into `head` so a nullary `Ctor`
+    // applied to `[]` is rewritten whole rather than leaving `App(Int(0), [])`.
+    match e {
+        Core::App(head, args) => {
+            for a in args.iter_mut() {
+                rewrite_poly_niche(a, program, next_local);
+            }
+            if let Core::Ctor(g, classes) = &**head {
+                if let Some((dname, cplan)) = program.poly_niche_ctors.get(&g.0) {
+                    if program.poly_niche.get(dname).is_some_and(|p| p.active(classes)) {
+                        match (args.len(), cplan) {
+                            (0, PolyNicheCtor::Nullary { sentinel }) => {
+                                *e = Core::Int(*sentinel);
+                                return;
+                            }
+                            (1, PolyNicheCtor::Ptr { ptr_tag, .. }) => {
+                                let arg = std::mem::replace(&mut args[0], Core::Unit);
+                                *e = if *ptr_tag == 0 {
+                                    arg
+                                } else {
+                                    Core::App(
+                                        Box::new(Core::Prim(PrimOp::WordOp { op: WordOp::TagOr })),
+                                        vec![arg, Core::Int(*ptr_tag)],
+                                    )
+                                };
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            rewrite_poly_niche(head, program, next_local);
+            return;
+        }
+        Core::Ctor(g, classes) => {
+            if let Some((dname, PolyNicheCtor::Nullary { sentinel })) =
+                program.poly_niche_ctors.get(&g.0)
+            {
+                if program.poly_niche.get(dname).is_some_and(|p| p.active(classes)) {
+                    *e = Core::Int(*sentinel);
+                    return;
+                }
+            }
+            return;
+        }
+        Core::Quote { body: Some(b), .. } => {
+            rewrite_poly_niche(b, program, next_local);
+            return;
+        }
+        _ => {
+            for k in child_slots(e) {
+                rewrite_poly_niche(k, program, next_local);
+            }
+        }
+    }
+    if let Core::Case { scrut, alts } = e {
+        let marker = if let Core::App(head, args) = &**scrut {
+            if args.len() == 1 {
+                if let Core::Global(g, classes) = &**head {
+                    g.0.strip_prefix("$poly_niche_scrut$")
+                        .map(|dname| (dname.to_string(), classes.clone()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let Some((dname, classes)) = marker else { return; };
+        let inner = if let Core::App(_, args) = &mut **scrut {
+            std::mem::replace(&mut args[0], Core::Unit)
+        } else {
+            unreachable!()
+        };
+        let active_plan = program
+            .poly_niche
+            .get(&dname)
+            .filter(|p| p.active(&classes));
+        let Some(plan) = active_plan else {
+            *scrut = Box::new(inner);
+            return;
+        };
+        let (scrut_var, wrap_let) = match &inner {
+            Core::Var(l) => (*l, false),
+            _ => {
+                let l = LocalId(*next_local);
+                *next_local += 1;
+                (l, true)
+            }
+        };
+        let mut nullary_arms: Vec<(i64, Core)> = Vec::new();
+        let mut ptr_arms: Vec<(i64, bool, LocalId, Class, Core)> = Vec::new();
+        let mut wild_arm: Option<Core> = None;
+        for alt in std::mem::take(alts) {
+            let body = *alt.body;
+            match alt.pat {
+                CPat::Wild => wild_arm = Some(body),
+                CPat::Var(x, cls) => {
+                    wild_arm = Some(Core::Let(
+                        x,
+                        cls,
+                        Box::new(Core::Var(scrut_var)),
+                        Box::new(body),
+                    ));
+                }
+                CPat::Con { tag, fields, classes } => {
+                    if let Some((_, _, cplan)) = plan.by_tag.iter().find(|(t, _, _)| *t == tag) {
+                        match cplan {
+                            PolyNicheCtor::Nullary { sentinel } => {
+                                nullary_arms.push((*sentinel, body));
+                            }
+                            PolyNicheCtor::Ptr { ptr_tag, check_nonnull } => {
+                                let slot = fields[0];
+                                let cls = classes.first().copied().unwrap_or(Class::Obj);
+                                ptr_arms.push((*ptr_tag, *check_nonnull, slot, cls, body));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let word_cmp = |op: CmpOp, lhs: Core, rhs: i64| -> Core {
+            Core::App(
+                Box::new(Core::Prim(PrimOp::WordCmp { op, unsigned: false })),
+                vec![lhs, Core::Int(rhs)],
+            )
+        };
+        let bind_ptr = |ptr_tag: i64, slot: LocalId, cls: Class, body: Core| -> Core {
+            let rhs = if ptr_tag == 0 {
+                Core::Var(scrut_var)
+            } else {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WordOp::Untag })),
+                    vec![Core::Var(scrut_var), Core::Int(!6i64)],
+                )
+            };
+            Core::Let(slot, cls, Box::new(rhs), Box::new(body))
+        };
+        let mut acc = if let Some(w) = wild_arm {
+            w
+        } else if let Some((ptag, _, slot, cls, body)) = ptr_arms.pop() {
+            bind_ptr(ptag, slot, cls, body)
+        } else if let Some((_, body)) = nullary_arms.pop() {
+            body
+        } else {
+            Core::Fault
+        };
+        while let Some((ptag, check_nonnull, slot, cls, body)) = ptr_arms.pop() {
+            let bound = bind_ptr(ptag, slot, cls, body);
+            let masked = Core::App(
+                Box::new(Core::Prim(PrimOp::WordOp { op: WordOp::TestMask })),
+                vec![Core::Var(scrut_var), Core::Int(7)],
+            );
+            let mut checks = vec![word_cmp(CmpOp::Eq, masked, ptag)];
+            if check_nonnull {
+                checks.push(word_cmp(CmpOp::Ne, Core::Var(scrut_var), 0));
+            }
+            acc = checks.into_iter().rev().fold(bound, |then_e, cond| {
+                Core::If(Box::new(cond), CBranch::new(then_e), CBranch::new(acc.clone()))
+            });
+        }
+        while let Some((sentinel, body)) = nullary_arms.pop() {
+            acc = Core::If(
+                Box::new(word_cmp(CmpOp::Eq, Core::Var(scrut_var), sentinel)),
+                CBranch::new(body),
+                CBranch::new(acc),
+            );
+        }
+        *e = if wrap_let {
+            Core::Let(scrut_var, Class::TObj, Box::new(inner), Box::new(acc))
+        } else {
+            acc
+        };
+    }
+}
+
 /// Collect and emit the reached copies; `report` records them.
 pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
     specialize_with_roots(program, report, &[], None)
@@ -432,6 +674,7 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
         fns: program.fns.iter().map(|f| (f.id.0.as_str(), f)).collect(),
         insts: program.instances.iter().map(|i| (i.id.0.as_str(), i)).collect(),
         pinned: program.foreigns.values().map(|p| p.unit.as_str()).collect(),
+        poly_niche_ctors: program.poly_niche_ctors.keys().map(|s| s.as_str()).collect(),
         units: BTreeMap::new(),
         inst_copies: BTreeMap::new(),
         by_class: BTreeMap::new(),
@@ -494,6 +737,7 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
                 let mut copy = f.clone();
                 copy.id = GlobalId(spec_name(&f.id.0, v));
                 subst_classes(&mut copy.body, v);
+                lower_poly_niche_fn(&mut copy, program);
                 cx.rename(&mut copy.body, &slots);
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
                 copy.repr.result = copy.repr.result.map(|c| c.subst(v));
@@ -506,7 +750,8 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
             }
         } else if cx.ctor_generic(&f.id.0).is_some() {
             // A constructor unit has no body to rename: its copies differ
-            // in their field classes alone.
+            // in their field classes alone (or become 1-word niche functions
+            // when a polymorphic pointer-tagged niche plan activates).
             for v in cx.ctors.get(&f.id.0).unwrap_or(&empty) {
                 let mut copy = f.clone();
                 copy.id = GlobalId(spec_name(&f.id.0, v));
@@ -514,11 +759,34 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
                 copy.repr.result = copy.repr.result.map(|c| c.subst(v));
                 copy.repr.fields = crate::repr::subst_all(&copy.repr.fields, v);
                 copy.repr.tparams = 0;
+                if let Some((dname, cplan)) = program.poly_niche_ctors.get(&f.id.0) {
+                    if program.poly_niche.get(dname).is_some_and(|p| p.active(v)) {
+                        copy.ctor = None;
+                        copy.repr.result = Some(Class::TObj);
+                        copy.repr.fields.clear();
+                        copy.body = match cplan {
+                            crate::core::PolyNicheCtor::Nullary { sentinel } => Core::Int(*sentinel),
+                            crate::core::PolyNicheCtor::Ptr { ptr_tag, .. } => {
+                                if *ptr_tag == 0 {
+                                    Core::Var(crate::core::LocalId(0))
+                                } else {
+                                    Core::App(
+                                        Box::new(Core::Prim(crate::core::PrimOp::WordOp {
+                                            op: crate::core::WordOp::TagOr,
+                                        })),
+                                        vec![Core::Var(crate::core::LocalId(0)), Core::Int(*ptr_tag)],
+                                    )
+                                }
+                            }
+                        };
+                    }
+                }
                 out.fns.push(copy);
                 report.versions.push(spec_name(&f.id.0, v));
             }
         } else {
             let mut kept = f.clone();
+            lower_poly_niche_fn(&mut kept, program);
             cx.rename(&mut kept.body, &slots);
             out.fns.push(kept);
         }

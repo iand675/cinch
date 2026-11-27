@@ -602,3 +602,208 @@ fn auto_niche_default_without_attribute() {
         "2000-iteration loop over unannotated auto-niched sums should not allocate per iteration, got {blocks} blocks"
     );
 }
+
+#[test]
+fn tier1_pointer_tagged_multi_ptr_and_mixed_json_sums() {
+    let source = r#"module Main where
+  -- 2-way pointer-tagged Obj sum (`Ok` = tag 0, `Err` = tag 2), 1 word TObj.
+  data StrResult where
+    Err :: String -> StrResult
+    Ok :: Bytes -> StrResult
+
+  -- Nested Option around pointer-tagged sum (`NoRes` = 0, `HasRes` = inner).
+  data OptStrResult where
+    NoRes :: OptStrResult
+    HasRes :: StrResult -> OptStrResult
+
+  -- 6-variant mixed sum: 3 pointer arms (`JStr`=0, `JArr`=2, `JObj`=4) + 2 SmallRaw odd arms + nullary `0`!
+  data MiniJson where
+    JNull :: MiniJson
+    JBool :: Bool -> MiniJson
+    JCode :: I32 -> MiniJson
+    JStr :: String -> MiniJson
+    JArr :: List String -> MiniJson
+    JObj :: List (String, String) -> MiniJson
+
+  -- All-SmallRaw shifted-tag sum (`I32` + `Bool` + nullary -> 1 word Raw).
+  data SmallEither where
+    SEmpty :: SmallEither
+    SCode :: I32 -> SmallEither
+    SFlag :: Bool -> SmallEither
+
+  score-res :: OptStrResult -> I64
+  score-res o = case o of
+    NoRes -> 1
+    HasRes (Ok b) -> 2
+    HasRes (Err s) -> 3
+
+  score-json :: MiniJson -> I64
+  score-json j = case j of
+    JNull -> 10
+    JBool b -> if b then 20 else 21
+    JCode c -> if c == wrapping-sub-i32 0 42 then 30 else 31
+    JStr _ -> 40
+    JArr _ -> 50
+    JObj _ -> 60
+
+  score-small :: SmallEither -> I64
+  score-small x = case x of
+    SEmpty -> 1
+    SCode c -> if c == wrapping-sub-i32 0 7 then 2 else 99
+    SFlag b -> if b then 3 else 4
+
+  loop-ptrs :: I64 -> String -> Bytes -> List String -> List (String, String) -> I64 -> I64
+  loop-ptrs i s b xs ps acc =
+    if i <= 0 then acc
+    else
+      let r = wrapping-add-i64 (score-res (HasRes (Ok b))) (wrapping-add-i64 (score-res (HasRes (Err s))) (score-res NoRes)) in
+      let j1 = wrapping-add-i64 (score-json JNull) (wrapping-add-i64 (score-json (JBool True)) (score-json (JCode (wrapping-sub-i32 0 42)))) in
+      let j2 = wrapping-add-i64 (score-json (JStr s)) (wrapping-add-i64 (score-json (JArr xs)) (score-json (JObj ps))) in
+      let sm = wrapping-add-i64 (score-small SEmpty) (wrapping-add-i64 (score-small (SCode (wrapping-sub-i32 0 7))) (score-small (SFlag True))) in
+      let sum = wrapping-add-i64 r (wrapping-add-i64 (wrapping-add-i64 j1 j2) sm) in
+      loop-ptrs (wrapping-sub-i64 i 1) s b xs ps (wrapping-add-i64 acc sum)
+
+  main :: Int
+  main =
+    let s = "hello" in
+    let b = string-to-bytes "world" in
+    let xs = ["a", "b"] in
+    let ps = [("k", "v")] in
+    let total = loop-ptrs 2000 s b xs ps 0 in
+    -- Per iteration: (2+3+1) + (10+20+30+40+50+60) + (1+2+3) = 6 + 210 + 6 = 222.
+    if total == 444000 then 42 else 1
+"#;
+    let (blocks, _) = run_checked_with_stats("tier1_pointer_tagged_json", source, 42);
+    assert!(
+        blocks < 100,
+        "2000-iteration loop over 1-word pointer-tagged StrResult/MiniJson/SmallEither must not allocate wrappers, got {blocks} blocks"
+    );
+}
+
+#[test]
+fn tier3_nan_sentinel_f64_and_f32_sums() {
+    let source = r#"module Main where
+  data MaybeF64 where
+    NoF64 :: MaybeF64
+    HasF64 :: F64 -> MaybeF64
+
+  data OptOptF64 where
+    OuterNoF64 :: OptOptF64
+    OuterHasF64 :: MaybeF64 -> OptOptF64
+
+  data MaybeF32 where
+    NoF32 :: MaybeF32
+    HasF32 :: F32 -> MaybeF32
+
+  eval-f64 :: OptOptF64 -> I64
+  eval-f64 o = case o of
+    OuterNoF64 -> 1
+    OuterHasF64 NoF64 -> 2
+    OuterHasF64 (HasF64 x) -> if feq-f64 x 3.5 then 3 else if feq-f64 x 0.0 then 4 else if is-na-nf64 x then 5 else 99
+
+  eval-f32 :: MaybeF32 -> I64
+  eval-f32 o = case o of
+    NoF32 -> 10
+    HasF32 x -> if feq-f32 x 1.5 then 20 else 99
+
+  loop-f64 :: I64 -> F64 -> I64 -> I64
+  loop-f64 i nan-v acc =
+    if i <= 0 then acc
+    else
+      let a = eval-f64 OuterNoF64 in
+      let b = eval-f64 (OuterHasF64 NoF64) in
+      let c = eval-f64 (OuterHasF64 (HasF64 3.5)) in
+      let d = eval-f64 (OuterHasF64 (HasF64 (sub-f64 0.0 0.0))) in
+      let n = eval-f64 (OuterHasF64 (HasF64 nan-v)) in
+      let e = eval-f32 (HasF32 1.5) in
+      let f = eval-f32 NoF32 in
+      let step = wrapping-add-i64 (wrapping-add-i64 (wrapping-add-i64 a b) n) (wrapping-add-i64 (wrapping-add-i64 c d) (wrapping-add-i64 e f)) in
+      loop-f64 (wrapping-sub-i64 i 1) nan-v (wrapping-add-i64 acc step)
+
+  main :: Int
+  main =
+    let nan-v = div-f64 0.0 0.0 in
+    -- Per iteration: 1 + 2 + 3 + 4 + 5 + 20 + 10 = 45.
+    if loop-f64 2000 nan-v 0 == 90000 then 42 else 1
+"#;
+    let (blocks, _) = run_checked_with_stats("tier3_nan_f64", source, 42);
+    assert!(
+        blocks < 100,
+        "2000-iteration loop over NaN-boxed F64/F32 sums must not allocate, got {blocks} blocks"
+    );
+}
+
+#[test]
+fn tier1_polymorphic_outcome_and_maybe_sums() {
+    let source = r#"module Main where
+  -- Polymorphic Result-like and Option-like user sums:
+  -- fuse to 1-word pointer-tagged TObj when payload params specialize to Obj,
+  -- and fall back cleanly to boxed Obj when instantiated with Raw (e.g. I64).
+  data Outcome e a where
+    Fail :: e -> Outcome e a
+    Good :: a -> Outcome e a
+
+  data Maybe a where
+    Nothing :: Maybe a
+    Just :: a -> Maybe a
+
+  data Lookup a where
+    Missing :: Lookup a
+    Denied :: Lookup a
+    Found :: a -> Lookup a
+
+  map-good :: forall e a b. (a -> b) -> Outcome e a -> Outcome e b
+  map-good f r = case r of
+    Fail e -> Fail e
+    Good x -> Good (f x)
+
+  unwrap-maybe :: forall a. a -> Maybe a -> a
+  unwrap-maybe d m = case m of
+    Nothing -> d
+    Just x -> x
+
+  score-lookup :: forall a. (a -> I64) -> Lookup a -> I64
+  score-lookup f l = case l of
+    Missing -> 1
+    Denied -> 2
+    Found x -> f x
+
+  tag-outcome :: forall e a. Outcome e a -> I64
+  tag-outcome r = case r of
+    Fail _ -> 10
+    Good _ -> 20
+
+  loop-poly :: I64 -> String -> Bytes -> I64 -> I64
+  loop-poly i s b acc =
+    if i <= 0 then acc
+    else
+      let o1 = map-good (\x -> x) (Good b) in
+      let o2 = map-good (\x -> x) (Fail s) in
+      let m1 = unwrap-maybe s (Just s) in
+      let m2 = unwrap-maybe s Nothing in
+      let l1 = score-lookup (\_ -> 3) Missing in
+      let l2 = score-lookup (\_ -> 3) Denied in
+      let l3 = score-lookup (\_ -> 3) (Found b) in
+      let t = wrapping-add-i64 (tag-outcome o1) (tag-outcome o2) in
+      let ls = wrapping-add-i64 l1 (wrapping-add-i64 l2 l3) in
+      let ok-m = if m1 == m2 then 1 else 0 in
+      loop-poly (wrapping-sub-i64 i 1) s b (wrapping-add-i64 acc (wrapping-add-i64 t (wrapping-add-i64 ls ok-m)))
+
+  main :: Int
+  main =
+    let s = "err" in
+    let b = string-to-bytes "ok" in
+    let total = loop-poly 2000 s b 0 in
+    -- Also test boxed fallback (Raw payload) AND cross-representation conversion (Raw -> Obj)!
+    let raw-to-obj = map-good (\_ -> b) (Good (42 :: I64)) in
+    let raw-fail = map-good (\_ -> b) (Fail s) in
+    let nested = case Just (Just s) of Nothing -> 0; Just Nothing -> 1; Just (Just _) -> 2 in
+    -- Per iteration: (20+10) + (1+2+3) + 1 = 37 -> 2000 * 37 = 74000.
+    if total == 74000 && tag-outcome raw-to-obj == 20 && tag-outcome raw-fail == 10 && nested == 2 then 42 else 1
+"#;
+    let (blocks, _) = run_checked_with_stats("tier1_poly_sums", source, 42);
+    assert!(
+        blocks < 100,
+        "2000-iteration loop over polymorphic Outcome/Maybe/Lookup @Obj must not allocate wrappers, got {blocks} blocks"
+    );
+}

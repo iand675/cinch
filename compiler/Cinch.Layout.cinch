@@ -44,7 +44,7 @@ module Cinch.Layout where
   abi-requests site home types layouts tail = case layouts of
     JArr row more -> let rest = abi-requests site home types more tail in
       (case (field "repr" row, field "type" row) of
-        (JStr repr, JStr name) | (repr == "unboxed") || repr == "transparent" || repr == "niche" -> (case named-row name types of
+        (JStr repr, JStr name) | (repr == "unboxed") || repr == "transparent" || repr == "niche" || repr == "poly-niche" -> (case named-row name types of
           Some ty -> (case field "identity" ty of
             JStr identity | (identity == home <> "." <> name) ->
               (Request site (interface-global identity) repr (field-labels (field "fields" ty)) (Some row)) : rest
@@ -156,7 +156,9 @@ module Cinch.Layout where
     NicheUnsigned :: Int -> Int -> List Int -> NicheDomain
     NicheOddImm :: List Int -> NicheDomain
     NicheNonNullObj :: List Int -> NicheDomain
+    NicheTaggedObj :: List Int -> Bool -> List Int -> Bool -> NicheDomain
     NicheNonZeroTObj :: List Int -> NicheDomain
+    NicheF64Nan :: List Int -> NicheDomain
 
   int-member :: Int -> List Int -> Bool
   int-member x xs = case xs of
@@ -291,6 +293,8 @@ module Cinch.Layout where
     else if name == "U64" then Some (NicheUnsigned 0 18446744073709551615 [])
     else if name == "Usize" then Some (NicheUnsigned 0 usize-max [])
     else if name == "Char" then Some (NicheUnsigned 0 1114111 [])
+    else if name == "F32" then Some (NicheUnsigned 0 4294967295 [])
+    else if name == "F64" then Some (NicheF64Nan [])
     else if name == "Nat" || name == "Int" then Some (NicheNonZeroTObj [])
     else if name == "Bytes" || name == "String" then Some (NicheNonNullObj [])
     else None
@@ -322,8 +326,8 @@ module Cinch.Layout where
           _ -> if foreign-pointer ty then Err "repr(niche) cannot derive a niche from an opaque type"
             else case head-name ty of
               Some name ->
-                if member name ["I128", "U128", "F32", "F64", "Sym"] then
-                  Err "repr(niche) payload must be a single-word integer, refinement, pointer, or boxed value"
+                if member name ["I128", "U128", "Sym"] then
+                  Err "repr(niche) payload must be a single-word integer, float, refinement, pointer, or boxed value"
                 else (case scalar-niche-domain word-bits name of
                   Some dom -> Ok dom
                   None -> if member name seen then Err "repr(niche) has a recursive layout"
@@ -332,6 +336,8 @@ module Cinch.Layout where
                         (case niche-layout word-bits layouts autos datas shapes seen nested of
                           Ok (w, ctors, dom) -> Ok dom
                           Err msg -> Err msg)
+                      (Some (Request at wrapper repr labels row), Some nested) | repr == "poly-niche" ->
+                        Err "repr(niche) payload is a polymorphic niche sum"
                       (Some (Request at wrapper repr labels row), Some nested) | repr == "unboxed" ->
                         (case represented-field nested shapes of
                           Some inner -> extract-niche-domain word-bits layouts autos datas shapes seen inner
@@ -339,7 +345,9 @@ module Cinch.Layout where
                       (None, Some nested) | member name autos ->
                         (case niche-layout word-bits layouts autos datas shapes seen nested of
                           Ok (w, ctors, dom) -> Ok dom
-                          Err msg -> Ok (NicheNonNullObj []))
+                          Err msg -> (case poly-niche-layout word-bits layouts autos datas shapes nested of
+                            Some _ -> Err "repr(niche) payload is a polymorphic niche sum"
+                            None -> Ok (NicheNonNullObj [])))
                       other -> Ok (NicheNonNullObj [])))
               None -> Err "repr(niche) requires a concrete single-word payload type"
 
@@ -453,6 +461,159 @@ module Cinch.Layout where
     [] -> []
     (cn, lo, hi, ex) : rest -> (NichePayload cn True unsigned lo hi ex) : (make-multi-payloads unsigned rest)
 
+  pow2-int :: Nat -> Int
+  pow2-int n = if n == 0 then 1 else 2 * pow2-int (n - 1)
+
+  bits-for-span-go :: Int -> Nat -> Int -> Nat
+  bits-for-span-go span k bound =
+    if bound > span || k >= 60 then k
+    else bits-for-span-go span (k + 1) (bound * 2)
+
+  bits-for-span :: Int -> Nat
+  bits-for-span span = if span <= 0 then 0 else bits-for-span-go span 0 1
+
+  bits-for-count :: Nat -> Nat
+  bits-for-count count = if count <= 1 then 0 else bits-for-span (nat-to-int (count - 1))
+
+  niche-small-raw :: NicheDomain -> Option (Nat, Bool, Int)
+  niche-small-raw dom = case dom of
+    NicheUnsigned lo hi excl | lo <= hi ->
+      let span = hi - lo in
+      if span < pow2-int 60 then
+        let bits = bits-for-span span in
+        if lo == 0 then Some (bits, False, 0)
+        else if lo <= 9223372036854775807 then Some (bits, False, lo)
+        else None
+      else None
+    NicheSigned lo hi excl | lo <= hi ->
+      let half = pow2-int 59 in
+      if lo >= (0 - half) && hi < half then
+        let need-pos = if hi > 0 then bits-for-span hi else 0 in
+        let need-neg = if lo < 0 then bits-for-span ((0 - lo) - 1) else 0 in
+        let bits = (if need-pos > need-neg then need-pos else need-neg) + 1 in
+        if bits <= 60 then Some (bits, True, 0) else None
+      else
+        let span = hi - lo in
+        if span < pow2-int 60 && lo >= (0 - 9223372036854775808) && lo <= 9223372036854775807 then
+          Some (bits-for-span span, False, lo)
+        else None
+    other -> None
+
+  alloc-tagged-sentinels :: Nat -> Bool -> Int -> List Int -> Bool -> List Int -> Result String (List Int, Bool, List Int)
+  alloc-tagged-sentinels need used-null next-odd used-odd odd-full acc =
+    if need == 0 then Ok (acc, used-null, used-odd)
+    else if not used-null then alloc-tagged-sentinels (need - 1) True next-odd used-odd odd-full (acc <> [0])
+    else if odd-full then Err "repr(niche) cannot find enough unused niche values for nullary constructors"
+    else if int-member next-odd used-odd then alloc-tagged-sentinels need used-null (next-odd + 2) used-odd odd-full acc
+    else alloc-tagged-sentinels (need - 1) used-null (next-odd + 2) (next-odd : used-odd) odd-full (acc <> [next-odd])
+
+  alloc-nan-sentinels :: Nat -> Int -> List Int -> List Int -> (List Int, List Int)
+  alloc-nan-sentinels need cand used acc =
+    if need == 0 then (acc, used)
+    else if int-member cand used then alloc-nan-sentinels need (cand + 1) used acc
+    else alloc-nan-sentinels (need - 1) (cand + 1) (cand : used) (acc <> [cand])
+
+  extract-all-domains :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> List (String, UType) -> Result String (List (String, UType, NicheDomain))
+  extract-all-domains word-bits layouts autos datas shapes seen pays = case pays of
+    [] -> Ok []
+    (cname, pty) : rest -> case extract-niche-domain word-bits layouts autos datas shapes seen pty of
+      Err msg -> Err msg
+      Ok dom -> (case extract-all-domains word-bits layouts autos datas shapes seen rest of
+        Err msg -> Err msg
+        Ok more -> Ok ((cname, pty, dom) : more))
+
+  all-signed-arms :: List (String, UType, NicheDomain) -> Option (List (String, Int, Int, List Int))
+  all-signed-arms arms = case arms of
+    [] -> Some []
+    (cn, pty, NicheSigned lo hi ex) : rest -> (case all-signed-arms rest of
+      Some more -> Some ((cn, lo, hi, ex) : more)
+      None -> None)
+    other -> None
+
+  all-unsigned-arms :: List (String, UType, NicheDomain) -> Option (List (String, Int, Int, List Int))
+  all-unsigned-arms arms = case arms of
+    [] -> Some []
+    (cn, pty, NicheUnsigned lo hi ex) : rest -> (case all-unsigned-arms rest of
+      Some more -> Some ((cn, lo, hi, ex) : more)
+      None -> None)
+    other -> None
+
+  partition-mixed-arms :: List (String, UType, NicheDomain) -> Option (List String, List (String, Nat, Bool, Int))
+  partition-mixed-arms arms = case arms of
+    [] -> Some ([], [])
+    (cn, pty, dom) : rest -> (case partition-mixed-arms rest of
+      None -> None
+      Some (ptrs, smalls) -> (case dom of
+        NicheNonNullObj [] -> Some (cn : ptrs, smalls)
+        other -> (case niche-small-raw dom of
+          Some (bits, signed, bias) -> Some (ptrs, (cn, bits, signed, bias) : smalls)
+          None -> None)))
+
+  ctor-short-name-chars :: List Char -> List Char -> List Char
+  ctor-short-name-chars chars acc = case chars of
+    [] -> acc
+    ch : rest -> if char-code ch == 46 then ctor-short-name-chars rest [] else ctor-short-name-chars rest (acc <> [ch])
+
+  is-hot-ctor-name :: String -> Bool
+  is-hot-ctor-name name =
+    let short = pack (ctor-short-name-chars (unpack name) []) in
+    short == "Ok" || short == "Right" || short == "Some" || short == "Found" || short == "Good" || short == "Just"
+
+  hoist-hot-ptr :: List String -> List String -> Option (String, List String)
+  hoist-hot-ptr before rest = case rest of
+    [] -> None
+    cn : more -> if is-hot-ctor-name cn then Some (cn, before <> more) else hoist-hot-ptr (before <> [cn]) more
+
+  order-ptr-arms :: List String -> List String
+  order-ptr-arms ptrs = case ptrs of
+    [] -> []
+    first : rest -> if is-hot-ctor-name first then ptrs else (case hoist-hot-ptr [first] rest of
+      Some (hot, others) -> hot : others
+      None -> ptrs)
+
+  make-ptr-ctors :: Bool -> Int -> List String -> (List NicheCtor, List Int)
+  make-ptr-ctors used-null next-tag names = case names of
+    [] -> ([], [])
+    cn : rest -> case make-ptr-ctors used-null (next-tag + 2) rest of
+      (ctors, tags) -> ((NichePtr cn next-tag (next-tag == 0 && used-null)) : ctors, next-tag : tags)
+
+  all-fit-shift :: Nat -> List (String, Nat, Bool, Int) -> Bool
+  all-fit-shift shift arms = case arms of
+    [] -> True
+    (cn, bits, signed, bias) : rest -> bits + shift <= 64 && all-fit-shift shift rest
+
+  max-small-bits :: Nat -> List (String, Nat, Bool, Int) -> Nat
+  max-small-bits cur arms = case arms of
+    [] -> cur
+    (cn, bits, signed, bias) : rest -> max-small-bits (if bits > cur then bits else cur) rest
+
+  any-small-signed :: List (String, Nat, Bool, Int) -> Bool
+  any-small-signed arms = case arms of
+    [] -> False
+    (cn, bits, signed, bias) : rest -> signed || any-small-signed rest
+
+  make-odd-shifted-ctors :: Int -> Nat -> Int -> List (String, Nat, Bool, Int) -> List NicheCtor
+  make-odd-shifted-ctors mask shift idx arms = case arms of
+    [] -> []
+    (cn, bits, signed, bias) : rest ->
+      (NicheShifted cn mask (idx * 2 + 1) shift signed bias) : (make-odd-shifted-ctors mask shift (idx + 1) rest)
+
+  make-odd-rem-nulls :: Int -> List String -> List NicheCtor
+  make-odd-rem-nulls top-idx names = case names of
+    [] -> []
+    cn : rest -> (NicheNullary cn (top-idx * 2 + 1)) : (make-odd-rem-nulls (top-idx - 1) rest)
+
+  make-raw-shifted-ctors :: Int -> Nat -> Int -> List (String, Nat, Bool, Int) -> List NicheCtor
+  make-raw-shifted-ctors mask shift idx arms = case arms of
+    [] -> []
+    (cn, bits, signed, bias) : rest ->
+      (NicheShifted cn mask idx shift signed bias) : (make-raw-shifted-ctors mask shift (idx + 1) rest)
+
+  make-raw-nulls :: Int -> List String -> List NicheCtor
+  make-raw-nulls idx names = case names of
+    [] -> []
+    cn : rest -> (NicheNullary cn idx) : (make-raw-nulls (idx + 1) rest)
+
   niche-layout :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List String -> CoreData -> Result String (Nat, List NicheCtor, NicheDomain)
   niche-layout word-bits layouts autos datas shapes seen d =
     let owner = core-data-name d in
@@ -489,35 +650,85 @@ module Cinch.Layout where
                     let (sents, used1) = alloc-obj-sentinels n 1 used [] in
                     let carrier = if any-nonzero used1 then (2 :: Nat) else 1 in
                     Ok (carrier, pair-nullaries nulls sents <> [NichePayload pname False False 0 0 []], NicheNonNullObj used1)
+                  NicheTaggedObj ptags used-null used-odd odd-full ->
+                    (case alloc-tagged-sentinels n used-null 1 used-odd odd-full [] of
+                      Err msg -> Err msg
+                      Ok (sents, used-null1, used-odd1) ->
+                        Ok (2, pair-nullaries nulls sents <> [NichePayload pname False False 0 0 []], NicheTaggedObj ptags used-null1 used-odd1 odd-full))
                   NicheNonZeroTObj used ->
                     if n == 0 then Ok (2, [NichePayload pname False False 0 0 []], NicheNonZeroTObj used)
                     else if n == 1 && not (int-member 0 used) then
                       Ok (2, pair-nullaries nulls [0] <> [NichePayload pname False False 0 0 []], NicheNonZeroTObj (0 : used))
-                    else Err "repr(niche) cannot find enough unused niche values for nullary constructors")
+                    else Err "repr(niche) cannot find enough unused niche values for nullary constructors"
+                  NicheF64Nan used ->
+                    let (sents, used1) = alloc-nan-sentinels n 9221120237041090561 used [] in
+                    let pctor = (case used of [] -> NicheNanF64 pname; _ -> NichePayload pname False False 0 0 []) in
+                    Ok (0, pair-nullaries nulls sents <> [pctor], NicheF64Nan used1))
           (p1name, p1ty) : more-pays ->
-            (case extract-niche-domain word-bits layouts autos datas shapes (owner : seen) p1ty of
+            (case extract-all-domains word-bits layouts autos datas shapes (owner : seen) pays of
               Err msg -> Err msg
-              Ok first-dom ->
-                let check-multi = (\unsigned min-b max-b ->
-                      case extract-multi-ranges unsigned word-bits layouts autos datas shapes (owner : seen) pays of
-                        Err msg -> Err msg
-                        Ok arms ->
-                          if not (check-all-disjoint arms) then
-                            Err "repr(niche) payload constructors must have provably disjoint value domains"
-                          else
-                            let ivs = sort-intervals arms in
-                            let min-lo = (case ivs of (l, h) : _ -> l; [] -> 0) in
-                            let max-hi = last-hi min-lo ivs in
-                            let (rem, gap-sents) = alloc-from-gaps (niche-list-len nulls) ivs [] in
-                            (case alloc-range-sentinels rem min-b max-b min-lo max-hi [] gap-sents of
-                              Err msg -> Err msg
-                              Ok (sents, lo1, hi1, _) ->
-                                let occ = if unsigned then NicheUnsigned lo1 hi1 [] else NicheSigned lo1 hi1 [] in
-                                Ok (0, pair-nullaries nulls sents <> make-multi-payloads unsigned arms, occ))) in
-                case first-dom of
-                  NicheSigned _ _ _ -> check-multi False (0 - 9223372036854775808) 9223372036854775807
-                  NicheUnsigned _ _ _ -> check-multi True 0 18446744073709551615
-                  other -> Err "repr(niche) with multiple payload constructors requires provably disjoint refined integer domains of the same signedness")
+              Ok arm-doms ->
+                let try-disjoint = (\unsigned min-b max-b arms ->
+                      if not (check-all-disjoint arms) then None
+                      else
+                        let ivs = sort-intervals arms in
+                        let min-lo = (case ivs of (l, h) : _ -> l; [] -> 0) in
+                        let max-hi = last-hi min-lo ivs in
+                        let (rem, gap-sents) = alloc-from-gaps (niche-list-len nulls) ivs [] in
+                        (case alloc-range-sentinels rem min-b max-b min-lo max-hi [] gap-sents of
+                          Err _ -> None
+                          Ok (sents, lo1, hi1, _) ->
+                            let occ = if unsigned then NicheUnsigned lo1 hi1 [] else NicheSigned lo1 hi1 [] in
+                            Some (0, pair-nullaries nulls sents <> make-multi-payloads unsigned arms, occ))) in
+                let disjoint-res = (case all-signed-arms arm-doms of
+                      Some sarms -> try-disjoint False (0 - 9223372036854775808) 9223372036854775807 sarms
+                      None -> (case all-unsigned-arms arm-doms of
+                        Some uarms -> try-disjoint True 0 18446744073709551615 uarms
+                        None -> None)) in
+                case disjoint-res of
+                  Some ok-plan -> Ok ok-plan
+                  None -> (case partition-mixed-arms arm-doms of
+                    None -> Err "repr(niche) payload constructors must have provably disjoint value domains or fit in tagged single-word layout"
+                    Some (ptrs, smalls) ->
+                      let n-ptrs = niche-list-len ptrs in
+                      if n-ptrs >= 1 && n-ptrs <= 3 then
+                        let ordered-ptrs = order-ptr-arms ptrs in
+                        (case smalls of
+                          [] ->
+                            let (sents, used1) = alloc-obj-sentinels (niche-list-len nulls) 1 [] [] in
+                            let used-null = int-member 0 used1 in
+                            let (ptr-ctors, ptags) = make-ptr-ctors used-null 0 ordered-ptrs in
+                            Ok (2, pair-nullaries nulls sents <> ptr-ctors, NicheTaggedObj ptags used-null used1 False)
+                          _ ->
+                            let (used-null, null0-ctors, rem-nulls) = (case nulls of
+                                  [] -> (False, [], [])
+                                  n0 : more-n -> (True, [NicheNullary n0 0], more-n)) in
+                            let n-odd = niche-list-len smalls + niche-list-len rem-nulls in
+                            let subtag-bits = bits-for-count n-odd in
+                            let shift = 1 + subtag-bits in
+                            if all-fit-shift shift smalls then
+                              let mask = pow2-int shift - 1 in
+                              let small-ctors = make-odd-shifted-ctors mask shift 0 smalls in
+                              let rem-null-ctors = (if n-odd == 0 then [] else make-odd-rem-nulls (nat-to-int (n-odd - 1)) rem-nulls) in
+                              let (ptr-ctors, ptags) = make-ptr-ctors used-null 0 ordered-ptrs in
+                              Ok (2, null0-ctors <> rem-null-ctors <> small-ctors <> ptr-ctors, NicheTaggedObj ptags used-null [] True)
+                            else Err "repr(niche) payload constructors must have provably disjoint value domains or fit in tagged single-word layout")
+                      else if n-ptrs == 0 && niche-list-len smalls >= 1 then
+                        let total = niche-list-len smalls + niche-list-len nulls in
+                        let tb0 = bits-for-count total in
+                        let tag-bits = if tb0 == 0 then 1 else tb0 in
+                        let max-b = max-small-bits 0 smalls in
+                        if max-b + tag-bits <= 64 then
+                          let mask = pow2-int tag-bits - 1 in
+                          let small-ctors = make-raw-shifted-ctors mask tag-bits 0 smalls in
+                          let null-ctors = make-raw-nulls (nat-to-int (niche-list-len smalls)) nulls in
+                          let total-bits = max-b + tag-bits in
+                          let occ = (if not (any-small-signed smalls) && total-bits < 64
+                                then NicheUnsigned 0 (pow2-int total-bits - 1) []
+                                else NicheSigned (0 - 9223372036854775808) 9223372036854775807 []) in
+                          Ok (0, null-ctors <> small-ctors, occ)
+                        else Err "repr(niche) payload constructors must have provably disjoint value domains or fit in tagged single-word layout"
+                      else Err "repr(niche) payload constructors must have provably disjoint value domains or fit in tagged single-word layout"))
 
   is-builtin-data-name :: String -> Bool
   is-builtin-data-name name = case unpack name of
@@ -609,6 +820,66 @@ module Cinch.Layout where
       ([], []) -> (datas, st)
       other -> attach-layouts word-bits layouts autos datas shapes datas st
 
+  nat-member :: Nat -> List Nat -> Bool
+  nat-member x xs = case xs of [] -> False; first : rest -> x == first || nat-member x rest
+
+  nat-insert-unique :: Nat -> List Nat -> List Nat
+  nat-insert-unique x xs = if nat-member x xs then xs else x : xs
+
+  result-bound-ids :: UType -> List Nat -> Option (List Nat)
+  result-bound-ids ty acc = case ty of
+    UCon name kind -> Some acc
+    UApp f (UBound id n KType) -> result-bound-ids f (id : acc)
+    other -> None
+
+  bound-index-in :: Nat -> Nat -> List Nat -> Option Nat
+  bound-index-in wanted idx ids = case ids of
+    [] -> None
+    first : rest -> if first == wanted then Some idx else bound-index-in wanted (idx + 1) rest
+
+  is-core-option-or-result :: String -> Bool
+  is-core-option-or-result name =
+    name == "i.Data$2eCore$2eOption" || name == "i.Data$2eCore$2eResult"
+      || name == "m.Data.Core.Option" || name == "m.Data.Core.Result"
+
+  classify-poly-ctors :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> String -> List CoreConstructor -> Option (List String, List String, List Nat, Bool)
+  classify-poly-ctors word-bits layouts autos datas shapes owner ctors = case ctors of
+    [] -> Some ([], [], [], False)
+    c : rest -> case classify-poly-ctors word-bits layouts autos datas shapes owner rest of
+      None -> None
+      Some (nulls, ptrs, req, has-param) ->
+        let cname = c.constructor-name in
+        case core-constructor-fields c of
+          [] -> Some (cname : nulls, ptrs, req, has-param)
+          [pty] -> (case pty of
+            UBound id n KType -> (case result-bound-ids (ctor-result-ty (scheme-body (c.constructor-scheme))) [] of
+              Some rids -> (case bound-index-in id 0 rids of
+                Some idx -> Some (nulls, cname : ptrs, nat-insert-unique idx req, True)
+                None -> None)
+              None -> None)
+            other -> (case extract-niche-domain word-bits layouts autos datas shapes [owner] pty of
+              Ok (NicheNonNullObj []) -> Some (nulls, cname : ptrs, req, has-param)
+              other -> None))
+          other -> None
+
+  poly-niche-layout :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> CoreData -> Option (List Nat, List NicheCtor)
+  poly-niche-layout word-bits layouts autos datas shapes d =
+    let owner = core-data-name d in
+    let ps = core-data-params d in
+    let cs = core-data-constructors d in
+    if is-core-option-or-result owner || niche-list-len ps == 0 || niche-list-len cs < 2 then None
+    else case classify-poly-ctors word-bits layouts autos datas shapes owner cs of
+      None -> None
+      Some (nulls, ptrs, req, has-param) ->
+        let n-ptrs = niche-list-len ptrs in
+        if not has-param || n-ptrs == 0 || n-ptrs > 3 then None
+        else
+          let ordered-ptrs = order-ptr-arms ptrs in
+          let (sents, used1) = alloc-obj-sentinels (niche-list-len nulls) 1 [] [] in
+          let used-null = int-member 0 used1 in
+          let (ptr-ctors, ptags) = make-ptr-ctors used-null 0 ordered-ptrs in
+          Some (req, pair-nullaries nulls sents <> ptr-ctors)
+
   attach-layouts :: Nat -> List Request -> List String -> List CoreData -> List UsageShape -> List CoreData -> Store -> (List CoreData, Store)
   attach-layouts word-bits layouts autos all shapes todo st = case todo of
     [] -> ([], st)
@@ -618,10 +889,16 @@ module Cinch.Layout where
           if member (core-data-name d) autos then
             (case niche-layout word-bits layouts autos all shapes [] d of
               Ok (word, ctors, dom) -> ((with-data-layout (NicheData word ctors) d) : more, checked)
-              Err msg -> (d : more, checked))
+              Err msg -> (case poly-niche-layout word-bits layouts autos all shapes d of
+                Some (req, ctors) -> ((with-data-layout (PolyNicheData req ctors) d) : more, checked)
+                None -> (d : more, checked)))
           else (d : more, checked)
         Some (Request site owner repr labels published) ->
-          (if repr == "niche" then
+          (if repr == "poly-niche" then
+            (case poly-niche-layout word-bits layouts autos all shapes d of
+              Some (req, ctors) -> ((with-data-layout (PolyNicheData req ctors) d) : more, checked)
+              None -> (d : more, checked))
+          else if repr == "niche" then
             (case niche-layout word-bits layouts autos all shapes [] d of
               Err message -> (d : more, add-error site message checked)
               Ok (word, ctors, dom) -> (case published of

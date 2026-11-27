@@ -150,6 +150,44 @@ pub enum BitOp {
     Xor,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum WordOp {
+    /// `(w & mask) -> Raw` — borrows `arg0` without RC traffic (tag extraction).
+    TestMask,
+    /// `(w | tag)` — owns `arg0`, returns tagged word (`TObj` pointer tag or bit-pack OR).
+    TagOr,
+    /// `(w & mask)` — owns `arg0`, returns untagged pointer (`Obj`) or masked word.
+    Untag,
+    /// `(w << shift)` — raw word left shift.
+    Shl,
+    /// `(w >> shift)` — raw word arithmetic right shift (signed).
+    Shr,
+    /// `(w >>> shift)` — raw word logical right shift (unsigned).
+    Ushr,
+    /// `(w + k)` — raw word wrapping add.
+    Add,
+    /// `(w - k)` — raw word wrapping sub.
+    Sub,
+    /// Canonicalize any IEEE-754 `F64` NaN to quiet canonical NaN `0x7FF8_0000_0000_0000`.
+    NanCanon,
+}
+
+impl WordOp {
+    pub fn name(self) -> &'static str {
+        match self {
+            WordOp::TestMask => "TestMask",
+            WordOp::TagOr => "TagOr",
+            WordOp::Untag => "Untag",
+            WordOp::Shl => "Shl",
+            WordOp::Shr => "Shr",
+            WordOp::Ushr => "Ushr",
+            WordOp::Add => "Add",
+            WordOp::Sub => "Sub",
+            WordOp::NanCanon => "NanCanon",
+        }
+    }
+}
+
 impl BitOp {
     fn name(self) -> &'static str {
         match self {
@@ -1188,6 +1226,9 @@ pub enum PrimOp {
     /// Borrows its first operand without reference-count traffic so it works
     /// uniformly on `Raw`, `Obj`, and `TObj` carriers.
     WordCmp { op: CmpOp, unsigned: bool },
+    /// Raw 64-bit word operations for pointer-tagged sums, refinement bit-packing,
+    /// and NaN-sentinel boxing (Tiers 1–3).
+    WordOp { op: WordOp },
     /// `charToU32 :: Char -> U32` (section 6), total.
     CharToU32,
     /// `u32ToChar :: U32 -> Option Char` (sections 6 and 7): rejects
@@ -1508,6 +1549,7 @@ impl PrimOp {
                 op.name(),
                 if unsigned { "U" } else { "S" }
             ),
+            WordOp { op } => format!("wordOp{}", op.name()),
             Conv { from, to, mode } => conv_name(from, to, mode),
         };
         format!("cinch.prim.{n}")
@@ -1524,7 +1566,7 @@ impl PrimOp {
         match self {
             Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. }
             | Div { .. } | Rem { .. } | Shift { .. } | Rotate { .. } | Bit { .. }
-            | BitNot { .. } | BitScan { .. } | Cmp { .. } | WordCmp { .. } => true,
+            | BitNot { .. } | BitScan { .. } | Cmp { .. } | WordCmp { .. } | WordOp { .. } => true,
             Conv { from, to, .. } => !from.is_float() && !to.is_float(),
             _ => false,
         }
@@ -1545,6 +1587,7 @@ impl PrimOp {
             | BitScan { .. }
             | Cmp { .. }
             | WordCmp { .. }
+            | WordOp { .. }
             | Conv { mode: ConvMode::Total | ConvMode::Wrapping | ConvMode::Saturating, .. } => true,
             _ => false,
         }
@@ -1593,6 +1636,7 @@ impl PrimOp {
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. }
+            | WordOp { op: crate::core::WordOp::NanCanon }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
             // The participant hint takes one count; callback forms take two
@@ -1799,6 +1843,8 @@ impl PrimOp {
             }
             Cmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
             WordCmp { .. } => (vec![prim(Scalar::I64), prim(Scalar::I64)], Ty::Bool),
+            WordOp { op: crate::core::WordOp::NanCanon } => (vec![prim(Scalar::I64)], prim(Scalar::I64)),
+            WordOp { .. } => (vec![prim(Scalar::I64), prim(Scalar::I64)], prim(Scalar::I64)),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
@@ -3543,6 +3589,33 @@ pub struct InstanceDef {
     pub own: Vec<usize>,
 }
 
+/// Per-constructor plan inside a polymorphic pointer-tagged niche sum (Tier 1C).
+#[derive(Clone, Debug)]
+pub enum PolyNicheCtor {
+    Nullary { sentinel: i64 },
+    Ptr { ptr_tag: i64, check_nonnull: bool },
+}
+
+/// Polymorphic pointer-tagged niche plan for a generic user sum `D p0..pk`.
+/// Activates whenever every type parameter bit in `req_mask` specializes to `Class::Obj`.
+#[derive(Clone, Debug)]
+pub struct PolyNichePlan {
+    pub req_mask: u16,
+    pub by_tag: Vec<(usize, String, PolyNicheCtor)>,
+    pub nullary_sentinels: Vec<i64>,
+}
+
+impl PolyNichePlan {
+    pub fn active(&self, classes: &[Class]) -> bool {
+        for i in 0..16usize {
+            if (self.req_mask & (1u16 << i)) != 0 && classes.get(i).copied() != Some(Class::Obj) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Program {
     /// Original checked built-in constructor identities, nominal types, tags
@@ -3627,6 +3700,10 @@ pub struct Program {
     /// generation emits branchless `Release` and unconditional `Reuse` for
     /// them (when not in `--rc-debug` mode and not receiving a frame block).
     pub unique_releases: std::collections::BTreeMap<String, std::collections::BTreeSet<usize>>,
+    /// Polymorphic pointer-tagged niche plans keyed by data nominal identity.
+    pub poly_niche: std::collections::HashMap<String, PolyNichePlan>,
+    /// Constructor unit name -> `(data_identity, PolyNicheCtor)`.
+    pub poly_niche_ctors: std::collections::HashMap<String, (String, PolyNicheCtor)>,
 }
 
 /// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
@@ -3663,6 +3740,8 @@ impl Program {
             lent_entries: Default::default(),
             private_modules: Vec::new(),
             unique_releases: Default::default(),
+            poly_niche: Default::default(),
+            poly_niche_ctors: Default::default(),
         }
     }
 
@@ -3703,6 +3782,8 @@ impl Program {
             lent_entries: self.lent_entries.clone(),
             private_modules: self.private_modules.clone(),
             unique_releases: self.unique_releases.clone(),
+            poly_niche: self.poly_niche.clone(),
+            poly_niche_ctors: self.poly_niche_ctors.clone(),
         }
     }
 }
@@ -6400,6 +6481,22 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
                 }
             };
             Some(Core::Bool(b))
+        }
+        PrimOp::WordOp { op } => {
+            let v = match op {
+                WordOp::TestMask | WordOp::Untag => words[0] & words[1],
+                WordOp::TagOr => words[0] | words[1],
+                WordOp::Shl => words[0].wrapping_shl((words[1] as u32) & 63),
+                WordOp::Shr => words[0].wrapping_shr((words[1] as u32) & 63),
+                WordOp::Ushr => ((words[0] as u64).wrapping_shr((words[1] as u32) & 63)) as i64,
+                WordOp::Add => words[0].wrapping_add(words[1]),
+                WordOp::Sub => words[0].wrapping_sub(words[1]),
+                WordOp::NanCanon => {
+                    let f = f64::from_bits(words[0] as u64);
+                    if f.is_nan() { 0x7FF8_0000_0000_0000u64 as i64 } else { words[0] }
+                }
+            };
+            Some(Core::Int(v))
         }
         PrimOp::NotBool => Some(Core::Bool(words[0] == 0)),
         PrimOp::AndBool => Some(Core::Bool(words[0] != 0 && words[1] != 0)),
@@ -9367,6 +9464,8 @@ mod tests {
             lent_entries: Default::default(),
             private_modules: Vec::new(),
             unique_releases: Default::default(),
+            poly_niche: Default::default(),
+            poly_niche_ctors: Default::default(),
             inline: Default::default(),
         };
         for reverse in [false, true] {
@@ -9426,6 +9525,8 @@ mod tests {
             lent_entries: Default::default(),
             private_modules: Vec::new(),
             unique_releases: Default::default(),
+            poly_niche: Default::default(),
+            poly_niche_ctors: Default::default(),
             inline: Default::default(),
         };
         share_repeated_subterms(&mut program);
