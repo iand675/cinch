@@ -1745,3 +1745,84 @@ module Data.Machine where
         Some v -> Ok v
         None -> Err (OutOfRange "I64")
       _ -> Err (TypeMismatch "integer")
+
+  -- Kernel-verified algebraic rewrite rules (`justify verify`, LRAT-checked).
+  rewrite wrapping-add-u32-zero forall (x :: U32). where
+    match (wrapping-add-u32 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u32-self forall (x :: U32). where
+    match (wrapping-add-u32 x x)
+    replace (wrapping-shl-u32 x 1)
+    justify verify
+
+  rewrite wrapping-sub-u32-self forall (x :: U32). where
+    match (wrapping-sub-u32 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u32-self forall (x :: U32). where
+    match (bit-xor-u32 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u32-cancel forall (x :: U32) (y :: U32). where
+    match (bit-xor-u32 (bit-xor-u32 x y) y)
+    replace x
+    justify verify
+
+  rewrite bit-not-u32-involution forall (x :: U32). where
+    match (bit-not-u32 (bit-not-u32 x))
+    replace x
+    justify verify
+
+  rewrite bit-and-u32-zero forall (x :: U32). where
+    match (bit-and-u32 x 0)
+    replace 0
+    justify verify
+
+  rewrite bit-or-u32-zero forall (x :: U32). where
+    match (bit-or-u32 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u64-zero forall (x :: U64). where
+    match (wrapping-add-u64 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u64-self forall (x :: U64). where
+    match (wrapping-add-u64 x x)
+    replace (wrapping-shl-u64 x 1)
+    justify verify
+
+  rewrite wrapping-sub-u64-self forall (x :: U64). where
+    match (wrapping-sub-u64 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u64-self forall (x :: U64). where
+    match (bit-xor-u64 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u64-cancel forall (x :: U64) (y :: U64). where
+    match (bit-xor-u64 (bit-xor-u64 x y) y)
+    replace x
+    justify verify
+
+  rewrite bit-not-u64-involution forall (x :: U64). where
+    match (bit-not-u64 (bit-not-u64 x))
+    replace x
+    justify verify
+
+  rewrite bit-and-u64-zero forall (x :: U64). where
+    match (bit-and-u64 x 0)
+    replace 0
+    justify verify
+
+  rewrite bit-or-u64-zero forall (x :: U64). where
+    match (bit-or-u64 x 0)
+    replace x
+    justify verify

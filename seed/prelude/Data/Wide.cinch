@@ -1014,3 +1014,39 @@ module Data.Wide where
     count-ones x = count-ones-u128 x
     leading-zeros x = leading-zeros-u128 x
     trailing-zeros x = trailing-zeros-u128 x
+
+  -- Kernel-verified algebraic rewrite rules (`justify verify`, LRAT-checked).
+  rewrite wrapping-add-u128-zero forall (x :: U128). where
+    match (wrapping-add-u128 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u128-self forall (x :: U128). where
+    match (wrapping-add-u128 x x)
+    replace (wrapping-shl-u128 x 1)
+    justify verify
+
+  rewrite wrapping-sub-u128-self forall (x :: U128). where
+    match (wrapping-sub-u128 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u128-self forall (x :: U128). where
+    match (bit-xor-u128 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u128-cancel forall (x :: U128) (y :: U128). where
+    match (bit-xor-u128 (bit-xor-u128 x y) y)
+    replace x
+    justify verify
+
+  rewrite bit-not-u128-involution forall (x :: U128). where
+    match (bit-not-u128 (bit-not-u128 x))
+    replace x
+    justify verify
+
+  rewrite bit-or-u128-zero forall (x :: U128). where
+    match (bit-or-u128 x 0)
+    replace x
+    justify verify

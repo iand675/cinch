@@ -1001,9 +1001,19 @@ pub fn cli_verify_codegen(args: &[String]) -> i32 {
     let mut path_str: Option<&str> = None;
     let mut target_triple: Option<&str> = None;
     let mut word_bits_override: Option<u32> = None;
-    for a in args {
+    let mut i = 0usize;
+    while i < args.len() {
+        let a = &args[i];
         if let Some(t) = a.strip_prefix("--target=") {
             target_triple = Some(t);
+        } else if a == "--target" {
+            if let Some(next) = args.get(i + 1) {
+                target_triple = Some(next.as_str());
+                i += 1;
+            } else {
+                eprintln!("cinch verify-codegen: --target requires a value");
+                return 2;
+            }
         } else if let Some(ws) = a.strip_prefix("--word-size=") {
             match ws {
                 "32" => word_bits_override = Some(32),
@@ -1013,9 +1023,25 @@ pub fn cli_verify_codegen(args: &[String]) -> i32 {
                     return 2;
                 }
             }
+        } else if a == "--word-size" {
+            match args.get(i + 1).map(|s| s.as_str()) {
+                Some("32") => {
+                    word_bits_override = Some(32);
+                    i += 1;
+                }
+                Some("64") => {
+                    word_bits_override = Some(64);
+                    i += 1;
+                }
+                other => {
+                    eprintln!("cinch verify-codegen: unsupported --word-size=`{}` (expected 32 or 64)", other.unwrap_or(""));
+                    return 2;
+                }
+            }
         } else if !a.starts_with('-') && path_str.is_none() {
             path_str = Some(a.as_str());
         }
+        i += 1;
     }
     let Some(path_str) = path_str else {
         eprintln!("usage: cinch verify-codegen <file.cinch> [--target=<triple>|--word-size=32|64]");

@@ -27,6 +27,11 @@ module Prim.Wide where
       ret i128 %r
     } justify verify
 
+  rewrite bit-and-u128-zero forall (x :: U128). where
+    match (bit-and-u128 x 0)
+    replace 0
+    justify verify
+
   -- | Bitwise select across 128 bits: (mask & when-one) | (~mask & when-zero).
   prim simd-bitselect :: U128 -> U128 -> U128 -> U128 where
     llvm {

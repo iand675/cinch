@@ -25,13 +25,14 @@ module Cinch.PrimVerify where
 
   import Algebra.Semigroup
   import Cinch.Ast (Expr, EVar, ECon, ELitInt, EApp, EBin, ENeg, EIf, ELet, ELetScope, ELam, EAnn, EBinding, EBindingsEnd, EArg, EArgsEnd, EUnit, Pat, PVar, exprs-of)
+  import Cinch.Core (CoreDefinition, CoreClause, CorePattern, CPVar, CPWild, CoreTerm, CUse, CLocal, CInt, CUnit, CApply, CApplyEff, CLet, CIf, CProved, CRefine, CForget, CCast, CRequire, CDischarge, CPolyElim, core-type)
   import Cinch.Document
   import Cinch.Interface (fnv-source-hash, sha256-hex, u64-decimal)
   import Cinch.Index (IndexTerm, IInteger, IBound, IRigid, IAdd, ISubtract, IMultiply)
   import Cinch.Nominal (decode-identity)
   import Cinch.Type (UType, UCon, UApp, UFun, UFunEff, UPi, URefine, URequire, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UIndex, UIndexMath, UIndexForget, UIndexPromote, refinement-view)
   import Data.Bool
-  import Data.Char (is-ascii-digit)
+  import Data.Char (is-ascii-digit, char-code, char-from-code)
   import Data.Int
   import Data.List (reverse)
   import Data.Machine
@@ -53,6 +54,7 @@ module Cinch.PrimVerify where
   export SemGraph, SemType, SBool, SBv, SFp, SVec, obligation-to-smtlib2
   export verify-prim-body, verify-prim-body-cached, verify-prim-cross-target
   export verify-alethe, verify-rewrite-rule, verify-rewrite-rule-for, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv
+  export TvReport, MkTvReport, tv-report-fn, tv-report-stage, tv-report-status, tv-report-details, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved
   export is-verify-justification-word, worst-trust-tier, receipts-tcb-union
 
   -- ==========================================================================
@@ -1714,8 +1716,8 @@ module Cinch.PrimVerify where
   strip-module-prefix s =
     let raw = strip-dot-loop (unpack s) Nil in
     let decoded = case decode-identity (unpack raw) of
-          Some (d, rest) -> d
-          None -> raw in
+          Some (d, Nil) -> d
+          other -> raw in
     strip-dot-loop (unpack decoded) Nil
 
   strip-dot-loop :: List Char -> List Char -> String
@@ -1885,8 +1887,18 @@ module Cinch.PrimVerify where
               else if string-starts-with "bit-and-" fn then let (r, g4) = g-bv-bin "and" w va vb-cast g3 in Ok (r, SBv w, g4)
               else if string-starts-with "bit-or-" fn then let (r, g4) = g-bv-bin "or" w va vb-cast g3 in Ok (r, SBv w, g4)
               else if string-starts-with "bit-xor-" fn then let (r, g4) = g-bv-bin "xor" w va vb-cast g3 in Ok (r, SBv w, g4)
-              else if string-starts-with "wrapping-shl-" fn || string-starts-with "shl-" fn then let (r, g4) = g-bv-bin "shl" w va vb-cast g3 in Ok (r, SBv w, g4)
-              else if string-starts-with "wrapping-shr-" fn || string-starts-with "shr-" fn then let (r, g4) = g-bv-bin (if sg then "ashr" else "lshr") w va vb-cast g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "wrapping-shl-" fn || string-starts-with "shl-" fn then
+                let (mconst, g3a) = g-bv w (nat-u64 (saturating-sub w 1)) g3 in
+                let (masked, g3b) = g-bv-bin "and" w vb-cast mconst g3a in
+                let (r, g4) = g-bv-bin "shl" w va masked g3b in Ok (r, SBv w, g4)
+              else if string-starts-with "wrapping-shr-" fn || string-starts-with "shr-" fn then
+                let (mconst, g3a) = g-bv w (nat-u64 (saturating-sub w 1)) g3 in
+                let (masked, g3b) = g-bv-bin "and" w vb-cast mconst g3a in
+                let (r, g4) = g-bv-bin (if sg then "ashr" else "lshr") w va masked g3b in Ok (r, SBv w, g4)
+              else if string-starts-with "rotate-left-" fn then
+                let (r, g4) = g-intern (NBvTri "fshl" w va va vb-cast) g3 in Ok (r, SBv w, g4)
+              else if string-starts-with "rotate-right-" fn then
+                let (r, g4) = g-intern (NBvTri "fshr" w va va vb-cast) g3 in Ok (r, SBv w, g4)
               else if string-starts-with "eq-" fn then let (r, g4) = g-bv-cmp "eq" w va vb-cast g3 in Ok (r, SBool, g4)
               else if string-starts-with "ne-" fn then let (r, g4) = g-bv-cmp "ne" w va vb-cast g3 in Ok (r, SBool, g4)
               else if string-starts-with "lt-" fn then let (r, g4) = g-bv-cmp (if sg then "slt" else "ult") w va vb-cast g3 in Ok (r, SBool, g4)
@@ -3654,3 +3666,655 @@ module Cinch.PrimVerify where
                       other -> g-bool False g6 in
                 let (goal, g8) = g-and wd eq-v g7 in
                 run-obligations-cached True "strict" "verify" Nil False g8 [(string-concat "tv:" fn-name, goal)] Nil
+
+  -- ==========================================================================
+  -- 14. Core -> LLVM Translation Validation (`cinch verify-codegen`)
+  -- ==========================================================================
+
+  data TvReport where
+    MkTvReport :: String -> String -> String -> String -> TvReport
+
+  tv-report-fn :: TvReport -> String
+  tv-report-fn r = case r of MkTvReport f s st d -> f
+
+  tv-report-stage :: TvReport -> String
+  tv-report-stage r = case r of MkTvReport f s st d -> s
+
+  tv-report-status :: TvReport -> String
+  tv-report-status r = case r of MkTvReport f s st d -> st
+
+  tv-report-details :: TvReport -> String
+  tv-report-details r = case r of MkTvReport f s st d -> d
+
+  tv-reports-disproved :: List TvReport -> Nat
+  tv-reports-disproved rs = case rs of
+    Nil -> 0
+    Cons r rest ->
+      let n = tv-reports-disproved rest in
+      if same (tv-report-status r) "disproved" then n + 1 else n
+
+  tv-reports-verified :: List TvReport -> Nat
+  tv-reports-verified rs = case rs of
+    Nil -> 0
+    Cons r rest ->
+      let n = tv-reports-verified rest in
+      if same (tv-report-status r) "verified" then n + 1 else n
+
+  tv-reports-count :: List TvReport -> Nat
+  tv-reports-count rs = case rs of
+    Nil -> 0
+    Cons r rest -> 1 + tv-reports-count rest
+
+  tv-upper-status :: String -> String
+  tv-upper-status s =
+    if same s "verified" then "VERIFIED"
+    else if same s "disproved" then "DISPROVED"
+    else if same s "rejected" then "REJECTED"
+    else if same s "open" then "OPEN"
+    else "SKIPPED"
+
+  render-tv-lines :: List TvReport -> String
+  render-tv-lines rs = case rs of
+    Nil -> ""
+    Cons r rest ->
+      string-concat-all
+        [ "  [", tv-upper-status (tv-report-status r), "] ", tv-report-fn r
+        , " (", tv-report-stage r, ") — ", tv-report-details r, "\n"
+        , render-tv-lines rest
+        ]
+
+  render-tv-reports :: List TvReport -> String
+  render-tv-reports rs =
+    string-concat-all
+      [ render-tv-lines rs
+      , "\nverify-codegen summary: functions=", nat-to-string (tv-reports-count rs)
+      , " verified=", nat-to-string (tv-reports-verified rs)
+      , " disproved=", nat-to-string (tv-reports-disproved rs), "\n"
+      ]
+
+  tv-hex-nibble :: Char -> Option Nat
+  tv-hex-nibble c =
+    let k = char-code c in
+    if k >= 48 && k <= 57 then Some (saturating-sub k 48)
+    else if k >= 65 && k <= 70 then Some (saturating-sub k 55)
+    else if k >= 97 && k <= 102 then Some (saturating-sub k 87)
+    else None
+
+  tv-unescape-chars :: List Char -> List Char
+  tv-unescape-chars cs = case cs of
+    Nil -> Nil
+    Cons c (Cons h1 (Cons h2 rest)) | char-code c == 92 ->
+      case (tv-hex-nibble h1, tv-hex-nibble h2) of
+        (Some n1, Some n2) ->
+          (case char-from-code (n1 * 16 + n2) of
+            Some ch -> Cons ch (tv-unescape-chars rest)
+            None -> Cons c (tv-unescape-chars (Cons h1 (Cons h2 rest))))
+        other -> Cons c (tv-unescape-chars (Cons h1 (Cons h2 rest)))
+    Cons c rest -> Cons c (tv-unescape-chars rest)
+
+  tv-unescape-llvm-name :: String -> String
+  tv-unescape-llvm-name s = pack (tv-unescape-chars (unpack s))
+
+  tv-word-ty-for :: Nat -> UType -> Option (SemType, Bool)
+  tv-word-ty-for word-bits ty = case refinement-view ty of
+    URefine id nm base pred -> tv-word-ty-for word-bits base
+    UCon name k ->
+      let short = strip-module-prefix name in
+      if same short "Bool" then Some (SBv 64, False)
+      else if same short "I8" || same short "I16" || same short "I32" || same short "I64" || same short "Isize" then Some (SBv 64, True)
+      else if same short "U8" || same short "U16" || same short "U32" || same short "U64" || same short "Usize" then Some (SBv 64, False)
+      else if same short "I128" then Some (SBv 128, True)
+      else if same short "U128" then Some (SBv 128, False)
+      else None
+    other -> None
+
+  tv-coerce-bv :: Nat -> SemType -> SemType -> SemGraph -> Result String (Nat, SemGraph)
+  tv-coerce-bv v cur want g = case (cur, want) of
+    (SBool, SBool) -> Ok (v, g)
+    (SBv w1, SBv w2) | w1 == w2 -> Ok (v, g)
+    (SBool, SBv w) ->
+      let (one, g1) = g-bv w 1 g in
+      let (zero, g2) = g-bv w 0 g1 in
+      let (r, g3) = g-ite v one zero g2 in
+      Ok (r, g3)
+    (SBv w, SBool) ->
+      let (zero, g1) = g-bv w 0 g in
+      let (eq0, g2) = g-bv-cmp "eq" w v zero g1 in
+      let (r, g3) = g-not eq0 g2 in
+      Ok (r, g3)
+    (SBv fw, SBv tw) | fw < tw ->
+      let (r, g1) = g-bv-cast "zext" fw tw v g in Ok (r, g1)
+    (SBv fw, SBv tw) | fw > tw ->
+      let (r, g1) = g-bv-cast "trunc" fw tw v g in Ok (r, g1)
+    other -> Err "cannot coerce semantic value in Core TV"
+
+  tv-lookup-local :: Nat -> List (Nat, Nat, SemType) -> Option (Nat, SemType)
+  tv-lookup-local lid env = case env of
+    Nil -> None
+    Cons (k, v, ty) rest -> if k == lid then Some (v, ty) else tv-lookup-local lid rest
+
+  tv-unroll-core-app :: CoreTerm -> List CoreTerm -> (CoreTerm, List CoreTerm)
+  tv-unroll-core-app tm acc = case tm of
+    CApply sp ty f a -> tv-unroll-core-app f (Cons a acc)
+    CApplyEff sp ty eff f a -> tv-unroll-core-app f (Cons a acc)
+    CProved sp ty pf inner -> tv-unroll-core-app inner acc
+    CRefine sp ty pf inner -> tv-unroll-core-app inner acc
+    CForget sp ty inner -> tv-unroll-core-app inner acc
+    CCast sp ty inner -> tv-unroll-core-app inner acc
+    CRequire sp ty inner -> tv-unroll-core-app inner acc
+    CDischarge sp ty pfs flag inner -> tv-unroll-core-app inner acc
+    CPolyElim sp ty inner tys -> tv-unroll-core-app inner acc
+    other -> (tm, acc)
+
+  tv-scalar-suffix :: Nat -> String -> Option (Nat, Bool)
+  tv-scalar-suffix word-bits suf =
+    if same suf "i8" then Some (8, True)
+    else if same suf "i16" then Some (16, True)
+    else if same suf "i32" then Some (32, True)
+    else if same suf "i64" then Some (64, True)
+    else if same suf "i128" then Some (128, True)
+    else if same suf "u8" then Some (8, False)
+    else if same suf "u16" then Some (16, False)
+    else if same suf "u32" then Some (32, False)
+    else if same suf "u64" then Some (64, False)
+    else if same suf "u128" then Some (128, False)
+    else if same suf "usize" then Some (word-bits, False)
+    else if same suf "isize" then Some (word-bits, True)
+    else None
+
+  tv-strip-prefix :: String -> String -> Option String
+  tv-strip-prefix pfx s =
+    if string-starts-with pfx s then Some (string-slice s (string-length pfx) (string-length s))
+    else None
+
+  tv-op-info :: Nat -> String -> Option (String, Nat, Bool)
+  tv-op-info word-bits base =
+    case tv-strip-prefix "wrapping-add-" base of
+      Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("add", w, sg); None -> None)
+      None -> case tv-strip-prefix "wrapping-sub-" base of
+        Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("sub", w, sg); None -> None)
+        None -> case tv-strip-prefix "wrapping-mul-" base of
+          Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("mul", w, sg); None -> None)
+          None -> case tv-strip-prefix "bit-and-" base of
+            Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("and", w, sg); None -> None)
+            None -> case tv-strip-prefix "bit-or-" base of
+              Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("or", w, sg); None -> None)
+              None -> case tv-strip-prefix "bit-xor-" base of
+                Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("xor", w, sg); None -> None)
+                None -> case tv-strip-prefix "wrapping-shl-" base of
+                  Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("shl", w, sg); None -> None)
+                  None -> case tv-strip-prefix "wrapping-shr-" base of
+                    Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("shr", w, sg); None -> None)
+                    None -> case tv-strip-prefix "rotate-left-" base of
+                      Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("rotl", w, sg); None -> None)
+                      None -> case tv-strip-prefix "rotate-right-" base of
+                        Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("rotr", w, sg); None -> None)
+                        None -> case tv-strip-prefix "eq-" base of
+                          Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("eq", w, sg); None -> None)
+                          None -> case tv-strip-prefix "ne-" base of
+                            Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("ne", w, sg); None -> None)
+                            None -> case tv-strip-prefix "lt-" base of
+                              Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("lt", w, sg); None -> None)
+                              None -> case tv-strip-prefix "le-" base of
+                                Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("le", w, sg); None -> None)
+                                None -> case tv-strip-prefix "gt-" base of
+                                  Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("gt", w, sg); None -> None)
+                                  None -> case tv-strip-prefix "ge-" base of
+                                    Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("ge", w, sg); None -> None)
+                                    None -> case tv-strip-prefix "bit-not-" base of
+                                      Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("not", w, sg); None -> None)
+                                      None -> case tv-strip-prefix "wrapping-neg-" base of
+                                        Some suf -> (case tv-scalar-suffix word-bits suf of Some (w, sg) -> Some ("neg", w, sg); None -> None)
+                                        None -> None
+
+  tv-lower-scalar-call :: Nat -> String -> List (Nat, SemType) -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  tv-lower-scalar-call word-bits base args g =
+    case (tv-op-info word-bits base, args) of
+      (Some ("not", w, sg), Cons (va, ta) Nil) ->
+        case tv-coerce-bv va ta (SBv w) g of
+          Err e -> Err e
+          Ok (a, g1) ->
+            let (ones, g2) = g-bv-mask w g1 in
+            let (r, g3) = g-bv-bin "xor" w a ones g2 in
+            let out-ty = if w == 128 then SBv 128 else SBv 64 in
+            (case tv-coerce-bv r (SBv w) out-ty g3 of Err e -> Err e; Ok (rv, g4) -> Ok (rv, out-ty, g4))
+      (Some ("neg", w, sg), Cons (va, ta) Nil) ->
+        case tv-coerce-bv va ta (SBv w) g of
+          Err e -> Err e
+          Ok (a, g1) ->
+            let (z, g2) = g-bv w 0 g1 in
+            let (r, g3) = g-bv-bin "sub" w z a g2 in
+            let out-ty = if w == 128 then SBv 128 else SBv 64 in
+            (case tv-coerce-bv r (SBv w) out-ty g3 of Err e -> Err e; Ok (rv, g4) -> Ok (rv, out-ty, g4))
+      (Some (kind, w, sg), Cons (va, ta) (Cons (vb, tb) Nil)) ->
+        case tv-coerce-bv va ta (SBv w) g of
+          Err e -> Err e
+          Ok (a, g1) ->
+            case tv-coerce-bv vb tb (SBv w) g1 of
+              Err e -> Err e
+              Ok (b, g2) ->
+                if same kind "add" || same kind "sub" || same kind "mul" || same kind "and" || same kind "or" || same kind "xor" then
+                  let (r, g3) = g-bv-bin kind w a b g2 in
+                  let out-ty = if w == 128 then SBv 128 else SBv 64 in
+                  (case tv-coerce-bv r (SBv w) out-ty g3 of Err e -> Err e; Ok (rv, g4) -> Ok (rv, out-ty, g4))
+                else if same kind "shl" || same kind "shr" then
+                  let (mconst, g3) = g-bv w (nat-u64 (saturating-sub w 1)) g2 in
+                  let (masked, g4) = g-bv-bin "and" w b mconst g3 in
+                  let sop = if same kind "shl" then "shl" else if sg then "ashr" else "lshr" in
+                  let (r, g5) = g-bv-bin sop w a masked g4 in
+                  let out-ty = if w == 128 then SBv 128 else SBv 64 in
+                  (case tv-coerce-bv r (SBv w) out-ty g5 of Err e -> Err e; Ok (rv, g6) -> Ok (rv, out-ty, g6))
+                else if same kind "rotl" || same kind "rotr" then
+                  let rop = if same kind "rotl" then "fshl" else "fshr" in
+                  let (r, g3) = g-intern (NBvTri rop w a a b) g2 in
+                  let out-ty = if w == 128 then SBv 128 else SBv 64 in
+                  (case tv-coerce-bv r (SBv w) out-ty g3 of Err e -> Err e; Ok (rv, g4) -> Ok (rv, out-ty, g4))
+                else
+                  let cmp-op =
+                        if same kind "eq" then "eq"
+                        else if same kind "ne" then "ne"
+                        else if same kind "lt" then (if sg then "slt" else "ult")
+                        else if same kind "le" then (if sg then "sle" else "ule")
+                        else if same kind "gt" then (if sg then "sgt" else "ugt")
+                        else if sg then "sge" else "uge" in
+                  let (c, g3) = g-bv-cmp cmp-op w a b g2 in
+                  (case tv-coerce-bv c SBool (SBv 64) g3 of Err e -> Err e; Ok (rv, g4) -> Ok (rv, SBv 64, g4))
+      other -> Err (string-concat "callee is not a modeled pure scalar op in Core TV: " base)
+
+  tv-lower-core-args :: Nat -> List (Nat, Nat, SemType) -> List CoreTerm -> SemGraph -> Result String (List (Nat, SemType), SemGraph)
+  tv-lower-core-args word-bits env args g = case args of
+    Nil -> Ok (Nil, g)
+    Cons a rest ->
+      case tv-lower-core-term word-bits env a g of
+        Err e -> Err e
+        Ok (av, aty, g1) ->
+          case tv-lower-core-args word-bits env rest g1 of
+            Err e -> Err e
+            Ok (more, g2) -> Ok (Cons (av, aty) more, g2)
+
+  tv-lower-core-term :: Nat -> List (Nat, Nat, SemType) -> CoreTerm -> SemGraph -> Result String (Nat, SemType, SemGraph)
+  tv-lower-core-term word-bits env tm g = case tm of
+    CProved sp ty pf inner -> tv-lower-core-term word-bits env inner g
+    CRefine sp ty pf inner -> tv-lower-core-term word-bits env inner g
+    CForget sp ty inner -> tv-lower-core-term word-bits env inner g
+    CCast sp ty inner -> tv-lower-core-term word-bits env inner g
+    CRequire sp ty inner -> tv-lower-core-term word-bits env inner g
+    CDischarge sp ty pfs flag inner -> tv-lower-core-term word-bits env inner g
+    CPolyElim sp ty inner tys -> tv-lower-core-term word-bits env inner g
+    CUnit sp ty ->
+      let (v, g1) = g-bv 64 0 g in Ok (v, SBv 64, g1)
+    CInt sp ty digits ->
+      let out-w = case tv-word-ty-for word-bits ty of Some (SBv 128, _) -> (128 :: Nat); other -> (64 :: Nat) in
+      case parse-ir-u128 digits of
+        Some (lo, hi) -> let (v, g1) = g-bv-pair out-w lo hi g in Ok (v, SBv out-w, g1)
+        None -> Err (string-concat "invalid integer literal in Core TV: " digits)
+    CLocal sp ty lid nm actuals ->
+      case tv-lookup-local lid env of
+        Some (v, vty) -> Ok (v, vty, g)
+        None -> Err (string-concat "unbound local in Core TV: " nm)
+    CUse sp ty nm role actuals ->
+      let short = strip-module-prefix nm in
+      if same short "True" then let (v, g1) = g-bv 64 1 g in Ok (v, SBv 64, g1)
+      else if same short "False" then let (v, g1) = g-bv 64 0 g in Ok (v, SBv 64, g1)
+      else Err (string-concat "unsupported bare global in Core TV: " nm)
+    CLet sp ty lid nm sch rhs body ->
+      case tv-lower-core-term word-bits env rhs g of
+        Err e -> Err e
+        Ok (rv, rty, g1) -> tv-lower-core-term word-bits (Cons (lid, rv, rty) env) body g1
+    CIf sp ty cond th el ->
+      case tv-lower-core-term word-bits env cond g of
+        Err e -> Err e
+        Ok (cv, cty, g1) ->
+          case tv-coerce-bv cv cty SBool g1 of
+            Err e -> Err e
+            Ok (cb, g2) ->
+              case tv-lower-core-term word-bits env th g2 of
+                Err e -> Err e
+                Ok (tv, tty, g3) ->
+                  case tv-lower-core-term word-bits env el g3 of
+                    Err e -> Err e
+                    Ok (ev, ety, g4) ->
+                      case tv-coerce-bv ev ety tty g4 of
+                        Err e -> Err e
+                        Ok (evc, g5) ->
+                          let (res, g6) = g-ite cb tv evc g5 in Ok (res, tty, g6)
+    CApply sp ty f a ->
+      case tv-unroll-core-app tm Nil of
+        (CUse hsp hty fn-name role actuals, args) ->
+          case tv-lower-core-args word-bits env args g of
+            Err e -> Err e
+            Ok (arg-vals, g1) -> tv-lower-scalar-call word-bits (strip-module-prefix fn-name) arg-vals g1
+        other -> Err "unsupported non-direct application in Core TV"
+    CApplyEff sp ty eff f a ->
+      case tv-unroll-core-app tm Nil of
+        (CUse hsp hty fn-name role actuals, args) ->
+          case tv-lower-core-args word-bits env args g of
+            Err e -> Err e
+            Ok (arg-vals, g1) -> tv-lower-scalar-call word-bits (strip-module-prefix fn-name) arg-vals g1
+        other -> Err "unsupported effectful application in Core TV"
+    other -> Err "unsupported Core term form in scalar TV"
+
+  tv-init-core-params :: Nat -> List CorePattern -> Nat -> SemGraph -> Result String (List (Nat, Nat, SemType), List (String, SemVal), SemGraph)
+  tv-init-core-params word-bits pats idx g = case pats of
+    Nil -> Ok (Nil, Nil, g)
+    Cons pat rest -> case pat of
+      CPVar sp ty lid nm ->
+        case tv-word-ty-for word-bits ty of
+          None -> Err (string-concat "non-scalar parameter in Core TV: " nm)
+          Some (sty, sg) ->
+            let (pnode, g1) = g-var idx sty nm g in
+            let (pfalse, g2) = g-bool False g1 in
+            let reg = string-concat "%" (nat-to-string idx) in
+            (case tv-init-core-params word-bits rest (idx + 1) g2 of
+              Err e -> Err e
+              Ok (cenv, lbinds, g3) ->
+                Ok (Cons (lid, pnode, sty) cenv, Cons (reg, MkSemVal pnode pfalse sty) lbinds, g3))
+      CPWild sp ty ->
+        case tv-word-ty-for word-bits ty of
+          None -> Err "non-scalar wildcard parameter in Core TV"
+          Some (sty, sg) ->
+            let (pnode, g1) = g-var idx sty "_" g in
+            let (pfalse, g2) = g-bool False g1 in
+            let reg = string-concat "%" (nat-to-string idx) in
+            (case tv-init-core-params word-bits rest (idx + 1) g2 of
+              Err e -> Err e
+              Ok (cenv, lbinds, g3) ->
+                Ok (cenv, Cons (reg, MkSemVal pnode pfalse sty) lbinds, g3))
+      other -> Err "non-variable parameter pattern in Core TV"
+
+  tv-is-reg-char :: Char -> Bool
+  tv-is-reg-char c =
+    let k = char-code c in
+    (k >= 97 && k <= 122) || (k >= 65 && k <= 90) || (k >= 48 && k <= 57) || k == 95 || k == 46
+
+  tv-replace-reg :: String -> String -> String -> String
+  tv-replace-reg line old-reg new-reg =
+    let flen = string-length old-reg in
+    let llen = string-length line in
+    if flen == 0 || flen > llen then line
+    else tv-replace-reg-at line old-reg new-reg flen llen 0
+
+  tv-replace-reg-at :: String -> String -> String -> Nat -> Nat -> Nat -> String
+  tv-replace-reg-at line old-reg new-reg flen llen pos =
+    if pos + flen > llen then string-slice line pos llen
+    else if same (string-slice line pos (pos + flen)) old-reg then
+      let after = pos + flen in
+      let boundary =
+            if after >= llen then True
+            else case unpack (string-slice line after (after + 1)) of
+              Cons ch rest -> not (tv-is-reg-char ch)
+              Nil -> True in
+      if boundary then
+        string-concat new-reg (tv-replace-reg-at line old-reg new-reg flen llen after)
+      else
+        string-concat (string-slice line pos (pos + 1)) (tv-replace-reg-at line old-reg new-reg flen llen (pos + 1))
+    else
+      string-concat (string-slice line pos (pos + 1)) (tv-replace-reg-at line old-reg new-reg flen llen (pos + 1))
+
+  tv-apply-renames :: List (String, String) -> String -> String
+  tv-apply-renames renames line = case renames of
+    Nil -> line
+    Cons (old-reg, new-reg) rest -> tv-apply-renames rest (tv-replace-reg line old-reg new-reg)
+
+  tv-parse-header-renames :: List String -> Nat -> List (String, String)
+  tv-parse-header-renames items idx = case items of
+    Nil -> Nil
+    Cons item rest ->
+      let ws = string-words (string-strip item) in
+      case last-nonempty ws of
+        Some pname | string-starts-with "%" pname ->
+          let canon = string-concat "%" (nat-to-string idx) in
+          let more = tv-parse-header-renames rest (idx + 1) in
+          if same pname canon then more else Cons (pname, canon) more
+        other -> tv-parse-header-renames rest (idx + 1)
+
+  tv-find-define-body :: List String -> String -> Option (List (String, String), List String)
+  tv-find-define-body lines needle = case lines of
+    Nil -> None
+    Cons raw rest ->
+      let t = string-strip raw in
+      if string-starts-with "define " t && string-contains needle t then
+        case string-split-on "(" t of
+          Cons pre (Cons after more) ->
+            (case string-split-on ")" after of
+              Cons pstr tail ->
+                let items = if string-length (string-strip pstr) == 0 then Nil else string-split-on "," pstr in
+                let renames = tv-parse-header-renames items 0 in
+                Some (renames, tv-collect-body-lines rest Nil)
+              Nil -> None)
+          other -> None
+      else tv-find-define-body rest needle
+
+  tv-collect-body-lines :: List String -> List String -> List String
+  tv-collect-body-lines lines acc = case lines of
+    Nil -> reverse acc
+    Cons raw rest ->
+      let t = string-strip raw in
+      if same t "}" then reverse acc
+      else if string-length t == 0 || string-starts-with ";" t then tv-collect-body-lines rest acc
+      else if string-starts-with "nexteq" t && string-ends-with ":" t then
+        -- Stage 3 emits a dead `nexteqN:\n  unreachable` block after `ret`.
+        tv-skip-unreachable-block rest acc
+      else tv-collect-body-lines rest (Cons t acc)
+
+  tv-skip-unreachable-block :: List String -> List String -> List String
+  tv-skip-unreachable-block lines acc = case lines of
+    Nil -> reverse acc
+    Cons raw rest ->
+      let t = string-strip raw in
+      if same t "}" then reverse acc
+      else if same t "unreachable" then tv-collect-body-lines rest acc
+      else tv-collect-body-lines (Cons raw rest) acc
+
+  tv-parse-call-args :: String -> List String
+  tv-parse-call-args arg-str =
+    if string-length (string-strip arg-str) == 0 then Nil
+    else tv-extract-call-arg-vals (string-split-on "," arg-str)
+
+  tv-extract-call-arg-vals :: List String -> List String
+  tv-extract-call-arg-vals items = case items of
+    Nil -> Nil
+    Cons item rest ->
+      case last-nonempty (string-words (string-strip item)) of
+        Some v -> Cons v (tv-extract-call-arg-vals rest)
+        None -> tv-extract-call-arg-vals rest
+
+  tv-parse-quoted-call :: String -> Option (String, String, String, List String)
+  tv-parse-quoted-call line =
+    case string-split-on "=" line of
+      Cons lhs-raw (Cons rhs-raw more) ->
+        let dst = string-strip lhs-raw in
+        let rhs = string-strip rhs-raw in
+        if string-starts-with "%" dst && string-contains "call " rhs && string-contains "@\"" rhs then
+          case string-split-on "@\"" rhs of
+            Cons pre (Cons after-q tail) ->
+              (case string-split-on "\"" after-q of
+                Cons raw-callee (Cons after-name tail2) ->
+                  (case string-split-on "(" after-name of
+                    Cons p1 (Cons inside tail3) ->
+                      (case string-split-on ")" inside of
+                        Cons arg-str tail4 ->
+                          let ret-ty = case last-nonempty (string-words (string-strip pre)) of Some rt -> rt; None -> "i64" in
+                          Some (dst, ret-ty, raw-callee, tv-parse-call-args arg-str)
+                        Nil -> None)
+                    other -> None)
+                other -> None)
+            other -> None
+        else None
+      other -> None
+
+  tv-expand-known-call :: Nat -> Nat -> String -> String -> String -> List String -> Option (List String)
+  tv-expand-known-call word-bits idx dst ret-ty base args =
+    let pfx = string-concat-all ["%tv", nat-to-string idx, "_"] in
+    case (tv-op-info word-bits base, args) of
+      (Some ("not", w, sg), Cons a Nil) ->
+        let wty = string-concat "i" (nat-to-string w) in
+        let in-w = if w == 128 then (128 :: Nat) else (64 :: Nat) in
+        let in-ty = string-concat "i" (nat-to-string in-w) in
+        if w == in-w then Some [string-concat-all [dst, " = xor ", wty, " ", a, ", -1"]]
+        else Some
+          [ string-concat-all [pfx, "a = trunc ", in-ty, " ", a, " to ", wty]
+          , string-concat-all [pfx, "r = xor ", wty, " ", pfx, "a, -1"]
+          , string-concat-all [dst, " = zext ", wty, " ", pfx, "r to ", ret-ty]
+          ]
+      (Some ("neg", w, sg), Cons a Nil) ->
+        let wty = string-concat "i" (nat-to-string w) in
+        let in-w = if w == 128 then (128 :: Nat) else (64 :: Nat) in
+        let in-ty = string-concat "i" (nat-to-string in-w) in
+        if w == in-w then Some [string-concat-all [dst, " = sub ", wty, " 0, ", a]]
+        else Some
+          [ string-concat-all [pfx, "a = trunc ", in-ty, " ", a, " to ", wty]
+          , string-concat-all [pfx, "r = sub ", wty, " 0, ", pfx, "a"]
+          , string-concat-all [dst, " = zext ", wty, " ", pfx, "r to ", ret-ty]
+          ]
+      (Some (kind, w, sg), Cons a (Cons b Nil)) ->
+        let wty = string-concat "i" (nat-to-string w) in
+        let in-w = if w == 128 then (128 :: Nat) else (64 :: Nat) in
+        let in-ty = string-concat "i" (nat-to-string in-w) in
+        let ra = if w == in-w then a else string-concat pfx "a" in
+        let rb = if w == in-w then b else string-concat pfx "b" in
+        let prep =
+              if w == in-w then Nil
+              else
+                [ string-concat-all [ra, " = trunc ", in-ty, " ", a, " to ", wty]
+                , string-concat-all [rb, " = trunc ", in-ty, " ", b, " to ", wty]
+                ] in
+        if same kind "add" || same kind "sub" || same kind "mul" || same kind "and" || same kind "or" || same kind "xor" then
+          let rr = if same wty ret-ty then dst else string-concat pfx "r" in
+          let op-line = string-concat-all [rr, " = ", kind, " ", wty, " ", ra, ", ", rb] in
+          let fin = if same wty ret-ty then Nil else [string-concat-all [dst, " = zext ", wty, " ", rr, " to ", ret-ty]] in
+          Some (prep <> Cons op-line fin)
+        else if same kind "shl" || same kind "shr" then
+          let sop = if same kind "shl" then "shl" else if sg then "ashr" else "lshr" in
+          let mask-str = nat-to-string (saturating-sub w 1) in
+          let rm = string-concat pfx "m" in
+          let rr = if same wty ret-ty then dst else string-concat pfx "r" in
+          let lines =
+                [ string-concat-all [rm, " = and ", wty, " ", rb, ", ", mask-str]
+                , string-concat-all [rr, " = ", sop, " ", wty, " ", ra, ", ", rm]
+                ] in
+          let fin = if same wty ret-ty then Nil else [string-concat-all [dst, " = zext ", wty, " ", rr, " to ", ret-ty]] in
+          Some (prep <> lines <> fin)
+        else if same kind "rotl" || same kind "rotr" then
+          let rop = if same kind "rotl" then "@llvm.fshl." else "@llvm.fshr." in
+          let rr = if same wty ret-ty then dst else string-concat pfx "r" in
+          let call-line = string-concat-all [rr, " = call ", wty, " ", rop, wty, "(", wty, " ", ra, ", ", wty, " ", ra, ", ", wty, " ", rb, ")"] in
+          let fin = if same wty ret-ty then Nil else [string-concat-all [dst, " = zext ", wty, " ", rr, " to ", ret-ty]] in
+          Some (prep <> Cons call-line fin)
+        else
+          let cmp-op =
+                if same kind "eq" then "eq"
+                else if same kind "ne" then "ne"
+                else if same kind "lt" then (if sg then "slt" else "ult")
+                else if same kind "le" then (if sg then "sle" else "ule")
+                else if same kind "gt" then (if sg then "sgt" else "ugt")
+                else if sg then "sge" else "uge" in
+          let rc = string-concat pfx "c" in
+          Some (prep <>
+            [ string-concat-all [rc, " = icmp ", cmp-op, " ", wty, " ", ra, ", ", rb]
+            , string-concat-all [dst, " = zext i1 ", rc, " to ", ret-ty]
+            ])
+      other -> None
+
+  tv-expand-lines :: Nat -> List String -> List String -> Nat -> List String
+  tv-expand-lines word-bits all-lines body idx = case body of
+    Nil -> Nil
+    Cons line rest ->
+      case tv-parse-quoted-call line of
+        Some (dst, ret-ty, raw-callee, args) ->
+          let decoded = tv-unescape-llvm-name raw-callee in
+          let base = strip-module-prefix decoded in
+          (case tv-expand-known-call word-bits idx dst ret-ty base args of
+            Some expanded -> expanded <> tv-expand-lines word-bits all-lines rest (idx + 1)
+            None -> Cons line (tv-expand-lines word-bits all-lines rest (idx + 1)))
+        None -> Cons line (tv-expand-lines word-bits all-lines rest idx)
+
+  tv-join-lines :: List String -> String
+  tv-join-lines ls = case ls of
+    Nil -> ""
+    Cons l Nil -> l
+    Cons l rest -> string-concat-all [l, "\n", tv-join-lines rest]
+
+  tv-extract-llvm-fragment :: Nat -> String -> String -> Option String
+  tv-extract-llvm-fragment word-bits ir-text fn-name =
+    let all-lines = string-split-on "\n" ir-text in
+    let needle-s3 = string-concat-all ["@\"cinch.typed.m.", fn-name, "\"("] in
+    let needle-seed = string-concat-all ["@\"", fn-name, "\"("] in
+    let found = case tv-find-define-body all-lines needle-s3 of
+          Some res -> Some res
+          None -> tv-find-define-body all-lines needle-seed in
+    case found of
+      None -> None
+      Some (renames, raw-body) ->
+        let renamed = tv-map-str (tv-apply-renames renames) raw-body in
+        let expanded = tv-expand-lines word-bits all-lines renamed 0 in
+        Some (tv-join-lines expanded)
+
+  tv-map-str :: (String -> String) -> List String -> List String
+  tv-map-str f xs = case xs of
+    Nil -> Nil
+    Cons h t -> Cons (f h) (tv-map-str f t)
+
+  tv-display-name :: String -> String
+  tv-display-name raw =
+    if string-starts-with "m." raw then string-slice raw 2 (string-length raw)
+    else raw
+
+  tv-validate-one-def :: Nat -> String -> CoreDefinition -> TvReport
+  tv-validate-one-def word-bits ir-text def =
+    let disp = tv-display-name def.name in
+    case def.clauses of
+      Cons (CoreClause csp pats body) Nil ->
+        case tv-word-ty-for word-bits (core-type body) of
+          None -> MkTvReport disp "core->llvm" "skipped" "non-scalar result type"
+          Some (ret-sty, ret-sg) ->
+            case tv-init-core-params word-bits pats 0 empty-sem-graph of
+              Err reason -> MkTvReport disp "core->llvm" "skipped" reason
+              Ok (cenv, lbinds, g1) ->
+                case tv-lower-core-term word-bits cenv body g1 of
+                  Err reason -> MkTvReport disp "core->llvm" "skipped" reason
+                  Ok (cv, cty, g2) ->
+                    case tv-coerce-bv cv cty ret-sty g2 of
+                      Err reason -> MkTvReport disp "core->llvm" "skipped" reason
+                      Ok (cv-coerced, g3) ->
+                        (case tv-extract-llvm-fragment word-bits ir-text disp of
+                          None -> MkTvReport disp "core->llvm" "skipped" "no matching emitted LLVM define"
+                          Some frag ->
+                            let (ub0, g4) = g-bool False g3 in
+                            (case lower-ir-fragment frag lbinds ub0 g4 of
+                              Err reason -> MkTvReport disp "core->llvm" "skipped" (string-concat "LLVM lowering: " reason)
+                              Ok (MkLlvmEnv b1 ub-l g5 None) -> MkTvReport disp "core->llvm" "skipped" "emitted LLVM has no ret"
+                              Ok (MkLlvmEnv b1 ub-l g5 (Some ret-l)) ->
+                                (case tv-coerce-bv (sv-val ret-l) (sv-type ret-l) ret-sty g5 of
+                                  Err reason -> MkTvReport disp "core->llvm" "skipped" reason
+                                  Ok (lv-coerced, g6) ->
+                                    let (not-ub, g7) = g-not ub-l g6 in
+                                    let (not-p, g8) = g-not (sv-poison ret-l) g7 in
+                                    let (wd, g9) = g-and not-ub not-p g8 in
+                                    let (eq-v, g10) = case ret-sty of
+                                          SBv w -> g-bv-cmp "eq" w cv-coerced lv-coerced g9
+                                          other -> g-bool False g9 in
+                                    let (goal, g11) = g-and wd eq-v g10 in
+                                    (case run-obligations-cached True "strict" "verify" Nil False g11 [(string-concat "tv:" disp, goal)] Nil of
+                                      OutcomeVerified (Cons rcpt rest) ->
+                                        MkTvReport disp "core->llvm" "verified" (string-concat-all [receipt-checker-id rcpt, ": ", receipt-tier rcpt])
+                                      OutcomeVerified Nil ->
+                                        MkTvReport disp "core->llvm" "verified" "cinch-kernel-lrat@1: kernel-cert"
+                                      OutcomeAssumed rs ->
+                                        MkTvReport disp "core->llvm" "open" "assumed"
+                                      OutcomeDisproved detail ->
+                                        MkTvReport disp "core->llvm" "disproved" detail
+                                      OutcomeRejected detail ->
+                                        MkTvReport disp "core->llvm" "rejected" detail
+                                      OutcomeOpen detail ->
+                                        MkTvReport disp "core->llvm" "open" detail))))
+      other -> MkTvReport disp "core->llvm" "skipped" "multi-clause function"
+
+  validate-program-codegen-for-word-bits :: Nat -> String -> List CoreDefinition -> String -> List TvReport
+  validate-program-codegen-for-word-bits word-bits prefix defs ir-text = case defs of
+    Nil -> Nil
+    Cons def rest ->
+      let disp = tv-display-name def.name in
+      if string-starts-with prefix disp then
+        Cons (tv-validate-one-def word-bits ir-text def) (validate-program-codegen-for-word-bits word-bits prefix rest ir-text)
+      else validate-program-codegen-for-word-bits word-bits prefix rest ir-text

@@ -44,6 +44,7 @@ module Cinch.Pipeline where
   import Cinch.Interface (fnv-source-hash, sha256-hex)
   import Cinch.TargetLiterals (target-literal-errors)
   import Cinch.Target (TargetProfile, selection-arch, target-ir-header, target-profile, target-view-program, host-profile)
+  import Cinch.PrimVerify (validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved)
   import Algebra.Semigroup
   import Effect.Clock (clock-monotonic-ns)
   import Effect.Process (process-run, command)
@@ -1784,3 +1785,74 @@ module Cinch.Pipeline where
               Err (msg, status) -> report-test-failure ir msg status
               Ok (view, checked) ->
                 run-checked-test-harness test-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked
+
+  run-verify-codegen-checked :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Option RuntimeObject -> CheckedProgram ->{IO r, Diverge} Int
+  run-verify-codegen-checked tuning profile provider checked =
+    case emit-target-program-tuned tuning profile False False True checked provider of
+      Err errors -> do
+        _ <- ioWrite (string-to-bytes ("cinch verify-codegen: codegen failed:\n" <> render-diagnostics errors))
+        1
+      Ok ir-text ->
+        let defs = elaboration-core (checked.elaboration) in
+        let reports = validate-program-codegen-for-word-bits (profile.word-size) "Main." defs ir-text in
+        let rendered = render-tv-reports reports in
+        do
+          _ <- ioWrite (string-to-bytes rendered)
+          if tv-reports-disproved reports > 0 then 1 else 0
+
+  verify-codegen-source-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Option String -> Option String -> String ->{IO r, Diverge} Int
+  verify-codegen-source-tuned tuning profile manifest-opt object-opt source =
+    case fs-read (path-from-string source) of
+      Err _ -> do
+        _ <- ioWrite (string-to-bytes ("cinch verify-codegen: cannot read `" <> source <> "`\n"))
+        2
+      Ok src -> case (manifest-opt, object-opt) of
+        (Some manifest, Some config) ->
+          let references = read-interface-inputs manifest in
+          let configuration = read-runtime-object-config config in
+          case load-object-client True references configuration of
+            Err msg -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+              1
+            Ok (admitted, provider, metadata, object-path, object-bytes) ->
+              let interfaces = admitted.interfaces-members in
+              let headers = module-name-index (interface-fixity-headers interfaces) in
+              let parse = \name input -> parse-for-tuning tuning name input headers in
+              let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
+              case checked-object-bytes profile parse check source src of
+                Err (msg, _) -> do
+                  _ <- ioWrite (string-to-bytes ("cinch verify-codegen: check failed:\n" <> msg <> "\n"))
+                  1
+                Ok (view, checked) -> run-verify-codegen-checked tuning profile (Some provider) checked
+        (Some manifest, None) ->
+          case read-validated-interfaces manifest of
+            Err msg -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+              1
+            Ok admitted ->
+              let interfaces = admitted.interfaces-members in
+              let headers = module-name-index (interface-fixity-headers interfaces) in
+              let parse = \name input -> parse-for-tuning tuning name input headers in
+              let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
+              case checked-object-bytes profile parse check source src of
+                Err (msg, _) -> do
+                  _ <- ioWrite (string-to-bytes ("cinch verify-codegen: check failed:\n" <> msg <> "\n"))
+                  1
+                Ok (view, checked) -> run-verify-codegen-checked tuning profile None checked
+        (None, _) ->
+          case parse-for-tuning tuning source src hash-map-empty of
+            Failed bundle -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: parse failed:\n" <> render-bundle bundle <> "\n"))
+              1
+            Parsed program [] -> case target-view-program profile program of
+              Err msg -> do
+                _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+                1
+              Ok view -> case checked-source-tuned tuning profile view [] of
+                Err errors -> do
+                  _ <- ioWrite (string-to-bytes ("cinch verify-codegen: check failed:\n" <> render-source-diagnostics src errors <> "\n"))
+                  1
+                Ok checked -> run-verify-codegen-checked tuning profile None checked
+            Parsed program errors -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: parse failed:\n" <> render-bundle (Bundle source src errors) <> "\n"))
+              1

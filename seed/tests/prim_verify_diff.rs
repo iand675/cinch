@@ -729,3 +729,44 @@ module Main where
         &obj_bytes[..obj_bytes.len().min(8)]
     );
 }
+
+#[test]
+fn prelude_verified_rewrites_and_verify_codegen_cli() {
+    // 1. Prelude verified algebraic rewrites in Data.Machine & Data.Wide fire & execute cleanly.
+    let src = r#"
+module Main where
+  import Data.Wide
+
+  dbl32 :: U32 -> U32
+  dbl32 x = wrapping-add-u32 x x
+
+  cancel64 :: U64 -> U64 -> U64
+  cancel64 x y = bit-xor-u64 (bit-xor-u64 x y) y
+
+  id128 :: U128 -> U128
+  id128 x = bit-not-u128 (bit-not-u128 (wrapping-add-u128 x 0))
+
+  main :: Int
+  main =
+    let a = dbl32 21 in
+    let b = cancel64 100 777 in
+    let c = id128 99 in
+    let z = bit-and-u128 c 0 in
+    if a == 42 && b == 100 && c == 99 && z == 0 then 0 else 1
+"#;
+    let code = common::source_frontend::run_source(src)
+        .expect("prelude verified rewrites program should compile & run");
+    assert_eq!(code, 0);
+
+    // 2. `cinch verify-codegen` CLI verifies scalar functions on both host and wasm32!
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let file_path = tmp.path().join("tv_cli.cinch");
+    std::fs::write(&file_path, src).unwrap();
+    let rc_host = cinch::prim_verify::cli_verify_codegen(&[file_path.to_string_lossy().to_string()]);
+    assert_eq!(rc_host, 0, "cinch verify-codegen should exit 0 on valid scalar program");
+    let rc_wasm = cinch::prim_verify::cli_verify_codegen(&[
+        file_path.to_string_lossy().to_string(),
+        "--target=wasm32-unknown-unknown".to_string(),
+    ]);
+    assert_eq!(rc_wasm, 0, "cinch verify-codegen --target=wasm32-unknown-unknown should exit 0");
+}

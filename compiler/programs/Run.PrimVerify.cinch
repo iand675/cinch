@@ -24,9 +24,10 @@ module Main where
   import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces-tuned)
   import Cinch.Document (Json, canonical-bytes)
   import Cinch.Export (export-interfaces-aliased, interface-hash, checked-primitive-rows)
+  import Cinch.Infer (elaboration-core)
   import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, receipt-checker-id, receipt-tier)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
   import Cinch.Target (TargetProfile, host-profile, profile-of-triple, profile-with-prim-verify, target-view-program)
@@ -592,6 +593,66 @@ module Main where
                                 && string-contains "\"repr\":\"C, align(16)\",\"size\":16" txt64 then Ok ()
                               else Err (string-concat-all ["host64 repr(C) layout mismatch: ", txt64]))
 
+  -- 19. Self-hosted Core -> LLVM translation validation (`verify-codegen` engine) + tamper detection.
+  test-verify-codegen-tv :: Result String Unit
+  test-verify-codegen-tv =
+    let src-tv = string-concat-all [
+          "module Main where\n",
+          "  prim wrapping-add-u32 :: U32 -> U32 -> U32 where\n",
+          "    llvm {\n",
+          "      %r = add i32 %0, %1\n",
+          "      ret i32 %r\n",
+          "    } justify verify\n",
+          "  prim bit-xor-u32 :: U32 -> U32 -> U32 where\n",
+          "    llvm {\n",
+          "      %r = xor i32 %0, %1\n",
+          "      ret i32 %r\n",
+          "    } justify verify\n",
+          "  dbl :: U32 -> U32\n",
+          "  dbl x = wrapping-add-u32 x x\n",
+          "  mix :: U32 -> U32 -> U32\n",
+          "  mix x y = bit-xor-u32 (bit-xor-u32 x y) y\n",
+          "  main :: Int\n",
+          "  main = 0\n"
+        ] in
+    let good-ir = string-concat-all [
+          "define i64 @\"cinch.typed.m.Main.dbl\"(i64 %arg0) {\n",
+          "entry:\n",
+          "  %v1 = call i64 @\"\\4D\\61\\69\\6E\\2E\\77\\72\\61\\70\\70\\69\\6E\\67\\2D\\61\\64\\64\\2D\\75\\33\\32\"(i64 %arg0, i64 %arg0)\n",
+          "  ret i64 %v1\n",
+          "nexteq0:\n",
+          "  unreachable\n",
+          "}\n",
+          "define i64 @\"cinch.typed.m.Main.mix\"(i64 %arg0, i64 %arg1) {\n",
+          "entry:\n",
+          "  %a = trunc i64 %arg0 to i32\n",
+          "  %r = zext i32 %a to i64\n",
+          "  ret i64 %r\n",
+          "}\n"
+        ] in
+    let bad-ir = string-concat-all [
+          "define i64 @\"cinch.typed.m.Main.dbl\"(i64 %arg0) {\n",
+          "entry:\n",
+          "  %a = trunc i64 %arg0 to i32\n",
+          "  %b = add i32 %a, 1\n",
+          "  %r = zext i32 %b to i64\n",
+          "  ret i64 %r\n",
+          "}\n"
+        ] in
+    case self-check-profile host-profile "default" src-tv of
+      Err msg -> Err (string-concat-all ["verify-codegen TV check failed: ", msg])
+      Ok (checked, raw) ->
+        let defs = elaboration-core (checked.elaboration) in
+        let rep-ok = validate-program-codegen-for-word-bits 64 "Main." defs good-ir in
+        let txt-ok = render-tv-reports rep-ok in
+        if not (string-contains "[VERIFIED] Main.dbl" txt-ok && string-contains "[VERIFIED] Main.mix" txt-ok && tv-reports-disproved rep-ok == 0) then
+          Err (string-concat-all ["expected Main.dbl & Main.mix VERIFIED, got:\n", txt-ok])
+        else
+          let rep-bad = validate-program-codegen-for-word-bits 64 "Main." defs bad-ir in
+          let txt-bad = render-tv-reports rep-bad in
+          if string-contains "[DISPROVED] Main.dbl" txt-bad && tv-reports-disproved rep-bad > 0 then Ok ()
+          else Err (string-concat-all ["expected tampered Main.dbl DISPROVED, got:\n", txt-bad])
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -628,11 +689,13 @@ module Main where
                                     Err e -> Err e
                                     Ok u16 -> case test-target-pointer-word-size of
                                       Err e -> Err e
-                                      Ok u17 -> test-repr-c-layouts
+                                      Ok u17 -> case test-repr-c-layouts of
+                                        Err e -> Err e
+                                        Ok u18 -> test-verify-codegen-tv
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 18 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 19 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int
