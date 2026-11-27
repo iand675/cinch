@@ -591,7 +591,7 @@ module Cinch.Nominal where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> name == "True" || name == "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> name == "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"]
     other -> False
   qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate refs locals syntax = case syntax of
@@ -602,7 +602,7 @@ module Cinch.Nominal where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if has name ["b.toNat", "b.length", "b.bytesLen"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at (if name == "b.toNat" then "#kernel.toNat" else if name == "b.length" then "#kernel.length" else "#kernel.bytes-length")) (TArg arg value (TArgsEnd end)), errors))
-      else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
+      else if has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
       else if measure-reference name refs || singleton-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
         (arguments, errors) -> (TApp sp (TName at (interface-global name)) arguments, errors))

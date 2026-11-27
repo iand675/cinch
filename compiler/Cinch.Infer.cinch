@@ -1037,7 +1037,7 @@ module Cinch.Infer where
     -- The prefix `Eq a b` former is the comparison the elaborator reads as
     -- index equality, so both of its operands are in predicate scope.
     TApp sp (TName at name) (TArg s1 x (TArg s2 y (TArgsEnd end))) -> name == "Eq" && refinement-predicate-scope kinds names x && refinement-predicate-scope kinds names y
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered"] || index-observer-name name kinds || string-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"] || index-observer-name name kinds || string-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
   validate-refinement kinds declaration st = case declaration of
@@ -1392,7 +1392,7 @@ module Cinch.Infer where
     -- A bare closed predicate applies to this refinement's own fresh value,
     -- never to a same-spelled source binding or surrounding argument.
     let applied = case predicate of
-          TName at name -> if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then TApp at predicate (TArg at (TName at "#result") (TArgsEnd at)) else predicate
+          TName at name -> if has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"] then TApp at predicate (TArg at (TName at "#result") (TArgsEnd at)) else predicate
           other -> predicate in
     convert-refined-predicate external kinds locals sp applied syntax st
   convert-refined-predicate :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
@@ -4248,6 +4248,8 @@ module Cinch.Infer where
     UPropNonZeroPending body -> imported-cell-effect-in-type body
     UPropNotNull body -> imported-cell-effect-in-type body
     UPropAscii body -> imported-cell-effect-in-type body
+    UPropNotNaN body -> imported-cell-effect-in-type body
+    UPropFinite body -> imported-cell-effect-in-type body
     UPropOrdered body -> imported-cell-effect-in-type body
     URequire predicates body -> imported-cell-effect-in-type predicates || imported-cell-effect-in-type body
     URefine id name carrier predicate -> imported-cell-effect-in-type carrier || imported-cell-effect-in-type predicate
@@ -6665,6 +6667,22 @@ module Cinch.Infer where
         if not (ordered-carrier (core-type operand)) then decision-failure sp "Ordered decides List Nat" checked
         else case reify-argument sp env operand checked of
           (index, done) -> (UPropOrdered index, CPrimitive sp (primitive-type "Bool") "#kernel.ordered" (CArgument sp operand (CArgumentsEnd sp)), done))
+    else if name == "NotNaN" then (case infer classes kinds families env locals input st of
+      (value, checked) -> let actual = map-term-types (normalize checked) value in
+        let operand = case refinement-view (core-type actual) of
+              URefine id display carrier predicate -> CForget sp carrier actual
+              other -> actual in
+        if not (float-carrier (core-type operand)) then decision-failure sp "NotNaN decides F32 or F64" checked
+        else case reify-argument sp env operand checked of
+          (index, done) -> (UPropNotNaN index, CPrimitive sp (primitive-type "Bool") "#kernel.not-nan" (CArgument sp operand (CArgumentsEnd sp)), done))
+    else if name == "Finite" then (case infer classes kinds families env locals input st of
+      (value, checked) -> let actual = map-term-types (normalize checked) value in
+        let operand = case refinement-view (core-type actual) of
+              URefine id display carrier predicate -> CForget sp carrier actual
+              other -> actual in
+        if not (float-carrier (core-type operand)) then decision-failure sp "Finite decides F32 or F64" checked
+        else case reify-argument sp env operand checked of
+          (index, done) -> (UPropFinite index, CPrimitive sp (primitive-type "Bool") "#kernel.finite" (CArgument sp operand (CArgumentsEnd sp)), done))
     else decision-failure sp "unknown executable predicate former" st
   decision-not-null :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (UType, CoreTerm, Store)
   decision-not-null classes kinds families env locals sp input st = case fresh-meta KType st of
@@ -7737,7 +7755,7 @@ module Cinch.Infer where
     [] -> (original, st)
     syntax : rest -> let scope = (name, bound) : locals in
       let applied = case syntax of
-            TName at head | has head ["Ascii", "NotNull", "Ordered", "NonZero"] -> TApp at syntax (type-arg-spine at [TName at name])
+            TName at head | has head ["Ascii", "NotNull", "Ordered", "NonZero", "NotNaN", "Finite"] -> TApp at syntax (type-arg-spine at [TName at name])
             other -> syntax in
       case convert-predicate False kinds scope applied st of
         (predicate, checked) -> case drop-conjuncts sp (conjuncts (normalize checked predicate)) original checked of
@@ -7749,7 +7767,7 @@ module Cinch.Infer where
   -- projected explicitly, including at an unsolved generic argument.
   comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
   comparison-refinement :: UType -> Bool
-  comparison-refinement ty = case refinement-view ty of URefine id name carrier predicate -> (integer-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
+  comparison-refinement ty = case refinement-view ty of URefine id name carrier predicate -> (integer-carrier carrier || float-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
   project-comparison :: Span -> CoreTerm -> Store -> CoreTerm
   project-comparison sp term st = case term of
     CLet at ty id name sc rhs body -> let result = project-comparison sp body st in
@@ -7959,6 +7977,8 @@ module Cinch.Infer where
     UPropNotNull body -> "NotNull " <> obligation-text body
     UPropAscii body -> "Ascii " <> obligation-text body
     UPropOrdered body -> "Ordered " <> obligation-text body
+    UPropNotNaN body -> "NotNaN " <> obligation-text body
+    UPropFinite body -> "Finite " <> obligation-text body
     UIndexForget value -> obligation-text value
     UIndexPromote value -> obligation-text value
     UIndexStringLength value -> string-concat-all ["(Data.String.string-length ", obligation-text value, ")"]
@@ -7997,6 +8017,8 @@ module Cinch.Infer where
     UPropNotNull body -> UPropNotNull (relocate-local-index binding new-level body)
     UPropAscii body -> UPropAscii (relocate-local-index binding new-level body)
     UPropOrdered body -> UPropOrdered (relocate-local-index binding new-level body)
+    UPropNotNaN body -> UPropNotNaN (relocate-local-index binding new-level body)
+    UPropFinite body -> UPropFinite (relocate-local-index binding new-level body)
     UPropNonZeroPending body -> UPropNonZeroPending (relocate-local-index binding new-level body)
     URequire predicates body -> URequire (relocate-local-index binding new-level predicates) (relocate-local-index binding new-level body)
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
@@ -13404,7 +13426,7 @@ module Cinch.Infer where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> name == "True" || name == "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> name == "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"]
     other -> False
   kind-result :: Kind -> Kind
   kind-result k = case k of KFun _ b -> kind-result b; other -> k
@@ -13434,7 +13456,7 @@ module Cinch.Infer where
   -- | Read checked scalar values mathematically inside predicates without changing their runtime carrier.
   predicate-math-carrier :: UType -> Bool
   predicate-math-carrier carrier = case predicate-base-carrier carrier of
-    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "Isize", "I128", "U8", "U16", "U32", "U64", "Usize", "U128", "Char"]
+    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "Isize", "I128", "U8", "U16", "U32", "U64", "Usize", "U128", "Char", "F32", "F64"]
     other -> False
   merge-predicate-carriers :: Option UType -> Option UType -> Option UType
   merge-predicate-carriers first second = case (first, second) of
@@ -13562,6 +13584,8 @@ module Cinch.Infer where
       else if name == "NotNull" then convert-not-null sp locals input st
       else if name == "Ascii" then convert-structural sp locals input "Ascii" UPropAscii st
       else if name == "Ordered" then convert-structural sp locals input "Ordered" UPropOrdered st
+      else if name == "NotNaN" then convert-structural sp locals input "NotNaN" UPropNotNaN st
+      else if name == "Finite" then convert-structural sp locals input "Finite" UPropFinite st
       else if name /= "NonZero" then named-predicate external kinds locals sp name [input] st
       else let carrier = predicate-comparison-carrier kinds locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of

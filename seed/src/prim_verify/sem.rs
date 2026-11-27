@@ -172,6 +172,10 @@ pub enum SemOp {
     FpFitsSigned(u16, NodeId),
     /// True iff `f` is finite (not NaN/Inf) and trunc(f) fits in unsigned `width`-bit integer.
     FpFitsUnsigned(u16, NodeId),
+    /// True iff `f` is IEEE-754 NaN (`exp == all_ones && sig != 0`).
+    FpIsNaN(NodeId),
+    /// True iff `f` is IEEE-754 finite (`exp != all_ones`).
+    FpIsFinite(NodeId),
 }
 
 /// Bitmask of theories used by a `SemGraph` or supported by a `Prover`.
@@ -180,25 +184,29 @@ pub struct TheorySet {
     pub bv: bool,
     pub bv_nonlinear: bool,
     pub fp: bool,
+    /// True when floating-point arithmetic (`fadd`/`fsub`/`fmul`/`fdiv`/`sqrt`/rounding/casts)
+    /// is present, which requires an SMT/FP backend rather than pure bit-level IEEE-754 bit-blasting.
+    pub fp_arith: bool,
 }
 
 impl TheorySet {
     pub fn pure_bv() -> Self {
-        Self { bv: true, bv_nonlinear: false, fp: false }
+        Self { bv: true, bv_nonlinear: false, fp: false, fp_arith: false }
     }
 
     pub fn bv_all() -> Self {
-        Self { bv: true, bv_nonlinear: true, fp: false }
+        Self { bv: true, bv_nonlinear: true, fp: true, fp_arith: false }
     }
 
     pub fn all() -> Self {
-        Self { bv: true, bv_nonlinear: true, fp: true }
+        Self { bv: true, bv_nonlinear: true, fp: true, fp_arith: true }
     }
 
     pub fn subsumes(self, needed: TheorySet) -> bool {
         (!needed.bv || self.bv)
             && (!needed.bv_nonlinear || self.bv_nonlinear)
             && (!needed.fp || self.fp)
+            && (!needed.fp_arith || self.fp_arith)
     }
 }
 
@@ -633,6 +641,21 @@ impl SemGraph {
         self.push(SemOp::FpFitsUnsigned(width, a), SemTy::Bool)
     }
 
+    pub fn fp_is_nan(&mut self, a: NodeId) -> NodeId {
+        self.push(SemOp::FpIsNaN(a), SemTy::Bool)
+    }
+
+    pub fn fp_is_finite(&mut self, a: NodeId) -> NodeId {
+        self.push(SemOp::FpIsFinite(a), SemTy::Bool)
+    }
+
+    /// True if any node in the entire graph (even outside `goal`) uses FP arithmetic
+    /// (`fadd`/`fsub`/`fmul`/`fdiv`/`sqrt`/rounding/casts), distinguishing pure bit-level
+    /// IEEE-754 prims from arithmetic float prims that require an SMT/FP solver.
+    pub fn has_fp_arith_anywhere(&self) -> bool {
+        self.nodes.iter().any(|(op, _)| is_fp_arith_op(op))
+    }
+
     /// Convert a `Bool` node to a 1-bit `Bv(1)`.
     pub fn bool_to_bv1(&mut self, b: NodeId) -> NodeId {
         let one = self.bv_const(1, 1);
@@ -672,24 +695,33 @@ impl SemGraph {
                     theories.bv = true;
                     theories.bv_nonlinear = true;
                 }
-                SemOp::FpConst { .. }
-                | SemOp::FpNeg(_)
-                | SemOp::FpAdd(..)
+                SemOp::FpAdd(..)
                 | SemOp::FpSub(..)
                 | SemOp::FpMul(..)
                 | SemOp::FpDiv(..)
-                | SemOp::FpCmp(..)
-                | SemOp::FpToBvBits(_)
-                | SemOp::BvBitsToFp(..)
                 | SemOp::BvToFpSigned(..)
                 | SemOp::BvToFpUnsigned(..)
                 | SemOp::FpToBvSigned(..)
                 | SemOp::FpToBvUnsigned(..)
                 | SemOp::FpToFp(..)
-                | SemOp::FpUnary(..)
-                | SemOp::FpCopySign(..)
                 | SemOp::FpFitsSigned(..)
                 | SemOp::FpFitsUnsigned(..) => {
+                    theories.fp = true;
+                    theories.fp_arith = true;
+                }
+                SemOp::FpUnary(u, _) if !matches!(u, FpUnaryOp::Abs) => {
+                    theories.fp = true;
+                    theories.fp_arith = true;
+                }
+                SemOp::FpConst { .. }
+                | SemOp::FpNeg(_)
+                | SemOp::FpCmp(..)
+                | SemOp::FpToBvBits(_)
+                | SemOp::BvBitsToFp(..)
+                | SemOp::FpUnary(FpUnaryOp::Abs, _)
+                | SemOp::FpCopySign(..)
+                | SemOp::FpIsNaN(_)
+                | SemOp::FpIsFinite(_) => {
                     theories.fp = true;
                 }
                 _ => {}
@@ -727,7 +759,9 @@ impl SemOp {
             | SemOp::FpToFp(_, a)
             | SemOp::FpUnary(_, a)
             | SemOp::FpFitsSigned(_, a)
-            | SemOp::FpFitsUnsigned(_, a) => vec![a],
+            | SemOp::FpFitsUnsigned(_, a)
+            | SemOp::FpIsNaN(a)
+            | SemOp::FpIsFinite(a) => vec![a],
             SemOp::And(a, b)
             | SemOp::Or(a, b)
             | SemOp::Xor(a, b)
@@ -900,8 +934,30 @@ impl Obligation {
     }
 
     pub fn theories(&self) -> TheorySet {
-        self.graph.theories_of(self.goal)
+        let mut t = self.graph.theories_of(self.goal);
+        if self.graph.has_fp_arith_anywhere() {
+            t.fp = true;
+            t.fp_arith = true;
+        }
+        t
     }
+}
+
+fn is_fp_arith_op(op: &SemOp) -> bool {
+    matches!(
+        op,
+        SemOp::FpAdd(..)
+            | SemOp::FpSub(..)
+            | SemOp::FpMul(..)
+            | SemOp::FpDiv(..)
+            | SemOp::BvToFpSigned(..)
+            | SemOp::BvToFpUnsigned(..)
+            | SemOp::FpToBvSigned(..)
+            | SemOp::FpToBvUnsigned(..)
+            | SemOp::FpToFp(..)
+            | SemOp::FpFitsSigned(..)
+            | SemOp::FpFitsUnsigned(..)
+    ) || matches!(op, SemOp::FpUnary(u, _) if !matches!(u, FpUnaryOp::Abs))
 }
 
 fn compute_goal_hash(
@@ -939,6 +995,9 @@ fn compute_goal_hash(
         hasher.update(format!("{}:{}:{}|", p.index, p.ty, p.signed).as_bytes());
     }
     hasher.update(b"\0");
+    if graph.has_fp_arith_anywhere() {
+        hasher.update(b"fp_arith=1\0");
+    }
     for &id in &order {
         let op = graph.op(id);
         let ty = graph.ty(id);
@@ -1011,6 +1070,8 @@ fn remap_op_slice(op: &SemOp, map: &[NodeId]) -> SemOp {
         SemOp::FpCopySign(a, b) => SemOp::FpCopySign(r(a), r(b)),
         SemOp::FpFitsSigned(w, a) => SemOp::FpFitsSigned(w, r(a)),
         SemOp::FpFitsUnsigned(w, a) => SemOp::FpFitsUnsigned(w, r(a)),
+        SemOp::FpIsNaN(a) => SemOp::FpIsNaN(r(a)),
+        SemOp::FpIsFinite(a) => SemOp::FpIsFinite(r(a)),
     }
 }
 
@@ -1076,6 +1137,8 @@ fn remap_op(op: &SemOp, map: &HashMap<NodeId, u32>) -> SemOp {
         SemOp::FpCopySign(a, b) => SemOp::FpCopySign(r(a), r(b)),
         SemOp::FpFitsSigned(w, a) => SemOp::FpFitsSigned(w, r(a)),
         SemOp::FpFitsUnsigned(w, a) => SemOp::FpFitsUnsigned(w, r(a)),
+        SemOp::FpIsNaN(a) => SemOp::FpIsNaN(r(a)),
+        SemOp::FpIsFinite(a) => SemOp::FpIsFinite(r(a)),
     }
 }
 
@@ -1513,6 +1576,14 @@ pub fn eval_node(graph: &SemGraph, target: NodeId, args: &[ConcreteVal]) -> Conc
                     t >= 0.0 && t <= hi
                 };
                 ConcreteVal::Bool(fits)
+            }
+            SemOp::FpIsNaN(a) => {
+                let x = go(g, *a, args, memo).as_f64();
+                ConcreteVal::Bool(x.is_nan())
+            }
+            SemOp::FpIsFinite(a) => {
+                let x = go(g, *a, args, memo).as_f64();
+                ConcreteVal::Bool(x.is_finite())
             }
         };
         memo[id.0 as usize] = Some(val);

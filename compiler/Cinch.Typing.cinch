@@ -475,6 +475,8 @@ module Cinch.Typing where
       -- count is a `Nat` in source and crosses as a length at lowering.
       else if name == "#kernel.ordered" then type-is "Bool" ty && ordered-carrier (core-type first)
       else if name == "#kernel.ascii" then type-is "Bool" ty && ascii-carrier (core-type first)
+      else if name == "#kernel.not-nan" then type-is "Bool" ty && float-carrier (core-type first)
+      else if name == "#kernel.finite" then type-is "Bool" ty && float-carrier (core-type first)
       else if name == "#kernel.length" then type-is "Nat" ty && length-carrier (core-type first)
       else if name == "par-workers" then type-is "Unit" ty && type-is "Nat" (core-type first)
       else name == "negate" && type-is "Int" ty && equal-type ty (core-type first)

@@ -93,6 +93,8 @@ module Cinch.Export where
     UPropNotNull input -> type-measures input
     UPropAscii input -> type-measures input
     UPropOrdered input -> type-measures input
+    UPropNotNaN input -> type-measures input
+    UPropFinite input -> type-measures input
     UPropNonZeroPending input -> type-measures input
     URequire predicates body -> type-measures predicates <> type-measures body
     URefine id name carrier predicate -> type-measures carrier <> type-measures predicate

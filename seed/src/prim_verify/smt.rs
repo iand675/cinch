@@ -320,6 +320,11 @@ fn emit_op(g: &SemGraph, id: NodeId) -> String {
                 "(and (not (fp.isNaN {sa})) (not (fp.isInfinite {sa})) (fp.geq {trunc} {lo_lit}) (fp.leq {trunc} {hi_lit}))"
             )
         }
+        SemOp::FpIsNaN(a) => format!("(fp.isNaN {})", n(*a)),
+        SemOp::FpIsFinite(a) => {
+            let sa = n(*a);
+            format!("(and (not (fp.isNaN {sa})) (not (fp.isInfinite {sa})))")
+        }
     }
 }
 

@@ -9759,6 +9759,9 @@ impl Checker {
                 }
                 _ => false,
             },
+            PredFn::NotNaN | PredFn::Finite => {
+                matches!(base, Ty::Prim(Scalar::F32 | Scalar::F64))
+            }
         };
         if ok {
             Ok(())
@@ -10266,7 +10269,7 @@ impl Checker {
             {
                 return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
             }
-            Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered"))
+            Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered" | "NotNaN" | "Finite"))
                 if args.len() == 1
                     && !matches!(&args[0], Arg::Ty(a) if self.refinement_type_app(pred, a)) =>
             {

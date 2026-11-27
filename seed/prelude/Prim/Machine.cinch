@@ -1988,7 +1988,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-i8 :: F64 -> I8 where
     llvm {
       %lo = fcmp ogt double %0, 0xC060200000000000
@@ -2009,7 +2009,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-i16 :: F64 -> I16 where
     llvm {
       %lo = fcmp ogt double %0, 0xC0E0002000000000
@@ -2030,7 +2030,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-i32 :: F64 -> I32 where
     llvm {
       %lo = fcmp ogt double %0, 0xC1E0000000200000
@@ -2051,7 +2051,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-i64 :: F64 -> I64 where
     llvm {
       %lo = fcmp oge double %0, 0xC3E0000000000000
@@ -2072,7 +2072,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-u8 :: F64 -> U8 where
     llvm {
       %lo = fcmp ogt double %0, 0xBFF0000000000000
@@ -2093,7 +2093,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-u16 :: F64 -> U16 where
     llvm {
       %lo = fcmp ogt double %0, 0xBFF0000000000000
@@ -2114,7 +2114,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-u32 :: F64 -> U32 where
     llvm {
       %lo = fcmp ogt double %0, 0xBFF0000000000000
@@ -2135,7 +2135,7 @@ module Prim.Machine where
       %ok = and i1 %lo, %hi
       %r = zext i1 %ok to i8
       ret i8 %r
-    }
+    } justify verify
   prim saturating-f64-to-u64 :: F64 -> U64 where
     llvm {
       %lo = fcmp ogt double %0, 0xBFF0000000000000

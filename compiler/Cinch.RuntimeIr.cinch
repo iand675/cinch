@@ -6949,6 +6949,21 @@ module Cinch.RuntimeIr where
         cat ["  ", result, " = phi i64 [ 1, %", yes, " ], [ 0, %", no, " ]"]] in (count-op False carrier root finished, result)
     other -> unsupported w sp "Ordered needs its checked numeric-list layout"
 
+  float-pred-word :: Writer -> Span -> UType -> Bool -> String -> (Writer, String)
+  float-pred-word w sp ty require-finite value =
+    let is-f32 = named (base ty) "F32" in
+    let abs-mask = if is-f32 then "2147483647" else "9223372036854775807" in
+    let exp-mask = if is-f32 then "2139095040" else "9218868437227405312" in
+    let cmp-op = if require-finite then "ult" else "ule" in
+    let (w1, mag) = fresh w "%v" in
+    let (w2, ok) = fresh w1 "%v" in
+    let (w3, res) = fresh w2 "%v" in
+    let emitted = emit-lines w3 [
+      cat ["  ", mag, " = and i64 ", value, ", ", abs-mask],
+      cat ["  ", ok, " = icmp ", cmp-op, " i64 ", mag, ", ", exp-mask],
+      cat ["  ", res, " = zext i1 ", ok, " to i64"]] in
+    (emitted, res)
+
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
   primitive definitions locals w sp ty op args =
@@ -6960,6 +6975,10 @@ module Cinch.RuntimeIr where
       (ready, value) -> ordered-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) | (op == "#kernel.ascii") -> (case expression definitions locals w input of
       (ready, value) -> ascii-word ready sp (core-type input) value)
+    CArgument at input (CArgumentsEnd end) | (op == "#kernel.not-nan") -> (case expression definitions locals w input of
+      (ready, value) -> float-pred-word ready sp (core-type input) False value)
+    CArgument at input (CArgumentsEnd end) | (op == "#kernel.finite") -> (case expression definitions locals w input of
+      (ready, value) -> float-pred-word ready sp (core-type input) True value)
     CArgument at input (CArgumentsEnd end) | (op == "#kernel.length") -> (case expression definitions locals w input of
       (ready, value) -> length-word ready sp (core-type input) value)
     CArgument at input (CArgumentsEnd end) -> if op == "copy-out" then copy-out-word definitions locals w ty input

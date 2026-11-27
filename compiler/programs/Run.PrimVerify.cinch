@@ -653,6 +653,57 @@ module Main where
           if string-contains "[DISPROVED] Main.dbl" txt-bad && tv-reports-disproved rep-bad > 0 then Ok ()
           else Err (string-concat-all ["expected tampered Main.dbl DISPROVED, got:\n", txt-bad])
 
+  -- 20. Float refinements (NotNaN, Finite, float InRange), Finite => NotNaN, and LRAT-verified IEEE-754 prims.
+  test-float-refinements-and-ieee754 :: Result String Unit
+  test-float-refinements-and-ieee754 =
+    let src-ok = string-concat-all [
+          "module Main where\n",
+          "  type InRange (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n",
+          "  prim abs-finite-f64 :: (x :: refined (Finite x) F64) -> refined (Finite r) F64 where\n",
+          "    llvm {\n",
+          "      %r = call double @llvm.fabs.f64(double %0)\n",
+          "      ret double %r\n",
+          "    } justify verify\n",
+          "  prim neg-not-nan-f32 :: (x :: refined (NotNaN x) F32) -> refined (NotNaN r) F32 where\n",
+          "    llvm {\n",
+          "      %r = fneg float %0\n",
+          "      ret float %r\n",
+          "    } justify verify\n",
+          "  prim abs-range-f64 :: (x :: refined (InRange (-10) 10 x) F64) -> refined (InRange 0 10 r) F64 where\n",
+          "    llvm {\n",
+          "      %r = call double @llvm.fabs.f64(double %0)\n",
+          "      ret double %r\n",
+          "    } justify verify\n",
+          "  use-not-nan :: using (NotNaN x) => (x :: F64) -> F64\n",
+          "  use-not-nan x = x\n",
+          "  finite-to-not-nan :: using (Finite x) => (x :: F64) -> F64\n",
+          "  finite-to-not-nan x = use-not-nan x\n",
+          "  check-dec :: F64 -> Int\n",
+          "  check-dec x = case decide (Finite x) of\n",
+          "    Yes _ -> let _ = finite-to-not-nan x in 0\n",
+          "    No _ -> case decide (NotNaN x) of Yes _ -> 1; No _ -> 2\n",
+          "  main :: Int\n",
+          "  main = 0\n"
+        ] in
+    let src-bad = string-concat-all [
+          "module Main where\n",
+          "  prim bogus-neg :: F32 -> refined (NotNaN r) F32 where\n",
+          "    llvm {\n",
+          "      %r = fneg float %0\n",
+          "      ret float %r\n",
+          "    } justify verify\n",
+          "  main :: Int\n",
+          "  main = 0\n"
+        ] in
+    case self-check-profile host-profile "default" src-ok of
+      Err msg -> Err (string-concat-all ["float refinements + IEEE-754 LRAT check failed: ", msg])
+      Ok (checked, raw) ->
+        case self-check-profile host-profile "default" src-bad of
+          Ok _ -> Err "bogus float NotNaN postcondition must be disproved"
+          Err msg ->
+            if string-contains "failed formal verification" msg then Ok ()
+            else Err (string-concat-all ["expected formal verification counterexample for bogus float prim, got: ", msg])
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -691,11 +742,13 @@ module Main where
                                       Err e -> Err e
                                       Ok u17 -> case test-repr-c-layouts of
                                         Err e -> Err e
-                                        Ok u18 -> test-verify-codegen-tv
+                                        Ok u18 -> case test-verify-codegen-tv of
+                                          Err e -> Err e
+                                          Ok u19 -> test-float-refinements-and-ieee754
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 19 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 20 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

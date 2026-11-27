@@ -11083,6 +11083,14 @@ impl Checker {
                     }
                 }
             }
+            PTerm::Pred(PredFn::NotNaN, _) => match v {
+                Value::Word(bits) => Some(!f64::from_bits(*bits as u64).is_nan()),
+                _ => None,
+            },
+            PTerm::Pred(PredFn::Finite, _) => match v {
+                Value::Word(bits) => Some(f64::from_bits(*bits as u64).is_finite()),
+                _ => None,
+            },
             PTerm::Cmp(op, a, b) => {
                 let x = self.itern_value(a, binder, v)?;
                 let y = self.itern_value(b, binder, v)?;

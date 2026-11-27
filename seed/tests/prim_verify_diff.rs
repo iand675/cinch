@@ -770,3 +770,77 @@ module Main where
     ]);
     assert_eq!(rc_wasm, 0, "cinch verify-codegen --target=wasm32-unknown-unknown should exit 0");
 }
+
+#[test]
+fn float_refinements_not_nan_finite_in_range_and_verified_ieee754_prims() {
+    // 1. Runtime `decide (NotNaN x)` / `decide (Finite x)` + static `Finite x => NotNaN x` implication
+    //    + LRAT-verified IEEE-754 float prims preserving `NotNaN`, `Finite`, and `InRange`!
+    let src = r#"
+module Main where
+  -- `abs` preserves `NotNaN`, `Finite`, and maps `InRange (-10) 10` into `InRange 0 10` —
+  -- all proved by our built-in kernel-checked LRAT bit-blaster over IEEE-754 bits!
+  prim abs-finite-f64 :: (x :: refined (Finite x) F64) -> refined (Finite r) F64 where
+    llvm {
+      %r = call double @llvm.fabs.f64(double %0)
+      ret double %r
+    } justify verify
+
+  prim neg-not-nan-f32 :: (x :: refined (NotNaN x) F32) -> refined (NotNaN r) F32 where
+    llvm {
+      %r = fneg float %0
+      ret float %r
+    } justify verify
+
+  prim abs-range-f64 :: (x :: refined (InRange (-10) 10 x) F64) -> refined (InRange 0 10 r) F64 where
+    llvm {
+      %r = call double @llvm.fabs.f64(double %0)
+      ret double %r
+    } justify verify
+
+  use-not-nan :: using (NotNaN x) => (x :: F64) -> F64
+  use-not-nan x = neg-f64 x
+
+  -- `Finite x` statically implies `NotNaN x` without an extra runtime check!
+  finite-to-not-nan :: using (Finite x) => (x :: F64) -> F64
+  finite-to-not-nan x = use-not-nan x
+
+  main :: Int
+  main =
+    let nan64 = f64-from-bits 9221120237041090560 in
+    let inf64 = f64-from-bits 9218868437227405312 in
+    let ok64 = i32-to-f64 42 in
+    let r1 = case decide (NotNaN nan64) of Yes _ -> 1; No _ -> 0 in
+    let r2 = case decide (Finite inf64) of Yes _ -> 1; No _ -> 0 in
+    let r3 = case decide (NotNaN inf64) of Yes _ -> 0; No _ -> 1 in
+    let r4 = (case decide (Finite ok64) of
+      Yes _ ->
+        let _ = finite-to-not-nan ok64 in
+        let _ = abs-finite-f64 ok64 in
+        0
+      No _ -> 1) in
+    if r1 == 0 && r2 == 0 && r3 == 0 && r4 == 0 then 0 else 1
+"#;
+    let code = common::source_frontend::run_source(src)
+        .expect("float refinements and verified IEEE-754 prims should compile & run");
+    assert_eq!(code, 0);
+
+    // 2. Bogus IEEE-754 float refinement postcondition MUST be disproved with a counterexample!
+    let bad_fp_post = r#"
+module Main where
+  -- `fneg` does NOT turn NaN into NotNaN!
+  prim bogus-neg-not-nan :: F32 -> refined (NotNaN r) F32 where
+    llvm {
+      %r = fneg float %0
+      ret float %r
+    } justify verify
+
+  main :: Int
+  main = 0
+"#;
+    let err = check_sources(bad_fp_post, "<bad-fp-post>")
+        .expect_err("bogus float NotNaN postcondition must be disproved");
+    assert!(
+        err.to_string().contains("failed formal verification"),
+        "expected formal verification counterexample, got: {err}"
+    );
+}

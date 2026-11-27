@@ -180,6 +180,8 @@ module Cinch.Core where
     UPropNotNull body -> effect-type-scope qs body
     UPropAscii body -> effect-type-scope qs body
     UPropOrdered body -> effect-type-scope qs body
+    UPropNotNaN body -> effect-type-scope qs body
+    UPropFinite body -> effect-type-scope qs body
     UPropNonZeroPending body -> effect-type-scope qs body
     URequire predicates body -> effect-type-scope qs predicates && effect-type-scope qs body
     UPropLit value -> True
@@ -1328,6 +1330,8 @@ module Cinch.Core where
     UPropNotNull body -> UPropNotNull (freeze body)
     UPropAscii body -> UPropAscii (freeze body)
     UPropOrdered body -> UPropOrdered (freeze body)
+    UPropNotNaN body -> UPropNotNaN (freeze body)
+    UPropFinite body -> UPropFinite (freeze body)
     UPropNonZeroPending body -> UPropNonZeroPending (freeze body)
     URequire predicates body -> URequire (freeze predicates) (freeze body)
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
@@ -1380,6 +1384,8 @@ module Cinch.Core where
     UPropNotNull body -> collect-type-metas st body tail
     UPropAscii body -> collect-type-metas st body tail
     UPropOrdered body -> collect-type-metas st body tail
+    UPropNotNaN body -> collect-type-metas st body tail
+    UPropFinite body -> collect-type-metas st body tail
     UPropNonZeroPending body -> collect-type-metas st body tail
     URequire predicates body -> collect-type-metas st predicates (collect-type-metas st body tail)
     URefine id name carrier predicate -> collect-type-metas st carrier (collect-type-metas st predicate tail)
@@ -1559,6 +1565,8 @@ module Cinch.Core where
     UPropNotNull body -> valid-type ty && (closed-type body)
     UPropAscii body -> valid-type ty && (closed-type body)
     UPropOrdered body -> valid-type ty && (closed-type body)
+    UPropNotNaN body -> valid-type ty && (closed-type body)
+    UPropFinite body -> valid-type ty && (closed-type body)
     UPropNonZeroPending body -> valid-type ty && (closed-type body)
     URequire predicates body -> valid-type ty && (closed-type predicates && closed-type body)
     UPi id name domain row result -> valid-type ty && closed-type domain && closed-type row && closed-type result
@@ -1768,6 +1776,8 @@ module Cinch.Core where
     UPropNotNull body -> type-index-scope bound rigid body
     UPropAscii body -> type-index-scope bound rigid body
     UPropOrdered body -> type-index-scope bound rigid body
+    UPropNotNaN body -> type-index-scope bound rigid body
+    UPropFinite body -> type-index-scope bound rigid body
     UPropNonZeroPending body -> type-index-scope bound rigid body
     URequire predicates body -> type-index-scope bound rigid predicates && type-index-scope bound rigid body
     URefine id name carrier predicate -> type-index-scope bound rigid carrier && type-index-scope (id : bound) rigid predicate
@@ -2135,6 +2145,8 @@ module Cinch.Core where
     UPropNonZeroPending a -> borrow-index-regions a
     UPropNotNull a -> borrow-index-regions a
     UPropAscii a -> borrow-index-regions a
+    UPropNotNaN a -> borrow-index-regions a
+    UPropFinite a -> borrow-index-regions a
     UPropOrdered a -> borrow-index-regions a
     UIndexForget a -> borrow-index-regions a
     UIndexByteLength a -> borrow-index-regions a
@@ -2276,6 +2288,8 @@ module Cinch.Core where
     UPropLit value -> decision-constant value condition
     UPropOrdered input -> structural-decision-test gamma facts input condition "#kernel.ordered" ordered-carrier
     UPropAscii input -> structural-decision-test gamma facts input condition "#kernel.ascii" ascii-carrier
+    UPropNotNaN input -> structural-decision-test gamma facts input condition "#kernel.not-nan" float-carrier
+    UPropFinite input -> structural-decision-test gamma facts input condition "#kernel.finite" float-carrier
     UPropNotNull input -> (case decision-not-null-index gamma facts condition of
       Some actual -> contract-equal input actual
       None -> False)
@@ -3040,7 +3054,7 @@ module Cinch.Core where
     [] -> []
     (local, ty) : rest -> let more = refinement-facts gamma rest in case refinement-view ty of
       URefine id name carrier predicate ->
-        if valid-type ty && not (volatile-borrow-index ty) && (integer-index-carrier carrier || length-carrier carrier || ascii-carrier carrier) then
+        if valid-type ty && not (volatile-borrow-index ty) && (integer-index-carrier carrier || length-carrier carrier || ascii-carrier carrier || float-carrier carrier) then
           (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex ty (IRigid local name 0)))] predicate) of
             Some fact -> fact : more
             None -> more) else more
@@ -3368,6 +3382,16 @@ module Cinch.Core where
         other -> None)
       other -> structural-local-predicate gamma carrier value "#kernel.ordered" ordered-predicate)
     other -> None
+  not-nan-predicate :: ProofScope -> UType -> Option Proposition
+  not-nan-predicate gamma value = case typed-index-carrier value of
+    Some carrier | float-carrier carrier && typed-index-admissible value ->
+      structural-local-predicate gamma carrier value "#kernel.not-nan" not-nan-predicate
+    other -> None
+  finite-predicate :: ProofScope -> UType -> Option Proposition
+  finite-predicate gamma value = case typed-index-carrier value of
+    Some carrier | float-carrier carrier && typed-index-admissible value ->
+      structural-local-predicate gamma carrier value "#kernel.finite" finite-predicate
+    other -> None
   structural-local-predicate :: ProofScope -> UType -> UType -> String -> (ProofScope -> UType -> Option Proposition) -> Option Proposition
   structural-local-predicate gamma carrier value op recurse = case value of
     UIndexForget (UIndex refined (IRigid id name level)) -> (case proof-local id gamma of
@@ -3394,6 +3418,8 @@ module Cinch.Core where
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
     UPropOrdered value -> ordered-predicate gamma value
     UPropAscii value -> ascii-predicate gamma value
+    UPropNotNaN value -> not-nan-predicate gamma value
+    UPropFinite value -> finite-predicate gamma value
     UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
     UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
     UPropNotNull (UIndexForget input) -> case length-reading gamma (UIndexForget input) of
@@ -3856,9 +3882,20 @@ module Cinch.Core where
     other -> []
   goals-body-facts :: ProofScope -> List Proposition -> List Proposition
   goals-body-facts gamma goals = case goals of [] -> []; goal : rest -> proposition-body-facts gamma goal <> goals-body-facts gamma rest
+  float-implication-from :: Proposition -> List Proposition
+  float-implication-from p = case p of
+    PBoth a b -> float-implication-from a <> float-implication-from b
+    PCompare Equal (ACall op args) (AInteger 1) | op == "#kernel.finite" ->
+      [PCompare Equal (ACall "#kernel.not-nan" args) (AInteger 1)]
+    other -> []
+  float-implication-facts :: List Proposition -> List Proposition
+  float-implication-facts ps = case ps of
+    [] -> []
+    p : rest -> float-implication-from p <> float-implication-facts rest
   goal-assumptions :: ProofScope -> List Proposition -> List Proposition -> List Proposition
   goal-assumptions gamma facts goals =
-    let hypotheses = proof-assumptions gamma facts in
+    let base-hypotheses = proof-assumptions gamma facts in
+    let hypotheses = base-hypotheses <> float-implication-facts base-hypotheses in
     -- A checked call can occur only in an existing refinement, while the
     -- requested weaker result no longer mentions it. Its actual body still
     -- supplies its bounds. Both proof search and certificate checking rebuild

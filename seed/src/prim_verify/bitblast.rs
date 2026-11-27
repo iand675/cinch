@@ -9,7 +9,10 @@
 //! - `CompiledLratChecker` and `KernelLratChecker` are tiny, standalone RUP
 //!   verifiers sharing zero solver state.
 
-use super::sem::{eval_node, ConcreteVal, NodeId, Obligation, SemGraph, SemOp, SemTy, TheorySet};
+use super::sem::{
+    eval_node, ConcreteVal, FpFmt, FpPred, FpUnaryOp, NodeId, Obligation, SemGraph, SemOp, SemTy,
+    TheorySet,
+};
 use super::{
     CheckError, Checker, Counterexample, Evidence, Prover, ProverOutcome, TrustReceipt, TrustTier,
 };
@@ -468,6 +471,11 @@ pub fn bitblast_obligation(
     obligation: &Obligation,
     max_clauses: usize,
 ) -> Result<CnfFormula, BitBlastError> {
+    if obligation.theories().fp_arith {
+        return Err(BitBlastError::UnsupportedOp(
+            "floating-point arithmetic requires an SMT/FP backend".to_string(),
+        ));
+    }
     let mut ts = Tseitin::new(max_clauses);
     let mut memo: HashMap<NodeId, BbVal> = HashMap::new();
     let mut param_bits: Vec<(usize, SemTy, Vec<i32>)> = Vec::new();
@@ -478,14 +486,71 @@ pub fn bitblast_obligation(
         let bits = match p.ty {
             SemTy::Bool => vec![ts.fresh()],
             SemTy::Bv(w) => (0..w).map(|_| ts.fresh()).collect(),
-            SemTy::Fp(f) => {
-                return Err(BitBlastError::UnsupportedOp(format!(
-                    "floating-point parameter {f:?} requires SMT/FP backend"
-                )));
-            }
+            SemTy::Fp(f) => (0..f.bit_width()).map(|_| ts.fresh()).collect(),
         };
         param_vars.insert(p.index, bits.clone());
         param_bits.push((p.index, p.ty, bits));
+    }
+
+    fn mk_fp_is_nan(ts: &mut Tseitin, fmt: FpFmt, bits: &[i32]) -> Result<i32, BitBlastError> {
+        let (exp_lo, exp_hi, sig_hi) = match fmt {
+            FpFmt::F32 => (23usize, 31usize, 23usize),
+            FpFmt::F64 => (52usize, 63usize, 52usize),
+        };
+        let mut exp_all1 = ts.true_lit;
+        for &b in &bits[exp_lo..exp_hi] {
+            exp_all1 = ts.mk_and(exp_all1, b)?;
+        }
+        let mut sig_nz = ts.false_lit();
+        for &b in &bits[0..sig_hi] {
+            sig_nz = ts.mk_or(sig_nz, b)?;
+        }
+        ts.mk_and(exp_all1, sig_nz)
+    }
+
+    fn mk_fp_is_finite(ts: &mut Tseitin, fmt: FpFmt, bits: &[i32]) -> Result<i32, BitBlastError> {
+        let (exp_lo, exp_hi) = match fmt {
+            FpFmt::F32 => (23usize, 31usize),
+            FpFmt::F64 => (52usize, 63usize),
+        };
+        let mut exp_all1 = ts.true_lit;
+        for &b in &bits[exp_lo..exp_hi] {
+            exp_all1 = ts.mk_and(exp_all1, b)?;
+        }
+        Ok(-exp_all1)
+    }
+
+    fn mk_fp_is_zero(ts: &mut Tseitin, bits: &[i32]) -> Result<i32, BitBlastError> {
+        let mut any = ts.false_lit();
+        for &b in &bits[0..bits.len() - 1] {
+            any = ts.mk_or(any, b)?;
+        }
+        Ok(-any)
+    }
+
+    fn mk_fp_olt(ts: &mut Tseitin, fmt: FpFmt, a: &[i32], b: &[i32]) -> Result<i32, BitBlastError> {
+        let w = a.len();
+        let nan_a = mk_fp_is_nan(ts, fmt, a)?;
+        let nan_b = mk_fp_is_nan(ts, fmt, b)?;
+        let uno = ts.mk_or(nan_a, nan_b)?;
+        let ord = -uno;
+        let za = mk_fp_is_zero(ts, a)?;
+        let zb = mk_fp_is_zero(ts, b)?;
+        let both_zero = ts.mk_and(za, zb)?;
+        let sa = a[w - 1];
+        let sb = b[w - 1];
+        let mag_a = &a[0..w - 1];
+        let mag_b = &b[0..w - 1];
+        let mag_a_lt_b = ts.mk_bv_ult(mag_a, mag_b)?;
+        let mag_b_lt_a = ts.mk_bv_ult(mag_b, mag_a)?;
+        // If sa=1 (neg): lt iff (sb=0 -> true; sb=1 -> mag_b < mag_a)
+        let neg_a_case = ts.mk_ite(sb, mag_b_lt_a, ts.true_lit)?;
+        // If sa=0 (pos): lt iff (sb=0 -> mag_a < mag_b; sb=1 -> false)
+        let pos_a_case = ts.mk_ite(sb, ts.false_lit(), mag_a_lt_b)?;
+        let raw_lt = ts.mk_ite(sa, neg_a_case, pos_a_case)?;
+        let not_both_zero = -both_zero;
+        let nz_lt = ts.mk_and(not_both_zero, raw_lt)?;
+        ts.mk_and(ord, nz_lt)
     }
 
     fn lower(
@@ -501,12 +566,12 @@ pub fn bitblast_obligation(
         let res = match g.op(id) {
             SemOp::BoolConst(b) => BbVal::Bool(if *b { ts.true_lit } else { ts.false_lit() }),
             SemOp::BvConst { width, bits } => BbVal::Bv(ts.mk_bv_const(*width, *bits)),
+            SemOp::FpConst { fmt, bits } => BbVal::Bv(ts.mk_bv_const(fmt.bit_width(), *bits as u128)),
             SemOp::Param { index, ty, .. } => {
                 let bits = param_vars[index].clone();
                 match ty {
                     SemTy::Bool => BbVal::Bool(bits[0]),
-                    SemTy::Bv(_) => BbVal::Bv(bits),
-                    SemTy::Fp(_) => unreachable!(),
+                    SemTy::Bv(_) | SemTy::Fp(_) => BbVal::Bv(bits),
                 }
             }
             SemOp::Not(a) => {
@@ -713,6 +778,107 @@ pub fn bitblast_obligation(
                 let vb = lower(g, *b, ts, param_vars, memo)?;
                 BbVal::Bool(ts.mk_bv_sle(va.as_bv(), vb.as_bv())?)
             }
+            SemOp::FpToBvBits(a) | SemOp::BvBitsToFp(_, a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bv(va.as_bv().to_vec())
+            }
+            SemOp::FpNeg(a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let mut out = va.as_bv().to_vec();
+                let top = out.len() - 1;
+                out[top] = -out[top];
+                BbVal::Bv(out)
+            }
+            SemOp::FpUnary(FpUnaryOp::Abs, a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let mut out = va.as_bv().to_vec();
+                let top = out.len() - 1;
+                out[top] = ts.false_lit();
+                BbVal::Bv(out)
+            }
+            SemOp::FpCopySign(a, b) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let vb = lower(g, *b, ts, param_vars, memo)?;
+                let mut out = va.as_bv().to_vec();
+                let top = out.len() - 1;
+                out[top] = vb.as_bv()[top];
+                BbVal::Bv(out)
+            }
+            SemOp::FpIsNaN(a) => {
+                let fmt = g.fp_fmt(*a);
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bool(mk_fp_is_nan(ts, fmt, va.as_bv())?)
+            }
+            SemOp::FpIsFinite(a) => {
+                let fmt = g.fp_fmt(*a);
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bool(mk_fp_is_finite(ts, fmt, va.as_bv())?)
+            }
+            SemOp::FpCmp(pred, a, b) => {
+                let fmt = g.fp_fmt(*a);
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let vb = lower(g, *b, ts, param_vars, memo)?;
+                let ba = va.as_bv();
+                let bb = vb.as_bv();
+                let nan_a = mk_fp_is_nan(ts, fmt, ba)?;
+                let nan_b = mk_fp_is_nan(ts, fmt, bb)?;
+                let uno = ts.mk_or(nan_a, nan_b)?;
+                let ord = -uno;
+                let res_lit = match pred {
+                    FpPred::False => ts.false_lit(),
+                    FpPred::True => ts.true_lit,
+                    FpPred::Ord => ord,
+                    FpPred::Uno => uno,
+                    FpPred::Oeq | FpPred::One | FpPred::Ueq | FpPred::Une => {
+                        let za = mk_fp_is_zero(ts, ba)?;
+                        let zb = mk_fp_is_zero(ts, bb)?;
+                        let both_zero = ts.mk_and(za, zb)?;
+                        let bits_eq = ts.mk_bv_eq(ba, bb)?;
+                        let val_eq = ts.mk_or(both_zero, bits_eq)?;
+                        let oeq = ts.mk_and(ord, val_eq)?;
+                        match pred {
+                            FpPred::Oeq => oeq,
+                            FpPred::One => ts.mk_and(ord, -val_eq)?,
+                            FpPred::Ueq => ts.mk_or(uno, val_eq)?,
+                            FpPred::Une => ts.mk_or(uno, -val_eq)?,
+                            _ => unreachable!(),
+                        }
+                    }
+                    FpPred::Olt => mk_fp_olt(ts, fmt, ba, bb)?,
+                    FpPred::Ogt => mk_fp_olt(ts, fmt, bb, ba)?,
+                    FpPred::Ole | FpPred::Oge => {
+                        let lt = if matches!(pred, FpPred::Ole) {
+                            mk_fp_olt(ts, fmt, ba, bb)?
+                        } else {
+                            mk_fp_olt(ts, fmt, bb, ba)?
+                        };
+                        let za = mk_fp_is_zero(ts, ba)?;
+                        let zb = mk_fp_is_zero(ts, bb)?;
+                        let both_zero = ts.mk_and(za, zb)?;
+                        let bits_eq = ts.mk_bv_eq(ba, bb)?;
+                        let val_eq = ts.mk_or(both_zero, bits_eq)?;
+                        let oeq = ts.mk_and(ord, val_eq)?;
+                        ts.mk_or(lt, oeq)?
+                    }
+                    FpPred::Ult => {
+                        let olt = mk_fp_olt(ts, fmt, ba, bb)?;
+                        ts.mk_or(uno, olt)?
+                    }
+                    FpPred::Ugt => {
+                        let ogt = mk_fp_olt(ts, fmt, bb, ba)?;
+                        ts.mk_or(uno, ogt)?
+                    }
+                    FpPred::Ule => {
+                        let ogt = mk_fp_olt(ts, fmt, bb, ba)?;
+                        -ogt
+                    }
+                    FpPred::Uge => {
+                        let olt = mk_fp_olt(ts, fmt, ba, bb)?;
+                        -olt
+                    }
+                };
+                BbVal::Bool(res_lit)
+            }
             other => {
                 return Err(BitBlastError::UnsupportedOp(format!(
                     "operation {:?} is not supported by pure bit-blaster (route to SMT)",
@@ -754,7 +920,15 @@ fn reconstruct_counterexample(
                 }
                 ConcreteVal::Bv { width: w, bits: v }
             }
-            SemTy::Fp(_) => unreachable!(),
+            SemTy::Fp(fmt) => {
+                let mut v = 0u64;
+                for (bit_i, &var) in bits.iter().enumerate() {
+                    if model[var as usize] > 0 {
+                        v |= 1u64 << bit_i;
+                    }
+                }
+                ConcreteVal::Fp { fmt, bits: v }
+            }
         };
         vals.push((*idx, cv));
     }

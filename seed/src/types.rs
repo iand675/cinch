@@ -1145,6 +1145,10 @@ pub enum PredFn {
     Ascii,
     /// A list of numerics is in non-decreasing order (`List Nat`).
     Ordered,
+    /// A floating-point value is not IEEE-754 NaN (`F32`, `F64`).
+    NotNaN,
+    /// A floating-point value is finite (neither NaN nor ±Infinity) (`F32`, `F64`).
+    Finite,
 }
 
 impl PredFn {
@@ -1155,6 +1159,8 @@ impl PredFn {
             PredFn::NonZero => "NonZero",
             PredFn::Ascii => "Ascii",
             PredFn::Ordered => "Ordered",
+            PredFn::NotNaN => "NotNaN",
+            PredFn::Finite => "Finite",
         }
     }
 
@@ -1165,6 +1171,8 @@ impl PredFn {
             "NonZero" => Some(PredFn::NonZero),
             "Ascii" => Some(PredFn::Ascii),
             "Ordered" => Some(PredFn::Ordered),
+            "NotNaN" => Some(PredFn::NotNaN),
+            "Finite" => Some(PredFn::Finite),
             _ => None,
         }
     }
@@ -1177,6 +1185,8 @@ impl PredFn {
             PredFn::NonZero => "numeric values (`Nat`, `Int`, machine integers)",
             PredFn::Ascii => "text values (`String`) and lists of chars (`List Char`)",
             PredFn::Ordered => "lists of numerics (`List Nat`)",
+            PredFn::NotNaN => "floating-point values (`F32`, `F64`)",
+            PredFn::Finite => "floating-point values (`F32`, `F64`)",
         }
     }
 }
@@ -1516,6 +1526,11 @@ fn atom_implied_by(conj: &[PTerm], qa: &PTerm) -> bool {
             // does `x /= 0` (the predicate's own decision test).
             interval_over(conj, x).excludes_zero()
                 || conj.iter().any(|pa| ne_atom(pa).is_some_and(|(m, b)| b == 0 && m.eq(x)))
+        }
+        PTerm::Pred(PredFn::NotNaN, x) => {
+            // Every finite IEEE-754 float is not NaN (`Finite x => NotNaN x`).
+            conj.iter()
+                .any(|pa| matches!(pa, PTerm::Pred(PredFn::Finite, y) if y.eq(x)))
         }
         _ => false,
     }

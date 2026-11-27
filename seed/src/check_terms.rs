@@ -7157,6 +7157,7 @@ impl Checker {
                     status
                 }
             }
+            PredFn::NotNaN | PredFn::Finite => ObligStatus::Unresolved,
         })
     }
 
@@ -7335,6 +7336,30 @@ impl Checker {
                 };
                 let gid = self.install_ordered_test(name, span)?;
                 ECore::App(Box::new(ECore::Global(gid, Vec::new())), vec![operand])
+            }
+            PredFn::NotNaN | PredFn::Finite => {
+                let (u_ty, abs_mask, exp_mask) = match oty {
+                    Ty::Prim(Scalar::F32) => (Scalar::U32, 0x7fff_ffff_i64, 0x7f80_0000_i64),
+                    Ty::Prim(Scalar::F64) => (Scalar::U64, 0x7fff_ffff_ffff_ffff_i64, 0x7ff0_0000_0000_0000_i64),
+                    other => {
+                        return Err(Error::at(
+                            span,
+                            crate::diagnostic!(
+                                "`{}` decides floating-point values (`F32`, `F64`), not `{}` (a wrong predicate for this value is refused naming the predicate)",
+                                pf, other
+                            ),
+                        ))
+                    }
+                };
+                let abs_bits = ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Bit { ty: u_ty, op: crate::core::BitOp::And })),
+                    vec![operand, ECore::Int(abs_mask)],
+                );
+                let cmp_op = if matches!(pf, PredFn::Finite) { CmpOp::Lt } else { CmpOp::Le };
+                ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Cmp { ty: u_ty, op: cmp_op })),
+                    vec![abs_bits, ECore::Int(exp_mask)],
+                )
             }
         })
     }

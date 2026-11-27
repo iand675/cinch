@@ -87,6 +87,8 @@ module Cinch.CoreBody where
     UPropNotNull body -> dense-mix 23 (dense-type-digest body) 0
     UPropAscii body -> dense-mix 283 (dense-type-digest body) 0
     UPropOrdered body -> dense-mix 293 (dense-type-digest body) 0
+    UPropNotNaN body -> dense-mix 367 (dense-type-digest body) 0
+    UPropFinite body -> dense-mix 373 (dense-type-digest body) 0
     UPropNonZeroPending body -> dense-mix 29 (dense-type-digest body) 0
     URequire predicates body -> dense-mix 31 (dense-type-digest predicates) (dense-type-digest body)
     URefine id name carrier predicate -> dense-mix 37 (string-length name) (dense-mix 41 (dense-type-digest carrier) (dense-type-digest predicate))

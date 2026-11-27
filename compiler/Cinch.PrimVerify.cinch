@@ -30,7 +30,7 @@ module Cinch.PrimVerify where
   import Cinch.Interface (fnv-source-hash, sha256-hex, u64-decimal)
   import Cinch.Index (IndexTerm, IInteger, IBound, IRigid, IAdd, ISubtract, IMultiply)
   import Cinch.Nominal (decode-identity)
-  import Cinch.Type (UType, UCon, UApp, UFun, UFunEff, UPi, URefine, URequire, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UIndex, UIndexMath, UIndexForget, UIndexPromote, refinement-view)
+  import Cinch.Type (UType, KType, UCon, UApp, UFun, UFunEff, UPi, URefine, URequire, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNotNaN, UPropFinite, UIndex, UIndexMath, UIndexForget, UIndexPromote, refinement-view, float-literal-bits, float-string-bits)
   import Data.Bool
   import Data.Char (is-ascii-digit, char-code, char-from-code)
   import Data.Int
@@ -298,6 +298,7 @@ module Cinch.PrimVerify where
     NFpBin :: String -> Nat -> Nat -> Nat -> SemNode
     NFpCmp :: String -> Nat -> Nat -> Nat -> SemNode
     NFpCast :: String -> Nat -> Nat -> Nat -> SemNode
+    NFpPred :: String -> Nat -> Nat -> SemNode
 
   node-key :: SemNode -> String
   node-key n = case n of
@@ -322,18 +323,22 @@ module Cinch.PrimVerify where
     NFpBin op w a b -> string-concat-all ["fp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
     NFpCmp op w a b -> string-concat-all ["fpcmp_", op, "_", nat-to-string w, "(", nat-to-string a, ",", nat-to-string b, ")"]
     NFpCast op fw tw a -> string-concat-all ["fpcast_", op, "_", nat-to-string fw, "_", nat-to-string tw, "(", nat-to-string a, ")"]
+    NFpPred op w a -> string-concat-all ["fppred_", op, "_", nat-to-string w, "(", nat-to-string a, ")"]
 
   data SemGraph where
-    MkSemGraph :: Nat -> NatMap SemNode -> List (String, Nat) -> Bool -> SemGraph
+    MkSemGraph :: Nat -> NatMap SemNode -> List (String, Nat) -> Bool -> Bool -> SemGraph
 
   empty-sem-graph :: SemGraph
-  empty-sem-graph = MkSemGraph 0 nm-empty Nil False
+  empty-sem-graph = MkSemGraph 0 nm-empty Nil False False
 
   graph-has-fp :: SemGraph -> Bool
-  graph-has-fp g = case g of MkSemGraph cnt nodes cache fp -> fp
+  graph-has-fp g = case g of MkSemGraph cnt nodes cache fp fpa -> fp
+
+  graph-has-fp-arith :: SemGraph -> Bool
+  graph-has-fp-arith g = case g of MkSemGraph cnt nodes cache fp fpa -> fpa
 
   graph-node :: Nat -> SemGraph -> Option SemNode
-  graph-node id g = case g of MkSemGraph cnt nodes cache fp -> nm-lookup id nodes
+  graph-node id g = case g of MkSemGraph cnt nodes cache fp fpa -> nm-lookup id nodes
 
   lookup-str-nat :: String -> List (String, Nat) -> Option Nat
   lookup-str-nat k xs = case xs of
@@ -346,7 +351,15 @@ module Cinch.PrimVerify where
     NFpBin op w a b -> True
     NFpCmp op w a b -> True
     NFpCast op fw tw a -> True
+    NFpPred op w a -> True
     NVar i (SFp w) nm -> True
+    other -> False
+
+  node-is-fp-arith :: SemNode -> Bool
+  node-is-fp-arith n = case n of
+    NFpUn op w a -> not (same op "fneg" || string-starts-with "@llvm.fabs." op)
+    NFpBin op w a b -> not (string-starts-with "@llvm.copysign." op)
+    NFpCast op fw tw a -> not (same op "bitcast")
     other -> False
 
   nat-u64 :: Nat -> U64
@@ -419,14 +432,15 @@ module Cinch.PrimVerify where
 
   g-intern :: SemNode -> SemGraph -> (Nat, SemGraph)
   g-intern node g = case g of
-    MkSemGraph cnt nodes cache fp ->
+    MkSemGraph cnt nodes cache fp fpa ->
       let key = node-key node in
       case lookup-str-nat key cache of
         Some existing -> (existing, g)
         None ->
           let id = cnt in
           let next-fp = fp || node-is-fp node in
-          (id, MkSemGraph (cnt + 1) (nm-insert id node nodes) (Cons (key, id) cache) next-fp)
+          let next-fpa = fpa || node-is-fp-arith node in
+          (id, MkSemGraph (cnt + 1) (nm-insert id node nodes) (Cons (key, id) cache) next-fp next-fpa)
 
   g-bool :: Bool -> SemGraph -> (Nat, SemGraph)
   g-bool b g = g-intern (NBoolConst b) g
@@ -534,6 +548,7 @@ module Cinch.PrimVerify where
       NFpBin op w a b -> string-concat-all ["(fp.", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
       NFpCmp op w a b -> string-concat-all ["(fpcmp.", op, ".", nat-to-string w, " ", serialize-sem a g, " ", serialize-sem b g, ")"]
       NFpCast op fw tw a -> string-concat-all ["(fpcast.", op, ".", nat-to-string fw, ".", nat-to-string tw, " ", serialize-sem a g, ")"]
+      NFpPred op w a -> string-concat-all ["(fppred.", op, ".", nat-to-string w, " ", serialize-sem a g, ")"]
 
   -- ==========================================================================
   -- 4. Versioned LLVM IR Semantics (`llvm-sem@21.1`)
@@ -699,15 +714,49 @@ module Cinch.PrimVerify where
         case env-lookup tok binds of
           Some sv -> Ok (sv, g)
           None -> Err (string-concat "unresolved LLVM operand " tok)
-      else case parse-ir-u128 tok of
-        Some (lo, hi) ->
+      else case (ty, parse-ir-u128 tok) of
+        (SFp w, _) ->
+          case parse-llvm-fp-const w tok of
+            Some (lo, hi) ->
+              let (p, g1) = g-bool False g in
+              let (v, g2) = g-bv-pair w lo hi g1 in
+              Ok (MkSemVal v p (SFp w), g2)
+            None -> Err (string-concat "unsupported LLVM float operand " tok)
+        (_, Some (lo, hi)) ->
           let (p, g1) = g-bool False g in
           (case ty of
             SBool -> let (v, g2) = g-bool (not (eq-u64 lo 0 && eq-u64 hi 0)) g1 in Ok (MkSemVal v p SBool, g2)
             SBv w -> let (v, g2) = g-bv-pair w lo hi g1 in Ok (MkSemVal v p (SBv w), g2)
             SFp w -> let (v, g2) = g-bv-pair w lo hi g1 in Ok (MkSemVal v p (SFp w), g2)
             SVec n ew -> Err (string-concat "scalar constant used as vector operand " tok))
-        None -> Err (string-concat "unsupported LLVM operand " tok)
+        (_, None) -> Err (string-concat "unsupported LLVM operand " tok)
+
+  hex-nibble-u64 :: Char -> Option U64
+  hex-nibble-u64 c =
+    let code = char-code c in
+    if code >= 48 && code <= 57 then Some (nat-u64 (saturating-sub code 48))
+    else if code >= 65 && code <= 70 then Some (nat-u64 (saturating-sub code 55))
+    else if code >= 97 && code <= 102 then Some (nat-u64 (saturating-sub code 87))
+    else None
+
+  parse-hex-u64-chars :: List Char -> U64 -> Option U64
+  parse-hex-u64-chars cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest -> case hex-nibble-u64 c of
+      Some d -> parse-hex-u64-chars rest (wrapping-add-u64 (wrapping-shl-u64 acc 4) d)
+      None -> None
+
+  parse-llvm-fp-const :: Nat -> String -> Option (U64, U64)
+  parse-llvm-fp-const w tok =
+    if string-starts-with "0x" tok && string-length tok > 2 then
+      case parse-hex-u64-chars (unpack (string-slice tok 2 (string-length tok))) 0 of
+        Some bits64 -> Some (bits64, 0)
+        None -> None
+    else
+      let carrier = UCon (if w == 32 then "F32" else "F64") KType in
+      case float-string-bits carrier tok of
+        Some bits -> parse-ir-u128 (int-to-string bits)
+        None -> None
 
   strip-ir-flags :: List String -> (Bool, Bool, Bool, List String)
   strip-ir-flags ws = strip-ir-flags-acc False False False ws
@@ -1975,26 +2024,104 @@ module Cinch.PrimVerify where
           let (zero, g2) = g-bv w 0 g1 in
           Some (g-bv-cmp "ne" w na zero g2)
         None -> None
-    UCompare rel a b ->
-      case lower-index-utype env a g of
-        Some (na, w1, sg1, g1) ->
-          (case lower-index-utype env b g1 of
-            Some (nb, w2, sg2, g2) ->
-              let w = if w1 > 0 then w1 else if w2 > 0 then w2 else 64 in
-              let sg = if w1 > 0 then sg1 else if w2 > 0 then sg2 else (sg1 || sg2) in
-              let (na2, g3) = if w1 == 0 then (case extract-const-u128 na g2 of (lo, hi) -> g-bv-pair w lo hi g2) else (na, g2) in
-              let (nb2, g4) = if w2 == 0 then (case extract-const-u128 nb g3 of (lo, hi) -> g-bv-pair w lo hi g3) else (nb, g3) in
-              let cmp-op =
-                    if same rel "==" then "eq"
-                    else if same rel "/=" then "ne"
-                    else if same rel "<" then (if sg then "slt" else "ult")
-                    else if same rel "<=" then (if sg then "sle" else "ule")
-                    else if same rel ">" then (if sg then "sgt" else "ugt")
-                    else (if sg then "sge" else "uge") in
-              Some (g-bv-cmp cmp-op w na2 nb2 g4)
-            None -> None)
+    UPropNotNaN a ->
+      case lower-fp-ref-var env a of
+        Some (na, w) ->
+          let (is-nan, g1) = g-intern (NFpPred "isNaN" w na) g in
+          Some (g-not is-nan g1)
         None -> None
+    UPropFinite a ->
+      case lower-fp-ref-var env a of
+        Some (na, w) -> Some (g-intern (NFpPred "isFinite" w na) g)
+        None -> None
+    UCompare rel a b ->
+      case (lower-index-utype env a g, lower-index-utype env b g) of
+        (Some _, Some _) ->
+          (case lower-index-utype env a g of
+            Some (na, w1, sg1, g1) ->
+              (case lower-index-utype env b g1 of
+                Some (nb, w2, sg2, g2) ->
+                  let w = if w1 > 0 then w1 else if w2 > 0 then w2 else 64 in
+                  let sg = if w1 > 0 then sg1 else if w2 > 0 then sg2 else (sg1 || sg2) in
+                  let (na2, g3) = if w1 == 0 then (case extract-const-u128 na g2 of (lo, hi) -> g-bv-pair w lo hi g2) else (na, g2) in
+                  let (nb2, g4) = if w2 == 0 then (case extract-const-u128 nb g3 of (lo, hi) -> g-bv-pair w lo hi g3) else (nb, g3) in
+                  let cmp-op =
+                        if same rel "==" then "eq"
+                        else if same rel "/=" then "ne"
+                        else if same rel "<" then (if sg then "slt" else "ult")
+                        else if same rel "<=" then (if sg then "sle" else "ule")
+                        else if same rel ">" then (if sg then "sgt" else "ugt")
+                        else (if sg then "sge" else "uge") in
+                  Some (g-bv-cmp cmp-op w na2 nb2 g4)
+                None -> None)
+            None -> None)
+        other -> lower-fp-compare env rel a b g
     other -> None
+
+  lookup-fp-var :: String -> List (String, Nat, SemType, Bool) -> Option (Nat, Nat)
+  lookup-fp-var nm env = case env of
+    Nil -> None
+    Cons (k, nid, SFp w, sg) rest -> if same nm k then Some (nid, w) else lookup-fp-var nm rest
+    Cons other rest -> lookup-fp-var nm rest
+
+  lower-fp-ref-var :: List (String, Nat, SemType, Bool) -> UType -> Option (Nat, Nat)
+  lower-fp-ref-var env u = case refinement-view u of
+    UIndex carrier (IBound id nm) -> lookup-fp-var nm env
+    UIndex carrier (IRigid id nm lvl) -> lookup-fp-var nm env
+    UIndexForget inner -> lower-fp-ref-var env inner
+    UIndexPromote inner -> lower-fp-ref-var env inner
+    other -> None
+
+  extract-int-const-utype :: UType -> Option Int
+  extract-int-const-utype u = case refinement-view u of
+    UIndex carrier (IInteger n) -> Some n
+    UIndexForget inner -> extract-int-const-utype inner
+    UIndexPromote inner -> extract-int-const-utype inner
+    UIndexMath op a b ->
+      case (extract-int-const-utype a, extract-int-const-utype b) of
+        (Some x, Some y) ->
+          if same op "+" then Some (x + y)
+          else if same op "-" then Some (x - y)
+          else if same op "*" then Some (x * y)
+          else None
+        other -> None
+    other -> None
+
+  lower-fp-operand :: List (String, Nat, SemType, Bool) -> Nat -> UType -> SemGraph -> Option (Nat, SemGraph)
+  lower-fp-operand env w u g = case lower-fp-ref-var env u of
+    Some (nid, w2) -> if w == w2 then Some (nid, g) else None
+    None -> case extract-int-const-utype u of
+      Some n ->
+        let carrier = UCon (if w == 32 then "F32" else "F64") KType in
+        (case float-literal-bits carrier n False of
+          Some bits -> (case parse-ir-u128 (int-to-string bits) of
+            Some (lo, hi) -> Some (g-bv-pair w lo hi g)
+            None -> None)
+          None -> None)
+      None -> None
+
+  lower-fp-compare :: List (String, Nat, SemType, Bool) -> String -> UType -> UType -> SemGraph -> Option (Nat, SemGraph)
+  lower-fp-compare env rel a b g =
+    let w-opt = case lower-fp-ref-var env a of
+          Some (_, w) -> Some w
+          None -> case lower-fp-ref-var env b of
+            Some (_, w) -> Some w
+            None -> None in
+    case w-opt of
+      None -> None
+      Some w -> case lower-fp-operand env w a g of
+        None -> None
+        Some (na, g1) -> case lower-fp-operand env w b g1 of
+          None -> None
+          Some (nb, g2) ->
+            let fpred =
+                  if same rel "==" then "oeq"
+                  else if same rel "/=" then "one"
+                  else if same rel "<" then "olt"
+                  else if same rel "<=" then "ole"
+                  else if same rel ">" then "ogt"
+                  else "oge" in
+            Some (g-intern (NFpCmp fpred w na nb) g2)
 
   extract-const-u128 :: Nat -> SemGraph -> (U64, U64)
   extract-const-u128 id g = case graph-node id g of
@@ -2105,7 +2232,12 @@ module Cinch.PrimVerify where
               else if same op "fdiv" then "fp.div RNE"
               else "fp.rem" in
         string-concat-all ["(", fop, " ", smt-expr a g, " ", smt-expr b g, ")"]
-      NFpUn op w a -> string-concat-all ["(fp.neg ", smt-expr a g, ")"]
+      NFpUn op w a ->
+        if string-starts-with "@llvm.fabs." op then string-concat-all ["(fp.abs ", smt-expr a g, ")"]
+        else string-concat-all ["(fp.neg ", smt-expr a g, ")"]
+      NFpPred op w a ->
+        if same op "isNaN" then string-concat-all ["(fp.isNaN ", smt-expr a g, ")"]
+        else string-concat-all ["(and (not (fp.isNaN ", smt-expr a g, ")) (not (fp.isInfinite ", smt-expr a g, ")))"]
       other -> serialize-sem id g
 
   obligation-to-smtlib2 :: SemGraph -> Nat -> List (Nat, SemType, String) -> String
@@ -2597,7 +2729,112 @@ module Cinch.PrimVerify where
         Err e -> Err e
         Ok (la, st2) -> Ok (lb <> la, st2)
     NBvTri op w a b c -> Err (string-concat "requires external SMT solver for ternary op: " op)
-    other -> Err "floating-point obligation requires an external SMT solver"
+    NFpCast op fw tw a ->
+      if same op "bitcast" && fw == tw then bb-node a g st
+      else Err (string-concat "floating-point cast requires an external SMT solver: " op)
+    NFpUn op w a -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) ->
+        if same op "fneg" then Ok (bb-set-last-bit (lit-neg (last-bit la)) la, st1)
+        else if string-starts-with "@llvm.fabs." op then Ok (bb-set-last-bit lit-false la, st1)
+        else Err (string-concat "floating-point unary op requires an external SMT solver: " op)
+    NFpBin op w a b ->
+      if string-starts-with "@llvm.copysign." op then
+        case bb-node a g st of
+          Err e -> Err e
+          Ok (la, st1) -> case bb-node b g st1 of
+            Err e -> Err e
+            Ok (lb, st2) -> Ok (bb-set-last-bit (last-bit lb) la, st2)
+      else Err (string-concat "floating-point binary op requires an external SMT solver: " op)
+    NFpPred op w a -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) ->
+        if same op "isNaN" then let (r, st2) = bb-fp-is-nan w la st1 in Ok ([r], st2)
+        else if same op "isFinite" then let (r, st2) = bb-fp-is-finite w la st1 in Ok ([r], st2)
+        else Err (string-concat "unsupported fp predicate: " op)
+    NFpCmp pred w a b -> case bb-node a g st of
+      Err e -> Err e
+      Ok (la, st1) -> case bb-node b g st1 of
+        Err e -> Err e
+        Ok (lb, st2) -> let (r, st3) = bb-fp-cmp pred w la lb st2 in Ok ([r], st3)
+
+  bb-set-last-bit :: Int -> List Int -> List Int
+  bb-set-last-bit bit xs = case xs of
+    Nil -> Nil
+    Cons _ Nil -> Cons bit Nil
+    Cons h t -> Cons h (bb-set-last-bit bit t)
+
+  bb-all-bits :: List Int -> BlastState -> (Int, BlastState)
+  bb-all-bits xs st = case xs of
+    Nil -> (lit-true, st)
+    Cons x rest ->
+      let (r, st1) = bb-all-bits rest st in bb-and x r st1
+
+  bb-fp-exp-all1 :: Nat -> List Int -> BlastState -> (Int, BlastState)
+  bb-fp-exp-all1 w bits st =
+    let (sig-w, exp-w) = if w == 32 then (23, 8) else (52, 11) in
+    bb-all-bits (take-bits exp-w (drop-bits sig-w bits)) st
+
+  bb-fp-is-nan :: Nat -> List Int -> BlastState -> (Int, BlastState)
+  bb-fp-is-nan w bits st =
+    let sig-w = if w == 32 then 23 else 52 in
+    let (exp1, st1) = bb-fp-exp-all1 w bits st in
+    let (sig-nz, st2) = bb-any-bit (take-bits sig-w bits) st1 in
+    bb-and exp1 sig-nz st2
+
+  bb-fp-is-finite :: Nat -> List Int -> BlastState -> (Int, BlastState)
+  bb-fp-is-finite w bits st =
+    let (exp1, st1) = bb-fp-exp-all1 w bits st in
+    (lit-neg exp1, st1)
+
+  bb-fp-cmp :: String -> Nat -> List Int -> List Int -> BlastState -> (Int, BlastState)
+  bb-fp-cmp pred w la lb st =
+    if same pred "false" then (lit-false, st)
+    else if same pred "true" then (lit-true, st)
+    else
+      let (na, st1) = bb-fp-is-nan w la st in
+      let (nb, st2) = bb-fp-is-nan w lb st1 in
+      let (uno, st3) = bb-or na nb st2 in
+      let ord = lit-neg uno in
+      if same pred "ord" then (ord, st3)
+      else if same pred "uno" then (uno, st3)
+      else
+        let mag-w = saturating-sub w 1 in
+        let mag-a = take-bits mag-w la in
+        let mag-b = take-bits mag-w lb in
+        let sa = last-bit la in
+        let sb = last-bit lb in
+        let (nza, st4) = bb-any-bit mag-a st3 in
+        let (nzb, st5) = bb-any-bit mag-b st4 in
+        let (both-z, st6) = bb-and (lit-neg nza) (lit-neg nzb) st5 in
+        let (bits-eq, st7) = bb-vec-eq la lb st6 in
+        let (val-eq, st8) = bb-or both-z bits-eq st7 in
+        let (mag-lt, st9) = bb-vec-ult mag-a mag-b st8 in
+        let (mag-gt, st10) = bb-vec-ult mag-b mag-a st9 in
+        let (an-bp, st11) = bb-and sa (lit-neg sb) st10 in
+        let (np-lt, st12) = bb-and an-bp (lit-neg both-z) st11 in
+        let (both-pos, st13) = bb-and (lit-neg sa) (lit-neg sb) st12 in
+        let (bp-lt, st14) = bb-and both-pos mag-lt st13 in
+        let (both-neg, st15) = bb-and sa sb st14 in
+        let (bn-lt, st16) = bb-and both-neg mag-gt st15 in
+        let (t1, st17) = bb-or np-lt bp-lt st16 in
+        let (val-lt, st18) = bb-or t1 bn-lt st17 in
+        let (val-le, st19) = bb-or val-lt val-eq st18 in
+        let val-gt = lit-neg val-le in
+        let val-ge = lit-neg val-lt in
+        let val-ne = lit-neg val-eq in
+        if same pred "oeq" then bb-and ord val-eq st19
+        else if same pred "ogt" then bb-and ord val-gt st19
+        else if same pred "oge" then bb-and ord val-ge st19
+        else if same pred "olt" then bb-and ord val-lt st19
+        else if same pred "ole" then bb-and ord val-le st19
+        else if same pred "one" then bb-and ord val-ne st19
+        else if same pred "ueq" then bb-or uno val-eq st19
+        else if same pred "ugt" then bb-or uno val-gt st19
+        else if same pred "uge" then bb-or uno val-ge st19
+        else if same pred "ult" then bb-or uno val-lt st19
+        else if same pred "ule" then bb-or uno val-le st19
+        else bb-or uno val-ne st19
 
   -- ==========================================================================
   -- 8. Built-in SAT Solver emitting `lrat/v1` + Independent `verify-lrat` Kernel
@@ -3001,13 +3238,14 @@ module Cinch.PrimVerify where
 
   check-one-obligation-cached :: String -> Bool -> String -> String -> List (String, String) -> Bool -> SemGraph -> Nat -> Result VerifyOutcome TrustReceipt
   check-one-obligation-cached ob-name is-jpl verify-mode just-word proof-cache replay-only g goal-id =
-    let goal-hash = sha256-hex (string-to-bytes (string-concat-all [ob-name, ":", serialize-sem goal-id g])) in
+    let fp-tag = if graph-has-fp-arith g then ":fp_arith" else "" in
+    let goal-hash = sha256-hex (string-to-bytes (string-concat-all [ob-name, ":", serialize-sem goal-id g, fp-tag])) in
     let use-compiled = same just-word "verify-compiled-lrat" in
     let checker-id = if use-compiled then "cinch-compiled-lrat@1" else "cinch-kernel-lrat@1" in
     let tier = if use-compiled then "compiled-cert" else "kernel-cert" in
     if same verify-mode "off" then
       Ok (make-assumed-receipt goal-hash "cinch-verify-off@1" "assumed (prim-verify=off)")
-    else if graph-has-fp g then
+    else if graph-has-fp-arith g then
       if same verify-mode "lax" then
         Ok (make-assumed-receipt goal-hash "cinch-lax-bypass@1" "assumed (lax downgrade: floating-point obligation requires external SMT solver)")
       else Err (OutcomeOpen (string-concat ob-name ": floating-point obligation requires an external SMT solver (use --prim-verify=lax to downgrade to assumed)"))

@@ -23,10 +23,10 @@ module Cinch.Type where
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
   export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, Eq_ArrowUsage, Show_ArrowUsage, UUsageArrow, arrow-shape, erased-value-arrow, computational-arrow
-  export UType, Show_UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
+  export UType, Show_UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, UPropAscii, UPropOrdered, UPropNotNaN, UPropFinite, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMeasure, UIndexStringLength, UIndexBorrowRead, UIndexCall, UIndexConstructor, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, USigma, UForall, UArg, UEnd, UError
   export copy-marker-carrier, kernel-marker-carrier, boxed-marker-carrier
   export foreign-pointer
-  export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier
+  export core-list-type, core-list-element, length-carrier, ascii-carrier, ordered-carrier, float-carrier
   export shared-pattern-carrier, pattern-constructor-type
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
@@ -149,6 +149,8 @@ module Cinch.Type where
     -- constructor forms, the runtime decides them under `decide`.
     UPropAscii :: UType -> UType
     UPropOrdered :: UType -> UType
+    UPropNotNaN :: UType -> UType
+    UPropFinite :: UType -> UType
     -- Required propositions are part of the type, never a cast to its body.
     URequire :: UType -> UType -> UType
     -- The value binder scopes its predicate only; the runtime carrier is
@@ -330,6 +332,8 @@ module Cinch.Type where
     UPropNotNull body -> tree "prop-not-null" [carrier-tree body]
     UPropAscii body -> tree "prop-ascii" [carrier-tree body]
     UPropOrdered body -> tree "prop-ordered" [carrier-tree body]
+    UPropNotNaN body -> tree "prop-not-nan" [carrier-tree body]
+    UPropFinite body -> tree "prop-finite" [carrier-tree body]
     URequire predicates body -> tree "required" [carrier-tree predicates, carrier-tree body]
     URefine id name carrier predicate -> tree "refined" [JNum (nat-to-int id), JStr name, carrier-tree carrier, carrier-tree predicate]
     URefineFormer name ids body -> tree "refinement-former" [JStr name, former-id-tree ids, carrier-tree body]
@@ -413,7 +417,7 @@ module Cinch.Type where
     JArr (JStr tag) (JArr (JBool value) JArrEnd) -> if same-tag tag "prop-literal" then Some (UPropLit value) else None
     JStr tag -> if same-tag tag "end" then Some UEnd else if same-tag tag "error" then Some UError else None
     JArr (JStr tag) (JArr a JArrEnd) -> case read-carrier-tree a of
-      Some value -> if same-tag tag "row" then Some (URow value) else if same-tag tag "tuple" then Some (UTuple value) else if same-tag tag "prop-not" then Some (UPropNot value) else if same-tag tag "prop-nonzero" then Some (UPropNonZero value) else if same-tag tag "prop-nonzero-pending" then Some (UPropNonZeroPending value) else if same-tag tag "prop-not-null" then Some (UPropNotNull value) else if same-tag tag "prop-ascii" then Some (UPropAscii value) else if same-tag tag "prop-ordered" then Some (UPropOrdered value) else if same-tag tag "index-forget" then Some (UIndexForget value) else if same-tag tag "index-to-nat" then Some (UIndexMeasure WordToNat value) else if same-tag tag "index-buffer-length" then Some (UIndexMeasure BufferLength value) else if same-tag tag "index-byte-length" then Some (UIndexByteLength value) else if same-tag tag "index-string-length" then Some (UIndexStringLength value) else if same-tag tag "index-borrow-read" then Some (UIndexBorrowRead value) else if same-tag tag "index-promote" then Some (UIndexPromote value) else None
+      Some value -> if same-tag tag "row" then Some (URow value) else if same-tag tag "tuple" then Some (UTuple value) else if same-tag tag "prop-not" then Some (UPropNot value) else if same-tag tag "prop-nonzero" then Some (UPropNonZero value) else if same-tag tag "prop-nonzero-pending" then Some (UPropNonZeroPending value) else if same-tag tag "prop-not-null" then Some (UPropNotNull value) else if same-tag tag "prop-ascii" then Some (UPropAscii value) else if same-tag tag "prop-ordered" then Some (UPropOrdered value) else if same-tag tag "prop-not-nan" then Some (UPropNotNaN value) else if same-tag tag "prop-finite" then Some (UPropFinite value) else if same-tag tag "index-forget" then Some (UIndexForget value) else if same-tag tag "index-to-nat" then Some (UIndexMeasure WordToNat value) else if same-tag tag "index-buffer-length" then Some (UIndexMeasure BufferLength value) else if same-tag tag "index-byte-length" then Some (UIndexByteLength value) else if same-tag tag "index-string-length" then Some (UIndexStringLength value) else if same-tag tag "index-borrow-read" then Some (UIndexBorrowRead value) else if same-tag tag "index-promote" then Some (UIndexPromote value) else None
       None -> None
     JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
       if same-tag tag "con" then (case a of JStr name -> (case read-kind-tree b of Some kind -> Some (UCon name kind); None -> None); other -> None)
@@ -524,6 +528,8 @@ module Cinch.Type where
     UPropNotNull body -> UPropNotNull (opaque-carrier body)
     UPropAscii body -> UPropAscii (opaque-carrier body)
     UPropOrdered body -> UPropOrdered (opaque-carrier body)
+    UPropNotNaN body -> UPropNotNaN (opaque-carrier body)
+    UPropFinite body -> UPropFinite (opaque-carrier body)
     UPropNonZeroPending body -> UPropNonZeroPending (opaque-carrier body)
     URequire predicates body -> URequire (opaque-carrier predicates) (opaque-carrier body)
     URefine id name carrier predicate -> URefine id name (opaque-carrier carrier) (opaque-carrier predicate)
@@ -1024,6 +1030,8 @@ module Cinch.Type where
     UPropNotNull body -> UPropNotNull (normalize-with fuel st body)
     UPropAscii body -> UPropAscii (normalize-with fuel st body)
     UPropOrdered body -> UPropOrdered (normalize-with fuel st body)
+    UPropNotNaN body -> UPropNotNaN (normalize-with fuel st body)
+    UPropFinite body -> UPropFinite (normalize-with fuel st body)
     UPropNonZeroPending body -> normalize-pending-nonzero (normalize-with fuel st body)
     URequire predicates body -> URequire (normalize-with fuel st predicates) (normalize-with fuel st body)
     URefine id name carrier predicate -> URefine id name (normalize-with fuel st carrier) (normalize-with fuel st predicate)
@@ -1442,6 +1450,8 @@ module Cinch.Type where
     UPropNotNull body -> KProp
     UPropAscii body -> KProp
     UPropOrdered body -> KProp
+    UPropNotNaN body -> KProp
+    UPropFinite body -> KProp
     UPropNonZeroPending body -> KProp
     URequire predicates body -> KType
     URefine id name carrier predicate -> KType
@@ -1514,6 +1524,11 @@ module Cinch.Type where
   ordered-carrier carrier = case core-list-element carrier of
     Some element -> same-shape element (UCon "Nat" KType)
     None -> False
+  float-carrier :: UType -> Bool
+  float-carrier carrier = case refinement-view carrier of
+    UCon name KType -> same-tag name "F32" || same-tag name "F64"
+    URefine id name base predicate -> float-carrier base
+    other -> False
   list-index-field :: UType -> UType -> Bool
   list-index-field expected value = typed-index-admissible value &&
     (case typed-index-carrier value of Some actual -> carrier-equal expected actual; None -> False)
@@ -1539,6 +1554,12 @@ module Cinch.Type where
       None -> False)
     UPropOrdered body -> typed-index-admissible body && (case typed-index-carrier body of
       Some carrier -> ordered-carrier carrier
+      None -> False)
+    UPropNotNaN body -> typed-index-admissible body && (case typed-index-carrier body of
+      Some carrier -> float-carrier carrier
+      None -> False)
+    UPropFinite body -> typed-index-admissible body && (case typed-index-carrier body of
+      Some carrier -> float-carrier carrier
       None -> False)
     URequire predicates body -> proposition-spine predicates && carrier-type body
     URefine id name carrier predicate -> valid-refinement id carrier predicate
@@ -1657,6 +1678,8 @@ module Cinch.Type where
     UPropNotNull body -> string-concat "NotNull " (type-text body)
     UPropAscii body -> string-concat "Ascii " (type-text body)
     UPropOrdered body -> string-concat "Ordered " (type-text body)
+    UPropNotNaN body -> string-concat "NotNaN " (type-text body)
+    UPropFinite body -> string-concat "Finite " (type-text body)
     UPropNonZeroPending body -> string-concat "NonZero " (type-text body)
     URequire predicates body -> string-concat-all ["required ", type-text predicates, " => ", type-text body]
     URefine id name carrier predicate -> string-concat-all ["refine (", name, " :: ", type-text carrier, ") with ", type-text predicate]
@@ -1727,6 +1750,8 @@ module Cinch.Type where
     UPropNotNull body -> normalized-free-metas st body
     UPropAscii body -> normalized-free-metas st body
     UPropOrdered body -> normalized-free-metas st body
+    UPropNotNaN body -> normalized-free-metas st body
+    UPropFinite body -> normalized-free-metas st body
     UPropNonZeroPending body -> normalized-free-metas st body
     URequire predicates body -> merge-ids (normalized-free-metas st predicates) (normalized-free-metas st body)
     URefine id name carrier predicate -> merge-ids (normalized-free-metas st carrier) (normalized-free-metas st predicate)
@@ -1806,6 +1831,8 @@ module Cinch.Type where
     UPropNotNull body -> escapes level body
     UPropAscii body -> escapes level body
     UPropOrdered body -> escapes level body
+    UPropNotNaN body -> escapes level body
+    UPropFinite body -> escapes level body
     UPropNonZeroPending body -> escapes level body
     URequire predicates body -> escapes level predicates || escapes level body
     URefine id name carrier predicate -> escapes level carrier || escapes level predicate
@@ -2027,6 +2054,8 @@ module Cinch.Type where
     UPropNotNull body -> case b of UPropNotNull other -> unify-normalized sp body other st; other -> mismatch sp a b st
     UPropAscii body -> case b of UPropAscii other -> unify-normalized sp body other st; other -> mismatch sp a b st
     UPropOrdered body -> case b of UPropOrdered other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropNotNaN body -> case b of UPropNotNaN other -> unify-normalized sp body other st; other -> mismatch sp a b st
+    UPropFinite body -> case b of UPropFinite other -> unify-normalized sp body other st; other -> mismatch sp a b st
     UPropNonZeroPending body -> case b of UPropNonZeroPending other -> unify-normalized sp body other st; other -> mismatch sp a b st
     URequire predicates body -> case b of URequire ps result -> let epoch = st.solve-epoch in unify-after sp epoch body result (unify-normalized sp predicates ps st); other -> mismatch sp a b st
     URefine id name carrier predicate -> case refinement-view b of
@@ -2177,6 +2206,8 @@ module Cinch.Type where
     UPropNotNull a -> case second of UPropNotNull b -> same-shape a b; other -> False
     UPropAscii a -> case second of UPropAscii b -> same-shape a b; other -> False
     UPropOrdered a -> case second of UPropOrdered b -> same-shape a b; other -> False
+    UPropNotNaN a -> case second of UPropNotNaN b -> same-shape a b; other -> False
+    UPropFinite a -> case second of UPropFinite b -> same-shape a b; other -> False
     UPropNonZeroPending a -> case second of UPropNonZeroPending b -> same-shape a b; other -> False
     URequire a b -> case second of URequire c d -> same-shape a c && same-shape b d; other -> False
     URefine id name carrier predicate -> case second of
@@ -2348,6 +2379,8 @@ module Cinch.Type where
     UPropNotNull body -> UPropNotNull (transform-type-nonempty mode pairs body)
     UPropAscii body -> UPropAscii (transform-type-nonempty mode pairs body)
     UPropOrdered body -> UPropOrdered (transform-type-nonempty mode pairs body)
+    UPropNotNaN body -> UPropNotNaN (transform-type-nonempty mode pairs body)
+    UPropFinite body -> UPropFinite (transform-type-nonempty mode pairs body)
     UPropNonZeroPending body -> normalize-pending-nonzero (transform-type-nonempty mode pairs body)
     URequire predicates body -> URequire (transform-type-nonempty mode pairs predicates) (transform-type-nonempty mode pairs body)
     URefine id name carrier predicate -> substitute-refinement mode pairs id name carrier predicate
@@ -2980,7 +3013,7 @@ module Cinch.Type where
 
   -- | Promote checked character values only at the proof boundary; runtime integer admission remains separate.
   index-promotable-carrier :: UType -> Bool
-  index-promotable-carrier carrier = promotable-carrier carrier || (case carrier of UCon name KType -> same-tag name "Char"; other -> False)
+  index-promotable-carrier carrier = promotable-carrier carrier || (case carrier of UCon name KType -> same-tag name "Char" || same-tag name "F32" || same-tag name "F64"; other -> False)
   math-operation :: String -> Bool
   math-operation op = same-tag op "+" || same-tag op "-" || same-tag op "*"
   math-index :: String -> IndexTerm -> IndexTerm -> IndexTerm
@@ -3115,6 +3148,8 @@ module Cinch.Type where
     UPropNotNull body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     UPropAscii body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     UPropOrdered body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
+    UPropNotNaN body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
+    UPropFinite body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     UPropNonZeroPending body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
     URequire predicates body -> if valid-type ty then validate-type-indices sp body (validate-type-indices sp predicates (st)) else add-error sp "ill-formed proposition or required type" st
     URefine id name carrier predicate -> if valid-type ty then validate-type-indices sp predicate (validate-type-indices sp carrier st) else add-error sp "ill-formed refinement type" st
@@ -3241,6 +3276,8 @@ module Cinch.Type where
     UPropNotNull body -> type-all-ids body
     UPropAscii body -> type-all-ids body
     UPropOrdered body -> type-all-ids body
+    UPropNotNaN body -> type-all-ids body
+    UPropFinite body -> type-all-ids body
     UPropNonZeroPending body -> type-all-ids body
     URequire predicates body -> merge-ids (type-all-ids predicates) (type-all-ids body)
     URefine id name carrier predicate -> merge-ids [id] (merge-ids (type-all-ids carrier) (type-all-ids predicate))
@@ -3291,6 +3328,8 @@ module Cinch.Type where
     UPropNotNull body -> type-free-bound body
     UPropAscii body -> type-free-bound body
     UPropOrdered body -> type-free-bound body
+    UPropNotNaN body -> type-free-bound body
+    UPropFinite body -> type-free-bound body
     UPropNonZeroPending body -> type-free-bound body
     URequire predicates body -> merge-ids (type-free-bound predicates) (type-free-bound body)
     URefine id name carrier predicate -> merge-ids (type-free-bound carrier) (remove-id id (type-free-bound predicate))
@@ -3496,6 +3535,8 @@ module Cinch.Type where
     UPropNotNull body -> type-pi-ids body
     UPropAscii body -> type-pi-ids body
     UPropOrdered body -> type-pi-ids body
+    UPropNotNaN body -> type-pi-ids body
+    UPropFinite body -> type-pi-ids body
     UPropNonZeroPending body -> type-pi-ids body
     URequire predicates body -> merge-ids (type-pi-ids predicates) (type-pi-ids body)
     URefine id name carrier predicate -> merge-ids [id] (merge-ids (type-pi-ids carrier) (type-pi-ids predicate))
@@ -3566,6 +3607,8 @@ module Cinch.Type where
     UPropNotNull body -> UPropNotNull (without-index-levels body)
     UPropAscii body -> UPropAscii (without-index-levels body)
     UPropOrdered body -> UPropOrdered (without-index-levels body)
+    UPropNotNaN body -> UPropNotNaN (without-index-levels body)
+    UPropFinite body -> UPropFinite (without-index-levels body)
     UPropNonZeroPending body -> UPropNonZeroPending (without-index-levels body)
     URequire predicates body -> URequire (without-index-levels predicates) (without-index-levels body)
     URefine id name carrier predicate -> URefine id name (without-index-levels carrier) (without-index-levels predicate)

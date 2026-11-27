@@ -6,7 +6,7 @@
 //! and compiler-checked `prim ... spec <fn> where ... justify verify` declarations
 //! are verified directly against the shared `SemGraph`.
 
-use super::sem::{FpFmt, NodeId, Obligation, ObligationKind, SemGraph, SemParam, SemProgram, SemTy};
+use super::sem::{FpFmt, FpPred, NodeId, Obligation, ObligationKind, SemGraph, SemParam, SemProgram, SemTy};
 use super::{IrSemantics, SemError};
 use crate::ast::{Assoc, Decl, Equation, LocalDecl, Pat, PrimBody, PrimDecl, Term, Type};
 use crate::parser::FixityTable;
@@ -680,10 +680,17 @@ fn build_param_precond(
         }
     }
     let mut vars: HashMap<String, NodeId> = HashMap::new();
+    let mut fp_vars: HashMap<String, (NodeId, FpFmt)> = HashMap::new();
     for ((name, info, _), (_, pnode)) in param_specs.iter().zip(lowered_params.iter()) {
-        if let SemTy::Bv(w) = info.llvm_param_ty {
-            let widened = widen_to(g, *pnode, w, info.signed, exact_w);
-            vars.insert(name.clone(), widened);
+        match info.llvm_param_ty {
+            SemTy::Bv(w) => {
+                let widened = widen_to(g, *pnode, w, info.signed, exact_w);
+                vars.insert(name.clone(), widened);
+            }
+            SemTy::Fp(fmt) => {
+                fp_vars.insert(name.clone(), (*pnode, fmt));
+            }
+            SemTy::Bool => {}
         }
     }
     let mut acc = g.bool_const(true);
@@ -697,12 +704,16 @@ fn build_param_precond(
         }
         if let Some(pred) = pred_opt {
             // In Cinch parameter refinements, `r` (or the parameter's own name) refers to the parameter.
+            let mut local_vars = vars.clone();
+            let mut local_fp = fp_vars.clone();
             if let Some(&v) = vars.get(name) {
-                let mut local_vars = vars.clone();
                 local_vars.insert("r".to_string(), v);
-                if let Some(p_bool) = lower_refinement_pred(g, pred, &local_vars, exact_w) {
-                    acc = g.and(acc, p_bool);
-                }
+            }
+            if let Some(&fv) = fp_vars.get(name) {
+                local_fp.insert("r".to_string(), fv);
+            }
+            if let Some(p_bool) = lower_refinement_pred(g, pred, &local_vars, &local_fp, exact_w) {
+                acc = g.and(acc, p_bool);
             }
         }
     }
@@ -730,8 +741,9 @@ fn build_refinement_obligation(
     let (res_node, res_poison) = lowered.result.as_scalar()?;
     let mut g = lowered.graph.clone();
 
-    let mut max_w = match ret_info.llvm_param_ty {
+    let mut max_w: u16 = match ret_info.llvm_param_ty {
         SemTy::Bv(w) => w,
+        SemTy::Fp(_) => 64,
         _ => return None,
     };
     for (_, info, _) in param_specs {
@@ -742,18 +754,33 @@ fn build_refinement_obligation(
     let exact_w = (max_w + 2).min(128);
 
     let mut vars: HashMap<String, NodeId> = HashMap::new();
+    let mut fp_vars: HashMap<String, (NodeId, FpFmt)> = HashMap::new();
     for ((name, info, _), (_, pnode)) in param_specs.iter().zip(lowered.params.iter()) {
-        if let SemTy::Bv(w) = info.llvm_param_ty {
-            let widened = widen_to(&mut g, *pnode, w, info.signed, exact_w);
-            vars.insert(name.clone(), widened);
+        match info.llvm_param_ty {
+            SemTy::Bv(w) => {
+                let widened = widen_to(&mut g, *pnode, w, info.signed, exact_w);
+                vars.insert(name.clone(), widened);
+            }
+            SemTy::Fp(fmt) => {
+                fp_vars.insert(name.clone(), (*pnode, fmt));
+            }
+            SemTy::Bool => {}
         }
     }
-    let ret_w = g.bv_width(res_node);
-    let r_widened = widen_to(&mut g, res_node, ret_w, ret_info.signed, exact_w);
-    vars.insert("r".to_string(), r_widened);
+    match ret_info.llvm_param_ty {
+        SemTy::Bv(_) => {
+            let ret_w = g.bv_width(res_node);
+            let r_widened = widen_to(&mut g, res_node, ret_w, ret_info.signed, exact_w);
+            vars.insert("r".to_string(), r_widened);
+        }
+        SemTy::Fp(fmt) => {
+            fp_vars.insert("r".to_string(), (res_node, fmt));
+        }
+        SemTy::Bool => return None,
+    }
 
     let precond = build_param_precond(&mut g, param_specs, &lowered.params);
-    let pred_bool = lower_refinement_pred(&mut g, pred, &vars, exact_w)?;
+    let pred_bool = lower_refinement_pred(&mut g, pred, &vars, &fp_vars, exact_w)?;
     let not_ub = g.not(lowered.ub_cond);
     let not_p = g.not(res_poison);
     let wd = g.and(not_ub, not_p);
@@ -772,10 +799,39 @@ fn build_refinement_obligation(
     ))
 }
 
+fn lower_refinement_fp(
+    g: &mut SemGraph,
+    expr: &Type,
+    fp_vars: &HashMap<String, (NodeId, FpFmt)>,
+    hint_fmt: Option<FpFmt>,
+) -> Option<(NodeId, FpFmt)> {
+    match expr {
+        Type::Var(n, _) => fp_vars.get(&n.text).copied(),
+        Type::Num(s, _) => {
+            let fmt = hint_fmt?;
+            let v: i128 = s.parse().ok()?;
+            let bits = match fmt {
+                FpFmt::F32 => (v as f32).to_bits() as u64,
+                FpFmt::F64 => (v as f64).to_bits(),
+            };
+            Some((g.fp_const(fmt, bits), fmt))
+        }
+        Type::App(op, arg, _) => {
+            if matches!(op.as_ref(), Type::Var(n, _) if n.text == "-") {
+                let (inner, fmt) = lower_refinement_fp(g, arg, fp_vars, hint_fmt)?;
+                return Some((g.fp_neg(inner), fmt));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn lower_refinement_pred(
     g: &mut SemGraph,
     pred: &Type,
     vars: &HashMap<String, NodeId>,
+    fp_vars: &HashMap<String, (NodeId, FpFmt)>,
     exact_w: u16,
 ) -> Option<NodeId> {
     if let Type::App(f, rhs, _) = pred {
@@ -783,45 +839,55 @@ fn lower_refinement_pred(
             if let Type::Var(op_name, _) = op.as_ref() {
                 match op_name.text.as_str() {
                     "&&" => {
-                        let a = lower_refinement_pred(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_pred(g, rhs, vars, exact_w)?;
+                        let a = lower_refinement_pred(g, lhs, vars, fp_vars, exact_w)?;
+                        let b = lower_refinement_pred(g, rhs, vars, fp_vars, exact_w)?;
                         return Some(g.and(a, b));
                     }
                     "||" => {
-                        let a = lower_refinement_pred(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_pred(g, rhs, vars, exact_w)?;
+                        let a = lower_refinement_pred(g, lhs, vars, fp_vars, exact_w)?;
+                        let b = lower_refinement_pred(g, rhs, vars, fp_vars, exact_w)?;
                         return Some(g.or(a, b));
                     }
-                    "==" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_eq(a, b));
-                    }
-                    "/=" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        let eq = g.bv_eq(a, b);
-                        return Some(g.not(eq));
-                    }
-                    "<=" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_sle(a, b));
-                    }
-                    "<" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_slt(a, b));
-                    }
-                    ">=" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_sle(b, a));
-                    }
-                    ">" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_slt(b, a));
+                    "==" | "/=" | "<=" | "<" | ">=" | ">" => {
+                        if let (Some(a), Some(b)) = (
+                            lower_refinement_int(g, lhs, vars, exact_w),
+                            lower_refinement_int(g, rhs, vars, exact_w),
+                        ) {
+                            return Some(match op_name.text.as_str() {
+                                "==" => g.bv_eq(a, b),
+                                "/=" => {
+                                    let eq = g.bv_eq(a, b);
+                                    g.not(eq)
+                                }
+                                "<=" => g.bv_sle(a, b),
+                                "<" => g.bv_slt(a, b),
+                                ">=" => g.bv_sle(b, a),
+                                ">" => g.bv_slt(b, a),
+                                _ => unreachable!(),
+                            });
+                        }
+                        // Floating-point comparison (`0 <= r`, `r <= 10`, etc.).
+                        let fmt_hint = lower_refinement_fp(g, lhs, fp_vars, None)
+                            .or_else(|| lower_refinement_fp(g, rhs, fp_vars, None))
+                            .map(|(_, fmt)| fmt);
+                        if let Some(fmt) = fmt_hint {
+                            if let (Some((fa, _)), Some((fb, _))) = (
+                                lower_refinement_fp(g, lhs, fp_vars, Some(fmt)),
+                                lower_refinement_fp(g, rhs, fp_vars, Some(fmt)),
+                            ) {
+                                let fp_pred = match op_name.text.as_str() {
+                                    "==" => FpPred::Oeq,
+                                    "/=" => FpPred::Une,
+                                    "<=" => FpPred::Ole,
+                                    "<" => FpPred::Olt,
+                                    ">=" => FpPred::Oge,
+                                    ">" => FpPred::Ogt,
+                                    _ => unreachable!(),
+                                };
+                                return Some(g.fp_cmp(fp_pred, fa, fb));
+                            }
+                        }
+                        return None;
                     }
                     _ => {}
                 }
@@ -831,19 +897,40 @@ fn lower_refinement_pred(
         if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "Not"))
             || matches!(f.as_ref(), Type::Var(n, _) if n.text == "not")
         {
-            let inner = lower_refinement_pred(g, rhs, vars, exact_w)?;
+            let inner = lower_refinement_pred(g, rhs, vars, fp_vars, exact_w)?;
             return Some(g.not(inner));
+        }
+        // `NotNaN x`
+        if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "NotNaN")) {
+            let (fx, _) = lower_refinement_fp(g, rhs, fp_vars, None)?;
+            let is_nan = g.fp_is_nan(fx);
+            return Some(g.not(is_nan));
+        }
+        // `Finite x`
+        if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "Finite")) {
+            let (fx, _) = lower_refinement_fp(g, rhs, fp_vars, None)?;
+            return Some(g.fp_is_finite(fx));
         }
         // `InRange lo hi x`: `App(App(App(Con("InRange"), lo), hi), x)`
         if let Type::App(f2, hi, _) = f.as_ref() {
             if let Type::App(head, lo, _) = f2.as_ref() {
                 if matches!(head.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "InRange")) {
-                    let vlo = lower_refinement_int(g, lo, vars, exact_w)?;
-                    let vhi = lower_refinement_int(g, hi, vars, exact_w)?;
-                    let vx = lower_refinement_int(g, rhs, vars, exact_w)?;
-                    let c1 = g.bv_sle(vlo, vx);
-                    let c2 = g.bv_sle(vx, vhi);
-                    return Some(g.and(c1, c2));
+                    if let (Some(vlo), Some(vhi), Some(vx)) = (
+                        lower_refinement_int(g, lo, vars, exact_w),
+                        lower_refinement_int(g, hi, vars, exact_w),
+                        lower_refinement_int(g, rhs, vars, exact_w),
+                    ) {
+                        let c1 = g.bv_sle(vlo, vx);
+                        let c2 = g.bv_sle(vx, vhi);
+                        return Some(g.and(c1, c2));
+                    }
+                    if let Some((fx, fmt)) = lower_refinement_fp(g, rhs, fp_vars, None) {
+                        let (flo, _) = lower_refinement_fp(g, lo, fp_vars, Some(fmt))?;
+                        let (fhi, _) = lower_refinement_fp(g, hi, fp_vars, Some(fmt))?;
+                        let c1 = g.fp_cmp(FpPred::Ole, flo, fx);
+                        let c2 = g.fp_cmp(FpPred::Ole, fx, fhi);
+                        return Some(g.and(c1, c2));
+                    }
                 }
             }
         }
