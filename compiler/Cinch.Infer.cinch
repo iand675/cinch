@@ -3850,8 +3850,12 @@ module Cinch.Infer where
     other -> (kinds, add-error sp "invalid resolved nominal contracts" st)
   collect-nominal-row :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   collect-nominal-row sp name row kinds st = case imported-kinds kinds (field "parameters" row) st of
-    (qs, parsed) -> case register-nominal-kind sp name (kind-arrow qs) kinds parsed of
-      (registered, checked) -> register-private-refinement sp name row registered checked
+    (qs, parsed) ->
+      let expected = case field "kind" row of
+            JStr "effect" -> source-effect-kind qs
+            other -> kind-arrow qs in
+      case register-nominal-kind sp name expected kinds parsed of
+        (registered, checked) -> register-private-refinement sp name row registered checked
   register-nominal-kind :: Span -> String -> Kind -> TypeContext -> Store -> (TypeContext, Store)
   register-nominal-kind sp name k kinds st = case context-kind name kinds of
     None -> (context-add-kind name k kinds, st)
@@ -3888,26 +3892,31 @@ module Cinch.Infer where
 
   -- A signature of ordinary universe parameters has no contextual names.
   -- Leave dependent kind expressions and their diagnostics to the checker.
-  closed-parameter-kind :: Json -> HashMap String Bool -> Option Kind
-  closed-parameter-kind rows seen = case rows of
+  closed-parameter-kind-to :: Kind -> Json -> HashMap String Bool -> Option Kind
+  closed-parameter-kind-to result rows seen = case rows of
     JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
       (JStr name, JStr text, JBool only) | not (referenced name seen) ->
         (case closed-imported-kind text of
-          Some k -> case closed-parameter-kind rest (hash-map-insert name True seen) of
+          Some k -> case closed-parameter-kind-to result rest (hash-map-insert name True seen) of
             Some more -> Some (KFun k more)
             None -> None
           None -> None)
       other -> None
-    JArrEnd -> Some KType
+    JArrEnd -> Some result
     other -> None
+
+  closed-parameter-kind :: Json -> HashMap String Bool -> Option Kind
+  closed-parameter-kind rows seen = closed-parameter-kind-to KType rows seen
 
   project-nominal-row :: Json -> List NominalStep -> Option (List NominalStep)
   project-nominal-row row backwards = case field "identity" row of
     JStr identity -> let name = interface-global identity in
       (case field "kind" row of
-        JStr variety | variety /= "refinement" -> (case closed-parameter-kind (field "parameters" row) hash-map-empty of
-          Some k -> Some ((ClosedNominalKind name k) : backwards)
-          None -> Some ((ContextualNominalKind name row) : backwards))
+        JStr variety | variety /= "refinement" ->
+          let result = if variety == "effect" then KEffect else KType in
+          (case closed-parameter-kind-to result (field "parameters" row) hash-map-empty of
+            Some k -> Some ((ClosedNominalKind name k) : backwards)
+            None -> Some ((ContextualNominalKind name row) : backwards))
         other -> Some ((ContextualNominalKind name row) : backwards))
     other -> None
 
@@ -10573,7 +10582,7 @@ module Cinch.Infer where
   nominal-runtime-data :: Json -> TypeContext -> List CoreData -> Store -> (List CoreData, Store)
   nominal-runtime-data rows kinds datas st = case rows of
     JArr row rest -> (case (field "kind" row, field "identity" row) of
-      (JStr variety, JStr identity) -> if variety == "data" && not (runtime-data-present (interface-global identity) datas) then
+      (JStr variety, JStr identity) -> if (variety == "data" || variety == "capability") && not (runtime-data-present (interface-global identity) datas) then
         (case imported-kinds kinds (field "parameters" row) st of
           (params, checked) -> nominal-runtime-data rest kinds ((MkCoreData zero (interface-global identity) (kind-arrow params) params []) : datas) checked)
         else nominal-runtime-data rest kinds datas st

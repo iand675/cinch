@@ -1413,11 +1413,56 @@ module Cinch.RuntimeIr where
         None -> None)
     other -> None
 
-  -- | Select a guarded static foreign alias or the existing proper source-call fusion.
+  inline-external-arity :: String -> Option Nat
+  inline-external-arity name =
+    let dname = display-global-name name in
+    if dname == "Effect.Throw.catch" || dname == "Effect.Throw.try-throw"
+      || dname == "Effect.Arena.with-arena"
+      || dname == "Effect.Reader.asks" || dname == "Effect.Reader.asks-tagged" then Some 1
+    else if dname == "Effect.Arena.arena-abort" || dname == "Effect.Arena.with-arena-budget"
+      || dname == "Effect.Reader.run-reader" || dname == "Effect.Reader.run-tagged-reader"
+      || dname == "Effect.Reader.local" || dname == "Effect.Reader.local-tagged"
+      || dname == "Effect.Reader.with-reader" || dname == "Effect.Reader.with-tagged-reader" then Some 2
+    else None
+
+  inline-external-term-arity :: CoreTerm -> Option Nat
+  inline-external-term-arity term = case head term of
+    CUse at function symbol role actuals -> inline-external-arity symbol
+    CQualifiedUse at function symbol role actuals evidence -> inline-external-arity symbol
+    other -> None
+
+  inline-external-let-chain :: CoreTerm -> Bool
+  inline-external-let-chain term = case term of
+    CLet sp ty id name sc rhs body ->
+      (name == "#argument-function" && list-length (scheme-params sc) == 0 && (case inline-external-term-arity rhs of Some _ -> True; None -> False))
+      || inline-external-let-chain body
+    other -> False
+
+  push-app-into-lets :: Span -> UType -> Option UType -> CoreTerm -> CoreTerm -> CoreTerm
+  push-app-into-lets sp ty row callee arg = case callee of
+    CLet lsp lty id name sc rhs body ->
+      CLet lsp ty id name sc rhs (push-app-into-lets sp ty row body arg)
+    other -> case row of
+      Some r -> CApplyEff sp ty r callee arg
+      None -> CApply sp ty callee arg
+
+  fuse-scoped-inline-external :: CoreTerm -> Option CoreTerm
+  fuse-scoped-inline-external term = case term of
+    CLet sp ty id name sc rhs body ->
+      if name == "#argument-function" && list-length (scheme-params sc) == 0 then
+        (case inline-external-term-arity rhs of
+          Some arity -> fuse-scoped-arity arity term
+          None -> None)
+      else None
+    other -> None
+
+  -- | Select a guarded static foreign alias, an inline external alias, or the existing proper source-call fusion.
   fuse-scoped-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
-  fuse-scoped-call definitions w term = case fuse-scoped-foreign w term of
+  fuse-scoped-call definitions w term = case fuse-scoped-inline-external term of
     Some fused -> Some fused
-    None -> fuse-scoped-source-call definitions w term
+    None -> case fuse-scoped-foreign w term of
+      Some fused -> Some fused
+      None -> fuse-scoped-source-call definitions w term
 
   -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a source closure.
   fuse-scoped-source-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
@@ -2557,9 +2602,15 @@ module Cinch.RuntimeIr where
       else case lower-handler ((writer-program w).effects) locals sp ty label body handled-by of
         Ok lowered -> expression definitions locals w lowered
         Err message -> unsupported w sp message
-    CApplyEff sp ty row f x -> case application definitions locals w sp term f x of
-      (ready, res) -> if row-can-yield row then emit-yield-guard locals ty res ready else (ready, res)
-    CApply sp ty f x -> application definitions locals w sp term f x
+    CApplyEff sp ty row f x ->
+      if inline-external-let-chain f then
+        expression definitions locals w (push-app-into-lets sp ty (Some row) f x)
+      else case application definitions locals w sp term f x of
+        (ready, res) -> if row-can-yield row then emit-yield-guard locals ty res ready else (ready, res)
+    CApply sp ty f x ->
+      if inline-external-let-chain f then
+        expression definitions locals w (push-app-into-lets sp ty None f x)
+      else application definitions locals w sp term f x
     CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
     CRecursiveFunctions sp ty members body -> recursive-expression definitions locals w sp members body
     CRecursiveValues sp ty region members body -> knot-expression definitions locals w sp region members body
