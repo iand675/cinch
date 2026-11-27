@@ -1715,7 +1715,7 @@ pub(crate) fn decode_packed_field_ecore(pf: &PackedField, scrut_var: LocalId) ->
         if pf.bits < 64 {
             let fmask = ((1u64 << pf.bits) - 1) as i64;
             ECore::App(
-                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Untag })),
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::And })),
                 vec![shifted, ECore::Int(fmask)],
             )
         } else {
@@ -1768,7 +1768,7 @@ fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, mut args: Vec<Core>) -> Core {
             };
             if *tag_word != 0 {
                 Core::App(
-                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Or })),
                     vec![shifted, Core::Int(*tag_word)],
                 )
             } else {
@@ -1803,7 +1803,7 @@ fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, mut args: Vec<Core>) -> Core {
                 let v1 = if pf.signed && pf.bits < 64 {
                     let fmask = ((1u64 << pf.bits) - 1) as i64;
                     Core::App(
-                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Untag })),
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::And })),
                         vec![v0, Core::Int(fmask)],
                     )
                 } else {
@@ -1820,7 +1820,7 @@ fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, mut args: Vec<Core>) -> Core {
                 acc = Some(match acc {
                     None => v2,
                     Some(prev) => Core::App(
-                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Or })),
                         vec![prev, v2],
                     ),
                 });

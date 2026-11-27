@@ -4835,7 +4835,22 @@ fn csr_units(p: &Program, reg: &Registry) -> HashMap<String, Csr> {
                         ctors.push(c.as_str());
                     }
                 }
-                Leaf::Call(g) => called.push(g.clone()),
+                Leaf::Call(g) => {
+                    if let Some(cpr) = reg.cpr.get(g) {
+                        if reg.sum_ctors.contains_key(&cpr.ctor) {
+                            let c = cpr.ctor.as_str();
+                            if !ctors.contains(&c) {
+                                if ctors.len() >= 2 {
+                                    too_many = true;
+                                    break;
+                                }
+                                ctors.push(c);
+                            }
+                            continue;
+                        }
+                    }
+                    called.push(g.clone());
+                }
             }
         }
         if too_many {
@@ -4946,6 +4961,11 @@ fn sum_leaves(e: &Core, reg: &Registry) -> Option<Csr> {
                     if let Some(s) = reg.csr.get(&g.0) {
                         csrs.push(s);
                         true
+                    } else if let Some(c) = reg.cpr.get(&g.0).and_then(|p| reg.sum_ctors.get(&p.ctor)) {
+                        if !ctors.iter().any(|k| k.ctor == c.ctor) {
+                            ctors.push(c);
+                        }
+                        ctors.len() <= 2
                     } else {
                         false
                     }
@@ -9874,12 +9894,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
         WordOp { op: wop } => {
             use crate::core::WordOp as WO;
             match wop {
-                WO::TestMask | WO::Untag => {
+                WO::TestMask | WO::Untag | WO::And => {
                     let r = b.reg();
                     b.line(&format!("{r} = and i64 %p0, %p1"));
                     ret(b, &r);
                 }
-                WO::TagOr => {
+                WO::TagOr | WO::Or => {
                     let r = b.reg();
                     b.line(&format!("{r} = or i64 %p0, %p1"));
                     ret(b, &r);
@@ -14595,6 +14615,23 @@ impl CoreEmitter<'_, '_> {
                         }
                         Ok(())
                     }
+                    Some((unit, _))
+                        if self.reg.cpr.get(&unit).is_some_and(|cpr| csr.arm(&cpr.ctor).is_some()) =>
+                    {
+                        let cpr = self.reg.cpr[&unit].clone();
+                        let arm = csr.arm(&cpr.ctor).unwrap().clone();
+                        let r = self.call_product(&unit, args)?;
+                        let pty = cpr.ty();
+                        let mut vals = Vec::with_capacity(cpr.fields.len());
+                        for i in 0..cpr.fields.len() {
+                            let w = self.b.reg();
+                            self.b.line(&format!("{w} = extractvalue {pty} {r}, {i}"));
+                            vals.push(w);
+                        }
+                        self.settle_tokens(dest.base());
+                        dest.settle_sum(self.b, arm.tag, &vals);
+                        Ok(())
+                    }
                     _ => err(format!(
                         "internal error: unboxed sum leaf in {} neither builds it nor calls a unit returning it",
                         self.unit
@@ -14883,6 +14920,24 @@ impl CoreEmitter<'_, '_> {
                         self.settle_tokens(dest.base());
                         let ty = self.csr.as_ref().unwrap().ty();
                         self.b.line(&format!("ret {ty} {r}"));
+                        Ok(())
+                    }
+                    Some((unit, _))
+                        if self.csr.is_some()
+                            && self.reg.cpr.get(&unit).is_some_and(|cpr| self.csr.as_ref().unwrap().arm(&cpr.ctor).is_some()) =>
+                    {
+                        let cpr = self.reg.cpr[&unit].clone();
+                        let tag = self.csr.as_ref().unwrap().arm(&cpr.ctor).unwrap().tag;
+                        let r = self.call_product(&unit, args)?;
+                        let pty = cpr.ty();
+                        let mut vals = Vec::with_capacity(cpr.fields.len());
+                        for i in 0..cpr.fields.len() {
+                            let w = self.b.reg();
+                            self.b.line(&format!("{w} = extractvalue {pty} {r}, {i}"));
+                            vals.push(w);
+                        }
+                        self.settle_tokens(dest.base());
+                        self.ret_sum(tag, &vals);
                         Ok(())
                     }
                     _ if self.csr.is_some() => err(format!(

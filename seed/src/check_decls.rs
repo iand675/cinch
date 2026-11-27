@@ -26050,6 +26050,16 @@ impl Checker {
                             other => Ok(other.clone()),
                         }
                     }
+                    WO::And => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let b = word_of(&args[1], "a runtime mask")?;
+                        Ok(Value::Word(a & b))
+                    }
+                    WO::Or => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let b = word_of(&args[1], "a runtime mask")?;
+                        Ok(Value::Word(a | b))
+                    }
                     WO::Shl => {
                         let a = word_of(&args[0], "a runtime word")?;
                         let s = word_of(&args[1], "a shift")?;

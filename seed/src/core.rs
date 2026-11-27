@@ -154,10 +154,14 @@ pub enum BitOp {
 pub enum WordOp {
     /// `(w & mask) -> Raw` — borrows `arg0` without RC traffic (tag extraction).
     TestMask,
-    /// `(w | tag)` — owns `arg0`, returns tagged word (`TObj` pointer tag or bit-pack OR).
+    /// `(w | tag)` — owns `arg0` (`Obj`), returns tagged pointer (`TObj`).
     TagOr,
-    /// `(w & mask)` — owns `arg0`, returns untagged pointer (`Obj`) or masked word.
+    /// `(w & mask)` — owns `arg0` (`TObj`), returns untagged pointer (`Obj`).
     Untag,
+    /// `(w & mask)` — raw 64-bit bitwise AND (`Raw -> Raw -> Raw`, for bit-packing).
+    And,
+    /// `(w | mask)` — raw 64-bit bitwise OR (`Raw -> Raw -> Raw`, for bit-packing).
+    Or,
     /// `(w << shift)` — raw word left shift.
     Shl,
     /// `(w >> shift)` — raw word arithmetic right shift (signed).
@@ -178,6 +182,8 @@ impl WordOp {
             WordOp::TestMask => "TestMask",
             WordOp::TagOr => "TagOr",
             WordOp::Untag => "Untag",
+            WordOp::And => "And",
+            WordOp::Or => "Or",
             WordOp::Shl => "Shl",
             WordOp::Shr => "Shr",
             WordOp::Ushr => "Ushr",
@@ -6608,8 +6614,8 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
         }
         PrimOp::WordOp { op } => {
             let v = match op {
-                WordOp::TestMask | WordOp::Untag => words[0] & words[1],
-                WordOp::TagOr => words[0] | words[1],
+                WordOp::TestMask | WordOp::Untag | WordOp::And => words[0] & words[1],
+                WordOp::TagOr | WordOp::Or => words[0] | words[1],
                 WordOp::Shl => words[0].wrapping_shl((words[1] as u32) & 63),
                 WordOp::Shr => words[0].wrapping_shr((words[1] as u32) & 63),
                 WordOp::Ushr => ((words[0] as u64).wrapping_shr((words[1] as u32) & 63)) as i64,

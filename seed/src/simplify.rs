@@ -2747,6 +2747,14 @@ fn collect_spec_sites(
                             if def.meta.linear.iter().any(|(k, _)| *k == i) { continue; }
                             if def.repr.params.get(i).is_some_and(|c| matches!(c, Class::Wide) || c.is_val()) { continue; }
                             if let Some(shape) = arg_shape(a, local_env, tables, shapes, args.len()) {
+                                // Only specialize scalar Int/Bool shapes for Raw parameters:
+                                // an Int passed to an Obj/TObj parameter is a niche sentinel
+                                // for a counted sum, not an uncounted scalar.
+                                if matches!(shape.kind, ShapeKind::Int | ShapeKind::Bool)
+                                    && def.repr.params.get(i) != Some(&Class::Raw)
+                                {
+                                    continue;
+                                }
                                 let memoized = specs.copies.contains_key(&(g.0.clone(), i, shape.key.clone()));
                                 if !memoized && caller_base == callee_base && matches!(shape.kind, ShapeKind::Int | ShapeKind::Ctor) {
                                     continue;
@@ -2815,6 +2823,11 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 let Some(def) = program.fns.iter().find(|f| f.id.0 == callee) else { continue };
                 if def.meta.linear.iter().any(|(k, _)| *k == i) { continue; }
                 if def.repr.params.get(i).is_some_and(|c| matches!(c, Class::Wide) || c.is_val()) { continue; }
+                if matches!(shape.kind, ShapeKind::Int | ShapeKind::Bool)
+                    && def.repr.params.get(i) != Some(&Class::Raw)
+                {
+                    continue;
+                }
                 if !interesting_param(&def.body, LocalId(i), &callee, i, shape.kind, tables) { continue; }
                 let n = def.params.len();
                 let copy_id = GlobalId(format!("{callee}.sp{}", specs.made));
@@ -2841,6 +2854,8 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                     copy.meta.contract.params.resize_with(copy.params.len(), Default::default);
                 }
                 copy.meta.linear.retain(|(k, _)| *k != i);
+                copy.meta.unique_params.retain(|k| *k != i);
+                copy.meta.immortal_params.retain(|k| *k != i);
                 copy.meta.dicts.retain(|(k, _)| *k != i);
                 copy.meta.pure_arrows.retain(|k| *k != i);
                 tables.arity.insert(copy_id.0.clone(), copy.params.len());
