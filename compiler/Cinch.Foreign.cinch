@@ -425,8 +425,13 @@ module Cinch.Foreign where
       all (\c -> is-ascii-alpha-numeric c || char-code c == 95 || char-code c == 46) chars
     [] -> False
 
+  all-ascii-digits :: List Char -> Bool
+  all-ascii-digits cs = case cs of
+    [] -> True
+    c : rest -> is-ascii-digit c && all-ascii-digits rest
+
   decimal-digits :: String -> Bool
-  decimal-digits value = string-length value /= 0 && all is-ascii-digit (unpack value)
+  decimal-digits value = string-length value /= 0 && all-ascii-digits (unpack value)
 
   register-constraint :: String -> Bool
   register-constraint value = decimal-digits value ||
