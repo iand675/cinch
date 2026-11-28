@@ -1419,6 +1419,38 @@
     {
       "name": "Net.Http.Types",
       "path": "Net/Http/Types.cinch"
+    },
+    {
+      "name": "Engine.Reactor.Darwin",
+      "path": "Engine/Reactor/Darwin.cinch"
+    },
+    {
+      "name": "Engine.Reactor",
+      "path": "Engine/Reactor.cinch"
+    },
+    {
+      "name": "Net.Http.Priority",
+      "path": "Net/Http/Priority.cinch"
+    },
+    {
+      "name": "Net.Http.Router",
+      "path": "Net/Http/Router.cinch"
+    },
+    {
+      "name": "Net.Tls.Fast",
+      "path": "Net/Tls/Fast.cinch"
+    },
+    {
+      "name": "Net.Tls.Ktls",
+      "path": "Net/Tls/Ktls.cinch"
+    },
+    {
+      "name": "Net.Tls.QuicBridge",
+      "path": "Net/Tls/QuicBridge.cinch"
+    },
+    {
+      "name": "Net.Tls.Fast.Spec",
+      "path": "Net/Tls/Fast/Spec.cinch"
     }
   ],
   "order": [
@@ -1776,6 +1808,7 @@
     "Engine.Reactor.Linux",
     "Engine.Reactor.Spec",
     "Engine.Reactor.Darwin",
+    "Engine.Reactor",
     "Net.Http.Types",
     "Net.Http.Priority",
     "Net.Http.Router",

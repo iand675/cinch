@@ -1,0 +1,15 @@
+-- | Target-selected reactor facade (`Engine.Reactor`).
+--
+-- Mirrors `Prim.Sys.Io`: selects `Engine.Reactor.Darwin` (`kqueue` + `writev` +
+-- `sendfile` + `F_NOCACHE`) on Darwin targets and `Engine.Reactor.Linux`
+-- (`io_uring` + `SO_REUSEPORT` + BPF/eBPF QUIC steering + `O_DIRECT`) on Linux
+-- targets. Platform-agnostic code (`Engine.Runtime`, protocols, storage)
+-- programs against `Engine.Types.ReactorOps` / `ClockOps` so the exact same
+-- code executes identically over live reactors and `Engine.Sim`.
+module Engine.Reactor where
+
+  import Engine.Reactor.Darwin when os darwin
+  import Engine.Reactor.Linux when os linux
+
+  export module Engine.Reactor.Darwin
+  export module Engine.Reactor.Linux
