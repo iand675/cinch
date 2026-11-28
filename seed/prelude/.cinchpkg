@@ -1347,6 +1347,14 @@
     {
       "name": "Engine.Types",
       "path": "Engine/Types.cinch"
+    },
+    {
+      "name": "Engine.Timer",
+      "path": "Engine/Timer.cinch"
+    },
+    {
+      "name": "Engine.Timer.Spec",
+      "path": "Engine/Timer/Spec.cinch"
     }
   ],
   "order": [
@@ -1685,6 +1693,8 @@
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
     "Prim.Sys.Io",
-    "Engine.Types"
+    "Engine.Types",
+    "Engine.Timer",
+    "Engine.Timer.Spec"
   ]
 }
