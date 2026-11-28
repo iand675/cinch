@@ -1579,6 +1579,14 @@
     {
       "name": "Store.Kv.Resp",
       "path": "Store/Kv/Resp.cinch"
+    },
+    {
+      "name": "Store.Lsm.Bloom",
+      "path": "Store/Lsm/Bloom.cinch"
+    },
+    {
+      "name": "Store.Lsm.BufferPool",
+      "path": "Store/Lsm/BufferPool.cinch"
     }
   ],
   "order": [
@@ -1975,6 +1983,8 @@
     "Store.Wal.Format",
     "Store.Wal.Engine",
     "Store.Wal.Spec",
-    "Store.Kv.Resp"
+    "Store.Kv.Resp",
+    "Store.Lsm.Bloom",
+    "Store.Lsm.BufferPool"
   ]
 }

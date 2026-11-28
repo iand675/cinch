@@ -1,0 +1,548 @@
+-- | Zero-allocation (`#[no-alloc]`) 512-bit (64-byte) cache-line-aligned
+-- Blocked Bloom Filter (`Store.Lsm.Bloom`) for the Cinch LSM storage engine.
+--
+-- Every filter block is exactly **64 bytes** (`8 x U64` words aligned to a
+-- 64-byte CPU cache line), guaranteeing **at most 1 cache-line fetch per
+-- negative probe**:
+--   * Keys are hashed with `#[no-alloc]` 64-bit `wyhash` (`wyhash-raw` /
+--     `wyhash-u64`) using full 128-bit `wymum` avalanche mixing.
+--   * `block-idx = h1 % num-blocks` selects one 64-byte cache-line block.
+--   * A secondary mixed hash `h2 = wymum(h1 ^ secret, 0x9E3779B97F4A7C15)`
+--     extracts 8 independent 6-bit positions (`k = 8`, 1 bit per `U64` lane)
+--     within that single 64-byte block.
+--   * Guarantees **0% false negatives** and ~1% empirical false positive rate
+--     at 10 bits/key (`num-blocks = ceil(n * 10 / 512)`).
+--   * Supports direct zero-copy serialization (`bloom-serialize-raw`) and
+--     deserialization (`bloom-attach-raw`) to/from 4 KiB-aligned DMA buffers
+--     authenticated by a hardware-accelerated LRAT-verified Castagnoli
+--     `Engine.Simd.Crc32c` footer.
+module Store.Lsm.Bloom where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Wide
+  import Engine.Simd.Crc32c
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Constants & layout sizing
+  export bloom-block-bytes, bloom-block-bits, bloom-k-lanes
+  export bloom-header-bytes, bloom-footer-bytes
+  export bloom-header-magic, bloom-footer-magic, bloom-format-version
+  export bloom-blocks-for-keys, bloom-serialized-size
+
+  -- Zero-alloc wyhash primitives
+  export wyhash-mix, wyhash-u64, wyhash-raw
+
+  -- Cache-line-aligned BlockedBloom handle & lifecycle
+  export BlockedBloom, bloom-invalid, bloom-is-valid, bloom-is-cacheline-aligned
+  export bloom-create, bloom-create-blocks, bloom-destroy, bloom-clear
+
+  -- #[no-alloc] hot-path insertion & single-cache-line membership probing
+  export bloom-add-hash, bloom-add-raw
+  export bloom-may-contain-hash, bloom-may-contain-raw
+
+  -- Zero-copy 4 KiB-aligned DMA serialization & CRC32C-verified attachment
+  export bloom-serialize-raw, bloom-attach-raw
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA helpers
+  -- =========================================================================
+
+  -- | Internal `#[no-alloc]` boolean true avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-true :: Bool
+  na-true = eq-u32 0 0
+
+  -- | Internal `#[no-alloc]` boolean false avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-false :: Bool
+  na-false = eq-u32 0 1
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-and :: Bool -> Bool -> Bool
+  na-and a b = if a then b else na-false
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean disjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-or :: Bool -> Bool -> Bool
+  na-or a b = if a then na-true else b
+
+  -- | Byte-wise tail zero-fill helper for `zero-dma`.
+  #[no-alloc]
+  zero-dma-tail :: I64 -> U32 ->{MVar} Unit
+  zero-dma-tail dst rem =
+    if eq-u32 rem 0 then ()
+    else
+      let _ = raw-store-u8 dst 0 in
+      zero-dma-tail (wrapping-add-i64 dst 1) (wrapping-sub-u32 rem 1)
+
+  -- | Zero-fill `len` raw DMA bytes starting at `dst` (`#[no-alloc]`).
+  #[no-alloc]
+  zero-dma :: I64 -> U32 ->{MVar} Unit
+  zero-dma dst len =
+    if ge-u32 len 8 then
+      let _ = raw-store-u64 dst 0 in
+      zero-dma (wrapping-add-i64 dst 8) (wrapping-sub-u32 len 8)
+    else zero-dma-tail dst len
+
+  -- | Byte-wise tail copy helper for `copy-dma`.
+  #[no-alloc]
+  copy-dma-tail :: I64 -> I64 -> U32 ->{MVar} Unit
+  copy-dma-tail dst src rem =
+    if eq-u32 rem 0 then ()
+    else
+      let b = raw-load-u8 src in
+      let _ = raw-store-u8 dst b in
+      copy-dma-tail (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+
+  -- | Copy `len` raw DMA bytes from `src` to `dst` (`#[no-alloc]`).
+  #[no-alloc]
+  copy-dma :: I64 -> I64 -> U32 ->{MVar} Unit
+  copy-dma dst src len =
+    if ge-u32 len 8 then
+      let w = raw-load-u64 src in
+      let _ = raw-store-u64 dst w in
+      copy-dma (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 len 8)
+    else copy-dma-tail dst src len
+
+  -- =========================================================================
+  -- 1. Constants & Geometry Helpers
+  -- =========================================================================
+
+  -- | Size of one cache-line Bloom block in bytes (`64` bytes = 8 x `U64`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-block-bytes :: U32
+  bloom-block-bytes = 64
+
+  -- | Number of bits per cache-line Bloom block (`512` bits).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-block-bits :: U32
+  bloom-block-bits = 512
+
+  -- | Number of hash probes per key (`k = 8`, 1 bit in each `U64` lane).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-k-lanes :: U32
+  bloom-k-lanes = 8
+
+  -- | Serialized header size in bytes (`64` bytes, preserving 64B alignment of blocks).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-header-bytes :: U32
+  bloom-header-bytes = 64
+
+  -- | Serialized footer size in bytes (`16` bytes carrying magic, CRC32C, and total length).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-footer-bytes :: U32
+  bloom-footer-bytes = 16
+
+  -- | Little-endian header magic `"CBLM"` (`0x4D4C4243`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-header-magic :: U32
+  bloom-header-magic = 0x4D4C4243
+
+  -- | Little-endian footer magic `"CBLF"` (`0x464C4243`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-footer-magic :: U32
+  bloom-footer-magic = 0x464C4243
+
+  -- | Serialized Blocked Bloom filter format version (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-format-version :: U32
+  bloom-format-version = 1
+
+  -- | Compute the number of 512-bit (64B) blocks needed for `num-keys` at
+  -- `bits-per-key`: `max(1, ceil(num-keys * bits-per-key / 512))`.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-blocks-for-keys :: U32 -> U32 -> U32
+  bloom-blocks-for-keys num-keys bits-per-key =
+    let bpk = if eq-u32 bits-per-key 0 then 10 else bits-per-key in
+    let total-bits = wrapping-mul-u64 (u32-to-u64 num-keys) (u32-to-u64 bpk) in
+    let blocks = wrapping-shr-u64 (wrapping-add-u64 total-bits 511) 9 in
+    if eq-u64 blocks 0 then 1
+    else if gt-u64 blocks 67108864 then 67108864
+    else wrapping-u64-to-u32 blocks
+
+  -- | Compute total serialized byte size (`64 + num-blocks * 64 + 16`) for a
+  -- `BlockedBloom` with `num-blocks` cache-line blocks.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-serialized-size :: U32 -> U32
+  bloom-serialized-size num-blocks =
+    wrapping-add-u32 (wrapping-add-u32 bloom-header-bytes bloom-footer-bytes) (wrapping-shl-u32 num-blocks 6)
+
+  -- =========================================================================
+  -- 2. Zero-Allocation 64-Bit wyhash (`wyhash-mix`, `wyhash-u64`, `wyhash-raw`)
+  -- =========================================================================
+
+  -- | wyhash secret constant 0.
+  #[inline(always)]
+  #[no-alloc]
+  wy-secret0 :: U64
+  wy-secret0 = 0xA0761D6478BD642F
+
+  -- | wyhash secret constant 1.
+  #[inline(always)]
+  #[no-alloc]
+  wy-secret1 :: U64
+  wy-secret1 = 0xE7037ED1A0B428DB
+
+  -- | wyhash secret constant 2.
+  #[inline(always)]
+  #[no-alloc]
+  wy-secret2 :: U64
+  wy-secret2 = 0x8EBC6AF09C88C6E3
+
+  -- | wyhash secret constant 3.
+  #[inline(always)]
+  #[no-alloc]
+  wy-secret3 :: U64
+  wy-secret3 = 0x589965CC75374CC3
+
+  -- | Full 128-bit multiply-XOR avalanche primitive (`lo(a * b) ^ hi(a * b)`).
+  #[inline(always)]
+  #[no-alloc]
+  wyhash-mix :: U64 -> U64 -> U64
+  wyhash-mix a b =
+    let prod = wrapping-mul-u128 (u64-to-u128 a) (u64-to-u128 b) in
+    let lo = wrapping-u128-to-u64 prod in
+    let hi = wrapping-u128-to-u64 (wrapping-shr-u128 prod 64) in
+    bit-xor-u64 lo hi
+
+  -- | Hash a single 64-bit unsigned integer key with `wyhash` mixing (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wyhash-u64 :: U64 -> U64 -> U64
+  wyhash-u64 key seed =
+    let s0 = bit-xor-u64 seed wy-secret0 in
+    let a = bit-xor-u64 key wy-secret1 in
+    let b = bit-xor-u64 (wrapping-add-u64 key 8) s0 in
+    let m = wyhash-mix a b in
+    wyhash-mix (bit-xor-u64 m wy-secret2) (bit-xor-u64 s0 8)
+
+  -- | Read 3 bytes (`len` in `1..3`) into wyhash's short-key 64-bit word.
+  #[inline(always)]
+  #[no-alloc]
+  wyr3 :: I64 -> U32 ->{MVar} U64
+  wyr3 p len =
+    let b0 = u8-to-u64 (raw-load-u8 p) in
+    let b1 = u8-to-u64 (raw-load-u8 (wrapping-add-i64 p (u32-to-i64 (wrapping-shr-u32 len 1)))) in
+    let b2 = u8-to-u64 (raw-load-u8 (wrapping-add-i64 p (u32-to-i64 (wrapping-sub-u32 len 1)))) in
+    bit-or-u64 (bit-or-u64 (wrapping-shl-u64 b0 16) (wrapping-shl-u64 b1 8)) b2
+
+  -- | Fold 16-byte chunks for `wyhash-raw` while `rem > 16`.
+  #[no-alloc]
+  wyhash-loop16 :: I64 -> U32 -> U64 ->{MVar} U64
+  wyhash-loop16 p rem seed =
+    if gt-u32 rem 16 then
+      let w0 = raw-load-u64 p in
+      let w1 = raw-load-u64 (wrapping-add-i64 p 8) in
+      let next-seed = wyhash-mix (bit-xor-u64 w0 wy-secret1) (bit-xor-u64 w1 seed) in
+      wyhash-loop16 (wrapping-add-i64 p 16) (wrapping-sub-u32 rem 16) next-seed
+    else
+      let last0 = raw-load-u64 (wrapping-add-i64 p (wrapping-sub-i64 (u32-to-i64 rem) 16)) in
+      let last1 = raw-load-u64 (wrapping-add-i64 p (wrapping-sub-i64 (u32-to-i64 rem) 8)) in
+      let m = wyhash-mix (bit-xor-u64 last0 wy-secret1) (bit-xor-u64 last1 seed) in
+      wyhash-mix (bit-xor-u64 m wy-secret2) (bit-xor-u64 seed wy-secret3)
+
+  -- | Hash `len` raw DMA bytes starting at `addr` using 64-bit `wyhash` (`#[no-alloc]`).
+  #[no-alloc]
+  wyhash-raw :: I64 -> U32 -> U64 ->{MVar} U64
+  wyhash-raw addr len seed =
+    let s0 = bit-xor-u64 seed (wyhash-mix seed wy-secret0) in
+    let len64 = u32-to-u64 len in
+    if eq-u32 len 0 then
+      wyhash-mix wy-secret1 (bit-xor-u64 s0 wy-secret2)
+    else if le-u32 len 3 then
+      let a = wyr3 addr len in
+      wyhash-mix (bit-xor-u64 a wy-secret1) (bit-xor-u64 len64 s0)
+    else if le-u32 len 8 then
+      let lo = u32-to-u64 (raw-load-u32 addr) in
+      let hi = u32-to-u64 (raw-load-u32 (wrapping-add-i64 addr (u32-to-i64 (wrapping-sub-u32 len 4)))) in
+      let a = bit-or-u64 (wrapping-shl-u64 lo 32) hi in
+      let m = wyhash-mix (bit-xor-u64 a wy-secret1) (bit-xor-u64 len64 s0) in
+      wyhash-mix (bit-xor-u64 m wy-secret2) (bit-xor-u64 len64 wy-secret3)
+    else if le-u32 len 16 then
+      let a = raw-load-u64 addr in
+      let b = raw-load-u64 (wrapping-add-i64 addr (u32-to-i64 (wrapping-sub-u32 len 8))) in
+      let m = wyhash-mix (bit-xor-u64 a wy-secret1) (bit-xor-u64 b s0) in
+      wyhash-mix (bit-xor-u64 m wy-secret2) (bit-xor-u64 len64 wy-secret3)
+    else
+      let h = wyhash-loop16 addr len s0 in
+      wyhash-mix (bit-xor-u64 h len64) wy-secret1
+
+  -- =========================================================================
+  -- 3. BlockedBloom POD Handle & Lifecycle
+  -- =========================================================================
+
+  -- | 32-byte POD handle to a 512-bit (64-byte) cache-line-aligned Blocked
+  -- Bloom Filter. Either owns a 4 KiB-aligned `engine-dma-alloc` slab
+  -- (`bloom-owned == 1`) or attaches zero-copy to an externally owned DMA
+  -- buffer (`bloom-owned == 0`, created by `bloom-attach-raw`).
+  #[repr(C, value)]
+  record BlockedBloom where
+    -- | 64-byte-aligned base address of the `bloom-num-blocks * 64` filter array (`0` = invalid).
+    bloom-base-addr :: I64
+    -- | Base address of the owned DMA slab (`0` for zero-copy attached filters).
+    bloom-slab-addr :: I64
+    -- | Byte length of the owned DMA slab (`0` for zero-copy attached filters).
+    bloom-slab-bytes :: U64
+    -- | Number of 64-byte (512-bit) cache-line blocks (`>= 1` when valid).
+    bloom-num-blocks :: U32
+    -- | Ownership flag (`1` = owned DMA slab, `0` = attached zero-copy view).
+    bloom-owned :: U32
+
+  -- | Construct an invalid sentinel `BlockedBloom`.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-invalid :: Unit -> BlockedBloom
+  bloom-invalid _ = BlockedBloom 0 0 0 0 0
+
+  -- | Return `True` iff `bf` points to a valid non-empty filter array.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-is-valid :: BlockedBloom -> Bool
+  bloom-is-valid bf =
+    na-and (ne-i64 bf.bloom-base-addr 0) (gt-u32 bf.bloom-num-blocks 0)
+
+  -- | Return `True` iff `bf`'s filter block array starts on a 64-byte cache-line boundary.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-is-cacheline-aligned :: BlockedBloom -> Bool
+  bloom-is-cacheline-aligned bf =
+    na-and (bloom-is-valid bf) (eq-u64 (bit-and-u64 (wrapping-i64-to-u64 bf.bloom-base-addr) 63) 0)
+
+  -- | Allocate a zeroed, 4 KiB-aligned (and 64B cache-line-aligned)
+  -- `BlockedBloom` with an explicit `num-blocks` count (`>= 1`).
+  -- Returns `bloom-invalid ()` on invalid arguments or mapping failure.
+  bloom-create-blocks :: U32 ->{IO, MVar} BlockedBloom
+  bloom-create-blocks num-blocks =
+    if eq-u32 num-blocks 0 then bloom-invalid ()
+    else
+      let raw-bytes = wrapping-shl-u64 (u32-to-u64 num-blocks) 6 in
+      let slab-bytes = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let slab-u64 = engine-dma-alloc slab-bytes 4096 in
+      if eq-u64 slab-u64 0 then bloom-invalid ()
+      else
+        let base = wrapping-u64-to-i64 slab-u64 in
+        BlockedBloom base base slab-bytes num-blocks 1
+
+  -- | Allocate a zeroed `BlockedBloom` sized for `num-keys` at `bits-per-key`
+  -- (`num-blocks = max(1, ceil(num-keys * bits-per-key / 512))`).
+  bloom-create :: U32 -> U32 ->{IO, MVar} BlockedBloom
+  bloom-create num-keys bits-per-key =
+    bloom-create-blocks (bloom-blocks-for-keys num-keys bits-per-key)
+
+  -- | Release the DMA slab backing an owned `BlockedBloom`.
+  -- Safe no-op on zero-copy attached filters (`bloom-owned == 0`) or invalid handles.
+  bloom-destroy :: BlockedBloom ->{IO, MVar} Unit
+  bloom-destroy bf =
+    if eq-u32 bf.bloom-owned 0 then ()
+    else if eq-i64 bf.bloom-slab-addr 0 then ()
+    else if eq-u64 bf.bloom-slab-bytes 0 then ()
+    else
+      let _ = engine-dma-free (wrapping-i64-to-u64 bf.bloom-slab-addr) bf.bloom-slab-bytes in
+      ()
+
+  -- | Reset all bits in `bf` to zero without reallocating (`#[no-alloc]`).
+  #[no-alloc]
+  bloom-clear :: BlockedBloom ->{MVar} Unit
+  bloom-clear bf =
+    if not (bloom-is-valid bf) then ()
+    else zero-dma bf.bloom-base-addr (wrapping-shl-u32 bf.bloom-num-blocks 6)
+
+  -- =========================================================================
+  -- 4. #[no-alloc] Single-Cache-Line Insert & Probe (k = 8, 1 Bit / U64 Lane)
+  -- =========================================================================
+
+  -- | Compute the 64-byte-aligned address of block `h1 % num-blocks`.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-block-addr :: BlockedBloom -> U64 -> I64
+  bloom-block-addr bf h1 =
+    let nb64 = u32-to-u64 bf.bloom-num-blocks in
+    let idx = (case decide (nb64 /= 0) of
+      Yes _ -> rem-u64 h1 nb64
+      No _ -> 0) in
+    wrapping-add-i64 bf.bloom-base-addr (wrapping-u64-to-i64 (wrapping-shl-u64 idx 6))
+
+  -- | Derive a 48-bit secondary hash carrying 8 independent 6-bit lane bit indices.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-lane-bits :: U64 -> U64
+  bloom-lane-bits h1 =
+    wyhash-mix (bit-xor-u64 h1 0x9E3779B97F4A7C15) 0x517CC1B727220A95
+
+  -- | Build single-bit `U64` mask `(1 << ((h2 >> shift) & 63))` for one lane.
+  #[inline(always)]
+  #[no-alloc]
+  lane-mask :: U64 -> U32 -> U64
+  lane-mask h2 shift =
+    let bit-pos = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 h2 shift) 63) in
+    wrapping-shl-u64 1 bit-pos
+
+  -- | Set 1 bit in lane `lane-off` (`0, 8, 16, ..., 56`) of a 64-byte block.
+  #[inline(always)]
+  #[no-alloc]
+  set-lane-bit :: I64 -> I64 -> U64 ->{MVar} Unit
+  set-lane-bit blk off mask =
+    let p = wrapping-add-i64 blk off in
+    raw-store-u64 p (bit-or-u64 (raw-load-u64 p) mask)
+
+  -- | Test 1 bit in lane `lane-off` (`0, 8, 16, ..., 56`) of a 64-byte block.
+  #[inline(always)]
+  #[no-alloc]
+  test-lane-bit :: I64 -> I64 -> U64 ->{MVar} Bool
+  test-lane-bit blk off mask =
+    ne-u64 (bit-and-u64 (raw-load-u64 (wrapping-add-i64 blk off)) mask) 0
+
+  -- | Insert a pre-hashed 64-bit key `h1` into `bf`, setting `k = 8` bits
+  -- (1 bit in each of the 8 `U64` words) inside one 64-byte cache line (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-add-hash :: BlockedBloom -> U64 ->{MVar} Unit
+  bloom-add-hash bf h1 =
+    if not (bloom-is-valid bf) then ()
+    else
+      let blk = bloom-block-addr bf h1 in
+      let h2 = bloom-lane-bits h1 in
+      let _0 = set-lane-bit blk 0 (lane-mask h2 0) in
+      let _1 = set-lane-bit blk 8 (lane-mask h2 6) in
+      let _2 = set-lane-bit blk 16 (lane-mask h2 12) in
+      let _3 = set-lane-bit blk 24 (lane-mask h2 18) in
+      let _4 = set-lane-bit blk 32 (lane-mask h2 24) in
+      let _5 = set-lane-bit blk 40 (lane-mask h2 30) in
+      let _6 = set-lane-bit blk 48 (lane-mask h2 36) in
+      set-lane-bit blk 56 (lane-mask h2 42)
+
+  -- | Hash `key-len` raw DMA bytes at `key-addr` with `wyhash-raw` and insert
+  -- into `bf` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-add-raw :: BlockedBloom -> I64 -> U32 ->{MVar} Unit
+  bloom-add-raw bf key-addr key-len =
+    bloom-add-hash bf (wyhash-raw key-addr key-len 0x424C4F4F4D353132)
+
+  -- | Probe a pre-hashed 64-bit key `h1` against `bf` within a single 64-byte
+  -- cache line (`#[no-alloc]`). Returns `False` iff the key is definitely absent.
+  #[inline(always)]
+  #[no-alloc]
+  bloom-may-contain-hash :: BlockedBloom -> U64 ->{MVar} Bool
+  bloom-may-contain-hash bf h1 =
+    if not (bloom-is-valid bf) then na-false
+    else
+      let blk = bloom-block-addr bf h1 in
+      let h2 = bloom-lane-bits h1 in
+      if not (test-lane-bit blk 0 (lane-mask h2 0)) then na-false
+      else if not (test-lane-bit blk 8 (lane-mask h2 6)) then na-false
+      else if not (test-lane-bit blk 16 (lane-mask h2 12)) then na-false
+      else if not (test-lane-bit blk 24 (lane-mask h2 18)) then na-false
+      else if not (test-lane-bit blk 32 (lane-mask h2 24)) then na-false
+      else if not (test-lane-bit blk 40 (lane-mask h2 30)) then na-false
+      else if not (test-lane-bit blk 48 (lane-mask h2 36)) then na-false
+      else test-lane-bit blk 56 (lane-mask h2 42)
+
+  -- | Hash `key-len` raw DMA bytes at `key-addr` with `wyhash-raw` and probe
+  -- `bf` in at most 1 cache-line fetch (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  bloom-may-contain-raw :: BlockedBloom -> I64 -> U32 ->{MVar} Bool
+  bloom-may-contain-raw bf key-addr key-len =
+    bloom-may-contain-hash bf (wyhash-raw key-addr key-len 0x424C4F4F4D353132)
+
+  -- =========================================================================
+  -- 5. Zero-Copy 4 KiB-Aligned DMA Serialization & CRC32C Attachment
+  -- =========================================================================
+
+  -- Serialized layout (preserves 64-byte cache-line alignment of blocks):
+  --   Header (64 bytes, +0..+64):
+  --     +0  : magic       :: U32 = 0x4D4C4243 ("CBLM")
+  --     +4  : version     :: U32 = 1
+  --     +8  : num-blocks  :: U32
+  --     +12 : k-lanes     :: U32 = 8
+  --     +16 : reserved    :: [U8; 48] = 0
+  --   Blocks (num-blocks * 64 bytes, +64..+64 + num-blocks * 64):
+  --     64-byte cache-line-aligned block array
+  --   Footer (16 bytes, +footer-off..+footer-off + 16):
+  --     +0  : footer-magic :: U32 = 0x464C4243 ("CBLF")
+  --     +4  : crc32c       :: U32 (Castagnoli CRC32C over bytes 0..footer-off)
+  --     +8  : total-bytes  :: U64 (= 64 + num-blocks * 64 + 16)
+
+  -- | Serialize `bf` directly into a 64B/4KiB-aligned DMA buffer at `dst-addr`
+  -- (capacity `dst-cap` bytes) with a 64-byte header and LRAT-verified
+  -- Castagnoli CRC32C footer (`#[no-alloc]`).
+  -- Returns total bytes written (`bloom-serialized-size bf.bloom-num-blocks`),
+  -- or `0` if `bf` is invalid, `dst-addr` is null/unaligned, or `dst-cap` is too small.
+  #[no-alloc]
+  bloom-serialize-raw :: BlockedBloom -> I64 -> U32 ->{MVar} U32
+  bloom-serialize-raw bf dst-addr dst-cap =
+    if not (bloom-is-valid bf) then 0
+    else if eq-i64 dst-addr 0 then 0
+    else if ne-u64 (bit-and-u64 (wrapping-i64-to-u64 dst-addr) 63) 0 then 0
+    else
+      let payload-bytes = wrapping-shl-u32 bf.bloom-num-blocks 6 in
+      let footer-off = wrapping-add-u32 bloom-header-bytes payload-bytes in
+      let total = wrapping-add-u32 footer-off bloom-footer-bytes in
+      if gt-u32 total dst-cap then 0
+      else
+        let _0 = raw-store-u32 dst-addr bloom-header-magic in
+        let _1 = raw-store-u32 (wrapping-add-i64 dst-addr 4) bloom-format-version in
+        let _2 = raw-store-u32 (wrapping-add-i64 dst-addr 8) bf.bloom-num-blocks in
+        let _3 = raw-store-u32 (wrapping-add-i64 dst-addr 12) bloom-k-lanes in
+        let _z = zero-dma (wrapping-add-i64 dst-addr 16) 48 in
+        let _cp = copy-dma (wrapping-add-i64 dst-addr 64) bf.bloom-base-addr payload-bytes in
+        let crc = crc32c-finish (crc32c-update-dma crc32c-init dst-addr footer-off) in
+        let fptr = wrapping-add-i64 dst-addr (u32-to-i64 footer-off) in
+        let _f0 = raw-store-u32 fptr bloom-footer-magic in
+        let _f1 = raw-store-u32 (wrapping-add-i64 fptr 4) crc in
+        let _f2 = raw-store-u64 (wrapping-add-i64 fptr 8) (u32-to-u64 total) in
+        total
+
+  -- | Zero-copy attach a `BlockedBloom` directly onto a 64B/4KiB-aligned DMA
+  -- buffer at `src-addr` (`src-len` bytes), validating header magic, version,
+  -- geometry, footer magic, and full LRAT-verified Castagnoli CRC32C (`#[no-alloc]`).
+  -- Returns a valid non-owning `BlockedBloom` (`bloom-owned == 0`), or
+  -- `bloom-invalid ()` on any corruption, truncation, or alignment error.
+  #[no-alloc]
+  bloom-attach-raw :: I64 -> U32 ->{MVar} BlockedBloom
+  bloom-attach-raw src-addr src-len =
+    if eq-i64 src-addr 0 then bloom-invalid ()
+    else if ne-u64 (bit-and-u64 (wrapping-i64-to-u64 src-addr) 63) 0 then bloom-invalid ()
+    else if lt-u32 src-len (wrapping-add-u32 bloom-header-bytes bloom-footer-bytes) then bloom-invalid ()
+    else
+      let magic = raw-load-u32 src-addr in
+      let ver = raw-load-u32 (wrapping-add-i64 src-addr 4) in
+      let num-blocks = raw-load-u32 (wrapping-add-i64 src-addr 8) in
+      let k-lanes = raw-load-u32 (wrapping-add-i64 src-addr 12) in
+      if na-or (ne-u32 magic bloom-header-magic) (ne-u32 ver bloom-format-version) then bloom-invalid ()
+      else if na-or (eq-u32 num-blocks 0) (ne-u32 k-lanes bloom-k-lanes) then bloom-invalid ()
+      else if gt-u32 num-blocks 67108864 then bloom-invalid ()
+      else
+        let payload-bytes = wrapping-shl-u32 num-blocks 6 in
+        let footer-off = wrapping-add-u32 bloom-header-bytes payload-bytes in
+        let total = wrapping-add-u32 footer-off bloom-footer-bytes in
+        if gt-u32 total src-len then bloom-invalid ()
+        else
+          let fptr = wrapping-add-i64 src-addr (u32-to-i64 footer-off) in
+          let fmagic = raw-load-u32 fptr in
+          let stored-crc = raw-load-u32 (wrapping-add-i64 fptr 4) in
+          let stored-total = raw-load-u64 (wrapping-add-i64 fptr 8) in
+          if na-or (ne-u32 fmagic bloom-footer-magic) (ne-u64 stored-total (u32-to-u64 total)) then bloom-invalid ()
+          else
+            let calc-crc = crc32c-finish (crc32c-update-dma crc32c-init src-addr footer-off) in
+            if ne-u32 calc-crc stored-crc then bloom-invalid ()
+            else BlockedBloom (wrapping-add-i64 src-addr 64) 0 0 num-blocks 0

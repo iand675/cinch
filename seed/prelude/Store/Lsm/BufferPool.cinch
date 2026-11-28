@@ -1,0 +1,1714 @@
+-- | Zero-allocation (`#[no-alloc]`) S3-FIFO `O_DIRECT` 4 KiB Page Buffer Pool
+-- and Prefix-Compressed SSTable 4 KiB Block Codec (`Store.Lsm.BufferPool`).
+--
+-- Part 1 — **S3-FIFO (SOSP '23) Page Buffer Pool (`S3FifoPool`)**:
+--   * Backed by contiguous 4 KiB-aligned `engine-dma-alloc` page frames
+--     (`s3fifo-page-size = 4096`) and a companion DMA metadata slab holding:
+--       - A flat open-addressed `(file-id :: U32, page-no :: U32) -> frame-idx`
+--         hash table with backward-shift deletion (no tombstone degradation).
+--       - Per-frame pin counts (`pin-count > 0` frames are NEVER evicted),
+--         2-bit saturating access frequency counters (`freq :: 0..3`), and
+--         intrusive doubly-linked queue pointers.
+--       - **Small FIFO queue `S`** (~10% of capacity): new pages enter `S`;
+--         on eviction from `S`, frames with `freq > 0` are promoted to `M`
+--         (resetting `freq = 0`), while one-hit pages (`freq == 0`) are evicted
+--         and recorded in the Ghost queue `G`.
+--       - **Main FIFO queue `M`** (~90% of capacity): on eviction from `M`,
+--         frames with `freq > 0` decrement `freq` and reinsert at tail of `M`;
+--         frames with `freq == 0` are evicted.
+--       - **Ghost FIFO queue `G`** (metadata-only ring + O(1) lookup hash table,
+--         capacity = `M`): pages re-referenced while in `G` bypass `S` and
+--         insert directly into `M`, delivering strong scan resistance.
+--   * Steady-state buffer-pool hits (`pool-pin-hit` / `pool-pin`) execute with
+--     **0 heap allocations** and **0 atomic reference-counting traffic**.
+--
+-- Part 2 — **Prefix-Compressed SSTable 4 KiB Block Codec (`SstBlockBuilder` & `SstBlockReader`)**:
+--   * Encodes sorted `(key, value, seq-no, is-tombstone)` entries into a 4 KiB
+--     DMA page using shared-prefix delta compression (`shared-len`,
+--     `unshared-len`, `value-len`, `is-tombstone`, `seq-no`) with restart
+--     points every 16 keys (`sst-restart-interval = 16`) for O(log R) binary
+--     search and a 4-byte LRAT-verified Castagnoli `Engine.Simd.Crc32c` trailer.
+--   * `#[no-alloc]` `sst-block-get-raw` verifies CRC32C on block load,
+--     binary-searches restart points in-place, and scans at most 16 entries
+--     using zero-scratch LCP tracking with zero heap allocations.
+module Store.Lsm.BufferPool where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Simd.Crc32c
+  import Engine.Types
+  import Prim.Atomic
+
+  -- =========================================================================
+  -- Exports: S3-FIFO Page Buffer Pool
+  -- =========================================================================
+
+  export s3fifo-page-size, s3fifo-invalid-idx
+  export pool-queue-free, pool-queue-small, pool-queue-main
+  export pool-status-hit, pool-status-miss, pool-status-full, pool-status-invalid
+  export S3FifoPool, PoolPinResult
+  export s3fifo-pool-invalid, s3fifo-pool-is-valid, s3fifo-pack-page-key
+  export s3fifo-pool-new, s3fifo-pool-destroy
+  export pool-pin-hit, pool-pin, pool-unpin, pool-evict-one
+  export pool-frame-addr, pool-frame-pin-count, pool-frame-freq, pool-frame-queue
+  export pool-contains, pool-ghost-contains
+  export pool-capacity, pool-small-cap, pool-main-cap, pool-ghost-cap
+  export pool-small-len, pool-main-len, pool-ghost-len, pool-free-count
+  export pool-hits, pool-misses, pool-evictions, pool-promotions, pool-ghost-hits
+  export pool-reset-stats
+
+  -- =========================================================================
+  -- Exports: Prefix-Compressed SSTable 4 KiB Block Codec
+  -- =========================================================================
+
+  export sst-block-size, sst-restart-interval, sst-footer-size
+  export sst-status-found, sst-status-not-found, sst-status-tombstone
+  export sst-status-bad-crc, sst-status-corrupt
+  export SstBlockBuilder, SstBlockReader, SstLookupResult
+  export sst-block-builder-invalid, sst-block-builder-is-valid
+  export sst-block-builder-new, sst-block-builder-destroy, sst-block-builder-reset
+  export sst-block-builder-add-raw, sst-block-builder-finish
+  export sst-block-builder-count, sst-block-builder-used-bytes, sst-block-builder-restart-count
+  export sst-block-verify-crc, sst-block-open-raw, sst-block-reader-is-valid
+  export sst-block-reader-get-raw, sst-block-get-raw
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & raw DMA memory helpers
+  -- =========================================================================
+
+  -- | Internal `#[no-alloc]` boolean true avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-true :: Bool
+  na-true = eq-u32 0 0
+
+  -- | Internal `#[no-alloc]` boolean false avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-false :: Bool
+  na-false = eq-u32 0 1
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-and :: Bool -> Bool -> Bool
+  na-and a b = if a then b else na-false
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean disjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-or :: Bool -> Bool -> Bool
+  na-or a b = if a then na-true else b
+
+  -- | Byte-wise tail zero-fill helper for `zero-dma`.
+  #[no-alloc]
+  zero-dma-tail :: I64 -> U32 ->{MVar} Unit
+  zero-dma-tail dst rem =
+    if eq-u32 rem 0 then ()
+    else
+      let _ = raw-store-u8 dst 0 in
+      zero-dma-tail (wrapping-add-i64 dst 1) (wrapping-sub-u32 rem 1)
+
+  -- | Zero-fill `len` raw DMA bytes starting at `dst` (`#[no-alloc]`).
+  #[no-alloc]
+  zero-dma :: I64 -> U32 ->{MVar} Unit
+  zero-dma dst len =
+    if ge-u32 len 8 then
+      let _ = raw-store-u64 dst 0 in
+      zero-dma (wrapping-add-i64 dst 8) (wrapping-sub-u32 len 8)
+    else zero-dma-tail dst len
+
+  -- | Byte-wise tail copy helper for `copy-dma`.
+  #[no-alloc]
+  copy-dma-tail :: I64 -> I64 -> U32 ->{MVar} Unit
+  copy-dma-tail dst src rem =
+    if eq-u32 rem 0 then ()
+    else
+      let b = raw-load-u8 src in
+      let _ = raw-store-u8 dst b in
+      copy-dma-tail (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+
+  -- | Copy `len` raw DMA bytes from `src` to `dst` (`#[no-alloc]`).
+  #[no-alloc]
+  copy-dma :: I64 -> I64 -> U32 ->{MVar} Unit
+  copy-dma dst src len =
+    if ge-u32 len 8 then
+      let w = raw-load-u64 src in
+      let _ = raw-store-u64 dst w in
+      copy-dma (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 len 8)
+    else copy-dma-tail dst src len
+
+  -- =========================================================================
+  -- 1. S3-FIFO Constants, POD Types & Metadata Slab Layout
+  -- =========================================================================
+
+  -- | Fixed `O_DIRECT` page frame size (`4096` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  s3fifo-page-size :: U32
+  s3fifo-page-size = 4096
+
+  -- | Sentinel index denoting absent frame, empty queue link, or empty hash slot.
+  #[inline(always)]
+  #[no-alloc]
+  s3fifo-invalid-idx :: U32
+  s3fifo-invalid-idx = 0xFFFFFFFF
+
+  -- | Frame queue state: unused / on free stack (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-queue-free :: U8
+  pool-queue-free = 0
+
+  -- | Frame queue state: resident in S3-FIFO Small queue `S` (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-queue-small :: U8
+  pool-queue-small = 1
+
+  -- | Frame queue state: resident in S3-FIFO Main queue `M` (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-queue-main :: U8
+  pool-queue-main = 2
+
+  -- | Pin status: page found resident in buffer pool (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-status-hit :: U32
+  pool-status-hit = 0
+
+  -- | Pin status: page missed and was assigned a frame (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-status-miss :: U32
+  pool-status-miss = 1
+
+  -- | Pin status: all frames are currently pinned (`pin-count > 0`); cannot evict (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-status-full :: U32
+  pool-status-full = 2
+
+  -- | Pin status: invalid or destroyed buffer pool handle (`3`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-status-invalid :: U32
+  pool-status-invalid = 3
+
+  -- | 16-byte POD handle to an S3-FIFO 4 KiB DMA page buffer pool.
+  #[repr(C, value)]
+  record S3FifoPool where
+    -- | Base address of the 4 KiB-aligned DMA metadata slab (`0` = invalid).
+    pool-meta-addr :: I64
+    -- | Base address of the contiguous 4 KiB-aligned page-frame DMA data slab.
+    pool-data-addr :: I64
+
+  -- | 32-byte POD result returned by `pool-pin-hit` and `pool-pin`.
+  #[repr(C, value)]
+  record PoolPinResult where
+    -- | Status code (`pool-status-hit`, `pool-status-miss`, `pool-status-full`, `pool-status-invalid`).
+    pin-status :: U32
+    -- | Assigned frame index (`0..capacity-1`) or `s3fifo-invalid-idx`.
+    pin-frame-idx :: U32
+    -- | 4 KiB-aligned DMA address of the pinned page frame (`0` on failure).
+    pin-page-addr :: I64
+    -- | `1` if an existing resident frame was evicted to serve this miss, `0` otherwise.
+    pin-evicted-valid :: U32
+    -- | `1` if the evicted frame was dirty and needs writeback, `0` otherwise.
+    pin-evicted-dirty :: U32
+    -- | `file-id` of the evicted page (valid iff `pin-evicted-valid == 1`).
+    pin-evicted-file-id :: U32
+    -- | `page-no` of the evicted page (valid iff `pin-evicted-valid == 1`).
+    pin-evicted-page-no :: U32
+
+  -- | Construct an invalid sentinel `S3FifoPool`.
+  #[inline(always)]
+  #[no-alloc]
+  s3fifo-pool-invalid :: Unit -> S3FifoPool
+  s3fifo-pool-invalid _ = S3FifoPool 0 0
+
+  -- | Return `True` iff `pool` has non-null DMA slabs.
+  #[inline(always)]
+  #[no-alloc]
+  s3fifo-pool-is-valid :: S3FifoPool -> Bool
+  s3fifo-pool-is-valid pool =
+    na-and (ne-i64 pool.pool-meta-addr 0) (ne-i64 pool.pool-data-addr 0)
+
+  -- | Pack `(file-id, page-no)` into a single 64-bit page key `(file-id << 32) | page-no`.
+  #[inline(always)]
+  #[no-alloc]
+  s3fifo-pack-page-key :: U32 -> U32 -> U64
+  s3fifo-pack-page-key file-id page-no =
+    bit-or-u64 (wrapping-shl-u64 (u32-to-u64 file-id) 32) (u32-to-u64 page-no)
+
+  -- Metadata slab header offsets (bytes 0..192):
+  --   +0   : capacity         :: U32
+  --   +4   : small-cap        :: U32
+  --   +8   : main-cap         :: U32
+  --   +12  : ghost-cap        :: U32
+  --   +16  : ht-mask          :: U32
+  --   +20  : ghost-ht-mask    :: U32
+  --   +24  : free-top         :: U32
+  --   +28  : destroyed        :: U32
+  --   +32  : s-head           :: U32
+  --   +36  : s-tail           :: U32
+  --   +40  : s-len            :: U32
+  --   +44  : m-head           :: U32
+  --   +48  : m-tail           :: U32
+  --   +52  : m-len            :: U32
+  --   +56  : g-head           :: U32
+  --   +60  : g-len            :: U32
+  --   +64  : hits             :: U64
+  --   +72  : misses           :: U64
+  --   +80  : evictions        :: U64
+  --   +88  : promotions       :: U64
+  --   +96  : ghost-hits       :: U64
+  --   +104 : meta-bytes       :: U64
+  --   +112 : data-bytes       :: U64
+  --   +120 : off-frames       :: U64 (= 192)
+  --   +128 : off-free-stack   :: U64
+  --   +136 : off-ht           :: U64
+  --   +144 : off-ghost-ring   :: U64
+  --   +152 : off-ghost-ht     :: U64
+
+  -- | Load a `U32` field at byte offset `off` in the pool metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  pm-load-u32 :: I64 -> I64 ->{MVar} U32
+  pm-load-u32 meta off = raw-load-u32 (wrapping-add-i64 meta off)
+
+  -- | Store a `U32` field at byte offset `off` in the pool metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  pm-store-u32 :: I64 -> I64 -> U32 ->{MVar} Unit
+  pm-store-u32 meta off v = raw-store-u32 (wrapping-add-i64 meta off) v
+
+  -- | Load a `U64` field at byte offset `off` in the pool metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  pm-load-u64 :: I64 -> I64 ->{MVar} U64
+  pm-load-u64 meta off = raw-load-u64 (wrapping-add-i64 meta off)
+
+  -- | Store a `U64` field at byte offset `off` in the pool metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  pm-store-u64 :: I64 -> I64 -> U64 ->{MVar} Unit
+  pm-store-u64 meta off v = raw-store-u64 (wrapping-add-i64 meta off) v
+
+  -- | Increment a `U64` counter at byte offset `off` in the pool metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  pm-inc-u64 :: I64 -> I64 ->{MVar} Unit
+  pm-inc-u64 meta off =
+    pm-store-u64 meta off (wrapping-add-u64 (pm-load-u64 meta off) 1)
+
+  -- Frame descriptor layout (32 bytes per frame):
+  --   +0  : key       :: U64
+  --   +8  : pin-count :: U32
+  --   +12 : freq      :: U8   (0..3)
+  --   +13 : queue     :: U8   (0=free, 1=S, 2=M)
+  --   +14 : dirty     :: U8   (0/1)
+  --   +15 : valid     :: U8   (0/1)
+  --   +16 : prev      :: U32
+  --   +20 : next      :: U32
+  --   +24 : reserved  :: U64
+
+  -- | Compute byte address of frame descriptor `idx` in the metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  frame-ptr :: I64 -> U32 ->{MVar} I64
+  frame-ptr meta idx =
+    let base = wrapping-add-i64 meta (wrapping-u64-to-i64 (pm-load-u64 meta 120)) in
+    wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 idx) 5)
+
+  -- | Compute byte address of free-stack slot `idx` in the metadata slab.
+  #[inline(always)]
+  #[no-alloc]
+  free-stack-slot :: I64 -> U32 ->{MVar} I64
+  free-stack-slot meta idx =
+    let base = wrapping-add-i64 meta (wrapping-u64-to-i64 (pm-load-u64 meta 128)) in
+    wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 idx) 2)
+
+  -- | Return base address of the resident open-addressed page hash table.
+  #[inline(always)]
+  #[no-alloc]
+  ht-base :: I64 ->{MVar} I64
+  ht-base meta = wrapping-add-i64 meta (wrapping-u64-to-i64 (pm-load-u64 meta 136))
+
+  -- | Compute byte address of Ghost FIFO ring entry `idx`.
+  #[inline(always)]
+  #[no-alloc]
+  ghost-ring-slot :: I64 -> U32 ->{MVar} I64
+  ghost-ring-slot meta idx =
+    let base = wrapping-add-i64 meta (wrapping-u64-to-i64 (pm-load-u64 meta 144)) in
+    wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 idx) 4)
+
+  -- | Return base address of the Ghost FIFO open-addressed hash table.
+  #[inline(always)]
+  #[no-alloc]
+  ghost-ht-base :: I64 ->{MVar} I64
+  ghost-ht-base meta = wrapping-add-i64 meta (wrapping-u64-to-i64 (pm-load-u64 meta 152))
+
+  -- =========================================================================
+  -- 2. Flat Open-Addressed Hash Table with Backward-Shift Deletion (#[no-alloc])
+  -- =========================================================================
+
+  -- Each slot is 16 bytes:
+  --   +0  : key :: U64
+  --   +8  : val :: U32 (`s3fifo-invalid-idx` = empty)
+  --   +12 : pad :: U32
+
+  -- | Avalanche hash for packed 64-bit `(file-id, page-no)` keys.
+  #[inline(always)]
+  #[no-alloc]
+  hash-page-key :: U64 -> U32
+  hash-page-key k =
+    let h0 = bit-xor-u64 k (wrapping-shr-u64 k 33) in
+    let h1 = wrapping-mul-u64 h0 0xFF51AFD7ED558CCD in
+    let h2 = bit-xor-u64 h1 (wrapping-shr-u64 h1 33) in
+    let h3 = wrapping-mul-u64 h2 0xC4CEB9FE1A85EC53 in
+    wrapping-u64-to-u32 (bit-xor-u64 h3 (wrapping-shr-u64 h3 33))
+
+  -- | Compute byte address of hash table slot `slot`.
+  #[inline(always)]
+  #[no-alloc]
+  ht-slot-ptr :: I64 -> U32 -> I64
+  ht-slot-ptr base slot = wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 slot) 4)
+
+  -- | Linear-probe lookup loop over an open-addressed hash table.
+  #[no-alloc]
+  ht-find-loop :: I64 -> U32 -> U64 -> U32 -> U32 ->{MVar} U32
+  ht-find-loop base mask key slot steps =
+    if gt-u32 steps mask then s3fifo-invalid-idx
+    else
+      let p = ht-slot-ptr base slot in
+      let v = raw-load-u32 (wrapping-add-i64 p 8) in
+      if eq-u32 v s3fifo-invalid-idx then s3fifo-invalid-idx
+      else if eq-u64 (raw-load-u64 p) key then v
+      else ht-find-loop base mask key (bit-and-u32 (wrapping-add-u32 slot 1) mask) (wrapping-add-u32 steps 1)
+
+  -- | Look up `key` in open-addressed hash table at `base` with `mask`.
+  #[inline(always)]
+  #[no-alloc]
+  ht-lookup :: I64 -> U32 -> U64 ->{MVar} U32
+  ht-lookup base mask key =
+    ht-find-loop base mask key (bit-and-u32 (hash-page-key key) mask) 0
+
+  -- | Linear-probe insertion loop over an open-addressed hash table.
+  #[no-alloc]
+  ht-put-loop :: I64 -> U32 -> U64 -> U32 -> U32 -> U32 ->{MVar} Bool
+  ht-put-loop base mask key val slot steps =
+    if gt-u32 steps mask then na-false
+    else
+      let p = ht-slot-ptr base slot in
+      let v = raw-load-u32 (wrapping-add-i64 p 8) in
+      if na-or (eq-u32 v s3fifo-invalid-idx) (eq-u64 (raw-load-u64 p) key) then
+        let _0 = raw-store-u64 p key in
+        let _1 = raw-store-u32 (wrapping-add-i64 p 8) val in
+        na-true
+      else
+        ht-put-loop base mask key val (bit-and-u32 (wrapping-add-u32 slot 1) mask) (wrapping-add-u32 steps 1)
+
+  -- | Insert or update `(key, val)` in open-addressed hash table at `base`.
+  #[inline(always)]
+  #[no-alloc]
+  ht-insert :: I64 -> U32 -> U64 -> U32 ->{MVar} Bool
+  ht-insert base mask key val =
+    ht-put-loop base mask key val (bit-and-u32 (hash-page-key key) mask) 0
+
+  -- | Backward-shift deletion repair closing probe-chain hole without tombstones.
+  #[no-alloc]
+  ht-backshift :: I64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  ht-backshift base mask hole cur =
+    let p-cur = ht-slot-ptr base cur in
+    let v-cur = raw-load-u32 (wrapping-add-i64 p-cur 8) in
+    if eq-u32 v-cur s3fifo-invalid-idx then
+      let p-hole = ht-slot-ptr base hole in
+      raw-store-u32 (wrapping-add-i64 p-hole 8) s3fifo-invalid-idx
+    else
+      let k-cur = raw-load-u64 p-cur in
+      let nat = bit-and-u32 (hash-page-key k-cur) mask in
+      let dist-hole = bit-and-u32 (wrapping-sub-u32 hole nat) mask in
+      let dist-cur = bit-and-u32 (wrapping-sub-u32 cur nat) mask in
+      let next = bit-and-u32 (wrapping-add-u32 cur 1) mask in
+      if lt-u32 dist-hole dist-cur then
+        let p-hole = ht-slot-ptr base hole in
+        let _0 = raw-store-u64 p-hole k-cur in
+        let _1 = raw-store-u32 (wrapping-add-i64 p-hole 8) v-cur in
+        ht-backshift base mask cur next
+      else
+        ht-backshift base mask hole next
+
+  -- | Linear-probe deletion search loop invoking `ht-backshift` on match.
+  #[no-alloc]
+  ht-del-loop :: I64 -> U32 -> U64 -> U32 -> U32 ->{MVar} U32
+  ht-del-loop base mask key slot steps =
+    if gt-u32 steps mask then s3fifo-invalid-idx
+    else
+      let p = ht-slot-ptr base slot in
+      let v = raw-load-u32 (wrapping-add-i64 p 8) in
+      if eq-u32 v s3fifo-invalid-idx then s3fifo-invalid-idx
+      else if eq-u64 (raw-load-u64 p) key then
+        let _bs = ht-backshift base mask slot (bit-and-u32 (wrapping-add-u32 slot 1) mask) in
+        v
+      else
+        ht-del-loop base mask key (bit-and-u32 (wrapping-add-u32 slot 1) mask) (wrapping-add-u32 steps 1)
+
+  -- | Remove `key` from open-addressed hash table at `base`, returning its prior value or `s3fifo-invalid-idx`.
+  #[inline(always)]
+  #[no-alloc]
+  ht-remove :: I64 -> U32 -> U64 ->{MVar} U32
+  ht-remove base mask key =
+    ht-del-loop base mask key (bit-and-u32 (hash-page-key key) mask) 0
+
+  -- =========================================================================
+  -- 3. Intrusive Doubly-Linked S & M FIFO Queues + Ghost Ring G (#[no-alloc])
+  -- =========================================================================
+
+  -- | Append frame `idx` to the tail of an intrusive doubly-linked FIFO queue.
+  #[no-alloc]
+  queue-push-tail :: I64 -> I64 -> I64 -> I64 -> U8 -> U32 ->{MVar} Unit
+  queue-push-tail meta head-off tail-off len-off q-tag idx =
+    let tail = pm-load-u32 meta tail-off in
+    let fp = frame-ptr meta idx in
+    let _q = raw-store-u8 (wrapping-add-i64 fp 13) q-tag in
+    let _p = raw-store-u32 (wrapping-add-i64 fp 16) tail in
+    let _n = raw-store-u32 (wrapping-add-i64 fp 20) s3fifo-invalid-idx in
+    let _link = (if eq-u32 tail s3fifo-invalid-idx then
+        pm-store-u32 meta head-off idx
+      else
+        let tp = frame-ptr meta tail in
+        raw-store-u32 (wrapping-add-i64 tp 20) idx) in
+    let _t = pm-store-u32 meta tail-off idx in
+    pm-store-u32 meta len-off (wrapping-add-u32 (pm-load-u32 meta len-off) 1)
+
+  -- | Unlink frame `idx` from an intrusive doubly-linked FIFO queue in O(1).
+  #[no-alloc]
+  queue-unlink :: I64 -> I64 -> I64 -> I64 -> U32 ->{MVar} Unit
+  queue-unlink meta head-off tail-off len-off idx =
+    let fp = frame-ptr meta idx in
+    let prev = raw-load-u32 (wrapping-add-i64 fp 16) in
+    let next = raw-load-u32 (wrapping-add-i64 fp 20) in
+    let _p = (if eq-u32 prev s3fifo-invalid-idx then
+        pm-store-u32 meta head-off next
+      else
+        let pp = frame-ptr meta prev in
+        raw-store-u32 (wrapping-add-i64 pp 20) next) in
+    let _n = (if eq-u32 next s3fifo-invalid-idx then
+        pm-store-u32 meta tail-off prev
+      else
+        let np = frame-ptr meta next in
+        raw-store-u32 (wrapping-add-i64 np 16) prev) in
+    let _c0 = raw-store-u32 (wrapping-add-i64 fp 16) s3fifo-invalid-idx in
+    let _c1 = raw-store-u32 (wrapping-add-i64 fp 20) s3fifo-invalid-idx in
+    let cur-len = pm-load-u32 meta len-off in
+    if gt-u32 cur-len 0 then pm-store-u32 meta len-off (wrapping-sub-u32 cur-len 1) else ()
+
+  -- | Append frame `idx` to the tail of Small FIFO queue `S`.
+  #[inline(always)]
+  #[no-alloc]
+  small-push-tail :: I64 -> U32 ->{MVar} Unit
+  small-push-tail meta idx = queue-push-tail meta 32 36 40 pool-queue-small idx
+
+  -- | Unlink frame `idx` from Small FIFO queue `S`.
+  #[inline(always)]
+  #[no-alloc]
+  small-unlink :: I64 -> U32 ->{MVar} Unit
+  small-unlink meta idx = queue-unlink meta 32 36 40 idx
+
+  -- | Append frame `idx` to the tail of Main FIFO queue `M`.
+  #[inline(always)]
+  #[no-alloc]
+  main-push-tail :: I64 -> U32 ->{MVar} Unit
+  main-push-tail meta idx = queue-push-tail meta 44 48 52 pool-queue-main idx
+
+  -- | Unlink frame `idx` from Main FIFO queue `M`.
+  #[inline(always)]
+  #[no-alloc]
+  main-unlink :: I64 -> U32 ->{MVar} Unit
+  main-unlink meta idx = queue-unlink meta 44 48 52 idx
+
+  -- | Record `key` in the metadata-only Ghost FIFO ring `G` (evicting the oldest
+  -- ghost entry when `g-len == ghost-cap`).
+  #[no-alloc]
+  ghost-insert :: I64 -> U64 ->{MVar} Unit
+  ghost-insert meta key =
+    let gcap = pm-load-u32 meta 12 in
+    if eq-u32 gcap 0 then ()
+    else
+      let ght = ghost-ht-base meta in
+      let gmask = pm-load-u32 meta 20 in
+      let existing = ht-lookup ght gmask key in
+      if ne-u32 existing s3fifo-invalid-idx then ()
+      else
+        let ghead = pm-load-u32 meta 56 in
+        let glen = pm-load-u32 meta 60 in
+        let _ev = (if ge-u32 glen gcap then
+            let old-slot = ghost-ring-slot meta ghead in
+            let old-valid = raw-load-u32 (wrapping-add-i64 old-slot 8) in
+            let _rm = if ne-u32 old-valid 0 then ht-remove ght gmask (raw-load-u64 old-slot) else s3fifo-invalid-idx in
+            let _z = raw-store-u32 (wrapping-add-i64 old-slot 8) 0 in
+            let next-head = wrapping-add-u32 ghead 1 in
+            let wrapped-head = if ge-u32 next-head gcap then 0 else next-head in
+            let _sh = pm-store-u32 meta 56 wrapped-head in
+            pm-store-u32 meta 60 (wrapping-sub-u32 glen 1)
+          else ()) in
+        let ghead2 = pm-load-u32 meta 56 in
+        let glen2 = pm-load-u32 meta 60 in
+        let sum = wrapping-add-u32 ghead2 glen2 in
+        let tail = if ge-u32 sum gcap then wrapping-sub-u32 sum gcap else sum in
+        let tslot = ghost-ring-slot meta tail in
+        let _w0 = raw-store-u64 tslot key in
+        let _w1 = raw-store-u32 (wrapping-add-i64 tslot 8) 1 in
+        let _ins = ht-insert ght gmask key tail in
+        pm-store-u32 meta 60 (wrapping-add-u32 glen2 1)
+
+  -- | Check if `key` is present in Ghost FIFO `G`; if so, remove it and return `True`.
+  #[no-alloc]
+  ghost-take :: I64 -> U64 ->{MVar} Bool
+  ghost-take meta key =
+    let gcap = pm-load-u32 meta 12 in
+    if eq-u32 gcap 0 then na-false
+    else
+      let ght = ghost-ht-base meta in
+      let gmask = pm-load-u32 meta 20 in
+      let pos = ht-remove ght gmask key in
+      if eq-u32 pos s3fifo-invalid-idx then na-false
+      else
+        let slot = ghost-ring-slot meta pos in
+        let _z = raw-store-u32 (wrapping-add-i64 slot 8) 0 in
+        na-true
+
+  -- =========================================================================
+  -- 4. S3-FIFO Eviction Engine (Respects `pin-count > 0`, Zero Allocations)
+  -- =========================================================================
+
+  -- | Evict from Small queue `S`:
+  --   * Skips pinned frames (`pin-count > 0`).
+  --   * Promotes unpinned frames with `freq > 0` from `S` to tail of `M`
+  --     (resetting `freq = 0`) and continues scanning `S` while `s-len >= small-cap`.
+  --   * Evicts the first unpinned frame with `freq == 0`, recording its key in
+  --     Ghost queue `G`, removing it from the resident hash table, and returning
+  --     its frame index. Returns `s3fifo-invalid-idx` if no frame was evicted
+  --     (either `S` shrank below `small-cap` via promotions or all frames in `S`
+  --     are pinned).
+  #[no-alloc]
+  evict-from-small-loop :: I64 -> U32 -> U32 -> Bool ->{MVar} U32
+  evict-from-small-loop meta cur rem-steps force-any =
+    if na-or (eq-u32 cur s3fifo-invalid-idx) (eq-u32 rem-steps 0) then s3fifo-invalid-idx
+    else if na-and (not force-any) (lt-u32 (pm-load-u32 meta 40) (pm-load-u32 meta 4)) then s3fifo-invalid-idx
+    else
+      let fp = frame-ptr meta cur in
+      let next = raw-load-u32 (wrapping-add-i64 fp 20) in
+      let pins = raw-load-u32 (wrapping-add-i64 fp 8) in
+      if gt-u32 pins 0 then
+        evict-from-small-loop meta next (wrapping-sub-u32 rem-steps 1) force-any
+      else
+        let freq = raw-load-u8 (wrapping-add-i64 fp 12) in
+        let _un = small-unlink meta cur in
+        if gt-u8 freq 0 then
+          -- Promote warm frame from S -> tail of M (resetting freq = 0)
+          let _rf = raw-store-u8 (wrapping-add-i64 fp 12) 0 in
+          let _pm = main-push-tail meta cur in
+          let _st = pm-inc-u64 meta 88 in
+          evict-from-small-loop meta next (wrapping-sub-u32 rem-steps 1) force-any
+        else
+          -- Cold one-hit frame: evict from S and insert key into Ghost queue G!
+          let key = raw-load-u64 fp in
+          let _rm = ht-remove (ht-base meta) (pm-load-u32 meta 16) key in
+          let _gh = ghost-insert meta key in
+          let _ev = pm-inc-u64 meta 80 in
+          cur
+
+  -- | Evict from Main queue `M`:
+  --   * Skips pinned frames (`pin-count > 0`).
+  --   * For unpinned frames with `freq > 0`, decrements `freq` and reinserts at
+  --     tail of `M` (giving hot pages up to 3 extra chances!).
+  --   * Evicts the first unpinned frame with `freq == 0`, removing it from the
+  --     resident hash table and returning its frame index.
+  #[no-alloc]
+  evict-from-main-loop :: I64 -> U32 -> U32 ->{MVar} U32
+  evict-from-main-loop meta cur rem-steps =
+    if na-or (eq-u32 cur s3fifo-invalid-idx) (eq-u32 rem-steps 0) then s3fifo-invalid-idx
+    else
+      let fp = frame-ptr meta cur in
+      let next = raw-load-u32 (wrapping-add-i64 fp 20) in
+      let pins = raw-load-u32 (wrapping-add-i64 fp 8) in
+      if gt-u32 pins 0 then
+        evict-from-main-loop meta next (wrapping-sub-u32 rem-steps 1)
+      else
+        let freq = raw-load-u8 (wrapping-add-i64 fp 12) in
+        let _un = main-unlink meta cur in
+        if gt-u8 freq 0 then
+          let _df = raw-store-u8 (wrapping-add-i64 fp 12) (wrapping-sub-u8 freq 1) in
+          let _re = main-push-tail meta cur in
+          let next-cur = if eq-u32 next s3fifo-invalid-idx then pm-load-u32 meta 44 else next in
+          evict-from-main-loop meta next-cur (wrapping-sub-u32 rem-steps 1)
+        else
+          let key = raw-load-u64 fp in
+          let _rm = ht-remove (ht-base meta) (pm-load-u32 meta 16) key in
+          let _ev = pm-inc-u64 meta 80 in
+          cur
+
+  -- | Select one unpinned victim frame using the exact S3-FIFO policy.
+  -- Returns the evicted frame index (still holding its old `key` and `dirty`
+  -- fields so the caller can report eviction metadata) or `s3fifo-invalid-idx`
+  -- if every resident frame is pinned.
+  #[no-alloc]
+  s3fifo-evict-victim :: I64 ->{MVar} U32
+  s3fifo-evict-victim meta =
+    let slen = pm-load-u32 meta 40 in
+    let scap = pm-load-u32 meta 4 in
+    -- 1. If S is at or above its target capacity (~10%), try evicting/promoting from S first.
+    let v1 = (if ge-u32 slen scap then
+        evict-from-small-loop meta (pm-load-u32 meta 32) slen na-false
+      else s3fifo-invalid-idx) in
+    if ne-u32 v1 s3fifo-invalid-idx then v1
+    else
+      -- 2. Otherwise evict from M (allowing up to 4 * m-len passes since max freq is 3).
+      let mlen = pm-load-u32 meta 52 in
+      let m-steps = wrapping-shl-u32 mlen 2 in
+      let v2 = evict-from-main-loop meta (pm-load-u32 meta 44) m-steps in
+      if ne-u32 v2 s3fifo-invalid-idx then v2
+      else
+        -- 3. Fallback: if all frames in M are pinned, try any unpinned frame in S.
+        let slen2 = pm-load-u32 meta 40 in
+        let v3 = evict-from-small-loop meta (pm-load-u32 meta 32) slen2 na-true in
+        if ne-u32 v3 s3fifo-invalid-idx then v3
+        else
+          -- 4. One final pass on M in case step 3 promoted an unpinned frame from S -> M!
+          let mlen2 = pm-load-u32 meta 52 in
+          evict-from-main-loop meta (pm-load-u32 meta 44) (wrapping-shl-u32 mlen2 2)
+
+  -- =========================================================================
+  -- 5. S3-FIFO Pool Construction, Destruction & Public Operations
+  -- =========================================================================
+
+  -- | Round `want` up to the next power of two starting from `cur`.
+  #[no-alloc]
+  next-pow2-u32 :: U32 -> U32 -> U32
+  next-pow2-u32 cur want =
+    if ge-u32 cur want then cur
+    else if ge-u32 cur 1073741824 then 1073741824
+    else next-pow2-u32 (wrapping-shl-u32 cur 1) want
+
+  -- | Populate the free-frame stack and zero-initialize all frame descriptors.
+  #[no-alloc]
+  init-free-stack :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-free-stack meta cap i =
+    if ge-u32 i cap then ()
+    else
+      let fid = wrapping-sub-u32 (wrapping-sub-u32 cap 1) i in
+      let _0 = raw-store-u32 (free-stack-slot meta i) fid in
+      let fp = frame-ptr meta i in
+      let _1 = raw-store-u64 fp 0 in
+      let _2 = raw-store-u32 (wrapping-add-i64 fp 8) 0 in
+      let _3 = raw-store-u32 (wrapping-add-i64 fp 12) 0 in
+      let _4 = raw-store-u32 (wrapping-add-i64 fp 16) s3fifo-invalid-idx in
+      let _5 = raw-store-u32 (wrapping-add-i64 fp 20) s3fifo-invalid-idx in
+      init-free-stack meta cap (wrapping-add-u32 i 1)
+
+  -- | Initialize all open-addressed hash table slots to `s3fifo-invalid-idx`.
+  #[no-alloc]
+  init-ht-slots :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-ht-slots base cap i =
+    if ge-u32 i cap then ()
+    else
+      let p = ht-slot-ptr base i in
+      let _0 = raw-store-u64 p 0 in
+      let _1 = raw-store-u32 (wrapping-add-i64 p 8) s3fifo-invalid-idx in
+      init-ht-slots base cap (wrapping-add-u32 i 1)
+
+  -- | Allocate a new 4 KiB-aligned S3-FIFO `O_DIRECT` page buffer pool with
+  -- `capacity` page frames (`capacity >= 2`).
+  -- Partitioning follows S3-FIFO: `small-cap = max(1, capacity / 10)`,
+  -- `main-cap = capacity - small-cap`, `ghost-cap = main-cap`.
+  s3fifo-pool-new :: U32 ->{IO, MVar} S3FifoPool
+  s3fifo-pool-new capacity =
+    if lt-u32 capacity 2 then s3fifo-pool-invalid ()
+    else
+      let raw-s = div-u32 capacity 10 in
+      let small-cap = if eq-u32 raw-s 0 then 1 else raw-s in
+      let main-cap = wrapping-sub-u32 capacity small-cap in
+      let ghost-cap = main-cap in
+      let ht-cap = next-pow2-u32 8 (wrapping-shl-u32 capacity 1) in
+      let ght-cap = next-pow2-u32 8 (wrapping-shl-u32 ghost-cap 1) in
+      let off-frames = 192 in
+      let frames-bytes = wrapping-shl-u64 (u32-to-u64 capacity) 5 in
+      let off-free = wrapping-add-u64 off-frames frames-bytes in
+      let free-bytes = bit-and-u64 (wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 capacity) 2) 15) (bit-not-u64 15) in
+      let off-ht = wrapping-add-u64 off-free free-bytes in
+      let ht-bytes = wrapping-shl-u64 (u32-to-u64 ht-cap) 4 in
+      let off-gring = wrapping-add-u64 off-ht ht-bytes in
+      let gring-bytes = wrapping-shl-u64 (u32-to-u64 ghost-cap) 4 in
+      let off-ght = wrapping-add-u64 off-gring gring-bytes in
+      let ght-bytes = wrapping-shl-u64 (u32-to-u64 ght-cap) 4 in
+      let meta-raw = wrapping-add-u64 off-ght ght-bytes in
+      let meta-bytes = bit-and-u64 (wrapping-add-u64 meta-raw 4095) (bit-not-u64 4095) in
+      let data-bytes = wrapping-shl-u64 (u32-to-u64 capacity) 12 in
+      let meta-u64 = engine-dma-alloc meta-bytes 4096 in
+      if eq-u64 meta-u64 0 then s3fifo-pool-invalid ()
+      else
+        let data-u64 = engine-dma-alloc data-bytes 4096 in
+        if eq-u64 data-u64 0 then
+          let _f = engine-dma-free meta-u64 meta-bytes in
+          s3fifo-pool-invalid ()
+        else
+          let meta = wrapping-u64-to-i64 meta-u64 in
+          let data-addr = wrapping-u64-to-i64 data-u64 in
+          let _0 = pm-store-u32 meta 0 capacity in
+          let _1 = pm-store-u32 meta 4 small-cap in
+          let _2 = pm-store-u32 meta 8 main-cap in
+          let _3 = pm-store-u32 meta 12 ghost-cap in
+          let _4 = pm-store-u32 meta 16 (wrapping-sub-u32 ht-cap 1) in
+          let _5 = pm-store-u32 meta 20 (wrapping-sub-u32 ght-cap 1) in
+          let _6 = pm-store-u32 meta 24 capacity in
+          let _7 = pm-store-u32 meta 28 0 in
+          let _8 = pm-store-u32 meta 32 s3fifo-invalid-idx in
+          let _9 = pm-store-u32 meta 36 s3fifo-invalid-idx in
+          let _10 = pm-store-u32 meta 40 0 in
+          let _11 = pm-store-u32 meta 44 s3fifo-invalid-idx in
+          let _12 = pm-store-u32 meta 48 s3fifo-invalid-idx in
+          let _13 = pm-store-u32 meta 52 0 in
+          let _14 = pm-store-u32 meta 56 0 in
+          let _15 = pm-store-u32 meta 60 0 in
+          let _16 = pm-store-u64 meta 104 meta-bytes in
+          let _17 = pm-store-u64 meta 112 data-bytes in
+          let _18 = pm-store-u64 meta 120 off-frames in
+          let _19 = pm-store-u64 meta 128 off-free in
+          let _20 = pm-store-u64 meta 136 off-ht in
+          let _21 = pm-store-u64 meta 144 off-gring in
+          let _22 = pm-store-u64 meta 152 off-ght in
+          let _fs = init-free-stack meta capacity 0 in
+          let _h1 = init-ht-slots (ht-base meta) ht-cap 0 in
+          let _h2 = init-ht-slots (ghost-ht-base meta) ght-cap 0 in
+          S3FifoPool meta data-addr
+
+  -- | Unmap both the contiguous 4 KiB page-frame DMA slab and the metadata slab.
+  s3fifo-pool-destroy :: S3FifoPool ->{IO, MVar} Unit
+  s3fifo-pool-destroy pool =
+    let meta = pool.pool-meta-addr in
+    if eq-i64 meta 0 then ()
+    else if ne-u32 (pm-load-u32 meta 28) 0 then ()
+    else
+      let meta-bytes = pm-load-u64 meta 104 in
+      let data-bytes = pm-load-u64 meta 112 in
+      let _d = pm-store-u32 meta 28 1 in
+      let _f1 = engine-dma-free (wrapping-i64-to-u64 pool.pool-data-addr) data-bytes in
+      let _f2 = engine-dma-free (wrapping-i64-to-u64 meta) meta-bytes in
+      ()
+
+  -- | Compute the 4 KiB-aligned DMA address for frame index `idx` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  frame-data-addr :: S3FifoPool -> U32 -> I64
+  frame-data-addr pool idx =
+    wrapping-add-i64 pool.pool-data-addr (wrapping-shl-i64 (u32-to-i64 idx) 12)
+
+  -- | Fast-path `#[no-alloc]` buffer-pool cache-hit pin for `(file-id, page-no)`.
+  -- On hit: increments `pin-count`, saturating-increments 2-bit `freq` (`0..3`),
+  -- increments hit counter, and returns `PoolPinResult` with `pool-status-hit`
+  -- and the 4 KiB-aligned frame address.
+  -- On miss: returns `pool-status-miss` without evicting or mutating queues.
+  #[inline(always)]
+  #[no-alloc]
+  pool-pin-hit :: S3FifoPool -> U32 -> U32 ->{MVar} PoolPinResult
+  pool-pin-hit pool file-id page-no =
+    if not (s3fifo-pool-is-valid pool) then
+      PoolPinResult pool-status-invalid s3fifo-invalid-idx 0 0 0 0 0
+    else
+      let meta = pool.pool-meta-addr in
+      let key = s3fifo-pack-page-key file-id page-no in
+      let idx = ht-lookup (ht-base meta) (pm-load-u32 meta 16) key in
+      if eq-u32 idx s3fifo-invalid-idx then
+        PoolPinResult pool-status-miss s3fifo-invalid-idx 0 0 0 0 0
+      else
+        let fp = frame-ptr meta idx in
+        let pins = raw-load-u32 (wrapping-add-i64 fp 8) in
+        let freq = raw-load-u8 (wrapping-add-i64 fp 12) in
+        let next-freq = if lt-u8 freq 3 then wrapping-add-u8 freq 1 else 3 in
+        let _p = raw-store-u32 (wrapping-add-i64 fp 8) (wrapping-add-u32 pins 1) in
+        let _f = raw-store-u8 (wrapping-add-i64 fp 12) next-freq in
+        let _h = pm-inc-u64 meta 64 in
+        PoolPinResult pool-status-hit idx (frame-data-addr pool idx) 0 0 0 0
+
+  -- | Complete `#[no-alloc]` S3-FIFO pin operation for `(file-id, page-no)`:
+  --   * **Hit**: pins frame, saturating-increments `freq` (`0..3`), returns `pool-status-hit`.
+  --   * **Miss**: allocates a free frame or runs S3-FIFO eviction (never evicting
+  --     frames with `pin-count > 0`). If the page was recorded in Ghost queue `G`,
+  --     inserts directly into Main queue `M` (scan-resistant promotion); otherwise
+  --     inserts into Small queue `S`. Returns `pool-status-miss` along with any
+  --     evicted page metadata so `O_DIRECT` callers can flush dirty victims.
+  --   * **Full**: returns `pool-status-full` if all resident frames are pinned.
+  #[no-alloc]
+  pool-pin :: S3FifoPool -> U32 -> U32 ->{MVar} PoolPinResult
+  pool-pin pool file-id page-no =
+    if not (s3fifo-pool-is-valid pool) then
+      PoolPinResult pool-status-invalid s3fifo-invalid-idx 0 0 0 0 0
+    else
+      let meta = pool.pool-meta-addr in
+      let key = s3fifo-pack-page-key file-id page-no in
+      let hbase = ht-base meta in
+      let hmask = pm-load-u32 meta 16 in
+      let hit-idx = ht-lookup hbase hmask key in
+      if ne-u32 hit-idx s3fifo-invalid-idx then
+        let fp = frame-ptr meta hit-idx in
+        let pins = raw-load-u32 (wrapping-add-i64 fp 8) in
+        let freq = raw-load-u8 (wrapping-add-i64 fp 12) in
+        let next-freq = if lt-u8 freq 3 then wrapping-add-u8 freq 1 else 3 in
+        let _p = raw-store-u32 (wrapping-add-i64 fp 8) (wrapping-add-u32 pins 1) in
+        let _f = raw-store-u8 (wrapping-add-i64 fp 12) next-freq in
+        let _h = pm-inc-u64 meta 64 in
+        PoolPinResult pool-status-hit hit-idx (frame-data-addr pool hit-idx) 0 0 0 0
+      else
+        let _m = pm-inc-u64 meta 72 in
+        let free-top = pm-load-u32 meta 24 in
+        if gt-u32 free-top 0 then
+          let new-top = wrapping-sub-u32 free-top 1 in
+          let idx = raw-load-u32 (free-stack-slot meta new-top) in
+          let _ft = pm-store-u32 meta 24 new-top in
+          let in-ghost = ghost-take meta key in
+          let fp = frame-ptr meta idx in
+          let _k = raw-store-u64 fp key in
+          let _p = raw-store-u32 (wrapping-add-i64 fp 8) 1 in
+          let _fr = raw-store-u8 (wrapping-add-i64 fp 12) 0 in
+          let _dr = raw-store-u8 (wrapping-add-i64 fp 14) 0 in
+          let _vl = raw-store-u8 (wrapping-add-i64 fp 15) 1 in
+          let _ins = ht-insert hbase hmask key idx in
+          let _q = (if in-ghost then
+              let _gh = pm-inc-u64 meta 96 in
+              let _pr = pm-inc-u64 meta 88 in
+              main-push-tail meta idx
+            else small-push-tail meta idx) in
+          PoolPinResult pool-status-miss idx (frame-data-addr pool idx) 0 0 0 0
+        else
+          let victim = s3fifo-evict-victim meta in
+          if eq-u32 victim s3fifo-invalid-idx then
+            PoolPinResult pool-status-full s3fifo-invalid-idx 0 0 0 0 0
+          else
+            let fp = frame-ptr meta victim in
+            let ev-key = raw-load-u64 fp in
+            let ev-dirty = u8-to-u32 (raw-load-u8 (wrapping-add-i64 fp 14)) in
+            let ev-file = wrapping-u64-to-u32 (wrapping-shr-u64 ev-key 32) in
+            let ev-page = wrapping-u64-to-u32 ev-key in
+            let in-ghost = ghost-take meta key in
+            let _k = raw-store-u64 fp key in
+            let _p = raw-store-u32 (wrapping-add-i64 fp 8) 1 in
+            let _fr = raw-store-u8 (wrapping-add-i64 fp 12) 0 in
+            let _dr = raw-store-u8 (wrapping-add-i64 fp 14) 0 in
+            let _vl = raw-store-u8 (wrapping-add-i64 fp 15) 1 in
+            let _ins = ht-insert hbase hmask key victim in
+            let _q = (if in-ghost then
+                let _gh = pm-inc-u64 meta 96 in
+                let _pr = pm-inc-u64 meta 88 in
+                main-push-tail meta victim
+              else small-push-tail meta victim) in
+            PoolPinResult pool-status-miss victim (frame-data-addr pool victim) 1 ev-dirty ev-file ev-page
+
+  -- | Unpin frame `frame-idx`, optionally marking it dirty (`#[no-alloc]`).
+  -- Returns `True` on success, `False` if invalid or already unpinned (`pin-count == 0`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-unpin :: S3FifoPool -> U32 -> Bool ->{MVar} Bool
+  pool-unpin pool frame-idx mark-dirty =
+    if not (s3fifo-pool-is-valid pool) then na-false
+    else
+      let meta = pool.pool-meta-addr in
+      let cap = pm-load-u32 meta 0 in
+      if ge-u32 frame-idx cap then na-false
+      else
+        let fp = frame-ptr meta frame-idx in
+        let pins = raw-load-u32 (wrapping-add-i64 fp 8) in
+        if eq-u32 pins 0 then na-false
+        else
+          let _p = raw-store-u32 (wrapping-add-i64 fp 8) (wrapping-sub-u32 pins 1) in
+          let _d = if mark-dirty then raw-store-u8 (wrapping-add-i64 fp 14) 1 else () in
+          na-true
+
+  -- | Explicitly evict one unpinned resident frame via S3-FIFO and return it to
+  -- the free stack (`#[no-alloc]`). Returns the freed frame index, or
+  -- `s3fifo-invalid-idx` if no unpinned resident frame exists.
+  #[no-alloc]
+  pool-evict-one :: S3FifoPool ->{MVar} U32
+  pool-evict-one pool =
+    if not (s3fifo-pool-is-valid pool) then s3fifo-invalid-idx
+    else
+      let meta = pool.pool-meta-addr in
+      let victim = s3fifo-evict-victim meta in
+      if eq-u32 victim s3fifo-invalid-idx then s3fifo-invalid-idx
+      else
+        let fp = frame-ptr meta victim in
+        let _0 = raw-store-u64 fp 0 in
+        let _1 = raw-store-u32 (wrapping-add-i64 fp 8) 0 in
+        let _2 = raw-store-u8 (wrapping-add-i64 fp 12) 0 in
+        let _3 = raw-store-u8 (wrapping-add-i64 fp 13) pool-queue-free in
+        let _4 = raw-store-u8 (wrapping-add-i64 fp 14) 0 in
+        let _5 = raw-store-u8 (wrapping-add-i64 fp 15) 0 in
+        let top = pm-load-u32 meta 24 in
+        let _ps = raw-store-u32 (free-stack-slot meta top) victim in
+        let _ft = pm-store-u32 meta 24 (wrapping-add-u32 top 1) in
+        victim
+
+  -- | Return the 4 KiB-aligned DMA address of frame `frame-idx` (or `0` if out of bounds).
+  #[inline(always)]
+  #[no-alloc]
+  pool-frame-addr :: S3FifoPool -> U32 ->{MVar} I64
+  pool-frame-addr pool frame-idx =
+    if not (s3fifo-pool-is-valid pool) then 0
+    else if ge-u32 frame-idx (pm-load-u32 pool.pool-meta-addr 0) then 0
+    else frame-data-addr pool frame-idx
+
+  -- | Return the current `pin-count` of frame `frame-idx`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-frame-pin-count :: S3FifoPool -> U32 ->{MVar} U32
+  pool-frame-pin-count pool frame-idx =
+    if not (s3fifo-pool-is-valid pool) then 0
+    else if ge-u32 frame-idx (pm-load-u32 pool.pool-meta-addr 0) then 0
+    else raw-load-u32 (wrapping-add-i64 (frame-ptr pool.pool-meta-addr frame-idx) 8)
+
+  -- | Return the 2-bit access frequency (`0..3`) of frame `frame-idx`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-frame-freq :: S3FifoPool -> U32 ->{MVar} U8
+  pool-frame-freq pool frame-idx =
+    if not (s3fifo-pool-is-valid pool) then 0
+    else if ge-u32 frame-idx (pm-load-u32 pool.pool-meta-addr 0) then 0
+    else raw-load-u8 (wrapping-add-i64 (frame-ptr pool.pool-meta-addr frame-idx) 12)
+
+  -- | Return the queue membership (`pool-queue-free`, `pool-queue-small`, `pool-queue-main`) of frame `frame-idx`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-frame-queue :: S3FifoPool -> U32 ->{MVar} U8
+  pool-frame-queue pool frame-idx =
+    if not (s3fifo-pool-is-valid pool) then pool-queue-free
+    else if ge-u32 frame-idx (pm-load-u32 pool.pool-meta-addr 0) then pool-queue-free
+    else raw-load-u8 (wrapping-add-i64 (frame-ptr pool.pool-meta-addr frame-idx) 13)
+
+  -- | Return `True` iff `(file-id, page-no)` is currently resident in `pool`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-contains :: S3FifoPool -> U32 -> U32 ->{MVar} Bool
+  pool-contains pool file-id page-no =
+    if not (s3fifo-pool-is-valid pool) then na-false
+    else
+      let meta = pool.pool-meta-addr in
+      let key = s3fifo-pack-page-key file-id page-no in
+      ne-u32 (ht-lookup (ht-base meta) (pm-load-u32 meta 16) key) s3fifo-invalid-idx
+
+  -- | Return `True` iff `(file-id, page-no)` is currently tracked in Ghost queue `G`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-ghost-contains :: S3FifoPool -> U32 -> U32 ->{MVar} Bool
+  pool-ghost-contains pool file-id page-no =
+    if not (s3fifo-pool-is-valid pool) then na-false
+    else
+      let meta = pool.pool-meta-addr in
+      let key = s3fifo-pack-page-key file-id page-no in
+      ne-u32 (ht-lookup (ghost-ht-base meta) (pm-load-u32 meta 20) key) s3fifo-invalid-idx
+
+  -- | Total page-frame capacity of `pool`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-capacity :: S3FifoPool ->{MVar} U32
+  pool-capacity pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 0 else 0
+
+  -- | Target capacity of Small FIFO queue `S` (~10%).
+  #[inline(always)]
+  #[no-alloc]
+  pool-small-cap :: S3FifoPool ->{MVar} U32
+  pool-small-cap pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 4 else 0
+
+  -- | Target capacity of Main FIFO queue `M` (~90%).
+  #[inline(always)]
+  #[no-alloc]
+  pool-main-cap :: S3FifoPool ->{MVar} U32
+  pool-main-cap pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 8 else 0
+
+  -- | Capacity of Ghost FIFO queue `G` (`= main-cap`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-ghost-cap :: S3FifoPool ->{MVar} U32
+  pool-ghost-cap pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 12 else 0
+
+  -- | Number of resident frames currently in Small FIFO queue `S`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-small-len :: S3FifoPool ->{MVar} U32
+  pool-small-len pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 40 else 0
+
+  -- | Number of resident frames currently in Main FIFO queue `M`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-main-len :: S3FifoPool ->{MVar} U32
+  pool-main-len pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 52 else 0
+
+  -- | Number of entries currently in Ghost FIFO ring `G`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-ghost-len :: S3FifoPool ->{MVar} U32
+  pool-ghost-len pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 60 else 0
+
+  -- | Number of unallocated free frames remaining in `pool`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-free-count :: S3FifoPool ->{MVar} U32
+  pool-free-count pool = if s3fifo-pool-is-valid pool then pm-load-u32 pool.pool-meta-addr 24 else 0
+
+  -- | Cumulative cache hit counter.
+  #[inline(always)]
+  #[no-alloc]
+  pool-hits :: S3FifoPool ->{MVar} U64
+  pool-hits pool = if s3fifo-pool-is-valid pool then pm-load-u64 pool.pool-meta-addr 64 else 0
+
+  -- | Cumulative cache miss counter.
+  #[inline(always)]
+  #[no-alloc]
+  pool-misses :: S3FifoPool ->{MVar} U64
+  pool-misses pool = if s3fifo-pool-is-valid pool then pm-load-u64 pool.pool-meta-addr 72 else 0
+
+  -- | Cumulative eviction counter.
+  #[inline(always)]
+  #[no-alloc]
+  pool-evictions :: S3FifoPool ->{MVar} U64
+  pool-evictions pool = if s3fifo-pool-is-valid pool then pm-load-u64 pool.pool-meta-addr 80 else 0
+
+  -- | Cumulative promotion counter (`S -> M` and `G -> M`).
+  #[inline(always)]
+  #[no-alloc]
+  pool-promotions :: S3FifoPool ->{MVar} U64
+  pool-promotions pool = if s3fifo-pool-is-valid pool then pm-load-u64 pool.pool-meta-addr 88 else 0
+
+  -- | Cumulative Ghost queue `G` hit promotions directly into `M`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-ghost-hits :: S3FifoPool ->{MVar} U64
+  pool-ghost-hits pool = if s3fifo-pool-is-valid pool then pm-load-u64 pool.pool-meta-addr 96 else 0
+
+  -- | Reset hit/miss/eviction/promotion/ghost-hit telemetry counters to zero (`#[no-alloc]`).
+  #[no-alloc]
+  pool-reset-stats :: S3FifoPool ->{MVar} Unit
+  pool-reset-stats pool =
+    if not (s3fifo-pool-is-valid pool) then ()
+    else
+      let meta = pool.pool-meta-addr in
+      let _0 = pm-store-u64 meta 64 0 in
+      let _1 = pm-store-u64 meta 72 0 in
+      let _2 = pm-store-u64 meta 80 0 in
+      let _3 = pm-store-u64 meta 88 0 in
+      pm-store-u64 meta 96 0
+
+  -- =========================================================================
+  -- 6. Prefix-Compressed SSTable 4 KiB Block Codec (#[no-alloc])
+  -- =========================================================================
+
+  -- | Fixed SSTable data block size (`4096` bytes, 1 `O_DIRECT` page).
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-size :: U32
+  sst-block-size = 4096
+
+  -- | Restart point spacing (`16` keys between full-key restart anchors).
+  #[inline(always)]
+  #[no-alloc]
+  sst-restart-interval :: U32
+  sst-restart-interval = 16
+
+  -- | Fixed block footer size (`12` bytes: `num-restarts`, `entry-count|data-end`, `crc32c`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-footer-size :: U32
+  sst-footer-size = 12
+
+  -- | Lookup status: exact live key match found (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-status-found :: U32
+  sst-status-found = 0
+
+  -- | Lookup status: key not present in block (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-status-not-found :: U32
+  sst-status-not-found = 1
+
+  -- | Lookup status: exact key match found, marked as deletion tombstone (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-status-tombstone :: U32
+  sst-status-tombstone = 2
+
+  -- | Lookup status: 4-byte Castagnoli CRC32C block integrity check failed (`3`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-status-bad-crc :: U32
+  sst-status-bad-crc = 3
+
+  -- | Lookup status: malformed block header, footer, or entry encoding (`4`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-status-corrupt :: U32
+  sst-status-corrupt = 4
+
+  -- | 8-byte POD handle to a reusable 4 KiB SSTable block builder.
+  #[repr(C, value)]
+  record SstBlockBuilder where
+    -- | Base address of the builder's 4 KiB DMA workspace slab (`0` = invalid).
+    builder-slab-addr :: I64
+
+  -- | 24-byte POD handle to an opened, CRC32C-verified 4 KiB SSTable block.
+  #[repr(C, value)]
+  record SstBlockReader where
+    -- | Base address of the 4 KiB DMA SSTable block (`0` = invalid / bad CRC).
+    reader-block-addr :: I64
+    -- | Byte length of the packed prefix-compressed entry stream (`<= reader-restarts-off`).
+    reader-data-end :: U32
+    -- | Total number of key-value entries stored in the block.
+    reader-entry-count :: U32
+    -- | Number of restart point anchors (`>= 1` when `reader-entry-count > 0`).
+    reader-num-restarts :: U32
+    -- | Byte offset of the `U32` restart-offset array inside the 4 KiB block.
+    reader-restarts-off :: U32
+
+  -- | 32-byte POD result of a zero-allocation SSTable block point lookup.
+  #[repr(C, value)]
+  record SstLookupResult where
+    -- | Lookup status (`sst-status-found`, `sst-status-not-found`, `sst-status-tombstone`, `sst-status-bad-crc`, `sst-status-corrupt`).
+    sst-status :: U32
+    -- | Byte offset of the matched value inside the 4 KiB block.
+    sst-val-off :: U32
+    -- | Byte length of the matched value.
+    sst-val-len :: U32
+    -- | `1` if the matched entry is a tombstone, `0` otherwise.
+    sst-is-tombstone :: U32
+    -- | 64-bit MVCC sequence number of the matched entry.
+    sst-seq-no :: U64
+    -- | Direct zero-copy DMA pointer (`block-addr + sst-val-off`) to the matched value.
+    sst-val-addr :: I64
+
+  -- | Internal POD result of decoding a 32-bit LEB128 varint.
+  #[repr(C, value)]
+  record VarintU32 where
+    -- | Decoded `U32` value.
+    vu32-val :: U32
+    -- | Next byte offset immediately following the varint.
+    vu32-next :: U32
+    -- | Validity flag (`1` = ok, `0` = truncated/malformed).
+    vu32-ok :: U32
+    -- | Alignment padding.
+    vu32-pad :: U32
+
+  -- | Internal POD result of decoding a 64-bit LEB128 varint.
+  #[repr(C, value)]
+  record VarintU64 where
+    -- | Decoded `U64` value.
+    vu64-val :: U64
+    -- | Next byte offset immediately following the varint.
+    vu64-next :: U32
+    -- | Validity flag (`1` = ok, `0` = truncated/malformed).
+    vu64-ok :: U32
+
+  -- | Internal POD result of lexicographical DMA comparison plus LCP length.
+  #[repr(C, value)]
+  record CmpLcp where
+    -- | Three-way comparison (`-1`, `0`, or `1`).
+    cl-cmp :: I32
+    -- | Length of the longest common prefix in bytes.
+    cl-lcp :: U32
+
+  -- | Internal POD representation of one decoded prefix-compressed SSTable entry.
+  #[repr(C, value)]
+  record DecodedEntry where
+    -- | Validity flag (`1` = ok, `0` = malformed).
+    de-ok :: U32
+    -- | Number of bytes shared with the preceding key.
+    de-shared :: U32
+    -- | Number of unshared suffix bytes stored inline.
+    de-unshared :: U32
+    -- | Byte length of the inline value payload.
+    de-val-len :: U32
+    -- | Tombstone marker (`1` = tombstone, `0` = live value).
+    de-tomb :: U32
+    -- | Byte offset of the unshared key suffix inside the 4 KiB block.
+    de-key-off :: U32
+    -- | Byte offset of the value payload inside the 4 KiB block.
+    de-val-off :: U32
+    -- | Byte offset immediately following this entry.
+    de-next-off :: U32
+    -- | 64-bit MVCC sequence number.
+    de-seq :: U64
+
+  -- | Encoded LEB128 byte length of a `U32` value (`1..5`).
+  #[inline(always)]
+  #[no-alloc]
+  varint-u32-size :: U32 -> U32
+  varint-u32-size v =
+    if lt-u32 v 128 then 1
+    else if lt-u32 v 16384 then 2
+    else if lt-u32 v 2097152 then 3
+    else if lt-u32 v 268435456 then 4
+    else 5
+
+  -- | Accumulator loop computing LEB128 byte length of a `U64`.
+  #[no-alloc]
+  varint-u64-size-loop :: U64 -> U32 -> U32
+  varint-u64-size-loop v acc =
+    if lt-u64 v 128 then wrapping-add-u32 acc 1
+    else varint-u64-size-loop (wrapping-shr-u64 v 7) (wrapping-add-u32 acc 1)
+
+  -- | Encoded LEB128 byte length of a `U64` value (`1..10`).
+  #[inline(always)]
+  #[no-alloc]
+  varint-u64-size :: U64 -> U32
+  varint-u64-size v = varint-u64-size-loop v 0
+
+  -- | Encode a `U32` as LEB128 at `base + off`, returning the next offset.
+  #[no-alloc]
+  write-varint-u32 :: I64 -> U32 -> U32 ->{MVar} U32
+  write-varint-u32 base off v =
+    if lt-u32 v 128 then
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 off)) (wrapping-u32-to-u8 v) in
+      wrapping-add-u32 off 1
+    else
+      let b = bit-or-u8 (wrapping-u32-to-u8 (bit-and-u32 v 127)) 128 in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 off)) b in
+      write-varint-u32 base (wrapping-add-u32 off 1) (wrapping-shr-u32 v 7)
+
+  -- | Encode a `U64` as LEB128 at `base + off`, returning the next offset.
+  #[no-alloc]
+  write-varint-u64 :: I64 -> U32 -> U64 ->{MVar} U32
+  write-varint-u64 base off v =
+    if lt-u64 v 128 then
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 off)) (wrapping-u64-to-u8 v) in
+      wrapping-add-u32 off 1
+    else
+      let b = bit-or-u8 (wrapping-u64-to-u8 (bit-and-u64 v 127)) 128 in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 off)) b in
+      write-varint-u64 base (wrapping-add-u32 off 1) (wrapping-shr-u64 v 7)
+
+  -- | Tail-recursive LEB128 `U32` decoder loop bounded by `limit`.
+  #[no-alloc]
+  read-varint-u32-loop :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} VarintU32
+  read-varint-u32-loop base off limit acc shift =
+    if na-or (ge-u32 off limit) (gt-u32 shift 28) then VarintU32 0 off 0 0
+    else
+      let b = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off)) in
+      let low = u8-to-u32 (bit-and-u8 b 127) in
+      let next-acc = bit-or-u32 acc (wrapping-shl-u32 low shift) in
+      let next-off = wrapping-add-u32 off 1 in
+      if eq-u8 (bit-and-u8 b 128) 0 then VarintU32 next-acc next-off 1 0
+      else read-varint-u32-loop base next-off limit next-acc (wrapping-add-u32 shift 7)
+
+  -- | Decode a bounds-checked LEB128 `U32` from `base + off` within `limit`.
+  #[inline(always)]
+  #[no-alloc]
+  read-varint-u32 :: I64 -> U32 -> U32 ->{MVar} VarintU32
+  read-varint-u32 base off limit = read-varint-u32-loop base off limit 0 0
+
+  -- | Tail-recursive LEB128 `U64` decoder loop bounded by `limit`.
+  #[no-alloc]
+  read-varint-u64-loop :: I64 -> U32 -> U32 -> U64 -> U32 ->{MVar} VarintU64
+  read-varint-u64-loop base off limit acc shift =
+    if na-or (ge-u32 off limit) (gt-u32 shift 63) then VarintU64 0 off 0
+    else
+      let b = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off)) in
+      let low = u8-to-u64 (bit-and-u8 b 127) in
+      let next-acc = bit-or-u64 acc (wrapping-shl-u64 low shift) in
+      let next-off = wrapping-add-u32 off 1 in
+      if eq-u8 (bit-and-u8 b 128) 0 then VarintU64 next-acc next-off 1
+      else read-varint-u64-loop base next-off limit next-acc (wrapping-add-u32 shift 7)
+
+  -- | Decode a bounds-checked LEB128 `U64` from `base + off` within `limit`.
+  #[inline(always)]
+  #[no-alloc]
+  read-varint-u64 :: I64 -> U32 -> U32 ->{MVar} VarintU64
+  read-varint-u64 base off limit = read-varint-u64-loop base off limit 0 0
+
+  -- | Compute the shared prefix length between raw byte slices `a[0..a-len)` and `b[0..b-len)`.
+  #[no-alloc]
+  shared-prefix-loop :: I64 -> I64 -> U32 -> U32 ->{MVar} U32
+  shared-prefix-loop a b i limit =
+    if ge-u32 i limit then i
+    else
+      let ca = raw-load-u8 (wrapping-add-i64 a (u32-to-i64 i)) in
+      let cb = raw-load-u8 (wrapping-add-i64 b (u32-to-i64 i)) in
+      if ne-u8 ca cb then i
+      else shared-prefix-loop a b (wrapping-add-u32 i 1) limit
+
+  -- | Lexicographically compare raw byte slices `a[0..a-len)` and `b[0..b-len)`,
+  -- returning both `(-1 | 0 | 1)` and their common prefix length (`cl-lcp`).
+  #[no-alloc]
+  cmp-dma-lcp-loop :: I64 -> U32 -> I64 -> U32 -> U32 -> U32 ->{MVar} CmpLcp
+  cmp-dma-lcp-loop a a-len b b-len i min-len =
+    if ge-u32 i min-len then
+      if lt-u32 a-len b-len then CmpLcp (-1) min-len
+      else if gt-u32 a-len b-len then CmpLcp 1 min-len
+      else CmpLcp 0 min-len
+    else
+      let ca = raw-load-u8 (wrapping-add-i64 a (u32-to-i64 i)) in
+      let cb = raw-load-u8 (wrapping-add-i64 b (u32-to-i64 i)) in
+      if lt-u8 ca cb then CmpLcp (-1) i
+      else if gt-u8 ca cb then CmpLcp 1 i
+      else cmp-dma-lcp-loop a a-len b b-len (wrapping-add-u32 i 1) min-len
+
+  -- | Compare two raw DMA byte slices returning `(cmp, lcp)`.
+  #[inline(always)]
+  #[no-alloc]
+  cmp-dma-lcp :: I64 -> U32 -> I64 -> U32 ->{MVar} CmpLcp
+  cmp-dma-lcp a a-len b b-len =
+    let min-len = if lt-u32 a-len b-len then a-len else b-len in
+    cmp-dma-lcp-loop a a-len b b-len 0 min-len
+
+  -- =========================================================================
+  -- 7. SstBlockBuilder Implementation (4 KiB Prefix-Compressed Block Encoder)
+  -- =========================================================================
+
+  -- Builder workspace slab (4096 bytes):
+  --   +0    : target-block-addr :: I64
+  --   +8    : data-pos          :: U32
+  --   +12   : entry-count       :: U32
+  --   +16   : num-restarts      :: U32
+  --   +20   : last-key-len      :: U32
+  --   +24   : finalized         :: U32
+  --   +64   : restarts[256]     :: [U32; 256]  (1024 bytes)
+  --   +1088 : last-key-buf      :: [U8; 2048]  (2048 bytes)
+
+  -- | Construct an invalid sentinel `SstBlockBuilder`.
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-builder-invalid :: Unit -> SstBlockBuilder
+  sst-block-builder-invalid _ = SstBlockBuilder 0
+
+  -- | Return `True` iff `b` owns a valid workspace slab.
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-builder-is-valid :: SstBlockBuilder -> Bool
+  sst-block-builder-is-valid b = ne-i64 b.builder-slab-addr 0
+
+  -- | Allocate a reusable `SstBlockBuilder` targeting a 4 KiB DMA block at `block-addr`.
+  sst-block-builder-new :: I64 ->{IO, MVar} SstBlockBuilder
+  sst-block-builder-new block-addr =
+    let slab-u64 = engine-dma-alloc 4096 4096 in
+    if eq-u64 slab-u64 0 then sst-block-builder-invalid ()
+    else
+      let slab = wrapping-u64-to-i64 slab-u64 in
+      let _0 = raw-store-i64 slab block-addr in
+      let _1 = raw-store-u32 (wrapping-add-i64 slab 8) 0 in
+      let _2 = raw-store-u32 (wrapping-add-i64 slab 12) 0 in
+      let _3 = raw-store-u32 (wrapping-add-i64 slab 16) 0 in
+      let _4 = raw-store-u32 (wrapping-add-i64 slab 20) 0 in
+      let _5 = raw-store-u32 (wrapping-add-i64 slab 24) 0 in
+      SstBlockBuilder slab
+
+  -- | Free the 4 KiB workspace slab of an `SstBlockBuilder`.
+  sst-block-builder-destroy :: SstBlockBuilder ->{IO, MVar} Unit
+  sst-block-builder-destroy b =
+    if eq-i64 b.builder-slab-addr 0 then ()
+    else
+      let _ = engine-dma-free (wrapping-i64-to-u64 b.builder-slab-addr) 4096 in
+      ()
+
+  -- | Reset `b` to encode a fresh 4 KiB SSTable block at `new-block-addr` (`#[no-alloc]`).
+  #[no-alloc]
+  sst-block-builder-reset :: SstBlockBuilder -> I64 ->{MVar} Unit
+  sst-block-builder-reset b new-block-addr =
+    let slab = b.builder-slab-addr in
+    if eq-i64 slab 0 then ()
+    else
+      let _0 = raw-store-i64 slab new-block-addr in
+      let _1 = raw-store-u32 (wrapping-add-i64 slab 8) 0 in
+      let _2 = raw-store-u32 (wrapping-add-i64 slab 12) 0 in
+      let _3 = raw-store-u32 (wrapping-add-i64 slab 16) 0 in
+      let _4 = raw-store-u32 (wrapping-add-i64 slab 20) 0 in
+      raw-store-u32 (wrapping-add-i64 slab 24) 0
+
+  -- | Append one sorted `(key, value, seq-no, is-tombstone)` entry into the
+  -- 4 KiB block using prefix compression and restart anchors every 16 keys (`#[no-alloc]`).
+  -- Returns `True` if the entry fit and was written, `False` if the 4 KiB block
+  -- is full (caller should finalize and start a fresh block) or invalid.
+  #[no-alloc]
+  sst-block-builder-add-raw :: SstBlockBuilder -> I64 -> U32 -> I64 -> U32 -> U64 -> Bool ->{MVar} Bool
+  sst-block-builder-add-raw b key-addr key-len val-addr val-len seq-no is-tombstone =
+    let slab = b.builder-slab-addr in
+    if eq-i64 slab 0 then na-false
+    else if gt-u32 key-len 2048 then na-false
+    else
+      let blk = raw-load-i64 slab in
+      let fin = raw-load-u32 (wrapping-add-i64 slab 24) in
+      if na-or (eq-i64 blk 0) (ne-u32 fin 0) then na-false
+      else
+        let pos = raw-load-u32 (wrapping-add-i64 slab 8) in
+        let cnt = raw-load-u32 (wrapping-add-i64 slab 12) in
+        let nrest = raw-load-u32 (wrapping-add-i64 slab 16) in
+        let last-len = raw-load-u32 (wrapping-add-i64 slab 20) in
+        let is-restart = eq-u32 (bit-and-u32 cnt 15) 0 in
+        let next-nrest = if is-restart then wrapping-add-u32 nrest 1 else nrest in
+        if gt-u32 next-nrest 256 then na-false
+        else
+          let last-key-ptr = wrapping-add-i64 slab 1088 in
+          let shared = (if is-restart then 0
+            else
+              let lim = if lt-u32 last-len key-len then last-len else key-len in
+              shared-prefix-loop last-key-ptr key-addr 0 lim) in
+          let unshared = wrapping-sub-u32 key-len shared in
+          let hdr-a = wrapping-add-u32 (varint-u32-size shared) (varint-u32-size unshared) in
+          let hdr-b = wrapping-add-u32 (varint-u32-size val-len) (wrapping-add-u32 1 (varint-u64-size seq-no)) in
+          let hdr-len = wrapping-add-u32 hdr-a hdr-b in
+          let entry-len = wrapping-add-u32 hdr-len (wrapping-add-u32 unshared val-len) in
+          let trailer-reserve = wrapping-add-u32 (wrapping-shl-u32 next-nrest 2) sst-footer-size in
+          let new-pos = wrapping-add-u32 pos entry-len in
+          if gt-u32 (wrapping-add-u32 new-pos trailer-reserve) sst-block-size then na-false
+          else
+            -- Record restart offset every 16 entries
+            let _rr = (if is-restart then
+                raw-store-u32 (wrapping-add-i64 (wrapping-add-i64 slab 64) (wrapping-shl-i64 (u32-to-i64 nrest) 2)) pos
+              else ()) in
+            let p1 = write-varint-u32 blk pos shared in
+            let p2 = write-varint-u32 blk p1 unshared in
+            let p3 = write-varint-u32 blk p2 val-len in
+            let tomb-b = if is-tombstone then (1 :: U8) else (0 :: U8) in
+            let _t = raw-store-u8 (wrapping-add-i64 blk (u32-to-i64 p3)) tomb-b in
+            let p4 = write-varint-u64 blk (wrapping-add-u32 p3 1) seq-no in
+            let _ck = if gt-u32 unshared 0 then copy-dma (wrapping-add-i64 blk (u32-to-i64 p4)) (wrapping-add-i64 key-addr (u32-to-i64 shared)) unshared else () in
+            let p5 = wrapping-add-u32 p4 unshared in
+            let _cv = if gt-u32 val-len 0 then copy-dma (wrapping-add-i64 blk (u32-to-i64 p5)) val-addr val-len else () in
+            let p6 = wrapping-add-u32 p5 val-len in
+            -- Update cached last key in workspace
+            let _lk = if gt-u32 unshared 0 then copy-dma (wrapping-add-i64 last-key-ptr (u32-to-i64 shared)) (wrapping-add-i64 key-addr (u32-to-i64 shared)) unshared else () in
+            let _u0 = raw-store-u32 (wrapping-add-i64 slab 8) p6 in
+            let _u1 = raw-store-u32 (wrapping-add-i64 slab 12) (wrapping-add-u32 cnt 1) in
+            let _u2 = raw-store-u32 (wrapping-add-i64 slab 16) next-nrest in
+            let _u3 = raw-store-u32 (wrapping-add-i64 slab 20) key-len in
+            na-true
+
+  -- | Finalize the 4 KiB SSTable block: zero-pad unused middle space, write the
+  -- restart-offset table and 8-byte block metadata, and append the 4-byte
+  -- LRAT-verified Castagnoli `Engine.Simd.Crc32c` trailer (`#[no-alloc]`).
+  -- Returns `4096` on success or `0` on invalid builder.
+  #[no-alloc]
+  sst-block-builder-finish :: SstBlockBuilder ->{MVar} U32
+  sst-block-builder-finish b =
+    let slab = b.builder-slab-addr in
+    if eq-i64 slab 0 then 0
+    else
+      let blk = raw-load-i64 slab in
+      if eq-i64 blk 0 then 0
+      else
+        let pos = raw-load-u32 (wrapping-add-i64 slab 8) in
+        let cnt = raw-load-u32 (wrapping-add-i64 slab 12) in
+        let nrest = raw-load-u32 (wrapping-add-i64 slab 16) in
+        let rest-bytes = wrapping-shl-u32 nrest 2 in
+        let rest-off = wrapping-sub-u32 (wrapping-sub-u32 sst-block-size sst-footer-size) rest-bytes in
+        let pad-len = saturating-sub-u32 rest-off pos in
+        let _zp = if gt-u32 pad-len 0 then zero-dma (wrapping-add-i64 blk (u32-to-i64 pos)) pad-len else () in
+        let _cr = if gt-u32 rest-bytes 0 then copy-dma (wrapping-add-i64 blk (u32-to-i64 rest-off)) (wrapping-add-i64 slab 64) rest-bytes else () in
+        let meta-word = bit-or-u32 (bit-and-u32 cnt 65535) (wrapping-shl-u32 (bit-and-u32 pos 65535) 16) in
+        let _f0 = raw-store-u32 (wrapping-add-i64 blk 4084) nrest in
+        let _f1 = raw-store-u32 (wrapping-add-i64 blk 4088) meta-word in
+        let crc = crc32c-finish (crc32c-update-dma crc32c-init blk 4092) in
+        let _f2 = raw-store-u32 (wrapping-add-i64 blk 4092) crc in
+        let _fin = raw-store-u32 (wrapping-add-i64 slab 24) 1 in
+        sst-block-size
+
+  -- | Return number of entries encoded so far in `b`.
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-builder-count :: SstBlockBuilder ->{MVar} U32
+  sst-block-builder-count b =
+    if eq-i64 b.builder-slab-addr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 b.builder-slab-addr 12)
+
+  -- | Return current payload bytes written in `b` (excluding restart table & footer).
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-builder-used-bytes :: SstBlockBuilder ->{MVar} U32
+  sst-block-builder-used-bytes b =
+    if eq-i64 b.builder-slab-addr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 b.builder-slab-addr 8)
+
+  -- | Return number of restart anchors recorded in `b`.
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-builder-restart-count :: SstBlockBuilder ->{MVar} U32
+  sst-block-builder-restart-count b =
+    if eq-i64 b.builder-slab-addr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 b.builder-slab-addr 16)
+
+  -- =========================================================================
+  -- 8. SstBlockReader & Zero-Allocation Binary-Search Lookup (`sst-block-get-raw`)
+  -- =========================================================================
+
+  -- | Construct an invalid sentinel `SstBlockReader`.
+  #[inline(always)]
+  #[no-alloc]
+  sst-reader-invalid :: Unit -> SstBlockReader
+  sst-reader-invalid _ = SstBlockReader 0 0 0 0 0
+
+  -- | Construct an error/not-found `SstLookupResult` with status `status`.
+  #[inline(always)]
+  #[no-alloc]
+  sst-lookup-err :: U32 -> SstLookupResult
+  sst-lookup-err status = SstLookupResult status 0 0 0 0 0
+
+  -- | Verify the 4-byte LRAT-verified Castagnoli CRC32C trailer at bytes
+  -- `4092..4096` of a 4 KiB SSTable block (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-verify-crc :: I64 ->{MVar} Bool
+  sst-block-verify-crc block-addr =
+    if eq-i64 block-addr 0 then na-false
+    else
+      let stored = raw-load-u32 (wrapping-add-i64 block-addr 4092) in
+      let calc = crc32c-finish (crc32c-update-dma crc32c-init block-addr 4092) in
+      eq-u32 stored calc
+
+  -- | Validate CRC32C and footer metadata of a 4 KiB SSTable block at `block-addr`,
+  -- returning an `SstBlockReader` (`#[no-alloc]`).
+  #[no-alloc]
+  sst-block-open-raw :: I64 ->{MVar} SstBlockReader
+  sst-block-open-raw block-addr =
+    if not (sst-block-verify-crc block-addr) then sst-reader-invalid ()
+    else
+      let nrest = raw-load-u32 (wrapping-add-i64 block-addr 4084) in
+      let meta = raw-load-u32 (wrapping-add-i64 block-addr 4088) in
+      let cnt = bit-and-u32 meta 65535 in
+      let data-end = wrapping-shr-u32 meta 16 in
+      if gt-u32 nrest 256 then sst-reader-invalid ()
+      else
+        let rest-bytes = wrapping-shl-u32 nrest 2 in
+        let max-end = wrapping-sub-u32 (wrapping-sub-u32 sst-block-size sst-footer-size) rest-bytes in
+        if gt-u32 data-end max-end then sst-reader-invalid ()
+        else if na-and (gt-u32 cnt 0) (eq-u32 nrest 0) then sst-reader-invalid ()
+        else SstBlockReader block-addr data-end cnt nrest max-end
+
+  -- | Return `True` iff `r` refers to a valid CRC32C-verified SSTable block.
+  #[inline(always)]
+  #[no-alloc]
+  sst-block-reader-is-valid :: SstBlockReader -> Bool
+  sst-block-reader-is-valid r = ne-i64 r.reader-block-addr 0
+
+  -- | Decode one prefix-compressed entry header + offsets at `off` within `[0..limit)`.
+  #[no-alloc]
+  decode-entry :: I64 -> U32 -> U32 ->{MVar} DecodedEntry
+  decode-entry blk off limit =
+    let v-sh = read-varint-u32 blk off limit in
+    if eq-u32 v-sh.vu32-ok 0 then DecodedEntry 0 0 0 0 0 0 0 off 0
+    else
+      let v-un = read-varint-u32 blk v-sh.vu32-next limit in
+      if eq-u32 v-un.vu32-ok 0 then DecodedEntry 0 0 0 0 0 0 0 off 0
+      else
+        let v-vl = read-varint-u32 blk v-un.vu32-next limit in
+        if eq-u32 v-vl.vu32-ok 0 then DecodedEntry 0 0 0 0 0 0 0 off 0
+        else if ge-u32 v-vl.vu32-next limit then DecodedEntry 0 0 0 0 0 0 0 off 0
+        else
+          let tomb = u8-to-u32 (raw-load-u8 (wrapping-add-i64 blk (u32-to-i64 v-vl.vu32-next))) in
+          let v-sq = read-varint-u64 blk (wrapping-add-u32 v-vl.vu32-next 1) limit in
+          if eq-u32 v-sq.vu64-ok 0 then DecodedEntry 0 0 0 0 0 0 0 off 0
+          else
+            let key-off = v-sq.vu64-next in
+            let val-off = wrapping-add-u32 key-off v-un.vu32-val in
+            let next-off = wrapping-add-u32 val-off v-vl.vu32-val in
+            if na-or (gt-u32 val-off limit) (gt-u32 next-off limit) then DecodedEntry 0 0 0 0 0 0 0 off 0
+            else DecodedEntry 1 v-sh.vu32-val v-un.vu32-val v-vl.vu32-val tomb key-off val-off next-off v-sq.vu64-val
+
+  -- | Load byte offset of restart anchor `idx` from the 4 KiB block's restart array.
+  #[inline(always)]
+  #[no-alloc]
+  load-restart-off :: SstBlockReader -> U32 ->{MVar} U32
+  load-restart-off r idx =
+    let p = wrapping-add-i64 r.reader-block-addr (u32-to-i64 (wrapping-add-u32 r.reader-restarts-off (wrapping-shl-u32 idx 2))) in
+    raw-load-u32 p
+
+  -- | Convert a matched `DecodedEntry` inside `blk` into an `SstLookupResult`.
+  #[inline(always)]
+  #[no-alloc]
+  entry-to-result :: I64 -> DecodedEntry -> SstLookupResult
+  entry-to-result blk e =
+    let st = if ne-u32 e.de-tomb 0 then sst-status-tombstone else sst-status-found in
+    SstLookupResult st e.de-val-off e.de-val-len e.de-tomb e.de-seq (wrapping-add-i64 blk (u32-to-i64 e.de-val-off))
+
+  -- | Binary-search restart points in `[lo, hi]` for the largest index `r`
+  -- whose restart anchor key is `<= target`.
+  #[no-alloc]
+  bsearch-restarts :: SstBlockReader -> I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  bsearch-restarts r key-addr key-len lo hi =
+    if ge-u32 lo hi then lo
+    else
+      let diff = wrapping-sub-u32 hi lo in
+      let mid = wrapping-add-u32 lo (wrapping-shr-u32 (wrapping-add-u32 diff 1) 1) in
+      let roff = load-restart-off r mid in
+      let e = decode-entry r.reader-block-addr roff r.reader-data-end in
+      if na-or (eq-u32 e.de-ok 0) (ne-u32 e.de-shared 0) then lo
+      else
+        let cl = cmp-dma-lcp (wrapping-add-i64 r.reader-block-addr (u32-to-i64 e.de-key-off)) e.de-unshared key-addr key-len in
+        if le-i32 cl.cl-cmp 0 then
+          bsearch-restarts r key-addr key-len mid hi
+        else
+          bsearch-restarts r key-addr key-len lo (wrapping-sub-u32 mid 1)
+
+  -- | Linearly scan at most 16 entries in `[off .. scan-end)` using zero-scratch
+  -- LCP tracking (`prev-lcp`) against `(key-addr, key-len)`.
+  #[no-alloc]
+  scan-restart-bucket :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 ->{MVar} SstLookupResult
+  scan-restart-bucket blk off scan-end key-addr key-len prev-lcp steps =
+    if na-or (ge-u32 off scan-end) (gt-u32 steps sst-restart-interval) then
+      sst-lookup-err sst-status-not-found
+    else
+      let e = decode-entry blk off scan-end in
+      if eq-u32 e.de-ok 0 then sst-lookup-err sst-status-corrupt
+      else if gt-u32 e.de-shared prev-lcp then
+        -- Current key shares more than `prev-lcp` with `prev-key < target`,
+        -- so `cur-key[prev-lcp] == prev-key[prev-lcp] < target[prev-lcp]` -> strictly < target!
+        scan-restart-bucket blk e.de-next-off scan-end key-addr key-len prev-lcp (wrapping-add-u32 steps 1)
+      else
+        -- `e.de-shared <= prev-lcp`: bytes `0 .. e.de-shared - 1` match `target`.
+        -- Compare `unshared` directly against `target[e.de-shared .. key-len)`!
+        let rem-key-len = saturating-sub-u32 key-len e.de-shared in
+        let rem-key-addr = wrapping-add-i64 key-addr (u32-to-i64 e.de-shared) in
+        let cl = cmp-dma-lcp (wrapping-add-i64 blk (u32-to-i64 e.de-key-off)) e.de-unshared rem-key-addr rem-key-len in
+        if eq-i32 cl.cl-cmp 0 then
+          entry-to-result blk e
+        else if gt-i32 cl.cl-cmp 0 then
+          -- Sorted keys exceeded target; definitely absent.
+          sst-lookup-err sst-status-not-found
+        else
+          let new-lcp = wrapping-add-u32 e.de-shared cl.cl-lcp in
+          scan-restart-bucket blk e.de-next-off scan-end key-addr key-len new-lcp (wrapping-add-u32 steps 1)
+
+  -- | Point lookup on an already-opened, CRC32C-verified `SstBlockReader`:
+  -- O(log R) binary search over restart anchors + scan of at most 16 entries,
+  -- 100% `#[no-alloc]` with zero scratch memory.
+  #[no-alloc]
+  sst-block-reader-get-raw :: SstBlockReader -> I64 -> U32 ->{MVar} SstLookupResult
+  sst-block-reader-get-raw r key-addr key-len =
+    if not (sst-block-reader-is-valid r) then sst-lookup-err sst-status-bad-crc
+    else if eq-u32 r.reader-entry-count 0 then sst-lookup-err sst-status-not-found
+    else
+      let r0-off = load-restart-off r 0 in
+      let e0 = decode-entry r.reader-block-addr r0-off r.reader-data-end in
+      if na-or (eq-u32 e0.de-ok 0) (ne-u32 e0.de-shared 0) then sst-lookup-err sst-status-corrupt
+      else
+        let cl0 = cmp-dma-lcp (wrapping-add-i64 r.reader-block-addr (u32-to-i64 e0.de-key-off)) e0.de-unshared key-addr key-len in
+        if gt-i32 cl0.cl-cmp 0 then
+          sst-lookup-err sst-status-not-found
+        else if eq-i32 cl0.cl-cmp 0 then
+          entry-to-result r.reader-block-addr e0
+        else
+          let last-r = wrapping-sub-u32 r.reader-num-restarts 1 in
+          let bucket = bsearch-restarts r key-addr key-len 0 last-r in
+          let start-off = load-restart-off r bucket in
+          let next-bucket = wrapping-add-u32 bucket 1 in
+          let scan-end = if lt-u32 next-bucket r.reader-num-restarts then load-restart-off r next-bucket else r.reader-data-end in
+          scan-restart-bucket r.reader-block-addr start-off scan-end key-addr key-len 0 0
+
+  -- | Verify CRC32C on block load and perform an O(log R) binary-search +
+  -- <= 16-entry scan lookup for `(key-addr, key-len)` inside a 4 KiB DMA
+  -- SSTable block (`#[no-alloc]`).
+  #[no-alloc]
+  sst-block-get-raw :: I64 -> I64 -> U32 ->{MVar} SstLookupResult
+  sst-block-get-raw block-addr key-addr key-len =
+    let r = sst-block-open-raw block-addr in
+    if not (sst-block-reader-is-valid r) then sst-lookup-err sst-status-bad-crc
+    else sst-block-reader-get-raw r key-addr key-len
