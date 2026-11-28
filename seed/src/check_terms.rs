@@ -1419,7 +1419,57 @@ impl Checker {
                             call_binds.push((al, c));
                             core = app_spine(core, vec![ECore::Var(al)]);
                         } else {
-                            core = app_spine(core, vec![c]);
+                            let head = match &core {
+                                ECore::App(h, _) => &**h,
+                                other => other,
+                            };
+                            let head_direct = matches!(
+                                head,
+                                ECore::Global(..) | ECore::Ctor(..) | ECore::Prim(..) | ECore::Foreign(..)
+                            );
+                            let dom_maybe_val = call_args.last().is_some_and(|(_, dt, _)| {
+                                let dz = self.uni.zonk(dt);
+                                matches!(dz, Ty::Param(_))
+                                    || self.is_unboxed_value_ty(&dz)
+                                    || (matches!(dz, Ty::Meta(_)) && matches!(head, ECore::Var(_)))
+                            });
+                            if !head_direct
+                                && callee_obligs.is_empty()
+                                && dom_maybe_val
+                                && matches!(&c, ECore::App(..) | ECore::If(..) | ECore::Case { .. } | ECore::Let(..))
+                            {
+                                // Bind compound `Val`/`Param`-typed arguments to indirect calls
+                                // (e.g. `f (f x)` or `combine (combine x y) z`) so codegen has a
+                                // typed `Core::Let` binder with the argument's concrete `Class::Val`.
+                                if let ECore::App(_, prev_args) = &mut core {
+                                    for (pi, pa) in prev_args.iter_mut().enumerate() {
+                                        if !matches!(
+                                            pa,
+                                            ECore::Var(_)
+                                                | ECore::Int(_)
+                                                | ECore::Wide(_)
+                                                | ECore::Bool(_)
+                                                | ECore::Unit
+                                                | ECore::StrLit(_)
+                                        ) {
+                                            let ptmp = self.fresh_local();
+                                            if let Some((_, pty, _)) = call_args.get(pi) {
+                                                self.note_local_ty(ptmp, pty);
+                                            }
+                                            let moved = std::mem::replace(pa, ECore::Var(ptmp));
+                                            call_binds.push((ptmp, moved));
+                                        }
+                                    }
+                                }
+                                let tmp = self.fresh_local();
+                                if let Some((_, dt, _)) = call_args.last() {
+                                    self.note_local_ty(tmp, dt);
+                                }
+                                call_binds.push((tmp, c));
+                                core = app_spine(core, vec![ECore::Var(tmp)]);
+                            } else {
+                                core = app_spine(core, vec![c]);
+                            }
                         }
                     }
                     ty = cod;
@@ -1928,6 +1978,58 @@ impl Checker {
                     r?
                 };
                 let ty = self.uni.zonk(&ty);
+                // In-place field read on `Ref r S` / `Mut r S` where `S` is a
+                // `#[repr(value)]` record: loads the field directly from the place
+                // pointer at its recorded byte offset without copying the struct.
+                let borrow_inner = match &ty {
+                    Ty::Ref(_, inner) | Ty::Mut(_, inner) => Some(self.uni.zonk(inner)),
+                    _ => None,
+                };
+                if let Some(Ty::Adt(ref rec_name, _)) = borrow_inner {
+                    if let Ok(info) = self.lookup_known_type(rec_name) {
+                        if let Some(&lid) = self.value_records.get(&(info.module.clone(), info.name.clone())) {
+                            let fields = info.fields.as_ref().ok_or_else(|| {
+                                Error::at(
+                                    *span,
+                                    crate::diagnostic!(
+                                        "{} is not a record; field projection needs a record type",
+                                        crate::spelling::Nominal(rec_name)
+                                    ),
+                                )
+                            })?;
+                            let idx = fields.iter().position(|f| f == &field.text).ok_or_else(|| {
+                                Error::at(field.span, crate::diagnostic!("unknown record field {} on {}", field.text, crate::spelling::Nominal(rec_name)))
+                            })?;
+                            let erased = info.field_erased.get(idx).copied().unwrap_or(false);
+                            let runtime_idx = info.field_erased[..idx].iter().filter(|e| !**e).count();
+                            let v = self.qualified.get(&(info.module.clone(), info.name.clone())).cloned()
+                                .ok_or_else(|| Error::at(*span, crate::diagnostic!("unknown constructor for {}", crate::spelling::Nominal(rec_name))))?;
+                            let field_ty = match &v.kind {
+                                ValueKind::Ctor { field_tys, .. } => field_tys[idx].clone(),
+                                _ => return Err(Error::at(*span, crate::diagnostic!("{} has no constructor", crate::spelling::Nominal(rec_name)))),
+                            };
+                            if erased {
+                                return Ok((ECore::Unit, field_ty));
+                            }
+                            let vlayout = self.value_layouts[lid as usize].clone();
+                            let crate::core::ValueLayoutKind::Struct { fields: vfields } = &vlayout.kind else {
+                                return Err(Error::at(*span, "internal error: value record has non-struct layout".to_string()));
+                            };
+                            let vf = &vfields[runtime_idx];
+                            let flid = self.intern_value_layout(vf.layout.clone());
+                            return Ok((
+                                app_spine(
+                                    ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad {
+                                        layout: flid,
+                                        offset: vf.offset,
+                                    })),
+                                    vec![core],
+                                ),
+                                field_ty,
+                            ));
+                        }
+                    }
+                }
                 // The operand's type decides the record when it is known;
                 // otherwise the field name must resolve to one record and
                 // the operand is checked against it.
@@ -2008,6 +2110,51 @@ impl Checker {
                 }
                 if self.unboxed_payload(&info).is_some() {
                     return Ok((core, field_ty));
+                }
+                if let Some(&lid) = self.value_records.get(&(info.module.clone(), info.name.clone())) {
+                    let vlayout = self.value_layouts[lid as usize].clone();
+                    if let crate::core::ValueLayoutKind::Struct { fields: vfields } = &vlayout.kind {
+                        let vf = &vfields[runtime_idx];
+                        let flid = self.intern_value_layout(vf.layout.clone());
+                        // Fuse chained in-place projection `m.a.b` into one PlaceLoad at `off_a + off_b`.
+                        if let ECore::App(ref head, ref pargs) = core {
+                            if let ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad { offset: base_off, .. })) = **head {
+                                if pargs.len() == 1 {
+                                    return Ok((
+                                        app_spine(
+                                            ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad {
+                                                layout: flid,
+                                                offset: base_off + vf.offset,
+                                            })),
+                                            vec![pargs[0].clone()],
+                                        ),
+                                        field_ty,
+                                    ));
+                                }
+                            }
+                        }
+                        return Ok((
+                            app_spine(
+                                ECore::Prim(PrimOp::Value(crate::core::ValOp::Proj {
+                                    layout: lid,
+                                    field_layout: flid,
+                                    offset: vf.offset,
+                                })),
+                                vec![core],
+                            ),
+                            field_ty,
+                        ));
+                    }
+                }
+                if let Some(plan) = self.niche_plan(&info).cloned() {
+                    if let Some((_, _, NicheCtorPlan::Packed { fields, .. })) = plan.by_tag.first() {
+                        if let Some(pf) = fields.get(runtime_idx) {
+                            let local = self.fresh_local();
+                            self.note_local_ty(local, &ty);
+                            let extracted = decode_packed_field_ecore(pf, local);
+                            return Ok((ECore::Let(local, Box::new(core), Box::new(extracted)), field_ty));
+                        }
+                    }
                 }
                 if self
                     .codata_types
@@ -2189,7 +2336,15 @@ impl Checker {
                         arg_cores.push(c);
                     }
                 }
-                let core = if arg_cores.is_empty() {
+                let core = if let Some(&lid) = self.value_records.get(&(info.module.clone(), info.name.clone())) {
+                    ECore::App(
+                        Box::new(ECore::Prim(PrimOp::Value(crate::core::ValOp::Construct {
+                            layout: lid,
+                            arity: arg_cores.len() as u16,
+                        }))),
+                        arg_cores,
+                    )
+                } else if arg_cores.is_empty() {
                     ctor_core
                 } else {
                     app_spine(ctor_core, arg_cores)
@@ -2659,6 +2814,13 @@ impl Checker {
                     {
                         let is_mut = p.name.source_spelling() == "mutBorrow";
                         return self.check_borrow_form(env, is_mut, args, *span, expected);
+                    }
+                    if p.quals.is_empty()
+                        && matches!(p.name.source_spelling(), "fixedArrayRepeat" | "fixed-array-repeat")
+                        && self.is_builtin_form(env, &p.name)
+                        && args.len() == 1
+                    {
+                        return self.check_fixed_array_repeat(env, &args[0], *span, expected);
                     }
                 }
                 // Structured concurrency (concurrency specification,
@@ -3270,6 +3432,33 @@ impl Checker {
         if name == "refSet" {
             return self.infer_refset_app(env, args, span);
         }
+        if matches!(name, "withLocal" | "with-local") {
+            return self.infer_with_local(env, args, span);
+        }
+        if matches!(name, "refAsPtr" | "ref-as-ptr") {
+            return self.infer_ref_as_ptr(env, args, false, span);
+        }
+        if matches!(name, "mutAsPtr" | "mut-as-ptr") {
+            return self.infer_ref_as_ptr(env, args, true, span);
+        }
+        if matches!(name, "fixedArrayRepeat" | "fixed-array-repeat") {
+            return self.infer_fixed_array_repeat(env, args, span);
+        }
+        if matches!(name, "fixedArrayGet" | "fixed-array-get") {
+            return self.infer_fixed_array_get(env, args, span);
+        }
+        if matches!(name, "fixedArraySet" | "fixed-array-set") {
+            return self.infer_fixed_array_set(env, args, span);
+        }
+        if matches!(name, "fixedArrayRef" | "fixed-array-ref") {
+            return self.infer_fixed_array_borrow(env, args, false, span);
+        }
+        if matches!(name, "fixedArrayMut" | "fixed-array-mut") {
+            return self.infer_fixed_array_borrow(env, args, true, span);
+        }
+        if matches!(name, "fixedArrayLen" | "fixed-array-len") {
+            return self.infer_fixed_array_len(env, args, span);
+        }
         if name == "laterAp" {
             if args.len() != 2 {
                 return Err(Error::at(
@@ -3539,6 +3728,32 @@ impl Checker {
                 let (arg_core, arg_ty) = self.infer(env, &args[0])?;
                 let arg_ty = self.uni.zonk(&arg_ty);
                 let (arg_core, copied, from_borrow) = match arg_ty {
+                    Ty::Mut(_, inner) if self.is_unboxed_value_ty(&inner) => {
+                        let lid = self.intern_pod_layout(&inner).ok_or_else(|| {
+                            Error::at(span, crate::diagnostic!("cannot copy out non-POD value type {}", inner))
+                        })?;
+                        (
+                            app_spine(
+                                ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad { layout: lid, offset: 0 })),
+                                vec![arg_core],
+                            ),
+                            *inner,
+                            true,
+                        )
+                    }
+                    Ty::Ref(_, inner) if self.is_unboxed_value_ty(&inner) => {
+                        let lid = self.intern_pod_layout(&inner).ok_or_else(|| {
+                            Error::at(span, crate::diagnostic!("cannot copy out non-POD value type {}", inner))
+                        })?;
+                        (
+                            app_spine(
+                                ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad { layout: lid, offset: 0 })),
+                                vec![arg_core],
+                            ),
+                            *inner,
+                            true,
+                        )
+                    }
                     Ty::Mut(_, inner) => (Self::read_mutable_cell(arg_core, &inner), *inner, true),
                     Ty::Ref(_, inner) => (arg_core, *inner, true),
                     other => (arg_core, other, false),
@@ -3569,12 +3784,19 @@ impl Checker {
                 );
                 Ok((arg_core, copied))
             }
-            "borrow" | "mutBorrow" => Err(Error::at(
-                span,
-                format!(
-                    "cannot infer the region of {name}; add a type annotation (`{name} e` against `Ref r a` or `Mut r a`)"
-                ),
-            )),
+            "borrow" | "mutBorrow" => {
+                if args.len() == 1 {
+                    if let Some(res) = self.infer_place_subborrow(env, &args[0], name == "mutBorrow", span)? {
+                        return Ok(res);
+                    }
+                }
+                Err(Error::at(
+                    span,
+                    format!(
+                        "cannot infer the region of {name}; add a type annotation (`{name} e` against `Ref r a` or `Mut r a`)"
+                    ),
+                ))
+            }
             "decide" => {
                 // `decide P` with a supplied decision procedure (core
                 // specification section 4): the result is `Yes evidence`
@@ -3721,11 +3943,10 @@ impl Checker {
         }
     }
 
-    /// `refSet m v`: write `v` through the exclusive `Mut` borrow `m`,
-    /// mutating the borrowed location (evidence invalidation over mutable
-    /// state). The write invalidates every evidence item about that
-    /// location derived before it. It lowers to a store of `v` into the
-    /// borrow's slot, so later reads of `m` observe the new value.
+    /// `refSet m v` / `refSet m.x v` / `refSet m.a.b v`: write `v` through the
+    /// exclusive `Mut` borrow `m` (or an interior field place of a `#[repr(value)]`
+    /// record), mutating the borrowed location and invalidating earlier evidence
+    /// about its region.
     fn infer_refset_app(
         &mut self,
         env: &mut Env,
@@ -3738,10 +3959,19 @@ impl Checker {
                 "`refSet` takes a `Mut` borrow and a value: `refSet m v` writes the borrowed location",
             ));
         }
-        let (m_core, m_ty) = self.infer(env, &args[0])?;
+        // Unwind any `m.x.y` field projection chain on the target place.
+        let mut proj_fields: Vec<ast::Name> = Vec::new();
+        let mut root_term = &args[0];
+        while let ast::Term::Proj(base, field, _) = root_term {
+            proj_fields.push(field.clone());
+            root_term = base;
+        }
+        proj_fields.reverse();
+
+        let (m_core, m_ty) = self.infer(env, root_term)?;
         let m_ty = self.uni.zonk(&m_ty);
-        let (region, inner) = match &m_ty {
-            Ty::Mut(r, inner) => (r.clone(), (**inner).clone()),
+        let (region, root_inner) = match &m_ty {
+            Ty::Mut(r, inner) => (r.clone(), self.uni.zonk(inner)),
             other => {
                 return Err(Error::at(
                     args[0].span(),
@@ -3752,26 +3982,620 @@ impl Checker {
                 ))
             }
         };
-        let v_core = self.check(env, &args[1], &inner)?;
-        // The write targets the borrow's held cell, so it must be a bound
-        // place (a variable) whose slot the store updates.
-        let m_local = match m_core {
-            ECore::Var(l) => l,
-            _ => {
+        if proj_fields.is_empty() && !self.is_unboxed_value_ty(&root_inner) {
+            let v_core = self.check(env, &args[1], &root_inner)?;
+            let m_local = match m_core {
+                ECore::Var(l) => l,
+                _ => {
+                    return Err(Error::at(
+                        args[0].span(),
+                        "`refSet` writes through a bound `Mut` borrow (a variable naming the location)",
+                    ))
+                }
+            };
+            let v_idx = self.idx_of_term(&args[1], env).ok();
+            self.note_ev_write_loc(region.to_string(), span, v_idx);
+            return Ok((ECore::RefSet(m_local, Box::new(v_core), root_inner), Ty::Unit));
+        }
+
+        // Walk any field path through `#[repr(value)]` records, accumulating byte offset.
+        let mut cur_ty = root_inner.clone();
+        let mut offset: u64 = 0;
+        for f in &proj_fields {
+            let Ty::Adt(ref rec_name, _) = cur_ty else {
+                return Err(Error::at(
+                    f.span,
+                    crate::diagnostic!("cannot write field `{}` on non-record type {}", f.text, cur_ty),
+                ));
+            };
+            let info = self.lookup_known_type(rec_name).map_err(|e| Error::at(f.span, e.message))?;
+            let Some(&lid) = self.value_records.get(&(info.module.clone(), info.name.clone())) else {
+                return Err(Error::at(
+                    f.span,
+                    crate::diagnostic!(
+                        "in-place field write `refSet m.{}` requires a `#[repr(value)]` record, not {}",
+                        f.text, cur_ty
+                    ),
+                ));
+            };
+            let fields = info.fields.as_ref().ok_or_else(|| Error::at(f.span, "not a record".to_string()))?;
+            let idx = fields.iter().position(|n| n == &f.text).ok_or_else(|| {
+                Error::at(f.span, crate::diagnostic!("unknown record field {} on {}", f.text, crate::spelling::Nominal(rec_name)))
+            })?;
+            let erased = info.field_erased.get(idx).copied().unwrap_or(false);
+            if erased {
+                return Err(Error::at(f.span, format!("cannot write erased field `{}`", f.text)));
+            }
+            let runtime_idx = info.field_erased[..idx].iter().filter(|e| !**e).count();
+            let vlayout = self.value_layouts[lid as usize].clone();
+            let crate::core::ValueLayoutKind::Struct { fields: vfields } = &vlayout.kind else {
+                return Err(Error::at(f.span, "internal error: value record has non-struct layout".to_string()));
+            };
+            offset += vfields[runtime_idx].offset;
+            let v = self.qualified.get(&(info.module.clone(), info.name.clone())).cloned()
+                .ok_or_else(|| Error::at(f.span, "unknown record constructor".to_string()))?;
+            cur_ty = match &v.kind {
+                ValueKind::Ctor { field_tys, .. } => self.uni.zonk(&field_tys[idx]),
+                _ => return Err(Error::at(f.span, "not a record constructor".to_string())),
+            };
+        }
+
+        let v_core = self.check(env, &args[1], &cur_ty)?;
+        let target_lid = self.intern_pod_layout(&cur_ty).ok_or_else(|| {
+            Error::at(
+                span,
+                crate::diagnostic!("in-place write requires a POD value type, not {}", cur_ty),
+            )
+        })?;
+        let v_idx = self.idx_of_term(&args[1], env).ok();
+        self.note_ev_write_loc(region.to_string(), span, v_idx);
+        Ok((
+            app_spine(
+                ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceStore {
+                    layout: target_lid,
+                    offset,
+                })),
+                vec![m_core, v_core],
+            ),
+            Ty::Unit,
+        ))
+    }
+
+    /// `withLocal init (\m -> body)`: region-scoped stack allocation for any POD
+    /// type (scalars, `Ptr`, `#[repr(value)]` structs, and `FixedArray n a`).
+    /// The fresh rigid region `r` statically prevents stack references from escaping.
+    fn infer_with_local(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if args.len() != 2 {
+            return Err(Error::at(
+                span,
+                "`withLocal` takes an initial value and a scoped body: `withLocal init (\\m -> body)`",
+            ));
+        }
+        let (init_core, init_ty) = self.infer(env, &args[0])?;
+        let init_ty = self.uni.zonk(&init_ty);
+        let lid = self.intern_pod_layout(&init_ty).ok_or_else(|| {
+            Error::at(
+                args[0].span(),
+                crate::diagnostic!(
+                    "`withLocal` requires a POD (non-refcounted) initial value (scalar, pointer, `#[repr(value)]` record, or `FixedArray`), not {}",
+                    init_ty
+                ),
+            )
+        })?;
+        let immortal_header = !self.is_unboxed_value_ty(&init_ty);
+        let r_skolem = self.fresh_region();
+        let m_ty = Ty::Mut(r_skolem.clone().into(), Box::new(init_ty.clone()));
+        let alloc_expr = app_spine(
+            ECore::Prim(PrimOp::Value(crate::core::ValOp::StackAlloc {
+                layout: lid,
+                immortal_header,
+            })),
+            vec![init_core],
+        );
+        match &args[1] {
+            ast::Term::Lam(pats, body_term, _) if pats.len() == 1 => {
+                let m_local = self.fresh_local();
+                self.note_local_ty(m_local, &m_ty);
+                let mut env2 = env.clone();
+                match &pats[0] {
+                    ast::Pat::Var(name, _) => {
+                        self.bind_syntax_local(&mut env2, name, m_local, Scheme::mono(m_ty), None, name.span)?;
+                    }
+                    ast::Pat::Wild(_) => {}
+                    other => {
+                        return Err(Error::at(
+                            other.span(),
+                            "`withLocal`'s callback parameter must be a variable or wildcard",
+                        ));
+                    }
+                }
+                let saved_perf = self.enter_perf();
+                let res = self.infer(&mut env2, body_term);
+                let body_eff = self.exit_perf(saved_perf);
+                let (body_core, body_ty) = res?;
+                let body_eff = self.uni.resolve_row(&body_eff);
+                let r_res = self.uni.resolve_region(&r_skolem);
+                let outer_labels: Vec<crate::types::EffLabel> = body_eff
+                    .labels
+                    .into_iter()
+                    .filter(|l| {
+                        !(l.head.as_str() == "State"
+                            && l.arg.as_ref().is_some_and(|a| self.uni.resolve_region(a.as_str()) == r_res))
+                    })
+                    .collect();
+                let outer_tail = match body_eff.tail {
+                    crate::types::RowTail::Meta(_) => crate::types::RowTail::Closed,
+                    other => other,
+                };
+                self.perform(&EffRow { labels: outer_labels, tail: outer_tail })?;
+                let body_ty = self.uni.zonk(&body_ty);
+                if ty_mentions(&body_ty, &r_skolem) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "region escape: a `withLocal` stack reference (region `{r_skolem}`) cannot escape its scope in return type {body_ty}"
+                        ),
+                    ));
+                }
+                Ok((ECore::Let(m_local, Box::new(alloc_expr), Box::new(body_core)), body_ty))
+            }
+            callback => {
+                let m_local = self.fresh_local();
+                self.note_local_ty(m_local, &m_ty);
+                let (f_core, f_ty) = self.infer(env, callback)?;
+                let f_ty = self.uni.zonk(&f_ty);
+                let (dom, cod, eff) = match f_ty {
+                    Ty::Fun(d, _, e, c) => (*d, *c, e),
+                    Ty::Pi { dom: d, eff: e, cod: c, .. } => (*d, *c, e),
+                    other => {
+                        return Err(Error::at(
+                            callback.span(),
+                            crate::diagnostic!(
+                                "`withLocal`'s second argument must be a function taking `Mut r a`, not {}",
+                                other
+                            ),
+                        ))
+                    }
+                };
+                self.uni.unify(&dom, &m_ty).map_err(|m| Error::at(callback.span(), m))?;
+                let eff = self.uni.resolve_row(&eff);
+                let r_res = self.uni.resolve_region(&r_skolem);
+                let outer_labels: Vec<crate::types::EffLabel> = eff
+                    .labels
+                    .into_iter()
+                    .filter(|l| {
+                        !(l.head.as_str() == "State"
+                            && l.arg.as_ref().is_some_and(|a| self.uni.resolve_region(a.as_str()) == r_res))
+                    })
+                    .collect();
+                let outer_tail = match eff.tail {
+                    crate::types::RowTail::Meta(_) => crate::types::RowTail::Closed,
+                    other => other,
+                };
+                self.perform(&EffRow { labels: outer_labels, tail: outer_tail })?;
+                let res_ty = self.uni.zonk(&cod);
+                if ty_mentions(&res_ty, &r_skolem) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "region escape: a `withLocal` stack reference (region `{r_skolem}`) cannot escape its scope in return type {res_ty}"
+                        ),
+                    ));
+                }
+                let call = app_spine(f_core, vec![ECore::Var(m_local)]);
+                Ok((ECore::Let(m_local, Box::new(alloc_expr), Box::new(call)), res_ty))
+            }
+        }
+    }
+
+    /// `refAsPtr r` (`Ref r a` / `Mut r a` -> `Borrowed a`) and
+    /// `mutAsPtr m` (`Mut r a` -> `RawPtr a`): extract a native LLVM `ptr`
+    /// preserving provenance without `inttoptr`.
+    fn infer_ref_as_ptr(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        as_mut: bool,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let form = if as_mut { "mutAsPtr" } else { "refAsPtr" };
+        if args.len() != 1 {
+            return Err(Error::at(span, format!("`{form}` takes exactly one borrow argument")));
+        }
+        let (arg_core, arg_ty) = self.infer(env, &args[0])?;
+        let arg_ty = self.uni.zonk(&arg_ty);
+        let inner = match (&arg_ty, as_mut) {
+            (Ty::Mut(_, inner), _) => self.uni.zonk(inner),
+            (Ty::Ref(_, inner), false) => {
+                let inner = self.uni.zonk(inner);
+                if !self.is_unboxed_value_ty(&inner) {
+                    return Err(Error::at(
+                        args[0].span(),
+                        crate::diagnostic!(
+                            "`refAsPtr` requires a place-backed borrow (`Mut r a` or `Ref r` to a `#[repr(value)]`/`FixedArray`), not {}",
+                            arg_ty
+                        ),
+                    ));
+                }
+                inner
+            }
+            (other, true) => {
                 return Err(Error::at(
                     args[0].span(),
-                    "`refSet` writes through a bound `Mut` borrow (a variable naming the location)",
+                    crate::diagnostic!("`mutAsPtr` requires an exclusive `Mut r a` borrow, not {}", other),
+                ));
+            }
+            (other, false) => {
+                return Err(Error::at(
+                    args[0].span(),
+                    crate::diagnostic!("`refAsPtr` requires a `Ref r a` or `Mut r a` borrow, not {}", other),
+                ));
+            }
+        };
+        if self.pod_value_layout(&inner).is_none() {
+            return Err(Error::at(
+                args[0].span(),
+                crate::diagnostic!("`{form}` requires a POD pointee type, not {}", inner),
+            ));
+        }
+        let role = if as_mut {
+            crate::types::PtrRole::Raw
+        } else {
+            crate::types::PtrRole::Borrowed
+        };
+        // A `FixedArray n a` borrow decays to a pointer to its element type `a`
+        // (matching C array-to-pointer decay for zero-copy FFI and `prim` use).
+        let pointee = match self.fixed_array_parts(&inner) {
+            Some((_, elem_ty)) => elem_ty,
+            None => inner,
+        };
+        Ok((
+            app_spine(ECore::Prim(PrimOp::Value(crate::core::ValOp::RefAsPtr)), vec![arg_core]),
+            Ty::Ptr { role, pointee: Box::new(pointee) },
+        ))
+    }
+
+    fn check_fixed_array_repeat(
+        &mut self,
+        env: &mut Env,
+        elem_term: &ast::Term,
+        span: ast::Span,
+        expected: &Ty,
+    ) -> Result<ECore> {
+        let want = self.uni.zonk(expected);
+        let Some((n_idx, elem_ty)) = self.fixed_array_parts(&want) else {
+            return Err(Error::at(
+                span,
+                crate::diagnostic!("`fixedArrayRepeat` expected a `FixedArray n a` type, not {}", want),
+            ));
+        };
+        if self.const_nat_of_idx(&n_idx).is_none() {
+            return Err(Error::at(
+                span,
+                "`fixedArrayRepeat` requires a compile-time constant `Nat` length `n`".to_string(),
+            ));
+        }
+        let elem_core = self.check(env, elem_term, &elem_ty)?;
+        let lid = self.intern_pod_layout(&want).ok_or_else(|| {
+            Error::at(
+                span,
+                crate::diagnostic!("`FixedArray` elements must be POD (non-refcounted), not {}", elem_ty),
+            )
+        })?;
+        Ok(app_spine(
+            ECore::Prim(PrimOp::Value(crate::core::ValOp::FixedArrayRepeat { layout: lid })),
+            vec![elem_core],
+        ))
+    }
+
+    fn infer_fixed_array_repeat(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if args.len() != 2 {
+            return Err(Error::at(
+                span,
+                "`fixedArrayRepeat` takes either a constant length and element (`fixedArrayRepeat n v`) or one element against an expected `FixedArray n a` type",
+            ));
+        }
+        let n_term = self.idx_of_term(&args[0], env).map_err(|_| {
+            Error::at(args[0].span(), "`fixedArrayRepeat`'s first argument must be a compile-time constant `Nat` length")
+        })?;
+        let Some(len) = self.const_nat_of_idx(&n_term) else {
+            return Err(Error::at(
+                args[0].span(),
+                "`fixedArrayRepeat`'s length must be a compile-time constant `Nat`",
+            ));
+        };
+        let (elem_core, elem_ty) = self.infer(env, &args[1])?;
+        let elem_ty = self.uni.zonk(&elem_ty);
+        let arr_ty = Ty::Adt(
+            "FixedArray".into(),
+            vec![Ty::Idx(Box::new(ITerm::Num(len.to_string().into()))), elem_ty.clone()],
+        );
+        let lid = self.intern_pod_layout(&arr_ty).ok_or_else(|| {
+            Error::at(
+                args[1].span(),
+                crate::diagnostic!("`FixedArray` elements must be POD (non-refcounted), not {}", elem_ty),
+            )
+        })?;
+        Ok((
+            app_spine(
+                ECore::Prim(PrimOp::Value(crate::core::ValOp::FixedArrayRepeat { layout: lid })),
+                vec![elem_core],
+            ),
+            arr_ty,
+        ))
+    }
+
+    fn check_fixed_array_index(
+        &mut self,
+        env: &mut Env,
+        idx_term: &ast::Term,
+        n_idx: &ITerm,
+    ) -> Result<ECore> {
+        let (idx_core, idx_ty) = self.infer(env, idx_term)?;
+        let idx_ty = self.uni.zonk(&idx_ty);
+        let base_ty = match self.refine_view(&idx_ty).and_then(|v| v.base) {
+            Some(b) => self.uni.zonk(&b),
+            None => idx_ty.clone(),
+        };
+        let (is_nat, is_usize) = match &base_ty {
+            Ty::Nat => (true, false),
+            Ty::Prim(Scalar::Usize) => (false, true),
+            Ty::Meta(_) => {
+                self.uni
+                    .unify(&base_ty, &Ty::Prim(Scalar::Usize))
+                    .map_err(|m| Error::at(idx_term.span(), m))?;
+                (false, true)
+            }
+            _ => (false, false),
+        };
+        if !is_nat && !is_usize {
+            return Err(Error::at(
+                idx_term.span(),
+                crate::diagnostic!(
+                    "`FixedArray` index must have type `Nat` or `Usize` (possibly refined), not {}",
+                    idx_ty
+                ),
+            ));
+        }
+        let i_idx = self.idx_of_term(idx_term, env).map_err(|_| {
+            Error::at(
+                idx_term.span(),
+                "`FixedArray` index must be statically expressible for bounds verification (`i < n`)",
+            )
+        })?;
+        let bound_prop = PTerm::Cmp(crate::types::IdxCmp::Lt, Box::new(i_idx.clone()), Box::new(n_idx.clone()));
+        if let (Some(i_val), Some(n_val)) = (self.const_nat_of_idx(&i_idx), self.const_nat_of_idx(n_idx)) {
+            if i_val >= n_val {
+                return Err(Error::at(
+                    idx_term.span(),
+                    format!("cannot prove `FixedArray` index bounds (`i < n`): index {i_val} is out of bounds for length {n_val}"),
+                ));
+            }
+        } else {
+            let ev = self.evidence_in(env);
+            let scoped = self.discharge_oblig(&ev, &bound_prop, idx_term.span());
+            if scoped.is_err() && !self.decide_closed_oblig(&bound_prop, idx_term.span())? {
+                return Err(Error::at(
+                    idx_term.span(),
+                    format!("cannot prove `FixedArray` index bounds (`i < n`): {}", scoped.unwrap_err().message),
+                ));
+            }
+        }
+        if is_nat {
+            Ok(app_spine(ECore::Prim(PrimOp::Nat(crate::core::NatOp::ToI64)), vec![idx_core]))
+        } else {
+            Ok(idx_core)
+        }
+    }
+
+    fn infer_fixed_array_get(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if args.len() != 2 {
+            return Err(Error::at(span, "`fixedArrayGet` takes a `FixedArray` (or borrow) and an index"));
+        }
+        let (arr_core, arr_ty) = self.infer(env, &args[0])?;
+        let arr_ty = self.uni.zonk(&arr_ty);
+        let (is_ref, inner_ty) = match &arr_ty {
+            Ty::Ref(_, inner) | Ty::Mut(_, inner) => (true, self.uni.zonk(inner)),
+            other => (false, other.clone()),
+        };
+        let Some((n_idx, elem_ty)) = self.fixed_array_parts(&inner_ty) else {
+            return Err(Error::at(
+                args[0].span(),
+                crate::diagnostic!("`fixedArrayGet` expects a `FixedArray n a` (or `Ref`/`Mut` to one), not {}", arr_ty),
+            ));
+        };
+        let raw_idx = self.check_fixed_array_index(env, &args[1], &n_idx)?;
+        let elem_layout = self.pod_value_layout(&elem_ty).ok_or_else(|| {
+            Error::at(span, crate::diagnostic!("`FixedArray` elements must be POD, not {}", elem_ty))
+        })?;
+        let stride = elem_layout.size.div_ceil(elem_layout.align.max(1)) * elem_layout.align.max(1);
+        let elem_lid = self.intern_value_layout(elem_layout);
+        if is_ref {
+            let elem_ptr = app_spine(
+                ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceIndex { stride })),
+                vec![arr_core, raw_idx],
+            );
+            Ok((
+                app_spine(
+                    ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad { layout: elem_lid, offset: 0 })),
+                    vec![elem_ptr],
+                ),
+                elem_ty,
+            ))
+        } else {
+            let arr_lid = self.intern_pod_layout(&inner_ty).ok_or_else(|| {
+                Error::at(args[0].span(), "by-value `FixedArray` requires a constant `Nat` length".to_string())
+            })?;
+            Ok((
+                app_spine(
+                    ECore::Prim(PrimOp::Value(crate::core::ValOp::FixedArrayGet {
+                        layout: arr_lid,
+                        elem_layout: elem_lid,
+                        stride,
+                    })),
+                    vec![arr_core, raw_idx],
+                ),
+                elem_ty,
+            ))
+        }
+    }
+
+    fn infer_fixed_array_set(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if args.len() != 3 {
+            return Err(Error::at(span, "`fixedArraySet` takes a `Mut` `FixedArray`, an index, and a value"));
+        }
+        let (arr_core, arr_ty) = self.infer(env, &args[0])?;
+        let arr_ty = self.uni.zonk(&arr_ty);
+        let (region, inner_ty) = match &arr_ty {
+            Ty::Mut(r, inner) => (r.clone(), self.uni.zonk(inner)),
+            other => {
+                return Err(Error::at(
+                    args[0].span(),
+                    crate::diagnostic!(
+                        "`fixedArraySet` requires an exclusive `Mut r (FixedArray n a)` borrow, not {}",
+                        other
+                    ),
                 ))
             }
         };
-        // Record the mutation so evidence about `region` derived earlier
-        // goes stale at this point. The written value's index shape is
-        // the temporal contracts' post-step state (core specification
-        // section 10).
-        let v_idx = self.idx_of_term(&args[1], env).ok();
-        self.note_ev_write_loc(region.to_string(), span, v_idx);
-        // Lower to a write through the borrow's cell that yields `Unit`.
-        Ok((ECore::RefSet(m_local, Box::new(v_core), inner), Ty::Unit))
+        let Some((n_idx, elem_ty)) = self.fixed_array_parts(&inner_ty) else {
+            return Err(Error::at(
+                args[0].span(),
+                crate::diagnostic!("`fixedArraySet` expects `Mut r (FixedArray n a)`, not {}", arr_ty),
+            ));
+        };
+        let raw_idx = self.check_fixed_array_index(env, &args[1], &n_idx)?;
+        let val_core = self.check(env, &args[2], &elem_ty)?;
+        let elem_layout = self.pod_value_layout(&elem_ty).ok_or_else(|| {
+            Error::at(span, crate::diagnostic!("`FixedArray` elements must be POD, not {}", elem_ty))
+        })?;
+        let stride = elem_layout.size.div_ceil(elem_layout.align.max(1)) * elem_layout.align.max(1);
+        let elem_lid = self.intern_value_layout(elem_layout);
+        self.note_ev_write_loc(region.to_string(), span, None);
+        let elem_ptr = app_spine(
+            ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceIndex { stride })),
+            vec![arr_core, raw_idx],
+        );
+        Ok((
+            app_spine(
+                ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceStore { layout: elem_lid, offset: 0 })),
+                vec![elem_ptr, val_core],
+            ),
+            Ty::Unit,
+        ))
+    }
+
+    fn infer_fixed_array_borrow(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        is_mut: bool,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let form = if is_mut { "fixedArrayMut" } else { "fixedArrayRef" };
+        if args.len() != 2 {
+            return Err(Error::at(span, format!("`{form}` takes a borrowed `FixedArray` and an index")));
+        }
+        let (arr_core, arr_ty) = self.infer(env, &args[0])?;
+        let arr_ty = self.uni.zonk(&arr_ty);
+        let (region, inner_ty) = match (&arr_ty, is_mut) {
+            (Ty::Mut(r, inner), _) => (r.clone(), self.uni.zonk(inner)),
+            (Ty::Ref(r, inner), false) => (r.clone(), self.uni.zonk(inner)),
+            (other, _) => {
+                return Err(Error::at(
+                    args[0].span(),
+                    crate::diagnostic!("`{form}` expects a matching borrow of `FixedArray n a`, not {}", other),
+                ))
+            }
+        };
+        let Some((n_idx, elem_ty)) = self.fixed_array_parts(&inner_ty) else {
+            return Err(Error::at(
+                args[0].span(),
+                crate::diagnostic!("`{form}` expects a borrow of `FixedArray n a`, not {}", arr_ty),
+            ));
+        };
+        let raw_idx = self.check_fixed_array_index(env, &args[1], &n_idx)?;
+        let elem_layout = self.pod_value_layout(&elem_ty).ok_or_else(|| {
+            Error::at(span, crate::diagnostic!("`FixedArray` elements must be POD, not {}", elem_ty))
+        })?;
+        let stride = elem_layout.size.div_ceil(elem_layout.align.max(1)) * elem_layout.align.max(1);
+        let elem_lid = self.intern_value_layout(elem_layout);
+        let elem_ptr = app_spine(
+            ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceIndex { stride })),
+            vec![arr_core, raw_idx],
+        );
+        if is_mut {
+            if !self.is_unboxed_value_ty(&elem_ty) {
+                return Err(Error::at(
+                    span,
+                    crate::diagnostic!(
+                        "`fixedArrayMut` yields an interior `Mut` borrow for nested `#[repr(value)]`/`FixedArray` elements (use `fixedArraySet` for scalar elements of type {})",
+                        elem_ty
+                    ),
+                ));
+            }
+            Ok((elem_ptr, Ty::Mut(region, Box::new(elem_ty))))
+        } else if self.is_unboxed_value_ty(&elem_ty) {
+            Ok((elem_ptr, Ty::Ref(region, Box::new(elem_ty))))
+        } else {
+            Ok((
+                app_spine(
+                    ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad { layout: elem_lid, offset: 0 })),
+                    vec![elem_ptr],
+                ),
+                Ty::Ref(region, Box::new(elem_ty)),
+            ))
+        }
+    }
+
+    fn infer_fixed_array_len(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if args.len() != 1 {
+            return Err(Error::at(span, "`fixedArrayLen` takes one `FixedArray` (or borrow)"));
+        }
+        let (_arr_core, arr_ty) = self.infer(env, &args[0])?;
+        let arr_ty = self.uni.zonk(&arr_ty);
+        let inner_ty = match &arr_ty {
+            Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.uni.zonk(inner),
+            other => other.clone(),
+        };
+        let Some((n_idx, _)) = self.fixed_array_parts(&inner_ty) else {
+            return Err(Error::at(
+                args[0].span(),
+                crate::diagnostic!("`fixedArrayLen` expects a `FixedArray n a`, not {}", arr_ty),
+            ));
+        };
+        let Some(len) = self.const_nat_of_idx(&n_idx) else {
+            return Err(Error::at(
+                span,
+                "`fixedArrayLen` requires a compile-time constant `Nat` length".to_string(),
+            ));
+        };
+        Ok((ECore::Int(len as i64), Ty::Prim(Scalar::Usize)))
     }
 
     /// A compound proposition under `decide` (`P && Q`, `P || Q`,
@@ -4786,7 +5610,8 @@ impl Checker {
                             // Surface gate (D143/D298/D308): a
                             // module-private constructor never crosses
                             // an import, in term or pattern position.
-                            if v.module != self.current_module
+                            if v.module != "<builtin>"
+                                && v.module != self.current_module
                                 && self.surface_def(&v.module, last).is_none()
                             {
                                 return Err(Error::at(
@@ -5069,6 +5894,18 @@ impl Checker {
             // design: the runtime representation IS the container): the
             // value is its container value, with no wrapper allocation.
             return Ok((kept.into_iter().next().expect("the container value"), result));
+        }
+        if let Some(&lid) = self.value_records.get(&(v.module.clone(), v.name.clone())) {
+            return Ok((
+                ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Value(crate::core::ValOp::Construct {
+                        layout: lid,
+                        arity: kept.len() as u16,
+                    }))),
+                    kept,
+                ),
+                result,
+            ));
         }
         Ok((
             app_spine(ECore::Ctor(fn_id(&v.module, &v.name), ptys), kept),
@@ -6498,6 +7335,7 @@ impl Checker {
                     status
                 }
             }
+            PredFn::NotNaN | PredFn::Finite => ObligStatus::Unresolved,
         })
     }
 
@@ -6676,6 +7514,30 @@ impl Checker {
                 };
                 let gid = self.install_ordered_test(name, span)?;
                 ECore::App(Box::new(ECore::Global(gid, Vec::new())), vec![operand])
+            }
+            PredFn::NotNaN | PredFn::Finite => {
+                let (u_ty, abs_mask, exp_mask) = match oty {
+                    Ty::Prim(Scalar::F32) => (Scalar::U32, 0x7fff_ffff_i64, 0x7f80_0000_i64),
+                    Ty::Prim(Scalar::F64) => (Scalar::U64, 0x7fff_ffff_ffff_ffff_i64, 0x7ff0_0000_0000_0000_i64),
+                    other => {
+                        return Err(Error::at(
+                            span,
+                            crate::diagnostic!(
+                                "`{}` decides floating-point values (`F32`, `F64`), not `{}` (a wrong predicate for this value is refused naming the predicate)",
+                                pf, other
+                            ),
+                        ))
+                    }
+                };
+                let abs_bits = ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Bit { ty: u_ty, op: crate::core::BitOp::And })),
+                    vec![operand, ECore::Int(abs_mask)],
+                );
+                let cmp_op = if matches!(pf, PredFn::Finite) { CmpOp::Lt } else { CmpOp::Le };
+                ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Cmp { ty: u_ty, op: cmp_op })),
+                    vec![abs_bits, ECore::Int(exp_mask)],
+                )
             }
         })
     }
@@ -7068,6 +7930,126 @@ impl Checker {
     /// (ownership and usage design, section 4). A borrow's region comes
     /// from its expected type; the elaboration is the operand's uniform
     /// word (a borrow is a pointer word at runtime).
+    fn infer_place_subborrow(
+        &mut self,
+        env: &mut Env,
+        arg: &ast::Term,
+        is_mut: bool,
+        span: ast::Span,
+    ) -> Result<Option<(ECore, Ty)>> {
+        let mut proj_fields: Vec<ast::Name> = Vec::new();
+        let mut root_term = arg;
+        while let ast::Term::Proj(base, field, _) = root_term {
+            proj_fields.push(field.clone());
+            root_term = base;
+        }
+        proj_fields.reverse();
+        let root_peek = if let ast::Term::Var(p) = root_term {
+            if p.quals.is_empty() {
+                env.lookup_name(&p.name).map(|(_, s)| self.uni.zonk(&s.ty))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let is_place_borrow = match &root_peek {
+            Some(Ty::Mut(_, rinner)) => {
+                let rinner = self.uni.zonk(rinner);
+                self.is_unboxed_value_ty(&rinner) && (!proj_fields.is_empty() || !is_mut)
+            }
+            Some(Ty::Ref(_, rinner)) if !is_mut => {
+                let rinner = self.uni.zonk(rinner);
+                self.is_unboxed_value_ty(&rinner) && !proj_fields.is_empty()
+            }
+            _ => false,
+        };
+        if !is_place_borrow {
+            return Ok(None);
+        }
+        let (root_core, root_ty) = self.infer(env, root_term)?;
+        let root_ty = self.uni.zonk(&root_ty);
+        let (src_region, mut cur_ty) = match root_ty {
+            Ty::Mut(r, inner) => (r, self.uni.zonk(&inner)),
+            Ty::Ref(r, inner) if !is_mut => (r, self.uni.zonk(&inner)),
+            other => {
+                return Err(Error::at(
+                    arg.span(),
+                    crate::diagnostic!("cannot take interior borrow from {}", other),
+                ))
+            }
+        };
+        let mut offset: u64 = 0;
+        let mut base_align: u64 = u64::MAX;
+        for f in &proj_fields {
+            let Ty::Adt(ref rec_name, _) = cur_ty else {
+                return Err(Error::at(f.span, crate::diagnostic!("cannot project field `{}` on {}", f.text, cur_ty)));
+            };
+            let info = self.lookup_known_type(rec_name).map_err(|e| Error::at(f.span, e.message))?;
+            let Some(&lid) = self.value_records.get(&(info.module.clone(), info.name.clone())) else {
+                return Err(Error::at(f.span, crate::diagnostic!("interior sub-borrow requires `#[repr(value)]` record, not {}", cur_ty)));
+            };
+            let fields = info.fields.as_ref().ok_or_else(|| Error::at(f.span, "not a record".to_string()))?;
+            let idx = fields.iter().position(|n| n == &f.text).ok_or_else(|| {
+                Error::at(f.span, crate::diagnostic!("unknown record field {} on {}", f.text, crate::spelling::Nominal(rec_name)))
+            })?;
+            let runtime_idx = info.field_erased[..idx].iter().filter(|e| !**e).count();
+            let vlayout = self.value_layouts[lid as usize].clone();
+            base_align = base_align.min(vlayout.align.max(1));
+            let crate::core::ValueLayoutKind::Struct { fields: vfields } = &vlayout.kind else {
+                return Err(Error::at(f.span, "internal error: value record has non-struct layout".to_string()));
+            };
+            let vf = &vfields[runtime_idx];
+            offset += vf.offset;
+            let nat_align = vf.layout.align.max(1);
+            if nat_align > 1 && (offset % nat_align != 0 || base_align < nat_align) {
+                return Err(Error::at(
+                    f.span,
+                    format!(
+                        "cannot borrow misaligned packed field `{}` (offset {}, natural alignment {})",
+                        f.text, offset, nat_align
+                    ),
+                ));
+            }
+            let v = self.qualified.get(&(info.module.clone(), info.name.clone())).cloned()
+                .ok_or_else(|| Error::at(f.span, "unknown record constructor".to_string()))?;
+            cur_ty = match &v.kind {
+                ValueKind::Ctor { field_tys, .. } => self.uni.zonk(&field_tys[idx]),
+                _ => return Err(Error::at(f.span, "not a record constructor".to_string())),
+            };
+        }
+        let result_ty = if is_mut {
+            Ty::Mut(src_region, Box::new(cur_ty.clone()))
+        } else {
+            Ty::Ref(src_region, Box::new(cur_ty.clone()))
+        };
+        if self.is_unboxed_value_ty(&cur_ty) {
+            let core = if offset == 0 {
+                root_core
+            } else {
+                app_spine(
+                    ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceGep { offset })),
+                    vec![root_core],
+                )
+            };
+            Ok(Some((core, result_ty)))
+        } else if !is_mut {
+            let flid = self.intern_pod_layout(&cur_ty).ok_or_else(|| {
+                Error::at(span, crate::diagnostic!("cannot borrow non-POD field {}", cur_ty))
+            })?;
+            let core = app_spine(
+                ECore::Prim(PrimOp::Value(crate::core::ValOp::PlaceLoad { layout: flid, offset })),
+                vec![root_core],
+            );
+            Ok(Some((core, result_ty)))
+        } else {
+            Err(Error::at(
+                span,
+                crate::diagnostic!("`mutBorrow` of scalar field `{}` is not supported; use `refSet m.field v` instead", cur_ty),
+            ))
+        }
+    }
+
     fn check_borrow_form(
         &mut self,
         env: &mut Env,
@@ -7081,6 +8063,10 @@ impl Checker {
                 span,
                 "borrow and mutBorrow take exactly one argument in the bootstrap slice",
             ));
+        }
+        if let Some((core, inferred_ty)) = self.infer_place_subborrow(env, &args[0], is_mut, span)? {
+            self.uni.unify(&inferred_ty, expected).map_err(|m| Error::at(span, m))?;
+            return Ok(core);
         }
         let want = self.uni.zonk(expected);
         let (region, inner) = match (&want, is_mut) {
@@ -7402,6 +8388,23 @@ impl Checker {
             }
             None => {}
         }
+        let rz = self.uni.zonk(&rest);
+        let bcore = if (matches!(rz, Ty::Param(_) | Ty::Meta(_)) || self.is_unboxed_value_ty(&rz))
+            && matches!(
+                &bcore,
+                ECore::App(h, _)
+                    if !matches!(
+                        &**h,
+                        ECore::Global(..) | ECore::Ctor(..) | ECore::Prim(..) | ECore::Foreign(..)
+                    )
+            )
+        {
+            let tmp = self.fresh_local();
+            self.note_local_ty(tmp, &rz);
+            ECore::Let(tmp, Box::new(bcore), Box::new(ECore::Var(tmp)))
+        } else {
+            bcore
+        };
         if params.is_empty() {
             Ok(ECore::Lam { params: Vec::new(), body: Box::new(bcore) })
         } else {
@@ -10169,6 +11172,28 @@ impl Checker {
                     } else {
                         (slots, core)
                     };
+                    if let Some(&lid) = self.value_records.get(&(info.module.clone(), info.name.clone())) {
+                        let vlayout = self.value_layouts[lid as usize].clone();
+                        if let crate::core::ValueLayoutKind::Struct { fields: vfields } = &vlayout.kind {
+                            let tmp = self.fresh_local();
+                            self.note_local_ty(tmp, &ty0);
+                            let mut binds: Vec<(LocalId, ECore)> = vec![(tmp, observed.clone())];
+                            for (slot, vf) in slots.iter().zip(vfields.iter()) {
+                                let flid = self.intern_value_layout(vf.layout.clone());
+                                let proj = app_spine(
+                                    ECore::Prim(PrimOp::Value(crate::core::ValOp::Proj {
+                                        layout: lid,
+                                        field_layout: flid,
+                                        offset: vf.offset,
+                                    })),
+                                    vec![ECore::Var(tmp)],
+                                );
+                                binds.push((*slot, proj));
+                            }
+                            self.merge_branches(alt_maps);
+                            return Ok(wrap_lets(binds, core));
+                        }
+                    }
                     if self.unboxed_payload(&info).is_some() {
                         alt_pats.push(CPat::Var(slots[0], Class::Raw));
                     } else {
@@ -10195,12 +11220,236 @@ impl Checker {
                 // section 2.2): each constructor's alternative sums the
                 // weights of the rows reachable through it.
                 let sums = self.decision_weights(&branch_weights, "this `case`", ctx_span)?;
+                if let Some(plan) = self.niche_plan(&info).cloned() {
+                    let all_nullary = plan
+                        .by_tag
+                        .iter()
+                        .all(|(_, _, cplan)| matches!(cplan, NicheCtorPlan::Nullary { .. }));
+                    if all_nullary {
+                        let (scrut_var, wrap_let) = match &observed {
+                            ECore::Var(l) => (*l, false),
+                            _ => {
+                                let l = self.fresh_local();
+                                self.note_local_ty(l, &ty0);
+                                (l, true)
+                            }
+                        };
+                        let switch_alts = alt_pats
+                            .into_iter()
+                            .zip(alts)
+                            .zip(alt_branch)
+                            .map(|((pat, body), branch)| {
+                                let pat = match pat {
+                                    CPat::Con { tag, .. } => {
+                                        let sentinel = plan
+                                            .by_tag
+                                            .iter()
+                                            .find(|(t, _, _)| *t == tag)
+                                            .and_then(|(_, _, p)| match p {
+                                                NicheCtorPlan::Nullary { sentinel } => Some(*sentinel as usize),
+                                                _ => None,
+                                            })
+                                            .unwrap_or(tag);
+                                        CPat::con(sentinel, Vec::new())
+                                    }
+                                    other => other,
+                                };
+                                CAlt::weighted(pat, sums[branch], body)
+                            })
+                            .collect();
+                        let sw = ECore::Case {
+                            scrut: Box::new(ECore::Var(scrut_var)),
+                            alts: switch_alts,
+                        };
+                        return Ok(if wrap_let {
+                            ECore::Let(scrut_var, Box::new(observed), Box::new(sw))
+                        } else {
+                            sw
+                        });
+                    }
+                    let (scrut_var, wrap_let) = match &observed {
+                        ECore::Var(l) => (*l, false),
+                        _ => {
+                            let l = self.fresh_local();
+                            self.note_local_ty(l, &ty0);
+                            (l, true)
+                        }
+                    };
+                    let mut nullary_arms: Vec<(i64, ECore)> = Vec::new();
+                    let mut payload_arms: Vec<(NicheCtorPlan, Vec<LocalId>, ECore)> = Vec::new();
+                    let mut wild_arm: Option<ECore> = None;
+                    for (pat, body) in alt_pats.into_iter().zip(alts) {
+                        match pat {
+                            CPat::Wild => wild_arm = Some(body),
+                            CPat::Con { tag, fields, .. } => {
+                                if let Some((_, _, cplan)) = plan.by_tag.iter().find(|(t, _, _)| *t == tag) {
+                                    match cplan {
+                                        NicheCtorPlan::Nullary { sentinel } => {
+                                            nullary_arms.push((*sentinel, body));
+                                        }
+                                        _ => {
+                                            payload_arms.push((cplan.clone(), fields, body));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    let word_cmp = |op: CmpOp, unsigned: bool, lhs: LocalId, rhs: i64| -> ECore {
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordCmp { op, unsigned })),
+                            vec![ECore::Var(lhs), ECore::Int(rhs)],
+                        )
+                    };
+                    let word_mask_eq = |lhs: LocalId, mask: i64, wanted: i64| -> ECore {
+                        let masked = ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordOp { op: crate::core::WordOp::TestMask })),
+                            vec![ECore::Var(lhs), ECore::Int(mask)],
+                        );
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::WordCmp { op: CmpOp::Eq, unsigned: false })),
+                            vec![masked, ECore::Int(wanted)],
+                        )
+                    };
+                    let bind_payload = |cplan: &NicheCtorPlan, slots: &[LocalId], body: ECore| -> ECore {
+                        use crate::core::WordOp as WO;
+                        if let NicheCtorPlan::Packed { fields, .. } = cplan {
+                            let mut cur = body;
+                            for (pf, slot) in fields.iter().zip(slots.iter()).rev() {
+                                let rhs = decode_packed_field_ecore(pf, scrut_var);
+                                cur = ECore::Let(*slot, Box::new(rhs), Box::new(cur));
+                            }
+                            return cur;
+                        }
+                        let slot = slots[0];
+                        let rhs = match cplan {
+                            NicheCtorPlan::Ptr { ptr_tag, .. } if *ptr_tag != 0 => ECore::App(
+                                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Untag })),
+                                vec![ECore::Var(scrut_var), ECore::Int(!6i64)],
+                            ),
+                            NicheCtorPlan::Shifted { shift, signed, bias, .. } => {
+                                let unshifted = if *shift != 0 {
+                                    let op = if *signed { WO::Shr } else { WO::Ushr };
+                                    ECore::App(
+                                        Box::new(ECore::Prim(PrimOp::WordOp { op })),
+                                        vec![ECore::Var(scrut_var), ECore::Int(*shift as i64)],
+                                    )
+                                } else {
+                                    ECore::Var(scrut_var)
+                                };
+                                if *bias != 0 {
+                                    ECore::App(
+                                        Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Add })),
+                                        vec![unshifted, ECore::Int(*bias)],
+                                    )
+                                } else {
+                                    unshifted
+                                }
+                            }
+                            _ => ECore::Var(scrut_var),
+                        };
+                        ECore::Let(slot, Box::new(rhs), Box::new(body))
+                    };
+                    let mk_if = |cond: ECore, th: ECore, el: ECore| -> ECore {
+                        ECore::If(
+                            Box::new(cond),
+                            CBranch::new(th),
+                            CBranch::new(el),
+                        )
+                    };
+                    let mut acc = if let Some(w) = wild_arm {
+                        w
+                    } else if let Some((cplan, slots, body)) = payload_arms.pop() {
+                        bind_payload(&cplan, &slots, body)
+                    } else if let Some((_, body)) = nullary_arms.pop() {
+                        body
+                    } else {
+                        ECore::Fault
+                    };
+                    while let Some((cplan, slots, body)) = payload_arms.pop() {
+                        let bound = bind_payload(&cplan, &slots, body);
+                        let checks: Vec<ECore> = match &cplan {
+                            NicheCtorPlan::Payload { range: None, .. } | NicheCtorPlan::NanF64 { .. } => plan
+                                .nullary_sentinels
+                                .iter()
+                                .map(|s| word_cmp(CmpOp::Ne, false, scrut_var, *s))
+                                .collect(),
+                            NicheCtorPlan::Payload { range: Some((unsigned, lo, hi, excluded)), .. } => {
+                                let mut cs = Vec::new();
+                                if *unsigned {
+                                    if *lo > 0 {
+                                        cs.push(word_cmp(CmpOp::Ge, true, scrut_var, (*lo as u64) as i64));
+                                    }
+                                    if *hi < u64::MAX as i128 {
+                                        cs.push(word_cmp(CmpOp::Le, true, scrut_var, (*hi as u64) as i64));
+                                    }
+                                    for ex in excluded {
+                                        cs.push(word_cmp(CmpOp::Ne, true, scrut_var, (*ex as u64) as i64));
+                                    }
+                                } else {
+                                    if *lo > i64::MIN as i128 {
+                                        cs.push(word_cmp(CmpOp::Ge, false, scrut_var, *lo as i64));
+                                    }
+                                    if *hi < i64::MAX as i128 {
+                                        cs.push(word_cmp(CmpOp::Le, false, scrut_var, *hi as i64));
+                                    }
+                                    for ex in excluded {
+                                        cs.push(word_cmp(CmpOp::Ne, false, scrut_var, *ex as i64));
+                                    }
+                                }
+                                cs
+                            }
+                            NicheCtorPlan::Ptr { ptr_tag, check_nonnull, .. } => {
+                                let mut cs = vec![word_mask_eq(scrut_var, 7, *ptr_tag)];
+                                if *check_nonnull {
+                                    cs.push(word_cmp(CmpOp::Ne, false, scrut_var, 0));
+                                }
+                                cs
+                            }
+                            NicheCtorPlan::Shifted { mask, tag_word, .. } => {
+                                vec![word_mask_eq(scrut_var, *mask, *tag_word)]
+                            }
+                            NicheCtorPlan::Packed { mask, tag_word, .. } => {
+                                if *mask == 0 {
+                                    Vec::new()
+                                } else {
+                                    vec![word_mask_eq(scrut_var, *mask, *tag_word)]
+                                }
+                            }
+                            NicheCtorPlan::Nullary { sentinel } => {
+                                vec![word_cmp(CmpOp::Eq, false, scrut_var, *sentinel)]
+                            }
+                        };
+                        acc = checks.into_iter().rev().fold(bound, |then_e, cond| {
+                            mk_if(cond, then_e, acc.clone())
+                        });
+                    }
+                    while let Some((sentinel, body)) = nullary_arms.pop() {
+                        acc = mk_if(word_cmp(CmpOp::Eq, false, scrut_var, sentinel), body, acc);
+                    }
+                    return Ok(if wrap_let {
+                        ECore::Let(scrut_var, Box::new(observed), Box::new(acc))
+                    } else {
+                        acc
+                    });
+                }
                 let alts = alt_pats
                     .into_iter()
                     .zip(alts)
                     .zip(alt_branch)
                     .map(|((pat, body), branch)| CAlt::weighted(pat, sums[branch], body))
                     .collect();
+                if self.poly_niche_plan(&info).is_some() {
+                    let wrapped = ECore::App(
+                        Box::new(ECore::Global(
+                            GlobalId(format!("$poly_niche_scrut${}", info.identity)),
+                            ty_args.clone(),
+                        )),
+                        vec![observed],
+                    );
+                    return Ok(ECore::Case { scrut: Box::new(wrapped), alts });
+                }
                 Ok(ECore::Case { scrut: Box::new(observed), alts })
             }
             Ty::Tuple(items) => {

@@ -2348,6 +2348,14 @@ pub(crate) fn builtin_syntax_form(name: &str) -> bool {
         name,
         "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore" | "unrefine"
             | "laterPure" | "laterAp" | "laterFix" | "forceClock"
+            | "withLocal" | "with-local"
+            | "refAsPtr" | "ref-as-ptr" | "mutAsPtr" | "mut-as-ptr"
+            | "fixedArrayRepeat" | "fixed-array-repeat"
+            | "fixedArrayGet" | "fixed-array-get"
+            | "fixedArraySet" | "fixed-array-set"
+            | "fixedArrayRef" | "fixed-array-ref"
+            | "fixedArrayMut" | "fixed-array-mut"
+            | "fixedArrayLen" | "fixed-array-len"
     )
 }
 

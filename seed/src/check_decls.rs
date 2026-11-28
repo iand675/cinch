@@ -386,7 +386,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Type" | "Prop" | "True" | "False"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Type" | "Prop" | "True" | "False"
             | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -405,7 +405,7 @@ fn builtin_type_name(name: &str) -> bool {
 fn reserved_data_type_name(name: &str) -> bool {
     Scalar::parse(name).is_some() || matches!(name,
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
+            | "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
             | "Code" | "Syntax" | "TypeSyntax" | "PackedCode"
             | "SyntaxBinding" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap")
@@ -827,6 +827,20 @@ impl Checker {
                 field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
+        self.types.entry("FixedArray".into()).or_default().push(TypeKind {
+            strict_positive_payload: None,
+            data_family: false,
+            module: "<builtin>".into(),
+            name: "FixedArray".into(),
+            identity: "FixedArray".into(),
+            arity: 2,
+            param_kinds: vec![ParamKind::Val(Ty::Nat), ParamKind::Type],
+            ctors: Vec::new(),
+            fields: None,
+            field_erased: Vec::new(),
+            opaque: false,
+            refine: None,
+        });
         // `Io r`: runtime capability evidence for identity `r` (design
         // section 4, decision D21). The value is a uniform word; the
         // identity lives in the type.
@@ -1458,6 +1472,7 @@ impl Checker {
                         tag: 0,
                         fields: Vec::new(),
                         leaves: Vec::new(),
+                        value_layout: None,
                     })
                     .collect();
                 let has_ret_ptr = b.call.ret.is_some();
@@ -1476,6 +1491,7 @@ impl Checker {
                         tag: 0,
                         fields: Vec::new(),
                         leaves: Vec::new(),
+                        value_layout: None,
                     });
                 }
                 let result = AbiParam {
@@ -1496,6 +1512,7 @@ impl Checker {
                     tag: 0,
                     fields: Vec::new(),
                     leaves: Vec::new(),
+                    value_layout: None,
                 };
                 self.foreign_plans.push((
                     unit.clone(),
@@ -1624,6 +1641,7 @@ impl Checker {
                 tag: 0,
                 fields: Vec::new(),
                 leaves: Vec::new(),
+                value_layout: None,
             };
             let mut params = vec![word_param.clone()];
             if arity == 2 {
@@ -1651,6 +1669,7 @@ impl Checker {
                         tag: 0,
                         fields: Vec::new(),
                         leaves: Vec::new(),
+                        value_layout: None,
                     },
                     deallocator: String::new(),
                     canon: None,
@@ -2364,6 +2383,69 @@ impl Checker {
                 ],
             )],
         );
+        // `data Box a where Box :: a -> Box a`: explicit heap-boxed wrapper
+        // (always a single Perceus-counted `Obj` pointer, satisfying `Boxed`,
+        // holding any `a` — including `#[repr(value)]` and `FixedArray` —
+        // inline inside its heap block). Not reserved, so user `data Box`
+        // declarations shadow it cleanly.
+        self.register_family(
+            "Box",
+            vec![("a".to_string(), ParamKind::Type)],
+            vec![(
+                "Box".to_string(),
+                0,
+                Vec::new(),
+                vec![("value".to_string(), Ty::Param("a".to_string().into()))],
+                vec![Ty::Param("a".to_string().into())],
+            )],
+        );
+        let unbox_scheme = Scheme {
+            evidence_params: Vec::new(),
+            con_params: Vec::new(),
+            obligs: Vec::new(),
+            params: vec!["a".to_string().into()],
+            idx_params: Vec::new(),
+            val_params: Vec::new(),
+            prop_params: Vec::new(),
+            row_params: Vec::new(),
+            region_params: Vec::new(),
+            ctx: Vec::new(),
+            ty: Ty::fun_mult(
+                Ty::Adt("Box".into(), vec![Ty::Param("a".to_string().into())]),
+                Mult::Many,
+                EffRow::pure(),
+                Ty::Param("a".to_string().into()),
+            ),
+        };
+        let unbox_gid = GlobalId("<builtin>.unbox".to_string());
+        self.add_value(
+            ValueInfo {
+                module: "<builtin>".to_string(),
+                name: "unbox".to_string(),
+                scheme: unbox_scheme,
+                kind: ValueKind::TopFn,
+            },
+            ast::Span::new(0, 0),
+        )
+        .expect("builtin unbox does not collide");
+        self.fns.push(FnDef {
+            id: unbox_gid,
+            params: vec!["b".to_string()],
+            body: crate::core::Core::Proj(
+                Box::new(crate::core::Core::Var(LocalId(0))),
+                crate::core::ProjField::slot(0, Class::Param(0)),
+            ),
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr {
+                tparams: 1,
+                params: vec![Class::Obj],
+                result: Some(Class::Param(0)),
+                ..Default::default()
+            },
+        });
         self.install_index_values();
     }
 
@@ -3953,8 +4035,35 @@ impl Checker {
                             // guessing its private primitive implementation name.
                             if expected.params.is_empty() {
                                 let (args, result) = op.sig();
-                                let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &[], self, &mut |_| {})).collect();
-                                let repr_result = crate::repr::repr_of(&result, &[], self, &mut |_| {});
+                                // Derive word classes from the checked declared scheme so
+                                // immediate-proven refined params/results (e.g. `InRange 0 255 Nat`
+                                // on `bytes-get`/`bytes-set`) match the surface ABI.
+                                let mut decl_params = Vec::new();
+                                let mut cur_ty = &s.ty;
+                                loop {
+                                    match cur_ty {
+                                        Ty::Fun(a, _, _, b) => {
+                                            if !matches!(a.as_ref(), Ty::Prp(_) | Ty::Sort(_) | Ty::Idx(_)) {
+                                                decl_params.push(a.as_ref().clone());
+                                            }
+                                            cur_ty = b;
+                                        }
+                                        Ty::Pi { dom, cod, .. } => {
+                                            if !matches!(dom.as_ref(), Ty::Prp(_) | Ty::Sort(_) | Ty::Idx(_)) {
+                                                decl_params.push(dom.as_ref().clone());
+                                            }
+                                            cur_ty = cod;
+                                        }
+                                        _ => break,
+                                    }
+                                }
+                                let (use_params, use_result) = if decl_params.len() == args.len() {
+                                    (decl_params, cur_ty.clone())
+                                } else {
+                                    (args.clone(), result)
+                                };
+                                let repr_params = use_params.iter().map(|t| crate::repr::repr_of(t, &[], self, &mut |_| {})).collect();
+                                let repr_result = crate::repr::repr_of(&use_result, &[], self, &mut |_| {});
                                 self.fns.push(FnDef {
                                     id: fn_id(&module, &f.name.text),
                                     params: (0..args.len()).map(|i| format!("p{i}")).collect(),
@@ -4076,7 +4185,7 @@ impl Checker {
                         ));
                     }
                     let s = self.conv_scheme(&p.ty)?;
-                    if !s.params.is_empty() || !s.ctx.is_empty() {
+                    if !s.ctx.is_empty() {
                         return Err(Error::at(
                             p.span,
                             "a prim cannot be polymorphic or constrained (primitive operations and inline target IR specification section 2)",
@@ -4086,7 +4195,9 @@ impl Checker {
                     // the declared arguments in the declared ABI and
                     // return the declared result shape (foreign function
                     // interface specification section 2: widths,
-                    // signedness, convention).
+                    // signedness, convention). Type and region parameters
+                    // are permitted only under pointer roles whose ABI
+                    // carrier is concretely `ptr`.
                     let (arg_tys, _) = self.check_prim_envelope(p, &s.ty)?;
                     let mut immarg: Vec<usize> = Vec::new();
                     for b in &p.bodies {
@@ -4195,6 +4306,11 @@ impl Checker {
                     // section 5).
                     let (params, param_kinds) = self.nominal_params(&data.params)?;
                     let mut ctors: Vec<(String, usize)> = Vec::new();
+                    let mut auto_niche_eligible = !self.embedded_modules.contains(&module)
+                        && set.repr.is_none()
+                        && !data.ctors.is_empty()
+                        && param_kinds.iter().all(|k| matches!(k, ParamKind::Type));
+                    let mut auto_niche_max_arity: usize = 0;
                     // The head is already registered: every data and record
                     // head in the module was registered before any
                     // constructor type converted, so a data declaration may
@@ -4362,6 +4478,12 @@ impl Checker {
                             field_tys.iter().map(|t| erased_ty(t)).collect();
                         let runtime_arity =
                             field_erased.iter().filter(|e| !**e).count();
+                        if runtime_arity > auto_niche_max_arity {
+                            auto_niche_max_arity = runtime_arity;
+                        }
+                        if auto_niche_eligible && !local_idx.is_empty() {
+                            auto_niche_eligible = false;
+                        }
                         let mut all = field_tys.clone();
                         all.extend(res_args.iter().cloned());
                         let mut type_params: Vec<String> = Vec::new();
@@ -4480,6 +4602,15 @@ impl Checker {
                                 span: data.name.span,
                             },
                         );
+                    } else if auto_niche_eligible
+                        && (data.ctors.len() >= 2
+                            || (data.ctors.len() == 1 && params.is_empty() && auto_niche_max_arity >= 2))
+                    {
+                        self.auto_niche_candidates.push((
+                            module.clone(),
+                            data.name.text.clone(),
+                            data.name.span,
+                        ));
                     }
                     let entry = self
                         .types
@@ -5120,7 +5251,7 @@ impl Checker {
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell") {
+                    if matches!(rec.name.text.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell") {
                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
                     }
                     // The head is already registered, with its parameter
@@ -5149,6 +5280,9 @@ impl Checker {
                             }
                             self.unpack_requests.entry(fn_id(&module, &rec.name.text))
                                 .or_default().insert(f.name.text.clone(), f.span);
+                        } else if fset.unpack == Some(false) {
+                            self.nounpack_requests.entry(fn_id(&module, &rec.name.text))
+                                .or_default().insert(f.name.text.clone());
                         }
                         if let Some(fr) = fset.repr {
                             if !fr.field_only() {
@@ -5160,10 +5294,10 @@ impl Checker {
                                     ),
                                 ));
                             }
-                            if !set.repr.as_ref().map(|r| r.c_layout).unwrap_or(false) {
+                            if !set.repr.as_ref().map(|r| r.c_layout || r.value).unwrap_or(false) {
                                 return Err(Error::at(
                                     f.span,
-                                    "a field's representation applies to fields of a `repr(C)` record (attribute annotations specification section 9's open decision admits them there)",
+                                    "a field's representation applies to fields of a `repr(C)` record (or `repr(value)` record) (attribute annotations specification section 9's open decision admits them there)",
                                 ));
                             }
                             field_reprs.push(fr);
@@ -5243,6 +5377,21 @@ impl Checker {
                                 span: rec.name.span,
                             },
                         );
+                    } else if !self.embedded_modules.contains(&module) && params.is_empty() {
+                        if !self.unpack_requests.contains_key(&fn_id(&module, &rec.name.text))
+                            && runtime_arity >= 2
+                        {
+                            self.auto_niche_candidates.push((
+                                module.clone(),
+                                rec.name.text.clone(),
+                                rec.name.span,
+                            ));
+                        }
+                        self.auto_unpack_candidates.push((
+                            module.clone(),
+                            rec.name.text.clone(),
+                            rec.name.span,
+                        ));
                     }
                     let res_args: Vec<Ty> = params
                         .iter()
@@ -5361,7 +5510,7 @@ impl Checker {
                         || matches!(
                             rec.name.text.as_str(),
                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
+                                | "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )
@@ -5526,10 +5675,10 @@ impl Checker {
                     self.codata_types.insert((module.clone(), rec.name.text.clone()));
                 }
                 ast::Decl::Signature(sig) => {
-                    if matches!(sig.name.text.as_str(), "Copy" | "Share") {
+                    if matches!(sig.name.text.as_str(), "Copy" | "Share" | "Boxed") {
                         return Err(Error::at(
                             sig.name.span,
-                            "Copy is a compiler-known class with structural instances (ownership and usage design, section 3); it cannot be declared",
+                            format!("{} is a compiler-known class with structural instances; it cannot be declared", sig.name.text),
                         ));
                     }
                     if self
@@ -6610,23 +6759,138 @@ impl Checker {
                     .get(&(module.to_string(), cname.clone()))
                     .cloned()
                     .unwrap();
-                let (runtime_arity, fields) = match &v.kind {
+                let (runtime_arity, fields, non_erased_tys) = match &v.kind {
                     ValueKind::Ctor { runtime_arity, field_tys, field_erased, .. } => {
                         // Each runtime field's class over the data type's own
                         // parameters (`Cons` is `[Param(0), Obj]`).
-                        let fields: Vec<Class> = field_tys
+                        let non_erased_tys: Vec<Ty> = field_tys
                             .iter()
                             .zip(field_erased)
                             .filter(|(_, e)| !**e)
-                            .map(|(t, _)| crate::repr::repr_of(t, &v.scheme.params, self, &mut |_| {}))
+                            .map(|(t, _)| self.uni.zonk(t))
                             .collect();
-                        (*runtime_arity, (fields, v.scheme.params.len()))
+                        let fields: Vec<Class> = non_erased_tys
+                            .iter()
+                            .map(|t| crate::repr::repr_of(t, &v.scheme.params, self, &mut |_| {}))
+                            .collect();
+                        (*runtime_arity, (fields, v.scheme.params.len()), non_erased_tys)
                     }
                     _ => unreachable!(),
                 };
                 if let Some(plan) = self.unpacked_record(t) {
                     let (builder, storage) = plan.units(fn_id(module, cname), fields.0, self);
                     self.fns.extend([builder, storage]);
+                    continue;
+                }
+                if let Some(&lid) = self.value_records.get(&(t.module.clone(), t.name.clone())) {
+                    let vlayout = self.value_layouts[lid as usize].clone();
+                    let val_params: Vec<Option<u32>> = match &vlayout.kind {
+                        crate::core::ValueLayoutKind::Struct { fields: vf } => vf
+                            .iter()
+                            .map(|f| {
+                                if matches!(f.layout.kind, crate::core::ValueLayoutKind::Scalar { .. }) {
+                                    None
+                                } else {
+                                    Some(self.intern_value_layout(f.layout.clone()))
+                                }
+                            })
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    let body = if runtime_arity == 0 {
+                        Core::App(
+                            Box::new(Core::Prim(PrimOp::Value(crate::core::ValOp::Construct {
+                                layout: lid,
+                                arity: 0,
+                            }))),
+                            Vec::new(),
+                        )
+                    } else {
+                        Core::App(
+                            Box::new(Core::Prim(PrimOp::Value(crate::core::ValOp::Construct {
+                                layout: lid,
+                                arity: runtime_arity as u16,
+                            }))),
+                            (0..runtime_arity).map(|i| Core::Var(LocalId(i))).collect(),
+                        )
+                    };
+                    self.fns.push(FnDef {
+                        id: fn_id(module, cname),
+                        params: (0..runtime_arity).map(|i| format!("f{i}")).collect(),
+                        body,
+                        prim: None,
+                        ctor: None,
+                        hints: Default::default(),
+                        meta: Default::default(),
+                        repr: crate::core::UnitRepr {
+                            tparams: fields.1,
+                            result: Some(Class::Raw),
+                            params: fields.0,
+                            value_params: val_params,
+                            value_result: Some(lid),
+                            ..Default::default()
+                        },
+                    });
+                    continue;
+                }
+                if let Some((carrier, cplan)) = self.niche_ctors.get(&fn_id(module, cname)).cloned() {
+                    match &cplan {
+                        NicheCtorPlan::Nullary { sentinel } => {
+                            self.fns.push(FnDef {
+                                id: fn_id(module, cname),
+                                params: Vec::new(),
+                                body: Core::Int(*sentinel),
+                                prim: None,
+                                ctor: None,
+                                hints: Default::default(),
+                                meta: Default::default(),
+                                repr: crate::core::UnitRepr {
+                                    result: Some(carrier),
+                                    params: Vec::new(),
+                                    tparams: fields.1,
+                                    ..Default::default()
+                                },
+                            });
+                        }
+                        NicheCtorPlan::Packed { fields: pfields, .. } => {
+                            let param_names: Vec<String> = (0..pfields.len()).map(|i| format!("f{i}")).collect();
+                            let args: Vec<Core> = (0..pfields.len()).map(|i| Core::Var(LocalId(i))).collect();
+                            let body = lower_niche_ctor_apply(&cplan, args);
+                            self.fns.push(FnDef {
+                                id: fn_id(module, cname),
+                                params: param_names,
+                                body,
+                                prim: None,
+                                ctor: None,
+                                hints: Default::default(),
+                                meta: Default::default(),
+                                repr: crate::core::UnitRepr {
+                                    result: Some(carrier),
+                                    params: fields.0,
+                                    tparams: fields.1,
+                                    ..Default::default()
+                                },
+                            });
+                        }
+                        _ => {
+                            let body = lower_niche_ctor_apply(&cplan, vec![Core::Var(LocalId(0))]);
+                            self.fns.push(FnDef {
+                                id: fn_id(module, cname),
+                                params: vec!["payload".into()],
+                                body,
+                                prim: None,
+                                ctor: None,
+                                hints: Default::default(),
+                                meta: Default::default(),
+                                repr: crate::core::UnitRepr {
+                                    result: Some(carrier),
+                                    params: fields.0,
+                                    tparams: fields.1,
+                                    ..Default::default()
+                                },
+                            });
+                        }
+                    }
                     continue;
                 }
                 if self.unboxed_payload(t).is_some() {
@@ -6661,7 +6925,8 @@ impl Checker {
                         fields: fields.0,
                         data: Some(format!("{}.{}", t.module, t.name)),
                         result: Some(Class::Obj),
-                    dictionary_values: Vec::new(),
+                        dictionary_values: Vec::new(),
+                        ..Default::default()
                     },
                 });
             }
@@ -6701,6 +6966,7 @@ impl Checker {
                         data: Some(family_identity),
                         result: Some(Class::Obj),
                         dictionary_values: Vec::new(),
+                        ..Default::default()
                     },
                 });
             }
@@ -8613,6 +8879,9 @@ impl Checker {
                 if pure_arrow_ty(&doms[i]) {
                     meta.pure_arrows.push(pos);
                 }
+                if self.is_immortal_enum_ty(&doms[i]) {
+                    meta.immortal_params.push(pos);
+                }
             }
         }
         for (l, c) in &dict_meta {
@@ -8763,14 +9032,30 @@ impl Checker {
             Some(suffix) => (erased_parameter_stages(suffix, body), None),
             None => (body, self.total_sort(&self.uni.zonk(&rest), &mut Vec::new())),
         };
-        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)?;
+        self.finish_fn(id.clone(), param_ids.clone(), body, None, None, false, meta, total_result)?;
         let result = if erased_suffix.is_some() {
             Class::Obj
         } else {
             crate::repr::repr_of(&self.uni.zonk(&rest), &self.cur_tparams, self, &mut |_| {})
         };
+        let value_params: Vec<Option<u32>> = param_ids
+            .iter()
+            .map(|p| {
+                let t = self.local_tys.get(p).cloned()?;
+                self.unboxed_value_layout_id(&t)
+            })
+            .collect();
+        let value_result = if erased_suffix.is_some() {
+            None
+        } else {
+            self.unboxed_value_layout_id(&rest)
+        };
         if let Some(unit) = self.fns.iter_mut().find(|unit| unit.id == *id) {
             unit.repr.result = Some(result);
+            if value_params.iter().any(|v| v.is_some()) {
+                unit.repr.value_params = value_params;
+            }
+            unit.repr.value_result = value_result;
         }
         Ok(())
     }
@@ -9107,13 +9392,19 @@ impl Checker {
                         });
                     }
                     let result = h.result.as_ref().map(|ty| crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {}));
-                    let mut unit = if h.extra.is_empty() {
-                        finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?
+                    let (mut unit, inferred_result) = if h.extra.is_empty() {
+                        let inf = if result.is_none() { cx.expr_class(&h.body) } else { None };
+                        (finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?, inf)
                     } else {
                         let mut unit_cx = LowerCx::new(self, &unit_tparams, &own);
-                        finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut unit_cx)?
+                        let inf = if result.is_none() { unit_cx.expr_class(&h.body) } else { None };
+                        (finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut unit_cx)?, inf)
                     };
-                    if result.is_some() { unit.repr.result = result; }
+                    if result.is_some() {
+                        unit.repr.result = result;
+                    } else if let Some(inf) = inferred_result.filter(|c| c.is_val() || c.is_param() || *c == Class::Wide) {
+                        unit.repr.result = Some(inf);
+                    }
                     done.push(unit);
                 }
             }
@@ -11175,6 +11466,14 @@ impl Checker {
                     }
                 }
             }
+            PTerm::Pred(PredFn::NotNaN, _) => match v {
+                Value::Word(bits) => Some(!f64::from_bits(*bits as u64).is_nan()),
+                _ => None,
+            },
+            PTerm::Pred(PredFn::Finite, _) => match v {
+                Value::Word(bits) => Some(f64::from_bits(*bits as u64).is_finite()),
+                _ => None,
+            },
             PTerm::Cmp(op, a, b) => {
                 let x = self.itern_value(a, binder, v)?;
                 let y = self.itern_value(b, binder, v)?;
@@ -11576,6 +11875,113 @@ impl Checker {
                 // methods consume samples in that carrier's runtime layout.
                 if let Some(payload) = self.unboxed_payload(tk) {
                     return self.law_samples(payload, depth);
+                }
+                if let Some(plan) = self.niche_plan(tk).cloned() {
+                    let mut out: Vec<Value> = Vec::new();
+                    for (_, cname, cplan) in &plan.by_tag {
+                        match cplan {
+                            NicheCtorPlan::Nullary { sentinel } => {
+                                out.push(Value::Word(*sentinel));
+                            }
+                            NicheCtorPlan::Packed { tag_word, fields: pfields, .. } => {
+                                let Some(v) = self.qualified.get(&(tk.module.clone(), cname.clone())) else {
+                                    continue;
+                                };
+                                let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind else {
+                                    continue;
+                                };
+                                let mut map: HashMap<String, Ty> = HashMap::new();
+                                for (i, p) in ty_params.iter().enumerate() {
+                                    if let Some(a) = args.get(i) {
+                                        map.insert(p.clone(), a.clone());
+                                    }
+                                }
+                                let rftys: Vec<Ty> = field_tys
+                                    .iter()
+                                    .zip(field_erased.iter())
+                                    .filter(|(_, e)| !**e)
+                                    .map(|(t, _)| Self::subst_ty(t, &map))
+                                    .collect();
+                                let cap = if rftys.len() <= 2 { 3 } else { 2 };
+                                let mut words: Vec<i64> = vec![*tag_word];
+                                for (pf, fty) in pfields.iter().zip(rftys.iter()) {
+                                    let fvals: Vec<i64> = self
+                                        .law_samples(fty, depth - 1)
+                                        .into_iter()
+                                        .filter_map(|s| word_of(&s, "sample").ok())
+                                        .take(cap)
+                                        .collect();
+                                    if fvals.is_empty() {
+                                        words.clear();
+                                        break;
+                                    }
+                                    let mut next = Vec::new();
+                                    for acc in &words {
+                                        for &fv in &fvals {
+                                            if pf.bits == 0 {
+                                                next.push(*acc);
+                                            } else {
+                                                let v0 = fv.wrapping_sub(pf.bias);
+                                                let v1 = if pf.signed && pf.bits < 64 {
+                                                    v0 & (((1u64 << pf.bits) - 1) as i64)
+                                                } else {
+                                                    v0
+                                                };
+                                                next.push(*acc | v1.wrapping_shl(pf.shift));
+                                            }
+                                        }
+                                    }
+                                    words = next;
+                                }
+                                for w in words {
+                                    out.push(Value::Word(w));
+                                }
+                            }
+                            _ => {
+                                let Some(v) = self.qualified.get(&(tk.module.clone(), cname.clone())) else {
+                                    continue;
+                                };
+                                let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind else {
+                                    continue;
+                                };
+                                let mut map: HashMap<String, Ty> = HashMap::new();
+                                for (i, p) in ty_params.iter().enumerate() {
+                                    if let Some(a) = args.get(i) {
+                                        map.insert(p.clone(), a.clone());
+                                    }
+                                }
+                                if let Some((pty, _)) = field_tys.iter().zip(field_erased.iter()).find(|(_, e)| !**e) {
+                                    let inst = Self::subst_ty(pty, &map);
+                                    for sample in self.law_samples(&inst, depth - 1) {
+                                        match cplan {
+                                            NicheCtorPlan::Ptr { ptr_tag, .. } if *ptr_tag != 0 => {
+                                                out.push(Value::Adt {
+                                                    ctor: "$niche_tag".into(),
+                                                    tag: *ptr_tag as usize,
+                                                    fields: vec![sample],
+                                                });
+                                            }
+                                            NicheCtorPlan::Shifted { tag_word, shift, bias, .. } => {
+                                                if let Ok(w) = word_of(&sample, "sample") {
+                                                    let enc = (w.wrapping_sub(*bias).wrapping_shl(*shift)) | *tag_word;
+                                                    out.push(Value::Word(enc));
+                                                }
+                                            }
+                                            NicheCtorPlan::NanF64 { .. } => {
+                                                if let Ok(w) = word_of(&sample, "sample") {
+                                                    let f = f64::from_bits(w as u64);
+                                                    let c = if f.is_nan() { 0x7FF8_0000_0000_0000u64 as i64 } else { w };
+                                                    out.push(Value::Word(c));
+                                                }
+                                            }
+                                            _ => out.push(sample),
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return out;
                 }
                 if let Some(r) = &tk.refine {
                     // A refinement's samples are the container's samples
@@ -12506,6 +12912,13 @@ impl Checker {
         program.foreigns = foreigns;
         program.prims = self.prims;
         program.laws = self.law_rows;
+        program.value_layouts = self.value_layouts;
+        for ((m, n), plan) in self.poly_niche_plans {
+            program.poly_niche.insert(format!("{m}.{n}"), plan);
+        }
+        for (gid, entry) in self.poly_niche_ctors {
+            program.poly_niche_ctors.insert(gid.0, entry);
+        }
         // This is the original complete checked constructor inventory,
         // before dictionary lowering, specialization or reachability pruning.
         program.certify_builtin_constructors()?;
@@ -12551,18 +12964,18 @@ impl Checker {
                 return Err(Error::at(
                     p.span,
                     crate::diagnostic!(
-                        "a prim body receives its arguments as machine scalars in the declared ABI (foreign function interface specification section 2), not {}",
+                        "a prim body receives its arguments as machine scalars or pointers in the declared ABI (foreign function interface specification section 2), not {}",
                         a
                     ),
                 ));
             }
         }
         let res = cur.clone();
-        if !self.is_prim_abi_ty(&res) {
+        if !matches!(self.unwrap_prim_abi_ty(&res), Ty::Unit) && !self.is_prim_abi_ty(&res) {
             return Err(Error::at(
                 p.span,
                 crate::diagnostic!(
-                    "a prim body returns the declared result shape: a machine scalar (foreign function interface specification section 2), not {}",
+                    "a prim body returns the declared result shape: a machine scalar, pointer, or `Unit` (foreign function interface specification section 2), not {}",
                     res
                 ),
             ));
@@ -12637,23 +13050,32 @@ impl Checker {
         }
     }
 
+    /// Target pointer width in bytes (`4` on 32-bit/wasm32, `8` on 64-bit).
+    pub(crate) fn ptr_bytes(&self) -> u64 {
+        u64::from(self.usize_bits) / 8
+    }
+
     /// One `uses` contract slot: the interface record and the ABI shape.
     fn prim_use_slot(&self, ty: &Ty) -> (crate::interface::ForeignParam, crate::core::PrimAbiTy) {
         let shape = self.prim_abi_shape(ty);
-        let (width, signed) = match shape {
-            crate::core::PrimAbiTy::Int { bits, signed } => (u64::from(bits) / 8, signed),
-            crate::core::PrimAbiTy::F32 => (4, true),
-            crate::core::PrimAbiTy::F64 => (8, true),
+        let (class, role, width, signed) = match shape {
+            crate::core::PrimAbiTy::Int { bits, signed } => {
+                ("scalar", "value", u64::from(bits) / 8, signed)
+            }
+            crate::core::PrimAbiTy::F32 => ("scalar", "value", 4, true),
+            crate::core::PrimAbiTy::F64 => ("scalar", "value", 8, true),
+            crate::core::PrimAbiTy::Ptr => ("pointer", "raw", self.ptr_bytes(), false),
+            crate::core::PrimAbiTy::Unit => ("unit", "value", 0, false),
         };
         (
             crate::interface::ForeignParam {
                 ty: ty.to_string(),
-                class: "scalar".to_string(),
-                role: "value".to_string(),
+                class: class.to_string(),
+                role: role.to_string(),
                 allocator: String::new(),
                 nullable: false,
                 width,
-                align: width,
+                align: width.max(1),
                 signed,
                 offsets: Vec::new(),
             },
@@ -12684,33 +13106,41 @@ impl Checker {
         cur
     }
 
-    /// Is this type a prim ABI scalar (the declared ABI's widths)?
+    /// Is this type a prim ABI scalar or native pointer (the declared ABI's widths)?
     fn is_prim_abi_ty(&self, ty: &Ty) -> bool {
-        matches!(self.unwrap_prim_abi_ty(ty), Ty::Prim(_) | Ty::Bool)
+        match self.unwrap_prim_abi_ty(ty) {
+            Ty::Prim(_) | Ty::Bool | Ty::Ptr { .. } => true,
+            Ty::Adt(ref n, _) => self.lookup_known_type(n).is_ok_and(|t| t.opaque),
+            _ => false,
+        }
     }
 
-    /// The declared ABI shape of one prim scalar (the inline fragment's
+    /// The declared ABI shape of one prim scalar or pointer (the inline fragment's
     /// widths; primitive operations and inline target IR specification
     /// section 4).
     fn prim_abi_shape(&self, ty: &Ty) -> crate::core::PrimAbiTy {
         use crate::core::PrimAbiTy;
         use crate::types::Scalar;
         match self.unwrap_prim_abi_ty(ty) {
+            Ty::Unit => PrimAbiTy::Unit,
             Ty::Prim(Scalar::F32) => PrimAbiTy::F32,
             Ty::Prim(Scalar::F64) => PrimAbiTy::F64,
             Ty::Prim(Scalar::Usize) => PrimAbiTy::Int { bits: self.usize_bits, signed: false },
             Ty::Prim(Scalar::Isize) => PrimAbiTy::Int { bits: self.usize_bits, signed: true },
             Ty::Prim(s) => PrimAbiTy::Int { bits: s.width(), signed: s.is_signed() },
+            Ty::Ptr { .. } => PrimAbiTy::Ptr,
+            Ty::Adt(ref n, _) if self.lookup_known_type(n).is_ok_and(|t| t.opaque) => PrimAbiTy::Ptr,
             // `Bool` crosses as its `i8` value bits.
             _ => PrimAbiTy::Int { bits: 8, signed: false },
         }
     }
 
-    /// The LLVM type spelling of a prim ABI scalar (the family's
-    /// fragment grammar speaks these widths).
+    /// The LLVM type spelling of a prim ABI scalar, pointer, or `Unit` result
+    /// (the family's fragment grammar speaks these widths).
     fn prim_abi_word(&self, ty: &Ty) -> Result<String> {
         use crate::types::Scalar;
         Ok(match self.unwrap_prim_abi_ty(ty) {
+            Ty::Unit => "void".into(),
             Ty::Prim(Scalar::I8) | Ty::Prim(Scalar::U8) => "i8".into(),
             Ty::Prim(Scalar::I16) | Ty::Prim(Scalar::U16) => "i16".into(),
             Ty::Prim(Scalar::I32) | Ty::Prim(Scalar::U32) | Ty::Prim(Scalar::Char) => "i32".into(),
@@ -12720,6 +13150,8 @@ impl Checker {
             Ty::Prim(Scalar::F64) => "double".into(),
             Ty::Prim(Scalar::Usize) | Ty::Prim(Scalar::Isize) => format!("i{}", self.usize_bits),
             Ty::Bool => "i8".into(),
+            Ty::Ptr { .. } => "ptr".into(),
+            Ty::Adt(ref n, _) if self.lookup_known_type(n).is_ok_and(|t| t.opaque) => "ptr".into(),
             other => {
                 return Err(Error::plain(crate::diagnostic!(
                     "internal error: {} is not a prim ABI type",
@@ -13486,11 +13918,6 @@ impl Checker {
     /// role asserts of the memory it points at (`None` asserts nothing,
     /// as for `RawPtr`, opaque handles and types without a recorded
     /// layout). The facts feed the LLVM contract surface's `align`,
-    /// `dereferenceable` and `!align` claims.
-    fn ptr_bytes(&self) -> u64 {
-        (self.usize_bits / 8) as u64
-    }
-
     fn pointee_layout(&self, pointee: &Ty) -> Option<(u64, u64)> {
         match pointee {
             Ty::Prim(s) => Some((s.align_for(self.usize_bits), s.size_for(self.usize_bits))),
@@ -13565,6 +13992,7 @@ impl Checker {
             tag: 0,
             fields: Vec::new(),
             leaves: Vec::new(),
+            value_layout: None,
         };
         match ty {
             Ty::Unit => Ok(p),
@@ -13645,7 +14073,7 @@ impl Checker {
                         ty
                     )));
                 };
-                if layout.repr == "unboxed" || layout.repr == "uniform-word" || layout.discriminant.is_some() {
+                if layout.repr == "unboxed" || layout.repr == "niche" || layout.repr == "uniform-word" || layout.discriminant.is_some() {
                     return Err(Error::plain(crate::diagnostic!(
                         "the recorded layout of {} is `{}`, which has no C representation at the boundary (foreign function interface specification section 2: a source-language type name is not an ABI specification; this slice rejects fixed-discriminant data and boxed aggregates instead of guessing)",
                         ty, layout.repr
@@ -13695,6 +14123,7 @@ impl Checker {
                 p.width = layout.size;
                 p.align = layout.align;
                 p.tag = tag as u64;
+                p.value_layout = self.value_records.get(&(info.module.clone(), info.name.clone())).copied();
                 let mut slot = 0;
                 for (fty, er) in field_tys.iter().zip(field_erased.iter()) {
                     if *er {
@@ -13789,7 +14218,12 @@ impl Checker {
             else {
                 continue;
             };
-            if layout.repr == "unboxed" || layout.repr == "uniform-word" || layout.fields.is_empty() {
+            if layout.repr == "unboxed"
+                || layout.repr == "niche"
+                || layout.repr == "uniform-word"
+                || layout.fields.is_empty()
+                || self.value_records.contains_key(&(t.module.clone(), t.name.clone()))
+            {
                 continue;
             }
             for (cname, tag) in &t.ctors {
@@ -13871,14 +14305,19 @@ fn crossing(t: &Ty, types: &dyn crate::repr::TypeReprs) -> Option<crate::core::C
         // sign-extended for a signed scalar and zero-extended for an
         // unsigned one (or a float's bits), so the boundary has to know
         // which way to extend back into the slot.
-        Ty::Prim(s) => {
-            let bits = match s {
-                Scalar::I8 | Scalar::U8 => 8,
-                Scalar::I16 | Scalar::U16 => 16,
-                Scalar::I32 | Scalar::U32 | Scalar::F32 => 32,
-                _ => return None,
-            };
-            Some(Crossing::Bits { bits, signed: s.is_signed() })
+        Ty::Prim(s) => match s {
+            Scalar::I8 | Scalar::U8 => Some(Crossing::Bits { bits: 8, signed: s.is_signed() }),
+            Scalar::I16 | Scalar::U16 => Some(Crossing::Bits { bits: 16, signed: s.is_signed() }),
+            Scalar::I32 | Scalar::U32 | Scalar::F32 => {
+                Some(Crossing::Bits { bits: 32, signed: s.is_signed() })
+            }
+            Scalar::Usize => Some(Crossing::Csize { signed: false }),
+            Scalar::Isize => Some(Crossing::Csize { signed: true }),
+            _ => None,
+        },
+        Ty::Ptr { .. } => Some(Crossing::Ptr),
+        Ty::Ref(_, inner) | Ty::Mut(_, inner) if crate::repr::is_value_ty(inner, types) => {
+            Some(Crossing::Ptr)
         }
         Ty::Nat => Some(Crossing::Csize { signed: false }),
         Ty::Int => Some(Crossing::Csize { signed: true }),
@@ -14042,8 +14481,12 @@ pub(crate) struct ReprSpec {
     /// `repr(C)`: the platform C layout algorithm over source-order
     /// fields.
     pub c_layout: bool,
+    /// `repr(value)`: headerless, non-refcounted, stack/inline POD value record.
+    pub value: bool,
     /// The constructor has the runtime representation of its payload.
     pub unboxed: bool,
+    /// `repr(niche)`: single-word niche-fused sum representation.
+    pub niche: bool,
     /// `repr(transparent)`: exactly the single field's representation.
     pub transparent: bool,
     /// `repr(align(N))`: the type's alignment floor (section 4.2: the
@@ -14062,13 +14505,13 @@ pub(crate) struct ReprSpec {
 impl ReprSpec {
     /// Does this representation lay out fields?
     fn has_fields(&self) -> bool {
-        self.unboxed || self.c_layout || self.transparent || self.align.is_some() || self.packed.is_some()
+        self.unboxed || self.niche || self.c_layout || self.value || self.transparent || self.align.is_some() || self.packed.is_some()
     }
 
     /// The field-level forms: `align(N)` and `packed(N)` (the section 9
-    /// open decision admits them on fields of `repr(C)` records).
+    /// open decision admits them on fields of `repr(C)` or `repr(value)` records).
     fn field_only(&self) -> bool {
-        !self.unboxed && !self.c_layout && !self.transparent && self.discriminant.is_none()
+        !self.unboxed && !self.niche && !self.c_layout && !self.value && !self.transparent && self.discriminant.is_none()
     }
 }
 
@@ -14160,9 +14603,19 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
                 }
                 spec.unboxed = true;
             }
+            ("niche", None) => {
+                if raw.trim() != "niche" {
+                    return Err(Error::at(a.span, "repr(niche) must appear on its own"));
+                }
+                spec.niche = true;
+            }
             ("C", None) => {
                 once(spec.c_layout)?;
                 spec.c_layout = true;
+            }
+            ("value", None) => {
+                once(spec.value)?;
+                spec.value = true;
             }
             ("transparent", None) => {
                 once(spec.transparent)?;
@@ -14215,7 +14668,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
     // one field's layout, `align` only raises, and a fixed discriminant
     // is its own representation.
     if spec.transparent
-        && (spec.c_layout || spec.align.is_some() || spec.packed.is_some() || spec.discriminant.is_some())
+        && (spec.c_layout || spec.value || spec.align.is_some() || spec.packed.is_some() || spec.discriminant.is_some())
     {
         return Err(Error::at(
             a.span,
@@ -14229,7 +14682,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
         ));
     }
     if spec.discriminant.is_some()
-        && (spec.c_layout || spec.align.is_some() || spec.packed.is_some())
+        && (spec.c_layout || spec.value || spec.align.is_some() || spec.packed.is_some())
     {
         return Err(Error::at(
             a.span,
@@ -14241,7 +14694,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
 
 fn repr_item_error(t: &str) -> String {
     format!(
-        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `unboxed`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
+        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `value`, `unboxed`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
     )
 }
 
@@ -14791,6 +15244,8 @@ pub(crate) struct ForeignMarks {
     pub ptrs: HashSet<String>,
     /// Foreign names whose binding contract marshals an aggregate.
     pub aggregates: HashSet<String>,
+    /// `#[repr(value)]` record names (stack/value constructed, zero heap allocation).
+    pub value_records: HashSet<String>,
 }
 
 /// Is this pattern refutable (a check that can fail)?
@@ -14976,15 +15431,24 @@ impl<'a> FactWalk<'a> {
                     "joinAllOrCancel" => self.facts.conc_sites.push(("join".to_string(), span)),
                     _ => {}
                 }
-                if name == "mutBorrow" {
-                    // The `Mut` introduction is an allocation site
-                    // (attribute annotations specification section 10:
-                    // a `Mut` cell is fresh state).
-                    self.facts.alloc_sites.push(AllocRec {
-                        what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
-                        span,
-                        closure: self.closure,
-                    });
+                if name == "mutBorrow" || name == "mut-borrow" {
+                    // An interior sub-borrow (`mutBorrow m.field`) is a zero-allocation
+                    // byte-offset GEP over an existing place; only fresh `Mut` cell
+                    // introduction allocates.
+                    let is_place_subborrow = matches!(args, [ast::Term::Proj(..)]);
+                    if !is_place_subborrow {
+                        // The `Mut` introduction is an allocation site
+                        // (attribute annotations specification section 10:
+                        // a `Mut` cell is fresh state).
+                        self.facts.alloc_sites.push(AllocRec {
+                            what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
+                            span,
+                            closure: self.closure,
+                        });
+                    }
+                }
+                if name == "mutAsPtr" || name == "mut-as-ptr" {
+                    self.facts.ptr_ops.push((name.to_string(), span));
                 }
                 if self.foreign.ptrs.contains(name) {
                     self.facts.ptr_ops.push((name.to_string(), span));
@@ -15070,6 +15534,28 @@ impl<'a> FactWalk<'a> {
                 self.note_span(*s);
             }
             ast::Term::App(f, args, _) => {
+                // `withLocal init (\m -> body)` inlines its lambda on the stack
+                // with zero heap/closure allocation.
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "withLocal" | "with-local")
+                        && !self.in_scope(&p.name.text)
+                        && args.len() == 2
+                    {
+                        self.walk_child(&args[0]);
+                        if let ast::Term::Lam(pats, body, _) = &args[1] {
+                            let depth = self.frames.len();
+                            for pat in pats {
+                                self.bind_pat(pat, None);
+                            }
+                            let saved_tail = self.tail;
+                            self.walk_term(body);
+                            self.tail = saved_tail;
+                            self.frames.truncate(depth);
+                            return;
+                        }
+                    }
+                }
                 // The application head is the call; its arguments run
                 // before it in non-tail position. A `decide` operand is
                 // a validating check of the parameters it examines (the
@@ -15090,11 +15576,14 @@ impl<'a> FactWalk<'a> {
                     ast::Term::Var(p) => self.record_head(p, args),
                     ast::Term::Con(p) => {
                         self.note_span(p.span());
-                        self.facts.alloc_sites.push(AllocRec {
-                            what: format!("the constructor `{}`", p.parts().last().unwrap_or(&"")),
-                            span: p.span(),
-                            closure: self.closure,
-                        });
+                        let cname = *p.parts().last().unwrap_or(&"");
+                        if !self.foreign.value_records.contains(cname) {
+                            self.facts.alloc_sites.push(AllocRec {
+                                what: format!("the constructor `{cname}`"),
+                                span: p.span(),
+                                closure: self.closure,
+                            });
+                        }
                     }
                     other => self.walk_child(other),
                 }
@@ -15256,14 +15745,14 @@ impl<'a> FactWalk<'a> {
             }
             ast::Term::Record(path, fields, s) => {
                 self.note_span(*s);
-                self.facts.alloc_sites.push(AllocRec {
-                    what: format!(
-                        "the record construction of `{}`",
-                        path.parts().last().unwrap_or(&"")
-                    ),
-                    span: *s,
-                    closure: self.closure,
-                });
+                let rname = *path.parts().last().unwrap_or(&"");
+                if !self.foreign.value_records.contains(rname) {
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: format!("the record construction of `{rname}`"),
+                        span: *s,
+                        closure: self.closure,
+                    });
+                }
                 for (_, v) in fields {
                     self.walk_child(v);
                 }
@@ -15873,6 +16362,14 @@ impl Checker {
             if agg {
                 marks.aggregates.insert(f.symbol.clone());
                 marks.aggregates.insert(f.external.clone());
+            }
+        }
+        for (_, name) in self.value_records.keys() {
+            marks.value_records.insert(name.clone());
+        }
+        for ((_, name), r) in &self.layout_recipes {
+            if r.repr.value {
+                marks.value_records.insert(name.clone());
             }
         }
         marks
@@ -18263,7 +18760,185 @@ impl Checker {
                 self.unboxed_ctors.insert(fn_id(&m, &kind.ctors[0].0), payload.1.clone());
             }
         }
+        let candidates = self.auto_niche_candidates.clone();
+        for (m, n, span) in candidates {
+            if self.try_auto_niche(&m, &n, span, &mut Vec::new()).is_none() {
+                self.try_poly_niche(&m, &n, span);
+            }
+        }
         Ok(())
+    }
+
+    fn try_poly_niche(&mut self, module: &str, name: &str, span: ast::Span) {
+        let key = (module.to_string(), name.to_string());
+        if self.niche_plans.contains_key(&key)
+            || self.poly_niche_plans.contains_key(&key)
+            || self.type_layouts.contains_key(&key)
+            || self.layout_recipes.contains_key(&key)
+        {
+            return;
+        }
+        let Some(kind) = self
+            .types
+            .get(name)
+            .and_then(|ts| ts.iter().find(|t| t.module == module))
+            .cloned()
+        else {
+            return;
+        };
+        if kind.opaque
+            || self.open_data_families.contains(&kind.identity)
+            || kind.arity == 0
+            || kind.arity > 16
+            || kind.ctors.len() < 2
+            || kind.identity == crate::known::OPTION
+            || kind.identity == crate::known::RESULT
+        {
+            return;
+        }
+        let mut nullaries: Vec<(usize, String)> = Vec::new();
+        let mut ptr_arms: Vec<(usize, String)> = Vec::new();
+        let mut req_mask: u16 = 0;
+        let mut has_param_payload = false;
+        let mut stack = vec![key.clone()];
+        for (cname, tag) in &kind.ctors {
+            let Some(v) = self.qualified.get(&(module.to_string(), cname.clone())).cloned() else {
+                return;
+            };
+            let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind else {
+                return;
+            };
+            let runtime_fields: Vec<Ty> = field_tys
+                .iter()
+                .zip(field_erased.iter())
+                .filter(|(_, e)| !**e)
+                .map(|(t, _)| t.clone())
+                .collect();
+            match runtime_fields.as_slice() {
+                [] => nullaries.push((*tag, cname.clone())),
+                [pty] => {
+                    let pty = self.uni.zonk(pty);
+                    if let Ty::Param(p) = &pty {
+                        let Some(idx) = ty_params.iter().position(|tp| tp == p) else { return; };
+                        if idx >= 16 { return; }
+                        req_mask |= 1u16 << (idx as u16);
+                        has_param_payload = true;
+                        ptr_arms.push((*tag, cname.clone()));
+                    } else if matches!(
+                        self.extract_niche_domain(&pty, span, &mut stack),
+                        Ok(NicheDomain::NonNullObj { ref used }) if used.is_empty()
+                    ) {
+                        ptr_arms.push((*tag, cname.clone()));
+                    } else {
+                        return;
+                    }
+                }
+                _ => return,
+            }
+        }
+        if !has_param_payload || ptr_arms.is_empty() || ptr_arms.len() > 3 || req_mask == 0 {
+            return;
+        }
+        if let Some(pref) = ptr_arms
+            .iter()
+            .position(|(_, cn)| matches!(cn.as_str(), "Ok" | "Right" | "Some" | "Found" | "Good" | "Just"))
+        {
+            if pref != 0 {
+                ptr_arms.swap(0, pref);
+            }
+        }
+        let mut by_tag = Vec::new();
+        let mut sentinels = Vec::new();
+        let mut used_null = false;
+        let mut next_odd: i64 = 1;
+        for (tag, cname) in nullaries {
+            let s = if !used_null {
+                used_null = true;
+                0
+            } else {
+                let c = next_odd;
+                next_odd += 2;
+                c
+            };
+            sentinels.push(s);
+            let cplan = crate::core::PolyNicheCtor::Nullary { sentinel: s };
+            self.poly_niche_ctors
+                .insert(fn_id(module, &cname), (kind.identity.clone(), cplan.clone()));
+            by_tag.push((tag, cname, cplan));
+        }
+        for (i, (tag, cname)) in ptr_arms.into_iter().enumerate() {
+            let ptag = (i as i64) * 2;
+            let cplan = crate::core::PolyNicheCtor::Ptr {
+                ptr_tag: ptag,
+                check_nonnull: ptag == 0 && used_null,
+            };
+            self.poly_niche_ctors
+                .insert(fn_id(module, &cname), (kind.identity.clone(), cplan.clone()));
+            by_tag.push((tag, cname, cplan));
+        }
+        self.poly_niche_plans.insert(
+            key.clone(),
+            crate::core::PolyNichePlan {
+                req_mask,
+                by_tag,
+                nullary_sentinels: sentinels,
+            },
+        );
+        self.type_layouts.insert(
+            key,
+            crate::interface::AbiLayout {
+                name: name.to_string(),
+                repr: "poly-niche".to_string(),
+                size: WORD_SIZE,
+                align: WORD_ALIGN,
+                fields: Vec::new(),
+                discriminant: None,
+            },
+        );
+    }
+
+    fn try_auto_niche(
+        &mut self,
+        module: &str,
+        name: &str,
+        span: ast::Span,
+        stack: &mut Vec<(String, String)>,
+    ) -> Option<NichePlan> {
+        let key = (module.to_string(), name.to_string());
+        if let Some(plan) = self.niche_plans.get(&key) {
+            return Some(plan.clone());
+        }
+        if self.type_layouts.contains_key(&key)
+            || self.layout_recipes.contains_key(&key)
+            || stack.contains(&key)
+        {
+            return None;
+        }
+        stack.push(key.clone());
+        let computed = self.compute_niche_plan(module, name, span, stack);
+        stack.pop();
+        match computed {
+            Ok(plan) => {
+                let carrier = plan.carrier;
+                for (_, cname, cplan) in &plan.by_tag {
+                    self.niche_ctors.insert(fn_id(module, cname), (carrier, cplan.clone()));
+                }
+                self.niche_plans.insert(key.clone(), plan.clone());
+                self.type_layouts.insert(
+                    key,
+                    crate::interface::AbiLayout {
+                        name: name.to_string(),
+                        repr: "niche".to_string(),
+                        size: WORD_SIZE,
+                        align: WORD_ALIGN,
+                        fields: Vec::new(),
+                        discriminant: None,
+                    },
+                );
+                Some(plan)
+            }
+            Err(_) => None,
+        }
     }
 
     /// The recorded ABI layout of a type, computed on demand: an
@@ -18357,6 +19032,30 @@ impl Checker {
             }
             fields.push((n, t, fr));
         }
+        if repr.value && (!recipe.record || recipe.ctor_count != 1) {
+            return Err(err(
+                "`repr(value)` requires a `record` declaration (single-constructor POD value struct)".to_string(),
+            ));
+        }
+        if repr.niche {
+            if recipe.record {
+                return Err(err("repr(niche) applies only to data declarations".into()));
+            }
+            let plan = self.compute_niche_plan(&recipe.module, &recipe.name, span, stack)?;
+            let carrier = plan.carrier;
+            for (_, cname, cplan) in &plan.by_tag {
+                self.niche_ctors.insert(fn_id(&recipe.module, cname), (carrier, cplan.clone()));
+            }
+            self.niche_plans.insert((recipe.module.clone(), recipe.name.clone()), plan);
+            return Ok(AbiLayout {
+                name: recipe.name.clone(),
+                repr: "niche".to_string(),
+                size: WORD_SIZE,
+                align: WORD_ALIGN,
+                fields: Vec::new(),
+                discriminant: None,
+            });
+        }
         if repr.unboxed {
             if recipe.ctor_count != 1 || fields.len() != 1 {
                 return Err(err("repr(unboxed) requires one constructor with exactly one represented field".into()));
@@ -18367,7 +19066,17 @@ impl Checker {
                 Ty::Prim(s) => !s.is_wide(),
                 Ty::Adt(name, _) => {
                     let kind = self.lookup_known_type(name)?;
-                    self.layout_recipes.get(&(kind.module, kind.name)).is_some_and(|r| r.repr.unboxed)
+                    let key = (kind.module.clone(), kind.name.clone());
+                    self.layout_recipes
+                        .get(&key)
+                        .is_some_and(|r| r.repr.unboxed || r.repr.niche)
+                        || self.niche_plans.contains_key(&key)
+                        || self
+                            .auto_niche_candidates
+                            .iter()
+                            .find(|(m, n, _)| m == &key.0 && n == &key.1)
+                            .cloned()
+                            .is_some_and(|(m, n, cspan)| self.try_auto_niche(&m, &n, cspan, stack).is_some())
                 }
                 _ => false,
             };
@@ -18449,6 +19158,29 @@ impl Checker {
             type_align = raise;
         }
         let size = offset.div_ceil(type_align) * type_align;
+        if repr.value {
+            let mut vfields = Vec::with_capacity(out.len());
+            for (af, (_, fty, _)) in out.iter().zip(fields.iter()) {
+                let fl = self.pod_value_layout(fty).ok_or_else(|| {
+                    err(crate::diagnostic!(
+                        "a `repr(value)` record must contain only POD (non-refcounted) fields, not {} on field `{}`",
+                        fty, af.name
+                    ))
+                })?;
+                vfields.push(crate::core::ValueField {
+                    name: af.name.clone(),
+                    offset: af.offset,
+                    layout: fl,
+                });
+            }
+            let vl = crate::core::ValueLayout {
+                size,
+                align: type_align,
+                kind: crate::core::ValueLayoutKind::Struct { fields: vfields },
+            };
+            let id = self.intern_value_layout(vl);
+            self.value_records.insert((recipe.module.clone(), recipe.name.clone()), id);
+        }
         Ok(AbiLayout {
             name: recipe.name.clone(),
             repr: repr.spelled.clone(),
@@ -18474,8 +19206,42 @@ impl Checker {
             Ty::Bool => Ok((1, 1)),
             Ty::Prim(s) => Ok((s.size_for(self.usize_bits), s.align_for(self.usize_bits))),
             Ty::Ptr { .. } => Ok((self.ptr_bytes(), self.ptr_bytes())),
+            Ty::Adt(name, args) if name.as_str() == "FixedArray" && args.len() == 2 => {
+                let len = match &args[0] {
+                    Ty::Idx(n) => self.const_nat_of_idx(n).ok_or_else(|| {
+                        Error::at(
+                            span,
+                            "a `FixedArray` field requires a compile-time constant `Nat` length".to_string(),
+                        )
+                    })?,
+                    _ => {
+                        return Err(Error::at(
+                            span,
+                            "a `FixedArray` field requires a compile-time constant `Nat` length".to_string(),
+                        ))
+                    }
+                };
+                let (esz, eal) = self.field_size_align(&args[1], span, stack)?;
+                if self.pod_value_layout(&args[1]).is_none() {
+                    return Err(Error::at(
+                        span,
+                        crate::diagnostic!(
+                            "`FixedArray` elements must be POD (non-refcounted), not {}",
+                            args[1]
+                        ),
+                    ));
+                }
+                let stride = esz.div_ceil(eal.max(1)) * eal.max(1);
+                let total = len.checked_mul(stride).ok_or_else(|| {
+                    Error::at(span, "`FixedArray` byte size overflows u64".to_string())
+                })?;
+                Ok((total, eal.max(1)))
+            }
             Ty::Adt(name, _) => {
                 let kind = self.lookup_known_type(name.as_str())?.clone();
+                if kind.opaque {
+                    return Ok((self.ptr_bytes(), self.ptr_bytes()));
+                }
                 let key = (kind.module.clone(), kind.name.clone());
                 if self.layout_recipes.contains_key(&key) {
                     let l = self.layout_of(&key.0, &key.1, stack)?;
@@ -18490,6 +19256,960 @@ impl Checker {
             )),
             _ => Ok((WORD_SIZE, WORD_ALIGN)),
         }
+    }
+
+    fn refine_niche_domain(
+        &mut self,
+        base: &Ty,
+        binder: &str,
+        pred: &PTerm,
+        span: ast::Span,
+        stack: &mut Vec<(String, String)>,
+    ) -> Result<NicheDomain> {
+        if crate::repr::refinement_fits_immediate(base, binder, pred, self.usize_bits) {
+            return Ok(NicheDomain::OddImmediate { used: Vec::new() });
+        }
+        let mut dom = self.extract_niche_domain(base, span, stack)?;
+        let (plo, phi) = crate::repr::extract_pred_bounds(binder, pred);
+        let pexcl = crate::repr::extract_pred_exclusions(binder, pred);
+        match &mut dom {
+            NicheDomain::SignedRange { lo, hi, excluded } => {
+                if let Some(l) = plo {
+                    *lo = (*lo).max(l);
+                }
+                if let Some(h) = phi {
+                    *hi = (*hi).min(h);
+                }
+                for ex in pexcl {
+                    if ex >= *lo && ex <= *hi && !excluded.contains(&ex) {
+                        excluded.push(ex);
+                    }
+                }
+                excluded.retain(|ex| *ex >= *lo && *ex <= *hi);
+                excluded.sort_unstable();
+            }
+            NicheDomain::UnsignedRange { lo, hi, excluded } => {
+                if let Some(l) = plo {
+                    if l > 0 {
+                        *lo = (*lo).max(l as u128);
+                    }
+                }
+                if let Some(h) = phi {
+                    if h < 0 {
+                        *hi = 0;
+                        *lo = 1;
+                    } else {
+                        *hi = (*hi).min(h as u128);
+                    }
+                }
+                for ex in pexcl {
+                    if ex >= 0 {
+                        let u = ex as u128;
+                        if u >= *lo && u <= *hi && !excluded.contains(&u) {
+                            excluded.push(u);
+                        }
+                    }
+                }
+                excluded.retain(|ex| *ex >= *lo && *ex <= *hi);
+                excluded.sort_unstable();
+            }
+            _ => {}
+        }
+        Ok(dom)
+    }
+
+    fn extract_niche_domain(
+        &mut self,
+        ty: &Ty,
+        span: ast::Span,
+        stack: &mut Vec<(String, String)>,
+    ) -> Result<NicheDomain> {
+        let ty = self.uni.zonk(ty);
+        match &ty {
+            Ty::Ref(_, inner) => self.extract_niche_domain(inner, span, stack),
+            Ty::Unit => Ok(NicheDomain::UnsignedRange { lo: 0, hi: 0, excluded: Vec::new() }),
+            Ty::Bool => Ok(NicheDomain::UnsignedRange { lo: 0, hi: 1, excluded: Vec::new() }),
+            Ty::Prim(s) => match s {
+                Scalar::I8 => Ok(NicheDomain::SignedRange { lo: i8::MIN as i128, hi: i8::MAX as i128, excluded: Vec::new() }),
+                Scalar::I16 => Ok(NicheDomain::SignedRange { lo: i16::MIN as i128, hi: i16::MAX as i128, excluded: Vec::new() }),
+                Scalar::I32 => Ok(NicheDomain::SignedRange { lo: i32::MIN as i128, hi: i32::MAX as i128, excluded: Vec::new() }),
+                Scalar::I64 => Ok(NicheDomain::SignedRange { lo: i64::MIN as i128, hi: i64::MAX as i128, excluded: Vec::new() }),
+                Scalar::Isize => {
+                    let (lo, hi) = if self.usize_bits <= 32 {
+                        (i32::MIN as i128, i32::MAX as i128)
+                    } else {
+                        (i64::MIN as i128, i64::MAX as i128)
+                    };
+                    Ok(NicheDomain::SignedRange { lo, hi, excluded: Vec::new() })
+                }
+                Scalar::U8 => Ok(NicheDomain::UnsignedRange { lo: 0, hi: u8::MAX as u128, excluded: Vec::new() }),
+                Scalar::U16 => Ok(NicheDomain::UnsignedRange { lo: 0, hi: u16::MAX as u128, excluded: Vec::new() }),
+                Scalar::U32 => Ok(NicheDomain::UnsignedRange { lo: 0, hi: u32::MAX as u128, excluded: Vec::new() }),
+                Scalar::U64 => Ok(NicheDomain::UnsignedRange { lo: 0, hi: u64::MAX as u128, excluded: Vec::new() }),
+                Scalar::Usize => {
+                    let hi = if self.usize_bits <= 32 { u32::MAX as u128 } else { u64::MAX as u128 };
+                    Ok(NicheDomain::UnsignedRange { lo: 0, hi, excluded: Vec::new() })
+                }
+                Scalar::Char => Ok(NicheDomain::UnsignedRange { lo: 0, hi: 0x10FFFF, excluded: Vec::new() }),
+                Scalar::F32 => Ok(NicheDomain::UnsignedRange { lo: 0, hi: u32::MAX as u128, excluded: Vec::new() }),
+                Scalar::F64 => Ok(NicheDomain::F64Nan { used: Vec::new() }),
+                Scalar::I128 | Scalar::U128 => Err(Error::at(
+                    span,
+                    "repr(niche) payload must be a single-word integer, float, refinement, pointer, or boxed value",
+                )),
+            },
+            Ty::Nat | Ty::Int => Ok(NicheDomain::NonZeroTObj { used: Vec::new() }),
+            Ty::Bytes | Ty::Tuple(_) | Ty::Sigma { .. } | Ty::Fun(..) | Ty::Pi { .. } | Ty::Mut(..) => {
+                Ok(NicheDomain::NonNullObj { used: Vec::new() })
+            }
+            Ty::Adt(name, args) if name == "refined" => match args.as_slice() {
+                [Ty::Prp(pred), base] => {
+                    if let Some(binder) = crate::repr::anonymous_pred_binder(pred) {
+                        self.refine_niche_domain(base, &binder, pred, span, stack)
+                    } else {
+                        self.extract_niche_domain(base, span, stack)
+                    }
+                }
+                _ => Err(Error::at(span, "repr(niche) cannot inspect malformed refinement type")),
+            },
+            Ty::Adt(name, args) => {
+                if self.uni.is_type_family(name) {
+                    let reduced = self.uni.zonk(&Ty::Adt(name.clone(), args.clone()));
+                    if !matches!(&reduced, Ty::Adt(n, _) if n == name) {
+                        return self.extract_niche_domain(&reduced, span, stack);
+                    }
+                }
+                let kind = self.lookup_known_type(name)?;
+                if let Some(r) = kind.refine.as_ref() {
+                    let mut map: HashMap<String, Ty> = HashMap::new();
+                    for (p, a) in r.params.iter().zip(args) {
+                        map.insert(p.clone(), a.clone());
+                    }
+                    let base = Checker::subst_ty(&r.base, &map);
+                    let pred = Checker::subst_pt(&r.pred, &map);
+                    return self.refine_niche_domain(&base, &r.binder, &pred, span, stack);
+                }
+                if kind.opaque || name == "FixedArray" {
+                    return Err(Error::at(span, "repr(niche) cannot derive a niche from an opaque or FixedArray type"));
+                }
+                let key = (kind.module.clone(), kind.name.clone());
+                if self.value_records.contains_key(&key) {
+                    return Err(Error::at(span, "repr(niche) payload cannot be a repr(value) record"));
+                }
+                if stack.contains(&key) {
+                    return Err(Error::at(span, "repr(niche) has a recursive layout"));
+                }
+                if let Some(plan) = self.niche_plans.get(&key).cloned() {
+                    return Ok(plan.occupied);
+                }
+                if let Some(r) = self.layout_recipes.get(&key).cloned() {
+                    if r.repr.value {
+                        return Err(Error::at(span, "repr(niche) payload cannot be a repr(value) record"));
+                    } else if r.repr.niche {
+                        let _ = self.layout_of(&key.0, &key.1, stack)?;
+                        if let Some(plan) = self.niche_plans.get(&key).cloned() {
+                            return Ok(plan.occupied);
+                        }
+                    } else if r.repr.unboxed {
+                        let _ = self.layout_of(&key.0, &key.1, stack)?;
+                        if let Some(inner) = r.fields.iter().find(|(_, _, erased, _)| !*erased).map(|(_, t, _, _)| t.clone()) {
+                            return self.extract_niche_domain(&inner, span, stack);
+                        }
+                    }
+                } else if let Some((_, _, cspan)) = self
+                    .auto_niche_candidates
+                    .iter()
+                    .find(|(m, n, _)| m == &key.0 && n == &key.1)
+                    .cloned()
+                {
+                    if let Some(plan) = self.try_auto_niche(&key.0, &key.1, cspan, stack) {
+                        return Ok(plan.occupied);
+                    }
+                }
+                Ok(NicheDomain::NonNullObj { used: Vec::new() })
+            }
+            _ => Err(Error::at(
+                span,
+                "repr(niche) requires a concrete single-word payload type",
+            )),
+        }
+    }
+
+    fn compute_niche_plan(
+        &mut self,
+        module: &str,
+        name: &str,
+        span: ast::Span,
+        stack: &mut Vec<(String, String)>,
+    ) -> Result<NichePlan> {
+        let err = |m: String| Error::at(span, m);
+        let kind = self
+            .types
+            .get(name)
+            .and_then(|ts| ts.iter().find(|t| t.module == module))
+            .cloned()
+            .ok_or_else(|| err(format!("repr(niche) type {module}.{name} not found")))?;
+        if kind.opaque || self.open_data_families.contains(&kind.identity) {
+            return Err(err("repr(niche) applies only to closed data declarations".into()));
+        }
+        if kind.ctors.is_empty() {
+            return Err(err("repr(niche) requires at least one constructor".into()));
+        }
+
+        let mut nullaries: Vec<(usize, String)> = Vec::new();
+        let mut all_payloads: Vec<(usize, String, Vec<Ty>)> = Vec::new();
+        for (cname, tag) in &kind.ctors {
+            let v = self
+                .qualified
+                .get(&(module.to_string(), cname.clone()))
+                .ok_or_else(|| err(format!("constructor {cname} not found")))?;
+            let runtime_fields: Vec<Ty> = match &v.kind {
+                ValueKind::Ctor { field_tys, field_erased, .. } => field_tys
+                    .iter()
+                    .zip(field_erased.iter())
+                    .filter(|(_, e)| !**e)
+                    .map(|(t, _)| t.clone())
+                    .collect(),
+                _ => Vec::new(),
+            };
+            if runtime_fields.is_empty() {
+                nullaries.push((*tag, cname.clone()));
+            } else {
+                all_payloads.push((*tag, cname.clone(), runtime_fields));
+            }
+        }
+
+        // Helper: extract `(bits, signed, bias)` for a small scalar domain fitting in <= 60 bits.
+        let small_raw_shape = |dom: &NicheDomain| -> Option<(u32, bool, i64)> {
+            match dom {
+                NicheDomain::UnsignedRange { lo, hi, .. } if *lo <= *hi => {
+                    let span = *hi - *lo;
+                    if span < (1u128 << 60) {
+                        let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
+                        if *lo == 0 {
+                            Some((bits, false, 0))
+                        } else if *lo <= i64::MAX as u128 {
+                            Some((bits, false, *lo as i64))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+                NicheDomain::SignedRange { lo, hi, .. } if *lo <= *hi => {
+                    if *lo >= 0 {
+                        let span = (*hi - *lo) as u128;
+                        if span < (1u128 << 60) && *lo <= i64::MAX as i128 {
+                            let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
+                            Some((bits, false, *lo as i64))
+                        } else {
+                            None
+                        }
+                    } else if *lo >= -(1i128 << 59) && *hi < (1i128 << 59) {
+                        let need_pos = if *hi > 0 { 128 - (*hi as u128).leading_zeros() } else { 0 };
+                        let need_neg = if *lo < 0 { 128 - ((!*lo) as u128).leading_zeros() } else { 0 };
+                        let bits = need_pos.max(need_neg) + 1;
+                        if bits <= 60 { Some((bits, true, 0)) } else { None }
+                    } else {
+                        let span = (*hi - *lo) as u128;
+                        if span < (1u128 << 60) && *lo >= i64::MIN as i128 && *lo <= i64::MAX as i128 {
+                            let bits = if span == 0 { 0 } else { 128 - span.leading_zeros() };
+                            Some((bits, false, *lo as i64))
+                        } else {
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            }
+        };
+        let bits_for_count = |count: usize| -> u32 {
+            if count <= 1 { 0 } else { usize::BITS - (count - 1).leading_zeros() }
+        };
+
+        // Tier 2: if any constructor has >= 2 runtime fields, try bit-packing into 1 word.
+        if all_payloads.iter().any(|(_, _, fs)| fs.len() >= 2) {
+            let mut extracted: Vec<(usize, String, Vec<(Ty, NicheDomain)>)> = Vec::with_capacity(all_payloads.len());
+            for (tag, cname, ftys) in all_payloads {
+                let mut fdoms = Vec::with_capacity(ftys.len());
+                for fty in ftys {
+                    let dom = self.extract_niche_domain(&fty, span, stack)?;
+                    fdoms.push((fty, dom));
+                }
+                extracted.push((tag, cname, fdoms));
+            }
+            let pack_fields = |start_shift: u32, fdoms: &[(Ty, NicheDomain)]| -> Option<(Vec<PackedField>, u32)> {
+                let mut cur = start_shift;
+                let mut out = Vec::with_capacity(fdoms.len());
+                for (_, dom) in fdoms {
+                    let (bits, signed, bias) = small_raw_shape(dom)?;
+                    if cur + bits > 64 {
+                        return None;
+                    }
+                    out.push(PackedField { shift: cur, bits, signed, bias });
+                    cur += bits;
+                }
+                Some((out, cur))
+            };
+
+            // Subcase M1: single-constructor bit-packed product (record or 1-ctor data).
+            if nullaries.is_empty() && extracted.len() == 1 {
+                let (tag, cname, fdoms) = extracted.remove(0);
+                if let Some((pfields, total_bits)) = pack_fields(0, &fdoms) {
+                    let hi = if total_bits < 64 { (1u128 << total_bits) - 1 } else { u64::MAX as u128 };
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag: vec![(
+                            tag,
+                            cname,
+                            NicheCtorPlan::Packed { mask: 0, tag_word: 0, fields: pfields },
+                        )],
+                        nullary_sentinels: Vec::new(),
+                        occupied: NicheDomain::UnsignedRange { lo: 0, hi, excluded: Vec::new() },
+                    });
+                }
+                return Err(err("bit-packed product fields exceed single 64-bit word".into()));
+            }
+
+            // Separate fresh NonNullObj single-field pointer arms from bit-packable arms.
+            let mut ptr_arms: Vec<(usize, String, Ty)> = Vec::new();
+            let mut pack_arms: Vec<(usize, String, Vec<(Ty, NicheDomain)>)> = Vec::new();
+            let mut all_packable = true;
+            for (tag, cname, fdoms) in extracted {
+                if fdoms.len() == 1
+                    && matches!(&fdoms[0].1, NicheDomain::NonNullObj { used } if used.is_empty())
+                {
+                    ptr_arms.push((tag, cname, fdoms[0].0.clone()));
+                } else if fdoms.iter().all(|(_, d)| small_raw_shape(d).is_some()) {
+                    pack_arms.push((tag, cname, fdoms));
+                } else {
+                    all_packable = false;
+                    break;
+                }
+            }
+
+            // Subcase M2a: 1..=3 NonNullObj pointer arms + bit-packed odd arms + nullaries -> TObj.
+            if all_packable && !ptr_arms.is_empty() && ptr_arms.len() <= 3 && !pack_arms.is_empty() {
+                if let Some(pref) = ptr_arms
+                    .iter()
+                    .position(|(_, cn, _)| matches!(cn.as_str(), "Ok" | "Right" | "Some" | "Found"))
+                {
+                    if pref != 0 {
+                        ptr_arms.swap(0, pref);
+                    }
+                }
+                let ptr_tags: Vec<i64> = (0..ptr_arms.len()).map(|i| (i as i64) * 2).collect();
+                let mut rem_nulls = nullaries.clone();
+                let mut used_null = false;
+                let mut sentinels = Vec::new();
+                let mut by_tag = Vec::new();
+                if !rem_nulls.is_empty() {
+                    let (ntag, nname) = rem_nulls.remove(0);
+                    used_null = true;
+                    sentinels.push(0);
+                    by_tag.push((ntag, nname, NicheCtorPlan::Nullary { sentinel: 0 }));
+                }
+                let n_odd = pack_arms.len() + rem_nulls.len();
+                let subtag_bits = bits_for_count(n_odd);
+                let shift = 1 + subtag_bits;
+                let mask = (1i64 << shift) - 1;
+                let mut packed_ok = true;
+                for (j, (tag, cname, fdoms)) in pack_arms.iter().enumerate() {
+                    if let Some((pfields, _end)) = pack_fields(shift, fdoms) {
+                        let tag_word = ((j as i64) << 1) | 1;
+                        by_tag.push((
+                            *tag,
+                            cname.clone(),
+                            NicheCtorPlan::Packed { mask, tag_word, fields: pfields },
+                        ));
+                    } else {
+                        packed_ok = false;
+                        break;
+                    }
+                }
+                if packed_ok {
+                    for (k, (tag, cname)) in rem_nulls.into_iter().enumerate() {
+                        let s = (((n_odd - k - 1) as i64) << 1) | 1;
+                        sentinels.push(s);
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    for ((tag, cname, pty), ptag) in ptr_arms.into_iter().zip(ptr_tags.iter().copied()) {
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Ptr {
+                                payload_ty: pty,
+                                ptr_tag: ptag,
+                                check_nonnull: ptag == 0 && used_null,
+                            },
+                        ));
+                    }
+                    return Ok(NichePlan {
+                        carrier: Class::TObj,
+                        by_tag,
+                        nullary_sentinels: sentinels,
+                        occupied: NicheDomain::TaggedObj { ptr_tags, used_null, used_odd: Vec::new(), odd_full: true },
+                    });
+                }
+            }
+
+            // Subcase M2b: all bit-packed scalar arms + nullaries -> Raw.
+            if all_packable && ptr_arms.is_empty() && !pack_arms.is_empty() {
+                let total = pack_arms.len() + nullaries.len();
+                let tag_bits = bits_for_count(total).max(1);
+                let mask = (1i64 << tag_bits) - 1;
+                let mut by_tag = Vec::new();
+                let mut sentinels = Vec::new();
+                let mut max_total_bits = tag_bits;
+                let mut packed_ok = true;
+                let n_pack = pack_arms.len();
+                for (j, (tag, cname, fdoms)) in pack_arms.into_iter().enumerate() {
+                    if let Some((pfields, end_shift)) = pack_fields(tag_bits, &fdoms) {
+                        if end_shift > max_total_bits {
+                            max_total_bits = end_shift;
+                        }
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Packed { mask, tag_word: j as i64, fields: pfields },
+                        ));
+                    } else {
+                        packed_ok = false;
+                        break;
+                    }
+                }
+                if packed_ok {
+                    for (k, (tag, cname)) in nullaries.into_iter().enumerate() {
+                        let s = (n_pack + k) as i64;
+                        sentinels.push(s);
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    let hi = if max_total_bits < 64 { (1u128 << max_total_bits) - 1 } else { u64::MAX as u128 };
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag,
+                        nullary_sentinels: sentinels,
+                        occupied: NicheDomain::UnsignedRange { lo: 0, hi, excluded: Vec::new() },
+                    });
+                }
+            }
+
+            return Err(err(
+                "repr(niche) multi-field constructors must bit-pack into a single 64-bit word".into(),
+            ));
+        }
+
+        let mut payloads: Vec<(usize, String, Ty)> = all_payloads
+            .into_iter()
+            .map(|(tag, cname, mut fs)| (tag, cname, fs.remove(0)))
+            .collect();
+
+        // Case A: pure nullary enum -> unboxed Raw 0..k-1.
+        if payloads.is_empty() {
+            let mut by_tag = Vec::new();
+            let mut sentinels = Vec::new();
+            for (i, (tag, cname)) in nullaries.into_iter().enumerate() {
+                let s = i as i64;
+                sentinels.push(s);
+                by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+            }
+            let hi = sentinels.len().saturating_sub(1) as u128;
+            return Ok(NichePlan {
+                carrier: Class::Raw,
+                by_tag,
+                nullary_sentinels: sentinels,
+                occupied: NicheDomain::UnsignedRange { lo: 0, hi, excluded: Vec::new() },
+            });
+        }
+
+        // Case B: 1 payload constructor + N nullary constructors.
+        if payloads.len() == 1 {
+            let (ptag, pname, pty) = payloads.remove(0);
+            let dom = self.extract_niche_domain(&pty, span, stack)?;
+            let n = nullaries.len();
+            let (carrier, sentinels, occupied) = match dom {
+                NicheDomain::SignedRange { mut lo, mut hi, mut excluded } => {
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    while chosen.len() < n && !excluded.is_empty() {
+                        chosen.push(excluded.remove(0) as i64);
+                    }
+                    while chosen.len() < n && lo > i64::MIN as i128 {
+                        lo -= 1;
+                        chosen.push(lo as i64);
+                    }
+                    while chosen.len() < n && hi < i64::MAX as i128 {
+                        hi += 1;
+                        chosen.push(hi as i64);
+                    }
+                    if chosen.len() < n {
+                        return Err(err(
+                            "repr(niche) cannot find enough unused niche values for nullary constructors".into(),
+                        ));
+                    }
+                    (Class::Raw, chosen, NicheDomain::SignedRange { lo, hi, excluded })
+                }
+                NicheDomain::UnsignedRange { mut lo, mut hi, mut excluded } => {
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    while chosen.len() < n && !excluded.is_empty() {
+                        chosen.push((excluded.remove(0) as u64) as i64);
+                    }
+                    while chosen.len() < n && lo > 0 {
+                        lo -= 1;
+                        chosen.push((lo as u64) as i64);
+                    }
+                    while chosen.len() < n && hi < u64::MAX as u128 {
+                        hi += 1;
+                        chosen.push((hi as u64) as i64);
+                    }
+                    if chosen.len() < n {
+                        return Err(err(
+                            "repr(niche) cannot find enough unused niche values for nullary constructors".into(),
+                        ));
+                    }
+                    (Class::Raw, chosen, NicheDomain::UnsignedRange { lo, hi, excluded })
+                }
+                NicheDomain::OddImmediate { mut used } => {
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    let mut cand: i64 = 0;
+                    while chosen.len() < n {
+                        if !used.contains(&cand) {
+                            chosen.push(cand);
+                            used.push(cand);
+                        }
+                        cand = cand.checked_add(2).ok_or_else(|| {
+                            err("repr(niche) exhausted immediate niche space".into())
+                        })?;
+                    }
+                    (Class::Raw, chosen, NicheDomain::OddImmediate { used })
+                }
+                NicheDomain::NonNullObj { mut used } => {
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    let mut next_odd: i64 = 1;
+                    while chosen.len() < n {
+                        let cand = if !used.contains(&0) {
+                            0
+                        } else {
+                            while used.contains(&next_odd) {
+                                next_odd = next_odd.checked_add(2).ok_or_else(|| {
+                                    err("repr(niche) exhausted pointer niche space".into())
+                                })?;
+                            }
+                            let c = next_odd;
+                            next_odd = next_odd.saturating_add(2);
+                            c
+                        };
+                        chosen.push(cand);
+                        used.push(cand);
+                    }
+                    let carrier = if used.iter().any(|s| *s != 0) {
+                        Class::TObj
+                    } else {
+                        Class::Obj
+                    };
+                    (carrier, chosen, NicheDomain::NonNullObj { used })
+                }
+                NicheDomain::TaggedObj { ptr_tags, mut used_null, mut used_odd, odd_full } => {
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    let mut next_odd: i64 = 1;
+                    while chosen.len() < n {
+                        if !used_null {
+                            used_null = true;
+                            chosen.push(0);
+                        } else if !odd_full {
+                            while used_odd.contains(&next_odd) {
+                                next_odd = next_odd.checked_add(2).ok_or_else(|| {
+                                    err("repr(niche) exhausted pointer niche space".into())
+                                })?;
+                            }
+                            chosen.push(next_odd);
+                            used_odd.push(next_odd);
+                            next_odd = next_odd.saturating_add(2);
+                        } else {
+                            return Err(err(
+                                "repr(niche) cannot find enough unused niche values for nullary constructors".into(),
+                            ));
+                        }
+                    }
+                    (Class::TObj, chosen, NicheDomain::TaggedObj { ptr_tags, used_null, used_odd, odd_full })
+                }
+                NicheDomain::NonZeroTObj { mut used } => {
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    if n >= 1 && !used.contains(&0) {
+                        chosen.push(0);
+                        used.push(0);
+                    }
+                    if chosen.len() < n {
+                        return Err(err(
+                            "repr(niche) cannot find enough unused niche values for nullary constructors".into(),
+                        ));
+                    }
+                    (Class::TObj, chosen, NicheDomain::NonZeroTObj { used })
+                }
+                NicheDomain::F64Nan { mut used } => {
+                    const NAN_SENTINEL_BASE: i64 = 0x7FF8_0000_0000_0001u64 as i64;
+                    let needs_canon = used.is_empty();
+                    let mut chosen: Vec<i64> = Vec::with_capacity(n);
+                    let mut cand: i64 = NAN_SENTINEL_BASE;
+                    while chosen.len() < n {
+                        while used.contains(&cand) {
+                            cand = cand.checked_add(1).ok_or_else(|| {
+                                err("repr(niche) exhausted F64 quiet-NaN sentinel space".into())
+                            })?;
+                        }
+                        chosen.push(cand);
+                        used.push(cand);
+                        cand = cand.saturating_add(1);
+                    }
+                    let mut by_tag = Vec::new();
+                    for ((tag, cname), s) in nullaries.into_iter().zip(chosen.iter().copied()) {
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    by_tag.push((
+                        ptag,
+                        pname,
+                        if needs_canon {
+                            NicheCtorPlan::NanF64 { payload_ty: pty }
+                        } else {
+                            NicheCtorPlan::Payload { payload_ty: pty, range: None }
+                        },
+                    ));
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag,
+                        nullary_sentinels: chosen,
+                        occupied: NicheDomain::F64Nan { used },
+                    });
+                }
+            };
+            let mut by_tag = Vec::new();
+            for ((tag, cname), s) in nullaries.into_iter().zip(sentinels.iter().copied()) {
+                by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+            }
+            by_tag.push((ptag, pname, NicheCtorPlan::Payload { payload_ty: pty, range: None }));
+            return Ok(NichePlan {
+                carrier,
+                by_tag,
+                nullary_sentinels: sentinels,
+                occupied,
+            });
+        }
+
+        // Case C: >= 2 payload constructors (+ optional nullaries).
+        // Extract every payload's domain once, then try:
+        //   C1: provably disjoint refined integer ranges (zero-shift Raw),
+        //   C2: 1..=3 NonNullObj pointer arms (+ optional SmallRaw odd arms + nullaries -> TObj),
+        //   C3: all SmallRaw shifted-tag arms (+ optional nullaries -> Raw).
+        let mut arm_doms: Vec<(usize, String, Ty, NicheDomain)> = Vec::with_capacity(payloads.len());
+        for (tag, cname, pty) in payloads {
+            let dom = self.extract_niche_domain(&pty, span, stack)?;
+            arm_doms.push((tag, cname, pty, dom));
+        }
+
+        let n = nullaries.len();
+        let all_signed = arm_doms.iter().all(|a| matches!(a.3, NicheDomain::SignedRange { .. }));
+        let all_unsigned = arm_doms.iter().all(|a| matches!(a.3, NicheDomain::UnsignedRange { .. }));
+        if all_signed {
+            let signed_arms: Vec<(usize, String, Ty, i128, i128, Vec<i128>)> = arm_doms
+                .iter()
+                .map(|(tag, cname, pty, dom)| match dom {
+                    NicheDomain::SignedRange { lo, hi, excluded } => (*tag, cname.clone(), pty.clone(), *lo, *hi, excluded.clone()),
+                    _ => unreachable!(),
+                })
+                .collect();
+            let mut all_disjoint = true;
+            'chk_s: for i in 0..signed_arms.len() {
+                for j in (i + 1)..signed_arms.len() {
+                    let (_, _, _, lo1, hi1, ex1) = &signed_arms[i];
+                    let (_, _, _, lo2, hi2, ex2) = &signed_arms[j];
+                    let disjoint = *hi1 < *lo2
+                        || *hi2 < *lo1
+                        || (*lo1 == *hi1 && ex2.contains(lo1))
+                        || (*lo2 == *hi2 && ex1.contains(lo2));
+                    if !disjoint {
+                        all_disjoint = false;
+                        break 'chk_s;
+                    }
+                }
+            }
+            if all_disjoint {
+                let mut sorted: Vec<(i128, i128)> = signed_arms.iter().map(|a| (a.3, a.4)).collect();
+                sorted.sort_by_key(|r| r.0);
+                let mut chosen: Vec<i64> = Vec::new();
+                for pair in sorted.windows(2) {
+                    let mut g = pair[0].1.saturating_add(1);
+                    while g < pair[1].0 && chosen.len() < n {
+                        chosen.push(g as i64);
+                        g += 1;
+                    }
+                }
+                let mut min_lo = sorted[0].0;
+                let mut max_hi = sorted.last().unwrap().1;
+                while chosen.len() < n && min_lo > i64::MIN as i128 {
+                    min_lo -= 1;
+                    chosen.push(min_lo as i64);
+                }
+                while chosen.len() < n && max_hi < i64::MAX as i128 {
+                    max_hi += 1;
+                    chosen.push(max_hi as i64);
+                }
+                if chosen.len() == n {
+                    let mut by_tag = Vec::new();
+                    for ((tag, cname), s) in nullaries.into_iter().zip(chosen.iter().copied()) {
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    for (tag, cname, pty, lo, hi, excl) in signed_arms {
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Payload { payload_ty: pty, range: Some((false, lo, hi, excl)) },
+                        ));
+                    }
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag,
+                        nullary_sentinels: chosen,
+                        occupied: NicheDomain::SignedRange { lo: min_lo, hi: max_hi, excluded: Vec::new() },
+                    });
+                }
+            }
+        } else if all_unsigned {
+            let unsigned_arms: Vec<(usize, String, Ty, u128, u128, Vec<u128>)> = arm_doms
+                .iter()
+                .map(|(tag, cname, pty, dom)| match dom {
+                    NicheDomain::UnsignedRange { lo, hi, excluded } => (*tag, cname.clone(), pty.clone(), *lo, *hi, excluded.clone()),
+                    _ => unreachable!(),
+                })
+                .collect();
+            let mut all_disjoint = true;
+            'chk_u: for i in 0..unsigned_arms.len() {
+                for j in (i + 1)..unsigned_arms.len() {
+                    let (_, _, _, lo1, hi1, ex1) = &unsigned_arms[i];
+                    let (_, _, _, lo2, hi2, ex2) = &unsigned_arms[j];
+                    let disjoint = *hi1 < *lo2
+                        || *hi2 < *lo1
+                        || (*lo1 == *hi1 && ex2.contains(lo1))
+                        || (*lo2 == *hi2 && ex1.contains(lo2));
+                    if !disjoint {
+                        all_disjoint = false;
+                        break 'chk_u;
+                    }
+                }
+            }
+            if all_disjoint {
+                let mut sorted: Vec<(u128, u128)> = unsigned_arms.iter().map(|a| (a.3, a.4)).collect();
+                sorted.sort_by_key(|r| r.0);
+                let mut chosen: Vec<i64> = Vec::new();
+                for pair in sorted.windows(2) {
+                    let mut g = pair[0].1.saturating_add(1);
+                    while g < pair[1].0 && chosen.len() < n {
+                        chosen.push((g as u64) as i64);
+                        g += 1;
+                    }
+                }
+                let mut min_lo = sorted[0].0;
+                let mut max_hi = sorted.last().unwrap().1;
+                while chosen.len() < n && min_lo > 0 {
+                    min_lo -= 1;
+                    chosen.push((min_lo as u64) as i64);
+                }
+                while chosen.len() < n && max_hi < u64::MAX as u128 {
+                    max_hi += 1;
+                    chosen.push((max_hi as u64) as i64);
+                }
+                if chosen.len() == n {
+                    let mut by_tag = Vec::new();
+                    for ((tag, cname), s) in nullaries.into_iter().zip(chosen.iter().copied()) {
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    for (tag, cname, pty, lo, hi, excl) in unsigned_arms {
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Payload {
+                                payload_ty: pty,
+                                range: Some((true, lo as i128, hi as i128, excl.into_iter().map(|x| x as i128).collect())),
+                            },
+                        ));
+                    }
+                    return Ok(NichePlan {
+                        carrier: Class::Raw,
+                        by_tag,
+                        nullary_sentinels: chosen,
+                        occupied: NicheDomain::UnsignedRange { lo: min_lo, hi: max_hi, excluded: Vec::new() },
+                    });
+                }
+            }
+        }
+
+        // Case C2: 1..=3 fresh NonNullObj pointer arms + 0.. SmallRaw odd arms + 0.. nullaries -> TObj.
+        let mut ptr_arms: Vec<(usize, String, Ty)> = Vec::new();
+        let mut small_arms: Vec<(usize, String, Ty, u32, bool, i64)> = Vec::new();
+        let mut mixed_ok = true;
+        for (tag, cname, pty, dom) in &arm_doms {
+            match dom {
+                NicheDomain::NonNullObj { used } if used.is_empty() => {
+                    ptr_arms.push((*tag, cname.clone(), pty.clone()));
+                }
+                other => {
+                    if let Some((bits, signed, bias)) = small_raw_shape(other) {
+                        small_arms.push((*tag, cname.clone(), pty.clone(), bits, signed, bias));
+                    } else {
+                        mixed_ok = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if mixed_ok && !ptr_arms.is_empty() && ptr_arms.len() <= 3 {
+            // Prefer pointer tag 0 for hot/success constructors (`Ok`, `Right`, `Some`, `Found`).
+            if let Some(pref) = ptr_arms
+                .iter()
+                .position(|(_, cn, _)| matches!(cn.as_str(), "Ok" | "Right" | "Some" | "Found"))
+            {
+                if pref != 0 {
+                    ptr_arms.swap(0, pref);
+                }
+            }
+            let ptr_tags: Vec<i64> = (0..ptr_arms.len()).map(|i| (i as i64) * 2).collect();
+            let mut by_tag = Vec::new();
+            let mut sentinels = Vec::new();
+            let mut used_null = false;
+            let mut used_odd = Vec::new();
+            if small_arms.is_empty() {
+                let mut next_odd: i64 = 1;
+                for (tag, cname) in nullaries.clone() {
+                    let s = if !used_null {
+                        used_null = true;
+                        0
+                    } else {
+                        let c = next_odd;
+                        used_odd.push(c);
+                        next_odd += 2;
+                        c
+                    };
+                    sentinels.push(s);
+                    by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                }
+                for ((tag, cname, pty), ptag) in ptr_arms.into_iter().zip(ptr_tags.iter().copied()) {
+                    by_tag.push((
+                        tag,
+                        cname,
+                        NicheCtorPlan::Ptr {
+                            payload_ty: pty,
+                            ptr_tag: ptag,
+                            check_nonnull: ptag == 0 && used_null,
+                        },
+                    ));
+                }
+                return Ok(NichePlan {
+                    carrier: Class::TObj,
+                    by_tag,
+                    nullary_sentinels: sentinels,
+                    occupied: NicheDomain::TaggedObj { ptr_tags, used_null, used_odd, odd_full: false },
+                });
+            } else {
+                let mut rem_nulls = nullaries.clone();
+                if !rem_nulls.is_empty() {
+                    let (ntag, nname) = rem_nulls.remove(0);
+                    used_null = true;
+                    sentinels.push(0);
+                    by_tag.push((ntag, nname, NicheCtorPlan::Nullary { sentinel: 0 }));
+                }
+                let n_odd = small_arms.len() + rem_nulls.len();
+                let subtag_bits = bits_for_count(n_odd);
+                let shift = 1 + subtag_bits;
+                if small_arms.iter().all(|a| a.3 + shift <= 64) {
+                    let mask = (1i64 << shift) - 1;
+                    for (j, (tag, cname, pty, _bits, signed, bias)) in small_arms.into_iter().enumerate() {
+                        let tag_word = ((j as i64) << 1) | 1;
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Shifted {
+                                payload_ty: pty,
+                                mask,
+                                tag_word,
+                                shift,
+                                signed,
+                                bias,
+                            },
+                        ));
+                    }
+                    for (k, (tag, cname)) in rem_nulls.into_iter().enumerate() {
+                        let s = (((n_odd - k - 1) as i64) << 1) | 1;
+                        sentinels.push(s);
+                        by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                    }
+                    for ((tag, cname, pty), ptag) in ptr_arms.into_iter().zip(ptr_tags.iter().copied()) {
+                        by_tag.push((
+                            tag,
+                            cname,
+                            NicheCtorPlan::Ptr {
+                                payload_ty: pty,
+                                ptr_tag: ptag,
+                                check_nonnull: ptag == 0 && used_null,
+                            },
+                        ));
+                    }
+                    return Ok(NichePlan {
+                        carrier: Class::TObj,
+                        by_tag,
+                        nullary_sentinels: sentinels,
+                        occupied: NicheDomain::TaggedObj { ptr_tags, used_null, used_odd, odd_full: true },
+                    });
+                }
+            }
+        }
+
+        // Case C3: all SmallRaw shifted-tag sum (+ optional nullaries -> Raw).
+        if mixed_ok && ptr_arms.is_empty() && !small_arms.is_empty() {
+            let total = small_arms.len() + n;
+            let tag_bits = bits_for_count(total).max(1);
+            let max_bits = small_arms.iter().map(|a| a.3).max().unwrap_or(0);
+            if max_bits + tag_bits <= 64 {
+                let mask = (1i64 << tag_bits) - 1;
+                let any_signed = small_arms.iter().any(|a| a.4);
+                let mut by_tag = Vec::new();
+                let mut sentinels = Vec::new();
+                let n_small = small_arms.len();
+                for (j, (tag, cname, pty, _bits, signed, bias)) in small_arms.into_iter().enumerate() {
+                    by_tag.push((
+                        tag,
+                        cname,
+                        NicheCtorPlan::Shifted {
+                            payload_ty: pty,
+                            mask,
+                            tag_word: j as i64,
+                            shift: tag_bits,
+                            signed,
+                            bias,
+                        },
+                    ));
+                }
+                for (k, (tag, cname)) in nullaries.into_iter().enumerate() {
+                    let s = (n_small + k) as i64;
+                    sentinels.push(s);
+                    by_tag.push((tag, cname, NicheCtorPlan::Nullary { sentinel: s }));
+                }
+                let total_bits = max_bits + tag_bits;
+                let occupied = if !any_signed && total_bits < 64 {
+                    NicheDomain::UnsignedRange { lo: 0, hi: (1u128 << total_bits) - 1, excluded: Vec::new() }
+                } else {
+                    NicheDomain::SignedRange { lo: i64::MIN as i128, hi: i64::MAX as i128, excluded: Vec::new() }
+                };
+                return Ok(NichePlan {
+                    carrier: Class::Raw,
+                    by_tag,
+                    nullary_sentinels: sentinels,
+                    occupied,
+                });
+            }
+        }
+
+        Err(err(
+            "repr(niche) payload constructors must have provably disjoint value domains or fit in tagged single-word layout".into(),
+        ))
     }
 }
 
@@ -21564,7 +23284,7 @@ impl Checker {
     fn resolve_top(&self, module: &str, r: &ast::RefSite) -> Option<(String, String)> {
         let defined = |owner: &str, name: &str| match r.kind {
             ast::RefKind::Value => self.syntax_value_declared(owner, name),
-            ast::RefKind::Type => (owner == "<builtin>" && (builtin_type_name(name) || matches!(name, "Copy" | "Share")))
+            ast::RefKind::Type => (owner == "<builtin>" && (builtin_type_name(name) || matches!(name, "Copy" | "Share" | "Kernel" | "Boxed")))
                 || self.types.get(name).is_some_and(|ts| ts.iter().any(|t| t.module == owner && t.name == name)),
             ast::RefKind::Effect => self.effect_bindings.contains_key(&(owner.to_string(), name.to_string())),
         };
@@ -21619,7 +23339,7 @@ impl Checker {
 
     fn syntax_global_scope(&self, module: &str) -> std::sync::Arc<ast::GlobalScope> {
         let mut scope = ast::GlobalScope::new(module);
-        for name in ["Copy", "Share", "Io", "True", "False"] {
+        for name in ["Copy", "Share", "Kernel", "Boxed", "Io", "True", "False"] {
             scope.insert(ast::RefKind::Type, vec![name.into()], "<builtin>", name);
         }
         let defined = |kind, owner: &str, name: &str| match kind {
@@ -24110,6 +25830,7 @@ impl Checker {
                                 }
                                 true
                             }
+                            Value::Word(w) if fields.is_empty() && (*tag as i64) == *w => true,
                             _ => false,
                         },
                     };
@@ -24551,6 +26272,127 @@ impl Checker {
                     CmpOp::Ge => ord.is_ge(),
                 }))
             }
+            PrimOp::WordCmp { op: cmp, unsigned } => {
+                // Niche-fused Obj sums compare a runtime value (which may be a
+                // heap-allocated Value::Adt/Bytes/Tuple/Clos/Big during compile-time
+                // evaluation) against a sentinel Value::Word (0 or odd). A heap
+                // value never equals a null/odd sentinel word.
+                if !matches!(args[0], Value::Word(_) | Value::Bool(_) | Value::Unit)
+                    && matches!(args[1], Value::Word(_))
+                {
+                    return match cmp {
+                        CmpOp::Eq => Ok(Value::Bool(false)),
+                        CmpOp::Ne => Ok(Value::Bool(true)),
+                        _ => Err(Error::plain("expected a runtime word for ordered WordCmp")),
+                    };
+                }
+                let a = word_of(&args[0], "a runtime word")?;
+                let b = word_of(&args[1], "a runtime word")?;
+                let ord = if unsigned {
+                    (a as u64).cmp(&(b as u64))
+                } else {
+                    a.cmp(&b)
+                };
+                Ok(Value::Bool(match cmp {
+                    CmpOp::Eq => ord.is_eq(),
+                    CmpOp::Ne => ord.is_ne(),
+                    CmpOp::Lt => ord.is_lt(),
+                    CmpOp::Le => ord.is_le(),
+                    CmpOp::Gt => ord.is_gt(),
+                    CmpOp::Ge => ord.is_ge(),
+                }))
+            }
+            PrimOp::WordOp { op: wop } => {
+                use crate::core::WordOp as WO;
+                match wop {
+                    WO::TestMask => {
+                        let mask = word_of(&args[1], "a runtime mask")?;
+                        match &args[0] {
+                            Value::Adt { ctor, tag, .. } if ctor == "$niche_tag" => {
+                                Ok(Value::Word((*tag as i64) & mask))
+                            }
+                            Value::Word(_) | Value::Bool(_) | Value::Unit => {
+                                let a = word_of(&args[0], "a runtime word")?;
+                                Ok(Value::Word(a & mask))
+                            }
+                            _ => Ok(Value::Word(0)),
+                        }
+                    }
+                    WO::TagOr => {
+                        let tag = word_of(&args[1], "a runtime tag")?;
+                        match &args[0] {
+                            Value::Word(_) | Value::Bool(_) | Value::Unit => {
+                                let a = word_of(&args[0], "a runtime word")?;
+                                Ok(Value::Word(a | tag))
+                            }
+                            other => {
+                                if tag == 0 {
+                                    Ok(other.clone())
+                                } else {
+                                    Ok(Value::Adt {
+                                        ctor: "$niche_tag".into(),
+                                        tag: tag as usize,
+                                        fields: vec![other.clone()],
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    WO::Untag => {
+                        let mask = word_of(&args[1], "a runtime mask")?;
+                        match &args[0] {
+                            Value::Adt { ctor, fields, .. } if ctor == "$niche_tag" && fields.len() == 1 => {
+                                Ok(fields[0].clone())
+                            }
+                            Value::Word(_) | Value::Bool(_) | Value::Unit => {
+                                let a = word_of(&args[0], "a runtime word")?;
+                                Ok(Value::Word(a & mask))
+                            }
+                            other => Ok(other.clone()),
+                        }
+                    }
+                    WO::And => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let b = word_of(&args[1], "a runtime mask")?;
+                        Ok(Value::Word(a & b))
+                    }
+                    WO::Or => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let b = word_of(&args[1], "a runtime mask")?;
+                        Ok(Value::Word(a | b))
+                    }
+                    WO::Shl => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let s = word_of(&args[1], "a shift")?;
+                        Ok(Value::Word(a.wrapping_shl((s as u32) & 63)))
+                    }
+                    WO::Shr => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let s = word_of(&args[1], "a shift")?;
+                        Ok(Value::Word(a.wrapping_shr((s as u32) & 63)))
+                    }
+                    WO::Ushr => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let s = word_of(&args[1], "a shift")?;
+                        Ok(Value::Word(((a as u64).wrapping_shr((s as u32) & 63)) as i64))
+                    }
+                    WO::Add => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let b = word_of(&args[1], "a runtime word")?;
+                        Ok(Value::Word(a.wrapping_add(b)))
+                    }
+                    WO::Sub => {
+                        let a = word_of(&args[0], "a runtime word")?;
+                        let b = word_of(&args[1], "a runtime word")?;
+                        Ok(Value::Word(a.wrapping_sub(b)))
+                    }
+                    WO::NanCanon => {
+                        let a = word_of(&args[0], "a float word")?;
+                        let f = f64::from_bits(a as u64);
+                        Ok(Value::Word(if f.is_nan() { 0x7FF8_0000_0000_0000u64 as i64 } else { a }))
+                    }
+                }
+            }
             PrimOp::Arith { ty, op: aop, mode } => {
                 let (bits, signed) = scalar_shape(ty.name(), self.usize_bits).unwrap_or((64, true));
                 let a = mask_to(bits, signed, word_of(&args[0], "a machine word")?);
@@ -24980,6 +26822,39 @@ impl Checker {
                         })
                     }
                 })
+            }
+            PrimOp::Utf8(uop) => {
+                use crate::core::Utf8Op;
+                match uop {
+                    Utf8Op::Validate => {
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        Ok(Value::Bool(std::str::from_utf8(&b.borrow()).is_ok()))
+                    }
+                    Utf8Op::CountChars => {
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let buf = b.borrow();
+                        let s = std::str::from_utf8(&buf).map_err(|_| {
+                            Error::plain(
+                                "`utf8CountChars` on invalid UTF-8 faults at compile time (the runtime fault path is exit 71)",
+                            )
+                        })?;
+                        Ok(big_value(Big::from_i64(s.chars().count() as i64), true))
+                    }
+                    _ => Err(Error::plain(format!(
+                        "primitive `{}` is not available at compile time in this slice",
+                        op.symbol()
+                    ))),
+                }
             }
             PrimOp::BitScan { .. } => Err(Error::plain(
                 "bit-scan primitives are not available at compile time in this slice",
@@ -26806,6 +28681,9 @@ fn eval_llvm_prim_fragment(
             PrimAbiTy::F64 => {
                 let w = word_of(val, "an `F64`")? as u64;
                 Ssa::F64(f64::from_bits(w))
+            }
+            PrimAbiTy::Ptr | PrimAbiTy::Unit => {
+                return Err(err("pointer and unit prims cannot be evaluated at compile time".into()));
             }
         };
         env.insert(format!("%{i}"), ssa);

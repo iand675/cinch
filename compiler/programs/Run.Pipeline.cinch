@@ -19,18 +19,20 @@
 module Main where
 
   import Algebra.Semigroup
+  import Cinch.Document (Json, JObj, JStr, parse-json)
   import Cinch.Driver (read-argv)
   import Cinch.Report (render-diagnostic)
   import Cinch.Parallel (CompileStrategy, Latency, Throughput, Release, CompileTuning, tuning-with-proof-cache, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal, test-source-with-object-tuned, test-source-standalone-tuned)
+  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal, test-source-with-object-tuned, test-source-standalone-tuned, verify-codegen-source-tuned)
   import Cinch.TestRunner (parse-test-cli-args)
-  import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile, profile-with-prim-verify, profile-with-jpl, profile-with-proof-cache, profile-with-replay-only, valid-prim-verify-mode)
+  import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile, profile-of-triple, profile-with-prim-verify, profile-with-jpl, profile-with-proof-cache, profile-with-replay-only, valid-prim-verify-mode)
   import Data.List (reverse)
   import Data.Path (Path, path-from-string, path-join)
   import Data.String (string-from-bytes, string-length, string-slice)
   import Effect.Fs (fs-list, fs-read)
   import Text.Args (ArgSpec, FlagSpec, ValueSpec, OptVal, opt-name, opt-value, args-options, args-values, parse-args)
+  import Text.Parse (Parsed, Failed)
   import Text.Scan (string-starts-with, string-ends-with, string-drop)
 
   data RequestedPlatform where
@@ -145,11 +147,25 @@ module Main where
           None -> 0 in
     CompileTuning strategy workers opts.prim-verify opts.jpl [] opts.replay-only 64
 
+  json-str-field :: String -> Json -> Option String
+  json-str-field wanted doc = case doc of
+    JObj k v rest -> if k == wanted then (case v of JStr s -> Some s; _ -> None) else json-str-field wanted rest
+    _ -> None
+
   load-proof-cache-files :: forall r. using (io :: Io r) => Path -> List String -> List (String, String) ->{IO r} List (String, String)
   load-proof-cache-files dir names acc = case names of
     [] -> acc
     nm : rest ->
-      if string-ends-with ".lrat" nm && string-length nm > 5 then
+      if string-ends-with ".lrat_v1.json" nm && string-length nm > 13 then
+        let key = string-slice nm 0 (string-length nm - 13) in
+        case fs-read (path-join dir (path-from-string nm)) of
+          Ok bs -> case parse-json nm bs of
+            Parsed doc [] -> case json-str-field "payload" doc of
+              Some payload -> load-proof-cache-files dir rest ((key, payload) : acc)
+              None -> load-proof-cache-files dir rest ((key, "<corrupt-proof-cache>") : acc)
+            _ -> load-proof-cache-files dir rest ((key, "<corrupt-proof-cache>") : acc)
+          Err _ -> load-proof-cache-files dir rest acc
+      else if string-ends-with ".lrat" nm && string-length nm > 5 then
         let key = string-slice nm 0 (string-length nm - 5) in
         case fs-read (path-join dir (path-from-string nm)) of
           Ok bs -> case string-from-bytes bs of
@@ -175,6 +191,7 @@ module Main where
     SubNone :: List String -> Subcommand
     SubLink :: Bool -> List String -> Subcommand
     SubTest :: List String -> Subcommand
+    SubVerifyCodegen :: List String -> Subcommand
 
   split-cli :: List String -> List String -> Option TargetProfile -> Option (List String, Option TargetProfile, Subcommand)
   split-cli ws acc check-plat = case ws of
@@ -196,6 +213,7 @@ module Main where
       "run" -> Some (reverse acc, check-plat, SubLink True rest)
       "build" -> Some (reverse acc, check-plat, SubLink False rest)
       "test" -> Some (reverse acc, check-plat, SubTest rest)
+      "verify-codegen" -> Some (reverse acc, check-plat, SubVerifyCodegen rest)
       "--prim-verify" -> take-value w rest acc check-plat
       "--proof-cache" -> take-value w rest acc check-plat
       "--compile-profile" -> take-value w rest acc check-plat
@@ -439,6 +457,8 @@ module Main where
                             Some _ -> tuning in
                       test-words test-tuning opts.inlining opts.rc-debug opts.reclaim wanted opts.manifest opts.object-config rest
                     _ -> pipeline-bad-args
+                  SubVerifyCodegen rest ->
+                    verify-codegen-words tuning wanted opts.manifest opts.object-config rest
                   SubNone words -> case (opts.roots, opts.mode, opts.rc-debug, opts.reclaim, opts.manifest, opts.object-config, words) of
                     (None, _, _, _, _, _, _) ->
                       run-selected tuning opts.mode opts.manifest opts.object-config wanted opts.rc-debug opts.reclaim opts.inlining words
@@ -486,6 +506,57 @@ module Main where
     "--help" : _ -> True
     "-h" : _ -> True
     _ : rest -> has-help-flag rest
+
+  parse-verify-codegen-args :: List String -> Option String -> Option String -> Option Nat -> Result String (String, Option String, Option Nat)
+  parse-verify-codegen-args ws file-opt target-opt wb-opt = case ws of
+    [] -> case file-opt of
+      Some f -> Ok (f, target-opt, wb-opt)
+      None -> Err "usage: cinch verify-codegen <file.cinch> [--target=<triple>|--word-size=32|64]"
+    w : rest ->
+      if string-starts-with "--target=" w then
+        parse-verify-codegen-args rest file-opt (Some (string-drop 9 w)) wb-opt
+      else if w == "--target" then (case rest of
+        t : more -> parse-verify-codegen-args more file-opt (Some t) wb-opt
+        [] -> Err "cinch verify-codegen: --target requires a value")
+      else if string-starts-with "--word-size=" w then
+        let v = string-drop 12 w in
+        if v == "32" then parse-verify-codegen-args rest file-opt target-opt (Some 32)
+        else if v == "64" then parse-verify-codegen-args rest file-opt target-opt (Some 64)
+        else Err ("cinch verify-codegen: unsupported --word-size=`" <> v <> "` (expected 32 or 64)")
+      else if w == "--word-size" then (case rest of
+        "32" : more -> parse-verify-codegen-args more file-opt target-opt (Some 32)
+        "64" : more -> parse-verify-codegen-args more file-opt target-opt (Some 64)
+        _ -> Err "cinch verify-codegen: unsupported --word-size (expected 32 or 64)")
+      else if string-starts-with "-" w then
+        parse-verify-codegen-args rest file-opt target-opt wb-opt
+      else case file-opt of
+        None -> parse-verify-codegen-args rest (Some w) target-opt wb-opt
+        Some _ -> parse-verify-codegen-args rest file-opt target-opt wb-opt
+
+  profile-with-word-size :: Nat -> TargetProfile -> TargetProfile
+  profile-with-word-size bits profile = case profile of
+    TargetProfile name triple os arch libc old endian portable required features pv jpl pc ro ->
+      TargetProfile name triple os arch libc bits endian portable required features pv jpl pc ro
+
+  verify-codegen-words :: forall r. using (io :: Io r) => CompileTuning -> Result String TargetProfile -> Option String -> Option String -> List String ->{IO r, Diverge} Int
+  verify-codegen-words tuning wanted manifest object-config words =
+    case parse-verify-codegen-args words None None None of
+      Err msg -> do
+        _ <- ioWrite (string-to-bytes (msg <> "\n"))
+        2
+      Ok (source, target-override, wb-override) ->
+        let base-res = case target-override of
+              Some triple -> profile-of-triple triple
+              None -> wanted in
+        case base-res of
+          Err msg -> do
+            _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+            2
+          Ok base-profile ->
+            let profile = case wb-override of
+                  Some bits -> profile-with-word-size bits base-profile
+                  None -> base-profile in
+            verify-codegen-source-tuned tuning profile manifest object-config source
 
   test-words :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Result String TargetProfile -> Option String -> Option String -> List String ->{IO r, Diverge} Int
   test-words tuning inlining debug reclaim wanted manifest object-config words =

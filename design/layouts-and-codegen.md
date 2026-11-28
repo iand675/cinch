@@ -50,14 +50,14 @@ Six local, budgeted transformations (`seed/src/simplify.rs`, `seed/src/stack.rs`
 | 4 | **Call-pattern specialization** on known closures & function records | simplifier | `--no-specialise-arguments` |
 | 5 | **Frame-allocated continuations** for non-tail consumed closures | `stack.rs` | `--no-stack-alloc` |
 | 6 | **Constructed product results (CPR)** in registers (1–3 fields) | codegen | `CINCH_NO_CPR=1` |
-| 7 | **Constructed sum results (CSR)** in `{ i64, i64 }` registers (2-variant 0/1-word sums) | codegen | automatic (`#cc` / `#csr`) |
+| 7 | **Constructed sum results (CSR)** in `{ i8, i64 }` / `{ i8, i64, i64 }` registers (2-variant 0–2-word sums) | codegen | automatic (`#cc` / `#csr`) |
 
 ### Key mechanics
 - **Selective `tailcc`:** only units in the greatest fixed point of guaranteed tail calls use LLVM's `tailcc` (`X#cc` behind a C-ABI wrapper `X`), avoiding x86-64 callee-pops overhead on non-tail leaves. On ELF 64-bit targets, apply stubs carry GHC-style prefix data (`CINCHTL2` + tail twin `X.tapp`) so tail calls through unknown closures execute as `musttail call tailcc` in constant stack (Mach-O keeps known `tailcc` calls but omits prefix-data indirect twins due to Mach-O text-relocation limits; Wasm/32-bit keep `#tail` widened workers).
 - **Contification:** converts `let k = \... -> ...` where every occurrence of `k` is a saturated tail call into a `Join`/`Jump` block carrying counted captures explicitly so RC remains sound.
 - **Call-pattern specialization:** redirects calls passing known closures, static records, or constructors containing functions to cached copies (`f.spN`, budgeted at 4/callee, 256/program, `<= 4000` Core nodes), including self-recursive calls.
 - **Constructed product results (CPR):** units whose tail leaves all construct the same 1–3 word product return `{ i64, ... }` directly in registers; callers that immediately `case`-destructure the result (`virtual_let`) never allocate a heap block.
-- **Constructed sum results (CSR):** functions returning an eligible two-variant sum with 0/1-word payloads (`Option`, `Result`, user two-constructor `data` types) emit an unboxed `{ i64, i64 }` (`{ tag, payload }`) worker (`#cc` in `seed/`, `#csr` in `compiler/`) called directly at `case`-scrutinized and recursive sites with exact Perceus RC on matched or discarded payloads, while keeping a standard boxed C-ABI wrapper for escaping or higher-order uses.
+- **Constructed sum results (CSR):** functions returning an eligible two-variant sum with 0–2 uniform-word payloads (`Option`, `Result`, user two-constructor `data` types) emit an unboxed `{ i8, i64 }` or `{ i8, i64, i64 }` (`{ tag, payload... }`) worker (`#cc` in `seed/`, `#csr` in `compiler/`) called directly at `case`-scrutinized and recursive sites with exact Perceus RC on matched or discarded payloads, while keeping a standard boxed C-ABI wrapper for escaping or higher-order uses.
 
 ---
 

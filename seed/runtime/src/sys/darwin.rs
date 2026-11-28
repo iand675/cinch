@@ -58,6 +58,15 @@ mod c {
 
     unsafe extern "C" {
         pub(super) fn CC_SHA256(data: *const c_void, len: u32, digest: *mut u8) -> *mut u8;
+        pub(super) fn CC_SHA512(data: *const c_void, len: u32, digest: *mut u8) -> *mut u8;
+        pub(super) fn CCHmac(
+            algorithm: u32,
+            key: *const c_void,
+            key_len: usize,
+            data: *const c_void,
+            data_len: usize,
+            mac_out: *mut c_void,
+        );
         pub(super) fn write(fd: i32, buf: *const u8, n: usize) -> isize;
         pub(super) fn read(fd: i32, buf: *mut u8, n: usize) -> isize;
         pub(super) fn close(fd: i32) -> i32;
@@ -109,12 +118,40 @@ mod c {
     }
 }
 
+/// `kCCHmacAlgSHA256` from `<CommonCrypto/CommonHMAC.h>`.
+const CC_HMAC_ALG_SHA256: u32 = 2;
+
 pub(crate) fn sha256(data: &[u8]) -> Option<[u8; 32]> {
     let len = u32::try_from(data.len()).ok()?;
     let mut digest = [0; 32];
     // CommonCrypto reads exactly len bytes and writes 32 bytes to digest.
     let result = unsafe { c::CC_SHA256(data.as_ptr().cast(), len, digest.as_mut_ptr()) };
     (!result.is_null()).then_some(digest)
+}
+
+pub(crate) fn sha512(data: &[u8]) -> Option<[u8; 64]> {
+    let len = u32::try_from(data.len()).ok()?;
+    let mut digest = [0u8; 64];
+    // CommonCrypto reads exactly len bytes and writes 64 bytes to digest.
+    let result = unsafe { c::CC_SHA512(data.as_ptr().cast(), len, digest.as_mut_ptr()) };
+    (!result.is_null()).then_some(digest)
+}
+
+pub(crate) fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+    let mut mac = [0u8; 32];
+    // CommonCrypto reads `key.len()` and `message.len()` bytes (zero-length
+    // slices are accepted without dereferencing) and writes 32 bytes to `mac`.
+    unsafe {
+        c::CCHmac(
+            CC_HMAC_ALG_SHA256,
+            key.as_ptr().cast(),
+            key.len(),
+            message.as_ptr().cast(),
+            message.len(),
+            mac.as_mut_ptr().cast(),
+        );
+    }
+    mac
 }
 
 /// The error number of a call that answered `last`: 0 when the answer is

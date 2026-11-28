@@ -8,7 +8,7 @@ module Cinch.Export where
   import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, TemporalRow, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Cinch.Unpack (unpacked-abi)
   import Cinch.Logical (specification-names)
-  import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
+  import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, ValueData, ValueField, CStructData, NicheData, PolyNicheData, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
   import Cinch.Typing (task-source-forwarder, task-forwarder-type)
   import Cinch.Core (CoreTerm, CLocal, CUse, CApply, CApplyEff, CRequire, CDischarge, CorePattern, CPVar, CPWild, CoreClause)
   import Cinch.Guarded (check-guarded-binding)
@@ -18,7 +18,7 @@ module Cinch.Export where
   import Cinch.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Cinch.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Cinch.ExportType
-  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof)
+  import Cinch.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof, foreign-primitive-cache-entries)
   import Cinch.PrimVerify (PrimProofFact, prim-proof-fact-to-json)
   import Cinch.ExportNominal
   import Cinch.Load (contract-intrinsic, LoadedInterface, loaded-entry, nominal-owner)
@@ -31,7 +31,7 @@ module Cinch.Export where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
 
-  export export-interfaces, export-interfaces-aliased, export-object-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows, checked-temporal-rows
+  export export-interfaces, export-interfaces-aliased, export-object-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows, checked-temporal-rows, checked-proof-cache-entries
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if name == key then value else field name rest; other -> JNull
   text :: Json -> String
@@ -93,6 +93,8 @@ module Cinch.Export where
     UPropNotNull input -> type-measures input
     UPropAscii input -> type-measures input
     UPropOrdered input -> type-measures input
+    UPropNotNaN input -> type-measures input
+    UPropFinite input -> type-measures input
     UPropNonZeroPending input -> type-measures input
     URequire predicates body -> type-measures predicates <> type-measures body
     URefine id name carrier predicate -> type-measures carrier <> type-measures predicate
@@ -987,6 +989,29 @@ module Cinch.Export where
       UniformData -> more
       layout -> (case export-global (core-data-name d) of Ok identity -> hash-map-insert identity layout more; Err message -> more)
 
+  value-abi-fields :: List ValueField -> Json
+  value-abi-fields fs = case fs of
+    [] -> JArrEnd
+    f : rest ->
+      let row = JObj "name" (JStr (f.vf-name)) (JObj "offset" (JNum (nat-to-int (f.vf-offset))) (JObj "size" (JNum (nat-to-int (f.vf-size))) (JObj "align" (JNum (nat-to-int (f.vf-align))) JObjEnd))) in
+      JArr row (value-abi-fields rest)
+  value-abi :: String -> Nat -> Nat -> List ValueField -> Json
+  value-abi repr size align fs =
+    JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (value-abi-fields fs) (JObj "repr" (JStr repr) JObjEnd)))
+  c-struct-field-rows :: List (String, Nat, Nat, Nat) -> Json
+  c-struct-field-rows rows = case rows of
+    [] -> JArrEnd
+    (label, off, sz, al) : rest ->
+      let entry = JObj "name" (JStr label) (JObj "offset" (JNum (nat-to-int off))
+            (JObj "size" (JNum (nat-to-int sz)) (JObj "align" (JNum (nat-to-int al)) JObjEnd))) in
+      JArr entry (c-struct-field-rows rest)
+
+  c-struct-abi :: String -> Nat -> Nat -> List (String, Nat, Nat, Nat) -> Json
+  c-struct-abi repr size align fields =
+    JObj "size" (JNum (nat-to-int size))
+      (JObj "align" (JNum (nat-to-int align))
+        (JObj "fields" (c-struct-field-rows fields)
+          (JObj "repr" (JStr repr) JObjEnd)))
   wrapper-abi :: String -> String -> Nat -> Nat -> Json
   wrapper-abi repr label size align = let offset = JObj "offset" (JNum 0) (JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) JObjEnd)) in
     JObj "size" (JNum (nat-to-int size)) (JObj "align" (JNum (nat-to-int align)) (JObj "fields" (JArr (JObj "name" (JStr label) offset) JArrEnd) (JObj "repr" (JStr repr) JObjEnd)))
@@ -996,6 +1021,10 @@ module Cinch.Export where
           Some (UnpackedRecord slots) -> unpacked-abi slots
           Some (UnboxedData label word size align) -> wrapper-abi "unboxed" label size align
           Some (TransparentData label size align) -> wrapper-abi "transparent" label size align
+          Some (ValueData repr size align fs) -> value-abi repr size align fs
+          Some (CStructData repr size align fields) -> c-struct-abi repr size align fields
+          Some (NicheData word ctors) -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "niche") JObjEnd)))
+          Some (PolyNicheData req ctors) -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "poly-niche") JObjEnd)))
           other -> JObj "size" (JNum 8) (JObj "align" (JNum 8) (JObj "fields" JArrEnd (JObj "repr" (JStr "uniform-word") JObjEnd)))) in
       JArr (JObj "type" (field "name" row) layout) (layouts index rest)
     other -> JArrEnd
@@ -1392,6 +1421,14 @@ module Cinch.Export where
   build-profile-manifest entry target-facts interfaces rows = build-generated-manifest [] JArrEnd (JObj "contracts" JArrEnd JObjEnd) entry target-facts interfaces rows
   checked-primitive-rows :: CheckedProgram -> Json
   checked-primitive-rows checked = primitive-rows (elaboration-bindings (checked.elaboration)) JArrEnd
+  checked-proof-cache-entries :: CheckedProgram -> List (String, String, String)
+  checked-proof-cache-entries checked = binding-proof-cache-entries (elaboration-bindings (checked.elaboration))
+  binding-proof-cache-entries :: List CheckedBinding -> List (String, String, String)
+  binding-proof-cache-entries bindings = case bindings of
+    [] -> []
+    binding : rest -> case checked-foreign-plan binding of
+      Some plan -> foreign-primitive-cache-entries plan <> binding-proof-cache-entries rest
+      None -> binding-proof-cache-entries rest
   primitive-rows :: List CheckedBinding -> Json -> Json
   primitive-rows bindings rows = case bindings of
     [] -> rows
@@ -1409,15 +1446,28 @@ module Cinch.Export where
   generated-modules reports = case reports of
     [] -> JObjEnd
     (owner, names) : rest -> JObj owner (sort-list (sorted names [])) (generated-modules rest)
+  qualify-prim-proof-rows :: String -> Json -> Json
+  qualify-prim-proof-rows owner rows = case rows of
+    JArr row rest ->
+      let local = text (field "name" row) in
+      let qname = string-concat-all [owner, ".", local] in
+      JArr (JObj "module" (JStr owner) (JObj "qualified_name" (JStr qname) row)) (qualify-prim-proof-rows owner rest)
+    other -> JArrEnd
+  build-prim-proof-rows :: List (String, String, Json) -> Json
+  build-prim-proof-rows contracts = case contracts of
+    [] -> JArrEnd
+    (name, hash, doc) : rest -> append (qualify-prim-proof-rows name (field "prim_proofs" doc)) (build-prim-proof-rows rest)
   build-generated-manifest :: List (String, List String) -> Json -> Json -> String -> Json -> List LoadedInterface -> List (String, Json) -> Json
   build-generated-manifest generated primitives temporal entry target-facts interfaces rows =
     let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
     let trust = JObj "primitives" (build-assumptions "primitives" contracts)
           (JObj "foreign" (build-assumptions "foreign" contracts)
             (JObj "declared" (build-assumptions "declared" contracts) JObjEnd)) in
-    JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
-      (JObj "prims" primitives (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
-        (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "temporal" temporal (JObj "target" target-facts JObjEnd))))))))
+    let prim-proofs = build-prim-proof-rows contracts in
+    attach-optional-field "prim_proofs" prim-proofs
+      (JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
+        (JObj "prims" primitives (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
+          (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "temporal" temporal (JObj "target" target-facts JObjEnd)))))))))
 
   source-build-contracts :: List (String, Json) -> List (String, String, Json)
   source-build-contracts rows = case rows of

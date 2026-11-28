@@ -57,6 +57,24 @@ pub struct BodyExport {
     pub body: Core,
 }
 
+/// One polymorphic template in the artifact: a generic function (`tparams > 0`)
+/// or parameter-dependent constructor (`ctor.is_some()`, `fields` containing
+/// `Param(i)`). Consumers linking against a prebuilt library object instantiate
+/// these templates on demand at consumer-local `Class::Val { size, align }`
+/// layouts without rebuilding the dependency.
+#[derive(Clone, Debug)]
+pub struct TemplateExport {
+    pub unit: String,
+    pub tparams: usize,
+    pub arity: usize,
+    pub params: Vec<Class>,
+    pub result: Option<Class>,
+    pub ctor: Option<(usize, usize)>,
+    pub fields: Vec<Class>,
+    pub data: Option<String>,
+    pub body: Core,
+}
+
 /// The artifact for one module.
 #[derive(Clone, Debug)]
 pub struct Optimisation {
@@ -68,6 +86,8 @@ pub struct Optimisation {
     /// The interface identity these bodies were produced against.
     pub iface_hash: String,
     pub bodies: Vec<BodyExport>,
+    /// Polymorphic Core templates for cross-module `Class::Val` specialization.
+    pub templates: Vec<TemplateExport>,
 }
 
 impl Optimisation {
@@ -80,6 +100,7 @@ impl Optimisation {
             module: module.into(),
             iface_hash: iface_hash.into(),
             bodies: Vec::new(),
+            templates: Vec::new(),
         }
     }
 
@@ -105,15 +126,47 @@ impl Optimisation {
                 ]))
             })
             .collect::<Vec<_>>();
-        JsonValue::obj([
-            ("schema", self.schema.into()),
-            ("language", self.language.as_str().into()),
-            ("runtime_abi", self.runtime_abi.into()),
-            ("compiler", self.compiler.as_str().into()),
-            ("module", self.module.as_str().into()),
-            ("iface_hash", self.iface_hash.as_str().into()),
-            ("bodies", JsonValue::Arr(rows)),
-        ])
+        let mut tpls: Vec<_> = self.templates.iter().collect();
+        tpls.sort_by(|a, b| a.unit.cmp(&b.unit));
+        let template_rows = tpls
+            .iter()
+            .filter_map(|tpl| {
+                let encoded = if tpl.ctor.is_some() {
+                    JsonValue::Null
+                } else {
+                    encode_core_with(&tpl.body, true)?
+                };
+                let mut fields: BTreeMap<String, JsonValue> = BTreeMap::new();
+                fields.insert("unit".into(), tpl.unit.as_str().into());
+                fields.insert("tparams".into(), (tpl.tparams as u64).into());
+                fields.insert("arity".into(), (tpl.arity as u64).into());
+                fields.insert("params".into(), letters(&tpl.params).into());
+                fields.insert("body".into(), encoded);
+                if let Some(res) = tpl.result {
+                    fields.insert("result".into(), class_str(res).into());
+                }
+                if let Some((tag, arity)) = tpl.ctor {
+                    fields.insert("ctor".into(), JsonValue::Arr(vec![(tag as u64).into(), (arity as u64).into()]));
+                    fields.insert("fields".into(), letters(&tpl.fields).into());
+                }
+                if let Some(data) = &tpl.data {
+                    fields.insert("data".into(), data.as_str().into());
+                }
+                Some(JsonValue::Obj(fields))
+            })
+            .collect::<Vec<_>>();
+        let mut top: BTreeMap<String, JsonValue> = BTreeMap::new();
+        top.insert("schema".into(), self.schema.into());
+        top.insert("language".into(), self.language.as_str().into());
+        top.insert("runtime_abi".into(), self.runtime_abi.into());
+        top.insert("compiler".into(), self.compiler.as_str().into());
+        top.insert("module".into(), self.module.as_str().into());
+        top.insert("iface_hash".into(), self.iface_hash.as_str().into());
+        top.insert("bodies".into(), JsonValue::Arr(rows));
+        if !template_rows.is_empty() {
+            top.insert("templates".into(), JsonValue::Arr(template_rows));
+        }
+        JsonValue::Obj(top)
     }
 
     /// The artifact's own identity: the content hash of its canonical bytes.
@@ -187,6 +240,77 @@ impl Optimisation {
             }
             bodies.push(BodyExport { unit, arity, params, body });
         }
+        let mut templates = Vec::new();
+        if let Some(tpl_val) = o.get("templates") {
+            let tpl_rows = tpl_val.as_array()?;
+            let mut seen_tpl = BTreeSet::new();
+            for row in tpl_rows {
+                let r = row.as_object()?;
+                let unit = field_str(r, "unit")?;
+                if !seen_tpl.insert(unit.clone()) {
+                    return Err(ParseError::from(format!("duplicate optimisation template for {unit}")));
+                }
+                let tparams = field_num(r, "tparams")? as usize;
+                let arity = field_num(r, "arity")? as usize;
+                let params = decode_classes_with(&field_str(r, "params")?, true)?;
+                let result = match r.get("result") {
+                    Some(v) if !matches!(v, JsonValue::Null) => {
+                        let mut cs = decode_classes_with(v.as_str()?, true)?;
+                        if cs.len() != 1 {
+                            return Err(ParseError::from(format!("optimisation template {unit} needs one result class")));
+                        }
+                        Some(cs.remove(0))
+                    }
+                    _ => None,
+                };
+                let ctor = match r.get("ctor") {
+                    Some(v) if !matches!(v, JsonValue::Null) => {
+                        let arr = v.as_array()?;
+                        if arr.len() != 2 {
+                            return Err(ParseError::from(format!("optimisation template {unit} ctor needs [tag, arity]")));
+                        }
+                        Some((num(&arr[0])?, num(&arr[1])?))
+                    }
+                    _ => None,
+                };
+                let fields = match r.get("fields") {
+                    Some(v) if !matches!(v, JsonValue::Null) => decode_classes_with(v.as_str()?, true)?,
+                    _ => Vec::new(),
+                };
+                let data = match r.get("data") {
+                    Some(v) if !matches!(v, JsonValue::Null) => Some(v.as_str()?.to_string()),
+                    _ => None,
+                };
+                let body = if ctor.is_some() {
+                    Core::Unit
+                } else {
+                    match decode_core_with(field(r, "body")?, true) {
+                        Ok(body) => body,
+                        Err(_) if skip_undecodable => continue,
+                        Err(error) => return Err(error),
+                    }
+                };
+                if ctor.is_none() && free_locals(&body).iter().any(|l| l.0 >= arity) {
+                    if skip_undecodable {
+                        continue;
+                    }
+                    return Err(ParseError::from(format!(
+                        "optimisation template {unit} reads a local outside its parameters"
+                    )));
+                }
+                templates.push(TemplateExport {
+                    unit,
+                    tparams,
+                    arity,
+                    params,
+                    result,
+                    ctor,
+                    fields,
+                    data,
+                    body,
+                });
+            }
+        }
         Ok(Optimisation {
             schema: SCHEMA,
             language: field_str(o, "language")?,
@@ -195,6 +319,7 @@ impl Optimisation {
             module: field_str(o, "module")?,
             iface_hash: field_str(o, "iface_hash")?,
             bodies,
+            templates,
         })
     }
 }
@@ -237,10 +362,20 @@ pub fn for_module_in(
 pub struct ModuleBodyIndex<'a> {
     defined: HashSet<&'a str>,
     candidates: HashMap<&'a str, Vec<&'a FnDef>>,
+    templates: HashMap<&'a str, Vec<&'a FnDef>>,
+    template_defined: HashSet<&'a str>,
 }
 
 impl<'a> ModuleBodyIndex<'a> {
     pub fn new(program: &'a crate::core::Program, class: &BTreeSet<String>) -> Self {
+        Self::new_with_templates(None, program, class)
+    }
+
+    pub fn new_with_templates(
+        checked: Option<&'a crate::core::Program>,
+        program: &'a crate::core::Program,
+        class: &BTreeSet<String>,
+    ) -> Self {
         let mut defined = HashSet::with_capacity(program.fns.len());
         let mut candidates = HashMap::<&str, Vec<&FnDef>>::new();
         for function in &program.fns {
@@ -254,7 +389,27 @@ impl<'a> ModuleBodyIndex<'a> {
                 }
             }
         }
-        Self { defined, candidates }
+        let mut template_defined = HashSet::new();
+        let mut templates = HashMap::<&str, Vec<&FnDef>>::new();
+        if let Some(checked) = checked {
+            for function in &checked.fns {
+                let name = function.id.0.as_str();
+                template_defined.insert(name);
+                let is_poly_fn = function.repr.tparams > 0
+                    && function.prim.is_none()
+                    && function.ctor.is_none()
+                    && !function.meta.prim_body;
+                let is_poly_ctor = function.ctor.is_some()
+                    && function.repr.tparams > 0
+                    && function.repr.fields.iter().any(|c| c.is_param());
+                if is_poly_fn || is_poly_ctor {
+                    for (dot, _) in name.match_indices('.') {
+                        templates.entry(&name[..dot]).or_default().push(function);
+                    }
+                }
+            }
+        }
+        Self { defined, candidates, templates, template_defined }
     }
 
     pub fn for_module(&self, iface: &Iface) -> Optimisation {
@@ -268,8 +423,62 @@ impl<'a> ModuleBodyIndex<'a> {
                 functions.iter().filter_map(|function| exportable(function, &self.defined)),
             );
         }
+        if let Some(tpls) = self.templates.get(module) {
+            artifact.templates.extend(
+                tpls.iter().filter_map(|function| exportable_template(function, &self.template_defined)),
+            );
+        }
         artifact
     }
+}
+
+fn exportable_template(f: &FnDef, defined: &HashSet<&str>) -> Option<TemplateExport> {
+    if f.repr.tparams == 0 || f.prim.is_some() || f.meta.prim_body {
+        return None;
+    }
+    if let Some((tag, arity)) = f.ctor {
+        if !f.repr.fields.iter().any(|c| c.is_param()) {
+            return None;
+        }
+        return Some(TemplateExport {
+            unit: f.id.0.clone(),
+            tparams: f.repr.tparams,
+            arity: f.params.len(),
+            params: f.repr.params.clone(),
+            result: f.repr.result,
+            ctor: Some((tag, arity)),
+            fields: f.repr.fields.clone(),
+            data: f.repr.data.clone(),
+            body: Core::Unit,
+        });
+    }
+    if free_locals(&f.body).iter().any(|l| l.0 >= f.params.len()) {
+        return None;
+    }
+    let mut names: Vec<&str> = Vec::new();
+    global_refs(&f.body, &mut names);
+    for name in names {
+        if defined.contains(name)
+            || name.starts_with("cinch.prim.")
+            || name.starts_with("cinch.runtime.")
+            || name.starts_with("<builtin>.")
+        {
+            continue;
+        }
+        return None;
+    }
+    encode_core_with(&f.body, true)?;
+    Some(TemplateExport {
+        unit: f.id.0.clone(),
+        tparams: f.repr.tparams,
+        arity: f.params.len(),
+        params: f.repr.params.clone(),
+        result: f.repr.result,
+        ctor: None,
+        fields: Vec::new(),
+        data: None,
+        body: f.body.clone(),
+    })
 }
 
 fn exportable(f: &FnDef, defined: &HashSet<&str>) -> Option<BodyExport> {
@@ -403,13 +612,12 @@ fn global_refs<'a>(e: &'a Core, out: &mut Vec<&'a str>) {
 // ---------------------------------------------------------------- classes
 
 fn decode_classes(text: &str) -> Result<Vec<Class>, ParseError> {
-    let mut out = Vec::with_capacity(text.len());
-    for c in text.chars() {
-        // A parameter class has no round-trippable spelling (the letter
-        // drops its index), and no exported body may carry one.
-        out.push(Class::from_letter(c).ok_or_else(|| ParseError::from(format!("invalid representation class {c}")))?);
-    }
-    Ok(out)
+    decode_classes_with(text, false)
+}
+
+fn decode_classes_with(text: &str, allow_param: bool) -> Result<Vec<Class>, ParseError> {
+    crate::repr::parse_classes(text, allow_param)
+        .ok_or_else(|| ParseError::from(format!("invalid representation classes {text}")))
 }
 
 fn class_str(class: Class) -> String {
@@ -427,6 +635,11 @@ fn class_str_all(classes: &[Class]) -> String {
 // unknown tag fails rather than inventing a node.
 
 pub fn encode_core(e: &Core) -> Option<JsonValue> {
+    encode_core_with(e, false)
+}
+
+pub fn encode_core_with(e: &Core, allow_template_nodes: bool) -> Option<JsonValue> {
+    let rec = |sub: &Core| encode_core_with(sub, allow_template_nodes);
     Some(match e {
         Core::Int(n) => JsonValue::Arr(vec!["int".into(), n.to_string().into()]),
         Core::Wide(bits) => JsonValue::Arr(vec!["wide".into(), bits.to_string().into()]),
@@ -460,7 +673,7 @@ pub fn encode_core(e: &Core) -> Option<JsonValue> {
         Core::Foreign(sym) => JsonValue::Arr(vec!["foreign".into(), sym.as_str().into()]),
         Core::Proj(inner, field) => JsonValue::Arr(vec![
             "proj".into(),
-            encode_core(inner)?,
+            rec(inner)?,
             (field.slot as u64).into(),
             class_str(field.class).into(),
             encode_access(field.access.as_ref()),
@@ -473,51 +686,63 @@ pub fn encode_core(e: &Core) -> Option<JsonValue> {
             }
             JsonValue::Arr(vec![
                 "dictproj".into(),
-                encode_core(inner)?,
+                rec(inner)?,
                 (*index as u64).into(),
                 class_str(*class).into(),
             ])
         }
         Core::App(head, args) => JsonValue::Arr(vec![
             "app".into(),
-            encode_core(head)?,
-            encode_all(args, encode_core)?,
+            rec(head)?,
+            encode_all(args, rec)?,
         ]),
         Core::Let(l, class, value, body) => JsonValue::Arr(vec![
             "let".into(),
             (l.0 as u64).into(),
             class_str(*class).into(),
-            encode_core(value)?,
-            encode_core(body)?,
+            rec(value)?,
+            rec(body)?,
         ]),
         Core::Case { scrut, alts } => JsonValue::Arr(vec![
             "case".into(),
-            encode_core(scrut)?,
+            rec(scrut)?,
             encode_all(alts, |alt| {
                 Some(JsonValue::Arr(vec![
                     encode_pat(&alt.pat),
                     alt.weight.map_or(JsonValue::Null, |w| (w as u64).into()),
-                    encode_core(&alt.body)?,
+                    rec(&alt.body)?,
                 ]))
             })?,
         ]),
         Core::If(condition, then, otherwise) => JsonValue::Arr(vec![
             "if".into(),
-            encode_core(condition)?,
-            encode_branch(then)?,
-            encode_branch(otherwise)?,
+            rec(condition)?,
+            encode_branch_with(then, allow_template_nodes)?,
+            encode_branch_with(otherwise, allow_template_nodes)?,
         ]),
         Core::Dup(l, class, body) => JsonValue::Arr(vec![
             "dup".into(),
             (l.0 as u64).into(),
             class_str(*class).into(),
-            encode_core(body)?,
+            rec(body)?,
         ]),
         Core::Drop(l, class, body) => JsonValue::Arr(vec![
             "drop".into(),
             (l.0 as u64).into(),
             class_str(*class).into(),
-            encode_core(body)?,
+            rec(body)?,
+        ]),
+        Core::Lam { fn_id, env, classes } if allow_template_nodes => JsonValue::Arr(vec![
+            "lam".into(),
+            fn_id.0.as_str().into(),
+            encode_all(env, rec)?,
+            letters(classes).into(),
+        ]),
+        Core::InstDict(id, subs, classes) if allow_template_nodes => JsonValue::Arr(vec![
+            "instdict".into(),
+            id.0.as_str().into(),
+            encode_all(subs, rec)?,
+            letters(classes).into(),
         ]),
         _ => return None,
     })
@@ -535,10 +760,10 @@ fn byte_rows(bytes: &[u8]) -> Vec<JsonValue> {
     bytes.iter().map(|b| (*b as u64).into()).collect()
 }
 
-fn encode_branch(branch: &CBranch<Core>) -> Option<JsonValue> {
+fn encode_branch_with(branch: &CBranch<Core>, allow_template_nodes: bool) -> Option<JsonValue> {
     Some(JsonValue::Arr(vec![
         branch.weight.map_or(JsonValue::Null, |w| (w as u64).into()),
-        encode_core(&branch.body)?,
+        encode_core_with(&branch.body, allow_template_nodes)?,
     ]))
 }
 
@@ -600,6 +825,10 @@ fn encode_shape(shape: &FieldShape) -> JsonValue {
 }
 
 pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
+    decode_core_with(value, false)
+}
+
+pub fn decode_core_with(value: &JsonValue, allow_param: bool) -> Result<Core, ParseError> {
     let parts = value.as_array()?;
     let tag = parts
         .first()
@@ -611,7 +840,7 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
             .ok_or_else(|| ParseError::from(format!("optimisation node {tag} is missing field {i}")))
     };
     let one_class = |i: usize| -> Result<Class, ParseError> {
-        let mut classes = decode_classes(arg(i)?.as_str()?)?;
+        let mut classes = decode_classes_with(arg(i)?.as_str()?, allow_param)?;
         if classes.len() != 1 {
             return Err(ParseError::from(format!("optimisation node {tag} needs one class")));
         }
@@ -637,11 +866,11 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
         "var" => Core::Var(local(1)?),
         "global" => Core::Global(
             GlobalId(arg(1)?.as_str()?.to_string()),
-            decode_classes(arg(2)?.as_str()?)?,
+            decode_classes_with(arg(2)?.as_str()?, allow_param)?,
         ),
         "ctor" => Core::Ctor(
             GlobalId(arg(1)?.as_str()?.to_string()),
-            decode_classes(arg(2)?.as_str()?)?,
+            decode_classes_with(arg(2)?.as_str()?, allow_param)?,
         ),
         "prim" => {
             let symbol = arg(1)?.as_str()?;
@@ -652,7 +881,7 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
         }
         "foreign" => Core::Foreign(arg(1)?.as_str()?.to_string()),
         "proj" => Core::Proj(
-            Box::new(decode_core(arg(1)?)?),
+            Box::new(decode_core_with(arg(1)?, allow_param)?),
             // The encoder's order: slot, class, access, mutable, and the
             // earlier fields' classes (absent in an interface written
             // before wide fields, where every earlier field is a word).
@@ -662,30 +891,30 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
                 access: decode_access(arg(4)?)?,
                 mutable: arg(5)?.as_bool()?,
                 before: match parts.get(6) {
-                    Some(v) => decode_classes(v.as_str()?)?,
+                    Some(v) => decode_classes_with(v.as_str()?, allow_param)?,
                     None => Vec::new(),
                 },
             },
         ),
         "dictproj" => {
-            Core::DictProj(Box::new(decode_core(arg(1)?)?), num(arg(2)?)?, None, one_class(3)?)
+            Core::DictProj(Box::new(decode_core_with(arg(1)?, allow_param)?), num(arg(2)?)?, None, one_class(3)?)
         }
         "app" => {
-            let head = Box::new(decode_core(arg(1)?)?);
+            let head = Box::new(decode_core_with(arg(1)?, allow_param)?);
             let mut args = Vec::new();
             for a in arg(2)?.as_array()? {
-                args.push(decode_core(a)?);
+                args.push(decode_core_with(a, allow_param)?);
             }
             Core::App(head, args)
         }
         "let" => Core::Let(
             local(1)?,
             one_class(2)?,
-            Box::new(decode_core(arg(3)?)?),
-            Box::new(decode_core(arg(4)?)?),
+            Box::new(decode_core_with(arg(3)?, allow_param)?),
+            Box::new(decode_core_with(arg(4)?, allow_param)?),
         ),
         "case" => {
-            let scrut = Box::new(decode_core(arg(1)?)?);
+            let scrut = Box::new(decode_core_with(arg(1)?, allow_param)?);
             let mut alts = Vec::new();
             for a in arg(2)?.as_array()? {
                 let row = a.as_array()?;
@@ -695,31 +924,49 @@ pub fn decode_core(value: &JsonValue) -> Result<Core, ParseError> {
                     ));
                 }
                 alts.push(CAlt {
-                    pat: decode_pat(&row[0])?,
+                    pat: decode_pat_with(&row[0], allow_param)?,
                     weight: weight(&row[1])?,
-                    body: Box::new(decode_core(&row[2])?),
+                    body: Box::new(decode_core_with(&row[2], allow_param)?),
                 });
             }
             Core::Case { scrut, alts }
         }
         "if" => {
-            let condition = Box::new(decode_core(arg(1)?)?);
-            let then = decode_branch(arg(2)?)?;
-            let otherwise = decode_branch(arg(3)?)?;
+            let condition = Box::new(decode_core_with(arg(1)?, allow_param)?);
+            let then = decode_branch_with(arg(2)?, allow_param)?;
+            let otherwise = decode_branch_with(arg(3)?, allow_param)?;
             Core::If(condition, then, otherwise)
         }
-        "dup" => Core::Dup(local(1)?, one_class(2)?, Box::new(decode_core(arg(3)?)?)),
-        "drop" => Core::Drop(local(1)?, one_class(2)?, Box::new(decode_core(arg(3)?)?)),
+        "dup" => Core::Dup(local(1)?, one_class(2)?, Box::new(decode_core_with(arg(3)?, allow_param)?)),
+        "drop" => Core::Drop(local(1)?, one_class(2)?, Box::new(decode_core_with(arg(3)?, allow_param)?)),
+        "lam" if allow_param => {
+            let fn_id = GlobalId(arg(1)?.as_str()?.to_string());
+            let mut env = Vec::new();
+            for e in arg(2)?.as_array()? {
+                env.push(decode_core_with(e, allow_param)?);
+            }
+            let classes = decode_classes_with(arg(3)?.as_str()?, allow_param)?;
+            Core::Lam { fn_id, env, classes }
+        }
+        "instdict" if allow_param => {
+            let id = GlobalId(arg(1)?.as_str()?.to_string());
+            let mut subs = Vec::new();
+            for s in arg(2)?.as_array()? {
+                subs.push(decode_core_with(s, allow_param)?);
+            }
+            let classes = decode_classes_with(arg(3)?.as_str()?, allow_param)?;
+            Core::InstDict(id, subs, classes)
+        }
         other => return Err(ParseError::from(format!("unknown optimisation node {other}"))),
     })
 }
 
-fn decode_branch(value: &JsonValue) -> Result<CBranch<Core>, ParseError> {
+fn decode_branch_with(value: &JsonValue, allow_param: bool) -> Result<CBranch<Core>, ParseError> {
     let parts = value.as_array()?;
     if parts.len() != 2 {
         return Err(ParseError::from("optimisation branch needs two fields".to_string()));
     }
-    Ok(CBranch { weight: weight(&parts[0])?, body: Box::new(decode_core(&parts[1])?) })
+    Ok(CBranch { weight: weight(&parts[0])?, body: Box::new(decode_core_with(&parts[1], allow_param)?) })
 }
 
 fn weight(value: &JsonValue) -> Result<Option<u32>, ParseError> {
@@ -729,7 +976,7 @@ fn weight(value: &JsonValue) -> Result<Option<u32>, ParseError> {
     }
 }
 
-fn decode_pat(value: &JsonValue) -> Result<CPat, ParseError> {
+fn decode_pat_with(value: &JsonValue, allow_param: bool) -> Result<CPat, ParseError> {
     let parts = value.as_array()?;
     let tag = parts
         .first()
@@ -738,8 +985,9 @@ fn decode_pat(value: &JsonValue) -> Result<CPat, ParseError> {
     Ok(match tag {
         "var" => CPat::Var(
             LocalId(num(parts.get(1).ok_or_else(|| ParseError::from("pattern needs an id".to_string()))?)?),
-            decode_classes(
+            decode_classes_with(
                 parts.get(2).ok_or_else(|| ParseError::from("pattern needs a class".to_string()))?.as_str()?,
+                allow_param,
             )?
             .into_iter()
             .next()
@@ -755,11 +1003,12 @@ fn decode_pat(value: &JsonValue) -> Result<CPat, ParseError> {
             {
                 fields.push(LocalId(num(f)?));
             }
-            let classes = decode_classes(
+            let classes = decode_classes_with(
                 parts
                     .get(3)
                     .ok_or_else(|| ParseError::from("constructor pattern needs classes".to_string()))?
                     .as_str()?,
+                allow_param,
             )?;
             if classes.len() != fields.len() {
                 return Err(ParseError::from(
@@ -877,6 +1126,7 @@ fn decode_shape(value: &JsonValue) -> Result<FieldShape, ParseError> {
 /// so the caller links that object.
 pub struct ForeignTable {
     pub bodies: Vec<FnDef>,
+    pub templates: Vec<FnDef>,
     pub modules: BTreeSet<String>,
 }
 
@@ -884,7 +1134,7 @@ pub struct ForeignTable {
 /// contracts before exposing bodies to the inliner.
 pub fn load_package(path: &std::path::Path) -> crate::Result<ForeignTable> {
     let (interfaces, metadata) = crate::package_interfaces::read_interfaces_with_abi(path)?;
-    let mut table = ForeignTable { bodies: Vec::new(), modules: BTreeSet::new() };
+    let mut table = ForeignTable { bodies: Vec::new(), templates: Vec::new(), modules: BTreeSet::new() };
     let Some(JsonValue::Obj(metadata)) = metadata else {
         return Ok(table);
     };
@@ -921,6 +1171,7 @@ pub fn load_package(path: &std::path::Path) -> crate::Result<ForeignTable> {
         }
         table.modules.insert(module.clone());
         table.bodies.extend(foreign_defs(&artifact));
+        table.templates.extend(template_defs(&artifact));
     }
     Ok(table)
 }
@@ -928,6 +1179,34 @@ pub fn load_package(path: &std::path::Path) -> crate::Result<ForeignTable> {
 /// The [`FnDef`]s a consumer's inliner consults for one artifact's bodies.
 pub fn foreign_defs(artifact: &Optimisation) -> Vec<FnDef> {
     artifact.bodies.iter().cloned().map(body_def).collect()
+}
+
+/// The polymorphic template [`FnDef`]s a consumer's specializer consults to
+/// instantiate external polymorphic functions/constructors at local `Val` layouts.
+pub fn template_defs(artifact: &Optimisation) -> Vec<FnDef> {
+    artifact.templates.iter().cloned().map(template_def).collect()
+}
+
+fn template_def(tpl: TemplateExport) -> FnDef {
+    let params = (0..tpl.arity).map(|i| format!("a{i}")).collect();
+    FnDef {
+        id: GlobalId(tpl.unit),
+        params,
+        body: tpl.body,
+        prim: None,
+        ctor: tpl.ctor,
+        hints: crate::core::FnHints::default(),
+        meta: crate::core::FnMeta::default(),
+        repr: crate::core::UnitRepr {
+            tparams: tpl.tparams,
+            result: tpl.result,
+            dictionary_values: Vec::new(),
+            params: tpl.params,
+            fields: tpl.fields,
+            data: tpl.data,
+            ..Default::default()
+        },
+    }
 }
 
 /// One artifact body as an [`FnDef`] the inliner can consult. The fields a
@@ -951,6 +1230,7 @@ fn body_def(body: BodyExport) -> FnDef {
             params: body.params,
             fields: Vec::new(),
             data: None,
+            ..Default::default()
         },
     }
 }

@@ -1449,7 +1449,12 @@ impl<'a> LowerCx<'a> {
         let z = self.ck.uni.zonk(ty);
         match &z {
             Ty::Meta(_) => return Class::Raw,
-            Ty::Ref(_, a) => return self.class(a),
+            Ty::Ref(_, a) => {
+                if crate::repr::is_value_ty(a, self.ck) {
+                    return Class::Raw;
+                }
+                return self.class(a);
+            }
             _ => {}
         }
         crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| match t {
@@ -1520,6 +1525,25 @@ impl<'a> LowerCx<'a> {
                 _ => self.expr_class(b),
             },
             ECore::LitFold { body, .. } => self.expr_class(body),
+            ECore::App(f, _) if matches!(&**f, ECore::Prim(PrimOp::Value(_))) => {
+                let agg_cls = |lid: u32| -> Class {
+                    if let Some(vl) = self.ck.value_layouts.get(lid as usize) {
+                        if !matches!(vl.kind, crate::core::ValueLayoutKind::Scalar { .. }) {
+                            return Class::Val { size: vl.size as u32, align: vl.align.max(1) as u16 };
+                        }
+                    }
+                    Class::Raw
+                };
+                let ECore::Prim(PrimOp::Value(op)) = &**f else { unreachable!() };
+                Some(match op {
+                    crate::core::ValOp::Construct { layout, .. }
+                    | crate::core::ValOp::FixedArrayRepeat { layout } => agg_cls(*layout),
+                    crate::core::ValOp::Proj { field_layout, .. } => agg_cls(*field_layout),
+                    crate::core::ValOp::FixedArrayGet { elem_layout, .. } => agg_cls(*elem_layout),
+                    crate::core::ValOp::PlaceLoad { layout, .. } => agg_cls(*layout),
+                    _ => Class::Raw,
+                })
+            }
             ECore::Proj(_, _, t, _) | ECore::DictProj(.., t) | ECore::Demand(_, t) | ECore::BoxGet(_, t)
             | ECore::BoxInit(_, _, t) => Some(self.class(t)),
             ECore::ConstBig { .. } => Some(Class::TObj),
@@ -1527,13 +1551,92 @@ impl<'a> LowerCx<'a> {
             | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
             ECore::Int(_) | ECore::Wide(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
             | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
-            ECore::App(f, _) => match &**f {
-                ECore::Ctor(id, _) => Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t))),
+            ECore::App(f, args) => match &**f {
+                ECore::Global(id, _) if id.0.starts_with("$poly_niche_scrut$") && args.len() == 1 => {
+                    self.expr_class(&args[0])
+                }
+                ECore::Ctor(id, tys) => {
+                    if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
+                        Some(*carrier)
+                    } else if let Some((dname, _)) = self.ck.poly_niche_ctors.get(id) {
+                        let req_mask = dname
+                            .rsplit_once('.')
+                            .and_then(|(m, n)| self.ck.poly_niche_plans.get(&(m.to_string(), n.to_string())))
+                            .map_or(0, |p| p.req_mask);
+                        Some(Class::PolyNiche(req_mask).subst(&self.classes(tys)))
+                    } else {
+                        Some(self.ck.unboxed_ctors.get(id).map_or(Class::Obj, |t| self.class(t)))
+                    }
+                }
+                ECore::Global(id, tys) => {
+                    if let Some(fd) = self.ck.fns.iter().find(|fd| fd.id == *id) {
+                        if args.len() == fd.arity() {
+                            if let Some(res) = fd.repr.result {
+                                let v = if !tys.is_empty() {
+                                    self.classes(tys)
+                                } else if self.own.contains(id) {
+                                    crate::repr::identity(self.tparams.len())
+                                } else {
+                                    Vec::new()
+                                };
+                                return Some(res.subst(&v));
+                            }
+                            if let Some(lid) = fd.repr.value_result {
+                                if let Some(vl) = self.ck.value_layouts.get(lid as usize) {
+                                    return Some(Class::Val { size: vl.size as u32, align: vl.align.max(1) as u16 });
+                                }
+                            }
+                        }
+                    }
+                    // Fallback for forward / mutually-recursive functions not yet in `self.ck.fns`:
+                    // inspect the declared value scheme's return type after peeling `args.len()` arrows.
+                    if let Some((mod_name, val_name)) = id.0.rsplit_once('.') {
+                        if let Some(vs) = self.ck.values.get(val_name) {
+                            if let Some(v) = vs.iter().find(|v| v.module == mod_name) {
+                                let mut t = v.scheme.ty.clone();
+                                let mut left = args.len();
+                                let mut peeled_all = true;
+                                while left > 0 {
+                                    match t {
+                                        Ty::Fun(_, m, _, cod) => {
+                                            if m != crate::types::Mult::Zero { left -= 1; }
+                                            t = *cod;
+                                        }
+                                        Ty::Pi { mult, cod, .. } => {
+                                            if mult != crate::types::Mult::Zero { left -= 1; }
+                                            t = *cod;
+                                        }
+                                        _ => { peeled_all = false; break; }
+                                    }
+                                }
+                                if peeled_all {
+                                    let res = crate::repr::repr_of(&t, &v.scheme.params, self.ck, &mut |_| {});
+                                    let cv = self.classes(tys);
+                                    return Some(res.subst(&cv));
+                                }
+                            }
+                        }
+                    }
+                    None
+                }
                 _ => None,
             },
             ECore::HandleEvidence { out_ty, .. }
             | ECore::Perform { ret_ty: out_ty, .. }
             | ECore::EffCheck(_, out_ty) => Some(self.class(out_ty)),
+            ECore::Ctor(id, tys) => {
+                if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
+                    Some(*carrier)
+                } else if let Some((dname, _)) = self.ck.poly_niche_ctors.get(id) {
+                    let req_mask = dname
+                        .rsplit_once('.')
+                        .and_then(|(m, n)| self.ck.poly_niche_plans.get(&(m.to_string(), n.to_string())))
+                        .map_or(0, |p| p.req_mask);
+                    Some(Class::PolyNiche(req_mask).subst(&self.classes(tys)))
+                } else {
+                    Some(Class::Obj)
+                }
+            }
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
             ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
             _ => None,
@@ -1841,7 +1944,79 @@ fn max_local_in_ecore(e: &ECore, acc: &mut usize) {
     }
 }
 
+/// Niche-optimized domain of a single-word payload type.
+#[derive(Clone, Debug)]
+pub(crate) enum NicheDomain {
+    SignedRange { lo: i128, hi: i128, excluded: Vec<i128> },
+    UnsignedRange { lo: u128, hi: u128, excluded: Vec<u128> },
+    OddImmediate { used: Vec<i64> },
+    NonNullObj { used: Vec<i64> },
+    TaggedObj { ptr_tags: Vec<i64>, used_null: bool, used_odd: Vec<i64>, odd_full: bool },
+    NonZeroTObj { used: Vec<i64> },
+    F64Nan { used: Vec<i64> },
+}
+
+/// One field's bit-packed slice inside a single 64-bit word.
+#[derive(Clone, Debug)]
+pub(crate) struct PackedField {
+    pub(crate) shift: u32,
+    pub(crate) bits: u32,
+    pub(crate) signed: bool,
+    pub(crate) bias: i64,
+}
+
+/// Per-constructor lowering plan inside a niche-fused sum or bit-packed product.
+#[derive(Clone, Debug)]
+pub(crate) enum NicheCtorPlan {
+    Nullary { sentinel: i64 },
+    Payload {
+        payload_ty: Ty,
+        /// `None` when sole payload constructor; `Some((unsigned, lo, hi, excluded))`
+        /// when multiple disjoint payload constructors share the single word.
+        range: Option<(bool, i128, i128, Vec<i128>)>,
+    },
+    /// Pointer-tagged `NonNullObj` payload (`ptr | ptr_tag`, where `ptr_tag ∈ {0, 2, 4}`).
+    Ptr {
+        payload_ty: Ty,
+        ptr_tag: i64,
+        check_nonnull: bool,
+    },
+    /// Shifted/tagged small scalar payload (`(((x - bias) << shift) | tag_word)`).
+    Shifted {
+        payload_ty: Ty,
+        mask: i64,
+        tag_word: i64,
+        shift: u32,
+        signed: bool,
+        bias: i64,
+    },
+    /// NaN-canonicalized `F64` payload (sentinels live in quiet-NaN space `0x7FF8_0000_0000_0001+`).
+    NanF64 {
+        payload_ty: Ty,
+    },
+    /// Bit-packed multi-field product or sum arm (`tag_word | ((f0 - bias0) & m0) << s0 | ...`).
+    /// When `mask == 0`, this is a single-constructor bit-packed product (no tag test).
+    Packed {
+        mask: i64,
+        tag_word: i64,
+        fields: Vec<PackedField>,
+    },
+}
+
+/// Validated layout plan for a `#[repr(niche)]` `data` type.
+#[derive(Clone, Debug)]
+pub(crate) struct NichePlan {
+    pub(crate) carrier: Class,
+    pub(crate) by_tag: Vec<(usize, String, NicheCtorPlan)>,
+    pub(crate) nullary_sentinels: Vec<i64>,
+    pub(crate) occupied: NicheDomain,
+}
+
 impl crate::repr::TypeReprs for Checker {
+    fn ptr_bits(&self) -> u32 {
+        self.usize_bits
+    }
+
     fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
         if self.uni.is_type_family(name) {
             let reduced = self.uni.zonk(&Ty::Adt(name.into(), args.to_vec()));
@@ -1857,19 +2032,220 @@ impl crate::repr::TypeReprs for Checker {
         if let Some(t) = self.unboxed_payload(kind) {
             return crate::repr::AdtRepr::Base(t.clone());
         }
+        if let Some(plan) = self.niche_plan(kind) {
+            return match plan.carrier {
+                Class::Raw => crate::repr::AdtRepr::Raw,
+                Class::Obj => crate::repr::AdtRepr::Obj,
+                Class::TObj => crate::repr::AdtRepr::TObj,
+                _ => crate::repr::AdtRepr::Obj,
+            };
+        }
+        if let Some(plan) = self.poly_niche_plan(kind) {
+            return crate::repr::AdtRepr::PolyNiche(plan.req_mask);
+        }
         if let Some(r) = kind.refine.as_ref() {
             let mut map: HashMap<String, Ty> = HashMap::new();
             for (p, a) in r.params.iter().zip(args) {
                 map.insert(p.clone(), a.clone());
             }
-            return crate::repr::AdtRepr::Base(Checker::subst_ty(&r.base, &map));
+            let base = Checker::subst_ty(&r.base, &map);
+            let pred = Checker::subst_pt(&r.pred, &map);
+            if crate::repr::refinement_fits_immediate(&base, &r.binder, &pred, self.usize_bits) {
+                return crate::repr::AdtRepr::Raw;
+            }
+            return crate::repr::AdtRepr::Base(base);
         }
         // A foreign opaque type's values come only from foreign calls:
         // they are handles the foreign side owns.
         if kind.opaque {
             return crate::repr::AdtRepr::Raw;
         }
+        if self.is_value_record(&kind.module, &kind.name) {
+            if let Some(&id) = self.value_records.get(&(kind.module.clone(), kind.name.clone())) {
+                if let Some(vl) = self.value_layouts.get(id as usize) {
+                    return crate::repr::AdtRepr::Value {
+                        size: vl.size as u32,
+                        align: vl.align.max(1) as u16,
+                    };
+                }
+            }
+            if let Some(tl) = self.type_layouts.get(&(kind.module.clone(), kind.name.clone())) {
+                return crate::repr::AdtRepr::Value {
+                    size: tl.size as u32,
+                    align: tl.align.max(1) as u16,
+                };
+            }
+            return crate::repr::AdtRepr::Value { size: 0, align: 1 };
+        }
         crate::repr::AdtRepr::Obj
+    }
+
+    fn fixed_array_layout(&self, args: &[Ty]) -> Option<(u32, u16)> {
+        let ty = Ty::Adt("FixedArray".into(), args.to_vec());
+        let vl = self.pod_value_layout(&ty)?;
+        Some((vl.size as u32, vl.align.max(1) as u16))
+    }
+}
+
+fn niche_ctor_arity(cplan: &NicheCtorPlan) -> usize {
+    match cplan {
+        NicheCtorPlan::Nullary { .. } => 0,
+        NicheCtorPlan::Payload { .. }
+        | NicheCtorPlan::Ptr { .. }
+        | NicheCtorPlan::Shifted { .. }
+        | NicheCtorPlan::NanF64 { .. } => 1,
+        NicheCtorPlan::Packed { fields, .. } => fields.len(),
+    }
+}
+
+pub(crate) fn decode_packed_field_ecore(pf: &PackedField, scrut_var: LocalId) -> ECore {
+    use crate::core::WordOp as WO;
+    if pf.bits == 0 {
+        return ECore::Int(pf.bias);
+    }
+    let extracted = if pf.signed {
+        let left = 64u32.saturating_sub(pf.shift + pf.bits);
+        let shl = if left > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Shl })),
+                vec![ECore::Var(scrut_var), ECore::Int(left as i64)],
+            )
+        } else {
+            ECore::Var(scrut_var)
+        };
+        let right = 64u32.saturating_sub(pf.bits);
+        if right > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Shr })),
+                vec![shl, ECore::Int(right as i64)],
+            )
+        } else {
+            shl
+        }
+    } else {
+        let shifted = if pf.shift > 0 {
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Ushr })),
+                vec![ECore::Var(scrut_var), ECore::Int(pf.shift as i64)],
+            )
+        } else {
+            ECore::Var(scrut_var)
+        };
+        if pf.bits < 64 {
+            let fmask = ((1u64 << pf.bits) - 1) as i64;
+            ECore::App(
+                Box::new(ECore::Prim(PrimOp::WordOp { op: WO::And })),
+                vec![shifted, ECore::Int(fmask)],
+            )
+        } else {
+            shifted
+        }
+    };
+    if pf.bias != 0 {
+        ECore::App(
+            Box::new(ECore::Prim(PrimOp::WordOp { op: WO::Add })),
+            vec![extracted, ECore::Int(pf.bias)],
+        )
+    } else {
+        extracted
+    }
+}
+
+fn lower_niche_ctor_apply(cplan: &NicheCtorPlan, mut args: Vec<Core>) -> Core {
+    use crate::core::WordOp as WO;
+    match cplan {
+        NicheCtorPlan::Nullary { sentinel } => Core::Int(*sentinel),
+        NicheCtorPlan::Payload { .. } => args.remove(0),
+        NicheCtorPlan::Ptr { ptr_tag, .. } => {
+            let arg = args.remove(0);
+            if *ptr_tag == 0 {
+                arg
+            } else {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::TagOr })),
+                    vec![arg, Core::Int(*ptr_tag)],
+                )
+            }
+        }
+        NicheCtorPlan::Shifted { tag_word, shift, bias, .. } => {
+            let arg = args.remove(0);
+            let v = if *bias != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
+                    vec![arg, Core::Int(*bias)],
+                )
+            } else {
+                arg
+            };
+            let shifted = if *shift != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Shl })),
+                    vec![v, Core::Int(*shift as i64)],
+                )
+            } else {
+                v
+            };
+            if *tag_word != 0 {
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::WordOp { op: WO::Or })),
+                    vec![shifted, Core::Int(*tag_word)],
+                )
+            } else {
+                shifted
+            }
+        }
+        NicheCtorPlan::NanF64 { .. } => {
+            let arg = args.remove(0);
+            Core::App(
+                Box::new(Core::Prim(PrimOp::WordOp { op: WO::NanCanon })),
+                vec![arg],
+            )
+        }
+        NicheCtorPlan::Packed { tag_word, fields, .. } => {
+            let mut acc: Option<Core> = if *tag_word != 0 {
+                Some(Core::Int(*tag_word))
+            } else {
+                None
+            };
+            for (pf, arg) in fields.iter().zip(args.into_iter()) {
+                if pf.bits == 0 {
+                    continue;
+                }
+                let v0 = if pf.bias != 0 {
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Sub })),
+                        vec![arg, Core::Int(pf.bias)],
+                    )
+                } else {
+                    arg
+                };
+                let v1 = if pf.signed && pf.bits < 64 {
+                    let fmask = ((1u64 << pf.bits) - 1) as i64;
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::And })),
+                        vec![v0, Core::Int(fmask)],
+                    )
+                } else {
+                    v0
+                };
+                let v2 = if pf.shift != 0 {
+                    Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Shl })),
+                        vec![v1, Core::Int(pf.shift as i64)],
+                    )
+                } else {
+                    v1
+                };
+                acc = Some(match acc {
+                    None => v2,
+                    Some(prev) => Core::App(
+                        Box::new(Core::Prim(PrimOp::WordOp { op: WO::Or })),
+                        vec![prev, v2],
+                    ),
+                });
+            }
+            acc.unwrap_or(Core::Int(0))
+        }
     }
 }
 
@@ -1880,7 +2256,7 @@ fn finalize_fn(
     prim: Option<PrimOp>,
     ctor: Option<(usize, usize)>,
     hints: crate::core::FnHints,
-    meta: crate::core::FnMeta,
+    mut meta: crate::core::FnMeta,
     cx: &mut LowerCx,
 ) -> Result<FnDef> {
     cx.orig.clear();
@@ -2386,20 +2762,51 @@ fn lower_plain(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             } else {
                 Vec::new()
             };
+            if v.iter().any(|c| c.is_val()) {
+                if let Some(op) = cx.ck.fns.iter().find(|f| f.id == *g).and_then(|f| f.prim) {
+                    let container = match op {
+                        PrimOp::Stm { .. } => Some("a `TVar` cell"),
+                        PrimOp::MVar { .. } => Some("an `MVar` cell"),
+                        PrimOp::RwLock { .. } => Some("an `RwLock` cell"),
+                        PrimOp::Slots { .. } => Some("a uniform slot table"),
+                        PrimOp::Par { .. } => Some("a parallel task payload"),
+                        PrimOp::Array { packed: None, .. } => Some("a uniform `Array` element slot"),
+                        _ => None,
+                    };
+                    if let Some(what) = container {
+                        cx.refuse(format!(
+                            "unboxed value type cannot occupy uniform-word runtime container ({what}; `Boxed` required) — wrap it explicitly in `Box`"
+                        ));
+                    }
+                }
+            }
             C::Global(g.clone(), v)
+        }
+        ECore::Ctor(g, _) if matches!(cx.ck.niche_ctors.get(g), Some((_, NicheCtorPlan::Nullary { .. }))) => {
+            let (_, NicheCtorPlan::Nullary { sentinel }) = &cx.ck.niche_ctors[g] else { unreachable!() };
+            C::Int(*sentinel)
         }
         ECore::Ctor(g, tys) if cx.ck.has_constructor_body(g) => C::Global(g.clone(), cx.classes(tys)),
         ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
         ECore::Prim(p) => C::Prim(*p),
         ECore::Foreign(n) => C::Foreign(n.clone()),
-        ECore::DictProj(d, i, site, ty) => C::DictProj(
-            Box::new(low(d)),
-            *i,
-            site.as_ref().map(|(class, own)| {
-                Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
-            }),
-            cx.class(ty),
-        ),
+        ECore::DictProj(d, i, site, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform-word dictionary value slot (`Boxed` required) — wrap it explicitly in `Box`"
+                        .to_string(),
+                );
+            }
+            C::DictProj(
+                Box::new(low(d)),
+                *i,
+                site.as_ref().map(|(class, own)| {
+                    Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
+                }),
+                cls,
+            )
+        }
         ECore::Proj(d, f, ty, before) => C::Proj(
             Box::new(low(d)),
             crate::core::ProjField {
@@ -2418,7 +2825,17 @@ fn lower_plain(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
             C::InstDict(symbol, args.iter().map(low).collect(), cx.classes(tys))
         }
-        ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
+        ECore::App(f, args) => {
+            if let ECore::Ctor(g, _) = &**f {
+                if let Some((_, cplan)) = cx.ck.niche_ctors.get(g) {
+                    if args.len() == niche_ctor_arity(cplan) {
+                        let lowered: Vec<Core> = args.iter().map(low).collect();
+                        return lower_niche_ctor_apply(cplan, lowered);
+                    }
+                }
+            }
+            C::App(Box::new(low(f)), args.iter().map(low).collect())
+        }
         ECore::Lam { .. } | ECore::PolyIntro { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
@@ -2462,14 +2879,59 @@ fn lower_plain(e: &ECore, cx: &LowerCx) -> crate::core::Core {
                 body: Box::new(low(&f.body)),
             },
         ),
-        ECore::Demand(d, ty) => C::Demand(Box::new(low(d)), cx.class(ty)),
+        ECore::Demand(d, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a `Lazy` cell (`Boxed` required) — wrap it explicitly in `Box`"
+                        .to_string(),
+                );
+            }
+            C::Demand(Box::new(low(d)), cls)
+        }
         ECore::LazyAlloc => C::LazyAlloc,
         ECore::LazyInit(l, t) => C::LazyInit(*l, Box::new(low(t))),
         ECore::BoxAlloc => C::BoxAlloc,
-        ECore::BoxInit(l, v, ty) => C::BoxInit(*l, Box::new(low(v)), cx.class(ty)),
-        ECore::RefSet(l, v, ty) => C::RefSet(*l, Box::new(low(v)), cx.class(ty)),
-        ECore::BoxGet(v, ty) => C::BoxGet(Box::new(low(v)), cx.class(ty)),
-        ECore::BoxClear(v, ty) => C::BoxClear(Box::new(low(v)), cx.class(ty)),
+        ECore::BoxInit(l, v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::BoxInit(*l, Box::new(low(v)), cls)
+        }
+        ECore::RefSet(l, v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::RefSet(*l, Box::new(low(v)), cls)
+        }
+        ECore::BoxGet(v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::BoxGet(Box::new(low(v)), cls)
+        }
+        ECore::BoxClear(v, ty) => {
+            let cls = cx.class(ty);
+            if cls.is_val() {
+                cx.refuse(
+                    "unboxed value type cannot occupy a uniform mutable cell (`Boxed` required) — wrap it explicitly in `Box` or use `withLocal`"
+                        .to_string(),
+                );
+            }
+            C::BoxClear(Box::new(low(v)), cls)
+        }
         ECore::Case { scrut, alts } => C::Case {
             scrut: Box::new(low(scrut)),
             alts: alts
@@ -4525,12 +4987,30 @@ struct Checker {
     /// Layout computation pending per type (attribute annotations
     /// specification section 4.3).
     unpack_requests: HashMap<GlobalId, HashMap<String, ast::Span>>,
+    nounpack_requests: HashMap<GlobalId, HashSet<String>>,
+    auto_unpack_candidates: Vec<(String, String, ast::Span)>,
     unpacked_records: HashMap<GlobalId, UnpackedRecord>,
     /// Identity constructors and their validated runtime payload types.
     unboxed_ctors: HashMap<GlobalId, Ty>,
+    /// Validated `#[repr(niche)]` and auto-niched plans keyed by `(module, type_name)`.
+    niche_plans: HashMap<(String, String), NichePlan>,
+    /// Per-constructor niche lowering metadata keyed by constructor `GlobalId`.
+    niche_ctors: HashMap<GlobalId, (Class, NicheCtorPlan)>,
+    /// Polymorphic pointer-tagged niche plans keyed by `(module, type_name)`.
+    poly_niche_plans: HashMap<(String, String), crate::core::PolyNichePlan>,
+    /// Polymorphic niche constructor metadata keyed by constructor `GlobalId`.
+    poly_niche_ctors: HashMap<GlobalId, (String, crate::core::PolyNicheCtor)>,
+    /// Closed multi-constructor source `data` declarations eligible for default auto-niche.
+    auto_niche_candidates: Vec<(String, String, ast::Span)>,
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
+    /// Interned POD unboxed value layouts (`#[repr(value)]`, `FixedArray`,
+    /// and `withLocal` cells).
+    value_layouts: Vec<crate::core::ValueLayout>,
+    value_layout_intern: HashMap<crate::core::ValueLayout, u32>,
+    /// `#[repr(value)]` record `(module, name)` -> interned `ValueLayout` id.
+    value_records: HashMap<(String, String), u32>,
     /// P20: the safety assertion set recorded per definition (attribute
     /// annotations specification section 10).
     safety_attrs: HashMap<String, SafetySet>,
@@ -5147,10 +5627,20 @@ impl Checker {
             diags: Vec::new(),
             fn_hints: HashMap::new(),
             unpack_requests: HashMap::new(),
+            nounpack_requests: HashMap::new(),
+            auto_unpack_candidates: Vec::new(),
             unpacked_records: HashMap::new(),
             unboxed_ctors: HashMap::new(),
+            niche_plans: HashMap::new(),
+            niche_ctors: HashMap::new(),
+            poly_niche_plans: HashMap::new(),
+            poly_niche_ctors: HashMap::new(),
+            auto_niche_candidates: Vec::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
+            value_layouts: Vec::new(),
+            value_layout_intern: HashMap::new(),
+            value_records: HashMap::new(),
             safety_attrs: HashMap::new(),
             module_safety: HashMap::new(),
             safety_records: Vec::new(),
@@ -5986,7 +6476,7 @@ impl Checker {
     /// runtime evidence words and the `Copy` marker is the unit word;
     /// every other dictionary is a counted block.
     pub(crate) fn dict_class(class: &str) -> crate::repr::Class {
-        if is_capability_class(class) || class == "Copy" || class == "Kernel" {
+        if is_capability_class(class) || class == "Copy" || class == "Kernel" || class == "Boxed" {
             crate::repr::Class::Raw
         } else {
             crate::repr::Class::Obj
@@ -6629,9 +7119,9 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
                 || self.value_may_hide_scope(cod, seen, fuel - 1),
             Ty::Adt(name, args) => {
-                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" { return false; }
+                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" || name == "Boxed" { return false; }
                 if name == "Task" { return true; }
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
+                if matches!(name.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
                 }
                 seen.push(ty.clone());
@@ -6746,7 +7236,7 @@ impl Checker {
                 .iter()
                 .all(|i| self.structural_usage(i, scope, seen, usage)),
             Ty::Adt(name, args) => {
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
+                if matches!(name.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar") {
                     return args.iter().all(|a| self.structural_usage(a, scope, seen, usage));
                 }
                 // A transactional variable is a handle to a cell every
@@ -7820,6 +8310,139 @@ impl Checker {
     /// boundary-layout aggregate is stored inline at the recorded size.
     /// A pointer field records the alignment its role asserts of the
     /// pointee (the `!align` fact of the LLVM contract surface).
+    pub(crate) fn intern_value_layout(&mut self, layout: crate::core::ValueLayout) -> u32 {
+        if let Some(&id) = self.value_layout_intern.get(&layout) {
+            return id;
+        }
+        let id = self.value_layouts.len() as u32;
+        self.value_layouts.push(layout.clone());
+        self.value_layout_intern.insert(layout, id);
+        id
+    }
+
+    pub(crate) fn is_value_record(&self, module: &str, name: &str) -> bool {
+        let key = (module.to_string(), name.to_string());
+        self.value_records.contains_key(&key)
+            || self.layout_recipes.get(&key).is_some_and(|r| r.repr.value)
+    }
+
+    pub(crate) fn is_prim_unit(&self, unit: &str) -> bool {
+        self.prims.iter().any(|p| p.unit == unit)
+            || self.pending_prims.iter().any(|(m, p, _)| fn_id(m, &p.name.text).0 == unit)
+    }
+
+    pub(crate) fn const_nat_of_idx(&self, idx: &ITerm) -> Option<u64> {
+        let z = self.uni.resolve_idx(idx).normalize();
+        match z {
+            ITerm::Num(n) => n.as_str().parse::<u64>().ok(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn fixed_array_parts(&self, ty: &Ty) -> Option<(ITerm, Ty)> {
+        let z = self.uni.zonk(ty);
+        if let Ty::Adt(name, args) = z {
+            if name.as_str() == "FixedArray" && args.len() == 2 {
+                if let Ty::Idx(n) = &args[0] {
+                    return Some(((**n).clone(), args[1].clone()));
+                }
+            }
+        }
+        None
+    }
+
+    pub(crate) fn is_unboxed_value_ty(&self, ty: &Ty) -> bool {
+        let z = self.uni.zonk(ty);
+        crate::repr::is_value_ty(&z, self)
+    }
+
+    pub(crate) fn pod_value_layout(&self, ty: &Ty) -> Option<crate::core::ValueLayout> {
+        use crate::core::{ValueLayout, ValueLayoutKind};
+        let z = self.uni.zonk(ty);
+        if let Some(view) = self.refine_view(&z) {
+            if let Some(base) = view.base {
+                return self.pod_value_layout(&base);
+            }
+        }
+        match z {
+            Ty::Unit => Some(ValueLayout {
+                size: 0,
+                align: 1,
+                kind: ValueLayoutKind::Scalar { signed: false, is_ptr: false, is_float: false },
+            }),
+            Ty::Bool => Some(ValueLayout {
+                size: 1,
+                align: 1,
+                kind: ValueLayoutKind::Scalar { signed: false, is_ptr: false, is_float: false },
+            }),
+            Ty::Prim(s) => {
+                let (size, align) = if matches!(s, Scalar::Usize | Scalar::Isize) {
+                    let pb = self.ptr_bytes();
+                    (pb, pb)
+                } else {
+                    (s.size(), s.align())
+                };
+                Some(ValueLayout {
+                    size,
+                    align,
+                    kind: ValueLayoutKind::Scalar {
+                        signed: s.is_signed() && !s.is_float(),
+                        is_ptr: false,
+                        is_float: s.is_float(),
+                    },
+                })
+            }
+            Ty::Ptr { .. } => {
+                let pb = self.ptr_bytes();
+                Some(ValueLayout {
+                    size: pb,
+                    align: pb,
+                    kind: ValueLayoutKind::Scalar { signed: false, is_ptr: true, is_float: false },
+                })
+            }
+            Ty::Adt(ref name, ref args) if name.as_str() == "FixedArray" && args.len() == 2 => {
+                let Ty::Idx(n_idx) = &args[0] else { return None };
+                let len = self.const_nat_of_idx(n_idx)?;
+                let elem = self.pod_value_layout(&args[1])?;
+                let stride = elem.size.div_ceil(elem.align.max(1)) * elem.align.max(1);
+                let size = len.checked_mul(stride)?;
+                Some(ValueLayout {
+                    size,
+                    align: elem.align.max(1),
+                    kind: ValueLayoutKind::Array { len, stride, elem: Box::new(elem) },
+                })
+            }
+            Ty::Adt(ref name, _) => {
+                let info = self.lookup_known_type(name).ok()?;
+                if info.opaque {
+                    let pb = self.ptr_bytes();
+                    return Some(ValueLayout {
+                        size: pb,
+                        align: pb,
+                        kind: ValueLayoutKind::Scalar { signed: false, is_ptr: true, is_float: false },
+                    });
+                }
+                if let Some(&id) = self.value_records.get(&(info.module.clone(), info.name.clone())) {
+                    return self.value_layouts.get(id as usize).cloned();
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn intern_pod_layout(&mut self, ty: &Ty) -> Option<u32> {
+        let l = self.pod_value_layout(ty)?;
+        Some(self.intern_value_layout(l))
+    }
+
+    pub(crate) fn unboxed_value_layout_id(&mut self, ty: &Ty) -> Option<u32> {
+        if !self.is_unboxed_value_ty(ty) {
+            return None;
+        }
+        self.intern_pod_layout(ty)
+    }
+
     pub(crate) fn field_shape(&self, ty: &Ty, size: u64) -> FieldShape {
         match ty {
             // `Unit` and `Bool` fill their recorded scalar width (the
@@ -8064,7 +8687,23 @@ impl Checker {
 
     /// Both lowering and compile-time evaluation must call the checked builder.
     fn has_constructor_body(&self, id: &GlobalId) -> bool {
-        self.unboxed_ctors.contains_key(id) || self.unpacked_records.contains_key(id)
+        self.unboxed_ctors.contains_key(id)
+            || self.niche_ctors.contains_key(id)
+            || self.unpacked_records.contains_key(id)
+    }
+
+    pub(crate) fn niche_plan(&self, kind: &TypeKind) -> Option<&NichePlan> {
+        if self.niche_plans.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
+        self.niche_plans.get(&(kind.module.clone(), kind.name.clone()))
+    }
+
+    pub(crate) fn poly_niche_plan(&self, kind: &TypeKind) -> Option<&crate::core::PolyNichePlan> {
+        if self.poly_niche_plans.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
+        self.poly_niche_plans.get(&(kind.module.clone(), kind.name.clone()))
     }
 
     fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {
@@ -8073,6 +8712,46 @@ impl Checker {
         }
         let (ctor, _) = kind.ctors.first()?;
         self.unboxed_ctors.get(&fn_id(&kind.module, ctor))
+    }
+
+    /// True when `ty` is a closed, uniform, non-opaque `data` enum whose every
+    /// constructor has runtime arity 0 (every inhabitant is an immortal static
+    /// block, so dup/drop are no-ops).
+    pub(crate) fn is_immortal_enum_ty(&self, ty: &Ty) -> bool {
+        let ty = self.uni.zonk(ty);
+        match ty {
+            Ty::Ref(_, inner) => self.is_immortal_enum_ty(&inner),
+            Ty::Adt(ref name, ref args) if name == "refined" => {
+                args.get(1).is_some_and(|b| self.is_immortal_enum_ty(b))
+            }
+            Ty::Adt(ref name, ref args) if name == "Sing" => {
+                args.first().is_some_and(|b| self.is_immortal_enum_ty(b))
+            }
+            Ty::Adt(ref name, ref args) => {
+                let Some(kind) = self.known_type(name) else { return false };
+                if let Some(r) = kind.refine.as_ref() {
+                    let mut map = HashMap::new();
+                    for (p, a) in r.params.iter().zip(args) {
+                        map.insert(p.clone(), a.clone());
+                    }
+                    return self.is_immortal_enum_ty(&Checker::subst_ty(&r.base, &map));
+                }
+                if !kind.data_family
+                    || kind.opaque
+                    || kind.ctors.is_empty()
+                    || self.open_data_families.contains(&kind.identity)
+                    || self.layout_recipes.contains_key(&(kind.module.clone(), kind.name.clone()))
+                {
+                    return false;
+                }
+                kind.ctors.iter().all(|(cname, _)| {
+                    self.qualified
+                        .get(&(kind.module.clone(), cname.clone()))
+                        .is_some_and(|v| matches!(v.kind, ValueKind::Ctor { runtime_arity: 0, .. }))
+                })
+            }
+            _ => false,
+        }
     }
 
     fn known_type(&self, identity: &str) -> Option<&TypeKind> {
@@ -8149,12 +8828,59 @@ impl Checker {
         }
     }
 
+    /// Structural `Boxed` evidence for uniform 1-word / pointer-compatible
+    /// boundaries (`TVar`, `Lazy`, `MVar`, `Par`, existentials, or explicit
+    /// `using (Boxed a)`): accepts all normal boxed ADTs/records, `Box a`,
+    /// closures, and builtin single-slot scalars/pointers; rejects unboxed
+    /// value aggregates (`#[repr(value)]` records and `FixedArray n a`)
+    /// target-independently so accidental heap boxing cannot happen silently.
+    pub(crate) fn boxed_structural<B>(
+        &self,
+        ty: &Ty,
+        scope: &[(B, ClassApp)],
+    ) -> std::result::Result<(), String> {
+        if scope
+            .iter()
+            .any(|(_, c)| c.class == "Boxed" && c.args.iter().any(|a| a == ty))
+        {
+            return Ok(());
+        }
+        match ty {
+            Ty::Adt(name, args) if name.as_str() == "refined" => {
+                if let Some(base) = args.get(1) {
+                    self.boxed_structural(base, scope)
+                } else {
+                    Ok(())
+                }
+            }
+            Ty::Adt(name, args) if name.as_str() == "Sing" => {
+                if let Some(base) = args.first() {
+                    self.boxed_structural(base, scope)
+                } else {
+                    Ok(())
+                }
+            }
+            Ty::Adt(name, _) if name.as_str() == "FixedArray" => Err(format!(
+                "unboxed `FixedArray` type `{ty}` does not satisfy `Boxed`; wrap it explicitly in `Box`"
+            )),
+            _ if crate::repr::is_value_ty(ty, self) => Err(format!(
+                "unboxed `#[repr(value)]` type `{ty}` does not satisfy `Boxed`; wrap it explicitly in `Box`"
+            )),
+            Ty::Param(p) => Err(format!(
+                "type parameter `{p}` is not known to satisfy `Boxed`; add a `using (b :: Boxed {p})` constraint or wrap in `Box`"
+            )),
+            _ => Ok(()),
+        }
+    }
+
     fn signature_at(&self, owner: &str, name: &str) -> Option<SigInfo> {
-        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Kernel" | "Io") {
+        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Kernel" | "Boxed" | "Io") {
             let (name, parameter) = if name == "Io" {
                 ("Io", "r")
             } else if name == "Kernel" {
                 ("Kernel", "a")
+            } else if name == "Boxed" {
+                ("Boxed", "a")
             } else {
                 ("Copy", "a")
             };
@@ -8208,7 +8934,7 @@ impl Checker {
                 // section 3). It is not user-extensible. `Io` is the
                 // runtime capability head (decision D21): its instances
                 // are runtime objects supplied lexically, never declared.
-                if matches!(*name, "Copy" | "Share" | "Kernel" | "Io") {
+                if matches!(*name, "Copy" | "Share" | "Kernel" | "Boxed" | "Io") {
                     return Ok(self.signature_at("<builtin>", name).unwrap());
                 }
                 self.sigs
@@ -8462,6 +9188,7 @@ impl Checker {
                     data: None,
                     result: Some(Class::Obj),
                     dictionary_values: Vec::new(),
+                    ..Default::default()
                 },
             });
         }
@@ -9561,7 +10288,7 @@ impl Checker {
                 } else {
                     let class = resolver.uni.zonk_class(&request.class);
                     if self.collecting_declarations && !self.provisional_declarations && self.declaration_seed.is_none()
-                        && class.class != "Copy" && class.class != "Kernel" && !self.is_capability(&class.class) {
+                        && class.class != "Copy" && class.class != "Kernel" && class.class != "Boxed" && !self.is_capability(&class.class) {
                         self.declaration_needs_headers.set(true);
                         return Err(Error::at(request.span, "index declaration evidence needs the complete instance headers"));
                     }
@@ -10407,6 +11134,9 @@ impl Checker {
                 }
                 _ => false,
             },
+            PredFn::NotNaN | PredFn::Finite => {
+                matches!(base, Ty::Prim(Scalar::F32 | Scalar::F64))
+            }
         };
         if ok {
             Ok(())
@@ -10951,7 +11681,7 @@ impl Checker {
             {
                 return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
             }
-            Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered"))
+            Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered" | "NotNaN" | "Finite"))
                 if args.len() == 1
                     && !matches!(&args[0], Arg::Ty(a) if self.refinement_type_app(pred, a)) =>
             {
@@ -13209,6 +13939,10 @@ impl Checker {
                 regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
                 Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             ),
+            Ty::Ptr { role, pointee } => Ty::Ptr {
+                role: role.clone(),
+                pointee: Box::new(Checker::subst_namespaces(pointee, types, rows, regions, evidence)),
+            },
             Ty::Region(r) => Ty::Region(regions.get(r.as_str()).cloned().unwrap_or_else(|| r.to_string()).into()),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: EffLabel {
@@ -14544,6 +15278,8 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
             .iter()
             .filter_map(|(i, m)| shift(*i).map(|j| (j, *m)))
             .collect(),
+        unique_params: meta.unique_params.iter().filter_map(|i| shift(*i)).collect(),
+        immortal_params: meta.immortal_params.iter().filter_map(|i| shift(*i)).collect(),
         pure_arrows: meta.pure_arrows.iter().filter_map(|i| shift(*i)).collect(),
         dicts: meta
             .dicts

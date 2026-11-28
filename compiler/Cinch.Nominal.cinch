@@ -315,7 +315,7 @@ module Cinch.Nominal where
   global-stage-str-nat :: String
   global-stage-str-nat = "m.$23stage$2dquotation.strNat"
   kernel-type-name :: String -> Bool
-  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
+  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Boxed", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later", "RawPtr", "Borrowed", "MaybeNull", "FixedArray"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   indexed-name :: String -> HashMap String () -> Bool
@@ -460,6 +460,7 @@ module Cinch.Nominal where
     else if name == "Vec" then (TName sp "b.Vec", [])
     else if has name locals || kernel-type-name name then (TName sp name, [])
     else if contains-identity name refs then (TName sp (interface-global name), [])
+    else if name == "Box" then (TName sp "b.Box", [])
     else fail sp (string-concat "resolved scheme contains an unbound type name: " name)
   quantified-names :: TypeExpr -> List String
   quantified-names qs = case qs of TQuantifier s name only kind rest -> name : (quantified-names rest); other -> []
@@ -480,7 +481,7 @@ module Cinch.Nominal where
     TQuantifiersEnd s -> (qs, [])
     other -> fail (type-expr-span qs) "invalid resolved quantifier kinds or scope"
   signature-reference :: String -> Json -> Bool
-  signature-reference name refs = name == "Io" || name == "Copy" || name == "Kernel" || signature-in-rows name refs
+  signature-reference name refs = name == "Io" || name == "Copy" || name == "Kernel" || name == "Boxed" || signature-in-rows name refs
   signature-in-rows :: String -> Json -> Bool
   signature-in-rows name refs = case refs of
     JArr row rest -> (name == text (field "identity" row) && (text (field "kind" row) == "signature" || text (field "kind" row) == "data")) || signature-in-rows name rest
@@ -597,7 +598,7 @@ module Cinch.Nominal where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> name == "True" || name == "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> name == "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered"]
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"]
     other -> False
   qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate refs locals syntax = case syntax of
@@ -608,7 +609,7 @@ module Cinch.Nominal where
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if has name ["b.toNat", "b.length", "b.bytesLen"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at (if name == "b.toNat" then "#kernel.toNat" else if name == "b.length" then "#kernel.length" else "#kernel.bytes-length")) (TArg arg value (TArgsEnd end)), errors))
-      else if has name ["NonZero", "NotNull", "Ascii", "Ordered"] then (case qualify-predicate refs locals input of
+      else if has name ["NonZero", "NotNull", "Ascii", "Ordered", "NotNaN", "Finite"] then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
       else if measure-reference name refs || singleton-reference name refs then (case qualify-predicate-args refs locals (TArg arg input (TArgsEnd end)) of
         (arguments, errors) -> (TApp sp (TName at (interface-global name)) arguments, errors))

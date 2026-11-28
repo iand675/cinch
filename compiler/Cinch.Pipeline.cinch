@@ -40,10 +40,11 @@ module Cinch.Pipeline where
   import Cinch.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, prepare-admitted-resolution, resolve-overlay-with, unshadowed-interfaces)
   import Cinch.Stage (expand-stages-with-report, explain-expansion-errors)
   import Cinch.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
-  import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows, checked-temporal-rows)
+  import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows, checked-temporal-rows, checked-proof-cache-entries)
   import Cinch.Interface (fnv-source-hash, sha256-hex)
   import Cinch.TargetLiterals (target-literal-errors)
   import Cinch.Target (TargetProfile, selection-arch, target-ir-header, target-profile, target-view-program, host-profile)
+  import Cinch.PrimVerify (validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved)
   import Algebra.Semigroup
   import Effect.Clock (clock-monotonic-ns)
   import Effect.Process (process-run, command)
@@ -610,17 +611,19 @@ module Cinch.Pipeline where
     after-object-client-tuned default-tuning profile inlining debug reclaim publish admitted provider checked entry exported ir
   after-object-client-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Bool -> Bool -> Bool -> Bool -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Result String (List (String, Json)) -> Path ->{IO r, Diverge} Int
   after-object-client-tuned tuning profile inlining debug reclaim publish admitted provider checked entry exported ir =
-    if not publish then write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
-    else case exported of
-      Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
-      Ok rows -> case write-interface-output ir (Ok rows) of
-        0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
-          0 -> (case fs-write (build-manifest-path ir)
-              (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) entry (manifest-target profile) admitted rows)) of
-            Ok written -> pipeline-ok
-            Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
-          code -> code
-        code -> code
+    case write-proof-cache-entries profile (checked-proof-cache-entries checked) of
+      _ ->
+        if not publish then write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider))
+        else case exported of
+          Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
+          Ok rows -> case write-interface-output ir (Ok rows) of
+            0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
+              0 -> (case fs-write (build-manifest-path ir)
+                  (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) entry (manifest-target profile) admitted rows)) of
+                Ok written -> pipeline-ok
+                Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
+              code -> code
+            code -> code
 
   run-source-with-object :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
   run-source-with-object inlining debug reclaim manifest config runtime prefix source words = run-source-with-object-at inlining debug reclaim host-profile manifest config runtime prefix source words
@@ -1115,10 +1118,28 @@ module Cinch.Pipeline where
   -- `CINCH_ARENA=1` enables the scope; unset makes both entries no-ops,
   -- so the same build measures the same phase with every block back on
   -- the counted heap.
+  write-proof-cache-files :: forall r. using (io :: Io r) => String -> List (String, String, String) ->{IO r, Diverge} Unit
+  write-proof-cache-files dir entries = case entries of
+    [] -> ()
+    (gh, prv, payload) : rest ->
+      let doc = JObj "format" (JStr "lrat/v1") (JObj "payload" (JStr payload) (JObj "prover_id" (JStr prv) JObjEnd)) in
+      case fs-write (path-from-string (dir <> "/" <> gh <> ".lrat_v1.json")) (canonical-bytes doc) of
+        _ -> write-proof-cache-files dir rest
+
+  write-proof-cache-entries :: forall r. using (io :: Io r) => TargetProfile -> List (String, String, String) ->{IO r, Diverge} Unit
+  write-proof-cache-entries profile entries = case (profile.proof-cache, profile.replay-only, entries) of
+    (Some dir, False, first : rest) ->
+      case process-run (command (path-from-string "mkdir") ["-p", dir]) "" of
+        Ok (0, _) -> write-proof-cache-files dir entries
+        other -> ()
+    other -> ()
+
   serialize-exported :: forall r. using (io :: Io r) => CheckedProgram -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) -> Result String (List (String, Json)) ->{IO r, Diverge} Unit
-  serialize-exported checked profile entry admitted replaced exported = case exported of
-    Err message -> ()
-    Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) profile entry admitted (replaced <> rows)
+  serialize-exported checked profile entry admitted replaced exported =
+    case write-proof-cache-entries profile (checked-proof-cache-entries checked) of
+      _ -> case exported of
+        Err message -> ()
+        Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) profile entry admitted (replaced <> rows)
 
   serialize-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
   serialize-artifacts generated primitives temporal profile entry admitted rows =
@@ -1764,3 +1785,74 @@ module Cinch.Pipeline where
               Err (msg, status) -> report-test-failure ir msg status
               Ok (view, checked) ->
                 run-checked-test-harness test-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked
+
+  run-verify-codegen-checked :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Option RuntimeObject -> CheckedProgram ->{IO r, Diverge} Int
+  run-verify-codegen-checked tuning profile provider checked =
+    case emit-target-program-tuned tuning profile False False True checked provider of
+      Err errors -> do
+        _ <- ioWrite (string-to-bytes ("cinch verify-codegen: codegen failed:\n" <> render-diagnostics errors))
+        1
+      Ok ir-text ->
+        let defs = elaboration-core (checked.elaboration) in
+        let reports = validate-program-codegen-for-word-bits (profile.word-size) "Main." defs ir-text in
+        let rendered = render-tv-reports reports in
+        do
+          _ <- ioWrite (string-to-bytes rendered)
+          if tv-reports-disproved reports > 0 then 1 else 0
+
+  verify-codegen-source-tuned :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Option String -> Option String -> String ->{IO r, Diverge} Int
+  verify-codegen-source-tuned tuning profile manifest-opt object-opt source =
+    case fs-read (path-from-string source) of
+      Err _ -> do
+        _ <- ioWrite (string-to-bytes ("cinch verify-codegen: cannot read `" <> source <> "`\n"))
+        2
+      Ok src -> case (manifest-opt, object-opt) of
+        (Some manifest, Some config) ->
+          let references = read-interface-inputs manifest in
+          let configuration = read-runtime-object-config config in
+          case load-object-client True references configuration of
+            Err msg -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+              1
+            Ok (admitted, provider, metadata, object-path, object-bytes) ->
+              let interfaces = admitted.interfaces-members in
+              let headers = module-name-index (interface-fixity-headers interfaces) in
+              let parse = \name input -> parse-for-tuning tuning name input headers in
+              let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
+              case checked-object-bytes profile parse check source src of
+                Err (msg, _) -> do
+                  _ <- ioWrite (string-to-bytes ("cinch verify-codegen: check failed:\n" <> msg <> "\n"))
+                  1
+                Ok (view, checked) -> run-verify-codegen-checked tuning profile (Some provider) checked
+        (Some manifest, None) ->
+          case read-validated-interfaces manifest of
+            Err msg -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+              1
+            Ok admitted ->
+              let interfaces = admitted.interfaces-members in
+              let headers = module-name-index (interface-fixity-headers interfaces) in
+              let parse = \name input -> parse-for-tuning tuning name input headers in
+              let check = \bytes program -> check-object-client-tuned tuning profile bytes program admitted in
+              case checked-object-bytes profile parse check source src of
+                Err (msg, _) -> do
+                  _ <- ioWrite (string-to-bytes ("cinch verify-codegen: check failed:\n" <> msg <> "\n"))
+                  1
+                Ok (view, checked) -> run-verify-codegen-checked tuning profile None checked
+        (None, _) ->
+          case parse-for-tuning tuning source src hash-map-empty of
+            Failed bundle -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: parse failed:\n" <> render-bundle bundle <> "\n"))
+              1
+            Parsed program [] -> case target-view-program profile program of
+              Err msg -> do
+                _ <- ioWrite (string-to-bytes ("cinch verify-codegen: " <> msg <> "\n"))
+                1
+              Ok view -> case checked-source-tuned tuning profile view [] of
+                Err errors -> do
+                  _ <- ioWrite (string-to-bytes ("cinch verify-codegen: check failed:\n" <> render-source-diagnostics src errors <> "\n"))
+                  1
+                Ok checked -> run-verify-codegen-checked tuning profile None checked
+            Parsed program errors -> do
+              _ <- ioWrite (string-to-bytes ("cinch verify-codegen: parse failed:\n" <> render-bundle (Bundle source src errors) <> "\n"))
+              1

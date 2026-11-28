@@ -176,7 +176,10 @@ fn insert_with(
         let wide: std::collections::HashSet<&str> = program
             .fns
             .iter()
-            .filter(|f| f.repr.result == Some(crate::repr::Class::Wide) || f.repr.params.contains(&crate::repr::Class::Wide))
+            .filter(|f| {
+                f.repr.result.is_some_and(|c| c == crate::repr::Class::Wide || c.is_val())
+                    || f.repr.params.iter().any(|c| *c == crate::repr::Class::Wide || c.is_val())
+            })
             .map(|f| f.id.0.as_str())
             .collect();
         if !wide.is_empty() {
@@ -227,6 +230,8 @@ fn insert_with(
     if verifying() {
         verify_program(&program)?;
     }
+    let closed = boundary.is_some_and(|b| b.closed);
+    prove_uniqueness(&mut program, closed);
     Ok(program)
 }
 
@@ -596,10 +601,13 @@ fn borrow_modes(
 
 /// The modes of a saturated call's head, when it is a unit that has
 /// borrowed parameters.
-fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m Vec<bool>> {
+fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m [bool]> {
+    static WORD_CMP_MODES: [bool; 2] = [true, false];
     match head {
-        Core::Global(g, _) => modes.get(&g.0),
-        Core::Prim(op) => modes.get(&op.symbol()),
+        Core::Global(g, _) => modes.get(&g.0).map(Vec::as_slice),
+        Core::Prim(crate::core::PrimOp::WordCmp { .. }) if args == 2 => Some(&WORD_CMP_MODES[..]),
+        Core::Prim(crate::core::PrimOp::WordOp { op: crate::core::WordOp::TestMask }) if args == 2 => Some(&WORD_CMP_MODES[..]),
+        Core::Prim(op) => modes.get(&op.symbol()).map(Vec::as_slice),
         _ => None,
     }
     .filter(|m| m.len() == args)
@@ -1030,7 +1038,7 @@ impl Ctors {
             // interchangeable with a uniform constructor of its field count.
             let planned = program.plans.contains_key(&f.id.0)
                 || program.plans.contains_key(crate::repr::base_unit(&f.id.0).as_ref())
-                || f.repr.fields.contains(&Class::Wide);
+                || f.repr.fields.iter().any(|c| *c == Class::Wide || c.is_val());
             let fact = CtorFact { fields, planned, data: f.repr.data.clone(), classes: f.repr.fields.clone() };
             if let Some(d) = &f.repr.data {
                 by_data.entry(d.clone()).or_default().push((tag, fact.clone()));
@@ -1191,24 +1199,44 @@ fn branch_reuse(
     fields: &[LocalId],
     ctors: &Ctors,
 ) -> Option<Core> {
-    // The arm's body with the reuse on its spine, when it allocates a
-    // compatible constructor there.
-    let arm = |body: &Core| -> (Core, bool) {
-        let reused = insert_reuse(body, token, words, tag, fields, false, ctors)
-            .or_else(|| insert_reuse(body, token, words, tag, fields, true, ctors));
-        match reused {
-            Some(rewritten) => (rewritten, true),
-            None => (body.clone(), false),
-        }
-    };
+    if let Some(reused) = insert_reuse(e, token, words, tag, fields, false, ctors)
+        .or_else(|| insert_reuse(e, token, words, tag, fields, true, ctors))
+    {
+        return Some(reused);
+    }
     match e {
+        Core::Let(x, c, v, b) => {
+            // `v` has no unconditional straight-line reuse (checked by
+            // `insert_reuse(e)` above), so descending only into `b` consumes
+            // `token` at most once on any execution path.
+            let b2 = branch_reuse(b, token, words, tag, fields, ctors)?;
+            Some(Core::Let(*x, *c, v.clone(), Box::new(b2)))
+        }
+        Core::Dup(x, c, b) => branch_reuse(b, token, words, tag, fields, ctors)
+            .map(|b2| Core::Dup(*x, *c, Box::new(b2))),
+        Core::Drop(x, c, b) => branch_reuse(b, token, words, tag, fields, ctors)
+            .map(|b2| Core::Drop(*x, *c, Box::new(b2))),
+        Core::Release { block, moved, rest, token: inner_tok, body } => {
+            let b2 = branch_reuse(body, token, words, tag, fields, ctors)?;
+            Some(Core::Release {
+                block: *block,
+                moved: moved.clone(),
+                rest: rest.clone(),
+                token: *inner_tok,
+                body: Box::new(b2),
+            })
+        }
         Core::Case { scrut, alts } if !alts.is_empty() => {
             let mut bodies = Vec::with_capacity(alts.len());
             let mut any = false;
             for a in alts {
-                let (body, reused) = arm(&a.body);
-                any |= reused;
-                bodies.push(body);
+                match branch_reuse(&a.body, token, words, tag, fields, ctors) {
+                    Some(body) => {
+                        any = true;
+                        bodies.push(body);
+                    }
+                    None => bodies.push((*a.body).clone()),
+                }
             }
             // Nothing to gain: a token no arm reads is a slot no path
             // uses, and the release is the same either way.
@@ -1217,7 +1245,7 @@ fn branch_reuse(
             }
             let mut bodies = bodies.into_iter();
             let alts = alts
-                .into_iter()
+                .iter()
                 .map(|a| CAlt {
                     pat: a.pat.clone(),
                     weight: a.weight,
@@ -1227,15 +1255,21 @@ fn branch_reuse(
             Some(Core::Case { scrut: scrut.clone(), alts })
         }
         Core::If(c, t, f) => {
-            let (then, then_reused) = arm(&t.body);
-            let (otherwise, else_reused) = arm(&f.body);
-            if !then_reused && !else_reused {
+            let then_r = branch_reuse(&t.body, token, words, tag, fields, ctors);
+            let else_r = branch_reuse(&f.body, token, words, tag, fields, ctors);
+            if then_r.is_none() && else_r.is_none() {
                 return None;
             }
             Some(Core::If(
                 c.clone(),
-                CBranch { weight: t.weight, body: Box::new(then) },
-                CBranch { weight: f.weight, body: Box::new(otherwise) },
+                CBranch {
+                    weight: t.weight,
+                    body: Box::new(then_r.unwrap_or_else(|| (*t.body).clone())),
+                },
+                CBranch {
+                    weight: f.weight,
+                    body: Box::new(else_r.unwrap_or_else(|| (*f.body).clone())),
+                },
             ))
         }
         _ => None,
@@ -1320,7 +1354,10 @@ fn compatible_ctor<'a>(
         return None;
     }
     let fact = ctors.by_unit.get(&id.0)?;
-    if fact.planned || fact.fields != words || args.len() != words {
+    // Nullary constructors (`words == 0`) are immortal static singletons with
+    // no heap cell to reuse. Rejecting them here also prevents `reuse_scrutinees`
+    // from forcing ownership on borrowed lookups whose base arm is `Tip -> None`.
+    if words == 0 || fact.planned || fact.fields != words || args.len() != words {
         return None;
     }
     let data = fact.data.as_deref()?;
@@ -1593,7 +1630,7 @@ impl Pass<'_> {
             }
             Core::App(f, args) => {
                 if let Some(m) = callee_modes(self.modes, f, args.len()) {
-                    return self.borrowing_call(f, args, &m.clone(), owned, live);
+                    return self.borrowing_call(f, args, &m.to_vec(), owned, live);
                 }
                 let mut es: Vec<&Core> = vec![&**f];
                 es.extend(args.iter());
@@ -1757,6 +1794,9 @@ impl Pass<'_> {
     /// it; otherwise the expression's own class where it shows one, else
     /// `Raw` (uncounted, which can only leak).
     fn scrut_class(&self, scrut: &Core, alts: &[CAlt<Core>]) -> Class {
+        if let Some(c) = self.expr_class(scrut) {
+            return c;
+        }
         if alts.iter().any(|a| matches!(a.pat, CPat::Con { .. })) {
             return Class::Obj;
         }
@@ -1829,6 +1869,179 @@ impl Pass<'_> {
         call
     }
 
+    /// Emit drop-specialization (`Core::Release`) and optional cell reuse for
+    /// a `case` arm body where scrutinee `s` is dead.
+    fn emit_release_body(
+        &mut self,
+        s: usize,
+        tag: usize,
+        fields: &[LocalId],
+        body_in: &Core,
+        owned: &Set,
+        live: &Set,
+    ) -> Core {
+        let nb = self.need(body_in);
+        let used: Vec<usize> =
+            fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && nb.contains(x)).collect();
+        let mut o = owned.clone();
+        o.remove(&s);
+        o.extend(used.iter().copied());
+        let body = self.go(body_in, &o, live);
+        let with_class = |x: usize| (LocalId(x), self.class_of(x));
+        let moved = used.iter().map(|x| with_class(*x)).collect();
+        let rest = fields
+            .iter()
+            .map(|x| x.0)
+            .filter(|x| self.counted(*x) && !used.contains(x))
+            .map(with_class)
+            .collect();
+        let words = fields.len();
+        let found = insert_reuse(&body, self.next, words, tag, fields, false, self.ctors)
+            .or_else(|| insert_reuse(&body, self.next, words, tag, fields, true, self.ctors));
+        match found {
+            Some(body) => {
+                let token = self.fresh(Class::Raw);
+                Core::Release {
+                    block: LocalId(s),
+                    moved,
+                    rest,
+                    token: Some(LocalId(token)),
+                    body: Box::new(body),
+                }
+            }
+            None => {
+                let token = self.fresh(Class::Raw);
+                match branch_reuse(&body, token, words, tag, fields, self.ctors) {
+                    Some(body) => Core::Release {
+                        block: LocalId(s),
+                        moved,
+                        rest,
+                        token: Some(LocalId(token)),
+                        body: Box::new(body),
+                    },
+                    None => Core::Release {
+                        block: LocalId(s),
+                        moved,
+                        rest,
+                        token: None,
+                        body: Box::new(body),
+                    },
+                }
+            }
+        }
+    }
+
+    /// Whether `body` is a branch/let spine where scrutinee `s` stays dead on
+    /// at least one reachable branch (allowing `Core::Release` to sink there
+    /// while leaving `else s` branches free of premature field dups).
+    fn can_sink_release(&mut self, s: usize, body: &Core) -> bool {
+        match body {
+            Core::If(c, t, f) => {
+                if self.need(c).contains(&s) {
+                    return false;
+                }
+                !self.need(&t.body).contains(&s)
+                    || !self.need(&f.body).contains(&s)
+                    || self.can_sink_release(s, &t.body)
+                    || self.can_sink_release(s, &f.body)
+            }
+            Core::Let(x, c, v, b) => {
+                x.0 != s
+                    && let_alias(*x, *c, v, &self.class, &self.written).is_none()
+                    && !self.need(v).contains(&s)
+                    && self.can_sink_release(s, b)
+            }
+            _ => false,
+        }
+    }
+
+    fn sink_release_branch(
+        &mut self,
+        s: usize,
+        tag: usize,
+        fields: &[LocalId],
+        br: &Core,
+        after: &Set,
+        live: &Set,
+    ) -> Core {
+        let br_need = self.need(br);
+        if !br_need.contains(&s) {
+            let mut bound_fields = Set::new();
+            crate::core::walk_locals(br, &mut |l| {
+                bound_fields.insert(l.0);
+            });
+            let reads_fields = fields.iter().any(|x| bound_fields.contains(&x.0));
+            if reads_fields {
+                self.emit_release_body(s, tag, fields, br, after, live)
+            } else {
+                self.go(br, after, live)
+            }
+        } else if self.can_sink_release(s, br) {
+            let mut need = br_need;
+            need.extend(live.iter().copied());
+            let kept: Set = after.intersection(&need).copied().collect();
+            let dead: Vec<usize> = after.difference(&need).copied().collect();
+            let mut body = self.sink_release_body(s, tag, fields, br, &kept, live);
+            for x in dead.into_iter().rev() {
+                body = self.rc(true, x, body);
+            }
+            body
+        } else {
+            let used: Vec<usize> =
+                fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && br_need.contains(x)).collect();
+            let mut o = after.clone();
+            o.extend(used.iter().copied());
+            let mut body = self.go(br, &o, live);
+            for x in used.into_iter().rev() {
+                body = self.rc(false, x, body);
+            }
+            body
+        }
+    }
+
+    fn sink_release_body(
+        &mut self,
+        s: usize,
+        tag: usize,
+        fields: &[LocalId],
+        body: &Core,
+        owned: &Set,
+        live: &Set,
+    ) -> Core {
+        match body {
+            Core::If(c, t, f) => {
+                let mut nb = self.need(&t.body);
+                nb.extend(self.need(&f.body));
+                nb.extend(live.iter().copied());
+                nb.insert(s);
+                let after: Set = owned.intersection(&nb).copied().collect();
+                let c2 = self.go(c, owned, &after);
+                let t2 = self.sink_release_branch(s, tag, fields, &t.body, &after, live);
+                let f2 = self.sink_release_branch(s, tag, fields, &f.body, &after, live);
+                Core::If(
+                    Box::new(c2),
+                    CBranch { weight: t.weight, body: Box::new(t2) },
+                    CBranch { weight: f.weight, body: Box::new(f2) },
+                )
+            }
+            Core::Let(x, c, v, b) => {
+                let mut fb = self.need(b);
+                fb.remove(&x.0);
+                fb.extend(live.iter().copied());
+                fb.insert(s);
+                let lv: Set = owned.intersection(&fb).copied().collect();
+                let v2 = self.go(v, owned, &lv);
+                let mut ob = lv;
+                if self.counted(x.0) {
+                    ob.insert(x.0);
+                }
+                let b2 = self.sink_release_body(s, tag, fields, b, &ob, live);
+                Core::Let(*x, *c, Box::new(v2), Box::new(b2))
+            }
+            _ => unreachable!("sink_release_body called on non-sinkable node"),
+        }
+    }
+
     /// The alternatives of a `case` on the owned-or-raw binder `s`.
     fn case_on(&mut self, s: usize, alts: &[CAlt<Core>], owned: &Set, live: &Set) -> Core {
         let mut out = Vec::with_capacity(alts.len());
@@ -1857,78 +2070,20 @@ impl Pass<'_> {
                         && !live.contains(&s)
                         && !nb.contains(&s)
                     {
-                        // The alternative keeps fields and leaves the
-                        // scrutinee dead: a uniquely held scrutinee hands
-                        // its fields over instead of dupping them and
-                        // dropping itself (design/reclamation.md section 4).
-                        let mut o = owned.clone();
-                        o.remove(&s);
-                        o.extend(used.iter().copied());
-                        let body = self.go(&a.body, &o, live);
-                        let with_class = |x: usize| (LocalId(x), self.class_of(x));
-                        let moved = used.iter().map(|x| with_class(*x)).collect();
-                        let rest = fields
-                            .iter()
-                            .map(|x| x.0)
-                            .filter(|x| self.counted(*x) && !used.contains(x))
-                            .map(with_class)
-                            .collect();
-                        // A constructor allocation on the body's spine can
-                        // be built in this block's cell instead of a fresh
-                        // block: the block is uniquely held here (that is
-                        // this arm's condition), and the reuse hands it
-                        // the new constructor's layout (Lean 4's
-                        // reset/reuse pair).
-                        // Two passes, in Lean's order (`ResetReuse.lean`
-                        // runs `insertResetReuseCore` with `relaxedReuse`
-                        // off and then on): the same-family reuse first,
-                        // and only when that finds nothing the
-                        // family-crossing one, so a compatible successor
-                        // of the scrutinee's own type is never passed over
-                        // for one of another type.
-                        let words = fields.len();
-                        let found = insert_reuse(&body, self.next, words, *tag, fields, false, self.ctors)
-                            .or_else(|| {
-                                insert_reuse(&body, self.next, words, *tag, fields, true, self.ctors)
-                            });
-                        match found {
-                            Some(body) => {
-                                let token = self.fresh(Class::Raw);
-                                Core::Release {
-                                    block: LocalId(s),
-                                    moved,
-                                    rest,
-                                    token: Some(LocalId(token)),
-                                    body: Box::new(body),
-                                }
-                            }
-                            None => {
-                                // No allocation on the straight-line
-                                // spine. The release keeps its place at the
-                                // head of the branch and binds the token;
-                                // only the reuse moves into the arms (Lean's
-                                // `expandResetReuse`), because the head runs
-                                // before every arm and a field it consumes
-                                // is dead at arm entry.
-                                let token = self.fresh(Class::Raw);
-                                match branch_reuse(&body, token, words, *tag, fields, self.ctors) {
-                                    Some(body) => Core::Release {
-                                        block: LocalId(s),
-                                        moved,
-                                        rest,
-                                        token: Some(LocalId(token)),
-                                        body: Box::new(body),
-                                    },
-                                    None => Core::Release {
-                                        block: LocalId(s),
-                                        moved,
-                                        rest,
-                                        token: None,
-                                        body: Box::new(body),
-                                    },
-                                }
-                            }
-                        }
+                        self.emit_release_body(s, *tag, fields, &a.body, owned, live)
+                    } else if self.specialize
+                        && reads_fields
+                        && self.class_of(s) == Class::Obj
+                        && owned.contains(&s)
+                        && !live.contains(&s)
+                        && self.can_sink_release(s, &a.body)
+                    {
+                        // The scrutinee is live on at least one branch (e.g. a
+                        // cold `else s` return), but dead on sibling branches.
+                        // Keep `s` alive through conditions/lets without
+                        // prematurely dupping fields, and sink `Core::Release`
+                        // (unique move/reuse) into every branch where `s` dies.
+                        self.sink_release_body(s, *tag, fields, &a.body, owned, live)
                     } else if self.counted(s) && !owned.contains(&s) {
                         // A borrowed scrutinee (a borrowed parameter, or a
                         // field of one) lives for the whole call, so its
@@ -2121,7 +2276,7 @@ impl Verifier<'_, '_, '_> {
     /// and constructor words are immortal; a zero-arity global executes.
     fn safe_borrow_argument(&self, head: &Core, index: usize, arg: &Core) -> bool {
         let globals = self.globals.expect("program verification has unit metadata");
-        let raw = |class: Class| matches!(class, Class::Raw | Class::Wide);
+        let raw = |class: Class| matches!(class, Class::Raw | Class::Wide | Class::Val { .. });
         let result = |name: &str| globals.get(name).and_then(|f| f.repr.result);
         match arg {
             Core::Let(_, _, _, body) => return self.safe_borrow_argument(head, index, body),
@@ -2481,7 +2636,7 @@ fn name_call_arguments(program: &mut Program) {
         .fns
         .iter()
         .filter_map(|f| f.repr.result.map(|c| (f.id.0.clone(), c)))
-        .filter(|(_, c)| !matches!(c, Class::Param(_)))
+        .filter(|(_, c)| !c.is_param())
         .collect();
     let arity: HashMap<String, usize> = program.fns.iter().map(|f| (f.id.0.clone(), f.params.len())).collect();
     // A saturated call's argument has the callee's parameter class, which
@@ -2636,9 +2791,439 @@ fn expr_class_in(e: &Core, classes: &HashMap<usize, Class>) -> Option<Class> {
     }
 }
 
+/// Interprocedural static uniqueness analysis over post-RC Core:
+/// computes `returns_unique` (units whose every exit produces a fresh
+/// uniquely-owned non-nullary heap block) and `unique_params` (owned `Obj`
+/// parameters guaranteed unique either by non-duplicable linearity metadata
+/// or because every closed-program call site passes a statically-unique
+/// value), then marks `Core::Release` sites whose `block` is statically
+/// unique in `program.unique_releases`.
+fn prove_uniqueness(program: &mut Program, closed: bool) {
+    program.unique_releases.clear();
+    let non_nullary_ctors: HashSet<&str> = program
+        .fns
+        .iter()
+        .filter(|f| f.ctor.is_some_and(|(_, arity)| arity > 0))
+        .map(|f| f.id.0.as_str())
+        .collect();
+    let arities: HashMap<&str, usize> = program
+        .fns
+        .iter()
+        .map(|f| (f.id.0.as_str(), f.arity()))
+        .collect();
+    let exported: HashSet<&str> = program
+        .foreigns
+        .values()
+        .filter(|fp| fp.export)
+        .map(|fp| fp.unit.as_str())
+        .collect();
+    let foreign_imports: HashSet<&str> = program
+        .foreigns
+        .values()
+        .filter(|fp| !fp.export)
+        .map(|fp| fp.unit.as_str())
+        .collect();
+    let instance_methods: HashSet<&str> = program
+        .instances
+        .iter()
+        .flat_map(|inst| inst.methods.iter().map(|m| m.0.as_str()))
+        .collect();
+    let main_unit = program.main.as_ref().map(|g| g.0.as_str());
+
+    // Collect every unit that escapes as a first-class value (closure, partial
+    // application, or dictionary slot) and every unit with at least one direct call.
+    fn scan_refs(
+        e: &Core,
+        arities: &HashMap<&str, usize>,
+        indirect: &mut HashSet<String>,
+        direct_called: &mut HashSet<String>,
+    ) {
+        match e {
+            Core::Global(g, _) => {
+                indirect.insert(g.0.clone());
+            }
+            Core::Lam { fn_id, env, .. } => {
+                indirect.insert(fn_id.0.clone());
+                for a in env {
+                    scan_refs(a, arities, indirect, direct_called);
+                }
+            }
+            Core::App(h, args) => {
+                if let Core::Global(g, _) = &**h {
+                    if arities.get(g.0.as_str()) == Some(&args.len()) {
+                        direct_called.insert(g.0.clone());
+                    } else {
+                        indirect.insert(g.0.clone());
+                    }
+                } else {
+                    scan_refs(h, arities, indirect, direct_called);
+                }
+                for a in args {
+                    scan_refs(a, arities, indirect, direct_called);
+                }
+            }
+            Core::InstDict(_, args, _) => {
+                for a in args {
+                    scan_refs(a, arities, indirect, direct_called);
+                }
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    scan_refs(child, arities, indirect, direct_called);
+                }
+            }
+        }
+    }
+    let mut indirect: HashSet<String> = HashSet::new();
+    let mut direct_called: HashSet<String> = HashSet::new();
+    for f in &program.fns {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
+            continue;
+        }
+        scan_refs(&f.body, &arities, &mut indirect, &mut direct_called);
+    }
+
+    let body_available = |f: &FnDef| {
+        f.prim.is_none()
+            && f.ctor.is_none()
+            && !f.meta.prim_body
+            && !foreign_imports.contains(f.id.0.as_str())
+            && !matches!(
+                program.lent_entries.get(&f.id.0),
+                Some(crate::core::LentEntry::Imported { .. })
+            )
+    };
+    let is_internal = |f: &FnDef| {
+        closed
+            && body_available(f)
+            && main_unit != Some(f.id.0.as_str())
+            && !exported.contains(f.id.0.as_str())
+            && !instance_methods.contains(f.id.0.as_str())
+            && !indirect.contains(&f.id.0)
+            && direct_called.contains(&f.id.0)
+    };
+
+    // Collect locals that are duplicated or could acquire an external alias
+    // before a Release (any Dup, mutable store, or argument to a borrowed
+    // primitive/unknown call).
+    fn collect_aliased(
+        e: &Core,
+        borrowed_map: &std::collections::BTreeMap<String, Vec<bool>>,
+        arities: &HashMap<&str, usize>,
+        out: &mut HashSet<usize>,
+    ) {
+        match e {
+            Core::Dup(x, _, body) => {
+                out.insert(x.0);
+                collect_aliased(body, borrowed_map, arities, out);
+            }
+            Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
+                out.insert(x.0);
+                if let Core::Var(y) = &**v {
+                    out.insert(y.0);
+                }
+                collect_aliased(v, borrowed_map, arities, out);
+            }
+            Core::App(h, args) => {
+                let is_known_local = match &**h {
+                    Core::Global(g, _) if arities.get(g.0.as_str()) == Some(&args.len()) => {
+                        Some(g.0.as_str())
+                    }
+                    _ => None,
+                };
+                for (i, a) in args.iter().enumerate() {
+                    if let Core::Var(x) = a {
+                        let is_borrowed = is_known_local
+                            .and_then(|g| borrowed_map.get(g))
+                            .and_then(|m| m.get(i))
+                            .copied()
+                            .unwrap_or(false);
+                        // Any borrowed argument or primitive/indirect argument may
+                        // inspect or retain the value before a later Release.
+                        if is_borrowed || matches!(&**h, Core::Prim(_)) {
+                            out.insert(x.0);
+                        }
+                    }
+                    collect_aliased(a, borrowed_map, arities, out);
+                }
+                if !matches!(&**h, Core::Global(..) | Core::Ctor(..) | Core::Prim(_)) {
+                    collect_aliased(h, borrowed_map, arities, out);
+                }
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    collect_aliased(child, borrowed_map, arities, out);
+                }
+            }
+        }
+    }
+
+    let mut aliased_by_unit: HashMap<String, HashSet<usize>> = HashMap::new();
+    for f in &program.fns {
+        if !body_available(f) {
+            continue;
+        }
+        let mut aliased = HashSet::new();
+        collect_aliased(&f.body, &program.borrowed, &arities, &mut aliased);
+        aliased_by_unit.insert(f.id.0.clone(), aliased);
+    }
+
+    // Greatest fixed point over `returns_unique` and `unique_params`.
+    let mut returns_unique: HashSet<String> = program
+        .fns
+        .iter()
+        .filter(|f| body_available(f) && f.repr.result == Some(Class::Obj))
+        .map(|f| f.id.0.clone())
+        .collect();
+
+    let mut unique_params: HashMap<String, Vec<bool>> = HashMap::new();
+    let mut fixed_unique_params: HashMap<String, Vec<bool>> = HashMap::new();
+    for f in &program.fns {
+        if !body_available(f) {
+            continue;
+        }
+        let borrowed = program.borrowed.get(&f.id.0);
+        let internal = is_internal(f);
+        let mut mask = vec![false; f.arity()];
+        let mut fixed = vec![false; f.arity()];
+        for i in 0..f.arity() {
+            let is_obj = f.repr.params.get(i).copied() == Some(Class::Obj);
+            let is_bor = borrowed.and_then(|m| m.get(i)).copied().unwrap_or(false);
+            if is_obj && !is_bor {
+                if f.meta.unique_params.contains(&i) {
+                    mask[i] = true;
+                    fixed[i] = true;
+                } else if internal {
+                    mask[i] = true;
+                }
+            }
+        }
+        if mask.iter().any(|&b| b) {
+            unique_params.insert(f.id.0.clone(), mask);
+        }
+        if fixed.iter().any(|&b| b) {
+            fixed_unique_params.insert(f.id.0.clone(), fixed);
+        }
+    }
+
+    fn is_unique_expr(
+        e: &Core,
+        unique_locals: &HashSet<usize>,
+        aliased: &HashSet<usize>,
+        returns_unique: &HashSet<String>,
+        non_nullary_ctors: &HashSet<&str>,
+        arities: &HashMap<&str, usize>,
+    ) -> bool {
+        match e {
+            Core::Var(x) => unique_locals.contains(&x.0),
+            Core::Reuse { .. } | Core::Fault => true,
+            Core::App(h, args) => match &**h {
+                Core::Ctor(g, _) => !args.is_empty() && non_nullary_ctors.contains(g.0.as_str()),
+                Core::Global(g, _) => {
+                    arities.get(g.0.as_str()) == Some(&args.len())
+                        && returns_unique.contains(&g.0)
+                }
+                _ => false,
+            },
+            Core::Let(x, c, v, body) => {
+                if *c == Class::Obj
+                    && !aliased.contains(&x.0)
+                    && is_unique_expr(v, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                {
+                    let mut next = unique_locals.clone();
+                    next.insert(x.0);
+                    is_unique_expr(body, &next, aliased, returns_unique, non_nullary_ctors, arities)
+                } else {
+                    is_unique_expr(body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                }
+            }
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => {
+                is_unique_expr(body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+            }
+            Core::If(_, t, f) => {
+                is_unique_expr(&t.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                    && is_unique_expr(&f.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+            }
+            Core::Case { scrut, alts } => {
+                let scrut_unique = matches!(&**scrut, Core::Var(s) if unique_locals.contains(&s.0));
+                !alts.is_empty()
+                    && alts.iter().all(|a| {
+                        if let CPat::Var(v, _) = a.pat {
+                            if scrut_unique && !aliased.contains(&v.0) {
+                                let mut next = unique_locals.clone();
+                                next.insert(v.0);
+                                return is_unique_expr(&a.body, &next, aliased, returns_unique, non_nullary_ctors, arities);
+                            }
+                        }
+                        is_unique_expr(&a.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                    })
+            }
+            _ => false,
+        }
+    }
+
+    fn walk_calls_and_releases(
+        e: &Core,
+        unique_locals: &mut HashSet<usize>,
+        aliased: &HashSet<usize>,
+        returns_unique: &HashSet<String>,
+        non_nullary_ctors: &HashSet<&str>,
+        arities: &HashMap<&str, usize>,
+        unique_params: &mut HashMap<String, Vec<bool>>,
+        fixed_unique_params: &HashMap<String, Vec<bool>>,
+        changed: &mut bool,
+        mut record_release: Option<&mut BTreeSet<usize>>,
+    ) {
+        match e {
+            Core::Let(x, c, v, body) => {
+                walk_calls_and_releases(
+                    v, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                );
+                let inserted = *c == Class::Obj
+                    && !aliased.contains(&x.0)
+                    && is_unique_expr(v, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                    && unique_locals.insert(x.0);
+                walk_calls_and_releases(
+                    body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release,
+                );
+                if inserted {
+                    unique_locals.remove(&x.0);
+                }
+            }
+            Core::Release { block, body, .. } => {
+                if let Some(rec) = record_release.as_deref_mut() {
+                    if unique_locals.contains(&block.0) {
+                        rec.insert(block.0);
+                    }
+                }
+                walk_calls_and_releases(
+                    body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release,
+                );
+            }
+            Core::Case { scrut, alts } => {
+                walk_calls_and_releases(
+                    scrut, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                    unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                );
+                let scrut_unique = matches!(&**scrut, Core::Var(s) if unique_locals.contains(&s.0));
+                for a in alts {
+                    let inserted = match a.pat {
+                        CPat::Var(v, _) if scrut_unique && !aliased.contains(&v.0) => unique_locals.insert(v.0),
+                        _ => false,
+                    };
+                    walk_calls_and_releases(
+                        &a.body, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                    if inserted {
+                        if let CPat::Var(v, _) = a.pat {
+                            unique_locals.remove(&v.0);
+                        }
+                    }
+                }
+            }
+            Core::App(h, args) => {
+                if let Core::Global(g, _) = &**h {
+                    if arities.get(g.0.as_str()) == Some(&args.len()) {
+                        if let Some(mask) = unique_params.get_mut(&g.0) {
+                            let fixed = fixed_unique_params.get(&g.0);
+                            for (i, a) in args.iter().enumerate() {
+                                if mask.get(i).copied().unwrap_or(false)
+                                    && !fixed.and_then(|f| f.get(i)).copied().unwrap_or(false)
+                                    && !is_unique_expr(a, unique_locals, aliased, returns_unique, non_nullary_ctors, arities)
+                                {
+                                    mask[i] = false;
+                                    *changed = true;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    walk_calls_and_releases(
+                        h, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                }
+                for a in args {
+                    walk_calls_and_releases(
+                        a, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                }
+            }
+            _ => {
+                for child in crate::core::child_slots_imm(e) {
+                    walk_calls_and_releases(
+                        child, unique_locals, aliased, returns_unique, non_nullary_ctors, arities,
+                        unique_params, fixed_unique_params, changed, record_release.as_deref_mut(),
+                    );
+                }
+            }
+        }
+    }
+
+    let seed_locals = |f: &FnDef, aliased: &HashSet<usize>, up: &HashMap<String, Vec<bool>>| -> HashSet<usize> {
+        let mut s = HashSet::new();
+        if let Some(mask) = up.get(&f.id.0) {
+            for (i, &u) in mask.iter().enumerate() {
+                if u && !aliased.contains(&i) {
+                    s.insert(i);
+                }
+            }
+        }
+        s
+    };
+
+    loop {
+        let mut changed = false;
+        for f in &program.fns {
+            if !body_available(f) {
+                continue;
+            }
+            let aliased = &aliased_by_unit[&f.id.0];
+            let mut locals = seed_locals(f, aliased, &unique_params);
+            if returns_unique.contains(&f.id.0)
+                && !is_unique_expr(&f.body, &locals, aliased, &returns_unique, &non_nullary_ctors, &arities)
+            {
+                returns_unique.remove(&f.id.0);
+                changed = true;
+            }
+            walk_calls_and_releases(
+                &f.body, &mut locals, aliased, &returns_unique, &non_nullary_ctors, &arities,
+                &mut unique_params, &fixed_unique_params, &mut changed, None,
+            );
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    // Final pass: collect statically-unique `Core::Release` blocks per unit.
+    let mut dummy_changed = false;
+    for f in &program.fns {
+        if !body_available(f) {
+            continue;
+        }
+        let aliased = &aliased_by_unit[&f.id.0];
+        let mut locals = seed_locals(f, aliased, &unique_params);
+        let mut rec = BTreeSet::new();
+        walk_calls_and_releases(
+            &f.body, &mut locals, aliased, &returns_unique, &non_nullary_ctors, &arities,
+            &mut unique_params, &fixed_unique_params, &mut dummy_changed, Some(&mut rec),
+        );
+        if !rec.is_empty() {
+            program.unique_releases.insert(f.id.0.clone(), rec);
+        }
+    }
+}
+
 #[cfg(test)]
 mod owned_use_tests {
     use super::*;
+    use crate::core::{FnHints, FnMeta, UnitRepr};
 
     #[test]
     fn ownership_witnesses_distinguish_escapes_and_consuming_calls() {
@@ -2660,5 +3245,264 @@ mod owned_use_tests {
             assert_eq!(out, [0].into_iter().collect());
             assert_eq!(details.unwrap().get(&0), Some(&expected));
         }
+    }
+
+    #[test]
+    fn nullary_ctor_arm_does_not_force_ownership_on_lookup() {
+        // `lookup s = case s of Tip -> None; Bin x l r -> Some x`
+        // `Tip` and `None` both have 0 fields; nullary constructors are static
+        // singletons and must not claim cell reuse (which previously forced `s`
+        // to be owned instead of lent).
+        let tip = FnDef {
+            id: GlobalId("T.Tip".into()),
+            params: vec![],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 0)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { fields: vec![], data: Some("T.Tree".into()), ..UnitRepr::default() },
+        };
+        let bin = FnDef {
+            id: GlobalId("T.Bin".into()),
+            params: vec!["x".into(), "l".into(), "r".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((1, 3)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj, Class::Obj, Class::Obj],
+                fields: vec![Class::Obj, Class::Obj, Class::Obj],
+                data: Some("T.Tree".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let none = FnDef {
+            id: GlobalId("T.None".into()),
+            params: vec![],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 0)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { fields: vec![], data: Some("T.Opt".into()), ..UnitRepr::default() },
+        };
+        let some = FnDef {
+            id: GlobalId("T.Some".into()),
+            params: vec!["v".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((1, 1)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj],
+                fields: vec![Class::Obj],
+                data: Some("T.Opt".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let lookup = FnDef {
+            id: GlobalId("T.lookup".into()),
+            params: vec!["s".into()],
+            body: Core::Case {
+                scrut: Box::new(Core::Var(LocalId(0))),
+                alts: vec![
+                    CAlt::new(
+                        CPat::Con { tag: 0, fields: vec![], classes: vec![] },
+                        Core::App(Box::new(Core::Ctor(GlobalId("T.None".into()), vec![])), vec![]),
+                    ),
+                    CAlt::new(
+                        CPat::Con {
+                            tag: 1,
+                            fields: vec![LocalId(1), LocalId(2), LocalId(3)],
+                            classes: vec![Class::Obj, Class::Obj, Class::Obj],
+                        },
+                        Core::App(
+                            Box::new(Core::Ctor(GlobalId("T.Some".into()), vec![])),
+                            vec![Core::Var(LocalId(1))],
+                        ),
+                    ),
+                ],
+            },
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { params: vec![Class::Obj], result: Some(Class::Obj), ..UnitRepr::default() },
+        };
+        let program = Program::from_functions(vec![tip, bin, none, some, lookup]);
+        let profile = crate::core::TargetProfile { reclaim: true, ..crate::core::TargetProfile::native() };
+        let out = insert_closed(program, &profile).expect("rc insert_closed");
+        assert_eq!(
+            out.borrowed.get("T.lookup"),
+            Some(&vec![true]),
+            "nullary Tip -> None must not block borrowing `s`"
+        );
+    }
+
+    #[test]
+    fn branch_sunk_release_reuses_cell_despite_cold_scrutinee_return() {
+        // `upd flag s = case s of Bin k v -> if flag then Bin k k else s`
+        // Even though the `else` branch returns `s` directly, the `then` branch
+        // leaves `s` dead and must emit `Core::Release` + `Core::Reuse`, while
+        // the `else` branch returns `s` with zero dups/drops, passing `verify`.
+        let bin = FnDef {
+            id: GlobalId("T.Bin".into()),
+            params: vec!["k".into(), "v".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 2)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj, Class::Obj],
+                fields: vec![Class::Obj, Class::Obj],
+                data: Some("T.Pair".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let upd = FnDef {
+            id: GlobalId("T.upd".into()),
+            params: vec!["flag".into(), "s".into()],
+            body: Core::Case {
+                scrut: Box::new(Core::Var(LocalId(1))),
+                alts: vec![CAlt::new(
+                    CPat::Con {
+                        tag: 0,
+                        fields: vec![LocalId(2), LocalId(3)],
+                        classes: vec![Class::Obj, Class::Obj],
+                    },
+                    Core::If(
+                        Box::new(Core::Var(LocalId(0))),
+                        CBranch::new(Core::App(
+                            Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                            vec![Core::Var(LocalId(2)), Core::Var(LocalId(2))],
+                        )),
+                        CBranch::new(Core::Var(LocalId(1))),
+                    ),
+                )],
+            },
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Raw, Class::Obj],
+                result: Some(Class::Obj),
+                ..UnitRepr::default()
+            },
+        };
+        let program = Program::from_functions(vec![bin, upd]);
+        let profile = crate::core::TargetProfile { reclaim: true, ..crate::core::TargetProfile::native() };
+        let out = insert_closed(program, &profile).expect("rc insert_closed");
+        let f = out.fns.iter().find(|f| f.id.0 == "T.upd").expect("T.upd");
+        let Core::Case { alts, .. } = &f.body else { panic!("expected Case") };
+        let Core::If(_, yes, no) = &*alts[0].body else {
+            panic!("expected branch-sunk If at arm entry, got {:?}", alts[0].body);
+        };
+        assert!(
+            matches!(&*yes.body, Core::Release { token: Some(_), .. }),
+            "expected Core::Release with reuse token on dead-scrutinee branch, got {:?}",
+            yes.body
+        );
+        assert!(
+            matches!(&*no.body, Core::Var(LocalId(1))),
+            "expected zero-RC direct return of scrutinee on else branch, got {:?}",
+            no.body
+        );
+    }
+
+    #[test]
+    fn nested_if_let_branch_reuse_reuses_cell_on_deep_arm() {
+        // `upd a b s = case s of Bin k v -> if a then (let x = k in if b then Bin x v else Bin v x) else Bin v k`
+        // Recursive `branch_reuse` must thread the release token through `Let`
+        // and nested `If` so every deep constructor arm emits `Core::Reuse`.
+        let bin = FnDef {
+            id: GlobalId("T.Bin".into()),
+            params: vec!["k".into(), "v".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 2)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj, Class::Obj],
+                fields: vec![Class::Obj, Class::Obj],
+                data: Some("T.Pair".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let deep = Core::Let(
+            LocalId(5),
+            Class::Obj,
+            Box::new(Core::Var(LocalId(3))),
+            Box::new(Core::If(
+                Box::new(Core::Var(LocalId(1))),
+                CBranch::new(Core::App(
+                    Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                    vec![Core::Var(LocalId(5)), Core::Var(LocalId(4))],
+                )),
+                CBranch::new(Core::App(
+                    Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                    vec![Core::Var(LocalId(4)), Core::Var(LocalId(5))],
+                )),
+            )),
+        );
+        let upd = FnDef {
+            id: GlobalId("T.upd2".into()),
+            params: vec!["a".into(), "b".into(), "s".into()],
+            body: Core::Case {
+                scrut: Box::new(Core::Var(LocalId(2))),
+                alts: vec![CAlt::new(
+                    CPat::Con {
+                        tag: 0,
+                        fields: vec![LocalId(3), LocalId(4)],
+                        classes: vec![Class::Obj, Class::Obj],
+                    },
+                    Core::If(
+                        Box::new(Core::Var(LocalId(0))),
+                        CBranch::new(deep),
+                        CBranch::new(Core::App(
+                            Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                            vec![Core::Var(LocalId(4)), Core::Var(LocalId(3))],
+                        )),
+                    ),
+                )],
+            },
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Raw, Class::Raw, Class::Obj],
+                result: Some(Class::Obj),
+                ..UnitRepr::default()
+            },
+        };
+        let program = Program::from_functions(vec![bin, upd]);
+        let profile = crate::core::TargetProfile { reclaim: true, ..crate::core::TargetProfile::native() };
+        let out = insert_closed(program, &profile).expect("rc insert_closed");
+        let f = out.fns.iter().find(|f| f.id.0 == "T.upd2").expect("T.upd2");
+        fn count_reuse(e: &Core) -> usize {
+            let mut n = usize::from(matches!(e, Core::Reuse { .. }));
+            for c in crate::core::child_slots_imm(e) {
+                n += count_reuse(c);
+            }
+            n
+        }
+        let Core::Case { alts, .. } = &f.body else { panic!("expected Case") };
+        assert!(
+            matches!(&*alts[0].body, Core::Release { token: Some(_), .. }),
+            "expected Core::Release with reuse token, got {:?}",
+            alts[0].body
+        );
+        assert_eq!(
+            count_reuse(&alts[0].body),
+            3,
+            "all three nested If/Let arms must reuse the released cell: {:?}",
+            alts[0].body
+        );
     }
 }

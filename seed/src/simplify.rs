@@ -139,9 +139,11 @@
 //! generation gives the pair a block and a branch: no closure, no stack
 //! frame, no call.
 use crate::core::{
-    child_slots, child_slots_imm, alpha_eq, CAlt, CPat, Class, Core, FnDef, GlobalId, JoinId,
-    LocalId, Program, SimplifyReport, symbol_has_module_prefix,
+    child_slots, child_slots_imm, alpha_eq, ArithMode, ArithOp, BitOp, CAlt, CmpOp, CPat, Class,
+    Core, FnDef, GlobalId, JoinId, LocalId, PrimOp, Program, ShiftOp, SimplifyReport,
+    symbol_has_module_prefix,
 };
+use crate::types::Scalar;
 use std::collections::{HashMap, HashSet};
 
 /// Which inlining decision the pass makes at a call site.
@@ -331,6 +333,10 @@ struct Tables {
     /// top-level record (`default-hooks = Hooks log-it trace-it`), which a
     /// projection or a decision reads at compile time.
     static_records: HashMap<String, Core>,
+    /// Nullary point-free partial-application wrappers (`f = g a b` where
+    /// `g`'s arity exceeds the saved static arguments). Saturated calls to
+    /// `f` unfold directly into `g a b ...` without calling `__apply`.
+    static_wrappers: HashMap<String, Core>,
     /// Parameter count by unit name.
     arity: HashMap<String, usize>,
     /// Parameter classes for retaining computed partial-call arguments at
@@ -341,17 +347,31 @@ struct Tables {
     instances: HashMap<String, (usize, Vec<GlobalId>)>,
     /// Units backed by inline `prim` target-IR fragments (priced like `Core::Prim`).
     prim_bodies: HashSet<String>,
+    /// Units backed by a kernel `PrimOp` (`f.prim = Some(op)`).
+    prims: HashMap<String, PrimOp>,
 }
 
 impl Tables {
     fn new(program: &Program) -> Tables {
-        let mut tables =
-            Tables { ctors: HashMap::new(), lambdas: HashMap::new(), static_records: HashMap::new(), arity: HashMap::new(), params: HashMap::new(), instances: HashMap::new(), prim_bodies: HashSet::new() };
+        let mut tables = Tables {
+            ctors: HashMap::new(),
+            lambdas: HashMap::new(),
+            static_records: HashMap::new(),
+            static_wrappers: HashMap::new(),
+            arity: HashMap::new(),
+            params: HashMap::new(),
+            instances: HashMap::new(),
+            prim_bodies: HashSet::new(),
+            prims: HashMap::new(),
+        };
         for f in &program.fns {
             tables.arity.insert(f.id.0.clone(), f.params.len());
             tables.params.insert(f.id.0.clone(), f.repr.params.clone());
             if f.meta.prim_body {
                 tables.prim_bodies.insert(f.id.0.clone());
+            }
+            if let Some(op) = f.prim {
+                tables.prims.insert(f.id.0.clone(), op);
             }
             if is_lambda_unit(&f.id.0) && f.prim.is_none() && f.ctor.is_none() {
                 tables.lambdas.insert(f.id.0.clone(), (f.repr.params.clone(), f.body.clone()));
@@ -369,6 +389,14 @@ impl Tables {
                         let mut record = f.body.clone();
                         close_lambdas(&mut record, &tables.arity);
                         tables.static_records.insert(f.id.0.clone(), record);
+                    } else if let Core::Global(g, _) = &**head {
+                        if g.0 != f.id.0
+                            && !args.is_empty()
+                            && tables.arity.get(&g.0).is_some_and(|a| *a > args.len())
+                            && args.iter().all(static_field)
+                        {
+                            tables.static_wrappers.insert(f.id.0.clone(), f.body.clone());
+                        }
                     }
                 }
             }
@@ -391,6 +419,9 @@ impl Tables {
             self.params.insert(f.id.0.clone(), f.repr.params.clone());
             if f.meta.prim_body {
                 self.prim_bodies.insert(f.id.0.clone());
+            }
+            if let Some(op) = f.prim {
+                self.prims.insert(f.id.0.clone(), op);
             }
             if let Some((tag, fields)) = f.ctor {
                 self.ctors.insert(f.id.0.clone(), (tag, fields));
@@ -416,6 +447,9 @@ struct Scope {
     /// A local to the closure construction it is bound to, when every
     /// capture is a value (rule `known-closure-call`).
     lams: HashMap<LocalId, Core>,
+    /// A local to the static scalar constant (`Bool`, `Int`, `Unit`) it is
+    /// bound to, for online partial evaluation across multiple uses.
+    consts: HashMap<LocalId, Core>,
     /// The lambda units whose contified copy the pass is inside. A copy can
     /// expose the recursion it came from (an unfolded recursive callee that
     /// builds the same closure again), so the same lambda is not contified
@@ -441,6 +475,12 @@ impl Scope {
     /// The constructor application a local's value is, through aliases.
     fn ctor_of(&self, l: LocalId) -> Option<&Core> {
         self.ctor.get(&self.root_of(l))
+    }
+
+    /// The static scalar constant (`Bool`, `Int`, `Unit`) a local is bound to,
+    /// through aliases.
+    fn const_of(&self, l: LocalId) -> Option<&Core> {
+        self.consts.get(&self.root_of(l))
     }
 }
 
@@ -528,6 +568,14 @@ fn subst(e: &mut Core, from: LocalId, to: &Core) {
                 subst(h, from, to);
             }
         }
+        Core::RefSet(l, v, _) | Core::BoxInit(l, v, _) | Core::LazyInit(l, v) => {
+            if *l == from {
+                if let Core::Var(new_l) = to {
+                    *l = *new_l;
+                }
+            }
+            subst(v, from, to);
+        }
         _ => {
             for slot in child_slots(e) {
                 subst(slot, from, to);
@@ -565,7 +613,16 @@ fn visit_children<'a>(e: &'a Core, f: &mut impl FnMut(&'a Core)) {
 
 /// Whether the term mentions `l`.
 fn mentions(e: &Core, l: LocalId) -> bool {
-    if matches!(e, Core::Var(x) if *x == l) {
+    if matches!(
+        e,
+        Core::Var(x)
+            | Core::RefSet(x, ..)
+            | Core::BoxInit(x, ..)
+            | Core::LazyInit(x, ..)
+            | Core::Dup(x, ..)
+            | Core::Drop(x, ..)
+            if *x == l
+    ) {
         return true;
     }
     let mut found = false;
@@ -623,6 +680,11 @@ fn occurrences(e: &Core, in_join: bool, out: &mut HashMap<LocalId, Occ>) {
         Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
             read(x, out);
             occurrences(body, in_join, out);
+            return;
+        }
+        Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
+            read(x, out);
+            occurrences(v, in_join, out);
             return;
         }
         Core::Release { block, moved, rest, token, body } => {
@@ -774,6 +836,9 @@ enum Rule {
     /// A binding nothing reads and whose value is harmless to discard
     /// (GHC's dead-binder drop).
     DeadBinder,
+    /// Constant folding or algebraic identity on a pure machine primitive,
+    /// or dead-branch elimination on a literal `Core::If`.
+    PrimFold,
 }
 
 /// The accumulator every pass shares: the tick total, the per-rule
@@ -796,6 +861,7 @@ struct Ticks {
     inline: usize,
     pre_inline: usize,
     dead_binder: usize,
+    prim_fold: usize,
     changed: bool,
 }
 
@@ -817,6 +883,7 @@ impl Ticks {
             Rule::Inline => self.inline += 1,
             Rule::PreInline => self.pre_inline += 1,
             Rule::DeadBinder => self.dead_binder += 1,
+            Rule::PrimFold => self.prim_fold += 1,
         }
     }
 }
@@ -851,6 +918,13 @@ fn pass(
         }
     }
     match e {
+        Core::Var(l) => {
+            if let Some(c) = scope.const_of(*l) {
+                *e = c.clone();
+                t.fire(Rule::PrimFold);
+                return;
+            }
+        }
         Core::Let(l, _, value, body) => {
             pass(value, scope, tables, classes, occ, opts, fresh, t);
             let alias = match &**value {
@@ -864,6 +938,8 @@ fn pass(
             let is_bound = bound.is_some();
             let dict = matches!(&**value, Core::InstDict(_, subs, _) if subs.iter().all(capture_value));
             let lam = matches!(&**value, Core::Lam { env, .. } if env.iter().all(capture_value));
+            let is_const = matches!(&**value, Core::Bool(_) | Core::Int(_) | Core::Unit)
+                || matches!(&**value, Core::Global(id, _) if tables.arity.get(&id.0).is_some_and(|a| *a > 0));
             if lam {
                 scope.lams.insert(*l, (**value).clone());
             }
@@ -875,6 +951,9 @@ fn pass(
             }
             if dict {
                 scope.dicts.insert(*l, (**value).clone());
+            }
+            if is_const {
+                scope.consts.insert(*l, (**value).clone());
             }
             pass(body, scope, tables, classes, occ, opts, fresh, t);
             if alias.is_some() {
@@ -888,6 +967,15 @@ fn pass(
             }
             if lam {
                 scope.lams.remove(&*l);
+            }
+            if is_const {
+                scope.consts.remove(&*l);
+            }
+        }
+        Core::App(head, args) => {
+            pass(head, scope, tables, classes, occ, opts, fresh, t);
+            for a in args {
+                pass(a, scope, tables, classes, occ, opts, fresh, t);
             }
         }
         _ => {
@@ -918,8 +1006,12 @@ fn pass(
             Some(Rule::KnownClosureCall)
         } else if opts.saturate_partial && saturate_partial(e, occ, tables, fresh) {
             Some(Rule::SaturatePartial)
+        } else if simplify_prim(e, tables) {
+            Some(Rule::PrimFold)
         } else if opts.case_of_case && case_of_case(e, classes, opts, fresh, t) {
             Some(Rule::CaseOfCase)
+        } else if sink_partial_escape(e, tables, fresh) {
+            Some(Rule::KnownConstructor)
         } else {
             None
         };
@@ -969,6 +1061,383 @@ fn pass(
             *e = body;
             t.fire(Rule::PreInline);
         }
+    }
+}
+
+/// Width and signedness for fixed-width machine integer scalars whose
+/// bit-level wrapping, bitwise, shift, and comparison results are target
+/// independent (`I8..I64`, `U8..U64`, `Char`). Excludes `Usize`/`Isize`
+/// (target-width dependent), wide 128-bit scalars, and floats.
+fn fixed_scalar_bits(s: Scalar) -> Option<(u32, bool)> {
+    match s {
+        Scalar::I8 => Some((8, true)),
+        Scalar::I16 => Some((16, true)),
+        Scalar::I32 => Some((32, true)),
+        Scalar::I64 => Some((64, true)),
+        Scalar::U8 => Some((8, false)),
+        Scalar::U16 => Some((16, false)),
+        Scalar::U32 => Some((32, false)),
+        Scalar::U64 => Some((64, false)),
+        Scalar::Char => Some((32, false)),
+        _ => None,
+    }
+}
+
+/// Whether `s` is a machine-word integer scalar where `0` and `1` are
+/// target-independent identities (`I8..I64`, `U8..U64`, `Isize`, `Usize`).
+fn is_word_int_scalar(s: Scalar) -> bool {
+    matches!(
+        s,
+        Scalar::I8
+            | Scalar::I16
+            | Scalar::I32
+            | Scalar::I64
+            | Scalar::U8
+            | Scalar::U16
+            | Scalar::U32
+            | Scalar::U64
+            | Scalar::Isize
+            | Scalar::Usize
+    )
+}
+
+/// Truncate an `i128` result to its stored `i64` representation, matching
+/// `crate::core::trunc_word` bit-for-bit.
+fn trunc_fixed(v: i128, bits: u32, signed: bool) -> i64 {
+    if bits >= 64 {
+        v as i64
+    } else {
+        let m = (1i128 << bits) - 1;
+        let t = v & m;
+        if signed && (t & (1i128 << (bits - 1))) != 0 {
+            (t | !m) as i64
+        } else {
+            t as i64
+        }
+    }
+}
+
+/// Interpret a stored `Core::Int(i64)` word at its fixed width and signedness.
+fn fixed_val(word: i64, bits: u32, signed: bool) -> i128 {
+    if signed {
+        trunc_fixed(word as i128, bits, true) as i128
+    } else {
+        (word as u64 as i128) & ((1i128 << bits) - 1)
+    }
+}
+
+/// Map canonical pure total `Prim.Machine.<op>-<scalar>` globals to their
+/// equivalent `PrimOp`. Trapping (`raw-sdiv`, `raw-srem`, `raw-udiv`,
+/// `raw-urem`) and overflow-flag (`ov-*`) operations are deliberately excluded.
+fn prim_machine_global_op(name: &str) -> Option<PrimOp> {
+    let rest = name.strip_prefix("Prim.Machine.")?;
+    let (op_name, ty_name) = rest.rsplit_once('-')?;
+    let ty = match ty_name {
+        "i8" => Scalar::I8,
+        "i16" => Scalar::I16,
+        "i32" => Scalar::I32,
+        "i64" => Scalar::I64,
+        "u8" => Scalar::U8,
+        "u16" => Scalar::U16,
+        "u32" => Scalar::U32,
+        "u64" => Scalar::U64,
+        _ => return None,
+    };
+    match op_name {
+        "wrapping-add" => Some(PrimOp::Arith { ty, op: ArithOp::Add, mode: ArithMode::Wrapping }),
+        "wrapping-sub" => Some(PrimOp::Arith { ty, op: ArithOp::Sub, mode: ArithMode::Wrapping }),
+        "wrapping-mul" => Some(PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping }),
+        "wrapping-neg" => Some(PrimOp::Neg { ty, mode: ArithMode::Wrapping }),
+        "bit-and" => Some(PrimOp::Bit { ty, op: BitOp::And }),
+        "bit-or" => Some(PrimOp::Bit { ty, op: BitOp::Or }),
+        "bit-xor" => Some(PrimOp::Bit { ty, op: BitOp::Xor }),
+        "bit-not" => Some(PrimOp::BitNot { ty }),
+        "wrapping-shl" => Some(PrimOp::Shift { ty, op: ShiftOp::Shl, checked: false }),
+        "wrapping-shr" => Some(PrimOp::Shift { ty, op: ShiftOp::Shr, checked: false }),
+        "eq" => Some(PrimOp::Cmp { ty, op: CmpOp::Eq }),
+        "ne" => Some(PrimOp::Cmp { ty, op: CmpOp::Ne }),
+        "lt" => Some(PrimOp::Cmp { ty, op: CmpOp::Lt }),
+        "le" => Some(PrimOp::Cmp { ty, op: CmpOp::Le }),
+        "gt" => Some(PrimOp::Cmp { ty, op: CmpOp::Gt }),
+        "ge" => Some(PrimOp::Cmp { ty, op: CmpOp::Ge }),
+        _ => None,
+    }
+}
+
+/// Resolve an application head to a `PrimOp`, covering both direct `Core::Prim`
+/// nodes and global references to kernel primops / pure `Prim.Machine` units.
+fn resolve_prim_op(head: &Core, tables: &Tables) -> Option<PrimOp> {
+    match head {
+        Core::Prim(op) => Some(*op),
+        Core::Global(id, _) => tables
+            .prims
+            .get(&id.0)
+            .copied()
+            .or_else(|| prim_machine_global_op(&id.0)),
+        _ => None,
+    }
+}
+
+/// Decompose a bitwise `And`/`Or` application where one operand is a
+/// `Core::Int(c)` literal, returning `(other_expr, c)`.
+fn split_bit_const<'a>(
+    e: &'a Core,
+    tables: &Tables,
+    expected_ty: Scalar,
+    expected_op: BitOp,
+) -> Option<(&'a Core, i64)> {
+    let Core::App(head, args) = e else { return None };
+    let Some(PrimOp::Bit { ty, op }) = resolve_prim_op(head, tables) else { return None };
+    if ty != expected_ty || op != expected_op || args.len() != 2 {
+        return None;
+    }
+    match (&args[0], &args[1]) {
+        (x, Core::Int(c)) => Some((x, *c)),
+        (Core::Int(c), x) => Some((x, *c)),
+        _ => None,
+    }
+}
+
+/// Sound constant folding and algebraic identities on pure machine-word
+/// `Core::Prim` (and `Prim.Machine.*`) applications, plus dead-branch
+/// elimination on literal `Core::If`.
+///
+/// Trapping and checked operations (`ArithMode::Checked`, `Div`, `Rem`,
+/// `CheckedDiv`, `CheckedRem`, `Shift { checked: true }`) are NEVER folded.
+/// Absorbing/self-canceling rewrites (`mul(x, 0) -> 0`, `and(x, 0) -> 0`,
+/// `sub(x, x) -> 0`, `xor(x, x) -> 0`, `and(x, x) -> x`, `or(x, x) -> x`,
+/// `cmp(x, x)`) require `speculatable(x, tables)` so no effect or trap in `x`
+/// can ever be dropped.
+fn simplify_prim(e: &mut Core, tables: &Tables) -> bool {
+    if let Core::If(cond, then_b, else_b) = &*e {
+        if let Core::Bool(b) = &**cond {
+            if !carries_quote(&then_b.body) && !carries_quote(&else_b.body) {
+                let taken = if *b { (*then_b.body).clone() } else { (*else_b.body).clone() };
+                *e = taken;
+                return true;
+            }
+        }
+        return false;
+    }
+    let Core::App(head, args) = &*e else { return false };
+    let Some(op) = resolve_prim_op(head, tables) else { return false };
+
+    let replacement: Option<Core> = match (op, args.as_slice()) {
+        // --- Boolean constant folding & identities ---
+        (PrimOp::NotBool, [Core::Bool(b)]) => Some(Core::Bool(!*b)),
+        (PrimOp::NotBool, [Core::App(inner_h, inner_a)])
+            if matches!(&**inner_h, Core::Prim(PrimOp::NotBool)) && inner_a.len() == 1 =>
+        {
+            Some(inner_a[0].clone())
+        }
+        (PrimOp::AndBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a && *b)),
+        (PrimOp::AndBool, [x, Core::Bool(true)]) | (PrimOp::AndBool, [Core::Bool(true), x]) => {
+            Some(x.clone())
+        }
+        (PrimOp::AndBool, [x, Core::Bool(false)]) | (PrimOp::AndBool, [Core::Bool(false), x])
+            if speculatable(x, tables) =>
+        {
+            Some(Core::Bool(false))
+        }
+        (PrimOp::OrBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a || *b)),
+        (PrimOp::OrBool, [x, Core::Bool(false)]) | (PrimOp::OrBool, [Core::Bool(false), x]) => {
+            Some(x.clone())
+        }
+        (PrimOp::OrBool, [x, Core::Bool(true)]) | (PrimOp::OrBool, [Core::Bool(true), x])
+            if speculatable(x, tables) =>
+        {
+            Some(Core::Bool(true))
+        }
+        (PrimOp::EqBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a == *b)),
+        (PrimOp::NeBool, [Core::Bool(a), Core::Bool(b)]) => Some(Core::Bool(*a != *b)),
+
+        // --- Wrapping arithmetic: constant folding, identities, absorbing 0 ---
+        (
+            PrimOp::Arith { ty, op: aop, mode: ArithMode::Wrapping },
+            [Core::Int(a), Core::Int(b)],
+        ) if fixed_scalar_bits(ty).is_some() => {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let (x, y) = (fixed_val(*a, bits, signed), fixed_val(*b, bits, signed));
+            let raw = match aop {
+                ArithOp::Add => x.wrapping_add(y),
+                ArithOp::Sub => x.wrapping_sub(y),
+                ArithOp::Mul => x.wrapping_mul(y),
+            };
+            Some(Core::Int(trunc_fixed(raw, bits, signed)))
+        }
+        (
+            PrimOp::Arith { ty, op: ArithOp::Add, mode: ArithMode::Wrapping },
+            [x, Core::Int(0)],
+        )
+        | (
+            PrimOp::Arith { ty, op: ArithOp::Add, mode: ArithMode::Wrapping },
+            [Core::Int(0), x],
+        ) if is_word_int_scalar(ty) => Some(x.clone()),
+        (
+            PrimOp::Arith { ty, op: ArithOp::Sub, mode: ArithMode::Wrapping },
+            [x, Core::Int(0)],
+        ) if is_word_int_scalar(ty) => Some(x.clone()),
+        (PrimOp::Arith { ty, op: ArithOp::Sub, mode: ArithMode::Wrapping }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(Core::Int(0))
+        }
+        (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [x, Core::Int(1)],
+        )
+        | (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [Core::Int(1), x],
+        ) if is_word_int_scalar(ty) => Some(x.clone()),
+        (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [x, Core::Int(0)],
+        )
+        | (
+            PrimOp::Arith { ty, op: ArithOp::Mul, mode: ArithMode::Wrapping },
+            [Core::Int(0), x],
+        ) if is_word_int_scalar(ty) && speculatable(x, tables) => Some(Core::Int(0)),
+
+        // --- Wrapping unary negation ---
+        (PrimOp::Neg { ty, mode: ArithMode::Wrapping }, [Core::Int(a)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let raw = -fixed_val(*a, bits, signed);
+            Some(Core::Int(trunc_fixed(raw, bits, signed)))
+        }
+
+        // --- Bitwise ops: constant folding, identities, absorbing 0, mask combining ---
+        (PrimOp::Bit { ty, op: bop }, [Core::Int(a), Core::Int(b)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let raw = match bop {
+                BitOp::And => *a & *b,
+                BitOp::Or => *a | *b,
+                BitOp::Xor => *a ^ *b,
+            };
+            Some(Core::Int(trunc_fixed(raw as i128, bits, signed)))
+        }
+        (PrimOp::BitNot { ty }, [Core::Int(a)]) if fixed_scalar_bits(ty).is_some() => {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            Some(Core::Int(trunc_fixed(!(*a as i128), bits, signed)))
+        }
+        (PrimOp::Bit { ty, op: BitOp::And }, [x, Core::Int(0)])
+        | (PrimOp::Bit { ty, op: BitOp::And }, [Core::Int(0), x])
+            if is_word_int_scalar(ty) && speculatable(x, tables) =>
+        {
+            Some(Core::Int(0))
+        }
+        (PrimOp::Bit { ty, op: BitOp::And }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::And }, [inner, Core::Int(c2)])
+        | (PrimOp::Bit { ty, op: BitOp::And }, [Core::Int(c2), inner])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            if let Some((x, c1)) = split_bit_const(inner, tables, ty, BitOp::And) {
+                let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+                let combined = trunc_fixed((c1 & *c2) as i128, bits, signed);
+                Some(Core::App(
+                    head.clone(),
+                    vec![x.clone(), Core::Int(combined)],
+                ))
+            } else {
+                None
+            }
+        }
+        (PrimOp::Bit { ty, op: BitOp::Or }, [x, Core::Int(0)])
+        | (PrimOp::Bit { ty, op: BitOp::Or }, [Core::Int(0), x])
+            if is_word_int_scalar(ty) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::Or }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::Or }, [inner, Core::Int(c2)])
+        | (PrimOp::Bit { ty, op: BitOp::Or }, [Core::Int(c2), inner])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            if let Some((x, c1)) = split_bit_const(inner, tables, ty, BitOp::Or) {
+                let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+                let combined = trunc_fixed((c1 | *c2) as i128, bits, signed);
+                Some(Core::App(
+                    head.clone(),
+                    vec![x.clone(), Core::Int(combined)],
+                ))
+            } else {
+                None
+            }
+        }
+        (PrimOp::Bit { ty, op: BitOp::Xor }, [x, Core::Int(0)])
+        | (PrimOp::Bit { ty, op: BitOp::Xor }, [Core::Int(0), x])
+            if is_word_int_scalar(ty) =>
+        {
+            Some(x.clone())
+        }
+        (PrimOp::Bit { ty, op: BitOp::Xor }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            Some(Core::Int(0))
+        }
+
+        // --- Wrapping shifts: constant folding and shift-by-0 identity ---
+        (PrimOp::Shift { ty, op: sop, checked: false }, [Core::Int(a), Core::Int(b)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let x = fixed_val(*a, bits, signed);
+            let sh = (*b as u32) % bits;
+            let raw = match sop {
+                ShiftOp::Shl => x << sh,
+                ShiftOp::Shr => x >> sh,
+            };
+            Some(Core::Int(trunc_fixed(raw, bits, signed)))
+        }
+        (PrimOp::Shift { ty, checked: false, .. }, [x, Core::Int(0)])
+            if is_word_int_scalar(ty) =>
+        {
+            Some(x.clone())
+        }
+
+        // --- Machine integer comparisons: constant folding and reflexive ops ---
+        (PrimOp::Cmp { ty, op: cop }, [Core::Int(a), Core::Int(b)])
+            if fixed_scalar_bits(ty).is_some() =>
+        {
+            let (bits, signed) = fixed_scalar_bits(ty).unwrap();
+            let (x, y) = (fixed_val(*a, bits, signed), fixed_val(*b, bits, signed));
+            let res = match cop {
+                CmpOp::Eq => x == y,
+                CmpOp::Ne => x != y,
+                CmpOp::Lt => x < y,
+                CmpOp::Le => x <= y,
+                CmpOp::Gt => x > y,
+                CmpOp::Ge => x >= y,
+            };
+            Some(Core::Bool(res))
+        }
+        (PrimOp::Cmp { ty, op: cop }, [x, y])
+            if is_word_int_scalar(ty) && alpha_eq(x, y) && speculatable(x, tables) =>
+        {
+            let res = matches!(cop, CmpOp::Eq | CmpOp::Le | CmpOp::Ge);
+            Some(Core::Bool(res))
+        }
+
+        _ => None,
+    };
+
+    if let Some(new_e) = replacement {
+        *e = new_e;
+        true
+    } else {
+        false
     }
 }
 
@@ -1958,66 +2427,146 @@ struct SpecState {
 
 /// Copies per callee and in all, and the largest body copied: specialisation
 /// trades code for knowledge, and the bounds keep the trade small.
-const SPEC_PER_CALLEE: usize = 4;
+const SPEC_PER_CALLEE: usize = 6;
 const SPEC_TOTAL: usize = 256;
 const SPEC_MAX_NODES: usize = 4000;
+const SHAPE_MAX_DEPTH: usize = 3;
+const SHAPE_MAX_FREE: usize = 6;
+
+/// What kind of static shape an argument carries (ordered by priority).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ShapeKind {
+    Func = 0,
+    Ctor = 1,
+    Bool = 2,
+    Int = 3,
+}
+
+/// Base unit name before any `.sp<N>` or `$s<N>` specialization suffixes.
+fn spec_base(name: &str) -> &str {
+    let base = name.find(".sp").map_or(name, |at| &name[..at]);
+    base.find("$s").map_or(base, |at| &base[..at])
+}
 
 /// A known argument's shape: a key naming what is fixed, the template that
 /// rebuilds the value from parameters `LocalId(base + j)`, the free parts
 /// passed for them, and their classes.
 struct ArgShape {
+    kind: ShapeKind,
     key: String,
     template: Core,
     free: Vec<Core>,
     classes: Vec<Class>,
 }
 
-/// The shape of an argument, when it is known: a unit used as a value, a
-/// static record, a closure over values, or a constructor application of
-/// such (a record of functions). Free parts are value captures and value
-/// fields; they become the copy's trailing parameters.
-fn arg_shape(arg: &Core, tables: &Tables, program_fns: &HashMap<String, (Vec<Class>, Vec<Class>)>, base: usize) -> Option<ArgShape> {
-    fn go(e: &Core, tables: &Tables, fns: &HashMap<String, (Vec<Class>, Vec<Class>)>, base: usize,
-          free: &mut Vec<Core>, classes: &mut Vec<Class>, top: bool) -> Option<(String, Core)> {
-        match e {
-            Core::Global(g, v) if tables.arity.get(&g.0).is_some_and(|a| *a > 0) => Some((format!("g:{}", g.0), Core::Global(g.clone(), v.clone()))),
-            Core::Global(..) | Core::App(..) if static_record_of(e, tables).is_some() => {
-                let record = static_record_of(e, tables)?;
-                go(&record, tables, fns, base, free, classes, top)
+/// Resolve a variable through the lexical static-shape map built while walking
+/// a caller's `let` bindings.
+fn resolve_local<'a>(e: &'a Core, env: &'a HashMap<LocalId, Core>) -> &'a Core {
+    let mut cur = e;
+    for _ in 0..8 {
+        if let Core::Var(l) = cur {
+            if let Some(next) = env.get(l) {
+                cur = next;
+                continue;
+            }
+        }
+        break;
+    }
+    cur
+}
+
+/// The shape of an argument, when it is statically known: a unit used as a
+/// value, a static record, a closure over values, a boolean/integer literal,
+/// or a constructor application (nested up to `SHAPE_MAX_DEPTH`). Free parts
+/// are dynamic value captures and fields; they become trailing parameters.
+fn arg_shape(
+    arg: &Core,
+    local_env: &HashMap<LocalId, Core>,
+    tables: &Tables,
+    program_fns: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+    base: usize,
+) -> Option<ArgShape> {
+    fn go(
+        e: &Core,
+        local_env: &HashMap<LocalId, Core>,
+        tables: &Tables,
+        fns: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+        base: usize,
+        free: &mut Vec<Core>,
+        classes: &mut Vec<Class>,
+        depth: usize,
+        has_func: &mut bool,
+    ) -> Option<(String, Core)> {
+        if depth > SHAPE_MAX_DEPTH || free.len() > SHAPE_MAX_FREE {
+            return None;
+        }
+        let resolved = resolve_local(e, local_env);
+        match resolved {
+            Core::Global(g, v) if tables.arity.get(&g.0).is_some_and(|a| *a > 0) => {
+                *has_func = true;
+                Some((format!("g:{}", g.0), Core::Global(g.clone(), v.clone())))
+            }
+            Core::Global(..) | Core::App(..) if static_record_of(resolved, tables).is_some() => {
+                let record = static_record_of(resolved, tables)?;
+                go(&record, local_env, tables, fns, base, free, classes, depth + 1, has_func)
             }
             Core::Lam { fn_id, env, classes: v } if env.iter().all(capture_value) => {
                 let (params, _) = fns.get(&fn_id.0)?;
+                if free.len() + env.len() > SHAPE_MAX_FREE {
+                    return None;
+                }
                 let mut slots = Vec::with_capacity(env.len());
                 for (k, c) in env.iter().enumerate() {
+                    let class = params.get(k).copied()?.subst(v);
+                    if class.is_param() || matches!(class, Class::Wide) || class.is_val() {
+                        return None;
+                    }
                     slots.push(Core::Var(LocalId(base + free.len())));
                     free.push(c.clone());
-                    let class = params.get(k).copied()?.subst(v);
-                    if class.is_param() { return None; }
                     classes.push(class);
                 }
+                *has_func = true;
                 Some((format!("l:{}/{}", fn_id.0, env.len()), Core::Lam { fn_id: fn_id.clone(), env: slots, classes: v.clone() }))
             }
-            Core::App(head, args) if top => {
+            Core::Bool(b) => Some((format!("b:{b}"), Core::Bool(*b))),
+            Core::Int(n) => Some((format!("i:{n}"), Core::Int(*n))),
+            Core::Ctor(c, v) if tables.ctors.get(&c.0).is_some_and(|(_, ar)| *ar == 0) => {
+                Some((format!("c:{}", c.0), Core::Ctor(c.clone(), v.clone())))
+            }
+            Core::App(head, args) if depth < SHAPE_MAX_DEPTH => {
                 let Core::Ctor(c, v) = &**head else { return None };
-                let (_, fields) = fns.get(&c.0)?;
-                let mut keys = Vec::new();
-                let mut built = Vec::new();
+                let (params, fields) = fns.get(&c.0)?;
+                let field_classes = if fields.len() == args.len() { fields } else { params };
+                if field_classes.len() != args.len() {
+                    return None;
+                }
+                let mut keys = Vec::with_capacity(args.len());
+                let mut built = Vec::with_capacity(args.len());
                 for (k, a) in args.iter().enumerate() {
-                    match go(a, tables, fns, base, free, classes, false) {
-                        Some((key, t)) => { keys.push(key); built.push(t); }
-                        None if capture_value(a) => {
+                    let saved_free = free.len();
+                    let saved_classes = classes.len();
+                    let saved_func = *has_func;
+                    if let Some((key, t)) = go(a, local_env, tables, fns, base, free, classes, depth + 1, has_func) {
+                        keys.push(key);
+                        built.push(t);
+                    } else {
+                        free.truncate(saved_free);
+                        classes.truncate(saved_classes);
+                        *has_func = saved_func;
+                        if capture_value(a) && free.len() < SHAPE_MAX_FREE {
+                            let class = field_classes.get(k).copied()?.subst(v);
+                            if class.is_param() || matches!(class, Class::Wide) || class.is_val() {
+                                return None;
+                            }
                             built.push(Core::Var(LocalId(base + free.len())));
                             free.push(a.clone());
-                            let class = fields.get(k).copied()?.subst(v);
-                            if class.is_param() { return None; }
                             classes.push(class);
                             keys.push("_".into());
+                        } else {
+                            return None;
                         }
-                        None => return None,
                     }
                 }
-                // A record with no function in it is not worth a copy.
-                if keys.iter().all(|k| k == "_") { return None; }
                 Some((format!("c:{}({})", c.0, keys.join(",")), Core::App(Box::new(Core::Ctor(c.clone(), v.clone())), built)))
             }
             _ => None,
@@ -2025,31 +2574,105 @@ fn arg_shape(arg: &Core, tables: &Tables, program_fns: &HashMap<String, (Vec<Cla
     }
     let mut free = Vec::new();
     let mut classes = Vec::new();
-    let (key, template) = go(arg, tables, program_fns, base, &mut free, &mut classes, true)?;
-    Some(ArgShape { key, template, free, classes })
+    let mut has_func = false;
+    let (key, template) = go(arg, local_env, tables, program_fns, base, &mut free, &mut classes, 0, &mut has_func)?;
+    if free.len() > SHAPE_MAX_FREE {
+        return None;
+    }
+    let kind = if has_func {
+        ShapeKind::Func
+    } else if matches!(template, Core::Bool(_)) {
+        ShapeKind::Bool
+    } else if matches!(template, Core::Int(_)) {
+        ShapeKind::Int
+    } else {
+        ShapeKind::Ctor
+    };
+    Some(ArgShape { kind, key, template, free, classes })
 }
 
-/// Whether a parameter is used in a way a known value helps: applied,
-/// decided on, projected, or passed on unchanged by a recursive call.
-fn interesting_param(e: &Core, p: LocalId, unit: &str, position: usize) -> bool {
-    let mut found = false;
+/// Whether a parameter is used in a way a known static shape helps:
+/// - `Func`: applied, decided on, projected, or passed on unchanged by a self-call.
+/// - `Ctor`: scrutinized by `Case` or projected by `Proj`.
+/// - `Bool`: tested by `If`, `Case`, or a boolean primitive.
+/// - `Int`: scrutinized by `Case` or used in a machine primitive (`Cmp`, `Arith`, `Bit`, `Shift`, `Neg`).
+fn interesting_param(e: &Core, p: LocalId, unit: &str, position: usize, kind: ShapeKind, tables: &Tables) -> bool {
+    let mut aliases: HashSet<LocalId> = HashSet::new();
+    aliases.insert(p);
     let mut stack = vec![e];
     while let Some(node) = stack.pop() {
         match node {
+            Core::Let(l, _, value, _) => {
+                if let Core::Var(x) = &**value {
+                    if aliases.contains(x) {
+                        aliases.insert(*l);
+                    }
+                }
+            }
             Core::App(head, args) => {
-                if matches!(&**head, Core::Var(x) if *x == p) { found = true; break; }
-                if matches!(&**head, Core::Global(g, _) if g.0 == unit) && matches!(args.get(position), Some(Core::Var(x)) if *x == p) {
-                    found = true; break;
+                match kind {
+                    ShapeKind::Func => {
+                        if matches!(&**head, Core::Var(x) if aliases.contains(x)) {
+                            return true;
+                        }
+                        if matches!(&**head, Core::Global(g, _) if g.0 == unit)
+                            && matches!(args.get(position), Some(Core::Var(x)) if aliases.contains(x))
+                        {
+                            return true;
+                        }
+                    }
+                    ShapeKind::Bool => {}
+                    ShapeKind::Int => {
+                        let is_int_op = matches!(
+                            resolve_prim_op(head, tables),
+                            Some(
+                                PrimOp::Cmp { .. }
+                                    | PrimOp::Arith { mode: ArithMode::Wrapping, .. }
+                                    | PrimOp::Bit { .. }
+                                    | PrimOp::BitNot { .. }
+                                    | PrimOp::Shift { checked: false, .. }
+                                    | PrimOp::Neg { mode: ArithMode::Wrapping, .. }
+                            )
+                        ) || matches!(
+                            &**head,
+                            Core::Global(g, _)
+                                if g.0.contains("Eq_")
+                                    || g.0.contains("Ord_")
+                                    || g.0.contains("Add_")
+                                    || g.0.contains("Sub_")
+                                    || g.0.contains("Mul_")
+                        );
+                        if is_int_op && args.iter().any(|a| matches!(a, Core::Var(x) if aliases.contains(x))) {
+                            return true;
+                        }
+                    }
+                    ShapeKind::Ctor => {}
                 }
                 stack.push(head);
             }
-            Core::Case { scrut, .. } if matches!(&**scrut, Core::Var(x) if *x == p) => { found = true; break; }
-            Core::Proj(inner, _) | Core::DictProj(inner, ..) if matches!(&**inner, Core::Var(x) if *x == p) => { found = true; break; }
+            Core::If(cond, _, _) if kind == ShapeKind::Bool => {
+                if matches!(&**cond, Core::Var(x) if aliases.contains(x)) {
+                    return true;
+                }
+            }
+            Core::Case { scrut, .. } if matches!(&**scrut, Core::Var(x) if aliases.contains(x)) => {
+                return true;
+            }
+            Core::Proj(inner, _) if matches!(kind, ShapeKind::Func | ShapeKind::Ctor) => {
+                if matches!(&**inner, Core::Var(x) if aliases.contains(x)) {
+                    return true;
+                }
+            }
+            Core::DictProj(inner, ..) if kind == ShapeKind::Func => {
+                if matches!(&**inner, Core::Var(x) if aliases.contains(x)) {
+                    return true;
+                }
+            }
             _ => {}
         }
         stack.extend(child_slots_imm(node));
     }
-    found
+    false
 }
 
 /// Redirect self-calls that pass parameter `position` through unchanged to
@@ -2070,61 +2693,144 @@ fn redirect_self_calls(e: &mut Core, unit: &str, arity: usize, position: usize, 
     }
 }
 
-/// Rule `specialise-arguments` (call-pattern specialisation, after GHC's
-/// SpecConstr, on functional arguments): every saturated call of a unit that
-/// passes a known shape where the unit uses that parameter calls a copy
-/// specialised to it. The copy keeps the original parameter list, with the
-/// specialised position dead (its argument is `()`), and takes the shape's
-/// free parts as trailing parameters; its body rebuilds the value in a `let`
-/// at entry, where `known-constructor`, `projection`, `known-closure-call` and
-/// the inliner fold it. A recursive call that passes the parameter on
-/// unchanged calls the copy, so a record of functions threaded down a loop
-/// is known in every iteration.
+/// Whether `e` can be recorded in the caller's lexical static-shape map for
+/// downstream argument specialization.
+fn is_bindable_shape(e: &Core, tables: &Tables) -> bool {
+    match e {
+        Core::Var(_) | Core::Bool(_) | Core::Int(_) => true,
+        Core::Global(g, _) => tables.arity.get(&g.0).is_some_and(|a| *a > 0) || tables.static_records.contains_key(&g.0),
+        Core::Ctor(c, _) => tables.ctors.get(&c.0).is_some_and(|(_, ar)| *ar == 0),
+        Core::Lam { env, .. } => env.iter().all(capture_value),
+        Core::App(head, args) => {
+            matches!(&**head, Core::Ctor(c, _) if tables.ctors.contains_key(&c.0))
+                && args.iter().all(|a| capture_value(a) || is_bindable_shape(a, tables))
+        }
+        _ => false,
+    }
+}
+
+/// Collect candidate call sites in `e`, maintaining a lexical map of static
+/// shapes bound by enclosing `let`s. Picks the highest-priority argument that
+/// the callee actually inspects/calls/branches on and that passes the
+/// anti-unrolling guard.
+fn collect_spec_sites(
+    e: &Core,
+    ui: usize,
+    caller_base: &str,
+    candidates: &HashMap<String, &FnDef>,
+    local_env: &mut HashMap<LocalId, Core>,
+    tables: &Tables,
+    shapes: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+    specs: &SpecState,
+    out: &mut Vec<(usize, String, usize, ArgShape)>,
+) {
+    match e {
+        Core::Let(l, _, value, body) => {
+            collect_spec_sites(value, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+            let pushed = is_bindable_shape(value, tables);
+            if pushed {
+                local_env.insert(*l, (**value).clone());
+            }
+            collect_spec_sites(body, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+            if pushed {
+                local_env.remove(l);
+            }
+            return;
+        }
+        Core::App(head, args) => {
+            if let Core::Global(g, _) = &**head {
+                if let Some(&def) = candidates.get(&g.0) {
+                    if def.params.len() == args.len() {
+                        let callee_base = spec_base(&g.0);
+                        let mut best: Option<(usize, ArgShape)> = None;
+                        for (i, a) in args.iter().enumerate() {
+                            if def.meta.linear.iter().any(|(k, _)| *k == i) { continue; }
+                            if def.repr.params.get(i).is_some_and(|c| matches!(c, Class::Wide) || c.is_val()) { continue; }
+                            if let Some(shape) = arg_shape(a, local_env, tables, shapes, args.len()) {
+                                // Only specialize scalar Int/Bool shapes for Raw parameters:
+                                // an Int passed to an Obj/TObj parameter is a niche sentinel
+                                // for a counted sum, not an uncounted scalar.
+                                if matches!(shape.kind, ShapeKind::Int | ShapeKind::Bool)
+                                    && def.repr.params.get(i) != Some(&Class::Raw)
+                                {
+                                    continue;
+                                }
+                                let memoized = specs.copies.contains_key(&(g.0.clone(), i, shape.key.clone()));
+                                if !memoized && caller_base == callee_base && matches!(shape.kind, ShapeKind::Int | ShapeKind::Ctor) {
+                                    continue;
+                                }
+                                if !memoized && !interesting_param(&def.body, LocalId(i), &g.0, i, shape.kind, tables) {
+                                    continue;
+                                }
+                                let replace = best.as_ref().is_none_or(|(_, prev)| shape.kind < prev.kind);
+                                if replace {
+                                    best = Some((i, shape));
+                                }
+                            }
+                        }
+                        if let Some((i, shape)) = best {
+                            out.push((ui, g.0.clone(), i, shape));
+                        }
+                    }
+                }
+            }
+            collect_spec_sites(head, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+        }
+        _ => {}
+    }
+    for child in child_slots_imm(e) {
+        collect_spec_sites(child, ui, caller_base, candidates, local_env, tables, shapes, specs, out);
+    }
+}
+
+/// Rule `specialise-arguments` (Tier 1 online partial evaluation / memoized
+/// polyvariant call-pattern specialization): every saturated call of a unit
+/// that passes a known static shape (function, closure, constructor/record,
+/// boolean, or integer) where the unit inspects/calls/branches on that
+/// parameter calls a memoized specialized copy of the callee.
 fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut Fresh, specs: &mut SpecState, t: &mut Ticks) {
     let shapes: HashMap<String, (Vec<Class>, Vec<Class>)> =
         program.fns.iter().map(|f| (f.id.0.clone(), (f.repr.params.clone(), f.repr.fields.clone()))).collect();
-    let candidates: HashMap<String, usize> = program.fns.iter()
+    let candidates: HashMap<String, &FnDef> = program.fns.iter()
         .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && !f.params.is_empty()
             && nodes(&f.body) <= SPEC_MAX_NODES && !is_lambda_unit(&f.id.0))
-        .map(|f| (f.id.0.clone(), f.params.len()))
+        .map(|f| (f.id.0.clone(), f))
         .collect();
     let mut sites: Vec<(usize, String, usize, ArgShape)> = Vec::new();
     for (ui, f) in program.fns.iter().enumerate() {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body { continue; }
-        let mut stack = vec![&f.body];
-        while let Some(node) = stack.pop() {
-            if let Core::App(head, args) = node {
-                if let Core::Global(g, _) = &**head {
-                    if candidates.get(&g.0) == Some(&args.len()) {
-                        for (i, a) in args.iter().enumerate() {
-                            if let Some(shape) = arg_shape(a, tables, &shapes, args.len()) {
-                                sites.push((ui, g.0.clone(), i, shape));
-                                break;
-                            }
-                        }
-                    }
-                }
-                stack.push(head);
-            }
-            stack.extend(child_slots_imm(node));
-        }
+        let mut local_env: HashMap<LocalId, Core> = HashMap::new();
+        let caller_base = spec_base(&f.id.0);
+        collect_spec_sites(&f.body, ui, caller_base, &candidates, &mut local_env, tables, &shapes, specs, &mut sites);
     }
     let mut new_fns: Vec<FnDef> = Vec::new();
     let mut redirects: Vec<(usize, String, usize, String, String)> = Vec::new();
     for (ui, callee, i, shape) in sites {
         let key = (callee.clone(), i, shape.key.clone());
+        let caller_base = spec_base(&program.fns[ui].id.0).to_string();
+        let callee_base = spec_base(&callee).to_string();
         let name = match specs.copies.get(&key) {
             Some(n) => n.clone(),
             None => {
-                if specs.made >= SPEC_TOTAL || specs.per_callee.get(&callee).copied().unwrap_or(0) >= SPEC_PER_CALLEE { continue; }
+                // Anti-unrolling guard: never spawn a new Int/Ctor clone from a
+                // recursive self-call inside the same base function family
+                // (e.g. `go (n + 1)` or `walk (Cons h t)`). Unchanged recursive
+                // calls are tied by `redirect_self_calls` instead.
+                if caller_base == callee_base && matches!(shape.kind, ShapeKind::Int | ShapeKind::Ctor) {
+                    continue;
+                }
+                if specs.made >= SPEC_TOTAL || specs.per_callee.get(&callee_base).copied().unwrap_or(0) >= SPEC_PER_CALLEE { continue; }
                 let Some(def) = program.fns.iter().find(|f| f.id.0 == callee) else { continue };
-                if !interesting_param(&def.body, LocalId(i), &callee, i) { continue; }
+                if def.meta.linear.iter().any(|(k, _)| *k == i) { continue; }
+                if def.repr.params.get(i).is_some_and(|c| matches!(c, Class::Wide) || c.is_val()) { continue; }
+                if matches!(shape.kind, ShapeKind::Int | ShapeKind::Bool)
+                    && def.repr.params.get(i) != Some(&Class::Raw)
+                {
+                    continue;
+                }
+                if !interesting_param(&def.body, LocalId(i), &callee, i, shape.kind, tables) { continue; }
                 let n = def.params.len();
                 let copy_id = GlobalId(format!("{callee}.sp{}", specs.made));
-                // The copy's trailing parameters are locals n.. of its own,
-                // so every local it mints (the renamed binders and the
-                // entry `let`) must lie past them; the program-wide counter
-                // can sit lower in a small program.
                 fresh.local = fresh.local.max(n + shape.free.len());
                 let mut body = def.body.clone();
                 let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
@@ -2141,9 +2847,6 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                 for j in 0..shape.free.len() { copy.params.push(format!("v{}", n + j)); }
                 copy.repr.params[i] = Class::Raw;
                 copy.repr.params.extend(shape.classes.iter().copied());
-                // The parameter facts describe the original words: the dead
-                // position now receives `()`, and the free parts have no
-                // proven facts, so neither may carry an attribute.
                 if let Some(c) = copy.meta.contract.params.get_mut(i) {
                     *c = Default::default();
                 }
@@ -2151,12 +2854,14 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
                     copy.meta.contract.params.resize_with(copy.params.len(), Default::default);
                 }
                 copy.meta.linear.retain(|(k, _)| *k != i);
+                copy.meta.unique_params.retain(|k| *k != i);
+                copy.meta.immortal_params.retain(|k| *k != i);
                 copy.meta.dicts.retain(|(k, _)| *k != i);
                 copy.meta.pure_arrows.retain(|k| *k != i);
                 tables.arity.insert(copy_id.0.clone(), copy.params.len());
                 tables.params.insert(copy_id.0.clone(), copy.repr.params.clone());
                 specs.copies.insert(key, copy_id.0.clone());
-                *specs.per_callee.entry(callee.clone()).or_default() += 1;
+                *specs.per_callee.entry(callee_base).or_default() += 1;
                 specs.made += 1;
                 new_fns.push(copy);
                 copy_id.0
@@ -2169,33 +2874,58 @@ fn specialise_arguments(program: &mut Program, tables: &mut Tables, fresh: &mut 
     for (ui, callee, i, key, name) in redirects {
         let f = &mut program.fns[ui];
         let mut body = std::mem::replace(&mut f.body, Core::Unit);
-        rewrite_sites(&mut body, &callee, i, &key, &name, tables, &shapes, t);
+        let mut local_env: HashMap<LocalId, Core> = HashMap::new();
+        rewrite_sites(&mut body, &callee, i, &key, &name, &mut local_env, tables, &shapes, t);
         f.body = body;
     }
     program.fns.extend(new_fns);
 }
 
-fn rewrite_sites(e: &mut Core, callee: &str, i: usize, key: &str, name: &str, tables: &Tables,
-                 shapes: &HashMap<String, (Vec<Class>, Vec<Class>)>, t: &mut Ticks) {
-    if let Core::App(head, args) = e {
-        let hit = match &**head {
-            Core::Global(g, classes) if g.0 == callee && tables.arity.get(callee) == Some(&args.len()) => args
-                .get(i)
-                .and_then(|a| arg_shape(a, tables, shapes, args.len()))
-                .filter(|shape| shape.key == key)
-                .map(|shape| (shape, classes.clone())),
-            _ => None,
-        };
-        if let Some((shape, classes)) = hit {
-            args[i] = Core::Unit;
-            args.extend(shape.free);
-            **head = Core::Global(GlobalId(name.to_string()), classes);
-            t.fire(Rule::SpecialiseArgument);
+fn rewrite_sites(
+    e: &mut Core,
+    callee: &str,
+    i: usize,
+    key: &str,
+    name: &str,
+    local_env: &mut HashMap<LocalId, Core>,
+    tables: &Tables,
+    shapes: &HashMap<String, (Vec<Class>, Vec<Class>)>,
+    t: &mut Ticks,
+) {
+    match e {
+        Core::Let(l, _, value, body) => {
+            rewrite_sites(value, callee, i, key, name, local_env, tables, shapes, t);
+            let pushed = is_bindable_shape(value, tables);
+            if pushed {
+                local_env.insert(*l, (**value).clone());
+            }
+            rewrite_sites(body, callee, i, key, name, local_env, tables, shapes, t);
+            if pushed {
+                local_env.remove(l);
+            }
+            return;
         }
-        rewrite_sites(head, callee, i, key, name, tables, shapes, t);
+        Core::App(head, args) => {
+            let hit = match &**head {
+                Core::Global(g, classes) if g.0 == callee && tables.arity.get(callee) == Some(&args.len()) => args
+                    .get(i)
+                    .and_then(|a| arg_shape(a, local_env, tables, shapes, args.len()))
+                    .filter(|shape| shape.key == key)
+                    .map(|shape| (shape, classes.clone())),
+                _ => None,
+            };
+            if let Some((shape, classes)) = hit {
+                args[i] = Core::Unit;
+                args.extend(shape.free);
+                **head = Core::Global(GlobalId(name.to_string()), classes);
+                t.fire(Rule::SpecialiseArgument);
+            }
+            rewrite_sites(head, callee, i, key, name, local_env, tables, shapes, t);
+        }
+        _ => {}
     }
     for child in child_slots(e) {
-        rewrite_sites(child, callee, i, key, name, tables, shapes, t);
+        rewrite_sites(child, callee, i, key, name, local_env, tables, shapes, t);
     }
 }
 
@@ -2528,6 +3258,88 @@ fn saturate_partial(
     tables: &Tables,
     fresh: &mut Fresh,
 ) -> bool {
+    // Direct nested application:
+    // 0. Saturated call to a nullary point-free wrapper (`add-ten x` where
+    //    `add-ten = add-pair 10`) unfolds directly into `add-pair 10 x`.
+    // 1. `(g a b) c` for a known unit/prim `g` merges directly into `g a b c`.
+    // 2. `(f a) b` for an unknown closure `f` with pure-value `b` batches into
+    //    `f a b`, so codegen emits one `@__apply(f, N, argv)` instead of N
+    //    chained 1-arg `@__apply` calls.
+    if let Core::App(outer_head, extra) = e {
+        if !extra.is_empty() {
+            let wrapper_name = match &**outer_head {
+                Core::Global(w, _) => Some(w.0.as_str()),
+                Core::App(inner, empty) if empty.is_empty() => match &**inner {
+                    Core::Global(w, _) => Some(w.0.as_str()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(wrapper_body) = wrapper_name.and_then(|w| tables.static_wrappers.get(w)) {
+                if let Core::App(inner_head, given) = wrapper_body {
+                    let arity = match &**inner_head {
+                        Core::Global(id, _) => tables.arity.get(&id.0).copied(),
+                        _ => None,
+                    };
+                    if let Some(arity) = arity {
+                        if given.len() + extra.len() >= arity {
+                            let take = arity - given.len();
+                            if extra.len() == take || extra[take..].iter().all(|a| is_value(a, tables)) {
+                                let Core::App(_, mut extra) = std::mem::replace(e, Core::Unit) else { unreachable!() };
+                                let mut merged = given.clone();
+                                merged.extend(extra.drain(..take));
+                                let call = Core::App(inner_head.clone(), merged);
+                                *e = if extra.is_empty() {
+                                    call
+                                } else {
+                                    Core::App(Box::new(call), extra)
+                                };
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Core::App(inner_head, given) = &**outer_head {
+            let arity = match &**inner_head {
+                Core::Global(id, _) => tables.arity.get(&id.0).copied(),
+                Core::Prim(op) => Some(op.arity()),
+                Core::Ctor(id, _) => tables.ctors.get(&id.0).map(|(_, a)| *a),
+                _ => None,
+            };
+            if let Some(arity) = arity {
+                if !extra.is_empty()
+                    && given.len() < arity
+                    && given.len() + extra.len() >= arity
+                    && given.iter().all(|a| is_value(a, tables))
+                {
+                    let take = arity - given.len();
+                    if extra.len() == take || extra[take..].iter().all(|a| is_value(a, tables)) {
+                        let Core::App(outer_head, mut extra) = std::mem::replace(e, Core::Unit) else { unreachable!() };
+                        let Core::App(inner_head, mut given) = *outer_head else { unreachable!() };
+                        given.extend(extra.drain(..take));
+                        let call = Core::App(inner_head, given);
+                        *e = if extra.is_empty() {
+                            call
+                        } else {
+                            Core::App(Box::new(call), extra)
+                        };
+                        return true;
+                    }
+                }
+            } else if !matches!(&**inner_head, Core::Global(..) | Core::Prim(_) | Core::Ctor(..))
+                && !extra.is_empty()
+                && extra.iter().all(|a| is_value(a, tables))
+            {
+                let Core::App(outer_head, extra) = std::mem::replace(e, Core::Unit) else { unreachable!() };
+                let Core::App(inner_head, mut given) = *outer_head else { unreachable!() };
+                given.extend(extra);
+                *e = Core::App(inner_head, given);
+                return true;
+            }
+        }
+    }
     let Core::Let(l, _, value, body) = e else { return false };
     let count = occ.get(l).copied().unwrap_or_default();
     if count.uses != 1 || count.in_join {
@@ -2937,6 +3749,9 @@ pub fn simplify_with_foreign(
     let mut specs = SpecState::default();
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
+        if opts.inline && unbox_product_params(program, &mut tables, &mut fresh) {
+            ticks.changed = true;
+        }
         if opts.inline && spec_static_args(program, &mut tables, &mut fresh, &mut dict_specs) {
             ticks.changed = true;
         }
@@ -4048,6 +4863,7 @@ fn unfold_body(
         Core::Proj(inner, _) | Core::DictProj(inner, ..) => value(inner, shape),
         Core::Let(_, _, bound, body) => value(bound, shape) && value(body, shape),
         Core::App(head, args) => match &**head {
+            Core::Prim(crate::core::PrimOp::Value(op)) if op.is_effectful() => false,
             Core::Prim(_) | Core::Foreign(_) => args.iter().all(|a| value(a, shape)),
             Core::Global(g, _) => {
                 // A constructor unit is an allocation, admitted only where
@@ -4655,6 +5471,435 @@ fn rename_binders(e: &mut Core, renames: &mut HashMap<LocalId, LocalId>, fresh: 
     }
 }
 
+/// True when every mention of `l` inside `e` is only as the scrutinee of a
+/// `Case` or the container of a `Proj` (so sinking `let l = Ctor a1..ak` into
+/// `e` lets `known_constructor` / `projection` fold away the allocation).
+fn only_scrutinized_or_proj(e: &Core, l: LocalId) -> bool {
+    match e {
+        Core::Var(x) => *x != l,
+        Core::Case { scrut, alts } => {
+            let scrut_ok = matches!(&**scrut, Core::Var(x) if *x == l)
+                || only_scrutinized_or_proj(scrut, l);
+            scrut_ok && alts.iter().all(|a| only_scrutinized_or_proj(&a.body, l))
+        }
+        Core::Proj(d, _) => {
+            matches!(&**d, Core::Var(x) if *x == l) || only_scrutinized_or_proj(d, l)
+        }
+        Core::App(h, args) => {
+            only_scrutinized_or_proj(h, l)
+                && args.iter().all(|a| only_scrutinized_or_proj(a, l))
+        }
+        Core::Quote { .. } | Core::DeclsQuote { .. } => false,
+        _ => {
+            let mut ok = true;
+            visit_children(e, &mut |child| {
+                if ok && !only_scrutinized_or_proj(child, l) {
+                    ok = false;
+                }
+            });
+            ok
+        }
+    }
+}
+
+/// Partial escape split (pre-RC SROA): sink `let l = Ctor a1..ak in If/Case`
+/// into only the branches that mention `l` when either at least one branch does
+/// not mention `l` (dead-branch sinking) or at least one branch only scrutinizes
+/// `l` in `Case`/`Proj` (allowing `known_constructor` + `DeadBinder` to remove
+/// the allocation completely on the non-escaping path).
+fn sink_partial_escape(e: &mut Core, tables: &Tables, fresh: &mut Fresh) -> bool {
+    let Core::Let(l, c, value, body) = e else { return false };
+    if ctor_app(value, tables).is_none() || carries_quote(body) {
+        return false;
+    }
+    let l = *l;
+    let c = *c;
+    match &**body {
+        Core::If(cond, th, el) if !mentions(cond, l) => {
+            let in_t = mentions(&th.body, l);
+            let in_e = mentions(&el.body, l);
+            let should_sink = (in_t ^ in_e)
+                || (in_t && in_e && (only_scrutinized_or_proj(&th.body, l) || only_scrutinized_or_proj(&el.body, l)));
+            if !should_sink {
+                return false;
+            }
+            let val = (**value).clone();
+            let Core::If(cond, mut th, mut el) = std::mem::replace(&mut **body, Core::Unit) else {
+                unreachable!()
+            };
+            if in_t {
+                th.body = Box::new(Core::Let(l, c, Box::new(val.clone()), th.body));
+            }
+            if in_e {
+                let target_l = if in_t {
+                    let nl = fresh.local();
+                    subst(&mut el.body, l, &Core::Var(nl));
+                    nl
+                } else {
+                    l
+                };
+                el.body = Box::new(Core::Let(target_l, c, Box::new(val), el.body));
+            }
+            *e = Core::If(cond, th, el);
+            true
+        }
+        Core::Case { scrut, alts } if !mentions(scrut, l) && alts.len() >= 2 && alts.len() <= 4 => {
+            let flags: Vec<(bool, bool)> = alts
+                .iter()
+                .map(|a| {
+                    let used = mentions(&a.body, l);
+                    let elim = used && only_scrutinized_or_proj(&a.body, l);
+                    (used, elim)
+                })
+                .collect();
+            let used_count = flags.iter().filter(|(u, _)| *u).count();
+            let any_elim = flags.iter().any(|(_, el)| *el);
+            if used_count == 0 || (used_count == alts.len() && !any_elim) {
+                return false;
+            }
+            let val = (**value).clone();
+            let Core::Case { scrut, mut alts } = std::mem::replace(&mut **body, Core::Unit) else {
+                unreachable!()
+            };
+            let mut used_first = false;
+            for (alt, (used, _)) in alts.iter_mut().zip(flags) {
+                if !used {
+                    continue;
+                }
+                let target_l = if used_first {
+                    let nl = fresh.local();
+                    subst(&mut alt.body, l, &Core::Var(nl));
+                    nl
+                } else {
+                    used_first = true;
+                    l
+                };
+                let prev = std::mem::replace(&mut alt.body, Box::new(Core::Unit));
+                alt.body = Box::new(Core::Let(target_l, c, Box::new(val.clone()), prev));
+            }
+            *e = Core::Case { scrut, alts };
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Worker/wrapper product-parameter unboxing (dual of CPR):
+/// for a unit `f` whose body immediately destructures a uniform single-constructor
+/// product parameter `p` (1..=3 non-wide fields) without otherwise using `p`, and
+/// that has at least one saturated call site passing a matching constructor
+/// application at `p` (especially self-recursive accumulator loops), emit an
+/// unboxed worker `f#ww` taking the unpacked fields directly, rewrite direct
+/// constructor-argument calls inside `f#ww` and across the program to `f#ww`,
+/// and turn `f` into a tiny non-recursive wrapper so `inline` + `known_constructor`
+/// unfold any remaining calls.
+fn unbox_product_params(program: &mut Program, tables: &mut Tables, fresh: &mut Fresh) -> bool {
+    struct Candidate {
+        fn_idx: usize,
+        name: String,
+        param_idx: usize,
+        tag: usize,
+        fields: Vec<LocalId>,
+        classes: Vec<Class>,
+    }
+
+    fn has_matching_ctor_call(
+        e: &Core,
+        target: &str,
+        arity: usize,
+        param_idx: usize,
+        tag: usize,
+        k: usize,
+        tables: &Tables,
+        plans: &std::collections::BTreeMap<String, crate::core::CtorLayout>,
+    ) -> bool {
+        if let Core::App(h, args) = e {
+            if matches!(&**h, Core::Global(g, _) if g.0 == target) && args.len() == arity {
+                if let Core::App(ch, cargs) = &args[param_idx] {
+                    if let Core::Ctor(cid, _) = &**ch {
+                        if tables.ctors.get(&cid.0) == Some(&(tag, k))
+                            && cargs.len() == k
+                            && !plans.contains_key(&cid.0)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        let mut found = false;
+        visit_children(e, &mut |child| {
+            if !found && has_matching_ctor_call(child, target, arity, param_idx, tag, k, tables, plans) {
+                found = true;
+            }
+        });
+        found
+    }
+
+    fn rewrite_direct_calls(
+        e: &mut Core,
+        target: &str,
+        ww: &str,
+        arity: usize,
+        param_idx: usize,
+        tag: usize,
+        k: usize,
+        tables: &Tables,
+        plans: &std::collections::BTreeMap<String, crate::core::CtorLayout>,
+    ) {
+        if let Core::App(h, args) = e {
+            for a in args.iter_mut() {
+                rewrite_direct_calls(a, target, ww, arity, param_idx, tag, k, tables, plans);
+            }
+            if matches!(&**h, Core::Global(g, _) if g.0 == target) && args.len() == arity {
+                let matches_ctor = match &args[param_idx] {
+                    Core::App(ch, cargs) => matches!(&**ch, Core::Ctor(cid, _)
+                        if tables.ctors.get(&cid.0) == Some(&(tag, k))
+                            && cargs.len() == k
+                            && !plans.contains_key(&cid.0)),
+                    _ => false,
+                };
+                if matches_ctor {
+                    let Core::App(_, cargs) = std::mem::replace(&mut args[param_idx], Core::Unit) else {
+                        unreachable!()
+                    };
+                    let mut new_args = Vec::with_capacity(args.len() - 1 + k);
+                    let old_args = std::mem::take(args);
+                    for (i, a) in old_args.into_iter().enumerate() {
+                        if i == param_idx {
+                            new_args.extend(cargs.clone());
+                        } else {
+                            new_args.push(a);
+                        }
+                    }
+                    *h = Box::new(Core::Global(GlobalId(ww.to_string()), vec![]));
+                    *args = new_args;
+                }
+            } else {
+                rewrite_direct_calls(h, target, ww, arity, param_idx, tag, k, tables, plans);
+            }
+            return;
+        }
+        for child in child_slots(e) {
+            rewrite_direct_calls(child, target, ww, arity, param_idx, tag, k, tables, plans);
+        }
+    }
+
+    let existing: HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+    let mut candidates: Vec<Candidate> = Vec::new();
+    for (idx, f) in program.fns.iter().enumerate() {
+        if f.prim.is_some()
+            || f.ctor.is_some()
+            || f.meta.prim_body
+            || program.main.as_ref() == Some(&f.id)
+            || f.id.0.matches("#ww").count() >= 2
+            || f.repr.params.len() != f.arity()
+            || f.repr.params.contains(&Class::Wide)
+            || f.repr.result == Some(Class::Wide)
+            || carries_quote(&f.body)
+        {
+            continue;
+        }
+        let ww_name = format!("{}#ww", f.id.0);
+        if existing.contains(&ww_name) {
+            continue;
+        }
+        let Core::Case { scrut, alts } = &f.body else { continue };
+        let Core::Var(LocalId(pi)) = &**scrut else { continue };
+        let pi = *pi;
+        if pi >= f.arity() || f.repr.params[pi] != Class::Obj {
+            continue;
+        }
+        if f.meta.dicts.iter().any(|(d, _)| *d == pi) {
+            continue;
+        }
+        if alts.len() != 1 || alts[0].weight.is_some() {
+            continue;
+        }
+        let CPat::Con { tag, fields, classes } = &alts[0].pat else { continue };
+        let k = fields.len();
+        if k == 0 || k > 3 || classes.len() != k || classes.contains(&Class::Wide) {
+            continue;
+        }
+        if f.arity() - 1 + k > 8 {
+            continue;
+        }
+        if mentions(&alts[0].body, LocalId(pi)) {
+            continue;
+        }
+        // Only unbox when there is an actual direct constructor-argument call site
+        // (self-recursive accumulator loop or direct caller).
+        let called_with_ctor = program.fns.iter().any(|caller| {
+            caller.prim.is_none()
+                && caller.ctor.is_none()
+                && !caller.meta.prim_body
+                && has_matching_ctor_call(&caller.body, &f.id.0, f.arity(), pi, *tag, k, tables, &program.plans)
+        });
+        if !called_with_ctor {
+            continue;
+        }
+        candidates.push(Candidate {
+            fn_idx: idx,
+            name: f.id.0.clone(),
+            param_idx: pi,
+            tag: *tag,
+            fields: fields.clone(),
+            classes: classes.clone(),
+        });
+    }
+    if candidates.is_empty() {
+        return false;
+    }
+
+    let mut new_workers: Vec<FnDef> = Vec::new();
+    let mut rewrites: Vec<(String, String, usize, usize, usize, usize)> = Vec::new();
+    for cand in candidates {
+        let f = &mut program.fns[cand.fn_idx];
+        let arity = f.arity();
+        let k = cand.fields.len();
+        let pi = cand.param_idx;
+        let ww_name = format!("{}#ww", cand.name);
+
+        let Core::Case { mut alts, .. } = std::mem::replace(&mut f.body, Core::Unit) else {
+            unreachable!()
+        };
+        let mut ww_body = alts.remove(0).body;
+
+        // Build clean parameter remapping for `ww_body`:
+        // old params 0..pi -> 0..pi
+        // unpacked fields[0..k] -> pi..(pi+k)
+        // old params (pi+1)..arity -> (pi+k)..(arity-1+k)
+        let mut renames: HashMap<LocalId, LocalId> = HashMap::new();
+        for j in 0..arity {
+            if j < pi {
+                renames.insert(LocalId(j), LocalId(j));
+            } else if j > pi {
+                renames.insert(LocalId(j), LocalId(j + k - 1));
+            }
+        }
+        for (m, fld) in cand.fields.iter().enumerate() {
+            renames.insert(*fld, LocalId(pi + m));
+        }
+        let mut ww_fresh = Fresh { local: arity + k - 1, join: fresh.join };
+        rename_binders(&mut ww_body, &mut renames, &mut ww_fresh);
+        fresh.join = ww_fresh.join;
+        fresh.local = fresh.local.max(ww_fresh.local);
+
+        let mut ww_params: Vec<String> = Vec::with_capacity(arity - 1 + k);
+        let mut ww_param_classes: Vec<Class> = Vec::with_capacity(arity - 1 + k);
+        for j in 0..arity {
+            if j == pi {
+                for m in 0..k {
+                    ww_params.push(format!("v{}", pi + m));
+                    ww_param_classes.push(cand.classes[m]);
+                }
+            } else {
+                let nj = if j < pi { j } else { j + k - 1 };
+                ww_params.push(format!("v{nj}"));
+                ww_param_classes.push(f.repr.params[j]);
+            }
+        }
+
+        let map_idx = |old: usize| -> Option<usize> {
+            if old < pi {
+                Some(old)
+            } else if old > pi {
+                Some(old + k - 1)
+            } else {
+                None
+            }
+        };
+        let mut ww_meta = crate::core::FnMeta {
+            linear: f.meta.linear.iter().filter_map(|(i, m)| map_idx(*i).map(|j| (j, *m))).collect(),
+            unique_params: f.meta.unique_params.iter().filter_map(|i| map_idx(*i)).collect(),
+            immortal_params: f.meta.immortal_params.iter().filter_map(|i| map_idx(*i)).collect(),
+            pure_arrows: f.meta.pure_arrows.iter().filter_map(|i| map_idx(*i)).collect(),
+            dicts: f.meta.dicts.iter().filter_map(|(i, c)| map_idx(*i).map(|j| (j, c.clone()))).collect(),
+            pure: f.meta.pure,
+            prim_body: false,
+            contract: crate::core::FnContract {
+                params: {
+                    let mut ps = Vec::with_capacity(arity - 1 + k);
+                    for j in 0..arity {
+                        if j == pi {
+                            for _ in 0..k {
+                                ps.push(crate::core::ParamContract::default());
+                            }
+                        } else {
+                            ps.push(f.meta.contract.params.get(j).cloned().unwrap_or_default());
+                        }
+                    }
+                    ps
+                },
+                ..f.meta.contract.clone()
+            },
+        };
+        // Avoid stale narrow widths on the newly unpacked parameters.
+        for pc in &mut ww_meta.contract.params {
+            pc.narrow = None;
+        }
+
+        let ww_def = FnDef {
+            id: GlobalId(ww_name.clone()),
+            params: ww_params,
+            body: *ww_body,
+            prim: None,
+            ctor: None,
+            hints: f.hints.clone(),
+            meta: ww_meta,
+            repr: crate::core::UnitRepr {
+                tparams: 0,
+                params: ww_param_classes.clone(),
+                fields: Vec::new(),
+                result: f.repr.result,
+                ..Default::default()
+            },
+        };
+
+        // Rebuild `f` as a tiny non-recursive wrapper calling `ww`.
+        let wrapper_fields: Vec<LocalId> = (0..k).map(|m| LocalId(arity + m)).collect();
+        let mut call_args: Vec<Core> = Vec::with_capacity(arity - 1 + k);
+        for j in 0..arity {
+            if j == pi {
+                for &wf in &wrapper_fields {
+                    call_args.push(Core::Var(wf));
+                }
+            } else {
+                call_args.push(Core::Var(LocalId(j)));
+            }
+        }
+        f.body = Core::Case {
+            scrut: Box::new(Core::Var(LocalId(pi))),
+            alts: vec![CAlt {
+                pat: CPat::Con {
+                    tag: cand.tag,
+                    fields: wrapper_fields,
+                    classes: cand.classes,
+                },
+                body: Box::new(Core::App(Box::new(Core::Global(GlobalId(ww_name.clone()), vec![])), call_args)),
+                weight: None,
+            }],
+        };
+        fresh.local = fresh.local.max(arity + k);
+
+        tables.arity.insert(ww_name.clone(), arity - 1 + k);
+        tables.params.insert(ww_name.clone(), ww_param_classes);
+        rewrites.push((cand.name, ww_name, arity, pi, cand.tag, k));
+        new_workers.push(ww_def);
+    }
+
+    program.fns.extend(new_workers);
+    for (target, ww, arity, pi, tag, k) in &rewrites {
+        for f in program.fns.iter_mut() {
+            if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || f.id.0 == *target {
+                continue;
+            }
+            rewrite_direct_calls(&mut f.body, target, ww, *arity, *pi, *tag, *k, tables, &program.plans);
+        }
+    }
+    true
+}
+
 /// One past the largest local any unit mentions: every fresh local the pass
 /// makes exceeds it.
 fn max_local(program: &Program) -> usize {
@@ -4930,5 +6175,164 @@ fn unit_mentions(e: &Core, out: &mut Vec<String>) {
     }
     for k in child_slots_imm(e) {
         unit_mentions(k, out);
+    }
+}
+
+#[cfg(test)]
+mod prim_fold_tests {
+    use super::*;
+    use crate::core::CBranch;
+
+    fn empty_tables() -> Tables {
+        Tables {
+            ctors: HashMap::new(),
+            lambdas: HashMap::new(),
+            static_records: HashMap::new(),
+            static_wrappers: HashMap::new(),
+            arity: HashMap::new(),
+            params: HashMap::new(),
+            instances: HashMap::new(),
+            prim_bodies: HashSet::new(),
+            prims: HashMap::new(),
+        }
+    }
+
+    fn run_pass(mut e: Core) -> Core {
+        let tables = empty_tables();
+        let mut scope = Scope::default();
+        let classes = HashMap::new();
+        let occ = HashMap::new();
+        let opts = SimplifyOptions::default();
+        let mut fresh = Fresh { local: 100, join: 0 };
+        let mut ticks = Ticks::default();
+        pass(&mut e, &mut scope, &tables, &classes, &occ, &opts, &mut fresh, &mut ticks);
+        e
+    }
+
+    fn prim_app(op: PrimOp, args: Vec<Core>) -> Core {
+        Core::App(Box::new(Core::Prim(op)), args)
+    }
+
+    #[test]
+    fn algebraic_identities_and_absorbing_elements() {
+        let x = Core::Var(LocalId(0));
+        let add = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Add, mode: ArithMode::Wrapping };
+        let sub = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Sub, mode: ArithMode::Wrapping };
+        let mul = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Mul, mode: ArithMode::Wrapping };
+        let and = PrimOp::Bit { ty: Scalar::U64, op: BitOp::And };
+        let or = PrimOp::Bit { ty: Scalar::U64, op: BitOp::Or };
+        let xor = PrimOp::Bit { ty: Scalar::U64, op: BitOp::Xor };
+        let shl = PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shl, checked: false };
+        let shr = PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shr, checked: false };
+
+        assert!(alpha_eq(&run_pass(prim_app(add, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(add, vec![Core::Int(0), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(sub, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(sub, vec![x.clone(), x.clone()])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![x.clone(), Core::Int(1)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![Core::Int(1), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![x.clone(), Core::Int(0)])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(mul, vec![Core::Int(0), x.clone()])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(and, vec![x.clone(), Core::Int(0)])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(and, vec![x.clone(), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(or, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(or, vec![x.clone(), x.clone()])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(xor, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(xor, vec![x.clone(), x.clone()])), &Core::Int(0)));
+        assert!(alpha_eq(&run_pass(prim_app(shl, vec![x.clone(), Core::Int(0)])), &x));
+        assert!(alpha_eq(&run_pass(prim_app(shr, vec![x.clone(), Core::Int(0)])), &x));
+    }
+
+    #[test]
+    fn redundant_mask_folding() {
+        let x = Core::Var(LocalId(0));
+        let and = PrimOp::Bit { ty: Scalar::U64, op: BitOp::And };
+        let or = PrimOp::Bit { ty: Scalar::U64, op: BitOp::Or };
+
+        // bit_and(bit_and(x, 0xFF), 0x0F) -> bit_and(x, 0x0F)
+        let nested_and = prim_app(and, vec![prim_app(and, vec![x.clone(), Core::Int(0xFF)]), Core::Int(0x0F)]);
+        let expected_and = prim_app(and, vec![x.clone(), Core::Int(0x0F)]);
+        assert!(alpha_eq(&run_pass(nested_and), &expected_and));
+
+        // Disjoint masks collapse all the way to 0 when x is speculatable
+        let disjoint_and = prim_app(and, vec![prim_app(and, vec![x.clone(), Core::Int(0xF0)]), Core::Int(0x0F)]);
+        assert!(alpha_eq(&run_pass(disjoint_and), &Core::Int(0)));
+
+        // bit_or(bit_or(x, 0x10), 0x01) -> bit_or(x, 0x11)
+        let nested_or = prim_app(or, vec![prim_app(or, vec![x.clone(), Core::Int(0x10)]), Core::Int(0x01)]);
+        let expected_or = prim_app(or, vec![x.clone(), Core::Int(0x11)]);
+        assert!(alpha_eq(&run_pass(nested_or), &expected_or));
+    }
+
+    #[test]
+    fn constant_folding_and_dead_branch_elimination() {
+        let add_i64 = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Add, mode: ArithMode::Wrapping };
+        let add_u8 = PrimOp::Arith { ty: Scalar::U8, op: ArithOp::Add, mode: ArithMode::Wrapping };
+        let and_u64 = PrimOp::Bit { ty: Scalar::U64, op: BitOp::And };
+        let eq_i64 = PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Eq };
+        let lt_u8 = PrimOp::Cmp { ty: Scalar::U8, op: CmpOp::Lt };
+
+        assert!(alpha_eq(&run_pass(prim_app(add_i64, vec![Core::Int(3), Core::Int(4)])), &Core::Int(7)));
+        // U8 wrapping: 250 + 10 = 4
+        assert!(alpha_eq(&run_pass(prim_app(add_u8, vec![Core::Int(250), Core::Int(10)])), &Core::Int(4)));
+        assert!(alpha_eq(&run_pass(prim_app(and_u64, vec![Core::Int(0xAB), Core::Int(0x0F)])), &Core::Int(0x0B)));
+        assert!(alpha_eq(&run_pass(prim_app(eq_i64, vec![Core::Int(7), Core::Int(7)])), &Core::Bool(true)));
+        assert!(alpha_eq(&run_pass(prim_app(lt_u8, vec![Core::Int(200), Core::Int(10)])), &Core::Bool(false)));
+
+        // Constant comparison unlocks dead-branch elimination in Core::If
+        let cond = prim_app(eq_i64, vec![prim_app(add_i64, vec![Core::Int(3), Core::Int(4)]), Core::Int(7)]);
+        let branch = Core::If(
+            Box::new(cond),
+            CBranch { weight: None, body: Box::new(Core::Int(42)) },
+            CBranch { weight: None, body: Box::new(Core::Int(99)) },
+        );
+        assert!(alpha_eq(&run_pass(branch), &Core::Int(42)));
+    }
+
+    #[test]
+    fn never_folds_trapping_or_effectful_expressions() {
+        // Division / remainder by zero must NEVER be folded away
+        let div_u64 = PrimOp::Div { ty: Scalar::U64 };
+        let rem_u64 = PrimOp::Rem { ty: Scalar::U64 };
+        let cdiv_i64 = PrimOp::CheckedDiv { ty: Scalar::I64 };
+        let div_zero = prim_app(div_u64, vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(div_zero.clone()), &div_zero));
+        let rem_zero = prim_app(rem_u64, vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(rem_zero.clone()), &rem_zero));
+        let cdiv_zero = prim_app(cdiv_i64, vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(cdiv_zero.clone()), &cdiv_zero));
+
+        // Checked arithmetic overflow must NEVER be folded away
+        let cadd_i64 = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Add, mode: ArithMode::Checked };
+        let overflow = prim_app(cadd_i64, vec![Core::Int(i64::MAX), Core::Int(1)]);
+        assert!(alpha_eq(&run_pass(overflow.clone()), &overflow));
+
+        // Checked shift out-of-range must NEVER be folded away
+        let cshl = PrimOp::Shift { ty: Scalar::U64, op: ShiftOp::Shl, checked: true };
+        let bad_shift = prim_app(cshl, vec![Core::Int(1), Core::Int(64)]);
+        assert!(alpha_eq(&run_pass(bad_shift.clone()), &bad_shift));
+
+        // Effectful / possibly-trapping operand in mul(call, 0) must NEVER be dropped
+        let call = Core::App(Box::new(Core::Global(GlobalId("side_effect".into()), vec![])), vec![Core::Int(1)]);
+        let mul = PrimOp::Arith { ty: Scalar::I64, op: ArithOp::Mul, mode: ArithMode::Wrapping };
+        let eff_mul = prim_app(mul, vec![call.clone(), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(eff_mul.clone()), &eff_mul));
+
+        // Prim.Machine global folding works, while raw-sdiv-i64 is NEVER folded
+        let g_and = Core::Global(GlobalId("Prim.Machine.bit-and-i64".into()), vec![]);
+        let x = Core::Var(LocalId(0));
+        let nested_g = Core::App(
+            Box::new(g_and.clone()),
+            vec![
+                Core::App(Box::new(g_and.clone()), vec![x.clone(), Core::Int(0xFF)]),
+                Core::Int(0x0F),
+            ],
+        );
+        let expected_g = Core::App(Box::new(g_and), vec![x, Core::Int(0x0F)]);
+        assert!(alpha_eq(&run_pass(nested_g), &expected_g));
+
+        let g_sdiv = Core::Global(GlobalId("Prim.Machine.raw-sdiv-i64".into()), vec![]);
+        let sdiv_zero = Core::App(Box::new(g_sdiv), vec![Core::Int(10), Core::Int(0)]);
+        assert!(alpha_eq(&run_pass(sdiv_zero.clone()), &sdiv_zero));
     }
 }

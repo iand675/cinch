@@ -105,6 +105,12 @@ struct Free {
     next: *mut Free,
 }
 
+/// Page list membership state, packed into one byte so `free_local` skips
+/// `page_freed` on the active head page even when `used` reaches 0.
+const STATE_HEAD: u8 = 0;
+const STATE_LINKED: u8 = 1;
+const STATE_FULL: u8 = 2;
+
 /// A page header. Every field but `heap` and `size` belongs to the
 /// owning heap's thread; another thread reads `heap` and `size` only for
 /// a block it holds, which keeps the page from being recycled meanwhile.
@@ -121,8 +127,8 @@ struct Page {
     /// The block size of the class.
     size: u32,
     class: u8,
-    /// Off its class list because it had no room.
-    full: bool,
+    /// One of `STATE_HEAD`, `STATE_LINKED`, or `STATE_FULL`.
+    state: u8,
     /// The heap that owns the page.
     heap: AtomicPtr<Heap>,
     /// The class list links, or the cache link of an empty page.
@@ -145,19 +151,19 @@ static EMPTY: Sentinel = Sentinel(UnsafeCell::new(Page {
     used: 0,
     size: 0,
     class: 0,
-    full: false,
+    state: STATE_HEAD,
     heap: AtomicPtr::new(null_mut()),
     prev: null_mut(),
     next: null_mut(),
 }));
 
-#[inline]
+#[inline(always)]
 fn empty() -> *mut Page {
     EMPTY.0.get()
 }
 
 /// The page of a block this allocator owns.
-#[inline]
+#[inline(always)]
 fn page_of(p: *const u8) -> *mut Page {
     (p as usize & !(PAGE - 1)) as *mut Page
 }
@@ -195,25 +201,24 @@ unsafe impl Sync for Heap {}
 
 /// The class of a `size`-byte request aligned to `align`, or `None` when
 /// the system allocator serves it.
-#[inline]
+#[inline(always)]
 pub(crate) fn class_of(size: usize, align: usize) -> Option<usize> {
-    if align > 16 {
+    if (size > MAX_SMALL) | (align > 16) {
         return None;
     }
-    let size = if align > 8 { size.checked_add(15)? & !15 } else { size };
-    if size > MAX_SMALL {
-        return None;
-    }
-    Some(size.max(1).div_ceil(8) - 1)
+    // `size <= MAX_SMALL` (256) and `align <= 16` (power of two), so rounding
+    // up to 16 never overflows or exceeds 256; for `align > 8 && size > 0` it
+    // simply sets bit 0 of the 8-byte word class index.
+    Some((size.saturating_sub(1) >> 3) | usize::from((align > 8) & (size > 0)))
 }
 
 /// Whether `p` is a block of this allocator.
-#[inline]
+#[inline(always)]
 pub(crate) fn owns(p: *const u8) -> bool {
     // A block reaches another thread only through a synchronisation that
     // also publishes the range, so relaxed loads see it; before the range
     // exists both are 0 and nothing is owned.
-    (p as usize).wrapping_sub(RANGE_BASE.load(Relaxed)) < RANGE_LEN.load(Relaxed)
+    (p as usize).wrapping_sub(HOT.range_base.load(Relaxed)) < HOT.range_len.load(Relaxed)
 }
 
 /// The size of the class of `p`, a live block of this allocator.
@@ -221,7 +226,7 @@ pub(crate) fn owns(p: *const u8) -> bool {
 /// # Safety
 ///
 /// `p` is a live block this allocator handed out.
-#[inline]
+#[inline(always)]
 pub(crate) unsafe fn block_size(p: *const u8) -> usize {
     unsafe { (*page_of(p)).size as usize }
 }
@@ -231,7 +236,7 @@ pub(crate) unsafe fn block_size(p: *const u8) -> usize {
 /// # Safety
 ///
 /// As for [`block_size`].
-#[inline]
+#[inline(always)]
 pub(crate) unsafe fn class_at(p: *const u8) -> usize {
     unsafe { (*page_of(p)).class as usize }
 }
@@ -242,13 +247,17 @@ pub(crate) unsafe fn class_at(p: *const u8) -> usize {
 /// # Safety
 ///
 /// `p` is a live block this allocator handed out, not used again.
-#[inline]
+#[inline(always)]
 pub(crate) unsafe fn free(p: *mut u8, local: Option<&Heap>) {
     let page = page_of(p);
     let owner = unsafe { (*page).heap.load(Relaxed) };
-    match local {
-        Some(h) if std::ptr::eq(h, owner) => unsafe { h.free_local(page, p.cast()) },
-        _ => unsafe { (*owner).push_remote(p.cast()) },
+    // Every live page has a non-null `owner`, so one pointer compare handles
+    // both `None` and cross-thread ownership.
+    let local_ptr = local.map_or(std::ptr::null(), |h| h as *const Heap);
+    if std::ptr::eq(local_ptr, owner) {
+        unsafe { (*owner).free_local(page, p.cast()) }
+    } else {
+        unsafe { (*owner).push_remote(p.cast()) }
     }
 }
 
@@ -259,7 +268,7 @@ impl Heap {
     /// # Safety
     ///
     /// The calling thread owns the heap; `class < CLASSES`.
-    #[inline]
+    #[inline(always)]
     pub(crate) unsafe fn alloc(&self, class: usize) -> *mut u8 {
         debug_assert!(class < CLASSES);
         let page = unsafe { self.pages.get_unchecked(class) }.get();
@@ -272,7 +281,7 @@ impl Heap {
             }
             let b = (*page).bump;
             if b < (*page).end {
-                (*page).bump = b.add((*page).size as usize);
+                (*page).bump = b.add((class + 1) << 3);
                 (*page).used += 1;
                 return b;
             }
@@ -284,13 +293,14 @@ impl Heap {
     /// room. Retire it from the list and serve the next page with room,
     /// then the blocks other threads freed, then a new page.
     #[cold]
+    #[inline(never)]
     unsafe fn refill(&self, class: usize) -> *mut u8 {
         let cell = &self.pages[class];
         let head = cell.get();
         if head != empty() {
             unsafe {
-                (*head).full = true;
                 self.unlink(class, head);
+                (*head).state = STATE_FULL;
             }
         }
         // Every page behind the head entered the list through a free, so
@@ -322,7 +332,7 @@ impl Heap {
                 used: 0,
                 size: size as u32,
                 class: class as u8,
-                full: false,
+                state: STATE_HEAD,
                 heap: AtomicPtr::new(self as *const Heap as *mut Heap),
                 prev: null_mut(),
                 next: null_mut(),
@@ -331,30 +341,32 @@ impl Heap {
     }
 
     /// Free `b` into `page`, one of this heap's pages.
-    #[inline]
+    #[inline(always)]
     unsafe fn free_local(&self, page: *mut Page, b: *mut Free) {
         unsafe {
             (*b).next = (*page).free;
             (*page).free = b;
-            (*page).used -= 1;
-            if (*page).full || (*page).used == 0 {
+            let used = (*page).used - 1;
+            (*page).used = used;
+            let state = (*page).state;
+            if state != STATE_HEAD && (used == 0 || state == STATE_FULL) {
                 self.page_freed(page);
             }
         }
     }
 
-    /// A free just gave room to a full page, or emptied a page: put the
-    /// first back on its class list, and recycle the second unless it is
-    /// the page its class allocates from.
+    /// A free just gave room to a full page, or emptied a non-head page: put
+    /// the first back on its class list, and recycle the second.
     #[cold]
+    #[inline(never)]
     unsafe fn page_freed(&self, page: *mut Page) {
         let class = unsafe { (*page).class } as usize;
         unsafe {
-            if (*page).full {
-                (*page).full = false;
+            if (*page).state == STATE_FULL {
                 self.link_second(class, page);
             }
-            if (*page).used == 0 && self.pages[class].get() != page {
+            if (*page).used == 0 && (*page).state != STATE_HEAD {
+                debug_assert_ne!(self.pages[class].get(), page);
                 self.unlink(class, page);
                 self.retire(page);
             }
@@ -369,11 +381,13 @@ impl Heap {
             if head == empty() {
                 (*page).prev = null_mut();
                 (*page).next = null_mut();
+                (*page).state = STATE_HEAD;
                 self.pages[class].set(page);
             } else {
                 let next = (*head).next;
                 (*page).prev = head;
                 (*page).next = next;
+                (*page).state = STATE_LINKED;
                 if !next.is_null() {
                     (*next).prev = page;
                 }
@@ -390,7 +404,12 @@ impl Heap {
                 (*next).prev = prev;
             }
             if prev.is_null() {
-                self.pages[class].set(if next.is_null() { empty() } else { next });
+                if next.is_null() {
+                    self.pages[class].set(empty());
+                } else {
+                    (*next).state = STATE_HEAD;
+                    self.pages[class].set(next);
+                }
             } else {
                 (*prev).next = next;
             }
@@ -401,6 +420,8 @@ impl Heap {
 
     /// Keep the empty `page` for this heap, or pool it once the cache is
     /// full.
+    #[cold]
+    #[inline(never)]
     unsafe fn retire(&self, page: *mut Page) {
         if self.cached.get() < CACHED_PAGES {
             unsafe { (*page).next = self.cache.get() };
@@ -414,6 +435,8 @@ impl Heap {
     /// An empty page: from this heap's cache, the shared pool, a parked
     /// heap's remote frees, or the fresh range, in that order. Null when
     /// none is left.
+    #[cold]
+    #[inline(never)]
     fn take_page(&self) -> *mut Page {
         let page = self.cache.get();
         if !page.is_null() {
@@ -448,6 +471,8 @@ impl Heap {
     }
 
     /// Free every block other threads pushed onto the remote list.
+    #[cold]
+    #[inline(never)]
     unsafe fn drain(&self) {
         let mut b = self.remote.0.swap(null_mut(), Acquire);
         while !b.is_null() {
@@ -461,6 +486,8 @@ impl Heap {
 
     /// Push `b`, a block of one of this heap's pages, from a thread that
     /// does not own the heap.
+    #[cold]
+    #[inline(never)]
     unsafe fn push_remote(&self, b: *mut Free) {
         let mut head = self.remote.0.load(Relaxed);
         loop {
@@ -528,9 +555,9 @@ struct Teardown;
 impl Drop for Teardown {
     fn drop(&mut self) {
         let h = CURRENT.with(|c| c.replace(GONE as *mut Heap));
-        if SOLE_THREAD.load(Relaxed) == crate::sys::thread_word() {
+        if HOT.sole_thread.load(Relaxed) == crate::sys::thread_word() {
             // A later thread may be given this thread's word.
-            SOLE_THREAD.store(SOLE_RETIRED, Relaxed);
+            HOT.sole_thread.store(SOLE_RETIRED, Relaxed);
         }
         if h as usize > GONE {
             unsafe {
@@ -542,18 +569,34 @@ impl Drop for Teardown {
     }
 }
 
+/// Read-mostly hot globals grouped on their own cache line, isolated from
+/// writable statics (`HEAPS`, `SHARED`) so `local()` and `owns()` read one
+/// clean cache line with zero false sharing.
+///
 /// The program's thread ([`crate::platform::cinch_run_main`] claims it
-/// with [`claim_sole`]) finds its heap through [`SOLE_THREAD`] and
-/// [`SOLE_HEAP`]: a compare of its thread register
+/// with [`claim_sole`]) finds its heap through `sole_thread` and
+/// `sole_heap`: a compare of its thread register
 /// ([`crate::sys::thread_word`]) with a global word, instead of a
 /// thread-local lookup, which on Darwin is a call through the variable's
 /// descriptor on every allocation and free. Every other thread, and this
-/// one once it tears down, uses [`CURRENT`]. `SOLE_THREAD` holds the
+/// one once it tears down, uses [`CURRENT`]. `sole_thread` holds the
 /// owner's word or a marker no thread word equals; only the owner can
-/// match it, and the owner wrote `SOLE_HEAP` before it. The slot is
+/// match it, and the owner wrote `sole_heap` before it. The slot is
 /// claimed once and never handed on.
-static SOLE_THREAD: AtomicUsize = AtomicUsize::new(SOLE_UNCLAIMED);
-static SOLE_HEAP: AtomicPtr<Heap> = AtomicPtr::new(null_mut());
+#[repr(C, align(128))]
+struct HotGlobals {
+    sole_thread: AtomicUsize,
+    sole_heap: AtomicPtr<Heap>,
+    range_base: AtomicUsize,
+    range_len: AtomicUsize,
+}
+
+static HOT: HotGlobals = HotGlobals {
+    sole_thread: AtomicUsize::new(SOLE_UNCLAIMED),
+    sole_heap: AtomicPtr::new(null_mut()),
+    range_base: AtomicUsize::new(0),
+    range_len: AtomicUsize::new(0),
+};
 const SOLE_UNCLAIMED: usize = 0;
 const SOLE_CLAIMING: usize = 2;
 const SOLE_RETIRED: usize = 4;
@@ -568,9 +611,13 @@ pub(crate) fn claim_sole() {
     let Some(h) = local() else {
         return;
     };
-    if SOLE_THREAD.compare_exchange(SOLE_UNCLAIMED, SOLE_CLAIMING, Relaxed, Relaxed).is_ok() {
-        SOLE_HEAP.store(h as *const Heap as *mut Heap, Relaxed);
-        SOLE_THREAD.store(word, Relaxed);
+    if HOT
+        .sole_thread
+        .compare_exchange(SOLE_UNCLAIMED, SOLE_CLAIMING, Relaxed, Relaxed)
+        .is_ok()
+    {
+        HOT.sole_heap.store(h as *const Heap as *mut Heap, Relaxed);
+        HOT.sole_thread.store(word, Relaxed);
     }
 }
 
@@ -580,14 +627,16 @@ pub(crate) fn claim_sole() {
 /// system allocator.
 #[inline(always)]
 pub(crate) fn local() -> Option<&'static Heap> {
-    if crate::sys::thread_word() == SOLE_THREAD.load(Relaxed) {
-        return Some(unsafe { &*SOLE_HEAP.load(Relaxed) });
+    if crate::sys::thread_word() == HOT.sole_thread.load(Relaxed) {
+        return Some(unsafe { &*HOT.sole_heap.load(Relaxed) });
     }
     local_slow()
 }
 
-/// [`local`] through the thread-local variable.
-#[inline]
+/// [`local`] through the thread-local variable. Kept out-of-line so the
+/// sole-thread fast path in callers stays leaf-sized and free of TLS spills.
+#[cold]
+#[inline(never)]
 fn local_slow() -> Option<&'static Heap> {
     let h = CURRENT.with(Cell::get);
     if h as usize > GONE {
@@ -650,8 +699,6 @@ pub(crate) fn heaps() -> impl Iterator<Item = &'static Heap> {
 }
 
 static HEAPS: AtomicPtr<Heap> = AtomicPtr::new(null_mut());
-static RANGE_BASE: AtomicUsize = AtomicUsize::new(0);
-static RANGE_LEN: AtomicUsize = AtomicUsize::new(0);
 
 /// The state threads share: the reserved range, the page pool and the
 /// parked heaps. Every use is short and allocation-free.
@@ -761,8 +808,8 @@ impl Shared {
             self.limit = base + size;
             self.next = base;
             self.committed = base;
-            RANGE_BASE.store(base, Release);
-            RANGE_LEN.store(size, Release);
+            HOT.range_base.store(base, Release);
+            HOT.range_len.store(size, Release);
             return;
         }
     }
@@ -828,6 +875,22 @@ mod tests {
         assert_eq!(class_of(256, 8), Some(CLASSES - 1));
         assert_eq!(class_of(257, 8), None);
         assert_eq!(class_of(16, 32), None);
+        // Exhaustively verify branchless `class_of` against the reference formula.
+        for align in [1usize, 2, 4, 8, 16, 32, 64] {
+            for size in 0..=300 {
+                let want = if align > 16 {
+                    None
+                } else {
+                    let rounded = if align > 8 { (size + 15) & !15 } else { size };
+                    if rounded > MAX_SMALL {
+                        None
+                    } else {
+                        Some(rounded.max(1).div_ceil(8) - 1)
+                    }
+                };
+                assert_eq!(class_of(size, align), want, "size={size} align={align}");
+            }
+        }
     }
 
     #[test]

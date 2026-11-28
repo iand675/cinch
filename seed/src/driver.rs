@@ -2783,6 +2783,7 @@ fn write_artifacts<'a>(
     manifest_path: &Path,
     report: &StageReport,
     program: &crate::core::Program,
+    checked_templates: Option<&crate::core::Program>,
     opt: &crate::core::OptReport,
     profile: &crate::core::TargetProfile,
     build: &crate::core::BuildProfiles,
@@ -2804,7 +2805,11 @@ fn write_artifacts<'a>(
     // user program does not run them.
     let write_optimisations = opts.emit_interface_optimisations || mode == Mode::EmitObject;
     let body_index = if write_optimisations && !opts.interface_package_only {
-        Some(crate::ifaceopt::ModuleBodyIndex::new(program, &crate::simplify::unfoldable_names(program)))
+        Some(crate::ifaceopt::ModuleBodyIndex::new_with_templates(
+            checked_templates,
+            program,
+            &crate::simplify::unfoldable_names(program),
+        ))
     } else {
         None
     };
@@ -2813,7 +2818,7 @@ fn write_artifacts<'a>(
         for iface in ifaces {
             let contract_hash = contract_hashes[iface.module.as_str()].clone();
             let optimisation = index.for_contract(&iface.module, contract_hash);
-            if !optimisation.bodies.is_empty() {
+            if !optimisation.bodies.is_empty() || !optimisation.templates.is_empty() {
                 optimisation_metadata.insert(iface.module.as_str(), optimisation.document());
             }
         }
@@ -5996,8 +6001,29 @@ pub fn driver_with_profile_opts(
     // for. A unit of a module this compilation defines keeps its own body:
     // a source module shadows the external one.
     let mut program = program;
+    if !opts.package_objects.is_empty() {
+        let mut present: HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+        for object in &opts.package_objects {
+            let pkg_cpk = package_execution_path(object);
+            if let Ok(table) = crate::ifaceopt::load_package(&pkg_cpk) {
+                for tpl in table.templates {
+                    if present.insert(tpl.id.0.clone()) {
+                        program.fns.push(tpl);
+                    }
+                }
+            }
+        }
+    }
     let (mut program, foreign) = if let Some(package) = &opts.interface_optimisations {
         let table = crate::ifaceopt::load_package(package)?;
+        if !table.templates.is_empty() {
+            let mut present: HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+            for tpl in table.templates {
+                if present.insert(tpl.id.0.clone()) {
+                    program.fns.push(tpl);
+                }
+            }
+        }
         if table.bodies.is_empty() || mode == Mode::EmitObject {
             (program, table.bodies)
         } else {
@@ -6025,7 +6051,7 @@ pub fn driver_with_profile_opts(
                 best.map(str::to_string)
             };
             program.fns.retain(|f| match module_of(&f.id.0) {
-                Some(m) => local.contains(m.as_str()),
+                Some(m) => local.contains(m.as_str()) || crate::repr::is_val_specialization(&f.id.0),
                 None => true,
             });
             program.instances.retain(|i| match module_of(&i.id.0) {
@@ -6103,6 +6129,13 @@ pub fn driver_with_profile_opts(
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
     trace_driver_phase(phase_trace, "optimization.begin");
+    let checked_templates = if (opts.emit_interface_optimisations || mode == Mode::EmitObject)
+        && !opts.interface_package_only
+    {
+        Some(program.clone())
+    } else {
+        None
+    };
     let (mut program, mut opt, method_families) = if mode == Mode::Check
         && !opts.emit_interface_optimisations
         && opts.interface_optimisations.is_none()
@@ -6270,6 +6303,7 @@ pub fn driver_with_profile_opts(
         &manifest_path,
         &report,
         &program,
+        checked_templates.as_ref(),
         &opt,
         profile,
         &build,

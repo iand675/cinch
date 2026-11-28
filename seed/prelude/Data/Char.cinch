@@ -26,12 +26,12 @@ module Data.Char where
   prim char-to-u32 :: (c :: Char) -> refined (InRange 0 1114111 r && r == c) U32 where
     llvm {
       ret i32 %0
-    }
+    } justify verify
 
   prim raw-u32-to-char :: U32 -> Char where
     llvm {
       ret i32 %0
-    }
+    } justify verify
 
   u32-to-char :: U32 -> Option Char
   u32-to-char n =

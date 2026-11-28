@@ -28,6 +28,7 @@ module Cinch.Ownership where
   export compute-consumed-params, same-bool-maps, frame-let-mode
   export compute-arena-phases, same-arena-phases
   export program-uses-concurrency, is-immortal-enum-data, is-non-arena-leaf-type
+  export compute-returns-unique, term-is-unique-alloc
 
   same-str :: String -> String -> Bool
   same-str a b = a == b
@@ -247,16 +248,33 @@ module Cinch.Ownership where
     (Some x, Some y) -> same-str x y
     other -> False
 
+  -- Check whether a decision-tree arm body has at least one branch where
+  -- scrutinee `sid` is dead and a same-arity constructor is allocated
+  -- (branch-sunk Perceus reset/reuse for cold `else s` arms).
+  arm-has-branch-reuse-alloc :: Nat -> Nat -> CoreTerm -> Bool
+  arm-has-branch-reuse-alloc sid arity term =
+    if arity == 0 then False
+    else case term of
+      CIf sp ty cond yes no ->
+        not (term-uses-id sid cond)
+          && ((not (term-uses-id sid yes) && arm-has-reuse-alloc arity yes)
+              || (not (term-uses-id sid no) && arm-has-reuse-alloc arity no)
+              || arm-has-branch-reuse-alloc sid arity yes
+              || arm-has-branch-reuse-alloc sid arity no)
+      other -> False
+
   -- Check whether any constructor alternative of a `CCase` matches a
-  -- non-nullary constructor (with scrutinee `sid` dead in the arm body)
-  -- and allocates a same-arity constructor on its spine.
+  -- non-nullary constructor (with scrutinee `sid` dead in the arm body or
+  -- dead on a branch of its decision tree) and allocates a same-arity
+  -- constructor on its spine.
   case-has-reusable-arm :: Nat -> CoreTerm -> Bool
   case-has-reusable-arm sid alts = case alts of
     CAlternative sp pat body rest ->
       let hit = (case pat of
             CPConstructor at ty name actuals sc fields ->
               let n = pattern-field-count fields in
-              n > 0 && not (term-uses-id sid body) && arm-has-reuse-alloc n body
+              n > 0 && ((not (term-uses-id sid body) && arm-has-reuse-alloc n body)
+                        || arm-has-branch-reuse-alloc sid n body)
             other -> False) in
       hit || case-has-reusable-arm sid rest
     other -> False
@@ -347,6 +365,8 @@ module Cinch.Ownership where
     || same-str name "cinch.runtime.bytesLoadLe64At"
     || same-str name "cinch.runtime.bytesCompare"
     || same-str name "cinch.runtime.bytesData"
+    || same-str name "cinch.runtime.utf8Validate"
+    || same-str name "cinch.runtime.utf8CountChars"
     || same-str name "cinch.runtime.natAdd"
     || same-str name "cinch.runtime.natSub"
     || same-str name "cinch.runtime.natMul"
@@ -366,90 +386,102 @@ module Cinch.Ownership where
     || same-str name "cinch.runtime.arrayGet"
 
   -- Collect parameter indices that may escape (returned, stored, captured,
-  -- passed to a non-consumed/non-borrowed callee, or passed in tail position
-  -- to another unit).
-  escape-term :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
-  escape-term pids borrows consumed in-tail term escaped = case term of
+  -- passed to a non-consumed/non-borrowed callee, or forwarded to a consumed
+  -- callee when aliased/used more than once on that path).
+  -- `singles` tracks local ids proven to have at most one runtime use in the
+  -- current scope, so handing them to a proven-consumed owned callee cannot
+  -- release a frame payload before a sibling read.
+  escape-term :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
+  escape-term pids singles borrows consumed in-tail term escaped = case term of
     CLocal sp ty id name actuals -> (case lookup-pair id pids of
       Some idx -> add-id idx escaped
       None -> escaped)
-    CForget sp ty inner -> escape-term pids borrows consumed in-tail inner escaped
-    CCast sp ty inner -> escape-term pids borrows consumed in-tail inner escaped
-    CRequire sp ty body -> escape-term pids borrows consumed in-tail body escaped
-    CProved sp ty ev body -> escape-term pids borrows consumed in-tail body escaped
-    CRefine sp ty ev body -> escape-term pids borrows consumed in-tail body escaped
-    CRefineProof sp ty w body -> escape-term pids borrows consumed in-tail body escaped
-    CDischarge sp ty ev _ body -> escape-term pids borrows consumed in-tail body escaped
+    CForget sp ty inner -> escape-term pids singles borrows consumed in-tail inner escaped
+    CCast sp ty inner -> escape-term pids singles borrows consumed in-tail inner escaped
+    CRequire sp ty body -> escape-term pids singles borrows consumed in-tail body escaped
+    CProved sp ty ev body -> escape-term pids singles borrows consumed in-tail body escaped
+    CRefine sp ty ev body -> escape-term pids singles borrows consumed in-tail body escaped
+    CRefineProof sp ty w body -> escape-term pids singles borrows consumed in-tail body escaped
+    CDischarge sp ty ev _ body -> escape-term pids singles borrows consumed in-tail body escaped
     CGuard sp ty cond body ->
-      let e1 = escape-term pids borrows consumed False cond escaped in
-      escape-term pids borrows consumed in-tail body e1
+      let e1 = escape-term pids singles borrows consumed False cond escaped in
+      escape-term pids singles borrows consumed in-tail body e1
     CIf sp ty cond yes no ->
-      let e1 = escape-term pids borrows consumed False cond escaped in
-      let e2 = escape-term pids borrows consumed in-tail yes e1 in
-      escape-term pids borrows consumed in-tail no e2
+      let e1 = escape-term pids singles borrows consumed False cond escaped in
+      let e2 = escape-term pids singles borrows consumed in-tail yes e1 in
+      escape-term pids singles borrows consumed in-tail no e2
     CLet sp ty lid lname sc rhs body -> case unwrap-var-id rhs of
       Some src ->
         let pids2 = (case lookup-pair src pids of
               Some idx -> (lid, idx) : pids
               None -> pids) in
-        escape-term pids2 borrows consumed in-tail body escaped
+        let singles2 = if has-id src singles && not (term-uses-id src body) && term-use-count lid body <= 1
+              then add-id lid singles else singles in
+        escape-term pids2 singles2 borrows consumed in-tail body escaped
       None ->
-        let e1 = escape-term pids borrows consumed False rhs escaped in
-        escape-term pids borrows consumed in-tail body e1
+        let e1 = escape-term pids singles borrows consumed False rhs escaped in
+        escape-term pids singles borrows consumed in-tail body e1
     CCase sp ty scrut alts ->
       case unwrap-var-id scrut of
         Some sid ->
           let scrut-p = lookup-pair sid pids in
-          escape-alts pids borrows consumed in-tail scrut-p alts escaped
+          let scrut-s = has-id sid singles in
+          escape-alts pids singles borrows consumed in-tail scrut-p scrut-s alts escaped
         None ->
-          let e1 = escape-term pids borrows consumed False scrut escaped in
-          escape-alts pids borrows consumed in-tail None alts e1
-    CApply sp ty f x -> escape-app pids borrows consumed in-tail term escaped
-    CApplyEff sp ty row f x -> escape-app pids borrows consumed in-tail term escaped
-    CErasedApply sp ty row f x -> escape-app pids borrows consumed in-tail term escaped
-    other -> escape-list pids borrows consumed False (runtime-term-children term) escaped
+          let e1 = escape-term pids singles borrows consumed False scrut escaped in
+          escape-alts pids singles borrows consumed in-tail None False alts e1
+    CApply sp ty f x -> escape-app pids singles borrows consumed in-tail term escaped
+    CApplyEff sp ty row f x -> escape-app pids singles borrows consumed in-tail term escaped
+    CErasedApply sp ty row f x -> escape-app pids singles borrows consumed in-tail term escaped
+    other -> escape-list pids singles borrows consumed False (runtime-term-children term) escaped
 
-  escape-alts :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> Option Nat -> CoreTerm -> List Nat -> List Nat
-  escape-alts pids borrows consumed in-tail scrut-p alts escaped = case alts of
+  escape-alts :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> Option Nat -> Bool -> CoreTerm -> List Nat -> List Nat
+  escape-alts pids singles borrows consumed in-tail scrut-p scrut-s alts escaped = case alts of
     CAlternative sp pat body rest ->
       let pids2 = (case (pat, scrut-p) of
             (CPVar at pty id pname, Some idx) -> (id, idx) : pids
             (CPAs at pty id pname inner, Some idx) -> (id, idx) : pids
             other -> pids) in
-      let e1 = escape-term pids2 borrows consumed in-tail body escaped in
-      escape-alts pids borrows consumed in-tail scrut-p rest e1
+      let singles2 = (case pat of
+            CPVar at pty id pname | scrut-s && term-use-count id body <= 1 -> add-id id singles
+            other -> singles) in
+      let e1 = escape-term pids2 singles2 borrows consumed in-tail body escaped in
+      escape-alts pids singles borrows consumed in-tail scrut-p scrut-s rest e1
     other -> escaped
 
-  escape-app :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
-  escape-app pids borrows consumed in-tail term escaped =
+  escape-app :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> CoreTerm -> List Nat -> List Nat
+  escape-app pids singles borrows consumed in-tail term escaped =
     let h = call-head term in
     let args = call-args term [] in
+    let n-args = list-length args in
     case h of
       CUse sp ty name role actuals | not (same-str role "foreign") && not (same-str role "constructor") ->
         if is-readonly-builtin-name name then
-          escape-readonly-args pids borrows consumed args escaped
+          escape-readonly-args pids singles borrows consumed args escaped
         else
-          -- Only saturated `#b` borrowed calls are guaranteed never to drop
-          -- an `RC_FRAME` argument; partial applications allocate closures
-          -- and owned callees would trigger premature `cinch_frame_release`.
-          (case hash-map-lookup name borrows of
-            Some bm | list-length bm == list-length args ->
-              escape-call-args pids borrows consumed args (Some bm) None escaped
-            other -> escape-list pids borrows consumed False args escaped)
+          let bmask = (case hash-map-lookup name borrows of
+                Some bm | list-length bm == n-args -> Some bm
+                other -> None) in
+          let cmask = (case hash-map-lookup name consumed of
+                Some cm | list-length cm == n-args -> Some cm
+                other -> None) in
+          (case (bmask, cmask) of
+            (None, None) -> escape-list pids singles borrows consumed False args escaped
+            other -> escape-call-args pids singles borrows consumed args bmask cmask escaped)
       CUse sp ty name role actuals ->
-        escape-list pids borrows consumed False args escaped
+        escape-list pids singles borrows consumed False args escaped
       other ->
-        let e1 = escape-term pids borrows consumed False h escaped in
-        escape-list pids borrows consumed False args e1
+        let e1 = escape-term pids singles borrows consumed False h escaped in
+        escape-list pids singles borrows consumed False args e1
 
-  escape-readonly-args :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> List Nat -> List Nat
-  escape-readonly-args pids borrows consumed args escaped = case args of
+  escape-readonly-args :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> List Nat -> List Nat
+  escape-readonly-args pids singles borrows consumed args escaped = case args of
     [] -> escaped
     a : rest ->
       let e1 = (case unwrap-var-id a of
             Some id -> escaped
-            None -> escape-term pids borrows consumed False a escaped) in
-      escape-readonly-args pids borrows consumed rest e1
+            None -> escape-term pids singles borrows consumed False a escaped) in
+      escape-readonly-args pids singles borrows consumed rest e1
 
   mask-flag :: Option (List Bool) -> Nat -> Bool
   mask-flag opt idx = case opt of
@@ -461,34 +493,43 @@ module Cinch.Ownership where
     [] -> False
     b : rest -> if idx == 0 then b else nth-bool rest (idx - 1)
 
-  escape-call-args :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> List Nat -> List Nat
-  escape-call-args pids borrows consumed args bmask cmask escaped =
-    escape-call-args-at pids borrows consumed args bmask cmask 0 escaped
+  escape-call-args :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> List Nat -> List Nat
+  escape-call-args pids singles borrows consumed args bmask cmask escaped =
+    escape-call-args-at pids singles borrows consumed args bmask cmask 0 escaped
 
-  escape-call-args-at :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> Nat -> List Nat -> List Nat
-  escape-call-args-at pids borrows consumed args bmask cmask idx escaped = case args of
+  escape-call-args-at :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> List CoreTerm -> Option (List Bool) -> Option (List Bool) -> Nat -> List Nat -> List Nat
+  escape-call-args-at pids singles borrows consumed args bmask cmask idx escaped = case args of
     [] -> escaped
     a : rest ->
-      let safe = mask-flag bmask idx || mask-flag cmask idx in
-      let e1 = (if safe then
-            (case unwrap-var-id a of
-              Some id -> escaped
-              None -> escape-term pids borrows consumed False a escaped)
-          else escape-term pids borrows consumed False a escaped) in
-      escape-call-args-at pids borrows consumed rest bmask cmask (idx + 1) e1
+      let is-borrowed = mask-flag bmask idx in
+      let is-consumed = mask-flag cmask idx in
+      let e1 = (case unwrap-var-id a of
+            Some id ->
+              if is-borrowed || (is-consumed && has-id id singles) then escaped
+              else escape-term pids singles borrows consumed False a escaped
+            None -> escape-term pids singles borrows consumed False a escaped) in
+      escape-call-args-at pids singles borrows consumed rest bmask cmask (idx + 1) e1
 
-  escape-list :: List (Nat, Nat) -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> List CoreTerm -> List Nat -> List Nat
-  escape-list pids borrows consumed in-tail terms escaped = case terms of
+  escape-list :: List (Nat, Nat) -> List Nat -> HashMap String (List Bool) -> HashMap String (List Bool) -> Bool -> List CoreTerm -> List Nat -> List Nat
+  escape-list pids singles borrows consumed in-tail terms escaped = case terms of
     [] -> escaped
     t : rest ->
-      escape-list pids borrows consumed in-tail rest (escape-term pids borrows consumed in-tail t escaped)
+      escape-list pids singles borrows consumed in-tail rest (escape-term pids singles borrows consumed in-tail t escaped)
+
+  single-use-pids :: List (Nat, Nat) -> CoreTerm -> List Nat -> List Nat
+  single-use-pids pids body acc = case pids of
+    [] -> acc
+    (id, idx) : rest ->
+      let next = if term-use-count id body <= 1 then add-id id acc else acc in
+      single-use-pids rest body next
 
   escape-clauses :: List CoreClause -> HashMap String (List Bool) -> HashMap String (List Bool) -> List Nat -> List Nat
   escape-clauses clauses borrows consumed escaped = case clauses of
     [] -> escaped
     (CoreClause sp pats body) : rest ->
       let pids = param-var-pairs (own-runtime-params pats) 0 [] in
-      escape-clauses rest borrows consumed (escape-term pids borrows consumed True body escaped)
+      let singles = single-use-pids pids body [] in
+      escape-clauses rest borrows consumed (escape-term pids singles borrows consumed True body escaped)
 
   consumed-eligible :: CoreDefinition -> Option Nat
   consumed-eligible d =
@@ -1087,3 +1128,90 @@ module Cinch.Ownership where
       [] -> False
       first : rest -> all-nullary-ctors (first : rest))
     other -> False
+
+  -- =========================================================================
+  -- 6. Interprocedural static uniqueness (`returns-unique`)
+  -- =========================================================================
+
+  -- | True when `term` always evaluates to a freshly-allocated, uniquely-owned
+  -- heap block (`rc == 1`, never a static nullary block or shared alias).
+  term-is-unique-alloc :: HashMap String Bool -> List Nat -> CoreTerm -> Bool
+  term-is-unique-alloc ret-uniq uniq-locals term = case term of
+    CLocal sp ty id name actuals -> has-id id uniq-locals
+    CForget sp ty inner -> term-is-unique-alloc ret-uniq uniq-locals inner
+    CCast sp ty inner -> term-is-unique-alloc ret-uniq uniq-locals inner
+    CRequire sp ty body -> term-is-unique-alloc ret-uniq uniq-locals body
+    CProved sp ty ev body -> term-is-unique-alloc ret-uniq uniq-locals body
+    CRefine sp ty ev body -> term-is-unique-alloc ret-uniq uniq-locals body
+    CRefineProof sp ty w body -> term-is-unique-alloc ret-uniq uniq-locals body
+    CDischarge sp ty ev _ body -> term-is-unique-alloc ret-uniq uniq-locals body
+    CGuard sp ty cond body -> term-is-unique-alloc ret-uniq uniq-locals body
+    CTuple sp ty args -> (case args of CArgumentsEnd end -> False; other -> True)
+    CIf sp ty cond yes no ->
+      term-is-unique-alloc ret-uniq uniq-locals yes
+      && term-is-unique-alloc ret-uniq uniq-locals no
+    CLet sp ty lid lname sc rhs body ->
+      let next = if term-is-unique-alloc ret-uniq uniq-locals rhs && term-use-count lid body <= 1
+            then add-id lid uniq-locals else uniq-locals in
+      term-is-unique-alloc ret-uniq next body
+    CCase sp ty scrut alts -> alts-are-unique-alloc ret-uniq uniq-locals alts
+    CApply sp ty f x -> app-is-unique-alloc ret-uniq term
+    CApplyEff sp ty row f x -> app-is-unique-alloc ret-uniq term
+    other -> False
+
+  alts-are-unique-alloc :: HashMap String Bool -> List Nat -> CoreTerm -> Bool
+  alts-are-unique-alloc ret-uniq uniq-locals alts = case alts of
+    CAlternativesEnd sp -> True
+    CAlternative sp pat body rest ->
+      term-is-unique-alloc ret-uniq uniq-locals body
+      && alts-are-unique-alloc ret-uniq uniq-locals rest
+    other -> False
+
+  app-is-unique-alloc :: HashMap String Bool -> CoreTerm -> Bool
+  app-is-unique-alloc ret-uniq term =
+    let args = call-args term [] in
+    case call-head term of
+      CUse sp ty name role actuals ->
+        if same-str role "constructor" then
+          (case args of [] -> False; first : rest -> True)
+        else (case hash-map-lookup name ret-uniq of
+          Some True -> True
+          other -> False)
+      other -> False
+
+  clauses-return-unique :: HashMap String Bool -> List CoreClause -> Bool
+  clauses-return-unique ret-uniq clauses = case clauses of
+    [] -> True
+    (CoreClause sp pats body) : rest ->
+      term-is-unique-alloc ret-uniq [] body && clauses-return-unique ret-uniq rest
+
+  init-returns-unique :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool
+  init-returns-unique defs out = case defs of
+    [] -> out
+    d : rest ->
+      let eligible = case (d.givens, d.openings, d.clauses) of
+            ([], [], first : more) -> True
+            other -> False in
+      init-returns-unique rest (hash-map-insert (d.name) eligible out)
+
+  step-returns-unique :: List CoreDefinition -> HashMap String Bool -> HashMap String Bool -> HashMap String Bool
+  step-returns-unique defs prev out = case defs of
+    [] -> out
+    d : rest ->
+      let was = case hash-map-lookup (d.name) prev of Some True -> True; other -> False in
+      let now = was && clauses-return-unique prev (d.clauses) in
+      step-returns-unique rest prev (hash-map-insert (d.name) now out)
+
+  fixpoint-returns-unique :: Nat -> List CoreDefinition -> HashMap String Bool -> HashMap String Bool
+  fixpoint-returns-unique fuel defs prev =
+    if fuel == 0 then prev
+    else
+      let next = step-returns-unique defs prev hash-map-empty in
+      if same-arena-phases defs prev next then next
+      else fixpoint-returns-unique (fuel - 1) defs next
+
+  -- | Compute the greatest fixed point of definitions whose every exit path
+  -- returns a freshly-allocated uniquely-owned non-nullary constructor/tuple.
+  compute-returns-unique :: List CoreDefinition -> HashMap String Bool
+  compute-returns-unique defs =
+    fixpoint-returns-unique 4096 defs (init-returns-unique defs hash-map-empty)

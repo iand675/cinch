@@ -583,6 +583,19 @@ pub fn allocate(program: &mut Program, profile: &crate::core::TargetProfile, opt
         report.payload += plan.payload;
         plans.insert(unit, plan);
     }
+    // Transitive closure of `receives_frame`: when a consuming callee forwards
+    // a caller's frame block to another consuming callee, that downstream unit
+    // needs the runtime's frame arms too.
+    let mut work: Vec<String> = report.receives_frame.iter().cloned().collect();
+    while let Some(u) = work.pop() {
+        if let Some(nexts) = fns.consumed_edges.get(&u) {
+            for next in nexts {
+                if report.receives_frame.insert(next.clone()) {
+                    work.push(next.clone());
+                }
+            }
+        }
+    }
     program.stack = report;
     program.frame = plans;
     if cfg!(debug_assertions) {
@@ -677,18 +690,25 @@ struct Facts {
     ctors: HashMap<String, (Vec<Class>, usize, bool)>,
     /// Each unit's runtime parameter classes (`UnitRepr::params`).
     params: HashMap<String, Vec<Class>>,
+    /// Units whose calling convention includes any `Class::Val` / value-layout
+    /// parameter or result; their closures have multi-word frame layouts that
+    /// stack-frame lowering does not reproduce.
+    has_val_sig: BTreeSet<String>,
     /// Private frame-safe parameter facts derived from ARC borrowing plus
     /// actual noncapture evidence; never published as an ABI convention.
     borrowed: BTreeMap<String, Vec<bool>>,
     /// Private primitive frame-safe modes: ARC lending alone permits retain.
     lent: BTreeMap<String, Vec<bool>>,
     /// Per unit, which of its parameters it consumes: every reference to
-    /// the parameter inside the unit is a read or a death, none is
-    /// `Dup`ped, and nothing stores it, returns it or passes it on. The
-    /// caller may hand such a parameter a frame block, because the
-    /// callee's own drop of it is the payload's release (the frame release
-    /// marker makes a second path a no-op).
+    /// the parameter inside the unit is a read, a death, or a single-owner
+    /// forward to another consuming callee, none is `Dup`ped, and nothing
+    /// stores it, returns it or escapes it. The caller may hand such a
+    /// parameter a frame block, because the callee (or a downstream consuming
+    /// callee) releases the payload exactly once.
     consumed: HashMap<String, Vec<bool>>,
+    /// Per unit, downstream callees that receive one of this unit's consumed
+    /// parameters, so `Report::receives_frame` propagates transitively.
+    consumed_edges: HashMap<String, BTreeSet<String>>,
 }
 
 impl Facts {
@@ -696,9 +716,17 @@ impl Facts {
         let mut arity = HashMap::new();
         let mut ctors = HashMap::new();
         let mut params = HashMap::new();
+        let mut has_val_sig = BTreeSet::new();
         for f in &p.fns {
             arity.insert(f.id.0.clone(), f.arity());
             params.insert(f.id.0.clone(), f.repr.params.clone());
+            if f.repr.params.iter().any(|c| c.is_val())
+                || f.repr.result.is_some_and(|c| c.is_val())
+                || f.repr.value_params.iter().any(|v| v.is_some())
+                || f.repr.value_result.is_some()
+            {
+                has_val_sig.insert(f.id.0.clone());
+            }
             if let Some((_, fields)) = f.ctor {
                 let mut cs = f.repr.fields.clone();
                 if cs.len() != fields {
@@ -713,13 +741,11 @@ impl Facts {
             arity,
             ctors,
             params,
+            has_val_sig,
             borrowed: p.borrowed.clone(),
             lent: p.lent.clone(),
-            // The parameter summaries are computed against the facts
-            // without them: a unit consumes a parameter it drops itself,
-            // not one it forwards, so the summary is one pass, not a
-            // fixpoint over the call graph (module docs).
             consumed: HashMap::new(),
+            consumed_edges: HashMap::new(),
         }
         .with_frame_safety(p, widen)
         .with_summaries(p, widen)
@@ -791,36 +817,83 @@ impl Facts {
         self
     }
 
-    /// [`Facts::of`]'s consuming-parameter step: fill [`Facts::consumed`] from every
-    /// unit's body.
+    /// [`Facts::of`]'s consuming-parameter step: compute [`Facts::consumed`] as
+    /// a greatest fixed point over the call graph so multi-hop consuming
+    /// wrappers (including caller-frame tail forwarding) propagate safely.
     fn with_summaries(mut self, p: &Program, widen: Widen) -> Facts {
-        let mut consumed = HashMap::with_capacity(p.fns.len());
         let opaque: BTreeSet<&str> = p.foreigns.values().filter(|plan| !plan.export)
             .map(|plan| plan.unit.as_str()).collect();
-        for f in &p.fns {
-            if !frame_body_available(f, &opaque, &p.lent_entries) {
-                // An opaque implementation's cleanup stub is not its body.
-                continue;
-            }
-            consumed.insert(f.id.0.clone(), self.summary(f, widen));
+        let units: Vec<&FnDef> = p.fns.iter()
+            .filter(|f| frame_body_available(f, &opaque, &p.lent_entries))
+            .collect();
+        let mut consumed = HashMap::with_capacity(units.len());
+        for f in &units {
+            let mask: Vec<bool> = (0..f.arity())
+                .map(|i| {
+                    counted(f.repr.params.get(i).copied().unwrap_or(Class::Raw))
+                        && !self.borrowed.get(&f.id.0).and_then(|m| m.get(i)).copied().unwrap_or(false)
+                })
+                .collect();
+            consumed.insert(f.id.0.clone(), mask);
         }
         self.consumed = consumed;
+        let mut callers: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, f) in units.iter().enumerate() {
+            let mut called = BTreeSet::new();
+            collect_frame_callees(&f.body, &mut called);
+            for callee in called {
+                callers.entry(callee).or_default().push(i);
+            }
+        }
+        let mut queue: Vec<usize> = (0..units.len()).rev().collect();
+        let mut queued = vec![true; units.len()];
+        let mut edges: HashMap<String, BTreeSet<String>> = HashMap::with_capacity(units.len());
+        while let Some(i) = queue.pop() {
+            queued[i] = false;
+            let f = units[i];
+            let Some(current) = self.consumed.get(&f.id.0) else { continue };
+            let (next, downstream) = self.summary(f, widen);
+            edges.insert(f.id.0.clone(), downstream);
+            if &next == current {
+                continue;
+            }
+            self.consumed.insert(f.id.0.clone(), next);
+            for &caller in callers.get(&f.id.0).into_iter().flatten() {
+                if !queued[caller] {
+                    queued[caller] = true;
+                    queue.push(caller);
+                }
+            }
+        }
+        self.consumed_edges = edges;
         self
     }
 
-    /// Which of `f`'s parameters `f` consumes: counted, every reference a
-    /// read or a death, no `Dup`, and at least one death. Scanned with no
-    /// frame binder, so a parameter stored anywhere at all is an escape.
-    fn summary(&self, f: &FnDef, widen: Widen) -> Vec<bool> {
+    /// Which of `f`'s parameters `f` consumes: counted, not lent, every
+    /// reference a read, a death, or a forward to a consuming callee, no `Dup`,
+    /// and at least one consumption. Also returns the downstream callees that
+    /// receive any consumed parameter.
+    fn summary(&self, f: &FnDef, widen: Widen) -> (Vec<bool>, BTreeSet<String>) {
         let mut s = Scan::with_frames(self, BTreeSet::new(), widen);
         s.summary = Some((&f.id.0, f.arity()));
         s.unit(&f.body);
-        (0..f.arity())
+        let mut downstream = BTreeSet::new();
+        let mask = (0..f.arity())
             .map(|i| {
-                counted(f.repr.params.get(i).copied().unwrap_or(Class::Raw))
-                    && s.uses.get(&i).is_some_and(|u| u.escapes() == 0 && u.duplicated == 0 && u.death + u.applied > 0)
+                let ok = counted(f.repr.params.get(i).copied().unwrap_or(Class::Raw))
+                    && !self.borrowed.get(&f.id.0).and_then(|m| m.get(i)).copied().unwrap_or(false)
+                    && s.uses.get(&i).is_some_and(|u| {
+                        u.escapes() == 0 && u.duplicated == 0 && u.death + u.consumed + u.applied > 0
+                    });
+                if ok {
+                    if let Some(callees) = s.consumers.get(&i) {
+                        downstream.extend(callees.iter().cloned());
+                    }
+                }
+                ok
             })
-            .collect()
+            .collect();
+        (mask, downstream)
     }
 }
 
@@ -1223,7 +1296,7 @@ fn cand_of(e: &Core, facts: &Facts) -> Option<Cand> {
             }
             let words = args.len() as u32;
             let bytes = u64::from(words) * 8;
-            if *boundary || fields.contains(&Class::Wide) {
+            if *boundary || fields.iter().any(|c| *c == Class::Wide || c.is_val()) {
                 // A boundary layout records its fields at offsets this
                 // lowering does not reproduce, and a wide field takes two
                 // payload words where this lowering stores one per field,
@@ -1252,6 +1325,9 @@ fn cand_of(e: &Core, facts: &Facts) -> Option<Cand> {
             let words = 3 + env.len() as u32;
             let saved = &params[..env.len().min(params.len())];
             let site = payload(words, 3, saved, Shape::Closure { fn_id: fn_id.clone(), env: env.len() as u32 });
+            if facts.has_val_sig.contains(&fn_id.0) {
+                return Some(Cand { site: Some(site), blocked: Some(Refusal::Layout), bytes: u64::from(words) * 8 });
+            }
             Some(Cand { site: Some(site), blocked: None, bytes: u64::from(words) * 8 })
         }
         _ => None,
@@ -1547,11 +1623,16 @@ impl<'a> Scan<'a> {
                 // is a transfer: the block stays on the heap. A call in any
                 // other position gets a frame of its own, below this one,
                 // and keeps the two transfers.
-                let (modes, consumed) = if tail || ctor {
+                // In a parameter summary (`self.summary.is_some()`), parameters
+                // live in the *caller's* frame (not this unit's frame), so tail
+                // forwarding into a consuming callee preserves the caller's
+                // frame across the tail call. Allocating units (`summary.is_none()`)
+                // still refuse every tail-call argument.
+                let (modes, consumed) = if (tail && self.summary.is_none()) || ctor {
                     (None, None)
                 } else {
                     (
-                        callee_modes(self.facts, h).filter(|m| m.len() == args.len()),
+                        (!tail).then(|| callee_modes(self.facts, h).filter(|m| m.len() == args.len())).flatten(),
                         self.widen
                             .consumes()
                             .then(|| callee_consumes(self.facts, h))
@@ -1581,7 +1662,7 @@ impl<'a> Scan<'a> {
                         // scope, after this activation has returned: no
                         // argument of `spawn` is a transfer.
                         self.go(a, Role::Spawn, None, false);
-                    } else if tail {
+                    } else if tail && !(self.summary.is_some() && consumed.is_some_and(|c| c[i])) {
                         self.go(a, Role::TailCall, None, false);
                     } else if modes.is_some_and(|m| m[i]) {
                         self.go(a, Role::Lent, None, false);
@@ -1958,7 +2039,7 @@ mod frame_capture_tests {
         p.lent_entries.insert("ImportedDestroy".into(), crate::core::LentEntry::Imported { width: 1 });
         let parameter = AbiParam { ty: "Bytes".into(), class: AbiClass::Ptr, role: "borrowed".into(),
             allocator: String::new(), nullable: false, width: 8, align: 8, signed: false,
-            pointee_align: 0, by_value: false, tag: 0, fields: vec![], leaves: vec![] };
+            pointee_align: 0, by_value: false, tag: 0, fields: vec![], leaves: vec![], value_layout: None };
         let result = AbiParam { ty: "Unit".into(), class: AbiClass::Unit, ..parameter.clone() };
         p.foreigns.insert("foreign_destroy".into(), ForeignPlan {
             symbol: "foreign_destroy".into(), export: false, unit: "ForeignDestroy".into(),
@@ -1977,6 +2058,49 @@ mod frame_capture_tests {
         assert_eq!(facts.consumed["ActualDestructor"], vec![true]);
         assert!(p.borrowed["ImportedDestroy"][0]);
         assert!(p.borrowed["ForeignDestroy"][0]);
+    }
+
+    /// Multi-hop consuming wrappers (including caller-frame tail forwarding)
+    /// propagate `consumed` and `receives_frame` transitively, while a
+    /// downstream escape taints every upstream forwarder.
+    #[test]
+    fn multi_hop_consumed_forwarding_and_transitive_frame_receivers() {
+        let leaf_drop = unit("LeafDrop", vec![Class::Obj], Core::Drop(LocalId(0), Class::Obj, Box::new(Core::Int(0))));
+        let mid_tail = unit("MidTail", vec![Class::Obj], forward("LeafDrop"));
+        let top_call = unit("TopCall", vec![Class::Obj], Core::Let(
+            LocalId(1), Class::Raw, Box::new(forward("MidTail")), Box::new(Core::Var(LocalId(1))),
+        ));
+        let leaf_escape = unit("LeafEscape", vec![Class::Obj], Core::Var(LocalId(0)));
+        let mid_escape = unit("MidEscape", vec![Class::Obj], forward("LeafEscape"));
+        let mut ctor = unit("Main.Pair", vec![Class::Raw, Class::Raw], Core::Unit);
+        ctor.ctor = Some((0, 2));
+        ctor.repr.fields = vec![Class::Raw, Class::Raw];
+        let caller = unit("Caller", vec![], Core::Let(
+            LocalId(0),
+            Class::Obj,
+            Box::new(Core::App(Box::new(Core::Ctor(GlobalId("Main.Pair".into()), vec![])), vec![Core::Int(1), Core::Int(2)])),
+            Box::new(Core::Let(
+                LocalId(1),
+                Class::Raw,
+                Box::new(Core::App(Box::new(Core::Global(GlobalId("TopCall".into()), vec![])), vec![Core::Var(LocalId(0))])),
+                Box::new(Core::Var(LocalId(1))),
+            )),
+        ));
+        let mut p = program(vec![ctor, leaf_drop, mid_tail, top_call, leaf_escape, mid_escape, caller]);
+        for name in ["LeafDrop", "MidTail", "TopCall", "LeafEscape", "MidEscape"] {
+            p.borrowed.insert(name.into(), vec![false]);
+        }
+        let facts = Facts::of(&p, Widen::All);
+        assert_eq!(facts.consumed["LeafDrop"], vec![true]);
+        assert_eq!(facts.consumed["MidTail"], vec![true]);
+        assert_eq!(facts.consumed["TopCall"], vec![true]);
+        assert_eq!(facts.consumed["LeafEscape"], vec![false]);
+        assert_eq!(facts.consumed["MidEscape"], vec![false]);
+        allocate(&mut p, &crate::core::TargetProfile::native(), &Options::default());
+        assert!(p.frame.get("Caller").is_some_and(|plan| plan.site(0).is_some()));
+        for receiver in ["TopCall", "MidTail", "LeafDrop"] {
+            assert!(p.stack.receives_frame.contains(receiver), "missing {receiver} in {:?}", p.stack.receives_frame);
+        }
     }
 
 }

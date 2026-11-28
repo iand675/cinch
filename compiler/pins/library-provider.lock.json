@@ -1,9 +1,9 @@
 {
-  "description": "ABI 10 packed library provider with zero scalar unsafe div/rem, verified return refinements, SIMD verify, and formal proof-carrying prelude.",
-  "revision": "aff08b6c51e4cd30a8684104ca60e99170f6c7bb",
+  "commit": "367865abc1284a544bcaeba64dbb511522b236c3",
+  "description": "ABI 10 packed library provider with direct-apply, Tier 1 PE, and raw bit-packing WordOp RC fix.",
+  "revision": "367865abc1284a544bcaeba64dbb511522b236c3",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "52ccafed2a26c5ffd46362efc3df61231bb1b72ffec7e1ce4d212ee50b3237d8",
-  "commit": "aff08b6c51e4cd30a8684104ca60e99170f6c7bb",
-  "source_hash": "52ccafed2a26c5ffd46362efc3df61231bb1b72ffec7e1ce4d212ee50b3237d8"
+  "source_hash": "d4d61999b01855db43a57cc945152f9a11d64cb139a4255829af5d389c73dd36",
+  "source_sha256": "d4d61999b01855db43a57cc945152f9a11d64cb139a4255829af5d389c73dd36"
 }

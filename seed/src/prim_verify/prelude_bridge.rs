@@ -6,7 +6,7 @@
 //! and compiler-checked `prim ... spec <fn> where ... justify verify` declarations
 //! are verified directly against the shared `SemGraph`.
 
-use super::sem::{FpFmt, NodeId, Obligation, ObligationKind, SemGraph, SemParam, SemProgram, SemTy};
+use super::sem::{FpFmt, FpPred, NodeId, Obligation, ObligationKind, SemGraph, SemParam, SemProgram, SemTy};
 use super::{IrSemantics, SemError};
 use crate::ast::{Assoc, Decl, Equation, LocalDecl, Pat, PrimBody, PrimDecl, Term, Type};
 use crate::parser::FixityTable;
@@ -32,6 +32,7 @@ struct ScalarInfo {
     llvm_param_ty: SemTy,
     signed: bool,
     is_bool: bool,
+    is_char: bool,
 }
 
 pub(crate) fn default_fixities() -> FixityTable {
@@ -153,6 +154,33 @@ pub fn build_prim_body_obligations(
     build_prim_body_obligations_for_word_bits(module, p, body_idx, body, eqs, semantics, 64)
 }
 
+/// If a `prim` has an explicit `when word-size 32` body alongside an unguarded
+/// fallback body, the fallback only executes on 64-bit targets (and vice versa).
+fn effective_fallback_word_bits(bodies: &[PrimBody], default_word_bits: u16) -> u16 {
+    let mut has32 = false;
+    let mut has64 = false;
+    for b in bodies {
+        if b.family.text != "llvm" {
+            continue;
+        }
+        let w32 = body_word_bits_for(b, 64) == 32;
+        let w64 = body_word_bits_for(b, 32) == 64;
+        if w32 {
+            has32 = true;
+        }
+        if w64 {
+            has64 = true;
+        }
+    }
+    if has32 && !has64 {
+        64
+    } else if has64 && !has32 {
+        32
+    } else {
+        default_word_bits
+    }
+}
+
 /// Build all verification obligations for a single `PrimBody`, using `default_word_bits`
 /// (32 or 64) whenever `body.when` does not explicitly guard `word-size`.
 pub fn build_prim_body_obligations_for_word_bits(
@@ -165,7 +193,8 @@ pub fn build_prim_body_obligations_for_word_bits(
     default_word_bits: u16,
 ) -> Result<Vec<Obligation>, String> {
     let family = body.family.text.as_str();
-    let word_bits = body_word_bits_for(body, default_word_bits);
+    let fb_bits = effective_fallback_word_bits(&p.bodies, default_word_bits);
+    let word_bits = body_word_bits_for(body, fb_bits);
 
     let sem_plugin = semantics
         .iter()
@@ -254,6 +283,7 @@ pub fn build_prim_body_obligations_for_word_bits(
         &lowered,
         &sem_params,
         word_bits,
+        body_is_big_endian(body),
     ) {
         // Fallback curated functional specs for existing prelude prims that do not
         // yet carry an inline `spec` clause.
@@ -312,6 +342,7 @@ pub fn build_cross_target_obligations_for_word_bits(
     let Some(sem_plugin) = semantics.iter().find(|s| s.family() == "llvm") else {
         return Ok(Vec::new());
     };
+    let fb_bits = effective_fallback_word_bits(&p.bodies, default_word_bits);
     let candidates: Vec<(usize, &PrimBody, u16, bool)> = p
         .bodies
         .iter()
@@ -319,7 +350,7 @@ pub fn build_cross_target_obligations_for_word_bits(
         .filter(|(_, b)| {
             !b.unverified && b.family.text == "llvm" && body_is_arch_or_baseline(b)
         })
-        .map(|(idx, b)| (idx, b, body_word_bits_for(b, default_word_bits), body_is_big_endian(b)))
+        .map(|(idx, b)| (idx, b, body_word_bits_for(b, fb_bits), body_is_big_endian(b)))
         .collect();
     if candidates.len() < 2 {
         return Ok(Vec::new());
@@ -593,38 +624,43 @@ fn parse_scalar_type(ty: &Type, word_bits: u16) -> Result<ScalarInfo, String> {
                     llvm_param_ty: SemTy::Bv(8),
                     signed: false,
                     is_bool: true,
+                    is_char: false,
                 }),
-                "I8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: true, is_bool: false }),
-                "I16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: true, is_bool: false }),
-                "I32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: true, is_bool: false }),
-                "I64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: true, is_bool: false }),
-                "I128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: true, is_bool: false }),
-                "U8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: false, is_bool: false }),
-                "U16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: false, is_bool: false }),
-                "U32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false }),
-                "U64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: false, is_bool: false }),
-                "U128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: false, is_bool: false }),
+                "I8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: true, is_bool: false, is_char: false }),
+                "I16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: true, is_bool: false, is_char: false }),
+                "I32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: true, is_bool: false, is_char: false }),
+                "I64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: true, is_bool: false, is_char: false }),
+                "I128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: true, is_bool: false, is_char: false }),
+                "U8" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(8), signed: false, is_bool: false, is_char: false }),
+                "U16" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(16), signed: false, is_bool: false, is_char: false }),
+                "U32" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false, is_char: false }),
+                "U64" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(64), signed: false, is_bool: false, is_char: false }),
+                "U128" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(128), signed: false, is_bool: false, is_char: false }),
                 "Usize" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(word_bits),
                     signed: false,
                     is_bool: false,
+                    is_char: false,
                 }),
                 "Isize" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Bv(word_bits),
                     signed: true,
                     is_bool: false,
+                    is_char: false,
                 }),
                 "F32" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Fp(FpFmt::F32),
                     signed: true,
                     is_bool: false,
+                    is_char: false,
                 }),
                 "F64" => Ok(ScalarInfo {
                     llvm_param_ty: SemTy::Fp(FpFmt::F64),
                     signed: true,
                     is_bool: false,
+                    is_char: false,
                 }),
-                "Char" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false }),
+                "Char" => Ok(ScalarInfo { llvm_param_ty: SemTy::Bv(32), signed: false, is_bool: false, is_char: true }),
                 other => Err(format!("non-scalar prim ABI type `{other}`")),
             }
         }
@@ -645,22 +681,40 @@ fn build_param_precond(
         }
     }
     let mut vars: HashMap<String, NodeId> = HashMap::new();
+    let mut fp_vars: HashMap<String, (NodeId, FpFmt)> = HashMap::new();
     for ((name, info, _), (_, pnode)) in param_specs.iter().zip(lowered_params.iter()) {
-        if let SemTy::Bv(w) = info.llvm_param_ty {
-            let widened = widen_to(g, *pnode, w, info.signed, exact_w);
-            vars.insert(name.clone(), widened);
+        match info.llvm_param_ty {
+            SemTy::Bv(w) => {
+                let widened = widen_to(g, *pnode, w, info.signed, exact_w);
+                vars.insert(name.clone(), widened);
+            }
+            SemTy::Fp(fmt) => {
+                fp_vars.insert(name.clone(), (*pnode, fmt));
+            }
+            SemTy::Bool => {}
         }
     }
     let mut acc = g.bool_const(true);
-    for (name, _, pred_opt) in param_specs {
+    for (name, info, pred_opt) in param_specs {
+        if info.is_char {
+            if let Some(&v) = vars.get(name) {
+                let hi = g.bv_const(exact_w, 0x10_FFFF);
+                let bound = g.bv_ule(v, hi);
+                acc = g.and(acc, bound);
+            }
+        }
         if let Some(pred) = pred_opt {
             // In Cinch parameter refinements, `r` (or the parameter's own name) refers to the parameter.
+            let mut local_vars = vars.clone();
+            let mut local_fp = fp_vars.clone();
             if let Some(&v) = vars.get(name) {
-                let mut local_vars = vars.clone();
                 local_vars.insert("r".to_string(), v);
-                if let Some(p_bool) = lower_refinement_pred(g, pred, &local_vars, exact_w) {
-                    acc = g.and(acc, p_bool);
-                }
+            }
+            if let Some(&fv) = fp_vars.get(name) {
+                local_fp.insert("r".to_string(), fv);
+            }
+            if let Some(p_bool) = lower_refinement_pred(g, pred, &local_vars, &local_fp, exact_w) {
+                acc = g.and(acc, p_bool);
             }
         }
     }
@@ -688,8 +742,9 @@ fn build_refinement_obligation(
     let (res_node, res_poison) = lowered.result.as_scalar()?;
     let mut g = lowered.graph.clone();
 
-    let mut max_w = match ret_info.llvm_param_ty {
+    let mut max_w: u16 = match ret_info.llvm_param_ty {
         SemTy::Bv(w) => w,
+        SemTy::Fp(_) => 64,
         _ => return None,
     };
     for (_, info, _) in param_specs {
@@ -700,18 +755,33 @@ fn build_refinement_obligation(
     let exact_w = (max_w + 2).min(128);
 
     let mut vars: HashMap<String, NodeId> = HashMap::new();
+    let mut fp_vars: HashMap<String, (NodeId, FpFmt)> = HashMap::new();
     for ((name, info, _), (_, pnode)) in param_specs.iter().zip(lowered.params.iter()) {
-        if let SemTy::Bv(w) = info.llvm_param_ty {
-            let widened = widen_to(&mut g, *pnode, w, info.signed, exact_w);
-            vars.insert(name.clone(), widened);
+        match info.llvm_param_ty {
+            SemTy::Bv(w) => {
+                let widened = widen_to(&mut g, *pnode, w, info.signed, exact_w);
+                vars.insert(name.clone(), widened);
+            }
+            SemTy::Fp(fmt) => {
+                fp_vars.insert(name.clone(), (*pnode, fmt));
+            }
+            SemTy::Bool => {}
         }
     }
-    let ret_w = g.bv_width(res_node);
-    let r_widened = widen_to(&mut g, res_node, ret_w, ret_info.signed, exact_w);
-    vars.insert("r".to_string(), r_widened);
+    match ret_info.llvm_param_ty {
+        SemTy::Bv(_) => {
+            let ret_w = g.bv_width(res_node);
+            let r_widened = widen_to(&mut g, res_node, ret_w, ret_info.signed, exact_w);
+            vars.insert("r".to_string(), r_widened);
+        }
+        SemTy::Fp(fmt) => {
+            fp_vars.insert("r".to_string(), (res_node, fmt));
+        }
+        SemTy::Bool => return None,
+    }
 
     let precond = build_param_precond(&mut g, param_specs, &lowered.params);
-    let pred_bool = lower_refinement_pred(&mut g, pred, &vars, exact_w)?;
+    let pred_bool = lower_refinement_pred(&mut g, pred, &vars, &fp_vars, exact_w)?;
     let not_ub = g.not(lowered.ub_cond);
     let not_p = g.not(res_poison);
     let wd = g.and(not_ub, not_p);
@@ -730,10 +800,39 @@ fn build_refinement_obligation(
     ))
 }
 
+fn lower_refinement_fp(
+    g: &mut SemGraph,
+    expr: &Type,
+    fp_vars: &HashMap<String, (NodeId, FpFmt)>,
+    hint_fmt: Option<FpFmt>,
+) -> Option<(NodeId, FpFmt)> {
+    match expr {
+        Type::Var(n, _) => fp_vars.get(&n.text).copied(),
+        Type::Num(s, _) => {
+            let fmt = hint_fmt?;
+            let v: i128 = s.parse().ok()?;
+            let bits = match fmt {
+                FpFmt::F32 => (v as f32).to_bits() as u64,
+                FpFmt::F64 => (v as f64).to_bits(),
+            };
+            Some((g.fp_const(fmt, bits), fmt))
+        }
+        Type::App(op, arg, _) => {
+            if matches!(op.as_ref(), Type::Var(n, _) if n.text == "-") {
+                let (inner, fmt) = lower_refinement_fp(g, arg, fp_vars, hint_fmt)?;
+                return Some((g.fp_neg(inner), fmt));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn lower_refinement_pred(
     g: &mut SemGraph,
     pred: &Type,
     vars: &HashMap<String, NodeId>,
+    fp_vars: &HashMap<String, (NodeId, FpFmt)>,
     exact_w: u16,
 ) -> Option<NodeId> {
     if let Type::App(f, rhs, _) = pred {
@@ -741,45 +840,55 @@ fn lower_refinement_pred(
             if let Type::Var(op_name, _) = op.as_ref() {
                 match op_name.text.as_str() {
                     "&&" => {
-                        let a = lower_refinement_pred(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_pred(g, rhs, vars, exact_w)?;
+                        let a = lower_refinement_pred(g, lhs, vars, fp_vars, exact_w)?;
+                        let b = lower_refinement_pred(g, rhs, vars, fp_vars, exact_w)?;
                         return Some(g.and(a, b));
                     }
                     "||" => {
-                        let a = lower_refinement_pred(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_pred(g, rhs, vars, exact_w)?;
+                        let a = lower_refinement_pred(g, lhs, vars, fp_vars, exact_w)?;
+                        let b = lower_refinement_pred(g, rhs, vars, fp_vars, exact_w)?;
                         return Some(g.or(a, b));
                     }
-                    "==" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_eq(a, b));
-                    }
-                    "/=" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        let eq = g.bv_eq(a, b);
-                        return Some(g.not(eq));
-                    }
-                    "<=" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_sle(a, b));
-                    }
-                    "<" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_slt(a, b));
-                    }
-                    ">=" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_sle(b, a));
-                    }
-                    ">" => {
-                        let a = lower_refinement_int(g, lhs, vars, exact_w)?;
-                        let b = lower_refinement_int(g, rhs, vars, exact_w)?;
-                        return Some(g.bv_slt(b, a));
+                    "==" | "/=" | "<=" | "<" | ">=" | ">" => {
+                        if let (Some(a), Some(b)) = (
+                            lower_refinement_int(g, lhs, vars, exact_w),
+                            lower_refinement_int(g, rhs, vars, exact_w),
+                        ) {
+                            return Some(match op_name.text.as_str() {
+                                "==" => g.bv_eq(a, b),
+                                "/=" => {
+                                    let eq = g.bv_eq(a, b);
+                                    g.not(eq)
+                                }
+                                "<=" => g.bv_sle(a, b),
+                                "<" => g.bv_slt(a, b),
+                                ">=" => g.bv_sle(b, a),
+                                ">" => g.bv_slt(b, a),
+                                _ => unreachable!(),
+                            });
+                        }
+                        // Floating-point comparison (`0 <= r`, `r <= 10`, etc.).
+                        let fmt_hint = lower_refinement_fp(g, lhs, fp_vars, None)
+                            .or_else(|| lower_refinement_fp(g, rhs, fp_vars, None))
+                            .map(|(_, fmt)| fmt);
+                        if let Some(fmt) = fmt_hint {
+                            if let (Some((fa, _)), Some((fb, _))) = (
+                                lower_refinement_fp(g, lhs, fp_vars, Some(fmt)),
+                                lower_refinement_fp(g, rhs, fp_vars, Some(fmt)),
+                            ) {
+                                let fp_pred = match op_name.text.as_str() {
+                                    "==" => FpPred::Oeq,
+                                    "/=" => FpPred::Une,
+                                    "<=" => FpPred::Ole,
+                                    "<" => FpPred::Olt,
+                                    ">=" => FpPred::Oge,
+                                    ">" => FpPred::Ogt,
+                                    _ => unreachable!(),
+                                };
+                                return Some(g.fp_cmp(fp_pred, fa, fb));
+                            }
+                        }
+                        return None;
                     }
                     _ => {}
                 }
@@ -789,19 +898,40 @@ fn lower_refinement_pred(
         if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "Not"))
             || matches!(f.as_ref(), Type::Var(n, _) if n.text == "not")
         {
-            let inner = lower_refinement_pred(g, rhs, vars, exact_w)?;
+            let inner = lower_refinement_pred(g, rhs, vars, fp_vars, exact_w)?;
             return Some(g.not(inner));
+        }
+        // `NotNaN x`
+        if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "NotNaN")) {
+            let (fx, _) = lower_refinement_fp(g, rhs, fp_vars, None)?;
+            let is_nan = g.fp_is_nan(fx);
+            return Some(g.not(is_nan));
+        }
+        // `Finite x`
+        if matches!(f.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "Finite")) {
+            let (fx, _) = lower_refinement_fp(g, rhs, fp_vars, None)?;
+            return Some(g.fp_is_finite(fx));
         }
         // `InRange lo hi x`: `App(App(App(Con("InRange"), lo), hi), x)`
         if let Type::App(f2, hi, _) = f.as_ref() {
             if let Type::App(head, lo, _) = f2.as_ref() {
                 if matches!(head.as_ref(), Type::Con(c, _) if c.segments.last().is_some_and(|s| s.text == "InRange")) {
-                    let vlo = lower_refinement_int(g, lo, vars, exact_w)?;
-                    let vhi = lower_refinement_int(g, hi, vars, exact_w)?;
-                    let vx = lower_refinement_int(g, rhs, vars, exact_w)?;
-                    let c1 = g.bv_sle(vlo, vx);
-                    let c2 = g.bv_sle(vx, vhi);
-                    return Some(g.and(c1, c2));
+                    if let (Some(vlo), Some(vhi), Some(vx)) = (
+                        lower_refinement_int(g, lo, vars, exact_w),
+                        lower_refinement_int(g, hi, vars, exact_w),
+                        lower_refinement_int(g, rhs, vars, exact_w),
+                    ) {
+                        let c1 = g.bv_sle(vlo, vx);
+                        let c2 = g.bv_sle(vx, vhi);
+                        return Some(g.and(c1, c2));
+                    }
+                    if let Some((fx, fmt)) = lower_refinement_fp(g, rhs, fp_vars, None) {
+                        let (flo, _) = lower_refinement_fp(g, lo, fp_vars, Some(fmt))?;
+                        let (fhi, _) = lower_refinement_fp(g, hi, fp_vars, Some(fmt))?;
+                        let c1 = g.fp_cmp(FpPred::Ole, flo, fx);
+                        let c2 = g.fp_cmp(FpPred::Ole, fx, fhi);
+                        return Some(g.and(c1, c2));
+                    }
                 }
             }
         }
@@ -1340,6 +1470,7 @@ fn build_builtin_spec_obligation(
     lowered: &SemProgram,
     params: &[SemParam],
     _word_bits: u16,
+    is_big_endian: bool,
 ) -> Option<Obligation> {
     let (res_node, res_poison) = lowered.result.as_scalar()?;
     let mut g = lowered.graph.clone();
@@ -1474,6 +1605,89 @@ fn build_builtin_spec_obligation(
             }
             let expected = g.bv_zext(acc, 32);
             ("pack_sign_bits_16x8(v)", g.bv_eq(res_node, expected))
+        }
+        "u128-lo-u64" => {
+            let x = lowered.params[0].1;
+            let expected = g.bv_extract(x, 63, 0);
+            ("extract[63:0](x)", g.bv_eq(res_node, expected))
+        }
+        "u128-hi-u64" => {
+            let x = lowered.params[0].1;
+            let expected = g.bv_extract(x, 127, 64);
+            ("extract[127:64](x)", g.bv_eq(res_node, expected))
+        }
+        "simd-u32x4-pack" => {
+            let a = lowered.params[0].1;
+            let b = lowered.params[1].1;
+            let c = lowered.params[2].1;
+            let d = lowered.params[3].1;
+            let expected = if is_big_endian {
+                let hi = g.bv_concat(a, b);
+                let lo = g.bv_concat(c, d);
+                g.bv_concat(hi, lo)
+            } else {
+                let hi = g.bv_concat(d, c);
+                let lo = g.bv_concat(b, a);
+                g.bv_concat(hi, lo)
+            };
+            ("pack_u32x4(a, b, c, d)", g.bv_eq(res_node, expected))
+        }
+        "simd-u64x2-pack" => {
+            let lo = lowered.params[0].1;
+            let hi = lowered.params[1].1;
+            let expected = if is_big_endian {
+                g.bv_concat(lo, hi)
+            } else {
+                g.bv_concat(hi, lo)
+            };
+            ("pack_u64x2(lo, hi)", g.bv_eq(res_node, expected))
+        }
+        "simd-u16x8-shl" | "simd-u16x8-shr" | "simd-i16x8-ashr"
+        | "simd-u32x4-shl" | "simd-u32x4-shr" | "simd-i32x4-ashr"
+        | "simd-u32x4-rotl" | "simd-u32x4-rotr"
+        | "simd-u64x2-shl" | "simd-u64x2-shr"
+        | "simd-u64x2-rotl" | "simd-u64x2-rotr" => {
+            let (lanes, ew): (u16, u16) = if prim_name.contains("x8-") {
+                (8, 16)
+            } else if prim_name.contains("x4-") {
+                (4, 32)
+            } else {
+                (2, 64)
+            };
+            let va = lowered.params[0].1;
+            let s32 = lowered.params[1].1;
+            let mask = g.bv_const(32, (ew - 1) as u128);
+            let sm = g.bv_and(s32, mask);
+            let sh = if ew < 32 {
+                g.bv_trunc(sm, ew)
+            } else if ew > 32 {
+                g.bv_zext(sm, ew)
+            } else {
+                sm
+            };
+            let mut lane_vals = Vec::with_capacity(lanes as usize);
+            for lane in 0..lanes {
+                let lo = lane * ew;
+                let hi = lo + ew - 1;
+                let la = g.bv_extract(va, hi, lo);
+                let out = if prim_name.ends_with("-shl") {
+                    g.bv_shl(la, sh)
+                } else if prim_name.ends_with("-ashr") {
+                    g.bv_ashr(la, sh)
+                } else if prim_name.ends_with("-shr") {
+                    g.bv_lshr(la, sh)
+                } else if prim_name.ends_with("-rotl") {
+                    g.bv_fshl(la, la, sh)
+                } else {
+                    g.bv_fshr(la, la, sh)
+                };
+                lane_vals.push(out);
+            }
+            let mut acc = *lane_vals.last().unwrap();
+            for &lv in lane_vals.iter().rev().skip(1) {
+                acc = g.bv_concat(acc, lv);
+            }
+            (prim_name, g.bv_eq(res_node, acc))
         }
         "ov-add-i8" => {
             let a = lowered.params[0].1;

@@ -32,9 +32,25 @@ pub fn emit_smtlib2(obligation: &Obligation) -> String {
     out.push_str(&format!("; Goal hash: {}\n", obligation.goal_hash));
 
     let theories = obligation.theories();
-    let logic = if theories.fp { "QF_FPBV" } else { "QF_BV" };
+    let uses_aes = obligation
+        .graph
+        .nodes()
+        .iter()
+        .any(|(op, _)| matches!(op, SemOp::AesCore(..)));
+    let logic = match (theories.fp, uses_aes) {
+        (true, true) => "QF_AUFFPBV",
+        (true, false) => "QF_FPBV",
+        (false, true) => "QF_UFBV",
+        (false, false) => "QF_BV",
+    };
     out.push_str(&format!("(set-logic {logic})\n"));
     out.push_str("(set-option :produce-models true)\n");
+    if uses_aes {
+        out.push_str("(declare-fun aes_enc_core ((_ BitVec 128)) (_ BitVec 128))\n");
+        out.push_str("(declare-fun aes_enc_last_core ((_ BitVec 128)) (_ BitVec 128))\n");
+        out.push_str("(declare-fun aes_dec_core ((_ BitVec 128)) (_ BitVec 128))\n");
+        out.push_str("(declare-fun aes_dec_last_core ((_ BitVec 128)) (_ BitVec 128))\n");
+    }
 
     for p in &obligation.params {
         out.push_str(&format!("(declare-const p{} {})\n", p.index, smt_sort(p.ty)));
@@ -226,6 +242,30 @@ fn emit_op(g: &SemGraph, id: NodeId) -> String {
                 bv_lit(w, w as u128)
             )
         }
+        SemOp::BvClmul(a, b) => {
+            let ea = format!("((_ zero_extend 64) {})", n(*a));
+            let mut acc = bv_lit(128, 0);
+            for i in 0..64u16 {
+                let bit = format!("(= ((_ extract {i} {i}) {}) #b1)", n(*b));
+                let shifted = if i == 0 {
+                    ea.clone()
+                } else {
+                    format!("(bvshl {ea} {})", bv_lit(128, i as u128))
+                };
+                let term = format!("(ite {bit} {shifted} {})", bv_lit(128, 0));
+                acc = if i == 0 { term } else { format!("(bvxor {acc} {term})") };
+            }
+            acc
+        }
+        SemOp::AesCore(kind, a) => {
+            let fname = match kind {
+                super::sem::AesRoundKind::EncCore => "aes_enc_core",
+                super::sem::AesRoundKind::EncLastCore => "aes_enc_last_core",
+                super::sem::AesRoundKind::DecCore => "aes_dec_core",
+                super::sem::AesRoundKind::DecLastCore => "aes_dec_last_core",
+            };
+            format!("({fname} {})", n(*a))
+        }
         SemOp::BvEq(a, b) => format!("(= {} {})", n(*a), n(*b)),
         SemOp::BvULt(a, b) => format!("(bvult {} {})", n(*a), n(*b)),
         SemOp::BvULe(a, b) => format!("(bvule {} {})", n(*a), n(*b)),
@@ -320,6 +360,11 @@ fn emit_op(g: &SemGraph, id: NodeId) -> String {
                 "(and (not (fp.isNaN {sa})) (not (fp.isInfinite {sa})) (fp.geq {trunc} {lo_lit}) (fp.leq {trunc} {hi_lit}))"
             )
         }
+        SemOp::FpIsNaN(a) => format!("(fp.isNaN {})", n(*a)),
+        SemOp::FpIsFinite(a) => {
+            let sa = n(*a);
+            format!("(and (not (fp.isNaN {sa})) (not (fp.isInfinite {sa})))")
+        }
     }
 }
 
@@ -340,6 +385,10 @@ pub struct ExternalSmtProver {
     pub solver_id: String,
     pub binary: String,
     pub args: Vec<String>,
+    /// When `true`, parse an Alethe proof script emitted after `unsat` and return
+    /// `Evidence { format: "alethe/v1", .. }` so [`AletheProofChecker`] can admit
+    /// the obligation at `TrustTier::KernelCert` (removing the SMT solver from TCB).
+    pub produce_alethe: bool,
 }
 
 impl ExternalSmtProver {
@@ -348,6 +397,7 @@ impl ExternalSmtProver {
             solver_id: "smt-z3".to_string(),
             binary: binary.into(),
             args: vec!["-in".to_string()],
+            produce_alethe: false,
         }
     }
 
@@ -356,6 +406,7 @@ impl ExternalSmtProver {
             solver_id: "smt-bitwuzla".to_string(),
             binary: binary.into(),
             args: vec!["--smt2".to_string()],
+            produce_alethe: false,
         }
     }
 
@@ -364,6 +415,7 @@ impl ExternalSmtProver {
             solver_id: "smt-cvc5".to_string(),
             binary: binary.into(),
             args: vec!["--lang=smt2".to_string(), "--produce-models".to_string()],
+            produce_alethe: false,
         }
     }
 
@@ -379,6 +431,7 @@ impl ExternalSmtProver {
                 "--proof-format=alethe".to_string(),
                 "--produce-models".to_string(),
             ],
+            produce_alethe: true,
         }
     }
 
@@ -391,7 +444,44 @@ impl ExternalSmtProver {
             solver_id: solver_id.into(),
             binary: binary.into(),
             args,
+            produce_alethe: false,
         }
+    }
+}
+
+/// Extract an Alethe proof body emitted on stdout after the leading `unsat` line.
+/// Strips an optional outer `(\n...\n)` wrapper that `cvc5 --dump-proofs --proof-format=alethe`
+/// emits around top-level `(assume ...)` / `(step ...)` commands.
+pub fn extract_alethe_proof(stdout: &str) -> Option<String> {
+    let mut lines = stdout.lines();
+    let mut found_unsat = false;
+    let mut rest_lines = Vec::new();
+    for line in &mut lines {
+        let trimmed = line.trim();
+        if !found_unsat {
+            if trimmed == "unsat" {
+                found_unsat = true;
+            }
+            continue;
+        }
+        rest_lines.push(line);
+    }
+    if !found_unsat {
+        return None;
+    }
+    let body = rest_lines.join("\n");
+    let mut trimmed = body.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    // cvc5 wraps Alethe proofs in outer `(\n (assume ...) (step ...) \n)`
+    if trimmed.starts_with('(') && trimmed.ends_with(')') && !trimmed.starts_with("(assume") && !trimmed.starts_with("(step") && !trimmed.starts_with("(anchor") {
+        trimmed = trimmed[1..trimmed.len() - 1].trim();
+    }
+    if trimmed.contains("(step ") || trimmed.contains("(assume ") {
+        Some(trimmed.to_string())
+    } else {
+        None
     }
 }
 
@@ -436,6 +526,20 @@ impl Prover for ExternalSmtProver {
 
         match first_line {
             "unsat" => {
+                if self.produce_alethe {
+                    if let Some(proof) = extract_alethe_proof(&stdout) {
+                        let cert = AletheCertificate {
+                            goal_hash: obligation.goal_hash.clone(),
+                            semantics_id: obligation.semantics_id.clone(),
+                            proof,
+                        };
+                        return ProverOutcome::Proved(Evidence {
+                            format: ALETHE_FORMAT_ID.to_string(),
+                            prover_id: self.solver_id.clone(),
+                            payload: serde_json::to_string(&cert).unwrap(),
+                        });
+                    }
+                }
                 let att = SmtAttestation {
                     solver_id: self.solver_id.clone(),
                     solver_binary: self.binary.clone(),
@@ -772,6 +876,10 @@ impl Checker for AletheProofChecker {
                     })?;
                     derived.insert(id.to_string(), vec![items[2].clone()]);
                 }
+                "anchor" => {
+                    // Subproof anchor `(anchor :step <id> ...)`: scoped metadata for bind/subproofs.
+                    // The concluding `(step <id> ...)` still gets checked by `check_alethe_rule`.
+                }
                 "step" => {
                     if items.len() < 5 {
                         return Err(CheckError::InvalidCertificate(
@@ -964,8 +1072,200 @@ fn check_alethe_rule(
                 Err(CheckError::InvalidCertificate(format!("step `{id}`: literal not a conjunct of premise")))
             }
         }
+        "hole" | "trust" => Err(CheckError::InvalidCertificate(format!(
+            "step `{id}`: unverified Alethe rule `{rule}` is forbidden"
+        ))),
+        "or" => {
+            // Premise `(or a1 ... an)` -> clause `(cl a1 ... an)`.
+            if premises.len() != 1 || premises[0].len() != 1 {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `or`")));
+            }
+            let Some(disj) = premises[0][0].as_list() else {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: premise not `(or ...)`")));
+            };
+            if disj.first().and_then(SExpr::as_atom) == Some("or")
+                && disj[1..].iter().all(|l| clause.contains(l))
+                && clause.iter().all(|l| disj[1..].contains(l))
+            {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: `or` clause mismatch")))
+            }
+        }
+        "implies" => {
+            // Premise `(=> a b)` -> clause `(cl (not a) b)`.
+            if premises.len() != 1 || premises[0].len() != 1 || clause.len() != 2 {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `implies`")));
+            }
+            let Some(imp) = premises[0][0].as_list() else {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: premise not `(=> ...)`")));
+            };
+            if imp.len() == 3
+                && imp[0].as_atom() == Some("=>")
+                && clause[0].is_not_of(&imp[1])
+                && clause[1] == imp[2]
+            {
+                Ok(())
+            } else {
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: `implies` clause mismatch")))
+            }
+        }
+        "not_or" => {
+            // Premise `(not (or a1 ...))` -> single literal `(not ai)`.
+            if premises.len() != 1 || premises[0].len() != 1 || clause.len() != 1 {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `not_or`")));
+            }
+            if let Some(outer) = premises[0][0].as_list() {
+                if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                    if let Some(disj) = outer[1].as_list() {
+                        if disj.first().and_then(SExpr::as_atom) == Some("or")
+                            && disj[1..].iter().any(|d| clause[0].is_not_of(d))
+                        {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: `not_or` mismatch")))
+        }
+        "not_and" => {
+            // Premise `(not (and a1 ... an))` -> clause `(cl (not a1) ... (not an))`.
+            if premises.len() != 1 || premises[0].len() != 1 {
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `not_and`")));
+            }
+            if let Some(outer) = premises[0][0].as_list() {
+                if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                    if let Some(conj) = outer[1].as_list() {
+                        if conj.first().and_then(SExpr::as_atom) == Some("and")
+                            && conj[1..].len() == clause.len()
+                            && conj[1..].iter().zip(clause.iter()).all(|(a, c)| c.is_not_of(a))
+                        {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: `not_and` mismatch")))
+        }
+        "and_pos" => {
+            // Tautology `(cl (not (and a1 ...)) ai)`.
+            if premises.is_empty() && clause.len() == 2 {
+                if let Some(outer) = clause[0].as_list() {
+                    if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                        if let Some(conj) = outer[1].as_list() {
+                            if conj.first().and_then(SExpr::as_atom) == Some("and")
+                                && conj[1..].contains(&clause[1])
+                            {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `and_pos`")))
+        }
+        "and_neg" => {
+            // Tautology `(cl (and a1 ... an) (not a1) ... (not an))`.
+            if premises.is_empty() && clause.len() >= 2 {
+                if let Some(conj) = clause[0].as_list() {
+                    if conj.first().and_then(SExpr::as_atom) == Some("and")
+                        && conj[1..].len() + 1 == clause.len()
+                        && conj[1..].iter().zip(clause[1..].iter()).all(|(a, c)| c.is_not_of(a))
+                    {
+                        return Ok(());
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `and_neg`")))
+        }
+        "or_pos" => {
+            // Tautology `(cl (not (or a1 ... an)) a1 ... an)`.
+            if premises.is_empty() && clause.len() >= 2 {
+                if let Some(outer) = clause[0].as_list() {
+                    if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                        if let Some(disj) = outer[1].as_list() {
+                            if disj.first().and_then(SExpr::as_atom) == Some("or")
+                                && disj[1..] == clause[1..]
+                            {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `or_pos`")))
+        }
+        "equiv_pos1" | "equiv_pos2" | "equiv_neg1" | "equiv_neg2" => {
+            // Propositional equivalence tautologies over `(= a b)`.
+            if premises.is_empty() && clause.len() == 3 {
+                let check_pos = |neg_eq: &SExpr, l1: &SExpr, l2: &SExpr, swap: bool| -> bool {
+                    if let Some(outer) = neg_eq.as_list() {
+                        if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                            if let Some(eq) = outer[1].as_list() {
+                                if eq.len() == 3 && eq[0].as_atom() == Some("=") {
+                                    let (a, b) = (&eq[1], &eq[2]);
+                                    return if !swap {
+                                        l1 == a && l2.is_not_of(b)
+                                    } else {
+                                        l1.is_not_of(a) && l2 == b
+                                    };
+                                }
+                            }
+                        }
+                    }
+                    false
+                };
+                let check_neg = |eq_expr: &SExpr, l1: &SExpr, l2: &SExpr, both_neg: bool| -> bool {
+                    if let Some(eq) = eq_expr.as_list() {
+                        if eq.len() == 3 && eq[0].as_atom() == Some("=") {
+                            let (a, b) = (&eq[1], &eq[2]);
+                            return if both_neg {
+                                l1.is_not_of(a) && l2.is_not_of(b)
+                            } else {
+                                l1 == a && l2 == b
+                            };
+                        }
+                    }
+                    false
+                };
+                let ok = match rule {
+                    "equiv_pos1" => check_pos(&clause[0], &clause[1], &clause[2], false),
+                    "equiv_pos2" => check_pos(&clause[0], &clause[1], &clause[2], true),
+                    "equiv_neg1" => check_neg(&clause[0], &clause[1], &clause[2], true),
+                    "equiv_neg2" => check_neg(&clause[0], &clause[1], &clause[2], false),
+                    _ => false,
+                };
+                if ok {
+                    return Ok(());
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")))
+        }
+        "ite1" | "ite2" => {
+            // `(cl (not (ite c t e)) c e)` or `(cl (not (ite c t e)) (not c) t)`.
+            if premises.is_empty() && clause.len() == 3 {
+                if let Some(outer) = clause[0].as_list() {
+                    if outer.len() == 2 && outer[0].as_atom() == Some("not") {
+                        if let Some(ite) = outer[1].as_list() {
+                            if ite.len() == 4 && ite[0].as_atom() == Some("ite") {
+                                let (c, t, e) = (&ite[1], &ite[2], &ite[3]);
+                                let ok = if rule == "ite1" {
+                                    &clause[1] == c && &clause[2] == e
+                                } else {
+                                    clause[1].is_not_of(c) && &clause[2] == t
+                                };
+                                if ok {
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")))
+        }
         "not_not" => {
-            // Premise is `(not (not p))` -> clause is `p`, OR tautology `(cl (not (not (not p))) p)`.
+            // Premise `(not (not p))` -> `p`, OR tautology `(cl (not (not (not p))) p)`.
             if premises.len() == 1 && premises[0].len() == 1 && clause.len() == 1 {
                 if let Some(outer) = premises[0][0].as_list() {
                     if outer.len() == 2 && outer[0].as_atom() == Some("not") {
@@ -976,22 +1276,36 @@ fn check_alethe_rule(
                         }
                     }
                 }
+            } else if premises.is_empty() && clause.len() == 2 {
+                if let Some(n1) = clause[0].as_list() {
+                    if n1.len() == 2 && n1[0].as_atom() == Some("not") {
+                        if let Some(n2) = n1[1].as_list() {
+                            if n2.len() == 2 && n2[0].as_atom() == Some("not") {
+                                if let Some(n3) = n2[1].as_list() {
+                                    if n3.len() == 2 && n3[0].as_atom() == Some("not") && n3[1] == clause[1] {
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `not_not`")))
         }
-        "contraction" => {
+        "contraction" | "reordering" => {
             if premises.len() != 1 {
-                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `contraction`")));
+                return Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")));
             }
             let ok = premises[0].iter().all(|l| clause.contains(l))
                 && clause.iter().all(|l| premises[0].contains(l));
             if ok {
                 Ok(())
             } else {
-                Err(CheckError::InvalidCertificate(format!("step `{id}`: contraction mismatch")))
+                Err(CheckError::InvalidCertificate(format!("step `{id}`: `{rule}` mismatch")))
             }
         }
-        "eq_reflexive" => {
+        "eq_reflexive" | "refl" => {
             if clause.len() == 1 {
                 if let Some(eq) = clause[0].as_list() {
                     if eq.len() == 3 && eq[0].as_atom() == Some("=") && eq[1] == eq[2] {
@@ -999,9 +1313,9 @@ fn check_alethe_rule(
                     }
                 }
             }
-            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `eq_reflexive`")))
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")))
         }
-        "eq_symmetric" => {
+        "eq_symmetric" | "symm" => {
             if premises.len() == 1 && premises[0].len() == 1 && clause.len() == 1 {
                 if let (Some(p), Some(c)) = (premises[0][0].as_list(), clause[0].as_list()) {
                     if p.len() == 3 && c.len() == 3 && p[0].as_atom() == Some("=")
@@ -1011,28 +1325,80 @@ fn check_alethe_rule(
                     }
                 }
             }
-            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `eq_symmetric`")))
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")))
         }
-        "eq_transitive" => {
-            if premises.len() == 2 && premises[0].len() == 1 && premises[1].len() == 1 && clause.len() == 1 {
-                if let (Some(p1), Some(p2), Some(c)) = (
-                    premises[0][0].as_list(),
-                    premises[1][0].as_list(),
-                    clause[0].as_list(),
-                ) {
-                    if p1.len() == 3 && p2.len() == 3 && c.len() == 3
-                        && p1[0].as_atom() == Some("=")
-                        && p2[0].as_atom() == Some("=")
-                        && c[0].as_atom() == Some("=")
-                        && p1[2] == p2[1]
-                        && c[1] == p1[1]
-                        && c[2] == p2[2]
-                    {
-                        return Ok(());
+        "eq_transitive" | "trans" => {
+            if premises.len() >= 2 && clause.len() == 1 {
+                if let Some(c) = clause[0].as_list() {
+                    if c.len() == 3 && c[0].as_atom() == Some("=") {
+                        let mut first_lhs: Option<&SExpr> = None;
+                        let mut cur_rhs: Option<&SExpr> = None;
+                        let mut chain_ok = true;
+                        for prem in premises {
+                            if prem.len() != 1 {
+                                chain_ok = false;
+                                break;
+                            }
+                            let Some(p) = prem[0].as_list() else {
+                                chain_ok = false;
+                                break;
+                            };
+                            if p.len() != 3 || p[0].as_atom() != Some("=") {
+                                chain_ok = false;
+                                break;
+                            }
+                            if first_lhs.is_none() {
+                                first_lhs = Some(&p[1]);
+                                cur_rhs = Some(&p[2]);
+                            } else if cur_rhs == Some(&p[1]) {
+                                cur_rhs = Some(&p[2]);
+                            } else {
+                                chain_ok = false;
+                                break;
+                            }
+                        }
+                        if chain_ok && first_lhs == Some(&c[1]) && cur_rhs == Some(&c[2]) {
+                            return Ok(());
+                        }
                     }
                 }
             }
-            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `eq_transitive`")))
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")))
+        }
+        "cong" | "eq_congruent" => {
+            // Premises `(= a1 b1) ... (= an bn)` -> `(= (f a1 ... an) (f b1 ... bn))`.
+            if clause.len() == 1 {
+                if let Some(c) = clause[0].as_list() {
+                    if c.len() == 3 && c[0].as_atom() == Some("=") {
+                        if let (Some(lhs), Some(rhs)) = (c[1].as_list(), c[2].as_list()) {
+                            if !lhs.is_empty() && lhs.len() == rhs.len() && lhs[0] == rhs[0] {
+                                let mut eq_pairs: Vec<(&SExpr, &SExpr)> = Vec::new();
+                                let mut prems_ok = true;
+                                for prem in premises {
+                                    if prem.len() == 1 {
+                                        if let Some(p) = prem[0].as_list() {
+                                            if p.len() == 3 && p[0].as_atom() == Some("=") {
+                                                eq_pairs.push((&p[1], &p[2]));
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                    prems_ok = false;
+                                    break;
+                                }
+                                if prems_ok
+                                    && lhs[1..].iter().zip(rhs[1..].iter()).all(|(a, b)| {
+                                        a == b || eq_pairs.iter().any(|&(pa, pb)| pa == a && pb == b)
+                                    })
+                                {
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(CheckError::InvalidCertificate(format!("step `{id}`: invalid `{rule}`")))
         }
         other => Err(CheckError::InvalidCertificate(format!(
             "step `{id}`: unsupported Alethe rule `{other}`"

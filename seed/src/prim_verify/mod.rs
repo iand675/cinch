@@ -471,13 +471,17 @@ impl VerifierEngine {
             replay_only: false,
         };
         // Auto-register any installed external SMT solver into the portfolio as fallback
-        // (for IEEE-754 floats and wide nonlinear bit-vectors). Probe PATH once per process
-        // so compiling dozens of verified prelude prims never forks `which` repeatedly.
+        // (for IEEE-754 floats and wide nonlinear bit-vectors). Prefer proof-producing
+        // `cvc5 --proof-format=alethe` first so SMT proofs upgrade to `TrustTier::KernelCert`
+        // via `AletheProofChecker` and cache cleanly for offline `replay-only` builds.
         for (kind, bin) in detected_external_smt_solvers() {
             match *kind {
+                "cvc5" => {
+                    engine.provers.push(Box::new(ExternalSmtProver::cvc5_alethe(*bin)));
+                    engine.provers.push(Box::new(ExternalSmtProver::cvc5(*bin)));
+                }
                 "bitwuzla" => engine.provers.push(Box::new(ExternalSmtProver::bitwuzla(*bin))),
                 "z3" => engine.provers.push(Box::new(ExternalSmtProver::z3(*bin))),
-                "cvc5" => engine.provers.push(Box::new(ExternalSmtProver::cvc5(*bin))),
                 _ => {}
             }
         }
@@ -675,7 +679,7 @@ fn detected_external_smt_solvers() -> &'static [(&'static str, &'static str)] {
         std::sync::OnceLock::new();
     DETECTED
         .get_or_init(|| {
-            [("bitwuzla", "bitwuzla"), ("z3", "z3"), ("cvc5", "cvc5")]
+            [("cvc5", "cvc5"), ("bitwuzla", "bitwuzla"), ("z3", "z3")]
                 .into_iter()
                 .filter(|(_, bin)| command_exists(bin))
                 .collect()
@@ -827,14 +831,14 @@ pub fn cli(args: &[String]) -> i32 {
             engine.provers.insert(0, Box::new(ExternalSatProver::cadical(bin)));
         }
         if let Some(bin) = smt_bin {
-            let solver = if bin.contains("bitwuzla") {
-                ExternalSmtProver::bitwuzla(bin)
-            } else if bin.contains("cvc5") {
-                ExternalSmtProver::cvc5(bin)
+            if bin.contains("cvc5") {
+                engine.add_prover(Box::new(ExternalSmtProver::cvc5_alethe(bin.clone())));
+                engine.add_prover(Box::new(ExternalSmtProver::cvc5(bin)));
+            } else if bin.contains("bitwuzla") {
+                engine.add_prover(Box::new(ExternalSmtProver::bitwuzla(bin)));
             } else {
-                ExternalSmtProver::z3(bin)
-            };
-            engine.add_prover(Box::new(solver));
+                engine.add_prover(Box::new(ExternalSmtProver::z3(bin)));
+            }
         }
     }
 
@@ -1001,9 +1005,19 @@ pub fn cli_verify_codegen(args: &[String]) -> i32 {
     let mut path_str: Option<&str> = None;
     let mut target_triple: Option<&str> = None;
     let mut word_bits_override: Option<u32> = None;
-    for a in args {
+    let mut i = 0usize;
+    while i < args.len() {
+        let a = &args[i];
         if let Some(t) = a.strip_prefix("--target=") {
             target_triple = Some(t);
+        } else if a == "--target" {
+            if let Some(next) = args.get(i + 1) {
+                target_triple = Some(next.as_str());
+                i += 1;
+            } else {
+                eprintln!("cinch verify-codegen: --target requires a value");
+                return 2;
+            }
         } else if let Some(ws) = a.strip_prefix("--word-size=") {
             match ws {
                 "32" => word_bits_override = Some(32),
@@ -1013,9 +1027,25 @@ pub fn cli_verify_codegen(args: &[String]) -> i32 {
                     return 2;
                 }
             }
+        } else if a == "--word-size" {
+            match args.get(i + 1).map(|s| s.as_str()) {
+                Some("32") => {
+                    word_bits_override = Some(32);
+                    i += 1;
+                }
+                Some("64") => {
+                    word_bits_override = Some(64);
+                    i += 1;
+                }
+                other => {
+                    eprintln!("cinch verify-codegen: unsupported --word-size=`{}` (expected 32 or 64)", other.unwrap_or(""));
+                    return 2;
+                }
+            }
         } else if !a.starts_with('-') && path_str.is_none() {
             path_str = Some(a.as_str());
         }
+        i += 1;
     }
     let Some(path_str) = path_str else {
         eprintln!("usage: cinch verify-codegen <file.cinch> [--target=<triple>|--word-size=32|64]");

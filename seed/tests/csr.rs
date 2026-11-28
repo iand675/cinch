@@ -220,10 +220,10 @@ fn csr_emits_register_pair_ir_for_option_and_result() {
     common::drive(cinch::driver::Mode::EmitIr, &dir, "Main.cinch", Some(ir_path.clone()))
         .expect("emit IR");
     let ir = std::fs::read_to_string(&ir_path).expect("read emitted IR");
-    // Both Rust seed (`#cc`) and Stage 3 (`#csr`) emit `{ i64, i64 }` workers.
+    // Both Rust seed (`#cc`) and Stage 3 (`#csr`) emit `{ i8, i64 }` workers.
     assert!(
-        ir.contains("{ i64, i64 }"),
-        "expected unboxed {{ i64, i64 }} CSR signature in IR"
+        ir.contains("{ i8, i64 }"),
+        "expected unboxed {{ i8, i64 }} CSR signature in IR"
     );
     let exe = common::build_executable(&dir, "Main.cinch", "csr-ir")
         .expect("build csr-ir");

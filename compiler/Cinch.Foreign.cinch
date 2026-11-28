@@ -4,7 +4,7 @@ module Cinch.Foreign where
   import Cinch.Type
   import Cinch.Target (condition-render, primitive-target, when-vocabulary, host-profile)
   import Cinch.Ast (PrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, RewriteTerm, Expr, EVar, source-identity-expr)
-  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body-cached, verify-prim-cross-target, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
+  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, receipt-goal-hash, receipt-prover-id, receipt-evidence-payload, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body-cached, verify-prim-cross-target, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
   import Cinch.Core (contract-scheme-closed)
   import Cinch.ExportType (export-type, export-global, export-display-scheme)
   import Cinch.Interface (fnv-source-hash)
@@ -16,11 +16,11 @@ module Cinch.Foreign where
   import Text.Scan (string-contains, string-split-on, string-starts-with, string-ends-with, string-strip, string-words, string-unwords)
   import Algebra.Semigroup
 
-  export ForeignPlan, ForeignParameter, foreign-plan, foreign-export-plan
+  export ForeignPlan, ForeignParameter, foreign-plan, foreign-export-plan, foreign-plan-with-values, foreign-export-plan-with-values
   export foreign-blocking
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, primitive-plan, foreign-inline, foreign-primitive-assumptions
-  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof
+  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op, foreign-primitive-proof, foreign-primitive-cache-entries
   export PrimitiveFragment
   export PrimUseContract
   export foreign-llvm-type, primitive-layout
@@ -56,9 +56,9 @@ module Cinch.Foreign where
     scheme :: Scheme
     parameters :: List ForeignParameter
     result :: ForeignParameter
-    inline :: Option (InlinePrimitive, Option String, List String, Json, Option PrimProofFact)
+    inline :: Option (InlinePrimitive, Option String, List String, Json, Option PrimProofFact, List TrustReceipt)
   foreign-inline :: ForeignPlan -> Option InlinePrimitive
-  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection, proof-fact) -> Some body; None -> None)
+  foreign-inline plan = case plan of ForeignPlan symbol scheme params result inline -> (case inline of Some (body, identity, trust, selection, proof-fact, receipts) -> Some body; None -> None)
   -- A public worker receives ordinary arguments. Immediate-only operands
   -- must still be checked at a direct call with their actual literal values.
   primitive-object-callable :: ForeignPlan -> Bool
@@ -75,15 +75,26 @@ module Cinch.Foreign where
   foreign-primitive-assumptions :: ForeignPlan -> Option (Option String, List String)
   foreign-primitive-assumptions plan = case plan of
     ForeignPlan symbol scheme params result inline ->
-      (case inline of Some (body, identity, trust, selection, proof-fact) -> Some (identity, trust); None -> None)
+      (case inline of Some (body, identity, trust, selection, proof-fact, receipts) -> Some (identity, trust); None -> None)
   foreign-primitive-selection :: ForeignPlan -> Option Json
   foreign-primitive-selection plan = case plan of
-    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact)) -> Some selection
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact, receipts)) -> Some selection
     other -> None
   foreign-primitive-proof :: ForeignPlan -> Option PrimProofFact
   foreign-primitive-proof plan = case plan of
-    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact)) -> proof-fact
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact, receipts)) -> proof-fact
     other -> None
+  extract-cache-entries :: List TrustReceipt -> List (String, String, String)
+  extract-cache-entries rs = case rs of
+    [] -> []
+    r : rest ->
+      let p = receipt-evidence-payload r in
+      if string-length p > 0 then (receipt-goal-hash r, receipt-prover-id r, p) : (extract-cache-entries rest)
+      else extract-cache-entries rest
+  foreign-primitive-cache-entries :: ForeignPlan -> List (String, String, String)
+  foreign-primitive-cache-entries plan = case plan of
+    ForeignPlan symbol scheme params result (Some (body, identity, trust, selection, proof-fact, receipts)) -> extract-cache-entries receipts
+    other -> []
   nonempty-ir-lines :: List String -> List (List String)
   nonempty-ir-lines lines = case lines of
     [] -> []
@@ -138,16 +149,24 @@ module Cinch.Foreign where
     -- C's `__int128`: LLVM `i128` (design/wide-scalars.md section 7).
     else if has name ["I128", "U128"] then Some (16, name == "I128")
     else None
+  scalar :: String -> Option (Nat, Bool)
+  scalar name = scalar-for 64 name
   head-name :: UType -> Option String
   head-name ty = case ty of UCon name kind -> Some name; UApp head argument -> head-name head; other -> None
-  parameter-for :: Nat -> List String -> UType -> Result String ForeignParameter
-  parameter-for word-bits abstracts ty =
+  lookup-aggregate :: String -> List (String, Nat, Nat) -> Option (Nat, Nat)
+  lookup-aggregate name entries = case entries of
+    [] -> None
+    (n, sz, al) : rest -> if n == name then Some (sz, al) else lookup-aggregate name rest
+  parameter-for :: Nat -> List String -> List (String, Nat, Nat) -> UType -> Result String ForeignParameter
+  parameter-for word-bits abstracts aggregates ty =
     let pb = ptr-byte-width word-bits in
     if not (valid-type ty && kind-equal (type-kind ty) KType) then Err "foreign boundary needs a closed proper carrier" else case ty of
       UCon name KType -> if name == "Unit" then Ok (ForeignParameter ty "unit" "value" 0 1 False False)
         else (case scalar-for word-bits name of
           Some (width, signed) -> Ok (ForeignParameter ty "scalar" "value" width width signed False)
-          None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (ForeignParameter ty "ptr" "opaque-handle" pb pb False False) else Err (string-concat name " has no C representation at the foreign boundary"))
+          None -> (case lookup-aggregate name aggregates of
+            Some (sz, al) -> Ok (ForeignParameter ty "aggregate" "value" sz al False False)
+            None -> if not (has name ["Int", "Nat", "Bool", "Bytes", "String", "Char", "Sym"]) && has name abstracts then Ok (ForeignParameter ty "ptr" "opaque-handle" pb pb False False) else Err (string-concat name " has no C representation at the foreign boundary")))
       UApp (UCon name kind) pointee -> if foreign-pointer ty then
           Ok (ForeignParameter ty "ptr" (if name == "RawPtr" then "raw" else if name == "Borrowed" then "borrowed" else "maybe-null") pb pb False (name == "MaybeNull"))
         else if has name ["Owned", "Retained", "Out"] then Err "foreign ownership, retention and out-cell protocols require their checked resource plans"
@@ -192,28 +211,32 @@ module Cinch.Foreign where
       other -> if importing && not (accounted-labels labels) then Some "foreign import needs a function type, closed explicit rows and accounted result effects: a foreign import must declare its effects because an external function is not pure"
         else if closed-row row then None else Some "foreign effect rows must be closed and explicit"
     other -> Some "foreign effect rows must be closed and explicit"
-  parameters-for :: Nat -> List String -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
-  parameters-for word-bits abstracts ty backwards = case ty of
-    UFun domain result -> add-parameter-for word-bits abstracts domain result backwards
-    UFunEff domain row result -> add-parameter-for word-bits abstracts domain result backwards
-    UPi id name domain row result -> add-parameter-for word-bits abstracts domain result backwards
-    other -> case parameter-for word-bits abstracts ty of Err error -> Err error; Ok result -> Ok (reverse backwards, result)
-  add-parameter-for :: Nat -> List String -> UType -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
-  add-parameter-for word-bits abstracts domain result backwards = case parameter-for word-bits abstracts domain of
+  parameters-for :: Nat -> List String -> List (String, Nat, Nat) -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  parameters-for word-bits abstracts aggregates ty backwards = case ty of
+    UFun domain result -> add-parameter-for word-bits abstracts aggregates domain result backwards
+    UFunEff domain row result -> add-parameter-for word-bits abstracts aggregates domain result backwards
+    UPi id name domain row result -> add-parameter-for word-bits abstracts aggregates domain result backwards
+    other -> case parameter-for word-bits abstracts aggregates ty of Err error -> Err error; Ok result -> Ok (reverse backwards, result)
+  add-parameter-for :: Nat -> List String -> List (String, Nat, Nat) -> UType -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  add-parameter-for word-bits abstracts aggregates domain result backwards = case parameter-for word-bits abstracts aggregates domain of
     Err error -> Err error
-    Ok argument -> parameters-for word-bits abstracts result (argument : backwards)
+    Ok argument -> parameters-for word-bits abstracts aggregates result (argument : backwards)
   -- The intrinsic namespaces are reserved: a symbol there without a checked
   -- runtime contract names a retired or unknown intrinsic, never C. Any
   -- other nonempty symbol is a C object name, quoted as an LLVM global.
   reserved-symbol :: String -> Bool
   reserved-symbol name = string-starts-with "cinch.prim." name || string-starts-with "cinch.runtime." name
   foreign-plan :: Nat -> List String -> String -> Scheme -> Result String ForeignPlan
-  foreign-plan = checked-foreign-plan-for True
+  foreign-plan word-bits abstracts symbol scheme = checked-foreign-plan-for True word-bits abstracts [] False False symbol scheme
   foreign-export-plan :: Nat -> List String -> String -> Scheme -> Result String ForeignPlan
-  foreign-export-plan = checked-foreign-plan-for False
+  foreign-export-plan word-bits abstracts symbol scheme = checked-foreign-plan-for False word-bits abstracts [] False False symbol scheme
+  foreign-plan-with-values :: Nat -> List String -> List (String, Nat, Nat) -> Bool -> Bool -> String -> Scheme -> Result String ForeignPlan
+  foreign-plan-with-values = checked-foreign-plan-for True
+  foreign-export-plan-with-values :: Nat -> List String -> List (String, Nat, Nat) -> Bool -> Bool -> String -> Scheme -> Result String ForeignPlan
+  foreign-export-plan-with-values = checked-foreign-plan-for False
 
-  checked-foreign-plan-for :: Bool -> Nat -> List String -> String -> Scheme -> Result String ForeignPlan
-  checked-foreign-plan-for importing word-bits abstracts symbol scheme = if word-bits /= 32 && word-bits /= 64 then Err "foreign boundary target ABI is not supported"
+  checked-foreign-plan-for :: Bool -> Nat -> List String -> List (String, Nat, Nat) -> Bool -> Bool -> String -> Scheme -> Result String ForeignPlan
+  checked-foreign-plan-for importing word-bits abstracts aggregates has-byval has-sret symbol scheme = if word-bits /= 32 && word-bits /= 64 then Err "foreign boundary target ABI is not supported"
     else if reserved-symbol symbol then Err (string-concat-all ["foreign symbol ", symbol, " is not a cinch intrinsic; only cinch.prim.* and cinch.runtime.* intrinsics are supported in the bootstrap slice"])
     else if string-length symbol == 0 then Err "foreign symbol is empty"
     else if not importing && (string-starts-with "llvm." symbol || string-starts-with "cinch." symbol || string-starts-with "cinch_" symbol) then Err "reserved foreign export symbol"
@@ -221,20 +244,28 @@ module Cinch.Foreign where
       Some error -> Err error
       None -> if not (contract-scheme-closed scheme) then Err "foreign scheme has an unbound or unresolved contract"
         else if not (region-quantifiers (scheme-params scheme)) || list-length (scheme-requirements scheme) /= 0 then Err "foreign binding cannot be polymorphic or constrained"
-        else case parameters-for word-bits abstracts (scheme-body scheme) [] of
+        else case parameters-for word-bits abstracts aggregates (scheme-body scheme) [] of
           Err error -> Err error
-          Ok (arguments, result) -> Ok (ForeignPlan symbol scheme arguments result None)
+          Ok (arguments, result) ->
+            if result.class == "aggregate" && not has-sret then
+              Err "a foreign result cannot be an aggregate without `#[sret]`"
+            else Ok (ForeignPlan symbol scheme arguments result None)
   primitive-carrier-for :: Nat -> UType -> Result String ForeignParameter
-  primitive-carrier-for word-bits ty = case refinement-view ty of
-    URefine id name base pred -> primitive-carrier-for word-bits base
-    UCon name KType -> if name == "Bool" then Ok (ForeignParameter ty "scalar" "value" 1 1 False False)
-      else if name == "Char" then Ok (ForeignParameter ty "scalar" "value" 4 4 False False)
-      else (case scalar-for word-bits name of
-        Some (width, signed) -> Ok (ForeignParameter ty "scalar" "value" width width signed False)
-        None -> Err "a prim needs a first-order machine scalar carrier")
-    other -> Err "a prim needs a first-order machine scalar carrier"
+  primitive-carrier-for word-bits ty =
+    let pb = ptr-byte-width word-bits in
+    case refinement-view ty of
+      URefine id name base pred -> primitive-carrier-for word-bits base
+      UApp (UCon name kind) pointee | foreign-pointer ty ->
+        Ok (ForeignParameter ty "ptr" (if name == "RawPtr" then "raw" else if name == "Borrowed" then "borrowed" else "maybe-null") pb pb False (name == "MaybeNull"))
+      UCon name KType -> if name == "Bool" then Ok (ForeignParameter ty "scalar" "value" 1 1 False False)
+        else if name == "Char" then Ok (ForeignParameter ty "scalar" "value" 4 4 False False)
+        else (case scalar-for word-bits name of
+          Some (width, signed) -> Ok (ForeignParameter ty "scalar" "value" width width signed False)
+          None -> Err "a prim needs a first-order machine scalar or pointer carrier")
+      other -> Err "a prim needs a first-order machine scalar or pointer carrier"
   primitive-use-result-for :: Nat -> UType -> Result String ForeignParameter
-  primitive-use-result-for word-bits ty = case ty of
+  primitive-use-result-for word-bits ty = case refinement-view ty of
+    URefine id name base pred -> primitive-use-result-for word-bits base
     UCon name KType | (name == "Unit") -> Ok (ForeignParameter ty "unit" "value" 0 1 False False)
     other -> primitive-carrier-for word-bits ty
   primitive-use-parameters-for :: Nat -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
@@ -258,8 +289,8 @@ module Cinch.Foreign where
     (sym, scheme) ->
       if reserved-symbol sym then Err (string-concat-all ["the intrinsic namespaces are reserved: uses must not name ", sym])
       else if string-length sym == 0 then Err "a uses entry needs a non-empty symbol name"
-      else if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
-        Err "a uses entry needs a monomorphic unconstrained machine ABI"
+      else if not (contract-scheme-closed scheme) || list-length (scheme-requirements scheme) /= 0 || not (prim-allowed-quants (scheme-params scheme)) then
+        Err "a uses entry needs a monomorphic or pointer-polymorphic unconstrained machine ABI"
       else case primitive-use-parameters-for word-bits (scheme-body scheme) [] of
         Err error -> Err error
         Ok (params, result) -> Ok (PrimUseContract sym params result)
@@ -282,7 +313,7 @@ module Cinch.Foreign where
       else Err "a prim needs closed explicit effect rows"
     UPi id name domain row rest -> if closed-row row then primitive-domain-for word-bits domain rest backwards
       else Err "a prim needs closed explicit effect rows"
-    other -> (case (backwards, primitive-carrier-for word-bits ty) of
+    other -> (case (backwards, primitive-use-result-for word-bits ty) of
       ([], result) -> Err "a prim declaration needs a function type"
       (arguments, Ok result) -> Ok (reverse arguments, result)
       (arguments, Err message) -> Err message)
@@ -290,6 +321,10 @@ module Cinch.Foreign where
   primitive-domain-for word-bits domain rest backwards = case primitive-carrier-for word-bits domain of
     Ok argument -> primitive-parameters-for word-bits rest (argument : backwards)
     Err error -> Err error
+  prim-allowed-quants :: List Quant -> Bool
+  prim-allowed-quants qs = case qs of
+    [] -> True
+    q : rest -> (kind-equal (q.kind) KType || kind-equal (q.kind) KRegion) && prim-allowed-quants rest
   immediate-indices-valid :: Nat -> List Nat -> List Nat -> Bool
   immediate-indices-valid arity indices seen = case indices of
     [] -> True
@@ -427,9 +462,11 @@ module Cinch.Foreign where
     other -> False
 
   first-ir-return :: String -> List String -> Bool
-  first-ir-return result words = case words of
-    operation : actual : ([operand]) -> operation == "ret" && actual == result
-    other -> False
+  first-ir-return result words =
+    if result == "void" then (case words of operation : ([actual]) -> operation == "ret" && actual == "void"; other -> False)
+    else (case words of
+      operation : actual : ([operand]) -> operation == "ret" && actual == result
+      other -> False)
   -- | Helper for acyclic forward-only local LLVM labels and branches.
   valid-label-chars :: List Char -> Bool
   valid-label-chars cs = case cs of
@@ -489,7 +526,7 @@ module Cinch.Foreign where
                 if ir-valid-forward-br words (ir-remaining-labels rest) then
                   contained-ir result pure trusted use-symbols rest False symbols
                 else Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
-              else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "ptrtoint", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr"] words) then
+              else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr", "ptrtoint"] words) then
                 Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
               else if operation == "ret" then
                 if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result pure trusted use-symbols rest True symbols
@@ -507,7 +544,7 @@ module Cinch.Foreign where
                   "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "phi", "extractvalue", "insertvalue",
                   "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze",
                   "extractelement", "insertelement", "shufflevector"]
-                  || (trusted && has operation ["inttoptr", "getelementptr", "load"])
+                  || (trusted && has operation ["inttoptr", "ptrtoint", "getelementptr", "load"])
                   || (trusted && not pure && has operation ["store", "atomicrmw", "cmpxchg", "fence"]) then
                 contained-ir result pure trusted use-symbols rest False symbols
               else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
@@ -611,8 +648,8 @@ module Cinch.Foreign where
   primitive-layout scheme = primitive-layout-for 64 scheme
   primitive-layout-for :: Nat -> Scheme -> Result String (List ForeignParameter, ForeignParameter)
   primitive-layout-for word-bits scheme =
-    if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
-      Err "a prim declaration needs a monomorphic checked signature"
+    if not (contract-scheme-closed scheme) || not (prim-allowed-quants (scheme-params scheme)) || list-length (scheme-requirements scheme) /= 0 then
+      Err "a prim declaration needs a monomorphic or pointer-polymorphic checked signature"
     else primitive-parameters-for word-bits (scheme-body scheme) []
   verify-justification-word :: Option RewriteJustification -> Option String
   verify-justification-word ev = case ev of
@@ -646,7 +683,7 @@ module Cinch.Foreign where
     let is-bool = cname == "Bool" in
     MkPrimParamSpec pname cname (p.width * 8) (p.signed) is-fp is-bool
 
-  extract-scheme-meta :: UType -> Nat -> (List String, List UType, List (Nat, UType), Option UType)
+  extract-scheme-meta :: UType -> Nat -> (List String, List UType, List (Nat, UType), Option (String, UType))
   extract-scheme-meta ty idx = case ty of
     URequire preds rest ->
       case extract-scheme-meta rest idx of
@@ -666,7 +703,7 @@ module Cinch.Foreign where
         (names, reqs, ppreds, post) -> (dname : names, reqs, dpreds <> ppreds, post)
     other ->
       case refinement-view ty of
-        URefine id name base pred -> ([], [], [], Some pred)
+        URefine id name base pred -> ([], [], [], Some (name, pred))
         other2 -> ([], [], [], None)
 
   collect-require-preds :: UType -> List UType
@@ -710,6 +747,21 @@ module Cinch.Foreign where
     Some expr ->
       let h = fnv-source-hash (canonical-bytes (source-identity-expr expr)) in
       Some (string-concat "inline-spec#" h)
+
+  bodies-have-explicit-word-bits :: Nat -> List PrimBody -> Bool
+  bodies-have-explicit-word-bits want bodies = case bodies of
+    [] -> False
+    (PrimBody sp family fragment unverified when selected justification uses immediates) : rest ->
+      let other-default = if want == 32 then 64 else 32 in
+      (family == "llvm" && body-word-bits-for other-default when == want) || bodies-have-explicit-word-bits want rest
+
+  effective-fallback-word-bits :: Nat -> List PrimBody -> Nat
+  effective-fallback-word-bits default-bits bodies =
+    let has32 = bodies-have-explicit-word-bits 32 bodies in
+    let has64 = bodies-have-explicit-word-bits 64 bodies in
+    if has32 && not has64 then 64
+    else if has64 && not has32 then 32
+    else default-bits
 
   verify-prim-bodies-loop :: Nat -> String -> Bool -> String -> List (String, String) -> Bool -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> Option UType -> Option Expr -> List SpecDef -> String -> List PrimBody -> List TrustReceipt -> Bool -> Result String (Bool, List TrustReceipt)
   verify-prim-bodies-loop word-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies acc all-verified = case bodies of
@@ -770,28 +822,32 @@ module Cinch.Foreign where
       (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
         let pure = pure-primitive-arrows (scheme-body scheme) in
         let ptr-sized = case result.parameter-type of UCon rname KType -> has rname ["Usize", "Isize"]; other -> False in
-        (case checked-prim-bodies word-bits symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) [] of
+        let fb-bits = effective-fallback-word-bits word-bits bodies in
+        (case checked-prim-bodies fb-bits symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (FamilyCandidates None None) (FamilyCandidates None None) [] of
           Err message -> Err message
           Ok (body, condition) ->
             let trust = primitive-trust symbol bodies in
             let family = case body of InlinePrimitive owner chosen immediates llvm assembly -> chosen in
             if bodies-use-verify bodies then
-              let (pnames, req-preds, param-preds, postcond) = extract-scheme-meta (scheme-body scheme) 0 in
+              let (pnames, req-preds, param-preds, post-meta) = extract-scheme-meta (scheme-body scheme) 0 in
+              let (post-binder, postcond) = case post-meta of
+                    Some (bn, pr) -> (if string-length bn > 0 then bn else "r", Some pr)
+                    None -> ("result", None) in
               let pspecs = build-param-specs pnames arguments in
-              let rspec = param-to-verify-spec "result" result in
+              let rspec = param-to-verify-spec post-binder result in
               let spec-id-opt = spec-identity-string spec-opt in
               let spec-display = case spec-id-opt of Some s -> s; None -> "well-defined" in
-              (case verify-prim-bodies-loop word-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of
+              (case verify-prim-bodies-loop fb-bits symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of
                 Err message -> Err message
                 Ok (all-verified1, receipts1) ->
-                  let cross64 = case collect-same-width-llvm-bodies word-bits 64 bodies of
+                  let cross64 = case collect-same-width-llvm-bodies fb-bits 64 bodies of
                         (ref-f, ref-j) : (more1 : more-rest) ->
                           verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only (adjust-specs-word-size 64 pspecs) (adjust-spec-word-size 64 rspec) req-preds param-preds ref-f (more1 : more-rest) receipts1 all-verified1
                         other -> Ok (all-verified1, receipts1) in
                   let cross-result = case cross64 of
                         Err message -> Err message
                         Ok (all-verified2, receipts2) ->
-                          (case collect-same-width-llvm-bodies word-bits 32 bodies of
+                          (case collect-same-width-llvm-bodies fb-bits 32 bodies of
                             (ref-f, ref-j) : (more1 : more-rest) ->
                               verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only (adjust-specs-word-size 32 pspecs) (adjust-spec-word-size 32 rspec) req-preds param-preds ref-f (more1 : more-rest) receipts2 all-verified2
                             other -> Ok (all-verified2, receipts2)) in
@@ -805,11 +861,11 @@ module Cinch.Foreign where
                             let identity = string-concat-all ["prim:", symbol, ":", signature-text, ":spec[", spec-display, "]"] in
                             let proof-fact = MkPrimProofFact (local-symbol-name symbol) spec-display "llvm-sem@21.1" (worst-trust-tier receipts) (receipts-tcb-union receipts) in
                             Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                              (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact))))
+                              (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact, receipts))))
                       else
                         let identity = primitive-identity symbol (primitive-body-text bodies) in
                         Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                          (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None)))))
+                          (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None, receipts)))))
             else
               (case primitive-laws (check-law arity) bodies True [] of
                 Err message -> Err message
@@ -819,7 +875,7 @@ module Cinch.Foreign where
                     Ok identity -> let assumed = if justified then None else Some identity in
                       let declared = if justified then laws <> trust else trust in
                       Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                        (Some (body, assumed, declared, selection-document body condition identity justified trust bodies, None))))))
+                        (Some (body, assumed, declared, selection-document body condition identity justified trust bodies, None, []))))))
       (Err message, other) -> Err message
       (other, Err message) -> Err message
 

@@ -3,7 +3,7 @@
 -- creation and decision evidence here, before checker elaboration.
 module Cinch.Builtin where
 
-  import Cinch.Ast (Decl, TypeExpr, Program, Module, DExternal, DData, DClass, DMethod, DSig, TypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
+  import Cinch.Ast (Decl, TypeExpr, Program, Module, DExternal, DData, DClass, DMethod, DSig, DFun, PCon, PVar, PArg, PArgsEnd, EVar, TypeParam, forall-param-spine, type-arg-spine, TForall, TIndex, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd, TUnmodeled, decl-spine, decls-of)
   import Cinch.RuntimeAbi (runtime-abi-int)
   import Cinch.Parse (parse-program, parse-scheme)
   import Cinch.Document
@@ -11,7 +11,7 @@ module Cinch.Builtin where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Scan (string-starts-with, string-drop)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, ad-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, box-declaration, unbox-declarations, intrinsic-contract, array-plan, ad-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
   export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation
@@ -200,6 +200,8 @@ module Cinch.Builtin where
     "cinch.runtime.bytesLen" -> Some ("Bytes -> Nat", "cinch_bytes_len")
     "cinch.runtime.bytesGet" -> Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
     "cinch.runtime.bytesNew" -> Some ("Nat -> Bytes", "cinch_bytes_new")
+    "cinch.runtime.utf8Validate" -> Some ("Bytes -> Bool", "cinch_utf8_validate")
+    "cinch.runtime.utf8CountChars" -> Some ("Bytes -> Nat", "cinch_utf8_count_chars")
     "cinch.runtime.slotsFoldNat" -> Some ("Nat -> U64", "cinch_nat_low_word")
     _ -> case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)
@@ -304,10 +306,20 @@ module Cinch.Builtin where
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("ignore", "b.ignore"), ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
+    , ("withLocal", "b.withLocal"), ("with-local", "b.withLocal")
+    , ("refAsPtr", "b.refAsPtr"), ("ref-as-ptr", "b.refAsPtr")
+    , ("mutAsPtr", "b.mutAsPtr"), ("mut-as-ptr", "b.mutAsPtr")
+    , ("fixedArrayRepeat", "b.fixedArrayRepeat"), ("fixed-array-repeat", "b.fixedArrayRepeat")
+    , ("fixedArrayGet", "b.fixedArrayGet"), ("fixed-array-get", "b.fixedArrayGet")
+    , ("fixedArraySet", "b.fixedArraySet"), ("fixed-array-set", "b.fixedArraySet")
+    , ("fixedArrayRef", "b.fixedArrayRef"), ("fixed-array-ref", "b.fixedArrayRef")
+    , ("fixedArrayMut", "b.fixedArrayMut"), ("fixed-array-mut", "b.fixedArrayMut")
+    , ("fixedArrayLen", "b.fixedArrayLen"), ("fixed-array-len", "b.fixedArrayLen")
     , ("delay", "b.delay"), ("force", "b.force"), ("demand", "b.demand")
     , ("laterPure", "b.laterPure"), ("laterAp", "b.laterAp"), ("laterFix", "b.laterFix"), ("forceClock", "b.forceClock")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Vec", "b.Vec"), ("Proof.search", "b.Proof.search")
+    , ("Box", "b.Box"), ("unbox", "b.unbox")
     ]
 
   entry :: String -> String -> String -> Bool -> Decl
@@ -454,6 +466,23 @@ module Cinch.Builtin where
        ("b.Vec.Cons", TForall sp (forall-param-spine sp [TypeParam sp "k" (Some nat) False])
          (TFun sp element (TFun sp tail result)))]
 
+  box-declaration :: Decl
+  box-declaration =
+    let sp = Span 0 0 1 1 in
+    let a = TName sp "a" in
+    let boxed = TApp sp (TName sp "b.Box") (TArg sp a (TArgsEnd sp)) in
+    DData sp "b.Box" [TypeParam sp "a" None False]
+      [("b.Box", TFun sp a boxed)]
+
+  unbox-declarations :: List Decl
+  unbox-declarations =
+    let sp = Span 0 0 1 1 in
+    let a = TName sp "a" in
+    let boxed = TApp sp (TName sp "b.Box") (TArg sp a (TArgsEnd sp)) in
+    [ DSig sp "b.unbox" (TForall sp (forall-param-spine sp [TypeParam sp "a" None False]) (TFun sp boxed a))
+    , DFun sp "b.unbox" [([PCon sp "b.Box" (PArg sp (PVar sp "x") (PArgsEnd sp))], EVar sp "x")]
+    ]
+
   builtin-declarations :: List Decl
   builtin-declarations =
     [ entry "newIO" "NewIO" "forall (r :: Region). Unit -> Io r" True
@@ -473,6 +502,15 @@ module Cinch.Builtin where
     , task-rule "borrow" "Borrow" 1 False
     , task-rule "mutBorrow" "MutBorrow" 1 False
     , task-rule "refSet" "RefSet" 2 False
+    , task-rule "withLocal" "WithLocal" 2 False
+    , task-rule "refAsPtr" "RefAsPtr" 1 False
+    , task-rule "mutAsPtr" "MutAsPtr" 1 False
+    , task-rule "fixedArrayRepeat" "FixedArrayRepeat" 2 True
+    , task-rule "fixedArrayGet" "FixedArrayGet" 2 False
+    , task-rule "fixedArraySet" "FixedArraySet" 3 False
+    , task-rule "fixedArrayRef" "FixedArrayRef" 2 False
+    , task-rule "fixedArrayMut" "FixedArrayMut" 2 False
+    , task-rule "fixedArrayLen" "FixedArrayLen" 1 False
     , task-rule "delay" "Delay" 1 False
     , task-rule "force" "Force" 1 False
     , task-rule "demand" "Demand" 1 False

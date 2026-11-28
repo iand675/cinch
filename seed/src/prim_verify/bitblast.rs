@@ -9,7 +9,10 @@
 //! - `CompiledLratChecker` and `KernelLratChecker` are tiny, standalone RUP
 //!   verifiers sharing zero solver state.
 
-use super::sem::{eval_node, ConcreteVal, NodeId, Obligation, SemGraph, SemOp, SemTy, TheorySet};
+use super::sem::{
+    eval_node, ConcreteVal, FpFmt, FpPred, FpUnaryOp, NodeId, Obligation, SemGraph, SemOp, SemTy,
+    TheorySet,
+};
 use super::{
     CheckError, Checker, Counterexample, Evidence, Prover, ProverOutcome, TrustReceipt, TrustTier,
 };
@@ -43,11 +46,25 @@ pub enum BitBlastError {
     BudgetExceeded(String),
 }
 
+/// Tseitin CNF builder with AIG-style structural hashing and canonical gate sharing.
+///
+/// Techniques drawn from:
+/// - Henrik Böving et al., "Verified Bit-Blasting via AIGs & LRAT in Lean 4 (`bv_decide`)" (2024)
+/// - Alan Mishchenko, Satrajit Chatterjee, Robert Brayton, "DAG-Aware AIG Rewriting" (DAC 2006)
+/// - Robert Brummayer & Armin Biere, "Boolector: AIG Structural Hashing" (2009)
+///
+/// Structural hashing canonicalizes commutative/polarity-equivalent gates (`and`, `or` via De Morgan,
+/// `xor`/`iff`, and `ite`) so identical subcircuits reuse a single Tseitin variable and its clauses.
+/// Every gate variable `z` is strictly greater than its inputs' variables, preserving topological order.
 struct Tseitin {
     next_var: i32,
     clauses: Vec<Vec<i32>>,
     max_clauses: usize,
     true_lit: i32,
+    and_cache: HashMap<(i32, i32), i32>,
+    xor_cache: HashMap<(i32, i32), i32>,
+    ite_cache: HashMap<(i32, i32, i32), i32>,
+    aes_core_cache: HashMap<(super::sem::AesRoundKind, Vec<i32>), Vec<i32>>,
 }
 
 impl Tseitin {
@@ -58,6 +75,10 @@ impl Tseitin {
             clauses: Vec::new(),
             max_clauses,
             true_lit: 1,
+            and_cache: HashMap::new(),
+            xor_cache: HashMap::new(),
+            ite_cache: HashMap::new(),
+            aes_core_cache: HashMap::new(),
         };
         t.clauses.push(vec![1]);
         t
@@ -102,28 +123,23 @@ impl Tseitin {
         if b == self.true_lit || a == b {
             return Ok(a);
         }
+        let key = if a < b { (a, b) } else { (b, a) };
+        if let Some(&cached) = self.and_cache.get(&key) {
+            return Ok(cached);
+        }
         let z = self.fresh();
-        self.add_clause(vec![-z, a])?;
-        self.add_clause(vec![-z, b])?;
-        self.add_clause(vec![z, -a, -b])?;
+        self.add_clause(vec![-z, key.0])?;
+        self.add_clause(vec![-z, key.1])?;
+        self.add_clause(vec![z, -key.0, -key.1])?;
+        self.and_cache.insert(key, z);
         Ok(z)
     }
 
     fn mk_or(&mut self, a: i32, b: i32) -> Result<i32, BitBlastError> {
-        if a == self.true_lit || b == self.true_lit || a == -b {
-            return Ok(self.true_lit);
-        }
-        if a == self.false_lit() {
-            return Ok(b);
-        }
-        if b == self.false_lit() || a == b {
-            return Ok(a);
-        }
-        let z = self.fresh();
-        self.add_clause(vec![-a, z])?;
-        self.add_clause(vec![-b, z])?;
-        self.add_clause(vec![-z, a, b])?;
-        Ok(z)
+        // De Morgan lowering (`a | b == !(!a & !b)`) unifies OR and AND subcircuits
+        // in the same AIG structural hash table.
+        let neg = self.mk_and(-a, -b)?;
+        Ok(-neg)
     }
 
     fn mk_xor(&mut self, a: i32, b: i32) -> Result<i32, BitBlastError> {
@@ -145,12 +161,23 @@ impl Tseitin {
         if a == -b {
             return Ok(self.true_lit);
         }
-        let z = self.fresh();
-        self.add_clause(vec![-z, -a, -b])?;
-        self.add_clause(vec![-z, a, b])?;
-        self.add_clause(vec![z, -a, b])?;
-        self.add_clause(vec![z, a, -b])?;
-        Ok(z)
+        // Strip input signs: `(-a) ^ b == -(a ^ b)` and `(-a) ^ (-b) == a ^ b`.
+        let flip = (a < 0) ^ (b < 0);
+        let pa = a.abs();
+        let pb = b.abs();
+        let key = if pa < pb { (pa, pb) } else { (pb, pa) };
+        let z = if let Some(&cached) = self.xor_cache.get(&key) {
+            cached
+        } else {
+            let z = self.fresh();
+            self.add_clause(vec![-z, -key.0, -key.1])?;
+            self.add_clause(vec![-z, key.0, key.1])?;
+            self.add_clause(vec![z, -key.0, key.1])?;
+            self.add_clause(vec![z, key.0, -key.1])?;
+            self.xor_cache.insert(key, z);
+            z
+        };
+        Ok(if flip { -z } else { z })
     }
 
     fn mk_iff(&mut self, a: i32, b: i32) -> Result<i32, BitBlastError> {
@@ -168,12 +195,38 @@ impl Tseitin {
         if t == e {
             return Ok(t);
         }
-        let z = self.fresh();
-        self.add_clause(vec![-c, -t, z])?;
-        self.add_clause(vec![-c, t, -z])?;
-        self.add_clause(vec![c, -e, z])?;
-        self.add_clause(vec![c, e, -z])?;
-        Ok(z)
+        if t == self.true_lit || c == t {
+            return self.mk_or(c, e);
+        }
+        if t == self.false_lit() || c == -t {
+            return self.mk_and(-c, e);
+        }
+        if e == self.true_lit || c == -e {
+            return self.mk_or(-c, t);
+        }
+        if e == self.false_lit() || c == e {
+            return self.mk_and(c, t);
+        }
+        if t == -e {
+            return self.mk_iff(c, t);
+        }
+        // Canonicalize `c > 0` by swapping branches when `c < 0`, and normalize
+        // branch polarity (`ite(c, -t, -e) == -ite(c, t, e)`).
+        let (cc, tt, ee) = if c < 0 { (-c, e, t) } else { (c, t, e) };
+        let (flip, nt, ne) = if tt < 0 { (true, -tt, -ee) } else { (false, tt, ee) };
+        let key = (cc, nt, ne);
+        let z = if let Some(&cached) = self.ite_cache.get(&key) {
+            cached
+        } else {
+            let z = self.fresh();
+            self.add_clause(vec![-cc, -nt, z])?;
+            self.add_clause(vec![-cc, nt, -z])?;
+            self.add_clause(vec![cc, -ne, z])?;
+            self.add_clause(vec![cc, ne, -z])?;
+            self.ite_cache.insert(key, z);
+            z
+        };
+        Ok(if flip { -z } else { z })
     }
 
     fn mk_bv_const(&self, width: u16, bits: u128) -> Vec<i32> {
@@ -325,25 +378,71 @@ impl Tseitin {
         let f = self.false_lit();
         let mut acc = vec![f; w];
         for i in 0..w {
-            let mut partial = vec![f; w];
-            for j in 0..(w - i) {
-                partial[i + j] = self.mk_and(a[j], b[i])?;
+            if b[i] == f {
+                continue;
             }
-            acc = self.mk_bv_add(&acc, &partial)?;
+            let mut carry = f;
+            for j in 0..(w - i) {
+                let prod = self.mk_and(a[j], b[i])?;
+                let ai = acc[i + j];
+                let axorb = self.mk_xor(ai, prod)?;
+                let sum = self.mk_xor(axorb, carry)?;
+                let ab = self.mk_and(ai, prod)?;
+                let cx = self.mk_and(carry, axorb)?;
+                carry = self.mk_or(ab, cx)?;
+                acc[i + j] = sum;
+            }
         }
         Ok(acc)
     }
 
+    /// Add two equal-width bitvectors and append the carry-out bit (`k + 1` bits).
+    fn mk_bv_add_wide(&mut self, a: &[i32], b: &[i32]) -> Result<Vec<i32>, BitBlastError> {
+        let n = a.len().max(b.len());
+        let f = self.false_lit();
+        let mut out = Vec::with_capacity(n + 1);
+        let mut carry = f;
+        for i in 0..n {
+            let ai = a.get(i).copied().unwrap_or(f);
+            let bi = b.get(i).copied().unwrap_or(f);
+            let axorb = self.mk_xor(ai, bi)?;
+            let sum = self.mk_xor(axorb, carry)?;
+            let ab = self.mk_and(ai, bi)?;
+            let cx = self.mk_and(carry, axorb)?;
+            carry = self.mk_or(ab, cx)?;
+            out.push(sum);
+        }
+        out.push(carry);
+        Ok(out)
+    }
+
+    /// Balanced binary adder-tree population count (`O(w)` 1-bit adders total
+    /// instead of `O(w^2)` ripple-adding into a full-width accumulator).
     fn mk_bv_ctpop(&mut self, a: &[i32]) -> Result<Vec<i32>, BitBlastError> {
         let w = a.len();
         let f = self.false_lit();
-        let mut sum = vec![f; w];
-        for &bit in a {
-            let mut one_bit = vec![f; w];
-            one_bit[0] = bit;
-            sum = self.mk_bv_add(&sum, &one_bit)?;
+        if w == 0 {
+            return Ok(Vec::new());
         }
-        Ok(sum)
+        let mut layer: Vec<Vec<i32>> = a.iter().map(|&bit| vec![bit]).collect();
+        while layer.len() > 1 {
+            let mut next = Vec::with_capacity(layer.len().div_ceil(2));
+            let mut idx = 0;
+            while idx + 1 < layer.len() {
+                next.push(self.mk_bv_add_wide(&layer[idx], &layer[idx + 1])?);
+                idx += 2;
+            }
+            if idx < layer.len() {
+                next.push(layer.pop().unwrap());
+            }
+            layer = next;
+        }
+        let mut res = layer.pop().unwrap();
+        res.truncate(w);
+        while res.len() < w {
+            res.push(f);
+        }
+        Ok(res)
     }
 
     fn mk_bv_ctlz(&mut self, a: &[i32]) -> Result<Vec<i32>, BitBlastError> {
@@ -419,6 +518,58 @@ impl Tseitin {
         }
         Ok(wide[0..w].to_vec())
     }
+
+    /// Exact GF(2) carry-less multiplication (`pclmulqdq` / `pmull`):
+    /// bit `k` of the 128-bit product is `XOR_{i + j = k} (a[i] & b[j])` with zero carries.
+    fn mk_bv_clmul(&mut self, a: &[i32], b: &[i32]) -> Result<Vec<i32>, BitBlastError> {
+        let wa = a.len();
+        let wb = b.len();
+        let out_w = wa + wb;
+        let f = self.false_lit();
+        let mut out = Vec::with_capacity(out_w);
+        for k in 0..out_w {
+            let mut acc = f;
+            let i_start = k.saturating_sub(wb - 1);
+            let i_end = k.min(wa - 1);
+            for i in i_start..=i_end {
+                let j = k - i;
+                let prod = self.mk_and(a[i], b[j])?;
+                acc = self.mk_xor(acc, prod)?;
+            }
+            out.push(acc);
+        }
+        Ok(out)
+    }
+
+    /// FIPS-197 AES round core transformation (`EncCore`/`EncLastCore`/`DecCore`/`DecLastCore`).
+    /// Concrete 128-bit constant inputs are evaluated bit-exact via FIPS-197 `eval_aes_core`;
+    /// symbolic inputs are structurally hash-consed (Ackermann congruence over the 128-bit
+    /// AIG literal vector, so `s ^ 0` and `s` hit the exact same 128 output bits).
+    fn mk_aes_core(
+        &mut self,
+        kind: super::sem::AesRoundKind,
+        state: &[i32],
+    ) -> Result<Vec<i32>, BitBlastError> {
+        let t = self.true_lit;
+        let f = self.false_lit();
+        if state.len() == 128 && state.iter().all(|&l| l == t || l == f) {
+            let mut val = 0u128;
+            for (i, &l) in state.iter().enumerate() {
+                if l == t {
+                    val |= 1u128 << i;
+                }
+            }
+            let out = super::sem::eval_aes_core(kind, val);
+            return Ok(self.mk_bv_const(128, out));
+        }
+        let key = (kind, state.to_vec());
+        if let Some(cached) = self.aes_core_cache.get(&key) {
+            return Ok(cached.clone());
+        }
+        let fresh: Vec<i32> = (0..128).map(|_| self.fresh()).collect();
+        self.aes_core_cache.insert(key, fresh.clone());
+        Ok(fresh)
+    }
 }
 
 #[derive(Clone)]
@@ -448,6 +599,11 @@ pub fn bitblast_obligation(
     obligation: &Obligation,
     max_clauses: usize,
 ) -> Result<CnfFormula, BitBlastError> {
+    if obligation.theories().fp_arith {
+        return Err(BitBlastError::UnsupportedOp(
+            "floating-point arithmetic requires an SMT/FP backend".to_string(),
+        ));
+    }
     let mut ts = Tseitin::new(max_clauses);
     let mut memo: HashMap<NodeId, BbVal> = HashMap::new();
     let mut param_bits: Vec<(usize, SemTy, Vec<i32>)> = Vec::new();
@@ -458,14 +614,71 @@ pub fn bitblast_obligation(
         let bits = match p.ty {
             SemTy::Bool => vec![ts.fresh()],
             SemTy::Bv(w) => (0..w).map(|_| ts.fresh()).collect(),
-            SemTy::Fp(f) => {
-                return Err(BitBlastError::UnsupportedOp(format!(
-                    "floating-point parameter {f:?} requires SMT/FP backend"
-                )));
-            }
+            SemTy::Fp(f) => (0..f.bit_width()).map(|_| ts.fresh()).collect(),
         };
         param_vars.insert(p.index, bits.clone());
         param_bits.push((p.index, p.ty, bits));
+    }
+
+    fn mk_fp_is_nan(ts: &mut Tseitin, fmt: FpFmt, bits: &[i32]) -> Result<i32, BitBlastError> {
+        let (exp_lo, exp_hi, sig_hi) = match fmt {
+            FpFmt::F32 => (23usize, 31usize, 23usize),
+            FpFmt::F64 => (52usize, 63usize, 52usize),
+        };
+        let mut exp_all1 = ts.true_lit;
+        for &b in &bits[exp_lo..exp_hi] {
+            exp_all1 = ts.mk_and(exp_all1, b)?;
+        }
+        let mut sig_nz = ts.false_lit();
+        for &b in &bits[0..sig_hi] {
+            sig_nz = ts.mk_or(sig_nz, b)?;
+        }
+        ts.mk_and(exp_all1, sig_nz)
+    }
+
+    fn mk_fp_is_finite(ts: &mut Tseitin, fmt: FpFmt, bits: &[i32]) -> Result<i32, BitBlastError> {
+        let (exp_lo, exp_hi) = match fmt {
+            FpFmt::F32 => (23usize, 31usize),
+            FpFmt::F64 => (52usize, 63usize),
+        };
+        let mut exp_all1 = ts.true_lit;
+        for &b in &bits[exp_lo..exp_hi] {
+            exp_all1 = ts.mk_and(exp_all1, b)?;
+        }
+        Ok(-exp_all1)
+    }
+
+    fn mk_fp_is_zero(ts: &mut Tseitin, bits: &[i32]) -> Result<i32, BitBlastError> {
+        let mut any = ts.false_lit();
+        for &b in &bits[0..bits.len() - 1] {
+            any = ts.mk_or(any, b)?;
+        }
+        Ok(-any)
+    }
+
+    fn mk_fp_olt(ts: &mut Tseitin, fmt: FpFmt, a: &[i32], b: &[i32]) -> Result<i32, BitBlastError> {
+        let w = a.len();
+        let nan_a = mk_fp_is_nan(ts, fmt, a)?;
+        let nan_b = mk_fp_is_nan(ts, fmt, b)?;
+        let uno = ts.mk_or(nan_a, nan_b)?;
+        let ord = -uno;
+        let za = mk_fp_is_zero(ts, a)?;
+        let zb = mk_fp_is_zero(ts, b)?;
+        let both_zero = ts.mk_and(za, zb)?;
+        let sa = a[w - 1];
+        let sb = b[w - 1];
+        let mag_a = &a[0..w - 1];
+        let mag_b = &b[0..w - 1];
+        let mag_a_lt_b = ts.mk_bv_ult(mag_a, mag_b)?;
+        let mag_b_lt_a = ts.mk_bv_ult(mag_b, mag_a)?;
+        // If sa=1 (neg): lt iff (sb=0 -> true; sb=1 -> mag_b < mag_a)
+        let neg_a_case = ts.mk_ite(sb, mag_b_lt_a, ts.true_lit)?;
+        // If sa=0 (pos): lt iff (sb=0 -> mag_a < mag_b; sb=1 -> false)
+        let pos_a_case = ts.mk_ite(sb, ts.false_lit(), mag_a_lt_b)?;
+        let raw_lt = ts.mk_ite(sa, neg_a_case, pos_a_case)?;
+        let not_both_zero = -both_zero;
+        let nz_lt = ts.mk_and(not_both_zero, raw_lt)?;
+        ts.mk_and(ord, nz_lt)
     }
 
     fn lower(
@@ -481,12 +694,12 @@ pub fn bitblast_obligation(
         let res = match g.op(id) {
             SemOp::BoolConst(b) => BbVal::Bool(if *b { ts.true_lit } else { ts.false_lit() }),
             SemOp::BvConst { width, bits } => BbVal::Bv(ts.mk_bv_const(*width, *bits)),
+            SemOp::FpConst { fmt, bits } => BbVal::Bv(ts.mk_bv_const(fmt.bit_width(), *bits as u128)),
             SemOp::Param { index, ty, .. } => {
                 let bits = param_vars[index].clone();
                 match ty {
                     SemTy::Bool => BbVal::Bool(bits[0]),
-                    SemTy::Bv(_) => BbVal::Bv(bits),
-                    SemTy::Fp(_) => unreachable!(),
+                    SemTy::Bv(_) | SemTy::Fp(_) => BbVal::Bv(bits),
                 }
             }
             SemOp::Not(a) => {
@@ -668,6 +881,15 @@ pub fn bitblast_obligation(
                 let vs = lower(g, *s, ts, param_vars, memo)?;
                 BbVal::Bv(ts.mk_bv_fshr(va.as_bv(), vb.as_bv(), vs.as_bv())?)
             }
+            SemOp::BvClmul(a, b) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let vb = lower(g, *b, ts, param_vars, memo)?;
+                BbVal::Bv(ts.mk_bv_clmul(va.as_bv(), vb.as_bv())?)
+            }
+            SemOp::AesCore(kind, a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bv(ts.mk_aes_core(*kind, va.as_bv())?)
+            }
             SemOp::BvEq(a, b) => {
                 let va = lower(g, *a, ts, param_vars, memo)?;
                 let vb = lower(g, *b, ts, param_vars, memo)?;
@@ -692,6 +914,107 @@ pub fn bitblast_obligation(
                 let va = lower(g, *a, ts, param_vars, memo)?;
                 let vb = lower(g, *b, ts, param_vars, memo)?;
                 BbVal::Bool(ts.mk_bv_sle(va.as_bv(), vb.as_bv())?)
+            }
+            SemOp::FpToBvBits(a) | SemOp::BvBitsToFp(_, a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bv(va.as_bv().to_vec())
+            }
+            SemOp::FpNeg(a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let mut out = va.as_bv().to_vec();
+                let top = out.len() - 1;
+                out[top] = -out[top];
+                BbVal::Bv(out)
+            }
+            SemOp::FpUnary(FpUnaryOp::Abs, a) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let mut out = va.as_bv().to_vec();
+                let top = out.len() - 1;
+                out[top] = ts.false_lit();
+                BbVal::Bv(out)
+            }
+            SemOp::FpCopySign(a, b) => {
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let vb = lower(g, *b, ts, param_vars, memo)?;
+                let mut out = va.as_bv().to_vec();
+                let top = out.len() - 1;
+                out[top] = vb.as_bv()[top];
+                BbVal::Bv(out)
+            }
+            SemOp::FpIsNaN(a) => {
+                let fmt = g.fp_fmt(*a);
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bool(mk_fp_is_nan(ts, fmt, va.as_bv())?)
+            }
+            SemOp::FpIsFinite(a) => {
+                let fmt = g.fp_fmt(*a);
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                BbVal::Bool(mk_fp_is_finite(ts, fmt, va.as_bv())?)
+            }
+            SemOp::FpCmp(pred, a, b) => {
+                let fmt = g.fp_fmt(*a);
+                let va = lower(g, *a, ts, param_vars, memo)?;
+                let vb = lower(g, *b, ts, param_vars, memo)?;
+                let ba = va.as_bv();
+                let bb = vb.as_bv();
+                let nan_a = mk_fp_is_nan(ts, fmt, ba)?;
+                let nan_b = mk_fp_is_nan(ts, fmt, bb)?;
+                let uno = ts.mk_or(nan_a, nan_b)?;
+                let ord = -uno;
+                let res_lit = match pred {
+                    FpPred::False => ts.false_lit(),
+                    FpPred::True => ts.true_lit,
+                    FpPred::Ord => ord,
+                    FpPred::Uno => uno,
+                    FpPred::Oeq | FpPred::One | FpPred::Ueq | FpPred::Une => {
+                        let za = mk_fp_is_zero(ts, ba)?;
+                        let zb = mk_fp_is_zero(ts, bb)?;
+                        let both_zero = ts.mk_and(za, zb)?;
+                        let bits_eq = ts.mk_bv_eq(ba, bb)?;
+                        let val_eq = ts.mk_or(both_zero, bits_eq)?;
+                        let oeq = ts.mk_and(ord, val_eq)?;
+                        match pred {
+                            FpPred::Oeq => oeq,
+                            FpPred::One => ts.mk_and(ord, -val_eq)?,
+                            FpPred::Ueq => ts.mk_or(uno, val_eq)?,
+                            FpPred::Une => ts.mk_or(uno, -val_eq)?,
+                            _ => unreachable!(),
+                        }
+                    }
+                    FpPred::Olt => mk_fp_olt(ts, fmt, ba, bb)?,
+                    FpPred::Ogt => mk_fp_olt(ts, fmt, bb, ba)?,
+                    FpPred::Ole | FpPred::Oge => {
+                        let lt = if matches!(pred, FpPred::Ole) {
+                            mk_fp_olt(ts, fmt, ba, bb)?
+                        } else {
+                            mk_fp_olt(ts, fmt, bb, ba)?
+                        };
+                        let za = mk_fp_is_zero(ts, ba)?;
+                        let zb = mk_fp_is_zero(ts, bb)?;
+                        let both_zero = ts.mk_and(za, zb)?;
+                        let bits_eq = ts.mk_bv_eq(ba, bb)?;
+                        let val_eq = ts.mk_or(both_zero, bits_eq)?;
+                        let oeq = ts.mk_and(ord, val_eq)?;
+                        ts.mk_or(lt, oeq)?
+                    }
+                    FpPred::Ult => {
+                        let olt = mk_fp_olt(ts, fmt, ba, bb)?;
+                        ts.mk_or(uno, olt)?
+                    }
+                    FpPred::Ugt => {
+                        let ogt = mk_fp_olt(ts, fmt, bb, ba)?;
+                        ts.mk_or(uno, ogt)?
+                    }
+                    FpPred::Ule => {
+                        let ogt = mk_fp_olt(ts, fmt, bb, ba)?;
+                        -ogt
+                    }
+                    FpPred::Uge => {
+                        let olt = mk_fp_olt(ts, fmt, ba, bb)?;
+                        -olt
+                    }
+                };
+                BbVal::Bool(res_lit)
             }
             other => {
                 return Err(BitBlastError::UnsupportedOp(format!(
@@ -734,7 +1057,15 @@ fn reconstruct_counterexample(
                 }
                 ConcreteVal::Bv { width: w, bits: v }
             }
-            SemTy::Fp(_) => unreachable!(),
+            SemTy::Fp(fmt) => {
+                let mut v = 0u64;
+                for (bit_i, &var) in bits.iter().enumerate() {
+                    if model[var as usize] > 0 {
+                        v |= 1u64 << bit_i;
+                    }
+                }
+                ConcreteVal::Fp { fmt, bits: v }
+            }
         };
         vals.push((*idx, cv));
     }
@@ -816,29 +1147,154 @@ enum SatOutcome {
     Unknown(String),
 }
 
+/// Blocking-literal watch entry (Chu, Harwood, Stuckey, JSAT 2009):
+/// stores a cached literal from the watched clause so `propagate` can skip
+/// dereferencing the clause whenever `blocker` is already satisfied.
+#[derive(Clone, Copy)]
+struct Watch {
+    slot: usize,
+    blocker: i32,
+}
+
+/// Binary max-heap keyed by VSIDS variable activity (Eén & Sörensson, MiniSat 2003),
+/// replacing O(V) linear decision scans with O(log V) `pop_max` / `increase_key`.
+struct VarHeap {
+    heap: Vec<usize>,
+    pos: Vec<usize>,
+}
+
+impl VarHeap {
+    fn new(num_vars: usize) -> Self {
+        let mut heap = Vec::with_capacity(num_vars);
+        let mut pos = vec![usize::MAX; num_vars + 1];
+        for v in 1..=num_vars {
+            pos[v] = heap.len();
+            heap.push(v);
+        }
+        Self { heap, pos }
+    }
+
+    fn insert(&mut self, v: usize, activity: &[f64]) {
+        if self.pos[v] != usize::MAX {
+            return;
+        }
+        let idx = self.heap.len();
+        self.heap.push(v);
+        self.pos[v] = idx;
+        self.sift_up(idx, activity);
+    }
+
+    fn increase_key(&mut self, v: usize, activity: &[f64]) {
+        let idx = self.pos[v];
+        if idx != usize::MAX {
+            self.sift_up(idx, activity);
+        }
+    }
+
+    fn pop_max(&mut self, activity: &[f64]) -> Option<usize> {
+        let top = *self.heap.first()?;
+        let last = self.heap.pop().unwrap();
+        self.pos[top] = usize::MAX;
+        if !self.heap.is_empty() {
+            self.heap[0] = last;
+            self.pos[last] = 0;
+            self.sift_down(0, activity);
+        }
+        Some(top)
+    }
+
+    fn sift_up(&mut self, mut idx: usize, activity: &[f64]) {
+        let v = self.heap[idx];
+        let act = activity[v];
+        while idx > 0 {
+            let parent = (idx - 1) >> 1;
+            let pv = self.heap[parent];
+            if activity[pv] >= act {
+                break;
+            }
+            self.heap[idx] = pv;
+            self.pos[pv] = idx;
+            idx = parent;
+        }
+        self.heap[idx] = v;
+        self.pos[v] = idx;
+    }
+
+    fn sift_down(&mut self, mut idx: usize, activity: &[f64]) {
+        let len = self.heap.len();
+        let v = self.heap[idx];
+        let act = activity[v];
+        loop {
+            let left = (idx << 1) + 1;
+            if left >= len {
+                break;
+            }
+            let right = left + 1;
+            let best = if right < len && activity[self.heap[right]] > activity[self.heap[left]] {
+                right
+            } else {
+                left
+            };
+            let bv = self.heap[best];
+            if activity[bv] <= act {
+                break;
+            }
+            self.heap[idx] = bv;
+            self.pos[bv] = idx;
+            idx = best;
+        }
+        self.heap[idx] = v;
+        self.pos[v] = idx;
+    }
+}
+
+/// Luby restart sequence (Luby, Sinclair, Zuckerman, IPL 1993), 1-indexed:
+/// `1, 1, 2, 1, 1, 2, 4, 1, 1, 2, 1, 1, 2, 4, 8, ...`
+fn luby(mut i: usize) -> usize {
+    let mut k = 1usize;
+    loop {
+        let size = (1usize << k) - 1;
+        if i == size {
+            return 1usize << (k - 1);
+        }
+        if i < size {
+            i -= (1usize << (k - 1)) - 1;
+            k = 1;
+        } else {
+            k += 1;
+        }
+    }
+}
+
+/// CDCL SAT solver with blocking-literal 2WL, binary-heap VSIDS, phase saving
+/// (Pipatsrisawat & Darwiche 2007), Luby restarts, and Sörensson-Biere (SAT 2009)
+/// recursive 1-UIP learned clause minimization preserving exact LRAT RUP hints.
 struct CdclSolver {
-    num_vars: usize,
-    /// Clauses indexed by 0-based slot; each clause has a 1-based LRAT `id`.
+    /// Clauses indexed by 0-based slot; each clause has 1-based LRAT `id = slot + 1`.
     clauses: Vec<Vec<i32>>,
-    clause_ids: Vec<usize>,
-    /// Map from 1-based LRAT clause ID -> 0-based slot in `clauses`.
-    id_to_slot: HashMap<usize, usize>,
-    /// Two-watched literals: `watches[lit_idx]` lists clause slots watching `lit`.
-    watches: Vec<Vec<usize>>,
+    /// Two-watched literals with cached blocking literal per watch entry.
+    watches: Vec<Vec<Watch>>,
     /// Assignment per 1-based variable: 0 = unassigned, 1 = true, -1 = false.
     assign: Vec<i8>,
+    /// Last assigned polarity per variable (phase saving; defaults to -1).
+    saved_phase: Vec<i8>,
     level: Vec<usize>,
     /// 1-based LRAT clause ID that propagated `var`, or `None` if decision.
     reason: Vec<Option<usize>>,
-    /// Position of `var` in `trail` (for ordering level-0 antecedents).
+    /// Position of `var` in `trail` (for topological ordering of LRAT antecedents).
     trail_pos: Vec<usize>,
     trail: Vec<i32>,
     trail_lim: Vec<usize>,
     qhead: usize,
     activity: Vec<f64>,
     var_inc: f64,
+    var_heap: VarHeap,
     next_id: usize,
     lrat_lines: Vec<String>,
+    // Reusable scratch buffers for 1-UIP analysis & recursive clause minimization.
+    seen: Vec<bool>,
+    min_state: Vec<u8>,
+    in_minimized: Vec<bool>,
 }
 
 impl CdclSolver {
@@ -850,12 +1306,10 @@ impl CdclSolver {
     fn new(cnf: &CnfFormula) -> Self {
         let n = cnf.num_vars;
         Self {
-            num_vars: n,
             clauses: Vec::with_capacity(cnf.clauses.len() + 256),
-            clause_ids: Vec::with_capacity(cnf.clauses.len() + 256),
-            id_to_slot: HashMap::with_capacity(cnf.clauses.len() + 256),
             watches: vec![Vec::new(); (n + 1) * 2],
             assign: vec![0; n + 1],
+            saved_phase: vec![-1; n + 1],
             level: vec![0; n + 1],
             reason: vec![None; n + 1],
             trail_pos: vec![0; n + 1],
@@ -864,24 +1318,32 @@ impl CdclSolver {
             qhead: 0,
             activity: vec![0.0; n + 1],
             var_inc: 1.0,
+            var_heap: VarHeap::new(n),
             next_id: 1,
             lrat_lines: Vec::new(),
+            seen: vec![false; n + 1],
+            min_state: vec![0; n + 1],
+            in_minimized: vec![false; n + 1],
         }
     }
 
+    #[inline]
     fn val_lit_in(assign: &[i8], lit: i32) -> i8 {
         let a = assign[lit.unsigned_abs() as usize];
         if lit > 0 { a } else { -a }
     }
 
+    #[inline]
     fn val_lit(&self, lit: i32) -> i8 {
         Self::val_lit_in(&self.assign, lit)
     }
 
+    #[inline]
     fn decision_level(&self) -> usize {
         self.trail_lim.len()
     }
 
+    #[inline]
     fn enqueue(&mut self, lit: i32, reason_id: Option<usize>) {
         let v = lit.unsigned_abs() as usize;
         self.assign[v] = if lit > 0 { 1 } else { -1 };
@@ -895,17 +1357,18 @@ impl CdclSolver {
         let id = self.next_id;
         self.next_id += 1;
         let slot = self.clauses.len();
+        debug_assert_eq!(slot + 1, id);
         if lits.len() >= 2 {
-            self.watches[Self::lit_idx(lits[0])].push(slot);
-            self.watches[Self::lit_idx(lits[1])].push(slot);
+            let l0 = lits[0];
+            let l1 = lits[1];
+            self.watches[Self::lit_idx(l0)].push(Watch { slot, blocker: l1 });
+            self.watches[Self::lit_idx(l1)].push(Watch { slot, blocker: l0 });
         }
         self.clauses.push(lits);
-        self.clause_ids.push(id);
-        self.id_to_slot.insert(id, slot);
         id
     }
 
-    /// Propagate queued literals; returns `Some(conflict_clause_id)` on conflict.
+    /// Propagate queued literals using blocking-literal 2WL; returns `Some(conflict_clause_id)`.
     fn propagate(&mut self) -> Option<usize> {
         while self.qhead < self.trail.len() {
             let p = self.trail[self.qhead];
@@ -913,19 +1376,30 @@ impl CdclSolver {
             let false_lit = -p;
             let widx = Self::lit_idx(false_lit);
             let mut ws = std::mem::take(&mut self.watches[widx]);
-            let mut i = 0;
+            let mut i = 0usize;
+            let mut j = 0usize;
             let mut conflict: Option<usize> = None;
 
             while i < ws.len() {
-                let slot = ws[i];
+                let w = ws[i];
+                i += 1;
+                // Blocking-literal fast path: clause is already satisfied without touching memory.
+                if Self::val_lit_in(&self.assign, w.blocker) == 1 {
+                    ws[j] = w;
+                    j += 1;
+                    continue;
+                }
+                let slot = w.slot;
                 let cl = &mut self.clauses[slot];
                 // Ensure `false_lit` is at `cl[1]`.
                 if cl[0] == false_lit {
                     cl.swap(0, 1);
                 }
                 let first = cl[0];
+                let new_w = Watch { slot, blocker: first };
                 if Self::val_lit_in(&self.assign, first) == 1 {
-                    i += 1;
+                    ws[j] = new_w;
+                    j += 1;
                     continue;
                 }
                 // Look for a new watch among cl[2..].
@@ -934,8 +1408,7 @@ impl CdclSolver {
                     if Self::val_lit_in(&self.assign, cl[k]) != -1 {
                         cl.swap(1, k);
                         let new_watch = cl[1];
-                        self.watches[Self::lit_idx(new_watch)].push(slot);
-                        ws.swap_remove(i);
+                        self.watches[Self::lit_idx(new_watch)].push(new_w);
                         found = true;
                         break;
                     }
@@ -944,15 +1417,22 @@ impl CdclSolver {
                     continue;
                 }
                 // No replacement watch: clause is either unit (`first`) or conflicting!
-                let cid = self.clause_ids[slot];
+                ws[j] = new_w;
+                j += 1;
+                let cid = slot + 1;
                 if self.val_lit(first) == -1 {
                     conflict = Some(cid);
+                    while i < ws.len() {
+                        ws[j] = ws[i];
+                        j += 1;
+                        i += 1;
+                    }
                     break;
                 } else {
                     self.enqueue(first, Some(cid));
-                    i += 1;
                 }
             }
+            ws.truncate(j);
             // Restore remaining watches (including anything newly pushed onto `self.watches[widx]`).
             if self.watches[widx].is_empty() {
                 self.watches[widx] = ws;
@@ -980,8 +1460,7 @@ impl CdclSolver {
             }
             if let Some(rid) = self.reason[v] {
                 ordered.push((self.trail_pos[v], rid));
-                let slot = self.id_to_slot[&rid];
-                for &lit in &self.clauses[slot] {
+                for &lit in &self.clauses[rid - 1] {
                     let u = lit.unsigned_abs() as usize;
                     if u != v && self.level[u] == 0 {
                         stack.push(u);
@@ -1000,16 +1479,78 @@ impl CdclSolver {
         out
     }
 
-    /// 1-UIP conflict analysis returning `(learned_clause, backtrack_level, lrat_hints)`.
+    /// Iterative Sörensson-Biere recursive redundancy test (SAT 2009):
+    /// returns `true` iff variable `start` (at `0 < level[start] < cur_lvl`) is
+    /// implied by other literals in the unminimized 1-UIP clause + level-0 facts.
+    fn is_lit_redundant(
+        &mut self,
+        start: usize,
+        cur_lvl: usize,
+        abstract_levels: u64,
+        min_touched: &mut Vec<usize>,
+    ) -> bool {
+        if self.min_state[start] != 0 {
+            return self.min_state[start] == 1;
+        }
+        if self.reason[start].is_none() {
+            self.min_state[start] = 2;
+            min_touched.push(start);
+            return false;
+        }
+        let mut stack: Vec<(usize, usize)> = vec![(start, 0)];
+        while let Some((v, idx)) = stack.last_mut() {
+            let v_cur = *v;
+            let rid = self.reason[v_cur].unwrap();
+            let cl_len = self.clauses[rid - 1].len();
+            if *idx >= cl_len {
+                // Every antecedent literal of `v_cur` is covered -> `v_cur` is redundant!
+                self.min_state[v_cur] = 1;
+                min_touched.push(v_cur);
+                stack.pop();
+                continue;
+            }
+            let lit = self.clauses[rid - 1][*idx];
+            *idx += 1;
+            let u = lit.unsigned_abs() as usize;
+            if u == v_cur || self.level[u] == 0 {
+                continue;
+            }
+            if (self.seen[u] && self.level[u] < cur_lvl) || self.min_state[u] == 1 {
+                continue;
+            }
+            let unremovable = self.min_state[u] == 2
+                || self.reason[u].is_none()
+                || (abstract_levels & (1u64 << (self.level[u] & 63))) == 0;
+            if unremovable {
+                // Mark `u` (if not already marked) and the entire active chain as non-removable.
+                if self.min_state[u] == 0 {
+                    self.min_state[u] = 2;
+                    min_touched.push(u);
+                }
+                while let Some((pv, _)) = stack.pop() {
+                    if self.min_state[pv] == 0 {
+                        self.min_state[pv] = 2;
+                        min_touched.push(pv);
+                    }
+                }
+                return false;
+            }
+            stack.push((u, 0));
+        }
+        self.min_state[start] == 1
+    }
+
+    /// 1-UIP conflict analysis with recursive learned-clause minimization,
+    /// returning `(minimized_clause, backtrack_level, exact_lrat_hints)`.
     fn analyze(&mut self, conflict_id: usize) -> (Vec<i32>, usize, Vec<usize>) {
         let cur_lvl = self.decision_level();
-        let mut seen = vec![false; self.num_vars + 1];
+        let mut seen_touched: Vec<usize> = Vec::new();
         let mut learned: Vec<i32> = Vec::new();
         let mut lvl0_vars: Vec<usize> = Vec::new();
         let mut resolved_ids: Vec<usize> = Vec::new();
         let mut counter = 0usize;
 
-        // Placehold slot 0 for the asserting 1-UIP literal.
+        // Placeholder slot 0 for the asserting 1-UIP literal.
         learned.push(0);
 
         let mut cur_cid = conflict_id;
@@ -1018,14 +1559,16 @@ impl CdclSolver {
 
         loop {
             resolved_ids.push(cur_cid);
-            let slot = self.id_to_slot[&cur_cid];
-            let lits = self.clauses[slot].clone();
-            for lit in lits {
+            let slot = cur_cid - 1;
+            let cl_len = self.clauses[slot].len();
+            for k in 0..cl_len {
+                let lit = self.clauses[slot][k];
                 let v = lit.unsigned_abs() as usize;
-                if v == skip_var || seen[v] {
+                if v == skip_var || self.seen[v] {
                     continue;
                 }
-                seen[v] = true;
+                self.seen[v] = true;
+                seen_touched.push(v);
                 self.bump_var(v);
                 let lv = self.level[v];
                 if lv == cur_lvl {
@@ -1041,7 +1584,7 @@ impl CdclSolver {
             let next_lit = loop {
                 trail_idx -= 1;
                 let p = self.trail[trail_idx];
-                if seen[p.unsigned_abs() as usize] {
+                if self.seen[p.unsigned_abs() as usize] {
                     break p;
                 }
             };
@@ -1055,25 +1598,90 @@ impl CdclSolver {
             cur_cid = self.reason[v].expect("non-UIP literal at current level must have a reason");
         }
 
+        // Recursive 1-UIP clause minimization (Sörensson & Biere, SAT 2009).
+        let mut abstract_levels = 0u64;
+        for &lit in &learned[1..] {
+            abstract_levels |= 1u64 << (self.level[lit.unsigned_abs() as usize] & 63);
+        }
+        let mut min_touched: Vec<usize> = Vec::new();
+        let mut minimized: Vec<i32> = Vec::with_capacity(learned.len());
+        let mut dropped_vars: Vec<usize> = Vec::new();
+        minimized.push(learned[0]);
+        for i in 1..learned.len() {
+            let lit = learned[i];
+            let v = lit.unsigned_abs() as usize;
+            if self.is_lit_redundant(v, cur_lvl, abstract_levels, &mut min_touched) {
+                dropped_vars.push(v);
+            } else {
+                minimized.push(lit);
+            }
+        }
+
+        // Collect trail-ordered reason clauses for all dropped literals so LRAT RUP
+        // verification re-derives every dropped literal before replaying `resolved_ids`.
+        let mut min_reasons: Vec<(usize, usize)> = Vec::new();
+        if !dropped_vars.is_empty() {
+            for &lit in &minimized {
+                self.in_minimized[lit.unsigned_abs() as usize] = true;
+            }
+            let mut visited_drop: HashSet<usize> = HashSet::new();
+            let mut stack = dropped_vars;
+            while let Some(w) = stack.pop() {
+                if self.in_minimized[w] || !visited_drop.insert(w) {
+                    continue;
+                }
+                if self.level[w] == 0 {
+                    lvl0_vars.push(w);
+                    continue;
+                }
+                let rid = self.reason[w].expect("dropped redundant var must have a reason");
+                min_reasons.push((self.trail_pos[w], rid));
+                for &q in &self.clauses[rid - 1] {
+                    let u = q.unsigned_abs() as usize;
+                    if u != w && !self.in_minimized[u] {
+                        stack.push(u);
+                    }
+                }
+            }
+            min_reasons.sort_by_key(|&(pos, _)| pos);
+            for &lit in &minimized {
+                self.in_minimized[lit.unsigned_abs() as usize] = false;
+            }
+        }
+
+        // Clean reusable scratch tables in O(touched).
+        for v in seen_touched {
+            self.seen[v] = false;
+        }
+        for v in min_touched {
+            self.min_state[v] = 0;
+        }
+
         // Compute backtrack level and move a literal at that level to index 1 for watching.
         let mut bt_level = 0usize;
-        if learned.len() > 1 {
+        if minimized.len() > 1 {
             let mut best = 1usize;
-            for i in 1..learned.len() {
-                let lv = self.level[learned[i].unsigned_abs() as usize];
+            for i in 1..minimized.len() {
+                let lv = self.level[minimized[i].unsigned_abs() as usize];
                 if lv > bt_level {
                     bt_level = lv;
                     best = i;
                 }
             }
-            learned.swap(1, best);
+            minimized.swap(1, best);
         }
 
         // Build exact LRAT RUP hint list:
-        // 1. Needed level-0 reason clauses in forward trail order.
-        // 2. Resolved current-level clauses in reverse resolution order (forward propagation order).
+        // 1. Needed level-0 reason clauses in ascending `trail_pos` order.
+        // 2. Minimization antecedent clauses in ascending `trail_pos` order.
+        // 3. Resolved current-level clauses in reverse resolution order (forward propagation order).
         let mut hints = self.collect_level0_hints(&lvl0_vars);
         let mut seen_hint: HashSet<usize> = hints.iter().copied().collect();
+        for &(_, rid) in &min_reasons {
+            if seen_hint.insert(rid) {
+                hints.push(rid);
+            }
+        }
         for &cid in resolved_ids.iter().rev() {
             if seen_hint.insert(cid) {
                 hints.push(cid);
@@ -1087,11 +1695,13 @@ impl CdclSolver {
             }
             self.var_inc *= 1e-100;
         }
-        (learned, bt_level, hints)
+        (minimized, bt_level, hints)
     }
 
+    #[inline]
     fn bump_var(&mut self, v: usize) {
         self.activity[v] += self.var_inc;
+        self.var_heap.increase_key(v, &self.activity);
     }
 
     fn backtrack(&mut self, target_level: usize) {
@@ -1102,29 +1712,33 @@ impl CdclSolver {
         while self.trail.len() > lim {
             let p = self.trail.pop().unwrap();
             let v = p.unsigned_abs() as usize;
+            // Phase saving: remember last assigned polarity before clearing.
+            self.saved_phase[v] = self.assign[v];
             self.assign[v] = 0;
             self.reason[v] = None;
+            self.var_heap.insert(v, &self.activity);
         }
         self.trail_lim.truncate(target_level);
         self.qhead = self.trail.len();
     }
 
     fn log_lrat_add(&mut self, id: usize, lits: &[i32], hints: &[usize]) {
-        let mut line = format!("{id}");
+        use std::fmt::Write as _;
+        let mut line = String::with_capacity(16 + (lits.len() + hints.len()) * 6);
+        let _ = write!(line, "{id}");
         for &l in lits {
-            line.push_str(&format!(" {l}"));
+            let _ = write!(line, " {l}");
         }
         line.push_str(" 0");
         for &h in hints {
-            line.push_str(&format!(" {h}"));
+            let _ = write!(line, " {h}");
         }
         line.push_str(" 0");
         self.lrat_lines.push(line);
     }
 
     fn emit_level0_empty_clause(&mut self, conflict_id: usize) -> String {
-        let slot = self.id_to_slot[&conflict_id];
-        let seeds: Vec<usize> = self.clauses[slot]
+        let seeds: Vec<usize> = self.clauses[conflict_id - 1]
             .iter()
             .map(|l| l.unsigned_abs() as usize)
             .collect();
@@ -1138,17 +1752,13 @@ impl CdclSolver {
         self.lrat_lines.join("\n")
     }
 
-    fn pick_branch_var(&self) -> Option<usize> {
-        let mut best: Option<(usize, f64)> = None;
-        for v in 1..=self.num_vars {
+    fn pick_branch_var(&mut self) -> Option<usize> {
+        while let Some(v) = self.var_heap.pop_max(&self.activity) {
             if self.assign[v] == 0 {
-                let act = self.activity[v];
-                if best.map_or(true, |(_, ba)| act > ba) {
-                    best = Some((v, act));
-                }
+                return Some(v);
             }
         }
-        best.map(|(v, _)| v)
+        None
     }
 }
 
@@ -1182,8 +1792,10 @@ fn solve_cdcl_lrat(cnf: &CnfFormula, max_conflicts: usize) -> SatOutcome {
         }
     }
 
+    const LUBY_BASE: usize = 64;
     let mut conflicts = 0usize;
-    let mut restart_limit = 200usize;
+    let mut restart_idx = 1usize;
+    let mut restart_limit = luby(restart_idx) * LUBY_BASE;
     let mut since_restart = 0usize;
 
     loop {
@@ -1208,13 +1820,15 @@ fn solve_cdcl_lrat(cnf: &CnfFormula, max_conflicts: usize) -> SatOutcome {
             if since_restart >= restart_limit {
                 s.backtrack(0);
                 since_restart = 0;
-                restart_limit = (restart_limit * 3) / 2 + 50;
+                restart_idx += 1;
+                restart_limit = luby(restart_idx) * LUBY_BASE;
             }
             match s.pick_branch_var() {
                 None => return SatOutcome::Sat(s.assign),
                 Some(v) => {
                     s.trail_lim.push(s.trail.len());
-                    s.enqueue(-(v as i32), None);
+                    let lit = if s.saved_phase[v] > 0 { v as i32 } else { -(v as i32) };
+                    s.enqueue(lit, None);
                 }
             }
         }
@@ -1226,13 +1840,20 @@ fn solve_cdcl_lrat(cnf: &CnfFormula, max_conflicts: usize) -> SatOutcome {
 // =========================================================================
 
 /// Verify an `lrat/v1` refutation certificate against `cnf`.
-/// This function is the entire SAT-proof trusted core (~100 lines).
+/// This function is the entire SAT-proof trusted core (~115 lines).
+///
+/// Uses direct clause-ID indexing (`Vec<Option<Vec<i32>>>`) and an O(1)-reset
+/// undo trail over a single reusable assignment array (Cruz-Filipe, Heule,
+/// Hunt, Kaufmann, Schneider-Kamp, CADE 2017) so verification runs in
+/// O(total hints) time instead of O(steps * vars).
 pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckError> {
-    let mut db: HashMap<usize, Vec<i32>> = HashMap::with_capacity(cnf.clauses.len() + 64);
-    for (i, cl) in cnf.clauses.iter().enumerate() {
-        db.insert(i + 1, cl.clone());
+    let mut db: Vec<Option<Vec<i32>>> = Vec::with_capacity(cnf.clauses.len() + 65);
+    db.push(None); // 1-based indexing
+    for cl in &cnf.clauses {
+        db.push(Some(cl.clone()));
     }
-    let mut max_var = cnf.num_vars;
+    let mut assign: Vec<i8> = vec![0; cnf.num_vars + 1];
+    let mut undo: Vec<usize> = Vec::with_capacity(64);
     let mut steps = 0usize;
     let mut derived_empty = false;
 
@@ -1241,50 +1862,54 @@ pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckErro
         if line.is_empty() || line.starts_with('c') {
             continue;
         }
-        let toks: Vec<&str> = line.split_whitespace().collect();
-        if toks.len() < 2 {
-            return Err(CheckError::InvalidCertificate(format!(
-                "lrat line {}: malformed entry",
-                line_no + 1
-            )));
-        }
+        let mut toks = line.split_whitespace();
+        let first = toks.next().ok_or_else(|| {
+            CheckError::InvalidCertificate(format!("lrat line {}: malformed entry", line_no + 1))
+        })?;
+        let second = toks.next().ok_or_else(|| {
+            CheckError::InvalidCertificate(format!("lrat line {}: malformed entry", line_no + 1))
+        })?;
         // Deletion line: `<id> d <del_id...> 0`
-        if toks[1] == "d" {
-            for &t in &toks[2..] {
+        if second == "d" {
+            for t in toks {
                 let did: usize = t.parse().map_err(|_| {
                     CheckError::InvalidCertificate(format!("lrat line {}: bad delete id `{t}`", line_no + 1))
                 })?;
                 if did == 0 {
                     break;
                 }
-                db.remove(&did);
+                if did < db.len() {
+                    db[did] = None;
+                }
             }
             continue;
         }
 
         // Addition line: `<new_id> <lit...> 0 <hint_id...> 0`
-        let new_id: usize = toks[0].parse().map_err(|_| {
+        let new_id: usize = first.parse().map_err(|_| {
             CheckError::InvalidCertificate(format!("lrat line {}: bad clause id", line_no + 1))
         })?;
-        let mut i = 1usize;
         let mut lits = Vec::new();
-        while i < toks.len() {
-            let l: i32 = toks[i].parse().map_err(|_| {
+        let mut cur_tok = Some(second);
+        while let Some(t) = cur_tok {
+            let l: i32 = t.parse().map_err(|_| {
                 CheckError::InvalidCertificate(format!("lrat line {}: bad literal", line_no + 1))
             })?;
-            i += 1;
             if l == 0 {
                 break;
             }
-            max_var = max_var.max(l.unsigned_abs() as usize);
+            let v = l.unsigned_abs() as usize;
+            if v >= assign.len() {
+                assign.resize(v + 1, 0);
+            }
             lits.push(l);
+            cur_tok = toks.next();
         }
         let mut hints = Vec::new();
-        while i < toks.len() {
-            let h: i64 = toks[i].parse().map_err(|_| {
+        for t in toks {
+            let h: i64 = t.parse().map_err(|_| {
                 CheckError::InvalidCertificate(format!("lrat line {}: bad hint id", line_no + 1))
             })?;
-            i += 1;
             if h == 0 {
                 break;
             }
@@ -1298,7 +1923,6 @@ pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckErro
         }
 
         // Check Reverse Unit Propagation (RUP): assume negation of every literal in `lits`.
-        let mut assign: Vec<i8> = vec![0; max_var + 1];
         let mut conflict = false;
         for &l in &lits {
             let v = l.unsigned_abs() as usize;
@@ -1308,17 +1932,22 @@ pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckErro
                 conflict = true;
                 break;
             }
-            assign[v] = want;
+            if assign[v] == 0 {
+                assign[v] = want;
+                undo.push(v);
+            }
         }
 
+        let mut step_err: Option<CheckError> = None;
         if !conflict {
             for &hid in &hints {
-                let hcl = db.get(&hid).ok_or_else(|| {
-                    CheckError::InvalidCertificate(format!(
+                let Some(hcl) = db.get(hid).and_then(|o| o.as_ref()) else {
+                    step_err = Some(CheckError::InvalidCertificate(format!(
                         "lrat line {}: unknown hint clause id {hid}",
                         line_no + 1
-                    ))
-                })?;
+                    )));
+                    break;
+                };
                 let mut unassigned: Option<i32> = None;
                 let mut satisfied = false;
                 let mut multiple_unassigned = false;
@@ -1344,10 +1973,11 @@ pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckErro
                     continue;
                 }
                 if multiple_unassigned {
-                    return Err(CheckError::InvalidCertificate(format!(
+                    step_err = Some(CheckError::InvalidCertificate(format!(
                         "lrat line {}: hint clause {hid} is not unit under current assumptions",
                         line_no + 1
                     )));
+                    break;
                 }
                 match unassigned {
                     None => {
@@ -1360,11 +1990,20 @@ pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckErro
                             assign.resize(v + 1, 0);
                         }
                         assign[v] = if u > 0 { 1 } else { -1 };
+                        undo.push(v);
                     }
                 }
             }
         }
 
+        // O(touched) undo reset.
+        for v in undo.drain(..) {
+            assign[v] = 0;
+        }
+
+        if let Some(err) = step_err {
+            return Err(err);
+        }
         if !conflict {
             return Err(CheckError::InvalidCertificate(format!(
                 "lrat line {}: clause {new_id} failed RUP verification",
@@ -1377,7 +2016,10 @@ pub fn verify_lrat(cnf: &CnfFormula, lrat_text: &str) -> Result<usize, CheckErro
             derived_empty = true;
             break;
         }
-        db.insert(new_id, lits);
+        if new_id >= db.len() {
+            db.resize(new_id + 1, None);
+        }
+        db[new_id] = Some(lits);
     }
 
     if !derived_empty {
@@ -1589,5 +2231,185 @@ impl Prover for ExternalSatProver {
                 String::from_utf8_lossy(&out.stderr).trim()
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prim_verify::sem::{ObligationKind, SemParam};
+
+    #[test]
+    fn aig_structural_hashing_deduplicates_gates_and_shrinks_ctpop() {
+        let mut ts = Tseitin::new(DEFAULT_MAX_CLAUSES);
+        let a = ts.fresh();
+        let b = ts.fresh();
+        let c = ts.fresh();
+
+        // Commutative AND sharing + De Morgan OR sharing.
+        let ab1 = ts.mk_and(a, b).unwrap();
+        let clauses_after_and = ts.clauses.len();
+        let vars_after_and = ts.next_var;
+        assert_eq!(ts.mk_and(b, a).unwrap(), ab1);
+        assert_eq!(ts.mk_or(-a, -b).unwrap(), -ab1);
+        assert_eq!(ts.clauses.len(), clauses_after_and);
+        assert_eq!(ts.next_var, vars_after_and);
+
+        // Sign-normalized XOR / IFF sharing.
+        let x1 = ts.mk_xor(a, b).unwrap();
+        let clauses_after_xor = ts.clauses.len();
+        let vars_after_xor = ts.next_var;
+        assert_eq!(ts.mk_xor(b, a).unwrap(), x1);
+        assert_eq!(ts.mk_xor(-a, b).unwrap(), -x1);
+        assert_eq!(ts.mk_xor(a, -b).unwrap(), -x1);
+        assert_eq!(ts.mk_xor(-a, -b).unwrap(), x1);
+        assert_eq!(ts.mk_iff(a, b).unwrap(), -x1);
+        assert_eq!(ts.clauses.len(), clauses_after_xor);
+        assert_eq!(ts.next_var, vars_after_xor);
+
+        // Polarity-normalized ITE sharing.
+        let ite1 = ts.mk_ite(c, a, b).unwrap();
+        let clauses_after_ite = ts.clauses.len();
+        let vars_after_ite = ts.next_var;
+        assert_eq!(ts.mk_ite(-c, b, a).unwrap(), ite1);
+        assert_eq!(ts.mk_ite(c, -a, -b).unwrap(), -ite1);
+        assert_eq!(ts.mk_ite(-c, -b, -a).unwrap(), -ite1);
+        assert_eq!(ts.clauses.len(), clauses_after_ite);
+        assert_eq!(ts.next_var, vars_after_ite);
+
+        // Balanced binary adder-tree ctpop on 64 bits uses O(w) adders (~120 1-bit adders),
+        // drastically fewer than the O(w^2) (~40,000+ clauses) ripple-into-accumulator encoding.
+        let mut ts64 = Tseitin::new(DEFAULT_MAX_CLAUSES);
+        let bits64: Vec<i32> = (0..64).map(|_| ts64.fresh()).collect();
+        let pop = ts64.mk_bv_ctpop(&bits64).unwrap();
+        assert_eq!(pop.len(), 64);
+        assert!(
+            ts64.clauses.len() < 2_500,
+            "expected balanced adder-tree 64-bit ctpop < 2500 clauses, got {}",
+            ts64.clauses.len()
+        );
+    }
+
+    #[test]
+    fn luby_restart_sequence_matches_canonical_values() {
+        let got: Vec<usize> = (1..=16).map(luby).collect();
+        assert_eq!(got, vec![1, 1, 2, 1, 1, 2, 4, 1, 1, 2, 1, 1, 2, 4, 8, 1]);
+    }
+
+    #[test]
+    fn cdcl_recursive_minimization_and_lrat_kernel_verify_hard_bv_identities() {
+        let prover = CdclLratProver::default();
+        let checker = KernelLratChecker::default();
+
+        // 1. 32-bit `(a + b) - b == a`
+        let ob_add_sub = {
+            let mut g = SemGraph::new();
+            let a = g.param(0, "a", SemTy::Bv(32));
+            let b = g.param(1, "b", SemTy::Bv(32));
+            let sum = g.bv_add(a, b);
+            let back = g.bv_sub(sum, b);
+            let goal = g.bv_eq(back, a);
+            Obligation::new(
+                "add_sub_cancel_32",
+                "llvm-sem@21.1",
+                ObligationKind::WellDefined,
+                vec![
+                    SemParam { index: 0, name: "a".into(), ty: SemTy::Bv(32), signed: false },
+                    SemParam { index: 1, name: "b".into(), ty: SemTy::Bv(32), signed: false },
+                ],
+                g,
+                goal,
+            )
+        };
+
+        // 2. 64-bit `ctlz(x) == cttz(bitreverse(x))`
+        let ob_ctlz_cttz = {
+            let mut g = SemGraph::new();
+            let x = g.param(0, "x", SemTy::Bv(64));
+            let lhs = g.bv_ctlz(x);
+            let rev = g.bv_bitreverse(x);
+            let rhs = g.bv_cttz(rev);
+            let goal = g.bv_eq(lhs, rhs);
+            Obligation::new(
+                "ctlz_cttz_bitreverse_64",
+                "llvm-sem@21.1",
+                ObligationKind::WellDefined,
+                vec![SemParam { index: 0, name: "x".into(), ty: SemTy::Bv(64), signed: false }],
+                g,
+                goal,
+            )
+        };
+
+        // 3. 16-bit `ctpop(x) == ctpop(bswap(x))` (exercises balanced ctpop + multi-conflict CDCL)
+        let ob_ctpop_bswap = {
+            let mut g = SemGraph::new();
+            let x = g.param(0, "x", SemTy::Bv(16));
+            let lhs = g.bv_ctpop(x);
+            let sw = g.bv_bswap(x);
+            let rhs = g.bv_ctpop(sw);
+            let goal = g.bv_eq(lhs, rhs);
+            Obligation::new(
+                "ctpop_bswap_16",
+                "llvm-sem@21.1",
+                ObligationKind::WellDefined,
+                vec![SemParam { index: 0, name: "x".into(), ty: SemTy::Bv(16), signed: false }],
+                g,
+                goal,
+            )
+        };
+
+        // 4. 8-bit `mul(a, b) == mul(b, a)` (heavy multi-conflict CDCL + recursive minimization)
+        let ob_mul_comm = {
+            let mut g = SemGraph::new();
+            let a = g.param(0, "a", SemTy::Bv(8));
+            let b = g.param(1, "b", SemTy::Bv(8));
+            let lhs = g.bv_mul(a, b);
+            let rhs = g.bv_mul(b, a);
+            let goal = g.bv_eq(lhs, rhs);
+            Obligation::new(
+                "mul_comm_8",
+                "llvm-sem@21.1",
+                ObligationKind::WellDefined,
+                vec![
+                    SemParam { index: 0, name: "a".into(), ty: SemTy::Bv(8), signed: false },
+                    SemParam { index: 1, name: "b".into(), ty: SemTy::Bv(8), signed: false },
+                ],
+                g,
+                goal,
+            )
+        };
+
+        for ob in [ob_add_sub, ob_ctlz_cttz, ob_ctpop_bswap, ob_mul_comm] {
+            match prover.prove(&ob) {
+                ProverOutcome::Proved(ev) => {
+                    let receipt = checker
+                        .check(&ob, &ev)
+                        .unwrap_or_else(|e| panic!("LRAT kernel rejected {}: {e:?}", ob.name));
+                    assert_eq!(receipt.tier, TrustTier::KernelCert);
+                }
+                other => panic!("expected {} to be proved, got {other:?}", ob.name),
+            }
+        }
+    }
+
+    #[test]
+    fn lrat_undo_trail_handles_deletions_and_step_isolation() {
+        let cnf = CnfFormula {
+            num_vars: 3,
+            clauses: vec![
+                vec![1, 2],
+                vec![-1, 2],
+                vec![-2, 3],
+                vec![-2, -3],
+            ],
+            param_bits: Vec::new(),
+        };
+        // Step 5 derives unit `[2]` from 1, 2; delete 1 & 2; step 6 derives `[]` from 5, 3, 4.
+        let valid = "5 2 0 1 2 0\n5 d 1 2 0\n6 0 5 3 4 0\n";
+        assert_eq!(verify_lrat(&cnf, valid).unwrap(), 2);
+
+        // Referencing deleted clause 1 after `5 d 1 2 0` MUST be rejected!
+        let uses_deleted = "5 2 0 1 2 0\n5 d 1 2 0\n6 0 1 3 4 0\n";
+        assert!(verify_lrat(&cnf, uses_deleted).is_err());
     }
 }

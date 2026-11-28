@@ -1,11 +1,11 @@
 {
-  "description": "ABI 10 seed with zero scalar unsafe div/rem, verified return refinements, persistent LRAT proof cache, replay-only, acyclic CFGs, cross-target equiv, SIMD specs, Alethe checker, verified rewrites, Core/LLVM TV, and boundary contracts.",
+  "commit": "367865abc1284a544bcaeba64dbb511522b236c3",
+  "description": "ABI 10 seed with direct-apply, Tier 1 PE, and raw bit-packing WordOp RC fix.",
   "patch": "compiler/seed/stage0.patch",
   "patch_sha256": "e6d92d662b708b720d4b30109f1bda620ec140f45f00928bd67aaa1e6054daf8",
-  "revision": "c7a166754fcd6a40ba9396bdc580916b953fa773",
+  "revision": "367865abc1284a544bcaeba64dbb511522b236c3",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "22cd6e618f3f8bf2d37a75a685d46c674e69ba0476341777459843c641388ad4",
-  "commit": "c7a166754fcd6a40ba9396bdc580916b953fa773",
-  "source_hash": "22cd6e618f3f8bf2d37a75a685d46c674e69ba0476341777459843c641388ad4"
+  "source_hash": "28b8f8ed88f4c1985821b2a51990986e75e08bd0c4fd355ee93990e36584dcb1",
+  "source_sha256": "28b8f8ed88f4c1985821b2a51990986e75e08bd0c4fd355ee93990e36584dcb1"
 }

@@ -150,6 +150,50 @@ pub enum BitOp {
     Xor,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum WordOp {
+    /// `(w & mask) -> Raw` — borrows `arg0` without RC traffic (tag extraction).
+    TestMask,
+    /// `(w | tag)` — owns `arg0` (`Obj`), returns tagged pointer (`TObj`).
+    TagOr,
+    /// `(w & mask)` — owns `arg0` (`TObj`), returns untagged pointer (`Obj`).
+    Untag,
+    /// `(w & mask)` — raw 64-bit bitwise AND (`Raw -> Raw -> Raw`, for bit-packing).
+    And,
+    /// `(w | mask)` — raw 64-bit bitwise OR (`Raw -> Raw -> Raw`, for bit-packing).
+    Or,
+    /// `(w << shift)` — raw word left shift.
+    Shl,
+    /// `(w >> shift)` — raw word arithmetic right shift (signed).
+    Shr,
+    /// `(w >>> shift)` — raw word logical right shift (unsigned).
+    Ushr,
+    /// `(w + k)` — raw word wrapping add.
+    Add,
+    /// `(w - k)` — raw word wrapping sub.
+    Sub,
+    /// Canonicalize any IEEE-754 `F64` NaN to quiet canonical NaN `0x7FF8_0000_0000_0000`.
+    NanCanon,
+}
+
+impl WordOp {
+    pub fn name(self) -> &'static str {
+        match self {
+            WordOp::TestMask => "TestMask",
+            WordOp::TagOr => "TagOr",
+            WordOp::Untag => "Untag",
+            WordOp::And => "And",
+            WordOp::Or => "Or",
+            WordOp::Shl => "Shl",
+            WordOp::Shr => "Shr",
+            WordOp::Ushr => "Ushr",
+            WordOp::Add => "Add",
+            WordOp::Sub => "Sub",
+            WordOp::NanCanon => "NanCanon",
+        }
+    }
+}
+
 impl BitOp {
     fn name(self) -> &'static str {
         match self {
@@ -1100,8 +1144,102 @@ impl AdOp {
     }
 }
 
+/// Layout of a POD unboxed value type (`#[repr(value)]` record, `FixedArray n a`,
+/// or a POD scalar/pointer leaf used inside `withLocal` or field/element access).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValueLayout {
+    pub size: u64,
+    pub align: u64,
+    pub kind: ValueLayoutKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ValueLayoutKind {
+    /// A POD scalar, `Bool`, `Unit`, or native `Ptr` leaf.
+    Scalar { signed: bool, is_ptr: bool, is_float: bool },
+    /// A `#[repr(value)]` record with runtime (non-erased) fields at recorded byte offsets.
+    Struct { fields: Vec<ValueField> },
+    /// A `FixedArray n T` with `len` elements at `stride` bytes each.
+    Array { len: u64, stride: u64, elem: Box<ValueLayout> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValueField {
+    pub name: String,
+    pub offset: u64,
+    pub layout: ValueLayout,
+}
+
+/// Inline operations over unboxed POD value types, `FixedArray`, and stack places.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ValOp {
+    /// Construct a `#[repr(value)]` struct of `layout` from `arity` runtime field values.
+    Construct { layout: u32, arity: u16 },
+    /// Project a field at `offset` (having `field_layout`) from a value of `layout`.
+    Proj { layout: u32, field_layout: u32, offset: u64 },
+    /// Construct a `FixedArray n T` (`layout`) by repeating `elem`.
+    FixedArrayRepeat { layout: u32 },
+    /// Read element `i` (proved `i < n`) from a `FixedArray n T` value.
+    FixedArrayGet { layout: u32, elem_layout: u32, stride: u64 },
+    /// Stack-allocate a `withLocal` cell of `layout` initialized with `init`, yielding a native `ptr`.
+    /// When `immortal_header` is true (scalar `withLocal`), reserves an 8-byte zeroed immortal header
+    /// before the payload so the pointer is also compatible with existing `Class::Obj` `Mut` callees.
+    StackAlloc { layout: u32, immortal_header: bool },
+    /// Load a value (`layout`) from a native place `ptr` at byte `offset`.
+    PlaceLoad { layout: u32, offset: u64 },
+    /// Store a value (`layout`) into a native place `ptr` at byte `offset`, yielding `Unit`.
+    PlaceStore { layout: u32, offset: u64 },
+    /// Compute an interior place pointer `gep i8, ptr %base, i64 offset`.
+    PlaceGep { offset: u64 },
+    /// Compute an interior element pointer `gep i8, ptr %base, i64 (idx * stride)`.
+    PlaceIndex { stride: u64 },
+    /// Extract a native LLVM `ptr` (`Borrowed a` / `RawPtr a`) from a place-backed `Ref`/`Mut`.
+    RefAsPtr,
+}
+
+impl ValOp {
+    pub fn arity(self) -> usize {
+        match self {
+            ValOp::Construct { arity, .. } => arity as usize,
+            ValOp::Proj { .. }
+            | ValOp::FixedArrayRepeat { .. }
+            | ValOp::StackAlloc { .. }
+            | ValOp::PlaceLoad { .. }
+            | ValOp::PlaceGep { .. }
+            | ValOp::RefAsPtr => 1,
+            ValOp::FixedArrayGet { .. }
+            | ValOp::PlaceStore { .. }
+            | ValOp::PlaceIndex { .. } => 2,
+        }
+    }
+
+    pub fn is_effectful(self) -> bool {
+        matches!(
+            self,
+            ValOp::StackAlloc { .. } | ValOp::PlaceLoad { .. } | ValOp::PlaceStore { .. }
+        )
+    }
+
+    pub fn symbol(self) -> String {
+        match self {
+            ValOp::Construct { layout, .. } => format!("cinch.val.construct.{layout}"),
+            ValOp::Proj { layout, offset, .. } => format!("cinch.val.proj.{layout}.{offset}"),
+            ValOp::FixedArrayRepeat { layout } => format!("cinch.val.repeat.{layout}"),
+            ValOp::FixedArrayGet { layout, .. } => format!("cinch.val.aget.{layout}"),
+            ValOp::StackAlloc { layout, .. } => format!("cinch.val.alloca.{layout}"),
+            ValOp::PlaceLoad { layout, offset } => format!("cinch.val.pload.{layout}.{offset}"),
+            ValOp::PlaceStore { layout, offset } => format!("cinch.val.pstore.{layout}.{offset}"),
+            ValOp::PlaceGep { offset } => format!("cinch.val.gep.{offset}"),
+            ValOp::PlaceIndex { stride } => format!("cinch.val.idx.{stride}"),
+            ValOp::RefAsPtr => "cinch.val.refAsPtr".to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
+    /// Inline unboxed POD value, `FixedArray`, and stack-place operations.
+    Value(ValOp),
     /// Automatic differentiation (`jvp2`/`vjp2`), lowered to pure Core before array IR & RC.
     Ad { op: AdOp, classes: [Class; 2] },
     /// Immutable typed arrays, specialized by element representation.
@@ -1192,6 +1330,13 @@ pub enum PrimOp {
     /// `eq`/`ne`/`lt`/`le`/`gt`/`ge` for integer types, `Usize`, `Isize`
     /// and `Char` (sections 6 and 8).
     Cmp { ty: Scalar, op: CmpOp },
+    /// Raw 64-bit word comparison for `#[repr(niche)]` tag/range dispatch.
+    /// Borrows its first operand without reference-count traffic so it works
+    /// uniformly on `Raw`, `Obj`, and `TObj` carriers.
+    WordCmp { op: CmpOp, unsigned: bool },
+    /// Raw 64-bit word operations for pointer-tagged sums, refinement bit-packing,
+    /// and NaN-sentinel boxing (Tiers 1–3).
+    WordOp { op: WordOp },
     /// `charToU32 :: Char -> U32` (section 6), total.
     CharToU32,
     /// `u32ToChar :: U32 -> Option Char` (sections 6 and 7): rejects
@@ -1521,6 +1666,7 @@ impl PrimOp {
     pub fn symbol(self) -> String {
         use PrimOp::*;
         let n = match self {
+            Value(op) => return op.symbol(),
             Ad { op, .. } => return format!("cinch.ad.{}", op.name()),
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             ArrayCompute { op, .. } => return format!("cinch.runtime.{}", op.name()),
@@ -1587,6 +1733,12 @@ impl PrimOp {
             BitNot { ty } => format!("bitNot{}", ty.name()),
             BitScan { ty, op } => format!("{}{}", op.name(), ty.name()),
             Cmp { ty, op } => format!("{}{}", op.name(), ty.name()),
+            WordCmp { op, unsigned } => format!(
+                "wordCmp{}{}",
+                op.name(),
+                if unsigned { "U" } else { "S" }
+            ),
+            WordOp { op } => format!("wordOp{}", op.name()),
             Conv { from, to, mode } => conv_name(from, to, mode),
         };
         format!("cinch.prim.{n}")
@@ -1603,7 +1755,7 @@ impl PrimOp {
         match self {
             Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. }
             | Div { .. } | Rem { .. } | Shift { .. } | Rotate { .. } | Bit { .. }
-            | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
+            | BitNot { .. } | BitScan { .. } | Cmp { .. } | WordCmp { .. } | WordOp { .. } => true,
             Conv { from, to, .. } => !from.is_float() && !to.is_float(),
             _ => false,
         }
@@ -1623,6 +1775,8 @@ impl PrimOp {
             | BitNot { .. }
             | BitScan { .. }
             | Cmp { .. }
+            | WordCmp { .. }
+            | WordOp { .. }
             | Conv { mode: ConvMode::Total | ConvMode::Wrapping | ConvMode::Saturating, .. } => true,
             _ => false,
         }
@@ -1631,6 +1785,7 @@ impl PrimOp {
     pub fn arity(self) -> usize {
         use PrimOp::*;
         match self {
+            Value(op) => op.arity(),
             Ad { op, .. } => op.sig().0.len(),
             Array { op, packed, .. } => op.sig(packed).0.len(),
             ArrayCompute { op, .. } => op.sig().0.len(),
@@ -1671,6 +1826,7 @@ impl PrimOp {
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. }
+            | WordOp { op: crate::core::WordOp::NanCanon }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
             // The participant hint takes one count; callback forms take two
@@ -1732,6 +1888,7 @@ impl PrimOp {
             Atomic(op) => op.sig(),
             RwLock { op, .. } => op.sig(),
             Slots { op, .. } => op.sig(),
+            Value(_) => (Vec::new(), Ty::Unit),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
             }
@@ -1897,6 +2054,9 @@ impl PrimOp {
                 (vec![prim(ty)], res)
             }
             Cmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
+            WordCmp { .. } => (vec![prim(Scalar::I64), prim(Scalar::I64)], Ty::Bool),
+            WordOp { op: crate::core::WordOp::NanCanon } => (vec![prim(Scalar::I64)], prim(Scalar::I64)),
+            WordOp { .. } => (vec![prim(Scalar::I64), prim(Scalar::I64)], prim(Scalar::I64)),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
@@ -3120,6 +3280,13 @@ pub struct FnMeta {
     /// mult)`); every unlisted parameter behaves as `%many`. Driving
     /// never duplicates or drops these (section 3, linear values).
     pub linear: Vec<(usize, crate::types::Mult)>,
+    /// Owned `Obj` parameters whose type is statically non-`Copy` with `%1`/`%aff`
+    /// usage: any non-nullary heap block passed here is guaranteed uniquely owned
+    /// (`rc == 1`), enabling branchless `Release` and unconditional `Reuse`.
+    pub unique_params: Vec<usize>,
+    /// Parameters whose type is a closed uniform nullary-only `data` enum
+    /// (every inhabitant is an immortal static block, so dup/drop are no-ops).
+    pub immortal_params: Vec<usize>,
     /// Parameters whose function type's effect rows are empty (an honest
     /// pure callback may be reordered or fused; an effectful one may not:
     /// modules and compilation specification section 5).
@@ -3149,6 +3316,8 @@ impl Default for FnMeta {
         // optimizer's purity scan backstops this.
         FnMeta {
             linear: Vec::new(),
+            unique_params: Vec::new(),
+            immortal_params: Vec::new(),
             pure_arrows: Vec::new(),
             dicts: Vec::new(),
             pure: true,
@@ -3210,6 +3379,11 @@ pub enum Crossing {
     /// says how the narrowed value extends back into the slot: an `Int`
     /// immediate sign-extends, a pointer or a `Nat` zero-extends.
     Csize { signed: bool },
+    /// A native LLVM `ptr` crossing: pointer roles (`RawPtr`, `Borrowed`,
+    /// `Retained`, `Owned`, `Out`, `MaybeNull`) and opaque handles keep
+    /// pointer provenance across direct calls, `prim` bodies, and foreign
+    /// bindings without assuming pointers are `i64`.
+    Ptr,
 }
 
 /// One definition's facts for the LLVM contract surface (the plan note
@@ -3276,10 +3450,13 @@ impl ProjField {
         ProjField { slot, access: None, class, mutable: false, before: Vec::new() }
     }
 
-    /// The payload word the field starts at: its slot, plus one word for
-    /// each wide field before it.
+    /// The payload word the field starts at: sum of word widths of all fields before it.
     pub fn word(&self) -> usize {
-        self.slot + self.before.iter().filter(|c| **c == Class::Wide).count()
+        if self.before.is_empty() {
+            self.slot
+        } else {
+            self.before.iter().map(|c| c.words()).sum()
+        }
     }
 }
 
@@ -3510,6 +3687,10 @@ pub struct AbiParam {
     /// field plan: the field plan stores bits, while the classifier
     /// needs to know which bits live in a float register.
     pub leaves: Vec<CLeaf>,
+    /// When this aggregate is a POD `#[repr(value)]` type, its interned
+    /// `ValueLayout` id in `Program::value_layouts` (marshaled directly
+    /// without heap boxing).
+    pub value_layout: Option<u32>,
 }
 
 /// One machine scalar inside a C aggregate, as the target's calling
@@ -3593,6 +3774,12 @@ pub struct UnitRepr {
     /// constructor that the unit itself names (tuples) and for every
     /// other unit.
     pub data: Option<String>,
+    /// For functions with unboxed POD value parameters (`#[repr(value)]` or
+    /// `FixedArray n a`), the interned `ValueLayout` id per parameter slot.
+    pub value_params: Vec<Option<u32>>,
+    /// For functions returning an unboxed POD value type, its interned
+    /// `ValueLayout` id in `Program::value_layouts`.
+    pub value_result: Option<u32>,
 }
 
 #[derive(Clone, Debug)]
@@ -3640,6 +3827,33 @@ pub struct InstanceDef {
     /// the class's. A method unit's vector is the instance's followed by
     /// those.
     pub own: Vec<usize>,
+}
+
+/// Per-constructor plan inside a polymorphic pointer-tagged niche sum (Tier 1C).
+#[derive(Clone, Debug)]
+pub enum PolyNicheCtor {
+    Nullary { sentinel: i64 },
+    Ptr { ptr_tag: i64, check_nonnull: bool },
+}
+
+/// Polymorphic pointer-tagged niche plan for a generic user sum `D p0..pk`.
+/// Activates whenever every type parameter bit in `req_mask` specializes to `Class::Obj`.
+#[derive(Clone, Debug)]
+pub struct PolyNichePlan {
+    pub req_mask: u16,
+    pub by_tag: Vec<(usize, String, PolyNicheCtor)>,
+    pub nullary_sentinels: Vec<i64>,
+}
+
+impl PolyNichePlan {
+    pub fn active(&self, classes: &[Class]) -> bool {
+        for i in 0..16usize {
+            if (self.req_mask & (1u16 << i)) != 0 && classes.get(i).copied() != Some(Class::Obj) {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -3721,6 +3935,18 @@ pub struct Program {
     /// meet at link time. Empty for a whole program, where every module is
     /// simply emitted.
     pub private_modules: Vec<String>,
+    /// Interned POD unboxed value layouts (`#[repr(value)]`, `FixedArray`,
+    /// and `withLocal` cells) referenced by `ValueLayoutId` (`u32`).
+    pub value_layouts: Vec<ValueLayout>,
+    /// Per unit, the `Core::Release` block locals whose runtime refcount is
+    /// statically proven to be 1 (`crate::rc::prove_uniqueness`): code
+    /// generation emits branchless `Release` and unconditional `Reuse` for
+    /// them (when not in `--rc-debug` mode and not receiving a frame block).
+    pub unique_releases: std::collections::BTreeMap<String, std::collections::BTreeSet<usize>>,
+    /// Polymorphic pointer-tagged niche plans keyed by data nominal identity.
+    pub poly_niche: std::collections::HashMap<String, PolyNichePlan>,
+    /// Constructor unit name -> `(data_identity, PolyNicheCtor)`.
+    pub poly_niche_ctors: std::collections::HashMap<String, (String, PolyNicheCtor)>,
 }
 
 /// Where a unit with lent parameters takes them ([`Program::lent_entries`]).
@@ -3756,6 +3982,10 @@ impl Program {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            value_layouts: Vec::new(),
+            unique_releases: Default::default(),
+            poly_niche: Default::default(),
+            poly_niche_ctors: Default::default(),
         }
     }
 
@@ -3795,6 +4025,10 @@ impl Program {
             borrowed: self.borrowed.clone(),
             lent_entries: self.lent_entries.clone(),
             private_modules: self.private_modules.clone(),
+            value_layouts: self.value_layouts.clone(),
+            unique_releases: self.unique_releases.clone(),
+            poly_niche: self.poly_niche.clone(),
+            poly_niche_ctors: self.poly_niche_ctors.clone(),
         }
     }
 }
@@ -3935,6 +4169,10 @@ pub enum PrimAbiTy {
     Int { bits: u32, signed: bool },
     F32,
     F64,
+    /// A native target pointer (`ptr` in LLVM IR, target pointer width in bytes).
+    Ptr,
+    /// A `Unit` return (`void` in LLVM IR).
+    Unit,
 }
 
 /// A checked `prim` (primitive operations and inline target IR
@@ -6477,6 +6715,46 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
             };
             Some(Core::Bool(b))
         }
+        PrimOp::WordCmp { op: cop, unsigned } => {
+            let b = if unsigned {
+                let (x, y) = (words[0] as u64, words[1] as u64);
+                match cop {
+                    CmpOp::Eq => x == y,
+                    CmpOp::Ne => x != y,
+                    CmpOp::Lt => x < y,
+                    CmpOp::Le => x <= y,
+                    CmpOp::Gt => x > y,
+                    CmpOp::Ge => x >= y,
+                }
+            } else {
+                let (x, y) = (words[0], words[1]);
+                match cop {
+                    CmpOp::Eq => x == y,
+                    CmpOp::Ne => x != y,
+                    CmpOp::Lt => x < y,
+                    CmpOp::Le => x <= y,
+                    CmpOp::Gt => x > y,
+                    CmpOp::Ge => x >= y,
+                }
+            };
+            Some(Core::Bool(b))
+        }
+        PrimOp::WordOp { op } => {
+            let v = match op {
+                WordOp::TestMask | WordOp::Untag | WordOp::And => words[0] & words[1],
+                WordOp::TagOr | WordOp::Or => words[0] | words[1],
+                WordOp::Shl => words[0].wrapping_shl((words[1] as u32) & 63),
+                WordOp::Shr => words[0].wrapping_shr((words[1] as u32) & 63),
+                WordOp::Ushr => ((words[0] as u64).wrapping_shr((words[1] as u32) & 63)) as i64,
+                WordOp::Add => words[0].wrapping_add(words[1]),
+                WordOp::Sub => words[0].wrapping_sub(words[1]),
+                WordOp::NanCanon => {
+                    let f = f64::from_bits(words[0] as u64);
+                    if f.is_nan() { 0x7FF8_0000_0000_0000u64 as i64 } else { words[0] }
+                }
+            };
+            Some(Core::Int(v))
+        }
         PrimOp::NotBool => Some(Core::Bool(words[0] == 0)),
         PrimOp::AndBool => Some(Core::Bool(words[0] != 0 && words[1] != 0)),
         PrimOp::OrBool => Some(Core::Bool(words[0] != 0 || words[1] != 0)),
@@ -7366,6 +7644,7 @@ impl<'a> Driver<'a> {
                 data: None,
                 result: None,
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
         // Rebuild the producer: the map stages collapse into the composed
@@ -8795,9 +9074,19 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>, wide_
             if others.is_empty() || free.is_empty() || free.len() > SHARE_MAX_PARAMS {
                 continue;
             }
+            // Do not outline a small repeated subterm that calls `f` itself:
+            // turning a self-recursive `br label %loop` into mutual recursion
+            // (`f <-> f.shared0`) defeats single-function loop optimization and
+            // introduces cross-function `musttail` calls on every iteration.
+            if others.len() <= 4 && nodes[rep].size <= 128 && subterm_calls_unit(refs[rep], &f.id) {
+                continue;
+            }
             let Some(param_classes) = free.iter().map(|l| classes.get(&l.0).copied()).collect::<Option<Vec<Class>>>() else {
                 continue;
             };
+            if param_classes.iter().any(|c| c.is_val()) || classes.values().any(|c| c.is_val()) {
+                continue;
+            }
             let name = loop {
                 let candidate = format!("{}.shared{counter}", f.id.0);
                 counter += 1;
@@ -8858,6 +9147,20 @@ fn share_returns_wide(e: &Core, classes: &HashMap<usize, Class>, units: &HashMap
         Core::Global(unit, _) => units.get(&unit.0) == Some(&0),
         _ => false,
     }
+}
+
+/// Whether `e` contains a direct reference to unit `target`.
+fn subterm_calls_unit(e: &Core, target: &GlobalId) -> bool {
+    if matches!(e, Core::Global(id, _) if id == target) {
+        return true;
+    }
+    let mut found = false;
+    each_operand(e, &mut |child| {
+        if !found && subterm_calls_unit(child, target) {
+            found = true;
+        }
+    });
+    found
 }
 
 /// A term's operands in preorder: an application's head, then
@@ -9447,7 +9750,11 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            unique_releases: Default::default(),
+            poly_niche: Default::default(),
+            poly_niche_ctors: Default::default(),
             inline: Default::default(),
+            value_layouts: Vec::new(),
         };
         for reverse in [false, true] {
             if reverse { program.fns.reverse(); }
@@ -9505,7 +9812,11 @@ mod tests {
             borrowed: Default::default(),
             lent_entries: Default::default(),
             private_modules: Vec::new(),
+            unique_releases: Default::default(),
+            poly_niche: Default::default(),
+            poly_niche_ctors: Default::default(),
             inline: Default::default(),
+            value_layouts: Vec::new(),
         };
         share_repeated_subterms(&mut program);
         assert_eq!(program.fns.len(), 2);

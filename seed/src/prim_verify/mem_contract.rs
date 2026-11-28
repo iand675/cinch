@@ -172,6 +172,24 @@ pub fn audit_prim_body_for_word_bits(
 
         match op {
             "load" => {
+                if is_pure && tokens.iter().any(|&t| t == "volatile") {
+                    push_err(
+                        "effect-accountability",
+                        format!("line {}: `load volatile` is not permitted in a pure prim signature", line_no + 1),
+                    );
+                }
+                if !tokens.iter().any(|&t| t == "ptr") {
+                    push_err(
+                        "pointer-hygiene",
+                        format!("line {}: `load` must operate on an explicit LLVM `ptr` operand", line_no + 1),
+                    );
+                }
+                if stmt.contains("syncscope(\"\")") {
+                    push_err(
+                        "atomic-syncscope",
+                        format!("line {}: `load` has empty `syncscope(\"\")`", line_no + 1),
+                    );
+                }
                 let is_atomic = tokens.get(1) == Some(&"atomic");
                 if is_atomic {
                     report.atomic_ops_checked += 1;
@@ -239,6 +257,18 @@ pub fn audit_prim_body_for_word_bits(
                     push_err(
                         "effect-accountability",
                         format!("line {}: `store` is not permitted in a pure prim signature", line_no + 1),
+                    );
+                }
+                if !tokens.iter().any(|&t| t == "ptr") {
+                    push_err(
+                        "pointer-hygiene",
+                        format!("line {}: `store` must operate on an explicit LLVM `ptr` operand", line_no + 1),
+                    );
+                }
+                if stmt.contains("syncscope(\"\")") {
+                    push_err(
+                        "atomic-syncscope",
+                        format!("line {}: `store` has empty `syncscope(\"\")`", line_no + 1),
                     );
                 }
                 let is_atomic = tokens.get(1) == Some(&"atomic");
@@ -310,6 +340,37 @@ pub fn audit_prim_body_for_word_bits(
                         format!("line {}: `cmpxchg` is not permitted in a pure prim signature", line_no + 1),
                     );
                 }
+                if !tokens.iter().any(|&t| t == "ptr") {
+                    push_err(
+                        "pointer-hygiene",
+                        format!("line {}: `cmpxchg` must operate on an explicit LLVM `ptr` operand", line_no + 1),
+                    );
+                }
+                if stmt.contains("syncscope(\"\")") {
+                    push_err(
+                        "atomic-syncscope",
+                        format!("line {}: `cmpxchg` has empty `syncscope(\"\")`", line_no + 1),
+                    );
+                }
+                if let Some(al) = parse_align(stmt) {
+                    if !al.is_power_of_two() {
+                        push_err(
+                            "atomic-alignment",
+                            format!("line {}: `cmpxchg` align {al} is not a power of two", line_no + 1),
+                        );
+                    } else if let Some(ptr_idx) = tokens.iter().position(|&t| t == "ptr") {
+                        if let Some(val_ty) = tokens.get(ptr_idx + 2) {
+                            if let Some(sz) = llvm_scalar_byte_width(val_ty, ptr_bytes) {
+                                if al < sz {
+                                    push_err(
+                                        "atomic-alignment",
+                                        format!("line {}: `cmpxchg {val_ty}` requires align >= {sz}, got align {al}", line_no + 1),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
                 let ords: Vec<&str> = tokens
                     .iter()
                     .copied()
@@ -361,6 +422,55 @@ pub fn audit_prim_body_for_word_bits(
                         "effect-accountability",
                         format!("line {}: `atomicrmw` is not permitted in a pure prim signature", line_no + 1),
                     );
+                }
+                if !tokens.iter().any(|&t| t == "ptr") {
+                    push_err(
+                        "pointer-hygiene",
+                        format!("line {}: `atomicrmw` must operate on an explicit LLVM `ptr` operand", line_no + 1),
+                    );
+                }
+                if stmt.contains("syncscope(\"\")") {
+                    push_err(
+                        "atomic-syncscope",
+                        format!("line {}: `atomicrmw` has empty `syncscope(\"\")`", line_no + 1),
+                    );
+                }
+                let rmw_op = tokens
+                    .iter()
+                    .skip(1)
+                    .find(|&&t| t != "volatile")
+                    .copied()
+                    .unwrap_or("");
+                if !matches!(
+                    rmw_op,
+                    "xchg" | "add" | "sub" | "and" | "nand" | "or" | "xor"
+                        | "max" | "min" | "umax" | "umin"
+                        | "fadd" | "fsub" | "fmax" | "fmin"
+                        | "uinc_wrap" | "udec_wrap"
+                ) {
+                    push_err(
+                        "atomic-op",
+                        format!("line {}: invalid `atomicrmw` operation `{rmw_op}`", line_no + 1),
+                    );
+                }
+                if let Some(al) = parse_align(stmt) {
+                    if !al.is_power_of_two() {
+                        push_err(
+                            "atomic-alignment",
+                            format!("line {}: `atomicrmw` align {al} is not a power of two", line_no + 1),
+                        );
+                    } else if let Some(ptr_idx) = tokens.iter().position(|&t| t == "ptr") {
+                        if let Some(val_ty) = tokens.get(ptr_idx + 2) {
+                            if let Some(sz) = llvm_scalar_byte_width(val_ty, ptr_bytes) {
+                                if al < sz {
+                                    push_err(
+                                        "atomic-alignment",
+                                        format!("line {}: `atomicrmw {val_ty}` requires align >= {sz}, got align {al}", line_no + 1),
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
                 let ord_tok = tokens.iter().copied().find(|t| ordering_rank(t).is_some());
                 match ord_tok {
@@ -422,13 +532,33 @@ pub fn audit_prim_body_for_word_bits(
                                 ),
                             );
                         }
-                    }
-                    if asm_body.contains("svc #0") || asm_body.contains("svc 0") {
-                        if !constraints.contains("~{x8}") && !constraints.contains("{x8}") {
+                        if stmt.contains("sideeffect") && !constraints.contains("~{memory}") {
                             push_err(
                                 "inline-asm-clobbers",
                                 format!(
-                                    "line {}: aarch64 `svc #0` must account for `x8` (`~{{x8}}` or `{{x8}}`)",
+                                    "line {}: x86_64 `syscall` with `sideeffect` must declare `~{{memory}}` clobber",
+                                    line_no + 1
+                                ),
+                            );
+                        }
+                    }
+                    if asm_body.contains("svc #0") || asm_body.contains("svc 0") {
+                        if !constraints.contains("~{x8}") && !constraints.contains("{x8}")
+                            && !constraints.contains("~{x16}") && !constraints.contains("{x16}")
+                        {
+                            push_err(
+                                "inline-asm-clobbers",
+                                format!(
+                                    "line {}: aarch64 `svc #0` must account for syscall register (`~{{x8}}`/`{{x8}}` or `~{{x16}}`/`{{x16}}`)",
+                                    line_no + 1
+                                ),
+                            );
+                        }
+                        if stmt.contains("sideeffect") && !constraints.contains("~{memory}") {
+                            push_err(
+                                "inline-asm-clobbers",
+                                format!(
+                                    "line {}: aarch64 `svc #0` with `sideeffect` must declare `~{{memory}}` clobber",
                                     line_no + 1
                                 ),
                             );

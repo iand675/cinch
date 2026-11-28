@@ -35,6 +35,7 @@ module Data.Machine where
   export mask-i64, u8-to-nat, u16-to-nat, u32-to-nat, i64-le-byte
   export div-u8, rem-u8, div-u16, rem-u16, div-u32, rem-u32, div-u64, rem-u64, div-usize, rem-usize
   export f32-bits, f32-from-bits, f64-bits, f64-from-bits
+  export NotNaN, Finite
   export copysign-f32, copysign-f64, floor-f32, floor-f64, ceil-f32, ceil-f64, trunc-f32, trunc-f64, round-f32, round-f64, round-to-even-f32, round-to-even-f64
 
   export abs-f32, abs-f64, add-f32, add-f64, bit-and-i16, bit-and-i32, bit-and-i64, bit-and-i8, bit-and-isize, bit-and-u16, bit-and-u32, bit-and-u64, bit-and-u8, bit-and-usize, bit-not-i16, bit-not-i32, bit-not-i64, bit-not-i8, bit-not-isize, bit-not-u16, bit-not-u32, bit-not-u64, bit-not-u8, bit-not-usize, bit-or-i16, bit-or-i32, bit-or-i64, bit-or-i8, bit-or-isize, bit-or-u16, bit-or-u32, bit-or-u64, bit-or-u8, bit-or-usize, bit-xor-i16, bit-xor-i32, bit-xor-i64, bit-xor-i8, bit-xor-isize, bit-xor-u16, bit-xor-u32, bit-xor-u64, bit-xor-u8, bit-xor-usize, checked-add-i16, checked-add-i32, checked-add-i64, checked-add-i8, checked-add-isize, checked-add-u16, checked-add-u32, checked-add-u64, checked-add-u8, checked-add-usize, checked-div-i16, checked-div-i32, checked-div-i64, checked-div-i8, checked-div-isize, checked-div-u16, checked-div-u32, checked-div-u64, checked-div-u8, checked-div-usize, checked-f32-to-i16, checked-f32-to-i32, checked-f32-to-i64, checked-f32-to-i8, checked-f32-to-isize, checked-f32-to-u16, checked-f32-to-u32, checked-f32-to-u64, checked-f32-to-u8, checked-f32-to-usize, checked-f64-to-i16, checked-f64-to-i32, checked-f64-to-i64, checked-f64-to-i8, checked-f64-to-isize, checked-f64-to-u16, checked-f64-to-u32, checked-f64-to-u64, checked-f64-to-u8, checked-f64-to-usize, checked-i16-to-i16, checked-i16-to-i32, checked-i16-to-i64, checked-i16-to-i8, checked-i16-to-isize, checked-i16-to-u16, checked-i16-to-u32, checked-i16-to-u64, checked-i16-to-u8, checked-i16-to-usize, checked-i32-to-i16, checked-i32-to-i32, checked-i32-to-i64, checked-i32-to-i8, checked-i32-to-isize, checked-i32-to-u16, checked-i32-to-u32, checked-i32-to-u64, checked-i32-to-u8, checked-i32-to-usize, checked-i64-to-i16, checked-i64-to-i32, checked-i64-to-i64, checked-i64-to-i8, checked-i64-to-isize, checked-i64-to-u16, checked-i64-to-u32, checked-i64-to-u64, checked-i64-to-u8, checked-i64-to-usize, checked-i8-to-i16, checked-i8-to-i32, checked-i8-to-i64, checked-i8-to-i8, checked-i8-to-isize, checked-i8-to-u16, checked-i8-to-u32, checked-i8-to-u64, checked-i8-to-u8, checked-i8-to-usize, checked-isize-to-i16, checked-isize-to-i32, checked-isize-to-i64, checked-isize-to-i8, checked-isize-to-isize, checked-isize-to-u16, checked-isize-to-u32, checked-isize-to-u64, checked-isize-to-u8, checked-isize-to-usize, checked-mul-i16, checked-mul-i32, checked-mul-i64, checked-mul-i8, checked-mul-isize, checked-mul-u16, checked-mul-u32, checked-mul-u64, checked-mul-u8, checked-mul-usize, checked-neg-i16, checked-neg-i32, checked-neg-i64, checked-neg-i8, checked-neg-isize, checked-neg-u16, checked-neg-u32, checked-neg-u64, checked-neg-u8, checked-neg-usize, checked-rem-i16, checked-rem-i32, checked-rem-i64, checked-rem-i8, checked-rem-isize, checked-rem-u16, checked-rem-u32, checked-rem-u64, checked-rem-u8, checked-rem-usize, checked-shl-i16, checked-shl-i32, checked-shl-i64, checked-shl-i8, checked-shl-isize, checked-shl-u16, checked-shl-u32, checked-shl-u64, checked-shl-u8, checked-shl-usize, checked-shr-i16, checked-shr-i32, checked-shr-i64, checked-shr-i8, checked-shr-isize, checked-shr-u16, checked-shr-u32, checked-shr-u64, checked-shr-u8, checked-shr-usize, checked-sub-i16, checked-sub-i32, checked-sub-i64, checked-sub-i8, checked-sub-isize, checked-sub-u16, checked-sub-u32, checked-sub-u64, checked-sub-u8, checked-sub-usize, checked-u16-to-i16, checked-u16-to-i32, checked-u16-to-i64, checked-u16-to-i8, checked-u16-to-isize, checked-u16-to-u16, checked-u16-to-u32, checked-u16-to-u64, checked-u16-to-u8, checked-u16-to-usize, checked-u32-to-i16, checked-u32-to-i32, checked-u32-to-i64, checked-u32-to-i8, checked-u32-to-isize, checked-u32-to-u16, checked-u32-to-u32, checked-u32-to-u64, checked-u32-to-u8, checked-u32-to-usize, checked-u64-to-i16, checked-u64-to-i32, checked-u64-to-i64, checked-u64-to-i8, checked-u64-to-isize, checked-u64-to-u16, checked-u64-to-u32, checked-u64-to-u64, checked-u64-to-u8, checked-u64-to-usize, checked-u8-to-i16, checked-u8-to-i32, checked-u8-to-i64, checked-u8-to-i8, checked-u8-to-isize, checked-u8-to-u16, checked-u8-to-u32, checked-u8-to-u64, checked-u8-to-u8, checked-u8-to-usize, checked-usize-to-i16, checked-usize-to-i32, checked-usize-to-i64, checked-usize-to-i8, checked-usize-to-isize, checked-usize-to-u16, checked-usize-to-u32, checked-usize-to-u64, checked-usize-to-u8, checked-usize-to-usize, count-ones-i16, count-ones-i32, count-ones-i64, count-ones-i8, count-ones-isize, count-ones-u16, count-ones-u32, count-ones-u64, count-ones-u8, count-ones-usize, div-f32, div-f64, eq-i16, eq-i32, eq-i64, eq-i8, eq-isize, eq-u16, eq-u32, eq-u64, eq-u8, eq-usize, f32-to-f32, f32-to-f64, f64-to-f32, f64-to-f64, feq-f32, feq-f64, fge-f32, fge-f64, fgt-f32, fgt-f64, fle-f32, fle-f64, flt-f32, flt-f64, fne-f32, fne-f64, ge-i16, ge-i32, ge-i64, ge-i8, ge-isize, ge-u16, ge-u32, ge-u64, ge-u8, ge-usize, gt-i16, gt-i32, gt-i64, gt-i8, gt-isize, gt-u16, gt-u32, gt-u64, gt-u8, gt-usize, i16-to-f32, i16-to-f64, i16-to-i16, i16-to-i32, i16-to-i64, i16-to-isize, i32-to-f32, i32-to-f64, i32-to-i32, i32-to-i64, i32-to-isize, i64-to-f32, i64-to-f64, i64-to-i64, i64-to-isize, i8-to-f32, i8-to-f64, i8-to-i16, i8-to-i32, i8-to-i64, i8-to-i8, i8-to-isize, is-finite-f32, is-finite-f64, is-infinite-f32, is-infinite-f64, is-na-nf32, is-na-nf64, is-normal-f32, is-normal-f64, isize-to-f32, isize-to-f64, isize-to-i64, isize-to-isize, le-i16, le-i32, le-i64, le-i8, le-isize, le-u16, le-u32, le-u64, le-u8, le-usize, leading-zeros-i16, leading-zeros-i32, leading-zeros-i64, leading-zeros-i8, leading-zeros-isize, leading-zeros-u16, leading-zeros-u32, leading-zeros-u64, leading-zeros-u8, leading-zeros-usize, lt-i16, lt-i32, lt-i64, lt-i8, lt-isize, lt-u16, lt-u32, lt-u64, lt-u8, lt-usize, max-bound-i16, max-bound-i32, max-bound-i64, max-bound-i8, max-bound-isize, max-bound-u16, max-bound-u32, max-bound-u64, max-bound-u8, max-bound-usize, maximum-f32, maximum-f64, min-bound-i16, min-bound-i32, min-bound-i64, min-bound-i8, min-bound-isize, min-bound-u16, min-bound-u32, min-bound-u64, min-bound-u8, min-bound-usize, minimum-f32, minimum-f64, mul-f32, mul-f64, ne-i16, ne-i32, ne-i64, ne-i8, ne-isize, ne-u16, ne-u32, ne-u64, ne-u8, ne-usize, neg-f32, neg-f64, reverse-bits-i16, reverse-bits-i32, reverse-bits-i64, reverse-bits-i8, reverse-bits-isize, reverse-bits-u16, reverse-bits-u32, reverse-bits-u64, reverse-bits-u8, reverse-bits-usize, rotate-left-i16, rotate-left-i32, rotate-left-i64, rotate-left-i8, rotate-left-isize, rotate-left-u16, rotate-left-u32, rotate-left-u64, rotate-left-u8, rotate-left-usize, rotate-right-i16, rotate-right-i32, rotate-right-i64, rotate-right-i8, rotate-right-isize, rotate-right-u16, rotate-right-u32, rotate-right-u64, rotate-right-u8, rotate-right-usize, saturating-add-i16, saturating-add-i32, saturating-add-i64, saturating-add-i8, saturating-add-isize, saturating-add-u16, saturating-add-u32, saturating-add-u64, saturating-add-u8, saturating-add-usize, saturating-f32-to-i16, saturating-f32-to-i32, saturating-f32-to-i64, saturating-f32-to-i8, saturating-f32-to-isize, saturating-f32-to-u16, saturating-f32-to-u32, saturating-f32-to-u64, saturating-f32-to-u8, saturating-f32-to-usize, saturating-f64-to-i16, saturating-f64-to-i32, saturating-f64-to-i64, saturating-f64-to-i8, saturating-f64-to-isize, saturating-f64-to-u16, saturating-f64-to-u32, saturating-f64-to-u64, saturating-f64-to-u8, saturating-f64-to-usize, saturating-i16-to-i16, saturating-i16-to-i32, saturating-i16-to-i64, saturating-i16-to-i8, saturating-i16-to-isize, saturating-i16-to-u16, saturating-i16-to-u32, saturating-i16-to-u64, saturating-i16-to-u8, saturating-i16-to-usize, saturating-i32-to-i16, saturating-i32-to-i32, saturating-i32-to-i64, saturating-i32-to-i8, saturating-i32-to-isize, saturating-i32-to-u16, saturating-i32-to-u32, saturating-i32-to-u64, saturating-i32-to-u8, saturating-i32-to-usize, saturating-i64-to-i16, saturating-i64-to-i32, saturating-i64-to-i64, saturating-i64-to-i8, saturating-i64-to-isize, saturating-i64-to-u16, saturating-i64-to-u32, saturating-i64-to-u64, saturating-i64-to-u8, saturating-i64-to-usize, saturating-i8-to-i16, saturating-i8-to-i32, saturating-i8-to-i64, saturating-i8-to-i8, saturating-i8-to-isize, saturating-i8-to-u16, saturating-i8-to-u32, saturating-i8-to-u64, saturating-i8-to-u8, saturating-i8-to-usize, saturating-isize-to-i16, saturating-isize-to-i32, saturating-isize-to-i64, saturating-isize-to-i8, saturating-isize-to-isize, saturating-isize-to-u16, saturating-isize-to-u32, saturating-isize-to-u64, saturating-isize-to-u8, saturating-isize-to-usize, saturating-mul-i16, saturating-mul-i32, saturating-mul-i64, saturating-mul-i8, saturating-mul-isize, saturating-mul-u16, saturating-mul-u32, saturating-mul-u64, saturating-mul-u8, saturating-mul-usize, saturating-neg-i16, saturating-neg-i32, saturating-neg-i64, saturating-neg-i8, saturating-neg-isize, saturating-neg-u16, saturating-neg-u32, saturating-neg-u64, saturating-neg-u8, saturating-neg-usize, saturating-sub-i16, saturating-sub-i32, saturating-sub-i64, saturating-sub-i8, saturating-sub-isize, saturating-sub-u16, saturating-sub-u32, saturating-sub-u64, saturating-sub-u8, saturating-sub-usize, saturating-u16-to-i16, saturating-u16-to-i32, saturating-u16-to-i64, saturating-u16-to-i8, saturating-u16-to-isize, saturating-u16-to-u16, saturating-u16-to-u32, saturating-u16-to-u64, saturating-u16-to-u8, saturating-u16-to-usize, saturating-u32-to-i16, saturating-u32-to-i32, saturating-u32-to-i64, saturating-u32-to-i8, saturating-u32-to-isize, saturating-u32-to-u16, saturating-u32-to-u32, saturating-u32-to-u64, saturating-u32-to-u8, saturating-u32-to-usize, saturating-u64-to-i16, saturating-u64-to-i32, saturating-u64-to-i64, saturating-u64-to-i8, saturating-u64-to-isize, saturating-u64-to-u16, saturating-u64-to-u32, saturating-u64-to-u64, saturating-u64-to-u8, saturating-u64-to-usize, saturating-u8-to-i16, saturating-u8-to-i32, saturating-u8-to-i64, saturating-u8-to-i8, saturating-u8-to-isize, saturating-u8-to-u16, saturating-u8-to-u32, saturating-u8-to-u64, saturating-u8-to-u8, saturating-u8-to-usize, saturating-usize-to-i16, saturating-usize-to-i32, saturating-usize-to-i64, saturating-usize-to-i8, saturating-usize-to-isize, saturating-usize-to-u16, saturating-usize-to-u32, saturating-usize-to-u64, saturating-usize-to-u8, saturating-usize-to-usize, sign-bit-f32, sign-bit-f64, sqrt-f32, sqrt-f64, sub-f32, sub-f64, swap-bytes-i16, swap-bytes-i32, swap-bytes-i64, swap-bytes-i8, swap-bytes-isize, swap-bytes-u16, swap-bytes-u32, swap-bytes-u64, swap-bytes-u8, swap-bytes-usize, total-order-f32, total-order-f64, trailing-zeros-i16, trailing-zeros-i32, trailing-zeros-i64, trailing-zeros-i8, trailing-zeros-isize, trailing-zeros-u16, trailing-zeros-u32, trailing-zeros-u64, trailing-zeros-u8, trailing-zeros-usize, u16-to-f32, u16-to-f64, u16-to-i32, u16-to-i64, u16-to-isize, u16-to-u16, u16-to-u32, u16-to-u64, u16-to-usize, u32-to-f32, u32-to-f64, u32-to-i64, u32-to-isize, u32-to-u32, u32-to-u64, u32-to-usize, u64-to-f32, u64-to-f64, u64-to-u64, u64-to-usize, u8-to-f32, u8-to-f64, u8-to-i16, u8-to-i32, u8-to-i64, u8-to-isize, u8-to-u16, u8-to-u32, u8-to-u64, u8-to-u8, u8-to-usize, usize-to-f32, usize-to-f64, usize-to-u64, usize-to-usize, wrapping-add-i16, wrapping-add-i32, wrapping-add-i64, wrapping-add-i8, wrapping-add-isize, wrapping-add-u16, wrapping-add-u32, wrapping-add-u64, wrapping-add-u8, wrapping-add-usize, wrapping-i16-to-i16, wrapping-i16-to-i32, wrapping-i16-to-i64, wrapping-i16-to-i8, wrapping-i16-to-isize, wrapping-i16-to-u16, wrapping-i16-to-u32, wrapping-i16-to-u64, wrapping-i16-to-u8, wrapping-i16-to-usize, wrapping-i32-to-i16, wrapping-i32-to-i32, wrapping-i32-to-i64, wrapping-i32-to-i8, wrapping-i32-to-isize, wrapping-i32-to-u16, wrapping-i32-to-u32, wrapping-i32-to-u64, wrapping-i32-to-u8, wrapping-i32-to-usize, wrapping-i64-to-i16, wrapping-i64-to-i32, wrapping-i64-to-i64, wrapping-i64-to-i8, wrapping-i64-to-isize, wrapping-i64-to-u16, wrapping-i64-to-u32, wrapping-i64-to-u64, wrapping-i64-to-u8, wrapping-i64-to-usize, wrapping-i8-to-i16, wrapping-i8-to-i32, wrapping-i8-to-i64, wrapping-i8-to-i8, wrapping-i8-to-isize, wrapping-i8-to-u16, wrapping-i8-to-u32, wrapping-i8-to-u64, wrapping-i8-to-u8, wrapping-i8-to-usize, wrapping-isize-to-i16, wrapping-isize-to-i32, wrapping-isize-to-i64, wrapping-isize-to-i8, wrapping-isize-to-isize, wrapping-isize-to-u16, wrapping-isize-to-u32, wrapping-isize-to-u64, wrapping-isize-to-u8, wrapping-isize-to-usize, wrapping-mul-i16, wrapping-mul-i32, wrapping-mul-i64, wrapping-mul-i8, wrapping-mul-isize, wrapping-mul-u16, wrapping-mul-u32, wrapping-mul-u64, wrapping-mul-u8, wrapping-mul-usize, wrapping-neg-i16, wrapping-neg-i32, wrapping-neg-i64, wrapping-neg-i8, wrapping-neg-isize, wrapping-neg-u16, wrapping-neg-u32, wrapping-neg-u64, wrapping-neg-u8, wrapping-neg-usize, wrapping-shl-i16, wrapping-shl-i32, wrapping-shl-i64, wrapping-shl-i8, wrapping-shl-isize, wrapping-shl-u16, wrapping-shl-u32, wrapping-shl-u64, wrapping-shl-u8, wrapping-shl-usize, wrapping-shr-i16, wrapping-shr-i32, wrapping-shr-i64, wrapping-shr-i8, wrapping-shr-isize, wrapping-shr-u16, wrapping-shr-u32, wrapping-shr-u64, wrapping-shr-u8, wrapping-shr-usize, wrapping-sub-i16, wrapping-sub-i32, wrapping-sub-i64, wrapping-sub-i8, wrapping-sub-isize, wrapping-sub-u16, wrapping-sub-u32, wrapping-sub-u64, wrapping-sub-u8, wrapping-sub-usize, wrapping-u16-to-i16, wrapping-u16-to-i32, wrapping-u16-to-i64, wrapping-u16-to-i8, wrapping-u16-to-isize, wrapping-u16-to-u16, wrapping-u16-to-u32, wrapping-u16-to-u64, wrapping-u16-to-u8, wrapping-u16-to-usize, wrapping-u32-to-i16, wrapping-u32-to-i32, wrapping-u32-to-i64, wrapping-u32-to-i8, wrapping-u32-to-isize, wrapping-u32-to-u16, wrapping-u32-to-u32, wrapping-u32-to-u64, wrapping-u32-to-u8, wrapping-u32-to-usize, wrapping-u64-to-i16, wrapping-u64-to-i32, wrapping-u64-to-i64, wrapping-u64-to-i8, wrapping-u64-to-isize, wrapping-u64-to-u16, wrapping-u64-to-u32, wrapping-u64-to-u64, wrapping-u64-to-u8, wrapping-u64-to-usize, wrapping-u8-to-i16, wrapping-u8-to-i32, wrapping-u8-to-i64, wrapping-u8-to-i8, wrapping-u8-to-isize, wrapping-u8-to-u16, wrapping-u8-to-u32, wrapping-u8-to-u64, wrapping-u8-to-u8, wrapping-u8-to-usize, wrapping-usize-to-i16, wrapping-usize-to-i32, wrapping-usize-to-i64, wrapping-usize-to-i8, wrapping-usize-to-isize, wrapping-usize-to-u16, wrapping-usize-to-u32, wrapping-usize-to-u64, wrapping-usize-to-u8, wrapping-usize-to-usize, zero-u32
@@ -425,17 +426,21 @@ module Data.Machine where
   rem-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
   rem-usize a b = if word-size32 0 then (let d = wrapping-usize-to-u32 b in case decide (d /= 0) of Yes _ -> u32-to-usize (raw-rem-u32 (wrapping-usize-to-u32 a) d); No _ -> 0) else wrapping-u64-to-usize (raw-rem-u64 (usize-to-u64 a) (usize-to-u64 b))
 
+  -- IEEE-754 floating-point refinement types (`NotNaN F32`, `Finite F64`, ...).
+  type NotNaN a = refine (x :: a) with NotNaN x
+  type Finite a = refine (x :: a) with Finite x
+
   prim f32-bits :: F32 -> U32 where
     llvm {
       %r = bitcast float %0 to i32
       ret i32 %r
-    }
+    } justify verify
 
   prim f32-from-bits :: U32 -> F32 where
     llvm {
       %r = bitcast i32 %0 to float
       ret float %r
-    }
+    } justify verify
 
   prim add-f32 :: F32 -> F32 -> F32 where
     llvm {
@@ -465,13 +470,13 @@ module Data.Machine where
     llvm {
       %r = fneg float %0
       ret float %r
-    }
+    } justify verify
 
   prim abs-f32 :: F32 -> F32 where
     llvm {
       %r = call float @llvm.fabs.f32(float %0)
       ret float %r
-    }
+    } justify verify
 
   prim sqrt-f32 :: F32 -> F32 where
     llvm {
@@ -483,7 +488,7 @@ module Data.Machine where
     llvm {
       %r = call float @llvm.copysign.f32(float %0, float %1)
       ret float %r
-    }
+    } justify verify
 
   prim floor-f32 :: F32 -> F32 where
     llvm {
@@ -520,42 +525,42 @@ module Data.Machine where
       %c = fcmp oeq float %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fne-f32 :: F32 -> F32 -> Bool where
     llvm {
       %c = fcmp une float %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim flt-f32 :: F32 -> F32 -> Bool where
     llvm {
       %c = fcmp olt float %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fle-f32 :: F32 -> F32 -> Bool where
     llvm {
       %c = fcmp ole float %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fgt-f32 :: F32 -> F32 -> Bool where
     llvm {
       %c = fcmp ogt float %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fge-f32 :: F32 -> F32 -> Bool where
     llvm {
       %c = fcmp oge float %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   is-na-nf32 :: F32 -> Bool
   is-na-nf32 x = fne-f32 x x
@@ -607,13 +612,13 @@ module Data.Machine where
     llvm {
       %r = bitcast double %0 to i64
       ret i64 %r
-    }
+    } justify verify
 
   prim f64-from-bits :: U64 -> F64 where
     llvm {
       %r = bitcast i64 %0 to double
       ret double %r
-    }
+    } justify verify
 
   prim add-f64 :: F64 -> F64 -> F64 where
     llvm {
@@ -643,13 +648,13 @@ module Data.Machine where
     llvm {
       %r = fneg double %0
       ret double %r
-    }
+    } justify verify
 
   prim abs-f64 :: F64 -> F64 where
     llvm {
       %r = call double @llvm.fabs.f64(double %0)
       ret double %r
-    }
+    } justify verify
 
   prim sqrt-f64 :: F64 -> F64 where
     llvm {
@@ -661,7 +666,7 @@ module Data.Machine where
     llvm {
       %r = call double @llvm.copysign.f64(double %0, double %1)
       ret double %r
-    }
+    } justify verify
 
   prim floor-f64 :: F64 -> F64 where
     llvm {
@@ -698,42 +703,42 @@ module Data.Machine where
       %c = fcmp oeq double %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fne-f64 :: F64 -> F64 -> Bool where
     llvm {
       %c = fcmp une double %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim flt-f64 :: F64 -> F64 -> Bool where
     llvm {
       %c = fcmp olt double %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fle-f64 :: F64 -> F64 -> Bool where
     llvm {
       %c = fcmp ole double %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fgt-f64 :: F64 -> F64 -> Bool where
     llvm {
       %c = fcmp ogt double %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   prim fge-f64 :: F64 -> F64 -> Bool where
     llvm {
       %c = fcmp oge double %0, %1
       %r = zext i1 %c to i8
       ret i8 %r
-    }
+    } justify verify
 
   is-na-nf64 :: F64 -> Bool
   is-na-nf64 x = fne-f64 x x
@@ -1745,3 +1750,84 @@ module Data.Machine where
         Some v -> Ok v
         None -> Err (OutOfRange "I64")
       _ -> Err (TypeMismatch "integer")
+
+  -- Kernel-verified algebraic rewrite rules (`justify verify`, LRAT-checked).
+  rewrite wrapping-add-u32-zero forall (x :: U32). where
+    match (wrapping-add-u32 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u32-self forall (x :: U32). where
+    match (wrapping-add-u32 x x)
+    replace (wrapping-shl-u32 x 1)
+    justify verify
+
+  rewrite wrapping-sub-u32-self forall (x :: U32). where
+    match (wrapping-sub-u32 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u32-self forall (x :: U32). where
+    match (bit-xor-u32 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u32-cancel forall (x :: U32) (y :: U32). where
+    match (bit-xor-u32 (bit-xor-u32 x y) y)
+    replace x
+    justify verify
+
+  rewrite bit-not-u32-involution forall (x :: U32). where
+    match (bit-not-u32 (bit-not-u32 x))
+    replace x
+    justify verify
+
+  rewrite bit-and-u32-zero forall (x :: U32). where
+    match (bit-and-u32 x 0)
+    replace 0
+    justify verify
+
+  rewrite bit-or-u32-zero forall (x :: U32). where
+    match (bit-or-u32 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u64-zero forall (x :: U64). where
+    match (wrapping-add-u64 x 0)
+    replace x
+    justify verify
+
+  rewrite wrapping-add-u64-self forall (x :: U64). where
+    match (wrapping-add-u64 x x)
+    replace (wrapping-shl-u64 x 1)
+    justify verify
+
+  rewrite wrapping-sub-u64-self forall (x :: U64). where
+    match (wrapping-sub-u64 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u64-self forall (x :: U64). where
+    match (bit-xor-u64 x x)
+    replace 0
+    justify verify
+
+  rewrite bit-xor-u64-cancel forall (x :: U64) (y :: U64). where
+    match (bit-xor-u64 (bit-xor-u64 x y) y)
+    replace x
+    justify verify
+
+  rewrite bit-not-u64-involution forall (x :: U64). where
+    match (bit-not-u64 (bit-not-u64 x))
+    replace x
+    justify verify
+
+  rewrite bit-and-u64-zero forall (x :: U64). where
+    match (bit-and-u64 x 0)
+    replace 0
+    justify verify
+
+  rewrite bit-or-u64-zero forall (x :: U64). where
+    match (bit-or-u64 x 0)
+    replace x
+    justify verify

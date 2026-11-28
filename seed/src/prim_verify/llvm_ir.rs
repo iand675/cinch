@@ -93,7 +93,23 @@ fn strip_comment(line: &str) -> &str {
 pub fn lower_llvm_fragment(
     fragment: &str,
     params: &[SemParam],
+    ret_ty: SemTy,
+) -> Result<SemProgram, SemError> {
+    lower_llvm_fragment_with_uf(fragment, params, ret_ty, &mut None)
+}
+
+/// Callback invoked for direct non-intrinsic scalar calls (`call <ty> @"<callee>"(...)`)
+/// during translation validation, allowing Ackermann uninterpreted-function congruence.
+pub type UfCallHook<'a> =
+    &'a mut dyn FnMut(&mut SemGraph, &str, &[NodeId], SemTy) -> Result<NodeId, SemError>;
+
+/// Lower an acyclic LLVM IR fragment into `SemProgram`, optionally routing non-intrinsic
+/// direct scalar calls through `uf_hook` for interprocedural Ackermann congruence.
+pub fn lower_llvm_fragment_with_uf(
+    fragment: &str,
+    params: &[SemParam],
     _ret_ty: SemTy,
+    uf_hook: &mut Option<UfCallHook<'_>>,
 ) -> Result<SemProgram, SemError> {
     let mut g = SemGraph::new();
     let mut env: HashMap<String, (LlvmTy, SemVal)> = HashMap::new();
@@ -469,11 +485,33 @@ pub fn lower_llvm_fragment(
                         }
                     }
                 }
+                "insertvalue" => {
+                    let (agg_ty, rest) = parse_ty(rest)?;
+                    let (agg_op, rest) = parse_operand_until_comma(rest)?;
+                    let (elt_ty, rest) = parse_ty(rest)?;
+                    let (elt_op, rest) = parse_operand_until_comma(rest)?;
+                    let idx: usize = rest.trim().parse().map_err(|_| {
+                        SemError::Parse(format!("invalid insertvalue index: `{rest}`"))
+                    })?;
+                    let agg = eval_operand(&mut g, &env, &agg_ty, &agg_op)?;
+                    let elt = eval_operand(&mut g, &env, &elt_ty, &elt_op)?;
+                    match (&agg_ty, agg) {
+                        (LlvmTy::Struct(tys), SemVal::Tuple(mut vals)) if idx < tys.len() => {
+                            vals[idx] = elt;
+                            bind_dst(&mut env, dst, agg_ty, SemVal::Tuple(vals))?;
+                        }
+                        _ => {
+                            return Err(SemError::Parse(format!(
+                                "invalid insertvalue index {idx} on {agg_ty:?}"
+                            )));
+                        }
+                    }
+                }
                 "call" => {
                     if rest.contains(" asm ") || rest.starts_with("asm ") {
-                        return Err(SemError::Unsupported(
-                            "inline `asm` call requires an ISA semantics plugin (e.g. Sail)".to_string(),
-                        ));
+                        let (ret_t, res) = lower_verified_crypto_asm(&mut g, &env, rest)?;
+                        bind_dst(&mut env, dst, ret_t, res)?;
+                        continue;
                     }
                     let (ret_t, rest) = parse_ty(rest)?;
                     let rest = rest.trim();
@@ -494,7 +532,34 @@ pub fn lower_llvm_fragment(
                         let av = eval_operand(&mut g, &env, &aty, &aop)?;
                         eval_args.push((aty, aop, av));
                     }
-                    let res = lower_intrinsic(&mut g, sym, &ret_t, &eval_args)?;
+                    let res = match lower_intrinsic(&mut g, sym, &ret_t, &eval_args) {
+                        Ok(v) => v,
+                        Err(orig_err) => {
+                            if let (Some(hook), Some(r_sem_ty)) = (uf_hook.as_deref_mut(), ret_t.to_sem_ty()) {
+                                let clean_sym = sym.trim_matches('"');
+                                let mut arg_nodes = Vec::with_capacity(eval_args.len());
+                                let mut arg_poison = g.bool_const(false);
+                                let mut all_scalar = true;
+                                for (_, _, av) in &eval_args {
+                                    if let Some((v, p)) = av.as_scalar() {
+                                        arg_nodes.push(v);
+                                        arg_poison = g.or(arg_poison, p);
+                                    } else {
+                                        all_scalar = false;
+                                        break;
+                                    }
+                                }
+                                if all_scalar {
+                                    let out = hook(&mut g, clean_sym, &arg_nodes, r_sem_ty)?;
+                                    SemVal::Scalar { val: out, poison: arg_poison }
+                                } else {
+                                    return Err(orig_err);
+                                }
+                            } else {
+                                return Err(orig_err);
+                            }
+                        }
+                    };
                     bind_dst(&mut env, dst, ret_t, res)?;
                 }
                 other => {
@@ -599,6 +664,17 @@ fn merge_guarded_semvals(
                     .map(|(&(tv, tp), &(ev, ep))| (g.ite(*cond, tv, ev), g.ite(*cond, tp, ep)))
                     .collect();
                 SemVal::Vector { elem_ty: *elem_ty, lanes }
+            }
+            (SemVal::Tuple(ts), SemVal::Tuple(es)) if ts.len() == es.len() => {
+                let mut merged = Vec::with_capacity(ts.len());
+                for (t_item, e_item) in ts.iter().zip(es.iter()) {
+                    let t_true = g.bool_const(true);
+                    merged.push(merge_guarded_semvals(
+                        g,
+                        &[(*cond, t_item.clone()), (t_true, e_item.clone())],
+                    )?);
+                }
+                SemVal::Tuple(merged)
             }
             _ => {
                 return Err(SemError::Parse(
@@ -1243,6 +1319,205 @@ fn lower_shufflevector(
     ))
 }
 
+/// Lower pure register-only hardware crypto inline-asm templates (`pclmulqdq`, `pmull`,
+/// `aesenc`/`aesenclast`/`aesdec`/`aesdeclast`, `aese`/`aesmc`/`aesd`/`aesimc`) into
+/// exact `SemGraph` nodes (`BvClmul` / `AesCore`). Any `sideeffect`, memory clobber, or
+/// unmodeled ISA instruction is strictly rejected.
+fn lower_verified_crypto_asm(
+    g: &mut SemGraph,
+    env: &HashMap<String, (LlvmTy, SemVal)>,
+    rest: &str,
+) -> Result<(LlvmTy, SemVal), SemError> {
+    let (ret_t, after_ret) = parse_ty(rest)?;
+    let after_ret = after_ret.trim();
+    if !after_ret.starts_with("asm ") {
+        return Err(SemError::Unsupported(
+            "inline `asm` call requires an ISA semantics plugin (e.g. Sail)".to_string(),
+        ));
+    }
+    let after_asm = after_ret[4..].trim();
+    if after_asm.starts_with("sideeffect ") || after_asm.contains("~{memory}") {
+        return Err(SemError::Unsupported(
+            "sideeffect/memory inline `asm` requires an ISA semantics plugin".to_string(),
+        ));
+    }
+    // Extract the two quoted strings: `"<template>"`, `"<constraints>"`
+    let mut quoted = Vec::new();
+    let mut chars = after_asm.char_indices().peekable();
+    let mut end_of_second_quote = 0usize;
+    while let Some((idx, ch)) = chars.next() {
+        if ch == '"' {
+            let mut cur = String::new();
+            while let Some((j, c2)) = chars.next() {
+                if c2 == '"' {
+                    end_of_second_quote = j + 1;
+                    break;
+                }
+                cur.push(c2);
+            }
+            quoted.push(cur);
+            if quoted.len() == 2 {
+                break;
+            }
+        } else if ch == '(' && quoted.len() < 2 {
+            break;
+        }
+        let _ = idx;
+    }
+    if quoted.len() < 2 {
+        return Err(SemError::Unsupported(
+            "malformed inline `asm` template/constraints".to_string(),
+        ));
+    }
+    let tpl = quoted[0].trim();
+    let constraints = quoted[1].trim();
+    let args_tail = after_asm[end_of_second_quote..].trim();
+    let lparen = args_tail.find('(').ok_or_else(|| {
+        SemError::Parse(format!("missing `(` in inline asm `{rest}`"))
+    })?;
+    let rparen = args_tail.rfind(')').ok_or_else(|| {
+        SemError::Parse(format!("missing `)` in inline asm `{rest}`"))
+    })?;
+    let call_args = parse_call_args(&args_tail[lparen + 1..rparen])?;
+    let mut eval_args = Vec::with_capacity(call_args.len());
+    for (aty, aop) in call_args {
+        let av = eval_operand(g, env, &aty, &aop)?;
+        eval_args.push((aty, aop, av));
+    }
+
+    // Helper: pack a 128-bit vector SemVal (<2 x i64> or <16 x i8>) into (Bv(128), poison).
+    fn pack_vec128(g: &mut SemGraph, v: &SemVal) -> Result<(NodeId, NodeId), SemError> {
+        let SemVal::Vector { lanes, .. } = v else {
+            return Err(SemError::Unsupported("expected 128-bit vector for crypto asm".to_string()));
+        };
+        let mut acc = lanes[0].0;
+        let mut p = lanes[0].1;
+        for &(lv, lp) in &lanes[1..] {
+            acc = g.bv_concat(lv, acc);
+            p = g.or(p, lp);
+        }
+        Ok((acc, p))
+    }
+
+    // Helper: unpack a 128-bit (Bv(128), poison) into `<N x iW>`.
+    fn unpack_vec128(
+        g: &mut SemGraph,
+        bits: NodeId,
+        poison: NodeId,
+        ret_t: &LlvmTy,
+    ) -> Result<SemVal, SemError> {
+        let LlvmTy::Vec(n, elem) = ret_t else {
+            return Err(SemError::Unsupported("expected vector return type for crypto asm".to_string()));
+        };
+        let Some(SemTy::Bv(ew)) = elem.to_sem_ty() else {
+            return Err(SemError::Unsupported("expected integer vector element for crypto asm".to_string()));
+        };
+        if (*n as u16) * ew != 128 {
+            return Err(SemError::Unsupported("expected 128-bit vector return for crypto asm".to_string()));
+        }
+        let mut lanes = Vec::with_capacity(*n as usize);
+        for i in 0..(*n as u16) {
+            let lo = i * ew;
+            let hi = lo + ew - 1;
+            let lane = g.bv_extract(bits, hi, lo);
+            lanes.push((lane, poison));
+        }
+        Ok(SemVal::Vector { elem_ty: SemTy::Bv(ew), lanes })
+    }
+
+    // Strip optional `.arch_extension aes\0A` prefix on aarch64 templates.
+    let norm_tpl = tpl
+        .strip_prefix(".arch_extension aes\\0A")
+        .or_else(|| tpl.strip_prefix(".arch_extension aes\n"))
+        .unwrap_or(tpl)
+        .trim();
+
+    // 1. x86_64 `pclmulqdq $$<imm>, $2, $0`, `"=x,0,x"` on `<2 x i64>`
+    if norm_tpl.starts_with("pclmulqdq ") && constraints == "=x,0,x" && eval_args.len() == 2 {
+        let imm_part = norm_tpl
+            .strip_prefix("pclmulqdq ")
+            .unwrap()
+            .split(',')
+            .next()
+            .unwrap_or("")
+            .trim();
+        let imm_str = imm_part
+            .strip_prefix("$$")
+            .or_else(|| imm_part.strip_prefix('$'))
+            .unwrap_or(imm_part);
+        if let Ok(imm) = imm_str.parse::<u8>() {
+            if let (SemVal::Vector { lanes: la, .. }, SemVal::Vector { lanes: lb, .. }) =
+                (&eval_args[0].2, &eval_args[1].2)
+            {
+                if la.len() == 2 && lb.len() == 2 {
+                    let ai = (imm & 1) as usize;
+                    let bi = ((imm >> 4) & 1) as usize;
+                    let prod = g.bv_clmul(la[ai].0, lb[bi].0);
+                    let p = g.or(la[ai].1, lb[bi].1);
+                    return Ok((ret_t.clone(), unpack_vec128(g, prod, p, &ret_t)?));
+                }
+            }
+        }
+    }
+
+    // 2. aarch64 `pmull $0.1q, $1.1d, $2.1d`, `"=w,w,w"` on `<1 x i64>, <1 x i64>` -> `<16 x i8>`
+    if norm_tpl == "pmull $0.1q, $1.1d, $2.1d" && constraints == "=w,w,w" && eval_args.len() == 2 {
+        if let (SemVal::Vector { lanes: la, .. }, SemVal::Vector { lanes: lb, .. }) =
+            (&eval_args[0].2, &eval_args[1].2)
+        {
+            if la.len() == 1 && lb.len() == 1 {
+                let prod = g.bv_clmul(la[0].0, lb[0].0);
+                let p = g.or(la[0].1, lb[0].1);
+                return Ok((ret_t.clone(), unpack_vec128(g, prod, p, &ret_t)?));
+            }
+        }
+    }
+
+    // 3. x86_64 AES-NI: `aesenc`/`aesenclast`/`aesdec`/`aesdeclast $2, $0`, `"=x,0,x"`
+    let x86_aes_kind = match norm_tpl {
+        "aesenc $2, $0" => Some(super::sem::AesRoundKind::EncCore),
+        "aesenclast $2, $0" => Some(super::sem::AesRoundKind::EncLastCore),
+        "aesdec $2, $0" => Some(super::sem::AesRoundKind::DecCore),
+        "aesdeclast $2, $0" => Some(super::sem::AesRoundKind::DecLastCore),
+        _ => None,
+    };
+    if let Some(kind) = x86_aes_kind {
+        if constraints == "=x,0,x" && eval_args.len() == 2 {
+            let (s_bits, sp) = pack_vec128(g, &eval_args[0].2)?;
+            let (k_bits, kp) = pack_vec128(g, &eval_args[1].2)?;
+            let core = g.aes_core(kind, s_bits);
+            let out = g.bv_xor(core, k_bits);
+            let p = g.or(sp, kp);
+            return Ok((ret_t.clone(), unpack_vec128(g, out, p, &ret_t)?));
+        }
+    }
+
+    // 4. aarch64 ARMv8 Crypto: `aese`[+`aesmc`] / `aesd`[+`aesimc`], `"=w,0,w"`
+    let arm_aes_kind = match norm_tpl {
+        "aese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b"
+        | "aese $0.16b, $2.16b\naesmc $0.16b, $0.16b" => Some(super::sem::AesRoundKind::EncCore),
+        "aese $0.16b, $2.16b" => Some(super::sem::AesRoundKind::EncLastCore),
+        "aesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b"
+        | "aesd $0.16b, $2.16b\naesimc $0.16b, $0.16b" => Some(super::sem::AesRoundKind::DecCore),
+        "aesd $0.16b, $2.16b" => Some(super::sem::AesRoundKind::DecLastCore),
+        _ => None,
+    };
+    if let Some(kind) = arm_aes_kind {
+        if constraints == "=w,0,w" && eval_args.len() == 2 {
+            let (s_bits, sp) = pack_vec128(g, &eval_args[0].2)?;
+            let (k0_bits, kp) = pack_vec128(g, &eval_args[1].2)?;
+            let xored = g.bv_xor(s_bits, k0_bits);
+            let out = g.aes_core(kind, xored);
+            let p = g.or(sp, kp);
+            return Ok((ret_t.clone(), unpack_vec128(g, out, p, &ret_t)?));
+        }
+    }
+
+    Err(SemError::Unsupported(format!(
+        "inline `asm` call `{tpl}` requires an ISA semantics plugin (e.g. Sail)"
+    )))
+}
+
 fn lower_intrinsic(
     g: &mut SemGraph,
     sym: &str,
@@ -1560,6 +1835,13 @@ fn eval_operand(
                     let z = default_zero_for_ty(g, elem)?;
                     Ok(SemVal::Vector { elem_ty, lanes: vec![(z, p); *n as usize] })
                 }
+                LlvmTy::Struct(fields) => {
+                    let mut vals = Vec::with_capacity(fields.len());
+                    for ft in fields {
+                        vals.push(eval_operand(g, env, ft, op)?);
+                    }
+                    Ok(SemVal::Tuple(vals))
+                }
                 _ => {
                     let z = default_zero_for_ty(g, ty)?;
                     Ok(SemVal::Scalar { val: z, poison: p })
@@ -1575,6 +1857,13 @@ fn eval_operand(
                         .ok_or_else(|| SemError::Unsupported("nested vector".to_string()))?;
                     let z = default_zero_for_ty(g, elem)?;
                     Ok(SemVal::Vector { elem_ty, lanes: vec![(z, p); *n as usize] })
+                }
+                LlvmTy::Struct(fields) => {
+                    let mut vals = Vec::with_capacity(fields.len());
+                    for ft in fields {
+                        vals.push(eval_operand(g, env, ft, op)?);
+                    }
+                    Ok(SemVal::Tuple(vals))
                 }
                 _ => {
                     let z = default_zero_for_ty(g, ty)?;

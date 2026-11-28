@@ -1,0 +1,1312 @@
+-- Tier 1 online partial evaluation and memoized polyvariant specialization
+-- over typed Core IR (`Cinch.Core`), run right before LLVM lowering in
+-- `Cinch.RuntimeIr`.
+--
+-- Features:
+--   1. Online static environment propagation (scalar constants, constructors,
+--      tuples, functions) with constant folding, known-`CIf` and known-`CCase`
+--      reduction, beta-reduction of applied lambdas, point-free wrapper
+--      saturation, and dead pure `CLet` elimination.
+--   2. Memoized polyvariant specialization of eligible definitions on static
+--      shapes (`Func`, `Ctor`, `Tuple`, `Bool`, `Int`) bounded by shape depth,
+--      free-variable cap, per-callee and total clone caps, an interesting-param
+--      gate, unchanged self-call knot-tying, and an anti-unrolling guard.
+module Cinch.PartialEval where
+
+  import Cinch.Core
+  import Cinch.Type
+  import Cinch.Ownership (term-uses-id, terms-use-id)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.List (list-length, reverse)
+  import Data.Nat (nat-to-int, nat-from-int)
+  import Data.Int (int-neg)
+  import Data.String (string-to-bytes)
+  import Data.Bytes (bytes-len, bytes-get)
+  import Text.Show (nat-to-string, int-to-string)
+  import Text.Scan (string-starts-with, string-split-on)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export partial-eval-program
+
+  pe-span :: Span
+  pe-span = Span 0 0 1 1
+
+  pe-unit-ty :: UType
+  pe-unit-ty = UCon "Unit" KType
+
+  pe-bool-ty :: UType
+  pe-bool-ty = UCon "Bool" KType
+
+  -- ---------------------------------------------------------------------------
+  -- Budgets
+  -- ---------------------------------------------------------------------------
+
+  pe-max-shape-depth :: Nat
+  pe-max-shape-depth = 3
+
+  pe-max-shape-free :: Nat
+  pe-max-shape-free = 4
+
+  pe-max-spec-nodes :: Nat
+  pe-max-spec-nodes = 500
+
+  pe-max-per-callee :: Nat
+  pe-max-per-callee = 6
+
+  pe-max-total-clones :: Nat
+  pe-max-total-clones = 128
+
+  -- ---------------------------------------------------------------------------
+  -- Basic helpers over Core terms, patterns, types, and literals
+  -- ---------------------------------------------------------------------------
+
+  pe-base :: UType -> UType
+  pe-base ty = case refinement-view ty of
+    URefine _ _ carrier _ -> pe-base carrier
+    URequire _ body -> pe-base body
+    other -> ty
+
+  pe-named :: UType -> String -> Bool
+  pe-named ty wanted = case pe-base ty of
+    UCon name _ -> name == wanted
+    other -> False
+
+  pe-is-true :: CoreTerm -> Bool
+  pe-is-true term = case term of
+    CUse _ ty name _ _ -> pe-named ty "Bool" && name == "True"
+    other -> False
+
+  pe-is-false :: CoreTerm -> Bool
+  pe-is-false term = case term of
+    CUse _ ty name _ _ -> pe-named ty "Bool" && name == "False"
+    other -> False
+
+  pe-bool-term :: Span -> Bool -> CoreTerm
+  pe-bool-term sp b = CUse sp pe-bool-ty (if b then "True" else "False") "constructor" []
+
+  pe-is-scalar-const :: CoreTerm -> Bool
+  pe-is-scalar-const term = case term of
+    CInt _ _ _ -> True
+    CUnit _ _ -> True
+    CChar _ _ _ -> True
+    CUse _ ty name _ _ -> pe-named ty "Bool" && (name == "True" || name == "False")
+    other -> False
+
+  pe-spine :: CoreTerm -> List CoreTerm -> (CoreTerm, List CoreTerm)
+  pe-spine term acc = case term of
+    CApply _ _ f x -> pe-spine f (x : acc)
+    CApplyEff _ _ _ f x -> pe-spine f (x : acc)
+    other -> (term, acc)
+
+  pe-arg-list :: CoreTerm -> Option (List CoreTerm)
+  pe-arg-list args = case args of
+    CArgumentsEnd _ -> Some []
+    CArgument _ first rest -> case pe-arg-list rest of
+      Some more -> Some (first : more)
+      None -> None
+    other -> None
+
+  pe-arg-spine :: Span -> List CoreTerm -> CoreTerm
+  pe-arg-spine sp xs = case xs of
+    [] -> CArgumentsEnd sp
+    first : rest -> CArgument sp first (pe-arg-spine sp rest)
+
+  pe-rebuild-spine :: Span -> CoreTerm -> List CoreTerm -> Option CoreTerm
+  pe-rebuild-spine sp head-term args = case args of
+    [] -> Some head-term
+    first : rest -> case arrow-shape (pe-base (core-type head-term)) of
+      UFun _ res -> pe-rebuild-spine sp (CApply sp res head-term first) rest
+      UFunEff _ row res -> pe-rebuild-spine sp (CApplyEff sp res row head-term first) rest
+      other -> None
+
+  pe-is-pure-row :: UType -> Bool
+  pe-is-pure-row row = case row of
+    URow UEnd -> True
+    other -> False
+
+  pe-has-usage-arrow :: UType -> Bool
+  pe-has-usage-arrow ty = case ty of
+    UUsageArrow _ _ -> True
+    UFun a b -> pe-has-usage-arrow a || pe-has-usage-arrow b
+    UFunEff a r b -> pe-has-usage-arrow a || pe-has-usage-arrow r || pe-has-usage-arrow b
+    UPi _ _ a r b -> pe-has-usage-arrow a || pe-has-usage-arrow r || pe-has-usage-arrow b
+    UProofFun p r b -> pe-has-usage-arrow p || pe-has-usage-arrow r || pe-has-usage-arrow b
+    UApp a b -> pe-has-usage-arrow a || pe-has-usage-arrow b
+    UTuple fields -> pe-has-usage-arrow fields
+    UArg a rest -> pe-has-usage-arrow a || pe-has-usage-arrow rest
+    UForall _ b -> pe-has-usage-arrow b
+    UQual _ b -> pe-has-usage-arrow b
+    URefine _ _ c _ -> pe-has-usage-arrow c
+    other -> False
+
+  pe-type-closed :: UType -> Bool
+  pe-type-closed ty = case ty of
+    URigid _ _ _ _ -> False
+    UBound _ _ _ -> False
+    UMeta _ _ -> False
+    UError -> False
+    UCon _ _ -> True
+    UApp a b -> pe-type-closed a && pe-type-closed b
+    UFun a b -> pe-type-closed a && pe-type-closed b
+    UFunEff a r b -> pe-type-closed a && pe-type-closed r && pe-type-closed b
+    UTuple fs -> pe-type-closed fs
+    UArg a r -> pe-type-closed a && pe-type-closed r
+    URow ls -> pe-type-closed ls
+    URowJoin a b -> pe-type-closed a && pe-type-closed b
+    UEnd -> True
+    other -> False
+
+  pe-types-closed :: List UType -> Bool
+  pe-types-closed ts = case ts of
+    [] -> True
+    first : rest -> pe-type-closed first && pe-types-closed rest
+
+  pe-type-params-only :: List Quant -> Bool
+  pe-type-params-only qs = case qs of
+    [] -> True
+    q : rest -> (case q.kind of KType -> True; other -> False) && not (q.only) && pe-type-params-only rest
+
+  pe-is-pure-value :: HashMap String Nat -> CoreTerm -> Bool
+  pe-is-pure-value ctors term = case term of
+    CInt _ _ _ -> True
+    CChar _ _ _ -> True
+    CSymbol _ _ _ -> True
+    CString _ _ _ -> True
+    CUnit _ _ -> True
+    CLocal _ _ _ _ [] -> True
+    CUse _ _ _ role _ -> role == "constructor" || role == "value"
+    CTuple _ _ fields -> case pe-arg-list fields of
+      Some fs -> pe-all-pure-values ctors fs
+      None -> False
+    CApply _ _ _ _ -> case pe-spine term [] of
+      (CUse _ _ cname "constructor" _, args) ->
+        (case hash-map-lookup cname ctors of
+          Some arity -> list-length args == arity && pe-all-pure-values ctors args
+          None -> False)
+      other -> False
+    other -> False
+
+  pe-all-pure-values :: HashMap String Nat -> List CoreTerm -> Bool
+  pe-all-pure-values ctors terms = case terms of
+    [] -> True
+    first : rest -> pe-is-pure-value ctors first && pe-all-pure-values ctors rest
+
+  pe-is-discardable-local-type :: UType -> Bool
+  pe-is-discardable-local-type ty =
+    pe-named ty "Bool" || pe-named ty "Char" || pe-named ty "Unit"
+      || pe-named ty "Int" || pe-named ty "Nat"
+      || pe-named ty "I8" || pe-named ty "I16" || pe-named ty "I32" || pe-named ty "I64" || pe-named ty "Isize"
+      || pe-named ty "U8" || pe-named ty "U16" || pe-named ty "U32" || pe-named ty "U64" || pe-named ty "Usize"
+      || pe-named ty "F32" || pe-named ty "F64"
+      || pe-named ty "String" || pe-named ty "Bytes"
+
+  -- Pure expressions safe to discard if their let-binder is unused.
+  -- Excludes unknown calls, effects, linear/mutable ops, and thunks.
+  pe-discardable :: HashMap String Nat -> CoreTerm -> Bool
+  pe-discardable ctors term =
+    if not (pe-is-pure-row (core-effects term)) then False
+    else if pe-has-usage-arrow (core-type term) then False
+    else case term of
+      CInt _ _ _ -> True
+      CChar _ _ _ -> True
+      CSymbol _ _ _ -> True
+      CString _ _ _ -> True
+      CUnit _ _ -> True
+      CLocal _ ty _ _ [] -> pe-is-discardable-local-type ty
+      CUse _ _ _ role _ -> role == "constructor" || role == "value"
+      CLambda _ _ _ _ -> True
+      CTuple _ _ fields -> case pe-arg-list fields of
+        Some fs -> pe-all-discardable ctors fs
+        None -> False
+      CApply _ _ _ _ -> case pe-spine term [] of
+        (CUse _ _ cname "constructor" _, args) ->
+          (case hash-map-lookup cname ctors of
+            Some arity -> list-length args <= arity && pe-all-discardable ctors args
+            None -> False)
+        other -> False
+      other -> False
+
+  pe-all-discardable :: HashMap String Nat -> List CoreTerm -> Bool
+  pe-all-discardable ctors terms = case terms of
+    [] -> True
+    first : rest -> pe-discardable ctors first && pe-all-discardable ctors rest
+
+  pe-term-nodes :: CoreTerm -> Nat
+  pe-term-nodes term = case term of
+    CApply _ _ f x -> 1 + pe-term-nodes f + pe-term-nodes x
+    CApplyEff _ _ _ f x -> 1 + pe-term-nodes f + pe-term-nodes x
+    CErasedApply _ _ _ f x -> 1 + pe-term-nodes f + pe-term-nodes x
+    CLambda _ _ _ body -> 1 + pe-term-nodes body
+    CLet _ _ _ _ _ rhs body -> 1 + pe-term-nodes rhs + pe-term-nodes body
+    CIf _ _ c t f -> 1 + pe-term-nodes c + pe-term-nodes t + pe-term-nodes f
+    CCase _ _ v alts -> 1 + pe-term-nodes v + pe-term-nodes alts
+    CAlternative _ _ body rest -> 1 + pe-term-nodes body + pe-term-nodes rest
+    CGuard _ _ g b -> 1 + pe-term-nodes g + pe-term-nodes b
+    CTuple _ _ fs -> 1 + pe-term-nodes fs
+    CPrimitive _ _ _ args -> 1 + pe-term-nodes args
+    CArgument _ a rest -> pe-term-nodes a + pe-term-nodes rest
+    CRecursiveFunctions _ _ ms b -> 1 + pe-term-nodes ms + pe-term-nodes b
+    CRecursiveValues _ _ _ ms b -> 1 + pe-term-nodes ms + pe-term-nodes b
+    CRecursiveBinding _ _ v rest -> 1 + pe-term-nodes v + pe-term-nodes rest
+    CWith _ _ _ v b -> 1 + pe-term-nodes v + pe-term-nodes b
+    CProved _ _ _ b -> 1 + pe-term-nodes b
+    CRefine _ _ _ b -> 1 + pe-term-nodes b
+    CRefineProof _ _ w b -> 1 + pe-term-nodes w + pe-term-nodes b
+    CForget _ _ b -> 1 + pe-term-nodes b
+    CCast _ _ b -> 1 + pe-term-nodes b
+    CRequire _ _ b -> 1 + pe-term-nodes b
+    CDischarge _ _ _ _ b -> 1 + pe-term-nodes b
+    other -> 1
+
+  pe-max-nat :: Nat -> Nat -> Nat
+  pe-max-nat a b = if a > b then a else b
+
+  pe-pat-max-id :: CorePattern -> Nat
+  pe-pat-max-id p = case p of
+    CPVar _ _ id _ -> id + 1
+    CPProof _ _ id _ -> id + 1
+    CPErasedValue _ _ id _ -> id + 1
+    CPAs _ _ id _ inner -> pe-max-nat (id + 1) (pe-pat-max-id inner)
+    CPConstructor _ _ _ _ _ fs -> pe-pat-max-id fs
+    CPTuple _ _ fs -> pe-pat-max-id fs
+    CPField _ a b -> pe-max-nat (pe-pat-max-id a) (pe-pat-max-id b)
+    other -> 0
+
+  pe-pats-max-id :: List CorePattern -> Nat
+  pe-pats-max-id ps = case ps of
+    [] -> 0
+    first : rest -> pe-max-nat (pe-pat-max-id first) (pe-pats-max-id rest)
+
+  pe-term-max-id :: CoreTerm -> Nat
+  pe-term-max-id term = case term of
+    CLocal _ _ id _ _ -> id + 1
+    CProofRef _ _ id _ -> id + 1
+    CLet _ _ id _ _ rhs body -> pe-max-nat (id + 1) (pe-max-nat (pe-term-max-id rhs) (pe-term-max-id body))
+    CLambda _ _ p body -> pe-max-nat (pe-pat-max-id p) (pe-term-max-id body)
+    CAlternative _ p body rest -> pe-max-nat (pe-pat-max-id p) (pe-max-nat (pe-term-max-id body) (pe-term-max-id rest))
+    CRecursiveBinding id _ val rest -> pe-max-nat (id + 1) (pe-max-nat (pe-term-max-id val) (pe-term-max-id rest))
+    CApply _ _ f x -> pe-max-nat (pe-term-max-id f) (pe-term-max-id x)
+    CApplyEff _ _ _ f x -> pe-max-nat (pe-term-max-id f) (pe-term-max-id x)
+    CErasedApply _ _ _ f x -> pe-max-nat (pe-term-max-id f) (pe-term-max-id x)
+    CIf _ _ c t f -> pe-max-nat (pe-term-max-id c) (pe-max-nat (pe-term-max-id t) (pe-term-max-id f))
+    CCase _ _ v alts -> pe-max-nat (pe-term-max-id v) (pe-term-max-id alts)
+    CGuard _ _ g b -> pe-max-nat (pe-term-max-id g) (pe-term-max-id b)
+    CTuple _ _ fs -> pe-term-max-id fs
+    CPrimitive _ _ _ args -> pe-term-max-id args
+    CArgument _ a rest -> pe-max-nat (pe-term-max-id a) (pe-term-max-id rest)
+    CRecursiveFunctions _ _ ms b -> pe-max-nat (pe-term-max-id ms) (pe-term-max-id b)
+    CRecursiveValues _ _ _ ms b -> pe-max-nat (pe-term-max-id ms) (pe-term-max-id b)
+    CWith _ _ _ v b -> pe-max-nat (pe-term-max-id v) (pe-term-max-id b)
+    CProved _ _ _ b -> pe-term-max-id b
+    CRefine _ _ _ b -> pe-term-max-id b
+    CRefineProof _ _ w b -> pe-max-nat (pe-term-max-id w) (pe-term-max-id b)
+    CForget _ _ b -> pe-term-max-id b
+    CCast _ _ b -> pe-term-max-id b
+    CRequire _ _ b -> pe-term-max-id b
+    CDischarge _ _ _ _ b -> pe-term-max-id b
+    CDecision _ _ _ c -> pe-term-max-id c
+    CScope _ _ _ _ cb -> pe-term-max-id cb
+    CMemoScope _ _ _ b -> pe-term-max-id b
+    CSpawn _ _ t b -> pe-max-nat (pe-term-max-id t) (pe-term-max-id b)
+    CJoin _ _ t h -> pe-max-nat (pe-term-max-id t) (pe-term-max-id h)
+    CPolyIntro _ _ _ b -> pe-term-max-id b
+    CPolyElim _ _ b _ -> pe-term-max-id b
+    CQualIntro _ _ _ b -> pe-term-max-id b
+    CQualElim _ _ b _ -> pe-term-max-id b
+    CHandler _ _ r ops -> pe-max-nat (pe-term-max-id r) (pe-term-max-id ops)
+    CHandle _ _ _ _ b h -> pe-max-nat (pe-term-max-id b) (pe-term-max-id h)
+    CHandlerOperation _ _ _ _ cl rest -> pe-max-nat (pe-term-max-id cl) (pe-term-max-id rest)
+    other -> 0
+
+  -- ---------------------------------------------------------------------------
+  -- Exact decimal integer parsing and pure constant folding
+  -- ---------------------------------------------------------------------------
+
+  pe-parse-digits :: Bytes -> Nat -> Int -> Option Int
+  pe-parse-digits bs idx acc =
+    if idx < bytes-len bs then
+      let b = bytes-get bs idx in
+      if b >= 48 && b <= 57 then
+        pe-parse-digits bs (idx + 1) (acc * 10 + nat-to-int (b - 48))
+      else None
+    else Some acc
+
+  pe-parse-int :: String -> Option Int
+  pe-parse-int s =
+    let bs = string-to-bytes s in
+    if 0 < bytes-len bs then
+      if bytes-get bs 0 == 45 then
+        if 1 < bytes-len bs then
+          (case pe-parse-digits bs 1 0 of
+            Some v -> Some (int-neg v)
+            None -> None)
+        else None
+      else pe-parse-digits bs 0 0
+    else None
+
+  pe-i64-in-range :: Int -> Bool
+  pe-i64-in-range n = n >= (int-neg 9223372036854775807 - 1) && n <= 9223372036854775807
+
+  pe-fold-prim :: Span -> UType -> String -> List CoreTerm -> Option CoreTerm
+  pe-fold-prim sp ty op args = case args of
+    [CInt _ ity text] ->
+      if op == "negate" && pe-named ity "Int" then
+        case pe-parse-int text of
+          Some n -> Some (CInt sp ty (int-to-string (int-neg n)))
+          None -> None
+      else None
+    [a, b] ->
+      if pe-is-true a || pe-is-false a then
+        if pe-is-true b || pe-is-false b then
+          let ba = pe-is-true a in
+          let bb = pe-is-true b in
+          if op == "cinch.prim.eqBool" then Some (pe-bool-term sp (ba == bb))
+          else if op == "cinch.prim.neBool" then Some (pe-bool-term sp (ba /= bb))
+          else None
+        else None
+      else case (a, b) of
+        (CInt _ ta sa, CInt _ tb sb) ->
+          case (pe-parse-int sa, pe-parse-int sb) of
+            (Some na, Some nb) ->
+              if op == "cinch.prim.eqI64" then Some (pe-bool-term sp (na == nb))
+              else if op == "cinch.prim.neI64" then Some (pe-bool-term sp (na /= nb))
+              else if op == "cinch.prim.ltI64" then Some (pe-bool-term sp (na < nb))
+              else if op == "cinch.prim.leI64" then Some (pe-bool-term sp (na <= nb))
+              else if op == "cinch.prim.gtI64" then Some (pe-bool-term sp (na > nb))
+              else if op == "cinch.prim.geI64" then Some (pe-bool-term sp (na >= nb))
+              else if op == "cinch.prim.wrappingAddI64" && pe-i64-in-range (na + nb) then
+                Some (CInt sp ty (int-to-string (na + nb)))
+              else if op == "cinch.prim.wrappingSubI64" && pe-i64-in-range (na - nb) then
+                Some (CInt sp ty (int-to-string (na - nb)))
+              else if op == "cinch.runtime.natAdd" && na >= 0 && nb >= 0 then
+                Some (CInt sp ty (int-to-string (na + nb)))
+              else if op == "cinch.runtime.natSub" && na >= 0 && nb >= 0 && na >= nb then
+                Some (CInt sp ty (int-to-string (na - nb)))
+              else if op == "cinch.runtime.natMul" && na >= 0 && nb >= 0 then
+                Some (CInt sp ty (int-to-string (na * nb)))
+              else if op == "cinch.runtime.intAdd" then
+                Some (CInt sp ty (int-to-string (na + nb)))
+              else if op == "cinch.runtime.intSub" then
+                Some (CInt sp ty (int-to-string (na - nb)))
+              else if op == "cinch.runtime.intMul" then
+                Some (CInt sp ty (int-to-string (na * nb)))
+              else None
+            other -> None
+        other -> None
+    other -> None
+
+  -- ---------------------------------------------------------------------------
+  -- Static environment & tables for online PE
+  -- ---------------------------------------------------------------------------
+
+  record PeWrapper where
+    callee :: String
+    actuals :: List UType
+    saved :: List CoreTerm
+    callee-arity :: Nat
+
+  record PeTables where
+    ctors :: HashMap String Nat
+    arities :: HashMap String Nat
+    wrappers :: HashMap String PeWrapper
+
+  pe-index-ctors :: List CoreData -> HashMap String Nat -> HashMap String Nat
+  pe-index-ctors datas acc = case datas of
+    [] -> acc
+    d : rest -> pe-index-ctors rest (pe-index-data-ctors (core-data-constructors d) acc)
+
+  pe-index-data-ctors :: List CoreConstructor -> HashMap String Nat -> HashMap String Nat
+  pe-index-data-ctors cs acc = case cs of
+    [] -> acc
+    c : rest -> pe-index-data-ctors rest (hash-map-insert (c.constructor-name) (list-length (core-constructor-fields c)) acc)
+
+  pe-runtime-prefix-len :: List CorePattern -> Nat
+  pe-runtime-prefix-len ps = case ps of
+    [] -> 0
+    first : rest -> if erased-pattern first then 0 else 1 + pe-runtime-prefix-len rest
+
+  pe-has-erased :: List CorePattern -> Bool
+  pe-has-erased ps = case ps of
+    [] -> False
+    first : rest -> erased-pattern first || pe-has-erased rest
+
+  pe-index-arities :: List CoreDefinition -> HashMap String Nat -> HashMap String Nat
+  pe-index-arities defs acc = case defs of
+    [] -> acc
+    d : rest ->
+      let next = case (d.givens, d.openings, d.clauses) of
+            ([], [], (CoreClause _ ps _) : _) ->
+              if pe-has-erased ps then acc
+              else hash-map-insert (d.name) (list-length ps) acc
+            other -> acc in
+      pe-index-arities rest next
+
+  -- Collect pure point-free partial-application wrappers (`f = g a b`).
+  pe-index-wrappers :: HashMap String Nat -> HashMap String Nat -> List CoreDefinition -> HashMap String PeWrapper -> HashMap String PeWrapper
+  pe-index-wrappers ctors arities defs acc = case defs of
+    [] -> acc
+    d : rest ->
+      let next = case (scheme-params (d.scheme), scheme-requirements (d.scheme), d.givens, d.openings, d.clauses) of
+            ([], [], [], [], [CoreClause _ [] body]) ->
+              if pe-has-usage-arrow (scheme-body (d.scheme)) then acc
+              else case pe-spine body [] of
+                (CUse _ _ gname role gactuals, saved) | role == "value" && gname /= d.name && list-length saved > 0 ->
+                  (case hash-map-lookup gname arities of
+                    Some arity | list-length saved < arity && pe-all-pure-values ctors saved ->
+                      hash-map-insert (d.name) (PeWrapper gname gactuals saved arity) acc
+                    other -> acc)
+                other -> acc
+            other -> acc in
+      pe-index-wrappers ctors arities rest next
+
+  pe-build-tables :: List CoreData -> List CoreDefinition -> PeTables
+  pe-build-tables datas defs =
+    let ctors = pe-index-ctors datas hash-map-empty in
+    let arities = pe-index-arities defs hash-map-empty in
+    let wrappers = pe-index-wrappers ctors arities defs hash-map-empty in
+    PeTables ctors arities wrappers
+
+  -- ---------------------------------------------------------------------------
+  -- Lexical environment lookup & static pattern matching
+  -- ---------------------------------------------------------------------------
+
+  pe-env-lookup :: Nat -> List (Nat, CoreTerm) -> Option CoreTerm
+  pe-env-lookup id env = case env of
+    [] -> None
+    (key, val) : rest -> if key == id then Some val else pe-env-lookup id rest
+
+  pe-env-resolve :: Nat -> List (Nat, CoreTerm) -> CoreTerm -> CoreTerm
+  pe-env-resolve fuel env term =
+    if fuel == 0 then term
+    else case term of
+      CLocal _ _ id _ [] -> case pe-env-lookup id env of
+        Some next -> pe-env-resolve (fuel - 1) env next
+        None -> term
+      other -> term
+
+  pe-pat-fields-list :: CorePattern -> Option (List CorePattern)
+  pe-pat-fields-list p = case p of
+    CPDone _ -> Some []
+    CPField _ first rest -> case pe-pat-fields-list rest of
+      Some more -> Some (first : more)
+      None -> None
+    other -> None
+
+  pe-match-field-pats :: List CorePattern -> List CoreTerm -> Option (List (Nat, String, UType, CoreTerm))
+  pe-match-field-pats pats vals = case (pats, vals) of
+    ([], []) -> Some []
+    (p : ps, v : vs) -> case p of
+      CPWild _ _ -> pe-match-field-pats ps vs
+      CPVar _ pty pid pname -> case pe-match-field-pats ps vs of
+        Some more -> Some ((pid, pname, pty, v) : more)
+        None -> None
+      other -> None
+    other -> None
+
+  pe-wrap-lets :: Span -> List (Nat, String, UType, CoreTerm) -> CoreTerm -> CoreTerm
+  pe-wrap-lets sp binds body = case binds of
+    [] -> body
+    (id, name, ty, val) : rest ->
+      let inner = pe-wrap-lets sp rest body in
+      CLet sp (core-type inner) id name (mono ty) val inner
+
+  pe-match-one-pat :: HashMap String Nat -> CorePattern -> CoreTerm -> Option (List (Nat, String, UType, CoreTerm))
+  pe-match-one-pat ctors pat scrut = case pat of
+    CPWild _ _ -> Some []
+    CPVar _ pty pid pname -> Some [(pid, pname, pty, scrut)]
+    CPInt _ _ expected -> case scrut of
+      CInt _ _ actual -> if expected == actual then Some [] else None
+      other -> None
+    CPTuple _ _ pfields -> case scrut of
+      CTuple _ _ sfields -> case (pe-pat-fields-list pfields, pe-arg-list sfields) of
+        (Some ps, Some vs) | list-length ps == list-length vs && pe-all-pure-values ctors vs ->
+          pe-match-field-pats ps vs
+        other -> None
+      other -> None
+    CPConstructor _ _ cname _ _ pfields ->
+      case pe-spine scrut [] of
+        (CUse _ _ sname "constructor" _, sargs) ->
+          if cname /= sname then None
+          else case pe-pat-fields-list pfields of
+            Some ps | list-length ps == list-length sargs && pe-all-pure-values ctors sargs ->
+              pe-match-field-pats ps sargs
+            other -> None
+        other -> None
+    other -> None
+
+  -- Returns `Some (binds, chosen-body)` when the static scrutinee decisively
+  -- picks an alternative with no uncertain guard. Returns `None` if stuck.
+  pe-match-alts :: HashMap String Nat -> CoreTerm -> CoreTerm -> Option (List (Nat, String, UType, CoreTerm), CoreTerm)
+  pe-match-alts ctors scrut alts = case alts of
+    CAlternativesEnd _ -> None
+    CAlternative _ pat body rest ->
+      case pe-match-one-pat ctors pat scrut of
+        Some binds -> case body of
+          CGuard _ _ _ inner -> if core-alternative-covers body then Some (binds, inner) else None
+          other -> Some (binds, body)
+        None ->
+          -- Only advance past a constructor/int pattern that definitely failed
+          -- against a known constructor/int scrutinee!
+          let definite-miss = case (pat, scrut) of
+                (CPConstructor _ _ cname _ _ _, _) ->
+                  (case pe-spine scrut [] of
+                    (CUse _ _ sname "constructor" _, _) -> cname /= sname
+                    other -> False)
+                (CPInt _ _ expected, CInt _ _ actual) -> expected /= actual
+                other -> False in
+          if definite-miss then pe-match-alts ctors scrut rest else None
+    other -> None
+
+  -- ---------------------------------------------------------------------------
+  -- Online partial evaluation of a single CoreTerm
+  -- ---------------------------------------------------------------------------
+
+  pe-is-known-func :: HashMap String Nat -> CoreTerm -> Bool
+  pe-is-known-func arities term = case term of
+    CUse _ _ gname role [] -> role == "value" && (case hash-map-lookup gname arities of Some n -> n > 0; None -> False)
+    other -> False
+
+  pe-term :: PeTables -> List (Nat, CoreTerm) -> Nat -> CoreTerm -> CoreTerm
+  pe-term tables env fuel term =
+    if fuel == 0 then term
+    else case term of
+      CLocal sp ty id name [] ->
+        let resolved = pe-env-resolve 8 env term in
+        if pe-is-scalar-const resolved || pe-is-known-func (tables.arities) resolved then resolved else term
+      CIf sp ty cond yes no ->
+        let c = pe-term tables env (fuel - 1) cond in
+        if pe-is-true c then pe-term tables env (fuel - 1) yes
+        else if pe-is-false c then pe-term tables env (fuel - 1) no
+        else CIf sp ty c (pe-term tables env (fuel - 1) yes) (pe-term tables env (fuel - 1) no)
+      CCase sp ty scrut alts ->
+        let s = pe-term tables env (fuel - 1) scrut in
+        let resolved = pe-env-resolve 8 env s in
+        (case pe-match-alts (tables.ctors) resolved alts of
+          Some (binds, chosen) ->
+            pe-term tables env (fuel - 1) (pe-wrap-lets sp binds chosen)
+          None -> CCase sp ty s (pe-alts tables env (fuel - 1) alts))
+      CLet sp ty id name sc rhs body ->
+        let r = pe-term tables env (fuel - 1) rhs in
+        let is-mono = (case (scheme-params sc, scheme-requirements sc) of ([], []) -> True; other -> False) in
+        let env2 = if is-mono && pe-is-pure-value (tables.ctors) r then (id, r) : env else env in
+        let b = pe-term tables env2 (fuel - 1) body in
+        if is-mono && not (term-uses-id id b) && pe-discardable (tables.ctors) r then b
+        else CLet sp ty id name sc r b
+      CApply sp ty f x -> pe-app tables env (fuel - 1) sp ty None f x
+      CApplyEff sp ty row f x -> pe-app tables env (fuel - 1) sp ty (Some row) f x
+      CErasedApply sp ty row f w ->
+        CErasedApply sp ty row (pe-term tables env (fuel - 1) f) (pe-term tables env (fuel - 1) w)
+      CLambda sp ty p body ->
+        CLambda sp ty p (pe-term tables env (fuel - 1) body)
+      CTuple sp ty fields ->
+        CTuple sp ty (pe-args tables env (fuel - 1) fields)
+      CPrimitive sp ty op args ->
+        let a = pe-args tables env (fuel - 1) args in
+        (case pe-arg-list a of
+          Some xs -> case pe-fold-prim sp ty op xs of
+            Some folded -> folded
+            None -> CPrimitive sp ty op a
+          None -> CPrimitive sp ty op a)
+      CWith sp ty given val body ->
+        CWith sp ty given (pe-term tables env (fuel - 1) val) (pe-term tables env (fuel - 1) body)
+      CRecursiveFunctions sp ty ms body ->
+        CRecursiveFunctions sp ty (pe-rec-bindings tables env (fuel - 1) ms) (pe-term tables env (fuel - 1) body)
+      CRecursiveValues sp ty reg ms body ->
+        CRecursiveValues sp ty reg (pe-rec-bindings tables env (fuel - 1) ms) (pe-term tables env (fuel - 1) body)
+      CGuard sp ty g body ->
+        CGuard sp ty (pe-term tables env (fuel - 1) g) (pe-term tables env (fuel - 1) body)
+      CProved sp ty ev body -> CProved sp ty ev (pe-term tables env (fuel - 1) body)
+      CRefine sp ty ev body -> CRefine sp ty ev (pe-term tables env (fuel - 1) body)
+      CRefineProof sp ty w body -> CRefineProof sp ty (pe-term tables env (fuel - 1) w) (pe-term tables env (fuel - 1) body)
+      CForget sp ty body -> CForget sp ty (pe-term tables env (fuel - 1) body)
+      CCast sp ty body -> CCast sp ty (pe-term tables env (fuel - 1) body)
+      CRequire sp ty body -> CRequire sp ty (pe-term tables env (fuel - 1) body)
+      CDischarge sp ty ev flag body -> CDischarge sp ty ev flag (pe-term tables env (fuel - 1) body)
+      CDecision sp ty pred cond -> CDecision sp ty pred (pe-term tables env (fuel - 1) cond)
+      CScope sp ty reg ev cb -> CScope sp ty reg ev (pe-term tables env (fuel - 1) cb)
+      CMemoScope sp ty reg body -> CMemoScope sp ty reg (pe-term tables env (fuel - 1) body)
+      CSpawn sp ty t body -> CSpawn sp ty (pe-term tables env (fuel - 1) t) (pe-term tables env (fuel - 1) body)
+      CJoin sp ty t h -> CJoin sp ty (pe-term tables env (fuel - 1) t) (pe-term tables env (fuel - 1) h)
+      CPolyIntro sp ty ids body -> CPolyIntro sp ty ids (pe-term tables env (fuel - 1) body)
+      CPolyElim sp ty body args -> CPolyElim sp ty (pe-term tables env (fuel - 1) body) args
+      CQualIntro sp ty givens body -> CQualIntro sp ty givens (pe-term tables env (fuel - 1) body)
+      CQualElim sp ty body evs -> CQualElim sp ty (pe-term tables env (fuel - 1) body) evs
+      CHandler sp ty ret ops -> CHandler sp ty (pe-term tables env (fuel - 1) ret) (pe-handler-ops tables env (fuel - 1) ops)
+      CHandle sp ty lbl res body h -> CHandle sp ty lbl res (pe-term tables env (fuel - 1) body) (pe-term tables env (fuel - 1) h)
+      other -> term
+
+  pe-app :: PeTables -> List (Nat, CoreTerm) -> Nat -> Span -> UType -> Option UType -> CoreTerm -> CoreTerm -> CoreTerm
+  pe-app tables env fuel sp ty row-opt f x =
+    let f2 = pe-term tables env fuel f in
+    let x2 = pe-term tables env fuel x in
+    -- 1. Beta-reduction of an immediately applied lambda (pure CApply only).
+    case (row-opt, f2) of
+      (None, CLambda lsp lty (CPVar psp pty pid pname) lbody) ->
+        if not (pe-has-usage-arrow lty) then
+          pe-term tables env fuel (CLet sp ty pid pname (mono pty) x2 lbody)
+        else CApply sp ty f2 x2
+      (None, CLambda lsp lty (CPWild psp pty) lbody) ->
+        if not (pe-has-usage-arrow lty) && pe-discardable (tables.ctors) x2 then
+          pe-term tables env fuel lbody
+        else CApply sp ty f2 x2
+      other ->
+        let rebuilt = case row-opt of
+              None -> CApply sp ty f2 x2
+              Some row -> CApplyEff sp ty row f2 x2 in
+        case pe-spine rebuilt [] of
+          (CUse usp uty uname urole uactuals, args) ->
+            -- 2. Constant fold pure primitive/builtin calls.
+            (case pe-fold-prim sp ty uname args of
+              Some folded -> folded
+              None ->
+                -- 3. Unfold saturated point-free partial-application wrappers.
+                case (uactuals, hash-map-lookup uname (tables.wrappers)) of
+                  ([], Some (PeWrapper callee tactuals saved tarity)) | list-length saved + list-length args >= tarity ->
+                    let callee-head = CUse usp (pe-wrapper-target-ty saved uty) callee "value" tactuals in
+                    (case pe-rebuild-spine sp callee-head (saved <> args) of
+                      Some saturated -> saturated
+                      None -> rebuilt)
+                  other -> rebuilt)
+          other -> rebuilt
+
+  pe-wrapper-target-ty :: List CoreTerm -> UType -> UType
+  pe-wrapper-target-ty saved res-ty = case saved of
+    [] -> res-ty
+    first : rest -> UFun (core-type first) (pe-wrapper-target-ty rest res-ty)
+
+  pe-args :: PeTables -> List (Nat, CoreTerm) -> Nat -> CoreTerm -> CoreTerm
+  pe-args tables env fuel args = case args of
+    CArgument sp first rest -> CArgument sp (pe-term tables env fuel first) (pe-args tables env fuel rest)
+    other -> args
+
+  pe-alts :: PeTables -> List (Nat, CoreTerm) -> Nat -> CoreTerm -> CoreTerm
+  pe-alts tables env fuel alts = case alts of
+    CAlternative sp pat body rest -> CAlternative sp pat (pe-term tables env fuel body) (pe-alts tables env fuel rest)
+    other -> alts
+
+  pe-rec-bindings :: PeTables -> List (Nat, CoreTerm) -> Nat -> CoreTerm -> CoreTerm
+  pe-rec-bindings tables env fuel ms = case ms of
+    CRecursiveBinding id name val rest ->
+      CRecursiveBinding id name (pe-term tables env fuel val) (pe-rec-bindings tables env fuel rest)
+    other -> ms
+
+  pe-handler-ops :: PeTables -> List (Nat, CoreTerm) -> Nat -> CoreTerm -> CoreTerm
+  pe-handler-ops tables env fuel ops = case ops of
+    CHandlerOperation sp slot openings row cl rest ->
+      CHandlerOperation sp slot openings row (pe-term tables env fuel cl) (pe-handler-ops tables env fuel rest)
+    other -> ops
+
+  pe-online-clauses :: PeTables -> List CoreClause -> List CoreClause
+  pe-online-clauses tables clauses = case clauses of
+    [] -> []
+    (CoreClause sp pats body) : rest ->
+      (CoreClause sp pats (pe-term tables [] 512 body)) : (pe-online-clauses tables rest)
+
+  pe-online-def :: PeTables -> CoreDefinition -> CoreDefinition
+  pe-online-def tables d =
+    CoreDefinition (d.s) (d.name) (d.scheme) (d.openings) (d.givens) (d.private-types) (pe-online-clauses tables (d.clauses))
+
+  pe-online-defs :: PeTables -> List CoreDefinition -> List CoreDefinition
+  pe-online-defs tables defs = case defs of
+    [] -> []
+    d : rest -> (pe-online-def tables d) : (pe-online-defs tables rest)
+
+  -- ---------------------------------------------------------------------------
+  -- Memoized Polyvariant Specialization over Static Shapes
+  -- ---------------------------------------------------------------------------
+
+  -- Shape priority: 0 = Func, 1 = Ctor/Tuple, 2 = Bool, 3 = Int.
+  record PeShape where
+    kind :: Nat
+    key :: String
+    template :: CoreTerm
+    free :: List CoreTerm
+    free-tys :: List UType
+    free-ids :: List Nat
+
+  pe-base-name :: String -> String
+  pe-base-name name = case string-split-on "$pe" name of
+    first : _ -> first
+    [] -> name
+
+  pe-type-tag :: UType -> String
+  pe-type-tag ty = case pe-base ty of
+    UCon name _ -> name
+    other -> "T"
+
+  pe-is-capture-val :: CoreTerm -> Bool
+  pe-is-capture-val term = case term of
+    CLocal _ _ _ _ [] -> True
+    CInt _ _ _ -> True
+    CChar _ _ _ -> True
+    CSymbol _ _ _ -> True
+    CString _ _ _ -> True
+    CUnit _ _ -> True
+    CUse _ _ _ role _ -> role == "constructor" || role == "value"
+    other -> False
+
+  pe-is-bindable-shape :: PeTables -> CoreTerm -> Bool
+  pe-is-bindable-shape tables term = case term of
+    CLocal _ _ _ _ [] -> True
+    CInt _ _ _ -> True
+    CUnit _ _ -> True
+    CUse _ _ name role _ -> role == "constructor" || (role == "value" && (case hash-map-lookup name (tables.arities) of Some a -> a > 0; None -> False))
+    CTuple _ _ fields -> case pe-arg-list fields of
+      Some fs -> pe-all-bindable tables fs
+      None -> False
+    CApply _ _ _ _ -> case pe-spine term [] of
+      (CUse _ _ cname "constructor" _, args) ->
+        (case hash-map-lookup cname (tables.ctors) of
+          Some arity -> list-length args == arity && pe-all-bindable tables args
+          None -> False)
+      other -> False
+    other -> False
+
+  pe-all-bindable :: PeTables -> List CoreTerm -> Bool
+  pe-all-bindable tables xs = case xs of
+    [] -> True
+    first : rest -> (pe-is-capture-val first || pe-is-bindable-shape tables first) && pe-all-bindable tables rest
+
+  pe-arg-shape :: PeTables -> List (Nat, CoreTerm) -> Nat -> CoreTerm -> Option PeShape
+  pe-arg-shape tables env base-id arg =
+    case pe-shape-go tables env base-id 0 [] [] [] False arg of
+      None -> None
+      Some (key, tmpl, free, free-tys, free-ids, has-func) ->
+        if list-length free > pe-max-shape-free then None
+        else
+          let kind = if has-func then 0
+                else if pe-is-true tmpl || pe-is-false tmpl then 2
+                else (case tmpl of CInt _ _ _ -> 3; other -> 1) in
+          Some (PeShape kind key tmpl free free-tys free-ids)
+
+  pe-shape-go :: PeTables -> List (Nat, CoreTerm) -> Nat -> Nat -> List CoreTerm -> List UType -> List Nat -> Bool -> CoreTerm -> Option (String, CoreTerm, List CoreTerm, List UType, List Nat, Bool)
+  pe-shape-go tables env base-id depth free free-tys free-ids has-func term =
+    if depth > pe-max-shape-depth || list-length free > pe-max-shape-free then None
+    else
+      let resolved = pe-env-resolve 8 env term in
+      case resolved of
+        CUse sp ty name role actuals ->
+          if pe-named ty "Bool" && (name == "True" || name == "False") then
+            Some (if name == "True" then "b:T" else "b:F", resolved, free, free-tys, free-ids, has-func)
+          else if role == "constructor" && pe-type-closed ty && pe-types-closed actuals then
+            (case hash-map-lookup name (tables.ctors) of
+              Some 0 -> Some ("c:" <> name, resolved, free, free-tys, free-ids, has-func)
+              other -> None)
+          else if role == "value" && pe-type-closed ty && pe-types-closed actuals then
+            (case hash-map-lookup name (tables.arities) of
+              Some a | a > 0 -> Some ("g:" <> name, resolved, free, free-tys, free-ids, True)
+              other -> None)
+          else None
+        CInt sp ty text ->
+          if pe-named ty "I64" || pe-named ty "Int" || pe-named ty "Nat" then
+            Some ("i:" <> pe-type-tag ty <> ":" <> text, resolved, free, free-tys, free-ids, has-func)
+          else None
+        CTuple sp ty fields | depth < pe-max-shape-depth && pe-type-closed ty ->
+          (case pe-arg-list fields of
+            Some fs -> case pe-shape-fields tables env base-id (depth + 1) free free-tys free-ids has-func fs of
+              Some (keys, built, f2, ft2, fi2, hf2) ->
+                Some ("t:(" <> keys <> ")", CTuple sp ty (pe-arg-spine sp built), f2, ft2, fi2, hf2)
+              None -> None
+            None -> None)
+        CApply sp ty _ _ | depth < pe-max-shape-depth && pe-type-closed ty ->
+          (case pe-spine resolved [] of
+            (CUse csp cty cname "constructor" cactuals, cargs) | pe-type-closed cty && pe-types-closed cactuals ->
+              (case hash-map-lookup cname (tables.ctors) of
+                Some arity | list-length cargs == arity ->
+                  (case pe-shape-fields tables env base-id (depth + 1) free free-tys free-ids has-func cargs of
+                    Some (keys, built, f2, ft2, fi2, hf2) ->
+                      (case pe-rebuild-spine sp (CUse csp cty cname "constructor" cactuals) built of
+                        Some tmpl -> Some ("c:" <> cname <> "(" <> keys <> ")", tmpl, f2, ft2, fi2, hf2)
+                        None -> None)
+                    None -> None)
+                other -> None)
+            other -> None)
+        other -> None
+
+  pe-shape-fields :: PeTables -> List (Nat, CoreTerm) -> Nat -> Nat -> List CoreTerm -> List UType -> List Nat -> Bool -> List CoreTerm -> Option (String, List CoreTerm, List CoreTerm, List UType, List Nat, Bool)
+  pe-shape-fields tables env base-id depth free free-tys free-ids has-func args = case args of
+    [] -> Some ("", [], free, free-tys, free-ids, has-func)
+    first : rest ->
+      let next-field = case pe-shape-go tables env base-id depth free free-tys free-ids has-func first of
+            Some (k, t, f1, ft1, fi1, hf1) -> Some (k, t, f1, ft1, fi1, hf1)
+            None ->
+              let fty = core-type first in
+              if pe-is-capture-val first && pe-type-closed fty && not (pe-has-usage-arrow fty) && list-length free < pe-max-shape-free then
+                let fid = base-id + list-length free in
+                let var = CLocal pe-span fty fid "#pe-free" [] in
+                Some ("_", var, free <> [first], free-tys <> [fty], free-ids <> [fid], has-func)
+              else None in
+      case next-field of
+        None -> None
+        Some (k, t, f1, ft1, fi1, hf1) ->
+          case pe-shape-fields tables env base-id depth f1 ft1 fi1 hf1 rest of
+            None -> None
+            Some (ks, ts, f2, ft2, fi2, hf2) ->
+              let sep = if ks == "" then k else k <> "," <> ks in
+              Some (sep, t : ts, f2, ft2, fi2, hf2)
+
+  -- Check if parameter `pid` is actually used in a way that shape `kind` helps.
+  pe-interesting-param :: CoreTerm -> Nat -> String -> Nat -> Nat -> Bool
+  pe-interesting-param term pid callee pos kind = case term of
+    CIf _ _ cond yes no ->
+      (kind == 2 && pe-is-var pid cond)
+        || pe-interesting-param cond pid callee pos kind
+        || pe-interesting-param yes pid callee pos kind
+        || pe-interesting-param no pid callee pos kind
+    CCase _ _ scrut alts ->
+      pe-is-var pid scrut
+        || pe-interesting-param scrut pid callee pos kind
+        || pe-interesting-param alts pid callee pos kind
+    CApply _ _ _ _ -> pe-interesting-app term pid callee pos kind
+    CApplyEff _ _ _ _ _ -> pe-interesting-app term pid callee pos kind
+    CLet _ _ key _ _ rhs body ->
+      pe-interesting-param rhs pid callee pos kind
+        || (key /= pid && pe-interesting-param body pid callee pos kind)
+    CAlternative _ pat body rest ->
+      pe-interesting-param body pid callee pos kind || pe-interesting-param rest pid callee pos kind
+    CGuard _ _ g b -> pe-interesting-param g pid callee pos kind || pe-interesting-param b pid callee pos kind
+    CTuple _ _ fs -> pe-interesting-param fs pid callee pos kind
+    CPrimitive _ _ op args ->
+      (kind == 3 && pe-args-mention-var pid args) || pe-interesting-param args pid callee pos kind
+    CArgument _ a rest -> pe-interesting-param a pid callee pos kind || pe-interesting-param rest pid callee pos kind
+    CProved _ _ _ b -> pe-interesting-param b pid callee pos kind
+    CRefine _ _ _ b -> pe-interesting-param b pid callee pos kind
+    CForget _ _ b -> pe-interesting-param b pid callee pos kind
+    CCast _ _ b -> pe-interesting-param b pid callee pos kind
+    CRequire _ _ b -> pe-interesting-param b pid callee pos kind
+    CDischarge _ _ _ _ b -> pe-interesting-param b pid callee pos kind
+    CWith _ _ _ v b -> pe-interesting-param v pid callee pos kind || pe-interesting-param b pid callee pos kind
+    other -> False
+
+  pe-is-var :: Nat -> CoreTerm -> Bool
+  pe-is-var pid term = case term of
+    CLocal _ _ id _ [] -> id == pid
+    CForget _ _ inner -> pe-is-var pid inner
+    CCast _ _ inner -> pe-is-var pid inner
+    other -> False
+
+  pe-args-mention-var :: Nat -> CoreTerm -> Bool
+  pe-args-mention-var pid args = case args of
+    CArgument _ a rest -> pe-is-var pid a || pe-args-mention-var pid rest
+    other -> False
+
+  pe-list-mentions-var :: Nat -> List CoreTerm -> Bool
+  pe-list-mentions-var pid xs = case xs of
+    [] -> False
+    a : rest -> pe-is-var pid a || pe-list-mentions-var pid rest
+
+  pe-arg-at :: Nat -> List CoreTerm -> Option CoreTerm
+  pe-arg-at idx xs = case xs of
+    [] -> None
+    first : rest -> if idx == 0 then Some first else pe-arg-at (idx - 1) rest
+
+  pe-interesting-app :: CoreTerm -> Nat -> String -> Nat -> Nat -> Bool
+  pe-interesting-app term pid callee pos kind = case pe-spine term [] of
+    (head-term, args) ->
+      let direct-hit =
+            if kind == 0 then
+              pe-is-var pid head-term
+                || (case head-term of
+                      CUse _ _ gname _ _ | gname == callee ->
+                        (case pe-arg-at pos args of Some a -> pe-is-var pid a; None -> False)
+                      other -> False)
+            else if kind == 3 then
+              (case head-term of
+                CUse _ _ gname _ _ ->
+                  (string-starts-with "cinch.prim." gname || string-starts-with "cinch.runtime." gname)
+                    && pe-list-mentions-var pid args
+                CMethod _ _ mname _ _ _ _ -> pe-list-mentions-var pid args
+                other -> False)
+            else False in
+      direct-hit || pe-interesting-param head-term pid callee pos kind || pe-interesting-list args pid callee pos kind
+
+  pe-interesting-list :: List CoreTerm -> Nat -> String -> Nat -> Nat -> Bool
+  pe-interesting-list xs pid callee pos kind = case xs of
+    [] -> False
+    first : rest -> pe-interesting-param first pid callee pos kind || pe-interesting-list rest pid callee pos kind
+
+  -- ---------------------------------------------------------------------------
+  -- Eligibility, scheme rewriting, and self-call redirection
+  -- ---------------------------------------------------------------------------
+
+  pe-all-var-or-wild :: List CorePattern -> Bool
+  pe-all-var-or-wild ps = case ps of
+    [] -> True
+    first : rest -> (case first of CPVar _ _ _ _ -> True; CPWild _ _ -> True; other -> False) && pe-all-var-or-wild rest
+
+  pe-pat-var-at :: Nat -> List CorePattern -> Option (Span, UType, Nat, String)
+  pe-pat-var-at idx ps = case ps of
+    [] -> None
+    first : rest -> if idx == 0 then
+      (case first of CPVar sp ty id name -> Some (sp, ty, id, name); other -> None)
+      else pe-pat-var-at (idx - 1) rest
+
+  pe-replace-pat-at :: Nat -> CorePattern -> List CorePattern -> List CorePattern
+  pe-replace-pat-at idx repl ps = case ps of
+    [] -> []
+    first : rest -> if idx == 0 then repl : rest else first : (pe-replace-pat-at (idx - 1) repl rest)
+
+  pe-replace-arg-at :: Nat -> CoreTerm -> List CoreTerm -> List CoreTerm
+  pe-replace-arg-at idx repl xs = case xs of
+    [] -> []
+    first : rest -> if idx == 0 then repl : rest else first : (pe-replace-arg-at (idx - 1) repl rest)
+
+  pe-free-patterns :: List UType -> List Nat -> List CorePattern
+  pe-free-patterns tys ids = case (tys, ids) of
+    (t : ts, id : is) -> (CPVar pe-span t id "#pe-free") : (pe-free-patterns ts is)
+    other -> []
+
+  pe-free-locals :: List UType -> List Nat -> List CoreTerm
+  pe-free-locals tys ids = case (tys, ids) of
+    (t : ts, id : is) -> (CLocal pe-span t id "#pe-free" []) : (pe-free-locals ts is)
+    other -> []
+
+  -- Rewrite the arrow telescope of a specialized clone:
+  -- replace domain `pos` with `Unit` and append `free-tys` after `arity` params.
+  pe-rewrite-arrow :: Nat -> Nat -> Nat -> List UType -> UType -> Option UType
+  pe-rewrite-arrow idx pos arity free-tys ty =
+    if idx == arity then Some (pe-prepend-arrows free-tys ty)
+    else case arrow-shape (pe-base ty) of
+      UFun dom res ->
+        let d2 = if idx == pos then pe-unit-ty else dom in
+        (case pe-rewrite-arrow (idx + 1) pos arity free-tys res of
+          Some r2 -> Some (UFun d2 r2)
+          None -> None)
+      UFunEff dom row res ->
+        let d2 = if idx == pos then pe-unit-ty else dom in
+        (case pe-rewrite-arrow (idx + 1) pos arity free-tys res of
+          Some r2 -> Some (UFunEff d2 row r2)
+          None -> None)
+      other -> None
+
+  pe-prepend-arrows :: List UType -> UType -> UType
+  pe-prepend-arrows tys res = case tys of
+    [] -> res
+    first : rest -> UFun first (pe-prepend-arrows rest res)
+
+  pe-spec-eligible :: CoreDefinition -> Bool
+  pe-spec-eligible d =
+    let name = d.name in
+    name /= "main" && name /= "Main.main"
+      && not (pe-has-usage-arrow (scheme-body (d.scheme)))
+      && (case (scheme-params (d.scheme), scheme-requirements (d.scheme), d.givens, d.openings, d.private-types, d.clauses) of
+            ([], [], [], [], [], [CoreClause _ pats body]) ->
+              list-length pats > 0 && pe-all-var-or-wild pats && pe-term-nodes body <= pe-max-spec-nodes
+            other -> False)
+
+  pe-redirect-self :: String -> Nat -> Nat -> Nat -> String -> UType -> List CoreTerm -> CoreTerm -> CoreTerm
+  pe-redirect-self callee arity pos pid clone-name clone-ty free-vars term = case term of
+    CApply _ _ _ _ -> pe-redirect-self-app callee arity pos pid clone-name clone-ty free-vars term
+    CApplyEff _ _ _ _ _ -> pe-redirect-self-app callee arity pos pid clone-name clone-ty free-vars term
+    CLet sp ty id name sc rhs body ->
+      CLet sp ty id name sc
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars rhs)
+        (if id == pid then body else pe-redirect-self callee arity pos pid clone-name clone-ty free-vars body)
+    CIf sp ty c t f ->
+      CIf sp ty
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars c)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars t)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars f)
+    CCase sp ty v alts ->
+      CCase sp ty
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars v)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars alts)
+    CAlternative sp pat body rest ->
+      CAlternative sp pat
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars body)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars rest)
+    CGuard sp ty g body ->
+      CGuard sp ty
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars g)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars body)
+    CLambda sp ty p body ->
+      CLambda sp ty p (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars body)
+    CTuple sp ty fs -> CTuple sp ty (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars fs)
+    CPrimitive sp ty op args -> CPrimitive sp ty op (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars args)
+    CArgument sp a rest ->
+      CArgument sp
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars a)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars rest)
+    CWith sp ty g v b ->
+      CWith sp ty g
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars v)
+        (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    CProved sp ty ev b -> CProved sp ty ev (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    CRefine sp ty ev b -> CRefine sp ty ev (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    CForget sp ty b -> CForget sp ty (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    CCast sp ty b -> CCast sp ty (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    CRequire sp ty b -> CRequire sp ty (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    CDischarge sp ty ev fl b -> CDischarge sp ty ev fl (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars b)
+    other -> term
+
+  pe-redirect-self-app :: String -> Nat -> Nat -> Nat -> String -> UType -> List CoreTerm -> CoreTerm -> CoreTerm
+  pe-redirect-self-app callee arity pos pid clone-name clone-ty free-vars term =
+    case pe-spine term [] of
+      (CUse usp uty gname urole [], args) | gname == callee && urole == "value" && list-length args == arity ->
+        let args2 = pe-redirect-self-list callee arity pos pid clone-name clone-ty free-vars args in
+        (case pe-arg-at pos args2 of
+          Some a | pe-is-var pid a ->
+            let new-args = pe-replace-arg-at pos (CUnit pe-span pe-unit-ty) args2 <> free-vars in
+            (case pe-rebuild-spine usp (CUse usp clone-ty clone-name "value" []) new-args of
+              Some redirected -> redirected
+              None -> term)
+          other -> case pe-rebuild-spine usp (CUse usp uty gname urole []) args2 of Some r -> r; None -> term)
+      other -> case term of
+        CApply sp ty f x ->
+          CApply sp ty
+            (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars f)
+            (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars x)
+        CApplyEff sp ty row f x ->
+          CApplyEff sp ty row
+            (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars f)
+            (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars x)
+        other2 -> term
+
+  pe-redirect-self-list :: String -> Nat -> Nat -> Nat -> String -> UType -> List CoreTerm -> List CoreTerm -> List CoreTerm
+  pe-redirect-self-list callee arity pos pid clone-name clone-ty free-vars xs = case xs of
+    [] -> []
+    first : rest ->
+      (pe-redirect-self callee arity pos pid clone-name clone-ty free-vars first)
+        : (pe-redirect-self-list callee arity pos pid clone-name clone-ty free-vars rest)
+
+  -- ---------------------------------------------------------------------------
+  -- Specialization state & rewrite pass
+  -- ---------------------------------------------------------------------------
+
+  record PeCloneInfo where
+    clone-name :: String
+    clone-ty :: UType
+
+  record PeSpecState where
+    memo :: HashMap String PeCloneInfo
+    per-callee :: HashMap String Nat
+    made :: Nat
+    clones :: List CoreDefinition
+
+  pe-empty-spec-state :: PeSpecState
+  pe-empty-spec-state = PeSpecState hash-map-empty hash-map-empty 0 []
+
+  pe-index-eligible :: List CoreDefinition -> HashMap String CoreDefinition -> HashMap String CoreDefinition
+  pe-index-eligible defs acc = case defs of
+    [] -> acc
+    d : rest ->
+      let next = if pe-spec-eligible d then hash-map-insert (d.name) d acc else acc in
+      pe-index-eligible rest next
+
+  pe-find-best-arg :: PeTables -> List (Nat, CoreTerm) -> String -> CoreDefinition -> List CoreTerm -> Nat -> Nat -> Option (Nat, PeShape) -> PeSpecState -> Option (Nat, PeShape)
+  pe-find-best-arg tables env caller-name callee-def args idx base-id best st = case args of
+    [] -> best
+    arg : rest ->
+      let next-best = case callee-def.clauses of
+            [CoreClause _ pats body] ->
+              (case pe-pat-var-at idx pats of
+                Some (_, _, pid, _) ->
+                  (case pe-arg-shape tables env base-id arg of
+                    Some shape ->
+                      let key = (callee-def.name) <> "#" <> nat-to-string idx <> "#" <> shape.key in
+                      let memoized = case hash-map-lookup key (st.memo) of Some _ -> True; None -> False in
+                      let same-fn = pe-base-name caller-name == pe-base-name (callee-def.name) in
+                      let blocked = not memoized && same-fn && (shape.kind == 1 || shape.kind == 3) in
+                      if blocked then best
+                      else if not memoized && not (pe-interesting-param body pid (callee-def.name) idx (shape.kind)) then best
+                      else (case best of
+                        None -> Some (idx, shape)
+                        Some (_, prev) -> if shape.kind < prev.kind then Some (idx, shape) else best)
+                    None -> best)
+                None -> best)
+            other -> best in
+      pe-find-best-arg tables env caller-name callee-def rest (idx + 1) base-id next-best st
+
+  pe-get-or-make-clone :: PeTables -> CoreDefinition -> Nat -> PeShape -> PeSpecState -> (PeSpecState, Option PeCloneInfo)
+  pe-get-or-make-clone tables def pos shape st =
+    let callee = def.name in
+    let key = callee <> "#" <> nat-to-string pos <> "#" <> shape.key in
+    case hash-map-lookup key (st.memo) of
+      Some info -> (st, Some info)
+      None ->
+        let base-callee = pe-base-name callee in
+        let count = case hash-map-lookup base-callee (st.per-callee) of Some n -> n; None -> 0 in
+        if st.made >= pe-max-total-clones || count >= pe-max-per-callee then (st, None)
+        else case def.clauses of
+          [CoreClause csp pats body] ->
+            let arity = list-length pats in
+            (case (pe-pat-var-at pos pats, pe-rewrite-arrow 0 pos arity (shape.free-tys) (scheme-body (def.scheme))) of
+              (Some (psp, pty, pid, pname), Some new-ty) ->
+                let cname = callee <> "$pe" <> nat-to-string (st.made) in
+                let new-pats = pe-replace-pat-at pos (CPWild psp pe-unit-ty) pats <> pe-free-patterns (shape.free-tys) (shape.free-ids) in
+                let free-vars = pe-free-locals (shape.free-tys) (shape.free-ids) in
+                let redirected = pe-redirect-self callee arity pos pid cname new-ty free-vars body in
+                let wrapped = CLet csp (core-type redirected) pid pname (mono pty) (shape.template) redirected in
+                let simplified = pe-term tables [] 512 wrapped in
+                let clone-def = CoreDefinition (def.s) cname (mono new-ty) [] [] [] [CoreClause csp new-pats simplified] in
+                let info = PeCloneInfo cname new-ty in
+                let next-st = PeSpecState
+                      (hash-map-insert key info (st.memo))
+                      (hash-map-insert base-callee (count + 1) (st.per-callee))
+                      (st.made + 1)
+                      (clone-def : (st.clones)) in
+                (next-st, Some info)
+              other -> (st, None))
+          other -> (st, None)
+
+  pe-spec-term :: PeTables -> HashMap String CoreDefinition -> String -> List (Nat, CoreTerm) -> PeSpecState -> CoreTerm -> (PeSpecState, CoreTerm)
+  pe-spec-term tables eligible caller env st term = case term of
+    CLet sp ty id name sc rhs body ->
+      case pe-spec-term tables eligible caller env st rhs of
+        (st1, r1) ->
+          let is-mono = (case (scheme-params sc, scheme-requirements sc) of ([], []) -> True; other -> False) in
+          let env2 = if is-mono && pe-is-bindable-shape tables r1 then (id, r1) : env else env in
+          case pe-spec-term tables eligible caller env2 st1 body of
+            (st2, b1) -> (st2, CLet sp ty id name sc r1 b1)
+    CApply _ _ _ _ -> pe-spec-app tables eligible caller env st term
+    CApplyEff _ _ _ _ _ -> pe-spec-app tables eligible caller env st term
+    CIf sp ty c t f ->
+      case pe-spec-term tables eligible caller env st c of
+        (st1, c1) -> case pe-spec-term tables eligible caller env st1 t of
+          (st2, t1) -> case pe-spec-term tables eligible caller env st2 f of
+            (st3, f1) -> (st3, CIf sp ty c1 t1 f1)
+    CCase sp ty v alts ->
+      case pe-spec-term tables eligible caller env st v of
+        (st1, v1) -> case pe-spec-alts tables eligible caller env st1 alts of
+          (st2, alts1) -> (st2, CCase sp ty v1 alts1)
+    CLambda sp ty p body ->
+      case pe-spec-term tables eligible caller env st body of
+        (st1, b1) -> (st1, CLambda sp ty p b1)
+    CTuple sp ty fs ->
+      case pe-spec-args tables eligible caller env st fs of
+        (st1, fs1) -> (st1, CTuple sp ty fs1)
+    CPrimitive sp ty op args ->
+      case pe-spec-args tables eligible caller env st args of
+        (st1, a1) -> (st1, CPrimitive sp ty op a1)
+    CWith sp ty g v b ->
+      case pe-spec-term tables eligible caller env st v of
+        (st1, v1) -> case pe-spec-term tables eligible caller env st1 b of
+          (st2, b1) -> (st2, CWith sp ty g v1 b1)
+    CRecursiveFunctions sp ty ms b ->
+      case pe-spec-recs tables eligible caller env st ms of
+        (st1, ms1) -> case pe-spec-term tables eligible caller env st1 b of
+          (st2, b1) -> (st2, CRecursiveFunctions sp ty ms1 b1)
+    CGuard sp ty g b ->
+      case pe-spec-term tables eligible caller env st g of
+        (st1, g1) -> case pe-spec-term tables eligible caller env st1 b of
+          (st2, b1) -> (st2, CGuard sp ty g1 b1)
+    CProved sp ty ev b -> case pe-spec-term tables eligible caller env st b of (st1, b1) -> (st1, CProved sp ty ev b1)
+    CRefine sp ty ev b -> case pe-spec-term tables eligible caller env st b of (st1, b1) -> (st1, CRefine sp ty ev b1)
+    CForget sp ty b -> case pe-spec-term tables eligible caller env st b of (st1, b1) -> (st1, CForget sp ty b1)
+    CCast sp ty b -> case pe-spec-term tables eligible caller env st b of (st1, b1) -> (st1, CCast sp ty b1)
+    CRequire sp ty b -> case pe-spec-term tables eligible caller env st b of (st1, b1) -> (st1, CRequire sp ty b1)
+    CDischarge sp ty ev fl b -> case pe-spec-term tables eligible caller env st b of (st1, b1) -> (st1, CDischarge sp ty ev fl b1)
+    other -> (st, term)
+
+  pe-spec-app :: PeTables -> HashMap String CoreDefinition -> String -> List (Nat, CoreTerm) -> PeSpecState -> CoreTerm -> (PeSpecState, CoreTerm)
+  pe-spec-app tables eligible caller env st term =
+    case pe-spine term [] of
+      (CUse usp uty gname "value" [], args) ->
+        case pe-spec-list tables eligible caller env st args of
+          (st1, args1) ->
+            (case hash-map-lookup gname eligible of
+              Some def ->
+                (case def.clauses of
+                  [CoreClause _ pats body] | list-length pats == list-length args1 ->
+                    let base-id = pe-max-nat (pe-pats-max-id pats) (pe-term-max-id body) in
+                    (case pe-find-best-arg tables env caller def args1 0 base-id None st1 of
+                      Some (pos, shape) ->
+                        (case pe-get-or-make-clone tables def pos shape st1 of
+                          (st2, Some (PeCloneInfo cname cty)) ->
+                            let new-args = pe-replace-arg-at pos (CUnit pe-span pe-unit-ty) args1 <> shape.free in
+                            (case pe-rebuild-spine usp (CUse usp cty cname "value" []) new-args of
+                              Some rewritten -> (st2, rewritten)
+                              None -> (st2, term))
+                          (st2, None) ->
+                            (case pe-rebuild-spine usp (CUse usp uty gname "value" []) args1 of Some r -> (st2, r); None -> (st2, term)))
+                      None ->
+                        (case pe-rebuild-spine usp (CUse usp uty gname "value" []) args1 of Some r -> (st1, r); None -> (st1, term)))
+                  other -> case pe-rebuild-spine usp (CUse usp uty gname "value" []) args1 of Some r -> (st1, r); None -> (st1, term))
+              None -> case pe-rebuild-spine usp (CUse usp uty gname "value" []) args1 of Some r -> (st1, r); None -> (st1, term))
+      other -> case term of
+        CApply sp ty f x ->
+          case pe-spec-term tables eligible caller env st f of
+            (st1, f1) -> case pe-spec-term tables eligible caller env st1 x of
+              (st2, x1) -> (st2, CApply sp ty f1 x1)
+        CApplyEff sp ty row f x ->
+          case pe-spec-term tables eligible caller env st f of
+            (st1, f1) -> case pe-spec-term tables eligible caller env st1 x of
+              (st2, x1) -> (st2, CApplyEff sp ty row f1 x1)
+        other2 -> (st, term)
+
+  pe-spec-list :: PeTables -> HashMap String CoreDefinition -> String -> List (Nat, CoreTerm) -> PeSpecState -> List CoreTerm -> (PeSpecState, List CoreTerm)
+  pe-spec-list tables eligible caller env st xs = case xs of
+    [] -> (st, [])
+    first : rest ->
+      case pe-spec-term tables eligible caller env st first of
+        (st1, a1) -> case pe-spec-list tables eligible caller env st1 rest of
+          (st2, more) -> (st2, a1 : more)
+
+  pe-spec-args :: PeTables -> HashMap String CoreDefinition -> String -> List (Nat, CoreTerm) -> PeSpecState -> CoreTerm -> (PeSpecState, CoreTerm)
+  pe-spec-args tables eligible caller env st args = case args of
+    CArgument sp first rest ->
+      case pe-spec-term tables eligible caller env st first of
+        (st1, a1) -> case pe-spec-args tables eligible caller env st1 rest of
+          (st2, r1) -> (st2, CArgument sp a1 r1)
+    other -> (st, args)
+
+  pe-spec-alts :: PeTables -> HashMap String CoreDefinition -> String -> List (Nat, CoreTerm) -> PeSpecState -> CoreTerm -> (PeSpecState, CoreTerm)
+  pe-spec-alts tables eligible caller env st alts = case alts of
+    CAlternative sp pat body rest ->
+      case pe-spec-term tables eligible caller env st body of
+        (st1, b1) -> case pe-spec-alts tables eligible caller env st1 rest of
+          (st2, r1) -> (st2, CAlternative sp pat b1 r1)
+    other -> (st, alts)
+
+  pe-spec-recs :: PeTables -> HashMap String CoreDefinition -> String -> List (Nat, CoreTerm) -> PeSpecState -> CoreTerm -> (PeSpecState, CoreTerm)
+  pe-spec-recs tables eligible caller env st ms = case ms of
+    CRecursiveBinding id name val rest ->
+      case pe-spec-term tables eligible caller env st val of
+        (st1, v1) -> case pe-spec-recs tables eligible caller env st1 rest of
+          (st2, r1) -> (st2, CRecursiveBinding id name v1 r1)
+    other -> (st, ms)
+
+  pe-spec-clauses :: PeTables -> HashMap String CoreDefinition -> String -> PeSpecState -> List CoreClause -> (PeSpecState, List CoreClause)
+  pe-spec-clauses tables eligible caller st clauses = case clauses of
+    [] -> (st, [])
+    (CoreClause sp pats body) : rest ->
+      case pe-spec-term tables eligible caller [] st body of
+        (st1, b1) -> case pe-spec-clauses tables eligible caller st1 rest of
+          (st2, more) -> (st2, (CoreClause sp pats b1) : more)
+
+  pe-spec-defs :: PeTables -> HashMap String CoreDefinition -> PeSpecState -> List CoreDefinition -> (PeSpecState, List CoreDefinition)
+  pe-spec-defs tables eligible st defs = case defs of
+    [] -> (st, [])
+    d : rest ->
+      case pe-spec-clauses tables eligible (d.name) st (d.clauses) of
+        (st1, cls) ->
+          let d1 = CoreDefinition (d.s) (d.name) (d.scheme) (d.openings) (d.givens) (d.private-types) cls in
+          case pe-spec-defs tables eligible st1 rest of
+            (st2, more) -> (st2, d1 : more)
+
+  pe-specialize-round :: List CoreData -> PeSpecState -> List CoreDefinition -> (PeSpecState, List CoreDefinition)
+  pe-specialize-round datas init-st defs =
+    let tables = pe-build-tables datas defs in
+    let online = pe-online-defs tables defs in
+    let tables2 = pe-build-tables datas online in
+    let eligible = pe-index-eligible online hash-map-empty in
+    let prev-made = init-st.made in
+    let round-st = PeSpecState (init-st.memo) (init-st.per-callee) prev-made [] in
+    case pe-spec-defs tables2 eligible round-st online of
+      (st, rewritten) ->
+        if st.made == prev-made then (st, rewritten)
+        else
+          let combined = rewritten <> reverse (st.clones) in
+          let tables3 = pe-build-tables datas combined in
+          (st, pe-online-defs tables3 combined)
+
+  -- ---------------------------------------------------------------------------
+  -- Entry point
+  -- ---------------------------------------------------------------------------
+
+  partial-eval-program :: List CoreData -> List CoreDefinition -> List CoreDefinition
+  partial-eval-program datas definitions =
+    case pe-specialize-round datas pe-empty-spec-state definitions of
+      (st1, after1) -> case pe-specialize-round datas st1 after1 of
+        (st2, after2) -> after2

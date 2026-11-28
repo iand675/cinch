@@ -33,7 +33,7 @@ module Cinch.Object where
   export object-unit
   export read-object-unit-roots
   export llvm-object-symbol
-  export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit
+  export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-specialized-method-unit
   export object-string-layout, llvm-data-bytes, object-has-unit-symbol
 
   record RuntimeUnit where
@@ -106,30 +106,56 @@ module Cinch.Object where
           other -> None)
         None -> None)
     other -> None
-  -- A closed factory containing only actual function workers has no
-  -- strict value initialization to preserve. Select its private worker
-  -- through the exported instance and exact declaring slot, never as an
-  -- ordinary value export. A zero-argument worker is a strict value and
-  -- keeps the normal dictionary construction path.
-  closed-function-fields :: HashMap String RuntimeUnit -> List Nat -> Json -> Bool
-  closed-function-fields units fields methods = case (fields, methods) of
+  -- A factory containing only actual function workers (arity > context-arity)
+  -- has no strict value initialization to preserve. Select its worker through
+  -- the exported instance, representation vector, and physical class slot.
+  unit-arity-gt :: List Nat -> Nat -> Bool
+  unit-arity-gt params n = case params of
+    [] -> False
+    first : rest -> if n == 0 then True else unit-arity-gt rest (n - 1)
+  function-fields-only :: HashMap String RuntimeUnit -> List Nat -> Json -> Nat -> Bool
+  function-fields-only units fields methods context-arity = case (fields, methods) of
     ([], JArrEnd) -> True
     (1 : rest, JArr (JStr name) more) -> (case hash-map-lookup name units of
-      Some unit -> (case unit.params of [] -> False; other -> True) && closed-function-fields units rest more
+      Some unit -> unit-arity-gt (unit.params) context-arity && function-fields-only units rest more context-arity
       None -> False)
     other -> False
-  object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
-  object-closed-method-unit owner factory slot value = case (raw-interface-global factory, value) of
+  closed-function-fields :: HashMap String RuntimeUnit -> List Nat -> Json -> Bool
+  closed-function-fields units fields methods = function-fields-only units fields methods 0
+  same-own-classes :: List Nat -> List Nat -> Bool
+  same-own-classes a b = case (a, b) of
+    ([], []) -> True
+    (x : xs, y : ys) -> x == y && same-own-classes xs ys
+    other -> False
+  family-physical-slot :: Nat -> List Nat -> List (Nat, Nat, List Nat) -> Option Nat
+  family-physical-slot wanted own-codes slots = case slots of
+    [] -> None
+    (logical, physical, codes) : rest ->
+      if logical == wanted && same-own-classes own-codes codes then Some physical
+      else family-physical-slot wanted own-codes rest
+  object-specialized-method-unit :: String -> String -> List Nat -> Nat -> List Nat -> Nat -> RuntimeObject -> Option RuntimeUnit
+  object-specialized-method-unit owner factory factory-codes slot own-codes context-arity value = case (raw-interface-global factory, value) of
     (Some raw, RuntimeObject units exports instances dictionaries families constructors) -> if not (has raw instances) then None else
-      (case hash-map-lookup raw dictionaries of
+      (let key = variant-name raw factory-codes in
+       case hash-map-lookup key dictionaries of
         Some row -> (case (field "class" row, field "context_arity" row, classes (field "fields" row)) of
-          (JStr actual-owner, JNum 0, Some fields) -> if not (owner == interface-global actual-owner && closed-function-fields units fields (field "methods" row)) then None else
-            (case conditional-method-at slot (field "methods" row) of
-              Some method -> hash-map-lookup method units
-              None -> None)
+          (JStr actual-owner, JNum count, Some fields) ->
+            if count < 0 || nat-from-int count /= context-arity || owner /= interface-global actual-owner
+              || not (function-fields-only units fields (field "methods" row) context-arity) then None
+            else let physical-opt = (case object-family owner value of
+              Some (declared, slots) -> family-physical-slot slot own-codes slots
+              None -> case own-codes of [] -> Some slot; other -> None) in
+              (case physical-opt of
+                Some physical -> (case conditional-method-at physical (field "methods" row) of
+                  Some method -> hash-map-lookup method units
+                  None -> None)
+                None -> None)
           other -> None)
         None -> None)
     other -> None
+  object-closed-method-unit :: String -> String -> Nat -> RuntimeObject -> Option RuntimeUnit
+  object-closed-method-unit owner factory slot value =
+    object-specialized-method-unit owner factory [] slot [] 0 value
   own-classes :: String -> Nat -> Option (List Nat)
   own-classes text index = let bytes = string-to-bytes text in if index < bytes-len bytes then
     (let byte = bytes-get bytes index in if byte /= 82 && byte /= 79 && byte /= 84 && byte /= 87 then None else

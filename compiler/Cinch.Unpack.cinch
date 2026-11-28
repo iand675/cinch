@@ -153,7 +153,133 @@ module Cinch.Unpack where
         Some (Fields sp owner labels wanted abi) -> (case checked-layout (Fields sp owner labels wanted abi) d ds rs of
           Err msg -> (d : more, add-error sp msg done)
           Ok laid-out -> (laid-out : more, done)))
+  unpack-member :: String -> List String -> Bool
+  unpack-member x xs = case xs of [] -> False; first : rest -> x == first || unpack-member x rest
+
+  unpack-list-len :: forall a. List a -> Nat
+  unpack-list-len xs = case xs of [] -> 0; _ : rest -> 1 + unpack-list-len rest
+
+  is-builtin-type-name :: String -> Bool
+  is-builtin-type-name name = string-starts-with "b." name
+
+  local-type-names :: List Decl -> List String
+  local-type-names ds = case ds of
+    [] -> []
+    (DData sp name params ctors) : rest -> name : (local-type-names rest)
+    (DRecord sp name params fields) : rest -> name : (local-type-names rest)
+    other : rest -> local-type-names rest
+
+  surface-export-symbols :: Json -> List String -> List String
+  surface-export-symbols rows acc = case rows of
+    JArr row rest -> (case field "symbol" row of
+      JStr sym -> surface-export-symbols rest (sym : acc)
+      other -> surface-export-symbols rest acc)
+    other -> acc
+
+  source-exported-symbols :: List Decl -> List String -> List String
+  source-exported-symbols ds acc = case ds of
+    [] -> acc
+    (DSource sp name doc) : rest -> source-exported-symbols rest (surface-export-symbols (field "exports" doc) acc)
+    other : rest -> source-exported-symbols rest acc
+
+  disabled :: String -> List (String, Bool) -> Bool
+  disabled label wanted = case wanted of
+    [] -> False
+    (name, flag) : rest -> if label == name then not flag else disabled label rest
+
+  is-wide-type :: UType -> Bool
+  is-wide-type ty = case ty of UCon name kind -> name == "I128" || name == "U128"; other -> False
+
+  any-wide-type :: List UType -> Bool
+  any-wide-type tys = case tys of [] -> False; t : rest -> is-wide-type t || any-wide-type rest
+
+  is-single-ctor-uniform :: List CoreData -> List RecordRequest -> UType -> Bool
+  is-single-ctor-uniform ds rs ty = case product-type ty [] of
+    Some (name, args) -> (case find-data name ds of
+      Some d -> (case (core-data-layout d, core-data-constructors d) of
+        (UniformData, [c]) -> not (case lookup-request name rs of Some (ObservationType _) -> True; other -> False)
+        other -> False)
+      None -> False)
+    None -> False
+
+  any-nested-product :: List CoreData -> List RecordRequest -> List UType -> Bool
+  any-nested-product ds rs tys = case tys of
+    [] -> False
+    t : rest -> is-single-ctor-uniform ds rs t || any-nested-product ds rs rest
+
+  auto-product-slot :: String -> Bool -> List String -> List String -> String -> UType -> List CoreData -> List RecordRequest -> Option RecordSlot
+  auto-product-slot owner rec-exported locals exported label ty ds rs = case product-type ty [] of
+    Some (name, args) | name /= owner && unpack-member name locals -> (case find-data name ds of
+      Some d -> (case (core-data-layout d, core-data-constructors d) of
+        (UniformData, [c]) | not (storage-requested name rs) ->
+          let vis-ok = not rec-exported || unpack-member (c.constructor-name) exported in
+          if not vis-ok then None
+          else (case (parameters (scheme-params (c.constructor-scheme)) args, core-constructor-fields c) of
+            (Some pairs, first : more) ->
+              let slots = map (substitute-bound pairs) (first : more) in
+              let n = unpack-list-len slots in
+              if n >= 2 && n <= 4 && not (any-wide-type slots) && not (any-nested-product ds rs slots) then
+                Some (ProductSlot label ty c args slots)
+              else None
+            other -> None)
+        other -> None)
+      None -> None)
+    other -> None
+
+  auto-record-slots :: String -> Bool -> List String -> List String -> List String -> List (String, Bool) -> UType -> List CoreData -> List RecordRequest -> Option (List RecordSlot, Bool, Nat)
+  auto-record-slots owner rec-exported locals exported names wanted arrow ds rs = case (names, arrow) of
+    (name : rest, UProofFun predicate effects result) -> auto-record-slots owner rec-exported locals exported rest wanted result ds rs
+    (name : rest, UPi id binder ty effects result) -> auto-step-slot owner rec-exported locals exported name ty rest wanted result ds rs
+    (name : rest, UFun ty result) -> auto-step-slot owner rec-exported locals exported name ty rest wanted result ds rs
+    ([], UCon res-owner kind) -> Some ([], False, 0)
+    other -> None
+
+  auto-step-slot :: String -> Bool -> List String -> List String -> String -> UType -> List String -> List (String, Bool) -> UType -> List CoreData -> List RecordRequest -> Option (List RecordSlot, Bool, Nat)
+  auto-step-slot owner rec-exported locals exported label ty rest wanted result ds rs =
+    let (slot, did, count) = if disabled label wanted then (OrdinarySlot label ty, False, 1)
+          else (case auto-product-slot owner rec-exported locals exported label ty ds rs of
+            Some ps -> (ps, True, unpack-list-len (slot-types ps))
+            None -> (OrdinarySlot label ty, False, 1)) in
+    case auto-record-slots owner rec-exported locals exported rest wanted result ds rs of
+      None -> None
+      Some (more, more-did, more-count) -> Some (slot : more, did || more-did, count + more-count)
+
+  is-source-record :: String -> List Decl -> Option (List String)
+  is-source-record owner ds = case ds of
+    [] -> None
+    (DRecord sp name [] fields) : rest | name == owner -> Some (map (\pair -> case pair of (label, ty) -> label) fields)
+    other : rest -> is-source-record owner rest
+
+  try-auto-unpack :: List Decl -> List String -> List String -> List RecordRequest -> List CoreData -> CoreData -> CoreData
+  try-auto-unpack decls locals exported rs ds d =
+    let owner = core-data-name d in
+    if is-builtin-type-name owner then d
+    else case core-data-layout d of
+      UniformData -> (case is-source-record owner decls of
+        None -> d
+        Some labels ->
+          let wanted = (case lookup-request owner rs of Some (Fields _ _ _ w _) -> w; other -> []) in
+          if needs-storage wanted then d
+          else (case (core-data-params d, core-data-constructors d) of
+            ([], [ctor]) ->
+              let rec-exported = unpack-member owner exported in
+              (case auto-record-slots owner rec-exported locals exported labels wanted (scheme-body (ctor.constructor-scheme)) ds rs of
+                Some (slots, True, total) | total <= 12 -> with-data-layout (UnpackedRecord slots) d
+                other -> d)
+            other -> d))
+      other -> d
+
+  attach-auto :: List Decl -> List String -> List String -> List RecordRequest -> List CoreData -> List CoreData -> List CoreData
+  attach-auto decls locals exported rs ds remaining = case remaining of
+    [] -> []
+    d : rest -> (try-auto-unpack decls locals exported rs ds d) : (attach-auto decls locals exported rs ds rest)
+
   check-unpacked-records :: List Decl -> (List CoreData, Store) -> (List CoreData, Store)
-  check-unpacked-records ds checked = case requests ds ds of
-    [] -> checked
-    rs -> (case checked of (datas, st) -> attach rs datas datas st)
+  check-unpacked-records ds checked =
+    let rs = requests ds ds in
+    let locals = local-type-names ds in
+    let exported = source-exported-symbols ds [] in
+    case checked of
+      (datas, st) ->
+        let (explicit-datas, explicit-st) = (case rs of [] -> (datas, st); _ -> attach rs datas datas st) in
+        (attach-auto ds locals exported rs explicit-datas explicit-datas, explicit-st)
