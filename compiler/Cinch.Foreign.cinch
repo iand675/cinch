@@ -509,8 +509,8 @@ module Cinch.Foreign where
   strip-asm-arch-ext :: String -> String
   strip-asm-arch-ext tpl =
     let s = string-strip tpl in
-    if string-starts-with ".arch_extension aes\\0A" s then string-strip (string-slice s 23 (string-length s))
-    else if string-starts-with ".arch_extension crc\\0A" s then string-strip (string-slice s 23 (string-length s))
+    if string-starts-with ".arch_extension aes\\0A" s then string-strip (string-slice s 22 (string-length s))
+    else if string-starts-with ".arch_extension crc\\0A" s then string-strip (string-slice s 22 (string-length s))
     else s
 
   join-asm-words :: List String -> String
