@@ -12423,13 +12423,379 @@ module Cinch.Infer where
     (CoreClause sp ps body) : rest ->
       check-value-clauses word-bits no-alloc no-raw-ptr datas rest (check-value-term sp word-bits no-alloc no-raw-ptr datas body st)
 
+  -- ------------------------------------------------------------------
+  -- Compile-time `#[alloc("bounded(n)")]` and `#[fip]` safety checks
+  -- ------------------------------------------------------------------
+
+  parse-decimal-nat-chars :: List Char -> Nat -> Option Nat
+  parse-decimal-nat-chars chars acc = case chars of
+    [] -> Some acc
+    ch : rest -> let code = char-code ch in
+      if code < 48 || code > 57 then None
+      else parse-decimal-nat-chars rest (acc * 10 + (code - 48))
+
+  parse-alloc-bounded-hint :: String -> Option Nat
+  parse-alloc-bounded-hint hint =
+    if string-starts-with "alloc=bounded(" hint then
+      let n = string-length hint in
+      if n >= 15 then
+        let inner = string-slice hint 14 (n - 1) in
+        if string-length inner == 0 then None
+        else parse-decimal-nat-chars (unpack inner) 0
+      else None
+    else None
+
+  decl-explicit-alloc-bound :: String -> List Decl -> Option Nat
+  decl-explicit-alloc-bound wanted decls = case decls of
+    [] -> None
+    (DInlineHint sp name (Ok h)) : rest ->
+      if name == wanted then
+        case parse-alloc-bounded-hint h of
+          Some k -> Some k
+          None -> decl-explicit-alloc-bound wanted rest
+      else decl-explicit-alloc-bound wanted rest
+    other : rest -> decl-explicit-alloc-bound wanted rest
+
+  decl-callee-alloc-bound :: String -> List Decl -> Option Nat
+  decl-callee-alloc-bound wanted decls = case decls of
+    [] -> None
+    (DInlineHint sp name (Ok h)) : rest ->
+      if name == wanted || ends-with-text wanted ("." <> name) then
+        if h == "no-alloc" || h == "fip" then Some 0
+        else if h == "alloc=once" then Some 1
+        else case parse-alloc-bounded-hint h of
+          Some k -> Some k
+          None -> decl-callee-alloc-bound wanted rest
+      else decl-callee-alloc-bound wanted rest
+    other : rest -> decl-callee-alloc-bound wanted rest
+
+  decl-is-fip-or-no-alloc :: String -> List Decl -> Bool
+  decl-is-fip-or-no-alloc wanted decls = case decls of
+    [] -> False
+    (DInlineHint sp name (Ok h)) : rest ->
+      ((name == wanted || ends-with-text wanted ("." <> name)) && (h == "no-alloc" || h == "fip"))
+        || decl-is-fip-or-no-alloc wanted rest
+    other : rest -> decl-is-fip-or-no-alloc wanted rest
+
+  is-elided-ctor-in-datas :: List CoreData -> String -> Bool
+  is-elided-ctor-in-datas datas cname = case datas of
+    [] -> False
+    d : rest ->
+      let elided = (case core-data-layout d of
+        ValueData repr sz al fs -> True
+        UnboxedData _ _ _ _ -> True
+        NicheData _ _ -> True
+        PolyNicheData _ _ -> True
+        TransparentData _ _ _ -> True
+        other -> False) in
+      if elided && ctor-list-has cname (core-data-constructors d) then True
+      else is-elided-ctor-in-datas rest cname
+
+  ctor-list-has :: String -> List CoreConstructor -> Bool
+  ctor-list-has wanted ctors = case ctors of
+    [] -> False
+    c : rest -> (c.constructor-name == wanted || ends-with-text wanted ("." <> c.constructor-name)) || ctor-list-has wanted rest
+
+  core-zero-alloc-callee :: String -> Bool
+  core-zero-alloc-callee name =
+    name == "+" || name == "-" || name == "*" || name == "/" || name == "%"
+      || name == "==" || name == "/=" || name == "<" || name == "<=" || name == ">" || name == ">="
+      || name == "&&" || name == "||" || name == "not" || name == "negate"
+      || name == "decide" || name == "ignore" || name == "id"
+      || ends-with-text name ".+" || ends-with-text name ".-" || ends-with-text name ".*"
+      || ends-with-text name ".==" || ends-with-text name "./=" || ends-with-text name ".<"
+      || ends-with-text name ".<=" || ends-with-text name ".>" || ends-with-text name ".>="
+      || ends-with-text name ".&&" || ends-with-text name ".||" || ends-with-text name ".not"
+      || ends-with-text name ".wrapping-add-i64" || ends-with-text name ".wrapping-sub-i64"
+      || ends-with-text name ".wrapping-mul-i64" || ends-with-text name ".eq-i64"
+      || ends-with-text name ".lt-i64" || ends-with-text name ".le-i64"
+      || ends-with-text name ".nat-to-int" || ends-with-text name ".int-to-nat"
+      || ends-with-text name ".nat-sub" || ends-with-text name ".nat-cmp"
+      || ends-with-text name ".decide" || ends-with-text name ".ignore"
+
+  core-allocating-prim :: String -> Bool
+  core-allocating-prim op =
+    op == "mut-borrow" || op == "bytes-new" || op == "array-new"
+      || op == "array-replicate" || op == "array-tabulate"
+      || op == "string-concat" || op == "string-from-bytes" || op == "string-to-bytes"
+
+  unwrap-core-app :: CoreTerm -> List CoreTerm -> (CoreTerm, List CoreTerm)
+  unwrap-core-app term args = case term of
+    CApply sp ty fn arg -> unwrap-core-app fn (arg : args)
+    CApplyEff sp ty row fn arg -> unwrap-core-app fn (arg : args)
+    CErasedApply sp ty row fn arg -> unwrap-core-app fn args
+    CPolyElim sp ty fn actuals -> unwrap-core-app fn args
+    CQualElim sp ty fn evs -> unwrap-core-app fn args
+    other -> (other, args)
+
+  core-args-list :: CoreTerm -> List CoreTerm
+  core-args-list args = case args of
+    CArgument sp first rest -> first : (core-args-list rest)
+    other -> []
+
+  core-max-nat :: Nat -> Nat -> Nat
+  core-max-nat a b = if a >= b then a else b
+
+  -- Evaluate worst-case allocation sites along any single non-recursive path.
+  eval-bounded-terms :: String -> Nat -> List Decl -> List CoreData -> List CoreTerm -> Store -> (Nat, Store)
+  eval-bounded-terms def-name cap ds datas terms st = case terms of
+    [] -> (0, st)
+    first : rest ->
+      let (n1, s1) = eval-bounded-term def-name cap ds datas first st in
+      let (n2, s2) = eval-bounded-terms def-name cap ds datas rest s1 in
+      (n1 + n2, s2)
+
+  eval-bounded-alts :: String -> Nat -> List Decl -> List CoreData -> CoreTerm -> Store -> (Nat, Store)
+  eval-bounded-alts def-name cap ds datas alts st = case alts of
+    CAlternative sp pat body rest ->
+      let (n1, s1) = eval-bounded-term def-name cap ds datas body st in
+      let (n2, s2) = eval-bounded-alts def-name cap ds datas rest s1 in
+      (core-max-nat n1 n2, s2)
+    other -> (0, st)
+
+  eval-bounded-term :: String -> Nat -> List Decl -> List CoreData -> CoreTerm -> Store -> (Nat, Store)
+  eval-bounded-term def-name cap ds datas term st = case term of
+    CApply sp ty fn arg -> eval-bounded-app sp def-name cap ds datas term st
+    CApplyEff sp ty row fn arg -> eval-bounded-app sp def-name cap ds datas term st
+    CIf sp ty cond t1 t2 ->
+      let (nc, s1) = eval-bounded-term def-name cap ds datas cond st in
+      let (nt, s2) = eval-bounded-term def-name cap ds datas t1 s1 in
+      let (ne, s3) = eval-bounded-term def-name cap ds datas t2 s2 in
+      (nc + core-max-nat nt ne, s3)
+    CCase sp ty scrut alts ->
+      let (ns, s1) = eval-bounded-term def-name cap ds datas scrut st in
+      let (na, s2) = eval-bounded-alts def-name cap ds datas alts s1 in
+      (ns + na, s2)
+    CLet sp ty id name sc rhs body ->
+      let (n1, s1) = eval-bounded-term def-name cap ds datas rhs st in
+      let (n2, s2) = eval-bounded-term def-name cap ds datas body s1 in
+      (n1 + n2, s2)
+    CGuard sp ty g body ->
+      let (n1, s1) = eval-bounded-term def-name cap ds datas g st in
+      let (n2, s2) = eval-bounded-term def-name cap ds datas body s1 in
+      (n1 + n2, s2)
+    CTuple sp ty fields ->
+      let items = core-args-list fields in
+      let (n1, s1) = eval-bounded-terms def-name cap ds datas items st in
+      (n1 + (if list-length items == 0 then 0 else 1), s1)
+    CLambda sp ty pat body ->
+      let (nb, s1) = eval-bounded-term def-name cap ds datas body st in
+      if nb > 0 then
+        (1, add-error sp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: allocating closure is forbidden") s1)
+      else (1, s1)
+    CPrimitive sp ty op args ->
+      let items = core-args-list args in
+      let (na, s1) = eval-bounded-terms def-name cap ds datas items st in
+      (na + (if core-allocating-prim op then 1 else 0), s1)
+    CRecursiveValues sp ty reg binds body ->
+      let (nb, s1) = eval-bounded-term def-name cap ds datas body st in
+      (nb + 1, s1)
+    CRecursiveFunctions sp ty binds body ->
+      let (nb, s1) = eval-bounded-term def-name cap ds datas body st in
+      (nb + 1, s1)
+    CUse sp ty name role actuals ->
+      if name == def-name then
+        (0, add-error sp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: unbounded recursion is forbidden") st)
+      else (0, st)
+    other -> eval-bounded-terms def-name cap ds datas (term-children other) st
+
+  eval-bounded-app :: Span -> String -> Nat -> List Decl -> List CoreData -> CoreTerm -> Store -> (Nat, Store)
+  eval-bounded-app sp def-name cap ds datas term st =
+    let (head, args) = unwrap-core-app term [] in
+    let (na, s1) = eval-bounded-terms def-name cap ds datas args st in
+    case head of
+      CUse hsp hty cname "constructor" actuals ->
+        let cost = if list-length args == 0 || is-elided-ctor-in-datas datas cname then 0 else 1 in
+        (na + cost, s1)
+      CQualifiedUse hsp hty cname "constructor" actuals evs ->
+        let cost = if list-length args == 0 || is-elided-ctor-in-datas datas cname then 0 else 1 in
+        (na + cost, s1)
+      CUse hsp hty callee role actuals ->
+        if callee == def-name then
+          (na, add-error hsp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: unbounded recursion is forbidden") s1)
+        else case decl-callee-alloc-bound callee ds of
+          Some k -> (na + k, s1)
+          None -> if core-zero-alloc-callee callee then (na, s1)
+            else (na, add-error hsp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: callee `" <> callee <> "` has no verified allocation bound") s1)
+      CQualifiedUse hsp hty callee role actuals evs ->
+        if callee == def-name then
+          (na, add-error hsp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: unbounded recursion is forbidden") s1)
+        else case decl-callee-alloc-bound callee ds of
+          Some k -> (na + k, s1)
+          None -> if core-zero-alloc-callee callee then (na, s1)
+            else (na, add-error hsp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: callee `" <> callee <> "` has no verified allocation bound") s1)
+      CMethod hsp hty mname owner slot actuals evs ->
+        if core-zero-alloc-callee mname then (na, s1)
+        else case decl-callee-alloc-bound mname ds of
+          Some k -> (na + k, s1)
+          None -> (na, s1)
+      CLocal hsp hty id lname actuals ->
+        (na, add-error hsp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> def-name <> " asserts bounded allocation: indirect call to `" <> lname <> "` has no static allocation bound") s1)
+      other ->
+        let (nh, s2) = eval-bounded-term def-name cap ds datas head s1 in
+        (na + nh, s2)
+
+  eval-bounded-clauses :: String -> Nat -> List Decl -> List CoreData -> List CoreClause -> Store -> (Nat, Store)
+  eval-bounded-clauses def-name cap ds datas clauses st = case clauses of
+    [] -> (0, st)
+    (CoreClause sp ps body) : rest ->
+      let (n1, s1) = eval-bounded-term def-name cap ds datas body st in
+      let (n2, s2) = eval-bounded-clauses def-name cap ds datas rest s1 in
+      (core-max-nat n1 n2, s2)
+
+  -- `#[fip]` (fully in-place) credit-accounting checker over CoreTerm.
+  count-cp-fields :: CorePattern -> Nat
+  count-cp-fields p = case p of
+    CPField sp first rest -> 1 + count-cp-fields rest
+    other -> 0
+
+  collect-cp-credits :: List CoreData -> CorePattern -> CoreTerm -> List Nat -> List Nat
+  collect-cp-credits datas pat body acc = case pat of
+    CPAs sp ty id name inner ->
+      if recursive-member-use id body then acc
+      else collect-cp-credits datas inner body acc
+    CPConstructor sp ty cname actuals rty fields ->
+      let arity = count-cp-fields fields in
+      let acc1 = if arity == 0 || is-elided-ctor-in-datas datas cname then acc else arity : acc in
+      collect-cp-field-credits datas fields body acc1
+    CPTuple sp ty fields ->
+      let arity = count-cp-fields fields in
+      let acc1 = if arity == 0 then acc else arity : acc in
+      collect-cp-field-credits datas fields body acc1
+    other -> acc
+
+  collect-cp-field-credits :: List CoreData -> CorePattern -> CoreTerm -> List Nat -> List Nat
+  collect-cp-field-credits datas fields body acc = case fields of
+    CPField sp first rest ->
+      collect-cp-field-credits datas rest body (collect-cp-credits datas first body acc)
+    other -> acc
+
+  collect-clause-pat-credits :: List CoreData -> List CorePattern -> CoreTerm -> List Nat -> List Nat
+  collect-clause-pat-credits datas pats body acc = case pats of
+    [] -> acc
+    p : rest -> collect-clause-pat-credits datas rest body (collect-cp-credits datas p body acc)
+
+  consume-fip-credit :: Nat -> List Nat -> Option (List Nat)
+  consume-fip-credit arity credits = case credits of
+    [] -> None
+    c : rest ->
+      if c == arity then Some rest
+      else case consume-fip-credit arity rest of
+        Some remaining -> Some (c : remaining)
+        None -> None
+
+  check-fip-terms :: String -> List Decl -> List CoreData -> List CoreTerm -> List Nat -> Store -> (List Nat, Store)
+  check-fip-terms def-name ds datas terms credits st = case terms of
+    [] -> (credits, st)
+    first : rest ->
+      let (c1, s1) = check-fip-term def-name ds datas first credits st in
+      check-fip-terms def-name ds datas rest c1 s1
+
+  check-fip-alts :: String -> List Decl -> List CoreData -> Option Nat -> CoreTerm -> List Nat -> Store -> Store
+  check-fip-alts def-name ds datas scrut-id alts credits st = case alts of
+    CAlternative sp pat body rest ->
+      let earned = (case scrut-id of
+        Some sid -> if recursive-member-use sid body then [] else collect-cp-credits datas pat body []
+        None -> []) in
+      let (_, s1) = check-fip-term def-name ds datas body (earned <> credits) st in
+      check-fip-alts def-name ds datas scrut-id rest credits s1
+    other -> st
+
+  check-fip-term :: String -> List Decl -> List CoreData -> CoreTerm -> List Nat -> Store -> (List Nat, Store)
+  check-fip-term def-name ds datas term credits st = case term of
+    CApply sp ty fn arg -> check-fip-app sp def-name ds datas term credits st
+    CApplyEff sp ty row fn arg -> check-fip-app sp def-name ds datas term credits st
+    CIf sp ty cond t1 t2 ->
+      let (c1, s1) = check-fip-term def-name ds datas cond credits st in
+      let (_, s2) = check-fip-term def-name ds datas t1 c1 s1 in
+      let (_, s3) = check-fip-term def-name ds datas t2 c1 s2 in
+      ([], s3)
+    CCase sp ty scrut alts ->
+      let (scrut-id, c1, s1) = (case scrut of
+        CLocal lsp lty sid sname sact -> (Some sid, credits, st)
+        other -> let (cs, ss) = check-fip-term def-name ds datas scrut credits st in (None, cs, ss)) in
+      ([], check-fip-alts def-name ds datas scrut-id alts c1 s1)
+    CLet sp ty id name sc rhs body ->
+      let (c1, s1) = check-fip-term def-name ds datas rhs credits st in
+      check-fip-term def-name ds datas body c1 s1
+    CGuard sp ty g body ->
+      let (c1, s1) = check-fip-term def-name ds datas g credits st in
+      check-fip-term def-name ds datas body c1 s1
+    CTuple sp ty fields ->
+      let items = core-args-list fields in
+      let arity = list-length items in
+      let (c1, s1) = check-fip-terms def-name ds datas items credits st in
+      if arity == 0 then (c1, s1)
+      else case consume-fip-credit arity c1 of
+        Some c2 -> (c2, s1)
+        None -> (c1, add-error sp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: tuple construction requires a matching in-place reuse credit") s1)
+    CLambda sp ty pat body ->
+      (credits, add-error sp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: closure allocation is forbidden") st)
+    CPrimitive sp ty op args ->
+      let items = core-args-list args in
+      let (c1, s1) = check-fip-terms def-name ds datas items credits st in
+      if core-allocating-prim op then
+        (c1, add-error sp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: allocating primitive `" <> op <> "` is forbidden") s1)
+      else (c1, s1)
+    CRecursiveValues sp ty reg binds body ->
+      (credits, add-error sp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: recursive value box allocation is forbidden") st)
+    CRecursiveFunctions sp ty binds body ->
+      (credits, add-error sp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: local recursive closure allocation is forbidden") st)
+    other -> check-fip-terms def-name ds datas (term-children other) credits st
+
+  check-fip-app :: Span -> String -> List Decl -> List CoreData -> CoreTerm -> List Nat -> Store -> (List Nat, Store)
+  check-fip-app sp def-name ds datas term credits st =
+    let (head, args) = unwrap-core-app term [] in
+    let (c1, s1) = check-fip-terms def-name ds datas args credits st in
+    let arity = list-length args in
+    case head of
+      CUse hsp hty cname "constructor" actuals ->
+        if arity == 0 || is-elided-ctor-in-datas datas cname then (c1, s1)
+        else case consume-fip-credit arity c1 of
+          Some c2 -> (c2, s1)
+          None -> (c1, add-error hsp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: constructor `" <> cname <> "` requires a matching in-place reuse credit") s1)
+      CQualifiedUse hsp hty cname "constructor" actuals evs ->
+        if arity == 0 || is-elided-ctor-in-datas datas cname then (c1, s1)
+        else case consume-fip-credit arity c1 of
+          Some c2 -> (c2, s1)
+          None -> (c1, add-error hsp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: constructor `" <> cname <> "` requires a matching in-place reuse credit") s1)
+      CUse hsp hty callee role actuals ->
+        if callee == def-name || core-zero-alloc-callee callee || decl-is-fip-or-no-alloc callee ds then (c1, s1)
+        else (c1, add-error hsp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: callee `" <> callee <> "` is not verified `#[no-alloc]` or `#[fip]`") s1)
+      CQualifiedUse hsp hty callee role actuals evs ->
+        if callee == def-name || core-zero-alloc-callee callee || decl-is-fip-or-no-alloc callee ds then (c1, s1)
+        else (c1, add-error hsp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: callee `" <> callee <> "` is not verified `#[no-alloc]` or `#[fip]`") s1)
+      CMethod hsp hty mname owner slot actuals evs ->
+        if core-zero-alloc-callee mname || decl-is-fip-or-no-alloc mname ds then (c1, s1)
+        else (c1, s1)
+      CLocal hsp hty id lname actuals ->
+        (c1, add-error hsp ("`#[fip]` on " <> def-name <> " asserts fully in-place execution: indirect call to `" <> lname <> "` is not verified `#[no-alloc]` or `#[fip]`") s1)
+      other -> check-fip-term def-name ds datas head c1 s1
+
+  check-fip-clauses :: String -> List Decl -> List CoreData -> List CoreClause -> Store -> Store
+  check-fip-clauses def-name ds datas clauses st = case clauses of
+    [] -> st
+    (CoreClause sp ps body) : rest ->
+      let earned = collect-clause-pat-credits datas ps body [] in
+      let (_, s1) = check-fip-term def-name ds datas body earned st in
+      check-fip-clauses def-name ds datas rest s1
+
   check-value-defs :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
   check-value-defs word-bits ds datas defs st = case defs of
     [] -> st
     (CoreDefinition sp name sc openings givens private clauses) : rest ->
       let no-alloc = decl-has-hint name "no-alloc" ds in
       let no-raw-ptr = decl-has-hint name "no-raw-ptr" ds in
-      check-value-defs word-bits ds datas rest (check-value-clauses word-bits no-alloc no-raw-ptr datas clauses st)
+      let s1 = check-value-clauses word-bits no-alloc no-raw-ptr datas clauses st in
+      let s2 = (case decl-explicit-alloc-bound name ds of
+        Some cap ->
+          let (measured, sb) = eval-bounded-clauses name cap ds datas clauses s1 in
+          if measured > cap then
+            add-error sp ("`#[alloc \"bounded(" <> int-to-string (nat-to-int cap) <> ")\"]` on " <> name <> " asserts bounded allocation: worst-case path allocates " <> int-to-string (nat-to-int measured) <> " site(s), above the bound of " <> int-to-string (nat-to-int cap)) sb
+          else sb
+        None -> s1) in
+      let s3 = if decl-has-hint name "fip" ds then check-fip-clauses name ds datas clauses s2 else s2 in
+      check-value-defs word-bits ds datas rest s3
 
   check-value-rules :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
   check-value-rules word-bits ds datas core st =

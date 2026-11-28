@@ -421,6 +421,7 @@ pub(crate) fn release_credit(tally: &Tally) {
 /// heap: the single accounting point for every heap allocation.
 #[inline]
 fn account(local: Option<&Heap>, size: usize, header: Option<bool>) {
+    record_thread_alloc();
     let count = Counter::of(local);
     count.add(|t| &t.blocks, 1);
     count.add(|t| &t.bytes, size as u64);
@@ -537,6 +538,29 @@ fn count_freed(local: Option<&Heap>) {
     Counter::of(local).add(|t| &t.freed, 1);
     #[cfg(test)]
     THREAD_FREED.with(|c| c.set(c.get() + 1));
+}
+
+thread_local! {
+    /// Cumulative heap allocations performed on the calling OS thread,
+    /// read by `cinch_engine_thread_alloc_count` and reset by
+    /// `cinch_engine_thread_counters_reset`.
+    static THREAD_ALLOC_COUNT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[inline]
+fn record_thread_alloc() {
+    let _ = THREAD_ALLOC_COUNT.try_with(|c| c.set(c.get().wrapping_add(1)));
+}
+
+/// Cumulative heap allocations performed by the calling OS thread since
+/// thread start or the last [`reset_thread_alloc_count`].
+pub(crate) fn thread_alloc_count() -> u64 {
+    THREAD_ALLOC_COUNT.try_with(std::cell::Cell::get).unwrap_or(0)
+}
+
+/// Reset the calling OS thread's heap allocation counter to zero.
+pub(crate) fn reset_thread_alloc_count() {
+    let _ = THREAD_ALLOC_COUNT.try_with(|c| c.set(0));
 }
 
 #[cfg(test)]

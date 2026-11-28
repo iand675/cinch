@@ -6405,8 +6405,8 @@ impl Checker {
                 // annotations specification section 10). Every
                 // assertion attaches to a function definition and is
                 // verified there.
-                "recursion" | "stack" | "no-alloc" | "alloc" | "max-complexity" | "max-lines"
-                | "assert-min" | "checked-params" | "no-macros" | "no-raw-ptr"
+                "recursion" | "stack" | "no-alloc" | "alloc" | "fip" | "max-complexity"
+                | "max-lines" | "assert-min" | "checked-params" | "no-macros" | "no-raw-ptr"
                 | "deny-warnings" => {
                     if site != AttrSite::FnDecl {
                         return Err(Error::at(a.span, site.placement_error("safety")));
@@ -14381,7 +14381,7 @@ impl AttrSite {
             "unroll" => {
                 "`#[unroll(N)]` is a hint on a function declaration (attribute annotations specification section 5)".to_string()
             }
-            "safety" => "`#[recursion]`, `#[stack]`, `#[no-alloc]`, `#[alloc]`, `#[max-complexity]`, `#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]` and `#[deny-warnings]` attach to a function definition (a signature or a top-level equation; attribute annotations specification section 10)".to_string(),
+            "safety" => "`#[recursion]`, `#[stack]`, `#[no-alloc]`, `#[alloc]`, `#[fip]`, `#[max-complexity]`, `#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]` and `#[deny-warnings]` attach to a function definition (a signature or a top-level equation; attribute annotations specification section 10)".to_string(),
             "byval" | "sret" => "`#[byval]` and `#[sret]` attach to a `foreign` import or export declaration (the by-value aggregate ABI spelling of design/llvm-contract-attributes.md)".to_string(),
             "repr" => match self {
                 AttrSite::FnDecl | AttrSite::Decl | AttrSite::Ctor => {
@@ -14747,6 +14747,15 @@ pub(crate) enum StackSpec {
     Bounded(BoundArg),
 }
 
+/// `#[alloc "once"|"bounded(n)"]` (section 10).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AllocSpec {
+    /// At most one allocation site runs per call (the initialization pattern).
+    Once,
+    /// Worst-case allocation sites along any single non-recursive path <= `n`.
+    Bounded(u64),
+}
+
 /// The safety assertions one attachment position carries (section 10),
 /// each with the span naming the assertion in violations.
 #[derive(Clone, Debug, Default)]
@@ -14754,7 +14763,8 @@ pub(crate) struct SafetySet {
     pub recursion: Option<(RecursionSpec, ast::Span)>,
     pub stack: Option<(StackSpec, ast::Span)>,
     pub no_alloc: Option<ast::Span>,
-    pub alloc_once: Option<ast::Span>,
+    pub alloc: Option<(AllocSpec, ast::Span)>,
+    pub fip: Option<ast::Span>,
     pub max_complexity: Option<(u64, ast::Span)>,
     pub max_lines: Option<(u64, ast::Span)>,
     pub assert_min: Option<(u64, ast::Span)>,
@@ -14765,6 +14775,10 @@ pub(crate) struct SafetySet {
 }
 
 impl SafetySet {
+    pub(crate) fn is_alloc_once(&self) -> bool {
+        matches!(self.alloc, Some((AllocSpec::Once, _)))
+    }
+
     /// Validate one safety assertion's arguments and record it (attribute
     /// annotations specification section 10).
     fn fill_from(&mut self, a: &crate::ast::Attribute) -> Result<()> {
@@ -14781,13 +14795,11 @@ impl SafetySet {
                 self.no_alloc = Some(span);
             }
             "alloc" => {
-                if quoted_arg(a)? != "once" {
-                    return Err(Error::at(
-                        span,
-                        "`#[alloc]` takes `\"once\"` (the initialization pattern of attribute annotations specification section 10)",
-                    ));
-                }
-                self.alloc_once = Some(span);
+                self.alloc = Some((parse_alloc_args(a)?, span));
+            }
+            "fip" => {
+                no_arg(a)?;
+                self.fip = Some(span);
             }
             "max-complexity" => {
                 self.max_complexity = Some((uint_arg(a)?, span));
@@ -14828,7 +14840,8 @@ impl SafetySet {
         self.recursion.is_none()
             && self.stack.is_none()
             && self.no_alloc.is_none()
-            && self.alloc_once.is_none()
+            && self.alloc.is_none()
+            && self.fip.is_none()
             && self.max_complexity.is_none()
             && self.max_lines.is_none()
             && self.assert_min.is_none()
@@ -14878,7 +14891,8 @@ impl SafetySet {
         take1!(recursion, "#[recursion]");
         take1!(stack, "#[stack]");
         take0!(no_alloc, "#[no-alloc]");
-        take0!(alloc_once, "#[alloc]");
+        take1!(alloc, "#[alloc]");
+        take0!(fip, "#[fip]");
         take1!(max_complexity, "#[max-complexity]");
         take1!(max_lines, "#[max-lines]");
         take1!(assert_min, "#[assert-min]");
@@ -14909,8 +14923,14 @@ impl SafetySet {
         if self.no_alloc.is_some() {
             out.push("no-alloc".to_string());
         }
-        if self.alloc_once.is_some() {
-            out.push("alloc=once".to_string());
+        if let Some((a, _)) = self.alloc {
+            out.push(match a {
+                AllocSpec::Once => "alloc=once".to_string(),
+                AllocSpec::Bounded(n) => format!("alloc=bounded({n})"),
+            });
+        }
+        if self.fip.is_some() {
+            out.push("fip".to_string());
         }
         if let Some((n, _)) = self.max_complexity {
             out.push(format!("complexity<={n}"));
@@ -15009,6 +15029,41 @@ fn parse_recursion_args(a: &crate::ast::Attribute) -> Result<RecursionSpec> {
             ),
         )),
     }
+}
+
+/// Parse `#[alloc "once"|"bounded(n)"]`.
+fn parse_alloc_args(a: &crate::ast::Attribute) -> Result<AllocSpec> {
+    let s = quoted_arg(a)?;
+    if s == "once" {
+        return Ok(AllocSpec::Once);
+    }
+    if let Some(inner) = s
+        .strip_prefix("bounded(")
+        .and_then(|r| r.strip_suffix(')'))
+        .map(str::trim)
+    {
+        if !inner.is_empty() && inner.bytes().all(|b| b.is_ascii_digit()) {
+            let n = inner.parse::<u64>().map_err(|_| {
+                Error::at(
+                    a.span,
+                    "an allocation bound is a non-negative integer representable in 64 bits",
+                )
+            })?;
+            return Ok(AllocSpec::Bounded(n));
+        }
+        return Err(Error::at(
+            a.span,
+            format!(
+                "`{s}` is not an allocation bound: `#[alloc \"bounded(n)\"]` takes a non-negative integer literal `n` (attribute annotations specification section 10)"
+            ),
+        ));
+    }
+    Err(Error::at(
+        a.span,
+        format!(
+            "`{s}` is not an allocation assertion: `#[alloc]` takes `\"once\"` or `\"bounded(n)\"` (attribute annotations specification section 10)"
+        ),
+    ))
 }
 
 /// Parse `#[stack "constant"|"bounded(n)"]`.
@@ -15197,6 +15252,59 @@ pub(crate) struct AllocRec {
     pub closure: bool,
 }
 
+/// Structured per-path allocation expression for `#[alloc("bounded(n)")]`.
+#[derive(Clone, Debug)]
+pub(crate) enum AllocExpr {
+    Zero,
+    /// One local heap allocation site.
+    Site { what: String, span: ast::Span },
+    /// A closure or lazy thunk whose body allocates (forbidden under `#[alloc("bounded(n)")]`).
+    AllocatingClosure { what: String, span: ast::Span },
+    /// Sequential composition: sums allocation bounds.
+    Seq(Vec<AllocExpr>),
+    /// Mutually exclusive branches: takes the worst-case `max`.
+    Branch(Vec<AllocExpr>),
+    /// A call site resolved against callee safety assertions / builtins.
+    Call {
+        callee: String,
+        quals: Vec<String>,
+        span: ast::Span,
+        is_self: bool,
+        is_local_var: bool,
+    },
+}
+
+/// Structured branch-wise credit-accounting tree for `#[fip]` (fully in-place).
+#[derive(Clone, Debug)]
+pub(crate) enum FipNode {
+    Zero,
+    /// A heap constructor/record/tuple allocation of `arity >= 1` fields
+    /// that must be matched 1:1 with an available reuse credit of size `arity`.
+    Alloc { what: String, arity: usize, span: ast::Span },
+    /// A non-reusable fresh heap allocation (closure, thunk, `Mut`, list literal, etc.).
+    ForbiddenAlloc { what: String, span: ast::Span },
+    /// A call site that must target self, a zero-alloc builtin, or a `#[no-alloc]`/`#[fip]` callee.
+    Call {
+        callee: String,
+        quals: Vec<String>,
+        span: ast::Span,
+        is_self: bool,
+        is_local_var: bool,
+    },
+    /// Sequential execution threading remaining reuse credits.
+    Seq(Vec<FipNode>),
+    /// Mutually exclusive branches, each earning its own pattern reuse credits.
+    Branch(Vec<FipBranch>),
+}
+
+/// One branch of a `#[fip]` check.
+#[derive(Clone, Debug)]
+pub(crate) struct FipBranch {
+    pub earned_credits: Vec<usize>,
+    pub aliased_scrutinee: Option<String>,
+    pub body: FipNode,
+}
+
 /// What one definition's body contains, collected from the surface
 /// syntax with spans so violations name the offending site.
 #[derive(Clone, Debug, Default)]
@@ -15212,6 +15320,10 @@ pub(crate) struct BodyFacts {
     /// obligations do not count).
     pub runtime_decides: Vec<ast::Span>,
     pub alloc_sites: Vec<AllocRec>,
+    /// Per-path worst-case allocation tree for `#[alloc("bounded(n)")]`.
+    pub alloc_expr: Option<AllocExpr>,
+    /// Branch-wise Perceus reuse-credit tree for `#[fip]`.
+    pub fip_node: Option<FipNode>,
     pub calls: Vec<CallRec>,
     pub self_calls: Vec<SelfCallRec>,
     /// Self references in value position (a recursive use that is not a
@@ -15246,6 +15358,9 @@ pub(crate) struct ForeignMarks {
     pub aggregates: HashSet<String>,
     /// `#[repr(value)]` record names (stack/value constructed, zero heap allocation).
     pub value_records: HashSet<String>,
+    /// Stack/value/niche-elided constructor and record names (`#[repr(value)]`,
+    /// `#[repr(unboxed)]`, `#[repr(niche)]`, and auto-niched constructors).
+    pub elided_ctors: HashSet<String>,
 }
 
 /// Is this pattern refutable (a check that can fail)?
@@ -16013,7 +16128,1422 @@ fn collect_body_facts(
     if facts.max_line >= facts.min_line && facts.min_line > 0 {
         facts.body_lines = (facts.max_line - facts.min_line + 1) as u64;
     }
+    facts.alloc_expr = Some(build_alloc_expr(self_mod, self_name, eqs, foreign));
+    facts.fip_node = Some(build_fip_node(self_mod, self_name, eqs, foreign));
     facts
+}
+
+/// Builtin / prelude pure scalar and non-allocating operations that perform
+/// zero heap allocations.
+fn is_zero_alloc_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "+" | "-"
+            | "*"
+            | "/"
+            | "%"
+            | "=="
+            | "/="
+            | "!="
+            | "<"
+            | "<="
+            | ">"
+            | ">="
+            | "&&"
+            | "||"
+            | "not"
+            | "negate"
+            | "abs"
+            | "min"
+            | "max"
+            | "div"
+            | "mod"
+            | "rem"
+            | "compare"
+            | "decide"
+            | "ignore"
+            | "id"
+            | "const"
+            | "fst"
+            | "snd"
+            | "forget"
+            | "narrow"
+            | "withLocal"
+            | "with-local"
+            | "copyOut"
+            | "copy-out"
+            | "mutRead"
+            | "mut-read"
+            | "mutWrite"
+            | "mut-write"
+            | "read"
+            | "write"
+            | "nat-to-int"
+            | "int-to-nat"
+            | "nat-from-int"
+            | "int-from-nat"
+            | "nat-sub"
+            | "nat-cmp"
+            | "saturating-sub"
+            | "wrapping-add-i64"
+            | "wrapping-sub-i64"
+            | "wrapping-mul-i64"
+            | "wrapping-add-i32"
+            | "wrapping-sub-i32"
+            | "wrapping-mul-i32"
+            | "wrapping-add-u64"
+            | "wrapping-sub-u64"
+            | "wrapping-mul-u64"
+            | "eq-i64"
+            | "lt-i64"
+            | "le-i64"
+            | "gt-i64"
+            | "ge-i64"
+            | "i64-to-int"
+            | "int-to-i64"
+            | "i32-to-int"
+            | "int-to-i32"
+            | "u8-to-int"
+            | "u64-to-int"
+            | "bit-and"
+            | "bit-or"
+            | "bit-xor"
+            | "shl"
+            | "shr"
+            | "f64-add"
+            | "f64-sub"
+            | "f64-mul"
+            | "f64-div"
+            | "f64-eq"
+            | "f64-lt"
+            | "bytes-len"
+            | "bytes-get"
+            | "bytes-set"
+            | "bytes-copy"
+            | "bytes-compare"
+            | "array-len"
+            | "array-get"
+            | "array-set"
+            | "string-length"
+            | "char-code"
+    )
+}
+
+/// Known allocating runtime / prelude constructors & buffer builders.
+fn is_allocating_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "bytes-new"
+            | "bytesNew"
+            | "array-new"
+            | "arrayNew"
+            | "array-replicate"
+            | "array-tabulate"
+            | "arrayTabulate"
+            | "string-concat"
+            | "stringConcat"
+            | "string-from-bytes"
+            | "string-to-bytes"
+            | "++"
+            | "<>"
+            | "cinch_alloc"
+            | "cinch_bytes_new"
+    )
+}
+
+fn is_elided_ctor(name: &str, foreign: &ForeignMarks) -> bool {
+    foreign.value_records.contains(name) || foreign.elided_ctors.contains(name)
+}
+
+/// Whether `expr` can statically allocate anything (used to detect allocating
+/// closures inside `#[alloc("bounded(n)")]`).
+fn alloc_expr_may_allocate(expr: &AllocExpr) -> bool {
+    match expr {
+        AllocExpr::Zero => false,
+        AllocExpr::Site { .. } | AllocExpr::AllocatingClosure { .. } => true,
+        AllocExpr::Seq(xs) | AllocExpr::Branch(xs) => xs.iter().any(alloc_expr_may_allocate),
+        AllocExpr::Call { callee, is_self, is_local_var, .. } => {
+            *is_self || *is_local_var || !is_zero_alloc_builtin(callee)
+        }
+    }
+}
+
+struct AllocWalk<'a> {
+    self_mod: &'a str,
+    self_name: &'a str,
+    scopes: Vec<Vec<String>>,
+    foreign: &'a ForeignMarks,
+}
+
+impl<'a> AllocWalk<'a> {
+    fn is_local(&self, name: &str) -> bool {
+        self.scopes.iter().any(|g| g.iter().any(|b| b == name))
+    }
+
+    fn is_self_path(&self, p: &ast::VarPath) -> bool {
+        let m = p.quals.is_empty() || (p.quals.len() == 1 && p.quals[0].text == self.self_mod);
+        m && p.name.text == self.self_name && !self.is_local(&p.name.text)
+    }
+
+    fn push_pat(&mut self, pat: &ast::Pat) {
+        let mut names = Vec::new();
+        collect_pat_names(pat, &mut names);
+        self.scopes.push(names);
+    }
+
+    fn walk_decls(&mut self, decls: &[ast::LocalDecl], recursive: bool) -> Vec<AllocExpr> {
+        let mut out = Vec::new();
+        if recursive {
+            let names: Vec<String> = decls
+                .iter()
+                .filter_map(|d| match d {
+                    ast::LocalDecl::Eq { name, .. } => Some(name.text.clone()),
+                    _ => None,
+                })
+                .collect();
+            self.scopes.push(names);
+        }
+        for d in decls {
+            match d {
+                ast::LocalDecl::Sig { .. } => {}
+                ast::LocalDecl::Bind { pat, body, .. } => {
+                    out.push(self.walk_term(body));
+                    self.push_pat(pat);
+                }
+                ast::LocalDecl::Lazy { pat, body, span } => {
+                    let inner = self.walk_term(body);
+                    if alloc_expr_may_allocate(&inner) {
+                        out.push(AllocExpr::AllocatingClosure {
+                            what: "a `delay` thunk (memo binding)".to_string(),
+                            span: *span,
+                        });
+                    } else {
+                        out.push(AllocExpr::Site {
+                            what: "a `delay` thunk (memo binding)".to_string(),
+                            span: *span,
+                        });
+                    }
+                    self.push_pat(pat);
+                }
+                ast::LocalDecl::Eq { name, pats, body, span } => {
+                    if !pats.is_empty() {
+                        let depth = self.scopes.len();
+                        for p in pats {
+                            self.push_pat(p);
+                        }
+                        let inner = self.walk_term(body);
+                        self.scopes.truncate(depth);
+                        if alloc_expr_may_allocate(&inner) {
+                            out.push(AllocExpr::AllocatingClosure {
+                                what: format!("an allocating local function `{}`", name.text),
+                                span: *span,
+                            });
+                        } else {
+                            out.push(AllocExpr::Site {
+                                what: format!("a closure (local function `{}`)", name.text),
+                                span: *span,
+                            });
+                        }
+                    } else {
+                        out.push(self.walk_term(body));
+                    }
+                    if !recursive {
+                        self.scopes.push(vec![name.text.clone()]);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn walk_term(&mut self, t: &ast::Term) -> AllocExpr {
+        match t {
+            ast::Term::Var(p) => {
+                if self.is_self_path(p) {
+                    AllocExpr::Call {
+                        callee: p.name.text.clone(),
+                        quals: p.quals.iter().map(|q| q.text.clone()).collect(),
+                        span: p.span(),
+                        is_self: true,
+                        is_local_var: false,
+                    }
+                } else {
+                    AllocExpr::Zero
+                }
+            }
+            // Nullary constructor (not applied to arguments): static immortal / immediate.
+            ast::Term::Con(_)
+            | ast::Term::Int(..)
+            | ast::Term::Float(..)
+            | ast::Term::Char(..)
+            | ast::Term::Sym(..)
+            | ast::Term::Str(..)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::SeqOp(..)
+            | ast::Term::MacroCall { .. } => AllocExpr::Zero,
+            ast::Term::App(f, args, _) => {
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "withLocal" | "with-local")
+                        && !self.is_local(&p.name.text)
+                        && args.len() == 2
+                    {
+                        let init = self.walk_term(&args[0]);
+                        if let ast::Term::Lam(pats, body, _) = &args[1] {
+                            let depth = self.scopes.len();
+                            for pat in pats {
+                                self.push_pat(pat);
+                            }
+                            let b = self.walk_term(body);
+                            self.scopes.truncate(depth);
+                            return AllocExpr::Seq(vec![init, b]);
+                        }
+                    }
+                }
+                let mut seq: Vec<AllocExpr> = args.iter().map(|a| self.walk_term(a)).collect();
+                match &**f {
+                    ast::Term::Con(p) => {
+                        let cname = *p.parts().last().unwrap_or(&"");
+                        if !args.is_empty() && !is_elided_ctor(cname, self.foreign) {
+                            seq.push(AllocExpr::Site {
+                                what: format!("the constructor `{cname}`"),
+                                span: p.span(),
+                            });
+                        }
+                    }
+                    ast::Term::Var(p) => {
+                        let name = p.name.text.as_str();
+                        let span = p.span();
+                        if !self.is_local(name) && (name == "mutBorrow" || name == "mut-borrow") {
+                            if !matches!(args.as_slice(), [ast::Term::Proj(..)]) {
+                                seq.push(AllocExpr::Site {
+                                    what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
+                                    span,
+                                });
+                            }
+                        } else if !self.is_local(name) && self.foreign.aggregates.contains(name) {
+                            seq.push(AllocExpr::Site {
+                                what: format!("a foreign aggregate (the call to `{name}`)"),
+                                span,
+                            });
+                        } else if !self.is_local(name) && is_allocating_builtin(name) {
+                            seq.push(AllocExpr::Site {
+                                what: format!("the allocating operation `{name}`"),
+                                span,
+                            });
+                        } else if self.is_self_path(p) {
+                            seq.push(AllocExpr::Call {
+                                callee: name.to_string(),
+                                quals: p.quals.iter().map(|q| q.text.clone()).collect(),
+                                span,
+                                is_self: true,
+                                is_local_var: false,
+                            });
+                        } else if self.is_local(name) {
+                            seq.push(AllocExpr::Call {
+                                callee: name.to_string(),
+                                quals: Vec::new(),
+                                span,
+                                is_self: false,
+                                is_local_var: true,
+                            });
+                        } else if !is_zero_alloc_builtin(name) {
+                            seq.push(AllocExpr::Call {
+                                callee: name.to_string(),
+                                quals: p.quals.iter().map(|q| q.text.clone()).collect(),
+                                span,
+                                is_self: false,
+                                is_local_var: false,
+                            });
+                        }
+                    }
+                    other => {
+                        seq.push(self.walk_term(other));
+                        seq.push(AllocExpr::Call {
+                            callee: "<closure>".to_string(),
+                            quals: Vec::new(),
+                            span: other.span(),
+                            is_self: false,
+                            is_local_var: true,
+                        });
+                    }
+                }
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::Lam(pats, body, s) => {
+                let depth = self.scopes.len();
+                for p in pats {
+                    self.push_pat(p);
+                }
+                let inner = self.walk_term(body);
+                self.scopes.truncate(depth);
+                if alloc_expr_may_allocate(&inner) {
+                    AllocExpr::AllocatingClosure {
+                        what: "an allocating closure (lambda)".to_string(),
+                        span: *s,
+                    }
+                } else {
+                    AllocExpr::Site {
+                        what: "a closure (a lambda)".to_string(),
+                        span: *s,
+                    }
+                }
+            }
+            ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
+                let recursive = matches!(t, ast::Term::Letrec(..));
+                let mut seq = Vec::new();
+                if recursive {
+                    seq.push(AllocExpr::Site {
+                        what: "a `letrec` fixpoint box".to_string(),
+                        span: t.span(),
+                    });
+                }
+                let depth = self.scopes.len();
+                seq.extend(self.walk_decls(decls, recursive));
+                seq.push(self.walk_term(body));
+                self.scopes.truncate(depth);
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::If { cond, then, els, .. } => {
+                let c = self.walk_term(cond);
+                let t1 = self.walk_term(then);
+                let t2 = self.walk_term(els);
+                AllocExpr::Seq(vec![c, AllocExpr::Branch(vec![t1, t2])])
+            }
+            ast::Term::Case(scrut, alts, _) => {
+                let sc = self.walk_term(scrut);
+                let mut branches = Vec::new();
+                for a in alts {
+                    let depth = self.scopes.len();
+                    self.push_pat(&a.pat);
+                    let mut arm = Vec::new();
+                    if let Some(g) = &a.guard {
+                        arm.push(self.walk_term(g));
+                    }
+                    arm.push(self.walk_term(&a.body));
+                    self.scopes.truncate(depth);
+                    branches.push(AllocExpr::Seq(arm));
+                }
+                AllocExpr::Seq(vec![sc, AllocExpr::Branch(branches)])
+            }
+            ast::Term::Ann(e, _, _)
+            | ast::Term::Forget { value: e, .. }
+            | ast::Term::Neg(e, _)
+            | ast::Term::Proj(e, _, _)
+            | ast::Term::Quote { body: e, .. }
+            | ast::Term::Splice { body: e, .. }
+            | ast::Term::CpsWrap(e, _) => self.walk_term(e),
+            ast::Term::Narrow { value, witness, .. } => {
+                AllocExpr::Seq(vec![self.walk_term(value), self.walk_term(witness)])
+            }
+            ast::Term::Infix(terms, ops, _) => {
+                let mut seq: Vec<AllocExpr> = terms.iter().map(|x| self.walk_term(x)).collect();
+                for op in ops {
+                    if is_allocating_builtin(&op.text) {
+                        seq.push(AllocExpr::Site {
+                            what: format!("the allocating operator `{}`", op.text),
+                            span: op.span,
+                        });
+                    } else if !is_zero_alloc_builtin(&op.text) {
+                        seq.push(AllocExpr::Call {
+                            callee: op.text.clone(),
+                            quals: Vec::new(),
+                            span: op.span,
+                            is_self: false,
+                            is_local_var: false,
+                        });
+                    }
+                }
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::Tuple(items, s) => {
+                let mut seq: Vec<AllocExpr> = items.iter().map(|i| self.walk_term(i)).collect();
+                if !items.is_empty() {
+                    seq.push(AllocExpr::Site {
+                        what: "a tuple construction".to_string(),
+                        span: *s,
+                    });
+                }
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::List(items, s) => {
+                if items.is_empty() {
+                    AllocExpr::Zero
+                } else {
+                    let mut seq: Vec<AllocExpr> = items.iter().map(|i| self.walk_term(i)).collect();
+                    for _ in items {
+                        seq.push(AllocExpr::Site {
+                            what: "a list construction (cons cell)".to_string(),
+                            span: *s,
+                        });
+                    }
+                    AllocExpr::Seq(seq)
+                }
+            }
+            ast::Term::Map(items, s) => {
+                let mut seq = Vec::new();
+                for (k, v) in items {
+                    seq.push(self.walk_term(k));
+                    seq.push(self.walk_term(v));
+                }
+                seq.push(AllocExpr::Site {
+                    what: "a map construction".to_string(),
+                    span: *s,
+                });
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::Range(start, step, end, s) => {
+                let mut seq = vec![self.walk_term(start)];
+                if let Some(x) = step {
+                    seq.push(self.walk_term(x));
+                }
+                seq.push(self.walk_term(end));
+                seq.push(AllocExpr::Site {
+                    what: "a range construction".to_string(),
+                    span: *s,
+                });
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::Record(path, fields, s) => {
+                let mut seq: Vec<AllocExpr> = fields.iter().map(|(_, v)| self.walk_term(v)).collect();
+                let rname = *path.parts().last().unwrap_or(&"");
+                if !is_elided_ctor(rname, self.foreign) {
+                    seq.push(AllocExpr::Site {
+                        what: format!("the record construction of `{rname}`"),
+                        span: *s,
+                    });
+                }
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::Do(stmts, _) => {
+                let multi = stmts.len() > 1;
+                let depth = self.scopes.len();
+                let mut seq = Vec::new();
+                for (i, s) in stmts.iter().enumerate() {
+                    let step = match s {
+                        ast::DoStmt::Bind { pat, term, .. } => {
+                            let e = self.walk_term(term);
+                            self.push_pat(pat);
+                            e
+                        }
+                        ast::DoStmt::Let { decls, .. } => {
+                            AllocExpr::Seq(self.walk_decls(decls, false))
+                        }
+                        ast::DoStmt::Expr { term, .. } => self.walk_term(term),
+                    };
+                    if multi && i > 0 && alloc_expr_may_allocate(&step) {
+                        seq.push(AllocExpr::AllocatingClosure {
+                            what: "an allocating `do` continuation".to_string(),
+                            span: t.span(),
+                        });
+                    } else {
+                        seq.push(step);
+                    }
+                }
+                self.scopes.truncate(depth);
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::Handle(body, handler, _) => {
+                AllocExpr::Seq(vec![self.walk_term(body), self.walk_term(handler)])
+            }
+            ast::Term::Handler(h) => {
+                let depth = self.scopes.len();
+                self.push_pat(&h.ret_pat);
+                let mut parts = vec![self.walk_term(&h.ret_body)];
+                for c in &h.clauses {
+                    let cd = self.scopes.len();
+                    for p in &c.pats {
+                        self.push_pat(p);
+                    }
+                    if let Some(r) = &c.resume {
+                        self.scopes.push(vec![r.text.clone()]);
+                    }
+                    parts.push(self.walk_term(&c.body));
+                    self.scopes.truncate(cd);
+                }
+                self.scopes.truncate(depth);
+                let combined = AllocExpr::Branch(parts);
+                if alloc_expr_may_allocate(&combined) {
+                    AllocExpr::AllocatingClosure {
+                        what: "an allocating effect handler".to_string(),
+                        span: t.span(),
+                    }
+                } else {
+                    AllocExpr::Zero
+                }
+            }
+            ast::Term::With { name, value, body, .. } => {
+                let v = self.walk_term(value);
+                let depth = self.scopes.len();
+                self.scopes.push(vec![name.text.clone()]);
+                let b = self.walk_term(body);
+                self.scopes.truncate(depth);
+                AllocExpr::Seq(vec![v, b])
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                let mut seq: Vec<AllocExpr> = supplies.iter().map(|(_, v)| self.walk_term(v)).collect();
+                seq.push(self.walk_term(head));
+                AllocExpr::Seq(seq)
+            }
+            ast::Term::QuoteDecls { .. } => AllocExpr::Zero,
+        }
+    }
+}
+
+fn build_alloc_expr(
+    self_mod: &str,
+    self_name: &str,
+    eqs: &[&ast::Equation],
+    foreign: &ForeignMarks,
+) -> AllocExpr {
+    let mut eq_nodes = Vec::new();
+    for e in eqs {
+        let mut w = AllocWalk {
+            self_mod,
+            self_name,
+            scopes: Vec::new(),
+            foreign,
+        };
+        for p in &e.pats {
+            w.push_pat(p);
+        }
+        let mut seq = w.walk_decls(&e.locals, true);
+        if let Some(g) = &e.guard {
+            seq.push(w.walk_term(g));
+        }
+        seq.push(w.walk_term(&e.body));
+        eq_nodes.push(AllocExpr::Seq(seq));
+    }
+    if eq_nodes.len() == 1 {
+        eq_nodes.pop().unwrap()
+    } else {
+        AllocExpr::Branch(eq_nodes)
+    }
+}
+
+/// Whether `name` appears free in `t` (respecting shadowing by local binders).
+fn term_uses_var(t: &ast::Term, name: &str) -> bool {
+    match t {
+        ast::Term::Var(p) => p.quals.is_empty() && p.name.text == name,
+        ast::Term::Con(_)
+        | ast::Term::Int(..)
+        | ast::Term::Float(..)
+        | ast::Term::Char(..)
+        | ast::Term::Sym(..)
+        | ast::Term::Str(..)
+        | ast::Term::Unit(_)
+        | ast::Term::Hole(_)
+        | ast::Term::SpliceHole { .. }
+        | ast::Term::SeqOp(..)
+        | ast::Term::MacroCall { .. }
+        | ast::Term::QuoteDecls { .. } => false,
+        ast::Term::App(f, args, _) => {
+            term_uses_var(f, name) || args.iter().any(|a| term_uses_var(a, name))
+        }
+        ast::Term::Lam(pats, body, _) => {
+            let mut bound = Vec::new();
+            for p in pats {
+                collect_pat_names(p, &mut bound);
+            }
+            if bound.iter().any(|b| b == name) {
+                false
+            } else {
+                term_uses_var(body, name)
+            }
+        }
+        ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
+            let recursive = matches!(t, ast::Term::Letrec(..));
+            let mut shadowed = false;
+            if recursive {
+                for d in decls {
+                    if let ast::LocalDecl::Eq { name: dn, .. } = d {
+                        if dn.text == name {
+                            shadowed = true;
+                        }
+                    }
+                }
+            }
+            if shadowed {
+                return false;
+            }
+            for d in decls {
+                match d {
+                    ast::LocalDecl::Sig { .. } => {}
+                    ast::LocalDecl::Bind { pat, body: b, .. }
+                    | ast::LocalDecl::Lazy { pat, body: b, .. } => {
+                        if term_uses_var(b, name) {
+                            return true;
+                        }
+                        let mut bound = Vec::new();
+                        collect_pat_names(pat, &mut bound);
+                        if bound.iter().any(|x| x == name) {
+                            return false;
+                        }
+                    }
+                    ast::LocalDecl::Eq { name: dn, pats, body: b, .. } => {
+                        let mut pbound = Vec::new();
+                        for p in pats {
+                            collect_pat_names(p, &mut pbound);
+                        }
+                        if !pbound.iter().any(|x| x == name) && term_uses_var(b, name) {
+                            return true;
+                        }
+                        if !recursive && dn.text == name {
+                            return false;
+                        }
+                    }
+                }
+            }
+            term_uses_var(body, name)
+        }
+        ast::Term::If { cond, then, els, .. } => {
+            term_uses_var(cond, name) || term_uses_var(then, name) || term_uses_var(els, name)
+        }
+        ast::Term::Case(scrut, alts, _) => {
+            if term_uses_var(scrut, name) {
+                return true;
+            }
+            for a in alts {
+                let mut bound = Vec::new();
+                collect_pat_names(&a.pat, &mut bound);
+                if bound.iter().any(|b| b == name) {
+                    continue;
+                }
+                if a.guard.as_ref().is_some_and(|g| term_uses_var(g, name))
+                    || term_uses_var(&a.body, name)
+                {
+                    return true;
+                }
+            }
+            false
+        }
+        ast::Term::Ann(e, _, _)
+        | ast::Term::Forget { value: e, .. }
+        | ast::Term::Neg(e, _)
+        | ast::Term::Proj(e, _, _)
+        | ast::Term::Quote { body: e, .. }
+        | ast::Term::Splice { body: e, .. }
+        | ast::Term::CpsWrap(e, _) => term_uses_var(e, name),
+        ast::Term::Narrow { value, witness, .. } => {
+            term_uses_var(value, name) || term_uses_var(witness, name)
+        }
+        ast::Term::Infix(terms, _, _) | ast::Term::Tuple(terms, _) | ast::Term::List(terms, _) => {
+            terms.iter().any(|x| term_uses_var(x, name))
+        }
+        ast::Term::Map(items, _) => items
+            .iter()
+            .any(|(k, v)| term_uses_var(k, name) || term_uses_var(v, name)),
+        ast::Term::Range(a, step, b, _) => {
+            term_uses_var(a, name)
+                || step.as_ref().is_some_and(|s| term_uses_var(s, name))
+                || term_uses_var(b, name)
+        }
+        ast::Term::Record(_, fields, _) => fields.iter().any(|(_, v)| term_uses_var(v, name)),
+        ast::Term::Do(stmts, _) => {
+            for s in stmts {
+                match s {
+                    ast::DoStmt::Bind { pat, term, .. } => {
+                        if term_uses_var(term, name) {
+                            return true;
+                        }
+                        let mut bound = Vec::new();
+                        collect_pat_names(pat, &mut bound);
+                        if bound.iter().any(|b| b == name) {
+                            return false;
+                        }
+                    }
+                    ast::DoStmt::Let { decls, .. } => {
+                        for d in decls {
+                            match d {
+                                ast::LocalDecl::Bind { pat, body: b, .. }
+                                | ast::LocalDecl::Lazy { pat, body: b, .. } => {
+                                    if term_uses_var(b, name) {
+                                        return true;
+                                    }
+                                    let mut bound = Vec::new();
+                                    collect_pat_names(pat, &mut bound);
+                                    if bound.iter().any(|x| x == name) {
+                                        return false;
+                                    }
+                                }
+                                ast::LocalDecl::Eq { name: dn, pats, body: b, .. } => {
+                                    let mut pbound = Vec::new();
+                                    for p in pats {
+                                        collect_pat_names(p, &mut pbound);
+                                    }
+                                    if !pbound.iter().any(|x| x == name) && term_uses_var(b, name) {
+                                        return true;
+                                    }
+                                    if dn.text == name {
+                                        return false;
+                                    }
+                                }
+                                ast::LocalDecl::Sig { .. } => {}
+                            }
+                        }
+                    }
+                    ast::DoStmt::Expr { term, .. } => {
+                        if term_uses_var(term, name) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            false
+        }
+        ast::Term::Handle(body, handler, _) => {
+            term_uses_var(body, name) || term_uses_var(handler, name)
+        }
+        ast::Term::Handler(h) => {
+            let mut rb = Vec::new();
+            collect_pat_names(&h.ret_pat, &mut rb);
+            if !rb.iter().any(|b| b == name) && term_uses_var(&h.ret_body, name) {
+                return true;
+            }
+            for c in &h.clauses {
+                let mut cb = Vec::new();
+                for p in &c.pats {
+                    collect_pat_names(p, &mut cb);
+                }
+                if let Some(r) = &c.resume {
+                    cb.push(r.text.clone());
+                }
+                if !cb.iter().any(|b| b == name) && term_uses_var(&c.body, name) {
+                    return true;
+                }
+            }
+            false
+        }
+        ast::Term::With { name: wn, value, body, .. } => {
+            term_uses_var(value, name) || (wn.text != name && term_uses_var(body, name))
+        }
+        ast::Term::CapApply { head, supplies, .. } => {
+            term_uses_var(head, name) || supplies.iter().any(|(_, v)| term_uses_var(v, name))
+        }
+    }
+}
+
+/// Collect reuse credits (field counts >= 1) earned by destructuring `pat`
+/// when its root cell is uniquely owned (not aliased in `body`).
+fn collect_pat_credits(
+    pat: &ast::Pat,
+    body: &ast::Term,
+    guard: Option<&ast::Term>,
+    foreign: &ForeignMarks,
+    credits: &mut Vec<usize>,
+) {
+    match pat {
+        ast::Pat::As(n, inner, _) => {
+            // `x@p` keeps `x` alive if `x` is referenced in `body`/`guard`,
+            // preventing in-place reuse of the outer cell.
+            let kept_alive = term_uses_var(body, &n.text)
+                || guard.is_some_and(|g| term_uses_var(g, &n.text));
+            if !kept_alive {
+                collect_pat_credits(inner, body, guard, foreign, credits);
+            }
+        }
+        ast::Pat::Con(path, args, _) => {
+            let cname = *path.parts().last().unwrap_or(&"");
+            if !args.is_empty() && !is_elided_ctor(cname, foreign) {
+                credits.push(args.len());
+            }
+            for a in args {
+                collect_pat_credits(a, body, guard, foreign, credits);
+            }
+        }
+        ast::Pat::Cons(head, tail, _) => {
+            credits.push(2);
+            collect_pat_credits(head, body, guard, foreign, credits);
+            collect_pat_credits(tail, body, guard, foreign, credits);
+        }
+        ast::Pat::Tuple(args, _) => {
+            if !args.is_empty() {
+                credits.push(args.len());
+            }
+            for a in args {
+                collect_pat_credits(a, body, guard, foreign, credits);
+            }
+        }
+        ast::Pat::List(args, _) => {
+            for a in args {
+                credits.push(2);
+                collect_pat_credits(a, body, guard, foreign, credits);
+            }
+        }
+        ast::Pat::Record(path, fields, _) => {
+            let rname = *path.parts().last().unwrap_or(&"");
+            if !fields.is_empty() && !is_elided_ctor(rname, foreign) {
+                credits.push(fields.len());
+            }
+            for (_, f) in fields {
+                collect_pat_credits(f, body, guard, foreign, credits);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collect all variable names referenced inside `t` (over-approximation safe
+/// for detecting whether a variable was already used/aliased earlier on a path).
+fn collect_var_uses(t: &ast::Term, out: &mut HashSet<String>) {
+    match t {
+        ast::Term::Var(p) if p.quals.is_empty() => {
+            out.insert(p.name.text.clone());
+        }
+        ast::Term::App(f, args, _) => {
+            collect_var_uses(f, out);
+            for a in args {
+                collect_var_uses(a, out);
+            }
+        }
+        ast::Term::Lam(_, body, _)
+        | ast::Term::Ann(body, _, _)
+        | ast::Term::Forget { value: body, .. }
+        | ast::Term::Neg(body, _)
+        | ast::Term::Proj(body, _, _)
+        | ast::Term::Quote { body, .. }
+        | ast::Term::Splice { body, .. }
+        | ast::Term::CpsWrap(body, _) => collect_var_uses(body, out),
+        ast::Term::Narrow { value, witness, .. } => {
+            collect_var_uses(value, out);
+            collect_var_uses(witness, out);
+        }
+        ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
+            for d in decls {
+                match d {
+                    ast::LocalDecl::Bind { body: b, .. }
+                    | ast::LocalDecl::Lazy { body: b, .. }
+                    | ast::LocalDecl::Eq { body: b, .. } => collect_var_uses(b, out),
+                    ast::LocalDecl::Sig { .. } => {}
+                }
+            }
+            collect_var_uses(body, out);
+        }
+        ast::Term::If { cond, then, els, .. } => {
+            collect_var_uses(cond, out);
+            collect_var_uses(then, out);
+            collect_var_uses(els, out);
+        }
+        ast::Term::Case(scrut, alts, _) => {
+            collect_var_uses(scrut, out);
+            for a in alts {
+                if let Some(g) = &a.guard {
+                    collect_var_uses(g, out);
+                }
+                collect_var_uses(&a.body, out);
+            }
+        }
+        ast::Term::Infix(ts, _, _) | ast::Term::Tuple(ts, _) | ast::Term::List(ts, _) => {
+            for x in ts {
+                collect_var_uses(x, out);
+            }
+        }
+        ast::Term::Map(items, _) => {
+            for (k, v) in items {
+                collect_var_uses(k, out);
+                collect_var_uses(v, out);
+            }
+        }
+        ast::Term::Range(a, step, b, _) => {
+            collect_var_uses(a, out);
+            if let Some(s) = step {
+                collect_var_uses(s, out);
+            }
+            collect_var_uses(b, out);
+        }
+        ast::Term::Record(_, fields, _) => {
+            for (_, v) in fields {
+                collect_var_uses(v, out);
+            }
+        }
+        ast::Term::Do(stmts, _) => {
+            for s in stmts {
+                match s {
+                    ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                        collect_var_uses(term, out);
+                    }
+                    ast::DoStmt::Let { decls, .. } => {
+                        for d in decls {
+                            match d {
+                                ast::LocalDecl::Bind { body: b, .. }
+                                | ast::LocalDecl::Lazy { body: b, .. }
+                                | ast::LocalDecl::Eq { body: b, .. } => collect_var_uses(b, out),
+                                ast::LocalDecl::Sig { .. } => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ast::Term::Handle(a, b, _) | ast::Term::With { value: a, body: b, .. } => {
+            collect_var_uses(a, out);
+            collect_var_uses(b, out);
+        }
+        ast::Term::Handler(h) => {
+            collect_var_uses(&h.ret_body, out);
+            for c in &h.clauses {
+                collect_var_uses(&c.body, out);
+            }
+        }
+        ast::Term::CapApply { head, supplies, .. } => {
+            collect_var_uses(head, out);
+            for (_, v) in supplies {
+                collect_var_uses(v, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+struct FipWalk<'a> {
+    self_mod: &'a str,
+    self_name: &'a str,
+    scopes: Vec<Vec<String>>,
+    /// Local variables already referenced earlier on the current path
+    /// (preventing a later `case` over them from claiming unique ownership).
+    used_before: HashSet<String>,
+    foreign: &'a ForeignMarks,
+}
+
+impl<'a> FipWalk<'a> {
+    fn is_local(&self, name: &str) -> bool {
+        self.scopes.iter().any(|g| g.iter().any(|b| b == name))
+    }
+
+    fn is_self_path(&self, p: &ast::VarPath) -> bool {
+        let m = p.quals.is_empty() || (p.quals.len() == 1 && p.quals[0].text == self.self_mod);
+        m && p.name.text == self.self_name && !self.is_local(&p.name.text)
+    }
+
+    fn push_pat(&mut self, pat: &ast::Pat) {
+        let mut names = Vec::new();
+        collect_pat_names(pat, &mut names);
+        for n in &names {
+            self.used_before.remove(n);
+        }
+        self.scopes.push(names);
+    }
+
+    fn walk_decls(&mut self, decls: &[ast::LocalDecl], recursive: bool) -> Vec<FipNode> {
+        let mut out = Vec::new();
+        if recursive {
+            let names: Vec<String> = decls
+                .iter()
+                .filter_map(|d| match d {
+                    ast::LocalDecl::Eq { name, .. } => Some(name.text.clone()),
+                    _ => None,
+                })
+                .collect();
+            self.scopes.push(names);
+        }
+        for d in decls {
+            match d {
+                ast::LocalDecl::Sig { .. } => {}
+                ast::LocalDecl::Bind { pat, body, .. } => {
+                    out.push(self.walk_term(body));
+                    collect_var_uses(body, &mut self.used_before);
+                    self.push_pat(pat);
+                }
+                ast::LocalDecl::Lazy { pat, span, .. } => {
+                    out.push(FipNode::ForbiddenAlloc {
+                        what: "a `delay` thunk (memo binding)".to_string(),
+                        span: *span,
+                    });
+                    self.push_pat(pat);
+                }
+                ast::LocalDecl::Eq { name, pats, body, span } => {
+                    if !pats.is_empty() {
+                        out.push(FipNode::ForbiddenAlloc {
+                            what: format!("a closure (local function `{}`)", name.text),
+                            span: *span,
+                        });
+                    } else {
+                        out.push(self.walk_term(body));
+                        collect_var_uses(body, &mut self.used_before);
+                    }
+                    if !recursive {
+                        self.used_before.remove(&name.text);
+                        self.scopes.push(vec![name.text.clone()]);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn walk_term(&mut self, t: &ast::Term) -> FipNode {
+        match t {
+            ast::Term::Var(p) => {
+                if p.quals.is_empty() && self.is_local(&p.name.text) {
+                    self.used_before.insert(p.name.text.clone());
+                }
+                FipNode::Zero
+            }
+            // Nullary constructor (not applied to arguments): static immortal / immediate.
+            ast::Term::Con(_)
+            | ast::Term::Int(..)
+            | ast::Term::Float(..)
+            | ast::Term::Char(..)
+            | ast::Term::Sym(..)
+            | ast::Term::Str(..)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::SeqOp(..)
+            | ast::Term::MacroCall { .. }
+            | ast::Term::QuoteDecls { .. } => FipNode::Zero,
+            ast::Term::App(f, args, _) => {
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "withLocal" | "with-local")
+                        && !self.is_local(&p.name.text)
+                        && args.len() == 2
+                    {
+                        let init = self.walk_term(&args[0]);
+                        if let ast::Term::Lam(pats, body, _) = &args[1] {
+                            let depth = self.scopes.len();
+                            for pat in pats {
+                                self.push_pat(pat);
+                            }
+                            let b = self.walk_term(body);
+                            self.scopes.truncate(depth);
+                            return FipNode::Seq(vec![init, b]);
+                        }
+                    }
+                }
+                let mut seq: Vec<FipNode> = args.iter().map(|a| self.walk_term(a)).collect();
+                match &**f {
+                    ast::Term::Con(p) => {
+                        let cname = *p.parts().last().unwrap_or(&"");
+                        if !args.is_empty() && !is_elided_ctor(cname, self.foreign) {
+                            seq.push(FipNode::Alloc {
+                                what: format!("the constructor `{cname}`"),
+                                arity: args.len(),
+                                span: p.span(),
+                            });
+                        }
+                    }
+                    ast::Term::Var(p) => {
+                        let name = p.name.text.as_str();
+                        let span = p.span();
+                        if !self.is_local(name) && (name == "mutBorrow" || name == "mut-borrow") {
+                            if !matches!(args.as_slice(), [ast::Term::Proj(..)]) {
+                                seq.push(FipNode::ForbiddenAlloc {
+                                    what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
+                                    span,
+                                });
+                            }
+                        } else if !self.is_local(name) && self.foreign.aggregates.contains(name) {
+                            seq.push(FipNode::ForbiddenAlloc {
+                                what: format!("a foreign aggregate (the call to `{name}`)"),
+                                span,
+                            });
+                        } else if !self.is_local(name) && is_allocating_builtin(name) {
+                            seq.push(FipNode::ForbiddenAlloc {
+                                what: format!("the allocating operation `{name}`"),
+                                span,
+                            });
+                        } else if self.is_self_path(p) {
+                            seq.push(FipNode::Call {
+                                callee: name.to_string(),
+                                quals: p.quals.iter().map(|q| q.text.clone()).collect(),
+                                span,
+                                is_self: true,
+                                is_local_var: false,
+                            });
+                        } else if self.is_local(name) {
+                            seq.push(FipNode::Call {
+                                callee: name.to_string(),
+                                quals: Vec::new(),
+                                span,
+                                is_self: false,
+                                is_local_var: true,
+                            });
+                        } else if !is_zero_alloc_builtin(name) {
+                            seq.push(FipNode::Call {
+                                callee: name.to_string(),
+                                quals: p.quals.iter().map(|q| q.text.clone()).collect(),
+                                span,
+                                is_self: false,
+                                is_local_var: false,
+                            });
+                        }
+                    }
+                    other => {
+                        seq.push(self.walk_term(other));
+                        seq.push(FipNode::Call {
+                            callee: "<closure>".to_string(),
+                            quals: Vec::new(),
+                            span: other.span(),
+                            is_self: false,
+                            is_local_var: true,
+                        });
+                    }
+                }
+                FipNode::Seq(seq)
+            }
+            ast::Term::Lam(_, _, s) => FipNode::ForbiddenAlloc {
+                what: "a closure (a lambda)".to_string(),
+                span: *s,
+            },
+            ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
+                let recursive = matches!(t, ast::Term::Letrec(..));
+                let mut seq = Vec::new();
+                if recursive {
+                    seq.push(FipNode::ForbiddenAlloc {
+                        what: "a `letrec` fixpoint box".to_string(),
+                        span: t.span(),
+                    });
+                }
+                let depth = self.scopes.len();
+                let saved_used = self.used_before.clone();
+                seq.extend(self.walk_decls(decls, recursive));
+                seq.push(self.walk_term(body));
+                self.scopes.truncate(depth);
+                self.used_before = saved_used;
+                FipNode::Seq(seq)
+            }
+            ast::Term::If { cond, then, els, .. } => {
+                let c = self.walk_term(cond);
+                let saved_used = self.used_before.clone();
+                let b1 = self.walk_term(then);
+                self.used_before = saved_used.clone();
+                let b2 = self.walk_term(els);
+                self.used_before = saved_used;
+                FipNode::Seq(vec![
+                    c,
+                    FipNode::Branch(vec![
+                        FipBranch {
+                            earned_credits: Vec::new(),
+                            aliased_scrutinee: None,
+                            body: b1,
+                        },
+                        FipBranch {
+                            earned_credits: Vec::new(),
+                            aliased_scrutinee: None,
+                            body: b2,
+                        },
+                    ]),
+                ])
+            }
+            ast::Term::Case(scrut, alts, _) => {
+                let scrut_var = match &**scrut {
+                    ast::Term::Var(p) if p.quals.is_empty() && self.is_local(&p.name.text) => {
+                        Some(p.name.text.clone())
+                    }
+                    _ => None,
+                };
+                let scrut_was_used = scrut_var
+                    .as_ref()
+                    .is_some_and(|v| self.used_before.contains(v));
+                // Walk non-variable scrutinees (e.g., nested call/expr); a bare
+                // variable scrutinee does not itself alias itself when destructured.
+                let sc_node = if scrut_var.is_some() {
+                    FipNode::Zero
+                } else {
+                    self.walk_term(scrut)
+                };
+                let saved_used = self.used_before.clone();
+                let mut branches = Vec::new();
+                for a in alts {
+                    let depth = self.scopes.len();
+                    self.used_before = saved_used.clone();
+                    let mut earned = Vec::new();
+                    let mut aliased = None;
+                    let can_reuse_root = match &scrut_var {
+                        Some(v) => {
+                            let used_in_arm = term_uses_var(&a.body, v)
+                                || a.guard.as_ref().is_some_and(|g| term_uses_var(g, v));
+                            if scrut_was_used || used_in_arm {
+                                aliased = Some(v.clone());
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                        None => false,
+                    };
+                    if can_reuse_root {
+                        collect_pat_credits(
+                            &a.pat,
+                            &a.body,
+                            a.guard.as_ref(),
+                            self.foreign,
+                            &mut earned,
+                        );
+                    }
+                    self.push_pat(&a.pat);
+                    let mut arm = Vec::new();
+                    if let Some(g) = &a.guard {
+                        arm.push(self.walk_term(g));
+                    }
+                    arm.push(self.walk_term(&a.body));
+                    self.scopes.truncate(depth);
+                    branches.push(FipBranch {
+                        earned_credits: earned,
+                        aliased_scrutinee: aliased,
+                        body: FipNode::Seq(arm),
+                    });
+                }
+                self.used_before = saved_used;
+                if let Some(v) = scrut_var {
+                    self.used_before.insert(v);
+                }
+                FipNode::Seq(vec![sc_node, FipNode::Branch(branches)])
+            }
+            ast::Term::Ann(e, _, _)
+            | ast::Term::Forget { value: e, .. }
+            | ast::Term::Neg(e, _)
+            | ast::Term::Proj(e, _, _)
+            | ast::Term::Quote { body: e, .. }
+            | ast::Term::Splice { body: e, .. }
+            | ast::Term::CpsWrap(e, _) => self.walk_term(e),
+            ast::Term::Narrow { value, witness, .. } => {
+                FipNode::Seq(vec![self.walk_term(value), self.walk_term(witness)])
+            }
+            ast::Term::Infix(terms, ops, _) => {
+                let mut seq: Vec<FipNode> = terms.iter().map(|x| self.walk_term(x)).collect();
+                for op in ops {
+                    if is_allocating_builtin(&op.text) {
+                        seq.push(FipNode::ForbiddenAlloc {
+                            what: format!("the allocating operator `{}`", op.text),
+                            span: op.span,
+                        });
+                    } else if !is_zero_alloc_builtin(&op.text) {
+                        seq.push(FipNode::Call {
+                            callee: op.text.clone(),
+                            quals: Vec::new(),
+                            span: op.span,
+                            is_self: false,
+                            is_local_var: false,
+                        });
+                    }
+                }
+                FipNode::Seq(seq)
+            }
+            ast::Term::Tuple(items, s) => {
+                let mut seq: Vec<FipNode> = items.iter().map(|i| self.walk_term(i)).collect();
+                if !items.is_empty() {
+                    seq.push(FipNode::Alloc {
+                        what: "a tuple construction".to_string(),
+                        arity: items.len(),
+                        span: *s,
+                    });
+                }
+                FipNode::Seq(seq)
+            }
+            ast::Term::List(items, s) => {
+                if items.is_empty() {
+                    FipNode::Zero
+                } else {
+                    FipNode::ForbiddenAlloc {
+                        what: "a list literal construction".to_string(),
+                        span: *s,
+                    }
+                }
+            }
+            ast::Term::Map(_, s) => FipNode::ForbiddenAlloc {
+                what: "a map construction".to_string(),
+                span: *s,
+            },
+            ast::Term::Range(_, _, _, s) => FipNode::ForbiddenAlloc {
+                what: "a range construction".to_string(),
+                span: *s,
+            },
+            ast::Term::Record(path, fields, s) => {
+                let mut seq: Vec<FipNode> = fields.iter().map(|(_, v)| self.walk_term(v)).collect();
+                let rname = *path.parts().last().unwrap_or(&"");
+                if !fields.is_empty() && !is_elided_ctor(rname, self.foreign) {
+                    seq.push(FipNode::Alloc {
+                        what: format!("the record construction of `{rname}`"),
+                        arity: fields.len(),
+                        span: *s,
+                    });
+                }
+                FipNode::Seq(seq)
+            }
+            ast::Term::Do(stmts, s) => {
+                if stmts.len() > 1 {
+                    return FipNode::ForbiddenAlloc {
+                        what: "a multi-statement `do` continuation closure".to_string(),
+                        span: *s,
+                    };
+                }
+                let depth = self.scopes.len();
+                let mut seq = Vec::new();
+                for st in stmts {
+                    match st {
+                        ast::DoStmt::Bind { pat, term, .. } => {
+                            seq.push(self.walk_term(term));
+                            self.push_pat(pat);
+                        }
+                        ast::DoStmt::Let { decls, .. } => {
+                            seq.extend(self.walk_decls(decls, false));
+                        }
+                        ast::DoStmt::Expr { term, .. } => seq.push(self.walk_term(term)),
+                    }
+                }
+                self.scopes.truncate(depth);
+                FipNode::Seq(seq)
+            }
+            ast::Term::Handle(body, handler, _) => {
+                FipNode::Seq(vec![self.walk_term(body), self.walk_term(handler)])
+            }
+            ast::Term::Handler(_) => FipNode::ForbiddenAlloc {
+                what: "an effect handler closure".to_string(),
+                span: t.span(),
+            },
+            ast::Term::With { name, value, body, .. } => {
+                let v = self.walk_term(value);
+                let depth = self.scopes.len();
+                self.scopes.push(vec![name.text.clone()]);
+                let b = self.walk_term(body);
+                self.scopes.truncate(depth);
+                FipNode::Seq(vec![v, b])
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                let mut seq: Vec<FipNode> = supplies.iter().map(|(_, v)| self.walk_term(v)).collect();
+                seq.push(self.walk_term(head));
+                FipNode::Seq(seq)
+            }
+        }
+    }
+}
+
+fn build_fip_node(
+    self_mod: &str,
+    self_name: &str,
+    eqs: &[&ast::Equation],
+    foreign: &ForeignMarks,
+) -> FipNode {
+    let mut branches = Vec::new();
+    for e in eqs {
+        let mut w = FipWalk {
+            self_mod,
+            self_name,
+            scopes: Vec::new(),
+            used_before: HashSet::new(),
+            foreign,
+        };
+        let mut earned = Vec::new();
+        for p in &e.pats {
+            collect_pat_credits(p, &e.body, e.guard.as_ref(), foreign, &mut earned);
+            w.push_pat(p);
+        }
+        let mut seq = w.walk_decls(&e.locals, true);
+        if let Some(g) = &e.guard {
+            seq.push(w.walk_term(g));
+        }
+        seq.push(w.walk_term(&e.body));
+        branches.push(FipBranch {
+            earned_credits: earned,
+            aliased_scrutinee: None,
+            body: FipNode::Seq(seq),
+        });
+    }
+    FipNode::Branch(branches)
 }
 
 // ------------------------------ the verification ------------------------------
@@ -16366,10 +17896,24 @@ impl Checker {
         }
         for (_, name) in self.value_records.keys() {
             marks.value_records.insert(name.clone());
+            marks.elided_ctors.insert(name.clone());
         }
         for ((_, name), r) in &self.layout_recipes {
             if r.repr.value {
                 marks.value_records.insert(name.clone());
+                marks.elided_ctors.insert(name.clone());
+            } else if r.repr.unboxed {
+                marks.elided_ctors.insert(name.clone());
+            }
+        }
+        for id in self.niche_ctors.keys() {
+            if let Some(short) = id.0.rsplit('.').next() {
+                marks.elided_ctors.insert(short.to_string());
+            }
+        }
+        for id in self.poly_niche_ctors.keys() {
+            if let Some(short) = id.0.rsplit('.').next() {
+                marks.elided_ctors.insert(short.to_string());
             }
         }
         marks
@@ -16654,12 +18198,15 @@ impl Checker {
         }
 
         // -- `#[alloc "once"]` (JPL rule 3): the initialization pattern;
-        // the `jpl` profile admits allocation only here.
-        let alloc_cap = if attrs.alloc_once.is_some() {
+        // the `jpl` profile admits allocation only here (or under `#[fip]` / `#[alloc "bounded(0)"]`).
+        let alloc_cap = if attrs.is_alloc_once() {
             Some((1u64, format!(
                 "`#[alloc \"once\"]` on {display} asserts the initialization pattern (JPL rule 3)"
             )))
-        } else if jpl {
+        } else if jpl
+            && attrs.fip.is_none()
+            && !matches!(attrs.alloc, Some((AllocSpec::Bounded(0), _)))
+        {
             Some((0u64, format!(
                 "the `jpl` profile admits no allocation outside initialization (decision D114)"
             )))
@@ -18080,17 +19627,307 @@ fn contract_facts(records: &[SafetyRecord], program: &mut Program) {
     }
 }
 
+/// Resolve the verified safety fact strings of a callee `callee` (with optional
+/// module qualifiers `quals`) called from `caller_mod`.
+fn lookup_callee_facts<'a>(
+    caller_mod: &str,
+    callee: &str,
+    quals: &[String],
+    known_facts: &'a HashMap<String, Vec<String>>,
+) -> Option<&'a [String]> {
+    if !quals.is_empty() {
+        let q = format!("{}.{callee}", quals.join("."));
+        if let Some(f) = known_facts.get(&q) {
+            return Some(f.as_slice());
+        }
+    }
+    let local_q = format!("{caller_mod}.{callee}");
+    if let Some(f) = known_facts.get(&local_q) {
+        return Some(f.as_slice());
+    }
+    // Unqualified import: find a unique suffix match `.callee`.
+    let suffix = format!(".{callee}");
+    let mut found: Option<&[String]> = None;
+    for (k, v) in known_facts {
+        if k.ends_with(&suffix) {
+            if found.is_some() {
+                return None;
+            }
+            found = Some(v.as_slice());
+        }
+    }
+    found
+}
+
+/// Extract the static per-call allocation bound implied by a callee's verified
+/// safety assertions (`#[no-alloc]`/`#[fip]` -> 0, `#[alloc("once")]` -> 1,
+/// `#[alloc("bounded(k)")]` -> k).
+fn callee_alloc_bound(facts: &[String]) -> Option<u64> {
+    let mut best: Option<u64> = None;
+    for f in facts {
+        let b = if f == "no-alloc" || f == "fip" {
+            Some(0)
+        } else if f == "alloc=once" {
+            Some(1)
+        } else if let Some(rest) = f.strip_prefix("alloc=bounded(").and_then(|s| s.strip_suffix(')')) {
+            rest.parse::<u64>().ok()
+        } else {
+            None
+        };
+        if let Some(k) = b {
+            best = Some(best.map_or(k, |prev| prev.min(k)));
+        }
+    }
+    best
+}
+
+/// Evaluate the worst-case allocation site count along any single non-recursive
+/// path of `expr` for `#[alloc("bounded(cap)")]`.
+fn eval_alloc_bound(
+    expr: &AllocExpr,
+    cap: u64,
+    caller_mod: &str,
+    display: &str,
+    known_facts: &HashMap<String, Vec<String>>,
+) -> Result<(u64, Option<ast::Span>)> {
+    match expr {
+        AllocExpr::Zero => Ok((0, None)),
+        AllocExpr::Site { span, .. } => Ok((1, Some(*span))),
+        AllocExpr::AllocatingClosure { what, span } => Err(Error::at(
+            *span,
+            format!(
+                "`#[alloc \"bounded({cap})\"]` on {display} asserts bounded allocation (JPL rule 3): {what} is forbidden because an allocating closure can allocate outside the static bound"
+            ),
+        )),
+        AllocExpr::Seq(items) => {
+            let mut total: u64 = 0;
+            let mut witness: Option<ast::Span> = None;
+            for item in items {
+                let (n, sp) = eval_alloc_bound(item, cap, caller_mod, display, known_facts)?;
+                total = total.saturating_add(n);
+                if n > 0 && sp.is_some() {
+                    witness = sp;
+                }
+            }
+            Ok((total, witness))
+        }
+        AllocExpr::Branch(arms) => {
+            let mut worst: u64 = 0;
+            let mut witness: Option<ast::Span> = None;
+            for arm in arms {
+                let (n, sp) = eval_alloc_bound(arm, cap, caller_mod, display, known_facts)?;
+                if n > worst || (n == worst && witness.is_none()) {
+                    worst = n;
+                    witness = sp;
+                }
+            }
+            Ok((worst, witness))
+        }
+        AllocExpr::Call {
+            callee,
+            quals,
+            span,
+            is_self,
+            is_local_var,
+        } => {
+            if *is_self {
+                // Self-recursion is checked at the enclosing definition level
+                // (unbounded recursion is rejected; literal counter ladders
+                // multiply the per-step cost).
+                return Ok((0, None));
+            }
+            if *is_local_var {
+                return Err(Error::at(
+                    *span,
+                    format!(
+                        "`#[alloc \"bounded({cap})\"]` on {display} asserts bounded allocation (JPL rule 3): indirect call to `{callee}` has no static allocation bound"
+                    ),
+                ));
+            }
+            if let Some(facts) = lookup_callee_facts(caller_mod, callee, quals, known_facts) {
+                if let Some(k) = callee_alloc_bound(facts) {
+                    return Ok((k, (k > 0).then_some(*span)));
+                }
+            }
+            if is_zero_alloc_builtin(callee) {
+                return Ok((0, None));
+            }
+            Err(Error::at(
+                *span,
+                format!(
+                    "`#[alloc \"bounded({cap})\"]` on {display} asserts bounded allocation (JPL rule 3): callee `{callee}` has no verified `#[no-alloc]`, `#[fip]`, `#[alloc(\"once\")]`, or `#[alloc(\"bounded(k)\")]` assertion"
+                ),
+            ))
+        }
+    }
+}
+
+/// Intersect remaining reuse-credit multisets across mutually exclusive branches
+/// (keeping the minimum available count of each arity).
+fn intersect_credits(sets: &[Vec<usize>]) -> Vec<usize> {
+    let Some((first, rest)) = sets.split_first() else {
+        return Vec::new();
+    };
+    let mut counts: HashMap<usize, usize> = HashMap::new();
+    for &k in first {
+        *counts.entry(k).or_insert(0) += 1;
+    }
+    for s in rest {
+        let mut cur: HashMap<usize, usize> = HashMap::new();
+        for &k in s {
+            *cur.entry(k).or_insert(0) += 1;
+        }
+        counts.retain(|k, v| {
+            if let Some(&c) = cur.get(k) {
+                *v = (*v).min(c);
+                *v > 0
+            } else {
+                false
+            }
+        });
+    }
+    let mut out = Vec::new();
+    for (k, v) in counts {
+        for _ in 0..v {
+            out.push(k);
+        }
+    }
+    out.sort_unstable();
+    out
+}
+
+/// Verify a `#[fip]` (fully in-place) node against the branch's available
+/// Perceus reuse-credit multiset.
+fn verify_fip_node(
+    node: &FipNode,
+    credits: &mut Vec<usize>,
+    caller_mod: &str,
+    display: &str,
+    aliased_note: Option<&str>,
+    known_facts: &HashMap<String, Vec<String>>,
+) -> Result<()> {
+    match node {
+        FipNode::Zero => Ok(()),
+        FipNode::ForbiddenAlloc { what, span } => Err(Error::at(
+            *span,
+            format!(
+                "`#[fip]` on {display} asserts fully in-place execution: {what} is a net fresh heap allocation that cannot be reused in-place"
+            ),
+        )),
+        FipNode::Alloc { what, arity, span } => {
+            if let Some(pos) = credits.iter().position(|&c| c == *arity) {
+                credits.swap_remove(pos);
+                Ok(())
+            } else {
+                let reason = if let Some(var) = aliased_note {
+                    format!(
+                        "scrutinee `{var}` is still referenced/aliased on this branch so no unique reuse credit of {arity} field(s) is available"
+                    )
+                } else if credits.is_empty() {
+                    format!(
+                        "no uniquely-owned destructured constructor of {arity} field(s) is available as a reuse credit on this branch"
+                    )
+                } else {
+                    let mut avail = credits.clone();
+                    avail.sort_unstable();
+                    format!(
+                        "available reuse credit arities are {avail:?}, which does not match {arity} field(s)"
+                    )
+                };
+                Err(Error::at(
+                    *span,
+                    format!(
+                        "`#[fip]` on {display} asserts fully in-place execution: {what} ({arity} field(s)) requires a 1:1 in-place reuse credit ({reason})"
+                    ),
+                ))
+            }
+        }
+        FipNode::Call {
+            callee,
+            quals,
+            span,
+            is_self,
+            is_local_var,
+        } => {
+            if *is_self {
+                return Ok(());
+            }
+            if *is_local_var {
+                return Err(Error::at(
+                    *span,
+                    format!(
+                        "`#[fip]` on {display} asserts fully in-place execution: indirect call to `{callee}` is not verified `#[no-alloc]` or `#[fip]`"
+                    ),
+                ));
+            }
+            if let Some(facts) = lookup_callee_facts(caller_mod, callee, quals, known_facts) {
+                if facts.iter().any(|f| f == "no-alloc" || f == "fip") {
+                    return Ok(());
+                }
+            }
+            if is_zero_alloc_builtin(callee) {
+                return Ok(());
+            }
+            Err(Error::at(
+                *span,
+                format!(
+                    "`#[fip]` on {display} asserts fully in-place execution: callee `{callee}` is not verified `#[no-alloc]` or `#[fip]`"
+                ),
+            ))
+        }
+        FipNode::Seq(items) => {
+            for item in items {
+                verify_fip_node(item, credits, caller_mod, display, aliased_note, known_facts)?;
+            }
+            Ok(())
+        }
+        FipNode::Branch(branches) => {
+            if branches.is_empty() {
+                return Ok(());
+            }
+            let mut survivors = Vec::with_capacity(branches.len());
+            for b in branches {
+                let mut branch_credits = credits.clone();
+                branch_credits.extend_from_slice(&b.earned_credits);
+                let note = b.aliased_scrutinee.as_deref().or(aliased_note);
+                verify_fip_node(
+                    &b.body,
+                    &mut branch_credits,
+                    caller_mod,
+                    display,
+                    note,
+                    known_facts,
+                )?;
+                survivors.push(branch_credits);
+            }
+            *credits = intersect_credits(&survivors);
+            Ok(())
+        }
+    }
+}
+
 /// Verify the group-level safety claims against the checked program's
 /// D104 tail-call groups (attribute annotations specification section
 /// 10; decisions D112-D114): `#[recursion]` and `#[stack]` cover self
 /// and mutual recursion within the definition's recursive group (the
-/// `core::tail_report` marks are the source of truth), and the `jpl`
-/// profile requires every recursion to establish a static bound.
+/// `core::tail_report` marks are the source of truth), `#[alloc("bounded(n)")]`
+/// and `#[fip]` verify cross-call allocation bounds and reuse balance, and
+/// the `jpl` profile requires every recursion to establish a static bound.
 pub(crate) fn verify_safety_groups(
     records: &[SafetyRecord],
     program: &Program,
+    ifaces: &[crate::interface::Iface],
 ) -> Result<SafetyReport> {
     let groups = crate::core::tail_report(program);
+    let mut known_facts: HashMap<String, Vec<String>> = HashMap::new();
+    for iface in ifaces {
+        for a in &iface.assertions {
+            known_facts.insert(format!("{}.{}", iface.module, a.name), a.facts.clone());
+        }
+    }
+    for rec in records {
+        known_facts.insert(rec.key.clone(), rec.fact_strings.clone());
+    }
     let mut report = SafetyReport::default();
     let mut jpl_defs = 0u64;
     let mut jpl_asserts = 0u64;
@@ -18407,6 +20244,72 @@ pub(crate) fn verify_safety_groups(
             }
         }
 
+        // -- `#[alloc "bounded(n)"]` (JPL rule 3): worst-case allocation site
+        // count along any single non-recursive path <= n, forbidding unbounded
+        // recursion and allocating closures, and accounting for callee bounds.
+        if let Some((AllocSpec::Bounded(cap), aspan)) = rec.attrs.alloc {
+            let depth_bound = if recursive {
+                match (&rec.call_graph, &rec.structural) {
+                    (Some((_, Established::Num(d))), _) if !multi => Some(*d),
+                    (_, Some((_, Established::Num(d)))) if !multi => Some(*d),
+                    _ => {
+                        return Err(Error::at(
+                            member_span(None).unwrap_or(aspan),
+                            format!(
+                                "`#[alloc \"bounded({cap})\"]` on {} asserts bounded allocation (JPL rule 3): unbounded recursion is forbidden",
+                                rec.display
+                            ),
+                        ));
+                    }
+                }
+            } else {
+                None
+            };
+            let (per_step, witness) = match &rec.facts.alloc_expr {
+                Some(expr) => eval_alloc_bound(expr, cap, &rec.module, &rec.display, &known_facts)?,
+                None => (0, None),
+            };
+            let measured = match depth_bound {
+                Some(d) if per_step > 0 => per_step.saturating_mul(d.saturating_add(1)),
+                _ => per_step,
+            };
+            if measured > cap {
+                return Err(Error::at(
+                    witness.unwrap_or(aspan),
+                    format!(
+                        "`#[alloc \"bounded({cap})\"]` on {} asserts bounded allocation (JPL rule 3): worst-case path allocates {measured} site(s), above the bound of {cap}",
+                        rec.display
+                    ),
+                ));
+            }
+            rows.push((
+                format!("alloc=bounded({cap})"),
+                format!("verified (worst-case {measured} allocation site(s) <= {cap})"),
+            ));
+        }
+
+        // -- `#[fip]` (fully in-place): every non-elided heap constructor
+        // allocation is matched 1:1 with a uniquely-owned destructured input
+        // constructor on the same branch, with no net fresh heap allocations
+        // and no non-`#[no-alloc]`/`#[fip]` callees.
+        if rec.attrs.fip.is_some() {
+            if let Some(node) = &rec.facts.fip_node {
+                let mut credits = Vec::new();
+                verify_fip_node(
+                    node,
+                    &mut credits,
+                    &rec.module,
+                    &rec.display,
+                    None,
+                    &known_facts,
+                )?;
+            }
+            rows.push((
+                "fip".to_string(),
+                "verified (all heap constructor allocations matched 1:1 with in-place reuse credits)".to_string(),
+            ));
+        }
+
         // -- The remaining per-definition checks (verified at
         // `verify_definition_safety`): each satisfied attribute reports
         // its result. The group claims above already report theirs.
@@ -18421,6 +20324,9 @@ pub(crate) fn verify_safety_groups(
                     "verified ({} allocation site(s) run per call)",
                     rec.facts.alloc_sites.len()
                 )
+            } else if f.starts_with("alloc=bounded(") || f == "fip" {
+                // Reported above with measured count / reuse verification.
+                continue;
             } else if let Some(n) = f.strip_prefix("complexity<=") {
                 format!(
                     "verified (cyclomatic complexity {} <= {n})",
@@ -18474,7 +20380,11 @@ pub(crate) fn verify_safety_groups(
                     ),
                 ));
             }
-            if rec.attrs.alloc_once.is_none() && rec.attrs.no_alloc.is_none() {
+            if !rec.attrs.is_alloc_once()
+                && rec.attrs.no_alloc.is_none()
+                && rec.attrs.fip.is_none()
+                && !matches!(rec.attrs.alloc, Some((AllocSpec::Bounded(0), _)))
+            {
                 rows.push((
                     "jpl alloc=none".to_string(),
                     format!(
@@ -22068,7 +23978,7 @@ pub fn check_program_multi_full_recorded(
         &HashMap::new(),
     )?;
     let (mut program, safety_records, searches) = prepared.finish_recorded()?;
-    report.safety = verify_safety_groups(&safety_records, &program)?;
+    report.safety = verify_safety_groups(&safety_records, &program, &ifaces.interfaces)?;
     contract_facts(&safety_records, &mut program);
     Ok((program, ifaces.interfaces, report, diags, searches))
 }
@@ -22787,7 +24697,7 @@ fn check_program_multi_full_impl(
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
     // established each `bounded(n)` bound (decision D113).
-    report.safety = verify_safety_groups(&safety_records, &program)?;
+    report.safety = verify_safety_groups(&safety_records, &program, &ifaces.interfaces)?;
     // The verified rows re-state as the LLVM contract surface's facts
     // on their definitions (design/llvm-contract-attributes.md).
     contract_facts(&safety_records, &mut program);
