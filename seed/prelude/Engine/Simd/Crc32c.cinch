@@ -1,0 +1,222 @@
+-- | Zero-allocation (`#[no-alloc]`) hardware-accelerated Castagnoli CRC32C
+-- (RFC 3720, reflected polynomial `0x82F63B78`) built over LRAT-verified
+-- `Prim.SimdExt.hw-crc32c-u64`, `hw-crc32c-u32`, and `hw-crc32c-u8`.
+--
+-- Supports both bounds-checked `Bytes` buffers and raw 4 KiB-aligned `O_DIRECT`
+-- DMA pages (`Store.Wal`), plus zero-allocation GF(2) polynomial-ring combine
+-- (`crc32c-combine`) for parallel and segmented checksums.
+module Engine.Simd.Crc32c where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Prim.Atomic
+  import Prim.SimdExt
+
+  export crc32c-init
+  export crc32c-finish
+  export crc32c-update-bytes
+  export crc32c-bytes
+  export crc32c-update-dma
+  export crc32c-combine
+
+  -- | Initial Castagnoli CRC32C running accumulator (`0xFFFFFFFF`).
+  #[inline(always)]
+  #[no-alloc]
+  crc32c-init :: U32
+  crc32c-init = 0xFFFFFFFF
+
+  -- | Finalize a running Castagnoli CRC32C accumulator by XORing with `0xFFFFFFFF`.
+  #[inline(always)]
+  #[no-alloc]
+  crc32c-finish :: U32 -> U32
+  crc32c-finish crc = bit-xor-u32 crc 0xFFFFFFFF
+
+  -- =========================================================================
+  -- 1. Bytes CRC32C (4x8 unrolled 32B loop + 8B loop + 4B + 1B tail)
+  -- =========================================================================
+
+  #[no-alloc]
+  crc32c-bytes-tail1 :: using (end <= bytes-len b) => U32 -> (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> U32
+  crc32c-bytes-tail1 crc b pos end =
+    if 0 <= pos then
+      if nat-from-i64 pos < end then
+        let next = hw-crc32c-u8 crc (bytes-get-u8-at b pos) in
+        crc32c-bytes-tail1 next b (wrapping-add-i64 pos 1) end
+      else crc
+    else crc
+
+  #[no-alloc]
+  crc32c-bytes-tail4 :: using (lim4 + 4 <= bytes-len b, end <= bytes-len b) => U32 -> (b :: Bytes) -> (pos :: I64) -> (lim4 :: Nat) -> (end :: Nat) -> U32
+  crc32c-bytes-tail4 crc b pos lim4 end =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim4 then
+        let next = hw-crc32c-u32 crc (bytes-load-le32-at b pos) in
+        crc32c-bytes-tail1 next b (wrapping-add-i64 pos 4) end
+      else crc32c-bytes-tail1 crc b pos end
+    else crc
+
+  #[no-alloc]
+  crc32c-bytes-loop8 :: using (lim8 + 8 <= bytes-len b, lim4 + 4 <= bytes-len b, end <= bytes-len b) => U32 -> (b :: Bytes) -> (pos :: I64) -> (lim8 :: Nat) -> (lim4 :: Nat) -> (end :: Nat) -> U32
+  crc32c-bytes-loop8 crc b pos lim8 lim4 end =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim8 then
+        let next = hw-crc32c-u64 crc (bytes-load-le64-at b pos) in
+        crc32c-bytes-loop8 next b (wrapping-add-i64 pos 8) lim8 lim4 end
+      else crc32c-bytes-tail4 crc b pos lim4 end
+    else crc
+
+  #[no-alloc]
+  crc32c-bytes-loop32
+    :: using (lim32 + 32 <= bytes-len b, lim8 + 8 <= bytes-len b, lim4 + 4 <= bytes-len b, end <= bytes-len b)
+    => U32 -> (b :: Bytes) -> (pos :: I64) -> (lim32 :: Nat) -> (lim8 :: Nat) -> (lim4 :: Nat) -> (end :: Nat) -> U32
+  crc32c-bytes-loop32 crc b pos lim32 lim8 lim4 end =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim32 then
+        let p1 = wrapping-add-i64 pos 8 in
+        let p2 = wrapping-add-i64 pos 16 in
+        let p3 = wrapping-add-i64 pos 24 in
+        if 0 <= p1 then
+          if 0 <= p2 then
+            if 0 <= p3 then
+              if nat-from-i64 p1 <= lim8 then
+                if nat-from-i64 p2 <= lim8 then
+                  if nat-from-i64 p3 <= lim8 then
+                    let c0 = hw-crc32c-u64 crc (bytes-load-le64-at b pos) in
+                    let c1 = hw-crc32c-u64 c0 (bytes-load-le64-at b p1) in
+                    let c2 = hw-crc32c-u64 c1 (bytes-load-le64-at b p2) in
+                    let c3 = hw-crc32c-u64 c2 (bytes-load-le64-at b p3) in
+                    crc32c-bytes-loop32 c3 b (wrapping-add-i64 pos 32) lim32 lim8 lim4 end
+                  else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+                else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+              else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+            else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+          else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+        else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+      else crc32c-bytes-loop8 crc b pos lim8 lim4 end
+    else crc
+
+  #[inline(always)]
+  #[no-alloc]
+  clamp-to-len :: (x :: Nat) -> (b :: Bytes) -> refined (r <= bytes-len b) Nat
+  clamp-to-len x b = if x <= bytes-len b then x else bytes-len b
+
+  -- | Update a running Castagnoli CRC32C accumulator over `b[off..off+len)`
+  -- (clamped to `bytes-len b`) using 8-byte unrolled `hw-crc32c-u64` + 4-byte + 1-byte tail.
+  #[no-alloc]
+  crc32c-update-bytes :: U32 -> Bytes -> Nat -> Nat -> U32
+  crc32c-update-bytes crc b off len =
+    let start-n = clamp-to-len off b in
+    let end-n = clamp-to-len (start-n + len) b in
+    if start-n < end-n then
+      let s = nat-to-i64 start-n in
+      if 32 <= end-n then
+        crc32c-bytes-loop32 crc b s (end-n - 32) (end-n - 8) (end-n - 4) end-n
+      else if 8 <= end-n then
+        crc32c-bytes-loop8 crc b s (end-n - 8) (end-n - 4) end-n
+      else if 4 <= end-n then
+        crc32c-bytes-tail4 crc b s (end-n - 4) end-n
+      else
+        crc32c-bytes-tail1 crc b s end-n
+    else crc
+
+  -- | Compute the finalized Castagnoli CRC32C checksum of an entire `Bytes` buffer.
+  #[no-alloc]
+  crc32c-bytes :: Bytes -> U32
+  crc32c-bytes b =
+    crc32c-finish (crc32c-update-bytes crc32c-init b 0 (bytes-len b))
+
+  -- =========================================================================
+  -- 2. Raw DMA CRC32C (4 KiB O_DIRECT WAL pages, zero-copy)
+  -- =========================================================================
+
+  #[no-alloc]
+  crc32c-dma-tail1 :: U32 -> I64 -> U32 ->{MVar} U32
+  crc32c-dma-tail1 crc addr rem =
+    if eq-u32 rem 0 then crc
+    else
+      let b = raw-load-u8 addr in
+      crc32c-dma-tail1 (hw-crc32c-u8 crc b) (wrapping-add-i64 addr 1) (wrapping-sub-u32 rem 1)
+
+  #[no-alloc]
+  crc32c-dma-tail4 :: U32 -> I64 -> U32 ->{MVar} U32
+  crc32c-dma-tail4 crc addr rem =
+    if ge-u32 rem 4 then
+      let w = raw-load-u32 addr in
+      crc32c-dma-tail1 (hw-crc32c-u32 crc w) (wrapping-add-i64 addr 4) (wrapping-sub-u32 rem 4)
+    else crc32c-dma-tail1 crc addr rem
+
+  #[no-alloc]
+  crc32c-dma-loop8 :: U32 -> I64 -> U32 ->{MVar} U32
+  crc32c-dma-loop8 crc addr rem =
+    if ge-u32 rem 8 then
+      let q = raw-load-u64 addr in
+      crc32c-dma-loop8 (hw-crc32c-u64 crc q) (wrapping-add-i64 addr 8) (wrapping-sub-u32 rem 8)
+    else crc32c-dma-tail4 crc addr rem
+
+  #[no-alloc]
+  crc32c-dma-loop32 :: U32 -> I64 -> U32 ->{MVar} U32
+  crc32c-dma-loop32 crc addr rem =
+    if ge-u32 rem 32 then
+      let c0 = hw-crc32c-u64 crc (raw-load-u64 addr) in
+      let c1 = hw-crc32c-u64 c0 (raw-load-u64 (wrapping-add-i64 addr 8)) in
+      let c2 = hw-crc32c-u64 c1 (raw-load-u64 (wrapping-add-i64 addr 16)) in
+      let c3 = hw-crc32c-u64 c2 (raw-load-u64 (wrapping-add-i64 addr 24)) in
+      crc32c-dma-loop32 c3 (wrapping-add-i64 addr 32) (wrapping-sub-u32 rem 32)
+    else crc32c-dma-loop8 crc addr rem
+
+  -- | Update a running Castagnoli CRC32C accumulator over `len` raw DMA bytes at `addr`.
+  #[no-alloc]
+  crc32c-update-dma :: U32 -> I64 -> U32 ->{MVar} U32
+  crc32c-update-dma crc addr len =
+    if eq-u32 len 0 then crc
+    else crc32c-dma-loop32 crc addr len
+
+  -- =========================================================================
+  -- 3. GF(2) polynomial-ring combine (zero-allocation, O(log len2))
+  -- =========================================================================
+
+  -- | Multiply a reflected GF(2)[x]/(P(x)) polynomial by `x` mod Castagnoli `0x82F63B78`.
+  #[inline(always)]
+  #[no-alloc]
+  gf2-shift-x :: U32 -> U32
+  gf2-shift-x r =
+    let shifted = wrapping-shr-u32 r 1 in
+    if ne-u32 (bit-and-u32 r 1) 0 then bit-xor-u32 shifted 0x82F63B78
+    else shifted
+
+  -- | Multiply two reflected polynomials in GF(2)[x]/(P(x)) (`bit (31 - j)` is coeff of `x^j`).
+  #[no-alloc]
+  gf2-mul-mod-loop :: U32 -> U32 -> U32 -> U32 -> U32
+  gf2-mul-mod-loop a cur acc steps =
+    if eq-u32 steps 0 then acc
+    else
+      let next-acc = if ne-u32 (bit-and-u32 a 0x80000000) 0 then bit-xor-u32 acc cur else acc in
+      gf2-mul-mod-loop (wrapping-shl-u32 a 1) (gf2-shift-x cur) next-acc (wrapping-sub-u32 steps 1)
+
+  #[inline(always)]
+  #[no-alloc]
+  gf2-mul-mod :: U32 -> U32 -> U32
+  gf2-mul-mod a b = gf2-mul-mod-loop a b 0 32
+
+  -- | Repeated squaring: compute `acc * base^exp mod P(x)` in GF(2)[x]/(P(x)).
+  #[no-alloc]
+  gf2-pow-mul :: U32 -> U32 -> U64 -> U32
+  gf2-pow-mul base acc exp =
+    if eq-u64 exp 0 then acc
+    else
+      let next-acc = if ne-u64 (bit-and-u64 exp 1) 0 then gf2-mul-mod base acc else acc in
+      let next-base = gf2-mul-mod base base in
+      gf2-pow-mul next-base next-acc (wrapping-shr-u64 exp 1)
+
+  -- | Combine two finalized Castagnoli CRC32C checksums `crc1 = crc32c(A)` and
+  -- `crc2 = crc32c(B)` where `len2 = bytes-len(B)`, yielding `crc32c(A ++ B)`.
+  -- Uses zero-allocation GF(2) repeated squaring over `x^8 mod P(x)` (`0x00800000`).
+  #[no-alloc]
+  crc32c-combine :: U32 -> U32 -> U64 -> U32
+  crc32c-combine crc1 crc2 len2 =
+    if eq-u64 len2 0 then bit-xor-u32 crc1 crc2
+    else
+      let shifted = gf2-pow-mul 0x00800000 crc1 len2 in
+      bit-xor-u32 shifted crc2

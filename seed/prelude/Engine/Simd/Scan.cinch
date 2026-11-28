@@ -1,0 +1,586 @@
+-- | Zero-allocation (`#[no-alloc]`) 128-bit SIMD byte, CRLF, RFC 9110 HTTP
+-- token / field-value, and ASCII case-insensitive scanning kernels.
+--
+-- Both `Bytes` and raw DMA (`I64` address) entry points share the exact same
+-- verified 16-byte `U128` SIMD lane classifiers built over `Prim.Wide` and
+-- LRAT-certified `Prim.SimdExt` (`simd-u8x16-shuffle`, `simd-u8x16-or`,
+-- `simd-u8x16-not`).
+module Engine.Simd.Scan where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Wide
+  import Prim.Atomic
+  import Prim.SimdExt
+
+  -- Pure 16-byte SIMD lane classifiers over U128
+  export simd-mask-eq-byte
+  export simd-mask-any-of4
+  export simd-mask-http-tchar-invalid
+  export simd-mask-field-value-invalid
+  export simd-ascii-eq-nocase16
+
+  -- Bytes scanning entry points (16-byte SIMD + scalar tail, zero heap allocs in hot loops)
+  export simd-find-byte
+  export simd-find-crlf
+  export simd-scan-http-token
+  export simd-scan-field-value
+  export simd-ascii-eq-nocase
+
+  -- Raw DMA scanning entry points (16-byte SIMD + scalar tail, 100% #[no-alloc])
+  export dma-find-byte
+  export dma-find-crlf
+  export dma-scan-http-token
+  export dma-scan-field-value
+  export dma-ascii-eq-nocase
+
+  -- =========================================================================
+  -- 1. Pure 16-byte SIMD lane classifiers over U128
+  -- =========================================================================
+
+  -- | 16-bit bitmask where bit `k` is 1 iff byte lane `k` of `chunk` equals `needle`.
+  #[inline(always)]
+  #[no-alloc]
+  simd-mask-eq-byte :: U128 -> U8 -> U32
+  simd-mask-eq-byte chunk needle =
+    simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat needle))
+
+  -- | 16-bit bitmask where bit `k` is 1 iff byte lane `k` equals any of `b0`, `b1`, `b2`, or `b3`.
+  #[inline(always)]
+  #[no-alloc]
+  simd-mask-any-of4 :: U128 -> U8 -> U8 -> U8 -> U8 -> U32
+  simd-mask-any-of4 chunk b0 b1 b2 b3 =
+    let m0 = simd-u8x16-cmpeq chunk (simd-u8x16-splat b0) in
+    let m1 = simd-u8x16-cmpeq chunk (simd-u8x16-splat b1) in
+    let m2 = simd-u8x16-cmpeq chunk (simd-u8x16-splat b2) in
+    let m3 = simd-u8x16-cmpeq chunk (simd-u8x16-splat b3) in
+    simd-u8x16-movemask (simd-u8x16-or (simd-u8x16-or m0 m1) (simd-u8x16-or m2 m3))
+
+  -- | 16-bit bitmask where bit `k` is 1 iff byte lane `k` is NOT an RFC 9110 `tchar`:
+  --   `tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "."
+  --          / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA`
+  --
+  -- Uses a two-nibble `simd-u8x16-shuffle` LUT:
+  --   * High nibble `hi in {2,3,4,5,6,7}` maps to one-hot bit `1 << (hi - 2)` (`0x00` for all other `hi`, including `0x80..0xFF`).
+  --   * Low nibble `lo in 0..15` maps to the 6-bit mask of valid high nibbles for that `lo`.
+  --   * A byte is a valid `tchar` iff `(lo_lut[lo] & hi_lut[hi]) != 0` — exact across all 256 byte values.
+  #[inline(always)]
+  #[no-alloc]
+  simd-mask-http-tchar-invalid :: U128 -> U32
+  simd-mask-http-tchar-invalid chunk =
+    let mask0f = 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F in
+    let lo-lut = 0x1C3D1534153D3E3E3F3F3F3F3F3E3F3A in
+    let hi-lut = 0x00000000000000002010080402010000 in
+    let lo-nib = bit-and-u128 chunk mask0f in
+    let hi-nib = bit-and-u128 (wrapping-shr-u128 chunk 4) mask0f in
+    let lo-bits = simd-u8x16-shuffle lo-lut lo-nib in
+    let hi-bits = simd-u8x16-shuffle hi-lut hi-nib in
+    let valid = bit-and-u128 lo-bits hi-bits in
+    simd-u8x16-movemask (simd-u8x16-cmpeq valid 0)
+
+  -- | 16-bit bitmask where bit `k` is 1 iff byte lane `k` is an HTTP field-value
+  -- control/invalid byte: `< 0x20` (excluding HTAB `0x09`) or `0x7F` (DEL).
+  -- Note that CR (`0x0D`) and LF (`0x0A`) are flagged so field-value scanners stop
+  -- on both line terminators and illegal control bytes in a single SIMD pass.
+  #[inline(always)]
+  #[no-alloc]
+  simd-mask-field-value-invalid :: U128 -> U32
+  simd-mask-field-value-invalid chunk =
+    let lt20 = simd-u8x16-cmplt chunk (simd-u8x16-splat 32) in
+    let is-htab = simd-u8x16-cmpeq chunk (simd-u8x16-splat 9) in
+    let bad-ctrl = bit-and-u128 lt20 (simd-u8x16-not is-htab) in
+    let is-del = simd-u8x16-cmpeq chunk (simd-u8x16-splat 127) in
+    simd-u8x16-movemask (simd-u8x16-or bad-ctrl is-del)
+
+  -- | Fold ASCII uppercase `A..Z` (`0x41..0x5A`) to lowercase `a..z` across 16 byte lanes, branchlessly.
+  #[inline(always)]
+  #[no-alloc]
+  simd-ascii-lower16 :: U128 -> U128
+  simd-ascii-lower16 v =
+    let shifted = simd-u8x16-sub v (simd-u8x16-splat 65) in
+    let is-upper = simd-u8x16-cmplt shifted (simd-u8x16-splat 26) in
+    let fold-bit = bit-and-u128 is-upper (simd-u8x16-splat 32) in
+    simd-u8x16-or v fold-bit
+
+  -- | Branchless 16-byte ASCII case-insensitive equality (`A..Z` folded to `a..z`).
+  #[inline(always)]
+  #[no-alloc]
+  simd-ascii-eq-nocase16 :: U128 -> U128 -> Bool
+  simd-ascii-eq-nocase16 a b =
+    eq-u128 (simd-ascii-lower16 a) (simd-ascii-lower16 b)
+
+  -- =========================================================================
+  -- 2. Private #[no-alloc] scalar helpers (exact parity with SIMD cores)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  is-http-tchar-u8 :: U8 -> Bool
+  is-http-tchar-u8 b =
+    eq-u32 (bit-and-u32 (simd-mask-http-tchar-invalid (u8-to-u128 b)) 1) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  is-field-value-invalid-u8 :: U8 -> Bool
+  is-field-value-invalid-u8 b =
+    if lt-u8 b 32 then ne-u8 b 9
+    else eq-u8 b 127
+
+  #[inline(always)]
+  #[no-alloc]
+  ascii-lower-u8 :: U8 -> U8
+  ascii-lower-u8 b =
+    if lt-u8 (wrapping-sub-u8 b 65) 26 then bit-or-u8 b 32 else b
+
+  #[inline(always)]
+  #[no-alloc]
+  lane-byte-u128 :: U128 -> U32 -> U8
+  lane-byte-u128 chunk lane =
+    wrapping-u128-to-u8 (wrapping-shr-u128 chunk (wrapping-shl-u32 lane 3))
+
+  -- =========================================================================
+  -- 3. Bytes scanning kernels (half-open span `[start, end)`, clamped to len)
+  -- =========================================================================
+
+  #[no-alloc]
+  bytes-find-byte-tail :: using (end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> U8 -> I64
+  bytes-find-byte-tail b pos end needle =
+    if 0 <= pos then
+      if nat-from-i64 pos < end then
+        if eq-u8 (bytes-get-u8-at b pos) needle then pos
+        else bytes-find-byte-tail b (wrapping-add-i64 pos 1) end needle
+      else -1
+    else -1
+
+  #[no-alloc]
+  bytes-find-byte-loop16 :: using (lim + 16 <= bytes-len b, end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (lim :: Nat) -> (end :: Nat) -> U8 -> I64
+  bytes-find-byte-loop16 b pos lim end needle =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim then
+        let mask = simd-mask-eq-byte (bytes-load-u128-at b pos) needle in
+        if ne-u32 mask 0 then
+          wrapping-add-i64 pos (u32-to-i64 (trailing-zeros-u32 mask))
+        else
+          bytes-find-byte-loop16 b (wrapping-add-i64 pos 16) lim end needle
+      else bytes-find-byte-tail b pos end needle
+    else -1
+
+  #[inline(always)]
+  #[no-alloc]
+  clamp-to-len :: (x :: Nat) -> (b :: Bytes) -> refined (r <= bytes-len b) Nat
+  clamp-to-len x b = if x <= bytes-len b then x else bytes-len b
+
+  -- | Find the first occurrence of `needle` in `b[start..end)` (clamped to `bytes-len b`).
+  simd-find-byte :: Bytes -> Nat -> Nat -> U8 -> Option Nat
+  simd-find-byte b start end needle =
+    let end-n = clamp-to-len end b in
+    let start-n = clamp-to-len start b in
+    if start-n < end-n then
+      let s = nat-to-i64 start-n in
+      let res = (if 16 <= end-n then
+          bytes-find-byte-loop16 b s (end-n - 16) end-n needle
+        else
+          bytes-find-byte-tail b s end-n needle) in
+      if 0 <= res then Some (nat-from-i64 res) else None
+    else None
+
+  #[no-alloc]
+  bytes-find-crlf-tail :: using (end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> I64
+  bytes-find-crlf-tail b pos end =
+    if 0 <= pos then
+      let next = wrapping-add-i64 pos 1 in
+      if 0 <= next then
+        if nat-from-i64 next < end then
+          if nat-from-i64 pos < end then
+            if eq-u8 (bytes-get-u8-at b pos) 13 then
+              if eq-u8 (bytes-get-u8-at b next) 10 then pos
+              else bytes-find-crlf-tail b next end
+            else bytes-find-crlf-tail b next end
+          else -1
+        else -1
+      else -1
+    else -1
+
+  -- | Test every `\r` lane in `mask` for an immediately following `\n` within `[pos, end)`.
+  #[no-alloc]
+  bytes-find-crlf-check-mask :: using (end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> U32 -> I64
+  bytes-find-crlf-check-mask b pos end mask =
+    if eq-u32 mask 0 then -1
+    else
+      let lane = u32-to-i64 (trailing-zeros-u32 mask) in
+      let idx = wrapping-add-i64 pos lane in
+      let next = wrapping-add-i64 idx 1 in
+      if 0 <= next then
+        if nat-from-i64 next < end then
+          if eq-u8 (bytes-get-u8-at b next) 10 then idx
+          else bytes-find-crlf-check-mask b pos end (bit-and-u32 mask (wrapping-sub-u32 mask 1))
+        else -1
+      else -1
+
+  #[no-alloc]
+  bytes-find-crlf-loop16 :: using (lim + 16 <= bytes-len b, end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (lim :: Nat) -> (end :: Nat) -> I64
+  bytes-find-crlf-loop16 b pos lim end =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim then
+        let cr-mask = simd-mask-eq-byte (bytes-load-u128-at b pos) 13 in
+        if eq-u32 cr-mask 0 then
+          bytes-find-crlf-loop16 b (wrapping-add-i64 pos 16) lim end
+        else
+          let hit = bytes-find-crlf-check-mask b pos end cr-mask in
+          if ge-i64 hit 0 then hit
+          else bytes-find-crlf-loop16 b (wrapping-add-i64 pos 16) lim end
+      else bytes-find-crlf-tail b pos end
+    else -1
+
+  -- | Find the first `\r\n` sequence in `b[start..end)` (clamped to `bytes-len b`),
+  -- including sequences straddling 16-byte SIMD block boundaries.
+  simd-find-crlf :: Bytes -> Nat -> Nat -> Option Nat
+  simd-find-crlf b start end =
+    let end-n = clamp-to-len end b in
+    let start-n = clamp-to-len start b in
+    if start-n + 2 <= end-n then
+      let s = nat-to-i64 start-n in
+      let res = (if 16 <= end-n then
+          bytes-find-crlf-loop16 b s (end-n - 16) end-n
+        else
+          bytes-find-crlf-tail b s end-n) in
+      if 0 <= res then Some (nat-from-i64 res) else None
+    else None
+
+  #[no-alloc]
+  bytes-scan-token-tail :: using (end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> I64 -> I64
+  bytes-scan-token-tail b pos end end-i =
+    if 0 <= pos then
+      if nat-from-i64 pos < end then
+        if is-http-tchar-u8 (bytes-get-u8-at b pos) then
+          bytes-scan-token-tail b (wrapping-add-i64 pos 1) end end-i
+        else pos
+      else end-i
+    else end-i
+
+  #[no-alloc]
+  bytes-scan-token-loop16 :: using (lim + 16 <= bytes-len b, end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (lim :: Nat) -> (end :: Nat) -> I64 -> I64
+  bytes-scan-token-loop16 b pos lim end end-i =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim then
+        let bad = simd-mask-http-tchar-invalid (bytes-load-u128-at b pos) in
+        if eq-u32 bad 0 then
+          bytes-scan-token-loop16 b (wrapping-add-i64 pos 16) lim end end-i
+        else
+          wrapping-add-i64 pos (u32-to-i64 (trailing-zeros-u32 bad))
+      else bytes-scan-token-tail b pos end end-i
+    else end-i
+
+  -- | Scan RFC 9110 `tchar` bytes in `b[start..end)` and return the offset of the
+  -- first non-`tchar` byte (or `end`, clamped to `bytes-len b`, if all bytes are valid).
+  simd-scan-http-token :: Bytes -> Nat -> Nat -> Nat
+  simd-scan-http-token b start end =
+    let end-n = clamp-to-len end b in
+    let start-n = clamp-to-len start b in
+    if start-n < end-n then
+      let s = nat-to-i64 start-n in
+      let e = nat-to-i64 end-n in
+      let res = (if 16 <= end-n then
+          bytes-scan-token-loop16 b s (end-n - 16) end-n e
+        else
+          bytes-scan-token-tail b s end-n e) in
+      if 0 <= res then nat-from-i64 res else end-n
+    else start-n
+
+  #[no-alloc]
+  bytes-scan-fv-tail :: using (end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> I32
+  bytes-scan-fv-tail b pos end =
+    if 0 <= pos then
+      if nat-from-i64 pos < end then
+        let ch = bytes-get-u8-at b pos in
+        if is-field-value-invalid-u8 ch then
+          if eq-u8 ch 13 then wrapping-i64-to-i32 pos else -2
+        else
+          bytes-scan-fv-tail b (wrapping-add-i64 pos 1) end
+      else -1
+    else -1
+
+  #[no-alloc]
+  bytes-scan-fv-loop16 :: using (lim + 16 <= bytes-len b, end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (lim :: Nat) -> (end :: Nat) -> I32
+  bytes-scan-fv-loop16 b pos lim end =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim then
+        let chunk = bytes-load-u128-at b pos in
+        let bad = simd-mask-field-value-invalid chunk in
+        if eq-u32 bad 0 then
+          bytes-scan-fv-loop16 b (wrapping-add-i64 pos 16) lim end
+        else
+          let lane = trailing-zeros-u32 bad in
+          let ch = lane-byte-u128 chunk lane in
+          if eq-u8 ch 13 then
+            wrapping-i64-to-i32 (wrapping-add-i64 pos (u32-to-i64 lane))
+          else -2
+      else bytes-scan-fv-tail b pos end
+    else -1
+
+  -- | Scan an HTTP header field value in `b[start..end)` (clamped to `bytes-len b`).
+  -- Returns:
+  --   * `>= 0`: byte offset of the first `\r` (`0x0D`) encountered after valid bytes
+  --   * `-1`: incomplete (reached `end` without seeing `\r` or an illegal byte)
+  --   * `-2`: illegal control byte (`< 0x20` other than HTAB `0x09` and `\r`, including bare `\n` and NUL) or `0x7F`
+  #[no-alloc]
+  simd-scan-field-value :: Bytes -> Nat -> Nat -> I32
+  simd-scan-field-value b start end =
+    let end-n = clamp-to-len end b in
+    let start-n = clamp-to-len start b in
+    if start-n < end-n then
+      let s = nat-to-i64 start-n in
+      if 16 <= end-n then
+        bytes-scan-fv-loop16 b s (end-n - 16) end-n
+      else
+        bytes-scan-fv-tail b s end-n
+    else -1
+
+  #[no-alloc]
+  bytes-ascii-eq-tail :: using (a-end <= bytes-len a, b-end <= bytes-len b) => (a :: Bytes) -> (ai :: I64) -> (a-end :: Nat) -> (b :: Bytes) -> (bi :: I64) -> (b-end :: Nat) -> Bool
+  bytes-ascii-eq-tail a ai a-end b bi b-end =
+    if 0 <= ai then
+      if nat-from-i64 ai < a-end then
+        if 0 <= bi then
+          if nat-from-i64 bi < b-end then
+            if eq-u8 (ascii-lower-u8 (bytes-get-u8-at a ai)) (ascii-lower-u8 (bytes-get-u8-at b bi)) then
+              bytes-ascii-eq-tail a (wrapping-add-i64 ai 1) a-end b (wrapping-add-i64 bi 1) b-end
+            else eq-u32 0 1
+          else eq-u32 0 1
+        else eq-u32 0 1
+      else eq-u32 0 0
+    else eq-u32 0 1
+
+  #[no-alloc]
+  bytes-ascii-eq-loop16
+    :: using (a-lim + 16 <= bytes-len a, a-end <= bytes-len a, b-lim + 16 <= bytes-len b, b-end <= bytes-len b)
+    => (a :: Bytes) -> (ai :: I64) -> (a-lim :: Nat) -> (a-end :: Nat)
+    -> (b :: Bytes) -> (bi :: I64) -> (b-lim :: Nat) -> (b-end :: Nat)
+    -> Bool
+  bytes-ascii-eq-loop16 a ai a-lim a-end b bi b-lim b-end =
+    if 0 <= ai then
+      if 0 <= bi then
+        if nat-from-i64 ai <= a-lim then
+          if nat-from-i64 bi <= b-lim then
+            let ca = bytes-load-u128-at a ai in
+            let cb = bytes-load-u128-at b bi in
+            if simd-ascii-eq-nocase16 ca cb then
+              bytes-ascii-eq-loop16 a (wrapping-add-i64 ai 16) a-lim a-end b (wrapping-add-i64 bi 16) b-lim b-end
+            else eq-u32 0 1
+          else bytes-ascii-eq-tail a ai a-end b bi b-end
+        else bytes-ascii-eq-tail a ai a-end b bi b-end
+      else eq-u32 0 1
+    else eq-u32 0 1
+
+  -- | Compare `len` bytes of `a[a-off..a-off+len)` and `b[b-off..b-off+len)` using
+  -- ASCII case-insensitive equality (`A..Z` == `a..z`). Returns `False` if either slice
+  -- exceeds its buffer length.
+  #[no-alloc]
+  simd-ascii-eq-nocase :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  simd-ascii-eq-nocase a a-off b b-off len =
+    let na = bytes-len a in
+    let nb = bytes-len b in
+    if a-off + len <= na then
+      if b-off + len <= nb then
+        if len == 0 then eq-u32 0 0
+        else
+          let a-end-n = a-off + len in
+          let b-end-n = b-off + len in
+          let ai = nat-to-i64 a-off in
+          let bi = nat-to-i64 b-off in
+          if 16 <= len then
+            bytes-ascii-eq-loop16 a ai (a-end-n - 16) a-end-n b bi (b-end-n - 16) b-end-n
+          else
+            bytes-ascii-eq-tail a ai a-end-n b bi b-end-n
+      else eq-u32 0 1
+    else eq-u32 0 1
+
+  -- =========================================================================
+  -- 4. Raw DMA scanning kernels (`I64` base address + `U32` half-open `[start, end)`)
+  -- =========================================================================
+
+  #[no-alloc]
+  dma-find-byte-tail :: I64 -> U32 -> U32 -> U8 ->{MVar} I32
+  dma-find-byte-tail base pos end needle =
+    if lt-u32 pos end then
+      let ch = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      if eq-u8 ch needle then wrapping-u32-to-i32 pos
+      else dma-find-byte-tail base (wrapping-add-u32 pos 1) end needle
+    else -1
+
+  #[no-alloc]
+  dma-find-byte-loop16 :: I64 -> U32 -> U32 -> U8 ->{MVar} I32
+  dma-find-byte-loop16 base pos end needle =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 16 then
+      let chunk = raw-load-u128 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let mask = simd-mask-eq-byte chunk needle in
+      if ne-u32 mask 0 then
+        wrapping-u32-to-i32 (wrapping-add-u32 pos (trailing-zeros-u32 mask))
+      else
+        dma-find-byte-loop16 base (wrapping-add-u32 pos 16) end needle
+    else dma-find-byte-tail base pos end needle
+
+  -- | Find the first occurrence of `needle` in DMA region `[base + start, base + end)`.
+  -- Returns the byte offset in `[start, end)` or `-1` if not found.
+  #[no-alloc]
+  dma-find-byte :: I64 -> U32 -> U32 -> U8 ->{MVar} I32
+  dma-find-byte base start end needle =
+    if ge-u32 start end then -1
+    else dma-find-byte-loop16 base start end needle
+
+  #[no-alloc]
+  dma-find-crlf-tail :: I64 -> U32 -> U32 ->{MVar} I32
+  dma-find-crlf-tail base pos end =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 2 then
+      let c0 = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let next = wrapping-add-u32 pos 1 in
+      if eq-u8 c0 13 then
+        let c1 = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 next)) in
+        if eq-u8 c1 10 then wrapping-u32-to-i32 pos
+        else dma-find-crlf-tail base next end
+      else dma-find-crlf-tail base next end
+    else -1
+
+  #[no-alloc]
+  dma-find-crlf-check-mask :: I64 -> U32 -> U32 -> U32 ->{MVar} I32
+  dma-find-crlf-check-mask base pos end mask =
+    if eq-u32 mask 0 then -1
+    else
+      let idx = wrapping-add-u32 pos (trailing-zeros-u32 mask) in
+      let next = wrapping-add-u32 idx 1 in
+      if lt-u32 next end then
+        let ch = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 next)) in
+        if eq-u8 ch 10 then wrapping-u32-to-i32 idx
+        else dma-find-crlf-check-mask base pos end (bit-and-u32 mask (wrapping-sub-u32 mask 1))
+      else -1
+
+  #[no-alloc]
+  dma-find-crlf-loop16 :: I64 -> U32 -> U32 ->{MVar} I32
+  dma-find-crlf-loop16 base pos end =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 16 then
+      let chunk = raw-load-u128 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let cr-mask = simd-mask-eq-byte chunk 13 in
+      if eq-u32 cr-mask 0 then
+        dma-find-crlf-loop16 base (wrapping-add-u32 pos 16) end
+      else
+        let hit = dma-find-crlf-check-mask base pos end cr-mask in
+        if ge-i32 hit 0 then hit
+        else dma-find-crlf-loop16 base (wrapping-add-u32 pos 16) end
+    else dma-find-crlf-tail base pos end
+
+  -- | Find the first `\r\n` sequence in DMA region `[base + start, base + end)`.
+  -- Returns the byte offset of `\r` or `-1` if not found.
+  #[no-alloc]
+  dma-find-crlf :: I64 -> U32 -> U32 ->{MVar} I32
+  dma-find-crlf base start end =
+    if ge-u32 start end then -1
+    else if lt-u32 (wrapping-sub-u32 end start) 2 then -1
+    else dma-find-crlf-loop16 base start end
+
+  #[no-alloc]
+  dma-scan-token-tail :: I64 -> U32 -> U32 ->{MVar} U32
+  dma-scan-token-tail base pos end =
+    if lt-u32 pos end then
+      let ch = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      if is-http-tchar-u8 ch then
+        dma-scan-token-tail base (wrapping-add-u32 pos 1) end
+      else pos
+    else end
+
+  #[no-alloc]
+  dma-scan-token-loop16 :: I64 -> U32 -> U32 ->{MVar} U32
+  dma-scan-token-loop16 base pos end =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 16 then
+      let chunk = raw-load-u128 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let bad = simd-mask-http-tchar-invalid chunk in
+      if eq-u32 bad 0 then
+        dma-scan-token-loop16 base (wrapping-add-u32 pos 16) end
+      else
+        wrapping-add-u32 pos (trailing-zeros-u32 bad)
+    else dma-scan-token-tail base pos end
+
+  -- | Scan RFC 9110 `tchar` bytes in DMA region `[base + start, base + end)`.
+  -- Returns the offset of the first non-`tchar` byte, or `end` if all bytes are valid.
+  #[no-alloc]
+  dma-scan-http-token :: I64 -> U32 -> U32 ->{MVar} U32
+  dma-scan-http-token base start end =
+    if ge-u32 start end then start
+    else dma-scan-token-loop16 base start end
+
+  #[no-alloc]
+  dma-scan-fv-tail :: I64 -> U32 -> U32 ->{MVar} I32
+  dma-scan-fv-tail base pos end =
+    if lt-u32 pos end then
+      let ch = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      if is-field-value-invalid-u8 ch then
+        if eq-u8 ch 13 then wrapping-u32-to-i32 pos else -2
+      else
+        dma-scan-fv-tail base (wrapping-add-u32 pos 1) end
+    else -1
+
+  #[no-alloc]
+  dma-scan-fv-loop16 :: I64 -> U32 -> U32 ->{MVar} I32
+  dma-scan-fv-loop16 base pos end =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 16 then
+      let chunk = raw-load-u128 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let bad = simd-mask-field-value-invalid chunk in
+      if eq-u32 bad 0 then
+        dma-scan-fv-loop16 base (wrapping-add-u32 pos 16) end
+      else
+        let lane = trailing-zeros-u32 bad in
+        let ch = lane-byte-u128 chunk lane in
+        if eq-u8 ch 13 then
+          wrapping-u32-to-i32 (wrapping-add-u32 pos lane)
+        else -2
+    else dma-scan-fv-tail base pos end
+
+  -- | Scan an HTTP header field value in DMA region `[base + start, base + end)`.
+  -- Returns `>= 0` for the byte offset of `\r`, `-1` if incomplete, or `-2` if an
+  -- illegal control byte / bare `\n` / `0x7F` is encountered.
+  #[no-alloc]
+  dma-scan-field-value :: I64 -> U32 -> U32 ->{MVar} I32
+  dma-scan-field-value base start end =
+    if ge-u32 start end then -1
+    else dma-scan-fv-loop16 base start end
+
+  #[no-alloc]
+  dma-ascii-eq-tail :: I64 -> I64 -> U32 ->{MVar} Bool
+  dma-ascii-eq-tail a-ptr b-ptr rem =
+    if eq-u32 rem 0 then eq-u32 0 0
+    else
+      let ca = raw-load-u8 a-ptr in
+      let cb = raw-load-u8 b-ptr in
+      if eq-u8 (ascii-lower-u8 ca) (ascii-lower-u8 cb) then
+        dma-ascii-eq-tail (wrapping-add-i64 a-ptr 1) (wrapping-add-i64 b-ptr 1) (wrapping-sub-u32 rem 1)
+      else eq-u32 0 1
+
+  #[no-alloc]
+  dma-ascii-eq-loop16 :: I64 -> I64 -> U32 ->{MVar} Bool
+  dma-ascii-eq-loop16 a-ptr b-ptr rem =
+    if ge-u32 rem 16 then
+      let ca = raw-load-u128 a-ptr in
+      let cb = raw-load-u128 b-ptr in
+      if simd-ascii-eq-nocase16 ca cb then
+        dma-ascii-eq-loop16 (wrapping-add-i64 a-ptr 16) (wrapping-add-i64 b-ptr 16) (wrapping-sub-u32 rem 16)
+      else eq-u32 0 1
+    else dma-ascii-eq-tail a-ptr b-ptr rem
+
+  -- | Compare `len` bytes at `a-base + a-off` and `b-base + b-off` using ASCII
+  -- case-insensitive equality (`A..Z` == `a..z`).
+  #[no-alloc]
+  dma-ascii-eq-nocase :: I64 -> U32 -> I64 -> U32 -> U32 ->{MVar} Bool
+  dma-ascii-eq-nocase a-base a-off b-base b-off len =
+    if eq-u32 len 0 then eq-u32 0 0
+    else
+      dma-ascii-eq-loop16
+        (wrapping-add-i64 a-base (u32-to-i64 a-off))
+        (wrapping-add-i64 b-base (u32-to-i64 b-off))
+        len

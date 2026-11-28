@@ -1347,6 +1347,18 @@
     {
       "name": "Engine.Types",
       "path": "Engine/Types.cinch"
+    },
+    {
+      "name": "Engine.Simd.Scan",
+      "path": "Engine/Simd/Scan.cinch"
+    },
+    {
+      "name": "Engine.Simd.Crc32c",
+      "path": "Engine/Simd/Crc32c.cinch"
+    },
+    {
+      "name": "Engine.Simd.Mask",
+      "path": "Engine/Simd/Mask.cinch"
     }
   ],
   "order": [
@@ -1685,6 +1697,9 @@
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
     "Prim.Sys.Io",
-    "Engine.Types"
+    "Engine.Types",
+    "Engine.Simd.Scan",
+    "Engine.Simd.Crc32c",
+    "Engine.Simd.Mask"
   ]
 }
