@@ -1,0 +1,195 @@
+-- | Pre-allocated DMA-backed per-operation bump arena (`BumpArena`).
+--
+-- Designed for request-scoped, tick-scoped, or frame-scoped scratch memory on
+-- pinned engine workers:
+--   * Backed by a single 4 KiB-aligned anonymous `mmap` DMA region allocated
+--     once in `bump-arena-new` and unmapped in `bump-arena-destroy`.
+--   * Stores its 64-bit bump cursor in a 64-byte cache-line header at the start
+--     of the DMA region, so `BumpArena` itself is a 32-byte `#[repr(C, value)]`
+--     POD handle with zero heap allocation and zero reference-counting traffic.
+--   * `bump-arena-alloc` aligns allocations to any power-of-two boundary
+--     (e.g. `8`, `16`, `64`) with overflow checking and returns `0` on OOM or
+--     invalid alignment.
+--   * `bump-arena-mark` / `bump-arena-rewind` support nested LIFO scratch
+--     scopes, and `bump-arena-reset` reclaims the entire arena with a single
+--     64-bit zero store to the cursor.
+module Engine.Mem.Arena where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Prim.Atomic
+  import Engine.Types
+
+  export BumpArena
+  export bump-arena-new, bump-arena-destroy, bump-arena-is-valid
+  export bump-arena-alloc, bump-arena-mark, bump-arena-rewind, bump-arena-reset
+  export bump-arena-used, bump-arena-remaining, bump-arena-base-addr, bump-arena-capacity
+
+  -- =========================================================================
+  -- 0. Internal constants & #[no-alloc] helpers
+  -- =========================================================================
+
+  -- 64-byte cache-line header holding `cursor :: U64` at byte offset 0.
+  #[inline(always)]
+  #[no-alloc]
+  arena-hdr-bytes :: U64
+  arena-hdr-bytes = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  bool-true :: Bool
+  bool-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  bool-false :: Bool
+  bool-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  is-pow2-u64 :: U64 -> Bool
+  is-pow2-u64 x =
+    if eq-u64 x 0 then bool-false
+    else eq-u64 (bit-and-u64 x (wrapping-sub-u64 x 1)) 0
+
+  #[no-alloc]
+  align-up-u64 :: U64 -> U64 -> U64
+  align-up-u64 v align =
+    let mask = wrapping-sub-u64 align 1 in
+    if gt-u64 v (wrapping-sub-u64 18446744073709551615 mask) then 0
+    else bit-and-u64 (wrapping-add-u64 v mask) (bit-not-u64 mask)
+
+  -- =========================================================================
+  -- 1. BumpArena POD handle & operations
+  -- =========================================================================
+
+  -- | Handle to a pre-allocated DMA-backed bump arena.
+  -- 32-byte `#[repr(C, value)]` POD record: zero heap alloc, zero RC traffic.
+  #[repr(C, value)]
+  record BumpArena where
+    arena-dma-base :: U64
+    arena-total-bytes :: U64
+    arena-data-base :: U64
+    arena-cap :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-empty :: Unit -> BumpArena
+  bump-arena-empty _ = BumpArena 0 0 0 0
+
+  -- | Return `True` if `arena` holds a valid mapped DMA region.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-is-valid :: BumpArena -> Bool
+  bump-arena-is-valid a = ne-u64 a.arena-dma-base 0
+
+  -- | Return the 64-byte-aligned base byte address of the arena payload region.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-base-addr :: BumpArena -> U64
+  bump-arena-base-addr a = a.arena-data-base
+
+  -- | Return the total usable byte capacity of `arena`.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-capacity :: BumpArena -> U64
+  bump-arena-capacity a = a.arena-cap
+
+  -- | Pre-allocate a DMA-backed bump arena with `cap-bytes` usable bytes.
+  -- Returns an invalid arena (`bump-arena-is-valid a == False`) if
+  -- `cap-bytes == 0`, arithmetic overflows, or DMA mapping fails.
+  bump-arena-new :: U64 ->{IO, MVar} BumpArena
+  bump-arena-new cap-bytes =
+    if eq-u64 cap-bytes 0 then bump-arena-empty ()
+    else
+      case checked-add-u64 arena-hdr-bytes cap-bytes of
+        None -> bump-arena-empty ()
+        Some raw-total ->
+          let total-bytes = align-up-u64 raw-total 4096 in
+          if eq-u64 total-bytes 0 then bump-arena-empty ()
+          else
+            let base = engine-dma-alloc total-bytes 4096 in
+            if eq-u64 base 0 then bump-arena-empty ()
+            else
+              let _ = raw-store-u64 (wrapping-u64-to-i64 base) 0 in
+              BumpArena base total-bytes (wrapping-add-u64 base arena-hdr-bytes) cap-bytes
+
+  -- | Unmap the DMA region backing `arena`.
+  bump-arena-destroy :: BumpArena ->{IO} IoError
+  bump-arena-destroy a =
+    if eq-u64 a.arena-dma-base 0 then IoOk
+    else engine-dma-free a.arena-dma-base a.arena-total-bytes
+
+  -- | Bump-allocate `size-bytes` aligned to power-of-two `align-bytes`
+  -- (e.g. `8`, `16`, `64`). Returns the aligned raw byte address, or `0`
+  -- if `arena` is invalid, `align-bytes` is not a power of two, or
+  -- insufficient capacity remains. Zero heap allocation.
+  #[no-alloc]
+  bump-arena-alloc :: BumpArena -> U64 -> U64 ->{MVar} U64
+  bump-arena-alloc a size-bytes align-bytes =
+    if eq-u64 a.arena-dma-base 0 then 0
+    else if is-pow2-u64 align-bytes then
+      let hdr = wrapping-u64-to-i64 a.arena-dma-base in
+      let cur = raw-load-u64 hdr in
+      let abs-cur = wrapping-add-u64 a.arena-data-base cur in
+      let mask = wrapping-sub-u64 align-bytes 1 in
+      if gt-u64 abs-cur (wrapping-sub-u64 18446744073709551615 mask) then 0
+      else
+        let aligned-addr = bit-and-u64 (wrapping-add-u64 abs-cur mask) (bit-not-u64 mask) in
+        let aligned-off = wrapping-sub-u64 aligned-addr a.arena-data-base in
+        if gt-u64 aligned-off a.arena-cap then 0
+        else
+          let avail = wrapping-sub-u64 a.arena-cap aligned-off in
+          if gt-u64 size-bytes avail then 0
+          else
+            let new-cur = wrapping-add-u64 aligned-off size-bytes in
+            let _ = raw-store-u64 hdr new-cur in
+            aligned-addr
+    else 0
+
+  -- | Snapshot the current bump cursor offset (bytes used) for a later
+  -- `bump-arena-rewind`. Zero heap allocation.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-mark :: BumpArena ->{MVar} U64
+  bump-arena-mark a =
+    if eq-u64 a.arena-dma-base 0 then 0
+    else raw-load-u64 (wrapping-u64-to-i64 a.arena-dma-base)
+
+  -- | Rewind the bump cursor back to a previously saved `mark` (`<= used`).
+  -- Returns `False` if `arena` is invalid or `mark > used`. Zero heap allocation.
+  #[no-alloc]
+  bump-arena-rewind :: BumpArena -> U64 ->{MVar} Bool
+  bump-arena-rewind a mark =
+    if eq-u64 a.arena-dma-base 0 then bool-false
+    else
+      let hdr = wrapping-u64-to-i64 a.arena-dma-base in
+      let cur = raw-load-u64 hdr in
+      if le-u64 mark cur then
+        let _ = raw-store-u64 hdr mark in
+        bool-true
+      else bool-false
+
+  -- | Reset the entire bump arena in O(1) via a single 64-bit zero store to
+  -- the cursor. Zero heap allocation.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-reset :: BumpArena ->{MVar} Unit
+  bump-arena-reset a =
+    if eq-u64 a.arena-dma-base 0 then ()
+    else raw-store-u64 (wrapping-u64-to-i64 a.arena-dma-base) 0
+
+  -- | Return the number of bytes currently allocated from `arena`.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-used :: BumpArena ->{MVar} U64
+  bump-arena-used a = bump-arena-mark a
+
+  -- | Return the number of unallocated bytes remaining in `arena`.
+  #[inline(always)]
+  #[no-alloc]
+  bump-arena-remaining :: BumpArena ->{MVar} U64
+  bump-arena-remaining a =
+    if eq-u64 a.arena-dma-base 0 then 0
+    else saturating-sub-u64 a.arena-cap (raw-load-u64 (wrapping-u64-to-i64 a.arena-dma-base))

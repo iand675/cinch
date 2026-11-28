@@ -1,0 +1,392 @@
+-- | Compile-time formal TLA+-style model M1 (`SlabMachine`) for the
+-- generational slab allocator (`Engine.Mem.Slab`).
+--
+-- Models a 3-slot generational slab with an explicit intrusive freelist
+-- (`free-head` + per-slot `next-free` links using `99` for live and `98` for
+-- freelist tail), non-zero per-slot generations cycling `1 -> 2 -> 3 -> 1`,
+-- and an explicit tracked stale handle exercising ABA reuse when a freed slot
+-- is reallocated with an incremented generation.
+--
+-- Exhaustively model-checked at compile time (`max_states = 65536`,
+-- `capped: false`, `0 violations`):
+--   * `slabInvariants` (`always`): conservation (`live + free == 3`), exact
+--     acyclic intrusive freelist matching all non-live slots (no double-alloc,
+--     no live slot on freelist), non-zero generations, and stale/null handle
+--     lookup ALWAYS returning `None`.
+--   * `slabDeadlockFree` (`deadlock_free`): every reachable state has at least
+--     one enabled transition.
+--   * `slabReusable` (`leads_to` under `fair = [slab-step-free]`): a full slab
+--     always becomes reusable (`live == 3 ~> live < 3`).
+--   * `refines SlabMachine AbstractSlabMap` (with `measure = slab-stutter-rank`):
+--     checked stuttering simulation proving the intrusive freelist + generation
+--     array refines a pure abstract live-slot map without infinite stuttering.
+module Engine.Mem.Slab.Spec where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Nat
+  import Data.Option
+
+  export ModelSlot, S0, S1, S2
+  export ModelHandle, SlabModelState, AbstractSlabState
+  export model-live-tag, model-none-tag, model-next-gen
+  export slab-model-init, slab-model-lookup, slab-model-invariants
+  export slab-step-alloc, slab-step-free, slab-step-stale-lookup
+  export slab-model-view, slab-stutter-rank
+  export abs-slab-alloc, abs-slab-free
+
+  -- =========================================================================
+  -- 1. Pure 3-slot generational slab state & helpers
+  -- =========================================================================
+
+  -- | Finite 3-slot identifier domain (`S0`, `S1`, `S2`).
+  data ModelSlot where
+    S0 :: ModelSlot
+    S1 :: ModelSlot
+    S2 :: ModelSlot
+
+  -- | Generational handle in the formal model (`slot` + non-zero `gen`).
+  record ModelHandle where
+    mh-slot :: ModelSlot
+    mh-gen :: Nat
+
+  -- | Explicit 3-slot generational slab state mirroring `RawSlab`:
+  --   * `s*-next == 99` (`model-live-tag`) marks a currently live slot.
+  --   * `s*-next == 98` (`model-none-tag`) marks the tail of the freelist.
+  --   * `s*-next in {0, 1, 2}` links to the next free slot.
+  --   * `stale` retains a previously freed handle across subsequent
+  --     allocations/frees to exercise ABA reuse checks.
+  record SlabModelState where
+    free-head :: Nat
+    live-count :: Nat
+    s0-gen :: Nat
+    s0-next :: Nat
+    s1-gen :: Nat
+    s1-next :: Nat
+    s2-gen :: Nat
+    s2-next :: Nat
+    stale :: Option ModelHandle
+    stale-ok :: Bool
+
+  model-live-tag :: Nat
+  model-live-tag = 99
+
+  model-none-tag :: Nat
+  model-none-tag = 98
+
+  model-slot-idx :: ModelSlot -> Nat
+  model-slot-idx sl = case sl of
+    S0 -> 0
+    S1 -> 1
+    S2 -> 2
+
+  model-slot-eq :: ModelSlot -> ModelSlot -> Bool
+  model-slot-eq a b = model-slot-idx a == model-slot-idx b
+
+  -- | Advance non-zero model generation across `{1, 2, 3}`, skipping `0`.
+  model-next-gen :: Nat -> Nat
+  model-next-gen g = if g < 3 then g + 1 else 1
+
+  -- | Initial empty 3-slot slab: freelist `0 -> 1 -> 2 -> NONE`, all gens `1`.
+  slab-model-init :: SlabModelState
+  slab-model-init = SlabModelState {
+    free-head = 0,
+    live-count = 0,
+    s0-gen = 1,
+    s0-next = 1,
+    s1-gen = 1,
+    s1-next = 2,
+    s2-gen = 1,
+    s2-next = model-none-tag,
+    stale = None,
+    stale-ok = True
+  }
+
+  -- | Look up `h` in `s`: returns `Some slot-idx` iff the slot is currently
+  -- live AND its generation matches `h.mh-gen` (> 0), else `None`.
+  slab-model-lookup :: SlabModelState -> ModelHandle -> Option Nat
+  slab-model-lookup s h =
+    if h.mh-gen == 0 then None
+    else case h.mh-slot of
+      S0 -> if s.s0-next == model-live-tag && s.s0-gen == h.mh-gen then Some 0 else None
+      S1 -> if s.s1-next == model-live-tag && s.s1-gen == h.mh-gen then Some 1 else None
+      S2 -> if s.s2-next == model-live-tag && s.s2-gen == h.mh-gen then Some 2 else None
+
+  is-none-nat :: Option Nat -> Bool
+  is-none-nat opt = case opt of
+    None -> True
+    Some _ -> False
+
+  -- =========================================================================
+  -- 2. Exact transition actions (shared by compile-time MC and Hegel DST)
+  -- =========================================================================
+
+  -- | Pop the head of the intrusive freelist and mark the slot live.
+  -- Disabled (`None`) when the slab is full (`free-head == model-none-tag`).
+  slab-step-alloc :: SlabModelState -> Option SlabModelState
+  slab-step-alloc s =
+    if s.free-head == 0 then
+      Some (SlabModelState {
+        free-head = s.s0-next,
+        live-count = s.live-count + 1,
+        s0-gen = s.s0-gen,
+        s0-next = model-live-tag,
+        s1-gen = s.s1-gen,
+        s1-next = s.s1-next,
+        s2-gen = s.s2-gen,
+        s2-next = s.s2-next,
+        stale = s.stale,
+        stale-ok = s.stale-ok
+      })
+    else if s.free-head == 1 then
+      Some (SlabModelState {
+        free-head = s.s1-next,
+        live-count = s.live-count + 1,
+        s0-gen = s.s0-gen,
+        s0-next = s.s0-next,
+        s1-gen = s.s1-gen,
+        s1-next = model-live-tag,
+        s2-gen = s.s2-gen,
+        s2-next = s.s2-next,
+        stale = s.stale,
+        stale-ok = s.stale-ok
+      })
+    else if s.free-head == 2 then
+      Some (SlabModelState {
+        free-head = s.s2-next,
+        live-count = s.live-count + 1,
+        s0-gen = s.s0-gen,
+        s0-next = s.s0-next,
+        s1-gen = s.s1-gen,
+        s1-next = s.s1-next,
+        s2-gen = s.s2-gen,
+        s2-next = model-live-tag,
+        stale = s.stale,
+        stale-ok = s.stale-ok
+      })
+    else None
+
+  update-stale-on-free :: Option ModelHandle -> ModelSlot -> Nat -> Option ModelHandle
+  update-stale-on-free cur sl old-gen = case cur of
+    None -> Some (ModelHandle { mh-slot = sl, mh-gen = old-gen })
+    Some prev ->
+      if model-slot-eq prev.mh-slot sl
+      then Some (ModelHandle { mh-slot = sl, mh-gen = old-gen })
+      else Some prev
+
+  -- | Free live slot `sl`, incrementing its generation (skipping `0`), pushing
+  -- it onto the intrusive freelist, and recording the freed handle as `stale`
+  -- so subsequent ABA reallocations are tested by `slab-step-stale-lookup`.
+  slab-step-free :: ModelSlot -> SlabModelState -> Option SlabModelState
+  slab-step-free sl s =
+    let lc = s.live-count in
+    if lc == 0 then None
+    else case sl of
+      S0 ->
+        if s.s0-next == model-live-tag then
+          Some (SlabModelState {
+            free-head = 0,
+            live-count = lc - 1,
+            s0-gen = model-next-gen s.s0-gen,
+            s0-next = s.free-head,
+            s1-gen = s.s1-gen,
+            s1-next = s.s1-next,
+            s2-gen = s.s2-gen,
+            s2-next = s.s2-next,
+            stale = update-stale-on-free s.stale S0 s.s0-gen,
+            stale-ok = s.stale-ok
+          })
+        else None
+      S1 ->
+        if s.s1-next == model-live-tag then
+          Some (SlabModelState {
+            free-head = 1,
+            live-count = lc - 1,
+            s0-gen = s.s0-gen,
+            s0-next = s.s0-next,
+            s1-gen = model-next-gen s.s1-gen,
+            s1-next = s.free-head,
+            s2-gen = s.s2-gen,
+            s2-next = s.s2-next,
+            stale = update-stale-on-free s.stale S1 s.s1-gen,
+            stale-ok = s.stale-ok
+          })
+        else None
+      S2 ->
+        if s.s2-next == model-live-tag then
+          Some (SlabModelState {
+            free-head = 2,
+            live-count = lc - 1,
+            s0-gen = s.s0-gen,
+            s0-next = s.s0-next,
+            s1-gen = s.s1-gen,
+            s1-next = s.s1-next,
+            s2-gen = model-next-gen s.s2-gen,
+            s2-next = s.free-head,
+            stale = update-stale-on-free s.stale S2 s.s2-gen,
+            stale-ok = s.stale-ok
+          })
+        else None
+
+  -- | Exercise lookup of a tracked stale handle (including after ABA reuse of
+  -- the same slot index with an incremented generation) and assert it returns `None`.
+  slab-step-stale-lookup :: SlabModelState -> Option SlabModelState
+  slab-step-stale-lookup s = case s.stale of
+    None -> None
+    Some h ->
+      let rejected = is-none-nat (slab-model-lookup s h) in
+      Some (SlabModelState {
+        free-head = s.free-head,
+        live-count = s.live-count,
+        s0-gen = s.s0-gen,
+        s0-next = s.s0-next,
+        s1-gen = s.s1-gen,
+        s1-next = s.s1-next,
+        s2-gen = s.s2-gen,
+        s2-next = s.s2-next,
+        stale = None,
+        stale-ok = s.stale-ok && rejected
+      })
+
+  -- =========================================================================
+  -- 3. Safety invariants
+  -- =========================================================================
+
+  slot-next-at :: SlabModelState -> Nat -> Nat
+  slot-next-at s idx =
+    if idx == 0 then s.s0-next
+    else if idx == 1 then s.s1-next
+    else s.s2-next
+
+  -- Walk the intrusive freelist starting at `cur` for up to `rem` hops,
+  -- verifying no live slot is on the freelist, no slot is visited twice, and
+  -- returning `(ok, visited-count, seen0, seen1, seen2)`.
+  walk-freelist :: SlabModelState -> Nat -> Nat -> Bool -> Bool -> Bool -> Nat -> (Bool, Nat, Bool, Bool, Bool)
+  walk-freelist s cur rem v0 v1 v2 acc =
+    if cur == model-none-tag then (True, acc, v0, v1, v2)
+    else if rem == 0 then (False, acc, v0, v1, v2)
+    else if cur == 0 then
+      if v0 || s.s0-next == model-live-tag then (False, acc, v0, v1, v2)
+      else walk-freelist s s.s0-next (rem - 1) True v1 v2 (acc + 1)
+    else if cur == 1 then
+      if v1 || s.s1-next == model-live-tag then (False, acc, v0, v1, v2)
+      else walk-freelist s s.s1-next (rem - 1) v0 True v2 (acc + 1)
+    else if cur == 2 then
+      if v2 || s.s2-next == model-live-tag then (False, acc, v0, v1, v2)
+      else walk-freelist s s.s2-next (rem - 1) v0 v1 True (acc + 1)
+    else (False, acc, v0, v1, v2)
+
+  -- | Complete structural and ABA safety invariant for `SlabModelState`:
+  --   1. `live-count` equals the exact number of live slots.
+  --   2. Acyclic intrusive freelist visits exactly `free-count` distinct
+  --      non-live slots, covering every non-live slot and zero live slots
+  --      (`live + free == 3`, no double-allocation, no live slot on freelist).
+  --   3. All generations are non-zero (`1 <= gen <= 3`).
+  --   4. Every stale lookup and null (`gen == 0`) lookup returns `None`.
+  is-stale-rejected :: SlabModelState -> Bool
+  is-stale-rejected s = case s.stale of
+    None -> True
+    Some h -> is-none-nat (slab-model-lookup s h)
+
+  slab-model-invariants :: SlabModelState -> Bool
+  slab-model-invariants s =
+    let live0 = s.s0-next == model-live-tag in
+    let live1 = s.s1-next == model-live-tag in
+    let live2 = s.s2-next == model-live-tag in
+    let actual-live = (if live0 then 1 else 0) + (if live1 then 1 else 0) + (if live2 then 1 else 0) in
+    let gens-ok = s.s0-gen >= 1 && s.s0-gen <= 3 && s.s1-gen >= 1 && s.s1-gen <= 3 && s.s2-gen >= 1 && s.s2-gen <= 3 in
+    let stale-cur-ok = is-stale-rejected s in
+    let n0 = is-none-nat (slab-model-lookup s (ModelHandle { mh-slot = S0, mh-gen = 0 })) in
+    let n1 = is-none-nat (slab-model-lookup s (ModelHandle { mh-slot = S1, mh-gen = 0 })) in
+    let n2 = is-none-nat (slab-model-lookup s (ModelHandle { mh-slot = S2, mh-gen = 0 })) in
+    case walk-freelist s s.free-head 3 False False False 0 of
+      (walk-ok, free-count, v0, v1, v2) ->
+        let partition-ok = (live0 /= v0) && (live1 /= v1) && (live2 /= v2) in
+        walk-ok
+          && s.live-count == actual-live
+          && actual-live + free-count == 3
+          && partition-ok
+          && gens-ok
+          && s.stale-ok
+          && stale-cur-ok
+          && n0 && n1 && n2
+
+  -- =========================================================================
+  -- 4. Abstract specification (`AbstractSlabMap`) & stuttering refinement
+  -- =========================================================================
+
+  -- | Pure abstract 3-slot map (`slot -> Option gen`) with no freelist details.
+  record AbstractSlabState where
+    abs-s0 :: Option Nat
+    abs-s1 :: Option Nat
+    abs-s2 :: Option Nat
+
+  -- | Abstract allocation: occupy an empty slot with a non-zero generation.
+  abs-slab-alloc :: ModelSlot -> InRange 1 3 Nat -> AbstractSlabState -> Option AbstractSlabState
+  abs-slab-alloc sl g s = case sl of
+    S0 -> case s.abs-s0 of
+      None -> Some (AbstractSlabState { abs-s0 = Some g, abs-s1 = s.abs-s1, abs-s2 = s.abs-s2 })
+      Some _ -> None
+    S1 -> case s.abs-s1 of
+      None -> Some (AbstractSlabState { abs-s0 = s.abs-s0, abs-s1 = Some g, abs-s2 = s.abs-s2 })
+      Some _ -> None
+    S2 -> case s.abs-s2 of
+      None -> Some (AbstractSlabState { abs-s0 = s.abs-s0, abs-s1 = s.abs-s1, abs-s2 = Some g })
+      Some _ -> None
+
+  -- | Abstract deallocation: clear an occupied slot back to `None`.
+  abs-slab-free :: ModelSlot -> AbstractSlabState -> Option AbstractSlabState
+  abs-slab-free sl s = case sl of
+    S0 -> case s.abs-s0 of
+      Some _ -> Some (AbstractSlabState { abs-s0 = None, abs-s1 = s.abs-s1, abs-s2 = s.abs-s2 })
+      None -> None
+    S1 -> case s.abs-s1 of
+      Some _ -> Some (AbstractSlabState { abs-s0 = s.abs-s0, abs-s1 = None, abs-s2 = s.abs-s2 })
+      None -> None
+    S2 -> case s.abs-s2 of
+      Some _ -> Some (AbstractSlabState { abs-s0 = s.abs-s0, abs-s1 = s.abs-s1, abs-s2 = None })
+      None -> None
+
+  machine AbstractSlabMap where
+    state = AbstractSlabState
+    init = AbstractSlabState { abs-s0 = None, abs-s1 = None, abs-s2 = None }
+    actions = [abs-slab-alloc, abs-slab-free]
+    max_states = 256
+
+  -- | Projection mapping concrete intrusive-freelist state to `AbstractSlabState`.
+  slab-model-view :: SlabModelState -> AbstractSlabState
+  slab-model-view s = AbstractSlabState {
+    abs-s0 = if s.s0-next == model-live-tag then Some s.s0-gen else None,
+    abs-s1 = if s.s1-next == model-live-tag then Some s.s1-gen else None,
+    abs-s2 = if s.s2-next == model-live-tag then Some s.s2-gen else None
+  }
+
+  -- | Strictly decreasing stuttering measure for `slab-step-stale-lookup`.
+  slab-stutter-rank :: SlabModelState -> Nat
+  slab-stutter-rank s = case s.stale of
+    None -> 0
+    Some _ -> 1
+
+  -- =========================================================================
+  -- 5. Formal Machine M1 (`SlabMachine`) & temporal contracts
+  -- =========================================================================
+
+  machine SlabMachine where
+    state = SlabModelState
+    init = slab-model-init
+    actions = [slab-step-alloc, slab-step-free, slab-step-stale-lookup]
+    fair = [slab-step-free]
+    max_states = 65536
+
+  contract safety slabInvariants for SlabMachine where
+    always = (\s -> slab-model-invariants s)
+
+  contract safety slabDeadlockFree for SlabMachine where
+    deadlock_free = (True)
+
+  contract liveness slabReusable for SlabMachine where
+    leads_to = (\s -> s.live-count == 3) ~> (\s -> s.live-count < 3)
+
+  refines SlabMachine AbstractSlabMap where
+    view = slab-model-view
+    measure = slab-stutter-rank

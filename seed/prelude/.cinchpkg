@@ -1347,6 +1347,18 @@
     {
       "name": "Engine.Types",
       "path": "Engine/Types.cinch"
+    },
+    {
+      "name": "Engine.Mem.Slab",
+      "path": "Engine/Mem/Slab.cinch"
+    },
+    {
+      "name": "Engine.Mem.Arena",
+      "path": "Engine/Mem/Arena.cinch"
+    },
+    {
+      "name": "Engine.Mem.Slab.Spec",
+      "path": "Engine/Mem/Slab/Spec.cinch"
     }
   ],
   "order": [
@@ -1685,6 +1697,9 @@
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
     "Prim.Sys.Io",
-    "Engine.Types"
+    "Engine.Types",
+    "Engine.Mem.Slab",
+    "Engine.Mem.Arena",
+    "Engine.Mem.Slab.Spec"
   ]
 }

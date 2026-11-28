@@ -1,0 +1,482 @@
+-- | Zero-allocation generational slab allocators for the Cinch engine.
+--
+-- Provides two generational slab implementations sharing `Engine.Types.GenHandle`
+-- (`(gen << 32) | idx`, where valid generations start at `1` and wrap skipping
+-- `0` so `gen-handle-null ()` is never live):
+--
+--   1. `RawSlab` — a DMA-backed (`engine-dma-alloc` / `engine-dma-free`),
+--      fixed-stride POD slab whose header, intrusive `U32` freelist, `U32`
+--      generation table, and 64-byte-aligned slot payload array all live inside
+--      one contiguous page-aligned DMA region. Hot operations (`raw-slab-alloc`,
+--      `raw-slab-free`, `raw-slab-is-live`, `raw-slab-slot-addr`,
+--      `raw-slab-live-count`) execute in O(1) with zero heap allocation and
+--      zero reference-counting traffic via `Prim.Atomic.raw-*`.
+--
+--   2. `Slab r a` — a region-indexed typed mutable generational slab backed by
+--      `Data.Mutable.Array` and `Data.Mutable.Var` for arbitrary Cinch values.
+--      Freeing a slot overwrites its payload with `None` immediately so values
+--      are released without leaking.
+--
+-- Formal safety, deadlock-freedom, liveness, and abstract-map refinement proofs
+-- live in `Engine.Mem.Slab.Spec` (M1 `SlabMachine`).
+module Engine.Mem.Slab where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Mutable.Array
+  import Data.Mutable.Var
+  import Prim.Atomic
+  import Engine.Types
+
+  -- Raw DMA-backed POD generational slab
+  export RawSlab
+  export raw-slab-new, raw-slab-destroy, raw-slab-is-valid
+  export raw-slab-alloc, raw-slab-free, raw-slab-is-live, raw-slab-slot-addr
+  export raw-slab-live-count, raw-slab-capacity, raw-slab-stride
+  export raw-slab-read-u64, raw-slab-write-u64, raw-slab-read-u32, raw-slab-write-u32
+
+  -- Typed region-indexed generational slab
+  export Slab
+  export slab-new, slab-alloc, slab-free, slab-get, slab-set
+  export slab-is-live, slab-live-count, slab-capacity
+
+  -- Pure generation helper
+  export slab-next-gen
+
+  -- =========================================================================
+  -- 0. Internal constants & #[no-alloc] helpers
+  -- =========================================================================
+
+  -- Sentinel stored in `next-free[idx]` / `free-head` when freelist is empty.
+  #[inline(always)]
+  #[no-alloc]
+  slab-none :: U32
+  slab-none = 4294967295
+
+  -- Sentinel stored in `next-free[idx]` while slot `idx` is live.
+  #[inline(always)]
+  #[no-alloc]
+  slab-live-tag :: U32
+  slab-live-tag = 4294967294
+
+  -- Maximum supported slot count (below `slab-live-tag` and bounded for byte math).
+  #[inline(always)]
+  #[no-alloc]
+  slab-max-cap :: U32
+  slab-max-cap = 2147483647
+
+  -- Header occupies one 64-byte cache line:
+  --   offset 0: U32 free-head
+  --   offset 4: U32 live-count
+  #[inline(always)]
+  #[no-alloc]
+  slab-hdr-bytes :: U64
+  slab-hdr-bytes = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  bool-true :: Bool
+  bool-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  bool-false :: Bool
+  bool-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both-na :: Bool -> Bool -> Bool
+  both-na a b = if a then b else bool-false
+
+  #[inline(always)]
+  #[no-alloc]
+  not-na :: Bool -> Bool
+  not-na b = if b then bool-false else bool-true
+
+  -- | Advance a non-zero generation counter, wrapping `0xFFFFFFFF -> 1` so `0`
+  -- is never issued and `gen-handle-null ()` is never live.
+  #[inline(always)]
+  #[no-alloc]
+  slab-next-gen :: U32 -> U32
+  slab-next-gen g =
+    let g1 = wrapping-add-u32 g 1 in
+    if eq-u32 g1 0 then 1 else g1
+
+  -- Round `v` up to a power-of-two `align` (returns 0 on overflow).
+  #[no-alloc]
+  align-up-u64 :: U64 -> U64 -> U64
+  align-up-u64 v align =
+    let mask = wrapping-sub-u64 align 1 in
+    if gt-u64 v (wrapping-sub-u64 18446744073709551615 mask) then 0
+    else bit-and-u64 (wrapping-add-u64 v mask) (bit-not-u64 mask)
+
+  -- Round `v` up to a multiple of 8 bytes (minimum 8, returns 0 on overflow).
+  #[no-alloc]
+  align-stride-u32 :: U32 -> U32
+  align-stride-u32 stride =
+    if eq-u32 stride 0 then 0
+    else if gt-u32 stride 4294967288 then 0
+    else bit-and-u32 (wrapping-add-u32 stride 7) (bit-not-u32 7)
+
+  #[inline(always)]
+  #[no-alloc]
+  meta-addr-of :: U64 -> U32 -> I64
+  meta-addr-of base idx =
+    wrapping-u64-to-i64 (wrapping-add-u64 (wrapping-add-u64 base slab-hdr-bytes) (wrapping-shl-u64 (u32-to-u64 idx) 3))
+
+  -- =========================================================================
+  -- 1. RawSlab: DMA-backed fixed-stride POD generational slab
+  -- =========================================================================
+
+  -- | Handle to a contiguous DMA-backed generational slab.
+  -- 32-byte `#[repr(C, value)]` POD record: passing by value incurs zero heap
+  -- allocation and zero reference-counting traffic.
+  #[repr(C, value)]
+  record RawSlab where
+    raw-slab-base :: U64
+    raw-slab-total-bytes :: U64
+    raw-slab-data-off :: U64
+    raw-slab-cap :: U32
+    raw-slab-stride :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  raw-slab-empty :: Unit -> RawSlab
+  raw-slab-empty _ = RawSlab 0 0 0 0 0
+
+  -- | Return `True` if `slab` holds a valid mapped DMA region.
+  #[inline(always)]
+  #[no-alloc]
+  raw-slab-is-valid :: RawSlab -> Bool
+  raw-slab-is-valid slab = ne-u64 slab.raw-slab-base 0
+
+  -- | Fixed slot capacity of `slab`.
+  #[inline(always)]
+  #[no-alloc]
+  raw-slab-capacity :: RawSlab -> U32
+  raw-slab-capacity slab = slab.raw-slab-cap
+
+  -- | Byte stride per slot (aligned up to a multiple of 8 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  raw-slab-stride :: RawSlab -> U32
+  raw-slab-stride slab = slab.raw-slab-stride
+
+  -- Initialize per-slot metadata: `gen[i] = 1`, `next-free[i] = i + 1` (or `slab-none`).
+  raw-slab-init-meta :: U64 -> U32 -> U32 ->{MVar} Unit
+  raw-slab-init-meta base idx cap =
+    if ge-u32 idx cap then ()
+    else
+      let maddr = meta-addr-of base idx in
+      let next-idx = wrapping-add-u32 idx 1 in
+      let next-val = if eq-u32 next-idx cap then slab-none else next-idx in
+      let _ = raw-store-u32 maddr 1 in
+      let _ = raw-store-u32 (wrapping-add-i64 maddr 4) next-val in
+      raw-slab-init-meta base next-idx cap
+
+  -- | Allocate a new DMA-backed generational slab of `cap` slots with byte
+  -- stride `stride-bytes` (rounded up to an 8-byte boundary).
+  -- Returns an invalid slab (`raw-slab-is-valid s == False`) if `cap == 0`,
+  -- `stride-bytes == 0`, arithmetic overflows, or DMA mapping fails.
+  raw-slab-new :: U32 -> U32 ->{IO, MVar} RawSlab
+  raw-slab-new cap stride-bytes =
+    if eq-u32 cap 0 || gt-u32 cap slab-max-cap then raw-slab-empty ()
+    else
+      let aligned-stride = align-stride-u32 stride-bytes in
+      if eq-u32 aligned-stride 0 then raw-slab-empty ()
+      else
+        let cap64 = u32-to-u64 cap in
+        let meta-bytes = wrapping-shl-u64 cap64 3 in
+        let meta-end = wrapping-add-u64 slab-hdr-bytes meta-bytes in
+        let data-off = align-up-u64 meta-end 64 in
+        if eq-u64 data-off 0 then raw-slab-empty ()
+        else
+          case checked-mul-u64 cap64 (u32-to-u64 aligned-stride) of
+            None -> raw-slab-empty ()
+            Some data-bytes ->
+              case checked-add-u64 data-off data-bytes of
+                None -> raw-slab-empty ()
+                Some raw-total ->
+                  let total-bytes = align-up-u64 raw-total 4096 in
+                  if eq-u64 total-bytes 0 then raw-slab-empty ()
+                  else
+                    let base = engine-dma-alloc total-bytes 4096 in
+                    if eq-u64 base 0 then raw-slab-empty ()
+                    else
+                      let hdr = wrapping-u64-to-i64 base in
+                      let _ = raw-store-u32 hdr 0 in
+                      let _ = raw-store-u32 (wrapping-add-i64 hdr 4) 0 in
+                      let _ = raw-slab-init-meta base 0 cap in
+                      RawSlab base total-bytes data-off cap aligned-stride
+
+  -- | Release the DMA region backing `slab`.
+  raw-slab-destroy :: RawSlab ->{IO} IoError
+  raw-slab-destroy slab =
+    if eq-u64 slab.raw-slab-base 0 then IoOk
+    else engine-dma-free slab.raw-slab-base slab.raw-slab-total-bytes
+
+  -- | Allocate one slot in O(1) with zero heap allocation.
+  -- Returns `gen-handle-null ()` when `slab` is full or invalid.
+  #[no-alloc]
+  raw-slab-alloc :: RawSlab ->{MVar} GenHandle
+  raw-slab-alloc slab =
+    if eq-u64 slab.raw-slab-base 0 then gen-handle-null ()
+    else
+      let hdr = wrapping-u64-to-i64 slab.raw-slab-base in
+      let head = raw-load-u32 hdr in
+      if ge-u32 head slab.raw-slab-cap then gen-handle-null ()
+      else
+        let maddr = meta-addr-of slab.raw-slab-base head in
+        let g = raw-load-u32 maddr in
+        let next = raw-load-u32 (wrapping-add-i64 maddr 4) in
+        let _ = raw-store-u32 (wrapping-add-i64 maddr 4) slab-live-tag in
+        let _ = raw-store-u32 hdr next in
+        let live-addr = wrapping-add-i64 hdr 4 in
+        let live = raw-load-u32 live-addr in
+        let _ = raw-store-u32 live-addr (wrapping-add-u32 live 1) in
+        gen-handle-pack g head
+
+  -- | Return `True` iff `h` points to a currently live slot with a matching
+  -- non-zero generation. Rejects null handles, out-of-bounds indices, freed
+  -- slots, and stale ABA handles.
+  #[no-alloc]
+  raw-slab-is-live :: RawSlab -> GenHandle ->{MVar} Bool
+  raw-slab-is-live slab h =
+    if eq-u64 slab.raw-slab-base 0 then bool-false
+    else if gen-handle-is-null h then bool-false
+    else
+      let idx = gen-handle-idx h in
+      let g = gen-handle-gen h in
+      if ge-u32 idx slab.raw-slab-cap then bool-false
+      else if eq-u32 g 0 then bool-false
+      else
+        let maddr = meta-addr-of slab.raw-slab-base idx in
+        let cur-gen = raw-load-u32 maddr in
+        let cur-next = raw-load-u32 (wrapping-add-i64 maddr 4) in
+        both-na (eq-u32 cur-next slab-live-tag) (eq-u32 cur-gen g)
+
+  -- | Free the slot identified by `h` in O(1), advancing its generation
+  -- (skipping `0`) and pushing it back onto the intrusive freelist.
+  -- Returns `False` on double-free, stale generation, null handle, or
+  -- out-of-bounds index.
+  #[no-alloc]
+  raw-slab-free :: RawSlab -> GenHandle ->{MVar} Bool
+  raw-slab-free slab h =
+    if eq-u64 slab.raw-slab-base 0 then bool-false
+    else if gen-handle-is-null h then bool-false
+    else
+      let idx = gen-handle-idx h in
+      let g = gen-handle-gen h in
+      if ge-u32 idx slab.raw-slab-cap then bool-false
+      else if eq-u32 g 0 then bool-false
+      else
+        let maddr = meta-addr-of slab.raw-slab-base idx in
+        let cur-gen = raw-load-u32 maddr in
+        let cur-next = raw-load-u32 (wrapping-add-i64 maddr 4) in
+        if not-na (both-na (eq-u32 cur-next slab-live-tag) (eq-u32 cur-gen g)) then bool-false
+        else
+          let hdr = wrapping-u64-to-i64 slab.raw-slab-base in
+          let old-head = raw-load-u32 hdr in
+          let next-g = slab-next-gen cur-gen in
+          let _ = raw-store-u32 maddr next-g in
+          let _ = raw-store-u32 (wrapping-add-i64 maddr 4) old-head in
+          let _ = raw-store-u32 hdr idx in
+          let live-addr = wrapping-add-i64 hdr 4 in
+          let live = raw-load-u32 live-addr in
+          let _ = raw-store-u32 live-addr (wrapping-sub-u32 live 1) in
+          bool-true
+
+  -- | Return the raw 64-bit byte address of the slot payload for `h`, or `0`
+  -- if `h` is null, out of bounds, dead, or has a stale generation.
+  #[no-alloc]
+  raw-slab-slot-addr :: RawSlab -> GenHandle ->{MVar} U64
+  raw-slab-slot-addr slab h =
+    if raw-slab-is-live slab h then
+      let idx = gen-handle-idx h in
+      let slot-off = wrapping-mul-u64 (u32-to-u64 idx) (u32-to-u64 slab.raw-slab-stride) in
+      wrapping-add-u64 (wrapping-add-u64 slab.raw-slab-base slab.raw-slab-data-off) slot-off
+    else 0
+
+  -- | Return the current number of live slots in `slab`.
+  #[no-alloc]
+  raw-slab-live-count :: RawSlab ->{MVar} U32
+  raw-slab-live-count slab =
+    if eq-u64 slab.raw-slab-base 0 then 0
+    else raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 slab.raw-slab-base) 4)
+
+  -- | Read a `U64` word at byte offset `field-off` inside live slot `h`
+  -- (returns `0` if `h` is stale/dead or `field-off + 8 > stride`).
+  #[no-alloc]
+  raw-slab-read-u64 :: RawSlab -> GenHandle -> U32 ->{MVar} U64
+  raw-slab-read-u64 slab h field-off =
+    let addr = raw-slab-slot-addr slab h in
+    if eq-u64 addr 0 then 0
+    else if lt-u32 slab.raw-slab-stride 8 then 0
+    else if gt-u32 field-off (wrapping-sub-u32 slab.raw-slab-stride 8) then 0
+    else raw-load-u64 (wrapping-u64-to-i64 (wrapping-add-u64 addr (u32-to-u64 field-off)))
+
+  -- | Write a `U64` word at byte offset `field-off` inside live slot `h`.
+  -- Returns `False` if `h` is stale/dead or `field-off + 8 > stride`.
+  #[no-alloc]
+  raw-slab-write-u64 :: RawSlab -> GenHandle -> U32 -> U64 ->{MVar} Bool
+  raw-slab-write-u64 slab h field-off val =
+    let addr = raw-slab-slot-addr slab h in
+    if eq-u64 addr 0 then bool-false
+    else if lt-u32 slab.raw-slab-stride 8 then bool-false
+    else if gt-u32 field-off (wrapping-sub-u32 slab.raw-slab-stride 8) then bool-false
+    else
+      let _ = raw-store-u64 (wrapping-u64-to-i64 (wrapping-add-u64 addr (u32-to-u64 field-off))) val in
+      bool-true
+
+  -- | Read a `U32` word at byte offset `field-off` inside live slot `h`
+  -- (returns `0` if `h` is stale/dead or `field-off + 4 > stride`).
+  #[no-alloc]
+  raw-slab-read-u32 :: RawSlab -> GenHandle -> U32 ->{MVar} U32
+  raw-slab-read-u32 slab h field-off =
+    let addr = raw-slab-slot-addr slab h in
+    if eq-u64 addr 0 then 0
+    else if lt-u32 slab.raw-slab-stride 4 then 0
+    else if gt-u32 field-off (wrapping-sub-u32 slab.raw-slab-stride 4) then 0
+    else raw-load-u32 (wrapping-u64-to-i64 (wrapping-add-u64 addr (u32-to-u64 field-off)))
+
+  -- | Write a `U32` word at byte offset `field-off` inside live slot `h`.
+  -- Returns `False` if `h` is stale/dead or `field-off + 4 > stride`.
+  #[no-alloc]
+  raw-slab-write-u32 :: RawSlab -> GenHandle -> U32 -> U32 ->{MVar} Bool
+  raw-slab-write-u32 slab h field-off val =
+    let addr = raw-slab-slot-addr slab h in
+    if eq-u64 addr 0 then bool-false
+    else if lt-u32 slab.raw-slab-stride 4 then bool-false
+    else if gt-u32 field-off (wrapping-sub-u32 slab.raw-slab-stride 4) then bool-false
+    else
+      let _ = raw-store-u32 (wrapping-u64-to-i64 (wrapping-add-u64 addr (u32-to-u64 field-off))) val in
+      bool-true
+
+  -- =========================================================================
+  -- 2. Slab r a: Region-indexed typed mutable generational slab
+  -- =========================================================================
+
+  -- | Region-indexed fixed-capacity generational slab for arbitrary Cinch values.
+  data Slab (r :: Region) a where
+    MkSlab
+      :: U32
+      -> Var r U32
+      -> Var r U32
+      -> MutArray r U32
+      -> MutArray r U32
+      -> MutArray r (Option a)
+      -> Slab r a
+
+  slab-init-freelist :: forall (r :: Region). MutArray r U32 -> U32 -> U32 ->{Mut r} Unit
+  slab-init-freelist nexts idx cap =
+    if ge-u32 idx cap then ()
+    else
+      let next-idx = wrapping-add-u32 idx 1 in
+      let next-val = if eq-u32 next-idx cap then slab-none else next-idx in
+      let _ = mut-array-set nexts (u32-to-nat idx) next-val in
+      slab-init-freelist nexts next-idx cap
+
+  -- | Create a new region-indexed typed generational slab with fixed capacity `cap`.
+  slab-new :: forall (r :: Region) a. U32 ->{Mut r} Slab r a
+  slab-new cap =
+    let safe-cap = if gt-u32 cap slab-max-cap then 0 else cap in
+    let init-head = if eq-u32 safe-cap 0 then slab-none else 0 in
+    let free-head = var-new init-head in
+    let live-var = var-new 0 in
+    let n = u32-to-nat safe-cap in
+    let gens = mut-array-new n 1 in
+    let nexts = mut-array-new n slab-none in
+    let vals = mut-array-new n None in
+    let _ = slab-init-freelist nexts 0 safe-cap in
+    MkSlab safe-cap free-head live-var gens nexts vals
+
+  -- | Fixed capacity of `slab`.
+  slab-capacity :: forall (r :: Region) a. Slab r a -> U32
+  slab-capacity s = case s of
+    MkSlab cap _ _ _ _ _ -> cap
+
+  -- | Number of currently live slots in `slab`.
+  slab-live-count :: forall (r :: Region) a. Slab r a ->{Mut r} U32
+  slab-live-count s = case s of
+    MkSlab _ _ live-var _ _ _ -> var-read live-var
+
+  unwrap-u32-or :: U32 -> Option U32 -> U32
+  unwrap-u32-or fallback opt = case opt of
+    Some v -> v
+    None -> fallback
+
+  unwrap-opt-opt :: forall a. Option (Option a) -> Option a
+  unwrap-opt-opt opt = case opt of
+    Some inner -> inner
+    None -> None
+
+  -- | Allocate a slot holding `val` in O(1).
+  -- Returns `gen-handle-null ()` when `slab` is full.
+  slab-alloc :: forall (r :: Region) a. Slab r a -> a ->{Mut r} GenHandle
+  slab-alloc s val = case s of
+    MkSlab cap free-head live-var gens nexts vals ->
+      let head = var-read free-head in
+      if ge-u32 head cap then gen-handle-null ()
+      else
+        let idx-nat = u32-to-nat head in
+        let cur-gen = unwrap-u32-or 0 (mut-array-get gens idx-nat) in
+        let next = unwrap-u32-or slab-none (mut-array-get nexts idx-nat) in
+        let _ = mut-array-set nexts idx-nat slab-live-tag in
+        let _ = mut-array-set vals idx-nat (Some val) in
+        let _ = var-write free-head next in
+        let _ = var-write live-var (wrapping-add-u32 (var-read live-var) 1) in
+        gen-handle-pack cur-gen head
+
+  -- | Return `True` iff `h` references a live slot in `slab` with matching generation.
+  slab-is-live :: forall (r :: Region) a. Slab r a -> GenHandle ->{Mut r} Bool
+  slab-is-live s h = case s of
+    MkSlab cap _ _ gens nexts _ ->
+      if gen-handle-is-null h then False
+      else
+        let idx = gen-handle-idx h in
+        let g = gen-handle-gen h in
+        if ge-u32 idx cap || eq-u32 g 0 then False
+        else
+          let idx-nat = u32-to-nat idx in
+          let tag = unwrap-u32-or slab-none (mut-array-get nexts idx-nat) in
+          let cur-gen = unwrap-u32-or 0 (mut-array-get gens idx-nat) in
+          eq-u32 tag slab-live-tag && eq-u32 cur-gen g
+
+  -- | Look up the value stored at live handle `h`, or `None` if stale/dead/null/oob.
+  slab-get :: forall (r :: Region) a. Slab r a -> GenHandle ->{Mut r} Option a
+  slab-get s h = case s of
+    MkSlab _ _ _ _ _ vals ->
+      if slab-is-live s h then
+        unwrap-opt-opt (mut-array-get vals (u32-to-nat (gen-handle-idx h)))
+      else None
+
+  -- | Replace the value stored at live handle `h`. Returns `False` if stale/dead/null/oob.
+  slab-set :: forall (r :: Region) a. Slab r a -> GenHandle -> a ->{Mut r} Bool
+  slab-set s h val = case s of
+    MkSlab _ _ _ _ _ vals ->
+      if slab-is-live s h then
+        mut-array-set vals (u32-to-nat (gen-handle-idx h)) (Some val)
+      else False
+
+  -- | Free the slot identified by `h`, releasing its stored value (`Some val`),
+  -- advancing its generation (skipping `0`), and pushing the slot onto the freelist.
+  -- Returns `None` on double-free, stale generation, null handle, or out-of-bounds index.
+  slab-free :: forall (r :: Region) a. Slab r a -> GenHandle ->{Mut r} Option a
+  slab-free s h = case s of
+    MkSlab cap free-head live-var gens nexts vals ->
+      if not (slab-is-live s h) then None
+      else
+        let idx = gen-handle-idx h in
+        let idx-nat = u32-to-nat idx in
+        let old-val = unwrap-opt-opt (mut-array-get vals idx-nat) in
+        let cur-gen = unwrap-u32-or 1 (mut-array-get gens idx-nat) in
+        let old-head = var-read free-head in
+        let _ = mut-array-set vals idx-nat None in
+        let _ = mut-array-set gens idx-nat (slab-next-gen cur-gen) in
+        let _ = mut-array-set nexts idx-nat old-head in
+        let _ = var-write free-head idx in
+        let _ = var-write live-var (wrapping-sub-u32 (var-read live-var) 1) in
+        old-val
