@@ -1778,6 +1778,10 @@
     "Engine.Reactor.Darwin",
     "Net.Http.Types",
     "Net.Http.Priority",
-    "Net.Http.Router"
+    "Net.Http.Router",
+    "Net.Tls.Fast",
+    "Net.Tls.Ktls",
+    "Net.Tls.QuicBridge",
+    "Net.Tls.Fast.Spec"
   ]
 }

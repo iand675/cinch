@@ -1,0 +1,1390 @@
+-- | Zero-copy, in-place TLS 1.3 AEAD record layer over DMA buffers (`Net.Tls.Fast`).
+--
+-- Executes steady-state AES-128-GCM, AES-256-GCM, and ChaCha20-Poly1305 record
+-- sealing and opening directly over raw DMA addresses (`I64`) with zero heap
+-- allocations (`#[no-alloc]`) and zero reference-counting traffic:
+--
+--   * `TlsAeadKey` is a 16-byte `#[repr(C, value)]` POD handle pointing to a
+--     page-aligned DMA key slab containing pre-expanded AES-128/AES-256 round
+--     keys, the precomputed GHASH `H` subkey, the ChaCha20 32-byte key, the
+--     12-byte static IV, a scratch nonce slot, and the 64-bit sequence counter.
+--   * Hardware acceleration (`Prim.Wide` AES-NI / ARMv8 AES and PCLMULQDQ / PMULL)
+--     is selected automatically at key-setup time, with constant-time bit-sliced
+--     portable fallbacks using only unboxed `U128` register operations.
+--   * `tls-fast-record-seal-in-place` / `tls-fast-record-open-in-place` frame
+--     and authenticate RFC 8446 TLS 1.3 `application_data` records directly in
+--     buffers with 5B headroom + 1B inner content-type + 16B tag tailroom.
+--   * `TlsFastHandshake` wraps `Crypto.Tls.TlsServer` (`tls-server-new` /
+--     `tls-server-feed`) and hands off established traffic keys into a zero-copy
+--     `TlsFastConn`.
+module Net.Tls.Fast where
+
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Core
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Wide
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Key & connection types
+  export TlsAeadKey, tls-aead-key-empty, tls-aead-key-is-valid, tls-aead-key-suite
+  export tls-aead-key-new, tls-aead-key-destroy, tls-aead-key-seq, tls-aead-key-set-seq
+  export tls-aead-key-iv-addr, tls-aead-key-scratch-addr
+  export tls-suite-code-aes128-gcm, tls-suite-code-aes256-gcm, tls-suite-code-chacha20
+
+  -- Zero-alloc in-place nonce & AEAD primitives
+  export tls-fast-nonce
+  export tls-fast-aes128-gcm-seal-in-place, tls-fast-aes128-gcm-open-in-place
+  export tls-fast-aes256-gcm-seal-in-place, tls-fast-aes256-gcm-open-in-place
+  export tls-fast-chacha20-poly1305-seal-in-place, tls-fast-chacha20-poly1305-open-in-place
+  export tls-fast-aead-seal-in-place, tls-fast-aead-open-in-place
+
+  -- Zero-copy TLS 1.3 record framing
+  export TlsFastRecord, tls-fast-record-ok, tls-fast-record-addr, tls-fast-record-len, tls-fast-record-type
+  export tls-fast-record-seal-in-place, tls-fast-record-open-in-place
+
+  -- Zero-copy connection & Crypto.Tls server handshake handoff
+  export TlsFastConn, tls-fast-conn-empty, tls-fast-conn-from-keys, tls-fast-conn-destroy, tls-fast-conn-is-valid
+  export tls-fast-conn-tx-key, tls-fast-conn-rx-key
+  export tls-fast-conn-seal-in-place, tls-fast-conn-open-in-place
+  export TlsFastHandshake, tls-fast-server-new, tls-fast-server-feed
+  export tls-fast-server-handshake-complete, tls-fast-server-state
+  export tls-fast-server-handoff-keys, tls-fast-server-handoff-exported
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] helpers & DMA slab layout constants
+  -- =========================================================================
+
+  -- DMA key slab layout (4096 bytes, 16-byte aligned):
+  --   offset   0..240 : AES round keys rk0..rk14 (15 x 16B; AES-128 uses 0..176)
+  --   offset 240..256 : GHASH subkey H = AES_K(0^128) (16B)
+  --   offset 256..288 : ChaCha20 key (k0 at 256, k1 at 272; 32B)
+  --   offset 288..304 : 12-byte static IV + 4 zero bytes
+  --   offset 304..320 : 16-byte scratch nonce / J0 slot
+  --   offset 320..328 : U64 sequence number
+  #[inline(always)]
+  #[no-alloc]
+  slab-bytes :: U64
+  slab-bytes = 4096
+
+  #[inline(always)]
+  #[no-alloc]
+  off-ghash-h :: I64
+  off-ghash-h = 240
+
+  #[inline(always)]
+  #[no-alloc]
+  off-chacha-k0 :: I64
+  off-chacha-k0 = 256
+
+  #[inline(always)]
+  #[no-alloc]
+  off-chacha-k1 :: I64
+  off-chacha-k1 = 272
+
+  #[inline(always)]
+  #[no-alloc]
+  off-static-iv :: I64
+  off-static-iv = 288
+
+  #[inline(always)]
+  #[no-alloc]
+  off-scratch-nonce :: I64
+  off-scratch-nonce = 304
+
+  #[inline(always)]
+  #[no-alloc]
+  off-seq :: I64
+  off-seq = 320
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-suite-code-aes128-gcm :: U8
+  tls-suite-code-aes128-gcm = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-suite-code-aes256-gcm :: U8
+  tls-suite-code-aes256-gcm = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-suite-code-chacha20 :: U8
+  tls-suite-code-chacha20 = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  na-true :: Bool
+  na-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  na-false :: Bool
+  na-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  na-and :: Bool -> Bool -> Bool
+  na-and a b = if a then b else na-false
+
+  #[inline(always)]
+  #[no-alloc]
+  na-or :: Bool -> Bool -> Bool
+  na-or a b = if a then na-true else b
+
+  -- =========================================================================
+  -- 1. Unboxed POD handles (`TlsAeadKey`, `TlsFastRecord`, `TlsFastConn`)
+  -- =========================================================================
+
+  -- | Pre-expanded TLS 1.3 AEAD traffic key stored in a page-aligned DMA slab.
+  -- 16-byte `#[repr(C, value)]` POD record: zero heap allocs & zero RC traffic.
+  #[repr(C, value)]
+  record TlsAeadKey where
+    aead-dma-base :: U64
+    aead-suite :: U8
+    aead-hw-aes :: U8
+    aead-hw-clmul :: U8
+    aead-pad :: U8
+    aead-slab-size :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-aead-key-empty :: Unit -> TlsAeadKey
+  tls-aead-key-empty _ = TlsAeadKey 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-aead-key-is-valid :: TlsAeadKey -> Bool
+  tls-aead-key-is-valid k = ne-u64 k.aead-dma-base 0
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-aead-key-suite :: TlsAeadKey -> U8
+  tls-aead-key-suite k = k.aead-suite
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-aead-key-iv-addr :: TlsAeadKey -> I64
+  tls-aead-key-iv-addr k = wrapping-add-i64 (wrapping-u64-to-i64 k.aead-dma-base) off-static-iv
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-aead-key-scratch-addr :: TlsAeadKey -> I64
+  tls-aead-key-scratch-addr k = wrapping-add-i64 (wrapping-u64-to-i64 k.aead-dma-base) off-scratch-nonce
+
+  #[inline(never)]
+  #[no-alloc]
+  tls-aead-key-seq :: TlsAeadKey ->{MVar} U64
+  tls-aead-key-seq k =
+    if eq-u64 k.aead-dma-base 0 then 0
+    else raw-load-u64 (wrapping-add-i64 (wrapping-u64-to-i64 k.aead-dma-base) off-seq)
+
+  #[inline(never)]
+  #[no-alloc]
+  tls-aead-key-set-seq :: TlsAeadKey -> U64 ->{MVar} Unit
+  tls-aead-key-set-seq k seq =
+    if eq-u64 k.aead-dma-base 0 then ()
+    else raw-store-u64 (wrapping-add-i64 (wrapping-u64-to-i64 k.aead-dma-base) off-seq) seq
+
+  -- | Result of zero-copy in-place TLS 1.3 record opening (16-byte POD).
+  #[repr(C, value)]
+  record TlsFastRecord where
+    rec-addr :: I64
+    rec-payload-len :: U32
+    rec-inner-type :: U8
+    rec-ok :: U8
+    rec-pad :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-record-err :: Unit -> TlsFastRecord
+  tls-fast-record-err _ = TlsFastRecord 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-record-ok :: TlsFastRecord -> Bool
+  tls-fast-record-ok r = ne-u8 r.rec-ok 0
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-record-addr :: TlsFastRecord -> I64
+  tls-fast-record-addr r = r.rec-addr
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-record-len :: TlsFastRecord -> U32
+  tls-fast-record-len r = r.rec-payload-len
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-record-type :: TlsFastRecord -> U8
+  tls-fast-record-type r = r.rec-inner-type
+
+  -- | Bidirectional zero-copy TLS 1.3 connection holding TX and RX DMA slabs (24-byte flat POD).
+  #[repr(C, value)]
+  record TlsFastConn where
+    conn-tx-base :: U64
+    conn-rx-base :: U64
+    conn-suite :: U8
+    conn-hw-aes :: U8
+    conn-hw-clmul :: U8
+    conn-pad :: U8
+    conn-slab-size :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-conn-empty :: Unit -> TlsFastConn
+  tls-fast-conn-empty _ = TlsFastConn 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-conn-is-valid :: TlsFastConn -> Bool
+  tls-fast-conn-is-valid c = na-and (ne-u64 c.conn-tx-base 0) (ne-u64 c.conn-rx-base 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-conn-tx-key :: TlsFastConn -> TlsAeadKey
+  tls-fast-conn-tx-key c =
+    TlsAeadKey c.conn-tx-base c.conn-suite c.conn-hw-aes c.conn-hw-clmul 0 c.conn-slab-size
+
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-conn-rx-key :: TlsFastConn -> TlsAeadKey
+  tls-fast-conn-rx-key c =
+    TlsAeadKey c.conn-rx-base c.conn-suite c.conn-hw-aes c.conn-hw-clmul 0 c.conn-slab-size
+
+  -- =========================================================================
+  -- 2. Constant-time portable & hardware AES-128 / AES-256 block cipher (#[no-alloc])
+  -- =========================================================================
+
+  -- | Bit-sliced GF(2^8) inversion over all 16 byte lanes in parallel (Canright normal basis).
+  #[no-alloc]
+  gf256-inv-na :: U128 -> U128
+  gf256-inv-na v =
+    let m01 = simd-u8x16-splat 1 in
+    let x0 = bit-and-u128 v m01 in
+    let x1 = bit-and-u128 (wrapping-shr-u128 v 1) m01 in
+    let x2 = bit-and-u128 (wrapping-shr-u128 v 2) m01 in
+    let x3 = bit-and-u128 (wrapping-shr-u128 v 3) m01 in
+    let x4 = bit-and-u128 (wrapping-shr-u128 v 4) m01 in
+    let x5 = bit-and-u128 (wrapping-shr-u128 v 5) m01 in
+    let x6 = bit-and-u128 (wrapping-shr-u128 v 6) m01 in
+    let x7 = bit-and-u128 (wrapping-shr-u128 v 7) m01 in
+    let u03 = bit-xor-u128 x0 x3 in
+    let u034 = bit-xor-u128 u03 x4 in
+    let u67 = bit-xor-u128 x6 x7 in
+    let u15 = bit-xor-u128 x1 x5 in
+    let a3 = bit-xor-u128 u03 u67 in
+    let a2 = bit-xor-u128 u034 u67 in
+    let a1 = bit-xor-u128 u03 u15 in
+    let a0 = bit-xor-u128 (bit-xor-u128 u03 x2) x7 in
+    let b3 = u034 in
+    let b2 = bit-xor-u128 (bit-xor-u128 u034 u15) x6 in
+    let b1 = bit-xor-u128 (bit-xor-u128 x0 x2) x5 in
+    let b0 = bit-xor-u128 (bit-xor-u128 x0 x4) x6 in
+    let ab3 = bit-xor-u128 a3 b3 in
+    let ab2 = bit-xor-u128 a2 b2 in
+    let ab1 = bit-xor-u128 a1 b1 in
+    let ab0 = bit-xor-u128 a0 b0 in
+    let s3 = bit-xor-u128 ab2 ab3 in
+    let s2 = ab2 in
+    let s1 = bit-xor-u128 ab2 ab0 in
+    let s0 = bit-xor-u128 ab3 ab1 in
+    let ah1 = bit-xor-u128 a3 a1 in
+    let ah0 = bit-xor-u128 a2 a0 in
+    let bh1 = bit-xor-u128 b3 b1 in
+    let bh0 = bit-xor-u128 b2 b0 in
+    let at = bit-xor-u128 a3 a2 in
+    let al = bit-xor-u128 a1 a0 in
+    let bt = bit-xor-u128 b3 b2 in
+    let bl = bit-xor-u128 b1 b0 in
+    let ah = bit-xor-u128 ah1 ah0 in
+    let bh = bit-xor-u128 bh1 bh0 in
+    let p00 = bit-and-u128 ah0 bh0 in
+    let p1 = bit-xor-u128 (bit-and-u128 ah bh) p00 in
+    let p0 = bit-xor-u128 (bit-and-u128 ah1 bh1) p00 in
+    let mh = bit-and-u128 at bt in
+    let ml = bit-and-u128 al bl in
+    let n3 = bit-xor-u128 (bit-xor-u128 mh (bit-and-u128 a3 b3)) (bit-xor-u128 p1 s3) in
+    let n2 = bit-xor-u128 (bit-xor-u128 mh (bit-and-u128 a2 b2)) (bit-xor-u128 p0 s2) in
+    let n1 = bit-xor-u128 (bit-xor-u128 ml (bit-and-u128 a1 b1)) (bit-xor-u128 p1 s1) in
+    let n0 = bit-xor-u128 (bit-xor-u128 ml (bit-and-u128 a0 b0)) (bit-xor-u128 p0 s0) in
+    let d1 = bit-xor-u128 n3 n1 in
+    let d0 = bit-xor-u128 n2 n0 in
+    let nh = bit-xor-u128 n3 n2 in
+    let nl = bit-xor-u128 n1 n0 in
+    let nt = bit-and-u128 nh nl in
+    let inv0 = bit-xor-u128 (bit-xor-u128 nt (bit-and-u128 n3 n1)) d1 in
+    let inv1 = bit-xor-u128 (bit-xor-u128 nt (bit-and-u128 n2 n0)) (bit-xor-u128 d0 d1) in
+    let inv10 = bit-xor-u128 inv1 inv0 in
+    let j1 = bit-and-u128 inv10 nl in
+    let j0 = bit-and-u128 inv10 nh in
+    let i3 = bit-xor-u128 j1 (bit-and-u128 inv1 n1) in
+    let i2 = bit-xor-u128 j1 (bit-and-u128 inv0 n0) in
+    let i1 = bit-xor-u128 j0 (bit-and-u128 inv1 n3) in
+    let i0 = bit-xor-u128 j0 (bit-and-u128 inv0 n2) in
+    let ih1 = bit-xor-u128 i3 i1 in
+    let ih0 = bit-xor-u128 i2 i0 in
+    let ih = bit-xor-u128 ih1 ih0 in
+    let itop = bit-xor-u128 i3 i2 in
+    let ibot = bit-xor-u128 i1 i0 in
+    let qb00 = bit-and-u128 ih0 bh0 in
+    let qb1 = bit-xor-u128 (bit-and-u128 ih bh) qb00 in
+    let qb0 = bit-xor-u128 (bit-and-u128 ih1 bh1) qb00 in
+    let qbh = bit-and-u128 itop bt in
+    let qbl = bit-and-u128 ibot bl in
+    let o7 = bit-xor-u128 (bit-xor-u128 qbh (bit-and-u128 i3 b3)) qb1 in
+    let o6 = bit-xor-u128 (bit-xor-u128 qbh (bit-and-u128 i2 b2)) qb0 in
+    let o5 = bit-xor-u128 (bit-xor-u128 qbl (bit-and-u128 i1 b1)) qb1 in
+    let o4 = bit-xor-u128 (bit-xor-u128 qbl (bit-and-u128 i0 b0)) qb0 in
+    let qa00 = bit-and-u128 ih0 ah0 in
+    let qa1 = bit-xor-u128 (bit-and-u128 ih ah) qa00 in
+    let qa0 = bit-xor-u128 (bit-and-u128 ih1 ah1) qa00 in
+    let qah = bit-and-u128 itop at in
+    let qal = bit-and-u128 ibot al in
+    let o3 = bit-xor-u128 (bit-xor-u128 qah (bit-and-u128 i3 a3)) qa1 in
+    let o2 = bit-xor-u128 (bit-xor-u128 qah (bit-and-u128 i2 a2)) qa0 in
+    let o1 = bit-xor-u128 (bit-xor-u128 qal (bit-and-u128 i1 a1)) qa1 in
+    let o0 = bit-xor-u128 (bit-xor-u128 qal (bit-and-u128 i0 a0)) qa0 in
+    let v76 = bit-xor-u128 o7 o6 in
+    let v52 = bit-xor-u128 o5 o2 in
+    let v75 = bit-xor-u128 o7 o5 in
+    let v410 = bit-xor-u128 o4 (bit-xor-u128 o1 o0) in
+    let y0 = bit-xor-u128 v52 o0 in
+    let y1 = bit-xor-u128 (bit-xor-u128 v75 o3) v410 in
+    let y2 = bit-xor-u128 (bit-xor-u128 o6 o4) v52 in
+    let y3 = bit-xor-u128 (bit-xor-u128 v76 v52) (bit-xor-u128 o3 o0) in
+    let y4 = v76 in
+    let y5 = bit-xor-u128 o6 v410 in
+    let y6 = bit-xor-u128 v76 v52 in
+    let y7 = bit-xor-u128 (bit-xor-u128 v75 o3) o2 in
+    let lo4 = bit-or-u128 (bit-or-u128 y0 (wrapping-shl-u128 y1 1)) (bit-or-u128 (wrapping-shl-u128 y2 2) (wrapping-shl-u128 y3 3)) in
+    let hi4 = bit-or-u128 (bit-or-u128 (wrapping-shl-u128 y4 4) (wrapping-shl-u128 y5 5)) (bit-or-u128 (wrapping-shl-u128 y6 6) (wrapping-shl-u128 y7 7)) in
+    bit-or-u128 lo4 hi4
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-byte-rotl-na :: U128 -> U32 -> U32 -> U8 -> U8 -> U128
+  aes-byte-rotl-na v shl shr hi lo =
+    bit-or-u128
+      (bit-and-u128 (wrapping-shl-u128 v shl) (simd-u8x16-splat hi))
+      (bit-and-u128 (wrapping-shr-u128 v shr) (simd-u8x16-splat lo))
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-sub-bytes-na :: U128 -> U128
+  aes-sub-bytes-na v =
+    let inv = gf256-inv-na v in
+    let t = bit-xor-u128 inv (aes-byte-rotl-na inv 1 7 254 1) in
+    let u = bit-xor-u128 t (aes-byte-rotl-na t 2 6 252 3) in
+    bit-xor-u128 (bit-xor-u128 u (aes-byte-rotl-na inv 4 4 240 15)) (simd-u8x16-splat 99)
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-shift-rows-na :: U128 -> U128
+  aes-shift-rows-na v =
+    let r0 = bit-and-u128 v (simd-u32x4-splat 255) in
+    let r1 = bit-and-u128 (rotate-right-u128 v 32) (simd-u32x4-splat 65280) in
+    let r2 = bit-and-u128 (rotate-right-u128 v 64) (simd-u32x4-splat 16711680) in
+    let r3 = bit-and-u128 (rotate-right-u128 v 96) (simd-u32x4-splat 4278190080) in
+    bit-or-u128 (bit-or-u128 r0 r1) (bit-or-u128 r2 r3)
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-xtime-na :: U128 -> U128
+  aes-xtime-na v =
+    let doubled = simd-u8x16-add v v in
+    let high = simd-u8x16-cmpgt v (simd-u8x16-splat 127) in
+    bit-xor-u128 doubled (bit-and-u128 high (simd-u8x16-splat 27))
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-mix-columns-na :: U128 -> U128
+  aes-mix-columns-na v =
+    let r1 = simd-u32x4-rotr v 8 in
+    let r2 = simd-u32x4-rotr v 16 in
+    let r3 = simd-u32x4-rotr v 24 in
+    bit-xor-u128 (bit-xor-u128 (aes-xtime-na (bit-xor-u128 v r1)) r1) (bit-xor-u128 r2 r3)
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-portable-round :: U128 -> U128 -> U128
+  aes-portable-round state rk =
+    bit-xor-u128 (aes-mix-columns-na (aes-shift-rows-na (aes-sub-bytes-na state))) rk
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-portable-last :: U128 -> U128 -> U128
+  aes-portable-last state rk =
+    bit-xor-u128 (aes-shift-rows-na (aes-sub-bytes-na state)) rk
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-enc10-loop :: I64 -> U8 -> U32 -> U128 ->{MVar} U128
+  aes-enc10-loop base hw-aes r st =
+    let rk = raw-load-u128 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 r) 4)) in
+    if eq-u32 r 10 then
+      if ne-u8 hw-aes 0 then aes-enc-last st rk else aes-portable-last st rk
+    else
+      let next = if ne-u8 hw-aes 0 then aes-enc-round st rk else aes-portable-round st rk in
+      aes-enc10-loop base hw-aes (wrapping-add-u32 r 1) next
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-enc14-loop :: I64 -> U8 -> U32 -> U128 ->{MVar} U128
+  aes-enc14-loop base hw-aes r st =
+    let rk = raw-load-u128 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 r) 4)) in
+    if eq-u32 r 14 then
+      if ne-u8 hw-aes 0 then aes-enc-last st rk else aes-portable-last st rk
+    else
+      let next = if ne-u8 hw-aes 0 then aes-enc-round st rk else aes-portable-round st rk in
+      aes-enc14-loop base hw-aes (wrapping-add-u32 r 1) next
+
+  #[inline(always)]
+  #[no-alloc]
+  aes-encrypt-block-dma :: I64 -> U8 -> U8 -> U128 ->{MVar} U128
+  aes-encrypt-block-dma base suite hw-aes block =
+    let st0 = bit-xor-u128 block (raw-load-u128 base) in
+    if eq-u8 suite tls-suite-code-aes256-gcm then aes-enc14-loop base hw-aes 1 st0
+    else aes-enc10-loop base hw-aes 1 st0
+
+  -- =========================================================================
+  -- 3. AES-128 / AES-256 key expansion directly into DMA slab (setup time)
+  -- =========================================================================
+
+  #[no-alloc]
+  aes-rcon :: U32 -> U32
+  aes-rcon i =
+    if le-u32 i 1 then 1
+    else if eq-u32 i 2 then 2
+    else if eq-u32 i 3 then 4
+    else if eq-u32 i 4 then 8
+    else if eq-u32 i 5 then 16
+    else if eq-u32 i 6 then 32
+    else if eq-u32 i 7 then 64
+    else if eq-u32 i 8 then 128
+    else if eq-u32 i 9 then 27
+    else 54
+
+  #[no-alloc]
+  aes-sub-word :: U32 -> U32
+  aes-sub-word w = wrapping-u128-to-u32 (aes-sub-bytes-na (u32-to-u128 w))
+
+  #[no-alloc]
+  expand-aes128-dma :: I64 -> U32 ->{MVar} Unit
+  expand-aes128-dma base i =
+    if ge-u32 i 44 then ()
+    else
+      let prev = raw-load-u32 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 (wrapping-sub-u32 i 1)) 2)) in
+      let back = raw-load-u32 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 (wrapping-sub-u32 i 4)) 2)) in
+      let rem4 = bit-and-u32 i 3 in
+      let temp = (if eq-u32 rem4 0 then bit-xor-u32 (aes-sub-word (rotate-right-u32 prev 8)) (aes-rcon (wrapping-shr-u32 i 2)) else prev) in
+      let _ = raw-store-u32 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 i) 2)) (bit-xor-u32 back temp) in
+      expand-aes128-dma base (wrapping-add-u32 i 1)
+
+  #[no-alloc]
+  expand-aes256-dma :: I64 -> U32 ->{MVar} Unit
+  expand-aes256-dma base i =
+    if ge-u32 i 60 then ()
+    else
+      let prev = raw-load-u32 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 (wrapping-sub-u32 i 1)) 2)) in
+      let back = raw-load-u32 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 (wrapping-sub-u32 i 8)) 2)) in
+      let rem8 = bit-and-u32 i 7 in
+      let temp = (if eq-u32 rem8 0 then bit-xor-u32 (aes-sub-word (rotate-right-u32 prev 8)) (aes-rcon (wrapping-shr-u32 i 3)) else if eq-u32 rem8 4 then aes-sub-word prev else prev) in
+      let _ = raw-store-u32 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 i) 2)) (bit-xor-u32 back temp) in
+      expand-aes256-dma base (wrapping-add-u32 i 1)
+
+  -- =========================================================================
+  -- 4. Constant-time GHASH (hardware PCLMULQDQ/PMULL + portable fallback)
+  -- =========================================================================
+
+  #[no-alloc]
+  bmul64-na :: U64 -> U64 -> U64
+  bmul64-na x y =
+    let x0 = bit-and-u64 x 1229782938247303441 in
+    let x1 = bit-and-u64 x 2459565876494606882 in
+    let x2 = bit-and-u64 x 4919131752989213764 in
+    let x3 = bit-and-u64 x 9838263505978427528 in
+    let y0 = bit-and-u64 y 1229782938247303441 in
+    let y1 = bit-and-u64 y 2459565876494606882 in
+    let y2 = bit-and-u64 y 4919131752989213764 in
+    let y3 = bit-and-u64 y 9838263505978427528 in
+    let z0 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y0) (wrapping-mul-u64 x1 y3)) (bit-xor-u64 (wrapping-mul-u64 x2 y2) (wrapping-mul-u64 x3 y1))) 1229782938247303441 in
+    let z1 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y1) (wrapping-mul-u64 x1 y0)) (bit-xor-u64 (wrapping-mul-u64 x2 y3) (wrapping-mul-u64 x3 y2))) 2459565876494606882 in
+    let z2 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y2) (wrapping-mul-u64 x1 y1)) (bit-xor-u64 (wrapping-mul-u64 x2 y0) (wrapping-mul-u64 x3 y3))) 4919131752989213764 in
+    let z3 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y3) (wrapping-mul-u64 x1 y2)) (bit-xor-u64 (wrapping-mul-u64 x2 y1) (wrapping-mul-u64 x3 y0))) 9838263505978427528 in
+    bit-or-u64 (bit-or-u64 z0 z1) (bit-or-u64 z2 z3)
+
+  #[no-alloc]
+  ghash-reduce-na :: U64 -> U64 -> U64 -> U64 -> U128
+  ghash-reduce-na w0 w1 w2 w3 =
+    let p3 = bit-or-u64 (wrapping-shl-u64 w3 1) (wrapping-shr-u64 w2 63) in
+    let p2 = bit-or-u64 (wrapping-shl-u64 w2 1) (wrapping-shr-u64 w1 63) in
+    let p1 = bit-or-u64 (wrapping-shl-u64 w1 1) (wrapping-shr-u64 w0 63) in
+    let p0 = wrapping-shl-u64 w0 1 in
+    let q2 = bit-xor-u64 p2 (bit-xor-u64 (bit-xor-u64 p0 (wrapping-shr-u64 p0 1)) (bit-xor-u64 (wrapping-shr-u64 p0 2) (wrapping-shr-u64 p0 7))) in
+    let q1 = bit-xor-u64 p1 (bit-xor-u64 (bit-xor-u64 (wrapping-shl-u64 p0 63) (wrapping-shl-u64 p0 62)) (wrapping-shl-u64 p0 57)) in
+    let r3 = bit-xor-u64 p3 (bit-xor-u64 (bit-xor-u64 q1 (wrapping-shr-u64 q1 1)) (bit-xor-u64 (wrapping-shr-u64 q1 2) (wrapping-shr-u64 q1 7))) in
+    let r2 = bit-xor-u64 q2 (bit-xor-u64 (bit-xor-u64 (wrapping-shl-u64 q1 63) (wrapping-shl-u64 q1 62)) (wrapping-shl-u64 q1 57)) in
+    swap-bytes-u128 (simd-u64x2-pack r2 r3)
+
+  #[no-alloc]
+  ghash-mul-portable :: U128 -> U128 -> U128
+  ghash-mul-portable a b =
+    let g1 = swap-bytes-u128 a in
+    let g2 = swap-bytes-u128 b in
+    let a0 = wrapping-u128-to-u64 g1 in
+    let a1 = wrapping-u128-to-u64 (wrapping-shr-u128 g1 64) in
+    let b0 = wrapping-u128-to-u64 g2 in
+    let b1 = wrapping-u128-to-u64 (wrapping-shr-u128 g2 64) in
+    let rb0 = reverse-bits-u64 b0 in
+    let rb1 = reverse-bits-u64 b1 in
+    let b2 = bit-xor-u64 b0 b1 in
+    let rb2 = bit-xor-u64 rb0 rb1 in
+    let ra0 = reverse-bits-u64 a0 in
+    let ra1 = reverse-bits-u64 a1 in
+    let a2 = bit-xor-u64 a0 a1 in
+    let ra2 = bit-xor-u64 ra0 ra1 in
+    let z0l = bmul64-na a0 b0 in
+    let z2l = bmul64-na a1 b1 in
+    let z1l = bmul64-na a2 b2 in
+    let z0h = bmul64-na ra0 rb0 in
+    let z2h = bmul64-na ra1 rb1 in
+    let z1h = bmul64-na ra2 rb2 in
+    let m1l = bit-xor-u64 z1l (bit-xor-u64 z0l z2l) in
+    let m1h = bit-xor-u64 z1h (bit-xor-u64 z0h z2h) in
+    let h0 = wrapping-shr-u64 (reverse-bits-u64 z0h) 1 in
+    let h2 = wrapping-shr-u64 (reverse-bits-u64 z2h) 1 in
+    let h1 = wrapping-shr-u64 (reverse-bits-u64 m1h) 1 in
+    ghash-reduce-na z0l (bit-xor-u64 h0 m1l) (bit-xor-u64 z2l h1) h2
+
+  #[no-alloc]
+  ghash-mul-clmul :: U128 -> U128 -> U128
+  ghash-mul-clmul a b =
+    let g1 = swap-bytes-u128 a in
+    let g2 = swap-bytes-u128 b in
+    let a0 = wrapping-u128-to-u64 g1 in
+    let a1 = wrapping-u128-to-u64 (wrapping-shr-u128 g1 64) in
+    let b0 = wrapping-u128-to-u64 g2 in
+    let b1 = wrapping-u128-to-u64 (wrapping-shr-u128 g2 64) in
+    let q0 = clmul-u64 a0 b0 in
+    let q2 = clmul-u64 a1 b1 in
+    let qm = clmul-u64 (bit-xor-u64 a0 a1) (bit-xor-u64 b0 b1) in
+    let mid = bit-xor-u128 qm (bit-xor-u128 q0 q2) in
+    let w0 = wrapping-u128-to-u64 q0 in
+    let w1 = bit-xor-u64 (wrapping-u128-to-u64 (wrapping-shr-u128 q0 64)) (wrapping-u128-to-u64 mid) in
+    let w2 = bit-xor-u64 (wrapping-u128-to-u64 q2) (wrapping-u128-to-u64 (wrapping-shr-u128 mid 64)) in
+    let w3 = wrapping-u128-to-u64 (wrapping-shr-u128 q2 64) in
+    ghash-reduce-na w0 w1 w2 w3
+
+  #[inline(always)]
+  #[no-alloc]
+  ghash-step-na :: U8 -> U128 -> U128 -> U128
+  ghash-step-na hw-clmul h y =
+    if ne-u8 hw-clmul 0 then ghash-mul-clmul y h else ghash-mul-portable y h
+
+  -- =========================================================================
+  -- 5. Zero-alloc raw memory helpers (partial loads, in-place XOR, zeroing)
+  -- =========================================================================
+
+  #[no-alloc]
+  raw-load-partial-u128 :: I64 -> U32 -> U32 -> U128 ->{MVar} U128
+  raw-load-partial-u128 addr i len acc =
+    if ge-u32 i len then acc
+    else
+      let b = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i)) in
+      let shifted = wrapping-shl-u128 (u8-to-u128 b) (wrapping-shl-u32 i 3) in
+      raw-load-partial-u128 addr (wrapping-add-u32 i 1) len (bit-or-u128 acc shifted)
+
+  #[no-alloc]
+  raw-xor-partial-in-place :: I64 -> U32 -> U32 -> U128 ->{MVar} Unit
+  raw-xor-partial-in-place addr i len ks =
+    if ge-u32 i len then ()
+    else
+      let p = wrapping-add-i64 addr (u32-to-i64 i) in
+      let b = raw-load-u8 p in
+      let k = wrapping-u128-to-u8 ks in
+      let _ = raw-store-u8 p (bit-xor-u8 b k) in
+      raw-xor-partial-in-place addr (wrapping-add-u32 i 1) len (wrapping-shr-u128 ks 8)
+
+  #[no-alloc]
+  raw-zero-bytes :: I64 -> U32 -> U32 ->{MVar} Unit
+  raw-zero-bytes addr i len =
+    if ge-u32 i len then ()
+    else if le-u32 (wrapping-add-u32 i 16) len then
+      let _ = raw-store-u128 (wrapping-add-i64 addr (u32-to-i64 i)) 0 in
+      raw-zero-bytes addr (wrapping-add-u32 i 16) len
+    else
+      let _ = raw-store-u8 (wrapping-add-i64 addr (u32-to-i64 i)) 0 in
+      raw-zero-bytes addr (wrapping-add-u32 i 1) len
+
+  -- =========================================================================
+  -- 6. Zero-alloc TLS 1.3 Nonce & AES-GCM In-Place Seal / Open
+  -- =========================================================================
+
+  -- | XOR 64-bit big-endian `seq` into the last 8 bytes of the 12-byte static IV
+  -- stored at `iv-addr`, writing the 12-byte per-record nonce directly into
+  -- `out-nonce-addr` with zero heap allocations.
+  #[inline(always)]
+  #[no-alloc]
+  tls-fast-nonce :: I64 -> U64 -> I64 ->{MVar} Unit
+  tls-fast-nonce iv-addr seq out-nonce-addr =
+    let w0 = raw-load-u32 iv-addr in
+    let w1 = raw-load-u64 (wrapping-add-i64 iv-addr 4) in
+    let x1 = bit-xor-u64 w1 (swap-bytes-u64 seq) in
+    let _ = raw-store-u32 out-nonce-addr w0 in
+    raw-store-u64 (wrapping-add-i64 out-nonce-addr 4) x1
+
+  -- | Build AES-GCM J0 block (`nonce[0..12] || 0x00000001`) in scratch slot.
+  #[inline(always)]
+  #[no-alloc]
+  gcm-j0-from-key :: TlsAeadKey -> U64 ->{MVar} U128
+  gcm-j0-from-key key seq =
+    let base = wrapping-u64-to-i64 key.aead-dma-base in
+    let iv-addr = wrapping-add-i64 base off-static-iv in
+    let scratch = wrapping-add-i64 base off-scratch-nonce in
+    let _ = tls-fast-nonce iv-addr seq scratch in
+    let _ = raw-store-u32 (wrapping-add-i64 scratch 12) (swap-bytes-u32 1) in
+    raw-load-u128 scratch
+
+  -- | Increment the big-endian 32-bit counter in bytes 12..15 of a GCM counter block.
+  #[inline(always)]
+  #[no-alloc]
+  gcm-inc32 :: U128 -> U128
+  gcm-inc32 block =
+    let mask96 = wrapping-sub-u128 (wrapping-shl-u128 1 96) 1 in
+    let low = bit-and-u128 block mask96 in
+    let word = wrapping-u128-to-u32 (wrapping-shr-u128 block 96) in
+    let next = swap-bytes-u32 (wrapping-add-u32 (swap-bytes-u32 word) 1) in
+    bit-or-u128 low (wrapping-shl-u128 (u32-to-u128 next) 96)
+
+  -- | Absorb a raw DMA buffer `[addr .. addr + len)` into GHASH accumulator `y`.
+  #[no-alloc]
+  ghash-dma :: U8 -> U128 -> U128 -> I64 -> U32 -> U32 ->{MVar} U128
+  ghash-dma hw-clmul h y addr off len =
+    if ge-u32 off len then y
+    else
+      let rem = wrapping-sub-u32 len off in
+      if ge-u32 rem 16 then
+        let blk = raw-load-u128 (wrapping-add-i64 addr (u32-to-i64 off)) in
+        let y1 = ghash-step-na hw-clmul h (bit-xor-u128 y blk) in
+        ghash-dma hw-clmul h y1 addr (wrapping-add-u32 off 16) len
+      else
+        let blk = raw-load-partial-u128 (wrapping-add-i64 addr (u32-to-i64 off)) 0 rem 0 in
+        ghash-step-na hw-clmul h (bit-xor-u128 y blk)
+
+  #[inline(always)]
+  #[no-alloc]
+  ghash-length-block :: U32 -> U32 -> U128
+  ghash-length-block aad-len ct-len =
+    let aad-bits = wrapping-shl-u64 (u32-to-u64 aad-len) 3 in
+    let ct-bits = wrapping-shl-u64 (u32-to-u64 ct-len) 3 in
+    bit-or-u128
+      (u64-to-u128 (swap-bytes-u64 aad-bits))
+      (wrapping-shl-u128 (u64-to-u128 (swap-bytes-u64 ct-bits)) 64)
+
+  -- | In-place GCTR encryption/decryption over `[buf-addr .. buf-addr + len)`.
+  #[no-alloc]
+  gctr-dma-in-place :: I64 -> U8 -> U8 -> U128 -> I64 -> U32 -> U32 ->{MVar} Unit
+  gctr-dma-in-place key-base suite hw-aes ctr buf-addr off len =
+    if ge-u32 off len then ()
+    else
+      let rem = wrapping-sub-u32 len off in
+      let ks = aes-encrypt-block-dma key-base suite hw-aes ctr in
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      if ge-u32 rem 16 then
+        let v = raw-load-u128 p in
+        let _ = raw-store-u128 p (bit-xor-u128 v ks) in
+        gctr-dma-in-place key-base suite hw-aes (gcm-inc32 ctr) buf-addr (wrapping-add-u32 off 16) len
+      else
+        raw-xor-partial-in-place p 0 rem ks
+
+  -- | Compute the 16-byte GCM authentication tag over `(aad, ct)` under `j0`.
+  #[no-alloc]
+  gcm-tag-dma :: TlsAeadKey -> U128 -> I64 -> U32 -> I64 -> U32 ->{MVar} U128
+  gcm-tag-dma key j0 ct-addr ct-len aad-addr aad-len =
+    let base = wrapping-u64-to-i64 key.aead-dma-base in
+    let h = raw-load-u128 (wrapping-add-i64 base off-ghash-h) in
+    let ya = ghash-dma key.aead-hw-clmul h 0 aad-addr 0 aad-len in
+    let yc = ghash-dma key.aead-hw-clmul h ya ct-addr 0 ct-len in
+    let s = ghash-step-na key.aead-hw-clmul h (bit-xor-u128 yc (ghash-length-block aad-len ct-len)) in
+    bit-xor-u128 s (aes-encrypt-block-dma base key.aead-suite key.aead-hw-aes j0)
+
+  -- | In-place AES-GCM seal (shared by AES-128-GCM and AES-256-GCM).
+  #[no-alloc]
+  gcm-seal-in-place-core :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  gcm-seal-in-place-core key seq buf-addr len aad-addr aad-len =
+    let base = wrapping-u64-to-i64 key.aead-dma-base in
+    let j0 = gcm-j0-from-key key seq in
+    let _ = gctr-dma-in-place base key.aead-suite key.aead-hw-aes (gcm-inc32 j0) buf-addr 0 len in
+    let tag = gcm-tag-dma key j0 buf-addr len aad-addr aad-len in
+    let _ = raw-store-u128 (wrapping-add-i64 buf-addr (u32-to-i64 len)) tag in
+    na-true
+
+  -- | In-place AES-GCM open: verifies 16-byte tag at `buf-addr + len` in constant
+  -- time before decrypting; zeroes `buf-addr[0..len]` on authentication failure.
+  #[no-alloc]
+  gcm-open-in-place-core :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  gcm-open-in-place-core key seq buf-addr len aad-addr aad-len =
+    let base = wrapping-u64-to-i64 key.aead-dma-base in
+    let j0 = gcm-j0-from-key key seq in
+    let expected = gcm-tag-dma key j0 buf-addr len aad-addr aad-len in
+    let received = raw-load-u128 (wrapping-add-i64 buf-addr (u32-to-i64 len)) in
+    let diff = bit-xor-u128 expected received in
+    if eq-u128 diff 0 then
+      let _ = gctr-dma-in-place base key.aead-suite key.aead-hw-aes (gcm-inc32 j0) buf-addr 0 len in
+      na-true
+    else
+      let _ = raw-zero-bytes buf-addr 0 len in
+      na-false
+
+  -- | Encrypt `len` bytes in-place at `buf-addr` with AES-128-GCM and write the
+  -- 16-byte authentication tag immediately at `buf-addr + len`. Zero heap allocs.
+  #[no-alloc]
+  tls-fast-aes128-gcm-seal-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-aes128-gcm-seal-in-place key seq buf-addr len aad-addr aad-len =
+    if na-and (ne-u64 key.aead-dma-base 0) (eq-u8 key.aead-suite tls-suite-code-aes128-gcm) then
+      gcm-seal-in-place-core key seq buf-addr len aad-addr aad-len
+    else na-false
+
+  -- | Verify 16-byte AES-128-GCM tag at `buf-addr + len` in constant time and
+  -- decrypt `len` bytes in-place at `buf-addr`. Zeroes buffer on auth failure.
+  #[no-alloc]
+  tls-fast-aes128-gcm-open-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-aes128-gcm-open-in-place key seq buf-addr len aad-addr aad-len =
+    if na-and (ne-u64 key.aead-dma-base 0) (eq-u8 key.aead-suite tls-suite-code-aes128-gcm) then
+      gcm-open-in-place-core key seq buf-addr len aad-addr aad-len
+    else na-false
+
+  -- | Encrypt `len` bytes in-place at `buf-addr` with AES-256-GCM and write the
+  -- 16-byte authentication tag immediately at `buf-addr + len`. Zero heap allocs.
+  #[no-alloc]
+  tls-fast-aes256-gcm-seal-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-aes256-gcm-seal-in-place key seq buf-addr len aad-addr aad-len =
+    if na-and (ne-u64 key.aead-dma-base 0) (eq-u8 key.aead-suite tls-suite-code-aes256-gcm) then
+      gcm-seal-in-place-core key seq buf-addr len aad-addr aad-len
+    else na-false
+
+  -- | Verify 16-byte AES-256-GCM tag at `buf-addr + len` in constant time and
+  -- decrypt `len` bytes in-place at `buf-addr`. Zeroes buffer on auth failure.
+  #[no-alloc]
+  tls-fast-aes256-gcm-open-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-aes256-gcm-open-in-place key seq buf-addr len aad-addr aad-len =
+    if na-and (ne-u64 key.aead-dma-base 0) (eq-u8 key.aead-suite tls-suite-code-aes256-gcm) then
+      gcm-open-in-place-core key seq buf-addr len aad-addr aad-len
+    else na-false
+
+  -- =========================================================================
+  -- 7. Zero-alloc ChaCha20-Poly1305 In-Place Seal / Open over DMA buffers
+  -- =========================================================================
+
+  -- | Unboxed 3-limb Poly1305 accumulator (24-byte POD, zero heap allocation).
+  #[repr(C, value)]
+  record PolyState where
+    poly-h0 :: U64
+    poly-h1 :: U64
+    poly-h2 :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  chacha-sigma-row :: U128
+  chacha-sigma-row = simd-u32x4-pack 1634760805 857760878 2036477234 1797285236
+
+  #[inline(always)]
+  #[no-alloc]
+  chacha-counter-row-dma :: U32 -> I64 ->{MVar} U128
+  chacha-counter-row-dma counter nonce-addr =
+    let n0 = raw-load-u32 nonce-addr in
+    let n1 = raw-load-u32 (wrapping-add-i64 nonce-addr 4) in
+    let n2 = raw-load-u32 (wrapping-add-i64 nonce-addr 8) in
+    simd-u32x4-pack counter n0 n1 n2
+
+  #[inline(always)]
+  #[no-alloc]
+  chacha-bump :: U128 -> U128
+  chacha-bump row3 = simd-u32x4-add row3 (u64-to-u128 1)
+
+  #[no-alloc]
+  chacha-xor-full-dma :: I64 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> I64 ->{MVar} Unit
+  chacha-xor-full-dma rem i0 i1 i2 i3 a b c d p =
+    if eq-i64 rem 0 then
+      let s0 = simd-u32x4-add a i0 in
+      let s1 = simd-u32x4-add b i1 in
+      let s2 = simd-u32x4-add c i2 in
+      let s3 = simd-u32x4-add d i3 in
+      let _ = raw-store-u128 p (bit-xor-u128 (raw-load-u128 p) s0) in
+      let p16 = wrapping-add-i64 p 16 in
+      let _ = raw-store-u128 p16 (bit-xor-u128 (raw-load-u128 p16) s1) in
+      let p32 = wrapping-add-i64 p 32 in
+      let _ = raw-store-u128 p32 (bit-xor-u128 (raw-load-u128 p32) s2) in
+      let p48 = wrapping-add-i64 p 48 in
+      raw-store-u128 p48 (bit-xor-u128 (raw-load-u128 p48) s3)
+    else
+      let a1 = simd-u32x4-add a b in
+      let d1 = simd-u32x4-rotl (bit-xor-u128 d a1) 16 in
+      let c1 = simd-u32x4-add c d1 in
+      let b1 = simd-u32x4-rotl (bit-xor-u128 b c1) 12 in
+      let a2 = simd-u32x4-add a1 b1 in
+      let d2 = simd-u32x4-rotl (bit-xor-u128 d1 a2) 8 in
+      let c2 = simd-u32x4-add c1 d2 in
+      let b2 = simd-u32x4-rotl (bit-xor-u128 b1 c2) 7 in
+      let b3 = rotate-left-u128 b2 96 in
+      let c3 = rotate-left-u128 c2 64 in
+      let d3 = rotate-left-u128 d2 32 in
+      let a4 = simd-u32x4-add a2 b3 in
+      let d4 = simd-u32x4-rotl (bit-xor-u128 d3 a4) 16 in
+      let c4 = simd-u32x4-add c3 d4 in
+      let b4 = simd-u32x4-rotl (bit-xor-u128 b3 c4) 12 in
+      let a5 = simd-u32x4-add a4 b4 in
+      let d5 = simd-u32x4-rotl (bit-xor-u128 d4 a5) 8 in
+      let c5 = simd-u32x4-add c4 d5 in
+      let b5 = simd-u32x4-rotl (bit-xor-u128 b4 c5) 7 in
+      let b6 = rotate-left-u128 b5 32 in
+      let c6 = rotate-left-u128 c5 64 in
+      let d6 = rotate-left-u128 d5 96 in
+      chacha-xor-full-dma (wrapping-sub-i64 rem 1) i0 i1 i2 i3 a5 b6 c6 d6 p
+
+  #[no-alloc]
+  xor-row-dma :: I64 -> U32 -> U32 -> U128 ->{MVar} Unit
+  xor-row-dma p off len ks =
+    if ge-u32 off len then ()
+    else
+      let rem = wrapping-sub-u32 len off in
+      let dst = wrapping-add-i64 p (u32-to-i64 off) in
+      if ge-u32 rem 16 then
+        raw-store-u128 dst (bit-xor-u128 (raw-load-u128 dst) ks)
+      else
+        raw-xor-partial-in-place dst 0 rem ks
+
+  #[no-alloc]
+  chacha-xor-tail-dma :: I64 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> I64 -> U32 ->{MVar} Unit
+  chacha-xor-tail-dma rem i0 i1 i2 i3 a b c d p rem-len =
+    if eq-i64 rem 0 then
+      let s0 = simd-u32x4-add a i0 in
+      let s1 = simd-u32x4-add b i1 in
+      let s2 = simd-u32x4-add c i2 in
+      let s3 = simd-u32x4-add d i3 in
+      let _ = xor-row-dma p 0 rem-len s0 in
+      let _ = xor-row-dma p 16 rem-len s1 in
+      let _ = xor-row-dma p 32 rem-len s2 in
+      xor-row-dma p 48 rem-len s3
+    else
+      let a1 = simd-u32x4-add a b in
+      let d1 = simd-u32x4-rotl (bit-xor-u128 d a1) 16 in
+      let c1 = simd-u32x4-add c d1 in
+      let b1 = simd-u32x4-rotl (bit-xor-u128 b c1) 12 in
+      let a2 = simd-u32x4-add a1 b1 in
+      let d2 = simd-u32x4-rotl (bit-xor-u128 d1 a2) 8 in
+      let c2 = simd-u32x4-add c1 d2 in
+      let b2 = simd-u32x4-rotl (bit-xor-u128 b1 c2) 7 in
+      let b3 = rotate-left-u128 b2 96 in
+      let c3 = rotate-left-u128 c2 64 in
+      let d3 = rotate-left-u128 d2 32 in
+      let a4 = simd-u32x4-add a2 b3 in
+      let d4 = simd-u32x4-rotl (bit-xor-u128 d3 a4) 16 in
+      let c4 = simd-u32x4-add c3 d4 in
+      let b4 = simd-u32x4-rotl (bit-xor-u128 b3 c4) 12 in
+      let a5 = simd-u32x4-add a4 b4 in
+      let d5 = simd-u32x4-rotl (bit-xor-u128 d4 a5) 8 in
+      let c5 = simd-u32x4-add c4 d5 in
+      let b5 = simd-u32x4-rotl (bit-xor-u128 b4 c5) 7 in
+      let b6 = rotate-left-u128 b5 32 in
+      let c6 = rotate-left-u128 c5 64 in
+      let d6 = rotate-left-u128 d5 96 in
+      chacha-xor-tail-dma (wrapping-sub-i64 rem 1) i0 i1 i2 i3 a5 b6 c6 d6 p rem-len
+
+  #[no-alloc]
+  chacha-xor-dma-loop :: U128 -> U128 -> U128 -> U128 -> I64 -> U32 -> U32 ->{MVar} Unit
+  chacha-xor-dma-loop r0 k0 k1 row3 buf-addr off len =
+    if ge-u32 off len then ()
+    else
+      let rem = wrapping-sub-u32 len off in
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      if ge-u32 rem 64 then
+        let _ = chacha-xor-full-dma 10 r0 k0 k1 row3 r0 k0 k1 row3 p in
+        chacha-xor-dma-loop r0 k0 k1 (chacha-bump row3) buf-addr (wrapping-add-u32 off 64) len
+      else
+        chacha-xor-tail-dma 10 r0 k0 k1 row3 r0 k0 k1 row3 p rem
+
+  #[inline(always)]
+  #[no-alloc]
+  poly-step-na :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> PolyState
+  poly-step-na r0 r1 s1 h0 h1 h2 m0 m1 hibit =
+    let t0 = wrapping-add-u128 (u64-to-u128 h0) (u64-to-u128 m0) in
+    let a0 = wrapping-u128-to-u64 t0 in
+    let t1 = wrapping-add-u128 (wrapping-add-u128 (u64-to-u128 h1) (u64-to-u128 m1)) (wrapping-shr-u128 t0 64) in
+    let a1 = wrapping-u128-to-u64 t1 in
+    let a2 = wrapping-add-u64 (wrapping-add-u64 h2 hibit) (wrapping-u128-to-u64 (wrapping-shr-u128 t1 64)) in
+    let ua0 = u64-to-u128 a0 in
+    let ua1 = u64-to-u128 a1 in
+    let d0 = wrapping-add-u128 (wrapping-mul-u128 ua0 (u64-to-u128 r0)) (wrapping-mul-u128 ua1 (u64-to-u128 s1)) in
+    let p0 = wrapping-u128-to-u64 d0 in
+    let d1a = wrapping-add-u128 (wrapping-mul-u128 ua0 (u64-to-u128 r1)) (wrapping-mul-u128 ua1 (u64-to-u128 r0)) in
+    let d1b = wrapping-add-u128 (u64-to-u128 (wrapping-mul-u64 a2 s1)) (wrapping-shr-u128 d0 64) in
+    let d1 = wrapping-add-u128 d1a d1b in
+    let p1 = wrapping-u128-to-u64 d1 in
+    let d2 = wrapping-add-u64 (wrapping-mul-u64 a2 r0) (wrapping-u128-to-u64 (wrapping-shr-u128 d1 64)) in
+    let h2lo = bit-and-u64 d2 3 in
+    let c = wrapping-shr-u64 d2 2 in
+    let fivec = wrapping-add-u64 c (wrapping-shl-u64 c 2) in
+    let u0 = wrapping-add-u128 (u64-to-u128 p0) (u64-to-u128 fivec) in
+    let nh0 = wrapping-u128-to-u64 u0 in
+    let u1 = wrapping-add-u128 (u64-to-u128 p1) (wrapping-shr-u128 u0 64) in
+    let nh1 = wrapping-u128-to-u64 u1 in
+    let nh2 = wrapping-add-u64 h2lo (wrapping-u128-to-u64 (wrapping-shr-u128 u1 64)) in
+    PolyState nh0 nh1 nh2
+
+  #[no-alloc]
+  poly-absorb-dma :: I64 -> U64 -> U64 -> U64 -> I64 -> U32 -> U32 -> U64 -> U64 -> U64 ->{MVar} Unit
+  poly-absorb-dma scratch r0 r1 s1 addr off len h0 h1 h2 =
+    if ge-u32 off len then
+      let _ = raw-store-u64 scratch h0 in
+      let _ = raw-store-u64 (wrapping-add-i64 scratch 8) h1 in
+      raw-store-u64 (wrapping-add-i64 scratch 16) h2
+    else
+      let rem = wrapping-sub-u32 len off in
+      let p = wrapping-add-i64 addr (u32-to-i64 off) in
+      if ge-u32 rem 16 then
+        let m = raw-load-u128 p in
+        let m0 = wrapping-u128-to-u64 m in
+        let m1 = wrapping-u128-to-u64 (wrapping-shr-u128 m 64) in
+        let st = poly-step-na r0 r1 s1 h0 h1 h2 m0 m1 1 in
+        poly-absorb-dma scratch r0 r1 s1 addr (wrapping-add-u32 off 16) len st.poly-h0 st.poly-h1 st.poly-h2
+      else
+        let m = raw-load-partial-u128 p 0 rem 0 in
+        let m0 = wrapping-u128-to-u64 m in
+        let m1 = wrapping-u128-to-u64 (wrapping-shr-u128 m 64) in
+        let st = poly-step-na r0 r1 s1 h0 h1 h2 m0 m1 1 in
+        let _ = raw-store-u64 scratch st.poly-h0 in
+        let _ = raw-store-u64 (wrapping-add-i64 scratch 8) st.poly-h1 in
+        raw-store-u64 (wrapping-add-i64 scratch 16) st.poly-h2
+
+  #[inline(always)]
+  #[no-alloc]
+  poly-finish-na :: U64 -> U64 -> U64 -> U128 -> U128
+  poly-finish-na h0 h1 h2 s =
+    let c = wrapping-shr-u64 h2 2 in
+    let f2lo = bit-and-u64 h2 3 in
+    let fivec = wrapping-add-u64 c (wrapping-shl-u64 c 2) in
+    let t0 = wrapping-add-u128 (u64-to-u128 h0) (u64-to-u128 fivec) in
+    let f0 = wrapping-u128-to-u64 t0 in
+    let t1 = wrapping-add-u128 (u64-to-u128 h1) (wrapping-shr-u128 t0 64) in
+    let f1 = wrapping-u128-to-u64 t1 in
+    let f2 = wrapping-add-u64 f2lo (wrapping-u128-to-u64 (wrapping-shr-u128 t1 64)) in
+    let g0t = wrapping-add-u128 (u64-to-u128 f0) (u64-to-u128 5) in
+    let g0 = wrapping-u128-to-u64 g0t in
+    let g1t = wrapping-add-u128 (u64-to-u128 f1) (wrapping-shr-u128 g0t 64) in
+    let g1 = wrapping-u128-to-u64 g1t in
+    let g2 = wrapping-add-u64 f2 (wrapping-u128-to-u64 (wrapping-shr-u128 g1t 64)) in
+    let mask = wrapping-neg-u64 (wrapping-shr-u64 g2 2) in
+    let nmask = bit-not-u64 mask in
+    let o0 = bit-or-u64 (bit-and-u64 g0 mask) (bit-and-u64 f0 nmask) in
+    let o1 = bit-or-u64 (bit-and-u64 g1 mask) (bit-and-u64 f1 nmask) in
+    wrapping-add-u128 (simd-u64x2-pack o0 o1) s
+
+  #[no-alloc]
+  chacha-poly-tag-rounds :: I64 -> I64 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> I64 -> U32 -> I64 -> U32 ->{MVar} U128
+  chacha-poly-tag-rounds poly-scratch rem i0 i1 i2 i3 a b c d aad-addr aad-len ct-addr ct-len =
+    if eq-i64 rem 0 then
+      let rk = simd-u32x4-add a i0 in
+      let s = simd-u32x4-add b i1 in
+      let r0 = bit-and-u64 (wrapping-u128-to-u64 rk) 1152921487695413247 in
+      let r1 = bit-and-u64 (wrapping-u128-to-u64 (wrapping-shr-u128 rk 64)) 1152921487695413244 in
+      let s1 = wrapping-add-u64 r1 (wrapping-shr-u64 r1 2) in
+      let _ = poly-absorb-dma poly-scratch r0 r1 s1 aad-addr 0 aad-len 0 0 0 in
+      let h0 = raw-load-u64 poly-scratch in
+      let h1 = raw-load-u64 (wrapping-add-i64 poly-scratch 8) in
+      let h2 = raw-load-u64 (wrapping-add-i64 poly-scratch 16) in
+      let _ = poly-absorb-dma poly-scratch r0 r1 s1 ct-addr 0 ct-len h0 h1 h2 in
+      let l0 = raw-load-u64 poly-scratch in
+      let l1 = raw-load-u64 (wrapping-add-i64 poly-scratch 8) in
+      let l2 = raw-load-u64 (wrapping-add-i64 poly-scratch 16) in
+      let st3 = poly-step-na r0 r1 s1 l0 l1 l2 (u32-to-u64 aad-len) (u32-to-u64 ct-len) 1 in
+      poly-finish-na st3.poly-h0 st3.poly-h1 st3.poly-h2 s
+    else
+      let a1 = simd-u32x4-add a b in
+      let d1 = simd-u32x4-rotl (bit-xor-u128 d a1) 16 in
+      let c1 = simd-u32x4-add c d1 in
+      let b1 = simd-u32x4-rotl (bit-xor-u128 b c1) 12 in
+      let a2 = simd-u32x4-add a1 b1 in
+      let d2 = simd-u32x4-rotl (bit-xor-u128 d1 a2) 8 in
+      let c2 = simd-u32x4-add c1 d2 in
+      let b2 = simd-u32x4-rotl (bit-xor-u128 b1 c2) 7 in
+      let b3 = rotate-left-u128 b2 96 in
+      let c3 = rotate-left-u128 c2 64 in
+      let d3 = rotate-left-u128 d2 32 in
+      let a4 = simd-u32x4-add a2 b3 in
+      let d4 = simd-u32x4-rotl (bit-xor-u128 d3 a4) 16 in
+      let c4 = simd-u32x4-add c3 d4 in
+      let b4 = simd-u32x4-rotl (bit-xor-u128 b3 c4) 12 in
+      let a5 = simd-u32x4-add a4 b4 in
+      let d5 = simd-u32x4-rotl (bit-xor-u128 d4 a5) 8 in
+      let c5 = simd-u32x4-add c4 d5 in
+      let b5 = simd-u32x4-rotl (bit-xor-u128 b4 c5) 7 in
+      let b6 = rotate-left-u128 b5 32 in
+      let c6 = rotate-left-u128 c5 64 in
+      let d6 = rotate-left-u128 d5 96 in
+      chacha-poly-tag-rounds poly-scratch (wrapping-sub-i64 rem 1) i0 i1 i2 i3 a5 b6 c6 d6 aad-addr aad-len ct-addr ct-len
+
+  -- | Encrypt `len` bytes in-place at `buf-addr` with ChaCha20-Poly1305 and write
+  -- the 16-byte authentication tag immediately at `buf-addr + len`. Zero heap allocs.
+  #[no-alloc]
+  tls-fast-chacha20-poly1305-seal-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-chacha20-poly1305-seal-in-place key seq buf-addr len aad-addr aad-len =
+    if na-and (ne-u64 key.aead-dma-base 0) (eq-u8 key.aead-suite tls-suite-code-chacha20) then
+      let base = wrapping-u64-to-i64 key.aead-dma-base in
+      let k0 = raw-load-u128 (wrapping-add-i64 base off-chacha-k0) in
+      let k1 = raw-load-u128 (wrapping-add-i64 base off-chacha-k1) in
+      let iv-addr = wrapping-add-i64 base off-static-iv in
+      let nonce-addr = wrapping-add-i64 base off-scratch-nonce in
+      let poly-scratch = wrapping-add-i64 base 336 in
+      let _ = tls-fast-nonce iv-addr seq nonce-addr in
+      let row1 = chacha-counter-row-dma 1 nonce-addr in
+      let _ = chacha-xor-dma-loop chacha-sigma-row k0 k1 row1 buf-addr 0 len in
+      let row0 = chacha-counter-row-dma 0 nonce-addr in
+      let tag = chacha-poly-tag-rounds poly-scratch 10 chacha-sigma-row k0 k1 row0 chacha-sigma-row k0 k1 row0 aad-addr aad-len buf-addr len in
+      let _ = raw-store-u128 (wrapping-add-i64 buf-addr (u32-to-i64 len)) tag in
+      na-true
+    else na-false
+
+  -- | Verify 16-byte ChaCha20-Poly1305 tag at `buf-addr + len` in constant time
+  -- and decrypt `len` bytes in-place at `buf-addr`. Zeroes buffer on auth failure.
+  #[no-alloc]
+  tls-fast-chacha20-poly1305-open-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-chacha20-poly1305-open-in-place key seq buf-addr len aad-addr aad-len =
+    if na-and (ne-u64 key.aead-dma-base 0) (eq-u8 key.aead-suite tls-suite-code-chacha20) then
+      let base = wrapping-u64-to-i64 key.aead-dma-base in
+      let k0 = raw-load-u128 (wrapping-add-i64 base off-chacha-k0) in
+      let k1 = raw-load-u128 (wrapping-add-i64 base off-chacha-k1) in
+      let iv-addr = wrapping-add-i64 base off-static-iv in
+      let nonce-addr = wrapping-add-i64 base off-scratch-nonce in
+      let poly-scratch = wrapping-add-i64 base 336 in
+      let _ = tls-fast-nonce iv-addr seq nonce-addr in
+      let row0 = chacha-counter-row-dma 0 nonce-addr in
+      let expected = chacha-poly-tag-rounds poly-scratch 10 chacha-sigma-row k0 k1 row0 chacha-sigma-row k0 k1 row0 aad-addr aad-len buf-addr len in
+      let received = raw-load-u128 (wrapping-add-i64 buf-addr (u32-to-i64 len)) in
+      let diff = bit-xor-u128 expected received in
+      if eq-u128 diff 0 then
+        let row1 = chacha-counter-row-dma 1 nonce-addr in
+        let _ = chacha-xor-dma-loop chacha-sigma-row k0 k1 row1 buf-addr 0 len in
+        na-true
+      else
+        let _ = raw-zero-bytes buf-addr 0 len in
+        na-false
+    else na-false
+
+  -- | Dispatch in-place AEAD seal according to `key.aead-suite`.
+  #[no-alloc]
+  tls-fast-aead-seal-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-aead-seal-in-place key seq buf-addr len aad-addr aad-len =
+    if eq-u8 key.aead-suite tls-suite-code-aes128-gcm then
+      tls-fast-aes128-gcm-seal-in-place key seq buf-addr len aad-addr aad-len
+    else if eq-u8 key.aead-suite tls-suite-code-aes256-gcm then
+      tls-fast-aes256-gcm-seal-in-place key seq buf-addr len aad-addr aad-len
+    else if eq-u8 key.aead-suite tls-suite-code-chacha20 then
+      tls-fast-chacha20-poly1305-seal-in-place key seq buf-addr len aad-addr aad-len
+    else na-false
+
+  -- | Dispatch in-place AEAD open according to `key.aead-suite`.
+  #[no-alloc]
+  tls-fast-aead-open-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  tls-fast-aead-open-in-place key seq buf-addr len aad-addr aad-len =
+    if eq-u8 key.aead-suite tls-suite-code-aes128-gcm then
+      tls-fast-aes128-gcm-open-in-place key seq buf-addr len aad-addr aad-len
+    else if eq-u8 key.aead-suite tls-suite-code-aes256-gcm then
+      tls-fast-aes256-gcm-open-in-place key seq buf-addr len aad-addr aad-len
+    else if eq-u8 key.aead-suite tls-suite-code-chacha20 then
+      tls-fast-chacha20-poly1305-open-in-place key seq buf-addr len aad-addr aad-len
+    else na-false
+
+  -- =========================================================================
+  -- 8. Zero-Copy TLS 1.3 Record Framing (`rec-addr` = 5B hdr + payload + 1B type + 16B tag)
+  -- =========================================================================
+
+  -- | Seal a plaintext already sitting at `rec-addr + 5` (with 5B headroom and
+  -- 17B tailroom) directly into a wire TLS 1.3 `application_data` record
+  -- (`0x17 0x03 0x03 len_hi len_lo ... inner_type ... tag16`) without copying.
+  -- Returns total wire length (`plaintext-len + 22`) on success, or `0` on error.
+  #[no-alloc]
+  tls-fast-record-seal-in-place :: TlsAeadKey -> U64 -> I64 -> U32 -> U8 ->{MVar} U32
+  tls-fast-record-seal-in-place key seq rec-addr plaintext-len inner-type =
+    if gt-u32 plaintext-len 16384 then 0
+    else if eq-u64 key.aead-dma-base 0 then 0
+    else
+      let inner-len = wrapping-add-u32 plaintext-len 1 in
+      let ct-len = wrapping-add-u32 inner-len 16 in
+      let _ = raw-store-u8 rec-addr 23 in
+      let _ = raw-store-u8 (wrapping-add-i64 rec-addr 1) 3 in
+      let _ = raw-store-u8 (wrapping-add-i64 rec-addr 2) 3 in
+      let _ = raw-store-u8 (wrapping-add-i64 rec-addr 3) (wrapping-u32-to-u8 (wrapping-shr-u32 ct-len 8)) in
+      let _ = raw-store-u8 (wrapping-add-i64 rec-addr 4) (wrapping-u32-to-u8 ct-len) in
+      let body-addr = wrapping-add-i64 rec-addr 5 in
+      let _ = raw-store-u8 (wrapping-add-i64 body-addr (u32-to-i64 plaintext-len)) inner-type in
+      if tls-fast-aead-seal-in-place key seq body-addr inner-len rec-addr 5 then
+        wrapping-add-u32 ct-len 5
+      else 0
+
+  -- | Scan backward past RFC 8446 section 5.4 trailing zero padding bytes to locate
+  -- the inner content-type byte in-place. Returns `(payload_len << 8) | inner_type`,
+  -- or `-1` on format/overflow error.
+  #[inline(never)]
+  #[no-alloc]
+  unpad-inner-dma :: I64 -> U32 ->{MVar} I64
+  unpad-inner-dma body-addr idx =
+    let b = raw-load-u8 (wrapping-add-i64 body-addr (u32-to-i64 idx)) in
+    if ne-u8 b 0 then
+      if gt-u32 idx 16384 then
+        let _ = raw-zero-bytes body-addr 0 (wrapping-add-u32 idx 1) in
+        -1
+      else bit-or-i64 (wrapping-shl-i64 (u32-to-i64 idx) 8) (u8-to-i64 b)
+    else if eq-u32 idx 0 then
+      -1
+    else
+      unpad-inner-dma body-addr (wrapping-sub-u32 idx 1)
+
+  #[inline(never)]
+  #[no-alloc]
+  record-header-inner-len :: I64 -> U32 ->{MVar} U32
+  record-header-inner-len rec-addr wire-len =
+    if lt-u32 wire-len 22 then 0
+    else
+      let b0 = raw-load-u8 rec-addr in
+      let b1 = raw-load-u8 (wrapping-add-i64 rec-addr 1) in
+      let b2 = raw-load-u8 (wrapping-add-i64 rec-addr 2) in
+      let hi = u8-to-u32 (raw-load-u8 (wrapping-add-i64 rec-addr 3)) in
+      let lo = u8-to-u32 (raw-load-u8 (wrapping-add-i64 rec-addr 4)) in
+      let declared = bit-or-u32 (wrapping-shl-u32 hi 8) lo in
+      let body-len = wrapping-sub-u32 wire-len 5 in
+      if eq-u8 b0 23 then
+        if eq-u8 b1 3 then
+          if eq-u8 b2 3 then
+            if eq-u32 declared body-len then
+              if ge-u32 declared 17 then
+                if le-u32 declared 16640 then wrapping-sub-u32 declared 16
+                else 0
+              else 0
+            else 0
+          else 0
+        else 0
+      else 0
+
+  -- | Verify and decrypt a wire TLS 1.3 `application_data` record sitting at
+  -- `[rec-addr .. rec-addr + wire-len)` in-place. On success returns
+  -- `TlsFastRecord` pointing to `rec-addr + 5` with `rec-payload-len` and
+  -- `rec-inner-type`; on failure zeroes payload and returns `rec-ok == 0`.
+  #[no-alloc]
+  tls-fast-record-open-in-place :: TlsAeadKey -> U64 -> I64 -> U32 ->{MVar} TlsFastRecord
+  tls-fast-record-open-in-place key seq rec-addr wire-len =
+    if eq-u64 key.aead-dma-base 0 then tls-fast-record-err ()
+    else
+      let inner-len = record-header-inner-len rec-addr wire-len in
+      if eq-u32 inner-len 0 then tls-fast-record-err ()
+      else
+        let body-addr = wrapping-add-i64 rec-addr 5 in
+        if tls-fast-aead-open-in-place key seq body-addr inner-len rec-addr 5 then
+          let packed = unpad-inner-dma body-addr (wrapping-sub-u32 inner-len 1) in
+          if lt-i64 packed 0 then tls-fast-record-err ()
+          else
+            let plen = wrapping-i64-to-u32 (wrapping-shr-i64 packed 8) in
+            let itype = wrapping-i64-to-u8 (bit-and-i64 packed 255) in
+            TlsFastRecord body-addr plen itype 1 0
+        else tls-fast-record-err ()
+
+  -- =========================================================================
+  -- 9. Key setup, teardown, and bidirectional `TlsFastConn`
+  -- =========================================================================
+
+  copy-bytes-to-dma :: Bytes -> Nat -> I64 -> Nat ->{MVar} Unit
+  copy-bytes-to-dma src i dst n =
+    if i >= n then ()
+    else if i < bytes-len src then
+      let _ = raw-store-u8 (wrapping-add-i64 dst (nat-to-i64 i)) (bytes-get-u8 src i) in
+      copy-bytes-to-dma src (i + 1) dst n
+    else ()
+
+  #[inline(never)]
+  suite-to-code :: TlsCipherSuite -> U8
+  suite-to-code suite = case suite of
+    TlsAes128GcmSha256 -> tls-suite-code-aes128-gcm
+    TlsAes256GcmSha384 -> tls-suite-code-aes256-gcm
+    TlsChacha20Poly1305Sha256 -> tls-suite-code-chacha20
+
+  #[inline(never)]
+  suite-expected-key-len :: U8 -> Nat
+  suite-expected-key-len code =
+    if eq-u8 code tls-suite-code-aes128-gcm then 16 else 32
+
+  #[inline(never)]
+  detect-hw-aes :: Unit -> U8
+  detect-hw-aes _ = if ne-u32 (cpu-has-aes 0) 0 then 1 else 0
+
+  #[inline(never)]
+  detect-hw-clmul :: Unit -> U8
+  detect-hw-clmul _ = if ne-u32 (cpu-has-clmul 0) 0 then 1 else 0
+
+  #[inline(never)]
+  key-lengths-valid :: U8 -> Bytes -> Bytes -> Bool
+  key-lengths-valid code key iv =
+    bytes-len key == suite-expected-key-len code && bytes-len iv == 12
+
+  #[inline(never)]
+  init-aead-dma-slab :: U8 -> U8 -> I64 -> Bytes -> Bytes ->{MVar} Unit
+  init-aead-dma-slab code hw-aes base key iv =
+    let _ = copy-bytes-to-dma iv 0 (wrapping-add-i64 base off-static-iv) 12 in
+    let _ = raw-store-u32 (wrapping-add-i64 base (wrapping-add-i64 off-static-iv 12)) 0 in
+    let _ = raw-store-u64 (wrapping-add-i64 base off-seq) 0 in
+    if eq-u8 code tls-suite-code-chacha20 then
+      copy-bytes-to-dma key 0 (wrapping-add-i64 base off-chacha-k0) 32
+    else if eq-u8 code tls-suite-code-aes128-gcm then
+      let _ = copy-bytes-to-dma key 0 base 16 in
+      let _ = expand-aes128-dma base 4 in
+      let h = aes-encrypt-block-dma base code hw-aes 0 in
+      raw-store-u128 (wrapping-add-i64 base off-ghash-h) h
+    else
+      let _ = copy-bytes-to-dma key 0 base 32 in
+      let _ = expand-aes256-dma base 8 in
+      let h = aes-encrypt-block-dma base code hw-aes 0 in
+      raw-store-u128 (wrapping-add-i64 base off-ghash-h) h
+
+  -- | Allocate and pre-expand a DMA-backed `TlsAeadKey` for `suite`, `key`, and 12-byte `iv`.
+  -- Returns an invalid handle (`tls-aead-key-is-valid k == False`) if key/IV lengths
+  -- are wrong or DMA allocation fails.
+  tls-aead-key-new :: TlsCipherSuite -> Bytes -> Bytes ->{IO, MVar} TlsAeadKey
+  tls-aead-key-new suite key iv =
+    let code = suite-to-code suite in
+    if key-lengths-valid code key iv then
+      let dma = engine-dma-alloc slab-bytes 4096 in
+      if eq-u64 dma 0 then
+        tls-aead-key-empty ()
+      else
+        let base = wrapping-u64-to-i64 dma in
+        let hw-aes = detect-hw-aes () in
+        let hw-clmul = detect-hw-clmul () in
+        let _ = init-aead-dma-slab code hw-aes base key iv in
+        TlsAeadKey dma code hw-aes hw-clmul 0 4096
+    else tls-aead-key-empty ()
+
+  -- | Zero sensitive key material in the DMA slab and unmap it.
+  tls-aead-key-destroy :: TlsAeadKey ->{IO, MVar} IoError
+  tls-aead-key-destroy k =
+    if eq-u64 k.aead-dma-base 0 then IoOk
+    else
+      let _ = raw-zero-bytes (wrapping-u64-to-i64 k.aead-dma-base) 0 384 in
+      engine-dma-free k.aead-dma-base (u32-to-u64 k.aead-slab-size)
+
+  -- | Construct a bidirectional zero-copy `TlsFastConn` from TX and RX key/IV pairs.
+  -- Returns an invalid handle (`tls-fast-conn-is-valid c == False`) on invalid inputs.
+  tls-fast-conn-from-keys :: TlsCipherSuite -> Bytes -> Bytes -> Bytes -> Bytes ->{IO, MVar} TlsFastConn
+  tls-fast-conn-from-keys suite tx-key tx-iv rx-key rx-iv =
+    let tk = tls-aead-key-new suite tx-key tx-iv in
+    if not (tls-aead-key-is-valid tk) then tls-fast-conn-empty ()
+    else
+      let rk = tls-aead-key-new suite rx-key rx-iv in
+      if not (tls-aead-key-is-valid rk) then
+        let _ = tls-aead-key-destroy tk in
+        tls-fast-conn-empty ()
+      else
+        TlsFastConn tk.aead-dma-base rk.aead-dma-base tk.aead-suite tk.aead-hw-aes tk.aead-hw-clmul 0 tk.aead-slab-size
+
+  -- | Zero and free both DMA key slabs of a `TlsFastConn`.
+  tls-fast-conn-destroy :: TlsFastConn ->{IO, MVar} IoError
+  tls-fast-conn-destroy conn =
+    let e1 = tls-aead-key-destroy (tls-fast-conn-tx-key conn) in
+    let e2 = tls-aead-key-destroy (tls-fast-conn-rx-key conn) in
+    if io-error-is-ok e1 then e2 else e1
+
+  -- | Seal an outbound TLS 1.3 record in-place on `conn`, automatically advancing TX seq.
+  #[no-alloc]
+  tls-fast-conn-seal-in-place :: TlsFastConn -> I64 -> U32 -> U8 ->{MVar} U32
+  tls-fast-conn-seal-in-place conn rec-addr plaintext-len inner-type =
+    let tx = tls-fast-conn-tx-key conn in
+    let seq = tls-aead-key-seq tx in
+    let wire-len = tls-fast-record-seal-in-place tx seq rec-addr plaintext-len inner-type in
+    if gt-u32 wire-len 0 then
+      let _ = tls-aead-key-set-seq tx (wrapping-add-u64 seq 1) in
+      wire-len
+    else 0
+
+  -- | Open an inbound TLS 1.3 record in-place on `conn`, automatically advancing RX seq.
+  #[no-alloc]
+  tls-fast-conn-open-in-place :: TlsFastConn -> I64 -> U32 ->{MVar} TlsFastRecord
+  tls-fast-conn-open-in-place conn rec-addr wire-len =
+    let rx = tls-fast-conn-rx-key conn in
+    let seq = tls-aead-key-seq rx in
+    let res = tls-fast-record-open-in-place rx seq rec-addr wire-len in
+    if ne-u8 res.rec-ok 0 then
+      let _ = tls-aead-key-set-seq rx (wrapping-add-u64 seq 1) in
+      res
+    else res
+
+  -- =========================================================================
+  -- 10. `Crypto.Tls` Server Handshake Wrapper & Traffic-Key Handoff
+  -- =========================================================================
+
+  -- | Wrapper driving a `Crypto.Tls.TlsServer` handshake before handing off
+  -- traffic keys to the zero-copy `TlsFastConn` record layer.
+  data TlsFastHandshake where
+    MkTlsFastHandshake :: TlsServer -> TlsFastHandshake
+
+  -- | Start a TLS 1.3 server handshake via `Crypto.Tls.tls-server-new`.
+  tls-fast-server-new :: TlsConfig -> Bytes -> Result TlsError TlsFastHandshake
+  tls-fast-server-new cfg entropy = case tls-server-new cfg entropy of
+    Err e -> Err e
+    Ok srv -> Ok (MkTlsFastHandshake srv)
+
+  -- | Feed incoming handshake wire bytes via `Crypto.Tls.tls-server-feed`.
+  -- Returns `(next-hs, outbound-wire, decrypted-app-data, peer-eof)`.
+  tls-fast-server-feed :: TlsFastHandshake -> Bytes -> Result TlsError (TlsFastHandshake, Bytes, Bytes, Bool)
+  tls-fast-server-feed hs incoming = case hs of
+    MkTlsFastHandshake srv -> case tls-server-feed srv incoming of
+      Err e -> Err e
+      Ok out ->
+        Ok (MkTlsFastHandshake (tls-out-state out), tls-out-wire out, tls-out-data out, tls-out-eof out)
+
+  -- | Return `True` once the underlying `Crypto.Tls.TlsServer` handshake is complete.
+  tls-fast-server-handshake-complete :: TlsFastHandshake -> Bool
+  tls-fast-server-handshake-complete hs = case hs of
+    MkTlsFastHandshake srv -> tls-server-handshake-complete srv
+
+  -- | Inspect the negotiated `TlsConnectionState` of the underlying server.
+  tls-fast-server-state :: TlsFastHandshake -> TlsConnectionState
+  tls-fast-server-state hs = case hs of
+    MkTlsFastHandshake srv -> tls-server-state srv
+
+  -- | Hand off negotiated cipher suite and traffic secrets/keys into a zero-copy
+  -- `TlsFastConn` once `tls-fast-server-handshake-complete` is `True`.
+  -- Returns an invalid `TlsFastConn` if handshake is incomplete or keys invalid.
+  tls-fast-server-handoff-keys :: TlsFastHandshake -> Bytes -> Bytes -> Bytes -> Bytes ->{IO, MVar} TlsFastConn
+  tls-fast-server-handoff-keys hs tx-key tx-iv rx-key rx-iv = case hs of
+    MkTlsFastHandshake srv ->
+      if not (tls-server-handshake-complete srv) then tls-fast-conn-empty ()
+      else
+        let suite = tls-state-cipher-suite (tls-server-state srv) in
+        tls-fast-conn-from-keys suite tx-key tx-iv rx-key rx-iv
+
+  -- | Derive bidirectional zero-copy fast-path traffic keys directly from a
+  -- completed `TlsServer` handshake via RFC 8446 section 7.5 key export.
+  tls-fast-server-handoff-exported :: TlsFastHandshake -> Bytes ->{IO, MVar} TlsFastConn
+  tls-fast-server-handoff-exported hs context = case hs of
+    MkTlsFastHandshake srv ->
+      if not (tls-server-handshake-complete srv) then tls-fast-conn-empty ()
+      else
+        let suite = tls-state-cipher-suite (tls-server-state srv) in
+        let klen = (case suite of TlsAes128GcmSha256 -> 16; _ -> 32) in
+        case tls-server-export-keying-material srv "EXPORTER-cinch-fast-s2c" context klen of
+          Err _ -> tls-fast-conn-empty ()
+          Ok tx-key -> case tls-server-export-keying-material srv "EXPORTER-cinch-fast-s2c-iv" context 12 of
+            Err _ -> tls-fast-conn-empty ()
+            Ok tx-iv -> case tls-server-export-keying-material srv "EXPORTER-cinch-fast-c2s" context klen of
+              Err _ -> tls-fast-conn-empty ()
+              Ok rx-key -> case tls-server-export-keying-material srv "EXPORTER-cinch-fast-c2s-iv" context 12 of
+                Err _ -> tls-fast-conn-empty ()
+                Ok rx-iv -> tls-fast-conn-from-keys suite tx-key tx-iv rx-key rx-iv
