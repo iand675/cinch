@@ -1090,9 +1090,14 @@ module Cinch.Parse where
       (if family == "unroll" then DUnrollHint sp name hint else DInlineHint sp name hint) : (attach-hints name rest prior)
 
   -- ------------------------------------------------------------------
-  -- Test pragmas: #[test], #[test(...)], #[ignore], #[should_fail],
-  -- #[timeout(...)], #[retries(...)], #[tag(...)], #[serial],
-  -- #[test_only], and #[cfg(test)].
+  -- Test & Benchmark pragmas:
+  --   Test:  #[test], #[test(...)], #[ignore], #[should_fail],
+  --          #[timeout(...)], #[retries(...)], #[tag(...)], #[serial],
+  --          #[test_only], #[cfg(test)]
+  --   Bench: #[bench], #[bench(...)], #[group(...)], #[warmup(...)],
+  --          #[measurement(...)], #[samples(...)],
+  --          #[throughput_bytes(...)], #[throughput_elements(...)],
+  --          #[ignore], #[tag(...)], #[bench_only], #[cfg(bench)]
   -- ------------------------------------------------------------------
 
   data ParsedTestOpt where
@@ -1102,12 +1107,26 @@ module Cinch.Parse where
     PTORetries :: Nat -> ParsedTestOpt
     PTOTag :: String -> ParsedTestOpt
     PTOSerial :: ParsedTestOpt
+    PTOGroup :: String -> ParsedTestOpt
+    PTOWarmup :: Nat -> ParsedTestOpt
+    PTOMeasurement :: Nat -> ParsedTestOpt
+    PTOSamples :: Nat -> ParsedTestOpt
+    PTOThroughputBytes :: Nat -> ParsedTestOpt
+    PTOThroughputElements :: Nat -> ParsedTestOpt
 
   data ParsedTestItem where
     PTTest :: List ParsedTestOpt -> ParsedTestItem
     PTTestOnly :: ParsedTestItem
+    PTBench :: List ParsedTestOpt -> ParsedTestItem
+    PTBenchOnly :: ParsedTestItem
     PTOpt :: ParsedTestOpt -> ParsedTestItem
     PTErr :: String -> ParsedTestItem
+
+  data AttrTargetKind where
+    ATKTest :: AttrTargetKind
+    ATKTestOnly :: AttrTargetKind
+    ATKBench :: AttrTargetKind
+    ATKBenchOnly :: AttrTargetKind
 
   parse-attr-nat-chars :: List Char -> Nat -> Option Nat
   parse-attr-nat-chars cs acc = case cs of
@@ -1219,6 +1238,57 @@ module Cinch.Parse where
       Err msg -> Err msg
       Ok opt -> parse-test-options rest (opt : acc)
 
+  parse-bench-option-item :: String -> Result String ParsedTestOpt
+  parse-bench-option-item raw =
+    let t = string-strip raw in
+    case string-index-of "=" t of
+      Some eq ->
+        let key = string-strip (string-take eq t) in
+        let val = string-strip (string-drop (eq + 1) t) in
+        if key == "ignore" then
+          (case parse-attr-string val of
+            Some reason -> Ok (PTOIgnore (Some reason))
+            None -> Err "`ignore = ...` expects a quoted string reason")
+        else if key == "group" then
+          (case parse-attr-string val of
+            Some gp | string-length gp > 0 -> Ok (PTOGroup gp)
+            other -> Err "`group = \"...\"` expects a non-empty quoted string")
+        else if key == "tag" then
+          (case parse-attr-string val of
+            Some tag | string-length tag > 0 -> Ok (PTOTag tag)
+            other -> Err "`tag = \"...\"` expects a non-empty quoted string")
+        else if key == "warmup" || key == "warm_up" then
+          (case parse-attr-nat val of
+            Some ms -> Ok (PTOWarmup ms)
+            None -> Err "`warmup = N` expects a natural millisecond count")
+        else if key == "measurement" || key == "measurement_time" then
+          (case parse-attr-nat val of
+            Some ms | ms > 0 -> Ok (PTOMeasurement ms)
+            other -> Err "`measurement = N` expects a positive millisecond count")
+        else if key == "samples" || key == "sample_size" then
+          (case parse-attr-nat val of
+            Some n | n >= 10 -> Ok (PTOSamples n)
+            other -> Err "`samples = N` expects a sample size of at least 10")
+        else if key == "throughput_bytes" || key == "bytes" then
+          (case parse-attr-nat val of
+            Some n | n > 0 -> Ok (PTOThroughputBytes n)
+            other -> Err "`throughput_bytes = N` expects a positive byte count")
+        else if key == "throughput_elements" || key == "elements" then
+          (case parse-attr-nat val of
+            Some n | n > 0 -> Ok (PTOThroughputElements n)
+            other -> Err "`throughput_elements = N` expects a positive element count")
+        else Err ("unknown `#[bench(...)]` option `" <> key <> "`")
+      None ->
+        if t == "ignore" then Ok (PTOIgnore None)
+        else Err ("unknown `#[bench(...)]` option `" <> t <> "`")
+
+  parse-bench-options :: List String -> List ParsedTestOpt -> Result String (List ParsedTestOpt)
+  parse-bench-options items acc = case items of
+    [] -> Ok (reverse acc)
+    item : rest -> case parse-bench-option-item item of
+      Err msg -> Err msg
+      Ok opt -> parse-bench-options rest (opt : acc)
+
   top-level-attr-eq :: String -> Option Nat
   top-level-attr-eq s = case string-index-of "=" s of
     None -> None
@@ -1243,6 +1313,18 @@ module Cinch.Parse where
           Some (case parse-attr-nat rhs of Some n -> PTOpt (PTORetries n); None -> PTErr "`#[retries = N]` expects a natural number")
         else if head == "tag" then
           Some (case parse-attr-string rhs of Some tg | string-length tg > 0 -> PTOpt (PTOTag tg); other -> PTErr "`#[tag = \"...\"]` expects a non-empty quoted string")
+        else if head == "group" then
+          Some (case parse-attr-string rhs of Some gp | string-length gp > 0 -> PTOpt (PTOGroup gp); other -> PTErr "`#[group = \"...\"]` expects a non-empty quoted string")
+        else if head == "warmup" then
+          Some (case parse-attr-nat rhs of Some ms -> PTOpt (PTOWarmup ms); None -> PTErr "`#[warmup = N]` expects a natural millisecond count")
+        else if head == "measurement" then
+          Some (case parse-attr-nat rhs of Some ms | ms > 0 -> PTOpt (PTOMeasurement ms); other -> PTErr "`#[measurement = N]` expects a positive millisecond count")
+        else if head == "samples" then
+          Some (case parse-attr-nat rhs of Some n | n >= 10 -> PTOpt (PTOSamples n); other -> PTErr "`#[samples = N]` expects at least 10 samples")
+        else if head == "throughput_bytes" then
+          Some (case parse-attr-nat rhs of Some n | n > 0 -> PTOpt (PTOThroughputBytes n); other -> PTErr "`#[throughput_bytes = N]` expects a positive byte count")
+        else if head == "throughput_elements" then
+          Some (case parse-attr-nat rhs of Some n | n > 0 -> PTOpt (PTOThroughputElements n); other -> PTErr "`#[throughput_elements = N]` expects a positive element count")
         else None
       None -> case strip-attr-parens trimmed of
         None -> None
@@ -1256,10 +1338,20 @@ module Cinch.Parse where
                 Err msg -> PTErr msg)
           else if head == "test_only" then
             Some (case arg-opt of None -> PTTestOnly; Some _ -> PTErr "`#[test_only]` takes no arguments")
+          else if head == "bench" then
+            Some (case arg-opt of
+              None -> PTBench []
+              Some "" -> PTBench []
+              Some body -> case parse-bench-options (split-attr-items body) [] of
+                Ok opts -> PTBench opts
+                Err msg -> PTErr msg)
+          else if head == "bench_only" then
+            Some (case arg-opt of None -> PTBenchOnly; Some _ -> PTErr "`#[bench_only]` takes no arguments")
           else if head == "cfg" then
             Some (case arg-opt of
               Some "test" -> PTTestOnly
-              other -> PTErr "`#[cfg(...)]` supports only `#[cfg(test)]`")
+              Some "bench" -> PTBenchOnly
+              other -> PTErr "`#[cfg(...)]` supports only `#[cfg(test)]` and `#[cfg(bench)]`")
           else if head == "ignore" then
             Some (case arg-opt of
               None -> PTOpt (PTOIgnore None)
@@ -1296,38 +1388,115 @@ module Cinch.Parse where
               None -> PTErr "`#[tag(\"...\")]` requires a tag name")
           else if head == "serial" then
             Some (case arg-opt of None -> PTOpt PTOSerial; Some _ -> PTErr "`#[serial]` takes no arguments")
+          else if head == "group" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-string body of
+                Some gp | string-length gp > 0 -> PTOpt (PTOGroup gp)
+                other -> PTErr "`#[group(\"...\")]` expects a non-empty quoted string"
+              None -> PTErr "`#[group(\"...\")]` requires a group name")
+          else if head == "warmup" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some ms -> PTOpt (PTOWarmup ms)
+                None -> PTErr "`#[warmup(N)]` expects a natural millisecond count"
+              None -> PTErr "`#[warmup(N)]` requires a millisecond count")
+          else if head == "measurement" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some ms | ms > 0 -> PTOpt (PTOMeasurement ms)
+                other -> PTErr "`#[measurement(N)]` expects a positive millisecond count"
+              None -> PTErr "`#[measurement(N)]` requires a positive millisecond count")
+          else if head == "samples" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some n | n >= 10 -> PTOpt (PTOSamples n)
+                other -> PTErr "`#[samples(N)]` expects at least 10 samples"
+              None -> PTErr "`#[samples(N)]` requires a sample count")
+          else if head == "throughput_bytes" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some n | n > 0 -> PTOpt (PTOThroughputBytes n)
+                other -> PTErr "`#[throughput_bytes(N)]` expects a positive byte count"
+              None -> PTErr "`#[throughput_bytes(N)]` requires a byte count")
+          else if head == "throughput_elements" then
+            Some (case arg-opt of
+              Some body -> case parse-attr-nat body of
+                Some n | n > 0 -> PTOpt (PTOThroughputElements n)
+                other -> PTErr "`#[throughput_elements(N)]` expects a positive element count"
+              None -> PTErr "`#[throughput_elements(N)]` requires an element count")
           else None
 
-  apply-test-opt :: ParsedTestOpt -> TestSpec -> TestSpec
+  apply-test-opt :: ParsedTestOpt -> TestSpec -> Result String TestSpec
   apply-test-opt opt tspec = case tspec of
     MkTestSpec kind ig igr sf sfe tmo rt ser tags -> case opt of
-      PTOIgnore reason -> MkTestSpec kind True (case reason of Some _ -> reason; None -> igr) sf sfe tmo rt ser tags
-      PTOShouldFail expected -> MkTestSpec kind ig igr True (case expected of Some _ -> expected; None -> sfe) tmo rt ser tags
-      PTOTimeout ms -> MkTestSpec kind ig igr sf sfe (Some ms) rt ser tags
-      PTORetries n -> MkTestSpec kind ig igr sf sfe tmo (Some n) ser tags
-      PTOTag tag -> MkTestSpec kind ig igr sf sfe tmo rt ser (tags <> [tag])
-      PTOSerial -> MkTestSpec kind ig igr sf sfe tmo rt True tags
+      PTOIgnore reason -> Ok (MkTestSpec kind True (case reason of Some _ -> reason; None -> igr) sf sfe tmo rt ser tags)
+      PTOShouldFail expected -> Ok (MkTestSpec kind ig igr True (case expected of Some _ -> expected; None -> sfe) tmo rt ser tags)
+      PTOTimeout ms -> Ok (MkTestSpec kind ig igr sf sfe (Some ms) rt ser tags)
+      PTORetries n -> Ok (MkTestSpec kind ig igr sf sfe tmo (Some n) ser tags)
+      PTOTag tag -> Ok (MkTestSpec kind ig igr sf sfe tmo rt ser (tags <> [tag]))
+      PTOGroup tag -> Ok (MkTestSpec kind ig igr sf sfe tmo rt ser (tags <> [tag]))
+      PTOSerial -> Ok (MkTestSpec kind ig igr sf sfe tmo rt True tags)
+      PTOWarmup _ -> Err "`#[warmup]` applies only to `#[bench]` functions"
+      PTOMeasurement _ -> Err "`#[measurement]` applies only to `#[bench]` functions"
+      PTOSamples _ -> Err "`#[samples]` applies only to `#[bench]` functions"
+      PTOThroughputBytes _ -> Err "`#[throughput_bytes]` applies only to `#[bench]` functions"
+      PTOThroughputElements _ -> Err "`#[throughput_elements]` applies only to `#[bench]` functions"
 
-  apply-test-opts :: List ParsedTestOpt -> TestSpec -> TestSpec
+  apply-test-opts :: List ParsedTestOpt -> TestSpec -> Result String TestSpec
   apply-test-opts opts tspec = case opts of
-    [] -> tspec
-    opt : rest -> apply-test-opts rest (apply-test-opt opt tspec)
+    [] -> Ok tspec
+    opt : rest -> case apply-test-opt opt tspec of
+      Err msg -> Err msg
+      Ok next -> apply-test-opts rest next
 
-  combine-test-items :: List (Span, ParsedTestItem) -> Option TestKind -> List ParsedTestOpt -> Result String (TestKind, List ParsedTestOpt)
+  apply-bench-opt :: ParsedTestOpt -> BenchSpec -> Result String BenchSpec
+  apply-bench-opt opt bspec = case bspec of
+    MkBenchSpec kind ig igr gp tags wm ms ss tb te -> case opt of
+      PTOIgnore reason -> Ok (MkBenchSpec kind True (case reason of Some _ -> reason; None -> igr) gp tags wm ms ss tb te)
+      PTOGroup name -> Ok (MkBenchSpec kind ig igr (Some name) tags wm ms ss tb te)
+      PTOTag tag -> Ok (MkBenchSpec kind ig igr gp (tags <> [tag]) wm ms ss tb te)
+      PTOWarmup n -> Ok (MkBenchSpec kind ig igr gp tags (Some n) ms ss tb te)
+      PTOMeasurement n -> Ok (MkBenchSpec kind ig igr gp tags wm (Some n) ss tb te)
+      PTOSamples n -> Ok (MkBenchSpec kind ig igr gp tags wm ms (Some n) tb te)
+      PTOThroughputBytes n -> Ok (MkBenchSpec kind ig igr gp tags wm ms ss (Some n) None)
+      PTOThroughputElements n -> Ok (MkBenchSpec kind ig igr gp tags wm ms ss None (Some n))
+      PTOShouldFail _ -> Err "`#[should_fail]` applies only to `#[test]` functions"
+      PTOTimeout _ -> Err "`#[timeout]` applies only to `#[test]` functions"
+      PTORetries _ -> Err "`#[retries]` applies only to `#[test]` functions"
+      PTOSerial -> Err "`#[serial]` applies only to `#[test]` functions"
+
+  apply-bench-opts :: List ParsedTestOpt -> BenchSpec -> Result String BenchSpec
+  apply-bench-opts opts bspec = case opts of
+    [] -> Ok bspec
+    opt : rest -> case apply-bench-opt opt bspec of
+      Err msg -> Err msg
+      Ok next -> apply-bench-opts rest next
+
+  combine-test-items :: List (Span, ParsedTestItem) -> Option AttrTargetKind -> List ParsedTestOpt -> Result String (AttrTargetKind, List ParsedTestOpt)
   combine-test-items items kind opts = case items of
     [] -> case kind of
       Some k -> Ok (k, opts)
-      None -> Err "test modifier attributes (`#[ignore]`, `#[should_fail]`, `#[timeout]`, `#[retries]`, `#[tag]`, `#[serial]`) require `#[test]` on the same function"
+      None -> Err "test/bench modifier attributes require `#[test]` or `#[bench]` on the same function"
     (sp, item) : rest -> case item of
       PTErr msg -> Err msg
       PTTest more-opts -> case kind of
-        None -> combine-test-items rest (Some TestCaseKind) (opts <> more-opts)
-        Some TestCaseKind -> Err "duplicate `#[test]` attribute on one function"
-        Some TestOnlyKind -> Err "`#[test]` and `#[test_only]`/`#[cfg(test)]` cannot both appear on one declaration"
+        None -> combine-test-items rest (Some ATKTest) (opts <> more-opts)
+        Some ATKTest -> Err "duplicate `#[test]` attribute on one function"
+        Some ATKTestOnly -> Err "`#[test]` and `#[test_only]`/`#[cfg(test)]` cannot both appear on one declaration"
+        Some _ -> Err "`#[test]` and `#[bench]`/`#[bench_only]` cannot both appear on one declaration"
       PTTestOnly -> case kind of
-        None -> combine-test-items rest (Some TestOnlyKind) opts
-        Some TestCaseKind -> Err "`#[test]` and `#[test_only]`/`#[cfg(test)]` cannot both appear on one declaration"
-        Some TestOnlyKind -> Err "duplicate `#[test_only]`/`#[cfg(test)]` attribute on one declaration"
+        None -> combine-test-items rest (Some ATKTestOnly) opts
+        Some ATKTestOnly -> Err "duplicate `#[test_only]`/`#[cfg(test)]` attribute on one declaration"
+        Some _ -> Err "`#[test_only]`/`#[cfg(test)]` cannot combine with `#[test]` or `#[bench]`"
+      PTBench more-opts -> case kind of
+        None -> combine-test-items rest (Some ATKBench) (opts <> more-opts)
+        Some ATKBench -> Err "duplicate `#[bench]` attribute on one function"
+        Some ATKBenchOnly -> Err "`#[bench]` and `#[bench_only]`/`#[cfg(bench)]` cannot both appear on one declaration"
+        Some _ -> Err "`#[bench]` and `#[test]`/`#[test_only]` cannot both appear on one declaration"
+      PTBenchOnly -> case kind of
+        None -> combine-test-items rest (Some ATKBenchOnly) opts
+        Some ATKBenchOnly -> Err "duplicate `#[bench_only]`/`#[cfg(bench)]` attribute on one declaration"
+        Some _ -> Err "`#[bench_only]`/`#[cfg(bench)]` cannot combine with `#[bench]` or `#[test]`"
       PTOpt opt -> combine-test-items rest kind (opts <> [opt])
 
   test-only-subject :: Decl -> Option String
@@ -1352,13 +1521,13 @@ module Cinch.Parse where
       let site = first-test-span items (decl-span d) in
       case combine-test-items items None [] of
         Err msg -> (DTestAttr site "" (Err msg)) : prior
-        Ok (TestCaseKind, opts) ->
+        Ok (ATKTest, opts) ->
           (case inline-subject d of
             Some name ->
               let base = MkTestSpec TestCaseKind False None False None None None False [] in
-              (DTestAttr site name (Ok (apply-test-opts opts base))) : prior
+              (DTestAttr site name (apply-test-opts opts base)) : prior
             None -> (DTestAttr site "" (Err "`#[test]` must annotate a function declaration")) : prior)
-        Ok (TestOnlyKind, opts) ->
+        Ok (ATKTestOnly, opts) ->
           (case opts of
             _ : _ -> (DTestAttr site "" (Err "test modifier attributes cannot be used with `#[test_only]` or `#[cfg(test)]`")) : prior
             [] -> case test-only-subject d of
@@ -1366,6 +1535,20 @@ module Cinch.Parse where
                 let base = MkTestSpec TestOnlyKind False None False None None None False [] in
                 (DTestAttr site name (Ok base)) : prior
               None -> (DTestAttr site "" (Err "`#[test_only]`/`#[cfg(test)]` must annotate a function or type declaration")) : prior)
+        Ok (ATKBench, opts) ->
+          (case inline-subject d of
+            Some name ->
+              let base = MkBenchSpec BenchCaseKind False None None [] None None None None None in
+              (DBenchAttr site name (apply-bench-opts opts base)) : prior
+            None -> (DBenchAttr site "" (Err "`#[bench]` must annotate a function declaration")) : prior)
+        Ok (ATKBenchOnly, opts) ->
+          (case opts of
+            _ : _ -> (DBenchAttr site "" (Err "benchmark modifier attributes cannot be used with `#[bench_only]` or `#[cfg(bench)]`")) : prior
+            [] -> case test-only-subject d of
+              Some name ->
+                let base = MkBenchSpec BenchOnlyKind False None None [] None None None None None in
+                (DBenchAttr site name (Ok base)) : prior
+              None -> (DBenchAttr site "" (Err "`#[bench_only]`/`#[cfg(bench)]` must annotate a function or type declaration")) : prior)
 
   inline-subject :: Decl -> Option String
   inline-subject d = case d of

@@ -24,9 +24,10 @@ module Cinch.Pipeline where
   import Cinch.Driver (link-and-report, link-only-and-report)
   import Cinch.Ir (emit-checked-diagnostics, emit-checked-program)
   import Cinch.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
-  import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache, discover-tests, emit-runtime-test-harness-for-profile-tuned)
+  import Cinch.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-program-for-profile-tuned, emit-runtime-program-for-profile-cached, emit-runtime-library-artifact-for-profile, emit-runtime-library-artifact-for-profile-tuned, UnitIrCache, empty-unit-ir-cache, discover-tests, emit-runtime-test-harness-for-profile-tuned, discover-benchmarks, emit-runtime-bench-harness-for-profile-tuned)
   import Cinch.Parallel (CompileStrategy, Latency, Throughput, Release, CompileTuning, default-tuning, tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size, tuning-is-latency, tuning-is-throughput, tuning-is-release, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.TestRunner (TestCliConfig, config-list-only, config-no-run, config-leak-check, config-clang, list-tests-output, run-test-suite)
+  import Cinch.BenchRunner (BenchCliConfig, bench-cfg-list-only, bench-cfg-no-run, bench-cfg-leak-check, bench-cfg-opt-level, bench-cfg-clang, list-benchmarks-output, run-benchmark-suite)
   import Cinch.Incremental (ProgramIndex, index-body-count, IncrementalPlan, PlanReuseIr, PlanBodyOnly, PlanFullRebuild, IncrementalSession, empty-incremental-session, plan-incremental-build, record-incremental-success, invalidate-incremental-session, render-ready-event, render-plan-event, render-done-event, render-error-event, render-stats-event)
   import Cinch.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Cinch.PackageWrite (encode-interface-package, encode-object-package)
@@ -1785,6 +1786,185 @@ module Cinch.Pipeline where
               Err (msg, status) -> report-test-failure ir msg status
               Ok (view, checked) ->
                 run-checked-test-harness test-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked
+
+  -- ------------------------------------------------------------------
+  -- Built-in Criterion-style `cinch bench` pipeline driver
+  -- ------------------------------------------------------------------
+
+  report-bench-failure :: forall r. using (io :: Io r) => Path -> String -> Int ->{IO r} Int
+  report-bench-failure ir message status =
+    case ioWrite (string-to-bytes (message <> "\n")) of
+      _ -> write-failure ir message status
+
+  -- If the user's benchmark file imports `Effect.Benchmark` without already
+  -- embedding `module Effect.Benchmark where`, auto-discover `Effect/Benchmark.cinch`
+  -- beside the file or in `seed/prelude/Effect/Benchmark.cinch` so standalone
+  -- benchmark files work out of the box.
+  try-read-first :: forall r. using (io :: Io r) => List Path ->{IO r} Option Bytes
+  try-read-first ps = case ps of
+    [] -> None
+    p : rest -> case fs-read p of
+      Ok bs -> Some bs
+      Err _ -> try-read-first rest
+
+  maybe-bundle-benchmark-lib :: forall r. using (io :: Io r) => String -> Bytes ->{IO r} Bytes
+  maybe-bundle-benchmark-lib source src =
+    case string-from-bytes src of
+      None -> src
+      Some text ->
+        if string-contains "Effect.Benchmark" text && not (string-contains "module Effect.Benchmark where" text) then
+          let src-dir = path-from-string (path-dirname (path-from-string source)) in
+          let candidates =
+                [ path-join src-dir (path-from-string "Effect.Benchmark.cinch")
+                , path-join src-dir (path-from-string "Effect/Benchmark.cinch")
+                , path-from-string "seed/prelude/Effect/Benchmark.cinch"
+                ] in
+          case try-read-first candidates of
+            Some lib-bs -> case string-from-bytes lib-bs of
+              Some lib-txt -> string-to-bytes (lib-txt <> "\n\n" <> text)
+              None -> src
+            None -> src
+        else src
+
+  run-checked-bench-harness :: forall r. using (io :: Io r) => CompileTuning -> BenchCliConfig -> Bool -> Bool -> Bool -> TargetProfile -> Option RuntimeObject -> Option Bytes -> String -> Path -> String -> String -> Bytes -> CheckedProgram ->{IO r, Diverge} Int
+  run-checked-bench-harness tuning cfg inlining debug reclaim profile provider object-code runtime ir executable object-copy src checked =
+    case discover-benchmarks profile checked of
+      Err errors -> report-bench-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+      Ok benches ->
+        if bench-cfg-list-only cfg then
+          case list-benchmarks-output cfg benches of
+            Err msg -> report-bench-failure ir ("cinch bench: filter error: " <> msg) pipeline-bad-args
+            Ok listing -> case ioWrite (string-to-bytes listing) of _ -> pipeline-ok
+        else
+          let use-inline = effective-inlining tuning inlining in
+          let use-debug = debug || bench-cfg-leak-check cfg in
+          let clang = bench-cfg-clang cfg in
+          let opt-flag = "-O" <> nat-to-string (bench-cfg-opt-level cfg) in
+          case clock-monotonic-ns () of
+            t0 ->
+              case emit-runtime-bench-harness-for-profile-tuned tuning profile use-inline use-debug reclaim checked provider of
+                Err errors -> report-bench-failure ir (render-source-diagnostics src errors) pipeline-emit-refused
+                Ok (ir-text, discovered) ->
+                  case fs-write ir (string-to-bytes ir-text) of
+                    Err _ -> report-bench-failure ir "bootstrap.bench: cannot write benchmark harness IR" pipeline-write-failed
+                    Ok _ ->
+                      let triple = profile.triple in
+                      let system-libs = if string-contains "-linux" triple then ["-ldl", "-lpthread", "-lm"] else [] in
+                      case (case object-code of
+                        Some code ->
+                          case refresh-resident-file (path-from-string object-copy) code code of
+                            Err _ -> Err "bootstrap.bench: cannot stage runtime library object"
+                            Ok _ ->
+                              let args = [opt-flag, "-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] <> system-libs in
+                              case process-run (command (path-from-string clang) args) "" of
+                                Ok (0, _) -> Ok ()
+                                other -> Err "bootstrap.bench: clang failed to link benchmark harness binary"
+                        None ->
+                          let args = [opt-flag, "-Wno-override-module", path-to-string ir, runtime, "-o", executable] <> system-libs in
+                          case process-run (command (path-from-string clang) args) "" of
+                            Ok (0, _) -> Ok ()
+                            other -> Err "bootstrap.bench: clang failed to link standalone benchmark harness binary") of
+                        Err msg -> report-bench-failure ir msg pipeline-emit-refused
+                        Ok _ -> case clock-monotonic-ns () of
+                          t1 ->
+                            let compile-ms = if t1 >= t0 then (t1 - t0) / 1000000 else 0 in
+                            if bench-cfg-no-run cfg then
+                              case ioWrite (string-to-bytes ("Compiled benchmark binary: " <> executable <> "\n")) of _ -> pipeline-ok
+                            else run-benchmark-suite cfg executable compile-ms discovered
+
+  bench-source-with-object-tuned :: forall r. using (io :: Io r) => CompileTuning -> BenchCliConfig -> Bool -> Bool -> Bool -> TargetProfile -> String -> String -> String -> String -> String ->{IO r, Diverge} Int
+  bench-source-with-object-tuned tuning cfg inlining debug reclaim profile manifest config runtime prefix source =
+    let ir = path-from-string (prefix <> ".bench.ll") in
+    let executable = prefix <> ".bench.exe" in
+    let object-copy = prefix <> ".bench.library.o" in
+    let bench-tuning = if tuning-is-release tuning then tuning-with-strategy Throughput tuning else tuning in
+    case fs-read (path-from-string source) of
+      Err _ -> report-bench-failure ir ("bootstrap.bench: cannot read source: " <> source) pipeline-read-failed
+      Ok raw-src ->
+        let src = maybe-bundle-benchmark-lib source raw-src in
+        let references = read-interface-inputs manifest in
+        let configuration = read-runtime-object-config config in
+        case (references, configuration) of
+          (Ok inputs, Ok settings) -> (case interface-package-file inputs of
+            Some package | package == settings.object-metadata-file ->
+              (case read-packed-client settings of
+                Err msg -> report-bench-failure ir msg pipeline-interface-failed
+                Ok packed -> case admit-packed-client packed reclaim of
+                  Err msg -> report-bench-failure ir msg pipeline-interface-failed
+                  Ok (admitted, provider, metadata) ->
+                    if not (provider-matches-profile metadata profile) then
+                      report-bench-failure ir "bootstrap.bench: runtime object target mismatch" pipeline-interface-failed
+                    else
+                      let interfaces = admitted.interfaces-members in
+                      let headers = module-name-index (interface-fixity-headers interfaces) in
+                      let parse = \name input -> parse-program-with-index-tuned bench-tuning name input headers in
+                      let check = \bytes program -> check-object-client-tuned bench-tuning profile bytes program admitted in
+                      case checked-object-bytes profile parse check source src of
+                        Err (msg, status) -> report-bench-failure ir msg status
+                        Ok (view, checked) ->
+                          run-checked-bench-harness bench-tuning cfg inlining debug reclaim profile (Some provider) (Some packed.client-code) runtime ir executable object-copy src checked)
+            other ->
+              case load-object-client reclaim references configuration of
+                Err msg -> report-bench-failure ir msg pipeline-interface-failed
+                Ok (admitted, provider, metadata, object-path, object-bytes) ->
+                  if not (provider-matches-profile metadata profile) then
+                    report-bench-failure ir "bootstrap.bench: runtime object target mismatch" pipeline-interface-failed
+                  else
+                    let interfaces = admitted.interfaces-members in
+                    let headers = module-name-index (interface-fixity-headers interfaces) in
+                    let parse = \name input -> parse-program-with-index-tuned bench-tuning name input headers in
+                    let check = \bytes program -> check-object-client-tuned bench-tuning profile bytes program admitted in
+                    case checked-object-bytes profile parse check source src of
+                      Err (msg, status) -> report-bench-failure ir msg status
+                      Ok (view, checked) ->
+                        run-checked-bench-harness bench-tuning cfg inlining debug reclaim profile (Some provider) (Some object-bytes) runtime ir executable object-copy src checked)
+          other ->
+            case load-object-client reclaim references configuration of
+              Err msg -> report-bench-failure ir msg pipeline-interface-failed
+              Ok (admitted, provider, metadata, object-path, object-bytes) ->
+                if not (provider-matches-profile metadata profile) then
+                  report-bench-failure ir "bootstrap.bench: runtime object target mismatch" pipeline-interface-failed
+                else
+                  let interfaces = admitted.interfaces-members in
+                  let headers = module-name-index (interface-fixity-headers interfaces) in
+                  let parse = \name input -> parse-program-with-index-tuned bench-tuning name input headers in
+                  let check = \bytes program -> check-object-client-tuned bench-tuning profile bytes program admitted in
+                  case checked-object-bytes profile parse check source src of
+                    Err (msg, status) -> report-bench-failure ir msg status
+                    Ok (view, checked) ->
+                      run-checked-bench-harness bench-tuning cfg inlining debug reclaim profile (Some provider) (Some object-bytes) runtime ir executable object-copy src checked
+
+  bench-source-standalone-tuned :: forall r. using (io :: Io r) => CompileTuning -> BenchCliConfig -> Bool -> Bool -> Bool -> TargetProfile -> Option String -> String -> String -> String ->{IO r, Diverge} Int
+  bench-source-standalone-tuned tuning cfg inlining debug reclaim profile manifest-opt runtime prefix source =
+    let ir = path-from-string (prefix <> ".bench.ll") in
+    let executable = prefix <> ".bench.exe" in
+    let object-copy = prefix <> ".bench.library.o" in
+    let bench-tuning = if tuning-is-release tuning then tuning-with-strategy Throughput tuning else tuning in
+    case fs-read (path-from-string source) of
+      Err _ -> report-bench-failure ir ("bootstrap.bench: cannot read source: " <> source) pipeline-read-failed
+      Ok raw-src ->
+        let src = maybe-bundle-benchmark-lib source raw-src in
+        case manifest-opt of
+          None ->
+            case parse-program-with-index-tuned bench-tuning source src hash-map-empty of
+              Failed bundle -> report-bench-failure ir (render-bundle bundle) pipeline-parse-failed
+              Parsed program [] -> case target-view-program profile program of
+                Err msg -> report-bench-failure ir msg pipeline-check-refused
+                Ok view -> case checked-source-tuned bench-tuning profile view [] of
+                  Err errors -> report-bench-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+                  Ok checked -> run-checked-bench-harness bench-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked
+              Parsed program errors -> report-bench-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+          Some manifest -> case read-validated-interfaces manifest of
+            Err msg -> report-bench-failure ir ("bootstrap.interfaces: " <> msg) pipeline-interface-failed
+            Ok admitted ->
+              let interfaces = admitted.interfaces-members in
+              let headers = module-name-index (interface-fixity-headers interfaces) in
+              let parse = \name input -> parse-program-with-index-tuned bench-tuning name input headers in
+              let check = \bytes program -> check-object-client-tuned bench-tuning profile bytes program admitted in
+              case checked-object-bytes profile parse check source src of
+                Err (msg, status) -> report-bench-failure ir msg status
+                Ok (view, checked) ->
+                  run-checked-bench-harness bench-tuning cfg inlining debug reclaim profile None None runtime ir executable object-copy src checked
 
   run-verify-codegen-checked :: forall r. using (io :: Io r) => CompileTuning -> TargetProfile -> Option RuntimeObject -> CheckedProgram ->{IO r, Diverge} Int
   run-verify-codegen-checked tuning profile provider checked =

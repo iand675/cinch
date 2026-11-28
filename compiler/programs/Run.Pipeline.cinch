@@ -24,8 +24,9 @@ module Main where
   import Cinch.Report (render-diagnostic)
   import Cinch.Parallel (CompileStrategy, Latency, Throughput, Release, CompileTuning, tuning-with-proof-cache, parse-compile-strategy, parse-nat-word, apply-worker-budget)
   import Cinch.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal, test-source-with-object-tuned, test-source-standalone-tuned, verify-codegen-source-tuned)
+  import Cinch.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal, test-source-with-object-tuned, test-source-standalone-tuned, bench-source-with-object-tuned, bench-source-standalone-tuned, verify-codegen-source-tuned)
   import Cinch.TestRunner (parse-test-cli-args)
+  import Cinch.BenchRunner (parse-bench-cli-args)
   import Cinch.Target (TargetProfile, configured-profile, configure-platform, host-profile, profile-of-triple, profile-with-prim-verify, profile-with-jpl, profile-with-proof-cache, profile-with-replay-only, valid-prim-verify-mode)
   import Data.List (reverse)
   import Data.Path (Path, path-from-string, path-join)
@@ -191,6 +192,7 @@ module Main where
     SubNone :: List String -> Subcommand
     SubLink :: Bool -> List String -> Subcommand
     SubTest :: List String -> Subcommand
+    SubBench :: List String -> Subcommand
     SubVerifyCodegen :: List String -> Subcommand
 
   split-cli :: List String -> List String -> Option TargetProfile -> Option (List String, Option TargetProfile, Subcommand)
@@ -213,6 +215,7 @@ module Main where
       "run" -> Some (reverse acc, check-plat, SubLink True rest)
       "build" -> Some (reverse acc, check-plat, SubLink False rest)
       "test" -> Some (reverse acc, check-plat, SubTest rest)
+      "bench" -> Some (reverse acc, check-plat, SubBench rest)
       "verify-codegen" -> Some (reverse acc, check-plat, SubVerifyCodegen rest)
       "--prim-verify" -> take-value w rest acc check-plat
       "--proof-cache" -> take-value w rest acc check-plat
@@ -457,6 +460,13 @@ module Main where
                             Some _ -> tuning in
                       test-words test-tuning opts.inlining opts.rc-debug opts.reclaim wanted opts.manifest opts.object-config rest
                     _ -> pipeline-bad-args
+                  SubBench rest -> case (opts.roots, opts.mode-selected) of
+                    (None, False) ->
+                      let bench-tuning = case opts.strategy of
+                            None -> CompileTuning Throughput tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only tuning.word-size
+                            Some _ -> tuning in
+                      bench-words bench-tuning True opts.rc-debug opts.reclaim wanted opts.manifest opts.object-config rest
+                    _ -> pipeline-bad-args
                   SubVerifyCodegen rest ->
                     verify-codegen-words tuning wanted opts.manifest opts.object-config rest
                   SubNone words -> case (opts.roots, opts.mode, opts.rc-debug, opts.reclaim, opts.manifest, opts.object-config, words) of
@@ -557,6 +567,60 @@ module Main where
                   Some bits -> profile-with-word-size bits base-profile
                   None -> base-profile in
             verify-codegen-source-tuned tuning profile manifest object-config source
+
+  bench-help-text :: String
+  bench-help-text =
+    "cinch bench - built-in Criterion-style statistical benchmarking runner\n\n"
+    <> "Usage:\n"
+    <> "  cinch [--interfaces MANIFEST --objects CONFIG] bench [OPTIONS...] RUNTIME PREFIX SOURCE [FILTER...]\n\n"
+    <> "Options:\n"
+    <> "  --warm-up-time, --warmup MS       Warm-up duration in milliseconds (default: 500)\n"
+    <> "  --measurement-time MS             Target measurement time in milliseconds (default: 1500)\n"
+    <> "  --sample-size, --samples N        Number of samples to collect (default: 100, min: 10)\n"
+    <> "  --nresamples N                    Bootstrap resample count for 95% CIs (default: 1000)\n"
+    <> "  --noise-threshold PCT             Noise threshold percentage for baseline comparison (default: 2)\n"
+    <> "  --significance-level PCT          p-value significance level in percent (default: 5)\n"
+    <> "  --quick                           Fast sampling preset (100ms warmup, 250ms meas, 20 samples)\n"
+    <> "  -E, --filter-expr EXPR            Filterset: bench(), group(), module(), tag(), ignored(),\n"
+    <> "                                    all(), none(), not/!, and/&, or/|, -\n"
+    <> "  --exact                           Match positional filters exactly\n"
+    <> "  --list / --list-json              List discovered benchmarks without compiling or running\n"
+    <> "  --no-run                          Compile and link benchmark binary without running\n"
+    <> "  --run-ignored default|all|only    Control #[ignore] benchmarks (--ignored / --include-ignored)\n"
+    <> "  --save-baseline NAME              Save samples and estimates as baseline NAME\n"
+    <> "  --baseline NAME                   Compare against saved baseline NAME (Welch t-test + bootstrap CI)\n"
+    <> "  --baseline-dir DIR                Directory for saved baselines (default: .cinch-bench/baselines)\n"
+    <> "  --fail-on-regression              Exit with code 3 if any benchmark significantly regresses\n"
+    <> "  --format human|json|csv           Output format (default: human)\n"
+    <> "  --json-report PATH                Write structured JSON benchmark report\n"
+    <> "  --csv-report PATH                 Write CSV benchmark summary\n"
+    <> "  --html-report PATH                Write self-contained HTML report with SVG CI charts\n"
+    <> "  --opt-level 0|1|2|3               Clang optimization level (default: 2)\n"
+    <> "  --leak-check                      Build with --rc-debug and enforce CINCH_LEAK_CHECK=1\n"
+    <> "  --color auto|always|never         Enable or disable ANSI colors\n"
+    <> "  --clang PATH                      Path to clang executable\n"
+
+  bench-words :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Result String TargetProfile -> Option String -> Option String -> List String ->{IO r, Diverge} Int
+  bench-words tuning inlining debug reclaim wanted manifest object-config words =
+    if has-help-flag words then
+      do
+        _ <- ioWrite (string-to-bytes bench-help-text)
+        0
+    else case parse-bench-cli-args words of
+      Err msg -> do
+        _ <- ioWrite (string-to-bytes ("cinch bench: " <> msg <> "\n"))
+        pipeline-bad-args
+      Ok (cfg, runtime, prefix, source) -> case wanted of
+        Err message -> report-target-refusal (path-from-string prefix) message
+        Ok profile ->
+          if profile.triple /= host-profile.triple then
+            report-target-refusal (path-from-string prefix) "cinch bench requires a host target"
+          else case (manifest, object-config) of
+            (Some contracts, Some provider) ->
+              bench-source-with-object-tuned tuning cfg inlining debug reclaim profile contracts provider runtime prefix source
+            (manifest-opt, None) ->
+              bench-source-standalone-tuned tuning cfg inlining debug reclaim profile manifest-opt runtime prefix source
+            (None, Some _) -> pipeline-bad-args
 
   test-words :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Result String TargetProfile -> Option String -> Option String -> List String ->{IO r, Diverge} Int
   test-words tuning inlining debug reclaim wanted manifest object-config words =

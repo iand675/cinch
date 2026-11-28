@@ -733,10 +733,58 @@ module Cinch.Ast where
     DInlineHint :: Span -> String -> Result String String -> Decl
     DUnrollHint :: Span -> String -> Result String String -> Decl
     DTestAttr :: Span -> String -> Result String TestSpec -> Decl
+    DBenchAttr :: Span -> String -> Result String BenchSpec -> Decl
     DConditional :: Span -> List Expr -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
     DUnmodeled :: Span -> String -> Decl
+
+  data BenchKind where
+    BenchCaseKind :: BenchKind
+    BenchOnlyKind :: BenchKind
+
+  -- Parsed metadata from #[bench], #[bench(...)], #[group(...)], #[warmup(...)],
+  -- #[measurement(...)], #[samples(...)], #[throughput_bytes(...)],
+  -- #[throughput_elements(...)], #[ignore], #[tag(...)], #[bench_only], and
+  -- #[cfg(bench)]. All fields are Share-safe immutable values.
+  data BenchSpec where
+    MkBenchSpec
+      :: BenchKind
+      -> Bool           -- ignored
+      -> Option String  -- ignore reason
+      -> Option String  -- benchmark group name
+      -> List String    -- tags
+      -> Option Nat     -- warmup ms
+      -> Option Nat     -- measurement ms
+      -> Option Nat     -- sample size
+      -> Option Nat     -- throughput bytes
+      -> Option Nat     -- throughput elements
+      -> BenchSpec
+
+  bench-spec-kind :: BenchSpec -> BenchKind
+  bench-spec-kind s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> k
+  bench-spec-is-bench :: BenchSpec -> Bool
+  bench-spec-is-bench s = case bench-spec-kind s of BenchCaseKind -> True; BenchOnlyKind -> False
+  bench-spec-is-bench-only :: BenchSpec -> Bool
+  bench-spec-is-bench-only s = case bench-spec-kind s of BenchOnlyKind -> True; BenchCaseKind -> False
+  bench-spec-ignored :: BenchSpec -> Bool
+  bench-spec-ignored s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> ig
+  bench-spec-ignore-reason :: BenchSpec -> Option String
+  bench-spec-ignore-reason s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> igr
+  bench-spec-group :: BenchSpec -> Option String
+  bench-spec-group s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> gp
+  bench-spec-tags :: BenchSpec -> List String
+  bench-spec-tags s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> tags
+  bench-spec-warmup-ms :: BenchSpec -> Option Nat
+  bench-spec-warmup-ms s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> wm
+  bench-spec-measurement-ms :: BenchSpec -> Option Nat
+  bench-spec-measurement-ms s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> ms
+  bench-spec-sample-size :: BenchSpec -> Option Nat
+  bench-spec-sample-size s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> ss
+  bench-spec-throughput-bytes :: BenchSpec -> Option Nat
+  bench-spec-throughput-bytes s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> tb
+  bench-spec-throughput-elements :: BenchSpec -> Option Nat
+  bench-spec-throughput-elements s = case s of MkBenchSpec k ig igr gp tags wm ms ss tb te -> te
 
   data TestKind where
     TestCaseKind :: TestKind
@@ -837,6 +885,7 @@ module Cinch.Ast where
     DInlineHint s name hint -> s
     DUnrollHint s name hint -> s
     DTestAttr s name tspec -> s
+    DBenchAttr s name bspec -> s
     DUnmodeled s text -> s
 
   -- A declaration's name, where it has one a consumer registers.
@@ -876,6 +925,7 @@ module Cinch.Ast where
     DInlineHint s name hint -> None
     DUnrollHint s name hint -> None
     DTestAttr s name tspec -> None
+    DBenchAttr s name bspec -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
     DSpec s body -> decl-name body
@@ -919,10 +969,17 @@ module Cinch.Ast where
     (DTestAttr sp name (Ok tspec)) : rest -> (sp, name, tspec) : (declaration-test-attrs rest)
     other : rest -> declaration-test-attrs rest
 
+  declaration-bench-attrs :: List Decl -> List (Span, String, BenchSpec)
+  declaration-bench-attrs ds = case ds of
+    [] -> []
+    (DBenchAttr sp name (Ok bspec)) : rest -> (sp, name, bspec) : (declaration-bench-attrs rest)
+    other : rest -> declaration-bench-attrs rest
+
   collect-test-decl-names :: List Decl -> HashMap String Bool -> HashMap String Bool
   collect-test-decl-names ds acc = case ds of
     [] -> acc
     (DTestAttr sp name (Ok tspec)) : rest -> collect-test-decl-names rest (hash-map-insert name True acc)
+    (DBenchAttr sp name (Ok bspec)) : rest -> collect-test-decl-names rest (hash-map-insert name True acc)
     other : rest -> collect-test-decl-names rest acc
 
   is-test-decl-name :: HashMap String Bool -> String -> Bool
@@ -954,6 +1011,7 @@ module Cinch.Ast where
       let more = strip-test-decl-list names rest in
       case d of
         DTestAttr sp name tspec -> more
+        DBenchAttr sp name bspec -> more
         DSig sp name ty -> if is-test-decl-name names name then more else d : more
         DFun sp name clauses -> if is-test-decl-name names name then more else d : more
         DData sp name params ctors -> if is-test-decl-name names name then more else d : more
@@ -1219,6 +1277,7 @@ module Cinch.Ast where
     DInlineHint s name hint -> 0
     DUnrollHint s name hint -> 0
     DTestAttr s name tspec -> 0
+    DBenchAttr s name bspec -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
     DSpec s body -> decl-unmodeled-count body

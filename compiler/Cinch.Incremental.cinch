@@ -168,6 +168,13 @@ module Cinch.Incremental where
         Ok s -> JArr (JStr "Ok") (JArr (JStr (if test-spec-is-test s then "test" else "test_only"))
           (JArr (JBool (test-spec-ignored s)) (JArr (JBool (test-spec-should-fail s))
             (JArr (JBool (test-spec-serial s)) (JArr (str-list-json (test-spec-tags s)) JArrEnd)))))) JArrEnd))
+    DBenchAttr sp name bspec ->
+      JArr (JStr "DBenchAttr") (JArr (JStr name) (JArr (case bspec of
+        Err msg -> JArr (JStr "Err") (JArr (JStr msg) JArrEnd)
+        Ok s -> JArr (JStr "Ok") (JArr (JStr (if bench-spec-is-bench s then "bench" else "bench_only"))
+          (JArr (JBool (bench-spec-ignored s))
+            (JArr (case bench-spec-group s of Some g -> JStr g; None -> JNull)
+              (JArr (str-list-json (bench-spec-tags s)) JArrEnd))))) JArrEnd))
     DUnmodeled sp text -> JArr (JStr "DUnmodeled") (JArr (JStr text) JArrEnd)
     other -> JArr (JStr "DOther") JArrEnd
 

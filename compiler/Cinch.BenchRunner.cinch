@@ -1,0 +1,1252 @@
+-- Cinch.BenchRunner: Criterion-style built-in benchmarking runner for the
+-- self-hosted Cinch compiler.
+--
+-- Architecture:
+--   1. Discovers all #[bench] functions across all modules from the checked
+--      program (supporting `Unit -> a`, `Bencher ->{IO r} BenchOutcome`,
+--      `Criterion ->{IO r} BenchOutcome`, and `Criterion ->{IO r} List BenchOutcome`).
+--   2. Evaluates Criterion filterset expressions (-E / --filter-expr),
+--      positional substring/exact filters, and --run-ignored policy.
+--   3. Compiles and links ONE optimized (-O2 default, configurable via
+--      --opt-level) benchmark harness binary containing all benchmarks.
+--   4. Executes each benchmark sequentially in an isolated OS child process
+--      (preventing CPU/cache contention), collecting raw `(iterations, elapsed_ns)`
+--      samples via the `CINCH_BENCH_*` wire protocol.
+--   5. Runs full Criterion statistical analysis (`Effect.Benchmark.analyze-samples`:
+--      OLS slope + R^2, mean, std. dev., median, MAD, Tukey's fences outliers,
+--      and 95% bootstrap confidence intervals).
+--   6. Supports persistent baselines (`--save-baseline`, `--baseline`,
+--      `--baseline-dir`, `--fail-on-regression`) with Welch's t-test p-values
+--      and bootstrapped % change confidence intervals.
+--   7. Outputs Criterion-style terminal tables (with optional ANSI color),
+--      structured JSON (`--format json` / `--json-report`), CSV
+--      (`--format csv` / `--csv-report`), and self-contained HTML with inline
+--      SVG confidence-interval whisker charts (`--html-report`).
+module Cinch.BenchRunner where
+
+  import Algebra.Semigroup
+  import Cinch.Ast (BenchSpec, bench-spec-ignored, bench-spec-ignore-reason, bench-spec-group, bench-spec-tags, bench-spec-warmup-ms, bench-spec-measurement-ms, bench-spec-sample-size, bench-spec-throughput-bytes, bench-spec-throughput-elements)
+  import Cinch.Document (Json, JObj, JObjEnd, JArr, JArrEnd, JStr, JNum, JBool, JNull, canonical-bytes, parse-json)
+  import Cinch.Parallel (parse-nat-word)
+  import Cinch.RuntimeIr (DiscoveredBench, BenchEntryKind, BKDirect, BKBencher, BKCriterionOne, BKCriterionList, bench-index, bench-module-name, bench-display-name, bench-entry-kind, bench-spec)
+  import Data.Bool
+  import Data.Bytes (bytes-len)
+  import Data.Char (char-code, char-from-code)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.Int (checked-int-to-i64)
+  import Data.List (reverse, map, list-length)
+  import Data.Machine (flt-f64, fle-f64, fgt-f64, div-f64, mul-f64, i64-to-f64, round-f64, saturating-f64-to-i64, abs-f64)
+  import Data.Nat (nat-to-int, checked-nat-from-i64, saturating-sub)
+  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute)
+  import Data.String (unpack, pack, string-compare, string-concat, string-concat-all, string-length, string-to-bytes, string-from-bytes)
+  import Effect.Benchmark
+    ( Throughput, ThroughputNone, ThroughputBytes, ThroughputElements
+    , BenchConfig, MkBenchConfig
+    , BenchSample, MkBenchSample, sample-iterations, sample-elapsed-ns
+    , ConfidenceInterval, ci-lower, ci-point, ci-upper
+    , OutlierSummary, outliers-low-severe, outliers-low-mild, outliers-high-mild, outliers-high-severe, outliers-total-samples, outliers-total-count
+    , BenchStats, stats-slope, stats-r-squared, stats-mean, stats-median, stats-std-dev, stats-mad
+    , stats-min-ns, stats-max-ns, stats-outliers, stats-total-iterations, stats-total-time-ns, stats-sample-count
+    , BenchOutcome, MkBenchOutcome, outcome-name, outcome-group, outcome-param, outcome-full-name, outcome-throughput, outcome-samples, outcome-stats
+    , ChangeClassification, ChangeImproved, ChangeRegressed, ChangeWithinNoise, ChangeNoDifference
+    , BenchComparison, cmp-pct-lower, cmp-pct-point, cmp-pct-upper, cmp-p-value, cmp-classification, cmp-baseline-ns, cmp-current-ns
+    , analyze-samples, compare-samples, format-duration-ns, format-f64-fixed, format-throughput
+    )
+  import Effect.Clock (clock-monotonic-ns)
+  import Effect.Fs (fs-read, fs-write)
+  import Effect.Process (Command, command, command-with-env, Child, Stream, Stdout, Stderr, process-spawn, child-close-stdin, child-read, child-wait, child-close)
+  import Text.Parse (Parsed, Failed)
+  import Text.Scan (string-contains, string-starts-with, string-ends-with, string-index-of, string-take, string-drop, string-strip, string-join, string-split-on, string-lines)
+  import Text.Show (nat-to-string, int-to-string)
+
+  foreign import ccall "cinch.runtime.fsMkdir" bench-fs-mkdir :: Bytes -> Bool -> I64
+
+  export BenchRunIgnored, BenchIgnoredDefault, BenchIgnoredAll, BenchIgnoredOnly
+  export BenchOutputFormat, BenchFormatHuman, BenchFormatJson, BenchFormatCsv
+  export BenchCliConfig, MkBenchCliConfig, default-bench-cli-config
+  export bench-cfg-list-only, bench-cfg-list-json, bench-cfg-no-run, bench-cfg-leak-check
+  export bench-cfg-opt-level, bench-cfg-clang, bench-cfg-quick
+  export parse-bench-cli-args, list-benchmarks-output, run-benchmark-suite
+
+  -- ------------------------------------------------------------------
+  -- Configuration types
+  -- ------------------------------------------------------------------
+
+  data BenchRunIgnored where
+    BenchIgnoredDefault :: BenchRunIgnored
+    BenchIgnoredAll :: BenchRunIgnored
+    BenchIgnoredOnly :: BenchRunIgnored
+
+  data BenchOutputFormat where
+    BenchFormatHuman :: BenchOutputFormat
+    BenchFormatJson :: BenchOutputFormat
+    BenchFormatCsv :: BenchOutputFormat
+
+  data BenchCliConfig where
+    MkBenchCliConfig
+      :: Option Nat         -- warmup-ms override
+      -> Option Nat         -- measurement-ms override
+      -> Option Nat         -- sample-size override
+      -> Option Nat         -- nresamples override
+      -> Nat                -- noise-threshold-bps (default 200 = 2%)
+      -> Nat                -- significance-bps (default 500 = 5%)
+      -> Bool               -- --quick
+      -> Bool               -- --exact
+      -> Bool               -- --list
+      -> Bool               -- --list-json
+      -> Bool               -- --no-run
+      -> Bool               -- --leak-check
+      -> Nat                -- --opt-level (0..3, default 2)
+      -> String             -- --clang
+      -> List String        -- -E / --filter-expr
+      -> List String        -- positional filter words
+      -> BenchRunIgnored    -- --run-ignored
+      -> Bool               -- color enabled
+      -> BenchOutputFormat  -- --format
+      -> Option String      -- --save-baseline
+      -> Option String      -- --baseline (compare against)
+      -> String             -- --baseline-dir
+      -> Bool               -- --fail-on-regression
+      -> Option String      -- --json-report
+      -> Option String      -- --csv-report
+      -> Option String      -- --html-report
+      -> BenchCliConfig
+
+  default-bench-cli-config :: BenchCliConfig
+  default-bench-cli-config =
+    MkBenchCliConfig
+      None None None None 200 500 False False False False False False 2 "clang"
+      Nil Nil BenchIgnoredDefault False BenchFormatHuman
+      None None ".cinch-bench/baselines" False None None None
+
+  bench-cfg-warmup :: BenchCliConfig -> Option Nat
+  bench-cfg-warmup c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> wm
+  bench-cfg-measurement :: BenchCliConfig -> Option Nat
+  bench-cfg-measurement c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> mm
+  bench-cfg-samples :: BenchCliConfig -> Option Nat
+  bench-cfg-samples c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> ss
+  bench-cfg-resamples :: BenchCliConfig -> Option Nat
+  bench-cfg-resamples c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> nr
+  bench-cfg-noise-bps :: BenchCliConfig -> Nat
+  bench-cfg-noise-bps c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> nt
+  bench-cfg-sig-bps :: BenchCliConfig -> Nat
+  bench-cfg-sig-bps c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> sg
+  bench-cfg-quick :: BenchCliConfig -> Bool
+  bench-cfg-quick c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> q
+  bench-cfg-exact :: BenchCliConfig -> Bool
+  bench-cfg-exact c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> ex
+  bench-cfg-list-only :: BenchCliConfig -> Bool
+  bench-cfg-list-only c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> lo
+  bench-cfg-list-json :: BenchCliConfig -> Bool
+  bench-cfg-list-json c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> lj
+  bench-cfg-no-run :: BenchCliConfig -> Bool
+  bench-cfg-no-run c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> nrn
+  bench-cfg-leak-check :: BenchCliConfig -> Bool
+  bench-cfg-leak-check c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> lc
+  bench-cfg-opt-level :: BenchCliConfig -> Nat
+  bench-cfg-opt-level c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> ol
+  bench-cfg-clang :: BenchCliConfig -> String
+  bench-cfg-clang c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> cl
+  bench-cfg-filter-exprs :: BenchCliConfig -> List String
+  bench-cfg-filter-exprs c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> fe
+  bench-cfg-pos-filters :: BenchCliConfig -> List String
+  bench-cfg-pos-filters c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> pf
+  bench-cfg-run-ignored :: BenchCliConfig -> BenchRunIgnored
+  bench-cfg-run-ignored c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> ri
+  bench-cfg-color :: BenchCliConfig -> Bool
+  bench-cfg-color c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> col
+  bench-cfg-format :: BenchCliConfig -> BenchOutputFormat
+  bench-cfg-format c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> fm
+  bench-cfg-save-baseline :: BenchCliConfig -> Option String
+  bench-cfg-save-baseline c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> sb
+  bench-cfg-baseline :: BenchCliConfig -> Option String
+  bench-cfg-baseline c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> bl
+  bench-cfg-baseline-dir :: BenchCliConfig -> String
+  bench-cfg-baseline-dir c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> bd
+  bench-cfg-fail-on-regression :: BenchCliConfig -> Bool
+  bench-cfg-fail-on-regression c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> fr
+  bench-cfg-json-report :: BenchCliConfig -> Option String
+  bench-cfg-json-report c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> jr
+  bench-cfg-csv-report :: BenchCliConfig -> Option String
+  bench-cfg-csv-report c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> cr
+  bench-cfg-html-report :: BenchCliConfig -> Option String
+  bench-cfg-html-report c = case c of MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr -> hr
+
+  -- ------------------------------------------------------------------
+  -- CLI option parsing
+  -- ------------------------------------------------------------------
+
+  parse-bench-run-ignored :: String -> Option BenchRunIgnored
+  parse-bench-run-ignored s =
+    if string-compare s "default" == 0 then Some BenchIgnoredDefault
+    else if string-compare s "all" == 0 then Some BenchIgnoredAll
+    else if string-compare s "only" == 0 then Some BenchIgnoredOnly
+    else None
+
+  parse-bench-cli-loop :: BenchCliConfig -> List String -> List String -> Result String (BenchCliConfig, String, String, String)
+  parse-bench-cli-loop cfg pos ws = case cfg of
+    MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr ->
+      case ws of
+        Nil -> case reverse pos of
+          Cons runtime (Cons prefix (Cons source filters)) ->
+            Ok (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl (reverse fe) (pf <> filters) ri col fm sb bl bd fr jr cr hr, runtime, prefix, source)
+          other -> Err "usage: cinch bench [OPTIONS...] RUNTIME PREFIX SOURCE [FILTER...]"
+        Cons flag rest ->
+          if string-compare flag "--" == 0 then
+            parse-bench-cli-loop cfg (reverse rest <> pos) Nil
+          else if string-compare flag "--warm-up-time" == 0 || string-compare flag "--warmup" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some ms -> parse-bench-cli-loop (MkBenchCliConfig (Some ms) mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                None -> Err ("invalid millisecond count for " <> flag <> ": " <> n)
+              Nil -> Err (flag <> " requires a millisecond count"))
+          else if string-compare flag "--measurement-time" == 0 || string-compare flag "--measurement" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some ms | ms > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm (Some ms) ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                other -> Err ("invalid millisecond count for " <> flag <> ": " <> n)
+              Nil -> Err (flag <> " requires a positive millisecond count"))
+          else if string-compare flag "--sample-size" == 0 || string-compare flag "--samples" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some k | k >= 10 -> parse-bench-cli-loop (MkBenchCliConfig wm mm (Some k) nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                other -> Err (flag <> " requires an integer >= 10 (got `" <> n <> "`)")
+              Nil -> Err (flag <> " requires an integer >= 10"))
+          else if string-compare flag "--nresamples" == 0 || string-compare flag "--resamples" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some k | k >= 50 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss (Some k) nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                other -> Err (flag <> " requires an integer >= 50 (got `" <> n <> "`)")
+              Nil -> Err (flag <> " requires an integer >= 50"))
+          else if string-compare flag "--noise-threshold" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some pct | pct <= 100 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr (pct * 100) sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                other -> Err ("--noise-threshold expects an integer percentage 0..100 (got `" <> n <> "`)")
+              Nil -> Err "--noise-threshold requires a percentage")
+          else if string-compare flag "--significance-level" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some pct | pct > 0 && pct <= 50 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt (pct * 100) q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                other -> Err ("--significance-level expects an integer percentage 1..50 (got `" <> n <> "`)")
+              Nil -> Err "--significance-level requires a percentage")
+          else if string-compare flag "--quick" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg True ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--exact" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q True lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--list" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex True lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--list-json" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex True True nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--no-run" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj True lc ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--leak-check" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn True ol cl fe pf ri col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--opt-level" == 0 then
+            (case rest of
+              Cons n more -> case parse-nat-word n of
+                Some k | k <= 3 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc k cl fe pf ri col fm sb bl bd fr jr cr hr) pos more
+                other -> Err ("--opt-level expects 0, 1, 2, or 3 (got `" <> n <> "`)")
+              Nil -> Err "--opt-level requires 0, 1, 2, or 3")
+          else if string-compare flag "--clang" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol p fe pf ri col fm sb bl bd fr jr cr hr) pos more
+              other -> Err "--clang requires a path")
+          else if string-compare flag "-E" == 0 || string-compare flag "--filter-expr" == 0 then
+            (case rest of
+              Cons expr more -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl (Cons expr fe) pf ri col fm sb bl bd fr jr cr hr) pos more
+              Nil -> Err (flag <> " requires a filter expression"))
+          else if string-compare flag "--run-ignored" == 0 then
+            (case rest of
+              Cons mode more -> case parse-bench-run-ignored mode of
+                Some m -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf m col fm sb bl bd fr jr cr hr) pos more
+                None -> Err ("--run-ignored expects default, all, or only (got `" <> mode <> "`)")
+              Nil -> Err "--run-ignored requires default, all, or only")
+          else if string-compare flag "--ignored" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf BenchIgnoredOnly col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--include-ignored" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf BenchIgnoredAll col fm sb bl bd fr jr cr hr) pos rest
+          else if string-compare flag "--color" == 0 then
+            (case rest of
+              Cons v more ->
+                if string-compare v "always" == 0 || string-compare v "auto" == 0 then
+                  parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri True fm sb bl bd fr jr cr hr) pos more
+                else if string-compare v "never" == 0 then
+                  parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri False fm sb bl bd fr jr cr hr) pos more
+                else Err ("--color expects auto, always, or never (got `" <> v <> "`)")
+              Nil -> Err "--color requires auto, always, or never")
+          else if string-compare flag "--format" == 0 then
+            (case rest of
+              Cons v more ->
+                if string-compare v "human" == 0 then
+                  parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col BenchFormatHuman sb bl bd fr jr cr hr) pos more
+                else if string-compare v "json" == 0 then
+                  parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col BenchFormatJson sb bl bd fr jr cr hr) pos more
+                else if string-compare v "csv" == 0 then
+                  parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col BenchFormatCsv sb bl bd fr jr cr hr) pos more
+                else Err ("--format expects human, json, or csv (got `" <> v <> "`)")
+              Nil -> Err "--format requires human, json, or csv")
+          else if string-compare flag "--save-baseline" == 0 then
+            (case rest of
+              Cons nm more | string-length nm > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm (Some nm) bl bd fr jr cr hr) pos more
+              other -> Err "--save-baseline requires a non-empty name")
+          else if string-compare flag "--baseline" == 0 then
+            (case rest of
+              Cons nm more | string-length nm > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb (Some nm) bd fr jr cr hr) pos more
+              other -> Err "--baseline requires a non-empty name")
+          else if string-compare flag "--baseline-dir" == 0 then
+            (case rest of
+              Cons d more | string-length d > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl d fr jr cr hr) pos more
+              other -> Err "--baseline-dir requires a directory path")
+          else if string-compare flag "--fail-on-regression" == 0 then
+            parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd True jr cr hr) pos rest
+          else if string-compare flag "--json-report" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr (Some p) cr hr) pos more
+              other -> Err "--json-report requires an output path")
+          else if string-compare flag "--csv-report" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr (Some p) hr) pos more
+              other -> Err "--csv-report requires an output path")
+          else if string-compare flag "--html-report" == 0 then
+            (case rest of
+              Cons p more | string-length p > 0 -> parse-bench-cli-loop (MkBenchCliConfig wm mm ss nr nt sg q ex lo lj nrn lc ol cl fe pf ri col fm sb bl bd fr jr cr (Some p)) pos more
+              other -> Err "--html-report requires an output path")
+          else if string-starts-with "-" flag then
+            Err ("unknown bench option: " <> flag)
+          else
+            parse-bench-cli-loop cfg (Cons flag pos) rest
+
+  parse-bench-cli-args :: List String -> Result String (BenchCliConfig, String, String, String)
+  parse-bench-cli-args words = parse-bench-cli-loop default-bench-cli-config Nil words
+
+  -- ------------------------------------------------------------------
+  -- Filterset expression parser & evaluator
+  -- Supports: bench(pat), group(pat), module(pat), tag(pat), ignored(),
+  -- all(), none(), not / !, and / &, or / |, - (difference), ( )
+  -- ------------------------------------------------------------------
+
+  data BenchFilterTok where
+    BFTLParen :: BenchFilterTok
+    BFTRParen :: BenchFilterTok
+    BFTNot :: BenchFilterTok
+    BFTAnd :: BenchFilterTok
+    BFTOr :: BenchFilterTok
+    BFTMinus :: BenchFilterTok
+    BFTPred :: String -> String -> BenchFilterTok
+
+  data BenchFilterExpr where
+    BFEAll :: BenchFilterExpr
+    BFENone :: BenchFilterExpr
+    BFEBench :: String -> BenchFilterExpr
+    BFEGroup :: String -> BenchFilterExpr
+    BFEModule :: String -> BenchFilterExpr
+    BFETag :: String -> BenchFilterExpr
+    BFEIgnored :: BenchFilterExpr
+    BFENot :: BenchFilterExpr -> BenchFilterExpr
+    BFEAnd :: BenchFilterExpr -> BenchFilterExpr -> BenchFilterExpr
+    BFEOr :: BenchFilterExpr -> BenchFilterExpr -> BenchFilterExpr
+
+  is-space-code :: Nat -> Bool
+  is-space-code c = c == 32 || c == 9 || c == 10 || c == 13
+
+  is-ident-code :: Nat -> Bool
+  is-ident-code c =
+    (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c == 95 || c == 45
+
+  read-ident-chars :: List Char -> List Char -> (String, List Char)
+  read-ident-chars cs acc = case cs of
+    Nil -> (pack (reverse acc), Nil)
+    Cons ch rest ->
+      if is-ident-code (char-code ch) then read-ident-chars rest (Cons ch acc)
+      else (pack (reverse acc), cs)
+
+  skip-spaces :: List Char -> List Char
+  skip-spaces cs = case cs of
+    Nil -> Nil
+    Cons ch rest -> if is-space-code (char-code ch) then skip-spaces rest else cs
+
+  read-pred-arg :: List Char -> Nat -> List Char -> Result String (String, List Char)
+  read-pred-arg cs depth acc = case cs of
+    Nil -> Err "unclosed `(` in filter expression"
+    Cons ch rest ->
+      let code = char-code ch in
+      if code == 41 && depth == 0 then Ok (string-strip (pack (reverse acc)), rest)
+      else if code == 40 then read-pred-arg rest (depth + 1) (Cons ch acc)
+      else if code == 41 && depth > 0 then read-pred-arg rest (depth - 1) (Cons ch acc)
+      else read-pred-arg rest depth (Cons ch acc)
+
+  lex-filter-loop :: List Char -> List BenchFilterTok -> Result String (List BenchFilterTok)
+  lex-filter-loop cs acc = case skip-spaces cs of
+    Nil -> Ok (reverse acc)
+    Cons ch rest ->
+      let code = char-code ch in
+      if code == 40 then lex-filter-loop rest (Cons BFTLParen acc)
+      else if code == 41 then lex-filter-loop rest (Cons BFTRParen acc)
+      else if code == 33 then lex-filter-loop rest (Cons BFTNot acc)
+      else if code == 38 then lex-filter-loop rest (Cons BFTAnd acc)
+      else if code == 124 then lex-filter-loop rest (Cons BFTOr acc)
+      else if code == 45 then lex-filter-loop rest (Cons BFTMinus acc)
+      else if is-ident-code code then
+        case read-ident-chars (Cons ch rest) Nil of
+          (word, after) ->
+            if string-compare word "and" == 0 then lex-filter-loop after (Cons BFTAnd acc)
+            else if string-compare word "or" == 0 then lex-filter-loop after (Cons BFTOr acc)
+            else if string-compare word "not" == 0 then lex-filter-loop after (Cons BFTNot acc)
+            else case skip-spaces after of
+              Cons open more | char-code open == 40 ->
+                case read-pred-arg more 0 Nil of
+                  Err msg -> Err msg
+                  Ok (arg, tail) -> lex-filter-loop tail (Cons (BFTPred word arg) acc)
+              other -> Err ("expected `(` after predicate `" <> word <> "` in filter expression")
+      else Err ("unexpected character in filter expression")
+
+  parse-filter-pred :: String -> String -> Result String BenchFilterExpr
+  parse-filter-pred name arg =
+    if string-compare name "all" == 0 then Ok BFEAll
+    else if string-compare name "none" == 0 then Ok BFENone
+    else if string-compare name "bench" == 0 || string-compare name "name" == 0 then Ok (BFEBench arg)
+    else if string-compare name "group" == 0 then Ok (BFEGroup arg)
+    else if string-compare name "module" == 0 then Ok (BFEModule arg)
+    else if string-compare name "tag" == 0 then Ok (BFETag arg)
+    else if string-compare name "ignored" == 0 then Ok BFEIgnored
+    else Err ("unknown filter predicate `" <> name <> "`")
+
+  parse-filter-atom :: List BenchFilterTok -> Result String (BenchFilterExpr, List BenchFilterTok)
+  parse-filter-atom ts = case ts of
+    Cons BFTNot rest -> case parse-filter-atom rest of
+      Err msg -> Err msg
+      Ok (inner, tail) -> Ok (BFENot inner, tail)
+    Cons BFTLParen rest -> case parse-filter-or rest of
+      Err msg -> Err msg
+      Ok (inner, Cons BFTRParen tail) -> Ok (inner, tail)
+      Ok (_, _) -> Err "expected `)` in filter expression"
+    Cons (BFTPred nm arg) rest -> case parse-filter-pred nm arg of
+      Err msg -> Err msg
+      Ok expr -> Ok (expr, rest)
+    other -> Err "expected predicate or `(` in filter expression"
+
+  parse-filter-and-tail :: BenchFilterExpr -> List BenchFilterTok -> Result String (BenchFilterExpr, List BenchFilterTok)
+  parse-filter-and-tail lhs ts = case ts of
+    Cons BFTAnd rest -> case parse-filter-atom rest of
+      Err msg -> Err msg
+      Ok (rhs, tail) -> parse-filter-and-tail (BFEAnd lhs rhs) tail
+    Cons BFTMinus rest -> case parse-filter-atom rest of
+      Err msg -> Err msg
+      Ok (rhs, tail) -> parse-filter-and-tail (BFEAnd lhs (BFENot rhs)) tail
+    other -> Ok (lhs, ts)
+
+  parse-filter-and :: List BenchFilterTok -> Result String (BenchFilterExpr, List BenchFilterTok)
+  parse-filter-and ts = case parse-filter-atom ts of
+    Err msg -> Err msg
+    Ok (lhs, rest) -> parse-filter-and-tail lhs rest
+
+  parse-filter-or-tail :: BenchFilterExpr -> List BenchFilterTok -> Result String (BenchFilterExpr, List BenchFilterTok)
+  parse-filter-or-tail lhs ts = case ts of
+    Cons BFTOr rest -> case parse-filter-and rest of
+      Err msg -> Err msg
+      Ok (rhs, tail) -> parse-filter-or-tail (BFEOr lhs rhs) tail
+    other -> Ok (lhs, ts)
+
+  parse-filter-or :: List BenchFilterTok -> Result String (BenchFilterExpr, List BenchFilterTok)
+  parse-filter-or ts = case parse-filter-and ts of
+    Err msg -> Err msg
+    Ok (lhs, rest) -> parse-filter-or-tail lhs rest
+
+  parse-filter-expr :: String -> Result String BenchFilterExpr
+  parse-filter-expr raw = case lex-filter-loop (unpack raw) Nil of
+    Err msg -> Err msg
+    Ok toks -> case parse-filter-or toks of
+      Err msg -> Err msg
+      Ok (expr, Nil) -> Ok expr
+      Ok (_, _) -> Err "unexpected trailing tokens in filter expression"
+
+  parse-all-filter-exprs :: List String -> List BenchFilterExpr -> Result String (List BenchFilterExpr)
+  parse-all-filter-exprs raws acc = case raws of
+    Nil -> Ok (reverse acc)
+    Cons s rest -> case parse-filter-expr s of
+      Err msg -> Err msg
+      Ok e -> parse-all-filter-exprs rest (Cons e acc)
+
+  pattern-matches :: String -> String -> Bool
+  pattern-matches pat subject =
+    if string-starts-with "=" pat then string-compare (string-drop 1 pat) subject == 0
+    else string-contains pat subject
+
+  any-tag-matches :: String -> List String -> Bool
+  any-tag-matches pat tags = case tags of
+    Nil -> False
+    Cons tg rest -> pattern-matches pat tg || any-tag-matches pat rest
+
+  eval-filter-expr :: BenchFilterExpr -> DiscoveredBench -> Bool
+  eval-filter-expr expr b =
+    let sp = bench-spec b in
+    let grp = case bench-spec-group sp of Some g -> g; None -> "" in
+    case expr of
+      BFEAll -> True
+      BFENone -> False
+      BFEBench pat -> pattern-matches pat (bench-display-name b)
+      BFEGroup pat -> string-length grp > 0 && pattern-matches pat grp
+      BFEModule pat -> pattern-matches pat (bench-module-name b)
+      BFETag pat -> any-tag-matches pat (bench-spec-tags sp)
+      BFEIgnored -> bench-spec-ignored sp
+      BFENot inner -> not (eval-filter-expr inner b)
+      BFEAnd a c -> eval-filter-expr a b && eval-filter-expr c b
+      BFEOr a c -> eval-filter-expr a b || eval-filter-expr c b
+
+  matches-any-filter-expr :: List BenchFilterExpr -> DiscoveredBench -> Bool
+  matches-any-filter-expr exprs b = case exprs of
+    Nil -> True
+    Cons _ _ -> matches-any-expr-loop exprs b
+
+  matches-any-expr-loop :: List BenchFilterExpr -> DiscoveredBench -> Bool
+  matches-any-expr-loop exprs b = case exprs of
+    Nil -> False
+    Cons e rest -> eval-filter-expr e b || matches-any-expr-loop rest b
+
+  matches-pos-filters :: Bool -> List String -> DiscoveredBench -> Bool
+  matches-pos-filters exact pats b = case pats of
+    Nil -> True
+    Cons _ _ -> matches-pos-loop exact pats b
+
+  matches-pos-loop :: Bool -> List String -> DiscoveredBench -> Bool
+  matches-pos-loop exact pats b = case pats of
+    Nil -> False
+    Cons p rest ->
+      let nm = bench-display-name b in
+      let grp = case bench-spec-group (bench-spec b) of Some g -> g; None -> "" in
+      let hit = if exact then (string-compare p nm == 0 || (string-length grp > 0 && string-compare p grp == 0))
+                else (string-contains p nm || (string-length grp > 0 && string-contains p grp)) in
+      hit || matches-pos-loop exact rest b
+
+  matches-ignored-policy :: BenchRunIgnored -> DiscoveredBench -> Bool
+  matches-ignored-policy policy b = case policy of
+    BenchIgnoredOnly -> bench-spec-ignored (bench-spec b)
+    other -> True
+
+  filter-discovered-benches :: BenchCliConfig -> List BenchFilterExpr -> List DiscoveredBench -> List DiscoveredBench
+  filter-discovered-benches cfg exprs bs = case bs of
+    Nil -> Nil
+    Cons b rest ->
+      let keep = matches-ignored-policy (bench-cfg-run-ignored cfg) b
+            && matches-any-filter-expr exprs b
+            && matches-pos-filters (bench-cfg-exact cfg) (bench-cfg-pos-filters cfg) b in
+      let tail = filter-discovered-benches cfg exprs rest in
+      if keep then Cons b tail else tail
+
+  -- ------------------------------------------------------------------
+  -- Listing (`--list` / `--list-json`)
+  -- ------------------------------------------------------------------
+
+  bench-kind-str :: BenchEntryKind -> String
+  bench-kind-str k = case k of
+    BKDirect _ _ -> "direct"
+    BKBencher -> "bencher"
+    BKCriterionOne -> "criterion"
+    BKCriterionList -> "criterion-group"
+
+  json-str-list :: List String -> Json
+  json-str-list xs = case xs of
+    Nil -> JArrEnd
+    Cons s rest -> JArr (JStr s) (json-str-list rest)
+
+  bench-list-entry-json :: DiscoveredBench -> Json
+  bench-list-entry-json b =
+    let sp = bench-spec b in
+    JObj "module" (JStr (bench-module-name b))
+    (JObj "name" (JStr (bench-display-name b))
+    (JObj "kind" (JStr (bench-kind-str (bench-entry-kind b)))
+    (JObj "group" (case bench-spec-group sp of Some g -> JStr g; None -> JNull)
+    (JObj "ignored" (JBool (bench-spec-ignored sp))
+    (JObj "ignore_reason" (case bench-spec-ignore-reason sp of Some r -> JStr r; None -> JNull)
+    (JObj "tags" (json-str-list (bench-spec-tags sp)) JObjEnd))))))
+
+  benches-list-json :: List DiscoveredBench -> Json
+  benches-list-json bs = case bs of
+    Nil -> JArrEnd
+    Cons b rest -> JArr (bench-list-entry-json b) (benches-list-json rest)
+
+  render-bench-list-lines :: List DiscoveredBench -> List String -> String
+  render-bench-list-lines bs acc = case bs of
+    Nil -> string-concat-all (reverse acc)
+    Cons b rest ->
+      let sp = bench-spec b in
+      let grp = case bench-spec-group sp of Some g -> " [group=" <> g <> "]"; None -> "" in
+      let ign = if bench-spec-ignored sp then " [ignored]" else "" in
+      let line = bench-display-name b <> grp <> ign <> "\n" in
+      render-bench-list-lines rest (Cons line acc)
+
+  list-benchmarks-output :: BenchCliConfig -> List DiscoveredBench -> Result String String
+  list-benchmarks-output cfg all-benches =
+    case parse-all-filter-exprs (bench-cfg-filter-exprs cfg) Nil of
+      Err msg -> Err msg
+      Ok exprs ->
+        let selected = filter-discovered-benches cfg exprs all-benches in
+        if bench-cfg-list-json cfg then
+          let doc = JObj "count" (JNum (nat-to-int (list-length selected)))
+                    (JObj "benchmarks" (benches-list-json selected) JObjEnd) in
+          case string-from-bytes (canonical-bytes doc) of
+            Some s -> Ok (s <> "\n")
+            None -> Ok "{}\n"
+        else Ok (render-bench-list-lines selected Nil)
+
+  -- ------------------------------------------------------------------
+  -- Child process execution and wire-protocol parsing
+  -- ------------------------------------------------------------------
+
+  drain-pipe :: forall r. using (io :: Io r) => Child -> Stream -> List String ->{IO r, Diverge} String
+  drain-pipe c s acc = case child-read c s 8192 of
+    Err _ -> string-concat-all (reverse acc)
+    Ok bs ->
+      if bytes-len bs == 0 then string-concat-all (reverse acc)
+      else
+        let chunk = case string-from-bytes bs of Some txt -> txt; None -> "" in
+        drain-pipe c s (Cons chunk acc)
+
+  resolve-bench-config :: BenchCliConfig -> BenchSpec -> BenchConfig
+  resolve-bench-config cfg sp =
+    let quick = bench-cfg-quick cfg in
+    let def-warm = if quick then (100 :: Nat) else (500 :: Nat) in
+    let def-meas = if quick then (250 :: Nat) else (1500 :: Nat) in
+    let def-samp = if quick then (20 :: Nat) else (100 :: Nat) in
+    let def-res = if quick then (200 :: Nat) else (1000 :: Nat) in
+    let warm = case bench-cfg-warmup cfg of
+          Some w -> w
+          None -> case bench-spec-warmup-ms sp of Some w -> w; None -> def-warm in
+    let meas = case bench-cfg-measurement cfg of
+          Some m -> m
+          None -> case bench-spec-measurement-ms sp of Some m -> m; None -> def-meas in
+    let samp = case bench-cfg-samples cfg of
+          Some s -> s
+          None -> case bench-spec-sample-size sp of Some s -> s; None -> def-samp in
+    let res = case bench-cfg-resamples cfg of Some r -> r; None -> def-res in
+    MkBenchConfig warm meas samp res (bench-cfg-noise-bps cfg) (bench-cfg-sig-bps cfg) quick
+
+  resolve-default-throughput :: BenchSpec -> Throughput
+  resolve-default-throughput sp = case bench-spec-throughput-bytes sp of
+    Some b -> ThroughputBytes b
+    None -> case bench-spec-throughput-elements sp of
+      Some e -> ThroughputElements e
+      None -> ThroughputNone
+
+  parse-throughput-pair :: String -> String -> BenchSpec -> Throughput
+  parse-throughput-pair kind val-s sp =
+    if string-compare kind "bytes" == 0 then
+      case parse-nat-word val-s of Some n | n > 0 -> ThroughputBytes n; other -> resolve-default-throughput sp
+    else if string-compare kind "elements" == 0 then
+      case parse-nat-word val-s of Some n | n > 0 -> ThroughputElements n; other -> resolve-default-throughput sp
+    else resolve-default-throughput sp
+
+  data ActiveRecord where
+    NoActiveRecord :: ActiveRecord
+    InRecord :: String -> Option String -> Option String -> Throughput -> List BenchSample -> ActiveRecord
+
+  parse-protocol-lines :: DiscoveredBench -> BenchConfig -> List String -> ActiveRecord -> List BenchOutcome -> List BenchOutcome
+  parse-protocol-lines b bcfg lines cur acc = case lines of
+    Nil -> reverse acc
+    Cons raw rest ->
+      let line = string-strip raw in
+      if string-starts-with "CINCH_BENCH_BEGIN\t" raw then
+        let parts = string-split-on "\t" (string-drop 18 raw) in
+        case parts of
+          Cons nm (Cons gp (Cons pm (Cons tpk (Cons tpv _)))) ->
+            let final-nm = if string-length nm > 0 then nm else bench-display-name b in
+            let final-gp = if string-length gp > 0 then Some gp else bench-spec-group (bench-spec b) in
+            let final-pm = if string-length pm > 0 then Some pm else None in
+            let final-tp = parse-throughput-pair (string-strip tpk) (string-strip tpv) (bench-spec b) in
+            parse-protocol-lines b bcfg rest (InRecord final-nm final-gp final-pm final-tp Nil) acc
+          other -> parse-protocol-lines b bcfg rest cur acc
+      else if string-starts-with "CINCH_BENCH_SAMPLE\t" line then
+        case cur of
+          InRecord nm gp pm tp ss ->
+            let parts = string-split-on "\t" (string-drop 19 line) in
+            case parts of
+              Cons it-s (Cons ns-s _) ->
+                case (parse-nat-word (string-strip it-s), parse-nat-word (string-strip ns-s)) of
+                  (Some it, Some ns) ->
+                    parse-protocol-lines b bcfg rest (InRecord nm gp pm tp (Cons (MkBenchSample it ns) ss)) acc
+                  other -> parse-protocol-lines b bcfg rest cur acc
+              other -> parse-protocol-lines b bcfg rest cur acc
+          NoActiveRecord -> parse-protocol-lines b bcfg rest cur acc
+      else if string-compare line "CINCH_BENCH_END" == 0 then
+        case cur of
+          InRecord nm gp pm tp ss ->
+            let ordered = reverse ss in
+            let stats = analyze-samples bcfg ordered in
+            let outcome = MkBenchOutcome nm gp pm tp ordered stats in
+            parse-protocol-lines b bcfg rest NoActiveRecord (Cons outcome acc)
+          NoActiveRecord -> parse-protocol-lines b bcfg rest NoActiveRecord acc
+      else parse-protocol-lines b bcfg rest cur acc
+
+  execute-one-bench :: forall r. using (io :: Io r) => Path -> BenchCliConfig -> DiscoveredBench ->{IO r, Diverge} Result String (List BenchOutcome)
+  execute-one-bench exe-path cfg b =
+    let bcfg = resolve-bench-config cfg (bench-spec b) in
+    let (wm, mm, ss, nr, qf) = case bcfg of
+          MkBenchConfig w m s r _ _ q -> (w, m, s, r, if q then (1 :: Nat) else (0 :: Nat)) in
+    let args =
+          [ nat-to-string (bench-index b)
+          , nat-to-string wm
+          , nat-to-string mm
+          , nat-to-string ss
+          , nat-to-string nr
+          , nat-to-string qf
+          ] in
+    let cmd = if bench-cfg-leak-check cfg then command-with-env exe-path args [("CINCH_RC_DEBUG", "1"), ("CINCH_LEAK_CHECK", "1")] else command exe-path args in
+    case process-spawn None cmd of
+      Err _ -> Err ("failed to spawn benchmark process for " <> bench-display-name b)
+      Ok child ->
+        case child-close-stdin child of
+          _ -> case drain-pipe child Stdout Nil of
+            out-s -> case drain-pipe child Stderr Nil of
+              err-s -> case child-wait child of
+                wait-res -> case child-close child of
+                  _ -> case wait-res of
+                    Err _ -> Err ("failed waiting for benchmark " <> bench-display-name b)
+                    Ok code ->
+                      if code /= 0 then
+                        let extra = if string-length err-s > 0 then ": " <> string-strip err-s else "" in
+                        Err ("benchmark `" <> bench-display-name b <> "` exited with code " <> nat-to-string code <> extra)
+                      else
+                        let outcomes = parse-protocol-lines b bcfg (string-lines out-s) NoActiveRecord Nil in
+                        case outcomes of
+                          Nil -> Err ("benchmark `" <> bench-display-name b <> "` produced no measurement records")
+                          other -> Ok outcomes
+
+  -- ------------------------------------------------------------------
+  -- Baseline persistence (save & load)
+  -- ------------------------------------------------------------------
+
+  baseline-file-path :: BenchCliConfig -> String -> String
+  baseline-file-path cfg name =
+    let dir = bench-cfg-baseline-dir cfg in
+    if string-ends-with "/" dir then dir <> name <> ".json"
+    else dir <> "/" <> name <> ".json"
+
+  samples-to-json :: List BenchSample -> Json
+  samples-to-json ss = case ss of
+    Nil -> JArrEnd
+    Cons s rest ->
+      JArr (JArr (JNum (nat-to-int (sample-iterations s))) (JArr (JNum (nat-to-int (sample-elapsed-ns s))) JArrEnd))
+        (samples-to-json rest)
+
+  outcome-baseline-json :: BenchOutcome -> Json
+  outcome-baseline-json o =
+    let st = outcome-stats o in
+    JObj "name" (JStr (outcome-full-name o))
+    (JObj "samples" (samples-to-json (outcome-samples o))
+    (JObj "median_ns" (JNum (nat-to-int (f64-to-nat-round (ci-point (stats-median st)))))
+    (JObj "mean_ns" (JNum (nat-to-int (f64-to-nat-round (ci-point (stats-mean st))))) JObjEnd)))
+
+  outcomes-baseline-json :: List BenchOutcome -> Json
+  outcomes-baseline-json os = case os of
+    Nil -> JArrEnd
+    Cons o rest -> JArr (outcome-baseline-json o) (outcomes-baseline-json rest)
+
+  save-baseline-file :: forall r. using (io :: Io r) => BenchCliConfig -> String -> List BenchOutcome ->{IO r} Result String Unit
+  save-baseline-file cfg name outcomes =
+    let dir = bench-cfg-baseline-dir cfg in
+    let _ = bench-fs-mkdir (string-to-bytes dir) True in
+    let path = baseline-file-path cfg name in
+    let doc = JObj "schema" (JNum 1)
+              (JObj "baseline" (JStr name)
+              (JObj "benchmarks" (outcomes-baseline-json outcomes) JObjEnd)) in
+    let payload = case string-from-bytes (canonical-bytes doc) of
+          Some s -> string-to-bytes (s <> "\n")
+          None -> canonical-bytes doc in
+    case fs-write (path-from-string path) payload of
+      Ok _ -> Ok ()
+      Err _ -> Err ("could not write baseline file: " <> path)
+
+  json-field :: String -> Json -> Option Json
+  json-field wanted doc = case doc of
+    JObj k v rest -> if string-compare k wanted == 0 then Some v else json-field wanted rest
+    other -> None
+
+  int-to-nat-clamped :: Int -> Nat
+  int-to-nat-clamped x = case checked-int-to-i64 x of
+    Some i -> case checked-nat-from-i64 i of Some n -> n; None -> 0
+    None -> 0
+
+  parse-baseline-samples :: Json -> List BenchSample -> List BenchSample
+  parse-baseline-samples arr acc = case arr of
+    JArr (JArr (JNum it) (JArr (JNum ns) JArrEnd)) rest ->
+      parse-baseline-samples rest (Cons (MkBenchSample (int-to-nat-clamped it) (int-to-nat-clamped ns)) acc)
+    JArr _ rest -> parse-baseline-samples rest acc
+    other -> reverse acc
+
+  index-baseline-entries :: Json -> HashMap String (List BenchSample) -> HashMap String (List BenchSample)
+  index-baseline-entries arr acc = case arr of
+    JArr obj rest ->
+      let next = case (json-field "name" obj, json-field "samples" obj) of
+            (Some (JStr nm), Some sarr) -> hash-map-insert nm (parse-baseline-samples sarr Nil) acc
+            other -> acc in
+      index-baseline-entries rest next
+    other -> acc
+
+  load-baseline-file :: forall r. using (io :: Io r) => BenchCliConfig -> String ->{IO r} Result String (HashMap String (List BenchSample))
+  load-baseline-file cfg name =
+    let path = baseline-file-path cfg name in
+    case fs-read (path-from-string path) of
+      Err _ -> Err ("could not read baseline `" <> name <> "` at " <> path)
+      Ok bs -> case parse-json path bs of
+        Parsed doc [] -> case json-field "benchmarks" doc of
+          Some arr -> Ok (index-baseline-entries arr hash-map-empty)
+          None -> Err ("baseline `" <> name <> "` is missing `benchmarks` array")
+        other -> Err ("baseline `" <> name <> "` is not valid JSON")
+
+  -- ------------------------------------------------------------------
+  -- Result pairing, ANSI Criterion terminal rendering, JSON, CSV, HTML
+  -- ------------------------------------------------------------------
+
+  data BenchEntryResult where
+    MkBenchEntryResult :: BenchOutcome -> Option BenchComparison -> BenchEntryResult
+
+  entry-outcome :: BenchEntryResult -> BenchOutcome
+  entry-outcome e = case e of MkBenchEntryResult o _ -> o
+
+  entry-comparison :: BenchEntryResult -> Option BenchComparison
+  entry-comparison e = case e of MkBenchEntryResult _ c -> c
+
+  ansi-esc :: String
+  ansi-esc = case char-from-code 27 of
+    Some ch -> pack [ch]
+    None -> ""
+
+  ansi-wrap :: Bool -> String -> String -> String
+  ansi-wrap enabled code txt =
+    if enabled then ansi-esc <> "[" <> code <> "m" <> txt <> ansi-esc <> "[0m" else txt
+
+  f64-to-nat-round :: F64 -> Nat
+  f64-to-nat-round x =
+    if fle-f64 x (i64-to-f64 0) then 0
+    else case checked-nat-from-i64 (saturating-f64-to-i64 (round-f64 x)) of
+      Some n -> n
+      None -> 0
+
+  format-ci-dur :: ConfidenceInterval -> String
+  format-ci-dur ci =
+    "[" <> format-duration-ns (ci-lower ci) <> " " <> format-duration-ns (ci-point ci) <> " " <> format-duration-ns (ci-upper ci) <> "]"
+
+  format-signed-pct :: F64 -> String
+  format-signed-pct v =
+    (if fgt-f64 v (i64-to-f64 0) then "+" else "") <> format-f64-fixed 2 v <> "%"
+
+  pad-right :: Nat -> String -> String
+  pad-right width s =
+    if string-length s >= width then s <> " "
+    else pad-right width (s <> " ")
+
+  render-outlier-row :: Nat -> Nat -> String -> String
+  render-outlier-row count total lbl =
+    if count == 0 then ""
+    else
+      let pct = if total == 0 then i64-to-f64 0 else div-f64 (mul-f64 (i64-to-f64 (case checked-int-to-i64 (nat-to-int count) of Some v -> v; None -> 0)) (i64-to-f64 100)) (i64-to-f64 (case checked-int-to-i64 (nat-to-int total) of Some v -> v; None -> 1)) in
+      "  " <> nat-to-string count <> " (" <> format-f64-fixed 2 pct <> "%) " <> lbl <> "\n"
+
+  render-human-entry :: Bool -> BenchEntryResult -> String
+  render-human-entry col res =
+    let o = entry-outcome res in
+    let st = outcome-stats o in
+    let full = outcome-full-name o in
+    let tp = outcome-throughput o in
+    let name-part = ansi-wrap col "1;36" (pad-right 24 full) in
+    let med-ci = stats-median st in
+    let time-line = name-part <> "time:   [" <> format-duration-ns (ci-lower med-ci) <> " " <> ansi-wrap col "1" (format-duration-ns (ci-point med-ci)) <> " " <> format-duration-ns (ci-upper med-ci) <> "]\n" in
+    let thrpt-line = case tp of
+          ThroughputNone -> ""
+          other ->
+            "                        thrpt:  [" <> format-throughput tp (ci-upper med-ci) <> " " <> format-throughput tp (ci-point med-ci) <> " " <> format-throughput tp (ci-lower med-ci) <> "]\n" in
+    let cmp-block = case entry-comparison res of
+          None -> ""
+          Some cmp ->
+            let pct-str = "[" <> format-signed-pct (cmp-pct-lower cmp) <> " " <> format-signed-pct (cmp-pct-point cmp) <> " " <> format-signed-pct (cmp-pct-upper cmp) <> "]" in
+            let p-str = format-f64-fixed 2 (cmp-p-value cmp) in
+            let (code, verdict) = case cmp-classification cmp of
+                  ChangeImproved -> ("1;32", "Performance has improved.")
+                  ChangeRegressed -> ("1;31", "Performance has regressed.")
+                  ChangeWithinNoise -> ("33", "Change within noise threshold.")
+                  ChangeNoDifference -> ("2", "No change in performance detected.") in
+            "                        change: " <> ansi-wrap col code pct-str <> " (p = " <> p-str <> ")\n"
+            <> "                        " <> ansi-wrap col code verdict <> "\n" in
+    let out = stats-outliers st in
+    let total-out = outliers-total-count out in
+    let total-n = outliers-total-samples out in
+    let outlier-block = (
+          if total-out == 0 then ""
+          else
+            let pct = if total-n == 0 then i64-to-f64 0 else div-f64 (mul-f64 (i64-to-f64 (case checked-int-to-i64 (nat-to-int total-out) of Some v -> v; None -> 0)) (i64-to-f64 100)) (i64-to-f64 (case checked-int-to-i64 (nat-to-int total-n) of Some v -> v; None -> 1)) in
+            ansi-wrap col "33" ("Found " <> nat-to-string total-out <> " outliers among " <> nat-to-string total-n <> " measurements (" <> format-f64-fixed 2 pct <> "%)\n")
+            <> render-outlier-row (outliers-low-severe out) total-n "low severe"
+            <> render-outlier-row (outliers-low-mild out) total-n "low mild"
+            <> render-outlier-row (outliers-high-mild out) total-n "high mild"
+            <> render-outlier-row (outliers-high-severe out) total-n "high severe") in
+    let detail-block =
+          "                        slope  " <> format-ci-dur (stats-slope st) <> " R^2 " <> format-f64-fixed 4 (stats-r-squared st) <> "\n"
+          <> "                        mean   " <> format-ci-dur (stats-mean st) <> " std. dev. " <> format-ci-dur (stats-std-dev st) <> "\n"
+          <> "                        median " <> format-ci-dur (stats-median st) <> " mad       " <> format-ci-dur (stats-mad st) <> "\n" in
+    string-concat-all [time-line, thrpt-line, cmp-block, outlier-block, detail-block, "\n"]
+
+  -- JSON string escaping & float-preserving Criterion JSON renderer
+  json-escape-chars :: List Char -> List String -> String
+  json-escape-chars cs acc = case cs of
+    Nil -> string-concat-all (reverse acc)
+    Cons ch rest ->
+      let code = char-code ch in
+      let piece = if code == 34 then "\\\""
+                  else if code == 92 then "\\\\"
+                  else if code == 10 then "\\n"
+                  else if code == 13 then "\\r"
+                  else if code == 9 then "\\t"
+                  else pack [ch] in
+      json-escape-chars rest (Cons piece acc)
+
+  json-str :: String -> String
+  json-str s = "\"" <> json-escape-chars (unpack s) Nil <> "\""
+
+  json-opt-str :: Option String -> String
+  json-opt-str opt = case opt of
+    Some s -> json-str s
+    None -> "null"
+
+  json-ci :: ConfidenceInterval -> String
+  json-ci ci =
+    "{\"lower_ns\":" <> format-f64-fixed 3 (ci-lower ci)
+    <> ",\"point_ns\":" <> format-f64-fixed 3 (ci-point ci)
+    <> ",\"upper_ns\":" <> format-f64-fixed 3 (ci-upper ci) <> "}"
+
+  classification-str :: ChangeClassification -> String
+  classification-str c = case c of
+    ChangeImproved -> "improved"
+    ChangeRegressed -> "regressed"
+    ChangeWithinNoise -> "within_noise"
+    ChangeNoDifference -> "no_change"
+
+  json-comparison :: Option BenchComparison -> String
+  json-comparison opt = case opt of
+    None -> "null"
+    Some cmp ->
+      "{\"pct_lower\":" <> format-f64-fixed 3 (cmp-pct-lower cmp)
+      <> ",\"pct_point\":" <> format-f64-fixed 3 (cmp-pct-point cmp)
+      <> ",\"pct_upper\":" <> format-f64-fixed 3 (cmp-pct-upper cmp)
+      <> ",\"p_value\":" <> format-f64-fixed 4 (cmp-p-value cmp)
+      <> ",\"classification\":" <> json-str (classification-str (cmp-classification cmp))
+      <> ",\"baseline_ns\":" <> format-f64-fixed 3 (cmp-baseline-ns cmp)
+      <> ",\"current_ns\":" <> format-f64-fixed 3 (cmp-current-ns cmp) <> "}"
+
+  json-throughput :: Throughput -> String
+  json-throughput tp = case tp of
+    ThroughputNone -> "null"
+    ThroughputBytes b -> "{\"unit\":\"bytes\",\"value\":" <> nat-to-string b <> "}"
+    ThroughputElements e -> "{\"unit\":\"elements\",\"value\":" <> nat-to-string e <> "}"
+
+  json-entry :: BenchEntryResult -> String
+  json-entry res =
+    let o = entry-outcome res in
+    let st = outcome-stats o in
+    let out = stats-outliers st in
+    string-concat-all
+      [ "{\"name\":", json-str (outcome-full-name o)
+      , ",\"bench_name\":", json-str (outcome-name o)
+      , ",\"group\":", json-opt-str (outcome-group o)
+      , ",\"param\":", json-opt-str (outcome-param o)
+      , ",\"throughput\":", json-throughput (outcome-throughput o)
+      , ",\"samples\":", nat-to-string (stats-sample-count st)
+      , ",\"total_iterations\":", nat-to-string (stats-total-iterations st)
+      , ",\"total_time_ns\":", nat-to-string (stats-total-time-ns st)
+      , ",\"slope\":", json-ci (stats-slope st)
+      , ",\"r_squared\":", format-f64-fixed 4 (stats-r-squared st)
+      , ",\"mean\":", json-ci (stats-mean st)
+      , ",\"median\":", json-ci (stats-median st)
+      , ",\"std_dev\":", json-ci (stats-std-dev st)
+      , ",\"mad\":", json-ci (stats-mad st)
+      , ",\"min_ns\":", format-f64-fixed 3 (stats-min-ns st)
+      , ",\"max_ns\":", format-f64-fixed 3 (stats-max-ns st)
+      , ",\"outliers\":{\"low_severe\":", nat-to-string (outliers-low-severe out)
+      , ",\"low_mild\":", nat-to-string (outliers-low-mild out)
+      , ",\"high_mild\":", nat-to-string (outliers-high-mild out)
+      , ",\"high_severe\":", nat-to-string (outliers-high-severe out)
+      , ",\"total\":", nat-to-string (outliers-total-count out), "}"
+      , ",\"comparison\":", json-comparison (entry-comparison res)
+      , "}"
+      ]
+
+  render-json-report :: Nat -> Nat -> Nat -> Nat -> Nat -> List BenchEntryResult -> String
+  render-json-report compile-ms total-ms improved regressed skipped results =
+    let items = string-join "," (map json-entry results) in
+    string-concat-all
+      [ "{\"schema\":1"
+      , ",\"compile_ms\":", nat-to-string compile-ms
+      , ",\"duration_ms\":", nat-to-string total-ms
+      , ",\"summary\":{\"benchmarks\":", nat-to-string (list-length results)
+      , ",\"improved\":", nat-to-string improved
+      , ",\"regressed\":", nat-to-string regressed
+      , ",\"skipped\":", nat-to-string skipped, "}"
+      , ",\"benchmarks\":[", items, "]}\n"
+      ]
+
+  -- CSV report renderer
+  csv-escape :: String -> String
+  csv-escape s =
+    if string-contains "," s || string-contains "\"" s || string-contains "\n" s then
+      "\"" <> s <> "\""
+    else s
+
+  render-csv-row :: BenchEntryResult -> String
+  render-csv-row res =
+    let o = entry-outcome res in
+    let st = outcome-stats o in
+    let gp = case outcome-group o of Some g -> g; None -> "" in
+    let pm = case outcome-param o of Some p -> p; None -> "" in
+    let (chg-s, p-s, st-s) = case entry-comparison res of
+          None -> ("", "", "")
+          Some cmp -> (format-f64-fixed 3 (cmp-pct-point cmp), format-f64-fixed 4 (cmp-p-value cmp), classification-str (cmp-classification cmp)) in
+    string-join ","
+      [ csv-escape (outcome-full-name o)
+      , csv-escape gp
+      , csv-escape pm
+      , nat-to-string (stats-sample-count st)
+      , nat-to-string (stats-total-iterations st)
+      , format-f64-fixed 3 (ci-point (stats-median st))
+      , format-f64-fixed 3 (ci-lower (stats-median st))
+      , format-f64-fixed 3 (ci-upper (stats-median st))
+      , format-f64-fixed 3 (ci-point (stats-mean st))
+      , format-f64-fixed 3 (ci-point (stats-std-dev st))
+      , format-f64-fixed 3 (ci-point (stats-slope st))
+      , format-f64-fixed 4 (stats-r-squared st)
+      , format-f64-fixed 3 (ci-point (stats-mad st))
+      , format-f64-fixed 3 (stats-min-ns st)
+      , format-f64-fixed 3 (stats-max-ns st)
+      , nat-to-string (outliers-total-count (stats-outliers st))
+      , chg-s, p-s, st-s
+      ] <> "\n"
+
+  render-csv-report :: List BenchEntryResult -> String
+  render-csv-report results =
+    let header = "name,group,param,samples,iterations,median_ns,median_ci_lo_ns,median_ci_hi_ns,mean_ns,std_dev_ns,slope_ns,r_squared,mad_ns,min_ns,max_ns,outliers,change_pct,p_value,status\n" in
+    string-concat-all (Cons header (map render-csv-row results))
+
+  -- Self-contained HTML report with inline SVG CI whisker bars
+  html-escape-chars :: List Char -> List String -> String
+  html-escape-chars cs acc = case cs of
+    Nil -> string-concat-all (reverse acc)
+    Cons ch rest ->
+      let code = char-code ch in
+      let piece = if code == 38 then "&amp;"
+                  else if code == 60 then "&lt;"
+                  else if code == 62 then "&gt;"
+                  else if code == 34 then "&quot;"
+                  else pack [ch] in
+      html-escape-chars rest (Cons piece acc)
+
+  html-escape :: String -> String
+  html-escape s = html-escape-chars (unpack s) Nil
+
+  max-upper-ns :: List BenchEntryResult -> F64 -> F64
+  max-upper-ns rs best = case rs of
+    Nil -> best
+    Cons r rest ->
+      let u = ci-upper (stats-median (outcome-stats (entry-outcome r))) in
+      max-upper-ns rest (if fgt-f64 u best then u else best)
+
+  svg-bar-for :: F64 -> ConfidenceInterval -> String
+  svg-bar-for scale ci =
+    let safe-scale = if fle-f64 scale (i64-to-f64 0) then i64-to-f64 1 else scale in
+    let to-x = \v -> f64-to-nat-round (mul-f64 (div-f64 v safe-scale) (i64-to-f64 160)) in
+    let x-lo = to-x (ci-lower ci) in
+    let x-pt = to-x (ci-point ci) in
+    let x-hi = to-x (ci-upper ci) in
+    let x-hi2 = if x-hi <= x-lo then x-lo + 2 else x-hi in
+    string-concat-all
+      [ "<svg width=\"170\" height=\"18\" viewBox=\"0 0 170 18\" aria-label=\"CI chart\">"
+      , "<rect x=\"0\" y=\"6\" width=\"", nat-to-string x-pt, "\" height=\"6\" rx=\"3\" fill=\"#38bdf8\" opacity=\"0.35\"/>"
+      , "<line x1=\"", nat-to-string x-lo, "\" y1=\"9\" x2=\"", nat-to-string x-hi2, "\" y2=\"9\" stroke=\"#0284c7\" stroke-width=\"2\"/>"
+      , "<circle cx=\"", nat-to-string x-pt, "\" cy=\"9\" r=\"3.5\" fill=\"#0369a1\"/>"
+      , "</svg>"
+      ]
+
+  render-html-row :: F64 -> BenchEntryResult -> String
+  render-html-row max-ns res =
+    let o = entry-outcome res in
+    let st = outcome-stats o in
+    let med = stats-median st in
+    let tp-str = case outcome-throughput o of
+          ThroughputNone -> "-"
+          tp -> format-throughput tp (ci-point med) in
+    let badge = case entry-comparison res of
+          None -> "<span class=\"badge muted\">-</span>"
+          Some cmp ->
+            let lbl = format-signed-pct (cmp-pct-point cmp) <> " (p=" <> format-f64-fixed 2 (cmp-p-value cmp) <> ")" in
+            case cmp-classification cmp of
+              ChangeImproved -> "<span class=\"badge improved\">" <> lbl <> "</span>"
+              ChangeRegressed -> "<span class=\"badge regressed\">" <> lbl <> "</span>"
+              ChangeWithinNoise -> "<span class=\"badge noise\">" <> lbl <> "</span>"
+              ChangeNoDifference -> "<span class=\"badge muted\">" <> lbl <> "</span>" in
+    string-concat-all
+      [ "<tr><td><strong>", html-escape (outcome-full-name o), "</strong></td>"
+      , "<td class=\"num\">", format-duration-ns (ci-point med), "</td>"
+      , "<td class=\"num muted\">", format-ci-dur med, "</td>"
+      , "<td>", svg-bar-for max-ns med, "</td>"
+      , "<td class=\"num\">", format-duration-ns (ci-point (stats-slope st)), " (R&sup2;=", format-f64-fixed 4 (stats-r-squared st), ")</td>"
+      , "<td class=\"num\">", html-escape tp-str, "</td>"
+      , "<td class=\"num\">", nat-to-string (outliers-total-count (stats-outliers st)), "/", nat-to-string (stats-sample-count st), "</td>"
+      , "<td>", badge, "</td></tr>\n"
+      ]
+
+  render-html-report :: Nat -> Nat -> List BenchEntryResult -> String
+  render-html-report compile-ms total-ms results =
+    let max-ns = max-upper-ns results (i64-to-f64 1) in
+    let rows = string-concat-all (map (render-html-row max-ns) results) in
+    string-concat-all
+      [ "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Cinch Benchmark Report</title>\n"
+      , "<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:1180px;margin:2rem auto;padding:0 1rem;color:#0f172a;background:#f8fafc}"
+      , "h1{margin:0 0 .5rem}p.meta{color:#475569;margin-top:0}table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}"
+      , "th,td{padding:.65rem .8rem;border-bottom:1px solid #e2e8f0;text-align:left;font-size:.9rem}th{background:#f1f5f9;font-weight:600;color:#334155}"
+      , ".num{font-variant-numeric:tabular-nums;white-space:nowrap}.muted{color:#64748b}"
+      , ".badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.8rem;font-weight:600}"
+      , ".improved{background:#dcfce7;color:#166534}.regressed{background:#fee2e2;color:#991b1b}.noise{background:#fef3c7;color:#92400e}</style></head><body>\n"
+      , "<h1>Cinch Criterion Benchmark Report</h1>\n"
+      , "<p class=\"meta\">", nat-to-string (list-length results), " benchmarks &middot; compiled in ", nat-to-string compile-ms, " ms &middot; measured in ", nat-to-string total-ms, " ms</p>\n"
+      , "<table><thead><tr><th>Benchmark</th><th>Median</th><th>95% CI</th><th>Distribution</th><th>OLS Slope</th><th>Throughput</th><th>Outliers</th><th>Change</th></tr></thead><tbody>\n"
+      , rows
+      , "</tbody></table></body></html>\n"
+      ]
+
+  -- ------------------------------------------------------------------
+  -- Suite orchestration
+  -- ------------------------------------------------------------------
+
+  partition-runnable :: BenchRunIgnored -> List DiscoveredBench -> (List DiscoveredBench, List DiscoveredBench)
+  partition-runnable mode bs = case bs of
+    Nil -> (Nil, Nil)
+    Cons b rest -> case partition-runnable mode rest of
+      (runnable, skipped) ->
+        let is-skip = case mode of
+              BenchIgnoredDefault -> bench-spec-ignored (bench-spec b)
+              other -> False in
+        if is-skip then (runnable, Cons b skipped) else (Cons b runnable, skipped)
+
+  attach-comparisons :: BenchCliConfig -> Option (HashMap String (List BenchSample)) -> List BenchOutcome -> List BenchEntryResult
+  attach-comparisons cfg base-opt outcomes = case outcomes of
+    Nil -> Nil
+    Cons o rest ->
+      let bcfg = MkBenchConfig 0 0 100 (case bench-cfg-resamples cfg of Some r -> r; None -> 1000) (bench-cfg-noise-bps cfg) (bench-cfg-sig-bps cfg) (bench-cfg-quick cfg) in
+      let cmp = case base-opt of
+            None -> None
+            Some bmap -> case hash-map-lookup (outcome-full-name o) bmap of
+              Some base-samples -> Some (compare-samples bcfg base-samples (outcome-samples o))
+              None -> None in
+      Cons (MkBenchEntryResult o cmp) (attach-comparisons cfg base-opt rest)
+
+  count-cmp-changes :: List BenchEntryResult -> (Nat, Nat) -> (Nat, Nat)
+  count-cmp-changes rs acc = case rs of
+    Nil -> acc
+    Cons r rest -> case acc of
+      (imp, reg) -> case entry-comparison r of
+        Some cmp -> case cmp-classification cmp of
+          ChangeImproved -> count-cmp-changes rest (imp + 1, reg)
+          ChangeRegressed -> count-cmp-changes rest (imp, reg + 1)
+          other -> count-cmp-changes rest (imp, reg)
+        None -> count-cmp-changes rest (imp, reg)
+
+  emit-human-results :: forall r. using (io :: Io r) => Bool -> List BenchEntryResult ->{IO r} Unit
+  emit-human-results col rs = case rs of
+    Nil -> ()
+    Cons r rest ->
+      case ioWrite (string-to-bytes (render-human-entry col r)) of
+        _ -> emit-human-results col rest
+
+  run-benches-seq
+    :: forall r. using (io :: Io r)
+    => Path -> BenchCliConfig -> Option (HashMap String (List BenchSample)) -> List DiscoveredBench -> List BenchEntryResult -> Nat
+    ->{IO r, Diverge} (List BenchEntryResult, Nat)
+  run-benches-seq exe-path cfg base-opt remaining acc errors = case remaining of
+    Nil -> (acc, errors)
+    Cons b rest ->
+      let show-progress = case bench-cfg-format cfg of BenchFormatHuman -> True; other -> False in
+      let _ = if show-progress then
+                case ioWrite (string-to-bytes ("Benchmarking " <> bench-display-name b <> "...\n")) of _ -> ()
+              else () in
+      case execute-one-bench exe-path cfg b of
+        Err msg ->
+          let _ = case ioWrite (string-to-bytes ("  ERROR: " <> msg <> "\n")) of _ -> () in
+          run-benches-seq exe-path cfg base-opt rest acc (errors + 1)
+        Ok outcomes ->
+          let paired = attach-comparisons cfg base-opt outcomes in
+          let _ = if show-progress then emit-human-results (bench-cfg-color cfg) paired else () in
+          run-benches-seq exe-path cfg base-opt rest (acc <> paired) errors
+
+  write-optional-reports :: forall r. using (io :: Io r) => BenchCliConfig -> Nat -> Nat -> Nat -> Nat -> Nat -> List BenchEntryResult ->{IO r} Unit
+  write-optional-reports cfg compile-ms total-ms imp reg skip results =
+    let _ = case bench-cfg-json-report cfg of
+          None -> ()
+          Some p -> case fs-write (path-from-string p) (string-to-bytes (render-json-report compile-ms total-ms imp reg skip results)) of _ -> () in
+    let _ = case bench-cfg-csv-report cfg of
+          None -> ()
+          Some p -> case fs-write (path-from-string p) (string-to-bytes (render-csv-report results)) of _ -> () in
+    case bench-cfg-html-report cfg of
+      None -> ()
+      Some p -> case fs-write (path-from-string p) (string-to-bytes (render-html-report compile-ms total-ms results)) of _ -> ()
+
+  run-benchmark-suite :: forall r. using (io :: Io r) => BenchCliConfig -> String -> Nat -> List DiscoveredBench ->{IO r, Diverge} Int
+  run-benchmark-suite cfg executable compile-ms all-benches =
+    case parse-all-filter-exprs (bench-cfg-filter-exprs cfg) Nil of
+      Err msg -> case ioWrite (string-to-bytes ("cinch bench: filter error: " <> msg <> "\n")) of _ -> 2
+      Ok exprs ->
+        let selected = filter-discovered-benches cfg exprs all-benches in
+        let (runnable, skipped) = partition-runnable (bench-cfg-run-ignored cfg) selected in
+        let base-res = case bench-cfg-baseline cfg of
+              None -> Ok None
+              Some bname -> case load-baseline-file cfg bname of
+                Err msg -> Err msg
+                Ok bmap -> Ok (Some bmap) in
+        case base-res of
+          Err msg -> case ioWrite (string-to-bytes ("cinch bench: " <> msg <> "\n")) of _ -> 2
+          Ok base-opt ->
+            let col = bench-cfg-color cfg in
+            let _ = case bench-cfg-format cfg of
+                  BenchFormatHuman ->
+                    let hdr = ansi-wrap col "1;34" "    Running" <> " " <> nat-to-string (list-length runnable) <> " benchmark(s) (compiled in " <> nat-to-string compile-ms <> " ms, -O" <> nat-to-string (bench-cfg-opt-level cfg) <> ")\n\n" in
+                    case ioWrite (string-to-bytes hdr) of _ -> ()
+                  other -> () in
+            let prog = path-from-string executable in
+            let exe-path = if path-is-absolute prog then prog else path-from-string ("./" <> executable) in
+            let t0 = clock-monotonic-ns () in
+            case run-benches-seq exe-path cfg base-opt runnable Nil 0 of
+              (results, errors) ->
+                let t1 = clock-monotonic-ns () in
+                let total-ms = (saturating-sub t1 t0) / 1000000 in
+                let (imp, reg) = count-cmp-changes results (0, 0) in
+                let skip-n = list-length skipped in
+                let _ = write-optional-reports cfg compile-ms total-ms imp reg skip-n results in
+                let save-err = case bench-cfg-save-baseline cfg of
+                      None -> None
+                      Some sname -> case save-baseline-file cfg sname (map entry-outcome results) of
+                        Ok _ -> None
+                        Err msg -> Some msg in
+                let _ = case save-err of
+                      Some msg -> case ioWrite (string-to-bytes ("cinch bench: warning: " <> msg <> "\n")) of _ -> ()
+                      None -> () in
+                let _ = case bench-cfg-format cfg of
+                      BenchFormatJson ->
+                        case ioWrite (string-to-bytes (render-json-report compile-ms total-ms imp reg skip-n results)) of _ -> ()
+                      BenchFormatCsv ->
+                        case ioWrite (string-to-bytes (render-csv-report results)) of _ -> ()
+                      BenchFormatHuman ->
+                        let saved-note = case bench-cfg-save-baseline cfg of
+                              Some sname -> " (saved baseline `" <> sname <> "`)"
+                              None -> "" in
+                        let cmp-note = case bench-cfg-baseline cfg of
+                              Some bname -> ", " <> nat-to-string imp <> " improved, " <> nat-to-string reg <> " regressed vs `" <> bname <> "`"
+                              None -> "" in
+                        let skip-note = if skip-n > 0 then ", " <> nat-to-string skip-n <> " skipped" else "" in
+                        let err-note = if errors > 0 then ", " <> nat-to-string errors <> " failed" else "" in
+                        let summary =
+                              "------------\n"
+                              <> ansi-wrap col (if errors == 0 && (not (bench-cfg-fail-on-regression cfg) || reg == 0) then "1;32" else "1;31") "     Summary"
+                              <> " [" <> nat-to-string total-ms <> " ms] "
+                              <> nat-to-string (list-length results) <> " benchmarks measured"
+                              <> cmp-note <> skip-note <> err-note <> saved-note <> "\n" in
+                        case ioWrite (string-to-bytes summary) of _ -> () in
+                if errors > 0 then 1
+                else if bench-cfg-fail-on-regression cfg && reg > 0 then 3
+                else 0

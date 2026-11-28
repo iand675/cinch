@@ -5132,6 +5132,7 @@ module Cinch.Infer where
     DInlineHint s name hint -> (env, case hint of Ok value -> st; Err message -> add-error s message st)
     DUnrollHint s name hint -> (env, case hint of Ok value -> st; Err message -> add-error s message st)
     DTestAttr s name tspec -> (env, case tspec of Ok value -> st; Err message -> add-error s message st)
+    DBenchAttr s name bspec -> (env, case bspec of Ok value -> st; Err message -> add-error s message st)
     -- Temporal contracts, machines, and refinements bind no value and run after bodies check.
     DContract s keyword name subject clauses -> (env, st)
     DMachine s name syntax -> (env, st)

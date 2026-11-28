@@ -1,64 +1,106 @@
--- Effect.Benchmark: timing `IO r` actions against the runtime's
--- monotonic clock, the Ruby `Benchmark` surface (the tooling entry in
--- design/stdlib-parity-ruby.md, ported onto the P34 `Effect.Clock`).
+-- Effect.Benchmark: Criterion-style statistical benchmarking library and
+-- timing primitives over the runtime's monotonic clock (`Effect.Clock`).
 --
--- The clock is the monotonic reading only (`clock-monotonic-ns`, never
--- `clock-wall-ns`), so an interval is a natural number of nanoseconds
--- and never runs backwards. As with Ruby's `Benchmark`, no attempt is
--- made to subtract the measurement overhead (the two clock reads and
--- the report record): an interval is the raw span around the action,
--- and two measurements are comparable because they pay the same
--- overhead.
+-- This module provides two layers:
+--   1. The lightweight single-span timing API (`BenchmarkReport`,
+--      `benchmark-measure`, `benchmark-realtime`, `benchmark-table`),
+--      preserving full compatibility with the original P34 surface.
+--   2. A full Criterion-style benchmarking DSL and statistical analysis
+--      engine (`black-box`, `BenchConfig`, `Throughput`, `BatchSize`,
+--      `Bencher`, `Criterion`, `BenchmarkGroup`, `bench-iter`,
+--      `bench-iter-pure`, `bench-iter-batched`, `bench-iter-custom`,
+--      `benchmark-group`, `group-bench`, `group-bench-with-input`,
+--      `group-bench-inputs`, `analyze-samples`, `compare-samples`,
+--      `render-bench-outcome`, `render-criterion-report`) that integrates
+--      directly with `#[bench]` annotations and the built-in `cinch bench`
+--      CLI runner.
 --
--- Design law shape:
---   value transparency: `benchmark-measure label work` returns
---     `work`'s value unchanged (timing never consumes or alters the
---     timed result);
---   non-negativity: the monotonic clock is non-decreasing, so the
---     elapsed nanoseconds (and `benchmark-realtime`'s `Duration`) are
---     always non-negative;
---   agreement: `benchmark-realtime` and `benchmark-measure` read the
---     same interval around the same action (the former truncates to
---     whole milliseconds), and `benchmark-table`'s total is the sum
---     of its rows;
---   ordering only: measurements are compared to each other, never to
---     an absolute wall-clock budget.
---
--- Named refusals (boundaries this module deliberately does not cross):
---   overhead subtraction: not attempted (Ruby does not either); the
---     clock reads stay part of the interval;
---   absolute-duration claims: the module offers no thresholds or
---     budgets, and its tests order measurements rather than pin
---     absolute times;
---   wall-clock and calendar: only the monotonic clock is consulted;
---     dates and formatting are the Time family's business
---     (Effect.Clock's header), not here;
---   statistics: no minimum/maximum/mean/deviation aggregation and no
---     Ruby `Benchmark.bmbm` warm-up pass; a report is one interval and
---     the table adds the rows up;
---   compile-time readings: `Effect.Clock`'s refusal (D45): the timing
---     operations need the `Io r` capability and cannot run in a
---     `stage` body.
---
--- Module scheme (design/base-library.md): `Effect.*` is the effect
--- system's vocabulary, and timing is a runtime capability in the
--- `Io r` mold (D45), so the home is Effect.
+-- Statistical methodology (matching Criterion.rs):
+--   - Warm-up phase to stabilize caches, branch predictors, and clocks.
+--   - Adaptive linear sampling (iterations d, 2d, ..., Nd) with automatic
+--     fallback to flat sampling for slow workloads.
+--   - Ordinary Least Squares (OLS) linear regression through the origin
+--     (slope + R^2 goodness-of-fit), mean, std. dev., median, scaled MAD
+--     (1.4826 * median(|x - median|)), min, and max.
+--   - Tukey's fences outlier classification (low/high mild at 1.5*IQR,
+--     low/high severe at 3.0*IQR).
+--   - Deterministic bootstrap resampling for 95% confidence intervals.
+--   - Baseline comparison via Welch's two-sample t-test (p-value) and
+--     bootstrapped percentage-change confidence intervals against a
+--     configurable noise threshold.
 module Effect.Benchmark where
 
-  import Data.Nat
+  import Algebra.Semigroup
+  import Data.Bool
+  import Data.Int
   import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
   import Data.String
   import Effect.Clock
+  import Effect.Io
   import Text.Show
 
+  -- Original P34 surface (preserved verbatim)
   export BenchmarkReport, benchmark-label, benchmark-elapsed-ns
   export benchmark-measure, benchmark-realtime, benchmark-table
 
+  -- Optimization barrier
+  export black-box
 
-  -- One measurement: the label the caller supplied and the elapsed
-  -- monotonic nanoseconds around the action. The constructor is the
-  -- smart surface's only source of reports, so a report's interval is
-  -- always one this module read.
+  -- Criterion configuration, throughput, and batching
+  export Throughput, ThroughputNone, ThroughputBytes, ThroughputElements
+  export BatchSize, SmallInput, LargeInput, PerIteration, NumBatches, NumIterations
+  export BenchConfig, MkBenchConfig, default-bench-config, quick-bench-config
+  export bench-config-warmup-ms, bench-config-measurement-ms, bench-config-sample-size
+  export bench-config-nresamples, bench-config-noise-threshold-bps, bench-config-significance-bps
+  export bench-config-quick
+  export bench-config-with-warmup, bench-config-with-measurement, bench-config-with-samples
+  export bench-config-with-resamples, bench-config-with-noise-threshold, bench-config-with-significance
+
+  -- Samples, estimates, outliers, statistics, outcomes, and comparisons
+  export BenchSample, MkBenchSample, sample-iterations, sample-elapsed-ns, sample-ns-per-iter
+  export ConfidenceInterval, MkConfidenceInterval, ci-lower, ci-point, ci-upper
+  export OutlierSummary, MkOutlierSummary
+  export outliers-low-severe, outliers-low-mild, outliers-high-mild, outliers-high-severe
+  export outliers-total-samples, outliers-total-count
+  export BenchStats, MkBenchStats
+  export stats-slope, stats-r-squared, stats-mean, stats-median, stats-std-dev, stats-mad
+  export stats-min-ns, stats-max-ns, stats-outliers, stats-total-iterations
+  export stats-total-time-ns, stats-sample-count
+  export BenchOutcome, MkBenchOutcome
+  export outcome-name, outcome-group, outcome-param, outcome-full-name
+  export outcome-throughput, outcome-samples, outcome-stats
+  export ChangeClassification, ChangeImproved, ChangeRegressed, ChangeWithinNoise, ChangeNoDifference
+  export BenchComparison, MkBenchComparison
+  export cmp-pct-lower, cmp-pct-point, cmp-pct-upper, cmp-p-value, cmp-classification
+  export cmp-baseline-ns, cmp-current-ns
+
+  -- Builder DSL: Bencher, Criterion, BenchmarkGroup
+  export Bencher, MkBencher, bencher-new, bencher-config, bencher-name
+  export bencher-with-throughput, bencher-with-config
+  export bench-iter, bench-iter-pure, bench-iter-batched, bench-iter-batched-pure, bench-iter-custom
+  export Criterion, MkCriterion, criterion-new, criterion-default, criterion-config
+  export bench-function, bench-with-input
+  export BenchmarkGroup, MkBenchmarkGroup, benchmark-group
+  export group-with-throughput, group-with-config
+  export group-bench, group-bench-with-input, group-bench-inputs
+
+  -- Statistical analysis, baseline comparison, formatting, and harness protocol
+  export analyze-samples, compare-samples
+  export format-duration-ns, format-f64-fixed, format-throughput
+  export render-bench-outcome, render-criterion-report
+  export encode-bench-outcome
+  export bench-harness-make-bencher, bench-harness-make-criterion
+  export bench-harness-emit-one, bench-harness-emit-list
+
+  -- ==================================================================
+  -- Part 1: Original P34 single-span timing surface
+  -- ==================================================================
+
   data BenchmarkReport where
     BenchmarkReport :: String -> Nat -> BenchmarkReport
 
@@ -70,12 +112,6 @@ module Effect.Benchmark where
   benchmark-elapsed-ns r = case r of
     BenchmarkReport _ n -> n
 
-
-  -- Run `work` and report the monotonic span around it, together with
-  -- `work`'s own value so a measurement never discards the result. The
-  -- elapsed is `t1 - t0`; the monotonic clock guarantees `t1 >= t0`,
-  -- but that is the OS's promise, not a fact the checker sees, so the
-  -- span clamps at zero (a duration is never negative).
   benchmark-measure :: forall r a. using (io :: Io r) => String -> (Unit ->{IO r} a) ->{IO r} (BenchmarkReport, a)
   benchmark-measure label work =
     let t0 = clock-monotonic-ns () in
@@ -83,10 +119,6 @@ module Effect.Benchmark where
     let t1 = clock-monotonic-ns () in
     (BenchmarkReport label (saturating-sub t1 t0), x)
 
-  -- The same interval as `benchmark-measure`, truncated to whole
-  -- milliseconds (`Effect.Clock`'s `monotonic-elapsed`); the action's
-  -- value is deliberately dropped, so callers wanting it use
-  -- `benchmark-measure`.
   benchmark-realtime :: forall r a. using (io :: Io r) => (Unit ->{IO r} a) ->{IO r} Duration
   benchmark-realtime work =
     let t0 = clock-monotonic-ns () in
@@ -94,11 +126,6 @@ module Effect.Benchmark where
     let t1 = clock-monotonic-ns () in
     monotonic-elapsed t0 t1
 
-
-  -- The table: a header, one row per report in input order, and the
-  -- total row. Labels are the caller's, printed verbatim. The rows are
-  -- flattened once: nesting `string-concat` would re-copy the rest of the
-  -- table at every row.
   benchmark-table :: List BenchmarkReport -> String
   benchmark-table reports =
     string-concat-all (Cons "label  nanoseconds\n" (benchmark-rows reports (Cons (benchmark-total reports) Nil)))
@@ -119,7 +146,1195 @@ module Effect.Benchmark where
     string-concat "total  "
       (string-concat (nat-to-string (benchmark-total-ns reports)) "\n")
 
-  -- The sum of the rows (the agreement law: the total is the rows
-  -- added up, nothing else).
+  benchmark-total-ns-loop :: List BenchmarkReport -> Nat -> Nat
+  benchmark-total-ns-loop reports acc = case reports of
+    Nil -> acc
+    Cons r rest -> benchmark-total-ns-loop rest (acc + benchmark-elapsed-ns r)
+
   benchmark-total-ns :: List BenchmarkReport -> Nat
-  benchmark-total-ns reports = sum-list 0 (map benchmark-elapsed-ns reports)
+  benchmark-total-ns reports = benchmark-total-ns-loop reports 0
+
+  -- ==================================================================
+  -- Part 2: Optimization barrier
+  -- ==================================================================
+
+  -- Prevent the compiler and LLVM from constant-folding, hoisting, or
+  -- dead-code-eliminating benchmark inputs and results. Marked
+  -- `#[inline(never)]` for portable builds; the self-hosted LLVM backend
+  -- also lowers this unit with an opaque `asm sideeffect "", "=r,0"`
+  -- register barrier on native targets.
+  #[inline(never)]
+  black-box :: forall a. a -> a
+  black-box x = x
+
+  -- ==================================================================
+  -- Part 3: Criterion configuration and data model
+  -- ==================================================================
+
+  data Throughput where
+    ThroughputNone :: Throughput
+    ThroughputBytes :: Nat -> Throughput
+    ThroughputElements :: Nat -> Throughput
+
+  data BatchSize where
+    SmallInput :: BatchSize
+    LargeInput :: BatchSize
+    PerIteration :: BatchSize
+    NumBatches :: Nat -> BatchSize
+    NumIterations :: Nat -> BatchSize
+
+  -- Configuration for a benchmark run:
+  --   warmup-ms            warm-up duration in milliseconds (default 500)
+  --   measurement-ms       target measurement time in ms (default 1500)
+  --   sample-size          number of samples to collect (default 100, min 10)
+  --   nresamples           bootstrap resample count (default 1000)
+  --   noise-threshold-bps  noise band in basis points (200 = 2.00%)
+  --   significance-bps     p-value threshold in basis points (500 = 0.05)
+  --   quick-mode           whether --quick fast sampling is active
+  data BenchConfig where
+    MkBenchConfig :: Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> BenchConfig
+
+  default-bench-config :: BenchConfig
+  default-bench-config = MkBenchConfig 500 1500 100 1000 200 500 False
+
+  quick-bench-config :: BenchConfig
+  quick-bench-config = MkBenchConfig 100 250 20 200 200 500 True
+
+  bench-config-warmup-ms :: BenchConfig -> Nat
+  bench-config-warmup-ms c = case c of MkBenchConfig w m s r nt sig q -> w
+
+  bench-config-measurement-ms :: BenchConfig -> Nat
+  bench-config-measurement-ms c = case c of MkBenchConfig w m s r nt sig q -> m
+
+  bench-config-sample-size :: BenchConfig -> Nat
+  bench-config-sample-size c = case c of MkBenchConfig w m s r nt sig q -> s
+
+  bench-config-nresamples :: BenchConfig -> Nat
+  bench-config-nresamples c = case c of MkBenchConfig w m s r nt sig q -> r
+
+  bench-config-noise-threshold-bps :: BenchConfig -> Nat
+  bench-config-noise-threshold-bps c = case c of MkBenchConfig w m s r nt sig q -> nt
+
+  bench-config-significance-bps :: BenchConfig -> Nat
+  bench-config-significance-bps c = case c of MkBenchConfig w m s r nt sig q -> sig
+
+  bench-config-quick :: BenchConfig -> Bool
+  bench-config-quick c = case c of MkBenchConfig w m s r nt sig q -> q
+
+  bench-config-with-warmup :: Nat -> BenchConfig -> BenchConfig
+  bench-config-with-warmup w2 c = case c of MkBenchConfig w m s r nt sig q -> MkBenchConfig w2 m s r nt sig q
+
+  bench-config-with-measurement :: Nat -> BenchConfig -> BenchConfig
+  bench-config-with-measurement m2 c = case c of MkBenchConfig w m s r nt sig q -> MkBenchConfig w m2 s r nt sig q
+
+  bench-config-with-samples :: Nat -> BenchConfig -> BenchConfig
+  bench-config-with-samples s2 c =
+    let clamped = if s2 < 10 then 10 else s2 in
+    case c of MkBenchConfig w m s r nt sig q -> MkBenchConfig w m clamped r nt sig q
+
+  bench-config-with-resamples :: Nat -> BenchConfig -> BenchConfig
+  bench-config-with-resamples r2 c =
+    let clamped = if r2 < 50 then 50 else r2 in
+    case c of MkBenchConfig w m s r nt sig q -> MkBenchConfig w m s clamped nt sig q
+
+  bench-config-with-noise-threshold :: Nat -> BenchConfig -> BenchConfig
+  bench-config-with-noise-threshold nt2 c = case c of MkBenchConfig w m s r nt sig q -> MkBenchConfig w m s r nt2 sig q
+
+  bench-config-with-significance :: Nat -> BenchConfig -> BenchConfig
+  bench-config-with-significance sig2 c = case c of MkBenchConfig w m s r nt sig q -> MkBenchConfig w m s r nt sig2 q
+
+  -- One raw sample: (iterations executed in this sample, total elapsed ns).
+  data BenchSample where
+    MkBenchSample :: Nat -> Nat -> BenchSample
+
+  sample-iterations :: BenchSample -> Nat
+  sample-iterations s = case s of MkBenchSample it _ -> it
+
+  sample-elapsed-ns :: BenchSample -> Nat
+  sample-elapsed-ns s = case s of MkBenchSample _ ns -> ns
+
+  -- Numeric helpers over F64 (using Data.Machine only, no Data.Float dep).
+  nat-to-f64 :: Nat -> F64
+  nat-to-f64 n = case checked-nat-to-i64 n of
+    Some i -> i64-to-f64 i
+    None -> i64-to-f64 9223372036854775807
+
+  f64-zero :: F64
+  f64-zero = i64-to-f64 0
+
+  f64-one :: F64
+  f64-one = i64-to-f64 1
+
+  f64-two :: F64
+  f64-two = i64-to-f64 2
+
+  f64-ratio :: I64 -> I64 -> F64
+  f64-ratio a b = div-f64 (i64-to-f64 a) (i64-to-f64 b)
+
+  f64-clamp-nonneg-nat :: F64 -> Nat
+  f64-clamp-nonneg-nat x =
+    if fle-f64 x f64-zero then 0
+    else case checked-nat-from-i64 (saturating-f64-to-i64 x) of
+      Some n -> n
+      None -> 0
+
+  sample-ns-per-iter :: BenchSample -> F64
+  sample-ns-per-iter s = case s of
+    MkBenchSample it ns ->
+      if it == 0 then f64-zero
+      else div-f64 (nat-to-f64 ns) (nat-to-f64 it)
+
+  -- 95% confidence interval: [lower, point estimate, upper].
+  data ConfidenceInterval where
+    MkConfidenceInterval :: F64 -> F64 -> F64 -> ConfidenceInterval
+
+  ci-lower :: ConfidenceInterval -> F64
+  ci-lower ci = case ci of MkConfidenceInterval l _ _ -> l
+
+  ci-point :: ConfidenceInterval -> F64
+  ci-point ci = case ci of MkConfidenceInterval _ p _ -> p
+
+  ci-upper :: ConfidenceInterval -> F64
+  ci-upper ci = case ci of MkConfidenceInterval _ _ u -> u
+
+  -- Tukey's fences outlier classification summary.
+  data OutlierSummary where
+    MkOutlierSummary :: Nat -> Nat -> Nat -> Nat -> Nat -> OutlierSummary
+
+  outliers-low-severe :: OutlierSummary -> Nat
+  outliers-low-severe o = case o of MkOutlierSummary ls _ _ _ _ -> ls
+
+  outliers-low-mild :: OutlierSummary -> Nat
+  outliers-low-mild o = case o of MkOutlierSummary _ lm _ _ _ -> lm
+
+  outliers-high-mild :: OutlierSummary -> Nat
+  outliers-high-mild o = case o of MkOutlierSummary _ _ hm _ _ -> hm
+
+  outliers-high-severe :: OutlierSummary -> Nat
+  outliers-high-severe o = case o of MkOutlierSummary _ _ _ hs _ -> hs
+
+  outliers-total-samples :: OutlierSummary -> Nat
+  outliers-total-samples o = case o of MkOutlierSummary _ _ _ _ n -> n
+
+  outliers-total-count :: OutlierSummary -> Nat
+  outliers-total-count o = case o of MkOutlierSummary ls lm hm hs _ -> ls + lm + hm + hs
+
+  -- Complete Criterion statistical summary for a benchmark.
+  data BenchStats where
+    MkBenchStats
+      :: ConfidenceInterval  -- slope (OLS through origin, ns/iter)
+      -> F64                 -- R^2 goodness of fit
+      -> ConfidenceInterval  -- mean (ns/iter)
+      -> ConfidenceInterval  -- median (ns/iter)
+      -> ConfidenceInterval  -- std. dev. (ns/iter)
+      -> ConfidenceInterval  -- MAD scaled by 1.4826 (ns/iter)
+      -> F64                 -- min (ns/iter)
+      -> F64                 -- max (ns/iter)
+      -> OutlierSummary      -- Tukey's fences outlier counts
+      -> Nat                 -- total iterations executed
+      -> Nat                 -- total measurement time (ns)
+      -> Nat                 -- sample count
+      -> BenchStats
+
+  stats-slope :: BenchStats -> ConfidenceInterval
+  stats-slope s = case s of MkBenchStats sl _ _ _ _ _ _ _ _ _ _ _ -> sl
+
+  stats-r-squared :: BenchStats -> F64
+  stats-r-squared s = case s of MkBenchStats _ r2 _ _ _ _ _ _ _ _ _ _ -> r2
+
+  stats-mean :: BenchStats -> ConfidenceInterval
+  stats-mean s = case s of MkBenchStats _ _ mn _ _ _ _ _ _ _ _ _ -> mn
+
+  stats-median :: BenchStats -> ConfidenceInterval
+  stats-median s = case s of MkBenchStats _ _ _ md _ _ _ _ _ _ _ _ -> md
+
+  stats-std-dev :: BenchStats -> ConfidenceInterval
+  stats-std-dev s = case s of MkBenchStats _ _ _ _ sd _ _ _ _ _ _ _ -> sd
+
+  stats-mad :: BenchStats -> ConfidenceInterval
+  stats-mad s = case s of MkBenchStats _ _ _ _ _ ma _ _ _ _ _ _ -> ma
+
+  stats-min-ns :: BenchStats -> F64
+  stats-min-ns s = case s of MkBenchStats _ _ _ _ _ _ lo _ _ _ _ _ -> lo
+
+  stats-max-ns :: BenchStats -> F64
+  stats-max-ns s = case s of MkBenchStats _ _ _ _ _ _ _ hi _ _ _ _ -> hi
+
+  stats-outliers :: BenchStats -> OutlierSummary
+  stats-outliers s = case s of MkBenchStats _ _ _ _ _ _ _ _ out _ _ _ -> out
+
+  stats-total-iterations :: BenchStats -> Nat
+  stats-total-iterations s = case s of MkBenchStats _ _ _ _ _ _ _ _ _ ti _ _ -> ti
+
+  stats-total-time-ns :: BenchStats -> Nat
+  stats-total-time-ns s = case s of MkBenchStats _ _ _ _ _ _ _ _ _ _ tt _ -> tt
+
+  stats-sample-count :: BenchStats -> Nat
+  stats-sample-count s = case s of MkBenchStats _ _ _ _ _ _ _ _ _ _ _ sc -> sc
+
+  -- Outcome of running one benchmark (or one parameterized member of a group).
+  data BenchOutcome where
+    MkBenchOutcome :: String -> Option String -> Option String -> Throughput -> List BenchSample -> BenchStats -> BenchOutcome
+
+  outcome-name :: BenchOutcome -> String
+  outcome-name o = case o of MkBenchOutcome nm _ _ _ _ _ -> nm
+
+  outcome-group :: BenchOutcome -> Option String
+  outcome-group o = case o of MkBenchOutcome _ gp _ _ _ _ -> gp
+
+  outcome-param :: BenchOutcome -> Option String
+  outcome-param o = case o of MkBenchOutcome _ _ pm _ _ _ -> pm
+
+  outcome-full-name :: BenchOutcome -> String
+  outcome-full-name o = case o of
+    MkBenchOutcome nm gp pm _ _ _ ->
+      let with-group = case gp of
+            Some g | string-length g > 0 -> g <> "/" <> nm
+            other -> nm in
+      case pm of
+        Some p | string-length p > 0 -> with-group <> "/" <> p
+        other -> with-group
+
+  outcome-throughput :: BenchOutcome -> Throughput
+  outcome-throughput o = case o of MkBenchOutcome _ _ _ tp _ _ -> tp
+
+  outcome-samples :: BenchOutcome -> List BenchSample
+  outcome-samples o = case o of MkBenchOutcome _ _ _ _ ss _ -> ss
+
+  outcome-stats :: BenchOutcome -> BenchStats
+  outcome-stats o = case o of MkBenchOutcome _ _ _ _ _ st -> st
+
+  -- Baseline comparison classification.
+  data ChangeClassification where
+    ChangeImproved :: ChangeClassification
+    ChangeRegressed :: ChangeClassification
+    ChangeWithinNoise :: ChangeClassification
+    ChangeNoDifference :: ChangeClassification
+
+  data BenchComparison where
+    MkBenchComparison :: F64 -> F64 -> F64 -> F64 -> ChangeClassification -> F64 -> F64 -> BenchComparison
+
+  cmp-pct-lower :: BenchComparison -> F64
+  cmp-pct-lower c = case c of MkBenchComparison l _ _ _ _ _ _ -> l
+
+  cmp-pct-point :: BenchComparison -> F64
+  cmp-pct-point c = case c of MkBenchComparison _ p _ _ _ _ _ -> p
+
+  cmp-pct-upper :: BenchComparison -> F64
+  cmp-pct-upper c = case c of MkBenchComparison _ _ u _ _ _ _ -> u
+
+  cmp-p-value :: BenchComparison -> F64
+  cmp-p-value c = case c of MkBenchComparison _ _ _ pv _ _ _ -> pv
+
+  cmp-classification :: BenchComparison -> ChangeClassification
+  cmp-classification c = case c of MkBenchComparison _ _ _ _ cl _ _ -> cl
+
+  cmp-baseline-ns :: BenchComparison -> F64
+  cmp-baseline-ns c = case c of MkBenchComparison _ _ _ _ _ b _ -> b
+
+  cmp-current-ns :: BenchComparison -> F64
+  cmp-current-ns c = case c of MkBenchComparison _ _ _ _ _ _ cur -> cur
+
+  -- ==================================================================
+  -- Part 4: Pure Criterion Statistical Engine
+  -- ==================================================================
+
+  -- Balanced binary tree for O(log N) random sample indexing during
+  -- bootstrap resampling without mutable arrays.
+  data SampleTree a where
+    STEmpty :: SampleTree a
+    STLeaf :: a -> SampleTree a
+    STNode :: Nat -> SampleTree a -> SampleTree a -> SampleTree a
+
+  build-sample-tree-rec :: forall a. Nat -> List a -> (SampleTree a, List a)
+  build-sample-tree-rec n xs =
+    if n == 0 then (STEmpty, xs)
+    else if n == 1 then
+      case xs of
+        Cons x rest -> (STLeaf x, rest)
+        Nil -> (STEmpty, Nil)
+    else
+      let half = n / 2 in
+      case build-sample-tree-rec half xs of
+        (left, rem1) ->
+          case build-sample-tree-rec (saturating-sub n half) rem1 of
+            (right, rem2) -> (STNode half left right, rem2)
+
+  build-sample-tree :: forall a. List a -> (Nat, SampleTree a)
+  build-sample-tree xs =
+    let n = list-length xs in
+    case build-sample-tree-rec n xs of
+      (tree, _) -> (n, tree)
+
+  sample-tree-get :: forall a. a -> Nat -> SampleTree a -> a
+  sample-tree-get fallback idx tree = case tree of
+    STEmpty -> fallback
+    STLeaf x -> x
+    STNode left-sz l r ->
+      if idx < left-sz then sample-tree-get fallback idx l
+      else sample-tree-get fallback (saturating-sub idx left-sz) r
+
+  -- Deterministic xorshift64* PRNG for reproducible bootstrap CIs.
+  prng-next :: U64 -> (U64, U64)
+  prng-next s0 =
+    let s1 = bit-xor-u64 s0 (wrapping-shr-u64 s0 12) in
+    let s2 = bit-xor-u64 s1 (wrapping-shl-u64 s1 25) in
+    let s3 = bit-xor-u64 s2 (wrapping-shr-u64 s2 27) in
+    let out = wrapping-mul-u64 s3 2685821657736338717 in
+    (out, s3)
+
+  prng-index :: U64 -> Nat -> (Nat, U64)
+  prng-index seed bound =
+    case prng-next seed of
+      (r, next-seed) ->
+        if bound <= 1 then (0, next-seed)
+        else
+          let idx-i64 = wrapping-u64-to-i64 (wrapping-shr-u64 r 1) in
+          let idx-nat = case checked-nat-from-i64 idx-i64 of Some v -> v; None -> 0 in
+          let idx = case checked-rem idx-nat bound of
+                Some r -> r
+                None -> 0 in
+          (idx, next-seed)
+
+  count-f64-loop :: List F64 -> Nat -> Nat
+  count-f64-loop xs acc = case xs of
+    Nil -> acc
+    Cons _ rest -> count-f64-loop rest (acc + 1)
+
+  count-f64 :: List F64 -> Nat
+  count-f64 xs = count-f64-loop xs 0
+
+  split-f64 :: List F64 -> List F64 -> List F64 -> (List F64, List F64)
+  split-f64 xs a b = case xs of
+    Nil -> (a, b)
+    Cons x rest -> split-f64 rest b (Cons x a)
+
+  merge-f64 :: List F64 -> List F64 -> List F64
+  merge-f64 xs ys = case (xs, ys) of
+    (Nil, _) -> ys
+    (_, Nil) -> xs
+    (Cons x rx, Cons y ry) ->
+      if fle-f64 x y then Cons x (merge-f64 rx ys)
+      else Cons y (merge-f64 xs ry)
+
+  sort-f64 :: List F64 -> List F64
+  sort-f64 xs = case xs of
+    Nil -> Nil
+    Cons _ Nil -> xs
+    other -> case split-f64 xs Nil Nil of
+      (a, b) -> merge-f64 (sort-f64 a) (sort-f64 b)
+
+  map-samples-ns-loop :: List BenchSample -> List F64 -> List F64
+  map-samples-ns-loop ss acc = case ss of
+    Nil -> acc
+    Cons s rest -> map-samples-ns-loop rest (Cons (sample-ns-per-iter s) acc)
+
+  map-samples-ns :: List BenchSample -> List F64
+  map-samples-ns ss = map-samples-ns-loop ss Nil
+
+  map-abs-dev-loop :: F64 -> List F64 -> List F64 -> List F64
+  map-abs-dev-loop med xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> map-abs-dev-loop med rest (Cons (abs-f64 (sub-f64 x med)) acc)
+
+  last-f64 :: F64 -> List F64 -> F64
+  last-f64 acc xs = case xs of
+    Nil -> acc
+    Cons x rest -> last-f64 x rest
+
+  -- Linear-interpolated percentile p in [0, 1] over a pre-sorted tree.
+  percentile-tree :: Nat -> SampleTree F64 -> F64 -> F64
+  percentile-tree n tree p =
+    if n == 0 then f64-zero
+    else if n == 1 then sample-tree-get f64-zero 0 tree
+    else
+      let pos = mul-f64 p (nat-to-f64 (saturating-sub n 1)) in
+      let lo-f = floor-f64 pos in
+      let lo = f64-clamp-nonneg-nat lo-f in
+      let hi = if lo + 1 < n then lo + 1 else saturating-sub n 1 in
+      let frac = sub-f64 pos lo-f in
+      let v-lo = sample-tree-get f64-zero lo tree in
+      let v-hi = sample-tree-get f64-zero hi tree in
+      add-f64 v-lo (mul-f64 frac (sub-f64 v-hi v-lo))
+
+  build-f64-tree :: List F64 -> (Nat, SampleTree F64)
+  build-f64-tree xs =
+    let n = count-f64 xs in
+    case build-sample-tree-rec n xs of
+      (tree, _) -> (n, tree)
+
+  percentile-sorted :: List F64 -> F64 -> F64
+  percentile-sorted xs p =
+    case build-f64-tree xs of
+      (n, tree) -> percentile-tree n tree p
+
+  -- Mean and sample variance (unbiased, n - 1 denominator when n >= 2).
+  sum-f64-loop :: List F64 -> F64 -> F64
+  sum-f64-loop xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> sum-f64-loop rest (add-f64 acc x)
+
+  mean-of :: List F64 -> F64
+  mean-of xs =
+    let n = count-f64 xs in
+    if n == 0 then f64-zero
+    else div-f64 (sum-f64-loop xs f64-zero) (nat-to-f64 n)
+
+  sum-sq-diff :: F64 -> List F64 -> F64 -> F64
+  sum-sq-diff mu xs acc = case xs of
+    Nil -> acc
+    Cons x rest ->
+      let d = sub-f64 x mu in
+      sum-sq-diff mu rest (add-f64 acc (mul-f64 d d))
+
+  variance-of :: F64 -> List F64 -> F64
+  variance-of mu xs =
+    let n = count-f64 xs in
+    if n < 2 then f64-zero
+    else div-f64 (sum-sq-diff mu xs f64-zero) (nat-to-f64 (saturating-sub n 1))
+
+  std-dev-of :: F64 -> List F64 -> F64
+  std-dev-of mu xs = sqrt-f64 (variance-of mu xs)
+
+  -- Median and scaled MAD (1.4826 * median(|x_i - median|)).
+  median-of :: List F64 -> F64
+  median-of xs = percentile-sorted (sort-f64 xs) (f64-ratio 1 2)
+
+  mad-of :: F64 -> List F64 -> F64
+  mad-of med xs =
+    let devs = map-abs-dev-loop med xs Nil in
+    let raw-mad = median-of devs in
+    mul-f64 raw-mad (f64-ratio 14826 10000)
+
+  -- OLS linear regression through the origin: y = slope * x.
+  ols-sums :: List BenchSample -> F64 -> F64 -> F64 -> Nat -> (F64, F64, F64, Nat)
+  ols-sums ss sxy sxx sy n = case ss of
+    Nil -> (sxy, sxx, sy, n)
+    Cons s rest ->
+      let x = nat-to-f64 (sample-iterations s) in
+      let y = nat-to-f64 (sample-elapsed-ns s) in
+      ols-sums rest (add-f64 sxy (mul-f64 x y)) (add-f64 sxx (mul-f64 x x)) (add-f64 sy y) (n + 1)
+
+  ols-r2-sums :: F64 -> F64 -> List BenchSample -> F64 -> F64 -> (F64, F64)
+  ols-r2-sums slope y-bar ss ss-res ss-tot = case ss of
+    Nil -> (ss-res, ss-tot)
+    Cons s rest ->
+      let x = nat-to-f64 (sample-iterations s) in
+      let y = nat-to-f64 (sample-elapsed-ns s) in
+      let res = sub-f64 y (mul-f64 slope x) in
+      let tot = sub-f64 y y-bar in
+      ols-r2-sums slope y-bar rest (add-f64 ss-res (mul-f64 res res)) (add-f64 ss-tot (mul-f64 tot tot))
+
+  ols-slope-and-r2 :: List BenchSample -> (F64, F64)
+  ols-slope-and-r2 ss =
+    case ols-sums ss f64-zero f64-zero f64-zero 0 of
+      (sxy, sxx, sy, n) ->
+        if n == 0 || fle-f64 sxx f64-zero then (f64-zero, f64-one)
+        else
+          let slope = div-f64 sxy sxx in
+          let y-bar = div-f64 sy (nat-to-f64 n) in
+          case ols-r2-sums slope y-bar ss f64-zero f64-zero of
+            (ss-res, ss-tot) ->
+              let r2 = if fle-f64 ss-tot f64-zero then f64-one
+                       else sub-f64 f64-one (div-f64 ss-res ss-tot) in
+              (slope, r2)
+
+  ols-slope-only :: List BenchSample -> F64
+  ols-slope-only ss =
+    case ols-sums ss f64-zero f64-zero f64-zero 0 of
+      (sxy, sxx, _, _) ->
+        if fle-f64 sxx f64-zero then f64-zero else div-f64 sxy sxx
+
+  -- Tukey's fences outlier classification.
+  classify-outliers-loop :: F64 -> F64 -> F64 -> F64 -> List F64 -> Nat -> Nat -> Nat -> Nat -> Nat -> OutlierSummary
+  classify-outliers-loop low-sev low-mild hi-mild hi-sev xs ls lm hm hs total = case xs of
+    Nil -> MkOutlierSummary ls lm hm hs total
+    Cons x rest ->
+      if flt-f64 x low-sev then classify-outliers-loop low-sev low-mild hi-mild hi-sev rest (ls + 1) lm hm hs (total + 1)
+      else if flt-f64 x low-mild then classify-outliers-loop low-sev low-mild hi-mild hi-sev rest ls (lm + 1) hm hs (total + 1)
+      else if fgt-f64 x hi-sev then classify-outliers-loop low-sev low-mild hi-mild hi-sev rest ls lm hm (hs + 1) (total + 1)
+      else if fgt-f64 x hi-mild then classify-outliers-loop low-sev low-mild hi-mild hi-sev rest ls lm (hm + 1) hs (total + 1)
+      else classify-outliers-loop low-sev low-mild hi-mild hi-sev rest ls lm hm hs (total + 1)
+
+  classify-outliers :: List F64 -> OutlierSummary
+  classify-outliers sorted-xs =
+    case build-f64-tree sorted-xs of
+      (n, tree) ->
+        if n < 4 then MkOutlierSummary 0 0 0 0 n
+        else
+          let q1 = percentile-tree n tree (f64-ratio 1 4) in
+          let q3 = percentile-tree n tree (f64-ratio 3 4) in
+          let iqr = sub-f64 q3 q1 in
+          let mild-span = mul-f64 iqr (f64-ratio 3 2) in
+          let sev-span = mul-f64 iqr (i64-to-f64 3) in
+          classify-outliers-loop
+            (sub-f64 q1 sev-span) (sub-f64 q1 mild-span)
+            (add-f64 q3 mild-span) (add-f64 q3 sev-span)
+            sorted-xs 0 0 0 0 0
+
+  -- Draw one bootstrap resample of size N from a SampleTree.
+  draw-resample :: forall a. a -> Nat -> SampleTree a -> Nat -> U64 -> List a -> (List a, U64)
+  draw-resample fallback n tree remaining seed acc =
+    if remaining == 0 then (acc, seed)
+    else
+      case prng-index seed n of
+        (idx, next-seed) ->
+          let item = sample-tree-get fallback idx tree in
+          draw-resample fallback n tree (saturating-sub remaining 1) next-seed (Cons item acc)
+
+  -- Collect bootstrap estimates across `iters` resamples for slope, mean, median, stddev, MAD.
+  bootstrap-stats-loop
+    :: Nat -> SampleTree BenchSample -> Nat -> U64
+    -> List F64 -> List F64 -> List F64 -> List F64 -> List F64
+    -> (List F64, List F64, List F64, List F64, List F64)
+  bootstrap-stats-loop n tree rem seed slopes means meds sds mads =
+    if rem == 0 then (slopes, means, meds, sds, mads)
+    else
+      case draw-resample (MkBenchSample 1 0) n tree n seed Nil of
+        (resample, next-seed) ->
+          let sl = ols-slope-only resample in
+          let pts = map-samples-ns resample in
+          let mn = mean-of pts in
+          let sd = std-dev-of mn pts in
+          let md = median-of pts in
+          let ma = mad-of md pts in
+          bootstrap-stats-loop n tree (saturating-sub rem 1) next-seed
+            (Cons sl slopes) (Cons mn means) (Cons md meds) (Cons sd sds) (Cons ma mads)
+
+  ci-from-bootstrap :: F64 -> List F64 -> ConfidenceInterval
+  ci-from-bootstrap point draws =
+    let sorted = sort-f64 draws in
+    case build-f64-tree sorted of
+      (n, tree) ->
+        if n == 0 then MkConfidenceInterval point point point
+        else
+          let lo = percentile-tree n tree (f64-ratio 25 1000) in
+          let hi = percentile-tree n tree (f64-ratio 975 1000) in
+          MkConfidenceInterval lo point hi
+
+  sum-sample-totals :: List BenchSample -> Nat -> Nat -> (Nat, Nat)
+  sum-sample-totals ss it-acc ns-acc = case ss of
+    Nil -> (it-acc, ns-acc)
+    Cons s rest -> sum-sample-totals rest (it-acc + sample-iterations s) (ns-acc + sample-elapsed-ns s)
+
+  min-max-f64 :: List F64 -> (F64, F64)
+  min-max-f64 sorted = case sorted of
+    Nil -> (f64-zero, f64-zero)
+    Cons first rest -> (first, last-f64 first rest)
+
+  -- Full Criterion statistical analysis of raw samples.
+  analyze-samples :: BenchConfig -> List BenchSample -> BenchStats
+  analyze-samples cfg samples =
+    let n = list-length samples in
+    let (total-iters, total-ns) = sum-sample-totals samples 0 0 in
+    if n == 0 then
+      let z = MkConfidenceInterval f64-zero f64-zero f64-zero in
+      MkBenchStats z f64-one z z z z f64-zero f64-zero (MkOutlierSummary 0 0 0 0 0) 0 0 0
+    else
+      let pts = map-samples-ns samples in
+      let sorted-pts = sort-f64 pts in
+      let (min-v, max-v) = min-max-f64 sorted-pts in
+      let (slope-pt, r2) = ols-slope-and-r2 samples in
+      let mean-pt = mean-of pts in
+      let sd-pt = std-dev-of mean-pt pts in
+      let med-pt = percentile-sorted sorted-pts (f64-ratio 1 2) in
+      let mad-pt = mad-of med-pt pts in
+      let out-summary = classify-outliers sorted-pts in
+      if n < 2 then
+        MkBenchStats
+          (MkConfidenceInterval slope-pt slope-pt slope-pt) r2
+          (MkConfidenceInterval mean-pt mean-pt mean-pt)
+          (MkConfidenceInterval med-pt med-pt med-pt)
+          (MkConfidenceInterval sd-pt sd-pt sd-pt)
+          (MkConfidenceInterval mad-pt mad-pt mad-pt)
+          min-v max-v out-summary total-iters total-ns n
+      else
+        let nres = bench-config-nresamples cfg in
+        let actual-res = if nres < 50 then 50 else if nres > 2000 then 2000 else nres in
+        case build-sample-tree samples of
+          (tree-n, tree) ->
+            case bootstrap-stats-loop tree-n tree actual-res 0x9E3779B97F4A7C15 Nil Nil Nil Nil Nil of
+              (bs-sl, bs-mn, bs-md, bs-sd, bs-ma) ->
+                MkBenchStats
+                  (ci-from-bootstrap slope-pt bs-sl)
+                  r2
+                  (ci-from-bootstrap mean-pt bs-mn)
+                  (ci-from-bootstrap med-pt bs-md)
+                  (ci-from-bootstrap sd-pt bs-sd)
+                  (ci-from-bootstrap mad-pt bs-ma)
+                  min-v max-v out-summary total-iters total-ns n
+
+  -- ==================================================================
+  -- Part 5: Baseline Comparison (Welch's t-test + Bootstrap % Change CI)
+  -- ==================================================================
+
+  -- Fast exp(-x) for x >= 0 via range reduction and Taylor polynomial
+  -- (accurate to < 1e-7 for erfc calculation, pure Data.Machine F64).
+  exp-neg-small :: F64 -> F64
+  exp-neg-small x =
+    let x2 = mul-f64 x x in
+    let x3 = mul-f64 x2 x in
+    let x4 = mul-f64 x2 x2 in
+    let x5 = mul-f64 x4 x in
+    let x6 = mul-f64 x4 x2 in
+    let t0 = f64-one in
+    let t1 = sub-f64 t0 x in
+    let t2 = add-f64 t1 (div-f64 x2 (i64-to-f64 2)) in
+    let t3 = sub-f64 t2 (div-f64 x3 (i64-to-f64 6)) in
+    let t4 = add-f64 t3 (div-f64 x4 (i64-to-f64 24)) in
+    let t5 = sub-f64 t4 (div-f64 x5 (i64-to-f64 120)) in
+    add-f64 t5 (div-f64 x6 (i64-to-f64 720))
+
+  pow-f64-nat :: F64 -> Nat -> F64 -> F64
+  pow-f64-nat base k acc =
+    if k == 0 then acc
+    else
+      let next-acc = if nat-rem k 2 == 1 then mul-f64 acc base else acc in
+      pow-f64-nat (mul-f64 base base) (k / 2) next-acc
+
+  exp-neg-f64 :: F64 -> F64
+  exp-neg-f64 x =
+    if fle-f64 x f64-zero then f64-one
+    else if fgt-f64 x (i64-to-f64 40) then f64-zero
+    else
+      let half-steps = 16 :: Nat in
+      let scaled = div-f64 x (nat-to-f64 half-steps) in
+      let unit = exp-neg-small scaled in
+      pow-f64-nat unit half-steps f64-one
+
+  -- Abramowitz & Stegun 7.1.26 approximation of erfc(z) for z >= 0.
+  erfc-approx :: F64 -> F64
+  erfc-approx z =
+    let ax = abs-f64 z in
+    let p = f64-ratio 3275911 10000000 in
+    let t = div-f64 f64-one (add-f64 f64-one (mul-f64 p ax)) in
+    let a1 = f64-ratio 254829592 1000000000 in
+    let a2 = neg-f64 (f64-ratio 284496736 1000000000) in
+    let a3 = f64-ratio 1421413741 1000000000 in
+    let a4 = neg-f64 (f64-ratio 1453152027 1000000000) in
+    let a5 = f64-ratio 1061405429 1000000000 in
+    let poly = mul-f64 t (add-f64 a1 (mul-f64 t (add-f64 a2 (mul-f64 t (add-f64 a3 (mul-f64 t (add-f64 a4 (mul-f64 t a5)))))))) in
+    mul-f64 poly (exp-neg-f64 (mul-f64 ax ax))
+
+  -- Two-tailed p-value from Welch's t-statistic via normal tail approximation
+  -- (accurate for typical Criterion sample sizes N >= 20, conservative clamp).
+  welch-p-value :: List F64 -> List F64 -> F64
+  welch-p-value base-pts cur-pts =
+    let n1 = count-f64 base-pts in
+    let n2 = count-f64 cur-pts in
+    if n1 < 2 || n2 < 2 then f64-one
+    else
+      let m1 = mean-of base-pts in
+      let m2 = mean-of cur-pts in
+      let v1 = variance-of m1 base-pts in
+      let v2 = variance-of m2 cur-pts in
+      let se2 = add-f64 (div-f64 v1 (nat-to-f64 n1)) (div-f64 v2 (nat-to-f64 n2)) in
+      if fle-f64 se2 f64-zero then
+        if feq-f64 m1 m2 then f64-one else f64-zero
+      else
+        let t = div-f64 (abs-f64 (sub-f64 m2 m1)) (sqrt-f64 se2) in
+        let sqrt2 = sqrt-f64 f64-two in
+        let pv = erfc-approx (div-f64 t sqrt2) in
+        if flt-f64 pv f64-zero then f64-zero
+        else if fgt-f64 pv f64-one then f64-one
+        else pv
+
+  bootstrap-diff-loop :: Nat -> SampleTree F64 -> Nat -> SampleTree F64 -> Nat -> U64 -> List F64 -> List F64
+  bootstrap-diff-loop n1 t1 n2 t2 rem seed acc =
+    if rem == 0 then acc
+    else
+      case draw-resample f64-zero n1 t1 n1 seed Nil of
+        (r1, s1) ->
+          case draw-resample f64-zero n2 t2 n2 s1 Nil of
+            (r2, s2) ->
+              let m1 = mean-of r1 in
+              let m2 = mean-of r2 in
+              let pct = if fle-f64 m1 f64-zero then f64-zero
+                        else mul-f64 (div-f64 (sub-f64 m2 m1) m1) (i64-to-f64 100) in
+              bootstrap-diff-loop n1 t1 n2 t2 (saturating-sub rem 1) s2 (Cons pct acc)
+
+  compare-samples :: BenchConfig -> List BenchSample -> List BenchSample -> BenchComparison
+  compare-samples cfg base-samples cur-samples =
+    let base-pts = map-samples-ns base-samples in
+    let cur-pts = map-samples-ns cur-samples in
+    let base-mean = mean-of base-pts in
+    let cur-mean = mean-of cur-pts in
+    let pct-pt = if fle-f64 base-mean f64-zero then f64-zero
+                 else mul-f64 (div-f64 (sub-f64 cur-mean base-mean) base-mean) (i64-to-f64 100) in
+    let pv = welch-p-value base-pts cur-pts in
+    let nres = bench-config-nresamples cfg in
+    let actual-res = if nres < 50 then 50 else if nres > 1000 then 1000 else nres in
+    case (build-f64-tree base-pts, build-f64-tree cur-pts) of
+      ((n1, t1), (n2, t2)) ->
+        let ci = if n1 < 2 || n2 < 2 then MkConfidenceInterval pct-pt pct-pt pct-pt
+                 else ci-from-bootstrap pct-pt (bootstrap-diff-loop n1 t1 n2 t2 actual-res 0xD1B54A32D192ED03 Nil) in
+        let alpha = div-f64 (nat-to-f64 (bench-config-significance-bps cfg)) (i64-to-f64 10000) in
+        let noise-pct = div-f64 (nat-to-f64 (bench-config-noise-threshold-bps cfg)) (i64-to-f64 100) in
+        let neg-noise = neg-f64 noise-pct in
+        let cls = (
+          if fge-f64 pv alpha then ChangeNoDifference
+          else if flt-f64 (ci-upper ci) neg-noise then ChangeImproved
+          else if fgt-f64 (ci-lower ci) noise-pct then ChangeRegressed
+          else ChangeWithinNoise) in
+        MkBenchComparison (ci-lower ci) pct-pt (ci-upper ci) pv cls base-mean cur-mean
+
+  -- ==================================================================
+  -- Part 6: Criterion Builder DSL (Bencher, Criterion, BenchmarkGroup)
+  -- ==================================================================
+
+  data Bencher where
+    MkBencher :: String -> Option String -> Option String -> Throughput -> BenchConfig -> Bencher
+
+  bencher-new :: String -> BenchConfig -> Bencher
+  bencher-new name cfg = MkBencher name None None ThroughputNone cfg
+
+  bencher-name :: Bencher -> String
+  bencher-name b = case b of MkBencher nm _ _ _ _ -> nm
+
+  bencher-config :: Bencher -> BenchConfig
+  bencher-config b = case b of MkBencher _ _ _ _ cfg -> cfg
+
+  bencher-with-throughput :: Throughput -> Bencher -> Bencher
+  bencher-with-throughput tp b = case b of MkBencher nm gp pm _ cfg -> MkBencher nm gp pm tp cfg
+
+  bencher-with-config :: BenchConfig -> Bencher -> Bencher
+  bencher-with-config cfg b = case b of MkBencher nm gp pm tp _ -> MkBencher nm gp pm tp cfg
+
+  data Criterion where
+    MkCriterion :: BenchConfig -> Criterion
+
+  criterion-new :: BenchConfig -> Criterion
+  criterion-new cfg = MkCriterion cfg
+
+  criterion-default :: Criterion
+  criterion-default = MkCriterion default-bench-config
+
+  criterion-config :: Criterion -> BenchConfig
+  criterion-config c = case c of MkCriterion cfg -> cfg
+
+  data BenchmarkGroup where
+    MkBenchmarkGroup :: String -> Throughput -> BenchConfig -> BenchmarkGroup
+
+  benchmark-group :: Criterion -> String -> BenchmarkGroup
+  benchmark-group c name = MkBenchmarkGroup name ThroughputNone (criterion-config c)
+
+  group-with-throughput :: Throughput -> BenchmarkGroup -> BenchmarkGroup
+  group-with-throughput tp g = case g of MkBenchmarkGroup nm _ cfg -> MkBenchmarkGroup nm tp cfg
+
+  group-with-config :: BenchConfig -> BenchmarkGroup -> BenchmarkGroup
+  group-with-config cfg g = case g of MkBenchmarkGroup nm tp _ -> MkBenchmarkGroup nm tp cfg
+
+  -- Run `work` exactly `iters` times, passing each result through `black-box`.
+  run-iters-io :: forall r a. using (io :: Io r) => Nat -> (Unit ->{IO r} a) ->{IO r} Unit
+  run-iters-io n work =
+    if n == 0 then ()
+    else
+      let v = black-box (work ()) in
+      case v of _ -> run-iters-io (saturating-sub n 1) work
+
+  run-iters-pure :: forall a. Nat -> (Unit -> a) -> Unit
+  run-iters-pure n work =
+    if n == 0 then ()
+    else
+      let v = black-box (work ()) in
+      case v of _ -> run-iters-pure (saturating-sub n 1) work
+
+  -- Adaptive warm-up loop: doubles batch size until elapsed >= warmup-ns.
+  warmup-loop :: forall r. using (io :: Io r) => (Nat ->{IO r} Nat) -> Nat -> Nat -> Nat -> Nat ->{IO r} (Nat, Nat)
+  warmup-loop measure-batch target-ns batch total-iters total-ns =
+    let elapsed = measure-batch batch in
+    let next-iters = total-iters + batch in
+    let next-ns = total-ns + elapsed in
+    if next-ns >= target-ns || batch >= 100000000 then (next-iters, next-ns)
+    else
+      let next-batch = if elapsed == 0 then batch * 10 else batch * 2 in
+      warmup-loop measure-batch target-ns next-batch next-iters next-ns
+
+  -- Compute Criterion iteration counts for `sample-size` samples.
+  -- Uses linear sampling (d, 2d, ..., N*d) when d >= 1, else flat sampling.
+  plan-sample-iters :: Nat -> Nat -> Nat -> Nat -> List Nat
+  plan-sample-iters sample-size target-ns warm-iters warm-ns =
+    let n = if sample-size < 2 then 2 else sample-size in
+    let linear-weight = (n * (n + 1)) / 2 in
+    let est-ns-per-iter = (
+          if warm-iters == 0 || warm-ns == 0 then f64-one
+          else div-f64 (nat-to-f64 warm-ns) (nat-to-f64 warm-iters)) in
+    let safe-est = if flt-f64 est-ns-per-iter (f64-ratio 1 100) then f64-ratio 1 100 else est-ns-per-iter in
+    let raw-step = div-f64 (nat-to-f64 target-ns) (mul-f64 (nat-to-f64 linear-weight) safe-est) in
+    let step = f64-clamp-nonneg-nat (floor-f64 raw-step) in
+    if step >= 1 then
+      build-linear-iters 1 n step Nil
+    else
+      let flat-raw = div-f64 (nat-to-f64 target-ns) (mul-f64 (nat-to-f64 n) safe-est) in
+      let flat-k = f64-clamp-nonneg-nat (floor-f64 flat-raw) in
+      let k = if flat-k < 1 then 1 else flat-k in
+      replicate-nat n k Nil
+
+  replicate-nat :: Nat -> Nat -> List Nat -> List Nat
+  replicate-nat n val acc =
+    if n == 0 then acc
+    else replicate-nat (saturating-sub n 1) val (Cons val acc)
+
+  build-linear-iters :: Nat -> Nat -> Nat -> List Nat -> List Nat
+  build-linear-iters i n step acc =
+    if i > n then reverse acc
+    else build-linear-iters (i + 1) n step (Cons (i * step) acc)
+
+  collect-samples-loop :: forall r. using (io :: Io r) => (Nat ->{IO r} Nat) -> List Nat -> List BenchSample ->{IO r} List BenchSample
+  collect-samples-loop measure-batch plan acc = case plan of
+    Nil -> reverse acc
+    Cons iters rest ->
+      let elapsed = measure-batch iters in
+      collect-samples-loop measure-batch rest (Cons (MkBenchSample iters elapsed) acc)
+
+  -- Core Criterion measurement driver for a `Bencher`.
+  run-bencher-with :: forall r. using (io :: Io r) => Bencher -> (Nat ->{IO r} Nat) ->{IO r} BenchOutcome
+  run-bencher-with b measure-batch = case b of
+    MkBencher nm gp pm tp cfg ->
+      let warm-target-ns = bench-config-warmup-ms cfg * 1000000 in
+      let meas-target-ns = bench-config-measurement-ms cfg * 1000000 in
+      let n-samples = bench-config-sample-size cfg in
+      case warmup-loop measure-batch warm-target-ns 1 0 0 of
+        (w-iters, w-ns) ->
+          let plan = plan-sample-iters n-samples meas-target-ns w-iters w-ns in
+          let samples = collect-samples-loop measure-batch plan Nil in
+          let stats = analyze-samples cfg samples in
+          MkBenchOutcome nm gp pm tp samples stats
+
+  -- Time an `IO r` routine using Criterion adaptive sampling.
+  bench-iter :: forall r a. using (io :: Io r) => Bencher -> (Unit ->{IO r} a) ->{IO r} BenchOutcome
+  bench-iter b work =
+    run-bencher-with b (\iters ->
+      let t0 = clock-monotonic-ns () in
+      let _ = run-iters-io iters work in
+      let t1 = clock-monotonic-ns () in
+      saturating-sub t1 t0)
+
+  -- Time a pure routine using Criterion adaptive sampling.
+  bench-iter-pure :: forall r a. using (io :: Io r) => Bencher -> (Unit -> a) ->{IO r} BenchOutcome
+  bench-iter-pure b work =
+    run-bencher-with b (\iters ->
+      let t0 = clock-monotonic-ns () in
+      let _ = run-iters-pure iters work in
+      let t1 = clock-monotonic-ns () in
+      saturating-sub t1 t0)
+
+  -- Time a routine with custom user-controlled timing (`iters -> elapsed_ns`).
+  bench-iter-custom :: forall r. using (io :: Io r) => Bencher -> (Nat ->{IO r} Nat) ->{IO r} BenchOutcome
+  bench-iter-custom b custom-fn = run-bencher-with b custom-fn
+
+  -- Batched measurement helpers (setup runs OUTSIDE the timed span).
+  prepare-inputs-io :: forall r i. using (io :: Io r) => Nat -> (Unit ->{IO r} i) -> List i ->{IO r} List i
+  prepare-inputs-io n setup acc =
+    if n == 0 then reverse acc
+    else
+      let inp = setup () in
+      prepare-inputs-io (saturating-sub n 1) setup (Cons inp acc)
+
+  run-batch-io :: forall r i o. using (io :: Io r) => List i -> (i ->{IO r} o) ->{IO r} Unit
+  run-batch-io inputs routine = case inputs of
+    Nil -> ()
+    Cons x rest ->
+      let v = black-box (routine x) in
+      case v of _ -> run-batch-io rest routine
+
+  measure-per-iter-io :: forall r i o. using (io :: Io r) => Nat -> (Unit ->{IO r} i) -> (i ->{IO r} o) -> Nat ->{IO r} Nat
+  measure-per-iter-io rem setup routine acc-ns =
+    if rem == 0 then acc-ns
+    else
+      let inp = setup () in
+      let t0 = clock-monotonic-ns () in
+      let v = black-box (routine inp) in
+      let t1 = case v of _ -> clock-monotonic-ns () in
+      measure-per-iter-io (saturating-sub rem 1) setup routine (acc-ns + saturating-sub t1 t0)
+
+  chunk-size-for :: BatchSize -> Nat -> Nat
+  chunk-size-for bs iters = case bs of
+    PerIteration -> 1
+    SmallInput -> iters
+    LargeInput -> if iters > 64 then 64 else iters
+    NumBatches nb ->
+      if nb == 0 then iters
+      else
+        let sz = case checked-div iters nb of Some q -> q; None -> iters in
+        if sz < 1 then 1 else sz
+    NumIterations ni -> if ni < 1 then 1 else ni
+
+  measure-chunked-io :: forall r i o. using (io :: Io r) => Nat -> Nat -> (Unit ->{IO r} i) -> (i ->{IO r} o) -> Nat ->{IO r} Nat
+  measure-chunked-io rem chunk-sz setup routine acc-ns =
+    if rem == 0 then acc-ns
+    else
+      let take-n = if rem < chunk-sz then rem else chunk-sz in
+      let batch = prepare-inputs-io take-n setup Nil in
+      let t0 = clock-monotonic-ns () in
+      let _ = run-batch-io batch routine in
+      let t1 = clock-monotonic-ns () in
+      measure-chunked-io (saturating-sub rem take-n) chunk-sz setup routine (acc-ns + saturating-sub t1 t0)
+
+  -- Time an `IO r` routine where `setup` creates fresh input outside the timer.
+  bench-iter-batched :: forall r i o. using (io :: Io r) => Bencher -> BatchSize -> (Unit ->{IO r} i) -> (i ->{IO r} o) ->{IO r} BenchOutcome
+  bench-iter-batched b batch-size setup routine =
+    run-bencher-with b (\iters ->
+      case batch-size of
+        PerIteration -> measure-per-iter-io iters setup routine 0
+        other -> measure-chunked-io iters (chunk-size-for batch-size iters) setup routine 0)
+
+  -- Pure convenience wrapper for `bench-iter-batched`.
+  bench-iter-batched-pure :: forall r i o. using (io :: Io r) => Bencher -> BatchSize -> (Unit -> i) -> (i -> o) ->{IO r} BenchOutcome
+  bench-iter-batched-pure b batch-size setup routine =
+    bench-iter-batched b batch-size (\() -> setup ()) (\inp -> routine inp)
+
+  -- Criterion single-benchmark helpers.
+  bench-function :: forall r. using (io :: Io r) => Criterion -> String -> (Bencher ->{IO r} BenchOutcome) ->{IO r} BenchOutcome
+  bench-function c name body =
+    body (MkBencher name None None ThroughputNone (criterion-config c))
+
+  bench-with-input :: forall r i. using (io :: Io r) => Criterion -> String -> String -> i -> (Bencher -> i ->{IO r} BenchOutcome) ->{IO r} BenchOutcome
+  bench-with-input c name param input body =
+    body (MkBencher name None (Some param) ThroughputNone (criterion-config c)) input
+
+  -- BenchmarkGroup helpers.
+  group-bench :: forall r. using (io :: Io r) => BenchmarkGroup -> String -> (Bencher ->{IO r} BenchOutcome) ->{IO r} BenchOutcome
+  group-bench g name body = case g of
+    MkBenchmarkGroup gname tp cfg ->
+      body (MkBencher name (Some gname) None tp cfg)
+
+  group-bench-with-input :: forall r i. using (io :: Io r) => BenchmarkGroup -> String -> String -> i -> (Bencher -> i ->{IO r} BenchOutcome) ->{IO r} BenchOutcome
+  group-bench-with-input g name param input body = case g of
+    MkBenchmarkGroup gname tp cfg ->
+      body (MkBencher name (Some gname) (Some param) tp cfg) input
+
+  group-bench-inputs-loop :: forall r i. using (io :: Io r) => BenchmarkGroup -> String -> List (String, i) -> (Bencher -> i ->{IO r} BenchOutcome) -> List BenchOutcome ->{IO r} List BenchOutcome
+  group-bench-inputs-loop g name inputs body acc = case inputs of
+    Nil -> reverse acc
+    Cons pair rest -> case pair of
+      (param, val) ->
+        let res = group-bench-with-input g name param val body in
+        group-bench-inputs-loop g name rest body (Cons res acc)
+
+  group-bench-inputs :: forall r i. using (io :: Io r) => BenchmarkGroup -> String -> List (String, i) -> (Bencher -> i ->{IO r} BenchOutcome) ->{IO r} List BenchOutcome
+  group-bench-inputs g name inputs body = group-bench-inputs-loop g name inputs body Nil
+
+  -- ==================================================================
+  -- Part 7: Criterion-style Formatting & Rendering
+  -- ==================================================================
+
+  pad-zeros-left :: Nat -> String -> String
+  pad-zeros-left width s =
+    let len = string-length s in
+    if len >= width then s
+    else pad-zeros-left width ("0" <> s)
+
+  pow10-nat :: Nat -> Nat
+  pow10-nat k =
+    if k == 0 then 1
+    else if k == 1 then 10
+    else if k == 2 then 100
+    else if k == 3 then 1000
+    else 10000
+
+  -- Format an F64 with `decimals` digits (0..4) after the decimal point.
+  format-f64-fixed :: Nat -> F64 -> String
+  format-f64-fixed decimals x =
+    let neg = flt-f64 x f64-zero in
+    let ax = abs-f64 x in
+    let scale = pow10-nat decimals in
+    let scaled = round-f64 (mul-f64 ax (nat-to-f64 scale)) in
+    let total = f64-clamp-nonneg-nat scaled in
+    let sign = if neg && total > 0 then "-" else "" in
+    if decimals == 0 then sign <> nat-to-string total
+    else
+      let whole = case checked-div total scale of Some q -> q; None -> total in
+      let frac = case checked-rem total scale of Some r -> r; None -> 0 in
+      sign <> nat-to-string whole <> "." <> pad-zeros-left decimals (nat-to-string frac)
+
+  -- Auto-scaled human-readable duration from nanoseconds (`ps`, `ns`, `us`, `ms`, `s`).
+  format-duration-ns :: F64 -> String
+  format-duration-ns ns =
+    let a = abs-f64 ns in
+    if flt-f64 a f64-one then format-f64-fixed 2 (mul-f64 ns (i64-to-f64 1000)) <> " ps"
+    else if flt-f64 a (i64-to-f64 1000) then format-f64-fixed 2 ns <> " ns"
+    else if flt-f64 a (i64-to-f64 1000000) then format-f64-fixed 2 (div-f64 ns (i64-to-f64 1000)) <> " us"
+    else if flt-f64 a (i64-to-f64 1000000000) then format-f64-fixed 2 (div-f64 ns (i64-to-f64 1000000)) <> " ms"
+    else format-f64-fixed 3 (div-f64 ns (i64-to-f64 1000000000)) <> " s"
+
+  format-rate-bytes :: F64 -> String
+  format-rate-bytes bps =
+    let kib = i64-to-f64 1024 in
+    let mib = i64-to-f64 1048576 in
+    let gib = i64-to-f64 1073741824 in
+    if flt-f64 bps kib then format-f64-fixed 2 bps <> " B/s"
+    else if flt-f64 bps mib then format-f64-fixed 2 (div-f64 bps kib) <> " KiB/s"
+    else if flt-f64 bps gib then format-f64-fixed 2 (div-f64 bps mib) <> " MiB/s"
+    else format-f64-fixed 2 (div-f64 bps gib) <> " GiB/s"
+
+  format-rate-elems :: F64 -> String
+  format-rate-elems eps =
+    let k = i64-to-f64 1000 in
+    let m = i64-to-f64 1000000 in
+    let g = i64-to-f64 1000000000 in
+    if flt-f64 eps k then format-f64-fixed 2 eps <> " elem/s"
+    else if flt-f64 eps m then format-f64-fixed 2 (div-f64 eps k) <> " Kelem/s"
+    else if flt-f64 eps g then format-f64-fixed 2 (div-f64 eps m) <> " Melem/s"
+    else format-f64-fixed 2 (div-f64 eps g) <> " Gelem/s"
+
+  format-throughput :: Throughput -> F64 -> String
+  format-throughput tp ns =
+    if fle-f64 ns f64-zero then ""
+    else
+      let per-sec = div-f64 (i64-to-f64 1000000000) ns in
+      case tp of
+        ThroughputNone -> ""
+        ThroughputBytes b -> format-rate-bytes (mul-f64 (nat-to-f64 b) per-sec)
+        ThroughputElements e -> format-rate-elems (mul-f64 (nat-to-f64 e) per-sec)
+
+  format-ci-duration :: ConfidenceInterval -> String
+  format-ci-duration ci =
+    "[" <> format-duration-ns (ci-lower ci) <> " " <> format-duration-ns (ci-point ci) <> " " <> format-duration-ns (ci-upper ci) <> "]"
+
+  format-signed-pct :: F64 -> String
+  format-signed-pct v =
+    let prefix = if fgt-f64 v f64-zero then "+" else "" in
+    prefix <> format-f64-fixed 2 v <> "%"
+
+  render-outlier-detail :: Nat -> Nat -> String -> String
+  render-outlier-detail count total label =
+    if count == 0 then ""
+    else
+      let pct = if total == 0 then f64-zero else div-f64 (mul-f64 (nat-to-f64 count) (i64-to-f64 100)) (nat-to-f64 total) in
+      "  " <> nat-to-string count <> " (" <> format-f64-fixed 2 pct <> "%) " <> label <> "\n"
+
+  render-outliers :: OutlierSummary -> String
+  render-outliers out =
+    let total-out = outliers-total-count out in
+    let n = outliers-total-samples out in
+    if total-out == 0 then ""
+    else
+      let pct = if n == 0 then f64-zero else div-f64 (mul-f64 (nat-to-f64 total-out) (i64-to-f64 100)) (nat-to-f64 n) in
+      string-concat-all
+        [ "Found ", nat-to-string total-out, " outliers among ", nat-to-string n, " measurements (", format-f64-fixed 2 pct, "%)\n"
+        , render-outlier-detail (outliers-low-severe out) n "low severe"
+        , render-outlier-detail (outliers-low-mild out) n "low mild"
+        , render-outlier-detail (outliers-high-mild out) n "high mild"
+        , render-outlier-detail (outliers-high-severe out) n "high severe"
+        ]
+
+  render-comparison-lines :: BenchComparison -> String
+  render-comparison-lines cmp =
+    let ci-str = "[" <> format-signed-pct (cmp-pct-lower cmp) <> " " <> format-signed-pct (cmp-pct-point cmp) <> " " <> format-signed-pct (cmp-pct-upper cmp) <> "]" in
+    let p-str = format-f64-fixed 2 (cmp-p-value cmp) in
+    let verdict = case cmp-classification cmp of
+          ChangeImproved -> "Performance has improved."
+          ChangeRegressed -> "Performance has regressed."
+          ChangeWithinNoise -> "Change within noise threshold."
+          ChangeNoDifference -> "No change in performance detected." in
+    "                        change: " <> ci-str <> " (p = " <> p-str <> ")\n"
+    <> "                        " <> verdict <> "\n"
+
+  pad-right-spaces :: Nat -> String -> String
+  pad-right-spaces width s =
+    let len = string-length s in
+    if len >= width then s <> " "
+    else pad-right-spaces width (s <> " ")
+
+  render-bench-outcome :: BenchOutcome -> Option BenchComparison -> String
+  render-bench-outcome o cmp-opt =
+    let full = outcome-full-name o in
+    let st = outcome-stats o in
+    let tp = outcome-throughput o in
+    let name-col = pad-right-spaces 24 full in
+    let time-line = name-col <> "time:   " <> format-ci-duration (stats-median st) <> "\n" in
+    let thrpt-line = case tp of
+          ThroughputNone -> ""
+          other ->
+            -- Note: faster time (ci-lower) yields higher throughput (upper bound).
+            let lo-t = format-throughput tp (ci-upper (stats-median st)) in
+            let pt-t = format-throughput tp (ci-point (stats-median st)) in
+            let hi-t = format-throughput tp (ci-lower (stats-median st)) in
+            "                        thrpt:  [" <> lo-t <> " " <> pt-t <> " " <> hi-t <> "]\n" in
+    let cmp-lines = case cmp-opt of
+          None -> ""
+          Some cmp -> render-comparison-lines cmp in
+    let outlier-lines = render-outliers (stats-outliers st) in
+    let detail-lines =
+          "                        slope  " <> format-ci-duration (stats-slope st) <> " R^2 " <> format-f64-fixed 4 (stats-r-squared st) <> "\n"
+          <> "                        mean   " <> format-ci-duration (stats-mean st) <> " std. dev. " <> format-ci-duration (stats-std-dev st) <> "\n"
+          <> "                        median " <> format-ci-duration (stats-median st) <> " mad       " <> format-ci-duration (stats-mad st) <> "\n" in
+    string-concat-all [time-line, thrpt-line, cmp-lines, outlier-lines, detail-lines]
+
+  render-criterion-report-loop :: List BenchOutcome -> List String -> String
+  render-criterion-report-loop os acc = case os of
+    Nil -> string-concat-all (reverse acc)
+    Cons o rest -> render-criterion-report-loop rest (Cons (render-bench-outcome o None <> "\n") acc)
+
+  render-criterion-report :: List BenchOutcome -> String
+  render-criterion-report os = render-criterion-report-loop os Nil
+
+  -- ==================================================================
+  -- Part 8: Harness Wire Protocol (used by `cinch bench` child runner)
+  -- ==================================================================
+
+  encode-throughput-fields :: Throughput -> (String, String)
+  encode-throughput-fields tp = case tp of
+    ThroughputNone -> ("none", "0")
+    ThroughputBytes b -> ("bytes", nat-to-string b)
+    ThroughputElements e -> ("elements", nat-to-string e)
+
+  encode-sample-lines :: List BenchSample -> List String -> List String
+  encode-sample-lines ss acc = case ss of
+    Nil -> acc
+    Cons s rest ->
+      let line = "CINCH_BENCH_SAMPLE\t" <> nat-to-string (sample-iterations s) <> "\t" <> nat-to-string (sample-elapsed-ns s) <> "\n" in
+      encode-sample-lines rest (Cons line acc)
+
+  encode-bench-outcome :: BenchOutcome -> String
+  encode-bench-outcome o =
+    let (tp-kind, tp-val) = encode-throughput-fields (outcome-throughput o) in
+    let grp = case outcome-group o of Some g -> g; None -> "" in
+    let pm = case outcome-param o of Some p -> p; None -> "" in
+    let header = string-concat-all ["CINCH_BENCH_BEGIN\t", outcome-name o, "\t", grp, "\t", pm, "\t", tp-kind, "\t", tp-val, "\n"] in
+    let body = reverse (encode-sample-lines (outcome-samples o) Nil) in
+    string-concat-all (Cons header (body <> Cons "CINCH_BENCH_END\n" Nil))
+
+  write-bench-outcome :: forall r. using (io :: Io r) => BenchOutcome ->{IO r} Unit
+  write-bench-outcome o = case ioWrite (string-to-bytes (encode-bench-outcome o)) of _ -> ()
+
+  write-bench-outcomes :: forall r. using (io :: Io r) => List BenchOutcome ->{IO r} Unit
+  write-bench-outcomes os = case os of
+    Nil -> ()
+    Cons o rest ->
+      let _ = write-bench-outcome o in
+      write-bench-outcomes rest
+
+  config-from-harness-args :: Nat -> Nat -> Nat -> Nat -> Nat -> BenchConfig
+  config-from-harness-args warmup-ms meas-ms sample-sz nres quick-flag =
+    let safe-samples = if sample-sz < 10 then 10 else sample-sz in
+    let safe-res = if nres < 50 then 50 else nres in
+    MkBenchConfig warmup-ms meas-ms safe-samples safe-res 200 500 (quick-flag /= 0)
+
+  throughput-from-harness-args :: Nat -> Nat -> Throughput
+  throughput-from-harness-args tp-kind tp-val =
+    if tp-kind == 1 then ThroughputBytes tp-val
+    else if tp-kind == 2 then ThroughputElements tp-val
+    else ThroughputNone
+
+  -- Harness helpers invoked by generated `cinch bench` binaries.
+  bench-harness-make-bencher :: Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Bencher
+  bench-harness-make-bencher tp-kind tp-val warmup-ms meas-ms sample-sz nres quick-flag =
+    let cfg = config-from-harness-args warmup-ms meas-ms sample-sz nres quick-flag in
+    let tp = throughput-from-harness-args tp-kind tp-val in
+    MkBencher "" None None tp cfg
+
+  bench-harness-make-criterion :: Nat -> Nat -> Nat -> Nat -> Nat -> Criterion
+  bench-harness-make-criterion warmup-ms meas-ms sample-sz nres quick-flag =
+    MkCriterion (config-from-harness-args warmup-ms meas-ms sample-sz nres quick-flag)
+
+  bench-harness-emit-one :: forall r. using (io :: Io r) => BenchOutcome ->{IO r} Int
+  bench-harness-emit-one outcome =
+    let _ = write-bench-outcome outcome in
+    0
+
+  bench-harness-emit-list :: forall r. using (io :: Io r) => List BenchOutcome ->{IO r} Int
+  bench-harness-emit-list outcomes =
+    let _ = write-bench-outcomes outcomes in
+    0

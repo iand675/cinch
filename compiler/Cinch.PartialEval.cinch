@@ -493,14 +493,17 @@ module Cinch.PartialEval where
       None -> None
     other -> None
 
-  pe-match-field-pats :: List CorePattern -> List CoreTerm -> Option (List (Nat, String, UType, CoreTerm))
-  pe-match-field-pats pats vals = case (pats, vals) of
+  pe-match-field-pats :: HashMap String Nat -> List CorePattern -> List CoreTerm -> Option (List (Nat, String, UType, CoreTerm))
+  pe-match-field-pats ctors pats vals = case (pats, vals) of
     ([], []) -> Some []
     (p : ps, v : vs) -> case p of
-      CPWild _ _ -> pe-match-field-pats ps vs
-      CPVar _ pty pid pname -> case pe-match-field-pats ps vs of
-        Some more -> Some ((pid, pname, pty, v) : more)
-        None -> None
+      CPWild _ _ -> if pe-discardable ctors v then pe-match-field-pats ctors ps vs else None
+      CPVar _ pty pid pname ->
+        if not (pe-has-usage-arrow pty) then
+          case pe-match-field-pats ctors ps vs of
+            Some more -> Some ((pid, pname, pty, v) : more)
+            None -> None
+        else None
       other -> None
     other -> None
 
@@ -513,15 +516,16 @@ module Cinch.PartialEval where
 
   pe-match-one-pat :: HashMap String Nat -> CorePattern -> CoreTerm -> Option (List (Nat, String, UType, CoreTerm))
   pe-match-one-pat ctors pat scrut = case pat of
-    CPWild _ _ -> Some []
-    CPVar _ pty pid pname -> Some [(pid, pname, pty, scrut)]
+    CPWild _ _ -> if pe-discardable ctors scrut then Some [] else None
+    CPVar _ pty pid pname ->
+      if pe-is-pure-value ctors scrut && not (pe-has-usage-arrow pty) then Some [(pid, pname, pty, scrut)] else None
     CPInt _ _ expected -> case scrut of
       CInt _ _ actual -> if expected == actual then Some [] else None
       other -> None
     CPTuple _ _ pfields -> case scrut of
       CTuple _ _ sfields -> case (pe-pat-fields-list pfields, pe-arg-list sfields) of
         (Some ps, Some vs) | list-length ps == list-length vs && pe-all-pure-values ctors vs ->
-          pe-match-field-pats ps vs
+          pe-match-field-pats ctors ps vs
         other -> None
       other -> None
     CPConstructor _ _ cname _ _ pfields ->
@@ -530,7 +534,7 @@ module Cinch.PartialEval where
           if cname /= sname then None
           else case pe-pat-fields-list pfields of
             Some ps | list-length ps == list-length sargs && pe-all-pure-values ctors sargs ->
-              pe-match-field-pats ps sargs
+              pe-match-field-pats ctors ps sargs
             other -> None
         other -> None
     other -> None

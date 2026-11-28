@@ -6446,19 +6446,20 @@ impl Checker {
                         "`#[profile \"jpl\"]` annotates a module header (attribute annotations specification section 10)",
                     ));
                 }
-                "test" | "ignore" | "should_fail" | "timeout" | "retries" | "tag" | "serial" => {
+                "test" | "bench" | "ignore" | "should_fail" | "timeout" | "retries" | "tag" | "serial"
+                | "group" | "warmup" | "measurement" | "samples" | "throughput_bytes" | "throughput_elements" => {
                     if site != AttrSite::FnDecl {
                         return Err(Error::at(a.span, site.placement_error(&name)));
                     }
                 }
-                "test_only" => {
+                "test_only" | "bench_only" => {
                     if !matches!(site, AttrSite::FnDecl | AttrSite::TypeDecl) {
                         return Err(Error::at(a.span, site.placement_error(&name)));
                     }
                     if !arg_text(args).is_empty() {
                         return Err(Error::at(
                             a.span,
-                            "`#[test_only]` takes no arguments",
+                            format!("`#[{name}]` takes no arguments"),
                         ));
                     }
                 }
@@ -6466,10 +6467,11 @@ impl Checker {
                     if !matches!(site, AttrSite::FnDecl | AttrSite::TypeDecl) {
                         return Err(Error::at(a.span, site.placement_error(&name)));
                     }
-                    if arg_text(args) != "test" {
+                    let cfg_arg = arg_text(args);
+                    if cfg_arg != "test" && cfg_arg != "bench" {
                         return Err(Error::at(
                             a.span,
-                            "`#[cfg(...)]` currently supports only `#[cfg(test)]`",
+                            "`#[cfg(...)]` currently supports only `#[cfg(test)]` and `#[cfg(bench)]`",
                         ));
                     }
                 }

@@ -1045,6 +1045,7 @@ module Cinch.Check where
     DInlineHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
     DUnrollHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
     DTestAttr s name tspec -> (case tspec of Ok value -> []; Err message -> fail s message)
+    DBenchAttr s name bspec -> (case bspec of Ok value -> []; Err message -> fail s message)
     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
 
   check-decls :: HashMap String Ty -> Environment -> List Decl -> List Diagnostic

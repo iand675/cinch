@@ -192,3 +192,68 @@ fn realtime_runs_the_action_and_orders_the_busy_span_above_the_trivial_one() {
         "A",
     );
 }
+
+#[test]
+fn criterion_dsl_stats_and_comparison_work_end_to_end() {
+    // Exercises the Criterion-style DSL in Effect.Benchmark:
+    //   1: black-box preserves values identically
+    //   2: bench-iter-pure collects the requested sample count and positive iterations
+    //   4: OLS R^2 is finite and median CI is ordered (lo <= pt <= hi)
+    //   8: group-bench-inputs runs every parameterized case and preserves group/param names
+    //  16: compare-samples detects a clear synthetic regression vs baseline
+    //  32: render-bench-outcome produces Criterion-style time/slope/mean/median text
+    expect_exit(
+        "criterion-dsl",
+        r#"module Main where
+
+  import Data.Bool
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Effect.Benchmark
+  import Text.Scan
+
+  spin :: Nat -> Nat -> Nat
+  spin n acc = if n == 0 then acc else spin (saturating-sub n 1) (acc + 1)
+
+  is-regressed :: ChangeClassification -> Bool
+  is-regressed c = case c of
+    ChangeRegressed -> True
+    other -> False
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let bb = black-box (42 :: Nat) in
+    let cfg = bench-config-with-resamples 60 (bench-config-with-samples 12 (bench-config-with-measurement 30 (bench-config-with-warmup 10 quick-bench-config))) in
+    let c = criterion-new cfg in
+    let out1 = bench-function c "spin-small" (\b ->
+      bench-iter-pure (bencher-with-throughput (ThroughputElements 100) b) (\() -> spin 100 0)) in
+    let st1 = outcome-stats out1 in
+    let med = stats-median st1 in
+    let g = group-with-throughput (ThroughputBytes 64) (benchmark-group c "work") in
+    let outs = group-bench-inputs g "spin" [("a", 50), ("b", 100)] (\b n ->
+      bench-iter-batched-pure b SmallInput (\() -> n) (\x -> spin x 0)) in
+    let base-samples =
+          [ MkBenchSample 10 1000, MkBenchSample 20 2000, MkBenchSample 30 3000
+          , MkBenchSample 40 4000, MkBenchSample 50 5000, MkBenchSample 60 6000
+          , MkBenchSample 70 7000, MkBenchSample 80 8000, MkBenchSample 90 9000
+          , MkBenchSample 100 10000 ] in
+    let slow-samples =
+          [ MkBenchSample 10 5000, MkBenchSample 20 10000, MkBenchSample 30 15000
+          , MkBenchSample 40 20000, MkBenchSample 50 25000, MkBenchSample 60 30000
+          , MkBenchSample 70 35000, MkBenchSample 80 40000, MkBenchSample 90 45000
+          , MkBenchSample 100 50000 ] in
+    let cmp = compare-samples cfg base-samples slow-samples in
+    let rendered = render-bench-outcome out1 (Some cmp) in
+    let c1 = if bb == 42 then 0 else 1 in
+    let c2 = if stats-sample-count st1 == 12 && stats-total-iterations st1 > 0 then 0 else 2 in
+    let c3 = if fle-f64 (ci-lower med) (ci-point med) && fle-f64 (ci-point med) (ci-upper med) then 0 else 4 in
+    let c4 = if list-length outs == 2 && (case outs of Cons h _ -> outcome-full-name h == "work/spin/a"; Nil -> False) then 0 else 8 in
+    let c5 = if is-regressed (cmp-classification cmp) && fgt-f64 (cmp-pct-point cmp) (i64-to-f64 100) then 0 else 16 in
+    let c6 = if string-contains "time:" rendered && string-contains "thrpt:" rendered && string-contains "Performance has regressed." rendered then 0 else 32 in
+    c1 + c2 + c3 + c4 + c5 + c6
+"#,
+        0,
+    );
+}

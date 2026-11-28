@@ -1392,6 +1392,9 @@ module Cinch.Resolve where
     DTestAttr s name tspec -> (case tspec of
       Err message -> ([], fail s message)
       Ok value -> ([DTestAttr s (global-name home name) tspec], []))
+    DBenchAttr s name bspec -> (case bspec of
+      Err message -> ([], fail s message)
+      Ok value -> ([DBenchAttr s (global-name home name) bspec], []))
     DUnmodeled s text -> ([d], fail s (string-concat "the parser cannot model this declaration: " text))
     other -> ([d], fail (decl-span d) "this declaration requires further namespace elaboration")
 
