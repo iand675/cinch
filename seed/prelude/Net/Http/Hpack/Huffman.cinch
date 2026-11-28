@@ -1,0 +1,813 @@
+-- | RFC 7541 Appendix B Canonical Huffman Codec & 2-Level 4-Bit Nibble DFA Decoder.
+--
+-- Architecture & zero-allocation contract:
+--   * Complete RFC 7541 Appendix B 256-symbol canonical Huffman code table
+--     (exact 5..30-bit codes + EOS symbol `256` = `0x3fffffff`).
+--   * `hpack-huffman-table-new` allocates a single 4 KiB-aligned DMA slab
+--     holding:
+--       +0     .. +2047  : 256-entry `(code :: U32, bits :: U32)` encoder table (2 KiB)
+--       +2048  .. +18431 : 256-state x 16-nibble `U32` DFA decode table (16 KiB)
+--       +18432 .. +20735 : one-time build scratch (binary trie + accept flags)
+--   * Hot-path encoding (`hpack-huffman-encode-len`, `hpack-huffman-encode-raw`)
+--     uses a 64-bit bit accumulator directly into raw DMA memory (`#[no-alloc]`).
+--   * Hot-path decoding (`hpack-huffman-decode-raw`) executes a 2-level 4-bit
+--     nibble DFA (high nibble -> low nibble per byte) directly over the flat
+--     16 KiB L1-resident table (`#[no-alloc]`) and strictly enforces RFC 7541 §5.2:
+--       - Rejects EOS (`256`) appearing anywhere in the stream (`huff-err-eos`).
+--       - Rejects non-1 padding bits at end of stream (`huff-err-padding`).
+--       - Rejects padding strictly longer than 7 bits (`huff-err-padding`).
+module Net.Http.Hpack.Huffman where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Prim.Atomic
+
+  export HpackHuffmanTable, HpackHuffmanResult
+  export huff-ok, huff-err-invalid-table, huff-err-buf-overflow
+  export huff-err-eos, huff-err-padding
+  export hpack-huffman-eos-code, hpack-huffman-eos-len
+  export hpack-huffman-entry, hpack-huffman-code, hpack-huffman-len
+  export hpack-huffman-table-new, hpack-huffman-table-destroy, hpack-huffman-table-valid
+  export hpack-huffman-encode-len, hpack-huffman-encode-len-pure
+  export hpack-huffman-encode-raw, hpack-huffman-decode-raw
+
+  -- =========================================================================
+  -- 0. Status Codes, Constants, & POD Types
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-ok :: U32
+  huff-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-err-invalid-table :: U32
+  huff-err-invalid-table = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-err-buf-overflow :: U32
+  huff-err-buf-overflow = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-err-eos :: U32
+  huff-err-eos = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-err-padding :: U32
+  huff-err-padding = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-huffman-eos-code :: U32
+  hpack-huffman-eos-code = 1073741823 -- 0x3fffffff
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-huffman-eos-len :: U8
+  hpack-huffman-eos-len = 30
+
+  -- DMA slab geometry (6 pages = 24,576 bytes, 4 KiB aligned):
+  --   +0     : encode table (256 x 8B = 2048B)
+  --   +2048  : DFA nibble table (256 x 16 x 4B = 16384B)
+  --   +18432 : trie build scratch (256 x 2 x 4B = 2048B)
+  --   +20480 : accept-state flags (256 x 1B = 256B)
+  #[inline(always)]
+  #[no-alloc]
+  huff-slab-total-bytes :: U64
+  huff-slab-total-bytes = 24576
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-dfa-off :: I64
+  huff-dfa-off = 2048
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-trie-off :: I64
+  huff-trie-off = 18432
+
+  #[inline(always)]
+  #[no-alloc]
+  huff-accept-off :: I64
+  huff-accept-off = 20480
+
+  -- DFA entry bit flags:
+  --   bits 0..7   : next-state (0..255)
+  --   bits 8..15  : emitted symbol (0..255)
+  --   bit 16      : FLAG_EMIT   (0x10000 = 65536)
+  --   bit 17      : FLAG_ACCEPT (0x20000 = 131072)
+  --   bit 18      : FLAG_FAIL   (0x40000 = 262144)
+  #[inline(always)]
+  #[no-alloc]
+  dfa-flag-emit :: U32
+  dfa-flag-emit = 65536
+
+  #[inline(always)]
+  #[no-alloc]
+  dfa-flag-accept :: U32
+  dfa-flag-accept = 131072
+
+  #[inline(always)]
+  #[no-alloc]
+  dfa-flag-fail :: U32
+  dfa-flag-fail = 262144
+
+  #[inline(always)]
+  #[no-alloc]
+  trie-empty :: U32
+  trie-empty = 4294967295
+
+  #[inline(always)]
+  #[no-alloc]
+  trie-leaf-bit :: U32
+  trie-leaf-bit = 2147483648 -- 0x80000000
+
+  -- | 16-byte POD handle to the precomputed 4 KiB-aligned DMA Huffman tables.
+  #[repr(C, value)]
+  record HpackHuffmanTable where
+    huff-slab-addr :: U64
+    huff-slab-bytes :: U64
+
+  -- | 8-byte POD result from `hpack-huffman-encode-raw` / `hpack-huffman-decode-raw`.
+  #[repr(C, value)]
+  record HpackHuffmanResult where
+    hr-status :: U32
+    hr-len :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-huffman-table-valid :: HpackHuffmanTable -> Bool
+  hpack-huffman-table-valid tbl =
+    both (ne-u64 tbl.huff-slab-addr 0) (ge-u64 tbl.huff-slab-bytes huff-slab-total-bytes)
+
+  -- =========================================================================
+  -- 1. RFC 7541 Appendix B Exact 256-Symbol Canonical Huffman Table
+  --    Packed as `(bitlen :: U64 << 32) | (code :: U64)`.
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-huff :: U32 -> U32 -> U64
+  pack-huff code bits =
+    bit-or-u64 (wrapping-shl-u64 (u32-to-u64 bits) 32) (u32-to-u64 code)
+
+  #[no-alloc]
+  huff-b0 :: U8 -> U64
+  huff-b0 s =
+    if eq-u8 s 0 then pack-huff 0x1ff8 13
+    else if eq-u8 s 1 then pack-huff 0x7fffd8 23
+    else if eq-u8 s 2 then pack-huff 0xfffffe2 28
+    else if eq-u8 s 3 then pack-huff 0xfffffe3 28
+    else if eq-u8 s 4 then pack-huff 0xfffffe4 28
+    else if eq-u8 s 5 then pack-huff 0xfffffe5 28
+    else if eq-u8 s 6 then pack-huff 0xfffffe6 28
+    else if eq-u8 s 7 then pack-huff 0xfffffe7 28
+    else if eq-u8 s 8 then pack-huff 0xfffffe8 28
+    else if eq-u8 s 9 then pack-huff 0xffffea 24
+    else if eq-u8 s 10 then pack-huff 0x3ffffffc 30
+    else if eq-u8 s 11 then pack-huff 0xfffffe9 28
+    else if eq-u8 s 12 then pack-huff 0xfffffea 28
+    else if eq-u8 s 13 then pack-huff 0x3ffffffd 30
+    else if eq-u8 s 14 then pack-huff 0xfffffeb 28
+    else if eq-u8 s 15 then pack-huff 0xfffffec 28
+    else if eq-u8 s 16 then pack-huff 0xfffffed 28
+    else if eq-u8 s 17 then pack-huff 0xfffffee 28
+    else if eq-u8 s 18 then pack-huff 0xfffffef 28
+    else if eq-u8 s 19 then pack-huff 0xffffff0 28
+    else if eq-u8 s 20 then pack-huff 0xffffff1 28
+    else if eq-u8 s 21 then pack-huff 0xffffff2 28
+    else if eq-u8 s 22 then pack-huff 0x3ffffffe 30
+    else if eq-u8 s 23 then pack-huff 0xffffff3 28
+    else if eq-u8 s 24 then pack-huff 0xffffff4 28
+    else if eq-u8 s 25 then pack-huff 0xffffff5 28
+    else if eq-u8 s 26 then pack-huff 0xffffff6 28
+    else if eq-u8 s 27 then pack-huff 0xffffff7 28
+    else if eq-u8 s 28 then pack-huff 0xffffff8 28
+    else if eq-u8 s 29 then pack-huff 0xffffff9 28
+    else if eq-u8 s 30 then pack-huff 0xffffffa 28
+    else pack-huff 0xffffffb 28
+
+  #[no-alloc]
+  huff-b1 :: U8 -> U64
+  huff-b1 s =
+    if eq-u8 s 32 then pack-huff 0x14 6
+    else if eq-u8 s 33 then pack-huff 0x3f8 10
+    else if eq-u8 s 34 then pack-huff 0x3f9 10
+    else if eq-u8 s 35 then pack-huff 0xffa 12
+    else if eq-u8 s 36 then pack-huff 0x1ff9 13
+    else if eq-u8 s 37 then pack-huff 0x15 6
+    else if eq-u8 s 38 then pack-huff 0xf8 8
+    else if eq-u8 s 39 then pack-huff 0x7fa 11
+    else if eq-u8 s 40 then pack-huff 0x3fa 10
+    else if eq-u8 s 41 then pack-huff 0x3fb 10
+    else if eq-u8 s 42 then pack-huff 0xf9 8
+    else if eq-u8 s 43 then pack-huff 0x7fb 11
+    else if eq-u8 s 44 then pack-huff 0xfa 8
+    else if eq-u8 s 45 then pack-huff 0x16 6
+    else if eq-u8 s 46 then pack-huff 0x17 6
+    else if eq-u8 s 47 then pack-huff 0x18 6
+    else if eq-u8 s 48 then pack-huff 0x0 5
+    else if eq-u8 s 49 then pack-huff 0x1 5
+    else if eq-u8 s 50 then pack-huff 0x2 5
+    else if eq-u8 s 51 then pack-huff 0x19 6
+    else if eq-u8 s 52 then pack-huff 0x1a 6
+    else if eq-u8 s 53 then pack-huff 0x1b 6
+    else if eq-u8 s 54 then pack-huff 0x1c 6
+    else if eq-u8 s 55 then pack-huff 0x1d 6
+    else if eq-u8 s 56 then pack-huff 0x1e 6
+    else if eq-u8 s 57 then pack-huff 0x1f 6
+    else if eq-u8 s 58 then pack-huff 0x5c 7
+    else if eq-u8 s 59 then pack-huff 0xfb 8
+    else if eq-u8 s 60 then pack-huff 0x7ffc 15
+    else if eq-u8 s 61 then pack-huff 0x20 6
+    else if eq-u8 s 62 then pack-huff 0xffb 12
+    else pack-huff 0x3fc 10
+
+  #[no-alloc]
+  huff-b2 :: U8 -> U64
+  huff-b2 s =
+    if eq-u8 s 64 then pack-huff 0x1ffa 13
+    else if eq-u8 s 65 then pack-huff 0x21 6
+    else if eq-u8 s 66 then pack-huff 0x5d 7
+    else if eq-u8 s 67 then pack-huff 0x5e 7
+    else if eq-u8 s 68 then pack-huff 0x5f 7
+    else if eq-u8 s 69 then pack-huff 0x60 7
+    else if eq-u8 s 70 then pack-huff 0x61 7
+    else if eq-u8 s 71 then pack-huff 0x62 7
+    else if eq-u8 s 72 then pack-huff 0x63 7
+    else if eq-u8 s 73 then pack-huff 0x64 7
+    else if eq-u8 s 74 then pack-huff 0x65 7
+    else if eq-u8 s 75 then pack-huff 0x66 7
+    else if eq-u8 s 76 then pack-huff 0x67 7
+    else if eq-u8 s 77 then pack-huff 0x68 7
+    else if eq-u8 s 78 then pack-huff 0x69 7
+    else if eq-u8 s 79 then pack-huff 0x6a 7
+    else if eq-u8 s 80 then pack-huff 0x6b 7
+    else if eq-u8 s 81 then pack-huff 0x6c 7
+    else if eq-u8 s 82 then pack-huff 0x6d 7
+    else if eq-u8 s 83 then pack-huff 0x6e 7
+    else if eq-u8 s 84 then pack-huff 0x6f 7
+    else if eq-u8 s 85 then pack-huff 0x70 7
+    else if eq-u8 s 86 then pack-huff 0x71 7
+    else if eq-u8 s 87 then pack-huff 0x72 7
+    else if eq-u8 s 88 then pack-huff 0xfc 8
+    else if eq-u8 s 89 then pack-huff 0x73 7
+    else if eq-u8 s 90 then pack-huff 0xfd 8
+    else if eq-u8 s 91 then pack-huff 0x1ffb 13
+    else if eq-u8 s 92 then pack-huff 0x7fff0 19
+    else if eq-u8 s 93 then pack-huff 0x1ffc 13
+    else if eq-u8 s 94 then pack-huff 0x3ffc 14
+    else pack-huff 0x22 6
+
+  #[no-alloc]
+  huff-b3 :: U8 -> U64
+  huff-b3 s =
+    if eq-u8 s 96 then pack-huff 0x7ffd 15
+    else if eq-u8 s 97 then pack-huff 0x3 5
+    else if eq-u8 s 98 then pack-huff 0x23 6
+    else if eq-u8 s 99 then pack-huff 0x4 5
+    else if eq-u8 s 100 then pack-huff 0x24 6
+    else if eq-u8 s 101 then pack-huff 0x5 5
+    else if eq-u8 s 102 then pack-huff 0x25 6
+    else if eq-u8 s 103 then pack-huff 0x26 6
+    else if eq-u8 s 104 then pack-huff 0x27 6
+    else if eq-u8 s 105 then pack-huff 0x6 5
+    else if eq-u8 s 106 then pack-huff 0x74 7
+    else if eq-u8 s 107 then pack-huff 0x75 7
+    else if eq-u8 s 108 then pack-huff 0x28 6
+    else if eq-u8 s 109 then pack-huff 0x29 6
+    else if eq-u8 s 110 then pack-huff 0x2a 6
+    else if eq-u8 s 111 then pack-huff 0x7 5
+    else if eq-u8 s 112 then pack-huff 0x2b 6
+    else if eq-u8 s 113 then pack-huff 0x76 7
+    else if eq-u8 s 114 then pack-huff 0x2c 6
+    else if eq-u8 s 115 then pack-huff 0x8 5
+    else if eq-u8 s 116 then pack-huff 0x9 5
+    else if eq-u8 s 117 then pack-huff 0x2d 6
+    else if eq-u8 s 118 then pack-huff 0x77 7
+    else if eq-u8 s 119 then pack-huff 0x78 7
+    else if eq-u8 s 120 then pack-huff 0x79 7
+    else if eq-u8 s 121 then pack-huff 0x7a 7
+    else if eq-u8 s 122 then pack-huff 0x7b 7
+    else if eq-u8 s 123 then pack-huff 0x7ffe 15
+    else if eq-u8 s 124 then pack-huff 0x7fc 11
+    else if eq-u8 s 125 then pack-huff 0x3ffd 14
+    else if eq-u8 s 126 then pack-huff 0x1ffd 13
+    else pack-huff 0xffffffc 28
+
+  #[no-alloc]
+  huff-b4 :: U8 -> U64
+  huff-b4 s =
+    if eq-u8 s 128 then pack-huff 0xfffe6 20
+    else if eq-u8 s 129 then pack-huff 0x3fffd2 22
+    else if eq-u8 s 130 then pack-huff 0xfffe7 20
+    else if eq-u8 s 131 then pack-huff 0xfffe8 20
+    else if eq-u8 s 132 then pack-huff 0x3fffd3 22
+    else if eq-u8 s 133 then pack-huff 0x3fffd4 22
+    else if eq-u8 s 134 then pack-huff 0x3fffd5 22
+    else if eq-u8 s 135 then pack-huff 0x7fffd9 23
+    else if eq-u8 s 136 then pack-huff 0x3fffd6 22
+    else if eq-u8 s 137 then pack-huff 0x7fffda 23
+    else if eq-u8 s 138 then pack-huff 0x7fffdb 23
+    else if eq-u8 s 139 then pack-huff 0x7fffdc 23
+    else if eq-u8 s 140 then pack-huff 0x7fffdd 23
+    else if eq-u8 s 141 then pack-huff 0x7fffde 23
+    else if eq-u8 s 142 then pack-huff 0xffffeb 24
+    else if eq-u8 s 143 then pack-huff 0x7fffdf 23
+    else if eq-u8 s 144 then pack-huff 0xffffec 24
+    else if eq-u8 s 145 then pack-huff 0xffffed 24
+    else if eq-u8 s 146 then pack-huff 0x3fffd7 22
+    else if eq-u8 s 147 then pack-huff 0x7fffe0 23
+    else if eq-u8 s 148 then pack-huff 0xffffee 24
+    else if eq-u8 s 149 then pack-huff 0x7fffe1 23
+    else if eq-u8 s 150 then pack-huff 0x7fffe2 23
+    else if eq-u8 s 151 then pack-huff 0x7fffe3 23
+    else if eq-u8 s 152 then pack-huff 0x7fffe4 23
+    else if eq-u8 s 153 then pack-huff 0x1fffdc 21
+    else if eq-u8 s 154 then pack-huff 0x3fffd8 22
+    else if eq-u8 s 155 then pack-huff 0x7fffe5 23
+    else if eq-u8 s 156 then pack-huff 0x3fffd9 22
+    else if eq-u8 s 157 then pack-huff 0x7fffe6 23
+    else if eq-u8 s 158 then pack-huff 0x7fffe7 23
+    else pack-huff 0xffffef 24
+
+  #[no-alloc]
+  huff-b5 :: U8 -> U64
+  huff-b5 s =
+    if eq-u8 s 160 then pack-huff 0x3fffda 22
+    else if eq-u8 s 161 then pack-huff 0x1fffdd 21
+    else if eq-u8 s 162 then pack-huff 0xfffe9 20
+    else if eq-u8 s 163 then pack-huff 0x3fffdb 22
+    else if eq-u8 s 164 then pack-huff 0x3fffdc 22
+    else if eq-u8 s 165 then pack-huff 0x7fffe8 23
+    else if eq-u8 s 166 then pack-huff 0x7fffe9 23
+    else if eq-u8 s 167 then pack-huff 0x1fffde 21
+    else if eq-u8 s 168 then pack-huff 0x7fffea 23
+    else if eq-u8 s 169 then pack-huff 0x3fffdd 22
+    else if eq-u8 s 170 then pack-huff 0x3fffde 22
+    else if eq-u8 s 171 then pack-huff 0xfffff0 24
+    else if eq-u8 s 172 then pack-huff 0x1fffdf 21
+    else if eq-u8 s 173 then pack-huff 0x3fffdf 22
+    else if eq-u8 s 174 then pack-huff 0x7fffeb 23
+    else if eq-u8 s 175 then pack-huff 0x7fffec 23
+    else if eq-u8 s 176 then pack-huff 0x1fffe0 21
+    else if eq-u8 s 177 then pack-huff 0x1fffe1 21
+    else if eq-u8 s 178 then pack-huff 0x3fffe0 22
+    else if eq-u8 s 179 then pack-huff 0x1fffe2 21
+    else if eq-u8 s 180 then pack-huff 0x7fffed 23
+    else if eq-u8 s 181 then pack-huff 0x3fffe1 22
+    else if eq-u8 s 182 then pack-huff 0x7fffee 23
+    else if eq-u8 s 183 then pack-huff 0x7fffef 23
+    else if eq-u8 s 184 then pack-huff 0xfffea 20
+    else if eq-u8 s 185 then pack-huff 0x3fffe2 22
+    else if eq-u8 s 186 then pack-huff 0x3fffe3 22
+    else if eq-u8 s 187 then pack-huff 0x3fffe4 22
+    else if eq-u8 s 188 then pack-huff 0x7ffff0 23
+    else if eq-u8 s 189 then pack-huff 0x3fffe5 22
+    else if eq-u8 s 190 then pack-huff 0x3fffe6 22
+    else pack-huff 0x7ffff1 23
+
+  #[no-alloc]
+  huff-b6 :: U8 -> U64
+  huff-b6 s =
+    if eq-u8 s 192 then pack-huff 0x3ffffe0 26
+    else if eq-u8 s 193 then pack-huff 0x3ffffe1 26
+    else if eq-u8 s 194 then pack-huff 0xfffeb 20
+    else if eq-u8 s 195 then pack-huff 0x7fff1 19
+    else if eq-u8 s 196 then pack-huff 0x3fffe7 22
+    else if eq-u8 s 197 then pack-huff 0x7ffff2 23
+    else if eq-u8 s 198 then pack-huff 0x3fffe8 22
+    else if eq-u8 s 199 then pack-huff 0x1ffffec 25
+    else if eq-u8 s 200 then pack-huff 0x3ffffe2 26
+    else if eq-u8 s 201 then pack-huff 0x3ffffe3 26
+    else if eq-u8 s 202 then pack-huff 0x3ffffe4 26
+    else if eq-u8 s 203 then pack-huff 0x7ffffde 27
+    else if eq-u8 s 204 then pack-huff 0x7ffffdf 27
+    else if eq-u8 s 205 then pack-huff 0x3ffffe5 26
+    else if eq-u8 s 206 then pack-huff 0xfffff1 24
+    else if eq-u8 s 207 then pack-huff 0x1ffffed 25
+    else if eq-u8 s 208 then pack-huff 0x7fff2 19
+    else if eq-u8 s 209 then pack-huff 0x1fffe3 21
+    else if eq-u8 s 210 then pack-huff 0x3ffffe6 26
+    else if eq-u8 s 211 then pack-huff 0x7ffffe0 27
+    else if eq-u8 s 212 then pack-huff 0x7ffffe1 27
+    else if eq-u8 s 213 then pack-huff 0x3ffffe7 26
+    else if eq-u8 s 214 then pack-huff 0x7ffffe2 27
+    else if eq-u8 s 215 then pack-huff 0xfffff2 24
+    else if eq-u8 s 216 then pack-huff 0x1fffe4 21
+    else if eq-u8 s 217 then pack-huff 0x1fffe5 21
+    else if eq-u8 s 218 then pack-huff 0x3ffffe8 26
+    else if eq-u8 s 219 then pack-huff 0x3ffffe9 26
+    else if eq-u8 s 220 then pack-huff 0xffffffd 28
+    else if eq-u8 s 221 then pack-huff 0x7ffffe3 27
+    else if eq-u8 s 222 then pack-huff 0x7ffffe4 27
+    else pack-huff 0x7ffffe5 27
+
+  #[no-alloc]
+  huff-b7 :: U8 -> U64
+  huff-b7 s =
+    if eq-u8 s 224 then pack-huff 0xfffec 20
+    else if eq-u8 s 225 then pack-huff 0xfffff3 24
+    else if eq-u8 s 226 then pack-huff 0xfffed 20
+    else if eq-u8 s 227 then pack-huff 0x1fffe6 21
+    else if eq-u8 s 228 then pack-huff 0x3fffe9 22
+    else if eq-u8 s 229 then pack-huff 0x1fffe7 21
+    else if eq-u8 s 230 then pack-huff 0x1fffe8 21
+    else if eq-u8 s 231 then pack-huff 0x7ffff3 23
+    else if eq-u8 s 232 then pack-huff 0x3fffea 22
+    else if eq-u8 s 233 then pack-huff 0x3fffeb 22
+    else if eq-u8 s 234 then pack-huff 0x1ffffee 25
+    else if eq-u8 s 235 then pack-huff 0x1ffffef 25
+    else if eq-u8 s 236 then pack-huff 0xfffff4 24
+    else if eq-u8 s 237 then pack-huff 0xfffff5 24
+    else if eq-u8 s 238 then pack-huff 0x3ffffea 26
+    else if eq-u8 s 239 then pack-huff 0x7ffff4 23
+    else if eq-u8 s 240 then pack-huff 0x3ffffeb 26
+    else if eq-u8 s 241 then pack-huff 0x7ffffe6 27
+    else if eq-u8 s 242 then pack-huff 0x3ffffec 26
+    else if eq-u8 s 243 then pack-huff 0x3ffffed 26
+    else if eq-u8 s 244 then pack-huff 0x7ffffe7 27
+    else if eq-u8 s 245 then pack-huff 0x7ffffe8 27
+    else if eq-u8 s 246 then pack-huff 0x7ffffe9 27
+    else if eq-u8 s 247 then pack-huff 0x7ffffea 27
+    else if eq-u8 s 248 then pack-huff 0x7ffffeb 27
+    else if eq-u8 s 249 then pack-huff 0xffffffe 28
+    else if eq-u8 s 250 then pack-huff 0x7ffffec 27
+    else if eq-u8 s 251 then pack-huff 0x7ffffed 27
+    else if eq-u8 s 252 then pack-huff 0x7ffffee 27
+    else if eq-u8 s 253 then pack-huff 0x7ffffef 27
+    else if eq-u8 s 254 then pack-huff 0x7fffff0 27
+    else pack-huff 0x3ffffee 26
+
+  -- | Return packed `(bitlen << 32) | code` for RFC 7541 Appendix B symbol `s`.
+  #[no-alloc]
+  hpack-huffman-entry :: U8 -> U64
+  hpack-huffman-entry s =
+    if lt-u8 s 128 then
+      if lt-u8 s 64 then
+        if lt-u8 s 32 then huff-b0 s else huff-b1 s
+      else
+        if lt-u8 s 96 then huff-b2 s else huff-b3 s
+    else
+      if lt-u8 s 192 then
+        if lt-u8 s 160 then huff-b4 s else huff-b5 s
+      else
+        if lt-u8 s 224 then huff-b6 s else huff-b7 s
+
+  -- | Return the canonical Huffman code (LSB-aligned, 5..30 bits) for byte `s`.
+  #[inline(always)]
+  #[no-alloc]
+  hpack-huffman-code :: U8 -> U32
+  hpack-huffman-code s = wrapping-u64-to-u32 (hpack-huffman-entry s)
+
+  -- | Return the canonical Huffman bit length (`5..30`) for byte `s`.
+  #[inline(always)]
+  #[no-alloc]
+  hpack-huffman-len :: U8 -> U8
+  hpack-huffman-len s = wrapping-u64-to-u8 (wrapping-shr-u64 (hpack-huffman-entry s) 32)
+
+  -- =========================================================================
+  -- 2. One-Time Flat DMA Table & 2-Level 4-Bit Nibble DFA Construction
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  trie-child-addr :: I64 -> U32 -> U32 -> I64
+  trie-child-addr base node bit =
+    let idx = wrapping-add-u32 (wrapping-shl-u32 node 1) bit in
+    wrapping-add-i64 (wrapping-add-i64 base huff-trie-off) (wrapping-shl-i64 (u32-to-i64 idx) 2)
+
+  #[no-alloc]
+  init-trie-empty :: I64 -> U32 ->{MVar} Unit
+  init-trie-empty base i =
+    if ge-u32 i 512 then ()
+    else
+      let addr = wrapping-add-i64 (wrapping-add-i64 base huff-trie-off) (wrapping-shl-i64 (u32-to-i64 i) 2) in
+      let _ = raw-store-u32 addr trie-empty in
+      init-trie-empty base (wrapping-add-u32 i 1)
+
+  #[no-alloc]
+  init-encode-table :: I64 -> U32 ->{MVar} Unit
+  init-encode-table base i =
+    if ge-u32 i 256 then ()
+    else
+      let e = hpack-huffman-entry (wrapping-u32-to-u8 i) in
+      let code = wrapping-u64-to-u32 e in
+      let bits = wrapping-u64-to-u32 (wrapping-shr-u64 e 32) in
+      let off = wrapping-shl-i64 (u32-to-i64 i) 3 in
+      let _ = raw-store-u32 (wrapping-add-i64 base off) code in
+      let _ = raw-store-u32 (wrapping-add-i64 base (wrapping-add-i64 off 4)) bits in
+      init-encode-table base (wrapping-add-u32 i 1)
+
+  -- Insert one symbol `(sym, code, bit-idx)` into the binary trie, returning updated `node-count`.
+  #[no-alloc]
+  trie-insert-bits :: I64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  trie-insert-bits base cur node-count sym code bit-idx =
+    let bit = bit-and-u32 (wrapping-shr-u32 code bit-idx) 1 in
+    let slot = trie-child-addr base cur bit in
+    if eq-u32 bit-idx 0 then
+      let _ = raw-store-u32 slot (bit-or-u32 trie-leaf-bit sym) in
+      node-count
+    else
+      let existing = raw-load-u32 slot in
+      if eq-u32 existing trie-empty then
+        let nxt = node-count in
+        let _ = raw-store-u32 slot nxt in
+        trie-insert-bits base nxt (wrapping-add-u32 node-count 1) sym code (wrapping-sub-u32 bit-idx 1)
+      else
+        trie-insert-bits base existing node-count sym code (wrapping-sub-u32 bit-idx 1)
+
+  #[no-alloc]
+  trie-insert-all :: I64 -> U32 -> U32 ->{MVar} U32
+  trie-insert-all base sym node-count =
+    if ge-u32 sym 256 then
+      -- Insert EOS symbol 256 (0x3fffffff, 30 bits).
+      trie-insert-bits base 0 node-count 256 hpack-huffman-eos-code 29
+    else
+      let off = wrapping-shl-i64 (u32-to-i64 sym) 3 in
+      let code = raw-load-u32 (wrapping-add-i64 base off) in
+      let bits = raw-load-u32 (wrapping-add-i64 base (wrapping-add-i64 off 4)) in
+      let next-count = trie-insert-bits base 0 node-count sym code (wrapping-sub-u32 bits 1) in
+      trie-insert-all base (wrapping-add-u32 sym 1) next-count
+
+  -- Mark root (0) and the 7 all-1s EOS prefix states (depths 1..7) as accepting.
+  #[no-alloc]
+  mark-accept-path :: I64 -> U32 -> U32 ->{MVar} Unit
+  mark-accept-path base cur rem =
+    let _ = raw-store-u8 (wrapping-add-i64 (wrapping-add-i64 base huff-accept-off) (u32-to-i64 cur)) 1 in
+    if eq-u32 rem 0 then ()
+    else
+      let nxt = raw-load-u32 (trie-child-addr base cur 1) in
+      if lt-u32 nxt 256 then mark-accept-path base nxt (wrapping-sub-u32 rem 1)
+      else ()
+
+  -- Simulate one 4-bit nibble MSB-first from internal trie state `st`.
+  #[no-alloc]
+  build-dfa-step :: I64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  build-dfa-step base cur nib bit-rem emitted esym =
+    let bshift = wrapping-sub-u32 bit-rem 1 in
+    let bit = bit-and-u32 (wrapping-shr-u32 nib bshift) 1 in
+    let nxt = raw-load-u32 (trie-child-addr base cur bit) in
+    let is-leaf = ne-u32 (bit-and-u32 nxt trie-leaf-bit) 0 in
+    if is-leaf then
+      let sym = bit-and-u32 nxt 511 in
+      if eq-u32 sym 256 then dfa-flag-fail
+      else if eq-u32 bshift 0 then
+        let acc = raw-load-u8 (wrapping-add-i64 base huff-accept-off) in
+        let acc-flag = if ne-u8 acc 0 then dfa-flag-accept else 0 in
+        bit-or-u32 (bit-or-u32 dfa-flag-emit acc-flag) (wrapping-shl-u32 sym 8)
+      else
+        build-dfa-step base 0 nib bshift 1 sym
+    else
+      if eq-u32 bshift 0 then
+        let acc = raw-load-u8 (wrapping-add-i64 (wrapping-add-i64 base huff-accept-off) (u32-to-i64 nxt)) in
+        let acc-flag = if ne-u8 acc 0 then dfa-flag-accept else 0 in
+        let emit-flag = if ne-u32 emitted 0 then dfa-flag-emit else 0 in
+        bit-or-u32
+          (bit-or-u32 (bit-and-u32 nxt 255) (wrapping-shl-u32 (bit-and-u32 esym 255) 8))
+          (bit-or-u32 emit-flag acc-flag)
+      else
+        build-dfa-step base nxt nib bshift emitted esym
+
+  #[no-alloc]
+  build-dfa-nibbles :: I64 -> U32 -> U32 ->{MVar} Unit
+  build-dfa-nibbles base st nib =
+    if ge-u32 nib 16 then ()
+    else
+      let entry = build-dfa-step base st nib 4 0 0 in
+      let idx = bit-or-u32 (wrapping-shl-u32 st 4) nib in
+      let addr = wrapping-add-i64 (wrapping-add-i64 base huff-dfa-off) (wrapping-shl-i64 (u32-to-i64 idx) 2) in
+      let _ = raw-store-u32 addr entry in
+      build-dfa-nibbles base st (wrapping-add-u32 nib 1)
+
+  #[no-alloc]
+  build-dfa-states :: I64 -> U32 ->{MVar} Unit
+  build-dfa-states base st =
+    if ge-u32 st 256 then ()
+    else
+      let _ = build-dfa-nibbles base st 0 in
+      build-dfa-states base (wrapping-add-u32 st 1)
+
+  -- | Allocate and precompute the 4 KiB-aligned DMA Huffman encode + 2-level
+  -- 4-bit nibble DFA decode tables (once per worker / codec).
+  -- Check validity with `hpack-huffman-table-valid`.
+  hpack-huffman-table-new :: Unit ->{IO, MVar} HpackHuffmanTable
+  hpack-huffman-table-new _ =
+    let slab-u64 = engine-dma-alloc huff-slab-total-bytes 4096 in
+    if eq-u64 slab-u64 0 then HpackHuffmanTable 0 0
+    else
+      let base = wrapping-u64-to-i64 slab-u64 in
+      let _ = init-encode-table base 0 in
+      let _ = init-trie-empty base 0 in
+      let _ = trie-insert-all base 0 1 in
+      let _ = mark-accept-path base 0 7 in
+      let _ = build-dfa-states base 0 in
+      HpackHuffmanTable slab-u64 huff-slab-total-bytes
+
+  -- | Release the 4 KiB-aligned DMA Huffman tables.
+  hpack-huffman-table-destroy :: HpackHuffmanTable ->{IO, MVar} Unit
+  hpack-huffman-table-destroy tbl =
+    if eq-u64 tbl.huff-slab-addr 0 then ()
+    else
+      let _ = engine-dma-free tbl.huff-slab-addr tbl.huff-slab-bytes in
+      ()
+
+  -- =========================================================================
+  -- 3. #[no-alloc] Fast 64-Bit Accumulator Huffman Encoder
+  -- =========================================================================
+
+  #[no-alloc]
+  encode-len-loop :: I64 -> I64 -> U32 -> U32 -> U64 ->{MVar} U64
+  encode-len-loop tbl-base src len i bits =
+    if ge-u32 i len then bits
+    else
+      let b = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 i)) in
+      let blen = raw-load-u32 (wrapping-add-i64 tbl-base (wrapping-add-i64 (wrapping-shl-i64 (u8-to-i64 b) 3) 4)) in
+      encode-len-loop tbl-base src len (wrapping-add-u32 i 1) (wrapping-add-u64 bits (u32-to-u64 blen))
+
+  -- | Compute the exact RFC 7541 Huffman-encoded byte length for `[src, src + len)`
+  -- using the precomputed flat DMA table (`#[no-alloc]`).
+  #[no-alloc]
+  hpack-huffman-encode-len :: HpackHuffmanTable -> I64 -> U32 ->{MVar} U32
+  hpack-huffman-encode-len tbl src len =
+    if hpack-huffman-table-valid tbl then
+      let total-bits = encode-len-loop (wrapping-u64-to-i64 tbl.huff-slab-addr) src len 0 0 in
+      wrapping-u64-to-u32 (wrapping-shr-u64 (wrapping-add-u64 total-bits 7) 3)
+    else 0
+
+  #[no-alloc]
+  encode-len-pure-loop :: I64 -> U32 -> U32 -> U64 ->{MVar} U64
+  encode-len-pure-loop src len i bits =
+    if ge-u32 i len then bits
+    else
+      let b = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 i)) in
+      let blen = hpack-huffman-len b in
+      encode-len-pure-loop src len (wrapping-add-u32 i 1) (wrapping-add-u64 bits (u8-to-u64 blen))
+
+  -- | Compute the exact RFC 7541 Huffman-encoded byte length without a table handle (`#[no-alloc]`).
+  #[no-alloc]
+  hpack-huffman-encode-len-pure :: I64 -> U32 ->{MVar} U32
+  hpack-huffman-encode-len-pure src len =
+    let total-bits = encode-len-pure-loop src len 0 0 in
+    wrapping-u64-to-u32 (wrapping-shr-u64 (wrapping-add-u64 total-bits 7) 3)
+
+  -- Flush at most 1 byte from `(acc, nbits)` packed in `state = (nbits << 32) | out-pos`.
+  -- Returns `0xFFFFFFFFFFFFFFFF` on overflow.
+  #[inline(always)]
+  #[no-alloc]
+  flush-one-byte :: I64 -> U32 -> U64 -> U64 ->{MVar} U64
+  flush-one-byte dst cap state acc =
+    if eq-u64 state 18446744073709551615 then 18446744073709551615
+    else
+      let out-pos = wrapping-u64-to-u32 state in
+      let nbits = wrapping-u64-to-u32 (wrapping-shr-u64 state 32) in
+      if lt-u32 nbits 8 then state
+      else if ge-u32 out-pos cap then 18446744073709551615
+      else
+        let next-nbits = wrapping-sub-u32 nbits 8 in
+        let byte-val = wrapping-u64-to-u8 (wrapping-shr-u64 acc next-nbits) in
+        let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 out-pos)) byte-val in
+        bit-or-u64 (wrapping-shl-u64 (u32-to-u64 next-nbits) 32) (u32-to-u64 (wrapping-add-u32 out-pos 1))
+
+  -- Flush all complete bytes (up to 4 bytes, since nbits1 <= 37) without recursion.
+  #[no-alloc]
+  flush-acc-bytes :: I64 -> U32 -> U32 -> U64 -> U32 ->{MVar} U64
+  flush-acc-bytes dst cap out-pos acc nbits =
+    let s0 = bit-or-u64 (wrapping-shl-u64 (u32-to-u64 nbits) 32) (u32-to-u64 out-pos) in
+    let s1 = flush-one-byte dst cap s0 acc in
+    let s2 = flush-one-byte dst cap s1 acc in
+    let s3 = flush-one-byte dst cap s2 acc in
+    flush-one-byte dst cap s3 acc
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-hr :: U32 -> U32 -> U64
+  pack-hr st len =
+    bit-or-u64 (wrapping-shl-u64 (u32-to-u64 st) 32) (u32-to-u64 len)
+
+  #[inline(always)]
+  #[no-alloc]
+  unpack-hr :: U64 -> HpackHuffmanResult
+  unpack-hr v =
+    HpackHuffmanResult (wrapping-u64-to-u32 (wrapping-shr-u64 v 32)) (wrapping-u64-to-u32 v)
+
+  #[no-alloc]
+  encode-raw-loop :: I64 -> I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U64 -> U32 ->{MVar} U64
+  encode-raw-loop tbl-base src src-len i dst dst-cap out-pos acc nbits =
+    if ge-u32 i src-len then
+      if eq-u32 nbits 0 then pack-hr huff-ok out-pos
+      else if ge-u32 out-pos dst-cap then pack-hr huff-err-buf-overflow out-pos
+      else
+        -- Pad remaining `pad = 8 - nbits` LSBs with 1-bits (EOS prefix, RFC 7541 §5.2).
+        let pad = wrapping-sub-u32 8 nbits in
+        let pad-mask = wrapping-sub-u64 (wrapping-shl-u64 1 pad) 1 in
+        let last-b = wrapping-u64-to-u8 (bit-or-u64 (wrapping-shl-u64 acc pad) pad-mask) in
+        let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 out-pos)) last-b in
+        pack-hr huff-ok (wrapping-add-u32 out-pos 1)
+    else
+      let b = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 i)) in
+      let eoff = wrapping-shl-i64 (u8-to-i64 b) 3 in
+      let code = raw-load-u32 (wrapping-add-i64 tbl-base eoff) in
+      let clen = raw-load-u32 (wrapping-add-i64 tbl-base (wrapping-add-i64 eoff 4)) in
+      -- Invariant: nbits in 0..7, clen in 5..30 => next-nbits in 5..37 <= 64.
+      let acc1 = bit-or-u64 (wrapping-shl-u64 acc clen) (u32-to-u64 code) in
+      let nbits1 = wrapping-add-u32 nbits clen in
+      let packed = flush-acc-bytes dst dst-cap out-pos acc1 nbits1 in
+      if eq-u64 packed 18446744073709551615 then pack-hr huff-err-buf-overflow out-pos
+      else
+        let out1 = wrapping-u64-to-u32 packed in
+        let nbits2 = wrapping-u64-to-u32 (wrapping-shr-u64 packed 32) in
+        let rem-mask = if eq-u32 nbits2 0 then 0 else wrapping-sub-u64 (wrapping-shl-u64 1 nbits2) 1 in
+        encode-raw-loop tbl-base src src-len (wrapping-add-u32 i 1) dst dst-cap out1 (bit-and-u64 acc1 rem-mask) nbits2
+
+  -- | RFC 7541 Huffman-encode raw DMA bytes `[src, src + src-len)` directly into
+  -- `[dst, dst + dst-cap)` using a 64-bit bit accumulator (`#[no-alloc]`).
+  #[no-alloc]
+  hpack-huffman-encode-raw :: HpackHuffmanTable -> I64 -> U32 -> I64 -> U32 ->{MVar} HpackHuffmanResult
+  hpack-huffman-encode-raw tbl src src-len dst dst-cap =
+    if hpack-huffman-table-valid tbl then
+      unpack-hr (encode-raw-loop (wrapping-u64-to-i64 tbl.huff-slab-addr) src src-len 0 dst dst-cap 0 0 0)
+    else HpackHuffmanResult huff-err-invalid-table 0
+
+  -- =========================================================================
+  -- 4. #[no-alloc] 2-Level 4-Bit Nibble DFA Huffman Decoder
+  -- =========================================================================
+
+  #[no-alloc]
+  decode-dfa-loop :: I64 -> I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U64
+  decode-dfa-loop dfa-base src src-len i dst dst-cap out-pos st accept =
+    if ge-u32 i src-len then
+      if eq-u32 accept 0 then pack-hr huff-err-padding out-pos
+      else pack-hr huff-ok out-pos
+    else
+      let b = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 i)) in
+      -- Level 1: high 4-bit nibble
+      let hi = u8-to-u32 (wrapping-shr-u8 b 4) in
+      let idx1 = bit-or-u32 (wrapping-shl-u32 st 4) hi in
+      let e1 = raw-load-u32 (wrapping-add-i64 dfa-base (wrapping-shl-i64 (u32-to-i64 idx1) 2)) in
+      if ne-u32 (bit-and-u32 e1 dfa-flag-fail) 0 then
+        pack-hr huff-err-eos out-pos
+      else
+        let emit1 = ne-u32 (bit-and-u32 e1 dfa-flag-emit) 0 in
+        if both emit1 (ge-u32 out-pos dst-cap) then
+          pack-hr huff-err-buf-overflow out-pos
+        else
+          let out1 = (
+            if emit1 then (
+              let sym1 = wrapping-u32-to-u8 (wrapping-shr-u32 e1 8) in
+              let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 out-pos)) sym1 in
+              wrapping-add-u32 out-pos 1)
+            else out-pos) in
+          let st1 = bit-and-u32 e1 255 in
+          -- Level 2: low 4-bit nibble
+          let lo = u8-to-u32 (bit-and-u8 b 15) in
+          let idx2 = bit-or-u32 (wrapping-shl-u32 st1 4) lo in
+          let e2 = raw-load-u32 (wrapping-add-i64 dfa-base (wrapping-shl-i64 (u32-to-i64 idx2) 2)) in
+          if ne-u32 (bit-and-u32 e2 dfa-flag-fail) 0 then
+            pack-hr huff-err-eos out1
+          else
+            let emit2 = ne-u32 (bit-and-u32 e2 dfa-flag-emit) 0 in
+            if both emit2 (ge-u32 out1 dst-cap) then
+              pack-hr huff-err-buf-overflow out1
+            else
+              let out2 = (
+                if emit2 then (
+                  let sym2 = wrapping-u32-to-u8 (wrapping-shr-u32 e2 8) in
+                  let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 out1)) sym2 in
+                  wrapping-add-u32 out1 1)
+                else out1) in
+              let st2 = bit-and-u32 e2 255 in
+              let acc2 = bit-and-u32 (wrapping-shr-u32 e2 17) 1 in
+              decode-dfa-loop dfa-base src src-len (wrapping-add-u32 i 1) dst dst-cap out2 st2 acc2
+
+  -- | Decode RFC 7541 Huffman-encoded bytes `[src, src + src-len)` directly into
+  -- raw DMA `[dst, dst + dst-cap)` using the 2-level 4-bit nibble DFA (`#[no-alloc]`).
+  -- Strictly enforces RFC 7541 §5.2 (rejects EOS, non-1 padding, and padding > 7 bits).
+  #[no-alloc]
+  hpack-huffman-decode-raw :: HpackHuffmanTable -> I64 -> U32 -> I64 -> U32 ->{MVar} HpackHuffmanResult
+  hpack-huffman-decode-raw tbl src src-len dst dst-cap =
+    if hpack-huffman-table-valid tbl then
+      let dfa-base = wrapping-add-i64 (wrapping-u64-to-i64 tbl.huff-slab-addr) huff-dfa-off in
+      unpack-hr (decode-dfa-loop dfa-base src src-len 0 dst dst-cap 0 0 1)
+    else HpackHuffmanResult huff-err-invalid-table 0

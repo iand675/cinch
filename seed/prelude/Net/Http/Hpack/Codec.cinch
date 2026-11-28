@@ -1,0 +1,1388 @@
+-- | RFC 7541 Zero-Allocation HPACK Header Compression Codec.
+--
+-- Components & zero-allocation contract:
+--   * Prefix integer encoder/decoder (`N = 1..8`, RFC 7541 §5.1) with strict
+--     overflow and unbounded varint continuation guards (`#[no-alloc]`).
+--   * Flat contiguous-entry ring-buffer `HpackDynamicTable` inside a single
+--     4 KiB-aligned DMA slab (`#[no-alloc]` O(1) insert, eviction, index lookup
+--     `index >= 62`, exact RFC 7541 §4.1 `name_len + val_len + 32` sizing,
+--     oversized-entry table clear per §4.4, and §4.2 size updates).
+--   * Full `HpackDecoder` & `HpackEncoder` over raw DMA buffers (`#[no-alloc]`):
+--       - Indexed Header Field (`1xxxxxxx`)
+--       - Literal Header Field with Incremental Indexing (`01xxxxxx`)
+--       - Dynamic Table Size Update (`001xxxxx`) — strictly enforced to appear
+--         only before header representations and `<= SETTINGS_HEADER_TABLE_SIZE`
+--       - Literal Header Field without Indexing (`0000xxxx`)
+--       - Literal Header Field Never Indexed (`0001xxxx`) — automatic
+--         high-entropy skip policy for `Authorization`, `Cookie`, `Set-Cookie`,
+--         and `Proxy-Authorization` in `hpack-mode-auto`.
+module Net.Http.Hpack.Codec where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Net.Http.Types
+  import Net.Http.Hpack.StaticTable
+  import Net.Http.Hpack.Huffman
+  import Prim.Atomic
+
+  -- Status & error codes
+  export hpack-ok, hpack-err-truncated, hpack-err-int-overflow, hpack-err-invalid-prefix
+  export hpack-err-invalid-index, hpack-err-huffman-eos, hpack-err-huffman-padding
+  export hpack-err-buf-overflow, hpack-err-headers-overflow
+  export hpack-err-table-size-exceeds-limit, hpack-err-table-size-after-header
+  export hpack-err-invalid-state
+
+  -- Flags & encoding modes
+  export hpack-flag-never-indexed, hpack-default-table-size
+  export hpack-mode-auto, hpack-mode-incremental, hpack-mode-without-indexing
+  export hpack-mode-never-indexed, hpack-mode-literal-incremental
+  export hpack-str-raw, hpack-str-huffman, hpack-str-auto
+
+  -- POD types & header array accessors
+  export HpackIntResult, HpackWriteResult, HpackHeader, HpackDecodeResult
+  export HpackDynEntry, HpackDynamicTable, HpackDecoder, HpackEncoder
+  export hpack-header-empty, hpack-header-make, hpack-header-to-pair
+  export hpack-header-read-at, hpack-header-write-at
+  export hpack-dyn-entry-empty, hpack-dyn-entry-valid
+
+  -- Prefix integer codec (RFC 7541 §5.1)
+  export hpack-encode-int-raw, hpack-decode-int-raw, hpack-decode-int-u32-raw
+
+  -- Dynamic table API (RFC 7541 §4)
+  export hpack-dyn-new, hpack-dyn-destroy, hpack-dyn-valid, hpack-dyn-clear
+  export hpack-dyn-protocol-max-size, hpack-dyn-max-size, hpack-dyn-size, hpack-dyn-count
+  export hpack-dyn-set-max-size, hpack-dyn-insert, hpack-dyn-get, hpack-dyn-find
+
+  -- Encoder API
+  export hpack-encoder-new, hpack-encoder-new-with-huff, hpack-encoder-destroy, hpack-encoder-valid
+  export hpack-encoder-dyn-table, hpack-encoder-set-str-mode
+  export hpack-encoder-set-max-table-size, hpack-encoder-flush-size-updates
+  export hpack-encode-string-raw, hpack-encode-indexed, hpack-encode-table-size-update
+  export hpack-encode-header, hpack-encode-header-with-mode
+
+  -- Decoder API
+  export hpack-decoder-new, hpack-decoder-new-with-huff, hpack-decoder-destroy, hpack-decoder-valid
+  export hpack-decoder-dyn-table, hpack-decoder-set-protocol-max-size
+  export hpack-decode-block
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] Helpers, Error Codes, & Constants
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-ok :: U32
+  hpack-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-truncated :: U32
+  hpack-err-truncated = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-int-overflow :: U32
+  hpack-err-int-overflow = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-invalid-prefix :: U32
+  hpack-err-invalid-prefix = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-invalid-index :: U32
+  hpack-err-invalid-index = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-huffman-eos :: U32
+  hpack-err-huffman-eos = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-huffman-padding :: U32
+  hpack-err-huffman-padding = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-buf-overflow :: U32
+  hpack-err-buf-overflow = 7
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-headers-overflow :: U32
+  hpack-err-headers-overflow = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-table-size-exceeds-limit :: U32
+  hpack-err-table-size-exceeds-limit = 9
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-table-size-after-header :: U32
+  hpack-err-table-size-after-header = 10
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-err-invalid-state :: U32
+  hpack-err-invalid-state = 11
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-flag-never-indexed :: U8
+  hpack-flag-never-indexed = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-default-table-size :: U32
+  hpack-default-table-size = 4096
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-mode-auto :: U8
+  hpack-mode-auto = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-mode-incremental :: U8
+  hpack-mode-incremental = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-mode-without-indexing :: U8
+  hpack-mode-without-indexing = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-mode-never-indexed :: U8
+  hpack-mode-never-indexed = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-mode-literal-incremental :: U8
+  hpack-mode-literal-incremental = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-str-raw :: U8
+  hpack-str-raw = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-str-huffman :: U8
+  hpack-str-huffman = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-str-auto :: U8
+  hpack-str-auto = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  max-safe-u64-int :: U64
+  max-safe-u64-int = 9223372036854775807 -- 2^63 - 1
+
+  #[inline(always)]
+  #[no-alloc]
+  max-safe-u32-int :: U64
+  max-safe-u32-int = 2147483647 -- 2^31 - 1
+
+  -- Dynamic table 64-byte DMA header offsets:
+  --   +0  : protocol-max-size :: U32 (SETTINGS_HEADER_TABLE_SIZE bound)
+  --   +4  : cur-max-size      :: U32 (active dynamic table max size)
+  --   +8  : cur-size          :: U32 (active RFC 7541 §4.1 occupancy)
+  --   +12 : count             :: U32 (live entry count)
+  --   +16 : head              :: U32 (oldest entry ring slot)
+  --   +20 : tail              :: U32 (next insert ring slot)
+  --   +24 : slot-mask         :: U32 (slot-cap - 1)
+  --   +28 : alloc-max-size    :: U32 (max size the backing slab was sized for)
+  --   +32 : data-off          :: U32 (byte offset of payload ring)
+  --   +36 : data-cap          :: U32 (payload ring byte capacity >= 2 * alloc-max-size)
+  --   +40 : data-tail         :: U32 (next payload write offset)
+  --   +44 : str-mode          :: U8  (encoder string mode: 0=raw, 1=huffman, 2=auto)
+  --   +45 : has-pending-resize:: U8  (encoder pending table size update flag)
+  --   +46 : has-pending-min   :: U8  (encoder intermediate min-size update flag)
+  --   +47 : owns-huff         :: U8  (1 if encoder/decoder owns huffman slab)
+  --   +48 : pending-min-size  :: U32 (minimum size seen between header blocks)
+  --   +52 : pending-max-size  :: U32 (target size to emit before next block)
+  --   +56 : slab-bytes        :: U64 (total DMA slab size)
+  #[inline(always)]
+  #[no-alloc]
+  off-proto-max :: I64
+  off-proto-max = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  off-cur-max :: I64
+  off-cur-max = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  off-cur-size :: I64
+  off-cur-size = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  off-count :: I64
+  off-count = 12
+
+  #[inline(always)]
+  #[no-alloc]
+  off-head :: I64
+  off-head = 16
+
+  #[inline(always)]
+  #[no-alloc]
+  off-tail :: I64
+  off-tail = 20
+
+  #[inline(always)]
+  #[no-alloc]
+  off-slot-mask :: I64
+  off-slot-mask = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  off-alloc-max :: I64
+  off-alloc-max = 28
+
+  #[inline(always)]
+  #[no-alloc]
+  off-data-off :: I64
+  off-data-off = 32
+
+  #[inline(always)]
+  #[no-alloc]
+  off-data-cap :: I64
+  off-data-cap = 36
+
+  #[inline(always)]
+  #[no-alloc]
+  off-data-tail :: I64
+  off-data-tail = 40
+
+  #[inline(always)]
+  #[no-alloc]
+  off-str-mode :: I64
+  off-str-mode = 44
+
+  #[inline(always)]
+  #[no-alloc]
+  off-pending-resize :: I64
+  off-pending-resize = 45
+
+  #[inline(always)]
+  #[no-alloc]
+  off-pending-min-flag :: I64
+  off-pending-min-flag = 46
+
+  #[inline(always)]
+  #[no-alloc]
+  off-owns-huff :: I64
+  off-owns-huff = 47
+
+  #[inline(always)]
+  #[no-alloc]
+  off-pending-min :: I64
+  off-pending-min = 48
+
+  #[inline(always)]
+  #[no-alloc]
+  off-pending-max :: I64
+  off-pending-max = 52
+
+  #[inline(always)]
+  #[no-alloc]
+  off-slab-bytes :: I64
+  off-slab-bytes = 56
+
+  #[inline(always)]
+  #[no-alloc]
+  dyn-slots-off :: I64
+  dyn-slots-off = 64
+
+  #[no-alloc]
+  dma-copy :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  #[no-alloc]
+  dma-memeq :: I64 -> I64 -> U32 ->{MVar} Bool
+  dma-memeq a b rem =
+    if ge-u32 rem 8 then
+      if eq-u64 (raw-load-u64 a) (raw-load-u64 b) then
+        dma-memeq (wrapping-add-i64 a 8) (wrapping-add-i64 b 8) (wrapping-sub-u32 rem 8)
+      else b-false
+    else if gt-u32 rem 0 then
+      if eq-u8 (raw-load-u8 a) (raw-load-u8 b) then
+        dma-memeq (wrapping-add-i64 a 1) (wrapping-add-i64 b 1) (wrapping-sub-u32 rem 1)
+      else b-false
+    else b-true
+
+  -- =========================================================================
+  -- 1. POD Contract Types
+  -- =========================================================================
+
+  -- | 16-byte POD result from `hpack-decode-int-raw`.
+  #[repr(C, value)]
+  record HpackIntResult where
+    hi-status :: U32
+    hi-next-pos :: U32
+    hi-value :: U64
+
+  -- | 8-byte POD result from wire write operations.
+  #[repr(C, value)]
+  record HpackWriteResult where
+    hw-status :: U32
+    hw-next-pos :: U32
+
+  -- | 20-byte POD decoded header descriptor matching `Net.Http.Types.HeaderPair`
+  -- layout, carrying `hh-flags` (`hpack-flag-never-indexed = 1`).
+  #[repr(C, value)]
+  record HpackHeader where
+    hh-known :: U8
+    hh-flags :: U8
+    hh-pad :: U16
+    hh-name-off :: U32
+    hh-name-len :: U32
+    hh-val-off :: U32
+    hh-val-len :: U32
+
+  -- | 16-byte POD result from `hpack-decode-block`.
+  #[repr(C, value)]
+  record HpackDecodeResult where
+    hd-status :: U32
+    hd-header-count :: U32
+    hd-bytes-written :: U32
+    hd-bytes-read :: U32
+
+  -- | 24-byte POD zero-copy pointer view into a live dynamic table entry.
+  #[repr(C, value)]
+  record HpackDynEntry where
+    de-name-addr :: I64
+    de-val-addr :: I64
+    de-name-len :: U32
+    de-val-len :: U32
+
+  -- | 16-byte POD handle to a single 4 KiB-aligned DMA dynamic table ring slab.
+  #[repr(C, value)]
+  record HpackDynamicTable where
+    dyn-slab-addr :: U64
+    dyn-slab-bytes :: U64
+
+  -- | 32-byte POD handle to a zero-alloc HPACK decoder (dynamic table + Huffman DFA).
+  #[repr(C, value)]
+  record HpackDecoder where
+    dec-dyn-addr :: U64
+    dec-dyn-bytes :: U64
+    dec-huff-addr :: U64
+    dec-huff-bytes :: U64
+
+  -- | 32-byte POD handle to a zero-alloc HPACK encoder (dynamic table + Huffman table).
+  #[repr(C, value)]
+  record HpackEncoder where
+    enc-dyn-addr :: U64
+    enc-dyn-bytes :: U64
+    enc-huff-addr :: U64
+    enc-huff-bytes :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-header-empty :: Unit -> HpackHeader
+  hpack-header-empty _ = HpackHeader hdr-unknown 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-header-make :: U8 -> U8 -> U32 -> U32 -> U32 -> U32 -> HpackHeader
+  hpack-header-make known flags noff nlen voff vlen =
+    HpackHeader known flags 0 noff nlen voff vlen
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-header-to-pair :: HpackHeader -> HeaderPair
+  hpack-header-to-pair h =
+    header-pair-make h.hh-known h.hh-name-off h.hh-name-len h.hh-val-off h.hh-val-len
+
+  -- | Read 20-byte `HpackHeader` at index `idx` in DMA array `arr-addr`.
+  #[inline(always)]
+  #[no-alloc]
+  hpack-header-read-at :: I64 -> U32 ->{MVar} HpackHeader
+  hpack-header-read-at arr-addr idx =
+    let off = wrapping-mul-i64 (u32-to-i64 idx) 20 in
+    let p = wrapping-add-i64 arr-addr off in
+    let w0 = raw-load-u32 p in
+    let known = wrapping-u32-to-u8 w0 in
+    let flags = wrapping-u32-to-u8 (wrapping-shr-u32 w0 8) in
+    let noff = raw-load-u32 (wrapping-add-i64 p 4) in
+    let nlen = raw-load-u32 (wrapping-add-i64 p 8) in
+    let voff = raw-load-u32 (wrapping-add-i64 p 12) in
+    let vlen = raw-load-u32 (wrapping-add-i64 p 16) in
+    HpackHeader known flags 0 noff nlen voff vlen
+
+  -- | Write 20-byte `HpackHeader` at index `idx` in DMA array `arr-addr`.
+  #[inline(always)]
+  #[no-alloc]
+  hpack-header-write-at :: I64 -> U32 -> HpackHeader ->{MVar} Unit
+  hpack-header-write-at arr-addr idx h =
+    let off = wrapping-mul-i64 (u32-to-i64 idx) 20 in
+    let p = wrapping-add-i64 arr-addr off in
+    let w0 = bit-or-u32 (u8-to-u32 h.hh-known) (wrapping-shl-u32 (u8-to-u32 h.hh-flags) 8) in
+    let _ = raw-store-u32 p w0 in
+    let _ = raw-store-u32 (wrapping-add-i64 p 4) h.hh-name-off in
+    let _ = raw-store-u32 (wrapping-add-i64 p 8) h.hh-name-len in
+    let _ = raw-store-u32 (wrapping-add-i64 p 12) h.hh-val-off in
+    raw-store-u32 (wrapping-add-i64 p 16) h.hh-val-len
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-entry-empty :: Unit -> HpackDynEntry
+  hpack-dyn-entry-empty _ = HpackDynEntry 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-entry-valid :: HpackDynEntry -> Bool
+  hpack-dyn-entry-valid e = ne-i64 e.de-name-addr 0
+
+  -- =========================================================================
+  -- 2. RFC 7541 §5.1 Prefix Integer Encoder & Decoder (`N = 1..8`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-wr :: U32 -> U32 -> U64
+  pack-wr st pos =
+    bit-or-u64 (wrapping-shl-u64 (u32-to-u64 st) 32) (u32-to-u64 pos)
+
+  #[inline(always)]
+  #[no-alloc]
+  unpack-wr :: U64 -> HpackWriteResult
+  unpack-wr v =
+    HpackWriteResult (wrapping-u64-to-u32 (wrapping-shr-u64 v 32)) (wrapping-u64-to-u32 v)
+
+  #[no-alloc]
+  encode-varint-tail :: I64 -> U32 -> U32 -> U64 ->{MVar} U64
+  encode-varint-tail dst pos cap rem =
+    if ge-u32 pos cap then pack-wr hpack-err-buf-overflow pos
+    else if ge-u64 rem 128 then
+      let b = bit-or-u8 (wrapping-u64-to-u8 (bit-and-u64 rem 127)) 128 in
+      let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 pos)) b in
+      encode-varint-tail dst (wrapping-add-u32 pos 1) cap (wrapping-shr-u64 rem 7)
+    else
+      let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 pos)) (wrapping-u64-to-u8 rem) in
+      pack-wr hpack-ok (wrapping-add-u32 pos 1)
+
+  -- | Encode an RFC 7541 §5.1 N-bit prefix integer (`prefix-bits` in `1..8`)
+  -- with high-bit `prefix-pattern` into DMA `[dst + pos, dst + cap)`.
+  #[no-alloc]
+  hpack-encode-int-raw :: I64 -> U32 -> U32 -> U8 -> U8 -> U64 ->{MVar} HpackWriteResult
+  hpack-encode-int-raw dst pos cap prefix-bits prefix-pattern val =
+    if both (ge-u8 prefix-bits 1) (le-u8 prefix-bits 8) then
+      if ge-u32 pos cap then HpackWriteResult hpack-err-buf-overflow pos
+      else
+        let max-prefix = wrapping-sub-u64 (wrapping-shl-u64 1 (u8-to-u32 prefix-bits)) 1 in
+        let pat = bit-and-u8 prefix-pattern (wrapping-u64-to-u8 (bit-not-u64 max-prefix)) in
+        if lt-u64 val max-prefix then
+          let b = bit-or-u8 pat (wrapping-u64-to-u8 val) in
+          let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 pos)) b in
+          HpackWriteResult hpack-ok (wrapping-add-u32 pos 1)
+        else
+          let b = bit-or-u8 pat (wrapping-u64-to-u8 max-prefix) in
+          let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 pos)) b in
+          unpack-wr (encode-varint-tail dst (wrapping-add-u32 pos 1) cap (wrapping-sub-u64 val max-prefix))
+    else HpackWriteResult hpack-err-invalid-prefix pos
+
+  #[no-alloc]
+  decode-varint-tail :: I64 -> U32 -> U32 -> U64 -> U32 ->{MVar} HpackIntResult
+  decode-varint-tail src pos src-len acc shift =
+    if ge-u32 pos src-len then HpackIntResult hpack-err-truncated pos 0
+    else if gt-u32 shift 56 then HpackIntResult hpack-err-int-overflow pos 0
+    else
+      let b = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 pos)) in
+      let low = u8-to-u64 (bit-and-u8 b 127) in
+      let term = wrapping-shl-u64 low shift in
+      if gt-u64 term (wrapping-sub-u64 max-safe-u64-int acc) then
+        HpackIntResult hpack-err-int-overflow pos 0
+      else
+        let next-acc = wrapping-add-u64 acc term in
+        let next-pos = wrapping-add-u32 pos 1 in
+        if eq-u8 (bit-and-u8 b 128) 0 then
+          HpackIntResult hpack-ok next-pos next-acc
+        else
+          decode-varint-tail src next-pos src-len next-acc (wrapping-add-u32 shift 7)
+
+  -- | Decode an RFC 7541 §5.1 N-bit prefix integer (`prefix-bits` in `1..8`)
+  -- from DMA `[src + pos, src + src-len)` with strict overflow and unbounded
+  -- continuation guards (`#[no-alloc]`).
+  #[no-alloc]
+  hpack-decode-int-raw :: I64 -> U32 -> U32 -> U8 ->{MVar} HpackIntResult
+  hpack-decode-int-raw src pos src-len prefix-bits =
+    if both (ge-u8 prefix-bits 1) (le-u8 prefix-bits 8) then
+      if ge-u32 pos src-len then HpackIntResult hpack-err-truncated pos 0
+      else
+        let max-prefix = wrapping-sub-u64 (wrapping-shl-u64 1 (u8-to-u32 prefix-bits)) 1 in
+        let b0 = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 pos)) in
+        let v0 = bit-and-u64 (u8-to-u64 b0) max-prefix in
+        let next-pos = wrapping-add-u32 pos 1 in
+        if lt-u64 v0 max-prefix then HpackIntResult hpack-ok next-pos v0
+        else decode-varint-tail src next-pos src-len v0 0
+    else HpackIntResult hpack-err-invalid-prefix pos 0
+
+  -- | Decode an RFC 7541 §5.1 prefix integer enforcing a safe 31-bit `U32` cap
+  -- (`<= 2147483647`), used for indices, string lengths, and dynamic table sizes.
+  #[inline(always)]
+  #[no-alloc]
+  hpack-decode-int-u32-raw :: I64 -> U32 -> U32 -> U8 ->{MVar} HpackIntResult
+  hpack-decode-int-u32-raw src pos src-len prefix-bits =
+    let r = hpack-decode-int-raw src pos src-len prefix-bits in
+    if ne-u32 r.hi-status hpack-ok then r
+    else if gt-u64 r.hi-value max-safe-u32-int then
+      HpackIntResult hpack-err-int-overflow r.hi-next-pos 0
+    else r
+
+  -- =========================================================================
+  -- 3. Flat Ring-Buffer HpackDynamicTable in Single 4 KiB-Aligned DMA Slab
+  -- =========================================================================
+
+  #[no-alloc]
+  next-pow2-u32 :: U32 -> U32 -> U32
+  next-pow2-u32 goal cur =
+    if ge-u32 cur goal then cur
+    else if ge-u32 cur 1073741824 then 2147483648
+    else next-pow2-u32 goal (wrapping-shl-u32 cur 1)
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-valid :: HpackDynamicTable -> Bool
+  hpack-dyn-valid tbl =
+    both (ne-u64 tbl.dyn-slab-addr 0) (ge-u64 tbl.dyn-slab-bytes 4096)
+
+  #[inline(always)]
+  #[no-alloc]
+  dyn-slot-addr :: I64 -> U32 -> I64
+  dyn-slot-addr base slot =
+    wrapping-add-i64 (wrapping-add-i64 base dyn-slots-off) (wrapping-shl-i64 (u32-to-i64 slot) 4)
+
+  -- | Allocate a flat ring-buffer `HpackDynamicTable` inside a single 4 KiB-aligned
+  -- DMA buffer sized for `max-size` bytes (default 4096B; supports 0 and 256B).
+  -- Check validity with `hpack-dyn-valid`.
+  hpack-dyn-new :: U32 ->{IO, MVar} HpackDynamicTable
+  hpack-dyn-new max-size =
+    if gt-u32 max-size 67108864 then HpackDynamicTable 0 0 -- cap single table at 64 MiB
+    else
+      let min-slots = wrapping-add-u32 (wrapping-shr-u32 max-size 5) 2 in
+      let slot-cap = next-pow2-u32 min-slots 16 in
+      let slots-bytes = wrapping-shl-u64 (u32-to-u64 slot-cap) 4 in
+      let min-data = wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 max-size) 1) 64 in
+      let data-cap-u64 = if lt-u64 min-data 4096 then 4096 else min-data in
+      let data-off-u64 = wrapping-add-u64 64 slots-bytes in
+      let raw-total = wrapping-add-u64 data-off-u64 data-cap-u64 in
+      let slab-bytes = bit-and-u64 (wrapping-add-u64 raw-total 4095) (bit-not-u64 4095) in
+      let slab-u64 = engine-dma-alloc slab-bytes 4096 in
+      if eq-u64 slab-u64 0 then HpackDynamicTable 0 0
+      else
+        let base = wrapping-u64-to-i64 slab-u64 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-proto-max) max-size in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-cur-max) max-size in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-cur-size) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-count) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-head) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-tail) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-slot-mask) (wrapping-sub-u32 slot-cap 1) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-alloc-max) max-size in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-data-off) (wrapping-u64-to-u32 data-off-u64) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-data-cap) (wrapping-u64-to-u32 data-cap-u64) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-data-tail) 0 in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-str-mode) hpack-str-auto in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-pending-resize) 0 in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-pending-min-flag) 0 in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-owns-huff) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-pending-min) max-size in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-pending-max) max-size in
+        let _ = raw-store-u64 (wrapping-add-i64 base off-slab-bytes) slab-bytes in
+        HpackDynamicTable slab-u64 slab-bytes
+
+  -- | Unmap the dynamic table DMA slab.
+  hpack-dyn-destroy :: HpackDynamicTable ->{IO, MVar} Unit
+  hpack-dyn-destroy tbl =
+    if eq-u64 tbl.dyn-slab-addr 0 then ()
+    else
+      let _ = engine-dma-free tbl.dyn-slab-addr tbl.dyn-slab-bytes in
+      ()
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-protocol-max-size :: HpackDynamicTable ->{MVar} U32
+  hpack-dyn-protocol-max-size tbl =
+    if hpack-dyn-valid tbl then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.dyn-slab-addr) off-proto-max)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-max-size :: HpackDynamicTable ->{MVar} U32
+  hpack-dyn-max-size tbl =
+    if hpack-dyn-valid tbl then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.dyn-slab-addr) off-cur-max)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-size :: HpackDynamicTable ->{MVar} U32
+  hpack-dyn-size tbl =
+    if hpack-dyn-valid tbl then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.dyn-slab-addr) off-cur-size)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-count :: HpackDynamicTable ->{MVar} U32
+  hpack-dyn-count tbl =
+    if hpack-dyn-valid tbl then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.dyn-slab-addr) off-count)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  dyn-clear-base :: I64 ->{MVar} Unit
+  dyn-clear-base base =
+    let _ = raw-store-u32 (wrapping-add-i64 base off-cur-size) 0 in
+    let _ = raw-store-u32 (wrapping-add-i64 base off-count) 0 in
+    let _ = raw-store-u32 (wrapping-add-i64 base off-head) 0 in
+    let _ = raw-store-u32 (wrapping-add-i64 base off-tail) 0 in
+    raw-store-u32 (wrapping-add-i64 base off-data-tail) 0
+
+  -- | Empty all entries from the dynamic table (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-dyn-clear :: HpackDynamicTable ->{MVar} Unit
+  hpack-dyn-clear tbl =
+    if hpack-dyn-valid tbl then dyn-clear-base (wrapping-u64-to-i64 tbl.dyn-slab-addr)
+    else ()
+
+  -- Evict oldest entries in O(1) per entry until `cur-size <= target-size`.
+  #[no-alloc]
+  dyn-evict-to :: I64 -> U32 ->{MVar} Unit
+  dyn-evict-to base target-size =
+    let count = raw-load-u32 (wrapping-add-i64 base off-count) in
+    let cur-size = raw-load-u32 (wrapping-add-i64 base off-cur-size) in
+    if both (gt-u32 count 0) (gt-u32 cur-size target-size) then
+      let head = raw-load-u32 (wrapping-add-i64 base off-head) in
+      let mask = raw-load-u32 (wrapping-add-i64 base off-slot-mask) in
+      let sa = dyn-slot-addr base head in
+      let nlen = raw-load-u32 (wrapping-add-i64 sa 4) in
+      let vlen = raw-load-u32 (wrapping-add-i64 sa 12) in
+      let esize = wrapping-add-u32 (wrapping-add-u32 nlen vlen) 32 in
+      let next-size = saturating-sub-u32 cur-size esize in
+      let next-count = wrapping-sub-u32 count 1 in
+      if eq-u32 next-count 0 then
+        dyn-clear-base base
+      else
+        let _ = raw-store-u32 (wrapping-add-i64 base off-cur-size) next-size in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-count) next-count in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-head) (bit-and-u32 (wrapping-add-u32 head 1) mask) in
+        dyn-evict-to base target-size
+    else ()
+
+  -- | Update active dynamic table maximum size (RFC 7541 §4.2), evicting oldest
+  -- entries as required. Rejects `new-max > protocol-max-size`.
+  #[no-alloc]
+  hpack-dyn-set-max-size :: HpackDynamicTable -> U32 ->{MVar} U32
+  hpack-dyn-set-max-size tbl new-max =
+    if hpack-dyn-valid tbl then
+      let base = wrapping-u64-to-i64 tbl.dyn-slab-addr in
+      let proto-max = raw-load-u32 (wrapping-add-i64 base off-proto-max) in
+      if gt-u32 new-max proto-max then hpack-err-table-size-exceeds-limit
+      else
+        let _ = dyn-evict-to base new-max in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-cur-max) new-max in
+        hpack-ok
+    else hpack-err-invalid-state
+
+  -- | Insert `(name, value)` at the front of the dynamic table (HPACK index 62)
+  -- in O(1) time with zero heap allocation (`#[no-alloc]`).
+  -- Per RFC 7541 §4.4, an entry larger than `cur-max-size` empties the table.
+  #[no-alloc]
+  hpack-dyn-insert :: HpackDynamicTable -> I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  hpack-dyn-insert tbl name-addr name-len val-addr val-len =
+    if hpack-dyn-valid tbl then
+      let base = wrapping-u64-to-i64 tbl.dyn-slab-addr in
+      let cur-max = raw-load-u32 (wrapping-add-i64 base off-cur-max) in
+      let entry-size-u64 = wrapping-add-u64 (wrapping-add-u64 (u32-to-u64 name-len) (u32-to-u64 val-len)) 32 in
+      if gt-u64 entry-size-u64 (u32-to-u64 cur-max) then
+        let _ = dyn-clear-base base in
+        hpack-ok
+      else
+        let entry-size = wrapping-u64-to-u32 entry-size-u64 in
+        let max-keep = wrapping-sub-u32 cur-max entry-size in
+        let _ = dyn-evict-to base max-keep in
+        let count = raw-load-u32 (wrapping-add-i64 base off-count) in
+        let need = wrapping-add-u32 name-len val-len in
+        let data-cap = raw-load-u32 (wrapping-add-i64 base off-data-cap) in
+        let write-off = (
+          if eq-u32 count 0 then 0
+          else (
+            let dt = raw-load-u32 (wrapping-add-i64 base off-data-tail) in
+            if le-u32 (wrapping-add-u32 dt need) data-cap then dt else 0)) in
+        let data-off = raw-load-u32 (wrapping-add-i64 base off-data-off) in
+        let data-base = wrapping-add-i64 base (u32-to-i64 data-off) in
+        let name-dst = wrapping-add-i64 data-base (u32-to-i64 write-off) in
+        let val-off = wrapping-add-u32 write-off name-len in
+        let val-dst = wrapping-add-i64 data-base (u32-to-i64 val-off) in
+        let _ = if gt-u32 name-len 0 then dma-copy name-dst name-addr name-len else () in
+        let _ = if gt-u32 val-len 0 then dma-copy val-dst val-addr val-len else () in
+        let tail = raw-load-u32 (wrapping-add-i64 base off-tail) in
+        let mask = raw-load-u32 (wrapping-add-i64 base off-slot-mask) in
+        let sa = dyn-slot-addr base tail in
+        let _ = raw-store-u32 sa write-off in
+        let _ = raw-store-u32 (wrapping-add-i64 sa 4) name-len in
+        let _ = raw-store-u32 (wrapping-add-i64 sa 8) val-off in
+        let _ = raw-store-u32 (wrapping-add-i64 sa 12) val-len in
+        let cur-size = raw-load-u32 (wrapping-add-i64 base off-cur-size) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-tail) (bit-and-u32 (wrapping-add-u32 tail 1) mask) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-count) (wrapping-add-u32 count 1) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-cur-size) (wrapping-add-u32 cur-size entry-size) in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-data-tail) (wrapping-add-u32 write-off need) in
+        hpack-ok
+    else hpack-err-invalid-state
+
+  -- | O(1) lookup by 0-based dynamic index (`0` = newest = HPACK index `62`).
+  #[no-alloc]
+  hpack-dyn-get :: HpackDynamicTable -> U32 ->{MVar} HpackDynEntry
+  hpack-dyn-get tbl dyn-idx =
+    if hpack-dyn-valid tbl then
+      let base = wrapping-u64-to-i64 tbl.dyn-slab-addr in
+      let count = raw-load-u32 (wrapping-add-i64 base off-count) in
+      if ge-u32 dyn-idx count then HpackDynEntry 0 0 0 0
+      else
+        let tail = raw-load-u32 (wrapping-add-i64 base off-tail) in
+        let mask = raw-load-u32 (wrapping-add-i64 base off-slot-mask) in
+        let slot = bit-and-u32 (wrapping-sub-u32 (wrapping-sub-u32 tail 1) dyn-idx) mask in
+        let sa = dyn-slot-addr base slot in
+        let noff = raw-load-u32 sa in
+        let nlen = raw-load-u32 (wrapping-add-i64 sa 4) in
+        let voff = raw-load-u32 (wrapping-add-i64 sa 8) in
+        let vlen = raw-load-u32 (wrapping-add-i64 sa 12) in
+        let data-off = raw-load-u32 (wrapping-add-i64 base off-data-off) in
+        let data-base = wrapping-add-i64 base (u32-to-i64 data-off) in
+        HpackDynEntry
+          (wrapping-add-i64 data-base (u32-to-i64 noff))
+          (wrapping-add-i64 data-base (u32-to-i64 voff))
+          nlen
+          vlen
+    else HpackDynEntry 0 0 0 0
+
+  #[no-alloc]
+  dyn-find-loop :: HpackDynamicTable -> I64 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U64
+  dyn-find-loop tbl name-addr name-len val-addr val-len count i best-name =
+    if ge-u32 i count then wrapping-shl-u64 (u32-to-u64 best-name) 1
+    else
+      let e = hpack-dyn-get tbl i in
+      if eq-u32 e.de-name-len name-len then
+        if dma-memeq e.de-name-addr name-addr name-len then
+          let hpack-idx = wrapping-add-u32 62 i in
+          if eq-u32 e.de-val-len val-len then
+            if dma-memeq e.de-val-addr val-addr val-len then
+              bit-or-u64 (wrapping-shl-u64 (u32-to-u64 hpack-idx) 1) 1
+            else
+              let next-best = if eq-u32 best-name 0 then hpack-idx else best-name in
+              dyn-find-loop tbl name-addr name-len val-addr val-len count (wrapping-add-u32 i 1) next-best
+          else
+            let next-best = if eq-u32 best-name 0 then hpack-idx else best-name in
+            dyn-find-loop tbl name-addr name-len val-addr val-len count (wrapping-add-u32 i 1) next-best
+        else dyn-find-loop tbl name-addr name-len val-addr val-len count (wrapping-add-u32 i 1) best-name
+      else dyn-find-loop tbl name-addr name-len val-addr val-len count (wrapping-add-u32 i 1) best-name
+
+  -- | Search the dynamic table for an exact `(name, value)` match or first
+  -- name-only match, returning HPACK index (`>= 62`) in `HpackStaticMatch`.
+  #[no-alloc]
+  hpack-dyn-find :: HpackDynamicTable -> I64 -> U32 -> I64 -> U32 ->{MVar} HpackStaticMatch
+  hpack-dyn-find tbl name-addr name-len val-addr val-len =
+    if hpack-dyn-valid tbl then
+      let count = hpack-dyn-count tbl in
+      let packed = dyn-find-loop tbl name-addr name-len val-addr val-len count 0 0 in
+      HpackStaticMatch (wrapping-u64-to-u32 (wrapping-shr-u64 packed 1)) (wrapping-u64-to-u8 (bit-and-u64 packed 1)) 0 0
+    else HpackStaticMatch 0 0 0 0
+
+  -- =========================================================================
+  -- 4. HPACK Encoder (Zero-Alloc Hot Path, Automatic Never-Indexed Policy)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-encoder-dyn-table :: HpackEncoder -> HpackDynamicTable
+  hpack-encoder-dyn-table enc = HpackDynamicTable enc.enc-dyn-addr enc.enc-dyn-bytes
+
+  #[inline(always)]
+  #[no-alloc]
+  encoder-huff-table :: HpackEncoder -> HpackHuffmanTable
+  encoder-huff-table enc = HpackHuffmanTable enc.enc-huff-addr enc.enc-huff-bytes
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-encoder-valid :: HpackEncoder -> Bool
+  hpack-encoder-valid enc =
+    both (hpack-dyn-valid (hpack-encoder-dyn-table enc)) (hpack-huffman-table-valid (encoder-huff-table enc))
+
+  -- | Create an HPACK encoder sharing an existing precomputed `HpackHuffmanTable`.
+  -- Check validity with `hpack-encoder-valid`.
+  hpack-encoder-new-with-huff :: U32 -> U8 -> HpackHuffmanTable ->{IO, MVar} HpackEncoder
+  hpack-encoder-new-with-huff max-table-size str-mode huff =
+    if hpack-huffman-table-valid huff then
+      let dyn = hpack-dyn-new max-table-size in
+      if hpack-dyn-valid dyn then
+        let base = wrapping-u64-to-i64 dyn.dyn-slab-addr in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-str-mode) str-mode in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-owns-huff) 0 in
+        HpackEncoder dyn.dyn-slab-addr dyn.dyn-slab-bytes huff.huff-slab-addr huff.huff-slab-bytes
+      else HpackEncoder 0 0 0 0
+    else HpackEncoder 0 0 0 0
+
+  -- | Create an HPACK encoder owning both its dynamic table and Huffman table.
+  -- Check validity with `hpack-encoder-valid`.
+  hpack-encoder-new :: U32 -> U8 ->{IO, MVar} HpackEncoder
+  hpack-encoder-new max-table-size str-mode =
+    let huff = hpack-huffman-table-new () in
+    if hpack-huffman-table-valid huff then
+      let enc = hpack-encoder-new-with-huff max-table-size str-mode huff in
+      if hpack-encoder-valid enc then
+        let base = wrapping-u64-to-i64 enc.enc-dyn-addr in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-owns-huff) 1 in
+        enc
+      else
+        let _ = hpack-huffman-table-destroy huff in
+        HpackEncoder 0 0 0 0
+    else HpackEncoder 0 0 0 0
+
+  -- | Destroy an HPACK encoder, freeing its dynamic table (and Huffman table if owned).
+  hpack-encoder-destroy :: HpackEncoder ->{IO, MVar} Unit
+  hpack-encoder-destroy enc =
+    if eq-u64 enc.enc-dyn-addr 0 then ()
+    else
+      let base = wrapping-u64-to-i64 enc.enc-dyn-addr in
+      let owns = raw-load-u8 (wrapping-add-i64 base off-owns-huff) in
+      let _ = hpack-dyn-destroy (hpack-encoder-dyn-table enc) in
+      if ne-u8 owns 0 then hpack-huffman-table-destroy (encoder-huff-table enc)
+      else ()
+
+  -- | Configure encoder string encoding policy (`hpack-str-raw`, `hpack-str-huffman`, `hpack-str-auto`).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-encoder-set-str-mode :: HpackEncoder -> U8 ->{MVar} Unit
+  hpack-encoder-set-str-mode enc mode =
+    if ne-u64 enc.enc-dyn-addr 0 then
+      raw-store-u8 (wrapping-add-i64 (wrapping-u64-to-i64 enc.enc-dyn-addr) off-str-mode) mode
+    else ()
+
+  -- | Update the encoder's maximum dynamic table size (evicting immediately) and
+  -- schedule RFC 7541 §4.2 dynamic table size update(s) before the next block.
+  #[no-alloc]
+  hpack-encoder-set-max-table-size :: HpackEncoder -> U32 ->{MVar} U32
+  hpack-encoder-set-max-table-size enc new-max =
+    let dyn = hpack-encoder-dyn-table enc in
+    let st = hpack-dyn-set-max-size dyn new-max in
+    if ne-u32 st hpack-ok then st
+    else
+      let base = wrapping-u64-to-i64 enc.enc-dyn-addr in
+      let has-pend = raw-load-u8 (wrapping-add-i64 base off-pending-resize) in
+      if eq-u8 has-pend 0 then
+        let _ = raw-store-u8 (wrapping-add-i64 base off-pending-resize) 1 in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-pending-min-flag) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-pending-min) new-max in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-pending-max) new-max in
+        hpack-ok
+      else
+        let prev-min = raw-load-u32 (wrapping-add-i64 base off-pending-min) in
+        let next-min = if lt-u32 new-max prev-min then new-max else prev-min in
+        let need-min = if lt-u32 next-min new-max then 1 else 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-pending-min) next-min in
+        let _ = raw-store-u32 (wrapping-add-i64 base off-pending-max) new-max in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-pending-min-flag) need-min in
+        hpack-ok
+
+  -- | Encode a standalone Dynamic Table Size Update (`001xxxxx`, 5-bit prefix).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-encode-table-size-update :: I64 -> U32 -> U32 -> U32 ->{MVar} HpackWriteResult
+  hpack-encode-table-size-update dst pos cap new-size =
+    hpack-encode-int-raw dst pos cap 5 32 (u32-to-u64 new-size)
+
+  -- | Flush any pending encoder dynamic table size update(s) into `[dst + pos, dst + cap)`.
+  #[no-alloc]
+  hpack-encoder-flush-size-updates :: HpackEncoder -> I64 -> U32 -> U32 ->{MVar} HpackWriteResult
+  hpack-encoder-flush-size-updates enc dst pos cap =
+    if eq-u64 enc.enc-dyn-addr 0 then HpackWriteResult hpack-err-invalid-state pos
+    else
+      let base = wrapping-u64-to-i64 enc.enc-dyn-addr in
+      let has-pend = raw-load-u8 (wrapping-add-i64 base off-pending-resize) in
+      if eq-u8 has-pend 0 then HpackWriteResult hpack-ok pos
+      else
+        let need-min = raw-load-u8 (wrapping-add-i64 base off-pending-min-flag) in
+        let min-sz = raw-load-u32 (wrapping-add-i64 base off-pending-min) in
+        let max-sz = raw-load-u32 (wrapping-add-i64 base off-pending-max) in
+        let r1 = (
+          if ne-u8 need-min 0 then hpack-encode-table-size-update dst pos cap min-sz
+          else HpackWriteResult hpack-ok pos) in
+        if ne-u32 r1.hw-status hpack-ok then r1
+        else
+          let r2 = hpack-encode-table-size-update dst r1.hw-next-pos cap max-sz in
+          if ne-u32 r2.hw-status hpack-ok then r2
+          else
+            let _ = raw-store-u8 (wrapping-add-i64 base off-pending-resize) 0 in
+            let _ = raw-store-u8 (wrapping-add-i64 base off-pending-min-flag) 0 in
+            r2
+
+  -- | Encode an HPACK string literal (RFC 7541 §5.2) into `[dst + pos, dst + cap)`.
+  #[no-alloc]
+  hpack-encode-string-raw :: HpackHuffmanTable -> U8 -> I64 -> U32 -> I64 -> U32 -> U32 ->{MVar} HpackWriteResult
+  hpack-encode-string-raw huff str-mode src src-len dst pos cap =
+    let use-huff = (
+      if eq-u8 str-mode hpack-str-raw then b-false
+      else if eq-u8 str-mode hpack-str-huffman then b-true
+      else (
+        let hlen = hpack-huffman-encode-len huff src src-len in
+        lt-u32 hlen src-len)) in
+    if use-huff then
+      let hlen = hpack-huffman-encode-len huff src src-len in
+      let r-len = hpack-encode-int-raw dst pos cap 7 128 (u32-to-u64 hlen) in
+      if ne-u32 r-len.hw-status hpack-ok then r-len
+      else
+        let p1 = r-len.hw-next-pos in
+        let rem = saturating-sub-u32 cap p1 in
+        if gt-u32 hlen rem then HpackWriteResult hpack-err-buf-overflow p1
+        else
+          let hr = hpack-huffman-encode-raw huff src src-len (wrapping-add-i64 dst (u32-to-i64 p1)) rem in
+          if ne-u32 hr.hr-status huff-ok then HpackWriteResult hpack-err-buf-overflow p1
+          else HpackWriteResult hpack-ok (wrapping-add-u32 p1 hr.hr-len)
+    else
+      let r-len = hpack-encode-int-raw dst pos cap 7 0 (u32-to-u64 src-len) in
+      if ne-u32 r-len.hw-status hpack-ok then r-len
+      else
+        let p1 = r-len.hw-next-pos in
+        let rem = saturating-sub-u32 cap p1 in
+        if gt-u32 src-len rem then HpackWriteResult hpack-err-buf-overflow p1
+        else
+          let _ = if gt-u32 src-len 0 then dma-copy (wrapping-add-i64 dst (u32-to-i64 p1)) src src-len else () in
+          HpackWriteResult hpack-ok (wrapping-add-u32 p1 src-len)
+
+  -- | Encode an Indexed Header Field Representation (`1xxxxxxx`, 7-bit prefix).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-encode-indexed :: I64 -> U32 -> U32 -> U32 ->{MVar} HpackWriteResult
+  hpack-encode-indexed dst pos cap idx =
+    if eq-u32 idx 0 then HpackWriteResult hpack-err-invalid-index pos
+    else hpack-encode-int-raw dst pos cap 7 128 (u32-to-u64 idx)
+
+  #[no-alloc]
+  encode-literal-body
+    :: HpackHuffmanTable -> U8 -> U8 -> U8 -> U32
+    -> I64 -> U32 -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} HpackWriteResult
+  encode-literal-body huff str-mode prefix-bits pattern name-idx name-addr name-len val-addr val-len dst pos cap =
+    let r0 = hpack-encode-int-raw dst pos cap prefix-bits pattern (u32-to-u64 name-idx) in
+    if ne-u32 r0.hw-status hpack-ok then r0
+    else
+      let r1 = (
+        if eq-u32 name-idx 0 then
+          hpack-encode-string-raw huff str-mode name-addr name-len dst r0.hw-next-pos cap
+        else r0) in
+      if ne-u32 r1.hw-status hpack-ok then r1
+      else hpack-encode-string-raw huff str-mode val-addr val-len dst r1.hw-next-pos cap
+
+  -- | Encode one `(name, value)` header into DMA `[dst + pos, dst + cap)` using
+  -- explicit `mode` (`hpack-mode-auto`, `hpack-mode-incremental`,
+  -- `hpack-mode-without-indexing`, `hpack-mode-never-indexed`, or
+  -- `hpack-mode-literal-incremental`), updating the encoder dynamic table as needed.
+  #[no-alloc]
+  hpack-encode-header-with-mode
+    :: HpackEncoder -> U8
+    -> I64 -> U32 -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} HpackWriteResult
+  hpack-encode-header-with-mode enc mode name-addr name-len val-addr val-len dst pos cap =
+    let dyn = hpack-encoder-dyn-table enc in
+    let huff = encoder-huff-table enc in
+    if both (hpack-dyn-valid dyn) (hpack-huffman-table-valid huff) then
+      let r-sz = hpack-encoder-flush-size-updates enc dst pos cap in
+      if ne-u32 r-sz.hw-status hpack-ok then r-sz
+      else
+        let p0 = r-sz.hw-next-pos in
+        let base = wrapping-u64-to-i64 enc.enc-dyn-addr in
+        let str-mode = raw-load-u8 (wrapping-add-i64 base off-str-mode) in
+        let eff-mode = (
+          if eq-u8 mode hpack-mode-auto then
+            if hpack-is-sensitive-name-dma name-addr name-len then hpack-mode-never-indexed
+            else hpack-mode-incremental
+          else mode) in
+        let sm = hpack-static-match-dma name-addr name-len val-addr val-len in
+        if eq-u8 eff-mode hpack-mode-incremental then
+          if both (ne-u32 sm.sm-index 0) (ne-u8 sm.sm-exact 0) then
+            hpack-encode-indexed dst p0 cap sm.sm-index
+          else
+            let dm = hpack-dyn-find dyn name-addr name-len val-addr val-len in
+            if both (ne-u32 dm.sm-index 0) (ne-u8 dm.sm-exact 0) then
+              hpack-encode-indexed dst p0 cap dm.sm-index
+            else
+              let name-idx = if ne-u32 sm.sm-index 0 then sm.sm-index else dm.sm-index in
+              let r = encode-literal-body huff str-mode 6 64 name-idx name-addr name-len val-addr val-len dst p0 cap in
+              if ne-u32 r.hw-status hpack-ok then r
+              else
+                let _ = hpack-dyn-insert dyn name-addr name-len val-addr val-len in
+                r
+        else if eq-u8 eff-mode hpack-mode-literal-incremental then
+          let name-idx = (
+            if ne-u32 sm.sm-index 0 then sm.sm-index
+            else (hpack-dyn-find dyn name-addr name-len val-addr val-len).sm-index) in
+          let r = encode-literal-body huff str-mode 6 64 name-idx name-addr name-len val-addr val-len dst p0 cap in
+          if ne-u32 r.hw-status hpack-ok then r
+          else
+            let _ = hpack-dyn-insert dyn name-addr name-len val-addr val-len in
+            r
+        else if eq-u8 eff-mode hpack-mode-never-indexed then
+          let name-idx = (
+            if ne-u32 sm.sm-index 0 then sm.sm-index
+            else (hpack-dyn-find dyn name-addr name-len val-addr val-len).sm-index) in
+          encode-literal-body huff str-mode 4 16 name-idx name-addr name-len val-addr val-len dst p0 cap
+        else
+          -- hpack-mode-without-indexing (`0000xxxx`)
+          let name-idx = (
+            if ne-u32 sm.sm-index 0 then sm.sm-index
+            else (hpack-dyn-find dyn name-addr name-len val-addr val-len).sm-index) in
+          encode-literal-body huff str-mode 4 0 name-idx name-addr name-len val-addr val-len dst p0 cap
+    else HpackWriteResult hpack-err-invalid-state pos
+
+  -- | Encode one `(name, value)` header using `hpack-mode-auto` (automatic
+  -- Never-Indexed policy for `Authorization`, `Cookie`, `Set-Cookie`, and
+  -- `Proxy-Authorization`, indexed reuse for exact matches, incremental indexing
+  -- otherwise).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-encode-header
+    :: HpackEncoder
+    -> I64 -> U32 -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} HpackWriteResult
+  hpack-encode-header enc name-addr name-len val-addr val-len dst pos cap =
+    hpack-encode-header-with-mode enc hpack-mode-auto name-addr name-len val-addr val-len dst pos cap
+
+  -- =========================================================================
+  -- 5. HPACK Decoder (Zero-Alloc Hot Path, Strict RFC 7541 Validation)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-decoder-dyn-table :: HpackDecoder -> HpackDynamicTable
+  hpack-decoder-dyn-table dec = HpackDynamicTable dec.dec-dyn-addr dec.dec-dyn-bytes
+
+  #[inline(always)]
+  #[no-alloc]
+  decoder-huff-table :: HpackDecoder -> HpackHuffmanTable
+  decoder-huff-table dec = HpackHuffmanTable dec.dec-huff-addr dec.dec-huff-bytes
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-decoder-valid :: HpackDecoder -> Bool
+  hpack-decoder-valid dec =
+    both (hpack-dyn-valid (hpack-decoder-dyn-table dec)) (hpack-huffman-table-valid (decoder-huff-table dec))
+
+  -- | Create an HPACK decoder sharing an existing precomputed `HpackHuffmanTable`.
+  -- Check validity with `hpack-decoder-valid`.
+  hpack-decoder-new-with-huff :: U32 -> HpackHuffmanTable ->{IO, MVar} HpackDecoder
+  hpack-decoder-new-with-huff protocol-max-size huff =
+    if hpack-huffman-table-valid huff then
+      let dyn = hpack-dyn-new protocol-max-size in
+      if hpack-dyn-valid dyn then
+        let base = wrapping-u64-to-i64 dyn.dyn-slab-addr in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-owns-huff) 0 in
+        HpackDecoder dyn.dyn-slab-addr dyn.dyn-slab-bytes huff.huff-slab-addr huff.huff-slab-bytes
+      else HpackDecoder 0 0 0 0
+    else HpackDecoder 0 0 0 0
+
+  -- | Create an HPACK decoder owning both its dynamic table and Huffman DFA table.
+  -- Check validity with `hpack-decoder-valid`.
+  hpack-decoder-new :: U32 ->{IO, MVar} HpackDecoder
+  hpack-decoder-new protocol-max-size =
+    let huff = hpack-huffman-table-new () in
+    if hpack-huffman-table-valid huff then
+      let dec = hpack-decoder-new-with-huff protocol-max-size huff in
+      if hpack-decoder-valid dec then
+        let base = wrapping-u64-to-i64 dec.dec-dyn-addr in
+        let _ = raw-store-u8 (wrapping-add-i64 base off-owns-huff) 1 in
+        dec
+      else
+        let _ = hpack-huffman-table-destroy huff in
+        HpackDecoder 0 0 0 0
+    else HpackDecoder 0 0 0 0
+
+  -- | Destroy an HPACK decoder, freeing its dynamic table (and Huffman table if owned).
+  hpack-decoder-destroy :: HpackDecoder ->{IO, MVar} Unit
+  hpack-decoder-destroy dec =
+    if eq-u64 dec.dec-dyn-addr 0 then ()
+    else
+      let base = wrapping-u64-to-i64 dec.dec-dyn-addr in
+      let owns = raw-load-u8 (wrapping-add-i64 base off-owns-huff) in
+      let _ = hpack-dyn-destroy (hpack-decoder-dyn-table dec) in
+      if ne-u8 owns 0 then hpack-huffman-table-destroy (decoder-huff-table dec)
+      else ()
+
+  -- | Update the decoder's `SETTINGS_HEADER_TABLE_SIZE` protocol upper bound
+  -- (cannot exceed the allocated slab capacity).
+  #[no-alloc]
+  hpack-decoder-set-protocol-max-size :: HpackDecoder -> U32 ->{MVar} U32
+  hpack-decoder-set-protocol-max-size dec new-limit =
+    let dyn = hpack-decoder-dyn-table dec in
+    if hpack-dyn-valid dyn then
+      let base = wrapping-u64-to-i64 dec.dec-dyn-addr in
+      let alloc-max = raw-load-u32 (wrapping-add-i64 base off-alloc-max) in
+      if gt-u32 new-limit alloc-max then hpack-err-table-size-exceeds-limit
+      else
+        let _ = raw-store-u32 (wrapping-add-i64 base off-proto-max) new-limit in
+        let cur-max = raw-load-u32 (wrapping-add-i64 base off-cur-max) in
+        if gt-u32 cur-max new-limit then
+          let _ = dyn-evict-to base new-limit in
+          let _ = raw-store-u32 (wrapping-add-i64 base off-cur-max) new-limit in
+          hpack-ok
+        else hpack-ok
+    else hpack-err-invalid-state
+
+  -- Decode an HPACK string literal (raw or Huffman) into `out-buf + out-pos`.
+  -- Returns `HpackIntResult`: `hi-status`, `hi-next-pos` (next input pos),
+  -- `hi-value` (decoded byte length written to `out-buf + out-pos`).
+  #[no-alloc]
+  decode-string-raw
+    :: HpackHuffmanTable -> I64 -> U32 -> U32 -> I64 -> U32 -> U32
+    ->{MVar} HpackIntResult
+  decode-string-raw huff in-addr in-pos in-len out-buf out-pos out-cap =
+    if ge-u32 in-pos in-len then HpackIntResult hpack-err-truncated in-pos 0
+    else
+      let first-b = raw-load-u8 (wrapping-add-i64 in-addr (u32-to-i64 in-pos)) in
+      let is-huff = ne-u8 (bit-and-u8 first-b 128) 0 in
+      let lr = hpack-decode-int-u32-raw in-addr in-pos in-len 7 in
+      if ne-u32 lr.hi-status hpack-ok then lr
+      else
+        let slen = wrapping-u64-to-u32 lr.hi-value in
+        let p1 = lr.hi-next-pos in
+        let in-rem = saturating-sub-u32 in-len p1 in
+        if gt-u32 slen in-rem then HpackIntResult hpack-err-truncated p1 0
+        else
+          let out-rem = saturating-sub-u32 out-cap out-pos in
+          let src-ptr = wrapping-add-i64 in-addr (u32-to-i64 p1) in
+          let dst-ptr = wrapping-add-i64 out-buf (u32-to-i64 out-pos) in
+          let next-in = wrapping-add-u32 p1 slen in
+          if is-huff then
+            let hr = hpack-huffman-decode-raw huff src-ptr slen dst-ptr out-rem in
+            if eq-u32 hr.hr-status huff-ok then HpackIntResult hpack-ok next-in (u32-to-u64 hr.hr-len)
+            else if eq-u32 hr.hr-status huff-err-eos then HpackIntResult hpack-err-huffman-eos next-in 0
+            else if eq-u32 hr.hr-status huff-err-padding then HpackIntResult hpack-err-huffman-padding next-in 0
+            else HpackIntResult hpack-err-buf-overflow next-in 0
+          else
+            if gt-u32 slen out-rem then HpackIntResult hpack-err-buf-overflow next-in 0
+            else
+              let _ = if gt-u32 slen 0 then dma-copy dst-ptr src-ptr slen else () in
+              HpackIntResult hpack-ok next-in (u32-to-u64 slen)
+
+  -- Decode a literal header field (with indexing / without indexing / never indexed)
+  -- and materialize `(name, value)` into `out-buf` BEFORE any dynamic table insert
+  -- (strictly honoring RFC 7541 §4.4 self-referencing eviction safety!).
+  #[no-alloc]
+  decode-literal-field
+    :: HpackDecoder -> U8 -> U8 -> U8
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} HpackDecodeResult
+  decode-literal-field dec prefix-bits do-index hdr-flags in-addr in-pos in-len out-hdrs max-hdrs hcount out-buf out-pos out-cap =
+    if ge-u32 hcount max-hdrs then HpackDecodeResult hpack-err-headers-overflow hcount out-pos in-pos
+    else
+      let ir = hpack-decode-int-u32-raw in-addr in-pos in-len prefix-bits in
+      if ne-u32 ir.hi-status hpack-ok then HpackDecodeResult ir.hi-status hcount out-pos ir.hi-next-pos
+      else
+        let name-idx = wrapping-u64-to-u32 ir.hi-value in
+        let p1 = ir.hi-next-pos in
+        let dyn = hpack-decoder-dyn-table dec in
+        let huff = decoder-huff-table dec in
+        -- Step 1: Materialize header name into `out-buf + out-pos`.
+        if eq-u32 name-idx 0 then
+          let nr = decode-string-raw huff in-addr p1 in-len out-buf out-pos out-cap in
+          if ne-u32 nr.hi-status hpack-ok then HpackDecodeResult nr.hi-status hcount out-pos nr.hi-next-pos
+          else
+            let nlen = wrapping-u64-to-u32 nr.hi-value in
+            let voff = wrapping-add-u32 out-pos nlen in
+            let vr = decode-string-raw huff in-addr nr.hi-next-pos in-len out-buf voff out-cap in
+            if ne-u32 vr.hi-status hpack-ok then HpackDecodeResult vr.hi-status hcount voff vr.hi-next-pos
+            else
+              let vlen = wrapping-u64-to-u32 vr.hi-value in
+              let next-out = wrapping-add-u32 voff vlen in
+              let name-ptr = wrapping-add-i64 out-buf (u32-to-i64 out-pos) in
+              let val-ptr = wrapping-add-i64 out-buf (u32-to-i64 voff) in
+              let known = known-header-match-dma name-ptr nlen in
+              let _ = if ne-u8 do-index 0 then hpack-dyn-insert dyn name-ptr nlen val-ptr vlen else hpack-ok in
+              let _ = hpack-header-write-at out-hdrs hcount (HpackHeader known hdr-flags 0 out-pos nlen voff vlen) in
+              HpackDecodeResult hpack-ok (wrapping-add-u32 hcount 1) next-out vr.hi-next-pos
+        else if le-u32 name-idx 61 then
+          let out-rem = saturating-sub-u32 out-cap out-pos in
+          let nlen = hpack-static-write-name-dma name-idx (wrapping-add-i64 out-buf (u32-to-i64 out-pos)) out-rem in
+          if gt-u32 nlen out-rem then HpackDecodeResult hpack-err-buf-overflow hcount out-pos p1
+          else
+            let voff = wrapping-add-u32 out-pos nlen in
+            let vr = decode-string-raw huff in-addr p1 in-len out-buf voff out-cap in
+            if ne-u32 vr.hi-status hpack-ok then HpackDecodeResult vr.hi-status hcount voff vr.hi-next-pos
+            else
+              let vlen = wrapping-u64-to-u32 vr.hi-value in
+              let next-out = wrapping-add-u32 voff vlen in
+              let name-ptr = wrapping-add-i64 out-buf (u32-to-i64 out-pos) in
+              let val-ptr = wrapping-add-i64 out-buf (u32-to-i64 voff) in
+              let known = hpack-static-to-known name-idx in
+              let _ = if ne-u8 do-index 0 then hpack-dyn-insert dyn name-ptr nlen val-ptr vlen else hpack-ok in
+              let _ = hpack-header-write-at out-hdrs hcount (HpackHeader known hdr-flags 0 out-pos nlen voff vlen) in
+              HpackDecodeResult hpack-ok (wrapping-add-u32 hcount 1) next-out vr.hi-next-pos
+        else
+          let dyn-idx = wrapping-sub-u32 name-idx 62 in
+          let e = hpack-dyn-get dyn dyn-idx in
+          if hpack-dyn-entry-valid e then
+            let nlen = e.de-name-len in
+            let out-rem = saturating-sub-u32 out-cap out-pos in
+            if gt-u32 nlen out-rem then HpackDecodeResult hpack-err-buf-overflow hcount out-pos p1
+            else
+              let name-ptr = wrapping-add-i64 out-buf (u32-to-i64 out-pos) in
+              let _ = if gt-u32 nlen 0 then dma-copy name-ptr e.de-name-addr nlen else () in
+              let voff = wrapping-add-u32 out-pos nlen in
+              let vr = decode-string-raw huff in-addr p1 in-len out-buf voff out-cap in
+              if ne-u32 vr.hi-status hpack-ok then HpackDecodeResult vr.hi-status hcount voff vr.hi-next-pos
+              else
+                let vlen = wrapping-u64-to-u32 vr.hi-value in
+                let next-out = wrapping-add-u32 voff vlen in
+                let val-ptr = wrapping-add-i64 out-buf (u32-to-i64 voff) in
+                let known = known-header-match-dma name-ptr nlen in
+                let _ = if ne-u8 do-index 0 then hpack-dyn-insert dyn name-ptr nlen val-ptr vlen else hpack-ok in
+                let _ = hpack-header-write-at out-hdrs hcount (HpackHeader known hdr-flags 0 out-pos nlen voff vlen) in
+                HpackDecodeResult hpack-ok (wrapping-add-u32 hcount 1) next-out vr.hi-next-pos
+          else HpackDecodeResult hpack-err-invalid-index hcount out-pos p1
+
+  #[no-alloc]
+  decode-block-loop
+    :: HpackDecoder
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    -> U8
+    ->{MVar} HpackDecodeResult
+  decode-block-loop dec in-addr in-pos in-len out-hdrs max-hdrs hcount out-buf out-pos out-cap seen-hdr =
+    if ge-u32 in-pos in-len then
+      HpackDecodeResult hpack-ok hcount out-pos in-pos
+    else
+      let b = raw-load-u8 (wrapping-add-i64 in-addr (u32-to-i64 in-pos)) in
+      if ne-u8 (bit-and-u8 b 128) 0 then
+        -- 1xxxxxxx : Indexed Header Field Representation (RFC 7541 §6.1)
+        if ge-u32 hcount max-hdrs then HpackDecodeResult hpack-err-headers-overflow hcount out-pos in-pos
+        else
+          let ir = hpack-decode-int-u32-raw in-addr in-pos in-len 7 in
+          if ne-u32 ir.hi-status hpack-ok then HpackDecodeResult ir.hi-status hcount out-pos ir.hi-next-pos
+          else
+            let idx = wrapping-u64-to-u32 ir.hi-value in
+            let next-in = ir.hi-next-pos in
+            if eq-u32 idx 0 then HpackDecodeResult hpack-err-invalid-index hcount out-pos next-in
+            else if le-u32 idx 61 then
+              let rem0 = saturating-sub-u32 out-cap out-pos in
+              let nlen = hpack-static-write-name-dma idx (wrapping-add-i64 out-buf (u32-to-i64 out-pos)) rem0 in
+              if gt-u32 nlen rem0 then HpackDecodeResult hpack-err-buf-overflow hcount out-pos next-in
+              else
+                let voff = wrapping-add-u32 out-pos nlen in
+                let rem1 = saturating-sub-u32 out-cap voff in
+                let vlen = hpack-static-write-value-dma idx (wrapping-add-i64 out-buf (u32-to-i64 voff)) rem1 in
+                if gt-u32 vlen rem1 then HpackDecodeResult hpack-err-buf-overflow hcount voff next-in
+                else
+                  let known = hpack-static-to-known idx in
+                  let _ = hpack-header-write-at out-hdrs hcount (HpackHeader known 0 0 out-pos nlen voff vlen) in
+                  decode-block-loop dec in-addr next-in in-len out-hdrs max-hdrs (wrapping-add-u32 hcount 1) out-buf (wrapping-add-u32 voff vlen) out-cap 1
+            else
+              let dyn = hpack-decoder-dyn-table dec in
+              let e = hpack-dyn-get dyn (wrapping-sub-u32 idx 62) in
+              if hpack-dyn-entry-valid e then
+                let nlen = e.de-name-len in
+                let vlen = e.de-val-len in
+                let need = wrapping-add-u32 nlen vlen in
+                let rem0 = saturating-sub-u32 out-cap out-pos in
+                if gt-u32 need rem0 then HpackDecodeResult hpack-err-buf-overflow hcount out-pos next-in
+                else
+                  let name-ptr = wrapping-add-i64 out-buf (u32-to-i64 out-pos) in
+                  let voff = wrapping-add-u32 out-pos nlen in
+                  let val-ptr = wrapping-add-i64 out-buf (u32-to-i64 voff) in
+                  let _ = if gt-u32 nlen 0 then dma-copy name-ptr e.de-name-addr nlen else () in
+                  let _ = if gt-u32 vlen 0 then dma-copy val-ptr e.de-val-addr vlen else () in
+                  let known = known-header-match-dma name-ptr nlen in
+                  let _ = hpack-header-write-at out-hdrs hcount (HpackHeader known 0 0 out-pos nlen voff vlen) in
+                  decode-block-loop dec in-addr next-in in-len out-hdrs max-hdrs (wrapping-add-u32 hcount 1) out-buf (wrapping-add-u32 voff vlen) out-cap 1
+              else HpackDecodeResult hpack-err-invalid-index hcount out-pos next-in
+      else if ne-u8 (bit-and-u8 b 64) 0 then
+        -- 01xxxxxx : Literal Header Field with Incremental Indexing (RFC 7541 §6.2.1)
+        let r = decode-literal-field dec 6 1 0 in-addr in-pos in-len out-hdrs max-hdrs hcount out-buf out-pos out-cap in
+        if ne-u32 r.hd-status hpack-ok then r
+        else decode-block-loop dec in-addr r.hd-bytes-read in-len out-hdrs max-hdrs r.hd-header-count out-buf r.hd-bytes-written out-cap 1
+      else if ne-u8 (bit-and-u8 b 32) 0 then
+        -- 001xxxxx : Dynamic Table Size Update (RFC 7541 §6.3 & §4.2)
+        if ne-u8 seen-hdr 0 then
+          HpackDecodeResult hpack-err-table-size-after-header hcount out-pos in-pos
+        else
+          let sr = hpack-decode-int-u32-raw in-addr in-pos in-len 5 in
+          if ne-u32 sr.hi-status hpack-ok then HpackDecodeResult sr.hi-status hcount out-pos sr.hi-next-pos
+          else
+            let new-sz = wrapping-u64-to-u32 sr.hi-value in
+            let st = hpack-dyn-set-max-size (hpack-decoder-dyn-table dec) new-sz in
+            if ne-u32 st hpack-ok then HpackDecodeResult st hcount out-pos sr.hi-next-pos
+            else decode-block-loop dec in-addr sr.hi-next-pos in-len out-hdrs max-hdrs hcount out-buf out-pos out-cap 0
+      else if ne-u8 (bit-and-u8 b 16) 0 then
+        -- 0001xxxx : Literal Header Field Never Indexed (RFC 7541 §6.2.3)
+        let r = decode-literal-field dec 4 0 hpack-flag-never-indexed in-addr in-pos in-len out-hdrs max-hdrs hcount out-buf out-pos out-cap in
+        if ne-u32 r.hd-status hpack-ok then r
+        else decode-block-loop dec in-addr r.hd-bytes-read in-len out-hdrs max-hdrs r.hd-header-count out-buf r.hd-bytes-written out-cap 1
+      else
+        -- 0000xxxx : Literal Header Field without Indexing (RFC 7541 §6.2.2)
+        let r = decode-literal-field dec 4 0 0 in-addr in-pos in-len out-hdrs max-hdrs hcount out-buf out-pos out-cap in
+        if ne-u32 r.hd-status hpack-ok then r
+        else decode-block-loop dec in-addr r.hd-bytes-read in-len out-hdrs max-hdrs r.hd-header-count out-buf r.hd-bytes-written out-cap 1
+
+  -- | Decode a complete RFC 7541 HPACK header block from DMA `[in-addr, in-addr + in-len)`.
+  -- Writes `HpackHeader` entries into `out-hdrs` (up to `max-hdrs`) and decoded
+  -- header name/value byte payloads contiguously into `[out-buf, out-buf + out-cap)`.
+  -- 100% `#[no-alloc]` on the hot path.
+  #[no-alloc]
+  hpack-decode-block
+    :: HpackDecoder
+    -> I64 -> U32
+    -> I64 -> U32
+    -> I64 -> U32
+    ->{MVar} HpackDecodeResult
+  hpack-decode-block dec in-addr in-len out-hdrs max-hdrs out-buf out-cap =
+    let dyn = hpack-decoder-dyn-table dec in
+    let huff = decoder-huff-table dec in
+    if both (hpack-dyn-valid dyn) (hpack-huffman-table-valid huff) then
+      decode-block-loop dec in-addr 0 in-len out-hdrs max-hdrs 0 out-buf 0 out-cap 0
+    else HpackDecodeResult hpack-err-invalid-state 0 0 0
