@@ -1,0 +1,302 @@
+-- | Linux kernel TLS (`kTLS`) socket offload helper (`Net.Tls.Ktls`).
+--
+-- Implements the Linux `<linux/tls.h>` ABI constants, `#[repr(C)]`
+-- `Tls12CryptoInfoAesGcm128` (40B), `Tls12CryptoInfoAesGcm256` (56B), and
+-- `Tls12CryptoInfoChaCha20Poly1305` (56B) layouts, plus `ktls-enable-tx` /
+-- `ktls-enable-rx` using `Prim.Sys.Io.Linux.sys-setsockopt`.
+--
+-- On Darwin and non-Linux targets, `ktls-enable-tx` and `ktls-enable-rx`
+-- return `Err IoUnsupported` cleanly so callers fall back transparently to the
+-- zero-copy userspace `Net.Tls.Fast` record layer.
+module Net.Tls.Ktls where
+
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Engine.Types
+  import Prim.Sys.Io.Linux when os linux
+
+  -- Linux kTLS ABI constants
+  export ktls-sol-tcp, ktls-tcp-ulp
+  export ktls-sol-tls, ktls-tls-tx, ktls-tls-rx
+  export ktls-tls13-version
+  export ktls-cipher-aes-gcm128, ktls-cipher-aes-gcm256, ktls-cipher-chacha20-poly1305
+  export ktls-aes-gcm128-info-size, ktls-aes-gcm256-info-size, ktls-chacha20-info-size
+  export ktls-supported
+
+  -- `#[repr(C)]` kernel ABI structs
+  export Tls12CryptoInfoAesGcm128
+  export Tls12CryptoInfoAesGcm256
+  export Tls12CryptoInfoChaCha20Poly1305
+
+  -- Pure ABI struct builders / serializers (cross-platform testable)
+  export ktls-build-aes128-gcm-info, ktls-pack-aes128-gcm, ktls-pack-aes256-gcm, ktls-pack-chacha20-poly1305
+
+  -- Socket offload entry points (`Err IoUnsupported` on non-Linux)
+  export ktls-enable-tx, ktls-enable-rx, ktls-enable-suite-tx, ktls-enable-suite-rx
+
+  -- =========================================================================
+  -- 1. Linux `<linux/tls.h>` ABI constants
+  -- =========================================================================
+
+  ktls-sol-tcp :: I64
+  ktls-sol-tcp = 6
+
+  ktls-tcp-ulp :: I64
+  ktls-tcp-ulp = 31
+
+  ktls-sol-tls :: I64
+  ktls-sol-tls = 282
+
+  ktls-tls-tx :: I64
+  ktls-tls-tx = 1
+
+  ktls-tls-rx :: I64
+  ktls-tls-rx = 2
+
+  ktls-tls13-version :: U16
+  ktls-tls13-version = 0x0304
+
+  ktls-cipher-aes-gcm128 :: U16
+  ktls-cipher-aes-gcm128 = 51
+
+  ktls-cipher-aes-gcm256 :: U16
+  ktls-cipher-aes-gcm256 = 52
+
+  ktls-cipher-chacha20-poly1305 :: U16
+  ktls-cipher-chacha20-poly1305 = 54
+
+  ktls-aes-gcm128-info-size :: Nat
+  ktls-aes-gcm128-info-size = 40
+
+  ktls-aes-gcm256-info-size :: Nat
+  ktls-aes-gcm256-info-size = 56
+
+  ktls-chacha20-info-size :: Nat
+  ktls-chacha20-info-size = 56
+
+  ktls-supported :: Bool
+  when os linux ktls-supported = True
+  when not (os linux) ktls-supported = False
+
+  -- =========================================================================
+  -- 2. `#[repr(C)]` Linux kernel ABI layouts
+  -- =========================================================================
+
+  -- | Linux `struct tls12_crypto_info_aes_gcm_128` (40 bytes, align 4, zero padding):
+  --   offset  0..2  : `version` (0x0304 for TLS 1.3)
+  --   offset  2..4  : `cipher_type` (51 = TLS_CIPHER_AES_GCM_128)
+  --   offset  4..12 : `iv[8]` (last 8 bytes of 12-byte TLS 1.3 IV)
+  --   offset 12..28 : `key[16]` (AES-128 traffic key)
+  --   offset 28..32 : `salt[4]` (first 4 bytes of 12-byte TLS 1.3 IV)
+  --   offset 32..40 : `rec_seq[8]` (big-endian 64-bit record sequence number)
+  #[repr(C)]
+  record Tls12CryptoInfoAesGcm128 where
+    tls128-version :: U16
+    tls128-cipher-type :: U16
+    tls128-iv-w0 :: U32
+    tls128-iv-w1 :: U32
+    tls128-key-w0 :: U32
+    tls128-key-w1 :: U32
+    tls128-key-w2 :: U32
+    tls128-key-w3 :: U32
+    tls128-salt :: U32
+    tls128-seq-w0 :: U32
+    tls128-seq-w1 :: U32
+
+  -- | Linux `struct tls12_crypto_info_aes_gcm_256` (56 bytes, align 4, zero padding).
+  #[repr(C)]
+  record Tls12CryptoInfoAesGcm256 where
+    tls256-version :: U16
+    tls256-cipher-type :: U16
+    tls256-iv-w0 :: U32
+    tls256-iv-w1 :: U32
+    tls256-key-w0 :: U32
+    tls256-key-w1 :: U32
+    tls256-key-w2 :: U32
+    tls256-key-w3 :: U32
+    tls256-key-w4 :: U32
+    tls256-key-w5 :: U32
+    tls256-key-w6 :: U32
+    tls256-key-w7 :: U32
+    tls256-salt :: U32
+    tls256-seq-w0 :: U32
+    tls256-seq-w1 :: U32
+
+  -- | Linux `struct tls12_crypto_info_chacha20_poly1305` (56 bytes, align 4, zero padding).
+  #[repr(C)]
+  record Tls12CryptoInfoChaCha20Poly1305 where
+    tlscc-version :: U16
+    tlscc-cipher-type :: U16
+    tlscc-iv-w0 :: U32
+    tlscc-iv-w1 :: U32
+    tlscc-iv-w2 :: U32
+    tlscc-key-w0 :: U32
+    tlscc-key-w1 :: U32
+    tlscc-key-w2 :: U32
+    tlscc-key-w3 :: U32
+    tlscc-key-w4 :: U32
+    tlscc-key-w5 :: U32
+    tlscc-key-w6 :: U32
+    tlscc-key-w7 :: U32
+    tlscc-seq-w0 :: U32
+    tlscc-seq-w1 :: U32
+
+  -- =========================================================================
+  -- 3. Pure ABI struct construction & serialization
+  -- =========================================================================
+
+  put-u16-le :: Bytes -> Nat -> U16 -> Unit
+  put-u16-le buf off v =
+    if off + 2 <= bytes-len buf then
+      let _ = bytes-set-u8 buf off (wrapping-u16-to-u8 v) in
+      bytes-set-u8 buf (off + 1) (wrapping-u16-to-u8 (wrapping-shr-u16 v 8))
+    else ()
+
+  put-u64-be-at :: Bytes -> Nat -> U64 -> Unit
+  put-u64-be-at buf off v =
+    if off + 8 <= bytes-len buf then
+      bytes-store-le64 buf off (swap-bytes-u64 v)
+    else ()
+
+  -- | Build a `Tls12CryptoInfoAesGcm128` record from a 16-byte key, 12-byte IV,
+  -- and 64-bit record sequence number.
+  ktls-build-aes128-gcm-info :: Bytes -> Bytes -> U64 -> Result IoError Tls12CryptoInfoAesGcm128
+  ktls-build-aes128-gcm-info key iv seq =
+    if bytes-len key /= 16 || bytes-len iv /= 12 then Err IoOther
+    else
+      let salt = bytes-load-le32 iv 0 in
+      let iv0 = bytes-load-le32 iv 4 in
+      let iv1 = bytes-load-le32 iv 8 in
+      let k0 = bytes-load-le32 key 0 in
+      let k1 = bytes-load-le32 key 4 in
+      let k2 = bytes-load-le32 key 8 in
+      let k3 = bytes-load-le32 key 12 in
+      let seq-be = swap-bytes-u64 seq in
+      let s0 = wrapping-u64-to-u32 seq-be in
+      let s1 = wrapping-u64-to-u32 (wrapping-shr-u64 seq-be 32) in
+      Ok (Tls12CryptoInfoAesGcm128 ktls-tls13-version ktls-cipher-aes-gcm128 iv0 iv1 k0 k1 k2 k3 salt s0 s1)
+
+  -- | Serialize a 40-byte Linux `struct tls12_crypto_info_aes_gcm_128` payload.
+  ktls-pack-aes128-gcm :: Bytes -> Bytes -> U64 -> Result IoError Bytes
+  ktls-pack-aes128-gcm key iv seq =
+    if bytes-len key /= 16 || bytes-len iv /= 12 then Err IoOther
+    else
+      let buf = bytes-new 40 in
+      let _ = put-u16-le buf 0 ktls-tls13-version in
+      let _ = put-u16-le buf 2 ktls-cipher-aes-gcm128 in
+      let _ = bytes-copy-range buf iv 4 4 8 in
+      let _ = bytes-copy-range buf key 12 0 16 in
+      let _ = bytes-copy-range buf iv 28 0 4 in
+      let _ = put-u64-be-at buf 32 seq in
+      Ok buf
+
+  -- | Serialize a 56-byte Linux `struct tls12_crypto_info_aes_gcm_256` payload.
+  ktls-pack-aes256-gcm :: Bytes -> Bytes -> U64 -> Result IoError Bytes
+  ktls-pack-aes256-gcm key iv seq =
+    if bytes-len key /= 32 || bytes-len iv /= 12 then Err IoOther
+    else
+      let buf = bytes-new 56 in
+      let _ = put-u16-le buf 0 ktls-tls13-version in
+      let _ = put-u16-le buf 2 ktls-cipher-aes-gcm256 in
+      let _ = bytes-copy-range buf iv 4 4 8 in
+      let _ = bytes-copy-range buf key 12 0 32 in
+      let _ = bytes-copy-range buf iv 44 0 4 in
+      let _ = put-u64-be-at buf 48 seq in
+      Ok buf
+
+  -- | Serialize a 56-byte Linux `struct tls12_crypto_info_chacha20_poly1305` payload.
+  ktls-pack-chacha20-poly1305 :: Bytes -> Bytes -> U64 -> Result IoError Bytes
+  ktls-pack-chacha20-poly1305 key iv seq =
+    if bytes-len key /= 32 || bytes-len iv /= 12 then Err IoOther
+    else
+      let buf = bytes-new 56 in
+      let _ = put-u16-le buf 0 ktls-tls13-version in
+      let _ = put-u16-le buf 2 ktls-cipher-chacha20-poly1305 in
+      let _ = bytes-copy-range buf iv 4 0 12 in
+      let _ = bytes-copy-range buf key 16 0 32 in
+      let _ = put-u64-be-at buf 48 seq in
+      Ok buf
+
+  -- =========================================================================
+  -- 4. Platform-guarded `setsockopt(SOL_TLS, TLS_TX/TLS_RX)` offload
+  -- =========================================================================
+
+  ktls-errno-to-io-error :: I64 -> IoError
+  ktls-errno-to-io-error r =
+    let e = if lt-i64 r 0 then wrapping-neg-i64 r else 0 in
+    if eq-i64 e 0 then IoOk
+    else if eq-i64 e 9 then IoBadFd
+    else if eq-i64 e 12 then IoNoMem
+    else if eq-i64 e 2 || eq-i64 e 38 || eq-i64 e 92 || eq-i64 e 95 then IoUnsupported
+    else IoOther
+
+  ktls-apply-setsockopt-raw :: forall r. using (io :: Io r) => I32 -> I64 -> Bytes ->{IO r} IoError
+  when os linux ktls-apply-setsockopt-raw fd-raw dir-opt payload =
+    if lt-i32 fd-raw 0 then IoBadFd
+    else
+      let raw-fd = i32-to-i64 fd-raw in
+      let ulp-name = bytes-from-u8s [116, 108, 115, 0] in
+      let r-ulp = sys-held ulp-name (sys-setsockopt raw-fd ktls-sol-tcp ktls-tcp-ulp (bytes-data ulp-name) 4) in
+      let ulp-errno = io-errno r-ulp in
+      -- Ignore EEXIST (17) if TCP_ULP "tls" was already attached for the other direction.
+      if io-is-err r-ulp && ne-i64 ulp-errno 17 then
+        ktls-errno-to-io-error r-ulp
+      else
+        let plen = bytes-len-i64 payload in
+        let r-tls = sys-held payload (sys-setsockopt raw-fd ktls-sol-tls dir-opt (bytes-data payload) plen) in
+        if io-is-err r-tls then ktls-errno-to-io-error r-tls
+        else IoOk
+  when not (os linux) ktls-apply-setsockopt-raw fd-raw dir-opt payload =
+    IoUnsupported
+
+  #[inline(never)]
+  ktls-apply-setsockopt :: forall r. using (io :: Io r) => I32 -> I64 -> Bytes ->{IO r} Result IoError Unit
+  ktls-apply-setsockopt fd-raw dir-opt payload =
+    let err = ktls-apply-setsockopt-raw fd-raw dir-opt payload in
+    if io-error-is-ok err then Ok () else Err err
+
+  #[inline(never)]
+  ktls-enable-aes128-raw :: forall r. using (io :: Io r) => I32 -> I64 -> Bytes -> Bytes -> U64 ->{IO r} Result IoError Unit
+  ktls-enable-aes128-raw fd-raw dir-opt key iv seq =
+    case ktls-pack-aes128-gcm key iv seq of
+      Err e -> Err e
+      Ok payload -> ktls-apply-setsockopt fd-raw dir-opt payload
+
+  -- | Enable Linux kTLS TX offload for AES-128-GCM on `fd`.
+  -- Returns `Err IoUnsupported` cleanly on Darwin and non-Linux hosts.
+  ktls-enable-tx :: forall r. using (io :: Io r) => Fd -> Bytes -> Bytes -> U64 ->{IO r} Result IoError Unit
+  ktls-enable-tx fd key iv seq =
+    ktls-enable-aes128-raw (fd-value fd) ktls-tls-tx key iv seq
+
+  -- | Enable Linux kTLS RX offload for AES-128-GCM on `fd`.
+  -- Returns `Err IoUnsupported` cleanly on Darwin and non-Linux hosts.
+  ktls-enable-rx :: forall r. using (io :: Io r) => Fd -> Bytes -> Bytes -> U64 ->{IO r} Result IoError Unit
+  ktls-enable-rx fd key iv seq =
+    ktls-enable-aes128-raw (fd-value fd) ktls-tls-rx key iv seq
+
+  ktls-pack-for-suite :: TlsCipherSuite -> Bytes -> Bytes -> U64 -> Result IoError Bytes
+  ktls-pack-for-suite suite key iv seq = case suite of
+    TlsAes128GcmSha256 -> ktls-pack-aes128-gcm key iv seq
+    TlsAes256GcmSha384 -> ktls-pack-aes256-gcm key iv seq
+    TlsChacha20Poly1305Sha256 -> ktls-pack-chacha20-poly1305 key iv seq
+
+  #[inline(never)]
+  ktls-enable-suite-raw :: forall r. using (io :: Io r) => I32 -> I64 -> TlsCipherSuite -> Bytes -> Bytes -> U64 ->{IO r} Result IoError Unit
+  ktls-enable-suite-raw fd-raw dir-opt suite key iv seq =
+    case ktls-pack-for-suite suite key iv seq of
+      Err e -> Err e
+      Ok payload -> ktls-apply-setsockopt fd-raw dir-opt payload
+
+  -- | Enable Linux kTLS TX offload for any RFC 8446 TLS 1.3 cipher suite.
+  ktls-enable-suite-tx :: forall r. using (io :: Io r) => Fd -> TlsCipherSuite -> Bytes -> Bytes -> U64 ->{IO r} Result IoError Unit
+  ktls-enable-suite-tx fd suite key iv seq =
+    ktls-enable-suite-raw (fd-value fd) ktls-tls-tx suite key iv seq
+
+  -- | Enable Linux kTLS RX offload for any RFC 8446 TLS 1.3 cipher suite.
+  ktls-enable-suite-rx :: forall r. using (io :: Io r) => Fd -> TlsCipherSuite -> Bytes -> Bytes -> U64 ->{IO r} Result IoError Unit
+  ktls-enable-suite-rx fd suite key iv seq =
+    ktls-enable-suite-raw (fd-value fd) ktls-tls-rx suite key iv seq

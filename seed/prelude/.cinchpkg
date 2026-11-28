@@ -1407,6 +1407,22 @@
     {
       "name": "Engine.Sim",
       "path": "Engine/Sim.cinch"
+    },
+    {
+      "name": "Net.Tls.Fast",
+      "path": "Net/Tls/Fast.cinch"
+    },
+    {
+      "name": "Net.Tls.Ktls",
+      "path": "Net/Tls/Ktls.cinch"
+    },
+    {
+      "name": "Net.Tls.QuicBridge",
+      "path": "Net/Tls/QuicBridge.cinch"
+    },
+    {
+      "name": "Net.Tls.Fast.Spec",
+      "path": "Net/Tls/Fast/Spec.cinch"
     }
   ],
   "order": [
@@ -1760,6 +1776,10 @@
     "Engine.Simd.Crc32c",
     "Engine.Simd.Mask",
     "Engine.Sim.Faults",
-    "Engine.Sim"
+    "Engine.Sim",
+    "Net.Tls.Fast",
+    "Net.Tls.Ktls",
+    "Net.Tls.QuicBridge",
+    "Net.Tls.Fast.Spec"
   ]
 }

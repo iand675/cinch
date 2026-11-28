@@ -1,0 +1,742 @@
+-- | RFC 9001 QUIC-TLS cryptographic bridge, RFC 9000/9221 transport parameter
+-- codec, and zero-allocation 0-RTT anti-replay rotating Bloom filter
+-- (`Net.Tls.QuicBridge`).
+--
+-- Provides:
+--   * RFC 9001 §5.2 QUIC v1 Initial Secret derivation (`quic-derive-initial-secrets`)
+--   * RFC 9001 §5.1 packet protection key derivation (`quic-derive-packet-keys`:
+--     `"quic key"`, `"quic iv"`, `"quic hp"`) and key update (`quic-update-secret`)
+--   * RFC 9001 §5.4.3 AES-128-ECB header protection mask (`quic-header-protect-mask-aes128`)
+--     and §5.4.4 ChaCha20 header protection mask (`quic-header-protect-mask-chacha20`)
+--   * RFC 9000 §18 + RFC 9221 QUIC transport parameter encoder & decoder
+--   * Rotating 2-generation DMA Bloom filter (`AntiReplayFilter`) rejecting
+--     duplicate 0-RTT ticket nonces in O(1) with zero heap allocations (`#[no-alloc]`).
+module Net.Tls.QuicBridge where
+
+  import Crypto.Aes
+  import Crypto.ChaCha20Poly1305
+  import Crypto.Kdf
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Engine.Types
+  import Prim.Atomic
+
+  -- RFC 9001 QUIC key schedule & header protection
+  export quic-v1-initial-salt
+  export QuicPacketKeys
+  export quic-derive-initial-secrets, quic-derive-packet-keys, quic-derive-packet-keys-for-suite
+  export quic-update-secret
+  export quic-header-protect-mask-aes128, quic-header-protect-mask-chacha20
+
+  -- RFC 9000 / RFC 9221 QUIC variable-length integers & transport parameters
+  export quic-varint-encode, quic-varint-decode
+  export QuicTransportParams, quic-transport-params-default
+  export quic-transport-params-encode, quic-transport-params-decode
+
+  -- Zero-alloc 2-generation rotating DMA 0-RTT anti-replay Bloom filter
+  export AntiReplayFilter
+  export anti-replay-new, anti-replay-destroy, anti-replay-is-valid
+  export anti-replay-check-and-insert, anti-replay-rotate
+  export anti-replay-inserts, anti-replay-rejects
+
+  -- =========================================================================
+  -- 1. RFC 9001 §5.1 / §5.2 QUIC v1 Initial Secrets & Packet Protection Keys
+  -- =========================================================================
+
+  -- | RFC 9001 §5.2 QUIC v1 Initial Salt (`0x38762cf7f55934b34d179ae6a4c80cadccbb7f0a`).
+  quic-v1-initial-salt :: Bytes
+  quic-v1-initial-salt =
+    bytes-from-u8s [
+      0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3,
+      0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad,
+      0xcc, 0xbb, 0x7f, 0x0a
+    ]
+
+  -- | Packet protection keys derived from a QUIC traffic secret.
+  record QuicPacketKeys where
+    qpk-key :: Bytes
+    qpk-iv :: Bytes
+    qpk-hp :: Bytes
+
+  expand-or-empty :: TlsCipherSuite -> Bytes -> String -> Nat -> Bytes
+  expand-or-empty suite secret label out-len =
+    case tls-hkdf-expand-label suite secret label (bytes-new 0) out-len of
+      Ok out -> out
+      Err _ -> bytes-new 0
+
+  -- | Derive `(client_initial_secret, server_initial_secret)` from a client
+  -- Destination Connection ID (`DCID`) per RFC 9001 §5.2.
+  quic-derive-initial-secrets :: Bytes -> (Bytes, Bytes)
+  quic-derive-initial-secrets dcid =
+    let initial-secret = tls-hkdf-extract TlsAes128GcmSha256 quic-v1-initial-salt dcid in
+    let client-in = expand-or-empty TlsAes128GcmSha256 initial-secret "client in" 32 in
+    let server-in = expand-or-empty TlsAes128GcmSha256 initial-secret "server in" 32 in
+    (client-in, server-in)
+
+  -- | Derive AES-128-GCM QUIC packet protection keys (`"quic key"` 16B,
+  -- `"quic iv"` 12B, `"quic hp"` 16B) from a 32-byte traffic secret (RFC 9001 §5.1).
+  quic-derive-packet-keys :: Bytes -> QuicPacketKeys
+  quic-derive-packet-keys secret =
+    let k = expand-or-empty TlsAes128GcmSha256 secret "quic key" 16 in
+    let iv = expand-or-empty TlsAes128GcmSha256 secret "quic iv" 12 in
+    let hp = expand-or-empty TlsAes128GcmSha256 secret "quic hp" 16 in
+    QuicPacketKeys { qpk-key = k, qpk-iv = iv, qpk-hp = hp }
+
+  -- | Derive QUIC packet protection keys for any RFC 8446 TLS 1.3 cipher suite.
+  quic-derive-packet-keys-for-suite :: TlsCipherSuite -> Bytes -> Result TlsError QuicPacketKeys
+  quic-derive-packet-keys-for-suite suite secret =
+    let klen = (case suite of TlsAes128GcmSha256 -> 16; _ -> 32) in
+    let empty = bytes-new 0 in
+    case tls-hkdf-expand-label suite secret "quic key" empty klen of
+      Err e -> Err e
+      Ok k -> case tls-hkdf-expand-label suite secret "quic iv" empty 12 of
+        Err e -> Err e
+        Ok iv -> case tls-hkdf-expand-label suite secret "quic hp" empty klen of
+          Err e -> Err e
+          Ok hp -> Ok (QuicPacketKeys { qpk-key = k, qpk-iv = iv, qpk-hp = hp })
+
+  -- | Advance a QUIC 1-RTT traffic secret via `"quic ku"` (RFC 9001 §6.1).
+  quic-update-secret :: TlsCipherSuite -> Bytes -> Result TlsError Bytes
+  quic-update-secret suite secret =
+    let hlen = (case suite of TlsAes256GcmSha384 -> 48; _ -> 32) in
+    tls-hkdf-expand-label suite secret "quic ku" (bytes-new 0) hlen
+
+  -- =========================================================================
+  -- 2. RFC 9001 §5.4.3 / §5.4.4 Header Protection Masks
+  -- =========================================================================
+
+  take-prefix :: Bytes -> Nat -> Bytes
+  take-prefix src n =
+    if n <= bytes-len src then
+      let out = bytes-new n in
+      let _ = bytes-copy-range out src 0 0 n in
+      out
+    else bytes-new 0
+
+  -- | Compute the 5-byte AES-128-ECB header protection mask over a 16-byte sample
+  -- (`AES-ECB(hp_key, sample)[0..5]`, per RFC 9001 §5.4.3).
+  quic-header-protect-mask-aes128 :: Bytes -> Bytes -> Bytes
+  quic-header-protect-mask-aes128 hp-key sample =
+    if bytes-len hp-key /= 16 || bytes-len sample /= 16 then bytes-new 0
+    else case aes-key hp-key of
+      Err _ -> bytes-new 0
+      Ok ak -> case aes-encrypt-block ak sample of
+        Err _ -> bytes-new 0
+        Ok enc -> take-prefix enc 5
+
+  -- | Compute the 5-byte ChaCha20 header protection mask over a 16-byte sample
+  -- (RFC 9001 §5.4.4: `counter = le32(sample[0..4])`, `nonce = sample[4..16]`).
+  quic-header-protect-mask-chacha20 :: Bytes -> Bytes -> Bytes
+  quic-header-protect-mask-chacha20 hp-key sample =
+    if bytes-len hp-key /= 32 || bytes-len sample /= 16 then bytes-new 0
+    else
+      let counter = u32-to-nat (bytes-load-le32 sample 0) in
+      let nonce = bytes-new 12 in
+      let _ = bytes-copy-range nonce sample 0 4 12 in
+      case chacha20-xor hp-key nonce counter (bytes-new 5) of
+        Ok mask -> mask
+        Err _ -> bytes-new 0
+
+  -- =========================================================================
+  -- 3. RFC 9000 §16 Variable-Length Integer Encoding & §18 Transport Parameters
+  -- =========================================================================
+
+  -- | Encode a QUIC variable-length integer (`0 <= v < 2^62`, RFC 9000 §16).
+  quic-varint-encode :: U64 -> Result String Bytes
+  quic-varint-encode v =
+    if lt-u64 v 64 then
+      Ok (bytes-from-u8s [wrapping-u64-to-u8 v])
+    else if lt-u64 v 16384 then
+      let b0 = bit-or-u8 0x40 (wrapping-u64-to-u8 (wrapping-shr-u64 v 8)) in
+      let b1 = wrapping-u64-to-u8 v in
+      Ok (bytes-from-u8s [b0, b1])
+    else if lt-u64 v 1073741824 then
+      let b0 = bit-or-u8 0x80 (wrapping-u64-to-u8 (wrapping-shr-u64 v 24)) in
+      let b1 = wrapping-u64-to-u8 (wrapping-shr-u64 v 16) in
+      let b2 = wrapping-u64-to-u8 (wrapping-shr-u64 v 8) in
+      let b3 = wrapping-u64-to-u8 v in
+      Ok (bytes-from-u8s [b0, b1, b2, b3])
+    else if lt-u64 v 4611686018427387904 then
+      let b0 = bit-or-u8 0xc0 (wrapping-u64-to-u8 (wrapping-shr-u64 v 56)) in
+      let b1 = wrapping-u64-to-u8 (wrapping-shr-u64 v 48) in
+      let b2 = wrapping-u64-to-u8 (wrapping-shr-u64 v 40) in
+      let b3 = wrapping-u64-to-u8 (wrapping-shr-u64 v 32) in
+      let b4 = wrapping-u64-to-u8 (wrapping-shr-u64 v 24) in
+      let b5 = wrapping-u64-to-u8 (wrapping-shr-u64 v 16) in
+      let b6 = wrapping-u64-to-u8 (wrapping-shr-u64 v 8) in
+      let b7 = wrapping-u64-to-u8 v in
+      Ok (bytes-from-u8s [b0, b1, b2, b3, b4, b5, b6, b7])
+    else Err "QUIC varint exceeds 2^62 - 1"
+
+  -- | Decode a QUIC variable-length integer at `pos`, returning `(value, next-pos)`.
+  quic-varint-decode :: Bytes -> Nat -> Result String (U64, Nat)
+  quic-varint-decode buf pos =
+    if pos >= bytes-len buf then Err "truncated QUIC varint"
+    else
+      let first = bytes-get-u8 buf pos in
+      let prefix = wrapping-shr-u8 first 6 in
+      let lo6 = u8-to-u64 (bit-and-u8 first 0x3f) in
+      if eq-u8 prefix 0 then
+        Ok (lo6, pos + 1)
+      else if eq-u8 prefix 1 then
+        if pos + 2 > bytes-len buf then Err "truncated 2-byte QUIC varint"
+        else
+          let b1 = u8-to-u64 (bytes-get-u8 buf (pos + 1)) in
+          Ok (bit-or-u64 (wrapping-shl-u64 lo6 8) b1, pos + 2)
+      else if eq-u8 prefix 2 then
+        if pos + 4 > bytes-len buf then Err "truncated 4-byte QUIC varint"
+        else
+          let b1 = u8-to-u64 (bytes-get-u8 buf (pos + 1)) in
+          let b2 = u8-to-u64 (bytes-get-u8 buf (pos + 2)) in
+          let b3 = u8-to-u64 (bytes-get-u8 buf (pos + 3)) in
+          let v = bit-or-u64 (wrapping-shl-u64 lo6 24) (bit-or-u64 (wrapping-shl-u64 b1 16) (bit-or-u64 (wrapping-shl-u64 b2 8) b3)) in
+          Ok (v, pos + 4)
+      else
+        if pos + 8 > bytes-len buf then Err "truncated 8-byte QUIC varint"
+        else
+          let b1 = u8-to-u64 (bytes-get-u8 buf (pos + 1)) in
+          let b2 = u8-to-u64 (bytes-get-u8 buf (pos + 2)) in
+          let b3 = u8-to-u64 (bytes-get-u8 buf (pos + 3)) in
+          let b4 = u8-to-u64 (bytes-get-u8 buf (pos + 4)) in
+          let b5 = u8-to-u64 (bytes-get-u8 buf (pos + 5)) in
+          let b6 = u8-to-u64 (bytes-get-u8 buf (pos + 6)) in
+          let b7 = u8-to-u64 (bytes-get-u8 buf (pos + 7)) in
+          let hi = bit-or-u64 (wrapping-shl-u64 lo6 56) (bit-or-u64 (wrapping-shl-u64 b1 48) (bit-or-u64 (wrapping-shl-u64 b2 40) (wrapping-shl-u64 b3 32))) in
+          let lo = bit-or-u64 (wrapping-shl-u64 b4 24) (bit-or-u64 (wrapping-shl-u64 b5 16) (bit-or-u64 (wrapping-shl-u64 b6 8) b7)) in
+          Ok (bit-or-u64 hi lo, pos + 8)
+
+  -- | RFC 9000 §18.2 + RFC 9221 QUIC transport parameters.
+  record QuicTransportParams where
+    tp-max-idle-timeout :: U64
+    tp-max-udp-payload-size :: U64
+    tp-initial-max-data :: U64
+    tp-initial-max-stream-data-bidi-local :: U64
+    tp-initial-max-stream-data-bidi-remote :: U64
+    tp-initial-max-stream-data-uni :: U64
+    tp-initial-max-streams-bidi :: U64
+    tp-initial-max-streams-uni :: U64
+    tp-ack-delay-exponent :: U64
+    tp-max-ack-delay :: U64
+    tp-active-connection-id-limit :: U64
+    tp-max-datagram-frame-size :: U64
+
+  -- | RFC 9000 §18.2 default transport parameters (with RFC 9221 datagrams disabled = 0).
+  quic-transport-params-default :: QuicTransportParams
+  quic-transport-params-default = QuicTransportParams {
+    tp-max-idle-timeout = 30000,
+    tp-max-udp-payload-size = 65527,
+    tp-initial-max-data = 1048576,
+    tp-initial-max-stream-data-bidi-local = 262144,
+    tp-initial-max-stream-data-bidi-remote = 262144,
+    tp-initial-max-stream-data-uni = 262144,
+    tp-initial-max-streams-bidi = 100,
+    tp-initial-max-streams-uni = 100,
+    tp-ack-delay-exponent = 3,
+    tp-max-ack-delay = 25,
+    tp-active-connection-id-limit = 2,
+    tp-max-datagram-frame-size = 0
+  }
+
+  encode-varint-or-empty :: U64 -> Bytes
+  encode-varint-or-empty v = case quic-varint-encode v of
+    Ok b -> b
+    Err _ -> bytes-new 0
+
+  encode-tp-u64 :: U64 -> U64 -> Bytes
+  encode-tp-u64 id val =
+    let id-b = encode-varint-or-empty id in
+    let val-b = encode-varint-or-empty val in
+    let len-b = encode-varint-or-empty (wrapping-i64-to-u64 (nat-to-i64 (bytes-len val-b))) in
+    bytes-concat [id-b, len-b, val-b]
+
+  -- | Encode `QuicTransportParams` into the wire TLS `quic_transport_parameters`
+  -- extension body (RFC 9000 §18 + RFC 9221 §3).
+  quic-transport-params-encode :: QuicTransportParams -> Bytes
+  quic-transport-params-encode tp =
+    let base = [
+      encode-tp-u64 0x01 tp.tp-max-idle-timeout,
+      encode-tp-u64 0x03 tp.tp-max-udp-payload-size,
+      encode-tp-u64 0x04 tp.tp-initial-max-data,
+      encode-tp-u64 0x05 tp.tp-initial-max-stream-data-bidi-local,
+      encode-tp-u64 0x06 tp.tp-initial-max-stream-data-bidi-remote,
+      encode-tp-u64 0x07 tp.tp-initial-max-stream-data-uni,
+      encode-tp-u64 0x08 tp.tp-initial-max-streams-bidi,
+      encode-tp-u64 0x09 tp.tp-initial-max-streams-uni,
+      encode-tp-u64 0x0a tp.tp-ack-delay-exponent,
+      encode-tp-u64 0x0b tp.tp-max-ack-delay,
+      encode-tp-u64 0x0e tp.tp-active-connection-id-limit
+    ] in
+    if gt-u64 tp.tp-max-datagram-frame-size 0 then
+      bytes-concat [bytes-concat base, encode-tp-u64 0x20 tp.tp-max-datagram-frame-size]
+    else bytes-concat base
+
+  u64-in-list :: U64 -> List U64 -> Bool
+  u64-in-list x xs = case xs of
+    Nil -> False
+    Cons h t -> if eq-u64 h x then True else u64-in-list x t
+
+  decode-varint-exact :: Bytes -> Nat -> Nat -> Result String U64
+  decode-varint-exact buf start end =
+    case quic-varint-decode buf start of
+      Err e -> Err e
+      Ok (v, next) ->
+        if next /= end then Err "QUIC transport parameter value trailing bytes"
+        else Ok v
+
+  set-tp-field :: QuicTransportParams -> U64 -> U64 -> Result String QuicTransportParams
+  set-tp-field tp id val =
+    if eq-u64 id 0x01 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = val,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x03 then
+      if lt-u64 val 1200 then Err "max_udp_payload_size < 1200"
+      else Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = val,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x04 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = val,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x05 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = val,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x06 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = val,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x07 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = val,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x08 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = val,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x09 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = val,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x0a then
+      if gt-u64 val 20 then Err "ack_delay_exponent > 20"
+      else Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = val,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x0b then
+      if ge-u64 val 16384 then Err "max_ack_delay >= 2^14"
+      else Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = val,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x0e then
+      if lt-u64 val 2 then Err "active_connection_id_limit < 2"
+      else Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = val,
+        tp-max-datagram-frame-size = tp.tp-max-datagram-frame-size
+      })
+    else if eq-u64 id 0x20 then
+      Ok (QuicTransportParams {
+        tp-max-idle-timeout = tp.tp-max-idle-timeout,
+        tp-max-udp-payload-size = tp.tp-max-udp-payload-size,
+        tp-initial-max-data = tp.tp-initial-max-data,
+        tp-initial-max-stream-data-bidi-local = tp.tp-initial-max-stream-data-bidi-local,
+        tp-initial-max-stream-data-bidi-remote = tp.tp-initial-max-stream-data-bidi-remote,
+        tp-initial-max-stream-data-uni = tp.tp-initial-max-stream-data-uni,
+        tp-initial-max-streams-bidi = tp.tp-initial-max-streams-bidi,
+        tp-initial-max-streams-uni = tp.tp-initial-max-streams-uni,
+        tp-ack-delay-exponent = tp.tp-ack-delay-exponent,
+        tp-max-ack-delay = tp.tp-max-ack-delay,
+        tp-active-connection-id-limit = tp.tp-active-connection-id-limit,
+        tp-max-datagram-frame-size = val
+      })
+    else Ok tp
+
+  is-known-varint-tp :: U64 -> Bool
+  is-known-varint-tp id =
+    eq-u64 id 0x01 || eq-u64 id 0x03 || eq-u64 id 0x04 || eq-u64 id 0x05
+      || eq-u64 id 0x06 || eq-u64 id 0x07 || eq-u64 id 0x08 || eq-u64 id 0x09
+      || eq-u64 id 0x0a || eq-u64 id 0x0b || eq-u64 id 0x0e || eq-u64 id 0x20
+
+  decode-tp-loop :: Bytes -> Nat -> QuicTransportParams -> List U64 -> Result String QuicTransportParams
+  decode-tp-loop buf pos acc seen =
+    if pos >= bytes-len buf then Ok acc
+    else case quic-varint-decode buf pos of
+      Err e -> Err e
+      Ok (id, p1) ->
+        if u64-in-list id seen then Err "duplicate QUIC transport parameter"
+        else case quic-varint-decode buf p1 of
+          Err e -> Err e
+          Ok (vlen-u64, p2) ->
+            if gt-u64 vlen-u64 65535 then Err "QUIC transport parameter value too long"
+            else
+              let vlen = u32-to-nat (wrapping-u64-to-u32 vlen-u64) in
+              let end = p2 + vlen in
+              if end > bytes-len buf then Err "truncated QUIC transport parameter value"
+              else if is-known-varint-tp id then
+                case decode-varint-exact buf p2 end of
+                  Err e -> Err e
+                  Ok val -> case set-tp-field acc id val of
+                    Err e -> Err e
+                    Ok acc2 -> decode-tp-loop buf end acc2 (Cons id seen)
+              else
+                decode-tp-loop buf end acc (Cons id seen)
+
+  -- | Decode a wire `quic_transport_parameters` buffer (RFC 9000 §18 + RFC 9221 §3).
+  -- Rejects duplicate parameters and out-of-range values; ignores unknown extension IDs.
+  quic-transport-params-decode :: Bytes -> Result String QuicTransportParams
+  quic-transport-params-decode buf =
+    let base = QuicTransportParams {
+      tp-max-idle-timeout = 0,
+      tp-max-udp-payload-size = 65527,
+      tp-initial-max-data = 0,
+      tp-initial-max-stream-data-bidi-local = 0,
+      tp-initial-max-stream-data-bidi-remote = 0,
+      tp-initial-max-stream-data-uni = 0,
+      tp-initial-max-streams-bidi = 0,
+      tp-initial-max-streams-uni = 0,
+      tp-ack-delay-exponent = 3,
+      tp-max-ack-delay = 25,
+      tp-active-connection-id-limit = 2,
+      tp-max-datagram-frame-size = 0
+    } in
+    decode-tp-loop buf 0 base Nil
+
+  -- =========================================================================
+  -- 4. 0-RTT Anti-Replay Rotating 2-Generation DMA Bloom Filter (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- DMA layout (64B header + gen0 bitset + gen1 bitset):
+  --   offset  0 : U64 cur-gen (0 or 1)
+  --   offset  8 : U64 last-rotate-ns
+  --   offset 16 : U64 accepted-inserts
+  --   offset 24 : U64 rejected-replays
+  --   offset 64 : gen0[words-per-gen] (`U64` words)
+  --   offset 64 + words-per-gen * 8 : gen1[words-per-gen] (`U64` words)
+  #[repr(C, value)]
+  record AntiReplayFilter where
+    ar-dma-base :: U64
+    ar-total-bytes :: U64
+    ar-window-ns :: U64
+    ar-words-per-gen :: U32
+    ar-word-mask :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  ar-true :: Bool
+  ar-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  ar-false :: Bool
+  ar-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  ar-and :: Bool -> Bool -> Bool
+  ar-and a b = if a then b else ar-false
+
+  #[inline(always)]
+  #[no-alloc]
+  ar-or :: Bool -> Bool -> Bool
+  ar-or a b = if a then ar-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  anti-replay-empty :: Unit -> AntiReplayFilter
+  anti-replay-empty _ = AntiReplayFilter 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  anti-replay-is-valid :: AntiReplayFilter -> Bool
+  anti-replay-is-valid f = ne-u64 f.ar-dma-base 0
+
+  #[no-alloc]
+  next-pow2-u32 :: U32 -> U32 -> U32
+  next-pow2-u32 goal acc =
+    if ar-or (ge-u32 acc goal) (ge-u32 acc 1048576) then acc
+    else next-pow2-u32 goal (wrapping-shl-u32 acc 1)
+
+  #[no-alloc]
+  align-up4096 :: U64 -> U64
+  align-up4096 n = bit-and-u64 (wrapping-add-u64 n 4095) (bit-not-u64 4095)
+
+  -- | Allocate a 2-generation rotating DMA Bloom filter for 0-RTT anti-replay.
+  -- `words-per-gen` is rounded up to a power of two (minimum 16 words = 1024 bits/gen).
+  -- `window-ns` is the rotation period in nanoseconds (`0` disables time-based rotation).
+  anti-replay-new :: U32 -> U64 ->{IO, MVar} AntiReplayFilter
+  anti-replay-new req-words window-ns =
+    let min-w = if lt-u32 req-words 16 then 16 else req-words in
+    let words = next-pow2-u32 min-w 16 in
+    let gen-bytes = wrapping-shl-u64 (u32-to-u64 words) 3 in
+    let total = align-up4096 (wrapping-add-u64 64 (wrapping-shl-u64 gen-bytes 1)) in
+    let base = engine-dma-alloc total 4096 in
+    if eq-u64 base 0 then anti-replay-empty ()
+    else
+      let hdr = wrapping-u64-to-i64 base in
+      let _ = raw-store-u64 hdr 0 in
+      let _ = raw-store-u64 (wrapping-add-i64 hdr 8) 0 in
+      let _ = raw-store-u64 (wrapping-add-i64 hdr 16) 0 in
+      let _ = raw-store-u64 (wrapping-add-i64 hdr 24) 0 in
+      AntiReplayFilter base total window-ns words (wrapping-sub-u32 words 1)
+
+  -- | Unmap the DMA region backing `filter`.
+  anti-replay-destroy :: AntiReplayFilter ->{IO} IoError
+  anti-replay-destroy f =
+    if eq-u64 f.ar-dma-base 0 then IoOk
+    else engine-dma-free f.ar-dma-base f.ar-total-bytes
+
+  #[inline(always)]
+  #[no-alloc]
+  anti-replay-inserts :: AntiReplayFilter ->{MVar} U64
+  anti-replay-inserts f =
+    if eq-u64 f.ar-dma-base 0 then 0
+    else raw-load-u64 (wrapping-add-i64 (wrapping-u64-to-i64 f.ar-dma-base) 16)
+
+  #[inline(always)]
+  #[no-alloc]
+  anti-replay-rejects :: AntiReplayFilter ->{MVar} U64
+  anti-replay-rejects f =
+    if eq-u64 f.ar-dma-base 0 then 0
+    else raw-load-u64 (wrapping-add-i64 (wrapping-u64-to-i64 f.ar-dma-base) 24)
+
+  #[inline(always)]
+  #[no-alloc]
+  gen-base-addr :: AntiReplayFilter -> U64 -> I64
+  gen-base-addr f gen-idx =
+    let gen-bytes = wrapping-shl-u64 (u32-to-u64 f.ar-words-per-gen) 3 in
+    let off = if eq-u64 gen-idx 0 then 64 else wrapping-add-u64 64 gen-bytes in
+    wrapping-u64-to-i64 (wrapping-add-u64 f.ar-dma-base off)
+
+  #[no-alloc]
+  zero-gen-words :: I64 -> U32 -> U32 ->{MVar} Unit
+  zero-gen-words base i words =
+    if ge-u32 i words then ()
+    else
+      let _ = raw-store-u64 (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 i) 3)) 0 in
+      zero-gen-words base (wrapping-add-u32 i 1) words
+
+  -- | Rotate generations when `now-ns` advances past `ar-window-ns` (zero allocs).
+  #[no-alloc]
+  anti-replay-rotate :: AntiReplayFilter -> U64 ->{MVar} Unit
+  anti-replay-rotate f now-ns =
+    if ar-or (eq-u64 f.ar-dma-base 0) (eq-u64 f.ar-window-ns 0) then ()
+    else
+      let hdr = wrapping-u64-to-i64 f.ar-dma-base in
+      let last = raw-load-u64 (wrapping-add-i64 hdr 8) in
+      if eq-u64 last 0 then
+        raw-store-u64 (wrapping-add-i64 hdr 8) now-ns
+      else if lt-u64 now-ns last then ()
+      else
+        let elapsed = wrapping-sub-u64 now-ns last in
+        if lt-u64 elapsed f.ar-window-ns then ()
+        else
+          let double-win = saturating-add-u64 f.ar-window-ns f.ar-window-ns in
+          let cur = raw-load-u64 hdr in
+          let next = bit-xor-u64 cur 1 in
+          let _ = zero-gen-words (gen-base-addr f next) 0 f.ar-words-per-gen in
+          let _ = if ge-u64 elapsed double-win then zero-gen-words (gen-base-addr f cur) 0 f.ar-words-per-gen else () in
+          let _ = raw-store-u64 hdr next in
+          raw-store-u64 (wrapping-add-i64 hdr 8) now-ns
+
+  -- | SplitMix64 bijective avalanche mixer for independent Bloom probe hashes.
+  #[inline(always)]
+  #[no-alloc]
+  mix64 :: U64 -> U64
+  mix64 x =
+    let z0 = wrapping-add-u64 x 11400714819323198485 in
+    let z1 = wrapping-mul-u64 (bit-xor-u64 z0 (wrapping-shr-u64 z0 30)) 13787848793156543929 in
+    let z2 = wrapping-mul-u64 (bit-xor-u64 z1 (wrapping-shr-u64 z1 27)) 10723151780598845931 in
+    bit-xor-u64 z2 (wrapping-shr-u64 z2 31)
+
+  #[inline(always)]
+  #[no-alloc]
+  bloom-bit-test :: I64 -> U32 -> U64 ->{MVar} Bool
+  bloom-bit-test gen-addr word-mask h =
+    let w-idx = bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 h 6)) word-mask in
+    let b-idx = wrapping-u64-to-u32 (bit-and-u64 h 63) in
+    let word = raw-load-u64 (wrapping-add-i64 gen-addr (wrapping-shl-i64 (u32-to-i64 w-idx) 3)) in
+    let bit = wrapping-shl-u64 1 b-idx in
+    ne-u64 (bit-and-u64 word bit) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  bloom-bit-set :: I64 -> U32 -> U64 ->{MVar} Unit
+  bloom-bit-set gen-addr word-mask h =
+    let w-idx = bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 h 6)) word-mask in
+    let b-idx = wrapping-u64-to-u32 (bit-and-u64 h 63) in
+    let addr = wrapping-add-i64 gen-addr (wrapping-shl-i64 (u32-to-i64 w-idx) 3) in
+    let word = raw-load-u64 addr in
+    raw-store-u64 addr (bit-or-u64 word (wrapping-shl-u64 1 b-idx))
+
+  #[inline(always)]
+  #[no-alloc]
+  bloom-present-in-gen :: I64 -> U32 -> U64 -> U64 -> U64 -> U64 ->{MVar} Bool
+  bloom-present-in-gen gen-addr mask h0 h1 h2 h3 =
+    if bloom-bit-test gen-addr mask h0 then
+      if bloom-bit-test gen-addr mask h1 then
+        if bloom-bit-test gen-addr mask h2 then
+          bloom-bit-test gen-addr mask h3
+        else ar-false
+      else ar-false
+    else ar-false
+
+  -- | Check whether 0-RTT `nonce` was seen in the current or previous window;
+  -- if fresh, insert it into the current generation and return `True`; if a
+  -- duplicate/replay is detected, return `False`. O(1) with zero heap allocs.
+  #[no-alloc]
+  anti-replay-check-and-insert :: AntiReplayFilter -> U64 -> U64 ->{MVar} Bool
+  anti-replay-check-and-insert f nonce now-ns =
+    if eq-u64 f.ar-dma-base 0 then ar-false
+    else
+      let _ = anti-replay-rotate f now-ns in
+      let hdr = wrapping-u64-to-i64 f.ar-dma-base in
+      let cur = raw-load-u64 hdr in
+      let prev = bit-xor-u64 cur 1 in
+      let cur-addr = gen-base-addr f cur in
+      let prev-addr = gen-base-addr f prev in
+      let h0 = mix64 nonce in
+      let h1 = mix64 (bit-xor-u64 h0 0x9e3779b97f4a7c15) in
+      let h2 = mix64 (bit-xor-u64 h1 0xbf58476d1ce4e5b9) in
+      let h3 = mix64 (bit-xor-u64 h2 0x94d049bb133111eb) in
+      let seen-cur = bloom-present-in-gen cur-addr f.ar-word-mask h0 h1 h2 h3 in
+      let seen-prev = bloom-present-in-gen prev-addr f.ar-word-mask h0 h1 h2 h3 in
+      if ar-or seen-cur seen-prev then
+        let rej-addr = wrapping-add-i64 hdr 24 in
+        let _ = raw-store-u64 rej-addr (wrapping-add-u64 (raw-load-u64 rej-addr) 1) in
+        ar-false
+      else
+        let _ = bloom-bit-set cur-addr f.ar-word-mask h0 in
+        let _ = bloom-bit-set cur-addr f.ar-word-mask h1 in
+        let _ = bloom-bit-set cur-addr f.ar-word-mask h2 in
+        let _ = bloom-bit-set cur-addr f.ar-word-mask h3 in
+        let ins-addr = wrapping-add-i64 hdr 16 in
+        let _ = raw-store-u64 ins-addr (wrapping-add-u64 (raw-load-u64 ins-addr) 1) in
+        ar-true
