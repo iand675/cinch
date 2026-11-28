@@ -1323,6 +1323,10 @@
     {
       "name": "Prim.SimdExt",
       "path": "Prim/SimdExt.cinch"
+    },
+    {
+      "name": "Prim.Atomic",
+      "path": "Prim/Atomic.cinch"
     }
   ],
   "order": [
@@ -1655,6 +1659,7 @@
     "Text.Strconv",
     "Text.User",
     "Effect.User",
-    "Prim.SimdExt"
+    "Prim.SimdExt",
+    "Prim.Atomic"
   ]
 }

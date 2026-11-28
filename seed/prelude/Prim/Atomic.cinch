@@ -1,0 +1,368 @@
+-- | Inline LLVM atomic operations, memory fences, CPU spin-wait hints,
+-- cache prefetch instructions, and raw DMA/shared-memory loads and stores
+-- over raw 64-bit byte addresses.
+--
+-- Every `unsafe llvm` primitive conforms to `mem_contract` rules:
+--   * Explicit `align 8` on every 64-bit atomic load, store, CAS, and RMW.
+--   * Valid LLVM LangRef memory orderings (`monotonic`, `acquire`, `release`,
+--     `acq_rel`, `seq_cst`) with `strength(failure) <= strength(success)` on
+--     `cmpxchg` and non-monotonic fences.
+--   * Explicit `{MVar}` effect row on every operation (never pure `->{}`).
+--
+-- Intended for lock-free SPSC/MPSC/MPMC ring buffers, LMAX Disruptor cursors,
+-- shared-memory IPC, and 4 KiB-aligned DMA slabs allocated via
+-- `cinch_engine_dma_alloc` or raw `Bytes` buffers.
+module Prim.Atomic where
+
+  import Data.Machine
+
+  export atomic-load-relaxed-i64, atomic-load-acquire-i64, atomic-load-seqcst-i64
+  export atomic-store-relaxed-i64, atomic-store-release-i64, atomic-store-seqcst-i64
+  export atomic-cas-acqrel-i64, atomic-cas-seqcst-i64
+  export atomic-fetch-add-acqrel-i64, atomic-fetch-add-relaxed-i64
+  export atomic-swap-acqrel-i64
+  export atomic-load-relaxed-u64, atomic-load-acquire-u64, atomic-load-seqcst-u64
+  export atomic-store-relaxed-u64, atomic-store-release-u64, atomic-store-seqcst-u64
+  export atomic-cas-acqrel-u64, atomic-cas-seqcst-u64
+  export atomic-fetch-add-acqrel-u64, atomic-fetch-add-relaxed-u64
+  export atomic-swap-acqrel-u64
+  export atomic-fence-acquire, atomic-fence-release, atomic-fence-seqcst
+  export raw-load-i64, raw-store-i64
+  export raw-load-u8, raw-store-u8
+  export raw-load-u32, raw-store-u32
+  export raw-load-u64, raw-store-u64
+  export raw-load-u128, raw-store-u128
+  export cpu-pause, prefetch-read, prefetch-write
+
+  -- ---------------------------------------------------------------------
+  -- 64-bit atomic loads (addr must be 8-byte aligned)
+  -- ---------------------------------------------------------------------
+
+  -- | Atomic 64-bit load with relaxed (`monotonic`) ordering.
+  prim atomic-load-relaxed-i64 :: I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load atomic i64, ptr %p monotonic, align 8
+      ret i64 %v
+    }
+
+  -- | Atomic 64-bit load with `acquire` ordering.
+  prim atomic-load-acquire-i64 :: I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load atomic i64, ptr %p acquire, align 8
+      ret i64 %v
+    }
+
+  -- | Atomic 64-bit load with `seq_cst` ordering.
+  prim atomic-load-seqcst-i64 :: I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load atomic i64, ptr %p seq_cst, align 8
+      ret i64 %v
+    }
+
+  -- ---------------------------------------------------------------------
+  -- 64-bit atomic stores (addr must be 8-byte aligned)
+  -- ---------------------------------------------------------------------
+
+  -- | Atomic 64-bit store with relaxed (`monotonic`) ordering.
+  prim atomic-store-relaxed-i64 :: I64 -> I64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store atomic i64 %1, ptr %p monotonic, align 8
+      ret void
+    }
+
+  -- | Atomic 64-bit store with `release` ordering.
+  prim atomic-store-release-i64 :: I64 -> I64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store atomic i64 %1, ptr %p release, align 8
+      ret void
+    }
+
+  -- | Atomic 64-bit store with `seq_cst` ordering.
+  prim atomic-store-seqcst-i64 :: I64 -> I64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store atomic i64 %1, ptr %p seq_cst, align 8
+      ret void
+    }
+
+  -- ---------------------------------------------------------------------
+  -- 64-bit atomic compare-and-swap & read-modify-write (addr 8-aligned)
+  -- ---------------------------------------------------------------------
+
+  -- | Strong atomic compare-and-exchange (`acq_rel` success, `acquire` failure).
+  -- Returns `True` if `*addr == expected` and `desired` was stored.
+  prim atomic-cas-acqrel-i64 :: I64 -> I64 -> I64 ->{MVar} Bool where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %r = cmpxchg ptr %p, i64 %1, i64 %2 acq_rel acquire, align 8
+      %ok = extractvalue { i64, i1 } %r, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  -- | Strong atomic compare-and-exchange (`seq_cst` success and failure).
+  -- Returns `True` if `*addr == expected` and `desired` was stored.
+  prim atomic-cas-seqcst-i64 :: I64 -> I64 -> I64 ->{MVar} Bool where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %r = cmpxchg ptr %p, i64 %1, i64 %2 seq_cst seq_cst, align 8
+      %ok = extractvalue { i64, i1 } %r, 1
+      %z = zext i1 %ok to i8
+      ret i8 %z
+    }
+
+  -- | Atomic fetch-and-add (`acq_rel`), returning the previous value.
+  prim atomic-fetch-add-acqrel-i64 :: I64 -> I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %old = atomicrmw add ptr %p, i64 %1 acq_rel, align 8
+      ret i64 %old
+    }
+
+  -- | Atomic fetch-and-add (`monotonic`), returning the previous value.
+  prim atomic-fetch-add-relaxed-i64 :: I64 -> I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %old = atomicrmw add ptr %p, i64 %1 monotonic, align 8
+      ret i64 %old
+    }
+
+  -- | Atomic swap (`acq_rel`), returning the previous value.
+  prim atomic-swap-acqrel-i64 :: I64 -> I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %old = atomicrmw xchg ptr %p, i64 %1 acq_rel, align 8
+      ret i64 %old
+    }
+
+  -- ---------------------------------------------------------------------
+  -- Memory fences
+  -- ---------------------------------------------------------------------
+
+  prim prim-fence-acquire :: I64 ->{MVar} Unit where
+    unsafe llvm {
+      fence acquire
+      ret void
+    }
+
+  prim prim-fence-release :: I64 ->{MVar} Unit where
+    unsafe llvm {
+      fence release
+      ret void
+    }
+
+  prim prim-fence-seqcst :: I64 ->{MVar} Unit where
+    unsafe llvm {
+      fence seq_cst
+      ret void
+    }
+
+  -- | Hardware/compiler `acquire` memory fence.
+  atomic-fence-acquire :: Unit ->{MVar} Unit
+  atomic-fence-acquire _ = prim-fence-acquire 0
+
+  -- | Hardware/compiler `release` memory fence.
+  atomic-fence-release :: Unit ->{MVar} Unit
+  atomic-fence-release _ = prim-fence-release 0
+
+  -- | Hardware/compiler `seq_cst` memory fence.
+  atomic-fence-seqcst :: Unit ->{MVar} Unit
+  atomic-fence-seqcst _ = prim-fence-seqcst 0
+
+  -- ---------------------------------------------------------------------
+  -- Non-atomic raw memory access (DMA slabs, SHM, ring payload slots)
+  -- ---------------------------------------------------------------------
+
+  -- | Non-atomic raw 64-bit signed load from `addr`.
+  prim raw-load-i64 :: I64 ->{MVar} I64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i64, ptr %p, align 1
+      ret i64 %v
+    }
+
+  -- | Non-atomic raw 64-bit signed store to `addr`.
+  prim raw-store-i64 :: I64 -> I64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store i64 %1, ptr %p, align 1
+      ret void
+    }
+
+  -- | Non-atomic raw 8-bit unsigned load from `addr`.
+  prim raw-load-u8 :: I64 ->{MVar} U8 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i8, ptr %p, align 1
+      ret i8 %v
+    }
+
+  -- | Non-atomic raw 8-bit unsigned store to `addr`.
+  prim raw-store-u8 :: I64 -> U8 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store i8 %1, ptr %p, align 1
+      ret void
+    }
+
+  -- | Non-atomic raw 32-bit unsigned load from `addr`.
+  prim raw-load-u32 :: I64 ->{MVar} U32 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i32, ptr %p, align 1
+      ret i32 %v
+    }
+
+  -- | Non-atomic raw 32-bit unsigned store to `addr`.
+  prim raw-store-u32 :: I64 -> U32 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store i32 %1, ptr %p, align 1
+      ret void
+    }
+
+  -- | Non-atomic raw 64-bit unsigned load from `addr`.
+  prim raw-load-u64 :: I64 ->{MVar} U64 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i64, ptr %p, align 1
+      ret i64 %v
+    }
+
+  -- | Non-atomic raw 64-bit unsigned store to `addr`.
+  prim raw-store-u64 :: I64 -> U64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store i64 %1, ptr %p, align 1
+      ret void
+    }
+
+  -- | Non-atomic raw 128-bit unsigned load from `addr`.
+  prim raw-load-u128 :: I64 ->{MVar} U128 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i128, ptr %p, align 1
+      ret i128 %v
+    }
+
+  -- | Non-atomic raw 128-bit unsigned store to `addr`.
+  prim raw-store-u128 :: I64 -> U128 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      store i128 %1, ptr %p, align 1
+      ret void
+    }
+
+  -- ---------------------------------------------------------------------
+  -- CPU spin-wait hint & cache prefetch
+  -- ---------------------------------------------------------------------
+
+  prim prim-cpu-pause :: I64 ->{MVar} Unit where
+    unsafe llvm {
+      call void asm sideeffect "pause", "~{dirflag},~{fpsr},~{flags}"()
+      ret void
+    } when arch x86_64
+    unsafe llvm {
+      call void asm sideeffect "yield", ""()
+      ret void
+    } when arch aarch64
+    llvm {
+      ret void
+    }
+
+  -- | Emit a CPU spin-wait pause hint (`pause` on x86_64, `yield` on aarch64,
+  -- portable no-op fallback).
+  cpu-pause :: Unit ->{MVar} Unit
+  cpu-pause _ = prim-cpu-pause 0
+
+  -- | Prefetch cache line at `addr` for upcoming reads (`prefetcht0` on x86_64,
+  -- `prfm pldl1keep` on aarch64, portable no-op fallback).
+  prim prefetch-read :: I64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      call void asm sideeffect "prefetcht0 ($0)", "r"(ptr %p)
+      ret void
+    } when arch x86_64
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      call void asm sideeffect "prfm pldl1keep, [$0]", "r"(ptr %p)
+      ret void
+    } when arch aarch64
+    llvm {
+      ret void
+    }
+
+  -- | Prefetch cache line at `addr` for upcoming writes (`prefetchw` on x86_64,
+  -- `prfm pstl1keep` on aarch64, portable no-op fallback).
+  prim prefetch-write :: I64 ->{MVar} Unit where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      call void asm sideeffect "prefetchw ($0)", "r"(ptr %p)
+      ret void
+    } when arch x86_64
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      call void asm sideeffect "prfm pstl1keep, [$0]", "r"(ptr %p)
+      ret void
+    } when arch aarch64
+    llvm {
+      ret void
+    }
+
+  -- ---------------------------------------------------------------------
+  -- Safe U64 atomic wrappers (bit-preserving over 8-aligned addresses)
+  -- ---------------------------------------------------------------------
+
+  -- | Atomic `U64` load with relaxed (`monotonic`) ordering.
+  atomic-load-relaxed-u64 :: I64 ->{MVar} U64
+  atomic-load-relaxed-u64 addr = wrapping-i64-to-u64 (atomic-load-relaxed-i64 addr)
+
+  -- | Atomic `U64` load with `acquire` ordering.
+  atomic-load-acquire-u64 :: I64 ->{MVar} U64
+  atomic-load-acquire-u64 addr = wrapping-i64-to-u64 (atomic-load-acquire-i64 addr)
+
+  -- | Atomic `U64` load with `seq_cst` ordering.
+  atomic-load-seqcst-u64 :: I64 ->{MVar} U64
+  atomic-load-seqcst-u64 addr = wrapping-i64-to-u64 (atomic-load-seqcst-i64 addr)
+
+  -- | Atomic `U64` store with relaxed (`monotonic`) ordering.
+  atomic-store-relaxed-u64 :: I64 -> U64 ->{MVar} Unit
+  atomic-store-relaxed-u64 addr val = atomic-store-relaxed-i64 addr (wrapping-u64-to-i64 val)
+
+  -- | Atomic `U64` store with `release` ordering.
+  atomic-store-release-u64 :: I64 -> U64 ->{MVar} Unit
+  atomic-store-release-u64 addr val = atomic-store-release-i64 addr (wrapping-u64-to-i64 val)
+
+  -- | Atomic `U64` store with `seq_cst` ordering.
+  atomic-store-seqcst-u64 :: I64 -> U64 ->{MVar} Unit
+  atomic-store-seqcst-u64 addr val = atomic-store-seqcst-i64 addr (wrapping-u64-to-i64 val)
+
+  -- | Strong atomic `U64` compare-and-exchange (`acq_rel` success, `acquire` failure).
+  atomic-cas-acqrel-u64 :: I64 -> U64 -> U64 ->{MVar} Bool
+  atomic-cas-acqrel-u64 addr expected desired =
+    atomic-cas-acqrel-i64 addr (wrapping-u64-to-i64 expected) (wrapping-u64-to-i64 desired)
+
+  -- | Strong atomic `U64` compare-and-exchange (`seq_cst` success and failure).
+  atomic-cas-seqcst-u64 :: I64 -> U64 -> U64 ->{MVar} Bool
+  atomic-cas-seqcst-u64 addr expected desired =
+    atomic-cas-seqcst-i64 addr (wrapping-u64-to-i64 expected) (wrapping-u64-to-i64 desired)
+
+  -- | Atomic `U64` wrapping fetch-and-add (`acq_rel`), returning the previous value.
+  atomic-fetch-add-acqrel-u64 :: I64 -> U64 ->{MVar} U64
+  atomic-fetch-add-acqrel-u64 addr delta =
+    wrapping-i64-to-u64 (atomic-fetch-add-acqrel-i64 addr (wrapping-u64-to-i64 delta))
+
+  -- | Atomic `U64` wrapping fetch-and-add (`monotonic`), returning the previous value.
+  atomic-fetch-add-relaxed-u64 :: I64 -> U64 ->{MVar} U64
+  atomic-fetch-add-relaxed-u64 addr delta =
+    wrapping-i64-to-u64 (atomic-fetch-add-relaxed-i64 addr (wrapping-u64-to-i64 delta))
+
+  -- | Atomic `U64` swap (`acq_rel`), returning the previous value.
+  atomic-swap-acqrel-u64 :: I64 -> U64 ->{MVar} U64
+  atomic-swap-acqrel-u64 addr val =
+    wrapping-i64-to-u64 (atomic-swap-acqrel-i64 addr (wrapping-u64-to-i64 val))

@@ -263,6 +263,12 @@
       "name_prefix": "portable-",
       "reason": "Portable OS boundary fallback primitives",
       "audit_rule": "mem_contract:effect-accountability"
+    },
+    {
+      "module": "Prim.Atomic",
+      "name_prefix": "",
+      "reason": "Inline LLVM atomic, memory fence, spin-wait, prefetch, and raw DMA access primitives audited by mem_contract.rs",
+      "audit_rule": "mem_contract:atomic-ordering+alignment+effect-accountability"
     }
   ]
 }
