@@ -508,8 +508,14 @@ module Cinch.Foreign where
     else if string-starts-with ".arch_extension crc\\0A" s then string-strip (string-slice s 23 (string-length s))
     else s
 
+  join-asm-words :: List String -> String
+  join-asm-words ws = case ws of
+    [] -> ""
+    [w] -> w
+    w : rest -> string-concat w (string-concat " " (join-asm-words rest))
+
   normalize-asm-ws :: String -> String
-  normalize-asm-ws s = string-unwords (string-words s)
+  normalize-asm-ws s = join-asm-words (string-words s)
 
   is-verified-arm-crc-ops :: Nat -> String -> String -> Bool
   is-verified-arm-crc-ops dbits cons rest = case string-split-on "," rest of
