@@ -1,0 +1,427 @@
+-- Prim.Sys.Io.Darwin: high-throughput Darwin OS I/O bindings over `libSystem`.
+--
+-- Mirrors `Prim.Sys.Darwin` for the high-throughput reactor (`kqueue`/`kevent`),
+-- non-blocking TCP/UDP sockets, `SO_REUSEPORT`, `F_NOCACHE`, scatter-gather
+-- `readv`/`writev`, `sendfile`, `mmap`, and `clock_gettime`.
+--
+-- Apple's Darwin kernel does not guarantee a stable raw `svc` syscall ABI, so
+-- every entry binds the documented `libSystem` C symbol via `foreign import ccall`
+-- (`__fcntl` and `__open` are the fixed-arity 3-argument libSystem entry points,
+-- avoiding Apple arm64's stack-based variadic ABI mismatch).
+--
+-- Return convention (zero-allocation hot path, matching `Prim.Sys.Io.Linux`):
+--   * Non-negative `I64` (or mapped address for `sys-mmap`): success value.
+--   * Negative `I64`: negated Darwin `errno` read immediately via `__error()`.
+module Prim.Sys.Io.Darwin where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  export DarwinKevent, Iovec, SockAddrIn, Timespec
+  export af-inet, af-inet6, sock-stream, sock-dgram
+  export sol-socket, so-reuseaddr, so-reuseport
+  export ipproto-tcp, tcp-nodelay
+  export f-getfl, f-setfl, f-nocache
+  export o-rdonly, o-wronly, o-rdwr, o-nonblock, o-creat, o-trunc
+  export evfilt-read, evfilt-write
+  export ev-add, ev-delete, ev-enable, ev-clear, ev-eof
+  export clock-realtime, clock-monotonic
+  export prot-none, prot-read, prot-write
+  export map-shared, map-private, map-anon
+  export eintr, eagain, einprogress, enosys
+  export sys-errno, io-is-err, io-errno
+  export io-is-would-block, io-is-in-progress, io-is-interrupted
+  export sys-kqueue, sys-kevent
+  export sys-socket, sys-bind, sys-listen, sys-accept, sys-connect
+  export sys-setsockopt, sys-getsockopt, sys-getsockname, sys-close, sys-fcntl
+  export sys-read, sys-write, sys-readv, sys-writev
+  export sys-sendto, sys-recvfrom, sys-sendmsg, sys-recvmsg
+  export sys-pread, sys-pwrite, sys-sendfile
+  export sys-mmap, sys-munmap, sys-open, sys-ftruncate, sys-fsync
+  export sys-clock-gettime
+  export sys-set-nonblocking, sys-sockaddr-in-loopback, sys-sockaddr-in-port, sys-held
+
+  -- ------------------------------------------------------------------
+  -- Darwin kernel ABI structs (`#[repr(C)]`)
+  -- ------------------------------------------------------------------
+
+  -- | Darwin `struct kevent` (`<sys/event.h>` uses `#pragma pack(4)`: 32 bytes, align 4).
+  #[repr(C, packed(4))]
+  record DarwinKevent where
+    ident :: U64
+    filter :: I16
+    flags :: U16
+    fflags :: U32
+    ev-data :: I64
+    udata :: I64
+
+  -- | POSIX / Darwin `struct iovec` (16 bytes, align 8).
+  #[repr(C)]
+  record Iovec where
+    iov-base :: U64
+    iov-len :: U64
+
+  -- | Darwin `struct sockaddr_in` (16 bytes, align 4).
+  #[repr(C)]
+  record SockAddrIn where
+    sin-len :: U8
+    sin-family :: U8
+    sin-port :: U16
+    sin-addr :: U32
+    sin-zero-lo :: U32
+    sin-zero-hi :: U32
+
+  -- | POSIX / Darwin `struct timespec` (16 bytes, align 8).
+  #[repr(C)]
+  record Timespec where
+    tv-sec :: I64
+    tv-nsec :: I64
+
+  -- ------------------------------------------------------------------
+  -- Darwin ABI constants
+  -- ------------------------------------------------------------------
+
+  af-inet :: I64
+  af-inet = 2
+
+  af-inet6 :: I64
+  af-inet6 = 30
+
+  sock-stream :: I64
+  sock-stream = 1
+
+  sock-dgram :: I64
+  sock-dgram = 2
+
+  sol-socket :: I64
+  sol-socket = 0xffff
+
+  so-reuseaddr :: I64
+  so-reuseaddr = 0x0004
+
+  so-reuseport :: I64
+  so-reuseport = 0x0200
+
+  ipproto-tcp :: I64
+  ipproto-tcp = 6
+
+  tcp-nodelay :: I64
+  tcp-nodelay = 1
+
+  f-getfl :: I64
+  f-getfl = 3
+
+  f-setfl :: I64
+  f-setfl = 4
+
+  f-nocache :: I64
+  f-nocache = 48
+
+  o-rdonly :: I64
+  o-rdonly = 0
+
+  o-wronly :: I64
+  o-wronly = 1
+
+  o-rdwr :: I64
+  o-rdwr = 2
+
+  o-nonblock :: I64
+  o-nonblock = 0x0004
+
+  o-creat :: I64
+  o-creat = 0x0200
+
+  o-trunc :: I64
+  o-trunc = 0x0400
+
+  evfilt-read :: I64
+  evfilt-read = -1
+
+  evfilt-write :: I64
+  evfilt-write = -2
+
+  ev-add :: I64
+  ev-add = 1
+
+  ev-delete :: I64
+  ev-delete = 2
+
+  ev-enable :: I64
+  ev-enable = 4
+
+  ev-clear :: I64
+  ev-clear = 0x20
+
+  ev-eof :: I64
+  ev-eof = 0x8000
+
+  clock-realtime :: I64
+  clock-realtime = 0
+
+  clock-monotonic :: I64
+  clock-monotonic = 6
+
+  prot-none :: I64
+  prot-none = 0
+
+  prot-read :: I64
+  prot-read = 1
+
+  prot-write :: I64
+  prot-write = 2
+
+  map-shared :: I64
+  map-shared = 1
+
+  map-private :: I64
+  map-private = 2
+
+  map-anon :: I64
+  map-anon = 0x1000
+
+  eintr :: I64
+  eintr = 4
+
+  eagain :: I64
+  eagain = 35
+
+  einprogress :: I64
+  einprogress = 36
+
+  enosys :: I64
+  enosys = 78
+
+  -- ------------------------------------------------------------------
+  -- `libSystem` foreign imports & audited errno slot load
+  -- ------------------------------------------------------------------
+
+  foreign import ccall "kqueue" c-kqueue :: forall r. Unit ->{IO r} I32
+  foreign import ccall "kevent" c-kevent :: forall r. I32 -> I64 -> I32 -> I64 -> I32 -> I64 ->{IO r} I32
+  foreign import ccall "socket" c-socket :: forall r. I32 -> I32 -> I32 ->{IO r} I32
+  foreign import ccall "bind" c-bind :: forall r. I32 -> I64 -> U32 ->{IO r} I32
+  foreign import ccall "listen" c-listen :: forall r. I32 -> I32 ->{IO r} I32
+  foreign import ccall "accept" c-accept :: forall r. I32 -> I64 -> I64 ->{IO r} I32
+  foreign import ccall "connect" c-connect :: forall r. I32 -> I64 -> U32 ->{IO r} I32
+  foreign import ccall "setsockopt" c-setsockopt :: forall r. I32 -> I32 -> I32 -> I64 -> U32 ->{IO r} I32
+  foreign import ccall "getsockopt" c-getsockopt :: forall r. I32 -> I32 -> I32 -> I64 -> I64 ->{IO r} I32
+  foreign import ccall "getsockname" c-getsockname :: forall r. I32 -> I64 -> I64 ->{IO r} I32
+  foreign import ccall "close" c-close :: forall r. I32 ->{IO r} I32
+  foreign import ccall "__fcntl" c-fcntl :: forall r. I32 -> I32 -> I64 ->{IO r} I32
+  foreign import ccall "read" c-read :: forall r. I32 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "write" c-write :: forall r. I32 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "readv" c-readv :: forall r. I32 -> I64 -> I32 ->{IO r} I64
+  foreign import ccall "writev" c-writev :: forall r. I32 -> I64 -> I32 ->{IO r} I64
+  foreign import ccall "sendto" c-sendto :: forall r. I32 -> I64 -> I64 -> I32 -> I64 -> U32 ->{IO r} I64
+  foreign import ccall "recvfrom" c-recvfrom :: forall r. I32 -> I64 -> I64 -> I32 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "sendmsg" c-sendmsg :: forall r. I32 -> I64 -> I32 ->{IO r} I64
+  foreign import ccall "recvmsg" c-recvmsg :: forall r. I32 -> I64 -> I32 ->{IO r} I64
+  foreign import ccall "pread" c-pread :: forall r. I32 -> I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "pwrite" c-pwrite :: forall r. I32 -> I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "sendfile" c-sendfile :: forall r. I32 -> I32 -> I64 -> I64 -> I64 -> I32 ->{IO r} I32
+  foreign import ccall "mmap" c-mmap :: forall r. I64 -> I64 -> I32 -> I32 -> I32 -> I64 ->{IO r} I64
+  foreign import ccall "munmap" c-munmap :: forall r. I64 -> I64 ->{IO r} I32
+  foreign import ccall "__open" c-open :: forall r. I64 -> I32 -> I32 ->{IO r} I32
+  foreign import ccall "ftruncate" c-ftruncate :: forall r. I32 -> I64 ->{IO r} I32
+  foreign import ccall "fsync" c-fsync :: forall r. I32 ->{IO r} I32
+  foreign import ccall "clock_gettime" c-clock-gettime :: forall r. I32 -> I64 ->{IO r} I32
+  foreign import ccall "__error" c-errno-slot :: forall r. Unit ->{IO r} I64
+
+  -- | Audited 32-bit aligned load from Darwin's thread-local `__error()` slot.
+  prim darwin-load-i32 :: forall r. I64 ->{IO r} I32 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i32, ptr %p, align 4
+      ret i32 %v
+    }
+
+  -- | Read Darwin's thread-local `errno` immediately after a failed call.
+  sys-errno :: forall r. Unit ->{IO r} I32
+  sys-errno u = darwin-load-i32 (c-errno-slot ())
+
+  darwin-neg-errno :: forall r. Unit ->{IO r} I64
+  darwin-neg-errno u =
+    let e = i32-to-i64 (sys-errno ()) in
+    if lt-i64 0 e then wrapping-neg-i64 e else -5
+
+  darwin-res-i32 :: forall r. I32 ->{IO r} I64
+  darwin-res-i32 r =
+    let v = i32-to-i64 r in
+    if lt-i64 v 0 then darwin-neg-errno () else v
+
+  darwin-res-i64 :: forall r. I64 ->{IO r} I64
+  darwin-res-i64 r =
+    if lt-i64 r 0 then darwin-neg-errno () else r
+
+  -- | True when a syscall return value encodes a negated Darwin `errno`.
+  io-is-err :: I64 -> Bool
+  io-is-err r = lt-i64 r 0 && le-i64 -4095 r
+
+  -- | Positive errno extracted from a negative syscall return (or `0` on success).
+  io-errno :: I64 -> I64
+  io-errno r = if io-is-err r then wrapping-neg-i64 r else 0
+
+  -- | True when the call failed with `EAGAIN` / `EWOULDBLOCK`.
+  io-is-would-block :: I64 -> Bool
+  io-is-would-block r = eq-i64 (io-errno r) eagain
+
+  -- | True when a non-blocking `connect` returned `EINPROGRESS`.
+  io-is-in-progress :: I64 -> Bool
+  io-is-in-progress r = eq-i64 (io-errno r) einprogress
+
+  -- | True when the call failed with `EINTR`.
+  io-is-interrupted :: I64 -> Bool
+  io-is-interrupted r = eq-i64 (io-errno r) eintr
+
+  -- ------------------------------------------------------------------
+  -- Effectful Darwin syscall wrappers
+  -- ------------------------------------------------------------------
+
+  sys-kqueue :: forall r. using (io :: Io r) => Unit ->{IO r} I64
+  sys-kqueue u = darwin-res-i32 (c-kqueue ())
+
+  sys-kevent :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-kevent kq changelist nchanges eventlist nevents timeout =
+    darwin-res-i32 (c-kevent (wrapping-i64-to-i32 kq) changelist (wrapping-i64-to-i32 nchanges) eventlist (wrapping-i64-to-i32 nevents) timeout)
+
+  sys-socket :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-socket domain ty proto =
+    darwin-res-i32 (c-socket (wrapping-i64-to-i32 domain) (wrapping-i64-to-i32 ty) (wrapping-i64-to-i32 proto))
+
+  sys-bind :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-bind fd addr addrlen =
+    darwin-res-i32 (c-bind (wrapping-i64-to-i32 fd) addr (wrapping-i64-to-u32 addrlen))
+
+  sys-listen :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-listen fd backlog =
+    darwin-res-i32 (c-listen (wrapping-i64-to-i32 fd) (wrapping-i64-to-i32 backlog))
+
+  sys-accept :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-accept fd addr addrlen =
+    darwin-res-i32 (c-accept (wrapping-i64-to-i32 fd) addr addrlen)
+
+  sys-connect :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-connect fd addr addrlen =
+    darwin-res-i32 (c-connect (wrapping-i64-to-i32 fd) addr (wrapping-i64-to-u32 addrlen))
+
+  sys-setsockopt :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-setsockopt fd level optname optval optlen =
+    darwin-res-i32 (c-setsockopt (wrapping-i64-to-i32 fd) (wrapping-i64-to-i32 level) (wrapping-i64-to-i32 optname) optval (wrapping-i64-to-u32 optlen))
+
+  sys-getsockopt :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-getsockopt fd level optname optval optlen =
+    darwin-res-i32 (c-getsockopt (wrapping-i64-to-i32 fd) (wrapping-i64-to-i32 level) (wrapping-i64-to-i32 optname) optval optlen)
+
+  sys-getsockname :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-getsockname fd addr addrlen =
+    darwin-res-i32 (c-getsockname (wrapping-i64-to-i32 fd) addr addrlen)
+
+  sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-close fd = darwin-res-i32 (c-close (wrapping-i64-to-i32 fd))
+
+  sys-fcntl :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-fcntl fd cmd arg =
+    darwin-res-i32 (c-fcntl (wrapping-i64-to-i32 fd) (wrapping-i64-to-i32 cmd) arg)
+
+  sys-read :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-read fd buf count = darwin-res-i64 (c-read (wrapping-i64-to-i32 fd) buf count)
+
+  sys-write :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-write fd buf count = darwin-res-i64 (c-write (wrapping-i64-to-i32 fd) buf count)
+
+  sys-readv :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-readv fd iov iovcnt =
+    darwin-res-i64 (c-readv (wrapping-i64-to-i32 fd) iov (wrapping-i64-to-i32 iovcnt))
+
+  sys-writev :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-writev fd iov iovcnt =
+    darwin-res-i64 (c-writev (wrapping-i64-to-i32 fd) iov (wrapping-i64-to-i32 iovcnt))
+
+  sys-sendto :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendto fd buf len flags dest-addr addrlen =
+    darwin-res-i64 (c-sendto (wrapping-i64-to-i32 fd) buf len (wrapping-i64-to-i32 flags) dest-addr (wrapping-i64-to-u32 addrlen))
+
+  sys-recvfrom :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvfrom fd buf len flags src-addr addrlen =
+    darwin-res-i64 (c-recvfrom (wrapping-i64-to-i32 fd) buf len (wrapping-i64-to-i32 flags) src-addr addrlen)
+
+  sys-sendmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendmsg fd msg flags =
+    darwin-res-i64 (c-sendmsg (wrapping-i64-to-i32 fd) msg (wrapping-i64-to-i32 flags))
+
+  sys-recvmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvmsg fd msg flags =
+    darwin-res-i64 (c-recvmsg (wrapping-i64-to-i32 fd) msg (wrapping-i64-to-i32 flags))
+
+  sys-pread :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-pread fd buf count offset =
+    darwin-res-i64 (c-pread (wrapping-i64-to-i32 fd) buf count offset)
+
+  sys-pwrite :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-pwrite fd buf count offset =
+    darwin-res-i64 (c-pwrite (wrapping-i64-to-i32 fd) buf count offset)
+
+  sys-sendfile :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendfile fd s offset len-ptr hdtr flags =
+    darwin-res-i32 (c-sendfile (wrapping-i64-to-i32 fd) (wrapping-i64-to-i32 s) offset len-ptr hdtr (wrapping-i64-to-i32 flags))
+
+  sys-mmap :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-mmap addr len prot flags fd offset =
+    let r = c-mmap addr len (wrapping-i64-to-i32 prot) (wrapping-i64-to-i32 flags) (wrapping-i64-to-i32 fd) offset in
+    if eq-i64 r -1 then darwin-neg-errno () else r
+
+  sys-munmap :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-munmap addr len = darwin-res-i32 (c-munmap addr len)
+
+  sys-open :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-open path flags mode =
+    darwin-res-i32 (c-open path (wrapping-i64-to-i32 flags) (wrapping-i64-to-i32 mode))
+
+  sys-ftruncate :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-ftruncate fd len = darwin-res-i32 (c-ftruncate (wrapping-i64-to-i32 fd) len)
+
+  sys-fsync :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-fsync fd = darwin-res-i32 (c-fsync (wrapping-i64-to-i32 fd))
+
+  sys-clock-gettime :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-clock-gettime clock-id tp =
+    darwin-res-i32 (c-clock-gettime (wrapping-i64-to-i32 clock-id) tp)
+
+  -- | Set `O_NONBLOCK` on an open descriptor using `F_GETFL` + `F_SETFL`.
+  sys-set-nonblocking :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-set-nonblocking fd =
+    let flags = sys-fcntl fd f-getfl 0 in
+    if io-is-err flags then flags
+    else sys-fcntl fd f-setfl (bit-or-i64 flags o-nonblock)
+
+  -- | Construct a 16-byte Darwin `struct sockaddr_in` for `127.0.0.1:port`.
+  sys-sockaddr-in-loopback :: U16 -> Bytes
+  sys-sockaddr-in-loopback port =
+    let buf = bytes-new 16 in
+    let p-hi = wrapping-u16-to-u8 (wrapping-shr-u16 port 8) in
+    let p-lo = wrapping-u16-to-u8 port in
+    let w0 = bytes-set-u8 buf 0 16 in
+    let w1 = bytes-set-u8 buf 1 2 in
+    let w2 = bytes-set-u8 buf 2 p-hi in
+    let w3 = bytes-set-u8 buf 3 p-lo in
+    let w4 = bytes-set-u8 buf 4 127 in
+    let w5 = bytes-set-u8 buf 5 0 in
+    let w6 = bytes-set-u8 buf 6 0 in
+    let w7 = bytes-set-u8 buf 7 1 in
+    buf
+
+  -- | Decode the host-order TCP/UDP port from a 16-byte `sockaddr_in` buffer.
+  sys-sockaddr-in-port :: Bytes -> U16
+  sys-sockaddr-in-port buf =
+    if 4 <= bytes-len buf then
+      let hi = u8-to-u16 (bytes-get-u8 buf 2) in
+      let lo = u8-to-u16 (bytes-get-u8 buf 3) in
+      bit-or-u16 (wrapping-shl-u16 hi 8) lo
+    else 0
+
+  -- | Keep `b` alive across a syscall that receives `bytes-data b`.
+  sys-held :: forall a. Bytes -> a -> a
+  sys-held b x = case bytes-len b of
+    _ -> x
