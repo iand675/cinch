@@ -1,0 +1,368 @@
+-- | Formal Model M2 (`RingSyncMachine`): compile-time TLA+-style explicit-state
+-- model of the bounded (`cap = 4`) SPSC + LMAX Disruptor ring protocol with:
+--
+--   * Power-of-two cyclic sequence numbers (mod `2 * cap = 8`, proving full
+--     wraparound across laps without state-space capping)
+--   * Explicit in-flight `%1` `ClaimToken` state (`prod-claim` vs `prod-pub`)
+--   * Per-slot sequence tags (`s0..s3`) proving no overwrite of unread slots,
+--     no read before publication, and exact FIFO sequence delivery
+--   * `SequenceBarrier` consumer cursor (`cons <= barrier <= prod-pub`)
+--   * `WaitAdaptivePark` SeqCst Dekker park/wake protocol (`cons-parked` and
+--     `wake-flag`) proving deadlock-freedom (zero lost wakeups)
+--   * Checked stuttering-aware simulation refinement
+--     `refines RingSyncMachine AbstractFifoQueue` with a strictly decreasing
+--     stuttering rank `measure`.
+module Engine.Ring.Spec where
+
+  import Algebra.Arithmetic
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  export AbsQueueState, abs-enqueue, abs-dequeue
+  export RingState, ring-init, ring-dist, ring-bounds-ok
+  export ring-step-claim, ring-step-publish, ring-step-park, ring-step-wake, ring-step-consume
+  export ring-view, ring-measure
+
+  -- =========================================================================
+  -- 1. Cyclic ring arithmetic (cap = 4, sequence domain = 0..7 mod 8)
+  -- =========================================================================
+
+  ring-cap :: Nat
+  ring-cap = 4
+
+  seq-mod :: Nat
+  seq-mod = 8
+
+  slot-empty :: Nat
+  slot-empty = 8
+
+  inc-mod8 :: Nat -> Nat
+  inc-mod8 x = if x == 7 then 0 else x + 1
+
+  -- | Cyclic forward distance `(a - b) mod 8` (`0 <= result <= 7`).
+  ring-dist :: Nat -> Nat -> Nat
+  ring-dist a b =
+    if a >= b then saturating-sub a b
+    else saturating-sub (a + 8) b
+
+  slot-idx :: Nat -> Nat
+  slot-idx seq =
+    if seq < 4 then seq
+    else saturating-sub seq 4
+
+  -- =========================================================================
+  -- 2. Abstract specification: `AbstractFifoQueue` (`cap = 4`)
+  -- =========================================================================
+
+  record AbsQueueState where
+    abs-prod :: Nat
+    abs-cons :: Nat
+
+  abs-enqueue :: AbsQueueState -> Option AbsQueueState
+  abs-enqueue s =
+    if ring-dist s.abs-prod s.abs-cons < ring-cap then
+      Some (AbsQueueState { abs-prod = inc-mod8 s.abs-prod, abs-cons = s.abs-cons })
+    else None
+
+  abs-dequeue :: AbsQueueState -> Option AbsQueueState
+  abs-dequeue s =
+    if s.abs-prod /= s.abs-cons then
+      Some (AbsQueueState { abs-prod = s.abs-prod, abs-cons = inc-mod8 s.abs-cons })
+    else None
+
+  machine AbstractFifoQueue where
+    state = AbsQueueState
+    init = AbsQueueState { abs-prod = 0, abs-cons = 0 }
+    actions = [abs-enqueue, abs-dequeue]
+    max_states = 1024
+
+  -- =========================================================================
+  -- 3. Concrete implementation model: `RingSyncMachine` (`M2`)
+  -- =========================================================================
+
+  record RingState where
+    prod-claim :: Nat     -- 0..7: next sequence to claim
+    prod-pub :: Nat       -- 0..7: next sequence to publish
+    barrier :: Nat        -- 0..7: SequenceBarrier observed upstream cursor
+    cons :: Nat           -- 0..7: next sequence to consume
+    inflight :: Bool      -- True iff a linear %1 ClaimToken is in flight
+    cons-parked :: Nat    -- 0 = Active, 1 = DekkerChecking, 2 = Parked
+    wake-flag :: Bool     -- True iff producer observed parked >= 1 & signaled
+    s0 :: Nat             -- Slot 0 sequence tag (0..7 = published seq, 8 = empty)
+    s1 :: Nat             -- Slot 1 sequence tag
+    s2 :: Nat             -- Slot 2 sequence tag
+    s3 :: Nat             -- Slot 3 sequence tag
+
+  ring-init :: RingState
+  ring-init = RingState {
+    prod-claim = 0,
+    prod-pub = 0,
+    barrier = 0,
+    cons = 0,
+    inflight = False,
+    cons-parked = 0,
+    wake-flag = False,
+    s0 = slot-empty,
+    s1 = slot-empty,
+    s2 = slot-empty,
+    s3 = slot-empty
+  }
+
+  get-slot :: RingState -> Nat -> Nat
+  get-slot s idx =
+    if idx == 0 then s.s0
+    else if idx == 1 then s.s1
+    else if idx == 2 then s.s2
+    else s.s3
+
+  set-slot :: RingState -> Nat -> Nat -> RingState
+  set-slot s idx v =
+    RingState {
+      prod-claim = s.prod-claim,
+      prod-pub = s.prod-pub,
+      barrier = s.barrier,
+      cons = s.cons,
+      inflight = s.inflight,
+      cons-parked = s.cons-parked,
+      wake-flag = s.wake-flag,
+      s0 = if idx == 0 then v else s.s0,
+      s1 = if idx == 1 then v else s.s1,
+      s2 = if idx == 2 then v else s.s2,
+      s3 = if idx == 3 then v else s.s3
+    }
+
+  -- | Producer acquires a `%1 ClaimToken` when no claim is in flight and the
+  -- ring has free capacity (`0 <= prod-claim - cons < cap`).
+  ring-step-claim :: RingState -> Option RingState
+  ring-step-claim s =
+    if not s.inflight && ring-dist s.prod-claim s.cons < ring-cap then
+      Some (RingState {
+        prod-claim = inc-mod8 s.prod-claim,
+        prod-pub = s.prod-pub,
+        barrier = s.barrier,
+        cons = s.cons,
+        inflight = True,
+        cons-parked = s.cons-parked,
+        wake-flag = s.wake-flag,
+        s0 = s.s0,
+        s1 = s.s1,
+        s2 = s.s2,
+        s3 = s.s3
+      })
+    else None
+
+  -- | Producer writes the slot payload (exact sequence tag `s.prod-pub`),
+  -- linearly consumes the `%1 ClaimToken`, advances `prod-pub` with release
+  -- semantics, and performs the SeqCst Dekker wake check on `cons-parked`.
+  ring-step-publish :: RingState -> Option RingState
+  ring-step-publish s =
+    if s.inflight then
+      let idx = slot-idx s.prod-pub in
+      let s-written = set-slot s idx s.prod-pub in
+      let next-wake = if s.cons-parked >= 1 then True else s.wake-flag in
+      Some (RingState {
+        prod-claim = s-written.prod-claim,
+        prod-pub = inc-mod8 s.prod-pub,
+        barrier = s-written.barrier,
+        cons = s-written.cons,
+        inflight = False,
+        cons-parked = s-written.cons-parked,
+        wake-flag = next-wake,
+        s0 = s-written.s0,
+        s1 = s-written.s1,
+        s2 = s-written.s2,
+        s3 = s-written.s3
+      })
+    else None
+
+  -- | Consumer `WaitAdaptivePark` SeqCst Dekker park protocol:
+  --   * Phase 0 -> 1: store `cons-parked = 1` + SeqCst fence when ring looks empty
+  --   * Phase 1 -> 2: re-check `prod-pub == cons` after fence; commit park iff still empty
+  ring-step-park :: RingState -> Option RingState
+  ring-step-park s =
+    if s.cons-parked == 0 && s.barrier == s.cons && s.prod-pub == s.cons && not s.wake-flag then
+      Some (RingState {
+        prod-claim = s.prod-claim,
+        prod-pub = s.prod-pub,
+        barrier = s.barrier,
+        cons = s.cons,
+        inflight = s.inflight,
+        cons-parked = 1,
+        wake-flag = s.wake-flag,
+        s0 = s.s0,
+        s1 = s.s1,
+        s2 = s.s2,
+        s3 = s.s3
+      })
+    else if s.cons-parked == 1 && s.prod-pub == s.cons then
+      Some (RingState {
+        prod-claim = s.prod-claim,
+        prod-pub = s.prod-pub,
+        barrier = s.barrier,
+        cons = s.cons,
+        inflight = s.inflight,
+        cons-parked = 2,
+        wake-flag = s.wake-flag,
+        s0 = s.s0,
+        s1 = s.s1,
+        s2 = s.s2,
+        s3 = s.s3
+      })
+    else None
+
+  -- | Consumer `WaitAdaptivePark` wakeup / Dekker park-abort:
+  --   * Phase 1 with `prod-pub /= cons`: Dekker re-check observes concurrent publish -> abort park
+  --   * Phase 2 with `wake-flag`: producer signaled wake -> resume active polling
+  ring-step-wake :: RingState -> Option RingState
+  ring-step-wake s =
+    if s.cons-parked == 1 && s.prod-pub /= s.cons then
+      Some (RingState {
+        prod-claim = s.prod-claim,
+        prod-pub = s.prod-pub,
+        barrier = s.barrier,
+        cons = s.cons,
+        inflight = s.inflight,
+        cons-parked = 0,
+        wake-flag = False,
+        s0 = s.s0,
+        s1 = s.s1,
+        s2 = s.s2,
+        s3 = s.s3
+      })
+    else if s.cons-parked == 2 && s.wake-flag then
+      Some (RingState {
+        prod-claim = s.prod-claim,
+        prod-pub = s.prod-pub,
+        barrier = s.barrier,
+        cons = s.cons,
+        inflight = s.inflight,
+        cons-parked = 0,
+        wake-flag = False,
+        s0 = s.s0,
+        s1 = s.s1,
+        s2 = s.s2,
+        s3 = s.s3
+      })
+    else None
+
+  -- | Consumer `SequenceBarrier` poll + FIFO slot consumption:
+  --   * If `barrier == cons` and `prod-pub /= cons`: refresh `barrier` from `prod-pub`
+  --   * Else (`cons < barrier <= prod-pub`): read slot `cons % 4` (verifying exact
+  --     published sequence tag `s.cons`), clear slot, and advance `cons` by 1.
+  ring-step-consume :: RingState -> Option RingState
+  ring-step-consume s =
+    if s.cons-parked == 0 && s.prod-pub /= s.cons then
+      if s.barrier == s.cons then
+        Some (RingState {
+          prod-claim = s.prod-claim,
+          prod-pub = s.prod-pub,
+          barrier = s.prod-pub,
+          cons = s.cons,
+          inflight = s.inflight,
+          cons-parked = s.cons-parked,
+          wake-flag = s.wake-flag,
+          s0 = s.s0,
+          s1 = s.s1,
+          s2 = s.s2,
+          s3 = s.s3
+        })
+      else
+        let idx = slot-idx s.cons in
+        let s-cleared = set-slot s idx slot-empty in
+        Some (RingState {
+          prod-claim = s-cleared.prod-claim,
+          prod-pub = s-cleared.prod-pub,
+          barrier = s-cleared.barrier,
+          cons = inc-mod8 s.cons,
+          inflight = s-cleared.inflight,
+          cons-parked = s-cleared.cons-parked,
+          wake-flag = s-cleared.wake-flag,
+          s0 = s-cleared.s0,
+          s1 = s-cleared.s1,
+          s2 = s-cleared.s2,
+          s3 = s-cleared.s3
+        })
+    else None
+
+  -- =========================================================================
+  -- 4. Safety invariant predicate (`ring-bounds-ok`)
+  -- =========================================================================
+
+  -- Check that physical slot `k` (`0..3`) contains the exact expected sequence
+  -- tag iff an unread published item occupies it, and `slot-empty` otherwise.
+  slot-matches-model :: RingState -> Nat -> Bool
+  slot-matches-model s k =
+    let pub-len = ring-dist s.prod-pub s.cons in
+    let c0 = s.cons in
+    let c1 = inc-mod8 c0 in
+    let c2 = inc-mod8 c1 in
+    let c3 = inc-mod8 c2 in
+    let val = get-slot s k in
+    if pub-len >= 1 && slot-idx c0 == k then val == c0
+    else if pub-len >= 2 && slot-idx c1 == k then val == c1
+    else if pub-len >= 3 && slot-idx c2 == k then val == c2
+    else if pub-len >= 4 && slot-idx c3 == k then val == c3
+    else val == slot-empty
+
+  -- | Combined ring safety invariant:
+  --   1. `0 <= prod-claim - cons <= cap` (bounded occupancy, no overwrite)
+  --   2. `0 <= prod-pub - cons <= prod-claim - cons` (no read before publish)
+  --   3. `inflight` matches `prod-claim - prod-pub` (`0` or `1`)
+  --   4. `0 <= barrier - cons <= prod-pub - cons` (barrier <= upstream producer)
+  --   5. Every physical slot `0..3` holds exact FIFO sequence tag or `slot-empty`
+  --   6. SeqCst Dekker invariant: parked consumer with pending item ALWAYS has
+  --      `wake-flag == True` (no lost wakeup possible)
+  ring-bounds-ok :: RingState -> Bool
+  ring-bounds-ok s =
+    let claimed = ring-dist s.prod-claim s.cons in
+    let published = ring-dist s.prod-pub s.cons in
+    let bar-avail = ring-dist s.barrier s.cons in
+    let claim-gap = ring-dist s.prod-claim s.prod-pub in
+    let inflight-ok = if s.inflight then claim-gap == 1 else claim-gap == 0 in
+    let bounds-ok = claimed <= ring-cap && published <= claimed && bar-avail <= published in
+    let slots-ok = slot-matches-model s 0 && slot-matches-model s 1 && slot-matches-model s 2 && slot-matches-model s 3 in
+    let dekker-ok = not (s.cons-parked == 2 && s.prod-pub /= s.cons && not s.wake-flag) in
+    inflight-ok && bounds-ok && slots-ok && dekker-ok
+
+  -- =========================================================================
+  -- 5. Machine, safety, deadlock-freedom, liveness, and refinement proofs
+  -- =========================================================================
+
+  machine RingSyncMachine where
+    state = RingState
+    init = ring-init
+    actions = [ring-step-claim, ring-step-publish, ring-step-park, ring-step-wake, ring-step-consume]
+    max_states = 65536
+
+  contract safety ringBoundsAndOrder for RingSyncMachine where
+    always = (\s -> ring-bounds-ok s)
+
+  contract safety noLostWakeup for RingSyncMachine where
+    deadlock_free = (True)
+
+  contract liveness ringDelivery for RingSyncMachine where
+    leads_to = (\s -> s.cons == 0 && (s.inflight || s.prod-pub /= 0)) ~> (\s -> s.cons == 1)
+    fair = [ring-step-consume, ring-step-publish, ring-step-wake]
+
+  contract liveness ringWrapDelivery for RingSyncMachine where
+    leads_to = (\s -> s.cons == 4 && (s.inflight || s.prod-pub /= 4)) ~> (\s -> s.cons == 5)
+    fair = [ring-step-consume, ring-step-publish, ring-step-wake]
+
+  -- | Abstraction map from concrete `RingSyncMachine` to `AbstractFifoQueue`.
+  ring-view :: RingState -> AbsQueueState
+  ring-view s = AbsQueueState { abs-prod = s.prod-pub, abs-cons = s.cons }
+
+  -- | Strictly decreasing stuttering measure certifying every internal step
+  -- (`claim`, `park`, `wake`, `barrier-poll`) makes progress toward an abstract
+  -- `enqueue` or `dequeue` step with zero infinite stuttering.
+  ring-measure :: RingState -> Nat
+  ring-measure s =
+    let m-claim = if s.inflight then 0 else 1 in
+    let m-barrier = ring-dist s.prod-pub s.barrier in
+    let m-park = if s.prod-pub == s.cons then (if s.cons-parked == 0 then 2 else if s.cons-parked == 1 then 1 else 0) else s.cons-parked in
+    m-claim + m-barrier + m-park
+
+  refines RingSyncMachine AbstractFifoQueue where
+    view = ring-view
+    measure = ring-measure

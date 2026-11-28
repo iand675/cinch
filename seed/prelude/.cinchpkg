@@ -1363,6 +1363,22 @@
     {
       "name": "Engine.Mem.DmaPool",
       "path": "Engine/Mem/DmaPool.cinch"
+    },
+    {
+      "name": "Engine.Ring.Spsc",
+      "path": "Engine/Ring/Spsc.cinch"
+    },
+    {
+      "name": "Engine.Ring.Disruptor",
+      "path": "Engine/Ring/Disruptor.cinch"
+    },
+    {
+      "name": "Engine.Ring.Shm",
+      "path": "Engine/Ring/Shm.cinch"
+    },
+    {
+      "name": "Engine.Ring.Spec",
+      "path": "Engine/Ring/Spec.cinch"
     }
   ],
   "order": [
@@ -1705,6 +1721,10 @@
     "Engine.Mem.Slab",
     "Engine.Mem.Arena",
     "Engine.Mem.Slab.Spec",
-    "Engine.Mem.DmaPool"
+    "Engine.Mem.DmaPool",
+    "Engine.Ring.Spsc",
+    "Engine.Ring.Disruptor",
+    "Engine.Ring.Shm",
+    "Engine.Ring.Spec"
   ]
 }
