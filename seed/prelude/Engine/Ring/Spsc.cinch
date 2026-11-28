@@ -1,0 +1,623 @@
+-- | Lock-free, cache-line-isolated SPSC ring buffer and `C x (C - 1)` CoreMesh
+-- over 64-byte `MsgEnvelope` slots in page/DMA-aligned memory.
+--
+-- Every DMA slab enforces strict 128-byte cache-line separation between
+-- independently mutated atomic cursors (covering both x86_64 L2 spatial
+-- prefetcher 2x64B pairs and Apple Silicon / ARM64 128-byte cache lines):
+--
+--   * Offset   0..128: producer `head` (`I64` atomic) + `cached-tail` shadow
+--   * Offset 128..256: consumer `tail` (`I64` atomic) + `cached-head` shadow
+--   * Offset 256..384: read-only metadata (`mask`, `cap`, `slot-stride = 64`)
+--   * Offset 384..   : contiguous array of `cap` 64-byte `MsgEnvelope` slots
+--
+-- The companion `#[repr(C, align(128))]` `SpscRingHeader` mirrors this exact
+-- ABI layout and is audited with 0 violations by
+-- `cinch verify-prims --audit-cache-line`.
+module Engine.Ring.Spsc where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Cache-line-isolated ABI header & zero-alloc unboxed handle / pop result
+  export SpscRingHeader, SpscRing, PopEnvelope, CoreMesh
+  export spsc-base-addr, pop-envelope-empty, pop-envelope-is-some, pop-envelope-msg
+
+  -- Layout constants & raw MsgEnvelope slot serialization
+  export spsc-off-head, spsc-off-cached-tail, spsc-off-tail, spsc-off-cached-head
+  export spsc-off-mask, spsc-off-cap, spsc-off-stride, spsc-off-slots, spsc-slot-stride
+  export spsc-required-bytes, is-power-of-two-u64
+  export store-msg-envelope, load-msg-envelope, copy-msg-envelope-raw
+
+  -- Single SPSC ring operations
+  export spsc-new, spsc-from-raw, spsc-destroy
+  export spsc-try-push, spsc-try-pop, spsc-try-pop-into, spsc-try-pop-unboxed
+  export spsc-try-push-batch, spsc-try-pop-batch
+  export spsc-len, spsc-is-empty, spsc-is-full, spsc-capacity
+
+  -- C x (C - 1) CoreMesh topology
+  export core-mesh-new, core-mesh-destroy, core-mesh-ring-for
+  export core-mesh-send, core-mesh-recv, core-mesh-recv-unboxed
+
+  -- =========================================================================
+  -- 1. Cache-line-isolated ABI header (`#[repr(C, align(128))]`)
+  -- =========================================================================
+
+  -- | 384-byte, 128-byte-aligned SPSC ring header placing producer `head`
+  -- (offset 0) and consumer `tail` (offset 128) on strictly disjoint 128-byte
+  -- cache lines, followed by read-only metadata at offset 256.
+  #[repr(C, align(128))]
+  record SpscRingHeader where
+    -- Cache line 0 (offsets 0..128): Producer-owned
+    head :: I64
+    local-bound :: I64
+    padding-p0 :: U64
+    padding-p1 :: U64
+    padding-p2 :: U64
+    padding-p3 :: U64
+    padding-p4 :: U64
+    padding-p5 :: U64
+    padding-p6 :: U64
+    padding-p7 :: U64
+    padding-p8 :: U64
+    padding-p9 :: U64
+    padding-p10 :: U64
+    padding-p11 :: U64
+    padding-p12 :: U64
+    padding-p13 :: U64
+    -- Cache line 1 (offsets 128..256): Consumer-owned
+    tail :: I64
+    local-avail :: I64
+    padding-c0 :: U64
+    padding-c1 :: U64
+    padding-c2 :: U64
+    padding-c3 :: U64
+    padding-c4 :: U64
+    padding-c5 :: U64
+    padding-c6 :: U64
+    padding-c7 :: U64
+    padding-c8 :: U64
+    padding-c9 :: U64
+    padding-c10 :: U64
+    padding-c11 :: U64
+    padding-c12 :: U64
+    padding-c13 :: U64
+    -- Cache line 2 (offsets 256..384): Read-only metadata
+    ring-mask :: U64
+    ring-cap :: U64
+    slot-stride :: U64
+    padding-m0 :: U64
+    padding-m1 :: U64
+    padding-m2 :: U64
+    padding-m3 :: U64
+    padding-m4 :: U64
+    padding-m5 :: U64
+    padding-m6 :: U64
+    padding-m7 :: U64
+    padding-m8 :: U64
+    padding-m9 :: U64
+    padding-m10 :: U64
+    padding-m11 :: U64
+    padding-m12 :: U64
+
+  -- | Cache-line-aligned 128-byte handle to a DMA-backed SPSC ring.
+  -- `chan-head-addr` is the DMA slab base (where atomic `head` lives at offset 0).
+  #[repr(C, align(128))]
+  record SpscRing where
+    chan-head-addr :: I64
+    chan-mask :: I64
+    chan-cap :: I64
+    chan-bytes :: U64
+    padding-h0 :: U64
+    padding-h1 :: U64
+    padding-h2 :: U64
+    padding-h3 :: U64
+    padding-h4 :: U64
+    padding-h5 :: U64
+    padding-h6 :: U64
+    padding-h7 :: U64
+    padding-h8 :: U64
+    padding-h9 :: U64
+    padding-h10 :: U64
+    padding-h11 :: U64
+
+  #[inline(always)]
+  spsc-make-handle :: I64 -> I64 -> I64 -> U64 -> SpscRing
+  spsc-make-handle base mask cap bytes =
+    SpscRing base mask cap bytes 0 0 0 0 0 0 0 0 0 0 0 0
+
+  -- | Raw DMA slab base address of `ring` (for passing to pinned workers).
+  #[inline(always)]
+  #[no-alloc]
+  spsc-base-addr :: SpscRing -> I64
+  spsc-base-addr ring = ring.chan-head-addr
+
+  -- | Flat unboxed POD pop result avoiding heap-boxing `Option MsgEnvelope`
+  -- in zero-allocation hot loops (`pop-ok == 1` iff envelope fields are valid).
+  #[repr(C, value)]
+  record PopEnvelope where
+    pop-ok :: U64
+    pop-kind :: U32
+    pop-src :: U16
+    pop-dst :: U16
+    pop-seq :: U64
+    pop-w0 :: U64
+    pop-w1 :: U64
+    pop-w2 :: U64
+    pop-w3 :: U64
+    pop-w4 :: U64
+    pop-w5 :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  pop-envelope-empty :: Unit -> PopEnvelope
+  pop-envelope-empty _ = PopEnvelope 0 0 0 0 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pop-envelope-is-some :: PopEnvelope -> Bool
+  pop-envelope-is-some r = ne-u64 r.pop-ok 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pop-envelope-msg :: PopEnvelope -> MsgEnvelope
+  pop-envelope-msg r =
+    MsgEnvelope r.pop-kind r.pop-src r.pop-dst r.pop-seq r.pop-w0 r.pop-w1 r.pop-w2 r.pop-w3 r.pop-w4 r.pop-w5
+
+  -- =========================================================================
+  -- 2. Layout constants & helpers
+  -- =========================================================================
+
+  #[no-alloc]
+  spsc-off-head :: I64
+  spsc-off-head = 0
+
+  #[no-alloc]
+  spsc-off-cached-tail :: I64
+  spsc-off-cached-tail = 8
+
+  #[no-alloc]
+  spsc-off-tail :: I64
+  spsc-off-tail = 128
+
+  #[no-alloc]
+  spsc-off-cached-head :: I64
+  spsc-off-cached-head = 136
+
+  #[no-alloc]
+  spsc-off-mask :: I64
+  spsc-off-mask = 256
+
+  #[no-alloc]
+  spsc-off-cap :: I64
+  spsc-off-cap = 264
+
+  #[no-alloc]
+  spsc-off-stride :: I64
+  spsc-off-stride = 272
+
+  #[no-alloc]
+  spsc-off-slots :: I64
+  spsc-off-slots = 384
+
+  #[no-alloc]
+  spsc-slot-stride :: I64
+  spsc-slot-stride = 64
+
+  #[no-alloc]
+  both-b :: Bool -> Bool -> Bool
+  both-b a b = if a then b else eq-u32 0 1
+
+  -- | True when `n >= 2` and `n` is a power of two.
+  #[no-alloc]
+  is-power-of-two-u64 :: U64 -> Bool
+  is-power-of-two-u64 n =
+    both-b (ge-u64 n 2) (eq-u64 (bit-and-u64 n (wrapping-sub-u64 n 1)) 0)
+
+  -- | Total byte footprint of an SPSC ring slab with `cap` 64-byte slots
+  -- (`384 + cap * 64`). Guaranteed multiple of 128 when `cap >= 2` is a power
+  -- of two.
+  #[no-alloc]
+  spsc-required-bytes :: U64 -> U64
+  spsc-required-bytes cap = wrapping-add-u64 384 (wrapping-mul-u64 cap 64)
+
+  #[inline(always)]
+  #[no-alloc]
+  slot-addr-of :: I64 -> I64 -> I64 -> I64
+  slot-addr-of base mask idx =
+    let slot = bit-and-i64 idx mask in
+    wrapping-add-i64 base (wrapping-add-i64 spsc-off-slots (wrapping-shl-i64 slot 6))
+
+  -- =========================================================================
+  -- 3. Zero-allocation 64-byte `MsgEnvelope` raw slot serialization
+  -- =========================================================================
+
+  -- | Store a 64-byte `MsgEnvelope` to an 8-byte-aligned raw slot address
+  -- using 8 raw 64-bit stores (zero heap allocation).
+  #[inline(always)]
+  store-msg-envelope :: I64 -> MsgEnvelope ->{MVar} Unit
+  store-msg-envelope addr msg =
+    let hdr = bit-or-u64 (u32-to-u64 msg.msg-kind) (bit-or-u64 (wrapping-shl-u64 (u16-to-u64 msg.msg-src) 32) (wrapping-shl-u64 (u16-to-u64 msg.msg-dst) 48)) in
+    let _0 = raw-store-u64 addr hdr in
+    let _1 = raw-store-u64 (wrapping-add-i64 addr 8) msg.msg-seq in
+    let _2 = raw-store-u64 (wrapping-add-i64 addr 16) msg.msg-w0 in
+    let _3 = raw-store-u64 (wrapping-add-i64 addr 24) msg.msg-w1 in
+    let _4 = raw-store-u64 (wrapping-add-i64 addr 32) msg.msg-w2 in
+    let _5 = raw-store-u64 (wrapping-add-i64 addr 40) msg.msg-w3 in
+    let _6 = raw-store-u64 (wrapping-add-i64 addr 48) msg.msg-w4 in
+    raw-store-u64 (wrapping-add-i64 addr 56) msg.msg-w5
+
+  -- | Load a 64-byte `MsgEnvelope` from an 8-byte-aligned raw slot address
+  -- using 8 raw 64-bit loads (zero heap allocation).
+  #[inline(always)]
+  load-msg-envelope :: I64 ->{MVar} MsgEnvelope
+  load-msg-envelope addr =
+    let hdr = raw-load-u64 addr in
+    let kind = wrapping-u64-to-u32 hdr in
+    let src = wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32) in
+    let dst = wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48) in
+    let seq = raw-load-u64 (wrapping-add-i64 addr 8) in
+    let w0 = raw-load-u64 (wrapping-add-i64 addr 16) in
+    let w1 = raw-load-u64 (wrapping-add-i64 addr 24) in
+    let w2 = raw-load-u64 (wrapping-add-i64 addr 32) in
+    let w3 = raw-load-u64 (wrapping-add-i64 addr 40) in
+    let w4 = raw-load-u64 (wrapping-add-i64 addr 48) in
+    let w5 = raw-load-u64 (wrapping-add-i64 addr 56) in
+    MsgEnvelope kind src dst seq w0 w1 w2 w3 w4 w5
+
+  -- | Copy one 64-byte `MsgEnvelope` directly between two raw addresses.
+  #[inline(always)]
+  copy-msg-envelope-raw :: I64 -> I64 ->{MVar} Unit
+  copy-msg-envelope-raw dst-addr src-addr =
+    let _0 = raw-store-u64 dst-addr (raw-load-u64 src-addr) in
+    let _1 = raw-store-u64 (wrapping-add-i64 dst-addr 8) (raw-load-u64 (wrapping-add-i64 src-addr 8)) in
+    let _2 = raw-store-u64 (wrapping-add-i64 dst-addr 16) (raw-load-u64 (wrapping-add-i64 src-addr 16)) in
+    let _3 = raw-store-u64 (wrapping-add-i64 dst-addr 24) (raw-load-u64 (wrapping-add-i64 src-addr 24)) in
+    let _4 = raw-store-u64 (wrapping-add-i64 dst-addr 32) (raw-load-u64 (wrapping-add-i64 src-addr 32)) in
+    let _5 = raw-store-u64 (wrapping-add-i64 dst-addr 40) (raw-load-u64 (wrapping-add-i64 src-addr 40)) in
+    let _6 = raw-store-u64 (wrapping-add-i64 dst-addr 48) (raw-load-u64 (wrapping-add-i64 src-addr 48)) in
+    raw-store-u64 (wrapping-add-i64 dst-addr 56) (raw-load-u64 (wrapping-add-i64 src-addr 56))
+
+  -- =========================================================================
+  -- 4. SPSC ring lifecycle & lock-free single/batch operations
+  -- =========================================================================
+
+  init-spsc-header-at :: I64 -> U64 ->{MVar} Unit
+  init-spsc-header-at base cap =
+    let mask = wrapping-sub-u64 cap 1 in
+    let _0 = atomic-store-relaxed-i64 (wrapping-add-i64 base spsc-off-head) 0 in
+    let _1 = raw-store-i64 (wrapping-add-i64 base spsc-off-cached-tail) 0 in
+    let _2 = atomic-store-relaxed-i64 (wrapping-add-i64 base spsc-off-tail) 0 in
+    let _3 = raw-store-i64 (wrapping-add-i64 base spsc-off-cached-head) 0 in
+    let _4 = raw-store-u64 (wrapping-add-i64 base spsc-off-mask) mask in
+    let _5 = raw-store-u64 (wrapping-add-i64 base spsc-off-cap) cap in
+    let _6 = raw-store-u64 (wrapping-add-i64 base spsc-off-stride) 64 in
+    atomic-fence-release ()
+
+  -- | Allocate a new DMA-backed power-of-two SPSC ring holding `cap` 64-byte
+  -- `MsgEnvelope` slots. Returns `None` if `cap` is not a power of two `>= 2`
+  -- or DMA allocation fails.
+  spsc-new :: U64 ->{IO, MVar} Option SpscRing
+  spsc-new cap =
+    if not (is-power-of-two-u64 cap) then None
+    else if gt-u64 cap 1073741824 then None
+    else
+      let total = spsc-required-bytes cap in
+      let raw = engine-dma-alloc total 4096 in
+      if eq-u64 raw 0 then None
+      else
+        let base = wrapping-u64-to-i64 raw in
+        let _ = init-spsc-header-at base cap in
+        let cap-i = wrapping-u64-to-i64 cap in
+        let mask-i = wrapping-sub-i64 cap-i 1 in
+        Some (spsc-make-handle base mask-i cap-i total)
+
+  -- | Reconstruct an unboxed `SpscRing` handle from an initialized DMA slab
+  -- address (e.g. passed to a pinned worker thread via `engine-spawn-pinned`).
+  -- Zero heap allocation.
+  spsc-from-raw :: I64 ->{MVar} SpscRing
+  spsc-from-raw base =
+    let mask-i = raw-load-i64 (wrapping-add-i64 base spsc-off-mask) in
+    let cap-i = raw-load-i64 (wrapping-add-i64 base spsc-off-cap) in
+    let total = spsc-required-bytes (wrapping-i64-to-u64 cap-i) in
+    spsc-make-handle base mask-i cap-i total
+
+  -- | Unmap the DMA slab owned by `ring`.
+  spsc-destroy :: SpscRing ->{IO} IoError
+  spsc-destroy ring =
+    engine-dma-free (wrapping-i64-to-u64 ring.chan-head-addr) ring.chan-bytes
+
+  -- | Return the ring capacity in `MsgEnvelope` slots.
+  #[inline(always)]
+  #[no-alloc]
+  spsc-capacity :: SpscRing -> U64
+  spsc-capacity ring = wrapping-i64-to-u64 ring.chan-cap
+
+  -- | Lock-free producer single-item push. Uses the producer-local cached tail
+  -- shadow to avoid cross-core cache-line traffic until the cached window fills,
+  -- then refreshes `tail` with `acquire` ordering and publishes `head + 1` with
+  -- `release` ordering. Zero heap allocation.
+  spsc-try-push :: SpscRing -> MsgEnvelope ->{MVar} Bool
+  spsc-try-push ring msg =
+    let base = ring.chan-head-addr in
+    let head-addr = wrapping-add-i64 base spsc-off-head in
+    let ctail-addr = wrapping-add-i64 base spsc-off-cached-tail in
+    let head = atomic-load-relaxed-i64 head-addr in
+    let ctail = raw-load-i64 ctail-addr in
+    let used0 = wrapping-sub-i64 head ctail in
+    let used = if lt-i64 used0 ring.chan-cap then used0 else (let fresh-tail = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-tail) in let _c = raw-store-i64 ctail-addr fresh-tail in wrapping-sub-i64 head fresh-tail) in
+    if ge-i64 used ring.chan-cap then eq-u32 0 1
+    else
+      let slot = slot-addr-of base ring.chan-mask head in
+      let _w = store-msg-envelope slot msg in
+      let _p = atomic-store-release-i64 head-addr (wrapping-add-i64 head 1) in
+      eq-u32 0 0
+
+  -- | Lock-free consumer single-item pop into caller-provided raw 64-byte
+  -- address `dst-addr`. Zero heap allocation.
+  spsc-try-pop-into :: SpscRing -> I64 ->{MVar} Bool
+  spsc-try-pop-into ring dst-addr =
+    let base = ring.chan-head-addr in
+    let tail-addr = wrapping-add-i64 base spsc-off-tail in
+    let chead-addr = wrapping-add-i64 base spsc-off-cached-head in
+    let tail = atomic-load-relaxed-i64 tail-addr in
+    let chead = raw-load-i64 chead-addr in
+    let avail = if lt-i64 tail chead then chead else (let fresh-head = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in let _c = raw-store-i64 chead-addr fresh-head in fresh-head) in
+    if ge-i64 tail avail then eq-u32 0 1
+    else
+      let slot = slot-addr-of base ring.chan-mask tail in
+      let _r = copy-msg-envelope-raw dst-addr slot in
+      let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail 1) in
+      eq-u32 0 0
+
+  -- | Lock-free consumer single-item pop returning an unboxed `PopEnvelope`
+  -- (`pop-ok == 1` on success, `0` when empty). Zero heap allocation.
+  spsc-try-pop-unboxed :: SpscRing ->{MVar} PopEnvelope
+  spsc-try-pop-unboxed ring =
+    let base = ring.chan-head-addr in
+    let tail-addr = wrapping-add-i64 base spsc-off-tail in
+    let chead-addr = wrapping-add-i64 base spsc-off-cached-head in
+    let tail = atomic-load-relaxed-i64 tail-addr in
+    let chead = raw-load-i64 chead-addr in
+    let avail = if lt-i64 tail chead then chead else (let fresh-head = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in let _c = raw-store-i64 chead-addr fresh-head in fresh-head) in
+    if ge-i64 tail avail then pop-envelope-empty ()
+    else
+      let slot = slot-addr-of base ring.chan-mask tail in
+      let hdr = raw-load-u64 slot in
+      let seq = raw-load-u64 (wrapping-add-i64 slot 8) in
+      let w0 = raw-load-u64 (wrapping-add-i64 slot 16) in
+      let w1 = raw-load-u64 (wrapping-add-i64 slot 24) in
+      let w2 = raw-load-u64 (wrapping-add-i64 slot 32) in
+      let w3 = raw-load-u64 (wrapping-add-i64 slot 40) in
+      let w4 = raw-load-u64 (wrapping-add-i64 slot 48) in
+      let w5 = raw-load-u64 (wrapping-add-i64 slot 56) in
+      let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail 1) in
+      PopEnvelope 1 (wrapping-u64-to-u32 hdr) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32)) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48)) seq w0 w1 w2 w3 w4 w5
+
+  -- | Lock-free consumer single-item pop returning `Option MsgEnvelope`.
+  spsc-try-pop :: SpscRing ->{MVar} Option MsgEnvelope
+  spsc-try-pop ring =
+    let res = spsc-try-pop-unboxed ring in
+    if pop-envelope-is-some res then Some (pop-envelope-msg res) else None
+
+  copy-push-batch-loop :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{MVar} Unit
+  copy-push-batch-loop base mask head src-addr i n =
+    if ge-i64 i n then ()
+    else
+      let dst-slot = slot-addr-of base mask (wrapping-add-i64 head i) in
+      let src-slot = wrapping-add-i64 src-addr (wrapping-shl-i64 i 6) in
+      let _ = copy-msg-envelope-raw dst-slot src-slot in
+      copy-push-batch-loop base mask head src-addr (wrapping-add-i64 i 1) n
+
+  -- | Lock-free batched producer push: copies up to `count` contiguous 64-byte
+  -- `MsgEnvelope`s from raw address `src-addr` into the ring and publishes the
+  -- entire batch with a **single** `release` store to `head`. Returns the
+  -- number of envelopes pushed (`0..=count`). Zero heap allocation.
+  spsc-try-push-batch :: SpscRing -> I64 -> U64 ->{MVar} U64
+  spsc-try-push-batch ring src-addr count =
+    if eq-u64 count 0 then 0
+    else
+      let base = ring.chan-head-addr in
+      let head-addr = wrapping-add-i64 base spsc-off-head in
+      let ctail-addr = wrapping-add-i64 base spsc-off-cached-tail in
+      let head = atomic-load-relaxed-i64 head-addr in
+      let ctail = raw-load-i64 ctail-addr in
+      let req = wrapping-u64-to-i64 count in
+      let free0 = wrapping-sub-i64 ring.chan-cap (wrapping-sub-i64 head ctail) in
+      let avail = if ge-i64 free0 req then free0 else (let fresh-tail = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-tail) in let _c = raw-store-i64 ctail-addr fresh-tail in wrapping-sub-i64 ring.chan-cap (wrapping-sub-i64 head fresh-tail)) in
+      if le-i64 avail 0 then 0
+      else
+        let n = if lt-i64 req avail then req else avail in
+        let _w = copy-push-batch-loop base ring.chan-mask head src-addr 0 n in
+        let _p = atomic-store-release-i64 head-addr (wrapping-add-i64 head n) in
+        wrapping-i64-to-u64 n
+
+  copy-pop-batch-loop :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{MVar} Unit
+  copy-pop-batch-loop base mask tail dst-addr i n =
+    if ge-i64 i n then ()
+    else
+      let src-slot = slot-addr-of base mask (wrapping-add-i64 tail i) in
+      let dst-slot = wrapping-add-i64 dst-addr (wrapping-shl-i64 i 6) in
+      let _ = copy-msg-envelope-raw dst-slot src-slot in
+      copy-pop-batch-loop base mask tail dst-addr (wrapping-add-i64 i 1) n
+
+  -- | Lock-free batched consumer pop: drains up to `max-count` contiguous
+  -- 64-byte `MsgEnvelope`s into raw address `dst-addr` using at most a
+  -- **single** `acquire` load of `head` and a **single** `release` store to
+  -- `tail` for the whole batch. Returns the count drained (`0..=max-count`).
+  -- Zero heap allocation.
+  spsc-try-pop-batch :: SpscRing -> I64 -> U64 ->{MVar} U64
+  spsc-try-pop-batch ring dst-addr max-count =
+    if eq-u64 max-count 0 then 0
+    else
+      let base = ring.chan-head-addr in
+      let tail-addr = wrapping-add-i64 base spsc-off-tail in
+      let chead-addr = wrapping-add-i64 base spsc-off-cached-head in
+      let tail = atomic-load-relaxed-i64 tail-addr in
+      let chead = raw-load-i64 chead-addr in
+      let req = wrapping-u64-to-i64 max-count in
+      let avail0 = wrapping-sub-i64 chead tail in
+      let avail = if ge-i64 avail0 req then avail0 else (let fresh-head = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in let _c = raw-store-i64 chead-addr fresh-head in wrapping-sub-i64 fresh-head tail) in
+      if le-i64 avail 0 then 0
+      else
+        let n = if lt-i64 req avail then req else avail in
+        let _r = copy-pop-batch-loop base ring.chan-mask tail dst-addr 0 n in
+        let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail n) in
+        wrapping-i64-to-u64 n
+
+  -- | Current approximate number of unread items in the ring.
+  spsc-len :: SpscRing ->{MVar} U64
+  spsc-len ring =
+    let base = ring.chan-head-addr in
+    let head = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in
+    let tail = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-tail) in
+    let diff = wrapping-sub-i64 head tail in
+    if lt-i64 diff 0 then 0 else wrapping-i64-to-u64 diff
+
+  -- | True when the ring currently contains no unread items.
+  spsc-is-empty :: SpscRing ->{MVar} Bool
+  spsc-is-empty ring = eq-u64 (spsc-len ring) 0
+
+  -- | True when the ring currently holds `cap` unread items.
+  spsc-is-full :: SpscRing ->{MVar} Bool
+  spsc-is-full ring = ge-u64 (spsc-len ring) (wrapping-i64-to-u64 ring.chan-cap)
+
+  -- =========================================================================
+  -- 5. `CoreMesh`: `C x (C - 1)` all-to-all lock-free SPSC topology
+  -- =========================================================================
+
+  -- | Share-nothing `C x (C - 1)` matrix of directed SPSC rings packed into
+  -- one contiguous 4 KiB-aligned DMA slab (`ring-stride` is a multiple of 128B).
+  record CoreMesh where
+    mesh-base :: I64
+    mesh-cores :: U32
+    mesh-pad :: U32
+    mesh-cap :: I64
+    mesh-ring-stride :: I64
+    mesh-bytes :: U64
+
+  init-mesh-rings :: I64 -> U64 -> I64 -> I64 -> I64 ->{MVar} Unit
+  init-mesh-rings base cap stride i total =
+    if ge-i64 i total then ()
+    else
+      let ring-base = wrapping-add-i64 base (wrapping-mul-i64 i stride) in
+      let _ = init-spsc-header-at ring-base cap in
+      init-mesh-rings base cap stride (wrapping-add-i64 i 1) total
+
+  -- | Allocate a `cores x (cores - 1)` CoreMesh where each directed pair
+  -- `(src, dst)` (`src /= dst`) owns an isolated SPSC ring of capacity `cap`.
+  core-mesh-new :: U32 -> U64 ->{IO, MVar} Option CoreMesh
+  core-mesh-new cores cap =
+    if lt-u32 cores 2 then None
+    else if not (is-power-of-two-u64 cap) then None
+    else if gt-u64 cap 1073741824 then None
+    else
+      let c64 = u32-to-u64 cores in
+      let num-rings = wrapping-mul-u64 c64 (wrapping-sub-u64 c64 1) in
+      let ring-stride-u = spsc-required-bytes cap in
+      let total-bytes = wrapping-mul-u64 num-rings ring-stride-u in
+      let raw = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 raw 0 then None
+      else
+        let base = wrapping-u64-to-i64 raw in
+        let stride-i = wrapping-u64-to-i64 ring-stride-u in
+        let _ = init-mesh-rings base cap stride-i 0 (wrapping-u64-to-i64 num-rings) in
+        Some (CoreMesh base cores 0 (wrapping-u64-to-i64 cap) stride-i total-bytes)
+
+  -- | Unmap the entire DMA slab owned by `mesh`.
+  core-mesh-destroy :: CoreMesh ->{IO} IoError
+  core-mesh-destroy mesh =
+    engine-dma-free (wrapping-i64-to-u64 mesh.mesh-base) mesh.mesh-bytes
+
+  #[inline(always)]
+  #[no-alloc]
+  mesh-ring-index :: U32 -> U32 -> U32 -> I64
+  mesh-ring-index cores src dst =
+    let s = wrapping-u32-to-i64 src in
+    let d = wrapping-u32-to-i64 dst in
+    let c1 = wrapping-sub-i64 (wrapping-u32-to-i64 cores) 1 in
+    let col = if lt-i64 d s then d else wrapping-sub-i64 d 1 in
+    wrapping-add-i64 (wrapping-mul-i64 s c1) col
+
+  #[inline(always)]
+  #[no-alloc]
+  mesh-pair-valid :: CoreMesh -> U32 -> U32 -> Bool
+  mesh-pair-valid mesh src dst =
+    both-b (both-b (lt-u32 src mesh.mesh-cores) (lt-u32 dst mesh.mesh-cores)) (ne-u32 src dst)
+
+  #[inline(always)]
+  mesh-ring-unchecked :: CoreMesh -> U32 -> U32 -> SpscRing
+  mesh-ring-unchecked mesh src dst =
+    let idx = mesh-ring-index mesh.mesh-cores src dst in
+    let rbase = wrapping-add-i64 mesh.mesh-base (wrapping-mul-i64 idx mesh.mesh-ring-stride) in
+    let mask-i = wrapping-sub-i64 mesh.mesh-cap 1 in
+    spsc-make-handle rbase mask-i mesh.mesh-cap (wrapping-i64-to-u64 mesh.mesh-ring-stride)
+
+  -- | Look up the dedicated directed `SpscRing` from core `src` to core `dst`.
+  -- Returns `None` when `src == dst` or either core ID is out of range.
+  core-mesh-ring-for :: CoreMesh -> CoreId -> CoreId -> Option SpscRing
+  core-mesh-ring-for mesh src dst =
+    let s = u16-to-u32 src.core-id-raw in
+    let d = u16-to-u32 dst.core-id-raw in
+    if mesh-pair-valid mesh s d then Some (mesh-ring-unchecked mesh s d) else None
+
+  -- | Non-blocking send from core `src` to core `dst`. Zero heap allocation.
+  core-mesh-send :: CoreMesh -> CoreId -> CoreId -> MsgEnvelope ->{MVar} Bool
+  core-mesh-send mesh src dst msg =
+    let s = u16-to-u32 src.core-id-raw in
+    let d = u16-to-u32 dst.core-id-raw in
+    if not (mesh-pair-valid mesh s d) then eq-u32 0 1
+    else
+      let idx = mesh-ring-index mesh.mesh-cores s d in
+      let base = wrapping-add-i64 mesh.mesh-base (wrapping-mul-i64 idx mesh.mesh-ring-stride) in
+      let mask = wrapping-sub-i64 mesh.mesh-cap 1 in
+      let head-addr = wrapping-add-i64 base spsc-off-head in
+      let ctail-addr = wrapping-add-i64 base spsc-off-cached-tail in
+      let head = atomic-load-relaxed-i64 head-addr in
+      let ctail = raw-load-i64 ctail-addr in
+      let used0 = wrapping-sub-i64 head ctail in
+      let used = if lt-i64 used0 mesh.mesh-cap then used0 else (let fresh-tail = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-tail) in let _c = raw-store-i64 ctail-addr fresh-tail in wrapping-sub-i64 head fresh-tail) in
+      if ge-i64 used mesh.mesh-cap then eq-u32 0 1
+      else
+        let slot = slot-addr-of base mask head in
+        let _w = store-msg-envelope slot msg in
+        let _p = atomic-store-release-i64 head-addr (wrapping-add-i64 head 1) in
+        eq-u32 0 0
+
+  -- | Non-blocking receive on core `dst` from core `src` (unboxed, zero heap allocation).
+  core-mesh-recv-unboxed :: CoreMesh -> CoreId -> CoreId ->{MVar} PopEnvelope
+  core-mesh-recv-unboxed mesh src dst =
+    let s = u16-to-u32 src.core-id-raw in
+    let d = u16-to-u32 dst.core-id-raw in
+    if not (mesh-pair-valid mesh s d) then pop-envelope-empty ()
+    else
+      let idx = mesh-ring-index mesh.mesh-cores s d in
+      let base = wrapping-add-i64 mesh.mesh-base (wrapping-mul-i64 idx mesh.mesh-ring-stride) in
+      let mask = wrapping-sub-i64 mesh.mesh-cap 1 in
+      let tail-addr = wrapping-add-i64 base spsc-off-tail in
+      let chead-addr = wrapping-add-i64 base spsc-off-cached-head in
+      let tail = atomic-load-relaxed-i64 tail-addr in
+      let chead = raw-load-i64 chead-addr in
+      let avail = if lt-i64 tail chead then chead else (let fresh-head = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in let _c = raw-store-i64 chead-addr fresh-head in fresh-head) in
+      if ge-i64 tail avail then pop-envelope-empty ()
+      else
+        let slot = slot-addr-of base mask tail in
+        let hdr = raw-load-u64 slot in
+        let seq = raw-load-u64 (wrapping-add-i64 slot 8) in
+        let w0 = raw-load-u64 (wrapping-add-i64 slot 16) in
+        let w1 = raw-load-u64 (wrapping-add-i64 slot 24) in
+        let w2 = raw-load-u64 (wrapping-add-i64 slot 32) in
+        let w3 = raw-load-u64 (wrapping-add-i64 slot 40) in
+        let w4 = raw-load-u64 (wrapping-add-i64 slot 48) in
+        let w5 = raw-load-u64 (wrapping-add-i64 slot 56) in
+        let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail 1) in
+        PopEnvelope 1 (wrapping-u64-to-u32 hdr) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32)) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48)) seq w0 w1 w2 w3 w4 w5
+
+  -- | Non-blocking receive on core `dst` from core `src`.
+  core-mesh-recv :: CoreMesh -> CoreId -> CoreId ->{MVar} Option MsgEnvelope
+  core-mesh-recv mesh src dst =
+    let res = core-mesh-recv-unboxed mesh src dst in
+    if pop-envelope-is-some res then Some (pop-envelope-msg res) else None

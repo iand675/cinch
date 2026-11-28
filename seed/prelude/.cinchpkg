@@ -1347,6 +1347,22 @@
     {
       "name": "Engine.Types",
       "path": "Engine/Types.cinch"
+    },
+    {
+      "name": "Engine.Ring.Spsc",
+      "path": "Engine/Ring/Spsc.cinch"
+    },
+    {
+      "name": "Engine.Ring.Disruptor",
+      "path": "Engine/Ring/Disruptor.cinch"
+    },
+    {
+      "name": "Engine.Ring.Shm",
+      "path": "Engine/Ring/Shm.cinch"
+    },
+    {
+      "name": "Engine.Ring.Spec",
+      "path": "Engine/Ring/Spec.cinch"
     }
   ],
   "order": [
@@ -1685,6 +1701,10 @@
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
     "Prim.Sys.Io",
-    "Engine.Types"
+    "Engine.Types",
+    "Engine.Ring.Spsc",
+    "Engine.Ring.Disruptor",
+    "Engine.Ring.Shm",
+    "Engine.Ring.Spec"
   ]
 }

@@ -1,0 +1,488 @@
+-- | Lock-free LMAX Disruptor ring buffer supporting both Single-Producer and
+-- Multi-Producer modes, linear `%1` `ClaimToken` publish obligations,
+-- `SequenceBarrier` gating cursors, and pluggable `WaitStrategy` (including
+-- SeqCst Dekker `WaitAdaptivePark`).
+--
+-- Memory layout in DMA page (strict 128-byte cache-line isolation):
+--   * Offset   0: producer claim cursor (`I64` atomic, starts at 0)
+--   * Offset 128: single-producer published cursor (`I64`, starts at -1) + mode
+--   * Offset 256: consumer gating cursor (`I64` atomic, starts at -1)
+--   * Offset 384: `AdaptivePark` consumer-parked flag (`I64` SeqCst, 0/1)
+--   * Offset 512: `AdaptivePark` wake-signal flag (`I64` SeqCst, 0/1)
+--   * Offset 640: read-only metadata (`mask`, `cap`, `avail-off`, `slots-off`)
+--   * Offset 768: per-slot `available` sequence array (`cap * 8` bytes, init -1)
+--   * Offset `slots-off` (64B-aligned): contiguous array of `cap` 64-byte `MsgEnvelope`s
+module Engine.Ring.Disruptor where
+
+  import Data.Bool
+  import Data.Core
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Engine.Ring.Spsc
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Core types
+  export ProducerMode, ProducerSingle, ProducerMulti
+  export Disruptor, ClaimToken, SequenceBarrier
+  export WaitStrategy, WaitBusySpin, WaitYieldSpin, WaitAdaptivePark
+
+  -- Lifecycle & raw reconstruction for pinned workers
+  export disruptor-new, disruptor-from-raw, disruptor-destroy
+  export disruptor-capacity, disruptor-slot-addr, disruptor-consumer-cursor-addr
+  export disruptor-published-cursor-addr
+
+  -- Linear `%1` ClaimToken API (forgetting to publish is a compile error)
+  export disruptor-try-claim, disruptor-claim-blocking, disruptor-with-claim
+  export claim-token-seq, claim-token-addr, claim-write-msg
+  export disruptor-publish, disruptor-write-and-publish
+
+  -- Zero-allocation unboxed sequence API for hot multi-producer loops
+  export disruptor-try-claim-seq, disruptor-claim-seq-blocking, disruptor-publish-seq
+
+  -- Availability, reading, consumer commit, and SequenceBarrier
+  export disruptor-is-available, disruptor-highest-published
+  export disruptor-read-slot, disruptor-read-slot-into, disruptor-commit-consumer
+  export barrier-new, barrier-min-gating, barrier-wait-for
+  export wait-strategy-pause
+
+  -- =========================================================================
+  -- 1. Types & layout constants
+  -- =========================================================================
+
+  data ProducerMode where
+    ProducerSingle :: ProducerMode
+    ProducerMulti :: ProducerMode
+
+  -- | Handle to a DMA-backed LMAX Disruptor.
+  record Disruptor where
+    dis-base :: I64
+    dis-mask :: I64
+    dis-cap :: I64
+    dis-slots-off :: I64
+    dis-mode :: I64
+    dis-bytes :: U64
+
+  -- | Linear `%1` claim obligation returned by claiming a slot.
+  -- Must be consumed exactly once by `disruptor-publish` or
+  -- `disruptor-write-and-publish` (optionally threaded through
+  -- `claim-write-msg`).
+  record ClaimToken where
+    claim-seq :: I64
+    claim-slot-addr :: I64
+    claim-ring-base :: I64
+    claim-ring-mask :: I64
+    claim-mode :: I64
+
+  -- | Consumer wait strategy for `barrier-wait-for` and blocking claims.
+  data WaitStrategy where
+    WaitBusySpin :: WaitStrategy
+    WaitYieldSpin :: Nat -> WaitStrategy
+    WaitAdaptivePark :: Nat -> WaitStrategy
+
+  -- | Upstream gating barrier tracking the minimum sequence across one or more
+  -- upstream atomic `I64` cursor addresses in addition to slot availability.
+  record SequenceBarrier where
+    barrier-disruptor :: Disruptor
+    barrier-gating-addrs :: List I64
+
+  -- Cache-line-isolated offsets (all multiples of 128 bytes)
+  off-prod-cursor :: I64
+  off-prod-cursor = 0
+
+  off-pub-cursor :: I64
+  off-pub-cursor = 128
+
+  off-mode :: I64
+  off-mode = 136
+
+  off-cons-cursor :: I64
+  off-cons-cursor = 256
+
+  off-parked-flag :: I64
+  off-parked-flag = 384
+
+  off-wake-flag :: I64
+  off-wake-flag = 512
+
+  off-meta-mask :: I64
+  off-meta-mask = 640
+
+  off-meta-cap :: I64
+  off-meta-cap = 648
+
+  off-meta-slots :: I64
+  off-meta-slots = 656
+
+  off-avail-array :: I64
+  off-avail-array = 768
+
+  #[inline(always)]
+  #[no-alloc]
+  round-up64 :: U64 -> U64
+  round-up64 n = bit-and-u64 (wrapping-add-u64 n 63) (bit-not-u64 63)
+
+  #[inline(always)]
+  #[no-alloc]
+  avail-addr-of :: I64 -> I64 -> I64 -> I64
+  avail-addr-of base mask seq =
+    let idx = bit-and-i64 seq mask in
+    wrapping-add-i64 base (wrapping-add-i64 off-avail-array (wrapping-shl-i64 idx 3))
+
+  -- | Compute the raw 64-byte slot address for `seq`.
+  #[inline(always)]
+  #[no-alloc]
+  disruptor-slot-addr :: Disruptor -> I64 -> I64
+  disruptor-slot-addr d seq =
+    let idx = bit-and-i64 seq d.dis-mask in
+    wrapping-add-i64 d.dis-base (wrapping-add-i64 d.dis-slots-off (wrapping-shl-i64 idx 6))
+
+  -- | Address of the Disruptor's atomic consumer gating cursor (`I64`).
+  #[inline(always)]
+  #[no-alloc]
+  disruptor-consumer-cursor-addr :: Disruptor -> I64
+  disruptor-consumer-cursor-addr d = wrapping-add-i64 d.dis-base off-cons-cursor
+
+  -- | Address of the Disruptor's single-producer published cursor (`I64`).
+  #[inline(always)]
+  #[no-alloc]
+  disruptor-published-cursor-addr :: Disruptor -> I64
+  disruptor-published-cursor-addr d = wrapping-add-i64 d.dis-base off-pub-cursor
+
+  -- | Capacity in `MsgEnvelope` slots.
+  #[inline(always)]
+  #[no-alloc]
+  disruptor-capacity :: Disruptor -> U64
+  disruptor-capacity d = wrapping-i64-to-u64 d.dis-cap
+
+  -- =========================================================================
+  -- 2. Lifecycle & initialization
+  -- =========================================================================
+
+  init-avail-loop :: I64 -> I64 -> I64 ->{MVar} Unit
+  init-avail-loop arr-base i cap =
+    if ge-i64 i cap then ()
+    else
+      let addr = wrapping-add-i64 arr-base (wrapping-shl-i64 i 3) in
+      let _ = atomic-store-relaxed-i64 addr (-1) in
+      init-avail-loop arr-base (wrapping-add-i64 i 1) cap
+
+  mode-to-i64 :: ProducerMode -> I64
+  mode-to-i64 m = case m of
+    ProducerSingle -> 0
+    ProducerMulti -> 1
+
+  -- | Allocate a new DMA-backed Disruptor with power-of-two capacity `cap >= 2`.
+  disruptor-new :: U64 -> ProducerMode ->{IO, MVar} Option Disruptor
+  disruptor-new cap mode =
+    if not (is-power-of-two-u64 cap) then None
+    else if gt-u64 cap 1073741824 then None
+    else
+      let avail-bytes = round-up64 (wrapping-mul-u64 cap 8) in
+      let slots-off-u = wrapping-add-u64 768 avail-bytes in
+      let total-bytes = wrapping-add-u64 slots-off-u (wrapping-mul-u64 cap 64) in
+      let raw = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 raw 0 then None
+      else
+        let base = wrapping-u64-to-i64 raw in
+        let cap-i = wrapping-u64-to-i64 cap in
+        let mask-i = wrapping-sub-i64 cap-i 1 in
+        let slots-off = wrapping-u64-to-i64 slots-off-u in
+        let mode-i = mode-to-i64 mode in
+        let _0 = atomic-store-relaxed-i64 (wrapping-add-i64 base off-prod-cursor) 0 in
+        let _1 = atomic-store-relaxed-i64 (wrapping-add-i64 base off-pub-cursor) (-1) in
+        let _2 = raw-store-i64 (wrapping-add-i64 base off-mode) mode-i in
+        let _3 = atomic-store-relaxed-i64 (wrapping-add-i64 base off-cons-cursor) (-1) in
+        let _4 = atomic-store-relaxed-i64 (wrapping-add-i64 base off-parked-flag) 0 in
+        let _5 = atomic-store-relaxed-i64 (wrapping-add-i64 base off-wake-flag) 0 in
+        let _6 = raw-store-i64 (wrapping-add-i64 base off-meta-mask) mask-i in
+        let _7 = raw-store-i64 (wrapping-add-i64 base off-meta-cap) cap-i in
+        let _8 = raw-store-i64 (wrapping-add-i64 base off-meta-slots) slots-off in
+        let _9 = init-avail-loop (wrapping-add-i64 base off-avail-array) 0 cap-i in
+        let _f = atomic-fence-release () in
+        Some (Disruptor base mask-i cap-i slots-off mode-i total-bytes)
+
+  -- | Reconstruct an unboxed `Disruptor` handle from an initialized DMA slab
+  -- address on a pinned worker thread. Zero heap allocation.
+  disruptor-from-raw :: I64 ->{MVar} Disruptor
+  disruptor-from-raw base =
+    let mask-i = raw-load-i64 (wrapping-add-i64 base off-meta-mask) in
+    let cap-i = raw-load-i64 (wrapping-add-i64 base off-meta-cap) in
+    let slots-off = raw-load-i64 (wrapping-add-i64 base off-meta-slots) in
+    let mode-i = raw-load-i64 (wrapping-add-i64 base off-mode) in
+    let total-bytes = wrapping-add-u64 (wrapping-i64-to-u64 slots-off) (wrapping-mul-u64 (wrapping-i64-to-u64 cap-i) 64) in
+    Disruptor base mask-i cap-i slots-off mode-i total-bytes
+
+  -- | Unmap the DMA slab owned by `d`.
+  disruptor-destroy :: Disruptor ->{IO} IoError
+  disruptor-destroy d =
+    engine-dma-free (wrapping-i64-to-u64 d.dis-base) d.dis-bytes
+
+  -- =========================================================================
+  -- 3. WaitStrategy spin / SeqCst Dekker adaptive park helpers
+  -- =========================================================================
+
+  pause-n :: Nat ->{MVar} Unit
+  pause-n n =
+    if n == 0 then ()
+    else
+      let _ = cpu-pause () in
+      pause-n (saturating-sub n 1)
+
+  -- | Execute one backoff step for `strat` (used by spin loops).
+  wait-strategy-pause :: WaitStrategy ->{MVar} Unit
+  wait-strategy-pause strat = case strat of
+    WaitBusySpin -> ()
+    WaitYieldSpin n -> pause-n n
+    WaitAdaptivePark n -> pause-n n
+
+  -- =========================================================================
+  -- 4. Claiming slots (SP & MP) + linear `%1` `ClaimToken` publish
+  -- =========================================================================
+
+  -- | Zero-allocation non-blocking claim returning the claimed sequence `>= 0`,
+  -- or `-1` if the ring is full (`seq - cons-cursor >= cap`).
+  -- Single-producer uses relaxed cursor update; Multi-producer uses a lock-free
+  -- `acq_rel` CAS loop so producers never overshoot the gating consumer.
+  disruptor-try-claim-seq :: Disruptor ->{MVar} I64
+  disruptor-try-claim-seq d =
+    let prod-addr = wrapping-add-i64 d.dis-base off-prod-cursor in
+    let cons-addr = wrapping-add-i64 d.dis-base off-cons-cursor in
+    if eq-i64 d.dis-mode 0 then
+      let seq = atomic-load-relaxed-i64 prod-addr in
+      let cons = atomic-load-acquire-i64 cons-addr in
+      if gt-i64 (wrapping-sub-i64 seq cons) d.dis-cap then -1
+      else
+        let _ = atomic-store-relaxed-i64 prod-addr (wrapping-add-i64 seq 1) in
+        seq
+    else
+      try-claim-mp-cas prod-addr cons-addr d.dis-cap
+
+  try-claim-mp-cas :: I64 -> I64 -> I64 ->{MVar} I64
+  try-claim-mp-cas prod-addr cons-addr cap =
+    let cur = atomic-load-acquire-i64 prod-addr in
+    let cons = atomic-load-acquire-i64 cons-addr in
+    if gt-i64 (wrapping-sub-i64 cur cons) cap then -1
+    else if atomic-cas-acqrel-i64 prod-addr cur (wrapping-add-i64 cur 1) then cur
+    else
+      let _ = cpu-pause () in
+      try-claim-mp-cas prod-addr cons-addr cap
+
+  wait-for-wrap-space :: I64 -> I64 -> I64 -> WaitStrategy ->{MVar, Diverge} Unit
+  wait-for-wrap-space cons-addr seq cap strat =
+    let cons = atomic-load-acquire-i64 cons-addr in
+    if le-i64 (wrapping-sub-i64 seq cons) cap then ()
+    else
+      let _ = wait-strategy-pause strat in
+      wait-for-wrap-space cons-addr seq cap strat
+
+  -- | Blocking LMAX Disruptor claim: atomically reserves the next sequence with
+  -- `atomic-fetch-add-acqrel-i64` (multi-producer) or relaxed increment
+  -- (single-producer), then waits with `strat` until the gating consumer frees
+  -- the slot (`seq - cons <= cap`). Zero heap allocation.
+  disruptor-claim-seq-blocking :: Disruptor -> WaitStrategy ->{MVar, Diverge} I64
+  disruptor-claim-seq-blocking d strat =
+    let prod-addr = wrapping-add-i64 d.dis-base off-prod-cursor in
+    let cons-addr = wrapping-add-i64 d.dis-base off-cons-cursor in
+    let seq = if eq-i64 d.dis-mode 0 then (let s = atomic-load-relaxed-i64 prod-addr in let _ = atomic-store-relaxed-i64 prod-addr (wrapping-add-i64 s 1) in s) else atomic-fetch-add-acqrel-i64 prod-addr 1 in
+    let _w = wait-for-wrap-space cons-addr seq d.dis-cap strat in
+    seq
+
+  -- | Non-blocking claim returning `Option ClaimToken`.
+  disruptor-try-claim :: Disruptor ->{MVar} Option ClaimToken
+  disruptor-try-claim d =
+    let seq = disruptor-try-claim-seq d in
+    if lt-i64 seq 0 then None
+    else Some (ClaimToken seq (disruptor-slot-addr d seq) d.dis-base d.dis-mask d.dis-mode)
+
+  -- | Blocking claim returning a `ClaimToken` via `atomic-fetch-add-acqrel-i64`.
+  disruptor-claim-blocking :: Disruptor -> WaitStrategy ->{MVar, Diverge} ClaimToken
+  disruptor-claim-blocking d strat =
+    let seq = disruptor-claim-seq-blocking d strat in
+    ClaimToken seq (disruptor-slot-addr d seq) d.dis-base d.dis-mask d.dis-mode
+
+  -- | Scoped linear claim combinator: passes the claimed `ClaimToken %1` into
+  -- `body`, so forgetting to publish (or double-publishing) inside `body` is a
+  -- compile-time `%1` linearity error.
+  disruptor-with-claim :: forall a. Disruptor -> (ClaimToken %1 ->{MVar} a) ->{MVar} Option a
+  disruptor-with-claim d body = case disruptor-try-claim d of
+    None -> None
+    Some tok -> Some (body tok)
+
+  -- | Inspect the claimed sequence number, returning the linear token untouched.
+  claim-token-seq :: ClaimToken %1 -> (ClaimToken, I64)
+  claim-token-seq tok = case tok of
+    ClaimToken seq addr rb rm md -> (ClaimToken seq addr rb rm md, seq)
+
+  -- | Inspect the claimed slot raw address, returning the linear token untouched.
+  claim-token-addr :: ClaimToken %1 -> (ClaimToken, I64)
+  claim-token-addr tok = case tok of
+    ClaimToken seq addr rb rm md -> (ClaimToken seq addr rb rm md, addr)
+
+  -- | Write a 64-byte `MsgEnvelope` into the claimed slot, threading the linear
+  -- `ClaimToken %1` forward to `disruptor-publish`.
+  claim-write-msg :: MsgEnvelope -> ClaimToken %1 ->{MVar} ClaimToken
+  claim-write-msg msg tok = case tok of
+    ClaimToken seq addr rb rm md ->
+      let _ = store-msg-envelope addr msg in
+      ClaimToken seq addr rb rm md
+
+  -- | Publish a sequence number (release store into per-slot `available` buffer
+  -- + SeqCst Dekker wakeup check for `WaitAdaptivePark` consumers). Zero alloc.
+  disruptor-publish-seq :: Disruptor -> I64 ->{MVar} Unit
+  disruptor-publish-seq d seq =
+    let avail-addr = avail-addr-of d.dis-base d.dis-mask seq in
+    let _a = atomic-store-release-i64 avail-addr seq in
+    let _p = if eq-i64 d.dis-mode 0 then atomic-store-release-i64 (wrapping-add-i64 d.dis-base off-pub-cursor) seq else () in
+    -- SeqCst Dekker wake protocol: fence after publish, then check parked flag
+    let _f = atomic-fence-seqcst () in
+    let parked = atomic-load-seqcst-i64 (wrapping-add-i64 d.dis-base off-parked-flag) in
+    if ne-i64 parked 0 then
+      atomic-store-seqcst-i64 (wrapping-add-i64 d.dis-base off-wake-flag) 1
+    else ()
+
+  -- | Linearly consume a `ClaimToken %1` and publish its slot to consumers.
+  -- Dropping a `ClaimToken %1` without calling `disruptor-publish` is rejected
+  -- at compile time.
+  disruptor-publish :: Disruptor -> ClaimToken %1 ->{MVar} Unit
+  disruptor-publish d tok = case tok of
+    ClaimToken seq _addr _rb _rm _md -> disruptor-publish-seq d seq
+
+  -- | Write `msg` into the claimed slot and linearly publish `ClaimToken %1`.
+  disruptor-write-and-publish :: Disruptor -> MsgEnvelope -> ClaimToken %1 ->{MVar} Unit
+  disruptor-write-and-publish d msg tok = case tok of
+    ClaimToken seq addr _rb _rm _md ->
+      let _w = store-msg-envelope addr msg in
+      disruptor-publish-seq d seq
+
+  -- =========================================================================
+  -- 5. Availability checks, reading, consumer commit, and `SequenceBarrier`
+  -- =========================================================================
+
+  -- | True iff `seq` has been published (release-acquire on per-slot
+  -- `available` sequence buffer). Consumers never observe unpublished slots
+  -- even under out-of-order multi-producer publishing.
+  #[inline(always)]
+  disruptor-is-available :: Disruptor -> I64 ->{MVar} Bool
+  disruptor-is-available d seq =
+    let avail = atomic-load-acquire-i64 (avail-addr-of d.dis-base d.dis-mask seq) in
+    eq-i64 avail seq
+
+  -- | Scan forward from `next-seq` up to `up-to` (inclusive) and return the
+  -- highest contiguous published sequence (or `next-seq - 1` if `next-seq` is
+  -- not yet published).
+  disruptor-highest-published :: Disruptor -> I64 -> I64 ->{MVar} I64
+  disruptor-highest-published d next-seq up-to =
+    highest-pub-loop d next-seq up-to (wrapping-sub-i64 next-seq 1)
+
+  highest-pub-loop :: Disruptor -> I64 -> I64 -> I64 ->{MVar} I64
+  highest-pub-loop d cur up-to best =
+    if gt-i64 cur up-to then best
+    else if disruptor-is-available d cur then
+      highest-pub-loop d (wrapping-add-i64 cur 1) up-to cur
+    else best
+
+  -- | Read the 64-byte `MsgEnvelope` from a published slot `seq`.
+  disruptor-read-slot :: Disruptor -> I64 ->{MVar} MsgEnvelope
+  disruptor-read-slot d seq = load-msg-envelope (disruptor-slot-addr d seq)
+
+  -- | Copy the 64-byte `MsgEnvelope` from a published slot `seq` into raw
+  -- address `dst-addr`. Zero heap allocation.
+  disruptor-read-slot-into :: Disruptor -> I64 -> I64 ->{MVar} Unit
+  disruptor-read-slot-into d seq dst-addr =
+    copy-msg-envelope-raw dst-addr (disruptor-slot-addr d seq)
+
+  -- | Advance the consumer gating cursor to `seq` with `release` ordering,
+  -- freeing slots up through `seq` for producer reuse.
+  disruptor-commit-consumer :: Disruptor -> I64 ->{MVar} Unit
+  disruptor-commit-consumer d seq =
+    atomic-store-release-i64 (wrapping-add-i64 d.dis-base off-cons-cursor) seq
+
+  -- | Create a `SequenceBarrier` tracking `gating-addrs` (upstream atomic
+  -- `I64` cursor addresses) on `d`. Pass `Nil` for a top-level consumer that
+  -- gates directly on producer slot publication.
+  barrier-new :: Disruptor -> List I64 -> SequenceBarrier
+  barrier-new d gating-addrs = SequenceBarrier d gating-addrs
+
+  min-gating-loop :: List I64 -> I64 ->{MVar} I64
+  min-gating-loop addrs acc = case addrs of
+    Nil -> acc
+    Cons addr rest ->
+      let v = atomic-load-acquire-i64 addr in
+      let next = if lt-i64 v acc then v else acc in
+      min-gating-loop rest next
+
+  -- | Compute the minimum sequence across all upstream gating cursors, bounded
+  -- above by `ceiling`.
+  barrier-min-gating :: SequenceBarrier -> I64 ->{MVar} I64
+  barrier-min-gating b ceiling = min-gating-loop b.barrier-gating-addrs ceiling
+
+  -- Check if `target-seq` is ready: all upstream gating cursors >= `target-seq`
+  -- AND `disruptor-is-available d target-seq`.
+  barrier-ready-seq :: SequenceBarrier -> I64 ->{MVar} I64
+  barrier-ready-seq b target-seq =
+    let d = b.barrier-disruptor in
+    let upper = case b.barrier-gating-addrs of Nil -> wrapping-add-i64 target-seq (wrapping-sub-i64 d.dis-cap 1); Cons _ _ -> barrier-min-gating b 9223372036854775807 in
+    if lt-i64 upper target-seq then wrapping-sub-i64 target-seq 1
+    else disruptor-highest-published d target-seq upper
+
+  dekker-wait-wake :: SequenceBarrier -> I64 ->{MVar, Diverge} I64
+  dekker-wait-wake b target-seq =
+    let d = b.barrier-disruptor in
+    let parked-addr = wrapping-add-i64 d.dis-base off-parked-flag in
+    let wake-addr = wrapping-add-i64 d.dis-base off-wake-flag in
+    -- SeqCst Dekker phase 1: publish `consumer_parked = 1` + SeqCst fence
+    let _p1 = atomic-store-seqcst-i64 parked-addr 1 in
+    let _f1 = atomic-fence-seqcst () in
+    -- SeqCst Dekker phase 2: re-check condition before parking
+    let r1 = barrier-ready-seq b target-seq in
+    if ge-i64 r1 target-seq then
+      let _u1 = atomic-store-seqcst-i64 parked-addr 0 in
+      let _w1 = atomic-store-seqcst-i64 wake-addr 0 in
+      r1
+    else
+      -- Spin/yield until producer sets `wake-flag` (guaranteed by Dekker)
+      dekker-park-loop b target-seq parked-addr wake-addr
+
+  dekker-park-loop :: SequenceBarrier -> I64 -> I64 -> I64 ->{MVar, Diverge} I64
+  dekker-park-loop b target-seq parked-addr wake-addr =
+    let woke = atomic-load-seqcst-i64 wake-addr in
+    let r = barrier-ready-seq b target-seq in
+    if ge-i64 r target-seq then
+      let _u = atomic-store-seqcst-i64 parked-addr 0 in
+      let _w = atomic-store-seqcst-i64 wake-addr 0 in
+      r
+    else if ne-i64 woke 0 then
+      let _w = atomic-store-seqcst-i64 wake-addr 0 in
+      let _u = atomic-store-seqcst-i64 parked-addr 0 in
+      dekker-wait-wake b target-seq
+    else
+      let _p = cpu-pause () in
+      dekker-park-loop b target-seq parked-addr wake-addr
+
+  adaptive-spin-then-park :: SequenceBarrier -> I64 -> Nat ->{MVar, Diverge} I64
+  adaptive-spin-then-park b target-seq rem-spins =
+    let r = barrier-ready-seq b target-seq in
+    if ge-i64 r target-seq then r
+    else if rem-spins == 0 then dekker-wait-wake b target-seq
+    else
+      let _ = cpu-pause () in
+      adaptive-spin-then-park b target-seq (saturating-sub rem-spins 1)
+
+  spin-barrier-loop :: SequenceBarrier -> WaitStrategy -> I64 ->{MVar, Diverge} I64
+  spin-barrier-loop b strat target-seq =
+    let r = barrier-ready-seq b target-seq in
+    if ge-i64 r target-seq then r
+    else
+      let _ = wait-strategy-pause strat in
+      spin-barrier-loop b strat target-seq
+
+  -- | Wait according to `strat` until `target-seq` is both published in the
+  -- Disruptor and cleared by all upstream gating cursors in `b`. Returns the
+  -- highest contiguous available sequence `>= target-seq`.
+  barrier-wait-for :: SequenceBarrier -> WaitStrategy -> I64 ->{MVar, Diverge} I64
+  barrier-wait-for b strat target-seq = case strat of
+    WaitAdaptivePark spins -> adaptive-spin-then-park b target-seq spins
+    _ -> spin-barrier-loop b strat target-seq

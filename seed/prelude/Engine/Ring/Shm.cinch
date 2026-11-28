@@ -1,0 +1,261 @@
+-- | Shared-memory (`mmap`) zero-copy IPC SPSC ring buffer with a versioned,
+-- magic-tagged, cache-line-isolated header (`SHM_MAGIC = 0x43494E434852494E`
+-- `"CINCHRIN"`, `version = 1`).
+--
+-- Shared-memory region layout (128-byte cache-line isolation):
+--   * Offset   0..128: versioned header (`magic`, `version`, `cap`, `mask`,
+--                      `slot-bytes = 64`, `total-bytes`)
+--   * Offset 128..256: producer `head` (`I64` atomic) + `cached-tail` shadow
+--   * Offset 256..384: consumer `tail` (`I64` atomic) + `cached-head` shadow
+--   * Offset 384..   : contiguous array of `cap` 64-byte `MsgEnvelope` slots
+--
+-- `shm-ring-init` writes metadata first and publishes `SHM_MAGIC` with a
+-- `release` store; `shm-ring-attach` validates `SHM_MAGIC` with an `acquire`
+-- load and checks version, power-of-two capacity, slot stride, and region size.
+module Engine.Ring.Shm where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Ring.Spsc
+  import Engine.Types
+  import Prim.Atomic
+  import Prim.Sys.Io
+
+  -- Versioned SHM header constants & handle
+  export shm-magic, shm-version, shm-slot-bytes, shm-header-bytes
+  export shm-required-bytes
+  export ShmRing
+
+  -- Init, attach, file-backed mmap helper, detach, and zero-copy push/pop
+  export shm-ring-init, shm-ring-attach, shm-ring-map-fd, shm-ring-detach
+  export shm-ring-try-push, shm-ring-try-pop, shm-ring-try-pop-unboxed
+  export shm-ring-len, shm-ring-capacity
+
+  -- =========================================================================
+  -- 1. Constants & handle
+  -- =========================================================================
+
+  -- | ASCII `"CINCHRIN"` (`0x43494E434852494E`).
+  #[no-alloc]
+  shm-magic :: U64
+  shm-magic = 0x43494E434852494E
+
+  -- | Current SHM ring wire format version (`1`).
+  #[no-alloc]
+  shm-version :: U64
+  shm-version = 1
+
+  -- | Fixed 64-byte `MsgEnvelope` slot size.
+  #[no-alloc]
+  shm-slot-bytes :: U64
+  shm-slot-bytes = 64
+
+  -- | 384-byte (3 x 128B cache lines) header preceding the slot array.
+  #[no-alloc]
+  shm-header-bytes :: U64
+  shm-header-bytes = 384
+
+  -- Field byte offsets inside the mapped shared-memory region
+  off-magic :: I64
+  off-magic = 0
+
+  off-version :: I64
+  off-version = 8
+
+  off-cap :: I64
+  off-cap = 16
+
+  off-mask :: I64
+  off-mask = 24
+
+  off-slot-bytes :: I64
+  off-slot-bytes = 32
+
+  off-total-bytes :: I64
+  off-total-bytes = 40
+
+  off-head :: I64
+  off-head = 128
+
+  off-cached-tail :: I64
+  off-cached-tail = 136
+
+  off-tail :: I64
+  off-tail = 256
+
+  off-cached-head :: I64
+  off-cached-head = 264
+
+  off-slots :: I64
+  off-slots = 384
+
+  -- | Handle to a mapped shared-memory IPC ring.
+  record ShmRing where
+    shm-base :: I64
+    shm-mask :: I64
+    shm-cap :: I64
+    shm-bytes :: U64
+
+  -- | Minimum byte length required for an SHM ring of `cap` 64-byte slots,
+  -- rounded up to a 4 KiB page boundary for `ftruncate` / `mmap`.
+  #[no-alloc]
+  shm-required-bytes :: U64 -> U64
+  shm-required-bytes cap =
+    let raw = wrapping-add-u64 shm-header-bytes (wrapping-mul-u64 cap shm-slot-bytes) in
+    bit-and-u64 (wrapping-add-u64 raw 4095) (bit-not-u64 4095)
+
+  #[inline(always)]
+  #[no-alloc]
+  shm-slot-addr :: I64 -> I64 -> I64 -> I64
+  shm-slot-addr base mask idx =
+    let slot = bit-and-i64 idx mask in
+    wrapping-add-i64 base (wrapping-add-i64 off-slots (wrapping-shl-i64 slot 6))
+
+  -- =========================================================================
+  -- 2. Init, attach, mmap helper, and detach
+  -- =========================================================================
+
+  -- | Initialize a mapped shared-memory region at `base` (of length
+  -- `region-bytes`) as a fresh version-1 SHM ring with power-of-two capacity
+  -- `cap >= 2`. Publishes `SHM_MAGIC` last with `release` ordering.
+  shm-ring-init :: I64 -> U64 -> U64 ->{MVar} Option ShmRing
+  shm-ring-init base region-bytes cap =
+    if eq-i64 base 0 then None
+    else if not (is-power-of-two-u64 cap) then None
+    else if gt-u64 cap 1073741824 then None
+    else
+      let needed = wrapping-add-u64 shm-header-bytes (wrapping-mul-u64 cap shm-slot-bytes) in
+      if lt-u64 region-bytes needed then None
+      else
+        let mask-u = wrapping-sub-u64 cap 1 in
+        -- Clear magic first while initializing header & cursors
+        let _m0 = atomic-store-relaxed-u64 (wrapping-add-i64 base off-magic) 0 in
+        let _v = raw-store-u64 (wrapping-add-i64 base off-version) shm-version in
+        let _c = raw-store-u64 (wrapping-add-i64 base off-cap) cap in
+        let _mk = raw-store-u64 (wrapping-add-i64 base off-mask) mask-u in
+        let _sb = raw-store-u64 (wrapping-add-i64 base off-slot-bytes) shm-slot-bytes in
+        let _tb = raw-store-u64 (wrapping-add-i64 base off-total-bytes) needed in
+        let _h = atomic-store-relaxed-i64 (wrapping-add-i64 base off-head) 0 in
+        let _ct = raw-store-i64 (wrapping-add-i64 base off-cached-tail) 0 in
+        let _t = atomic-store-relaxed-i64 (wrapping-add-i64 base off-tail) 0 in
+        let _ch = raw-store-i64 (wrapping-add-i64 base off-cached-head) 0 in
+        -- Publish magic with release ordering so attachers observe full header
+        let _m1 = atomic-store-release-u64 (wrapping-add-i64 base off-magic) shm-magic in
+        Some (ShmRing base (wrapping-u64-to-i64 mask-u) (wrapping-u64-to-i64 cap) region-bytes)
+
+  -- | Attach to an already-initialized shared-memory ring mapped at `base`
+  -- (`region-bytes` mapped). Validates `SHM_MAGIC` (acquire load), `version == 1`,
+  -- `slot-bytes == 64`, power-of-two `cap`, `mask == cap - 1`, and bounds.
+  shm-ring-attach :: I64 -> U64 ->{MVar} Option ShmRing
+  shm-ring-attach base region-bytes =
+    if eq-i64 base 0 then None
+    else if lt-u64 region-bytes shm-header-bytes then None
+    else
+      let magic = atomic-load-acquire-u64 (wrapping-add-i64 base off-magic) in
+      if ne-u64 magic shm-magic then None
+      else
+        let ver = raw-load-u64 (wrapping-add-i64 base off-version) in
+        let cap = raw-load-u64 (wrapping-add-i64 base off-cap) in
+        let mask-u = raw-load-u64 (wrapping-add-i64 base off-mask) in
+        let sb = raw-load-u64 (wrapping-add-i64 base off-slot-bytes) in
+        let needed = wrapping-add-u64 shm-header-bytes (wrapping-mul-u64 cap shm-slot-bytes) in
+        if ne-u64 ver shm-version then None
+        else if ne-u64 sb shm-slot-bytes then None
+        else if not (is-power-of-two-u64 cap) then None
+        else if ne-u64 mask-u (wrapping-sub-u64 cap 1) then None
+        else if lt-u64 region-bytes needed then None
+        else
+          Some (ShmRing base (wrapping-u64-to-i64 mask-u) (wrapping-u64-to-i64 cap) region-bytes)
+
+  -- | Map an open shared-memory file descriptor `fd` with `MAP_SHARED` and
+  -- either initialize (`create = True`) or attach (`create = False`) an SHM
+  -- ring of capacity `cap` (ignored when `create = False`). On validation
+  -- failure, unmaps the region cleanly before returning `None`.
+  shm-ring-map-fd :: forall r. using (io :: Io r) => Fd -> U64 -> U64 -> Bool ->{IO r, MVar} Option ShmRing
+  shm-ring-map-fd fd region-bytes cap create =
+    if not (fd-is-valid fd) then None
+    else if lt-u64 region-bytes shm-header-bytes then None
+    else
+      let prot = bit-or-i64 prot-read prot-write in
+      let addr = sys-mmap 0 (wrapping-u64-to-i64 region-bytes) prot map-shared (i32-to-i64 fd.fd-raw) 0 in
+      if io-is-err addr || eq-i64 addr 0 then None
+      else
+        let res = if create then shm-ring-init addr region-bytes cap else shm-ring-attach addr region-bytes in
+        case res of
+          None ->
+            let _ = sys-munmap addr (wrapping-u64-to-i64 region-bytes) in
+            None
+          Some ring -> Some ring
+
+  -- | Unmap the shared-memory region mapped for `ring`.
+  shm-ring-detach :: forall r. using (io :: Io r) => ShmRing ->{IO r} IoError
+  shm-ring-detach ring =
+    let rc = sys-munmap ring.shm-base (wrapping-u64-to-i64 ring.shm-bytes) in
+    if eq-i64 rc 0 then IoOk else IoOther
+
+  -- =========================================================================
+  -- 3. Lock-free zero-copy push / pop over the mapped SHM region
+  -- =========================================================================
+
+  -- | Push one 64-byte `MsgEnvelope` into the shared-memory ring (zero alloc).
+  shm-ring-try-push :: ShmRing -> MsgEnvelope ->{MVar} Bool
+  shm-ring-try-push ring msg =
+    let base = ring.shm-base in
+    let head-addr = wrapping-add-i64 base off-head in
+    let ctail-addr = wrapping-add-i64 base off-cached-tail in
+    let head = atomic-load-relaxed-i64 head-addr in
+    let ctail = raw-load-i64 ctail-addr in
+    let used0 = wrapping-sub-i64 head ctail in
+    let used = if lt-i64 used0 ring.shm-cap then used0 else (let fresh-tail = atomic-load-acquire-i64 (wrapping-add-i64 base off-tail) in let _c = raw-store-i64 ctail-addr fresh-tail in wrapping-sub-i64 head fresh-tail) in
+    if ge-i64 used ring.shm-cap then eq-u32 0 1
+    else
+      let slot = shm-slot-addr base ring.shm-mask head in
+      let _w = store-msg-envelope slot msg in
+      let _p = atomic-store-release-i64 head-addr (wrapping-add-i64 head 1) in
+      eq-u32 0 0
+
+  -- | Pop one 64-byte `MsgEnvelope` from the shared-memory ring (unboxed, zero alloc).
+  shm-ring-try-pop-unboxed :: ShmRing ->{MVar} PopEnvelope
+  shm-ring-try-pop-unboxed ring =
+    let base = ring.shm-base in
+    let tail-addr = wrapping-add-i64 base off-tail in
+    let chead-addr = wrapping-add-i64 base off-cached-head in
+    let tail = atomic-load-relaxed-i64 tail-addr in
+    let chead = raw-load-i64 chead-addr in
+    let avail = if lt-i64 tail chead then chead else (let fresh-head = atomic-load-acquire-i64 (wrapping-add-i64 base off-head) in let _c = raw-store-i64 chead-addr fresh-head in fresh-head) in
+    if ge-i64 tail avail then pop-envelope-empty ()
+    else
+      let slot = shm-slot-addr base ring.shm-mask tail in
+      let hdr = raw-load-u64 slot in
+      let seq = raw-load-u64 (wrapping-add-i64 slot 8) in
+      let w0 = raw-load-u64 (wrapping-add-i64 slot 16) in
+      let w1 = raw-load-u64 (wrapping-add-i64 slot 24) in
+      let w2 = raw-load-u64 (wrapping-add-i64 slot 32) in
+      let w3 = raw-load-u64 (wrapping-add-i64 slot 40) in
+      let w4 = raw-load-u64 (wrapping-add-i64 slot 48) in
+      let w5 = raw-load-u64 (wrapping-add-i64 slot 56) in
+      let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail 1) in
+      PopEnvelope 1 (wrapping-u64-to-u32 hdr) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32)) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48)) seq w0 w1 w2 w3 w4 w5
+
+  -- | Pop one 64-byte `MsgEnvelope` from the shared-memory ring.
+  shm-ring-try-pop :: ShmRing ->{MVar} Option MsgEnvelope
+  shm-ring-try-pop ring =
+    let res = shm-ring-try-pop-unboxed ring in
+    if pop-envelope-is-some res then Some (pop-envelope-msg res) else None
+
+  -- | Current unread envelope count in the shared-memory ring.
+  shm-ring-len :: ShmRing ->{MVar} U64
+  shm-ring-len ring =
+    let base = ring.shm-base in
+    let head = atomic-load-acquire-i64 (wrapping-add-i64 base off-head) in
+    let tail = atomic-load-acquire-i64 (wrapping-add-i64 base off-tail) in
+    let diff = wrapping-sub-i64 head tail in
+    if lt-i64 diff 0 then 0 else wrapping-i64-to-u64 diff
+
+  -- | Capacity of the shared-memory ring in `MsgEnvelope` slots.
+  #[inline(always)]
+  #[no-alloc]
+  shm-ring-capacity :: ShmRing -> U64
+  shm-ring-capacity ring = wrapping-i64-to-u64 ring.shm-cap
