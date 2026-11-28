@@ -1,0 +1,1006 @@
+-- | High-throughput Linux `io_uring` reactor backend (`Engine.Reactor.Linux`).
+--
+-- Features:
+--   * Direct `io_uring_setup` with `IORING_SETUP_SINGLE_ISSUER |
+--     IORING_SETUP_DEFER_TASKRUN | IORING_SETUP_COOP_TASKRUN` (with clean
+--     fallback on `-EINVAL` for older kernels) and `mmap` of SQ/CQ/SQE rings
+--     (supporting `IORING_FEAT_SINGLE_MMAP`).
+--   * Zero-allocation 64-byte `io_uring_sqe` ring builders for multishot
+--     accept, recv / multishot recv (with `IOSQE_BUFFER_SELECT`), send,
+--     zero-copy `IORING_OP_SEND_ZC`, UDP GSO `sendmsg` (`UDP_SEGMENT` +
+--     `SO_TXTIME` cmsg builders), UDP GRO `recvmsg` (`UDP_GRO` cmsg reader),
+--     `splice`, `O_DIRECT` read/write, `fsync`, `timeout`, `async_cancel`,
+--     `close`, and generic `Engine.Types.IoSqe` dispatch.
+--   * Batched `linux-reactor-tick`: submits pending SQEs and reaps up to
+--     `max-cqes` 16-byte `Completion` entries in ONE `io_uring_enter` syscall.
+--   * Registration helpers for fixed files (`IORING_REGISTER_FILES`) and
+--     provided buffer rings (`IORING_REGISTER_PBUF_RING`), wiring directly to
+--     `Engine.Mem.DmaPool.dma-pool-fill-pbuf-ring`.
+--   * `SO_REUSEPORT` TCP/UDP listeners + `UDP_GRO` enablement + compact
+--     classic BPF (`SO_ATTACH_REUSEPORT_CBPF`) & eBPF (`SO_ATTACH_REUSEPORT_EBPF`)
+--     QUIC DCID `core_id` steering program builder and attachment helpers.
+--   * Pure/in-memory SQE/CQE ring serialization and BPF bytecode emission
+--     helpers so every byte offset, flag, and instruction is verified live on
+--     non-Linux hosts and assembled cleanly for Linux `x86_64` and `aarch64`.
+module Engine.Reactor.Linux where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Engine.Mem.DmaPool
+  import Engine.Types
+  import Prim.Atomic
+  import Prim.Sys.Io.Linux
+
+  -- Reactor handle & lifecycle
+  export LinuxReactor, linux-reactor-new, linux-reactor-destroy
+  export linux-reactor-pending-sqes, linux-reactor-ring-fd, linux-reactor-sq-entries, linux-reactor-cq-entries
+
+  -- Registration helpers
+  export linux-reactor-register-files, linux-reactor-register-pbuf-ring, linux-reactor-unregister-pbuf-ring
+
+  -- ABI flags & constants
+  export iosqe-fixed-file, iosqe-io-drain, iosqe-io-link, iosqe-async, iosqe-buffer-select, iosqe-cqe-skip-success
+  export ioring-accept-multishot, ioring-recv-multishot, ioring-recvsend-poll-first, ioring-recvsend-fixed-buf
+  export ioring-fsync-datasync, ioring-feat-single-mmap
+  export ioring-cqe-f-buffer, ioring-cqe-f-more, ioring-cqe-f-sock-nonempty, ioring-cqe-f-notif
+  export ioring-cqe-buffer-id
+  export so-attach-reuseport-cbpf, scm-txtime
+  export linux-errno-to-io-error
+
+  -- Pure / in-memory SQE, CQE, cmsg, msghdr, and ring helpers (host-testable)
+  export linux-write-sqe-slot, linux-read-cqe-slot, linux-write-cqe-slot
+  export linux-write-cmsg-udp-segment, linux-write-cmsg-txtime, linux-read-cmsg-udp-gro
+  export linux-write-msghdr, linux-write-sockaddr-in-any, linux-write-timespec
+  export linux-reactor-from-raw-rings, linux-reactor-reap-cqes
+
+  -- Zero-alloc SQE builders & generic submit
+  export linux-sqe-prep-accept-multishot
+  export linux-sqe-prep-recv, linux-sqe-prep-recv-multishot
+  export linux-sqe-prep-send, linux-sqe-prep-send-zc
+  export linux-sqe-prep-sendmsg-gso, linux-sqe-prep-recvmsg-gro
+  export linux-sqe-prep-splice
+  export linux-sqe-prep-read-direct, linux-sqe-prep-write-direct
+  export linux-sqe-prep-fsync, linux-sqe-prep-timeout
+  export linux-sqe-prep-cancel, linux-sqe-prep-close
+  export linux-reactor-submit-sqe
+
+  -- Batched submit + reap tick
+  export linux-reactor-tick
+
+  -- Socket & QUIC CID BPF/eBPF steering helpers
+  export linux-tcp-listen-reuseport, linux-udp-bind-reuseport-gro
+  export linux-build-quic-cid-bpf, linux-attach-quic-cid-ebpf, linux-attach-reuseport-ebpf-fd
+
+  -- =========================================================================
+  -- 1. Linux io_uring & socket ABI constants
+  -- =========================================================================
+
+  -- SQE `flags` bits (`<linux/io_uring.h>`)
+  #[no-alloc]
+  iosqe-fixed-file :: U8
+  iosqe-fixed-file = 1
+
+  #[no-alloc]
+  iosqe-io-drain :: U8
+  iosqe-io-drain = 2
+
+  #[no-alloc]
+  iosqe-io-link :: U8
+  iosqe-io-link = 4
+
+  #[no-alloc]
+  iosqe-async :: U8
+  iosqe-async = 16
+
+  #[no-alloc]
+  iosqe-buffer-select :: U8
+  iosqe-buffer-select = 32
+
+  #[no-alloc]
+  iosqe-cqe-skip-success :: U8
+  iosqe-cqe-skip-success = 64
+
+  -- SQE `ioprio` multishot / send-recv modifier bits
+  #[no-alloc]
+  ioring-accept-multishot :: U16
+  ioring-accept-multishot = 1
+
+  #[no-alloc]
+  ioring-recvsend-poll-first :: U16
+  ioring-recvsend-poll-first = 1
+
+  #[no-alloc]
+  ioring-recv-multishot :: U16
+  ioring-recv-multishot = 2
+
+  #[no-alloc]
+  ioring-recvsend-fixed-buf :: U16
+  ioring-recvsend-fixed-buf = 4
+
+  -- `IORING_OP_FSYNC` flag
+  #[no-alloc]
+  ioring-fsync-datasync :: U32
+  ioring-fsync-datasync = 1
+
+  -- `io_uring_params.features` bit
+  #[no-alloc]
+  ioring-feat-single-mmap :: U32
+  ioring-feat-single-mmap = 1
+
+  -- CQE `flags` bits
+  #[no-alloc]
+  ioring-cqe-f-buffer :: U32
+  ioring-cqe-f-buffer = 1
+
+  #[no-alloc]
+  ioring-cqe-f-more :: U32
+  ioring-cqe-f-more = 2
+
+  #[no-alloc]
+  ioring-cqe-f-sock-nonempty :: U32
+  ioring-cqe-f-sock-nonempty = 4
+
+  #[no-alloc]
+  ioring-cqe-f-notif :: U32
+  ioring-cqe-f-notif = 8
+
+  -- | Extract the kernel-selected buffer ID from `cqe.cqe-flags` when
+  -- `IORING_CQE_F_BUFFER` is set (`flags >> 16`).
+  #[inline(always)]
+  #[no-alloc]
+  ioring-cqe-buffer-id :: U32 -> U16
+  ioring-cqe-buffer-id flags = wrapping-u32-to-u16 (wrapping-shr-u32 flags 16)
+
+  -- Socket / BPF constants (`<asm-generic/socket.h>`)
+  #[no-alloc]
+  so-attach-reuseport-cbpf :: I64
+  so-attach-reuseport-cbpf = 51
+
+  #[no-alloc]
+  scm-txtime :: I32
+  scm-txtime = 61
+
+  -- Linux errno values
+  errno-ebadf :: I64
+  errno-ebadf = 9
+
+  errno-enomem :: I64
+  errno-enomem = 12
+
+  errno-einval :: I64
+  errno-einval = 22
+
+  errno-epipe :: I64
+  errno-epipe = 32
+
+  errno-eaddrinuse :: I64
+  errno-eaddrinuse = 98
+
+  errno-econnreset :: I64
+  errno-econnreset = 104
+
+  errno-etimedout :: I64
+  errno-etimedout = 110
+
+  errno-ecanceled :: I64
+  errno-ecanceled = 125
+
+  -- | Translate a negative Linux `-errno` return code to `Engine.Types.IoError`.
+  linux-errno-to-io-error :: I64 -> IoError
+  linux-errno-to-io-error rc =
+    if ge-i64 rc 0 then IoOk
+    else
+      let e = io-errno rc in
+      if eq-i64 e eagain then IoAgain
+      else if eq-i64 e errno-ebadf then IoBadFd
+      else if eq-i64 e errno-enomem then IoNoMem
+      else if eq-i64 e errno-ecanceled then IoCanceled
+      else if eq-i64 e errno-econnreset then IoConnReset
+      else if eq-i64 e errno-epipe then IoBrokenPipe
+      else if eq-i64 e errno-eaddrinuse then IoAddrInUse
+      else if eq-i64 e errno-etimedout then IoTimedOut
+      else if eq-i64 e enosys then IoUnsupported
+      else IoOther
+
+  -- =========================================================================
+  -- 2. Reactor state slab layout & `LinuxReactor` record
+  -- =========================================================================
+
+  -- Internal 4 KiB DMA control/scratch slab offsets (`state-ptr`):
+  --   +0   : pending-sqes  :: U32  (unsubmitted SQEs queued since last enter)
+  --   +4   : single-mmap   :: U32  (1 if SQ and CQ share one mmap region)
+  --   +8   : sq-tail-pub   :: I64  (8-byte aligned shadow SQ tail, release-published)
+  --   +16  : cq-head-pub   :: I64  (8-byte aligned shadow CQ head, release-published)
+  --   +24  : destroyed     :: U32  (0 = live, 1 = destroyed)
+  --   +64  : scratch       :: [U8; 4032] (for io_uring_params, io_uring_buf_reg, etc.)
+  st-off-pending :: I64
+  st-off-pending = 0
+
+  st-off-single-mmap :: I64
+  st-off-single-mmap = 4
+
+  st-off-sq-tail-pub :: I64
+  st-off-sq-tail-pub = 8
+
+  st-off-cq-head-pub :: I64
+  st-off-cq-head-pub = 16
+
+  st-off-destroyed :: I64
+  st-off-destroyed = 24
+
+  st-off-scratch :: I64
+  st-off-scratch = 64
+
+  state-slab-bytes :: U64
+  state-slab-bytes = 4096
+
+  -- | Linux `io_uring` reactor handle holding all mapped ring pointers,
+  -- kernel-reported offsets, masks, sizes, and the 4 KiB mutable control slab.
+  record LinuxReactor where
+    ring-fd :: I32
+    sq-ring-ptr :: I64
+    sq-head-off :: U32
+    sq-tail-off :: U32
+    sq-mask :: U32
+    sq-entries :: U32
+    sq-array-off :: U32
+    sqes-ptr :: I64
+    cq-ring-ptr :: I64
+    cq-head-off :: U32
+    cq-tail-off :: U32
+    cq-mask :: U32
+    cq-entries :: U32
+    cqes-off :: U32
+    sq-ring-size :: U64
+    cq-ring-size :: U64
+    sqes-size :: U64
+    state-ptr :: I64
+
+  #[inline(always)]
+  #[no-alloc]
+  linux-reactor-ring-fd :: LinuxReactor -> Fd
+  linux-reactor-ring-fd r = fd-of r.ring-fd
+
+  #[inline(always)]
+  #[no-alloc]
+  linux-reactor-sq-entries :: LinuxReactor -> U32
+  linux-reactor-sq-entries r = r.sq-entries
+
+  #[inline(always)]
+  #[no-alloc]
+  linux-reactor-cq-entries :: LinuxReactor -> U32
+  linux-reactor-cq-entries r = r.cq-entries
+
+  #[inline(always)]
+  linux-reactor-pending-sqes :: LinuxReactor ->{MVar} U32
+  linux-reactor-pending-sqes r =
+    if eq-i64 r.state-ptr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 r.state-ptr st-off-pending)
+
+  -- =========================================================================
+  -- 3. Pure / in-memory SQE, CQE, cmsg, msghdr, sockaddr, timespec helpers
+  -- =========================================================================
+
+  -- Zero `n-words` 64-bit words starting at `addr`.
+  zero-u64-words :: I64 -> U32 ->{MVar} Unit
+  zero-u64-words addr n-words =
+    if eq-u32 n-words 0 then ()
+    else
+      let _ = raw-store-u64 addr 0 in
+      zero-u64-words (wrapping-add-i64 addr 8) (wrapping-sub-u32 n-words 1)
+
+  -- | Write a complete 64-byte Linux `struct io_uring_sqe` directly into
+  -- `sqe-addr` with zero heap allocation (`#[repr(C)]` exact kernel UAPI offsets):
+  --   +0  opcode (U8), +1 flags (U8), +2 ioprio (U16), +4 fd (I32),
+  --   +8  off (U64), +16 addr (U64), +24 len (U32), +28 op-flags (U32),
+  --   +32 user-data (U64), +40 buf-index (U16), +42 personality (U16),
+  --   +44 splice-fd-in (I32), +48 addr3 (U64), +56 pad2 (U64 = 0).
+  #[inline(always)]
+  linux-write-sqe-slot
+    :: I64
+    -> U8
+    -> U8
+    -> U16
+    -> I32
+    -> U64
+    -> U64
+    -> U32
+    -> U32
+    -> U64
+    -> U16
+    -> U16
+    -> I32
+    -> U64
+    ->{MVar} Unit
+  linux-write-sqe-slot sqe-addr opcode flags ioprio fd off addr len op-flags user-data buf-idx personality splice-fd-in addr3 =
+    let w0 = bit-or-u32 (bit-or-u32 (u8-to-u32 opcode) (wrapping-shl-u32 (u8-to-u32 flags) 8)) (wrapping-shl-u32 (u16-to-u32 ioprio) 16) in
+    let w10 = bit-or-u32 (u16-to-u32 buf-idx) (wrapping-shl-u32 (u16-to-u32 personality) 16) in
+    let _0 = raw-store-u32 sqe-addr w0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 sqe-addr 4) (wrapping-i32-to-u32 fd) in
+    let _2 = raw-store-u64 (wrapping-add-i64 sqe-addr 8) off in
+    let _3 = raw-store-u64 (wrapping-add-i64 sqe-addr 16) addr in
+    let _4 = raw-store-u32 (wrapping-add-i64 sqe-addr 24) len in
+    let _5 = raw-store-u32 (wrapping-add-i64 sqe-addr 28) op-flags in
+    let _6 = raw-store-u64 (wrapping-add-i64 sqe-addr 32) user-data in
+    let _7 = raw-store-u32 (wrapping-add-i64 sqe-addr 40) w10 in
+    let _8 = raw-store-u32 (wrapping-add-i64 sqe-addr 44) (wrapping-i32-to-u32 splice-fd-in) in
+    let _9 = raw-store-u64 (wrapping-add-i64 sqe-addr 48) addr3 in
+    raw-store-u64 (wrapping-add-i64 sqe-addr 56) 0
+
+  -- | Read a 16-byte Linux `struct io_uring_cqe` at `cqe-addr` into a register-fit
+  -- `Engine.Types.Completion` (`+0 user_data`, `+8 res`, `+12 flags`).
+  #[inline(always)]
+  linux-read-cqe-slot :: I64 ->{MVar} Completion
+  linux-read-cqe-slot cqe-addr =
+    let tok = raw-load-u64 cqe-addr in
+    let res = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 cqe-addr 8)) in
+    let flags = raw-load-u32 (wrapping-add-i64 cqe-addr 12) in
+    Completion tok res flags
+
+  -- | Write a 16-byte `Completion` into `cqe-addr` (matches `struct io_uring_cqe`).
+  #[inline(always)]
+  linux-write-cqe-slot :: I64 -> Completion ->{MVar} Unit
+  linux-write-cqe-slot cqe-addr cqe =
+    let _0 = raw-store-u64 cqe-addr cqe.cqe-token in
+    let _1 = raw-store-u32 (wrapping-add-i64 cqe-addr 8) (wrapping-i32-to-u32 cqe.cqe-res) in
+    raw-store-u32 (wrapping-add-i64 cqe-addr 12) cqe.cqe-flags
+
+  -- | Write a 24-byte `UDP_SEGMENT` (`SOL_UDP`, `UDP_SEGMENT`) `cmsghdr` for
+  -- UDP Generic Segmentation Offload (GSO) at `cmsg-addr` with segment size
+  -- `gso-size` (U16). Returns `24` (`CMSG_SPACE(sizeof(uint16_t))`).
+  #[inline(always)]
+  linux-write-cmsg-udp-segment :: I64 -> U16 ->{MVar} U32
+  linux-write-cmsg-udp-segment cmsg-addr gso-size =
+    -- cmsg_len = 16 + 2 = 18; cmsg_level = SOL_UDP (17); cmsg_type = UDP_SEGMENT (103)
+    let _0 = raw-store-u64 cmsg-addr 18 in
+    let _1 = raw-store-u32 (wrapping-add-i64 cmsg-addr 8) 17 in
+    let _2 = raw-store-u32 (wrapping-add-i64 cmsg-addr 12) 103 in
+    let _3 = raw-store-u64 (wrapping-add-i64 cmsg-addr 16) (u16-to-u64 gso-size) in
+    24
+
+  -- | Write a 24-byte `SCM_TXTIME` (`SOL_SOCKET`, `SO_TXTIME`) `cmsghdr` for
+  -- hardware-paced Earliest TxTime First (ETF) transmission at `txtime-ns`.
+  -- Returns `24` (`CMSG_SPACE(sizeof(uint64_t))`).
+  #[inline(always)]
+  linux-write-cmsg-txtime :: I64 -> U64 ->{MVar} U32
+  linux-write-cmsg-txtime cmsg-addr txtime-ns =
+    -- cmsg_len = 16 + 8 = 24; cmsg_level = SOL_SOCKET (1); cmsg_type = SCM_TXTIME (61)
+    let _0 = raw-store-u64 cmsg-addr 24 in
+    let _1 = raw-store-u32 (wrapping-add-i64 cmsg-addr 8) 1 in
+    let _2 = raw-store-u32 (wrapping-add-i64 cmsg-addr 12) 61 in
+    let _3 = raw-store-u64 (wrapping-add-i64 cmsg-addr 16) txtime-ns in
+    24
+
+  -- | Scan a `recvmsg` ancillary control buffer (`cmsg-addr`, `cmsg-len` bytes)
+  -- for a `SOL_UDP / UDP_GRO` (`level = 17, type = 104`) record and return its
+  -- 16-bit coalesced datagram segment size (or `0` if absent).
+  linux-read-cmsg-udp-gro :: I64 -> U64 ->{MVar} U16
+  linux-read-cmsg-udp-gro cmsg-addr cmsg-len =
+    if eq-i64 cmsg-addr 0 || lt-u64 cmsg-len 18 then 0
+    else
+      let rec-len = raw-load-u64 cmsg-addr in
+      if lt-u64 rec-len 16 || gt-u64 rec-len cmsg-len then 0
+      else
+        let lvl = raw-load-u32 (wrapping-add-i64 cmsg-addr 8) in
+        let ty = raw-load-u32 (wrapping-add-i64 cmsg-addr 12) in
+        if eq-u32 lvl 17 && eq-u32 ty 104 && ge-u64 rec-len 18 then
+          wrapping-u32-to-u16 (bit-and-u32 (raw-load-u32 (wrapping-add-i64 cmsg-addr 16)) 65535)
+        else
+          -- CMSG_ALIGN(rec_len) = (rec_len + 7) & ~7
+          let step = bit-and-u64 (wrapping-add-u64 rec-len 7) (bit-not-u64 7) in
+          if eq-u64 step 0 || ge-u64 step cmsg-len then 0
+          else linux-read-cmsg-udp-gro (wrapping-add-i64 cmsg-addr (wrapping-u64-to-i64 step)) (wrapping-sub-u64 cmsg-len step)
+
+  -- | Populate a 56-byte Linux 64-bit `struct msghdr` at `msghdr-addr` (zero alloc).
+  #[inline(always)]
+  linux-write-msghdr :: I64 -> U64 -> U32 -> U64 -> U64 -> U64 -> U64 -> I32 ->{MVar} Unit
+  linux-write-msghdr msghdr-addr name-ptr name-len iov-ptr iov-len ctrl-ptr ctrl-len msg-flags =
+    let _0 = raw-store-u64 msghdr-addr name-ptr in
+    let _1 = raw-store-u64 (wrapping-add-i64 msghdr-addr 8) (u32-to-u64 name-len) in
+    let _2 = raw-store-u64 (wrapping-add-i64 msghdr-addr 16) iov-ptr in
+    let _3 = raw-store-u64 (wrapping-add-i64 msghdr-addr 24) iov-len in
+    let _4 = raw-store-u64 (wrapping-add-i64 msghdr-addr 32) ctrl-ptr in
+    let _5 = raw-store-u64 (wrapping-add-i64 msghdr-addr 40) ctrl-len in
+    raw-store-u64 (wrapping-add-i64 msghdr-addr 48) (u32-to-u64 (wrapping-i32-to-u32 msg-flags))
+
+  -- | Write a 16-byte Linux `struct sockaddr_in` for `0.0.0.0:port` (`INADDR_ANY`).
+  #[inline(always)]
+  linux-write-sockaddr-in-any :: I64 -> U16 ->{MVar} Unit
+  linux-write-sockaddr-in-any addr port =
+    let p-hi = wrapping-u16-to-u8 (wrapping-shr-u16 port 8) in
+    let p-lo = wrapping-u16-to-u8 port in
+    let _0 = raw-store-u64 addr 0 in
+    let _1 = raw-store-u64 (wrapping-add-i64 addr 8) 0 in
+    let _2 = raw-store-u8 addr 2 in
+    let _3 = raw-store-u8 (wrapping-add-i64 addr 1) 0 in
+    let _4 = raw-store-u8 (wrapping-add-i64 addr 2) p-hi in
+    raw-store-u8 (wrapping-add-i64 addr 3) p-lo
+
+  -- | Write a 16-byte Linux `struct __kernel_timespec` (`tv_sec`, `tv_nsec`) at `addr`.
+  #[inline(always)]
+  linux-write-timespec :: I64 -> I64 -> I64 ->{MVar} Unit
+  linux-write-timespec addr tv-sec tv-nsec =
+    let _0 = raw-store-i64 addr tv-sec in
+    raw-store-i64 (wrapping-add-i64 addr 8) tv-nsec
+
+  -- =========================================================================
+  -- 4. Reactor lifecycle: setup, mmap rings, raw-ring constructor, destroy
+  -- =========================================================================
+
+  -- Initialize `sq_array[i] = i` for identity SQE slot indexing.
+  init-sq-array :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-sq-array array-ptr count i =
+    if ge-u32 i count then ()
+    else
+      let slot = wrapping-add-i64 array-ptr (wrapping-shl-i64 (u32-to-i64 i) 2) in
+      let _ = raw-store-u32 slot i in
+      init-sq-array array-ptr count (wrapping-add-u32 i 1)
+
+  -- Construct a `LinuxReactor` over caller-provided ring buffers (useful for
+  -- deterministic in-memory ring tests on non-Linux hosts without syscalls).
+  linux-reactor-from-raw-rings
+    :: I32
+    -> I64
+    -> U32
+    -> U32
+    -> U32
+    -> U32
+    -> I64
+    -> I64
+    -> U32
+    -> U32
+    -> U32
+    -> U32
+    -> I64
+    ->{MVar} LinuxReactor
+  linux-reactor-from-raw-rings fd sq-ptr sq-h-off sq-t-off sq-cnt sq-arr-off sqes cq-ptr cq-h-off cq-t-off cq-cnt cqes-o st-ptr =
+    let sq-m = wrapping-sub-u32 sq-cnt 1 in
+    let cq-m = wrapping-sub-u32 cq-cnt 1 in
+    let _0 = raw-store-u32 (wrapping-add-i64 st-ptr st-off-pending) 0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 st-ptr st-off-single-mmap) 1 in
+    let _2 = atomic-store-relaxed-i64 (wrapping-add-i64 st-ptr st-off-sq-tail-pub) 0 in
+    let _3 = atomic-store-relaxed-i64 (wrapping-add-i64 st-ptr st-off-cq-head-pub) 0 in
+    let _4 = raw-store-u32 (wrapping-add-i64 st-ptr st-off-destroyed) 0 in
+    let _5 = init-sq-array (wrapping-add-i64 sq-ptr (u32-to-i64 sq-arr-off)) sq-cnt 0 in
+    LinuxReactor fd sq-ptr sq-h-off sq-t-off sq-m sq-cnt sq-arr-off sqes cq-ptr cq-h-off cq-t-off cq-m cq-cnt cqes-o 0 0 0 st-ptr
+
+  -- Internal helper: attempt `io_uring_setup` with progressive flag fallback on `-EINVAL`.
+  try-io-uring-setup :: forall r. using (io :: Io r) => U32 -> I64 ->{IO r, MVar} I64
+  try-io-uring-setup entries params-addr =
+    let _z0 = zero-u64-words params-addr 15 in
+    let preferred = wrapping-i64-to-u32 (bit-or-i64 (bit-or-i64 ioring-setup-single-issuer ioring-setup-defer-taskrun) ioring-setup-coop-taskrun) in
+    let _f0 = raw-store-u32 (wrapping-add-i64 params-addr 8) preferred in
+    let fd0 = sys-io-uring-setup (u32-to-i64 entries) params-addr in
+    if not (io-is-err fd0) then fd0
+    else if ne-i64 (io-errno fd0) errno-einval then fd0
+    else
+      -- Fallback 1: `IORING_SETUP_COOP_TASKRUN` only (Linux 5.19+)
+      let _z1 = zero-u64-words params-addr 15 in
+      let _f1 = raw-store-u32 (wrapping-add-i64 params-addr 8) (wrapping-i64-to-u32 ioring-setup-coop-taskrun) in
+      let fd1 = sys-io-uring-setup (u32-to-i64 entries) params-addr in
+      if not (io-is-err fd1) then fd1
+      else if ne-i64 (io-errno fd1) errno-einval then fd1
+      else
+        -- Fallback 2: baseline flags = 0 (Linux 5.1+)
+        let _z2 = zero-u64-words params-addr 15 in
+        sys-io-uring-setup (u32-to-i64 entries) params-addr
+
+  -- | Create a new Linux `io_uring` reactor with `entries` SQ slots (power of
+  -- two, e.g. 256..4096). Uses `IORING_SETUP_SINGLE_ISSUER |
+  -- IORING_SETUP_DEFER_TASKRUN | IORING_SETUP_COOP_TASKRUN` with clean `-EINVAL`
+  -- fallback, maps SQ/CQ/SQE rings via `sys-mmap`, and initializes the SQ
+  -- indirection array.
+  linux-reactor-new :: forall r. U32 ->{IO r, IO, MVar} Result IoError LinuxReactor
+  linux-reactor-new entries =
+    if eq-u32 entries 0 then Err IoOther
+    else
+      let state-u64 = engine-dma-alloc state-slab-bytes 4096 in
+      if eq-u64 state-u64 0 then Err IoNoMem
+      else
+        let state-ptr = wrapping-u64-to-i64 state-u64 in
+        let params-addr = wrapping-add-i64 state-ptr st-off-scratch in
+        with (io = newIO ()) in
+          let fd-rc = try-io-uring-setup entries params-addr in
+          if io-is-err fd-rc then
+            let _ = engine-dma-free state-u64 state-slab-bytes in
+            Err (linux-errno-to-io-error fd-rc)
+          else
+            let ring-fd = wrapping-i64-to-i32 fd-rc in
+            -- Read `io_uring_params` (120B):
+            --   +0 sq_entries, +4 cq_entries, +20 features
+            --   sq_off (+40): +40 head, +44 tail, +48 ring_mask, +52 ring_entries, +64 array
+            --   cq_off (+80): +80 head, +84 tail, +88 ring_mask, +92 ring_entries, +100 cqes
+            let sq-entries = raw-load-u32 params-addr in
+            let cq-entries = raw-load-u32 (wrapping-add-i64 params-addr 4) in
+            let features = raw-load-u32 (wrapping-add-i64 params-addr 20) in
+            let sq-head-off = raw-load-u32 (wrapping-add-i64 params-addr 40) in
+            let sq-tail-off = raw-load-u32 (wrapping-add-i64 params-addr 44) in
+            let sq-mask = raw-load-u32 (wrapping-add-i64 params-addr 48) in
+            let sq-arr-off = raw-load-u32 (wrapping-add-i64 params-addr 64) in
+            let cq-head-off = raw-load-u32 (wrapping-add-i64 params-addr 80) in
+            let cq-tail-off = raw-load-u32 (wrapping-add-i64 params-addr 84) in
+            let cq-mask = raw-load-u32 (wrapping-add-i64 params-addr 88) in
+            let cqes-off = raw-load-u32 (wrapping-add-i64 params-addr 100) in
+            let sq-sz0 = wrapping-add-u64 (u32-to-u64 sq-arr-off) (wrapping-mul-u64 (u32-to-u64 sq-entries) 4) in
+            let cq-sz0 = wrapping-add-u64 (u32-to-u64 cqes-off) (wrapping-mul-u64 (u32-to-u64 cq-entries) 16) in
+            let single-mmap = ne-u32 (bit-and-u32 features ioring-feat-single-mmap) 0 in
+            let sq-ring-sz = if single-mmap && gt-u64 cq-sz0 sq-sz0 then cq-sz0 else sq-sz0 in
+            let cq-ring-sz = if single-mmap then sq-ring-sz else cq-sz0 in
+            let sqes-sz = wrapping-mul-u64 (u32-to-u64 sq-entries) 64 in
+            let prot = bit-or-i64 prot-read prot-write in
+            let mflags = bit-or-i64 map-shared map-populate in
+            let sq-ptr = sys-mmap 0 (wrapping-u64-to-i64 sq-ring-sz) prot mflags fd-rc ioring-off-sq-ring in
+            if io-is-err sq-ptr then
+              let _c = sys-close fd-rc in
+              let _f = engine-dma-free state-u64 state-slab-bytes in
+              Err (linux-errno-to-io-error sq-ptr)
+            else
+              let cq-ptr = if single-mmap then sq-ptr else sys-mmap 0 (wrapping-u64-to-i64 cq-ring-sz) prot mflags fd-rc ioring-off-cq-ring in
+              if io-is-err cq-ptr then
+                let _u1 = sys-munmap sq-ptr (wrapping-u64-to-i64 sq-ring-sz) in
+                let _c = sys-close fd-rc in
+                let _f = engine-dma-free state-u64 state-slab-bytes in
+                Err (linux-errno-to-io-error cq-ptr)
+              else
+                let sqes-ptr = sys-mmap 0 (wrapping-u64-to-i64 sqes-sz) prot mflags fd-rc ioring-off-sqes in
+                if io-is-err sqes-ptr then
+                  let _u2 = if single-mmap then 0 else sys-munmap cq-ptr (wrapping-u64-to-i64 cq-ring-sz) in
+                  let _u1 = sys-munmap sq-ptr (wrapping-u64-to-i64 sq-ring-sz) in
+                  let _c = sys-close fd-rc in
+                  let _f = engine-dma-free state-u64 state-slab-bytes in
+                  Err (linux-errno-to-io-error sqes-ptr)
+                else
+                  let _s0 = raw-store-u32 (wrapping-add-i64 state-ptr st-off-pending) 0 in
+                  let _s1 = raw-store-u32 (wrapping-add-i64 state-ptr st-off-single-mmap) (if single-mmap then 1 else 0) in
+                  let _s2 = atomic-store-relaxed-i64 (wrapping-add-i64 state-ptr st-off-sq-tail-pub) 0 in
+                  let _s3 = atomic-store-relaxed-i64 (wrapping-add-i64 state-ptr st-off-cq-head-pub) 0 in
+                  let _s4 = raw-store-u32 (wrapping-add-i64 state-ptr st-off-destroyed) 0 in
+                  let _arr = init-sq-array (wrapping-add-i64 sq-ptr (u32-to-i64 sq-arr-off)) sq-entries 0 in
+                  Ok (LinuxReactor ring-fd sq-ptr sq-head-off sq-tail-off sq-mask sq-entries sq-arr-off sqes-ptr cq-ptr cq-head-off cq-tail-off cq-mask cq-entries cqes-off sq-ring-sz cq-ring-sz sqes-sz state-ptr)
+
+  -- | Unmap SQ/CQ/SQE rings, close `ring-fd`, and free the internal state slab.
+  linux-reactor-destroy :: forall r. LinuxReactor ->{IO r, IO, MVar} Unit
+  linux-reactor-destroy rx =
+    if eq-i64 rx.state-ptr 0 then ()
+    else
+      let destroyed = raw-load-u32 (wrapping-add-i64 rx.state-ptr st-off-destroyed) in
+      if ne-u32 destroyed 0 then ()
+      else
+        let single-mmap = ne-u32 (raw-load-u32 (wrapping-add-i64 rx.state-ptr st-off-single-mmap)) 0 in
+        let _m = raw-store-u32 (wrapping-add-i64 rx.state-ptr st-off-destroyed) 1 in
+        let _u = (with (io = newIO ()) in
+          let _u1 = if ne-i64 rx.sqes-ptr 0 && gt-u64 rx.sqes-size 0 then sys-munmap rx.sqes-ptr (wrapping-u64-to-i64 rx.sqes-size) else 0 in
+          let _u2 = if not single-mmap && ne-i64 rx.cq-ring-ptr 0 && gt-u64 rx.cq-ring-size 0 then sys-munmap rx.cq-ring-ptr (wrapping-u64-to-i64 rx.cq-ring-size) else 0 in
+          let _u3 = if ne-i64 rx.sq-ring-ptr 0 && gt-u64 rx.sq-ring-size 0 then sys-munmap rx.sq-ring-ptr (wrapping-u64-to-i64 rx.sq-ring-size) else 0 in
+          let _c = if ge-i32 rx.ring-fd 0 then sys-close (i32-to-i64 rx.ring-fd) else 0 in
+          ()) in
+        let _f = engine-dma-free (wrapping-i64-to-u64 rx.state-ptr) state-slab-bytes in
+        ()
+
+  -- =========================================================================
+  -- 5. Fixed-file & Provided Buffer Ring (`IORING_REGISTER_PBUF_RING`) helpers
+  -- =========================================================================
+
+  -- | Register a fixed file descriptor table (`fds-ptr` pointing to `nr-fds`
+  -- `I32` descriptors) with the `io_uring` instance (`IORING_REGISTER_FILES`).
+  linux-reactor-register-files :: forall r. LinuxReactor -> I64 -> U32 ->{IO r} IoError
+  linux-reactor-register-files rx fds-ptr nr-fds =
+    if lt-i32 rx.ring-fd 0 || eq-i64 fds-ptr 0 || eq-u32 nr-fds 0 then IoOther
+    else
+      with (io = newIO ()) in
+        let rc = sys-io-uring-register (i32-to-i64 rx.ring-fd) ioring-register-files fds-ptr (u32-to-i64 nr-fds) in
+        linux-errno-to-io-error rc
+
+  -- | Allocate a page-aligned `io_uring_buf_ring` of `ring-entries` 16-byte
+  -- entries (power of two, `<= 32768`), populate it directly from `pool` via
+  -- `Engine.Mem.DmaPool.dma-pool-fill-pbuf-ring`, publish the initial `tail`,
+  -- and register it under buffer group ID `bgid` via `IORING_REGISTER_PBUF_RING`.
+  -- Returns `Ok ring-addr` on success (caller unregisters via
+  -- `linux-reactor-unregister-pbuf-ring`).
+  linux-reactor-register-pbuf-ring :: forall r. LinuxReactor -> DmaPool -> U16 -> U32 ->{IO r, IO, MVar} Result IoError I64
+  linux-reactor-register-pbuf-ring rx pool bgid ring-entries =
+    if lt-i32 rx.ring-fd 0 || eq-i64 rx.state-ptr 0 || eq-u32 ring-entries 0 || gt-u32 ring-entries 32768 then Err IoOther
+    else if ne-u32 (bit-and-u32 ring-entries (wrapping-sub-u32 ring-entries 1)) 0 then Err IoOther
+    else
+      let ring-bytes0 = wrapping-shl-u64 (u32-to-u64 ring-entries) 4 in
+      let ring-bytes = if lt-u64 ring-bytes0 4096 then 4096 else ring-bytes0 in
+      let ring-u64 = engine-dma-alloc ring-bytes 4096 in
+      if eq-u64 ring-u64 0 then Err IoNoMem
+      else
+        let ring-addr = wrapping-u64-to-i64 ring-u64 in
+        let filled = dma-pool-fill-pbuf-ring pool ring-addr ring-entries in
+        -- Publish `io_uring_buf_ring.tail` (U16 at offset +14) with release barrier.
+        -- Entry 0's +12 holds `bid = 0` (U16) and +14 holds `tail` (U16).
+        let _f = atomic-fence-release () in
+        let tail-u32 = wrapping-shl-u32 (bit-and-u32 filled 65535) 16 in
+        let _t = raw-store-u32 (wrapping-add-i64 ring-addr 12) tail-u32 in
+        -- Populate 40-byte `struct io_uring_buf_reg` in reactor scratch area:
+        --   +0 ring_addr (U64), +8 ring_entries (U32), +12 bgid (U16), +14 flags (U16 = 0), +16..40 resv = 0
+        let reg-addr = wrapping-add-i64 rx.state-ptr st-off-scratch in
+        let _r0 = raw-store-u64 reg-addr ring-u64 in
+        let _r1 = raw-store-u32 (wrapping-add-i64 reg-addr 8) ring-entries in
+        let _r2 = raw-store-u32 (wrapping-add-i64 reg-addr 12) (u16-to-u32 bgid) in
+        let _r3 = raw-store-u64 (wrapping-add-i64 reg-addr 16) 0 in
+        let _r4 = raw-store-u64 (wrapping-add-i64 reg-addr 24) 0 in
+        let _r5 = raw-store-u64 (wrapping-add-i64 reg-addr 32) 0 in
+        let rc = (with (io = newIO ()) in sys-io-uring-register (i32-to-i64 rx.ring-fd) ioring-register-pbuf-ring reg-addr 1) in
+        if io-is-err rc then
+          let _free = engine-dma-free ring-u64 ring-bytes in
+          Err (linux-errno-to-io-error rc)
+        else Ok ring-addr
+
+  -- | Unregister buffer group `bgid` (`IORING_UNREGISTER_PBUF_RING`) and free
+  -- its DMA ring slab.
+  linux-reactor-unregister-pbuf-ring :: forall r. LinuxReactor -> I64 -> U16 -> U32 ->{IO r, IO, MVar} IoError
+  linux-reactor-unregister-pbuf-ring rx ring-addr bgid ring-entries =
+    if lt-i32 rx.ring-fd 0 || eq-i64 rx.state-ptr 0 then IoOther
+    else
+      let reg-addr = wrapping-add-i64 rx.state-ptr st-off-scratch in
+      let _r0 = raw-store-u64 reg-addr 0 in
+      let _r1 = raw-store-u32 (wrapping-add-i64 reg-addr 8) 0 in
+      let _r2 = raw-store-u32 (wrapping-add-i64 reg-addr 12) (u16-to-u32 bgid) in
+      let _r3 = raw-store-u64 (wrapping-add-i64 reg-addr 16) 0 in
+      let _r4 = raw-store-u64 (wrapping-add-i64 reg-addr 24) 0 in
+      let _r5 = raw-store-u64 (wrapping-add-i64 reg-addr 32) 0 in
+      let rc = (with (io = newIO ()) in sys-io-uring-register (i32-to-i64 rx.ring-fd) ioring-unregister-pbuf-ring reg-addr 1) in
+      let ring-bytes0 = wrapping-shl-u64 (u32-to-u64 ring-entries) 4 in
+      let ring-bytes = if lt-u64 ring-bytes0 4096 then 4096 else ring-bytes0 in
+      let _fr = if ne-i64 ring-addr 0 then engine-dma-free (wrapping-i64-to-u64 ring-addr) ring-bytes else IoOk in
+      linux-errno-to-io-error rc
+
+  -- =========================================================================
+  -- 6. Zero-alloc SQE ring slot acquisition, commit, and prep builders
+  -- =========================================================================
+
+  -- Internal helper: acquire next 64B SQE slot if SQ ring is not full, write
+  -- all fields, update `sq_array[tail & sq_mask] = idx`, advance `sq_tail`
+  -- with release barrier + `atomic-store-release-i64` shadow publish, and
+  -- increment `pending-sqes`. Returns `True` on success, `False` if SQ full.
+  #[inline(always)]
+  sq-enqueue
+    :: LinuxReactor
+    -> U8
+    -> U8
+    -> U16
+    -> I32
+    -> U64
+    -> U64
+    -> U32
+    -> U32
+    -> U64
+    -> U16
+    -> U16
+    -> I32
+    -> U64
+    ->{MVar} Bool
+  sq-enqueue rx opcode flags ioprio fd off addr len op-flags user-data buf-idx personality splice-fd-in addr3 =
+    if eq-i64 rx.sq-ring-ptr 0 || eq-i64 rx.sqes-ptr 0 || eq-i64 rx.state-ptr 0 then False
+    else
+      let head-addr = wrapping-add-i64 rx.sq-ring-ptr (u32-to-i64 rx.sq-head-off) in
+      let tail-addr = wrapping-add-i64 rx.sq-ring-ptr (u32-to-i64 rx.sq-tail-off) in
+      let head = raw-load-u32 head-addr in
+      let _fa = atomic-fence-acquire () in
+      let tail = raw-load-u32 tail-addr in
+      let inflight = wrapping-sub-u32 tail head in
+      if ge-u32 inflight rx.sq-entries then False
+      else
+        let idx = bit-and-u32 tail rx.sq-mask in
+        let sqe-addr = wrapping-add-i64 rx.sqes-ptr (wrapping-shl-i64 (u32-to-i64 idx) 6) in
+        let _w = linux-write-sqe-slot sqe-addr opcode flags ioprio fd off addr len op-flags user-data buf-idx personality splice-fd-in addr3 in
+        let arr-slot = wrapping-add-i64 (wrapping-add-i64 rx.sq-ring-ptr (u32-to-i64 rx.sq-array-off)) (wrapping-shl-i64 (u32-to-i64 idx) 2) in
+        let _a = raw-store-u32 arr-slot idx in
+        let next-tail = wrapping-add-u32 tail 1 in
+        -- Release fence before writing the 32-bit kernel SQ tail, plus release-store
+        -- of the 64-bit aligned shadow tail in the reactor state slab.
+        let _fr = atomic-fence-release () in
+        let _t = raw-store-u32 tail-addr next-tail in
+        let _ts = atomic-store-release-i64 (wrapping-add-i64 rx.state-ptr st-off-sq-tail-pub) (u32-to-i64 next-tail) in
+        let pend-addr = wrapping-add-i64 rx.state-ptr st-off-pending in
+        let _p = raw-store-u32 pend-addr (wrapping-add-u32 (raw-load-u32 pend-addr) 1) in
+        True
+
+  -- | Queue `IORING_OP_ACCEPT` with `IORING_ACCEPT_MULTISHOT` (`ioprio = 1`).
+  linux-sqe-prep-accept-multishot :: LinuxReactor -> Fd -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-accept-multishot rx listen-fd accept-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-accept) 0 ioring-accept-multishot listen-fd.fd-raw 0 0 0 accept-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue single-shot `IORING_OP_RECV` into caller-supplied DMA buffer `buf-addr`.
+  linux-sqe-prep-recv :: LinuxReactor -> Fd -> U64 -> U32 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-recv rx fd buf-addr len msg-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-recv) 0 0 fd.fd-raw 0 buf-addr len msg-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue multishot `IORING_OP_RECV` backed by provided buffer ring `bgid`
+  -- (`IOSQE_BUFFER_SELECT`, `IORING_RECV_MULTISHOT`).
+  linux-sqe-prep-recv-multishot :: LinuxReactor -> Fd -> U16 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-recv-multishot rx fd bgid msg-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-recv) iosqe-buffer-select ioring-recv-multishot fd.fd-raw 0 0 0 msg-flags tok.io-token-raw bgid 0 0 0
+
+  -- | Queue `IORING_OP_SEND` from DMA buffer `buf-addr`.
+  linux-sqe-prep-send :: LinuxReactor -> Fd -> U64 -> U32 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-send rx fd buf-addr len msg-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-send) 0 0 fd.fd-raw 0 buf-addr len msg-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue zero-copy `IORING_OP_SEND_ZC` (opcode 53). Caller must keep the DMA
+  -- buffer immutable until the matching `IORING_CQE_F_NOTIF` CQE is reaped.
+  linux-sqe-prep-send-zc :: LinuxReactor -> Fd -> U64 -> U32 -> U32 -> U16 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-send-zc rx fd buf-addr len msg-flags zc-ioprio tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-send-zc) 0 zc-ioprio fd.fd-raw 0 buf-addr len msg-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_SENDMSG` for UDP GSO (`UDP_SEGMENT`) / `SO_TXTIME`
+  -- paced sends over a caller-populated `struct msghdr` at `msghdr-addr`.
+  linux-sqe-prep-sendmsg-gso :: LinuxReactor -> Fd -> U64 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-sendmsg-gso rx fd msghdr-addr msg-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-sendmsg) 0 0 fd.fd-raw 0 msghdr-addr 1 msg-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_RECVMSG` for UDP GRO (`UDP_GRO` ancillary segment size)
+  -- over a caller-populated `struct msghdr` at `msghdr-addr`.
+  linux-sqe-prep-recvmsg-gro :: LinuxReactor -> Fd -> U64 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-recvmsg-gro rx fd msghdr-addr msg-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-recvmsg) 0 0 fd.fd-raw 0 msghdr-addr 1 msg-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue zero-copy kernel-to-kernel `IORING_OP_SPLICE`.
+  linux-sqe-prep-splice :: LinuxReactor -> Fd -> U64 -> Fd -> U64 -> U32 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-splice rx fd-in off-in fd-out off-out len splice-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-splice) 0 0 fd-out.fd-raw off-out off-in len splice-flags tok.io-token-raw 0 0 fd-in.fd-raw 0
+
+  -- | Queue `IORING_OP_READ` at explicit file offset `file-off` (for 4 KiB-aligned `O_DIRECT` buffers).
+  linux-sqe-prep-read-direct :: LinuxReactor -> Fd -> U64 -> U32 -> U64 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-read-direct rx fd buf-addr len file-off tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-read) 0 0 fd.fd-raw file-off buf-addr len 0 tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_WRITE` at explicit file offset `file-off` (for 4 KiB-aligned `O_DIRECT` buffers).
+  linux-sqe-prep-write-direct :: LinuxReactor -> Fd -> U64 -> U32 -> U64 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-write-direct rx fd buf-addr len file-off tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-write) 0 0 fd.fd-raw file-off buf-addr len 0 tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_FSYNC` (`fsync-flags = 0` for `fsync`, `ioring-fsync-datasync` for `fdatasync`).
+  linux-sqe-prep-fsync :: LinuxReactor -> Fd -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-fsync rx fd fsync-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-fsync) 0 0 fd.fd-raw 0 0 0 fsync-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_TIMEOUT` pointing to a 16-byte `__kernel_timespec` at `timespec-addr`.
+  linux-sqe-prep-timeout :: LinuxReactor -> U64 -> U64 -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-timeout rx timespec-addr count timeout-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-timeout) 0 0 (-1) count timespec-addr 1 timeout-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_ASYNC_CANCEL` targeting in-flight operation `target-tok`.
+  linux-sqe-prep-cancel :: LinuxReactor -> IoToken -> U32 -> IoToken ->{MVar} Bool
+  linux-sqe-prep-cancel rx target-tok cancel-flags tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-async-cancel) 0 0 (-1) 0 target-tok.io-token-raw 0 cancel-flags tok.io-token-raw 0 0 0 0
+
+  -- | Queue `IORING_OP_CLOSE` for descriptor `fd`.
+  linux-sqe-prep-close :: LinuxReactor -> Fd -> IoToken ->{MVar} Bool
+  linux-sqe-prep-close rx fd tok =
+    sq-enqueue rx (wrapping-i64-to-u8 ioring-op-close) 0 0 fd.fd-raw 0 0 0 0 tok.io-token-raw 0 0 0 0
+
+  -- | Dispatch any portable `Engine.Types.IoSqe` into the Linux `io_uring` SQ
+  -- ring with zero heap allocation.
+  linux-reactor-submit-sqe :: LinuxReactor -> IoSqe ->{MVar} Bool
+  linux-reactor-submit-sqe rx sqe =
+    let op = sqe.sqe-op in
+    let fd = fd-of sqe.sqe-fd in
+    let tok = io-sqe-token-id sqe in
+    if eq-u8 op op-code-nop then
+      sq-enqueue rx (wrapping-i64-to-u8 ioring-op-nop) sqe.sqe-flags 0 (-1) 0 0 0 0 tok.io-token-raw 0 0 0 0
+    else if eq-u8 op op-code-accept then
+      linux-sqe-prep-accept-multishot rx fd sqe.sqe-aux tok
+    else if eq-u8 op op-code-recv then
+      linux-sqe-prep-recv rx fd sqe.sqe-buf-addr sqe.sqe-len sqe.sqe-aux tok
+    else if eq-u8 op op-code-recv-multishot then
+      linux-sqe-prep-recv-multishot rx fd (wrapping-u32-to-u16 sqe.sqe-aux) 0 tok
+    else if eq-u8 op op-code-send then
+      linux-sqe-prep-send rx fd sqe.sqe-buf-addr sqe.sqe-len sqe.sqe-aux tok
+    else if eq-u8 op op-code-send-v then
+      sq-enqueue rx (wrapping-i64-to-u8 ioring-op-writev) sqe.sqe-flags 0 fd.fd-raw sqe.sqe-off sqe.sqe-buf-addr sqe.sqe-len sqe.sqe-aux tok.io-token-raw 0 0 0 0
+    else if eq-u8 op op-code-send-zc then
+      linux-sqe-prep-send-zc rx fd sqe.sqe-buf-addr sqe.sqe-len sqe.sqe-aux 0 tok
+    else if eq-u8 op op-code-send-msg then
+      linux-sqe-prep-sendmsg-gso rx fd sqe.sqe-buf-addr sqe.sqe-aux tok
+    else if eq-u8 op op-code-recv-msg then
+      linux-sqe-prep-recvmsg-gro rx fd sqe.sqe-buf-addr sqe.sqe-aux tok
+    else if eq-u8 op op-code-read-direct then
+      linux-sqe-prep-read-direct rx fd sqe.sqe-buf-addr sqe.sqe-len sqe.sqe-off tok
+    else if eq-u8 op op-code-write-direct then
+      linux-sqe-prep-write-direct rx fd sqe.sqe-buf-addr sqe.sqe-len sqe.sqe-off tok
+    else if eq-u8 op op-code-fsync then
+      linux-sqe-prep-fsync rx fd sqe.sqe-aux tok
+    else if eq-u8 op op-code-splice then
+      linux-sqe-prep-splice rx (fd-of (wrapping-u32-to-i32 sqe.sqe-aux)) sqe.sqe-buf-addr fd sqe.sqe-off sqe.sqe-len 0 tok
+    else if eq-u8 op op-code-timeout then
+      linux-sqe-prep-timeout rx sqe.sqe-buf-addr sqe.sqe-off sqe.sqe-aux tok
+    else if eq-u8 op op-code-cancel then
+      linux-sqe-prep-cancel rx (IoToken sqe.sqe-buf-addr) sqe.sqe-aux tok
+    else if eq-u8 op op-code-close then
+      linux-sqe-prep-close rx fd tok
+    else False
+
+  -- =========================================================================
+  -- 7. Batched CQE reaping & single-syscall `linux-reactor-tick`
+  -- =========================================================================
+
+  reap-cqe-loop :: LinuxReactor -> U32 -> U32 -> I64 -> U32 -> U32 ->{MVar} U32
+  reap-cqe-loop rx head tail out-addr max-cqes count =
+    if ge-u32 count max-cqes || eq-u32 head tail then count
+    else
+      let idx = bit-and-u32 head rx.cq-mask in
+      let cqe-addr = wrapping-add-i64 (wrapping-add-i64 rx.cq-ring-ptr (u32-to-i64 rx.cqes-off)) (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+      let dst-addr = wrapping-add-i64 out-addr (wrapping-shl-i64 (u32-to-i64 count) 4) in
+      let cqe = linux-read-cqe-slot cqe-addr in
+      let _w = linux-write-cqe-slot dst-addr cqe in
+      reap-cqe-loop rx (wrapping-add-u32 head 1) tail out-addr max-cqes (wrapping-add-u32 count 1)
+
+  -- | Reap up to `max-cqes` ready completions from the mapped CQ ring into
+  -- `out-cqes-addr` (caller-supplied DMA array of 16-byte `Completion` entries)
+  -- and advance `cq_head` with release ordering. Zero heap allocations.
+  linux-reactor-reap-cqes :: LinuxReactor -> I64 -> U32 ->{MVar} U32
+  linux-reactor-reap-cqes rx out-cqes-addr max-cqes =
+    if eq-i64 rx.cq-ring-ptr 0 || eq-i64 out-cqes-addr 0 || eq-u32 max-cqes 0 || eq-i64 rx.state-ptr 0 then 0
+    else
+      let head-addr = wrapping-add-i64 rx.cq-ring-ptr (u32-to-i64 rx.cq-head-off) in
+      let tail-addr = wrapping-add-i64 rx.cq-ring-ptr (u32-to-i64 rx.cq-tail-off) in
+      let head = raw-load-u32 head-addr in
+      let tail = raw-load-u32 tail-addr in
+      let _fa = atomic-fence-acquire () in
+      let reaped = reap-cqe-loop rx head tail out-cqes-addr max-cqes 0 in
+      if eq-u32 reaped 0 then 0
+      else
+        let next-head = wrapping-add-u32 head reaped in
+        let _fr = atomic-fence-release () in
+        let _h = raw-store-u32 head-addr next-head in
+        let _hs = atomic-store-release-i64 (wrapping-add-i64 rx.state-ptr st-off-cq-head-pub) (u32-to-i64 next-head) in
+        reaped
+
+  -- | Batched reactor tick: submits all pending SQEs and waits for at least
+  -- `min-complete` completions in ONE `sys-io-uring-enter` call, then reaps up
+  -- to `max-cqes` 16-byte `Completion` entries into `out-cqes-addr`.
+  -- Returns the number of reaped completions (`>= 0`), or negative `-errno`.
+  linux-reactor-tick :: forall r. LinuxReactor -> U32 -> I64 -> U32 ->{IO r, MVar} I32
+  linux-reactor-tick rx min-complete out-cqes-addr max-cqes =
+    if lt-i32 rx.ring-fd 0 || eq-i64 rx.state-ptr 0 then -9
+    else
+      let pend-addr = wrapping-add-i64 rx.state-ptr st-off-pending in
+      let pending = raw-load-u32 pend-addr in
+      let need-enter = gt-u32 pending 0 || gt-u32 min-complete 0 in
+      let enter-rc = (if need-enter then
+        let flags = if gt-u32 min-complete 0 then ioring-enter-getevents else 0 in
+        with (io = newIO ()) in
+          sys-io-uring-enter (i32-to-i64 rx.ring-fd) (u32-to-i64 pending) (u32-to-i64 min-complete) flags 0 0
+      else 0) in
+      if io-is-err enter-rc && not (io-is-interrupted enter-rc) then
+        wrapping-i64-to-i32 enter-rc
+      else
+        let _clr = if ge-i64 enter-rc 0 then raw-store-u32 pend-addr 0 else () in
+        wrapping-u32-to-i32 (linux-reactor-reap-cqes rx out-cqes-addr max-cqes)
+
+  -- =========================================================================
+  -- 8. Socket setup (`SO_REUSEPORT`, `UDP_GRO`) & QUIC CID BPF/eBPF steering
+  -- =========================================================================
+
+  -- | Create a non-blocking, close-on-exec IPv4 TCP listener bound to
+  -- `0.0.0.0:port` with `SO_REUSEADDR`, `SO_REUSEPORT`, and `TCP_NODELAY`.
+  linux-tcp-listen-reuseport :: forall r. U16 -> I32 ->{IO r, IO, MVar} Result IoError Fd
+  linux-tcp-listen-reuseport port backlog =
+    let scratch-u64 = engine-dma-alloc 4096 4096 in
+    if eq-u64 scratch-u64 0 then Err IoNoMem
+    else
+      let scratch = wrapping-u64-to-i64 scratch-u64 in
+      let one-addr = scratch in
+      let sa-addr = wrapping-add-i64 scratch 16 in
+      let _o = raw-store-u32 one-addr 1 in
+      let _sa = linux-write-sockaddr-in-any sa-addr port in
+      let res = (with (io = newIO ()) in
+        let stype = bit-or-i64 (bit-or-i64 sock-stream sock-nonblock) sock-cloexec in
+        let fd = sys-socket af-inet stype 0 in
+        if io-is-err fd then Err (linux-errno-to-io-error fd)
+        else
+          let r1 = sys-setsockopt fd sol-socket so-reuseaddr one-addr 4 in
+          let r2 = sys-setsockopt fd sol-socket so-reuseport one-addr 4 in
+          let r3 = sys-setsockopt fd ipproto-tcp tcp-nodelay one-addr 4 in
+          let r4 = sys-bind fd sa-addr 16 in
+          let r5 = if io-is-err r4 then r4 else sys-listen fd (i32-to-i64 backlog) in
+          if io-is-err r1 || io-is-err r2 || io-is-err r3 || io-is-err r4 || io-is-err r5 then
+            let err-rc = if io-is-err r4 then r4 else if io-is-err r5 then r5 else if io-is-err r2 then r2 else if io-is-err r1 then r1 else r3 in
+            let _cl = sys-close fd in
+            Err (linux-errno-to-io-error err-rc)
+          else Ok (fd-of (wrapping-i64-to-i32 fd))) in
+      let _fr = engine-dma-free scratch-u64 4096 in
+      res
+
+  -- | Create a non-blocking, close-on-exec IPv4 UDP socket bound to
+  -- `0.0.0.0:port` with `SO_REUSEADDR`, `SO_REUSEPORT`, and `UDP_GRO` enabled.
+  linux-udp-bind-reuseport-gro :: forall r. U16 ->{IO r, IO, MVar} Result IoError Fd
+  linux-udp-bind-reuseport-gro port =
+    let scratch-u64 = engine-dma-alloc 4096 4096 in
+    if eq-u64 scratch-u64 0 then Err IoNoMem
+    else
+      let scratch = wrapping-u64-to-i64 scratch-u64 in
+      let one-addr = scratch in
+      let sa-addr = wrapping-add-i64 scratch 16 in
+      let _o = raw-store-u32 one-addr 1 in
+      let _sa = linux-write-sockaddr-in-any sa-addr port in
+      let res = (with (io = newIO ()) in
+        let stype = bit-or-i64 (bit-or-i64 sock-dgram sock-nonblock) sock-cloexec in
+        let fd = sys-socket af-inet stype 0 in
+        if io-is-err fd then Err (linux-errno-to-io-error fd)
+        else
+          let r1 = sys-setsockopt fd sol-socket so-reuseaddr one-addr 4 in
+          let r2 = sys-setsockopt fd sol-socket so-reuseport one-addr 4 in
+          -- Best-effort `UDP_GRO` enablement (requires Linux 5.0+); bind is mandatory.
+          let _r-gro = sys-setsockopt fd sol-udp udp-gro one-addr 4 in
+          let r3 = sys-bind fd sa-addr 16 in
+          if io-is-err r1 || io-is-err r2 || io-is-err r3 then
+            let err-rc = if io-is-err r3 then r3 else if io-is-err r2 then r2 else r1 in
+            let _cl = sys-close fd in
+            Err (linux-errno-to-io-error err-rc)
+          else Ok (fd-of (wrapping-i64-to-i32 fd))) in
+      let _fr = engine-dma-free scratch-u64 4096 in
+      res
+
+  -- Write one 8-byte classic BPF `struct sock_filter { u16 code; u8 jt; u8 jf; u32 k; }`.
+  #[inline(always)]
+  write-sock-filter :: I64 -> U32 -> U16 -> U8 -> U8 -> U32 ->{MVar} Unit
+  write-sock-filter base idx code jt jf k =
+    let addr = wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 idx) 3) in
+    let lo = bit-or-u32 (bit-or-u32 (u16-to-u32 code) (wrapping-shl-u32 (u8-to-u32 jt) 16)) (wrapping-shl-u32 (u8-to-u32 jf) 24) in
+    let _0 = raw-store-u32 addr lo in
+    raw-store-u32 (wrapping-add-i64 addr 4) k
+
+  -- | Emit the 6-instruction (48-byte) classic BPF `sock_filter` program for
+  -- `SO_ATTACH_REUSEPORT_CBPF` QUIC short-header Connection ID steering:
+  --
+  --   0: `BPF_LD  | BPF_W | BPF_LEN` (0x0080)  A = skb->len
+  --   1: `BPF_JMP | BPF_JGE | BPF_K` (0x0035)  if A >= 3 goto +1 (insn 3)
+  --   2: `BPF_RET | BPF_K`           (0x0006)  return 0  (fallback for < 3B)
+  --   3: `BPF_LD  | BPF_H | BPF_ABS` (0x0028)  A = ntohs(payload[1..2]) (16-bit core_id)
+  --   4: `BPF_ALU | BPF_MOD | BPF_K` (0x0094)  A = A % num-cores
+  --   5: `BPF_RET | BPF_A`           (0x0016)  return A
+  --
+  -- Returns `6` (instruction count), or `0` if `out-addr == 0` or `num-cores == 0`.
+  linux-build-quic-cid-bpf :: I64 -> U32 ->{MVar} U32
+  linux-build-quic-cid-bpf out-addr num-cores =
+    if eq-i64 out-addr 0 || eq-u32 num-cores 0 then 0
+    else
+      let _0 = write-sock-filter out-addr 0 0x0080 0 0 0 in
+      let _1 = write-sock-filter out-addr 1 0x0035 1 0 3 in
+      let _2 = write-sock-filter out-addr 2 0x0006 0 0 0 in
+      let _3 = write-sock-filter out-addr 3 0x0028 0 0 1 in
+      let _4 = write-sock-filter out-addr 4 0x0094 0 0 num-cores in
+      let _5 = write-sock-filter out-addr 5 0x0016 0 0 0 in
+      6
+
+  -- | Attach the compact QUIC DCID `core_id % num-cores` BPF reuseport steering
+  -- program to a `SO_REUSEPORT` UDP socket via `SO_ATTACH_REUSEPORT_CBPF`.
+  linux-attach-quic-cid-ebpf :: forall r. Fd -> U32 ->{IO r, IO, MVar} IoError
+  linux-attach-quic-cid-ebpf sock-fd num-cores =
+    if not (fd-is-valid sock-fd) || eq-u32 num-cores 0 then IoOther
+    else
+      let scratch-u64 = engine-dma-alloc 4096 4096 in
+      if eq-u64 scratch-u64 0 then IoNoMem
+      else
+        let scratch = wrapping-u64-to-i64 scratch-u64 in
+        let prog-addr = wrapping-add-i64 scratch 64 in
+        let insns = linux-build-quic-cid-bpf prog-addr num-cores in
+        -- 16-byte Linux `struct sock_fprog { u16 len; u8 pad[6]; struct sock_filter *filter; }`
+        let _p0 = raw-store-u64 scratch (u32-to-u64 insns) in
+        let _p1 = raw-store-u64 (wrapping-add-i64 scratch 8) (wrapping-i64-to-u64 prog-addr) in
+        let rc = (with (io = newIO ()) in sys-setsockopt (i32-to-i64 sock-fd.fd-raw) sol-socket so-attach-reuseport-cbpf scratch 16) in
+        let _fr = engine-dma-free scratch-u64 4096 in
+        linux-errno-to-io-error rc
+
+  -- | Attach a pre-loaded eBPF program descriptor (`bpf-prog-fd`) to a
+  -- `SO_REUSEPORT` socket via `SO_ATTACH_REUSEPORT_EBPF` (`optname = 52`).
+  linux-attach-reuseport-ebpf-fd :: forall r. Fd -> Fd ->{IO r, IO, MVar} IoError
+  linux-attach-reuseport-ebpf-fd sock-fd bpf-prog-fd =
+    if not (fd-is-valid sock-fd) || not (fd-is-valid bpf-prog-fd) then IoBadFd
+    else
+      let scratch-u64 = engine-dma-alloc 4096 4096 in
+      if eq-u64 scratch-u64 0 then IoNoMem
+      else
+        let scratch = wrapping-u64-to-i64 scratch-u64 in
+        let _v = raw-store-u32 scratch (wrapping-i32-to-u32 bpf-prog-fd.fd-raw) in
+        let rc = (with (io = newIO ()) in sys-setsockopt (i32-to-i64 sock-fd.fd-raw) sol-socket so-attach-reuseport-ebpf scratch 4) in
+        let _fr = engine-dma-free scratch-u64 4096 in
+        linux-errno-to-io-error rc
