@@ -1,0 +1,596 @@
+-- | RFC 9218 Extensible Prioritization Scheme for HTTP (`StreamPriority`,
+-- `#[no-alloc]` Structured Fields `Priority` header parser, and O(1) DMA-backed
+-- 8-bucket intrusive ring `PriorityScheduler`).
+--
+-- Memory & performance contract:
+--   * `StreamPriority` is a 4-byte `#[repr(C, value)]` POD record.
+--   * `PriorityScheduler` is an 8-byte `#[repr(C, value)]` POD handle backed by
+--     a single page-aligned DMA slab (`engine-dma-alloc` / `engine-dma-free`).
+--   * All steady-state operations (`parse-priority-header-dma`,
+--     `prio-sched-enqueue`, `prio-sched-remove`, `prio-sched-reprioritize`,
+--     `prio-sched-next`, `prio-sched-active-count`) are `#[no-alloc]` with
+--     O(1) highest-urgency dispatch via a `U8` bucket bitmask + `trailing-zeros-u32`
+--     and intrusive doubly-linked circular rings per urgency bucket `0..7`.
+module Net.Http.Priority where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Types
+  import Prim.Atomic
+
+  -- StreamPriority (RFC 9218 Section 4)
+  export StreamPriority
+  export stream-priority-default, stream-priority-make, stream-priority-make-raw
+  export stream-priority-is-incremental, stream-priority-eq
+
+  -- RFC 9218 Section 5 / RFC 8941 Structured Fields header parser
+  export parse-priority-header-dma
+
+  -- O(1) DMA-backed 8-bucket intrusive PriorityScheduler
+  export PriorityScheduler, prio-slot-none
+  export prio-sched-new, prio-sched-destroy
+  export prio-sched-enqueue, prio-sched-remove, prio-sched-reprioritize
+  export prio-sched-next, prio-sched-next-opt
+  export prio-sched-active-count, prio-sched-capacity, prio-sched-bucket-mask
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & address helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  -- =========================================================================
+  -- 1. StreamPriority (4-byte #[repr(C, value)] POD)
+  -- =========================================================================
+
+  -- | RFC 9218 stream priority: `prio-urgency` in `0..7` (default `3`, `0` is
+  -- highest urgency), `prio-incremental` in `{0, 1}` (default `0`).
+  #[repr(C, value)]
+  record StreamPriority where
+    prio-urgency :: U8
+    prio-incremental :: U8
+    prio-pad :: U16
+
+  -- | Default RFC 9218 priority (`u=3, i=?0`).
+  #[inline(always)]
+  #[no-alloc]
+  stream-priority-default :: Unit -> StreamPriority
+  stream-priority-default _ = StreamPriority 3 0 0
+
+  -- | Construct a normalized `StreamPriority` from raw `U8` urgency (clamped to
+  -- `0..7`) and raw `U8` incremental flag (`0` or `1`).
+  #[inline(always)]
+  #[no-alloc]
+  stream-priority-make-raw :: U8 -> U8 -> StreamPriority
+  stream-priority-make-raw urg inc =
+    let u = if gt-u8 urg 7 then 7 else urg in
+    let i = if ne-u8 inc 0 then 1 else 0 in
+    StreamPriority u i 0
+
+  -- | Construct a normalized `StreamPriority` from urgency (`0..7`) and `Bool`.
+  #[inline(always)]
+  #[no-alloc]
+  stream-priority-make :: U8 -> Bool -> StreamPriority
+  stream-priority-make urg inc =
+    let u = if gt-u8 urg 7 then 7 else urg in
+    let i = if inc then 1 else 0 in
+    StreamPriority u i 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-priority-is-incremental :: StreamPriority -> Bool
+  stream-priority-is-incremental p = ne-u8 p.prio-incremental 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-priority-eq :: StreamPriority -> StreamPriority -> Bool
+  stream-priority-eq a b =
+    both (eq-u8 a.prio-urgency b.prio-urgency) (eq-u8 a.prio-incremental b.prio-incremental)
+
+  -- =========================================================================
+  -- 2. RFC 9218 Structured Fields `Priority` Header Parser (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  is-ows :: U8 -> Bool
+  is-ows c = if eq-u8 c 32 then b-true else eq-u8 c 9
+
+  #[inline(always)]
+  #[no-alloc]
+  is-delim :: U8 -> Bool
+  is-delim c =
+    if eq-u8 c 44 then b-true       -- ','
+    else if eq-u8 c 59 then b-true  -- ';'
+    else is-ows c
+
+  #[inline(always)]
+  #[no-alloc]
+  is-key-end :: U8 -> Bool
+  is-key-end c =
+    if eq-u8 c 61 then b-true else is-delim c -- '=' or delim
+
+  #[no-alloc]
+  skip-ows :: I64 -> U32 -> U32 ->{MVar} U32
+  skip-ows addr pos len =
+    if ge-u32 pos len then len
+    else if is-ows (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 pos))) then
+      skip-ows addr (wrapping-add-u32 pos 1) len
+    else pos
+
+  #[no-alloc]
+  scan-key-end :: I64 -> U32 -> U32 ->{MVar} U32
+  scan-key-end addr pos len =
+    if ge-u32 pos len then len
+    else if is-key-end (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 pos))) then pos
+    else scan-key-end addr (wrapping-add-u32 pos 1) len
+
+  -- Skip forward to just past the next top-level ',' (or `len`), respecting
+  -- RFC 8941 quoted strings `"..."` with `\"` / `\\` escapes.
+  #[no-alloc]
+  skip-to-next-member :: I64 -> U32 -> U32 -> U8 -> U8 ->{MVar} U32
+  skip-to-next-member addr pos len in-quote escaped =
+    if ge-u32 pos len then len
+    else
+      let ch = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 pos)) in
+      let next = wrapping-add-u32 pos 1 in
+      if ne-u8 in-quote 0 then
+        if ne-u8 escaped 0 then
+          skip-to-next-member addr next len 1 0
+        else if eq-u8 ch 92 then -- '\\'
+          skip-to-next-member addr next len 1 1
+        else if eq-u8 ch 34 then -- '"'
+          skip-to-next-member addr next len 0 0
+        else
+          skip-to-next-member addr next len 1 0
+      else if eq-u8 ch 34 then -- '"'
+        skip-to-next-member addr next len 1 0
+      else if eq-u8 ch 44 then -- ','
+        next
+      else
+        skip-to-next-member addr next len 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-prio-u16 :: U8 -> U8 -> U16
+  pack-prio-u16 urg inc =
+    bit-or-u16 (wrapping-shl-u16 (u8-to-u16 urg) 8) (u8-to-u16 inc)
+
+  -- Tail-recursive RFC 9218 dictionary member loop carrying `(urg, inc)`.
+  -- Returns packed `U16`: `(urg << 8) | inc`.
+  #[no-alloc]
+  parse-priority-loop :: I64 -> U32 -> U32 -> U8 -> U8 ->{MVar} U16
+  parse-priority-loop addr pos len urg inc =
+    let p0 = skip-ows addr pos len in
+    if ge-u32 p0 len then pack-prio-u16 urg inc
+    else
+      let ch0 = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 p0)) in
+      if eq-u8 ch0 44 then -- stray empty member ','
+        parse-priority-loop addr (wrapping-add-u32 p0 1) len urg inc
+      else
+        let kend = scan-key-end addr p0 len in
+        let klen = wrapping-sub-u32 kend p0 in
+        if eq-u32 klen 1 then
+          if eq-u8 ch0 117 then -- 'u'
+            if lt-u32 kend len then
+              let eqch = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 kend)) in
+              if eq-u8 eqch 61 then -- '='
+                let vpos = wrapping-add-u32 kend 1 in
+                if lt-u32 vpos len then
+                  let dig = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 vpos)) in
+                  let vnext = wrapping-add-u32 vpos 1 in
+                  let end-ok = (if ge-u32 vnext len then b-true else is-delim (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 vnext)))) in
+                  let new-urg = (if both end-ok (both (ge-u8 dig 48) (le-u8 dig 55)) then wrapping-sub-u8 dig 48 else urg) in
+                  let next = skip-to-next-member addr vnext len 0 0 in
+                  parse-priority-loop addr next len new-urg inc
+                else pack-prio-u16 urg inc
+              else
+                let next = skip-to-next-member addr kend len 0 0 in
+                parse-priority-loop addr next len urg inc
+            else pack-prio-u16 urg inc
+          else if eq-u8 ch0 105 then -- 'i'
+            if ge-u32 kend len then
+              pack-prio-u16 urg 1
+            else
+              let nxt-ch = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 kend)) in
+              if eq-u8 nxt-ch 61 then -- '=' -> expect "?1" or "?0"
+                let qpos = wrapping-add-u32 kend 1 in
+                let bpos = wrapping-add-u32 kend 2 in
+                let vnext = wrapping-add-u32 kend 3 in
+                if lt-u32 bpos len then
+                  let qch = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 qpos)) in
+                  let bch = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 bpos)) in
+                  let end-ok = (if ge-u32 vnext len then b-true else is-delim (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 vnext)))) in
+                  let new-inc = (if both end-ok (eq-u8 qch 63) then (if eq-u8 bch 49 then 1 else if eq-u8 bch 48 then 0 else inc) else inc) in
+                  let next = skip-to-next-member addr vnext len 0 0 in
+                  parse-priority-loop addr next len urg new-inc
+                else pack-prio-u16 urg inc
+              else
+                -- Bare `i` (possibly followed by `;params`, `,`, or OWS) => boolean true (`?1`).
+                let next = skip-to-next-member addr kend len 0 0 in
+                parse-priority-loop addr next len urg 1
+          else
+            let next = skip-to-next-member addr kend len 0 0 in
+            parse-priority-loop addr next len urg inc
+        else
+          let next = skip-to-next-member addr kend len 0 0 in
+          parse-priority-loop addr next len urg inc
+
+  -- | Parse an RFC 9218 `Priority` Structured Fields header value at DMA
+  -- `[addr, addr + len)` with zero heap allocations.
+  -- Defaults to `StreamPriority { prio-urgency = 3, prio-incremental = 0 }` and
+  -- ignores unknown members, parameters, and out-of-range values per RFC 9218.
+  #[no-alloc]
+  parse-priority-header-dma :: I64 -> U32 ->{MVar} StreamPriority
+  parse-priority-header-dma addr len =
+    if eq-i64 addr 0 then stream-priority-default ()
+    else if eq-u32 len 0 then stream-priority-default ()
+    else
+      let packed = parse-priority-loop addr 0 len 3 0 in
+      let u = wrapping-u16-to-u8 (wrapping-shr-u16 packed 8) in
+      let i = wrapping-u16-to-u8 (bit-and-u16 packed 255) in
+      StreamPriority u i 0
+
+  -- =========================================================================
+  -- 3. O(1) DMA-backed 8-Bucket Intrusive Ring PriorityScheduler
+  -- =========================================================================
+
+  -- | Handle to a DMA-backed RFC 9218 8-urgency-bucket priority scheduler.
+  -- Allocated once in `prio-sched-new`; all steady-state operations mutate the
+  -- backing DMA slab in place with zero heap allocations and zero atomic RC.
+  record PriorityScheduler where
+    ps-base :: U64
+
+  -- | Sentinel stream-slot returned by `prio-sched-next` when no streams are active.
+  #[inline(always)]
+  #[no-alloc]
+  prio-slot-none :: U32
+  prio-slot-none = 4294967295
+
+  -- Maximum supported stream slots (16M slots = 256 MiB node table).
+  #[inline(always)]
+  #[no-alloc]
+  max-sched-cap :: U32
+  max-sched-cap = 16777216
+
+  -- Header layout (all within cache line 0: bytes 0..63):
+  --   +0  capacity       :: U32
+  --   +4  active-count   :: U32
+  --   +8  bucket-mask    :: U8   (bit u == 1 iff urgency bucket u in 0..7 is non-empty)
+  --   +16 slab-size      :: U64
+  --   +24 bucket-head[8] :: 8 x U32 (bytes 24..55; prio-slot-none when empty)
+  -- Node table (bytes 64.., 16 bytes per stream-slot):
+  --   +0  prev           :: U32
+  --   +4  next           :: U32
+  --   +8  urgency        :: U8
+  --   +9  incremental    :: U8
+  --   +10 enqueued       :: U8
+  --   +11 pad            :: U8
+  --   +12 reserved       :: U32
+  #[no-alloc]
+  off-capacity :: U64
+  off-capacity = 0
+
+  #[no-alloc]
+  off-active-count :: U64
+  off-active-count = 4
+
+  #[no-alloc]
+  off-bucket-mask :: U64
+  off-bucket-mask = 8
+
+  #[no-alloc]
+  off-slab-size :: U64
+  off-slab-size = 16
+
+  #[no-alloc]
+  off-bucket-heads :: U64
+  off-bucket-heads = 24
+
+  #[no-alloc]
+  off-nodes :: U64
+  off-nodes = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  bucket-head-addr :: U64 -> U8 -> I64
+  bucket-head-addr base u =
+    addr-at base (wrapping-add-u64 off-bucket-heads (wrapping-shl-u64 (u8-to-u64 u) 2))
+
+  #[inline(always)]
+  #[no-alloc]
+  node-base :: U64 -> U32 -> U64
+  node-base base slot =
+    wrapping-add-u64 (wrapping-add-u64 base off-nodes) (wrapping-shl-u64 (u32-to-u64 slot) 4)
+
+  #[inline(always)]
+  #[no-alloc]
+  node-load-prev :: U64 -> U32 ->{MVar} U32
+  node-load-prev base slot = raw-load-u32 (addr-at (node-base base slot) 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  node-store-prev :: U64 -> U32 -> U32 ->{MVar} Unit
+  node-store-prev base slot v = raw-store-u32 (addr-at (node-base base slot) 0) v
+
+  #[inline(always)]
+  #[no-alloc]
+  node-load-next :: U64 -> U32 ->{MVar} U32
+  node-load-next base slot = raw-load-u32 (addr-at (node-base base slot) 4)
+
+  #[inline(always)]
+  #[no-alloc]
+  node-store-next :: U64 -> U32 -> U32 ->{MVar} Unit
+  node-store-next base slot v = raw-store-u32 (addr-at (node-base base slot) 4) v
+
+  #[inline(always)]
+  #[no-alloc]
+  node-load-urg :: U64 -> U32 ->{MVar} U8
+  node-load-urg base slot = raw-load-u8 (addr-at (node-base base slot) 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  node-store-urg :: U64 -> U32 -> U8 ->{MVar} Unit
+  node-store-urg base slot v = raw-store-u8 (addr-at (node-base base slot) 8) v
+
+  #[inline(always)]
+  #[no-alloc]
+  node-load-inc :: U64 -> U32 ->{MVar} U8
+  node-load-inc base slot = raw-load-u8 (addr-at (node-base base slot) 9)
+
+  #[inline(always)]
+  #[no-alloc]
+  node-store-inc :: U64 -> U32 -> U8 ->{MVar} Unit
+  node-store-inc base slot v = raw-store-u8 (addr-at (node-base base slot) 9) v
+
+  #[inline(always)]
+  #[no-alloc]
+  node-load-enqueued :: U64 -> U32 ->{MVar} U8
+  node-load-enqueued base slot = raw-load-u8 (addr-at (node-base base slot) 10)
+
+  #[inline(always)]
+  #[no-alloc]
+  node-store-enqueued :: U64 -> U32 -> U8 ->{MVar} Unit
+  node-store-enqueued base slot v = raw-store-u8 (addr-at (node-base base slot) 10) v
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-set-bucket :: U64 -> U8 ->{MVar} Unit
+  mask-set-bucket base u =
+    let a = addr-at base off-bucket-mask in
+    let cur = raw-load-u8 a in
+    let bit = wrapping-shl-u8 1 (u8-to-u32 u) in
+    raw-store-u8 a (bit-or-u8 cur bit)
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-clear-bucket :: U64 -> U8 ->{MVar} Unit
+  mask-clear-bucket base u =
+    let a = addr-at base off-bucket-mask in
+    let cur = raw-load-u8 a in
+    let bit = wrapping-shl-u8 1 (u8-to-u32 u) in
+    raw-store-u8 a (bit-and-u8 cur (bit-not-u8 bit))
+
+  -- Push `slot` onto the tail of urgency bucket `u`'s circular doubly-linked ring.
+  #[no-alloc]
+  ring-push-tail :: U64 -> U8 -> U32 ->{MVar} Unit
+  ring-push-tail base u slot =
+    let ha = bucket-head-addr base u in
+    let head = raw-load-u32 ha in
+    if eq-u32 head prio-slot-none then
+      let _ = node-store-prev base slot slot in
+      let _ = node-store-next base slot slot in
+      let _ = raw-store-u32 ha slot in
+      mask-set-bucket base u
+    else
+      let tail = node-load-prev base head in
+      let _ = node-store-prev base slot tail in
+      let _ = node-store-next base slot head in
+      let _ = node-store-next base tail slot in
+      node-store-prev base head slot
+
+  -- Unlink `slot` from urgency bucket `u`'s circular doubly-linked ring.
+  #[no-alloc]
+  ring-unlink :: U64 -> U8 -> U32 ->{MVar} Unit
+  ring-unlink base u slot =
+    let ha = bucket-head-addr base u in
+    let p = node-load-prev base slot in
+    let n = node-load-next base slot in
+    let _ = (if eq-u32 p slot then
+      let _ = raw-store-u32 ha prio-slot-none in
+      mask-clear-bucket base u
+    else
+      let _ = node-store-next base p n in
+      let _ = node-store-prev base n p in
+      let head = raw-load-u32 ha in
+      if eq-u32 head slot then raw-store-u32 ha n else ()) in
+    let _ = node-store-prev base slot prio-slot-none in
+    node-store-next base slot prio-slot-none
+
+  #[no-alloc]
+  init-bucket-heads :: U64 -> U8 ->{MVar} Unit
+  init-bucket-heads base u =
+    if ge-u8 u 8 then ()
+    else
+      let _ = raw-store-u32 (bucket-head-addr base u) prio-slot-none in
+      init-bucket-heads base (wrapping-add-u8 u 1)
+
+  #[no-alloc]
+  init-nodes-loop :: U64 -> U32 -> U32 ->{MVar} Unit
+  init-nodes-loop base i cap =
+    if ge-u32 i cap then ()
+    else
+      let _ = node-store-prev base i prio-slot-none in
+      let _ = node-store-next base i prio-slot-none in
+      let _ = node-store-urg base i 3 in
+      let _ = node-store-inc base i 0 in
+      let _ = node-store-enqueued base i 0 in
+      init-nodes-loop base (wrapping-add-u32 i 1) cap
+
+  -- | Allocate and initialize a DMA-backed RFC 9218 `PriorityScheduler` for
+  -- stream slots `0 .. max-streams - 1`. Returns `None` if `max-streams == 0`,
+  -- `max-streams > 16777216`, or DMA mapping fails.
+  prio-sched-new :: U32 ->{IO, MVar} Option PriorityScheduler
+  prio-sched-new max-streams =
+    if eq-u32 max-streams 0 then None
+    else if gt-u32 max-streams max-sched-cap then None
+    else
+      let raw-bytes = wrapping-add-u64 off-nodes (wrapping-shl-u64 (u32-to-u64 max-streams) 4) in
+      let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc aligned 4096 in
+      if eq-u64 base 0 then None
+      else
+        let _ = raw-store-u32 (addr-at base off-capacity) max-streams in
+        let _ = raw-store-u32 (addr-at base off-active-count) 0 in
+        let _ = raw-store-u8 (addr-at base off-bucket-mask) 0 in
+        let _ = raw-store-u64 (addr-at base off-slab-size) aligned in
+        let _ = init-bucket-heads base 0 in
+        let _ = init-nodes-loop base 0 max-streams in
+        Some (PriorityScheduler base)
+
+  -- | Unmap the DMA slab owned by `sched`.
+  prio-sched-destroy :: PriorityScheduler ->{IO, MVar} Unit
+  prio-sched-destroy sched =
+    if eq-u64 sched.ps-base 0 then ()
+    else
+      let sz = raw-load-u64 (addr-at sched.ps-base off-slab-size) in
+      let _ = engine-dma-free sched.ps-base sz in
+      ()
+
+  -- | Return the number of currently active (enqueued) streams in `sched`.
+  #[inline(always)]
+  #[no-alloc]
+  prio-sched-active-count :: PriorityScheduler ->{MVar} U32
+  prio-sched-active-count sched =
+    if eq-u64 sched.ps-base 0 then 0
+    else raw-load-u32 (addr-at sched.ps-base off-active-count)
+
+  -- | Return the fixed stream slot capacity of `sched`.
+  #[inline(always)]
+  #[no-alloc]
+  prio-sched-capacity :: PriorityScheduler ->{MVar} U32
+  prio-sched-capacity sched =
+    if eq-u64 sched.ps-base 0 then 0
+    else raw-load-u32 (addr-at sched.ps-base off-capacity)
+
+  -- | Return the 8-bit non-empty urgency bucket bitmask (`bit u == 1` iff bucket `u` is non-empty).
+  #[inline(always)]
+  #[no-alloc]
+  prio-sched-bucket-mask :: PriorityScheduler ->{MVar} U8
+  prio-sched-bucket-mask sched =
+    if eq-u64 sched.ps-base 0 then 0
+    else raw-load-u8 (addr-at sched.ps-base off-bucket-mask)
+
+  -- | Enqueue `stream-slot` at `prio` in O(1) (`#[no-alloc]`).
+  -- Returns `False` if `stream-slot` is out of range or already enqueued.
+  #[no-alloc]
+  prio-sched-enqueue :: PriorityScheduler -> U32 -> StreamPriority ->{MVar} Bool
+  prio-sched-enqueue sched slot prio =
+    let base = sched.ps-base in
+    if eq-u64 base 0 then b-false
+    else
+      let cap = raw-load-u32 (addr-at base off-capacity) in
+      if ge-u32 slot cap then b-false
+      else if ne-u8 (node-load-enqueued base slot) 0 then b-false
+      else
+        let u = if gt-u8 prio.prio-urgency 7 then 7 else prio.prio-urgency in
+        let inc = if ne-u8 prio.prio-incremental 0 then 1 else 0 in
+        let _ = node-store-urg base slot u in
+        let _ = node-store-inc base slot inc in
+        let _ = node-store-enqueued base slot 1 in
+        let _ = ring-push-tail base u slot in
+        let cnt = raw-load-u32 (addr-at base off-active-count) in
+        let _ = raw-store-u32 (addr-at base off-active-count) (wrapping-add-u32 cnt 1) in
+        b-true
+
+  -- | Remove `stream-slot` from the scheduler in O(1) (`#[no-alloc]`).
+  -- Returns `False` if `stream-slot` is out of range or not currently enqueued.
+  #[no-alloc]
+  prio-sched-remove :: PriorityScheduler -> U32 ->{MVar} Bool
+  prio-sched-remove sched slot =
+    let base = sched.ps-base in
+    if eq-u64 base 0 then b-false
+    else
+      let cap = raw-load-u32 (addr-at base off-capacity) in
+      if ge-u32 slot cap then b-false
+      else if eq-u8 (node-load-enqueued base slot) 0 then b-false
+      else
+        let u = node-load-urg base slot in
+        let _ = ring-unlink base u slot in
+        let _ = node-store-enqueued base slot 0 in
+        let cnt = raw-load-u32 (addr-at base off-active-count) in
+        let _ = raw-store-u32 (addr-at base off-active-count) (wrapping-sub-u32 cnt 1) in
+        b-true
+
+  -- | Dynamically reprioritize an active `stream-slot` to `new-prio` in O(1) (`#[no-alloc]`).
+  -- If urgency changes, unlinks from the old bucket and appends to the new bucket;
+  -- if urgency is unchanged, updates `incremental` in place.
+  -- Returns `False` if `stream-slot` is out of range or not currently enqueued.
+  #[no-alloc]
+  prio-sched-reprioritize :: PriorityScheduler -> U32 -> StreamPriority ->{MVar} Bool
+  prio-sched-reprioritize sched slot new-prio =
+    let base = sched.ps-base in
+    if eq-u64 base 0 then b-false
+    else
+      let cap = raw-load-u32 (addr-at base off-capacity) in
+      if ge-u32 slot cap then b-false
+      else if eq-u8 (node-load-enqueued base slot) 0 then b-false
+      else
+        let old-u = node-load-urg base slot in
+        let new-u = if gt-u8 new-prio.prio-urgency 7 then 7 else new-prio.prio-urgency in
+        let new-inc = if ne-u8 new-prio.prio-incremental 0 then 1 else 0 in
+        let _ = node-store-inc base slot new-inc in
+        if eq-u8 old-u new-u then b-true
+        else
+          let _ = ring-unlink base old-u slot in
+          let _ = node-store-urg base slot new-u in
+          let _ = ring-push-tail base new-u slot in
+          b-true
+
+  -- | O(1) highest-urgency dispatch (`#[no-alloc]`): picks the lowest urgency
+  -- bucket `u` via `trailing-zeros-u32` on the `U8` bucket bitmask and returns
+  -- its head `stream-slot` (or `prio-slot-none` when empty).
+  --   * If `incremental == 1`, rotates the slot to the tail of bucket `u`
+  --     (1-store round-robin: `head = next[slot]`).
+  --   * If `incremental == 0`, keeps the slot at the head of bucket `u` (strict FIFO).
+  #[no-alloc]
+  prio-sched-next :: PriorityScheduler ->{MVar} U32
+  prio-sched-next sched =
+    let base = sched.ps-base in
+    if eq-u64 base 0 then prio-slot-none
+    else
+      let mask = raw-load-u8 (addr-at base off-bucket-mask) in
+      if eq-u8 mask 0 then prio-slot-none
+      else
+        let u = wrapping-u32-to-u8 (trailing-zeros-u32 (u8-to-u32 mask)) in
+        let ha = bucket-head-addr base u in
+        let slot = raw-load-u32 ha in
+        let inc = node-load-inc base slot in
+        let _ = (if ne-u8 inc 0 then raw-store-u32 ha (node-load-next base slot) else ()) in
+        slot
+
+  -- | Convenience `Option U32` wrapper around `prio-sched-next`.
+  prio-sched-next-opt :: PriorityScheduler ->{MVar} Option U32
+  prio-sched-next-opt sched =
+    let s = prio-sched-next sched in
+    if eq-u32 s prio-slot-none then None else Some s

@@ -1407,6 +1407,14 @@
     {
       "name": "Engine.Sim",
       "path": "Engine/Sim.cinch"
+    },
+    {
+      "name": "Net.Http.Types",
+      "path": "Net/Http/Types.cinch"
+    },
+    {
+      "name": "Net.Http.Priority",
+      "path": "Net/Http/Priority.cinch"
     }
   ],
   "order": [
@@ -1760,6 +1768,8 @@
     "Engine.Simd.Crc32c",
     "Engine.Simd.Mask",
     "Engine.Sim.Faults",
-    "Engine.Sim"
+    "Engine.Sim",
+    "Net.Http.Types",
+    "Net.Http.Priority"
   ]
 }
