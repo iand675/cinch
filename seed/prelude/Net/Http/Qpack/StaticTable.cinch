@@ -1,0 +1,1725 @@
+-- | Complete RFC 9204 Appendix A QPACK 99-entry static table (0-indexed: 0..98)
+-- with O(1) `#[no-alloc]` bidirectional `Net.Http.Types.KnownHeader` mapping,
+-- zero-copy DMA name/value writers, and exact `(name + value)` fast matchers.
+module Net.Http.Qpack.StaticTable where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.String
+  import Net.Http.Types
+  import Prim.Atomic
+
+  export qpack-static-count, qpack-static-none
+  export qpack-match-none, qpack-match-name, qpack-match-exact
+  export qpack-static-is-valid
+  export qpack-static-name, qpack-static-value
+  export qpack-static-name-len, qpack-static-value-len
+  export qpack-static-known-header, qpack-static-from-known
+  export qpack-static-is-sensitive, qpack-static-is-sensitive-dma
+  export qpack-static-write-name-dma, qpack-static-write-value-dma
+  export qpack-static-match-name-dma, qpack-static-match-exact-by-name-dma
+  export qpack-static-match-known-exact-dma, qpack-static-match-pair-dma
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA byte helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  alpha-mask-u8 :: U8 -> U8
+  alpha-mask-u8 c =
+    if lt-u8 (wrapping-sub-u8 c 97) 26 then 32 else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  mask-le4 c0 c1 c2 c3 =
+    pack-le4 (alpha-mask-u8 c0) (alpha-mask-u8 c1) (alpha-mask-u8 c2) (alpha-mask-u8 c3)
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  mask-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    pack-le8
+      (alpha-mask-u8 c0) (alpha-mask-u8 c1) (alpha-mask-u8 c2) (alpha-mask-u8 c3)
+      (alpha-mask-u8 c4) (alpha-mask-u8 c5) (alpha-mask-u8 c6) (alpha-mask-u8 c7)
+
+  -- Case-insensitive DMA comparators (for header names)
+  #[inline(always)]
+  #[no-alloc]
+  dma-ci1 :: I64 -> U32 -> U8 ->{MVar} Bool
+  dma-ci1 addr off c0 =
+    let b0 = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 off)) in
+    eq-u8 (bit-or-u8 b0 (alpha-mask-u8 c0)) c0
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-ci2 :: I64 -> U32 -> U8 -> U8 ->{MVar} Bool
+  dma-ci2 addr off c0 c1 =
+    both (dma-ci1 addr off c0) (dma-ci1 addr (wrapping-add-u32 off 1) c1)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-ci4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-ci4 addr off c0 c1 c2 c3 =
+    let v = raw-load-u32 (wrapping-add-i64 addr (u32-to-i64 off)) in
+    eq-u32 (bit-or-u32 v (mask-le4 c0 c1 c2 c3)) (pack-le4 c0 c1 c2 c3)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-ci8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-ci8 addr off c0 c1 c2 c3 c4 c5 c6 c7 =
+    let v = raw-load-u64 (wrapping-add-i64 addr (u32-to-i64 off)) in
+    eq-u64 (bit-or-u64 v (mask-le8 c0 c1 c2 c3 c4 c5 c6 c7)) (pack-le8 c0 c1 c2 c3 c4 c5 c6 c7)
+
+  -- Exact case-sensitive DMA comparators (for header values)
+  #[inline(always)]
+  #[no-alloc]
+  dma-ex1 :: I64 -> U32 -> U8 ->{MVar} Bool
+  dma-ex1 addr off c0 =
+    eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 off))) c0
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-ex2 :: I64 -> U32 -> U8 -> U8 ->{MVar} Bool
+  dma-ex2 addr off c0 c1 =
+    both (dma-ex1 addr off c0) (dma-ex1 addr (wrapping-add-u32 off 1) c1)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-ex4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-ex4 addr off c0 c1 c2 c3 =
+    eq-u32 (raw-load-u32 (wrapping-add-i64 addr (u32-to-i64 off))) (pack-le4 c0 c1 c2 c3)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-ex8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-ex8 addr off c0 c1 c2 c3 c4 c5 c6 c7 =
+    eq-u64 (raw-load-u64 (wrapping-add-i64 addr (u32-to-i64 off))) (pack-le8 c0 c1 c2 c3 c4 c5 c6 c7)
+
+  -- Zero-alloc DMA writers
+  #[inline(always)]
+  #[no-alloc]
+  dma-put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-put1 base pos b0 =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  dma-put2 base pos b0 b1 =
+    let p1 = dma-put1 base pos b0 in
+    dma-put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put4 base pos b0 b1 b2 b3 =
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put8 base pos b0 b1 b2 b3 b4 b5 b6 b7 =
+    let _ = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 b0 b1 b2 b3 b4 b5 b6 b7) in
+    wrapping-add-u32 pos 8
+
+  -- =========================================================================
+  -- 1. Constants & O(1) RFC 9204 Appendix A Table Accessors (indices 0..98)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  qpack-static-count :: U8
+  qpack-static-count = 99
+
+  #[inline(always)]
+  #[no-alloc]
+  qpack-static-none :: U8
+  qpack-static-none = 255
+
+  #[inline(always)]
+  #[no-alloc]
+  qpack-match-none :: U8
+  qpack-match-none = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  qpack-match-name :: U8
+  qpack-match-name = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  qpack-match-exact :: U8
+  qpack-match-exact = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  qpack-static-is-valid :: U8 -> Bool
+  qpack-static-is-valid idx = lt-u8 idx qpack-static-count
+
+  -- | Return the canonical lowercase header name for RFC 9204 static index `0..98`,
+  -- or `""` if out of range (immortal `rc == 0` string literal).
+  #[no-alloc]
+  qpack-static-name :: U8 -> String
+  qpack-static-name idx = case idx of
+    0 -> ":authority"
+    1 -> ":path"
+    2 -> "age"
+    3 -> "content-disposition"
+    4 -> "content-length"
+    5 -> "cookie"
+    6 -> "date"
+    7 -> "etag"
+    8 -> "if-modified-since"
+    9 -> "if-none-match"
+    10 -> "last-modified"
+    11 -> "link"
+    12 -> "location"
+    13 -> "referer"
+    14 -> "set-cookie"
+    15 -> ":method"
+    16 -> ":method"
+    17 -> ":method"
+    18 -> ":method"
+    19 -> ":method"
+    20 -> ":method"
+    21 -> ":method"
+    22 -> ":scheme"
+    23 -> ":scheme"
+    24 -> ":status"
+    25 -> ":status"
+    26 -> ":status"
+    27 -> ":status"
+    28 -> ":status"
+    29 -> "accept"
+    30 -> "accept"
+    31 -> "accept-encoding"
+    32 -> "accept-ranges"
+    33 -> "access-control-allow-headers"
+    34 -> "access-control-allow-headers"
+    35 -> "access-control-allow-origin"
+    36 -> "cache-control"
+    37 -> "cache-control"
+    38 -> "cache-control"
+    39 -> "cache-control"
+    40 -> "cache-control"
+    41 -> "cache-control"
+    42 -> "content-encoding"
+    43 -> "content-encoding"
+    44 -> "content-type"
+    45 -> "content-type"
+    46 -> "content-type"
+    47 -> "content-type"
+    48 -> "content-type"
+    49 -> "content-type"
+    50 -> "content-type"
+    51 -> "content-type"
+    52 -> "content-type"
+    53 -> "content-type"
+    54 -> "content-type"
+    55 -> "range"
+    56 -> "strict-transport-security"
+    57 -> "strict-transport-security"
+    58 -> "strict-transport-security"
+    59 -> "vary"
+    60 -> "vary"
+    61 -> "x-content-type-options"
+    62 -> "x-xss-protection"
+    63 -> ":status"
+    64 -> ":status"
+    65 -> ":status"
+    66 -> ":status"
+    67 -> ":status"
+    68 -> ":status"
+    69 -> ":status"
+    70 -> ":status"
+    71 -> ":status"
+    72 -> "accept-language"
+    73 -> "access-control-allow-credentials"
+    74 -> "access-control-allow-credentials"
+    75 -> "access-control-allow-headers"
+    76 -> "access-control-allow-methods"
+    77 -> "access-control-allow-methods"
+    78 -> "access-control-allow-methods"
+    79 -> "access-control-expose-headers"
+    80 -> "access-control-request-headers"
+    81 -> "access-control-request-method"
+    82 -> "access-control-request-method"
+    83 -> "alt-svc"
+    84 -> "authorization"
+    85 -> "content-security-policy"
+    86 -> "early-data"
+    87 -> "expect-ct"
+    88 -> "forwarded"
+    89 -> "if-range"
+    90 -> "origin"
+    91 -> "purpose"
+    92 -> "server"
+    93 -> "timing-allow-origin"
+    94 -> "upgrade-insecure-requests"
+    95 -> "user-agent"
+    96 -> "x-forwarded-for"
+    97 -> "x-frame-options"
+    98 -> "x-frame-options"
+    other -> ""
+
+  -- | Return the canonical header value for RFC 9204 static index `0..98`,
+  -- or `""` if empty or out of range (immortal `rc == 0` string literal).
+  #[no-alloc]
+  qpack-static-value :: U8 -> String
+  qpack-static-value idx = case idx of
+    0 -> ""
+    1 -> "/"
+    2 -> "0"
+    3 -> ""
+    4 -> "0"
+    5 -> ""
+    6 -> ""
+    7 -> ""
+    8 -> ""
+    9 -> ""
+    10 -> ""
+    11 -> ""
+    12 -> ""
+    13 -> ""
+    14 -> ""
+    15 -> "CONNECT"
+    16 -> "DELETE"
+    17 -> "GET"
+    18 -> "HEAD"
+    19 -> "OPTIONS"
+    20 -> "POST"
+    21 -> "PUT"
+    22 -> "http"
+    23 -> "https"
+    24 -> "103"
+    25 -> "200"
+    26 -> "304"
+    27 -> "404"
+    28 -> "503"
+    29 -> "*/*"
+    30 -> "application/dns-message"
+    31 -> "gzip, deflate, br"
+    32 -> "bytes"
+    33 -> "cache-control"
+    34 -> "content-type"
+    35 -> "*"
+    36 -> "max-age=0"
+    37 -> "max-age=2592000"
+    38 -> "max-age=604800"
+    39 -> "no-cache"
+    40 -> "no-store"
+    41 -> "public, max-age=31536000"
+    42 -> "br"
+    43 -> "gzip"
+    44 -> "application/dns-message"
+    45 -> "application/javascript"
+    46 -> "application/json"
+    47 -> "application/x-www-form-urlencoded"
+    48 -> "image/gif"
+    49 -> "image/jpeg"
+    50 -> "image/png"
+    51 -> "text/css"
+    52 -> "text/html; charset=utf-8"
+    53 -> "text/plain"
+    54 -> "text/plain;charset=utf-8"
+    55 -> "bytes=0-"
+    56 -> "max-age=31536000"
+    57 -> "max-age=31536000; includesubdomains"
+    58 -> "max-age=31536000; includesubdomains; preload"
+    59 -> "accept-encoding"
+    60 -> "origin"
+    61 -> "nosniff"
+    62 -> "1; mode=block"
+    63 -> "100"
+    64 -> "204"
+    65 -> "206"
+    66 -> "302"
+    67 -> "400"
+    68 -> "403"
+    69 -> "421"
+    70 -> "425"
+    71 -> "500"
+    72 -> ""
+    73 -> "FALSE"
+    74 -> "TRUE"
+    75 -> "*"
+    76 -> "get"
+    77 -> "get, post, options"
+    78 -> "options"
+    79 -> "content-length"
+    80 -> "content-type"
+    81 -> "get"
+    82 -> "post"
+    83 -> "clear"
+    84 -> ""
+    85 -> "script-src 'none'; object-src 'none'; base-uri 'none'"
+    86 -> "1"
+    87 -> ""
+    88 -> ""
+    89 -> ""
+    90 -> ""
+    91 -> "prefetch"
+    92 -> ""
+    93 -> "*"
+    94 -> "1"
+    95 -> ""
+    96 -> ""
+    97 -> "deny"
+    98 -> "sameorigin"
+    other -> ""
+
+  -- | Exact byte length of the static entry name for `0..98`, or `0` if invalid.
+  #[no-alloc]
+  qpack-static-name-len :: U8 -> U32
+  qpack-static-name-len idx = case idx of
+    0 -> 10
+    1 -> 5
+    2 -> 3
+    3 -> 19
+    4 -> 14
+    5 -> 6
+    6 -> 4
+    7 -> 4
+    8 -> 17
+    9 -> 13
+    10 -> 13
+    11 -> 4
+    12 -> 8
+    13 -> 7
+    14 -> 10
+    15 -> 7
+    16 -> 7
+    17 -> 7
+    18 -> 7
+    19 -> 7
+    20 -> 7
+    21 -> 7
+    22 -> 7
+    23 -> 7
+    24 -> 7
+    25 -> 7
+    26 -> 7
+    27 -> 7
+    28 -> 7
+    29 -> 6
+    30 -> 6
+    31 -> 15
+    32 -> 13
+    33 -> 28
+    34 -> 28
+    35 -> 27
+    36 -> 13
+    37 -> 13
+    38 -> 13
+    39 -> 13
+    40 -> 13
+    41 -> 13
+    42 -> 16
+    43 -> 16
+    44 -> 12
+    45 -> 12
+    46 -> 12
+    47 -> 12
+    48 -> 12
+    49 -> 12
+    50 -> 12
+    51 -> 12
+    52 -> 12
+    53 -> 12
+    54 -> 12
+    55 -> 5
+    56 -> 25
+    57 -> 25
+    58 -> 25
+    59 -> 4
+    60 -> 4
+    61 -> 22
+    62 -> 16
+    63 -> 7
+    64 -> 7
+    65 -> 7
+    66 -> 7
+    67 -> 7
+    68 -> 7
+    69 -> 7
+    70 -> 7
+    71 -> 7
+    72 -> 15
+    73 -> 32
+    74 -> 32
+    75 -> 28
+    76 -> 28
+    77 -> 28
+    78 -> 28
+    79 -> 29
+    80 -> 30
+    81 -> 29
+    82 -> 29
+    83 -> 7
+    84 -> 13
+    85 -> 23
+    86 -> 10
+    87 -> 9
+    88 -> 9
+    89 -> 8
+    90 -> 6
+    91 -> 7
+    92 -> 6
+    93 -> 19
+    94 -> 25
+    95 -> 10
+    96 -> 15
+    97 -> 15
+    98 -> 15
+    other -> 0
+
+  -- | Exact byte length of the static entry value for `0..98`, or `0` if empty/invalid.
+  #[no-alloc]
+  qpack-static-value-len :: U8 -> U32
+  qpack-static-value-len idx = case idx of
+    0 -> 0
+    1 -> 1
+    2 -> 1
+    3 -> 0
+    4 -> 1
+    5 -> 0
+    6 -> 0
+    7 -> 0
+    8 -> 0
+    9 -> 0
+    10 -> 0
+    11 -> 0
+    12 -> 0
+    13 -> 0
+    14 -> 0
+    15 -> 7
+    16 -> 6
+    17 -> 3
+    18 -> 4
+    19 -> 7
+    20 -> 4
+    21 -> 3
+    22 -> 4
+    23 -> 5
+    24 -> 3
+    25 -> 3
+    26 -> 3
+    27 -> 3
+    28 -> 3
+    29 -> 3
+    30 -> 23
+    31 -> 17
+    32 -> 5
+    33 -> 13
+    34 -> 12
+    35 -> 1
+    36 -> 9
+    37 -> 15
+    38 -> 14
+    39 -> 8
+    40 -> 8
+    41 -> 24
+    42 -> 2
+    43 -> 4
+    44 -> 23
+    45 -> 22
+    46 -> 16
+    47 -> 33
+    48 -> 9
+    49 -> 10
+    50 -> 9
+    51 -> 8
+    52 -> 24
+    53 -> 10
+    54 -> 24
+    55 -> 8
+    56 -> 16
+    57 -> 35
+    58 -> 44
+    59 -> 15
+    60 -> 6
+    61 -> 7
+    62 -> 13
+    63 -> 3
+    64 -> 3
+    65 -> 3
+    66 -> 3
+    67 -> 3
+    68 -> 3
+    69 -> 3
+    70 -> 3
+    71 -> 3
+    72 -> 0
+    73 -> 5
+    74 -> 4
+    75 -> 1
+    76 -> 3
+    77 -> 18
+    78 -> 7
+    79 -> 14
+    80 -> 12
+    81 -> 3
+    82 -> 4
+    83 -> 5
+    84 -> 0
+    85 -> 53
+    86 -> 1
+    87 -> 0
+    88 -> 0
+    89 -> 0
+    90 -> 0
+    91 -> 8
+    92 -> 0
+    93 -> 1
+    94 -> 1
+    95 -> 0
+    96 -> 0
+    97 -> 4
+    98 -> 10
+    other -> 0
+
+  -- | Map RFC 9204 static table index `0..98` to `Net.Http.Types.KnownHeader` (`0..60`),
+  -- or `hdr-unknown` (`255`) for QPACK-only static headers.
+  #[no-alloc]
+  qpack-static-known-header :: U8 -> U8
+  qpack-static-known-header idx = case idx of
+    0 -> 0
+    1 -> 2
+    2 -> 11
+    3 -> 16
+    4 -> 19
+    5 -> 23
+    6 -> 24
+    7 -> 25
+    8 -> 31
+    9 -> 32
+    10 -> 35
+    11 -> 36
+    12 -> 37
+    13 -> 44
+    14 -> 51
+    15 -> 1
+    16 -> 1
+    17 -> 1
+    18 -> 1
+    19 -> 1
+    20 -> 1
+    21 -> 1
+    22 -> 3
+    23 -> 3
+    24 -> 4
+    25 -> 4
+    26 -> 4
+    27 -> 4
+    28 -> 4
+    29 -> 5
+    30 -> 5
+    31 -> 7
+    32 -> 9
+    33 -> 255
+    34 -> 255
+    35 -> 10
+    36 -> 14
+    37 -> 14
+    38 -> 14
+    39 -> 14
+    40 -> 14
+    41 -> 14
+    42 -> 17
+    43 -> 17
+    44 -> 22
+    45 -> 22
+    46 -> 22
+    47 -> 22
+    48 -> 22
+    49 -> 22
+    50 -> 22
+    51 -> 22
+    52 -> 22
+    53 -> 22
+    54 -> 22
+    55 -> 43
+    56 -> 52
+    57 -> 52
+    58 -> 52
+    59 -> 57
+    60 -> 57
+    61 -> 255
+    62 -> 255
+    63 -> 4
+    64 -> 4
+    65 -> 4
+    66 -> 4
+    67 -> 4
+    68 -> 4
+    69 -> 4
+    70 -> 4
+    71 -> 4
+    72 -> 8
+    73 -> 255
+    74 -> 255
+    75 -> 255
+    76 -> 255
+    77 -> 255
+    78 -> 255
+    79 -> 255
+    80 -> 255
+    81 -> 255
+    82 -> 255
+    83 -> 60
+    84 -> 13
+    85 -> 255
+    86 -> 255
+    87 -> 255
+    88 -> 255
+    89 -> 33
+    90 -> 39
+    91 -> 255
+    92 -> 50
+    93 -> 255
+    94 -> 255
+    95 -> 56
+    96 -> 255
+    97 -> 255
+    98 -> 255
+    other -> 255
+
+  -- | Map `Net.Http.Types.KnownHeader` (`0..60`) to its canonical first RFC 9204
+  -- QPACK static index (`0..98`), or `qpack-static-none` (`255`) if absent.
+  #[inline(always)]
+  #[no-alloc]
+  qpack-static-from-known :: U8 -> U8
+  qpack-static-from-known known-id = known-header-qpack-index known-id
+
+  -- | True when QPACK static index `idx` is a high-entropy sensitive credential
+  -- header (`cookie`, `set-cookie`, `authorization`) that must use `N=1` never-indexed.
+  #[inline(always)]
+  #[no-alloc]
+  qpack-static-is-sensitive :: U8 -> Bool
+  qpack-static-is-sensitive idx =
+    either (eq-u8 idx 5) (either (eq-u8 idx 14) (eq-u8 idx 84))
+
+  -- | True when a header (by `KnownHeader` ID or raw DMA name) is sensitive
+  -- (`authorization`, `cookie`, `set-cookie`, `proxy-authorization`).
+  #[no-alloc]
+  qpack-static-is-sensitive-dma :: U8 -> I64 -> U32 ->{MVar} Bool
+  qpack-static-is-sensitive-dma known-id addr len =
+    if either (eq-u8 known-id hdr-authorization)
+      (either (eq-u8 known-id hdr-cookie)
+        (either (eq-u8 known-id hdr-set-cookie) (eq-u8 known-id hdr-proxy-authorization)))
+    then b-true
+    else if ne-u8 known-id hdr-unknown then b-false
+    else
+      let k = known-header-match-dma addr len in
+      either (eq-u8 k hdr-authorization)
+        (either (eq-u8 k hdr-cookie)
+          (either (eq-u8 k hdr-set-cookie) (eq-u8 k hdr-proxy-authorization)))
+
+  -- =========================================================================
+  -- 2. Zero-Alloc DMA Name & Value Writers (all 99 RFC 9204 entries)
+  -- =========================================================================
+
+  -- Canonical first static index sharing the same header name (reduces codegen size).
+  #[no-alloc]
+  static-canon-name-idx :: U8 -> U8
+  static-canon-name-idx idx = case idx of
+    0 -> 0
+    1 -> 1
+    2 -> 2
+    3 -> 3
+    4 -> 4
+    5 -> 5
+    6 -> 6
+    7 -> 7
+    8 -> 8
+    9 -> 9
+    10 -> 10
+    11 -> 11
+    12 -> 12
+    13 -> 13
+    14 -> 14
+    15 -> 15
+    16 -> 15
+    17 -> 15
+    18 -> 15
+    19 -> 15
+    20 -> 15
+    21 -> 15
+    22 -> 22
+    23 -> 22
+    24 -> 24
+    25 -> 24
+    26 -> 24
+    27 -> 24
+    28 -> 24
+    29 -> 29
+    30 -> 29
+    31 -> 31
+    32 -> 32
+    33 -> 33
+    34 -> 33
+    35 -> 35
+    36 -> 36
+    37 -> 36
+    38 -> 36
+    39 -> 36
+    40 -> 36
+    41 -> 36
+    42 -> 42
+    43 -> 42
+    44 -> 44
+    45 -> 44
+    46 -> 44
+    47 -> 44
+    48 -> 44
+    49 -> 44
+    50 -> 44
+    51 -> 44
+    52 -> 44
+    53 -> 44
+    54 -> 44
+    55 -> 55
+    56 -> 56
+    57 -> 56
+    58 -> 56
+    59 -> 59
+    60 -> 59
+    61 -> 61
+    62 -> 62
+    63 -> 24
+    64 -> 24
+    65 -> 24
+    66 -> 24
+    67 -> 24
+    68 -> 24
+    69 -> 24
+    70 -> 24
+    71 -> 24
+    72 -> 72
+    73 -> 73
+    74 -> 73
+    75 -> 33
+    76 -> 76
+    77 -> 76
+    78 -> 76
+    79 -> 79
+    80 -> 80
+    81 -> 81
+    82 -> 81
+    83 -> 83
+    84 -> 84
+    85 -> 85
+    86 -> 86
+    87 -> 87
+    88 -> 88
+    89 -> 89
+    90 -> 90
+    91 -> 91
+    92 -> 92
+    93 -> 93
+    94 -> 94
+    95 -> 95
+    96 -> 96
+    97 -> 97
+    98 -> 97
+    other -> 255
+
+  #[no-alloc]
+  write-name-unchecked-lo :: U8 -> I64 -> U32 ->{MVar} U32
+  write-name-unchecked-lo cidx base pos = case cidx of
+    0 ->
+      let p1 = dma-put8 base pos 58 97 117 116 104 111 114 105 in
+      dma-put2 base p1 116 121
+    1 ->
+      let p1 = dma-put4 base pos 58 112 97 116 in
+      dma-put1 base p1 104
+    2 ->
+      let p1 = dma-put2 base pos 97 103 in
+      dma-put1 base p1 101
+    3 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put8 base p1 100 105 115 112 111 115 105 116 in
+      let p3 = dma-put2 base p2 105 111 in
+      dma-put1 base p3 110
+    4 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put4 base p1 108 101 110 103 in
+      dma-put2 base p2 116 104
+    5 ->
+      let p1 = dma-put4 base pos 99 111 111 107 in
+      dma-put2 base p1 105 101
+    6 ->
+      dma-put4 base pos 100 97 116 101
+    7 ->
+      dma-put4 base pos 101 116 97 103
+    8 ->
+      let p1 = dma-put8 base pos 105 102 45 109 111 100 105 102 in
+      let p2 = dma-put8 base p1 105 101 100 45 115 105 110 99 in
+      dma-put1 base p2 101
+    9 ->
+      let p1 = dma-put8 base pos 105 102 45 110 111 110 101 45 in
+      let p2 = dma-put4 base p1 109 97 116 99 in
+      dma-put1 base p2 104
+    10 ->
+      let p1 = dma-put8 base pos 108 97 115 116 45 109 111 100 in
+      let p2 = dma-put4 base p1 105 102 105 101 in
+      dma-put1 base p2 100
+    11 ->
+      dma-put4 base pos 108 105 110 107
+    12 ->
+      dma-put8 base pos 108 111 99 97 116 105 111 110
+    13 ->
+      let p1 = dma-put4 base pos 114 101 102 101 in
+      let p2 = dma-put2 base p1 114 101 in
+      dma-put1 base p2 114
+    14 ->
+      let p1 = dma-put8 base pos 115 101 116 45 99 111 111 107 in
+      dma-put2 base p1 105 101
+    15 ->
+      let p1 = dma-put4 base pos 58 109 101 116 in
+      let p2 = dma-put2 base p1 104 111 in
+      dma-put1 base p2 100
+    22 ->
+      let p1 = dma-put4 base pos 58 115 99 104 in
+      let p2 = dma-put2 base p1 101 109 in
+      dma-put1 base p2 101
+    24 ->
+      let p1 = dma-put4 base pos 58 115 116 97 in
+      let p2 = dma-put2 base p1 116 117 in
+      dma-put1 base p2 115
+    29 ->
+      let p1 = dma-put4 base pos 97 99 99 101 in
+      dma-put2 base p1 112 116
+    31 ->
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 101 in
+      let p2 = dma-put4 base p1 110 99 111 100 in
+      let p3 = dma-put2 base p2 105 110 in
+      dma-put1 base p3 103
+    32 ->
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 114 in
+      let p2 = dma-put4 base p1 97 110 103 101 in
+      dma-put1 base p2 115
+    33 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 97 in
+      let p3 = dma-put8 base p2 108 108 111 119 45 104 101 97 in
+      dma-put4 base p3 100 101 114 115
+    35 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 97 in
+      let p3 = dma-put8 base p2 108 108 111 119 45 111 114 105 in
+      let p4 = dma-put2 base p3 103 105 in
+      dma-put1 base p4 110
+    36 ->
+      let p1 = dma-put8 base pos 99 97 99 104 101 45 99 111 in
+      let p2 = dma-put4 base p1 110 116 114 111 in
+      dma-put1 base p2 108
+    42 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put8 base p1 101 110 99 111 100 105 110 103
+    44 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put4 base p1 116 121 112 101
+    other -> pos
+
+  #[no-alloc]
+  write-name-unchecked-hi :: U8 -> I64 -> U32 ->{MVar} U32
+  write-name-unchecked-hi cidx base pos = case cidx of
+    55 ->
+      let p1 = dma-put4 base pos 114 97 110 103 in
+      dma-put1 base p1 101
+    56 ->
+      let p1 = dma-put8 base pos 115 116 114 105 99 116 45 116 in
+      let p2 = dma-put8 base p1 114 97 110 115 112 111 114 116 in
+      let p3 = dma-put8 base p2 45 115 101 99 117 114 105 116 in
+      dma-put1 base p3 121
+    59 ->
+      dma-put4 base pos 118 97 114 121
+    61 ->
+      let p1 = dma-put8 base pos 120 45 99 111 110 116 101 110 in
+      let p2 = dma-put8 base p1 116 45 116 121 112 101 45 111 in
+      let p3 = dma-put4 base p2 112 116 105 111 in
+      dma-put2 base p3 110 115
+    62 ->
+      let p1 = dma-put8 base pos 120 45 120 115 115 45 112 114 in
+      dma-put8 base p1 111 116 101 99 116 105 111 110
+    72 ->
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 108 in
+      let p2 = dma-put4 base p1 97 110 103 117 in
+      let p3 = dma-put2 base p2 97 103 in
+      dma-put1 base p3 101
+    73 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 97 in
+      let p3 = dma-put8 base p2 108 108 111 119 45 99 114 101 in
+      dma-put8 base p3 100 101 110 116 105 97 108 115
+    76 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 97 in
+      let p3 = dma-put8 base p2 108 108 111 119 45 109 101 116 in
+      dma-put4 base p3 104 111 100 115
+    79 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 101 in
+      let p3 = dma-put8 base p2 120 112 111 115 101 45 104 101 in
+      let p4 = dma-put4 base p3 97 100 101 114 in
+      dma-put1 base p4 115
+    80 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 114 in
+      let p3 = dma-put8 base p2 101 113 117 101 115 116 45 104 in
+      let p4 = dma-put4 base p3 101 97 100 101 in
+      dma-put2 base p4 114 115
+    81 ->
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 114 in
+      let p3 = dma-put8 base p2 101 113 117 101 115 116 45 109 in
+      let p4 = dma-put4 base p3 101 116 104 111 in
+      dma-put1 base p4 100
+    83 ->
+      let p1 = dma-put4 base pos 97 108 116 45 in
+      let p2 = dma-put2 base p1 115 118 in
+      dma-put1 base p2 99
+    84 ->
+      let p1 = dma-put8 base pos 97 117 116 104 111 114 105 122 in
+      let p2 = dma-put4 base p1 97 116 105 111 in
+      dma-put1 base p2 110
+    85 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put8 base p1 115 101 99 117 114 105 116 121 in
+      let p3 = dma-put4 base p2 45 112 111 108 in
+      let p4 = dma-put2 base p3 105 99 in
+      dma-put1 base p4 121
+    86 ->
+      let p1 = dma-put8 base pos 101 97 114 108 121 45 100 97 in
+      dma-put2 base p1 116 97
+    87 ->
+      let p1 = dma-put8 base pos 101 120 112 101 99 116 45 99 in
+      dma-put1 base p1 116
+    88 ->
+      let p1 = dma-put8 base pos 102 111 114 119 97 114 100 101 in
+      dma-put1 base p1 100
+    89 ->
+      dma-put8 base pos 105 102 45 114 97 110 103 101
+    90 ->
+      let p1 = dma-put4 base pos 111 114 105 103 in
+      dma-put2 base p1 105 110
+    91 ->
+      let p1 = dma-put4 base pos 112 117 114 112 in
+      let p2 = dma-put2 base p1 111 115 in
+      dma-put1 base p2 101
+    92 ->
+      let p1 = dma-put4 base pos 115 101 114 118 in
+      dma-put2 base p1 101 114
+    93 ->
+      let p1 = dma-put8 base pos 116 105 109 105 110 103 45 97 in
+      let p2 = dma-put8 base p1 108 108 111 119 45 111 114 105 in
+      let p3 = dma-put2 base p2 103 105 in
+      dma-put1 base p3 110
+    94 ->
+      let p1 = dma-put8 base pos 117 112 103 114 97 100 101 45 in
+      let p2 = dma-put8 base p1 105 110 115 101 99 117 114 101 in
+      let p3 = dma-put8 base p2 45 114 101 113 117 101 115 116 in
+      dma-put1 base p3 115
+    95 ->
+      let p1 = dma-put8 base pos 117 115 101 114 45 97 103 101 in
+      dma-put2 base p1 110 116
+    96 ->
+      let p1 = dma-put8 base pos 120 45 102 111 114 119 97 114 in
+      let p2 = dma-put4 base p1 100 101 100 45 in
+      let p3 = dma-put2 base p2 102 111 in
+      dma-put1 base p3 114
+    97 ->
+      let p1 = dma-put8 base pos 120 45 102 114 97 109 101 45 in
+      let p2 = dma-put4 base p1 111 112 116 105 in
+      let p3 = dma-put2 base p2 111 110 in
+      dma-put1 base p3 115
+    other -> pos
+
+  -- | Write the static header name for `idx` (`0..98`) into DMA `[base+pos, base+cap)`.
+  -- Returns new `pos`, or `cap + 1` on invalid index or buffer overflow.
+  #[no-alloc]
+  qpack-static-write-name-dma :: U8 -> I64 -> U32 -> U32 ->{MVar} U32
+  qpack-static-write-name-dma idx base pos cap =
+    if ge-u8 idx qpack-static-count then wrapping-add-u32 cap 1
+    else
+      let need = qpack-static-name-len idx in
+      if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+      else
+        let cidx = static-canon-name-idx idx in
+        if lt-u8 cidx 50 then write-name-unchecked-lo cidx base pos
+        else write-name-unchecked-hi cidx base pos
+
+  #[no-alloc]
+  write-val-unchecked-lo :: U8 -> I64 -> U32 ->{MVar} U32
+  write-val-unchecked-lo idx base pos = case idx of
+    1 ->
+      dma-put1 base pos 47
+    2 ->
+      dma-put1 base pos 48
+    4 ->
+      dma-put1 base pos 48
+    15 ->
+      let p1 = dma-put4 base pos 67 79 78 78 in
+      let p2 = dma-put2 base p1 69 67 in
+      dma-put1 base p2 84
+    16 ->
+      let p1 = dma-put4 base pos 68 69 76 69 in
+      dma-put2 base p1 84 69
+    17 ->
+      let p1 = dma-put2 base pos 71 69 in
+      dma-put1 base p1 84
+    18 ->
+      dma-put4 base pos 72 69 65 68
+    19 ->
+      let p1 = dma-put4 base pos 79 80 84 73 in
+      let p2 = dma-put2 base p1 79 78 in
+      dma-put1 base p2 83
+    20 ->
+      dma-put4 base pos 80 79 83 84
+    21 ->
+      let p1 = dma-put2 base pos 80 85 in
+      dma-put1 base p1 84
+    22 ->
+      dma-put4 base pos 104 116 116 112
+    23 ->
+      let p1 = dma-put4 base pos 104 116 116 112 in
+      dma-put1 base p1 115
+    24 ->
+      let p1 = dma-put2 base pos 49 48 in
+      dma-put1 base p1 51
+    25 ->
+      let p1 = dma-put2 base pos 50 48 in
+      dma-put1 base p1 48
+    26 ->
+      let p1 = dma-put2 base pos 51 48 in
+      dma-put1 base p1 52
+    27 ->
+      let p1 = dma-put2 base pos 52 48 in
+      dma-put1 base p1 52
+    28 ->
+      let p1 = dma-put2 base pos 53 48 in
+      dma-put1 base p1 51
+    29 ->
+      let p1 = dma-put2 base pos 42 47 in
+      dma-put1 base p1 42
+    30 ->
+      let p1 = dma-put8 base pos 97 112 112 108 105 99 97 116 in
+      let p2 = dma-put8 base p1 105 111 110 47 100 110 115 45 in
+      let p3 = dma-put4 base p2 109 101 115 115 in
+      let p4 = dma-put2 base p3 97 103 in
+      dma-put1 base p4 101
+    31 ->
+      let p1 = dma-put8 base pos 103 122 105 112 44 32 100 101 in
+      let p2 = dma-put8 base p1 102 108 97 116 101 44 32 98 in
+      dma-put1 base p2 114
+    32 ->
+      let p1 = dma-put4 base pos 98 121 116 101 in
+      dma-put1 base p1 115
+    33 ->
+      let p1 = dma-put8 base pos 99 97 99 104 101 45 99 111 in
+      let p2 = dma-put4 base p1 110 116 114 111 in
+      dma-put1 base p2 108
+    34 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put4 base p1 116 121 112 101
+    35 ->
+      dma-put1 base pos 42
+    36 ->
+      let p1 = dma-put8 base pos 109 97 120 45 97 103 101 61 in
+      dma-put1 base p1 48
+    37 ->
+      let p1 = dma-put8 base pos 109 97 120 45 97 103 101 61 in
+      let p2 = dma-put4 base p1 50 53 57 50 in
+      let p3 = dma-put2 base p2 48 48 in
+      dma-put1 base p3 48
+    38 ->
+      let p1 = dma-put8 base pos 109 97 120 45 97 103 101 61 in
+      let p2 = dma-put4 base p1 54 48 52 56 in
+      dma-put2 base p2 48 48
+    39 ->
+      dma-put8 base pos 110 111 45 99 97 99 104 101
+    40 ->
+      dma-put8 base pos 110 111 45 115 116 111 114 101
+    41 ->
+      let p1 = dma-put8 base pos 112 117 98 108 105 99 44 32 in
+      let p2 = dma-put8 base p1 109 97 120 45 97 103 101 61 in
+      dma-put8 base p2 51 49 53 51 54 48 48 48
+    42 ->
+      dma-put2 base pos 98 114
+    43 ->
+      dma-put4 base pos 103 122 105 112
+    44 ->
+      let p1 = dma-put8 base pos 97 112 112 108 105 99 97 116 in
+      let p2 = dma-put8 base p1 105 111 110 47 100 110 115 45 in
+      let p3 = dma-put4 base p2 109 101 115 115 in
+      let p4 = dma-put2 base p3 97 103 in
+      dma-put1 base p4 101
+    45 ->
+      let p1 = dma-put8 base pos 97 112 112 108 105 99 97 116 in
+      let p2 = dma-put8 base p1 105 111 110 47 106 97 118 97 in
+      let p3 = dma-put4 base p2 115 99 114 105 in
+      dma-put2 base p3 112 116
+    46 ->
+      let p1 = dma-put8 base pos 97 112 112 108 105 99 97 116 in
+      dma-put8 base p1 105 111 110 47 106 115 111 110
+    47 ->
+      let p1 = dma-put8 base pos 97 112 112 108 105 99 97 116 in
+      let p2 = dma-put8 base p1 105 111 110 47 120 45 119 119 in
+      let p3 = dma-put8 base p2 119 45 102 111 114 109 45 117 in
+      let p4 = dma-put8 base p3 114 108 101 110 99 111 100 101 in
+      dma-put1 base p4 100
+    48 ->
+      let p1 = dma-put8 base pos 105 109 97 103 101 47 103 105 in
+      dma-put1 base p1 102
+    49 ->
+      let p1 = dma-put8 base pos 105 109 97 103 101 47 106 112 in
+      dma-put2 base p1 101 103
+    other -> pos
+
+  #[no-alloc]
+  write-val-unchecked-hi :: U8 -> I64 -> U32 ->{MVar} U32
+  write-val-unchecked-hi idx base pos = case idx of
+    50 ->
+      let p1 = dma-put8 base pos 105 109 97 103 101 47 112 110 in
+      dma-put1 base p1 103
+    51 ->
+      dma-put8 base pos 116 101 120 116 47 99 115 115
+    52 ->
+      let p1 = dma-put8 base pos 116 101 120 116 47 104 116 109 in
+      let p2 = dma-put8 base p1 108 59 32 99 104 97 114 115 in
+      dma-put8 base p2 101 116 61 117 116 102 45 56
+    53 ->
+      let p1 = dma-put8 base pos 116 101 120 116 47 112 108 97 in
+      dma-put2 base p1 105 110
+    54 ->
+      let p1 = dma-put8 base pos 116 101 120 116 47 112 108 97 in
+      let p2 = dma-put8 base p1 105 110 59 99 104 97 114 115 in
+      dma-put8 base p2 101 116 61 117 116 102 45 56
+    55 ->
+      dma-put8 base pos 98 121 116 101 115 61 48 45
+    56 ->
+      let p1 = dma-put8 base pos 109 97 120 45 97 103 101 61 in
+      dma-put8 base p1 51 49 53 51 54 48 48 48
+    57 ->
+      let p1 = dma-put8 base pos 109 97 120 45 97 103 101 61 in
+      let p2 = dma-put8 base p1 51 49 53 51 54 48 48 48 in
+      let p3 = dma-put8 base p2 59 32 105 110 99 108 117 100 in
+      let p4 = dma-put8 base p3 101 115 117 98 100 111 109 97 in
+      let p5 = dma-put2 base p4 105 110 in
+      dma-put1 base p5 115
+    58 ->
+      let p1 = dma-put8 base pos 109 97 120 45 97 103 101 61 in
+      let p2 = dma-put8 base p1 51 49 53 51 54 48 48 48 in
+      let p3 = dma-put8 base p2 59 32 105 110 99 108 117 100 in
+      let p4 = dma-put8 base p3 101 115 117 98 100 111 109 97 in
+      let p5 = dma-put8 base p4 105 110 115 59 32 112 114 101 in
+      dma-put4 base p5 108 111 97 100
+    59 ->
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 101 in
+      let p2 = dma-put4 base p1 110 99 111 100 in
+      let p3 = dma-put2 base p2 105 110 in
+      dma-put1 base p3 103
+    60 ->
+      let p1 = dma-put4 base pos 111 114 105 103 in
+      dma-put2 base p1 105 110
+    61 ->
+      let p1 = dma-put4 base pos 110 111 115 110 in
+      let p2 = dma-put2 base p1 105 102 in
+      dma-put1 base p2 102
+    62 ->
+      let p1 = dma-put8 base pos 49 59 32 109 111 100 101 61 in
+      let p2 = dma-put4 base p1 98 108 111 99 in
+      dma-put1 base p2 107
+    63 ->
+      let p1 = dma-put2 base pos 49 48 in
+      dma-put1 base p1 48
+    64 ->
+      let p1 = dma-put2 base pos 50 48 in
+      dma-put1 base p1 52
+    65 ->
+      let p1 = dma-put2 base pos 50 48 in
+      dma-put1 base p1 54
+    66 ->
+      let p1 = dma-put2 base pos 51 48 in
+      dma-put1 base p1 50
+    67 ->
+      let p1 = dma-put2 base pos 52 48 in
+      dma-put1 base p1 48
+    68 ->
+      let p1 = dma-put2 base pos 52 48 in
+      dma-put1 base p1 51
+    69 ->
+      let p1 = dma-put2 base pos 52 50 in
+      dma-put1 base p1 49
+    70 ->
+      let p1 = dma-put2 base pos 52 50 in
+      dma-put1 base p1 53
+    71 ->
+      let p1 = dma-put2 base pos 53 48 in
+      dma-put1 base p1 48
+    73 ->
+      let p1 = dma-put4 base pos 70 65 76 83 in
+      dma-put1 base p1 69
+    74 ->
+      dma-put4 base pos 84 82 85 69
+    75 ->
+      dma-put1 base pos 42
+    76 ->
+      let p1 = dma-put2 base pos 103 101 in
+      dma-put1 base p1 116
+    77 ->
+      let p1 = dma-put8 base pos 103 101 116 44 32 112 111 115 in
+      let p2 = dma-put8 base p1 116 44 32 111 112 116 105 111 in
+      dma-put2 base p2 110 115
+    78 ->
+      let p1 = dma-put4 base pos 111 112 116 105 in
+      let p2 = dma-put2 base p1 111 110 in
+      dma-put1 base p2 115
+    79 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put4 base p1 108 101 110 103 in
+      dma-put2 base p2 116 104
+    80 ->
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put4 base p1 116 121 112 101
+    81 ->
+      let p1 = dma-put2 base pos 103 101 in
+      dma-put1 base p1 116
+    82 ->
+      dma-put4 base pos 112 111 115 116
+    83 ->
+      let p1 = dma-put4 base pos 99 108 101 97 in
+      dma-put1 base p1 114
+    85 ->
+      let p1 = dma-put8 base pos 115 99 114 105 112 116 45 115 in
+      let p2 = dma-put8 base p1 114 99 32 39 110 111 110 101 in
+      let p3 = dma-put8 base p2 39 59 32 111 98 106 101 99 in
+      let p4 = dma-put8 base p3 116 45 115 114 99 32 39 110 in
+      let p5 = dma-put8 base p4 111 110 101 39 59 32 98 97 in
+      let p6 = dma-put8 base p5 115 101 45 117 114 105 32 39 in
+      let p7 = dma-put4 base p6 110 111 110 101 in
+      dma-put1 base p7 39
+    86 ->
+      dma-put1 base pos 49
+    91 ->
+      dma-put8 base pos 112 114 101 102 101 116 99 104
+    93 ->
+      dma-put1 base pos 42
+    94 ->
+      dma-put1 base pos 49
+    97 ->
+      dma-put4 base pos 100 101 110 121
+    98 ->
+      let p1 = dma-put8 base pos 115 97 109 101 111 114 105 103 in
+      dma-put2 base p1 105 110
+    other -> pos
+
+  -- | Write the static header value for `idx` (`0..98`) into DMA `[base+pos, base+cap)`.
+  -- Returns new `pos`, or `cap + 1` on invalid index or buffer overflow.
+  #[no-alloc]
+  qpack-static-write-value-dma :: U8 -> I64 -> U32 -> U32 ->{MVar} U32
+  qpack-static-write-value-dma idx base pos cap =
+    if ge-u8 idx qpack-static-count then wrapping-add-u32 cap 1
+    else
+      let need = qpack-static-value-len idx in
+      if eq-u32 need 0 then pos
+      else if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+      else if lt-u8 idx 50 then write-val-unchecked-lo idx base pos
+      else write-val-unchecked-hi idx base pos
+
+  -- =========================================================================
+  -- 3. O(1) DMA Name & Exact (Name + Value) Matchers
+  -- =========================================================================
+
+  -- Match the 17 QPACK-only static header names not present in `KnownHeader`.
+  #[no-alloc]
+  match-qpack-only-name-dma :: I64 -> U32 ->{MVar} U8
+  match-qpack-only-name-dma addr len = case len of
+    7 ->
+      if (both (both (dma-ci4 addr 0 112 117 114 112) (dma-ci2 addr 4 111 115)) (dma-ci1 addr 6 101)) then 91
+      else qpack-static-none
+    9 ->
+      if (both (dma-ci8 addr 0 101 120 112 101 99 116 45 99) (dma-ci1 addr 8 116)) then 87
+      else if (both (dma-ci8 addr 0 102 111 114 119 97 114 100 101) (dma-ci1 addr 8 100)) then 88
+      else qpack-static-none
+    10 ->
+      if (both (dma-ci8 addr 0 101 97 114 108 121 45 100 97) (dma-ci2 addr 8 116 97)) then 86
+      else qpack-static-none
+    15 ->
+      if (both (both (both (dma-ci8 addr 0 120 45 102 111 114 119 97 114) (dma-ci4 addr 8 100 101 100 45)) (dma-ci2 addr 12 102 111)) (dma-ci1 addr 14 114)) then 96
+      else if (both (both (both (dma-ci8 addr 0 120 45 102 114 97 109 101 45) (dma-ci4 addr 8 111 112 116 105)) (dma-ci2 addr 12 111 110)) (dma-ci1 addr 14 115)) then 97
+      else qpack-static-none
+    16 ->
+      if (both (dma-ci8 addr 0 120 45 120 115 115 45 112 114) (dma-ci8 addr 8 111 116 101 99 116 105 111 110)) then 62
+      else qpack-static-none
+    19 ->
+      if (both (both (both (dma-ci8 addr 0 116 105 109 105 110 103 45 97) (dma-ci8 addr 8 108 108 111 119 45 111 114 105)) (dma-ci2 addr 16 103 105)) (dma-ci1 addr 18 110)) then 93
+      else qpack-static-none
+    22 ->
+      if (both (both (both (dma-ci8 addr 0 120 45 99 111 110 116 101 110) (dma-ci8 addr 8 116 45 116 121 112 101 45 111)) (dma-ci4 addr 16 112 116 105 111)) (dma-ci2 addr 20 110 115)) then 61
+      else qpack-static-none
+    23 ->
+      if (both (both (both (both (dma-ci8 addr 0 99 111 110 116 101 110 116 45) (dma-ci8 addr 8 115 101 99 117 114 105 116 121)) (dma-ci4 addr 16 45 112 111 108)) (dma-ci2 addr 20 105 99)) (dma-ci1 addr 22 121)) then 85
+      else qpack-static-none
+    25 ->
+      if (both (both (both (dma-ci8 addr 0 117 112 103 114 97 100 101 45) (dma-ci8 addr 8 105 110 115 101 99 117 114 101)) (dma-ci8 addr 16 45 114 101 113 117 101 115 116)) (dma-ci1 addr 24 115)) then 94
+      else qpack-static-none
+    28 ->
+      if (both (both (both (dma-ci8 addr 0 97 99 99 101 115 115 45 99) (dma-ci8 addr 8 111 110 116 114 111 108 45 97)) (dma-ci8 addr 16 108 108 111 119 45 104 101 97)) (dma-ci4 addr 24 100 101 114 115)) then 33
+      else if (both (both (both (dma-ci8 addr 0 97 99 99 101 115 115 45 99) (dma-ci8 addr 8 111 110 116 114 111 108 45 97)) (dma-ci8 addr 16 108 108 111 119 45 109 101 116)) (dma-ci4 addr 24 104 111 100 115)) then 76
+      else qpack-static-none
+    29 ->
+      if (both (both (both (both (dma-ci8 addr 0 97 99 99 101 115 115 45 99) (dma-ci8 addr 8 111 110 116 114 111 108 45 101)) (dma-ci8 addr 16 120 112 111 115 101 45 104 101)) (dma-ci4 addr 24 97 100 101 114)) (dma-ci1 addr 28 115)) then 79
+      else if (both (both (both (both (dma-ci8 addr 0 97 99 99 101 115 115 45 99) (dma-ci8 addr 8 111 110 116 114 111 108 45 114)) (dma-ci8 addr 16 101 113 117 101 115 116 45 109)) (dma-ci4 addr 24 101 116 104 111)) (dma-ci1 addr 28 100)) then 81
+      else qpack-static-none
+    30 ->
+      if (both (both (both (both (dma-ci8 addr 0 97 99 99 101 115 115 45 99) (dma-ci8 addr 8 111 110 116 114 111 108 45 114)) (dma-ci8 addr 16 101 113 117 101 115 116 45 104)) (dma-ci4 addr 24 101 97 100 101)) (dma-ci2 addr 28 114 115)) then 80
+      else qpack-static-none
+    32 ->
+      if (both (both (both (dma-ci8 addr 0 97 99 99 101 115 115 45 99) (dma-ci8 addr 8 111 110 116 114 111 108 45 97)) (dma-ci8 addr 16 108 108 111 119 45 99 114 101)) (dma-ci8 addr 24 100 101 110 116 105 97 108 115)) then 73
+      else qpack-static-none
+    other -> qpack-static-none
+
+  -- | Match an ASCII header name at raw DMA `[addr, addr + len)` case-insensitively
+  -- across all 52 distinct header names in the RFC 9204 static table.
+  -- Returns the canonical first QPACK static index (`0..98`), or `255` if absent.
+  #[no-alloc]
+  qpack-static-match-name-dma :: I64 -> U32 ->{MVar} U8
+  qpack-static-match-name-dma addr len =
+    let kh = known-header-match-dma addr len in
+    if ne-u8 kh hdr-unknown then known-header-qpack-index kh
+    else match-qpack-only-name-dma addr len
+
+  -- Exact value matcher for `:status` (entries 24..28, 63..71, all length 3).
+  #[no-alloc]
+  match-status-val-dma :: I64 -> U32 ->{MVar} U8
+  match-status-val-dma addr len =
+    if ne-u32 len 3 then qpack-static-none
+    else
+      let b0 = raw-load-u8 addr in
+      let b1 = raw-load-u8 (wrapping-add-i64 addr 1) in
+      let b2 = raw-load-u8 (wrapping-add-i64 addr 2) in
+      if eq-u8 b0 50 then
+        if eq-u8 b1 48 then
+          if eq-u8 b2 48 then 25
+          else if eq-u8 b2 52 then 64
+          else if eq-u8 b2 54 then 65
+          else qpack-static-none
+        else qpack-static-none
+      else if eq-u8 b0 51 then
+        if eq-u8 b1 48 then
+          if eq-u8 b2 52 then 26
+          else if eq-u8 b2 50 then 66
+          else qpack-static-none
+        else qpack-static-none
+      else if eq-u8 b0 52 then
+        if eq-u8 b1 48 then
+          if eq-u8 b2 52 then 27
+          else if eq-u8 b2 48 then 67
+          else if eq-u8 b2 51 then 68
+          else qpack-static-none
+        else if eq-u8 b1 50 then
+          if eq-u8 b2 49 then 69
+          else if eq-u8 b2 53 then 70
+          else qpack-static-none
+        else qpack-static-none
+      else if eq-u8 b0 53 then
+        if eq-u8 b1 48 then
+          if eq-u8 b2 48 then 71
+          else if eq-u8 b2 51 then 28
+          else qpack-static-none
+        else qpack-static-none
+      else if eq-u8 b0 49 then
+        if eq-u8 b1 48 then
+          if eq-u8 b2 48 then 63
+          else if eq-u8 b2 51 then 24
+          else qpack-static-none
+        else qpack-static-none
+      else qpack-static-none
+
+  -- | Given any valid QPACK static index `name-idx` (`0..98`) identifying the
+  -- header name, match the exact case-sensitive value at `[val-addr, val-addr + val-len)`
+  -- across all 99 RFC 9204 static entries. Returns exact index `0..98` or `255`.
+  #[no-alloc]
+  qpack-static-match-exact-by-name-dma :: U8 -> I64 -> U32 ->{MVar} U8
+  qpack-static-match-exact-by-name-dma name-idx addr len =
+    let cidx = static-canon-name-idx name-idx in
+    case cidx of
+      0 -> if eq-u32 len 0 then 0 else qpack-static-none
+      1 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 47) then 1 else qpack-static-none
+        else qpack-static-none
+      2 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 48) then 2 else qpack-static-none
+        else qpack-static-none
+      3 -> if eq-u32 len 0 then 3 else qpack-static-none
+      4 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 48) then 4 else qpack-static-none
+        else qpack-static-none
+      5 -> if eq-u32 len 0 then 5 else qpack-static-none
+      6 -> if eq-u32 len 0 then 6 else qpack-static-none
+      7 -> if eq-u32 len 0 then 7 else qpack-static-none
+      8 -> if eq-u32 len 0 then 8 else qpack-static-none
+      9 -> if eq-u32 len 0 then 9 else qpack-static-none
+      10 -> if eq-u32 len 0 then 10 else qpack-static-none
+      11 -> if eq-u32 len 0 then 11 else qpack-static-none
+      12 -> if eq-u32 len 0 then 12 else qpack-static-none
+      13 -> if eq-u32 len 0 then 13 else qpack-static-none
+      14 -> if eq-u32 len 0 then 14 else qpack-static-none
+      15 ->
+        if eq-u32 len 3 then
+          if (both (dma-ex2 addr 0 71 69) (dma-ex1 addr 2 84)) then 17
+          else if (both (dma-ex2 addr 0 80 85) (dma-ex1 addr 2 84)) then 21
+          else qpack-static-none
+        else if eq-u32 len 4 then
+          if (dma-ex4 addr 0 72 69 65 68) then 18
+          else if (dma-ex4 addr 0 80 79 83 84) then 20
+          else qpack-static-none
+        else if eq-u32 len 6 then
+          if (both (dma-ex4 addr 0 68 69 76 69) (dma-ex2 addr 4 84 69)) then 16 else qpack-static-none
+        else if eq-u32 len 7 then
+          if (both (both (dma-ex4 addr 0 67 79 78 78) (dma-ex2 addr 4 69 67)) (dma-ex1 addr 6 84)) then 15
+          else if (both (both (dma-ex4 addr 0 79 80 84 73) (dma-ex2 addr 4 79 78)) (dma-ex1 addr 6 83)) then 19
+          else qpack-static-none
+        else qpack-static-none
+      22 ->
+        if eq-u32 len 4 then
+          if (dma-ex4 addr 0 104 116 116 112) then 22 else qpack-static-none
+        else if eq-u32 len 5 then
+          if (both (dma-ex4 addr 0 104 116 116 112) (dma-ex1 addr 4 115)) then 23 else qpack-static-none
+        else qpack-static-none
+      24 -> match-status-val-dma addr len
+      29 ->
+        if eq-u32 len 3 then
+          if (both (dma-ex2 addr 0 42 47) (dma-ex1 addr 2 42)) then 29 else qpack-static-none
+        else if eq-u32 len 23 then
+          if (both (both (both (both (dma-ex8 addr 0 97 112 112 108 105 99 97 116) (dma-ex8 addr 8 105 111 110 47 100 110 115 45)) (dma-ex4 addr 16 109 101 115 115)) (dma-ex2 addr 20 97 103)) (dma-ex1 addr 22 101)) then 30 else qpack-static-none
+        else qpack-static-none
+      31 ->
+        if eq-u32 len 17 then
+          if (both (both (dma-ex8 addr 0 103 122 105 112 44 32 100 101) (dma-ex8 addr 8 102 108 97 116 101 44 32 98)) (dma-ex1 addr 16 114)) then 31 else qpack-static-none
+        else qpack-static-none
+      32 ->
+        if eq-u32 len 5 then
+          if (both (dma-ex4 addr 0 98 121 116 101) (dma-ex1 addr 4 115)) then 32 else qpack-static-none
+        else qpack-static-none
+      33 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 42) then 75 else qpack-static-none
+        else if eq-u32 len 12 then
+          if (both (dma-ex8 addr 0 99 111 110 116 101 110 116 45) (dma-ex4 addr 8 116 121 112 101)) then 34 else qpack-static-none
+        else if eq-u32 len 13 then
+          if (both (both (dma-ex8 addr 0 99 97 99 104 101 45 99 111) (dma-ex4 addr 8 110 116 114 111)) (dma-ex1 addr 12 108)) then 33 else qpack-static-none
+        else qpack-static-none
+      35 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 42) then 35 else qpack-static-none
+        else qpack-static-none
+      36 ->
+        if eq-u32 len 8 then
+          if (dma-ex8 addr 0 110 111 45 99 97 99 104 101) then 39
+          else if (dma-ex8 addr 0 110 111 45 115 116 111 114 101) then 40
+          else qpack-static-none
+        else if eq-u32 len 9 then
+          if (both (dma-ex8 addr 0 109 97 120 45 97 103 101 61) (dma-ex1 addr 8 48)) then 36 else qpack-static-none
+        else if eq-u32 len 14 then
+          if (both (both (dma-ex8 addr 0 109 97 120 45 97 103 101 61) (dma-ex4 addr 8 54 48 52 56)) (dma-ex2 addr 12 48 48)) then 38 else qpack-static-none
+        else if eq-u32 len 15 then
+          if (both (both (both (dma-ex8 addr 0 109 97 120 45 97 103 101 61) (dma-ex4 addr 8 50 53 57 50)) (dma-ex2 addr 12 48 48)) (dma-ex1 addr 14 48)) then 37 else qpack-static-none
+        else if eq-u32 len 24 then
+          if (both (both (dma-ex8 addr 0 112 117 98 108 105 99 44 32) (dma-ex8 addr 8 109 97 120 45 97 103 101 61)) (dma-ex8 addr 16 51 49 53 51 54 48 48 48)) then 41 else qpack-static-none
+        else qpack-static-none
+      42 ->
+        if eq-u32 len 2 then
+          if (dma-ex2 addr 0 98 114) then 42 else qpack-static-none
+        else if eq-u32 len 4 then
+          if (dma-ex4 addr 0 103 122 105 112) then 43 else qpack-static-none
+        else qpack-static-none
+      44 ->
+        if eq-u32 len 8 then
+          if (dma-ex8 addr 0 116 101 120 116 47 99 115 115) then 51 else qpack-static-none
+        else if eq-u32 len 9 then
+          if (both (dma-ex8 addr 0 105 109 97 103 101 47 103 105) (dma-ex1 addr 8 102)) then 48
+          else if (both (dma-ex8 addr 0 105 109 97 103 101 47 112 110) (dma-ex1 addr 8 103)) then 50
+          else qpack-static-none
+        else if eq-u32 len 10 then
+          if (both (dma-ex8 addr 0 105 109 97 103 101 47 106 112) (dma-ex2 addr 8 101 103)) then 49
+          else if (both (dma-ex8 addr 0 116 101 120 116 47 112 108 97) (dma-ex2 addr 8 105 110)) then 53
+          else qpack-static-none
+        else if eq-u32 len 16 then
+          if (both (dma-ex8 addr 0 97 112 112 108 105 99 97 116) (dma-ex8 addr 8 105 111 110 47 106 115 111 110)) then 46 else qpack-static-none
+        else if eq-u32 len 22 then
+          if (both (both (both (dma-ex8 addr 0 97 112 112 108 105 99 97 116) (dma-ex8 addr 8 105 111 110 47 106 97 118 97)) (dma-ex4 addr 16 115 99 114 105)) (dma-ex2 addr 20 112 116)) then 45 else qpack-static-none
+        else if eq-u32 len 23 then
+          if (both (both (both (both (dma-ex8 addr 0 97 112 112 108 105 99 97 116) (dma-ex8 addr 8 105 111 110 47 100 110 115 45)) (dma-ex4 addr 16 109 101 115 115)) (dma-ex2 addr 20 97 103)) (dma-ex1 addr 22 101)) then 44 else qpack-static-none
+        else if eq-u32 len 24 then
+          if (both (both (dma-ex8 addr 0 116 101 120 116 47 104 116 109) (dma-ex8 addr 8 108 59 32 99 104 97 114 115)) (dma-ex8 addr 16 101 116 61 117 116 102 45 56)) then 52
+          else if (both (both (dma-ex8 addr 0 116 101 120 116 47 112 108 97) (dma-ex8 addr 8 105 110 59 99 104 97 114 115)) (dma-ex8 addr 16 101 116 61 117 116 102 45 56)) then 54
+          else qpack-static-none
+        else if eq-u32 len 33 then
+          if (both (both (both (both (dma-ex8 addr 0 97 112 112 108 105 99 97 116) (dma-ex8 addr 8 105 111 110 47 120 45 119 119)) (dma-ex8 addr 16 119 45 102 111 114 109 45 117)) (dma-ex8 addr 24 114 108 101 110 99 111 100 101)) (dma-ex1 addr 32 100)) then 47 else qpack-static-none
+        else qpack-static-none
+      55 ->
+        if eq-u32 len 8 then
+          if (dma-ex8 addr 0 98 121 116 101 115 61 48 45) then 55 else qpack-static-none
+        else qpack-static-none
+      56 ->
+        if eq-u32 len 16 then
+          if (both (dma-ex8 addr 0 109 97 120 45 97 103 101 61) (dma-ex8 addr 8 51 49 53 51 54 48 48 48)) then 56 else qpack-static-none
+        else if eq-u32 len 35 then
+          if (both (both (both (both (both (dma-ex8 addr 0 109 97 120 45 97 103 101 61) (dma-ex8 addr 8 51 49 53 51 54 48 48 48)) (dma-ex8 addr 16 59 32 105 110 99 108 117 100)) (dma-ex8 addr 24 101 115 117 98 100 111 109 97)) (dma-ex2 addr 32 105 110)) (dma-ex1 addr 34 115)) then 57 else qpack-static-none
+        else if eq-u32 len 44 then
+          if (both (both (both (both (both (dma-ex8 addr 0 109 97 120 45 97 103 101 61) (dma-ex8 addr 8 51 49 53 51 54 48 48 48)) (dma-ex8 addr 16 59 32 105 110 99 108 117 100)) (dma-ex8 addr 24 101 115 117 98 100 111 109 97)) (dma-ex8 addr 32 105 110 115 59 32 112 114 101)) (dma-ex4 addr 40 108 111 97 100)) then 58 else qpack-static-none
+        else qpack-static-none
+      59 ->
+        if eq-u32 len 6 then
+          if (both (dma-ex4 addr 0 111 114 105 103) (dma-ex2 addr 4 105 110)) then 60 else qpack-static-none
+        else if eq-u32 len 15 then
+          if (both (both (both (dma-ex8 addr 0 97 99 99 101 112 116 45 101) (dma-ex4 addr 8 110 99 111 100)) (dma-ex2 addr 12 105 110)) (dma-ex1 addr 14 103)) then 59 else qpack-static-none
+        else qpack-static-none
+      61 ->
+        if eq-u32 len 7 then
+          if (both (both (dma-ex4 addr 0 110 111 115 110) (dma-ex2 addr 4 105 102)) (dma-ex1 addr 6 102)) then 61 else qpack-static-none
+        else qpack-static-none
+      62 ->
+        if eq-u32 len 13 then
+          if (both (both (dma-ex8 addr 0 49 59 32 109 111 100 101 61) (dma-ex4 addr 8 98 108 111 99)) (dma-ex1 addr 12 107)) then 62 else qpack-static-none
+        else qpack-static-none
+      72 -> if eq-u32 len 0 then 72 else qpack-static-none
+      73 ->
+        if eq-u32 len 4 then
+          if (dma-ex4 addr 0 84 82 85 69) then 74 else qpack-static-none
+        else if eq-u32 len 5 then
+          if (both (dma-ex4 addr 0 70 65 76 83) (dma-ex1 addr 4 69)) then 73 else qpack-static-none
+        else qpack-static-none
+      76 ->
+        if eq-u32 len 3 then
+          if (both (dma-ex2 addr 0 103 101) (dma-ex1 addr 2 116)) then 76 else qpack-static-none
+        else if eq-u32 len 7 then
+          if (both (both (dma-ex4 addr 0 111 112 116 105) (dma-ex2 addr 4 111 110)) (dma-ex1 addr 6 115)) then 78 else qpack-static-none
+        else if eq-u32 len 18 then
+          if (both (both (dma-ex8 addr 0 103 101 116 44 32 112 111 115) (dma-ex8 addr 8 116 44 32 111 112 116 105 111)) (dma-ex2 addr 16 110 115)) then 77 else qpack-static-none
+        else qpack-static-none
+      79 ->
+        if eq-u32 len 14 then
+          if (both (both (dma-ex8 addr 0 99 111 110 116 101 110 116 45) (dma-ex4 addr 8 108 101 110 103)) (dma-ex2 addr 12 116 104)) then 79 else qpack-static-none
+        else qpack-static-none
+      80 ->
+        if eq-u32 len 12 then
+          if (both (dma-ex8 addr 0 99 111 110 116 101 110 116 45) (dma-ex4 addr 8 116 121 112 101)) then 80 else qpack-static-none
+        else qpack-static-none
+      81 ->
+        if eq-u32 len 3 then
+          if (both (dma-ex2 addr 0 103 101) (dma-ex1 addr 2 116)) then 81 else qpack-static-none
+        else if eq-u32 len 4 then
+          if (dma-ex4 addr 0 112 111 115 116) then 82 else qpack-static-none
+        else qpack-static-none
+      83 ->
+        if eq-u32 len 5 then
+          if (both (dma-ex4 addr 0 99 108 101 97) (dma-ex1 addr 4 114)) then 83 else qpack-static-none
+        else qpack-static-none
+      84 -> if eq-u32 len 0 then 84 else qpack-static-none
+      85 ->
+        if eq-u32 len 53 then
+          if (both (both (both (both (both (both (both (dma-ex8 addr 0 115 99 114 105 112 116 45 115) (dma-ex8 addr 8 114 99 32 39 110 111 110 101)) (dma-ex8 addr 16 39 59 32 111 98 106 101 99)) (dma-ex8 addr 24 116 45 115 114 99 32 39 110)) (dma-ex8 addr 32 111 110 101 39 59 32 98 97)) (dma-ex8 addr 40 115 101 45 117 114 105 32 39)) (dma-ex4 addr 48 110 111 110 101)) (dma-ex1 addr 52 39)) then 85 else qpack-static-none
+        else qpack-static-none
+      86 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 49) then 86 else qpack-static-none
+        else qpack-static-none
+      87 -> if eq-u32 len 0 then 87 else qpack-static-none
+      88 -> if eq-u32 len 0 then 88 else qpack-static-none
+      89 -> if eq-u32 len 0 then 89 else qpack-static-none
+      90 -> if eq-u32 len 0 then 90 else qpack-static-none
+      91 ->
+        if eq-u32 len 8 then
+          if (dma-ex8 addr 0 112 114 101 102 101 116 99 104) then 91 else qpack-static-none
+        else qpack-static-none
+      92 -> if eq-u32 len 0 then 92 else qpack-static-none
+      93 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 42) then 93 else qpack-static-none
+        else qpack-static-none
+      94 ->
+        if eq-u32 len 1 then
+          if (dma-ex1 addr 0 49) then 94 else qpack-static-none
+        else qpack-static-none
+      95 -> if eq-u32 len 0 then 95 else qpack-static-none
+      96 -> if eq-u32 len 0 then 96 else qpack-static-none
+      97 ->
+        if eq-u32 len 4 then
+          if (dma-ex4 addr 0 100 101 110 121) then 97 else qpack-static-none
+        else if eq-u32 len 10 then
+          if (both (dma-ex8 addr 0 115 97 109 101 111 114 105 103) (dma-ex2 addr 8 105 110)) then 98 else qpack-static-none
+        else qpack-static-none
+      other -> qpack-static-none
+
+  -- | Given a `Net.Http.Types.KnownHeader` ID (`0..60`) and value DMA slice,
+  -- return the exact RFC 9204 static index (`0..98`) or `255`.
+  #[inline(always)]
+  #[no-alloc]
+  qpack-static-match-known-exact-dma :: U8 -> I64 -> U32 ->{MVar} U8
+  qpack-static-match-known-exact-dma known-id val-addr val-len =
+    let name-idx = known-header-qpack-index known-id in
+    if eq-u8 name-idx qpack-static-none then qpack-static-none
+    else qpack-static-match-exact-by-name-dma name-idx val-addr val-len
+
+  -- | Match `(name, value)` DMA slices against the RFC 9204 static table in one call.
+  -- Returns packed `U16`: `(qpack-match-exact << 8) | idx` on exact match,
+  -- `(qpack-match-name << 8) | name-idx` on name-only match, or `0` on miss.
+  #[no-alloc]
+  qpack-static-match-pair-dma :: I64 -> U32 -> I64 -> U32 ->{MVar} U16
+  qpack-static-match-pair-dma name-addr name-len val-addr val-len =
+    let name-idx = qpack-static-match-name-dma name-addr name-len in
+    if eq-u8 name-idx qpack-static-none then 0
+    else
+      let exact-idx = qpack-static-match-exact-by-name-dma name-idx val-addr val-len in
+      if ne-u8 exact-idx qpack-static-none then
+        bit-or-u16 (wrapping-shl-u16 (u8-to-u16 qpack-match-exact) 8) (u8-to-u16 exact-idx)
+      else
+        bit-or-u16 (wrapping-shl-u16 (u8-to-u16 qpack-match-name) 8) (u8-to-u16 name-idx)
